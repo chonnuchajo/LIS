@@ -152,10 +152,14 @@ const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
                           <span className="font-medium text-foreground">{item.aiPercent}%</span>
                         </div>
                       )}
+                      {/* Show Result or Pre-result based on QC status */}
                       {item.preResult !== undefined && (
-                        <div className="mt-2 p-2 rounded-lg bg-lis-stat-green">
-                          <p className="text-xs font-semibold text-lis-stat-green-icon">
-                            📊 Pre-result %AI: <span className="text-sm">{item.preResult}%</span>
+                        <div className={`mt-2 p-2 rounded-lg ${approval?.qcStatus === "approved" || approval?.qcStatus === "rejected" ? "bg-lis-stat-blue" : "bg-lis-stat-green"}`}>
+                          <p className={`text-xs font-semibold ${approval?.qcStatus === "approved" || approval?.qcStatus === "rejected" ? "text-lis-stat-blue-icon" : "text-lis-stat-green-icon"}`}>
+                            {approval?.qcStatus === "approved" || approval?.qcStatus === "rejected"
+                              ? `📊 Result: ${item.preResult}%`
+                              : `📊 Pre-result %AI: ${item.preResult}%`
+                            }
                           </p>
                         </div>
                       )}
@@ -182,7 +186,7 @@ const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
                             )}
                           </div>
                           {approval.qcStatus === "rejected" && approval.qcNote && (
-                            <p className="text-[10px] text-destructive">💡 {approval.qcNote}</p>
+                            <p className="text-[10px] text-destructive font-medium">💡 {approval.qcNote}</p>
                           )}
                         </div>
                       )}
