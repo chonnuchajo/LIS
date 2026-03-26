@@ -8,12 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { sentSamples } from "@/data/mockData";
+import { useSamples } from "@/context/SampleContext";
 import { getStandardForSample } from "@/data/stockData";
 import type { SampleItem } from "@/components/lis/SampleColumn";
 
 interface ReceivedSample {
   runNo: string;
+  sampleId: string;
   name: string;
   receiver: string;
   receivedDate: string;
@@ -33,6 +34,7 @@ const instruments = [
 ];
 
 const SendSample = () => {
+  const { sentSamples, receiveSample } = useSamples();
   const [receivedSamples, setReceivedSamples] = useState<ReceivedSample[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -49,31 +51,27 @@ const SendSample = () => {
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+      if (videoRef.current) videoRef.current.srcObject = stream;
       setScanning(true);
       toast.info("กล้องเปิดแล้ว กรุณาสแกน QR Code");
-
-      // Simulate QR scan after 3 seconds for demo
-      setTimeout(() => {
-        simulateScan();
-      }, 3000);
+      setTimeout(() => simulateScan(), 3000);
     } catch {
-      toast.error("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้กล้อง");
-      // Fallback: simulate scan
+      toast.error("ไม่สามารถเปิดกล้องได้");
       simulateScan();
     }
   };
 
   const simulateScan = () => {
-    // Pick a random sent sample to simulate scanning
-    const randomSample = sentSamples[Math.floor(Math.random() * sentSamples.length)];
-    handleScannedData(randomSample);
+    if (sentSamples.length === 0) {
+      toast.warning("ไม่มีตัวอย่างรอรับเข้าระบบแล้ว");
+      stopCamera();
+      setScannerOpen(false);
+      return;
+    }
+    const sample = sentSamples[0];
+    handleScannedData(sample);
     stopCamera();
     setScannerOpen(false);
   };
@@ -85,6 +83,7 @@ const SendSample = () => {
 
     const newSample: ReceivedSample = {
       runNo,
+      sampleId: sample.id,
       name: sample.name,
       receiver: "แอดมิน",
       receivedDate: now.toLocaleDateString("th-TH"),
@@ -95,18 +94,15 @@ const SendSample = () => {
     };
 
     setReceivedSamples(prev => [...prev, newSample]);
+    receiveSample(sample); // Remove from sent list
     toast.success(`สแกนสำเร็จ: ${sample.name}`);
   };
 
   const updateInstrument = (index: number, value: string) => {
-    setReceivedSamples(prev =>
-      prev.map((s, i) => i === index ? { ...s, instrument: value } : s)
-    );
+    setReceivedSamples(prev => prev.map((s, i) => i === index ? { ...s, instrument: value } : s));
   };
 
-  useEffect(() => {
-    return () => stopCamera();
-  }, []);
+  useEffect(() => { return () => stopCamera(); }, []);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -123,7 +119,7 @@ const SendSample = () => {
           </Button>
         </div>
 
-        {/* Sent samples overview */}
+        {/* Sent samples waiting */}
         <Card className="mb-6">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
@@ -132,16 +128,20 @@ const SendSample = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-3">
-              {sentSamples.map(s => (
-                <Card key={s.id} className="p-3 min-w-[200px] shadow-sm">
-                  <p className="text-sm font-semibold text-primary">{s.id}</p>
-                  <p className="text-sm text-foreground">{s.name}</p>
-                  <p className="text-xs text-muted-foreground">📅 {s.date} ⏰ {s.time}</p>
-                  <p className="text-xs text-muted-foreground">👤 {s.sender}</p>
-                </Card>
-              ))}
-            </div>
+            {sentSamples.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">รับตัวอย่างครบแล้ว</p>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {sentSamples.map(s => (
+                  <Card key={s.id} className="p-3 min-w-[200px] shadow-sm">
+                    <p className="text-sm font-semibold text-primary">{s.id}</p>
+                    <p className="text-sm text-foreground">{s.name}</p>
+                    <p className="text-xs text-muted-foreground">📅 {s.date} ⏰ {s.time}</p>
+                    <p className="text-xs text-muted-foreground">👤 {s.sender}</p>
+                  </Card>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -179,9 +179,7 @@ const SendSample = () => {
                         <TableCell className="font-semibold text-primary">{sample.runNo}</TableCell>
                         <TableCell>{sample.name}</TableCell>
                         <TableCell>{sample.receiver}</TableCell>
-                        <TableCell className="text-xs">
-                          {sample.receivedDate}<br />{sample.receivedTime}
-                        </TableCell>
+                        <TableCell className="text-xs">{sample.receivedDate}<br />{sample.receivedTime}</TableCell>
                         <TableCell>
                           <Select value={sample.instrument} onValueChange={(v) => updateInstrument(idx, v)}>
                             <SelectTrigger className="w-[130px]">
@@ -194,9 +192,7 @@ const SendSample = () => {
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">{sample.standardLotNo}</Badge>
-                        </TableCell>
+                        <TableCell><Badge variant="outline" className="text-xs">{sample.standardLotNo}</Badge></TableCell>
                         <TableCell className="text-sm">{sample.standardName}</TableCell>
                       </TableRow>
                     ))}
@@ -208,12 +204,11 @@ const SendSample = () => {
         </Card>
 
         {/* QR Scanner Dialog */}
-        <Dialog open={scannerOpen} onOpenChange={(open) => { if (!open) { stopCamera(); } setScannerOpen(open); }}>
+        <Dialog open={scannerOpen} onOpenChange={(open) => { if (!open) stopCamera(); setScannerOpen(open); }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Camera className="w-5 h-5" />
-                สแกน QR Code ตัวอย่าง
+                <Camera className="w-5 h-5" /> สแกน QR Code ตัวอย่าง
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
@@ -235,18 +230,15 @@ const SendSample = () => {
               <div className="flex gap-2">
                 {!scanning ? (
                   <Button className="flex-1 gap-2" onClick={startCamera}>
-                    <Camera className="w-4 h-4" />
-                    เปิดกล้อง
+                    <Camera className="w-4 h-4" /> เปิดกล้อง
                   </Button>
                 ) : (
-                  <Button variant="destructive" className="flex-1 gap-2" onClick={() => { stopCamera(); }}>
-                    <X className="w-4 h-4" />
-                    หยุดสแกน
+                  <Button variant="destructive" className="flex-1 gap-2" onClick={stopCamera}>
+                    <X className="w-4 h-4" /> หยุดสแกน
                   </Button>
                 )}
                 <Button variant="outline" className="gap-2" onClick={simulateScan}>
-                  <Plus className="w-4 h-4" />
-                  จำลองสแกน
+                  <Plus className="w-4 h-4" /> จำลองสแกน
                 </Button>
               </div>
             </div>

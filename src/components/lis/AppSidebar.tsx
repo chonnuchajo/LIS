@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Send, ClipboardList, FileBarChart, Settings, User, LogOut, Package } from "lucide-react";
+import { LayoutDashboard, Send, ClipboardList, FileBarChart, Settings, User, LogOut, Package, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -7,9 +7,9 @@ const navItems = [
   { icon: LayoutDashboard, label: "แดชบอร์ด", path: "/" },
   { icon: Send, label: "ส่งตัวอย่างตรวจ", path: "/send-sample" },
   { icon: ClipboardList, label: "บันทึกผลการทดสอบ", path: "/record-results" },
+  { icon: ShieldCheck, label: "QC Approval", path: "/qc-approval" },
   { icon: FileBarChart, label: "รายงานสรุป", path: "/report" },
-  { icon: Package, label: "Stock Standard", path: "/stock-standard" },
-  { icon: Package, label: "Stock Solvent", path: "/stock-solvent" },
+  { icon: Package, label: "Stock Management", path: "/stock" },
   { icon: Settings, label: "ตั้งค่าระบบ", path: "/settings" },
 ];
 
@@ -24,7 +24,6 @@ const AppSidebar = () => {
 
   return (
     <aside className="flex flex-col w-64 min-h-screen bg-card border-r border-border">
-      {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
         <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
           <span className="text-primary-foreground font-bold text-sm">ICP</span>
@@ -37,7 +36,6 @@ const AppSidebar = () => {
         </div>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 py-4 px-3 space-y-1">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
@@ -59,7 +57,6 @@ const AppSidebar = () => {
         })}
       </nav>
 
-      {/* User + Logout */}
       <div className="p-3 mt-auto space-y-2">
         <div className="flex items-center gap-3 bg-accent rounded-lg px-4 py-3">
           <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
