@@ -1,15 +1,29 @@
-import { LayoutDashboard, Send, ClipboardList, FileBarChart, Settings, User } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { LayoutDashboard, Send, ClipboardList, FileBarChart, Settings, User, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const navItems = [
-  { icon: LayoutDashboard, label: "แดชบอร์ด", active: true },
-  { icon: Send, label: "ส่งตัวอย่างตรวจ", active: false },
-  { icon: ClipboardList, label: "บันทึกผลการทดสอบ", active: false },
-  { icon: FileBarChart, label: "รายงานสรุป", active: false },
-  { icon: Settings, label: "ตั้งค่าระบบ", active: false },
+  { icon: LayoutDashboard, label: "แดชบอร์ด", active: true, action: "dashboard" },
+  { icon: Send, label: "ส่งตัวอย่างตรวจ", active: false, action: "send" },
+  { icon: ClipboardList, label: "บันทึกผลการทดสอบ", active: false, action: "record" },
+  { icon: FileBarChart, label: "รายงานสรุป", active: false, action: "report" },
+  { icon: Settings, label: "ตั้งค่าระบบ", active: false, action: "settings" },
 ];
 
 const AppSidebar = () => {
+  const navigate = useNavigate();
+
+  const handleNav = (action: string) => {
+    if (action === "dashboard") return;
+    toast.info(`เปิดหน้า: ${navItems.find(i => i.action === action)?.label}`);
+  };
+
+  const handleLogout = () => {
+    toast.success("ออกจากระบบสำเร็จ");
+    navigate("/login");
+  };
+
   return (
     <aside className="flex flex-col w-64 min-h-screen bg-card border-r border-border">
       {/* Logo */}
@@ -30,6 +44,7 @@ const AppSidebar = () => {
         {navItems.map((item) => (
           <button
             key={item.label}
+            onClick={() => handleNav(item.action)}
             className={cn(
               "flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium transition-colors",
               item.active
@@ -43,8 +58,8 @@ const AppSidebar = () => {
         ))}
       </nav>
 
-      {/* User */}
-      <div className="p-3 mt-auto">
+      {/* User + Logout */}
+      <div className="p-3 mt-auto space-y-2">
         <div className="flex items-center gap-3 bg-lis-sidebar text-lis-sidebar-fg rounded-lg px-4 py-3">
           <div className="w-8 h-8 rounded-full bg-lis-sidebar-active flex items-center justify-center">
             <User className="w-4 h-4" />
@@ -54,6 +69,13 @@ const AppSidebar = () => {
             <p className="text-xs opacity-80">Laboratory Manager</p>
           </div>
         </div>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 w-full px-4 py-2.5 rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          ออกจากระบบ
+        </button>
       </div>
     </aside>
   );
