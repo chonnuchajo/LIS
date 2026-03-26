@@ -4,44 +4,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ClipboardList, CheckCircle, Clock } from "lucide-react";
+import { ClipboardList, CheckCircle, Clock, FlaskConical, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import { useSamples } from "@/context/SampleContext";
 
 const RecordResults = () => {
-  const { testingSamples, doneSamples, approvals, approveLab } = useSamples();
-  const [timers, setTimers] = useState<Record<string, number>>({});
+  const { testingSamples, approvals, approveLab } = useSamples();
 
-  // All samples that are testing (analysis complete = aiPercent === 100 means ready for approval)
   const todaySamples = [...testingSamples];
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimers(prev => {
-        const next = { ...prev };
-        todaySamples.forEach(s => {
-          const approval = approvals[s.id];
-          if (approval?.labApproved && approval.labApprovedAt) {
-            const elapsed = Math.floor((Date.now() - approval.labApprovedAt.getTime()) / 1000);
-            const remaining = Math.max(0, 1800 - elapsed);
-            next[s.id] = remaining;
-          }
-        });
-        return next;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [todaySamples, approvals]);
+  // Simulate analysis status: items with aiPercent >= 100 are "calculating", others are "analyzing"
+  // For demo: aiPercent >= 100 = done (ready to approve), 80-99 = calculating, <80 = analyzing
+  const getAnalysisStatus = (aiPercent: number | undefined) => {
+    const pct = aiPercent ?? 0;
+    if (pct >= 100) return "done";
+    if (pct >= 80) return "calculating";
+    return "analyzing";
+  };
 
   const handleApprove = (sampleId: string) => {
     approveLab(sampleId);
-    toast.success(`อนุมัติผลการทดสอบ ${sampleId} แล้ว`);
-  };
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${String(s).padStart(2, "0")}`;
+    toast.success(`อนุมัติผลการทดสอบ ${sampleId} — แสดง Pre-result และส่งไปยัง QC`);
   };
 
   return (
@@ -53,7 +36,7 @@ const RecordResults = () => {
             <ClipboardList className="w-6 h-6" />
             บันทึกผลการทดสอบ
           </h1>
-          <p className="text-sm text-muted-foreground">รายการทดสอบประจำวันนี้ — หัวหน้าแล็บอนุมัติผลก่อนแสดง Pre-result</p>
+          <p className="text-sm text-muted-foreground">รายการทดสอบประจำวันนี้ — หัวหน้าแล็บอนุมัติผลก่อนแสดง Pre-result และส่งไปยัง QC</p>
         </div>
 
         <Card>
@@ -71,17 +54,16 @@ const RecordResults = () => {
                   <TableHead>ชื่อยา</TableHead>
                   <TableHead>ผู้วิเคราะห์</TableHead>
                   <TableHead>เครื่องมือ</TableHead>
-                  <TableHead>%AI Progress</TableHead>
-                  <TableHead>สถานะการอนุมัติ</TableHead>
-                  <TableHead>การดำเนินการ</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                  <TableHead>การอนุมัติ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {todaySamples.map(sample => {
                   const approval = approvals[sample.id];
                   const isLabApproved = approval?.labApproved;
-                  const isReady = (sample.aiPercent ?? 0) >= 100;
-                  const remaining = timers[sample.id];
+                  const status = getAnalysisStatus(sample.aiPercent);
+                  const isReady = status === "done";
 
                   return (
                     <TableRow key={sample.id}>
@@ -90,43 +72,47 @@ const RecordResults = () => {
                       <TableCell>{sample.receiver || "-"}</TableCell>
                       <TableCell>{sample.instrument || "-"}</TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-accent rounded-full overflow-hidden max-w-[120px]">
-                            <div
-                              className="h-full rounded-full bg-lis-status-progress transition-all"
-                              style={{ width: `${sample.aiPercent ?? 0}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-medium">{sample.aiPercent ?? 0}%</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
                         {isLabApproved ? (
                           <Badge className="bg-lis-stat-green text-lis-stat-green-icon gap-1">
                             <CheckCircle className="w-3 h-3" />
-                            อนุมัติแล้ว
+                            Pre-result → QC
                           </Badge>
-                        ) : isReady ? (
+                        ) : status === "analyzing" ? (
                           <Badge className="bg-lis-stat-amber text-lis-stat-amber-icon gap-1">
-                            <Clock className="w-3 h-3" />
-                            รออนุมัติ (30 นาที)
+                            <FlaskConical className="w-3 h-3" />
+                            กำลังวิเคราะห์
+                          </Badge>
+                        ) : status === "calculating" ? (
+                          <Badge className="bg-lis-stat-blue text-lis-stat-blue-icon gap-1">
+                            <Calculator className="w-3 h-3" />
+                            กำลังคำนวณผล
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-muted-foreground">กำลังวิเคราะห์</Badge>
+                          <Badge className="bg-lis-stat-green text-lis-stat-green-icon gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            พร้อมอนุมัติ
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell>
-                        {!isLabApproved && isReady ? (
-                          <Button size="sm" onClick={() => handleApprove(sample.id)} className="gap-1">
+                        {isLabApproved ? (
+                          <span className="text-xs text-lis-stat-green-icon font-medium flex items-center gap-1">
+                            <CheckCircle className="w-3.5 h-3.5" /> อนุมัติแล้ว
+                          </span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            disabled={!isReady}
+                            onClick={() => handleApprove(sample.id)}
+                            className={`gap-1 ${isReady
+                              ? "bg-lis-stat-green-icon hover:bg-lis-stat-green-icon/90 text-white"
+                              : "bg-muted text-muted-foreground cursor-not-allowed"
+                            }`}
+                          >
                             <CheckCircle className="w-3.5 h-3.5" />
                             อนุมัติผล
                           </Button>
-                        ) : isLabApproved && remaining !== undefined && remaining > 0 ? (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {formatTime(remaining)}
-                          </span>
-                        ) : null}
+                        )}
                       </TableCell>
                     </TableRow>
                   );
