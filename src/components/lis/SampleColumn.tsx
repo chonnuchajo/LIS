@@ -70,16 +70,10 @@ const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-semibold text-primary">{item.id}</CardTitle>
                   <div className="flex gap-1">
-                    <button
-                      onClick={() => toast.info(`ดูรายละเอียด ${item.id}`)}
-                      className="w-7 h-7 rounded-md border border-border flex items-center justify-center hover:bg-accent transition-colors"
-                    >
+                    <button onClick={() => toast.info(`ดูรายละเอียด ${item.id}`)} className="w-7 h-7 rounded-md border border-border flex items-center justify-center hover:bg-accent transition-colors">
                       <Eye className="w-3.5 h-3.5 text-muted-foreground" />
                     </button>
-                    <button
-                      onClick={() => toast.info(`แก้ไขรายการ ${item.id}`)}
-                      className="w-7 h-7 rounded-md border border-border flex items-center justify-center hover:bg-accent transition-colors"
-                    >
+                    <button onClick={() => toast.info(`แก้ไขรายการ ${item.id}`)} className="w-7 h-7 rounded-md border border-border flex items-center justify-center hover:bg-accent transition-colors">
                       <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                     </button>
                   </div>
@@ -96,14 +90,10 @@ const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
 
                   {variant === "physical" && (
                     <>
-                      {item.receiver && (
-                        <p>👤 ผู้รับตัวอย่าง: <span className="text-foreground font-medium">{item.receiver}</span></p>
-                      )}
+                      {item.receiver && <p>👤 ผู้รับตัวอย่าง: <span className="text-foreground font-medium">{item.receiver}</span></p>}
                       {item.density !== undefined && (
                         <div className="mt-2 p-2 rounded-lg bg-lis-stat-amber">
-                          <p className="text-xs font-semibold text-lis-stat-amber-icon">
-                            ⚖️ Density (@ 30°C): <span className="text-sm">{item.density.toFixed(3)} g/mL</span>
-                          </p>
+                          <p className="text-xs font-semibold text-lis-stat-amber-icon">⚖️ Density (@ 30°C): <span className="text-sm">{item.density.toFixed(3)} g/mL</span></p>
                         </div>
                       )}
                     </>
@@ -111,20 +101,13 @@ const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
 
                   {variant === "testing" && (
                     <>
-                      {item.receiver && (
-                        <p>👤 ผู้วิเคราะห์: <span className="text-foreground font-medium">{item.receiver}</span></p>
-                      )}
-                      {item.instrument && (
-                        <p>🖥️ เครื่องที่ตรวจ: <span className="text-foreground font-medium">{item.instrument}</span></p>
-                      )}
+                      {item.receiver && <p>👤 ผู้วิเคราะห์: <span className="text-foreground font-medium">{item.receiver}</span></p>}
+                      {item.instrument && <p>🖥️ เครื่องที่ตรวจ: <span className="text-foreground font-medium">{item.instrument}</span></p>}
                       {item.aiPercent !== undefined && (
                         <div className="flex items-center gap-2">
                           <span>🔬 วิเคราะห์ %AI</span>
                           <div className="flex-1 h-1.5 bg-accent rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all bg-lis-status-progress"
-                              style={{ width: `${item.aiPercent}%` }}
-                            />
+                            <div className="h-full rounded-full transition-all bg-lis-status-progress" style={{ width: `${item.aiPercent}%` }} />
                           </div>
                           <span className="font-medium text-foreground">{item.aiPercent}%</span>
                         </div>
@@ -134,24 +117,9 @@ const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
 
                   {variant === "done" && (
                     <>
-                      {item.receiver && (
-                        <p>👤 ผู้วิเคราะห์: <span className="text-foreground font-medium">{item.receiver}</span></p>
-                      )}
-                      {item.instrument && (
-                        <p>🖥️ เครื่องที่ตรวจ: <span className="text-foreground font-medium">{item.instrument}</span></p>
-                      )}
-                      {item.aiPercent !== undefined && (
-                        <div className="flex items-center gap-2">
-                          <span>🔬 วิเคราะห์ %AI</span>
-                          <div className="flex-1 h-1.5 bg-accent rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all bg-lis-status-done"
-                              style={{ width: `${item.aiPercent}%` }}
-                            />
-                          </div>
-                          <span className="font-medium text-foreground">{item.aiPercent}%</span>
-                        </div>
-                      )}
+                      {item.receiver && <p>👤 ผู้วิเคราะห์: <span className="text-foreground font-medium">{item.receiver}</span></p>}
+                      {item.instrument && <p>🖥️ เครื่องที่ตรวจ: <span className="text-foreground font-medium">{item.instrument}</span></p>}
+
                       {/* Show Result or Pre-result based on QC status */}
                       {item.preResult !== undefined && (
                         <div className={`mt-2 p-2 rounded-lg ${approval?.qcStatus === "approved" || approval?.qcStatus === "rejected" ? "bg-lis-stat-blue" : "bg-lis-stat-green"}`}>
