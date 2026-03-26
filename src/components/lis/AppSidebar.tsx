@@ -10,6 +10,7 @@ const navItems = [
   { icon: ShieldCheck, label: "QC Approval", path: "/qc-approval" },
   { icon: FileBarChart, label: "รายงานสรุป", path: "/report" },
   { icon: Package, label: "Stock Management", path: "/stock" },
+  { icon: Database, label: "Admin Data", path: "/admin-data" },
   { icon: Settings, label: "ตั้งค่าระบบ", path: "/settings" },
 ];
 

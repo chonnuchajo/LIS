@@ -32,6 +32,7 @@ const App = () => (
             <Route path="/qc-approval" element={<QCApproval />} />
             <Route path="/report" element={<Report />} />
             <Route path="/stock" element={<Stock />} />
+            <Route path="/admin-data" element={<AdminData />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
