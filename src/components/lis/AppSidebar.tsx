@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Send, ClipboardList, FileBarChart, Settings, User, LogOut, Package, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Send, ClipboardList, FileBarChart, Settings, User, LogOut, Package, ShieldCheck, Database } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -10,6 +10,7 @@ const navItems = [
   { icon: ShieldCheck, label: "QC Approval", path: "/qc-approval" },
   { icon: FileBarChart, label: "รายงานสรุป", path: "/report" },
   { icon: Package, label: "Stock Management", path: "/stock" },
+  { icon: Database, label: "Admin Data", path: "/admin-data" },
   { icon: Settings, label: "ตั้งค่าระบบ", path: "/settings" },
 ];
 

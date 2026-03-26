@@ -11,6 +11,7 @@ import RecordResults from "./pages/RecordResults";
 import Report from "./pages/Report";
 import Stock from "./pages/Stock";
 import QCApproval from "./pages/QCApproval";
+import AdminData from "./pages/AdminData";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/qc-approval" element={<QCApproval />} />
             <Route path="/report" element={<Report />} />
             <Route path="/stock" element={<Stock />} />
+            <Route path="/admin-data" element={<AdminData />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
