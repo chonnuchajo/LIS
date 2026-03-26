@@ -11,6 +11,7 @@ import RecordResults from "./pages/RecordResults";
 import Report from "./pages/Report";
 import Stock from "./pages/Stock";
 import QCApproval from "./pages/QCApproval";
+import AdminData from "./pages/AdminData";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
