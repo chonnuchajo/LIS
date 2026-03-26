@@ -1,23 +1,21 @@
-import { useNavigate } from "react-router-dom";
-import { LayoutDashboard, Send, ClipboardList, FileBarChart, Settings, User, LogOut } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { LayoutDashboard, Send, ClipboardList, FileBarChart, Settings, User, LogOut, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const navItems = [
-  { icon: LayoutDashboard, label: "แดชบอร์ด", active: true, action: "dashboard" },
-  { icon: Send, label: "ส่งตัวอย่างตรวจ", active: false, action: "send" },
-  { icon: ClipboardList, label: "บันทึกผลการทดสอบ", active: false, action: "record" },
-  { icon: FileBarChart, label: "รายงานสรุป", active: false, action: "report" },
-  { icon: Settings, label: "ตั้งค่าระบบ", active: false, action: "settings" },
+  { icon: LayoutDashboard, label: "แดชบอร์ด", path: "/" },
+  { icon: Send, label: "ส่งตัวอย่างตรวจ", path: "/send-sample" },
+  { icon: ClipboardList, label: "บันทึกผลการทดสอบ", path: "/record-results" },
+  { icon: FileBarChart, label: "รายงานสรุป", path: "/report" },
+  { icon: Package, label: "Stock Standard", path: "/stock-standard" },
+  { icon: Package, label: "Stock Solvent", path: "/stock-solvent" },
+  { icon: Settings, label: "ตั้งค่าระบบ", path: "/settings" },
 ];
 
 const AppSidebar = () => {
   const navigate = useNavigate();
-
-  const handleNav = (action: string) => {
-    if (action === "dashboard") return;
-    toast.info(`เปิดหน้า: ${navItems.find(i => i.action === action)?.label}`);
-  };
+  const location = useLocation();
 
   const handleLogout = () => {
     toast.success("ออกจากระบบสำเร็จ");
@@ -41,32 +39,35 @@ const AppSidebar = () => {
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 space-y-1">
-        {navItems.map((item) => (
-          <button
-            key={item.label}
-            onClick={() => handleNav(item.action)}
-            className={cn(
-              "flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium transition-colors",
-              item.active
-                ? "bg-lis-sidebar text-lis-sidebar-fg shadow-md"
-                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-            )}
-          >
-            <item.icon className="w-5 h-5" />
-            {item.label}
-          </button>
-        ))}
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <button
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              className={cn(
+                "flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              )}
+            >
+              <item.icon className="w-5 h-5" />
+              {item.label}
+            </button>
+          );
+        })}
       </nav>
 
       {/* User + Logout */}
       <div className="p-3 mt-auto space-y-2">
-        <div className="flex items-center gap-3 bg-lis-sidebar text-lis-sidebar-fg rounded-lg px-4 py-3">
-          <div className="w-8 h-8 rounded-full bg-lis-sidebar-active flex items-center justify-center">
-            <User className="w-4 h-4" />
+        <div className="flex items-center gap-3 bg-accent rounded-lg px-4 py-3">
+          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+            <User className="w-4 h-4 text-primary-foreground" />
           </div>
           <div>
-            <p className="text-sm font-semibold">แอดมิน</p>
-            <p className="text-xs opacity-80">Laboratory Manager</p>
+            <p className="text-sm font-semibold text-foreground">แอดมิน</p>
+            <p className="text-xs text-muted-foreground">Laboratory Manager</p>
           </div>
         </div>
         <button
