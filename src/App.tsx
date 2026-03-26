@@ -3,13 +3,14 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { SampleProvider } from "@/context/SampleContext";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import SendSample from "./pages/SendSample";
 import RecordResults from "./pages/RecordResults";
 import Report from "./pages/Report";
-import StockStandard from "./pages/StockStandard";
-import StockSolvent from "./pages/StockSolvent";
+import Stock from "./pages/Stock";
+import QCApproval from "./pages/QCApproval";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
@@ -21,17 +22,19 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/send-sample" element={<SendSample />} />
-          <Route path="/record-results" element={<RecordResults />} />
-          <Route path="/report" element={<Report />} />
-          <Route path="/stock-standard" element={<StockStandard />} />
-          <Route path="/stock-solvent" element={<StockSolvent />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <SampleProvider>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/send-sample" element={<SendSample />} />
+            <Route path="/record-results" element={<RecordResults />} />
+            <Route path="/qc-approval" element={<QCApproval />} />
+            <Route path="/report" element={<Report />} />
+            <Route path="/stock" element={<Stock />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </SampleProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
