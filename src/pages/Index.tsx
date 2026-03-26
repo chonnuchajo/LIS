@@ -1,17 +1,29 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ClipboardList, Clock, CheckCircle, AlertTriangle, Download, Plus } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import StatCard from "@/components/lis/StatCard";
 import SampleColumn from "@/components/lis/SampleColumn";
 import { Button } from "@/components/ui/button";
-import { sentSamples, testingSamples, doneSamples } from "@/data/mockData";
+import { sentSamples, physicalSamples, testingSamples, doneSamples } from "@/data/mockData";
+import { toast } from "sonner";
 
 const Index = () => {
+  const navigate = useNavigate();
   const today = new Date();
   const formattedDate = today.toLocaleDateString("th-TH", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
+
+  const handleExport = () => {
+    toast.success("กำลังส่งออกรายงาน...");
+  };
+
+  const handleCreate = () => {
+    toast.info("เปิดฟอร์มสร้างรายการทดสอบใหม่");
+  };
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -27,11 +39,11 @@ const Index = () => {
             </p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" className="gap-2" onClick={handleExport}>
               <Download className="w-4 h-4" />
               ส่งออกรายงาน
             </Button>
-            <Button className="gap-2">
+            <Button className="gap-2" onClick={handleCreate}>
               <Plus className="w-4 h-4" />
               สร้างรายการทดสอบใหม่
             </Button>
@@ -46,13 +58,14 @@ const Index = () => {
           <StatCard icon={AlertTriangle} value={10} label="เกินค่ามาตรฐาน" variant="red" />
         </div>
 
-        {/* 3-Column Kanban */}
+        {/* 4-Column Kanban */}
         <div className="mb-4">
           <h2 className="text-lg font-bold text-foreground">รายการส่งตรวจล่าสุด</h2>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           <SampleColumn title="ตัวอย่างที่ส่งแล้ว" items={sentSamples} variant="sent" />
-          <SampleColumn title="กำลังตรวจกายภาพ" items={testingSamples} variant="testing" />
+          <SampleColumn title="การตรวจกายภาพ" items={physicalSamples} variant="physical" />
+          <SampleColumn title="การตรวจวิเคราะห์ %AI" items={testingSamples} variant="testing" />
           <SampleColumn title="รายการทดสอบเสร็จสิ้น" items={doneSamples} variant="done" />
         </div>
       </main>
