@@ -54,14 +54,7 @@ const variantConfig = {
 
 const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
   const config = variantConfig[variant];
-  const { approvals, approveQC } = useSamples();
-  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
-
-  const handleQcAction = (sampleId: string, status: "approved" | "rejected") => {
-    const note = localNotes[sampleId] || "";
-    approveQC(sampleId, status, note);
-    toast.success(`QC ${status === "approved" ? "อนุมัติ" : "ไม่อนุมัติ"} ${sampleId}`);
-  };
+  const { approvals } = useSamples();
 
   return (
     <div className="flex flex-col min-w-0">
