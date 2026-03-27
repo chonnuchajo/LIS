@@ -131,19 +131,39 @@ const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
                       {item.receiver && <p>👤 ผู้วิเคราะห์: <span className="text-foreground font-medium">{item.receiver}</span></p>}
                       {item.instrument && <p>🖥️ เครื่องที่ตรวจ: <span className="text-foreground font-medium">{item.instrument}</span></p>}
 
+                      {/* Testing items shown as กำลังวิเคราะห์ */}
+                      {!item.preResult && item.aiPercent !== undefined && item.aiPercent < 100 && (
+                        <div className="mt-2 p-2 rounded-lg bg-lis-stat-amber">
+                          <p className="text-xs font-semibold text-lis-stat-amber-icon">
+                            ⏳ กำลังวิเคราะห์ ({item.aiPercent}%)
+                          </p>
+                          <p className="text-[10px] text-lis-stat-amber-icon mt-1">Pre-Result: รอผลวิเคราะห์</p>
+                        </div>
+                      )}
+
                       {/* Show Result or Pre-result based on QC status */}
                       {item.preResult !== undefined && (
-                        <div className={`mt-2 p-2 rounded-lg ${approval?.qcStatus === "approved" || approval?.qcStatus === "rejected" ? "bg-lis-stat-blue" : "bg-lis-stat-green"}`}>
-                          <p className={`text-xs font-semibold ${approval?.qcStatus === "approved" || approval?.qcStatus === "rejected" ? "text-lis-stat-blue-icon" : "text-lis-stat-green-icon"}`}>
-                            {approval?.qcStatus === "approved" || approval?.qcStatus === "rejected"
-                              ? `📊 Result: ${item.preResult}%`
+                        <div className={`mt-2 p-2 rounded-lg ${
+                          approval?.qcStatus === "approved" ? "bg-lis-stat-green" 
+                          : approval?.qcStatus === "rejected" ? "bg-destructive/10" 
+                          : "bg-lis-stat-blue"
+                        }`}>
+                          <p className={`text-xs font-semibold ${
+                            approval?.qcStatus === "approved" ? "text-lis-stat-green-icon" 
+                            : approval?.qcStatus === "rejected" ? "text-destructive" 
+                            : "text-lis-stat-blue-icon"
+                          }`}>
+                            {approval?.qcStatus === "approved"
+                              ? `✅ Result: ${item.preResult}%`
+                              : approval?.qcStatus === "rejected"
+                              ? `❌ Result: ${item.preResult}%`
                               : `📊 Pre-Result: ${item.preResult}%`
                             }
                           </p>
                         </div>
                       )}
 
-                      {/* QC Status with interactive dropdown for pending */}
+                      {/* QC Status section */}
                       <div className="mt-2 p-2 rounded-lg border border-border space-y-2">
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-semibold">สถานะ QC:</span>
@@ -165,7 +185,7 @@ const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
                         </div>
 
                         {/* Dropdown for QC action when pending */}
-                        {(!approval?.qcStatus || approval?.qcStatus === "pending") && (
+                        {(!approval?.qcStatus || approval?.qcStatus === "pending") && item.preResult !== undefined && (
                           <div className="space-y-1.5">
                             <Select onValueChange={(val) => handleQcAction(item.id, val as "approved" | "rejected")}>
                               <SelectTrigger className="h-7 text-[10px]">
@@ -177,7 +197,7 @@ const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
                               </SelectContent>
                             </Select>
                             <Input
-                              placeholder="หมายเหตุ..."
+                              placeholder="หมายเหตุ เช่น ปรับปรุงสูตร, ส่งวิเคราะห์ซ้ำ..."
                               className="h-7 text-[10px]"
                               value={localNotes[item.id] || ""}
                               onChange={(e) => setLocalNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
@@ -187,7 +207,7 @@ const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
 
                         {/* Show note for rejected */}
                         {approval?.qcStatus === "rejected" && approval.qcNote && (
-                          <p className="text-[10px] text-destructive font-medium">💡 {approval.qcNote}</p>
+                          <p className="text-[10px] text-destructive font-medium">💡 แนวทาง: {approval.qcNote}</p>
                         )}
                       </div>
                     </>
