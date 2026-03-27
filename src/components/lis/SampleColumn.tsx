@@ -1,10 +1,7 @@
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Eye, Pencil, CheckCircle, XCircle, Clock, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useSamples } from "@/context/SampleContext";
@@ -54,14 +51,7 @@ const variantConfig = {
 
 const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
   const config = variantConfig[variant];
-  const { approvals, approveQC } = useSamples();
-  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
-
-  const handleQcAction = (sampleId: string, status: "approved" | "rejected") => {
-    const note = localNotes[sampleId] || "";
-    approveQC(sampleId, status, note);
-    toast.success(`QC ${status === "approved" ? "อนุมัติ" : "ไม่อนุมัติ"} ${sampleId}`);
-  };
+  const { approvals } = useSamples();
 
   return (
     <div className="flex flex-col min-w-0">
@@ -184,30 +174,11 @@ const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
                           )}
                         </div>
 
-                        {/* Dropdown for QC action when pending */}
-                        {(!approval?.qcStatus || approval?.qcStatus === "pending") && item.preResult !== undefined && (
-                          <div className="space-y-1.5">
-                            <Select onValueChange={(val) => handleQcAction(item.id, val as "approved" | "rejected")}>
-                              <SelectTrigger className="h-7 text-[10px]">
-                                <SelectValue placeholder="เลือกผลพิจารณา" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="approved">✅ ผ่าน</SelectItem>
-                                <SelectItem value="rejected">❌ ไม่ผ่าน</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Input
-                              placeholder="หมายเหตุ เช่น ปรับปรุงสูตร, ส่งวิเคราะห์ซ้ำ..."
-                              className="h-7 text-[10px]"
-                              value={localNotes[item.id] || ""}
-                              onChange={(e) => setLocalNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
-                            />
-                          </div>
-                        )}
-
-                        {/* Show note for rejected */}
-                        {approval?.qcStatus === "rejected" && approval.qcNote && (
-                          <p className="text-[10px] text-destructive font-medium">💡 แนวทาง: {approval.qcNote}</p>
+                        {/* Show note for approved/rejected */}
+                        {approval?.qcNote && (
+                          <p className={`text-[10px] font-medium ${approval?.qcStatus === "rejected" ? "text-destructive" : "text-muted-foreground"}`}>
+                            💡 {approval.qcStatus === "rejected" ? "แนวทาง" : "หมายเหตุ"}: {approval.qcNote}
+                          </p>
                         )}
                       </div>
                     </>
