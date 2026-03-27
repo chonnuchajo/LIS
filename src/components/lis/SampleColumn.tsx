@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Eye, Pencil, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Eye, Pencil, CheckCircle, XCircle, Clock, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useSamples } from "@/context/SampleContext";
 
@@ -50,7 +54,14 @@ const variantConfig = {
 
 const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
   const config = variantConfig[variant];
-  const { approvals } = useSamples();
+  const { approvals, approveQC } = useSamples();
+  const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
+
+  const handleQcAction = (sampleId: string, status: "approved" | "rejected") => {
+    const note = localNotes[sampleId] || "";
+    approveQC(sampleId, status, note);
+    toast.success(`QC ${status === "approved" ? "อนุมัติ" : "ไม่อนุมัติ"} ${sampleId}`);
+  };
 
   return (
     <div className="flex flex-col min-w-0">
@@ -126,38 +137,59 @@ const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
                           <p className={`text-xs font-semibold ${approval?.qcStatus === "approved" || approval?.qcStatus === "rejected" ? "text-lis-stat-blue-icon" : "text-lis-stat-green-icon"}`}>
                             {approval?.qcStatus === "approved" || approval?.qcStatus === "rejected"
                               ? `📊 Result: ${item.preResult}%`
-                              : `📊 Pre-result %AI: ${item.preResult}%`
+                              : `📊 Pre-Result: ${item.preResult}%`
                             }
                           </p>
                         </div>
                       )}
 
-                      {/* QC Approval Status */}
-                      {approval && (
-                        <div className="mt-2 p-2 rounded-lg border border-border">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className="text-xs font-semibold">สถานะ QC:</span>
-                            {approval.qcStatus === "approved" && (
-                              <Badge className="bg-lis-stat-green text-lis-stat-green-icon text-[10px] gap-0.5 px-1.5 py-0">
-                                <CheckCircle className="w-2.5 h-2.5" /> ผ่าน
-                              </Badge>
-                            )}
-                            {approval.qcStatus === "rejected" && (
-                              <Badge className="bg-destructive/10 text-destructive text-[10px] gap-0.5 px-1.5 py-0">
-                                <XCircle className="w-2.5 h-2.5" /> ไม่ผ่าน
-                              </Badge>
-                            )}
-                            {(!approval.qcStatus || approval.qcStatus === "pending") && (
-                              <Badge variant="outline" className="text-[10px] text-muted-foreground gap-0.5 px-1.5 py-0">
-                                <Clock className="w-2.5 h-2.5" /> รอตรวจสอบ
-                              </Badge>
-                            )}
-                          </div>
-                          {approval.qcStatus === "rejected" && approval.qcNote && (
-                            <p className="text-[10px] text-destructive font-medium">💡 {approval.qcNote}</p>
+                      {/* QC Status with interactive dropdown for pending */}
+                      <div className="mt-2 p-2 rounded-lg border border-border space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-semibold">สถานะ QC:</span>
+                          {approval?.qcStatus === "approved" && (
+                            <Badge className="bg-lis-stat-green text-lis-stat-green-icon text-[10px] gap-0.5 px-1.5 py-0">
+                              <CheckCircle className="w-2.5 h-2.5" /> ผ่าน
+                            </Badge>
+                          )}
+                          {approval?.qcStatus === "rejected" && (
+                            <Badge className="bg-destructive/10 text-destructive text-[10px] gap-0.5 px-1.5 py-0">
+                              <XCircle className="w-2.5 h-2.5" /> ไม่ผ่าน
+                            </Badge>
+                          )}
+                          {(!approval?.qcStatus || approval?.qcStatus === "pending") && (
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground gap-0.5 px-1.5 py-0">
+                              <Clock className="w-2.5 h-2.5" /> รอพิจารณา
+                            </Badge>
                           )}
                         </div>
-                      )}
+
+                        {/* Dropdown for QC action when pending */}
+                        {(!approval?.qcStatus || approval?.qcStatus === "pending") && (
+                          <div className="space-y-1.5">
+                            <Select onValueChange={(val) => handleQcAction(item.id, val as "approved" | "rejected")}>
+                              <SelectTrigger className="h-7 text-[10px]">
+                                <SelectValue placeholder="เลือกผลพิจารณา" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="approved">✅ ผ่าน</SelectItem>
+                                <SelectItem value="rejected">❌ ไม่ผ่าน</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              placeholder="หมายเหตุ..."
+                              className="h-7 text-[10px]"
+                              value={localNotes[item.id] || ""}
+                              onChange={(e) => setLocalNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
+                            />
+                          </div>
+                        )}
+
+                        {/* Show note for rejected */}
+                        {approval?.qcStatus === "rejected" && approval.qcNote && (
+                          <p className="text-[10px] text-destructive font-medium">💡 {approval.qcNote}</p>
+                        )}
+                      </div>
                     </>
                   )}
                 </div>
