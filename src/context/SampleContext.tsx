@@ -35,9 +35,11 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
   const [done, setDone] = useState<SampleItem[]>(initialDone);
   const [approvals, setApprovals] = useState<Record<string, ApprovalInfo>>(() => {
     const init: Record<string, ApprovalInfo> = {};
-    initialDone.forEach(s => {
-      init[s.id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 3600000), qcStatus: "approved" };
-    });
+    // Mix of statuses for demo: approved, rejected, pending
+    init[initialDone[0].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 3600000), qcStatus: "approved" };
+    init[initialDone[1].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 3600000), qcStatus: "rejected", qcNote: "ปรับปรุงสูตร" };
+    init[initialDone[2].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 7200000), qcStatus: "pending" };
+    init[initialDone[3].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 1800000), qcStatus: "pending" };
     return init;
   });
 
