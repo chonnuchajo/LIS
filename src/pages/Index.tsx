@@ -61,7 +61,7 @@ const Index = () => {
           <SampleColumn title="ตัวอย่างที่ส่งแล้ว" items={sentSamples} variant="sent" />
           <SampleColumn title="การตรวจกายภาพ" items={physicalSamples} variant="physical" />
           <SampleColumn title="การตรวจวิเคราะห์ %AI" items={testingSamples} variant="testing" />
-          <SampleColumn title="รายการทดสอบเสร็จสิ้น" items={doneSamples} variant="done" />
+          <SampleColumn title="รายการทดสอบเสร็จสิ้น" items={doneColumnItems} variant="done" />
         </div>
       </main>
     </div>
