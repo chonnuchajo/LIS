@@ -40,8 +40,8 @@ export const stockSolvents: StockSolventItem[] = [
   { id: "SOL-002", name: "Acetonitrile", lotNo: "ACN-2026-02", manufacturer: "J.T.Baker", grade: "HPLC Grade", receivedDate: "2026-02-01", expiryDate: "2028-02-01", remainingQty: 1800, unit: "mL", location: "ชั้น C-1" },
   { id: "SOL-003", name: "Hexane", lotNo: "HEX-2025-12", manufacturer: "Merck", grade: "GC Grade", receivedDate: "2025-12-20", expiryDate: "2027-12-20", remainingQty: 3000, unit: "mL", location: "ชั้น C-2" },
   { id: "SOL-004", name: "Acetone", lotNo: "ACE-2026-01", manufacturer: "RCI Labscan", grade: "AR Grade", receivedDate: "2026-01-05", expiryDate: "2028-01-05", remainingQty: 4000, unit: "mL", location: "ชั้น C-2" },
-  { id: "SOL-005", name: "Dichloromethane", lotNo: "DCM-2025-11", manufacturer: "Merck", grade: "HPLC Grade", receivedDate: "2025-11-10", expiryDate: "2027-11-10", remainingQty: 1200, unit: "mL", location: "ชั้น D-1" },
-  { id: "SOL-006", name: "Toluene", lotNo: "TOL-2026-03", manufacturer: "J.T.Baker", grade: "GC Grade", receivedDate: "2026-03-10", expiryDate: "2028-03-10", remainingQty: 2000, unit: "mL", location: "ชั้น D-1" },
+  { id: "SOL-005", name: "Dichloromethane", lotNo: "DCM-2025-11", manufacturer: "Merck", grade: "HPLC Grade", receivedDate: "2025-11-10", expiryDate: "2027-11-10", remainingQty: 350, unit: "mL", location: "ชั้น D-1" },
+  { id: "SOL-006", name: "Toluene", lotNo: "TOL-2026-03", manufacturer: "J.T.Baker", grade: "GC Grade", receivedDate: "2026-03-10", expiryDate: "2026-05-15", remainingQty: 200, unit: "mL", location: "ชั้น D-1" },
 ];
 
 // Helper: get standard for a sample name using FIFO (oldest receivedDate first)

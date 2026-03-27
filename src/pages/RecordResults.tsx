@@ -4,14 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ClipboardList, CheckCircle, FlaskConical, Calculator, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useSamples } from "@/context/SampleContext";
 
 const RecordResults = () => {
   const { testingSamples, doneSamples, approvals, approveLab } = useSamples();
+  const [approvalActions, setApprovalActions] = useState<Record<string, "approved" | "rejected">>({});
 
-  // Show testing samples + done samples that haven't been lab-approved yet or are complete
   const allSamples = [
     ...testingSamples,
     ...doneSamples,
@@ -26,9 +27,14 @@ const RecordResults = () => {
     return "analyzing";
   };
 
-  const handleApprove = (sampleId: string) => {
-    approveLab(sampleId);
-    toast.success(`อนุมัติผลการทดสอบ ${sampleId} — แสดง Pre-result และส่งไปยัง QC`);
+  const handleDropdownApprove = (sampleId: string, action: "approved" | "rejected") => {
+    setApprovalActions(prev => ({ ...prev, [sampleId]: action }));
+    if (action === "approved") {
+      approveLab(sampleId);
+      toast.success(`อนุมัติผลการทดสอบ ${sampleId} — แสดง Pre-result และส่งไปยัง QC`);
+    } else {
+      toast.error(`ไม่อนุมัติผลการทดสอบ ${sampleId}`);
+    }
   };
 
   const handleGenerateCOA = (sampleId: string) => {
@@ -105,17 +111,18 @@ const RecordResults = () => {
                               <CheckCircle className="w-3.5 h-3.5" /> อนุมัติแล้ว
                             </span>
                           ) : (
-                            <Button
-                              size="sm"
+                            <Select
                               disabled={!isReady}
-                              onClick={() => handleApprove(sample.id)}
-                              className={`gap-1 ${isReady
-                                ? "bg-lis-stat-green-icon hover:bg-lis-stat-green-icon/90 text-white"
-                                : "bg-muted text-muted-foreground cursor-not-allowed"
-                              }`}
+                              onValueChange={(val) => handleDropdownApprove(sample.id, val as "approved" | "rejected")}
                             >
-                              <CheckCircle className="w-3.5 h-3.5" />อนุมัติผล
-                            </Button>
+                              <SelectTrigger className={`h-8 w-36 text-xs ${isReady ? "border-lis-stat-green-icon text-lis-stat-green-icon" : "bg-muted text-muted-foreground cursor-not-allowed"}`}>
+                                <SelectValue placeholder={isReady ? "เลือกการอนุมัติ" : "รอผลเสร็จ"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="approved">✅ อนุมัติผล</SelectItem>
+                                <SelectItem value="rejected">❌ ไม่อนุมัติ</SelectItem>
+                              </SelectContent>
+                            </Select>
                           )}
                         </TableCell>
                         <TableCell>

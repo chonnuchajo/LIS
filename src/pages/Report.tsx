@@ -8,8 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { FileBarChart, TrendingUp, Gauge, Users, CalendarIcon } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
+import { FileBarChart, TrendingUp, Gauge, Users, CalendarIcon, LayoutDashboard, Activity } from "lucide-react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, AreaChart, Area } from "recharts";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -73,6 +73,39 @@ const personnelConfig = {
   hours: { label: "ชั่วโมงทำงาน", color: "hsl(30, 80%, 50%)" },
 };
 
+// Real-time weekly data
+const weeklyDays = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"];
+const weeklyTrendData = weeklyDays.map((day, i) => ({
+  day,
+  glyphosate: 47.5 + Math.random() * 1.5,
+  paraquat: 27.0 + Math.random() * 1.2,
+  chlorpyrifos: 39.5 + Math.random() * 1.5,
+}));
+const weeklyOeeData = weeklyDays.map((day, i) => ({
+  day,
+  gc: 65 + Math.random() * 25,
+  hplc: 70 + Math.random() * 20,
+}));
+const weeklyWorkloadData = weeklyDays.map((day, i) => ({
+  day,
+  samples: Math.floor(15 + Math.random() * 20),
+  capacity: 30,
+}));
+
+const weeklyTrendConfig = {
+  glyphosate: { label: "Glyphosate", color: "hsl(var(--primary))" },
+  paraquat: { label: "Paraquat", color: "hsl(210, 70%, 50%)" },
+  chlorpyrifos: { label: "Chlorpyrifos", color: "hsl(150, 60%, 40%)" },
+};
+const weeklyOeeConfig = {
+  gc: { label: "GC (เฉลี่ย)", color: "hsl(var(--primary))" },
+  hplc: { label: "HPLC (เฉลี่ย)", color: "hsl(210, 70%, 50%)" },
+};
+const weeklyWorkloadConfig = {
+  samples: { label: "ตัวอย่างต่อวัน", color: "hsl(var(--primary))" },
+  capacity: { label: "Capacity", color: "hsl(0, 70%, 60%)" },
+};
+
 const DateRangePicker = ({ dateFrom, dateTo, onFromChange, onToChange }: {
   dateFrom?: Date; dateTo?: Date;
   onFromChange: (d?: Date) => void; onToChange: (d?: Date) => void;
@@ -131,6 +164,11 @@ const Report = () => {
   const radarData = filteredPersonnel.map(p => ({ subject: p.name, workload: Math.round((p.samplesAnalyzed / 45) * 100), capacity: 100 }));
   const filteredOeeChart = filteredOee.map(d => ({ name: d.instrument, availability: d.availability, performance: d.performance, quality: d.quality, oee: d.oee }));
 
+  // Dashboard summary stats
+  const avgOee = oeeData.reduce((sum, d) => sum + d.oee, 0) / oeeData.length;
+  const overloadCount = personnelData.filter(p => p.overload).length;
+  const totalSamples = personnelData.reduce((sum, p) => sum + p.samplesAnalyzed, 0);
+
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
@@ -143,18 +181,120 @@ const Report = () => {
           <p className="text-sm text-muted-foreground">ภาพรวม Trend %AI, OEE เครื่องวิเคราะห์ และ Workload บุคลากร</p>
         </div>
 
-        <Tabs defaultValue="trend">
+        <Tabs defaultValue="dashboard">
           <TabsList className="mb-4">
-            <TabsTrigger value="trend" className="gap-1.5"><TrendingUp className="w-4 h-4" />Trend %AI</TabsTrigger>
+            <TabsTrigger value="dashboard" className="gap-1.5"><LayoutDashboard className="w-4 h-4" />Dashboard ภาพรวม</TabsTrigger>
+            <TabsTrigger value="trend" className="gap-1.5"><TrendingUp className="w-4 h-4" />%AI</TabsTrigger>
             <TabsTrigger value="oee" className="gap-1.5"><Gauge className="w-4 h-4" />OEE เครื่องวิเคราะห์</TabsTrigger>
             <TabsTrigger value="workload" className="gap-1.5"><Users className="w-4 h-4" />Workload บุคลากร</TabsTrigger>
           </TabsList>
+
+          {/* Dashboard Overview - Real-time Weekly */}
+          <TabsContent value="dashboard">
+            <div className="mb-4 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-primary animate-pulse" />
+              <span className="text-sm font-medium text-primary">Real-time สัปดาห์นี้</span>
+              <Badge variant="outline" className="text-xs">อัปเดตอัตโนมัติ</Badge>
+            </div>
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <p className="text-xs text-muted-foreground">ตัวอย่างสัปดาห์นี้</p>
+                  <p className="text-3xl font-bold text-primary">{totalSamples}</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <p className="text-xs text-muted-foreground">OEE เฉลี่ย</p>
+                  <p className={`text-3xl font-bold ${avgOee >= 75 ? "text-emerald-600" : "text-amber-600"}`}>{avgOee.toFixed(1)}%</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <p className="text-xs text-muted-foreground">Overload</p>
+                  <p className={`text-3xl font-bold ${overloadCount > 0 ? "text-destructive" : "text-emerald-600"}`}>{overloadCount} คน</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <p className="text-xs text-muted-foreground">เครื่องมือที่ใช้งาน</p>
+                  <p className="text-3xl font-bold text-primary">{oeeData.length}</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Weekly Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-1.5">
+                    <TrendingUp className="w-4 h-4" /> Trend %AI (สัปดาห์นี้)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ChartContainer config={weeklyTrendConfig} className="h-[220px] w-full">
+                    <AreaChart data={weeklyTrendData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Area type="monotone" dataKey="glyphosate" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.1} strokeWidth={2} />
+                      <Area type="monotone" dataKey="paraquat" stroke="hsl(210, 70%, 50%)" fill="hsl(210, 70%, 50%)" fillOpacity={0.1} strokeWidth={2} />
+                      <Area type="monotone" dataKey="chlorpyrifos" stroke="hsl(150, 60%, 40%)" fill="hsl(150, 60%, 40%)" fillOpacity={0.1} strokeWidth={2} />
+                    </AreaChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-1.5">
+                    <Gauge className="w-4 h-4" /> OEE เครื่องวิเคราะห์ (สัปดาห์นี้)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ChartContainer config={weeklyOeeConfig} className="h-[220px] w-full">
+                    <BarChart data={weeklyOeeData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                      <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="gc" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="hplc" fill="hsl(210, 70%, 50%)" radius={[2, 2, 0, 0]} />
+                    </BarChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-1.5">
+                    <Users className="w-4 h-4" /> Workload บุคลากร (สัปดาห์นี้)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ChartContainer config={weeklyWorkloadConfig} className="h-[220px] w-full">
+                    <AreaChart data={weeklyWorkloadData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Area type="monotone" dataKey="samples" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.2} strokeWidth={2} />
+                      <Area type="monotone" dataKey="capacity" stroke="hsl(0, 70%, 60%)" fill="hsl(0, 70%, 60%)" fillOpacity={0.05} strokeWidth={1.5} strokeDasharray="5 5" />
+                    </AreaChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
           {/* Trend %AI */}
           <TabsContent value="trend">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Trend %AI ยาแต่ละตัว (รายเดือน)</CardTitle>
+                <CardTitle className="text-base">%AI (รายเดือน)</CardTitle>
                 <div className="flex flex-wrap items-center gap-3 mt-3">
                   <Select value={selectedDrug} onValueChange={setSelectedDrug}>
                     <SelectTrigger className="w-52 h-9 text-xs">

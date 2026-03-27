@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ShieldCheck, CheckCircle, XCircle, FileText, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -12,24 +13,14 @@ import { useSamples } from "@/context/SampleContext";
 
 const QCApproval = () => {
   const { doneSamples, approvals, approveQC } = useSamples();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedId, setSelectedId] = useState("");
-  const [qcAction, setQcAction] = useState<"approved" | "rejected">("approved");
-  const [qcNote, setQcNote] = useState("");
+  const [qcNotes, setQcNotes] = useState<Record<string, string>>({});
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
   const [pdfSampleId, setPdfSampleId] = useState("");
 
-  const handleOpenDialog = (sampleId: string, action: "approved" | "rejected") => {
-    setSelectedId(sampleId);
-    setQcAction(action);
-    setQcNote("");
-    setDialogOpen(true);
-  };
-
-  const handleSubmit = () => {
-    approveQC(selectedId, qcAction, qcNote);
-    toast.success(`QC ${qcAction === "approved" ? "อนุมัติ" : "ไม่อนุมัติ"} ${selectedId}`);
-    setDialogOpen(false);
+  const handleQcSelect = (sampleId: string, status: "approved" | "rejected") => {
+    const note = qcNotes[sampleId] || "";
+    approveQC(sampleId, status, note);
+    toast.success(`QC ${status === "approved" ? "อนุมัติ" : "ไม่อนุมัติ"} ${sampleId}`);
   };
 
   const handleGeneratePdf = (sampleId: string) => {
@@ -37,8 +28,8 @@ const QCApproval = () => {
     setPdfDialogOpen(true);
   };
 
-  const handleConfirmSendToCustomer = (sampleId: string) => {
-    toast.success(`ส่งผลทดสอบ ${sampleId} ไปยังลูกค้าแล้ว`);
+  const handleConfirmSend = (sampleId: string) => {
+    toast.success(`ยืนยันส่งผลทดสอบ ${sampleId} แล้ว`);
   };
 
   const handleDownloadPdf = () => {
@@ -63,123 +54,98 @@ const QCApproval = () => {
             <CardTitle className="text-base">รายการรออนุมัติ QC</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>เลขตัวอย่าง</TableHead>
-                  <TableHead>ชื่อยา</TableHead>
-                  <TableHead>ผู้วิเคราะห์</TableHead>
-                  <TableHead>เครื่องมือ</TableHead>
-                  <TableHead>% AI</TableHead>
-                  <TableHead>สถานะ QC</TableHead>
-                  <TableHead>หมายเหตุ</TableHead>
-                  <TableHead>ไฟล์ผลทดลอง</TableHead>
-                  <TableHead>ยืนยันส่งลูกค้า</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {doneSamples.map(sample => {
-                  const approval = approvals[sample.id];
-                  const qcStatus = approval?.qcStatus || "pending";
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>เลขตัวอย่าง</TableHead>
+                    <TableHead>ชื่อยา</TableHead>
+                    <TableHead>ผู้วิเคราะห์</TableHead>
+                    <TableHead>เครื่องมือ</TableHead>
+                    <TableHead>% AI</TableHead>
+                    <TableHead>สถานะ QC</TableHead>
+                    <TableHead>หมายเหตุ</TableHead>
+                    <TableHead>ไฟล์ผลทดลอง</TableHead>
+                    <TableHead>ยืนยัน</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {doneSamples.map(sample => {
+                    const approval = approvals[sample.id];
+                    const qcStatus = approval?.qcStatus || "pending";
 
-                  return (
-                    <TableRow key={sample.id}>
-                      <TableCell className="font-semibold text-primary">{sample.id}</TableCell>
-                      <TableCell>{sample.name}</TableCell>
-                      <TableCell>{sample.receiver || "-"}</TableCell>
-                      <TableCell>{sample.instrument || "-"}</TableCell>
-                      <TableCell>
-                        {sample.preResult !== undefined ? (
-                          <span className="font-semibold">{sample.preResult}%</span>
-                        ) : "-"}
-                      </TableCell>
-                      <TableCell>
-                        {qcStatus === "approved" && (
-                          <Badge className="bg-lis-stat-green text-lis-stat-green-icon gap-1">
-                            <CheckCircle className="w-3 h-3" /> ผ่าน
-                          </Badge>
-                        )}
-                        {qcStatus === "rejected" && (
-                          <Badge className="bg-destructive/10 text-destructive gap-1">
-                            <XCircle className="w-3 h-3" /> ไม่ผ่าน
-                          </Badge>
-                        )}
-                        {qcStatus === "pending" && (
-                          <div className="flex gap-1">
-                            <Button size="sm" variant="default" className="gap-1 bg-lis-stat-green-icon hover:bg-lis-stat-green-icon/90 text-white" onClick={() => handleOpenDialog(sample.id, "approved")}>
-                              <CheckCircle className="w-3.5 h-3.5" /> ผ่าน
+                    return (
+                      <TableRow key={sample.id}>
+                        <TableCell className="font-semibold text-primary">{sample.id}</TableCell>
+                        <TableCell>{sample.name}</TableCell>
+                        <TableCell>{sample.receiver || "-"}</TableCell>
+                        <TableCell>{sample.instrument || "-"}</TableCell>
+                        <TableCell>
+                          {sample.preResult !== undefined ? (
+                            <span className="font-semibold">{sample.preResult}%</span>
+                          ) : "-"}
+                        </TableCell>
+                        <TableCell>
+                          {qcStatus === "approved" ? (
+                            <Badge className="bg-lis-stat-green text-lis-stat-green-icon gap-1">
+                              <CheckCircle className="w-3 h-3" /> ผ่าน
+                            </Badge>
+                          ) : qcStatus === "rejected" ? (
+                            <Badge className="bg-destructive/10 text-destructive gap-1">
+                              <XCircle className="w-3 h-3" /> ไม่ผ่าน
+                            </Badge>
+                          ) : (
+                            <Select onValueChange={(val) => handleQcSelect(sample.id, val as "approved" | "rejected")}>
+                              <SelectTrigger className="h-8 w-32 text-xs">
+                                <SelectValue placeholder="เลือกผล" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="approved">✅ ผ่าน</SelectItem>
+                                <SelectItem value="rejected">❌ ไม่ผ่าน</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-[200px]">
+                          {qcStatus === "pending" ? (
+                            <Input
+                              placeholder="พิมพ์หมายเหตุ..."
+                              className="h-8 text-xs"
+                              value={qcNotes[sample.id] || ""}
+                              onChange={e => setQcNotes(prev => ({ ...prev, [sample.id]: e.target.value }))}
+                            />
+                          ) : (
+                            <span className="text-xs">{approval?.qcNote || "-"}</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {qcStatus !== "pending" ? (
+                            <Button size="sm" variant="outline" className="gap-1" onClick={() => handleGeneratePdf(sample.id)}>
+                              <FileText className="w-3.5 h-3.5" /> สร้าง PDF
                             </Button>
-                            <Button size="sm" variant="destructive" className="gap-1" onClick={() => handleOpenDialog(sample.id, "rejected")}>
-                              <XCircle className="w-3.5 h-3.5" /> ไม่ผ่าน
+                          ) : (
+                            <span className="text-xs text-muted-foreground">รอ QC</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {qcStatus === "approved" ? (
+                            <Button size="sm" className="gap-1 bg-primary" onClick={() => handleConfirmSend(sample.id)}>
+                              <Send className="w-3.5 h-3.5" /> ยืนยัน
                             </Button>
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-[200px]">
-                        {qcStatus === "pending" ? (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        ) : (
-                          <span className="text-xs">{approval?.qcNote || "-"}</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {qcStatus !== "pending" ? (
-                          <Button size="sm" variant="outline" className="gap-1" onClick={() => handleGeneratePdf(sample.id)}>
-                            <FileText className="w-3.5 h-3.5" /> สร้าง PDF
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">รอ QC</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {qcStatus === "approved" ? (
-                          <Button size="sm" className="gap-1 bg-primary" onClick={() => handleConfirmSendToCustomer(sample.id)}>
-                            <Send className="w-3.5 h-3.5" /> ส่งลูกค้า
-                          </Button>
-                        ) : qcStatus === "rejected" ? (
-                          <span className="text-xs text-destructive">ไม่ผ่าน QC</span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">รอ QC</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                          ) : qcStatus === "rejected" ? (
+                            <span className="text-xs text-destructive">ไม่ผ่าน QC</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">รอ QC</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
-
-        {/* QC Confirm Dialog */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {qcAction === "approved" ? "ยืนยันอนุมัติ QC" : "ไม่อนุมัติ — กรุณาระบุเหตุผล"}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">ตัวอย่าง: <strong>{selectedId}</strong></p>
-              <div>
-                <label className="text-sm font-medium">หมายเหตุ / ข้อแนะนำ</label>
-                <Input
-                  placeholder={qcAction === "rejected" ? "เช่น ส่งวิเคราะห์ซ้ำ, ปรับปรุงสูตร, ตรวจสอบเครื่องมือ" : "หมายเหตุเพิ่มเติม (ถ้ามี)"}
-                  value={qcNote}
-                  onChange={e => setQcNote(e.target.value)}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>ยกเลิก</Button>
-              <Button
-                variant={qcAction === "approved" ? "default" : "destructive"}
-                onClick={handleSubmit}
-              >
-                {qcAction === "approved" ? "ยืนยันอนุมัติ" : "ยืนยันไม่อนุมัติ"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
         {/* PDF Generation Dialog */}
         <Dialog open={pdfDialogOpen} onOpenChange={setPdfDialogOpen}>
