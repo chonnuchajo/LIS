@@ -107,16 +107,12 @@ const QCApproval = () => {
                           )}
                         </TableCell>
                         <TableCell className="max-w-[200px]">
-                          {qcStatus === "pending" ? (
-                            <Input
-                              placeholder="พิมพ์หมายเหตุ..."
-                              className="h-8 text-xs"
-                              value={qcNotes[sample.id] || ""}
-                              onChange={e => setQcNotes(prev => ({ ...prev, [sample.id]: e.target.value }))}
-                            />
-                          ) : (
-                            <span className="text-xs">{approval?.qcNote || "-"}</span>
-                          )}
+                          <Input
+                            placeholder="พิมพ์หมายเหตุ..."
+                            className="h-8 text-xs"
+                            value={qcNotes[sample.id] ?? (approval?.qcNote || "")}
+                            onChange={e => setQcNotes(prev => ({ ...prev, [sample.id]: e.target.value }))}
+                          />
                         </TableCell>
                         <TableCell>
                           {qcStatus !== "pending" ? (

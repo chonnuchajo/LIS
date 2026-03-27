@@ -184,30 +184,11 @@ const SampleColumn = ({ title, items, variant }: SampleColumnProps) => {
                           )}
                         </div>
 
-                        {/* Dropdown for QC action when pending */}
-                        {(!approval?.qcStatus || approval?.qcStatus === "pending") && item.preResult !== undefined && (
-                          <div className="space-y-1.5">
-                            <Select onValueChange={(val) => handleQcAction(item.id, val as "approved" | "rejected")}>
-                              <SelectTrigger className="h-7 text-[10px]">
-                                <SelectValue placeholder="เลือกผลพิจารณา" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="approved">✅ ผ่าน</SelectItem>
-                                <SelectItem value="rejected">❌ ไม่ผ่าน</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Input
-                              placeholder="หมายเหตุ เช่น ปรับปรุงสูตร, ส่งวิเคราะห์ซ้ำ..."
-                              className="h-7 text-[10px]"
-                              value={localNotes[item.id] || ""}
-                              onChange={(e) => setLocalNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
-                            />
-                          </div>
-                        )}
-
-                        {/* Show note for rejected */}
-                        {approval?.qcStatus === "rejected" && approval.qcNote && (
-                          <p className="text-[10px] text-destructive font-medium">💡 แนวทาง: {approval.qcNote}</p>
+                        {/* Show note for approved/rejected */}
+                        {approval?.qcNote && (
+                          <p className={`text-[10px] font-medium ${approval?.qcStatus === "rejected" ? "text-destructive" : "text-muted-foreground"}`}>
+                            💡 {approval.qcStatus === "rejected" ? "แนวทาง" : "หมายเหตุ"}: {approval.qcNote}
+                          </p>
                         )}
                       </div>
                     </>
