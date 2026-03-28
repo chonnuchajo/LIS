@@ -79,6 +79,7 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
       doneSamples: done,
       approvals,
       receiveSample,
+      sendSample,
       approveLab,
       approveQC,
     }}>
