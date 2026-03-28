@@ -16,6 +16,7 @@ interface SampleContextType {
   doneSamples: SampleItem[];
   approvals: Record<string, ApprovalInfo>;
   receiveSample: (sample: SampleItem) => void;
+  sendSample: (sample: SampleItem) => void;
   approveLab: (sampleId: string) => void;
   approveQC: (sampleId: string, status: "approved" | "rejected", note?: string) => void;
 }
