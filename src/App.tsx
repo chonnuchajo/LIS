@@ -28,6 +28,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/sending-sample" element={<SendingSample />} />
             <Route path="/send-sample" element={<SendSample />} />
             <Route path="/record-results" element={<RecordResults />} />
             <Route path="/qc-approval" element={<QCApproval />} />
