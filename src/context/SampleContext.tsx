@@ -16,6 +16,7 @@ interface SampleContextType {
   doneSamples: SampleItem[];
   approvals: Record<string, ApprovalInfo>;
   receiveSample: (sample: SampleItem) => void;
+  sendSample: (sample: SampleItem) => void;
   approveLab: (sampleId: string) => void;
   approveQC: (sampleId: string, status: "approved" | "rejected", note?: string) => void;
 }
@@ -47,6 +48,10 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
     setSent(prev => prev.filter(s => s.id !== sample.id));
   };
 
+  const sendSample = (sample: SampleItem) => {
+    setSent(prev => [...prev, sample]);
+  };
+
   const approveLab = (sampleId: string) => {
     setApprovals(prev => ({
       ...prev,
@@ -74,6 +79,7 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
       doneSamples: done,
       approvals,
       receiveSample,
+      sendSample,
       approveLab,
       approveQC,
     }}>

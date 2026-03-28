@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SampleProvider } from "@/context/SampleContext";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
+import SendingSample from "./pages/SendingSample";
 import SendSample from "./pages/SendSample";
 import RecordResults from "./pages/RecordResults";
 import Report from "./pages/Report";
@@ -27,6 +28,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/sending-sample" element={<SendingSample />} />
             <Route path="/send-sample" element={<SendSample />} />
             <Route path="/record-results" element={<RecordResults />} />
             <Route path="/qc-approval" element={<QCApproval />} />
