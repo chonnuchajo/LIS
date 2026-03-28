@@ -48,6 +48,10 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
     setSent(prev => prev.filter(s => s.id !== sample.id));
   };
 
+  const sendSample = (sample: SampleItem) => {
+    setSent(prev => [...prev, sample]);
+  };
+
   const approveLab = (sampleId: string) => {
     setApprovals(prev => ({
       ...prev,
