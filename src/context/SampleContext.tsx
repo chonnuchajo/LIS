@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import type { SampleItem } from "@/components/lis/SampleColumn";
 import { sentSamples as initialSent, physicalSamples as initialPhysical, testingSamples as initialTesting, doneSamples as initialDone } from "@/data/mockData";
 
