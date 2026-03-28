@@ -110,7 +110,7 @@ const SendSample = () => {
       <main className="flex-1 p-6 overflow-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">ส่งตัวอย่างตรวจ</h1>
+            <h1 className="text-2xl font-bold text-foreground">การรับตัวอย่าง</h1>
             <p className="text-sm text-muted-foreground">รับตัวอย่างเข้าระบบโดยการสแกน QR Code</p>
           </div>
           <Button className="gap-2" onClick={() => setScannerOpen(true)}>
