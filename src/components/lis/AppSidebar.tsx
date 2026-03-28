@@ -5,7 +5,8 @@ import { toast } from "sonner";
 
 const navItems = [
   { icon: LayoutDashboard, label: "แดชบอร์ด", path: "/" },
-  { icon: Send, label: "ส่งตัวอย่างตรวจ", path: "/send-sample" },
+  { icon: Send, label: "การส่งตัวอย่าง", path: "/sending-sample" },
+  { icon: Download, label: "การรับตัวอย่าง", path: "/send-sample" },
   { icon: ClipboardList, label: "บันทึกผลการทดสอบ", path: "/record-results" },
   { icon: ShieldCheck, label: "QC Approval", path: "/qc-approval" },
   { icon: FileBarChart, label: "รายงานสรุป", path: "/report" },
