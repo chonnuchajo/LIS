@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SampleProvider } from "@/context/SampleContext";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
+import SendingSample from "./pages/SendingSample";
 import SendSample from "./pages/SendSample";
 import RecordResults from "./pages/RecordResults";
 import Report from "./pages/Report";
