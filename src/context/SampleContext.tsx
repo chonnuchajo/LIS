@@ -9,16 +9,35 @@ export interface ApprovalInfo {
   qcNote?: string;
 }
 
+export interface PendingItem {
+  id: string;
+  name: string;
+  sender: string;
+  date: string;
+  time: string;
+}
+
+export interface SentItem extends PendingItem {
+  qrBarcodeDataUrl: string;
+  status: "sending" | "sent";
+}
+
 interface SampleContextType {
   sentSamples: SampleItem[];
   physicalSamples: SampleItem[];
   testingSamples: SampleItem[];
   doneSamples: SampleItem[];
   approvals: Record<string, ApprovalInfo>;
+  pendingItems: PendingItem[];
+  sentItems: SentItem[];
   receiveSample: (sample: SampleItem) => void;
   sendSample: (sample: SampleItem) => void;
   approveLab: (sampleId: string) => void;
   approveQC: (sampleId: string, status: "approved" | "rejected", note?: string) => void;
+  addPendingItem: (item: PendingItem) => void;
+  removePendingItem: (index: number) => void;
+  markAsSending: (items: SentItem[]) => void;
+  confirmSentByScan: (sampleId: string) => void;
 }
 
 const SampleContext = createContext<SampleContextType | null>(null);
