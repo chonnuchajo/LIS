@@ -149,6 +149,51 @@ const SendingSample = () => {
     a.click();
   };
 
+  const printImage = (dataUrl: string, id: string, name: string) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>พิมพ์ QR/Barcode - ${id}</title>
+          <style>
+            body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+            img { max-width: 100%; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          <img src="${dataUrl}" alt="${id}" onload="window.print(); window.close();" />
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const printAllImages = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    const imagesHtml = sentItems.map(item => 
+      `<div style="page-break-after: always; display: flex; justify-content: center; align-items: center; min-height: 100vh;">
+        <img src="${item.qrBarcodeDataUrl}" alt="${item.id}" style="max-width: 100%;" />
+      </div>`
+    ).join("");
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>พิมพ์ QR/Barcode ทั้งหมด</title>
+          <style>
+            body { margin: 0; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>${imagesHtml}</body>
+        <script>window.onload = function() { window.print(); window.close(); }</script>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
