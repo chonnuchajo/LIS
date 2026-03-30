@@ -290,12 +290,16 @@ const SendingSample = () => {
         {/* Sent items with QR/Barcode */}
         {sentItems.length > 0 && (
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
                 <QrCode className="w-5 h-5" />
                 ตัวอย่างที่ส่งแล้ว — QR Code & Barcode
                 <Badge className="bg-primary/10 text-primary">{sentItems.length}</Badge>
               </CardTitle>
+              <Button onClick={printAllImages} variant="outline" className="gap-2">
+                <Printer className="w-4 h-4" />
+                พิมพ์ทั้งหมด
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
