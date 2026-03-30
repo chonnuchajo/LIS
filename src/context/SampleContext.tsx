@@ -86,24 +86,24 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const confirmSentByScan = (sampleId: string) => {
-    setSentItems(prev =>
-      prev.map(item =>
+    setSentItems(prev => {
+      const updated = prev.map(item =>
         item.id === sampleId ? { ...item, status: "sent" as const } : item
-      )
-    );
-    // Also add to sentSamples for receiving page
-    const found = sentItems.find(s => s.id === sampleId) || 
-                  pendingItems.find(s => s.id === sampleId);
-    if (found) {
-      sendSample({
-        id: found.id,
-        name: found.name,
-        status: "sent",
-        date: found.date,
-        time: found.time,
-        sender: found.sender,
-      });
-    }
+      );
+      // Add to sentSamples for receiving page
+      const found = prev.find(s => s.id === sampleId);
+      if (found) {
+        setSent(prevSent => [...prevSent, {
+          id: found.id,
+          name: found.name,
+          status: "sent",
+          date: found.date,
+          time: found.time,
+          sender: found.sender,
+        }]);
+      }
+      return updated;
+    });
   };
 
   const approveLab = (sampleId: string) => {
