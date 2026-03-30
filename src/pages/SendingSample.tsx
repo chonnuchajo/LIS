@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Plus, Trash2, QrCode, Download } from "lucide-react";
+import { Send, Plus, Trash2, QrCode, Download, Printer } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
