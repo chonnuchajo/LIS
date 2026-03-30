@@ -7,7 +7,7 @@ const navItems = [
   { icon: LayoutDashboard, label: "แดชบอร์ด", path: "/" },
   { icon: Send, label: "การส่งตัวอย่าง", path: "/sending-sample" },
   { icon: Download, label: "การรับตัวอย่าง", path: "/send-sample" },
-  { icon: ClipboardList, label: "การบันทึกตัดสต็อก", path: "/stock-deduction" },
+  { icon: ClipboardList, label: "การบันทึก Standard", path: "/stock-deduction" },
   { icon: ClipboardList, label: "บันทึกผลการทดสอบ", path: "/record-results" },
   { icon: ShieldCheck, label: "อนุมัติผล QC", path: "/qc-approval" },
   { icon: FileBarChart, label: "รายงานสรุป", path: "/report" },
