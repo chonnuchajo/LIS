@@ -316,15 +316,26 @@ const SendingSample = () => {
                       className="w-full rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
                       onClick={() => setPreviewImage(item.qrBarcodeDataUrl)}
                     />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full gap-2"
-                      onClick={() => downloadImage(item.qrBarcodeDataUrl, `${item.id}-qr-barcode.png`)}
-                    >
-                      <Download className="w-4 h-4" />
-                      ดาวน์โหลด
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 gap-2"
+                        onClick={() => downloadImage(item.qrBarcodeDataUrl, `${item.id}-qr-barcode.png`)}
+                      >
+                        <Download className="w-4 h-4" />
+                        ดาวน์โหลด
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 gap-2"
+                        onClick={() => printImage(item.qrBarcodeDataUrl, item.id, item.name)}
+                      >
+                        <Printer className="w-4 h-4" />
+                        พิมพ์
+                      </Button>
+                    </div>
                   </Card>
                 ))}
               </div>
