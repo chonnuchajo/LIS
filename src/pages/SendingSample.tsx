@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Plus, Trash2, QrCode, Download } from "lucide-react";
+import { Send, Plus, Trash2, QrCode, Download, Printer } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -149,6 +149,51 @@ const SendingSample = () => {
     a.click();
   };
 
+  const printImage = (dataUrl: string, id: string, name: string) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>พิมพ์ QR/Barcode - ${id}</title>
+          <style>
+            body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+            img { max-width: 100%; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          <img src="${dataUrl}" alt="${id}" onload="window.print(); window.close();" />
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const printAllImages = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    const imagesHtml = sentItems.map(item => 
+      `<div style="page-break-after: always; display: flex; justify-content: center; align-items: center; min-height: 100vh;">
+        <img src="${item.qrBarcodeDataUrl}" alt="${item.id}" style="max-width: 100%;" />
+      </div>`
+    ).join("");
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>พิมพ์ QR/Barcode ทั้งหมด</title>
+          <style>
+            body { margin: 0; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>${imagesHtml}</body>
+        <script>window.onload = function() { window.print(); window.close(); }</script>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
@@ -245,12 +290,16 @@ const SendingSample = () => {
         {/* Sent items with QR/Barcode */}
         {sentItems.length > 0 && (
           <Card>
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
                 <QrCode className="w-5 h-5" />
                 ตัวอย่างที่ส่งแล้ว — QR Code & Barcode
                 <Badge className="bg-primary/10 text-primary">{sentItems.length}</Badge>
               </CardTitle>
+              <Button onClick={printAllImages} variant="outline" className="gap-2">
+                <Printer className="w-4 h-4" />
+                พิมพ์ทั้งหมด
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -267,15 +316,26 @@ const SendingSample = () => {
                       className="w-full rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
                       onClick={() => setPreviewImage(item.qrBarcodeDataUrl)}
                     />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full gap-2"
-                      onClick={() => downloadImage(item.qrBarcodeDataUrl, `${item.id}-qr-barcode.png`)}
-                    >
-                      <Download className="w-4 h-4" />
-                      ดาวน์โหลด
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 gap-2"
+                        onClick={() => downloadImage(item.qrBarcodeDataUrl, `${item.id}-qr-barcode.png`)}
+                      >
+                        <Download className="w-4 h-4" />
+                        ดาวน์โหลด
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 gap-2"
+                        onClick={() => printImage(item.qrBarcodeDataUrl, item.id, item.name)}
+                      >
+                        <Printer className="w-4 h-4" />
+                        พิมพ์
+                      </Button>
+                    </div>
                   </Card>
                 ))}
               </div>
