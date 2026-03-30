@@ -53,9 +53,10 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
   const [physical] = useState<SampleItem[]>(initialPhysical);
   const [testing] = useState<SampleItem[]>(initialTesting);
   const [done, setDone] = useState<SampleItem[]>(initialDone);
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
+  const [sentItems, setSentItems] = useState<SentItem[]>([]);
   const [approvals, setApprovals] = useState<Record<string, ApprovalInfo>>(() => {
     const init: Record<string, ApprovalInfo> = {};
-    // Mix of statuses for demo: approved, rejected, pending
     init[initialDone[0].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 3600000), qcStatus: "approved" };
     init[initialDone[1].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 3600000), qcStatus: "rejected", qcNote: "ปรับปรุงสูตร" };
     init[initialDone[2].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 7200000), qcStatus: "pending" };
@@ -71,12 +72,45 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
     setSent(prev => [...prev, sample]);
   };
 
+  const addPendingItem = (item: PendingItem) => {
+    setPendingItems(prev => [...prev, item]);
+  };
+
+  const removePendingItem = (index: number) => {
+    setPendingItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const markAsSending = (items: SentItem[]) => {
+    setSentItems(prev => [...prev, ...items]);
+    setPendingItems([]);
+  };
+
+  const confirmSentByScan = (sampleId: string) => {
+    setSentItems(prev =>
+      prev.map(item =>
+        item.id === sampleId ? { ...item, status: "sent" as const } : item
+      )
+    );
+    // Also add to sentSamples for receiving page
+    const found = sentItems.find(s => s.id === sampleId) || 
+                  pendingItems.find(s => s.id === sampleId);
+    if (found) {
+      sendSample({
+        id: found.id,
+        name: found.name,
+        status: "sent",
+        date: found.date,
+        time: found.time,
+        sender: found.sender,
+      });
+    }
+  };
+
   const approveLab = (sampleId: string) => {
     setApprovals(prev => ({
       ...prev,
       [sampleId]: { ...prev[sampleId], labApproved: true, labApprovedAt: new Date() },
     }));
-    // Move from testing to done
     const found = testing.find(s => s.id === sampleId);
     if (found) {
       setDone(prev => [...prev, { ...found, status: "done", aiPercent: 100 }]);
@@ -97,10 +131,16 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
       testingSamples: testing,
       doneSamples: done,
       approvals,
+      pendingItems,
+      sentItems,
       receiveSample,
       sendSample,
       approveLab,
       approveQC,
+      addPendingItem,
+      removePendingItem,
+      markAsSending,
+      confirmSentByScan,
     }}>
       {children}
     </SampleContext.Provider>
