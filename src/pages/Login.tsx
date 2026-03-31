@@ -55,9 +55,7 @@ const Login = () => {
         <div className="w-full max-w-md space-y-8">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 justify-center mb-4">
-            <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-bold">ICP</span>
-            </div>
+             <img src="/logo.png" alt="ICP Logo" className="w-12 h-12 rounded-full object-contain" />
             <div>
               <h2 className="text-xl font-bold text-foreground">LIS</h2>
               <p className="text-[10px] text-muted-foreground tracking-widest">LAB INFORMATION SYSTEM</p>
