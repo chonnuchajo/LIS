@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { FlaskConical, Camera, Droplets, Palette, Upload, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { FlaskConical, Camera, Droplets, Palette, CheckCircle2, Clock } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
