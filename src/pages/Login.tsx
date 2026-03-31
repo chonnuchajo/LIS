@@ -37,9 +37,7 @@ const Login = () => {
         <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-primary/40 to-transparent" />
         <div className="relative z-10 flex flex-col justify-end p-12 text-primary-foreground">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-14 h-14 rounded-full bg-primary-foreground/20 backdrop-blur flex items-center justify-center">
-              <span className="font-bold text-lg">ICP</span>
-            </div>
+             <img src="/logo.png" alt="ICP Logo" className="w-14 h-14 rounded-full object-contain" />
             <div>
               <h2 className="text-2xl font-bold leading-tight">LIS</h2>
               <p className="text-xs tracking-widest opacity-80">LAB INFORMATION SYSTEM</p>
