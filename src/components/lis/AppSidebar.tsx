@@ -29,9 +29,7 @@ const AppSidebar = () => {
   return (
     <aside className="flex flex-col w-64 min-h-screen bg-card border-r border-border">
       <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
-        <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-          <span className="text-primary-foreground font-bold text-sm">ICP</span>
-        </div>
+        <img src="/logo.png" alt="ICP Logo" className="w-10 h-10 rounded-full object-contain" />
         <div>
           <h1 className="font-bold text-foreground text-lg leading-tight">LIS</h1>
           <p className="text-[10px] text-muted-foreground leading-tight tracking-wider">
