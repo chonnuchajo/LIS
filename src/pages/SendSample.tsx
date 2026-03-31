@@ -34,7 +34,7 @@ const instruments = [
 ];
 
 const SendSample = () => {
-  const { sentSamples, receiveSample } = useSamples();
+  const { sentSamples, sentItems, receiveSample } = useSamples();
   const [receivedSamples, setReceivedSamples] = useState<ReceivedSample[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
