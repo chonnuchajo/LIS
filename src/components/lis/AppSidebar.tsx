@@ -1,11 +1,12 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Send, Download, ClipboardList, FileBarChart, Settings, User, LogOut, Package, ShieldCheck, Database } from "lucide-react";
+import { LayoutDashboard, Send, Download, ClipboardList, FileBarChart, Settings, User, LogOut, Package, ShieldCheck, Database, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const navItems = [
   { icon: LayoutDashboard, label: "แดชบอร์ด", path: "/" },
   { icon: Send, label: "การส่งตัวอย่าง", path: "/sending-sample" },
+  { icon: FlaskConical, label: "การตรวจกายภาพ", path: "/physical-inspection" },
   { icon: Download, label: "การรับตัวอย่าง", path: "/send-sample" },
   { icon: ClipboardList, label: "การบันทึก Standard", path: "/stock-deduction" },
   { icon: ClipboardList, label: "บันทึกผลการทดสอบ", path: "/record-results" },
