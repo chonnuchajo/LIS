@@ -15,6 +15,7 @@ import QCApproval from "./pages/QCApproval";
 import AdminData from "./pages/AdminData";
 import SettingsPage from "./pages/SettingsPage";
 import StockDeduction from "./pages/StockDeduction";
+import PhysicalInspection from "./pages/PhysicalInspection";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
