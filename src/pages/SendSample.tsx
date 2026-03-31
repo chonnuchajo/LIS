@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { QrCode, Camera, X, Plus } from "lucide-react";
+import { QrCode, Camera, X, Plus, Clock, CheckCircle2 } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,7 +34,7 @@ const instruments = [
 ];
 
 const SendSample = () => {
-  const { sentSamples, receiveSample } = useSamples();
+  const { sentSamples, sentItems, receiveSample } = useSamples();
   const [receivedSamples, setReceivedSamples] = useState<ReceivedSample[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -119,22 +119,46 @@ const SendSample = () => {
           </Button>
         </div>
 
-        {/* Sent samples waiting */}
+        {/* Sent items with status */}
         <Card className="mb-6">
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               ตัวอย่างที่ส่งแล้ว (รอรับเข้าระบบ)
-              <Badge className="bg-primary/10 text-primary">{sentSamples.length}</Badge>
+              <Badge className="bg-primary/10 text-primary">{sentItems.length + sentSamples.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {sentSamples.length === 0 ? (
+            {sentItems.length === 0 && sentSamples.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">รับตัวอย่างครบแล้ว</p>
             ) : (
               <div className="flex flex-wrap gap-3">
+                {sentItems.map(s => (
+                  <Card key={s.id} className="p-3 min-w-[220px] shadow-sm space-y-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-primary">{s.id}</p>
+                      {s.status === "sending" ? (
+                        <Badge variant="outline" className="text-xs gap-1 text-amber-600 border-amber-300">
+                          <Clock className="w-3 h-3" /> กำลังส่ง
+                        </Badge>
+                      ) : (
+                        <Badge className="text-xs gap-1 bg-green-100 text-green-700 border-green-300">
+                          <CheckCircle2 className="w-3 h-3" /> ส่งแล้ว
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-foreground">{s.name}</p>
+                    <p className="text-xs text-muted-foreground">📅 {s.date} ⏰ {s.time}</p>
+                    <p className="text-xs text-muted-foreground">👤 {s.sender}</p>
+                  </Card>
+                ))}
                 {sentSamples.map(s => (
-                  <Card key={s.id} className="p-3 min-w-[200px] shadow-sm">
-                    <p className="text-sm font-semibold text-primary">{s.id}</p>
+                  <Card key={s.id} className="p-3 min-w-[220px] shadow-sm space-y-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-primary">{s.id}</p>
+                      <Badge className="text-xs gap-1 bg-green-100 text-green-700 border-green-300">
+                        <CheckCircle2 className="w-3 h-3" /> ส่งแล้ว
+                      </Badge>
+                    </div>
                     <p className="text-sm text-foreground">{s.name}</p>
                     <p className="text-xs text-muted-foreground">📅 {s.date} ⏰ {s.time}</p>
                     <p className="text-xs text-muted-foreground">👤 {s.sender}</p>
