@@ -15,6 +15,9 @@ export interface PendingItem {
   sender: string;
   date: string;
   time: string;
+  batchNo: string;
+  mfgDate: string;
+  note: string;
 }
 
 export interface SentItem extends PendingItem {
