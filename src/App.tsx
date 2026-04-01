@@ -16,6 +16,7 @@ import AdminData from "./pages/AdminData";
 import SettingsPage from "./pages/SettingsPage";
 import StockDeduction from "./pages/StockDeduction";
 import PhysicalInspection from "./pages/PhysicalInspection";
+import DailyCheck from "./pages/DailyCheck";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
