@@ -12,6 +12,7 @@ const navItems = [
   { icon: ClipboardList, label: "ผลการวิเคราะห์", path: "/record-results" },
   { icon: ShieldCheck, label: "อนุมัติผล QC", path: "/qc-approval" },
   { icon: FileBarChart, label: "รายงานสรุป", path: "/report" },
+  { icon: Scale, label: "Daily Check", path: "/daily-check" },
   { icon: Package, label: "Stock Management", path: "/stock" },
   { icon: Database, label: "Admin Data", path: "/admin-data" },
   { icon: Settings, label: "ตั้งค่าระบบ", path: "/settings" },

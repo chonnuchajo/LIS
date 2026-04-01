@@ -38,6 +38,7 @@ const App = () => (
             <Route path="/record-results" element={<RecordResults />} />
             <Route path="/qc-approval" element={<QCApproval />} />
             <Route path="/report" element={<Report />} />
+            <Route path="/daily-check" element={<DailyCheck />} />
             <Route path="/stock" element={<Stock />} />
             <Route path="/admin-data" element={<AdminData />} />
             <Route path="/settings" element={<SettingsPage />} />
