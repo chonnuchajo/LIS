@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Send, Download, ClipboardList, FileBarChart, Settings, User, LogOut, Package, ShieldCheck, Database, FlaskConical } from "lucide-react";
+import { LayoutDashboard, Send, Download, ClipboardList, FileBarChart, Settings, User, LogOut, Package, ShieldCheck, Database, FlaskConical, Scale } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -9,9 +9,10 @@ const navItems = [
   { icon: FlaskConical, label: "การตรวจกายภาพ", path: "/physical-inspection" },
   { icon: Download, label: "การรับตัวอย่าง", path: "/send-sample" },
   { icon: ClipboardList, label: "การบันทึก Standard", path: "/stock-deduction" },
-  { icon: ClipboardList, label: "บันทึกผลการทดสอบ", path: "/record-results" },
+  { icon: ClipboardList, label: "ผลการวิเคราะห์", path: "/record-results" },
   { icon: ShieldCheck, label: "อนุมัติผล QC", path: "/qc-approval" },
   { icon: FileBarChart, label: "รายงานสรุป", path: "/report" },
+  { icon: Scale, label: "Daily Check", path: "/daily-check" },
   { icon: Package, label: "Stock Management", path: "/stock" },
   { icon: Database, label: "Admin Data", path: "/admin-data" },
   { icon: Settings, label: "ตั้งค่าระบบ", path: "/settings" },

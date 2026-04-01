@@ -1,11 +1,10 @@
 import { useState, useRef } from "react";
-import { FlaskConical, Camera, Droplets, Palette, CheckCircle2, Clock } from "lucide-react";
+import { FlaskConical, Camera, Droplets, Palette, CheckCircle2, Clock, Package } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -14,7 +13,8 @@ import { useSamples } from "@/context/SampleContext";
 interface PhysicalResult {
   sampleId: string;
   density?: string;
-  dissolution?: string;
+  dissolutionValue?: string;
+  dissolutionStatus?: "normal" | "abnormal" | "";
   colorMatch?: "match" | "mismatch" | "";
   colorNote?: string;
   photoUrl?: string;
@@ -27,7 +27,6 @@ const PhysicalInspection = () => {
   const [photoDialog, setPhotoDialog] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Combine all samples that are being sent or already sent
   const allSamples = [
     ...sentItems.map(s => ({ id: s.id, name: s.name, sender: s.sender, date: s.date, time: s.time, sampleStatus: s.status })),
     ...sentSamples.map(s => ({ id: s.id, name: s.name, sender: s.sender || "", date: s.date, time: s.time, sampleStatus: "sent" as const })),
@@ -51,7 +50,7 @@ const PhysicalInspection = () => {
 
   const markCompleted = (id: string) => {
     const r = getResult(id);
-    if (!r.density || !r.dissolution || !r.colorMatch) {
+    if (!r.density || !r.dissolutionValue || !r.dissolutionStatus || !r.colorMatch) {
       toast.error("กรุณากรอกข้อมูลให้ครบก่อนบันทึก");
       return;
     }
@@ -61,6 +60,8 @@ const PhysicalInspection = () => {
 
   const pendingCount = allSamples.filter(s => getResult(s.id).status === "pending").length;
   const completedCount = allSamples.filter(s => getResult(s.id).status === "completed").length;
+  const sendingCount = allSamples.filter(s => s.sampleStatus === "sending").length;
+  const sentCount = allSamples.filter(s => s.sampleStatus === "sent").length;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -71,7 +72,13 @@ const PhysicalInspection = () => {
             <h1 className="text-2xl font-bold text-foreground">การตรวจกายภาพ</h1>
             <p className="text-sm text-muted-foreground">ตรวจสอบ Density, การละลาย และเทียบสีกับแบชก่อนหน้า</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Badge variant="outline" className="text-sm gap-1 py-1 px-3 text-amber-600 border-amber-300">
+              <Package className="w-3.5 h-3.5" /> รอรับเข้าระบบ {sendingCount}
+            </Badge>
+            <Badge variant="outline" className="text-sm gap-1 py-1 px-3 text-blue-600 border-blue-300">
+              <CheckCircle2 className="w-3.5 h-3.5" /> รับแล้ว {sentCount}
+            </Badge>
             <Badge variant="outline" className="text-sm gap-1 py-1 px-3">
               <Clock className="w-3.5 h-3.5" /> รอตรวจ {pendingCount}
             </Badge>
@@ -139,27 +146,35 @@ const PhysicalInspection = () => {
                       </div>
                     </div>
 
-                    {/* Dissolution */}
+                    {/* Dissolution - number input + normal/abnormal dropdown */}
                     <div className="flex items-center gap-3">
                       <FlaskConical className="w-5 h-5 text-purple-500 shrink-0" />
                       <div className="flex-1">
                         <label className="text-xs font-medium text-muted-foreground mb-1 block">การละลาย</label>
-                        <Select
-                          value={r.dissolution || ""}
-                          onValueChange={v => updateResult(sample.id, { dissolution: v })}
-                          disabled={isCompleted}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="เลือกผลการละลาย" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="complete">ละลายหมด</SelectItem>
-                            <SelectItem value="partial">ละลายบางส่วน</SelectItem>
-                            <SelectItem value="not-dissolved">ไม่ละลาย</SelectItem>
-                            <SelectItem value="suspension">แขวนลอย (Suspension)</SelectItem>
-                            <SelectItem value="emulsion">อิมัลชัน (Emulsion)</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex gap-2">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="กรอกค่าการละลาย"
+                            value={r.dissolutionValue || ""}
+                            onChange={e => updateResult(sample.id, { dissolutionValue: e.target.value })}
+                            disabled={isCompleted}
+                            className="flex-1"
+                          />
+                          <Select
+                            value={r.dissolutionStatus || ""}
+                            onValueChange={v => updateResult(sample.id, { dissolutionStatus: v as "normal" | "abnormal" })}
+                            disabled={isCompleted}
+                          >
+                            <SelectTrigger className="w-[130px]">
+                              <SelectValue placeholder="สถานะ" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="normal">ปกติ ✅</SelectItem>
+                              <SelectItem value="abnormal">ผิดปกติ ⚠️</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
 
@@ -211,7 +226,6 @@ const PhysicalInspection = () => {
                       </div>
                     </div>
 
-                    {/* Action */}
                     {!isCompleted && (
                       <Button className="w-full gap-2" onClick={() => markCompleted(sample.id)}>
                         <CheckCircle2 className="w-4 h-4" /> บันทึกผลตรวจกายภาพ
@@ -224,7 +238,6 @@ const PhysicalInspection = () => {
           </div>
         )}
 
-        {/* Hidden file input for photo upload */}
         <input
           ref={fileInputRef}
           type="file"

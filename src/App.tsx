@@ -16,6 +16,7 @@ import AdminData from "./pages/AdminData";
 import SettingsPage from "./pages/SettingsPage";
 import StockDeduction from "./pages/StockDeduction";
 import PhysicalInspection from "./pages/PhysicalInspection";
+import DailyCheck from "./pages/DailyCheck";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/record-results" element={<RecordResults />} />
             <Route path="/qc-approval" element={<QCApproval />} />
             <Route path="/report" element={<Report />} />
+            <Route path="/daily-check" element={<DailyCheck />} />
             <Route path="/stock" element={<Stock />} />
             <Route path="/admin-data" element={<AdminData />} />
             <Route path="/settings" element={<SettingsPage />} />
