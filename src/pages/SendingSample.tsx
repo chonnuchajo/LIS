@@ -12,51 +12,87 @@ import { useSamples } from "@/context/SampleContext";
 import type { SentItem } from "@/context/SampleContext";
 import QRCode from "qrcode";
 
-const generateQRBarcodeImage = async (id: string, name: string, sender: string): Promise<string> => {
+// 10cm x 5cm at 96 DPI ≈ 378 x 189px, use 2x for sharpness
+const LABEL_W = 756;
+const LABEL_H = 378;
+
+const generateLabelImage = async (
+  id: string,
+  name: string,
+  sender: string,
+  batchNo: string,
+  mfgDate: string,
+  sendDate: string,
+  note: string,
+): Promise<string> => {
   const canvas = document.createElement("canvas");
-  const width = 400;
-  const height = 280;
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = LABEL_W;
+  canvas.height = LABEL_H;
   const ctx = canvas.getContext("2d")!;
 
+  // Background
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
+  ctx.fillRect(0, 0, LABEL_W, LABEL_H);
 
+  // Border
+  ctx.strokeStyle = "#d1d5db";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, LABEL_W - 2, LABEL_H - 2);
+
+  // --- Left side: text info ---
+  const leftPad = 24;
+  let y = 36;
+  const lineH = 32;
+
+  // Sample ID header
   ctx.fillStyle = "#1a1a2e";
-  ctx.font = "bold 14px sans-serif";
-  ctx.textAlign = "center";
-  ctx.fillText(id, width / 2, 22);
-  ctx.font = "12px sans-serif";
-  ctx.fillStyle = "#555";
-  ctx.fillText(name, width / 2, 40);
+  ctx.font = "bold 22px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText(id, leftPad, y);
+  y += lineH + 4;
 
-  const qrDataUrl = await QRCode.toDataURL(JSON.stringify({ id, name, sender }), {
-    width: 140, margin: 1, color: { dark: "#1a1a2e", light: "#ffffff" },
-  });
-  const qrImg = new Image();
-  await new Promise<void>((resolve) => { qrImg.onload = () => resolve(); qrImg.src = qrDataUrl; });
-  ctx.drawImage(qrImg, (width - 140) / 2, 50, 140, 140);
+  // Helper for label-value pairs
+  const drawField = (label: string, value: string) => {
+    ctx.fillStyle = "#6b7280";
+    ctx.font = "14px sans-serif";
+    ctx.fillText(label, leftPad, y);
+    ctx.fillStyle = "#111827";
+    ctx.font = "bold 16px sans-serif";
+    ctx.fillText(value, leftPad + 130, y);
+    y += lineH;
+  };
 
-  const barcodeY = 200;
-  const barcodeHeight = 45;
-  ctx.fillStyle = "#1a1a2e";
-  const chars = id.replace(/-/g, "");
-  const barWidth = Math.floor((width - 60) / (chars.length * 11));
-  let x = 30;
-  for (let i = 0; i < chars.length; i++) {
-    const code = chars.charCodeAt(i);
-    const pattern = [(code >> 6) & 1, 1, (code >> 5) & 1, 1, (code >> 4) & 1, (code >> 3) & 1, 1, (code >> 2) & 1, (code >> 1) & 1, code & 1, 0];
-    for (const bit of pattern) {
-      if (bit) ctx.fillRect(x, barcodeY, barWidth, barcodeHeight);
-      x += barWidth;
-    }
+  drawField("ชื่อยา:", name);
+  drawField("เลขแบช:", batchNo);
+  drawField("วันที่ผลิต:", mfgDate);
+  drawField("วันที่ส่งตัวอย่าง:", sendDate);
+  drawField("ผู้ส่งตัวอย่าง:", sender);
+
+  if (note) {
+    drawField("หมายเหตุ:", note);
   }
 
-  ctx.fillStyle = "#333";
-  ctx.font = "11px monospace";
+  // --- Right side: QR Code ---
+  const qrSize = 200;
+  const qrX = LABEL_W - qrSize - 30;
+  const qrY = (LABEL_H - qrSize - 30) / 2;
+
+  const qrDataUrl = await QRCode.toDataURL(
+    JSON.stringify({ id, name, sender, batchNo, mfgDate }),
+    { width: qrSize, margin: 1, color: { dark: "#1a1a2e", light: "#ffffff" } },
+  );
+  const qrImg = new Image();
+  await new Promise<void>((resolve) => {
+    qrImg.onload = () => resolve();
+    qrImg.src = qrDataUrl;
+  });
+  ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+  // QR label text
+  ctx.fillStyle = "#6b7280";
+  ctx.font = "12px sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(id, width / 2, barcodeY + barcodeHeight + 16);
+  ctx.fillText("Scan QR Code", qrX + qrSize / 2, qrY + qrSize + 18);
 
   return canvas.toDataURL("image/png");
 };
@@ -65,6 +101,9 @@ const SendingSample = () => {
   const { pendingItems, sentItems, addPendingItem, removePendingItem, markAsSending, confirmSentByScan } = useSamples();
   const [sampleName, setSampleName] = useState("");
   const [senderName, setSenderName] = useState("");
+  const [batchNo, setBatchNo] = useState("");
+  const [mfgDate, setMfgDate] = useState("");
+  const [note, setNote] = useState("");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [scanDialogOpen, setScanDialogOpen] = useState(false);
 
@@ -81,8 +120,14 @@ const SendingSample = () => {
       sender: senderName.trim(),
       date: now.toLocaleDateString("th-TH"),
       time: now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
+      batchNo: batchNo.trim(),
+      mfgDate: mfgDate.trim(),
+      note: note.trim(),
     });
     setSampleName("");
+    setBatchNo("");
+    setMfgDate("");
+    setNote("");
     toast.success(`เพิ่มตัวอย่าง "${sampleName.trim()}" แล้ว`);
   };
 
@@ -93,11 +138,13 @@ const SendingSample = () => {
     }
     const newSentItems: SentItem[] = [];
     for (const item of pendingItems) {
-      const qrBarcodeDataUrl = await generateQRBarcodeImage(item.id, item.name, item.sender);
+      const qrBarcodeDataUrl = await generateLabelImage(
+        item.id, item.name, item.sender, item.batchNo, item.mfgDate, item.date, item.note,
+      );
       newSentItems.push({ ...item, qrBarcodeDataUrl, status: "sending" });
     }
     markAsSending(newSentItems);
-    toast.success(`เตรียมส่งตัวอย่างทั้งหมด ${newSentItems.length} รายการ — กรุณาสแกน QR/Barcode ที่จุดเช็คอิน`);
+    toast.success(`เตรียมส่งตัวอย่างทั้งหมด ${newSentItems.length} รายการ`);
   };
 
   const handleScanConfirm = (sampleId: string) => {
@@ -126,7 +173,7 @@ const SendingSample = () => {
   const printImage = (dataUrl: string, id: string) => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
-    printWindow.document.write(`<html><head><title>พิมพ์ QR/Barcode - ${id}</title><style>body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh}img{max-width:100%}@media print{body{margin:0}}</style></head><body><img src="${dataUrl}" alt="${id}" onload="window.print();window.close();" /></body></html>`);
+    printWindow.document.write(`<html><head><title>พิมพ์ Label - ${id}</title><style>body{margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh}img{width:10cm;height:5cm}@media print{body{margin:0}img{width:10cm;height:5cm}}</style></head><body><img src="${dataUrl}" alt="${id}" onload="window.print();window.close();" /></body></html>`);
     printWindow.document.close();
   };
 
@@ -134,7 +181,7 @@ const SendingSample = () => {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
     const html = sentItems.map(item =>
-      `<div style="page-break-after:always;display:flex;justify-content:center;align-items:center;min-height:100vh"><img src="${item.qrBarcodeDataUrl}" alt="${item.id}" style="max-width:100%" /></div>`
+      `<div style="page-break-after:always;display:flex;justify-content:center;align-items:center;min-height:100vh"><img src="${item.qrBarcodeDataUrl}" alt="${item.id}" style="width:10cm;height:5cm" /></div>`
     ).join("");
     printWindow.document.write(`<html><head><title>พิมพ์ทั้งหมด</title><style>body{margin:0}@media print{body{margin:0}}</style></head><body>${html}</body><script>window.onload=function(){window.print();window.close()}</script></html>`);
     printWindow.document.close();
@@ -166,18 +213,32 @@ const SendingSample = () => {
             <CardTitle className="text-base">เพิ่มตัวอย่าง</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-3 items-end">
-              <div className="flex-1 min-w-[200px]">
-                <label className="text-sm font-medium text-foreground mb-1 block">ชื่อตัวอย่าง</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1 block">ชื่อยา</label>
                 <Input placeholder="เช่น Paracetamol 500 mg" value={sampleName} onChange={e => setSampleName(e.target.value)} />
               </div>
-              <div className="flex-1 min-w-[200px]">
-                <label className="text-sm font-medium text-foreground mb-1 block">ชื่อผู้ส่ง</label>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1 block">เลขแบช</label>
+                <Input placeholder="เช่น B2026-001" value={batchNo} onChange={e => setBatchNo(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1 block">วันที่ผลิต</label>
+                <Input type="date" value={mfgDate} onChange={e => setMfgDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1 block">ผู้ส่งตัวอย่าง</label>
                 <Input placeholder="เช่น บริษัท ABC จำกัด" value={senderName} onChange={e => setSenderName(e.target.value)} />
               </div>
-              <Button onClick={handleAdd} className="gap-2">
-                <Plus className="w-4 h-4" /> เพิ่มรายการ
-              </Button>
+              <div>
+                <label className="text-sm font-medium text-foreground mb-1 block">หมายเหตุ</label>
+                <Input placeholder="หมายเหตุ (ถ้ามี)" value={note} onChange={e => setNote(e.target.value)} />
+              </div>
+              <div className="flex items-end">
+                <Button onClick={handleAdd} className="gap-2 w-full">
+                  <Plus className="w-4 h-4" /> เพิ่มรายการ
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -205,8 +266,9 @@ const SendingSample = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>รหัสตัวอย่าง</TableHead>
-                    <TableHead>ชื่อตัวอย่าง</TableHead>
+                    <TableHead>รหัส</TableHead>
+                    <TableHead>ชื่อยา</TableHead>
+                    <TableHead>เลขแบช</TableHead>
                     <TableHead>ผู้ส่ง</TableHead>
                     <TableHead>วันที่/เวลา</TableHead>
                     <TableHead className="w-[80px]">ลบ</TableHead>
@@ -217,6 +279,7 @@ const SendingSample = () => {
                     <TableRow key={item.id}>
                       <TableCell className="font-semibold text-primary">{item.id}</TableCell>
                       <TableCell>{item.name}</TableCell>
+                      <TableCell>{item.batchNo || "-"}</TableCell>
                       <TableCell>{item.sender}</TableCell>
                       <TableCell className="text-xs">{item.date}<br />{item.time}</TableCell>
                       <TableCell>
@@ -232,13 +295,13 @@ const SendingSample = () => {
           </CardContent>
         </Card>
 
-        {/* Sent items with QR/Barcode */}
+        {/* Sent items with label */}
         {sentItems.length > 0 && (
           <Card>
             <CardHeader className="pb-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base flex items-center gap-2">
                 <QrCode className="w-5 h-5" />
-                รายการตัวอย่าง — QR Code & Barcode
+                รายการตัวอย่าง — Label (10×5 cm)
                 <Badge variant="outline" className="text-xs">กำลังส่ง {sendingCount}</Badge>
                 <Badge className="bg-primary/10 text-primary text-xs">ส่งแล้ว {sentCount}</Badge>
               </CardTitle>
@@ -249,7 +312,7 @@ const SendingSample = () => {
               )}
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {sentItems.map(item => (
                   <Card key={item.id} className="p-3 space-y-2 shadow-sm">
                     <div className="flex items-center justify-between">
@@ -265,15 +328,16 @@ const SendingSample = () => {
                       )}
                     </div>
                     <p className="text-sm text-foreground">{item.name}</p>
-                    <p className="text-xs text-muted-foreground">ผู้ส่ง: {item.sender}</p>
+                    <p className="text-xs text-muted-foreground">ผู้ส่ง: {item.sender} | แบช: {item.batchNo || "-"}</p>
                     <img
                       src={item.qrBarcodeDataUrl}
-                      alt={`QR & Barcode - ${item.id}`}
+                      alt={`Label - ${item.id}`}
                       className="w-full rounded border border-border cursor-pointer hover:opacity-80 transition-opacity"
+                      style={{ aspectRatio: "2/1" }}
                       onClick={() => setPreviewImage(item.qrBarcodeDataUrl)}
                     />
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1 gap-1" onClick={() => downloadImage(item.qrBarcodeDataUrl, `${item.id}-qr-barcode.png`)}>
+                      <Button variant="outline" size="sm" className="flex-1 gap-1" onClick={() => downloadImage(item.qrBarcodeDataUrl, `${item.id}-label.png`)}>
                         <Download className="w-3 h-3" /> ดาวน์โหลด
                       </Button>
                       <Button variant="outline" size="sm" className="flex-1 gap-1" onClick={() => printImage(item.qrBarcodeDataUrl, item.id)}>
@@ -294,9 +358,9 @@ const SendingSample = () => {
 
         {/* Preview dialog */}
         <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
-          <DialogContent className="max-w-md">
-            <DialogHeader><DialogTitle>QR Code & Barcode</DialogTitle></DialogHeader>
-            {previewImage && <img src={previewImage} alt="Preview" className="w-full rounded" />}
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle>Label Preview (10×5 cm)</DialogTitle></DialogHeader>
+            {previewImage && <img src={previewImage} alt="Preview" className="w-full rounded" style={{ aspectRatio: "2/1" }} />}
           </DialogContent>
         </Dialog>
 
@@ -309,7 +373,7 @@ const SendingSample = () => {
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">สแกน QR Code หรือ Barcode ที่จุดเช็คอินเพื่อยืนยันว่าส่งตัวอย่างถึงแล้ว</p>
+              <p className="text-sm text-muted-foreground">สแกน QR Code ที่จุดเช็คอินเพื่อยืนยันว่าส่งตัวอย่างถึงแล้ว</p>
               <div className="space-y-2">
                 {sentItems.filter(i => i.status === "sending").map(item => (
                   <div key={item.id} className="flex items-center justify-between p-3 rounded-lg border border-border">
