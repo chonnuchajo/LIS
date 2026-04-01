@@ -9,7 +9,7 @@ const navItems = [
   { icon: FlaskConical, label: "การตรวจกายภาพ", path: "/physical-inspection" },
   { icon: Download, label: "การรับตัวอย่าง", path: "/send-sample" },
   { icon: ClipboardList, label: "การบันทึก Standard", path: "/stock-deduction" },
-  { icon: ClipboardList, label: "บันทึกผลการทดสอบ", path: "/record-results" },
+  { icon: ClipboardList, label: "ผลการวิเคราะห์", path: "/record-results" },
   { icon: ShieldCheck, label: "อนุมัติผล QC", path: "/qc-approval" },
   { icon: FileBarChart, label: "รายงานสรุป", path: "/report" },
   { icon: Package, label: "Stock Management", path: "/stock" },
