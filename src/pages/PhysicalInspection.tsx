@@ -88,6 +88,56 @@ const PhysicalInspection = () => {
           </div>
         </div>
 
+        {/* Sent items waiting to be received */}
+        <Card className="mb-6">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              ตัวอย่างที่ส่งแล้ว (รอรับเข้าระบบ)
+              <Badge className="bg-primary/10 text-primary">{sentItems.length + sentSamples.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {sentItems.length === 0 && sentSamples.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">ยังไม่มีตัวอย่างที่ส่งเข้ามา</p>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {sentItems.map(s => (
+                  <Card key={`si-${s.id}`} className="p-3 min-w-[220px] shadow-sm space-y-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-primary">{s.id}</p>
+                      {s.status === "sending" ? (
+                        <Badge variant="outline" className="text-xs gap-1 text-amber-600 border-amber-300">
+                          <Clock className="w-3 h-3" /> กำลังส่ง
+                        </Badge>
+                      ) : (
+                        <Badge className="text-xs gap-1 bg-green-100 text-green-700 border-green-300">
+                          <CheckCircle2 className="w-3 h-3" /> ส่งแล้ว
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-foreground">{s.name}</p>
+                    <p className="text-xs text-muted-foreground">📅 {s.date} ⏰ {s.time}</p>
+                    <p className="text-xs text-muted-foreground">👤 {s.sender}</p>
+                  </Card>
+                ))}
+                {sentSamples.map(s => (
+                  <Card key={`ss-${s.id}`} className="p-3 min-w-[220px] shadow-sm space-y-1">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-primary">{s.id}</p>
+                      <Badge className="text-xs gap-1 bg-green-100 text-green-700 border-green-300">
+                        <CheckCircle2 className="w-3 h-3" /> ส่งแล้ว
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-foreground">{s.name}</p>
+                    <p className="text-xs text-muted-foreground">📅 {s.date} ⏰ {s.time}</p>
+                    <p className="text-xs text-muted-foreground">👤 {s.sender}</p>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {allSamples.length === 0 ? (
           <Card>
             <CardContent className="py-16 text-center">
