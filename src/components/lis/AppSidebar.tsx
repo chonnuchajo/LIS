@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Send, Download, ClipboardList, FileBarChart, Settings, User, LogOut, Package, ShieldCheck, Database, FlaskConical, Scale } from "lucide-react";
+import { LayoutDashboard, Send, Download, ClipboardList, FileBarChart, Settings, User, LogOut, Package, ShieldCheck, Database, FlaskConical, Scale, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 

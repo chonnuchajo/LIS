@@ -32,7 +32,7 @@ const Index = () => {
       <main className="flex-1 p-6 overflow-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">ภาพรวมแล็บ (Dashboard)</h1>
+            <h1 className="text-2xl font-bold text-foreground">ภาพรวมระบบห้องปฏิบัติการ</h1>
             <p className="text-sm text-muted-foreground">
               ยินดีต้อนรับกลับ, เข้าสู่ระบบจัดการ Lab วันที่ {formattedDate}
             </p>
