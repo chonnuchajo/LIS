@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 const navItems = [
+  { icon: Home, label: "หน้าแรก", path: "/home" },
   { icon: LayoutDashboard, label: "แดชบอร์ด", path: "/" },
   { icon: Send, label: "การส่งตัวอย่าง", path: "/sending-sample" },
   { icon: FlaskConical, label: "การตรวจกายภาพ", path: "/physical-inspection" },
