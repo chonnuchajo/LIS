@@ -31,6 +31,7 @@ const App = () => (
         <SampleProvider>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/home" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/sending-sample" element={<SendingSample />} />
             <Route path="/send-sample" element={<SendSample />} />

@@ -38,13 +38,10 @@ const Home = () => {
 
   // Today's samples for realtime density tracking
   const todaySamples = useMemo(() => {
-    const today = now.toISOString().split("T")[0];
     const allCurrent = [
       ...sentItems.map(s => ({ id: s.id, name: s.name, date: s.date, density: undefined as number | undefined })),
       ...sentSamples.map(s => ({ id: s.id, name: s.name, date: s.date, density: undefined as number | undefined })),
     ];
-    // In production, density would come from physical inspection context
-    // For demo, show all sent samples for today
     return allCurrent;
   }, [sentItems, sentSamples]);
 
