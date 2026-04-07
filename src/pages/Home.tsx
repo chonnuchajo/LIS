@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { CheckCircle2, AlertTriangle, Droplets, FlaskConical, Palette, Clock } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Droplets, FlaskConical, Clock } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
