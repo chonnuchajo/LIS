@@ -156,12 +156,83 @@ const Home = () => {
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
-                            <Badge className={r.colorMatch === "match"
-                              ? "bg-green-100 text-green-700 border-green-300"
-                              : "bg-amber-100 text-amber-700 border-amber-300"
-                            }>
-                              {r.colorMatch === "match" ? "สีตรงกัน ✅" : "สีไม่ตรง ⚠️"}
-                            </Badge>
+                            {r.colorMatch === "match" ? (
+                              <Badge className="bg-green-100 text-green-700 border-green-300">
+                                สีตรงกัน ✅
+                              </Badge>
+                            ) : (
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <button className="inline-flex flex-col items-center gap-1.5 group">
+                                    <div className="flex items-center gap-1">
+                                      {r.prevBatchImage && (
+                                        <img
+                                          src={r.prevBatchImage}
+                                          alt="แบชก่อนหน้า"
+                                          className="w-10 h-10 rounded border-2 border-amber-300 object-cover group-hover:scale-110 transition"
+                                        />
+                                      )}
+                                      {r.currentBatchImage && (
+                                        <img
+                                          src={r.currentBatchImage}
+                                          alt="แบชล่าสุด"
+                                          className="w-10 h-10 rounded border-2 border-red-300 object-cover group-hover:scale-110 transition"
+                                        />
+                                      )}
+                                    </div>
+                                    <Badge className="bg-amber-100 text-amber-700 border-amber-300 text-xs">
+                                      สีไม่ตรง ⚠️
+                                    </Badge>
+                                  </button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-2xl">
+                                  <DialogHeader>
+                                    <DialogTitle className="flex items-center gap-2">
+                                      <ImageIcon className="w-5 h-5 text-amber-600" />
+                                      เปรียบเทียบสี — {sample.name} ({sample.id})
+                                    </DialogTitle>
+                                  </DialogHeader>
+                                  <div className="grid grid-cols-2 gap-4 mt-2">
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-muted-foreground">แบชก่อนหน้า</span>
+                                        {r.prevBatchNo && (
+                                          <Badge variant="outline" className="text-xs">{r.prevBatchNo}</Badge>
+                                        )}
+                                      </div>
+                                      {r.prevBatchImage && (
+                                        <img
+                                          src={r.prevBatchImage}
+                                          alt="แบชก่อนหน้า"
+                                          className="w-full h-64 rounded-lg border-2 border-amber-300 object-cover"
+                                        />
+                                      )}
+                                    </div>
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-muted-foreground">แบชล่าสุด</span>
+                                        {r.currentBatchNo && (
+                                          <Badge variant="outline" className="text-xs border-red-300 text-red-600">{r.currentBatchNo}</Badge>
+                                        )}
+                                      </div>
+                                      {r.currentBatchImage && (
+                                        <img
+                                          src={r.currentBatchImage}
+                                          alt="แบชล่าสุด"
+                                          className="w-full h-64 rounded-lg border-2 border-red-300 object-cover"
+                                        />
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                                    <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                                    <p className="text-sm text-amber-800">
+                                      ตรวจพบสีของตัวอย่างแตกต่างจากแบชก่อนหน้า ควรตรวจสอบกระบวนการผลิตเพิ่มเติม
+                                    </p>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
