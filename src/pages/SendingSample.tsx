@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Send, Plus, Trash2, QrCode, Download, Printer, ScanLine, CheckCircle2, Clock } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Send, Plus, Trash2, QrCode, Download, Printer, ScanLine, CheckCircle2, Clock, FlaskConical, Droplets, Palette, User } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import { useSamples } from "@/context/SampleContext";
 import type { SentItem } from "@/context/SampleContext";
+import { useAuth } from "@/context/AuthContext";
 import QRCode from "qrcode";
 
 // 10cm x 5cm at 96 DPI ≈ 378 x 189px, use 2x for sharpness
