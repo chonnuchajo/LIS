@@ -75,6 +75,7 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
   const [done, setDone] = useState<SampleItem[]>(initialDone);
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [sentItems, setSentItems] = useState<SentItem[]>([]);
+  const [physicalResults, setPhysicalResults] = useState<Record<string, PhysicalResult>>({});
   const [approvals, setApprovals] = useState<Record<string, ApprovalInfo>>(() => {
     const init: Record<string, ApprovalInfo> = {};
     init[initialDone[0].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 3600000), qcStatus: "approved" };
@@ -126,6 +127,13 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  const upsertPhysicalResult = (id: string, updates: Partial<PhysicalResult>) => {
+    setPhysicalResults(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || { sampleId: id, status: "pending" }), ...updates },
+    }));
+  };
+
   const approveLab = (sampleId: string) => {
     setApprovals(prev => ({
       ...prev,
@@ -153,6 +161,8 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
       approvals,
       pendingItems,
       sentItems,
+      physicalResults,
+      upsertPhysicalResult,
       receiveSample,
       sendSample,
       approveLab,
