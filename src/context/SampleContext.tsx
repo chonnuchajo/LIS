@@ -18,11 +18,26 @@ export interface PendingItem {
   batchNo: string;
   mfgDate: string;
   note: string;
+  userEmail?: string;
 }
 
 export interface SentItem extends PendingItem {
   qrBarcodeDataUrl: string;
   status: "sending" | "sent";
+}
+
+export interface PhysicalResult {
+  sampleId: string;
+  density?: string;
+  densityStatus?: "normal" | "abnormal";
+  dissolutionValue?: string;
+  dissolutionStatus?: "normal" | "abnormal";
+  physicalStatus?: "normal" | "abnormal";
+  colorMatch?: "match" | "mismatch";
+  colorNote?: string;
+  photoUrl?: string;
+  status: "pending" | "completed";
+  completedAt?: string;
 }
 
 interface SampleContextType {
@@ -33,6 +48,8 @@ interface SampleContextType {
   approvals: Record<string, ApprovalInfo>;
   pendingItems: PendingItem[];
   sentItems: SentItem[];
+  physicalResults: Record<string, PhysicalResult>;
+  upsertPhysicalResult: (id: string, updates: Partial<PhysicalResult>) => void;
   receiveSample: (sample: SampleItem) => void;
   sendSample: (sample: SampleItem) => void;
   approveLab: (sampleId: string) => void;
