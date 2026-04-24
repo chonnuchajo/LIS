@@ -193,6 +193,18 @@ const SendingSample = () => {
   const sendingCount = sentItems.filter(i => i.status === "sending").length;
   const sentCount = sentItems.filter(i => i.status === "sent").length;
 
+  // ตัวอย่างที่ user ปัจจุบันส่ง (กรองตาม email)
+  const myItems = useMemo(() => {
+    if (!user) return [];
+    return sentItems.filter(i => i.userEmail === user.email);
+  }, [sentItems, user]);
+
+  const myAnalyzedItems = useMemo(() =>
+    myItems.map(i => ({ item: i, result: physicalResults[i.id] }))
+      .filter(x => x.result),
+    [myItems, physicalResults]
+  );
+
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
