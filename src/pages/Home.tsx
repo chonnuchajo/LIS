@@ -1,9 +1,10 @@
 import { useMemo } from "react";
-import { CheckCircle2, AlertTriangle, Droplets, FlaskConical, Clock } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Droplets, FlaskConical, Clock, ImageIcon } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useSamples } from "@/context/SampleContext";
 
 // Mock physical inspection results for yesterday's samples (would come from context in production)
@@ -14,10 +15,26 @@ const mockPhysicalResults: Record<string, {
   dissolution: number;
   dissolutionStatus: "normal" | "abnormal";
   colorMatch: "match" | "mismatch";
+  prevBatchImage?: string;
+  currentBatchImage?: string;
+  prevBatchNo?: string;
+  currentBatchNo?: string;
 }> = {
   "LAB-2602-003": { physical: "normal", density: 0.987, densityStatus: "normal", dissolution: 98.5, dissolutionStatus: "normal", colorMatch: "match" },
   "LAB-2602-005": { physical: "normal", density: 1.024, densityStatus: "normal", dissolution: 99.1, dissolutionStatus: "normal", colorMatch: "match" },
-  "LAB-2602-008": { physical: "abnormal", density: 1.155, densityStatus: "abnormal", dissolution: 85.2, dissolutionStatus: "abnormal", colorMatch: "mismatch" },
+  "LAB-2602-008": {
+    physical: "abnormal",
+    density: 1.155,
+    densityStatus: "abnormal",
+    dissolution: 85.2,
+    dissolutionStatus: "abnormal",
+    colorMatch: "mismatch",
+    prevBatchNo: "B25120",
+    currentBatchNo: "B26010",
+    // Solid color swatches as data URLs (amber vs darker brown) — represent visible color difference
+    prevBatchImage: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600&h=400&fit=crop",
+    currentBatchImage: "https://images.unsplash.com/photo-1559554498-bd2b8a35cb98?w=600&h=400&fit=crop",
+  },
 };
 
 const Home = () => {
