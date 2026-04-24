@@ -6,20 +6,28 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import labCover from "@/assets/lab-cover.jpg";
+import { useAuth } from "@/context/AuthContext";
 
 const Login = () => {
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");
+  const { login } = useAuth();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !password) {
-      toast.error("กรุณากรอกชื่อผู้ใช้และรหัสผ่าน");
+    if (!email || !password) {
+      toast.error("กรุณากรอกอีเมลและรหัสผ่าน");
       return;
     }
-    toast.success("เข้าสู่ระบบสำเร็จ");
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      toast.error("รูปแบบอีเมลไม่ถูกต้อง");
+      return;
+    }
+    login(email, email.split("@")[0]);
+    toast.success(`เข้าสู่ระบบสำเร็จ: ${email}`);
     navigate("/");
   };
 
@@ -71,12 +79,13 @@ const Login = () => {
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="username">ชื่อผู้ใช้</Label>
+              <Label htmlFor="email">อีเมล</Label>
               <Input
-                id="username"
-                placeholder="กรอกชื่อผู้ใช้"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="example@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="space-y-2">

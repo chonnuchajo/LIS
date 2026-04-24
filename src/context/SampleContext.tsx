@@ -18,11 +18,26 @@ export interface PendingItem {
   batchNo: string;
   mfgDate: string;
   note: string;
+  userEmail?: string;
 }
 
 export interface SentItem extends PendingItem {
   qrBarcodeDataUrl: string;
   status: "sending" | "sent";
+}
+
+export interface PhysicalResult {
+  sampleId: string;
+  density?: string;
+  densityStatus?: "normal" | "abnormal";
+  dissolutionValue?: string;
+  dissolutionStatus?: "normal" | "abnormal";
+  physicalStatus?: "normal" | "abnormal";
+  colorMatch?: "match" | "mismatch";
+  colorNote?: string;
+  photoUrl?: string;
+  status: "pending" | "completed";
+  completedAt?: string;
 }
 
 interface SampleContextType {
@@ -33,6 +48,8 @@ interface SampleContextType {
   approvals: Record<string, ApprovalInfo>;
   pendingItems: PendingItem[];
   sentItems: SentItem[];
+  physicalResults: Record<string, PhysicalResult>;
+  upsertPhysicalResult: (id: string, updates: Partial<PhysicalResult>) => void;
   receiveSample: (sample: SampleItem) => void;
   sendSample: (sample: SampleItem) => void;
   approveLab: (sampleId: string) => void;
@@ -58,6 +75,7 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
   const [done, setDone] = useState<SampleItem[]>(initialDone);
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [sentItems, setSentItems] = useState<SentItem[]>([]);
+  const [physicalResults, setPhysicalResults] = useState<Record<string, PhysicalResult>>({});
   const [approvals, setApprovals] = useState<Record<string, ApprovalInfo>>(() => {
     const init: Record<string, ApprovalInfo> = {};
     init[initialDone[0].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 3600000), qcStatus: "approved" };
@@ -109,6 +127,13 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  const upsertPhysicalResult = (id: string, updates: Partial<PhysicalResult>) => {
+    setPhysicalResults(prev => ({
+      ...prev,
+      [id]: { ...(prev[id] || { sampleId: id, status: "pending" }), ...updates },
+    }));
+  };
+
   const approveLab = (sampleId: string) => {
     setApprovals(prev => ({
       ...prev,
@@ -136,6 +161,8 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
       approvals,
       pendingItems,
       sentItems,
+      physicalResults,
+      upsertPhysicalResult,
       receiveSample,
       sendSample,
       approveLab,
