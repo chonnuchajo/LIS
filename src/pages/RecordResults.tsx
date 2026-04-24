@@ -8,10 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ClipboardList, CheckCircle, FlaskConical, Calculator, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useSamples } from "@/context/SampleContext";
+import COADialog from "@/components/lis/COADialog";
+import type { SampleItem } from "@/components/lis/SampleColumn";
 
 const RecordResults = () => {
-  const { testingSamples, doneSamples, approvals, approveLab } = useSamples();
+  const { testingSamples, doneSamples, approvals, approveLab, physicalResults } = useSamples();
   const [approvalActions, setApprovalActions] = useState<Record<string, "approved" | "rejected">>({});
+  const [coaSample, setCoaSample] = useState<SampleItem | null>(null);
 
   const allSamples = [
     ...testingSamples,
@@ -37,8 +40,8 @@ const RecordResults = () => {
     }
   };
 
-  const handleGenerateCOA = (sampleId: string) => {
-    toast.success(`กำลังสร้างไฟล์ COA สำหรับ ${sampleId}...`);
+  const handleGenerateCOA = (sample: SampleItem) => {
+    setCoaSample(sample);
   };
 
   return (
@@ -130,7 +133,7 @@ const RecordResults = () => {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleGenerateCOA(sample.id)}
+                              onClick={() => handleGenerateCOA(sample)}
                               className="gap-1 text-xs"
                             >
                               <FileText className="w-3.5 h-3.5" />สร้าง COA
@@ -148,6 +151,12 @@ const RecordResults = () => {
           </CardContent>
         </Card>
       </main>
+      <COADialog
+        open={!!coaSample}
+        onOpenChange={(o) => !o && setCoaSample(null)}
+        sample={coaSample}
+        physical={coaSample ? physicalResults[coaSample.id] : undefined}
+      />
     </div>
   );
 };
