@@ -99,7 +99,8 @@ const generateLabelImage = async (
 };
 
 const SendingSample = () => {
-  const { pendingItems, sentItems, addPendingItem, removePendingItem, markAsSending, confirmSentByScan } = useSamples();
+  const { pendingItems, sentItems, physicalResults, addPendingItem, removePendingItem, markAsSending, confirmSentByScan } = useSamples();
+  const { user } = useAuth();
   const [sampleName, setSampleName] = useState("");
   const [senderName, setSenderName] = useState("");
   const [batchNo, setBatchNo] = useState("");
@@ -124,6 +125,7 @@ const SendingSample = () => {
       batchNo: batchNo.trim(),
       mfgDate: mfgDate.trim(),
       note: note.trim(),
+      userEmail: user?.email,
     });
     setSampleName("");
     setBatchNo("");
