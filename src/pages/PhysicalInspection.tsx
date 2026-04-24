@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 import { FlaskConical, Camera, Droplets, Palette, CheckCircle2, Clock, Package } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Button } from "@/components/ui/button";
@@ -10,20 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useSamples } from "@/context/SampleContext";
 
-interface PhysicalResult {
-  sampleId: string;
-  density?: string;
-  dissolutionValue?: string;
-  dissolutionStatus?: "normal" | "abnormal" | "";
-  colorMatch?: "match" | "mismatch" | "";
-  colorNote?: string;
-  photoUrl?: string;
-  status: "pending" | "completed";
-}
-
 const PhysicalInspection = () => {
-  const { sentItems, sentSamples } = useSamples();
-  const [results, setResults] = useState<Record<string, PhysicalResult>>({});
+  const { sentItems, sentSamples, physicalResults, upsertPhysicalResult } = useSamples();
   const [photoDialog, setPhotoDialog] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,14 +20,8 @@ const PhysicalInspection = () => {
     ...sentSamples.map(s => ({ id: s.id, name: s.name, sender: s.sender || "", date: s.date, time: s.time, sampleStatus: "sent" as const })),
   ];
 
-  const getResult = (id: string): PhysicalResult => results[id] || { sampleId: id, status: "pending" };
-
-  const updateResult = (id: string, updates: Partial<PhysicalResult>) => {
-    setResults(prev => ({
-      ...prev,
-      [id]: { ...getResult(id), sampleId: id, ...updates },
-    }));
-  };
+  const getResult = (id: string) => physicalResults[id] || { sampleId: id, status: "pending" as const };
+  const updateResult = (id: string, updates: Parameters<typeof upsertPhysicalResult>[1]) => upsertPhysicalResult(id, updates);
 
   const handlePhotoUpload = (sampleId: string, file: File) => {
     const url = URL.createObjectURL(file);
@@ -54,7 +36,10 @@ const PhysicalInspection = () => {
       toast.error("กรุณากรอกข้อมูลให้ครบก่อนบันทึก");
       return;
     }
-    updateResult(id, { status: "completed" });
+    // กายภาพรวม: ถือว่า "ปกติ" เมื่อ dissolution ปกติ และ สีตรงกัน
+    const physicalStatus: "normal" | "abnormal" =
+      r.dissolutionStatus === "normal" && r.colorMatch === "match" ? "normal" : "abnormal";
+    updateResult(id, { status: "completed", physicalStatus, completedAt: new Date().toISOString() });
     toast.success(`บันทึกผลตรวจกายภาพ ${id} สำเร็จ`);
   };
 
