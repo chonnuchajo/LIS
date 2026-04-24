@@ -212,7 +212,10 @@ const SendingSample = () => {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-foreground">การส่งตัวอย่าง</h1>
-            <p className="text-sm text-muted-foreground">เพิ่มรายการตัวอย่างเพื่อส่งเข้าห้องปฏิบัติการ</p>
+            <p className="text-sm text-muted-foreground">
+              เพิ่มรายการตัวอย่างเพื่อส่งเข้าห้องปฏิบัติการ
+              {user && <span className="ml-2 text-primary">· {user.email}</span>}
+            </p>
           </div>
           {sendingCount > 0 && (
             <Button onClick={() => setScanDialogOpen(true)} className="gap-2">
@@ -221,6 +224,100 @@ const SendingSample = () => {
             </Button>
           )}
         </div>
+
+        {/* My analysis summary - only mine */}
+        <Card className="mb-6 border-primary/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <FlaskConical className="w-5 h-5 text-primary" />
+              ผลวิเคราะห์ตัวอย่างของฉัน
+              <Badge className="bg-primary/10 text-primary">{myAnalyzedItems.length}</Badge>
+              {!user && <Badge variant="outline" className="text-xs ml-2">ยังไม่ได้เข้าสู่ระบบ</Badge>}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              <User className="w-3 h-3 inline mr-1" />
+              แสดงเฉพาะตัวอย่างที่บัญชีของคุณส่ง — ผู้ใช้อื่นจะไม่เห็นข้อมูลนี้
+            </p>
+          </CardHeader>
+          <CardContent>
+            {!user ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                กรุณาเข้าสู่ระบบเพื่อดูผลวิเคราะห์ของคุณ
+              </p>
+            ) : myItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                คุณยังไม่ได้ส่งตัวอย่างเข้าระบบ
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>รหัส</TableHead>
+                    <TableHead>ชื่อยา</TableHead>
+                    <TableHead>เลขแบช</TableHead>
+                    <TableHead className="gap-1">
+                      <Droplets className="w-3.5 h-3.5 inline text-blue-500" /> Density (g/mL)
+                    </TableHead>
+                    <TableHead>กายภาพ</TableHead>
+                    <TableHead>การละลาย</TableHead>
+                    <TableHead className="gap-1">
+                      <Palette className="w-3.5 h-3.5 inline text-orange-500" /> สี
+                    </TableHead>
+                    <TableHead>สถานะ</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {myItems.map(item => {
+                    const r = physicalResults[item.id];
+                    const renderStatus = (val?: "normal" | "abnormal") => {
+                      if (!val) return <span className="text-muted-foreground text-xs">—</span>;
+                      return val === "normal" ? (
+                        <Badge className="bg-green-100 text-green-700 border-green-300 text-xs">ปกติ</Badge>
+                      ) : (
+                        <Badge className="bg-red-100 text-red-700 border-red-300 text-xs">ผิดปกติ</Badge>
+                      );
+                    };
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-semibold text-primary">{item.id}</TableCell>
+                        <TableCell>{item.name}</TableCell>
+                        <TableCell>{item.batchNo || "-"}</TableCell>
+                        <TableCell className="font-mono">
+                          {r?.density ? `${r.density}` : <span className="text-muted-foreground text-xs">รอตรวจ</span>}
+                        </TableCell>
+                        <TableCell>{renderStatus(r?.physicalStatus)}</TableCell>
+                        <TableCell>
+                          {r?.dissolutionValue && <div className="text-xs font-mono">{r.dissolutionValue}</div>}
+                          {renderStatus(r?.dissolutionStatus)}
+                        </TableCell>
+                        <TableCell>
+                          {r?.colorMatch === "match" ? (
+                            <Badge className="bg-green-100 text-green-700 border-green-300 text-xs">ตรงกัน</Badge>
+                          ) : r?.colorMatch === "mismatch" ? (
+                            <Badge className="bg-red-100 text-red-700 border-red-300 text-xs">ไม่ตรง</Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {r?.status === "completed" ? (
+                            <Badge className="bg-green-100 text-green-700 border-green-300 text-xs gap-1">
+                              <CheckCircle2 className="w-3 h-3" /> ตรวจเสร็จ
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs gap-1 text-amber-600 border-amber-300">
+                              <Clock className="w-3 h-3" /> รอผล
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Add sample form */}
         <Card className="mb-6">
