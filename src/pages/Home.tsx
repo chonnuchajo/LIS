@@ -1,10 +1,11 @@
-import { useMemo } from "react";
-import { CheckCircle2, AlertTriangle, Droplets, FlaskConical, Clock, ImageIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CheckCircle2, AlertTriangle, Droplets, FlaskConical, Clock, ImageIcon, Search, Calendar as CalendarIcon } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { useSamples } from "@/context/SampleContext";
 
 // Mock physical inspection results for yesterday's samples (would come from context in production)
@@ -38,7 +39,9 @@ const mockPhysicalResults: Record<string, {
 };
 
 const Home = () => {
-  const { physicalSamples, sentSamples, sentItems } = useSamples();
+  const { physicalSamples, sentSamples, sentItems, realtimeDensities } = useSamples();
+  const [searchName, setSearchName] = useState("");
+  const [searchDate, setSearchDate] = useState(""); // yyyy-mm-dd
 
   const now = new Date();
   const formattedDate = now.toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
@@ -53,14 +56,26 @@ const Home = () => {
     })).filter(s => s.result);
   }, [physicalSamples]);
 
+  // Apply search filters (name + date)
+  const filteredResults = useMemo(() => {
+    return yesterdayResults.filter(s => {
+      const matchName = !searchName || s.name.toLowerCase().includes(searchName.toLowerCase());
+      const matchDate = !searchDate || (s.date && s.date.includes(searchDate));
+      return matchName && matchDate;
+    });
+  }, [yesterdayResults, searchName, searchDate]);
+
+  const hasSearch = Boolean(searchName || searchDate);
+
   // Today's samples for realtime density tracking
   const todaySamples = useMemo(() => {
+    const densityMap = new Map(realtimeDensities.map(d => [d.sampleId, d]));
     const allCurrent = [
-      ...sentItems.map(s => ({ id: s.id, name: s.name, date: s.date, density: undefined as number | undefined })),
-      ...sentSamples.map(s => ({ id: s.id, name: s.name, date: s.date, density: undefined as number | undefined })),
+      ...sentItems.map(s => ({ id: s.id, name: s.name, date: s.date, density: densityMap.get(s.id)?.density })),
+      ...sentSamples.map(s => ({ id: s.id, name: s.name, date: s.date, density: densityMap.get(s.id)?.density })),
     ];
     return allCurrent;
-  }, [sentItems, sentSamples]);
+  }, [sentItems, sentSamples, realtimeDensities]);
 
   const normalCount = yesterdayResults.filter(s => s.result?.physical === "normal").length;
   const abnormalCount = yesterdayResults.filter(s => s.result?.physical === "abnormal").length;
@@ -92,19 +107,44 @@ const Home = () => {
         {/* Daily Physical Inspection Report */}
         <Card className="mb-6">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <FlaskConical className="w-5 h-5 text-primary" />
-              รายงานผลตรวจสอบกายภาพ (ตัวอย่างที่ส่งเมื่อวาน)
-            </CardTitle>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <CardTitle className="text-base flex items-center gap-2">
+                <FlaskConical className="w-5 h-5 text-primary" />
+                รายงานผลตรวจสอบกายภาพ (ตัวอย่างที่ส่งเมื่อวาน)
+              </CardTitle>
+              <div className="flex gap-2 flex-wrap items-center">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="ค้นหาชื่อยา..."
+                    value={searchName}
+                    onChange={e => setSearchName(e.target.value)}
+                    className="pl-8 h-9 w-[200px]"
+                  />
+                </div>
+                <div className="relative">
+                  <CalendarIcon className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  <Input
+                    type="date"
+                    value={searchDate}
+                    onChange={e => setSearchDate(e.target.value)}
+                    className="pl-8 h-9 w-[170px]"
+                  />
+                </div>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            {!isAfter10AM ? (
+            {!isAfter10AM && !hasSearch ? (
               <div className="text-center py-8">
                 <Clock className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-40" />
-                <p className="text-muted-foreground">ผลการตรวจสอบจะแสดงหลังเวลา 10:00 น.</p>
+                <p className="text-muted-foreground">รอเวลาแสดงผลเวลา 10:00 น.</p>
+                <p className="text-xs text-muted-foreground mt-2">หรือใช้ช่องค้นหาด้านบนเพื่อดูข้อมูลย้อนหลัง</p>
               </div>
-            ) : yesterdayResults.length === 0 ? (
-              <p className="text-center py-8 text-muted-foreground">ไม่มีข้อมูลผลตรวจสอบกายภาพจากเมื่อวาน</p>
+            ) : filteredResults.length === 0 ? (
+              <p className="text-center py-8 text-muted-foreground">
+                {hasSearch ? "ไม่พบรายการที่ค้นหา" : "ไม่มีข้อมูลผลตรวจสอบกายภาพจากเมื่อวาน"}
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -119,7 +159,7 @@ const Home = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {yesterdayResults.map(sample => {
+                    {filteredResults.map(sample => {
                       const r = sample.result!;
                       return (
                         <TableRow key={sample.id}>
