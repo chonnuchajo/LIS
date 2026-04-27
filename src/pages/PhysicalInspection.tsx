@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { FlaskConical, Camera, Droplets, Palette, CheckCircle2, Clock, Package } from "lucide-react";
+import { FlaskConical, Camera, Droplets, Palette, CheckCircle2, Clock, Package, Send } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { useSamples } from "@/context/SampleContext";
 
 const PhysicalInspection = () => {
-  const { sentItems, sentSamples, physicalResults, upsertPhysicalResult } = useSamples();
+  const { sentItems, sentSamples, physicalResults, upsertPhysicalResult, pushDensityToHome } = useSamples();
   const [photoDialog, setPhotoDialog] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -41,6 +41,26 @@ const PhysicalInspection = () => {
       r.dissolutionStatus === "normal" && r.colorMatch === "match" ? "normal" : "abnormal";
     updateResult(id, { status: "completed", physicalStatus, completedAt: new Date().toISOString() });
     toast.success(`บันทึกผลตรวจกายภาพ ${id} สำเร็จ`);
+  };
+
+  const sendDensityToHome = (id: string, name: string) => {
+    const r = getResult(id);
+    if (!r.density) {
+      toast.error("กรุณากรอกค่า Density ก่อนส่ง");
+      return;
+    }
+    const num = parseFloat(r.density);
+    if (isNaN(num)) {
+      toast.error("ค่า Density ไม่ถูกต้อง");
+      return;
+    }
+    pushDensityToHome({
+      sampleId: id,
+      sampleName: name,
+      density: num,
+      sentAt: new Date().toISOString(),
+    });
+    toast.success(`ส่งค่า Density ${num.toFixed(3)} ไปยังหน้าแรกแล้ว`);
   };
 
   const pendingCount = allSamples.filter(s => getResult(s.id).status === "pending").length;
@@ -170,14 +190,28 @@ const PhysicalInspection = () => {
                       <Droplets className="w-5 h-5 text-blue-500 shrink-0" />
                       <div className="flex-1">
                         <label className="text-xs font-medium text-muted-foreground mb-1 block">Density (g/mL) @ 30°C</label>
-                        <Input
-                          type="number"
-                          step="0.001"
-                          placeholder="เช่น 1.024"
-                          value={r.density || ""}
-                          onChange={e => updateResult(sample.id, { density: e.target.value })}
-                          disabled={isCompleted}
-                        />
+                        <div className="flex gap-2">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            placeholder="เช่น 1.024"
+                            value={r.density || ""}
+                            onChange={e => updateResult(sample.id, { density: e.target.value })}
+                            disabled={isCompleted}
+                            className="flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 shrink-0"
+                            onClick={() => sendDensityToHome(sample.id, sample.name)}
+                            disabled={!r.density}
+                          >
+                            <Send className="w-4 h-4" />
+                            ส่งไปหน้าแรก
+                          </Button>
+                        </div>
                       </div>
                     </div>
 
