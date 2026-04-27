@@ -40,6 +40,13 @@ export interface PhysicalResult {
   completedAt?: string;
 }
 
+export interface RealtimeDensity {
+  sampleId: string;
+  sampleName: string;
+  density: number;
+  sentAt: string; // ISO date string
+}
+
 interface SampleContextType {
   sentSamples: SampleItem[];
   physicalSamples: SampleItem[];
@@ -49,6 +56,8 @@ interface SampleContextType {
   pendingItems: PendingItem[];
   sentItems: SentItem[];
   physicalResults: Record<string, PhysicalResult>;
+  realtimeDensities: RealtimeDensity[];
+  pushDensityToHome: (entry: RealtimeDensity) => void;
   upsertPhysicalResult: (id: string, updates: Partial<PhysicalResult>) => void;
   receiveSample: (sample: SampleItem) => void;
   sendSample: (sample: SampleItem) => void;
@@ -76,6 +85,7 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [sentItems, setSentItems] = useState<SentItem[]>([]);
   const [physicalResults, setPhysicalResults] = useState<Record<string, PhysicalResult>>({});
+  const [realtimeDensities, setRealtimeDensities] = useState<RealtimeDensity[]>([]);
   const [approvals, setApprovals] = useState<Record<string, ApprovalInfo>>(() => {
     const init: Record<string, ApprovalInfo> = {};
     init[initialDone[0].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 3600000), qcStatus: "approved" };
@@ -134,6 +144,13 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
+  const pushDensityToHome = (entry: RealtimeDensity) => {
+    setRealtimeDensities(prev => {
+      const filtered = prev.filter(d => d.sampleId !== entry.sampleId);
+      return [...filtered, entry];
+    });
+  };
+
   const approveLab = (sampleId: string) => {
     setApprovals(prev => ({
       ...prev,
@@ -162,6 +179,8 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
       pendingItems,
       sentItems,
       physicalResults,
+      realtimeDensities,
+      pushDensityToHome,
       upsertPhysicalResult,
       receiveSample,
       sendSample,
