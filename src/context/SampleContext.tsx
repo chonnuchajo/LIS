@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
 import type { SampleItem } from "@/components/lis/SampleColumn";
-import { sentSamples as initialSent, physicalSamples as initialPhysical, testingSamples as initialTesting, doneSamples as initialDone } from "@/data/mockData";
+import { api } from "@/lib/api";
 
 export interface ApprovalInfo {
   labApproved: boolean;
@@ -44,7 +44,7 @@ export interface RealtimeDensity {
   sampleId: string;
   sampleName: string;
   density: number;
-  sentAt: string; // ISO date string
+  sentAt: string;
 }
 
 interface SampleContextType {
@@ -57,6 +57,7 @@ interface SampleContextType {
   sentItems: SentItem[];
   physicalResults: Record<string, PhysicalResult>;
   realtimeDensities: RealtimeDensity[];
+  isLoading: boolean;
   pushDensityToHome: (entry: RealtimeDensity) => void;
   upsertPhysicalResult: (id: string, updates: Partial<PhysicalResult>) => void;
   receiveSample: (sample: SampleItem) => void;
@@ -67,6 +68,7 @@ interface SampleContextType {
   removePendingItem: (index: number) => void;
   markAsSending: (items: SentItem[]) => void;
   confirmSentByScan: (sampleId: string) => void;
+  refetch: () => void;
 }
 
 const SampleContext = createContext<SampleContextType | null>(null);
@@ -78,29 +80,61 @@ export const useSamples = () => {
 };
 
 export const SampleProvider = ({ children }: { children: ReactNode }) => {
-  const [sent, setSent] = useState<SampleItem[]>(initialSent);
-  const [physical] = useState<SampleItem[]>(initialPhysical);
-  const [testing] = useState<SampleItem[]>(initialTesting);
-  const [done, setDone] = useState<SampleItem[]>(initialDone);
-  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
-  const [sentItems, setSentItems] = useState<SentItem[]>([]);
+  const [sent, setSent] = useState<SampleItem[]>([]);
+  const [physical, setPhysical] = useState<SampleItem[]>([]);
+  const [testing, setTesting] = useState<SampleItem[]>([]);
+  const [done, setDone] = useState<SampleItem[]>([]);
+  const [approvals, setApprovals] = useState<Record<string, ApprovalInfo>>({});
   const [physicalResults, setPhysicalResults] = useState<Record<string, PhysicalResult>>({});
   const [realtimeDensities, setRealtimeDensities] = useState<RealtimeDensity[]>([]);
-  const [approvals, setApprovals] = useState<Record<string, ApprovalInfo>>(() => {
-    const init: Record<string, ApprovalInfo> = {};
-    init[initialDone[0].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 3600000), qcStatus: "approved" };
-    init[initialDone[1].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 3600000), qcStatus: "rejected", qcNote: "ปรับปรุงสูตร" };
-    init[initialDone[2].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 7200000), qcStatus: "pending" };
-    init[initialDone[3].id] = { labApproved: true, labApprovedAt: new Date(Date.now() - 1800000), qcStatus: "pending" };
-    return init;
-  });
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
+  const [sentItems, setSentItems] = useState<SentItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const receiveSample = (sample: SampleItem) => {
+  const fetchAll = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [samples, approvalsData, physResultsData, densitiesData] = await Promise.all([
+        api.getSamples(),
+        api.getApprovals(),
+        api.getPhysicalResults(),
+        api.getDensities(),
+      ]);
+      setSent(samples.filter(s => s.status === "sent"));
+      setPhysical(samples.filter(s => s.status === "physical"));
+      setTesting(samples.filter(s => s.status === "testing"));
+      setDone(samples.filter(s => s.status === "done"));
+      setApprovals(approvalsData);
+      setPhysicalResults(physResultsData);
+      setRealtimeDensities(densitiesData);
+    } catch (err) {
+      console.error("Failed to load data from API:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  const receiveSample = async (sample: SampleItem) => {
     setSent(prev => prev.filter(s => s.id !== sample.id));
+    try {
+      await api.updateSample(sample.id, { status: "physical" });
+      await fetchAll();
+    } catch (err) {
+      console.error("receiveSample API error:", err);
+    }
   };
 
-  const sendSample = (sample: SampleItem) => {
+  const sendSample = async (sample: SampleItem) => {
     setSent(prev => [...prev, sample]);
+    try {
+      await api.createSample(sample);
+    } catch (err) {
+      console.error("sendSample API error:", err);
+    }
   };
 
   const addPendingItem = (item: PendingItem) => {
@@ -116,42 +150,52 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
     setPendingItems([]);
   };
 
-  const confirmSentByScan = (sampleId: string) => {
-    setSentItems(prev => {
-      const updated = prev.map(item =>
-        item.id === sampleId ? { ...item, status: "sent" as const } : item
-      );
-      // Add to sentSamples for receiving page
-      const found = prev.find(s => s.id === sampleId);
-      if (found) {
-        setSent(prevSent => [...prevSent, {
-          id: found.id,
-          name: found.name,
-          status: "sent",
-          date: found.date,
-          time: found.time,
-          sender: found.sender,
-        }]);
+  const confirmSentByScan = async (sampleId: string) => {
+    setSentItems(prev =>
+      prev.map(item => item.id === sampleId ? { ...item, status: "sent" as const } : item)
+    );
+    const found = sentItems.find(s => s.id === sampleId);
+    if (found) {
+      const newSample: SampleItem = {
+        id: found.id,
+        name: found.name,
+        status: "sent",
+        date: found.date,
+        time: found.time,
+        sender: found.sender,
+      };
+      setSent(prev => [...prev, newSample]);
+      try {
+        await api.createSample(newSample);
+      } catch (err) {
+        console.error("confirmSentByScan API error:", err);
       }
-      return updated;
-    });
+    }
   };
 
-  const upsertPhysicalResult = (id: string, updates: Partial<PhysicalResult>) => {
-    setPhysicalResults(prev => ({
-      ...prev,
-      [id]: { ...(prev[id] || { sampleId: id, status: "pending" }), ...updates },
-    }));
+  const upsertPhysicalResult = async (id: string, updates: Partial<PhysicalResult>) => {
+    const merged = { ...(physicalResults[id] || { sampleId: id, status: "pending" as const }), ...updates };
+    setPhysicalResults(prev => ({ ...prev, [id]: merged }));
+    try {
+      await api.upsertPhysicalResult({ ...merged, sampleId: id });
+    } catch (err) {
+      console.error("upsertPhysicalResult API error:", err);
+    }
   };
 
-  const pushDensityToHome = (entry: RealtimeDensity) => {
+  const pushDensityToHome = async (entry: RealtimeDensity) => {
     setRealtimeDensities(prev => {
       const filtered = prev.filter(d => d.sampleId !== entry.sampleId);
       return [...filtered, entry];
     });
+    try {
+      await api.pushDensity(entry);
+    } catch (err) {
+      console.error("pushDensityToHome API error:", err);
+    }
   };
 
-  const approveLab = (sampleId: string) => {
+  const approveLab = async (sampleId: string) => {
     setApprovals(prev => ({
       ...prev,
       [sampleId]: { ...prev[sampleId], labApproved: true, labApprovedAt: new Date() },
@@ -160,13 +204,25 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
     if (found) {
       setDone(prev => [...prev, { ...found, status: "done", aiPercent: 100 }]);
     }
+    try {
+      await api.approveLab(sampleId);
+      await api.updateSample(sampleId, { status: "done", aiPercent: 100 });
+      await fetchAll();
+    } catch (err) {
+      console.error("approveLab API error:", err);
+    }
   };
 
-  const approveQC = (sampleId: string, status: "approved" | "rejected", note?: string) => {
+  const approveQC = async (sampleId: string, status: "approved" | "rejected", note?: string) => {
     setApprovals(prev => ({
       ...prev,
       [sampleId]: { ...prev[sampleId], qcStatus: status, qcNote: note },
     }));
+    try {
+      await api.approveQC(sampleId, status, note);
+    } catch (err) {
+      console.error("approveQC API error:", err);
+    }
   };
 
   return (
@@ -180,6 +236,7 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
       sentItems,
       physicalResults,
       realtimeDensities,
+      isLoading,
       pushDensityToHome,
       upsertPhysicalResult,
       receiveSample,
@@ -190,6 +247,7 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
       removePendingItem,
       markAsSending,
       confirmSentByScan,
+      refetch: fetchAll,
     }}>
       {children}
     </SampleContext.Provider>

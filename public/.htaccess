@@ -1,0 +1,14 @@
+Options -MultiViews
+RewriteEngine On
+RewriteBase /LIS/
+
+# Proxy /LIS/api/* → Express server on port 3001
+<IfModule mod_proxy.c>
+  RewriteRule ^api/(.*)$ http://localhost:3001/api/$1 [P,L]
+</IfModule>
+
+# SPA fallback: ทุก route ที่ไม่ใช่ไฟล์จริง → index.html
+RewriteRule ^index\.html$ - [L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /LIS/index.html [L]

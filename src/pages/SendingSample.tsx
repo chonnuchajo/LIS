@@ -47,7 +47,7 @@ const generateLabelImage = async (
 
   // Sample ID header
   ctx.fillStyle = "#1a1a2e";
-  ctx.font = "bold 22px sans-serif";
+  ctx.font = "700 22px Kanit, sans-serif";
   ctx.textAlign = "left";
   ctx.fillText(id, leftPad, y);
   y += lineH + 4;
@@ -55,10 +55,10 @@ const generateLabelImage = async (
   // Helper for label-value pairs
   const drawField = (label: string, value: string) => {
     ctx.fillStyle = "#6b7280";
-    ctx.font = "14px sans-serif";
+    ctx.font = "14px Kanit, sans-serif";
     ctx.fillText(label, leftPad, y);
     ctx.fillStyle = "#111827";
-    ctx.font = "bold 16px sans-serif";
+    ctx.font = "700 16px Kanit, sans-serif";
     ctx.fillText(value, leftPad + 130, y);
     y += lineH;
   };
@@ -91,7 +91,7 @@ const generateLabelImage = async (
 
   // QR label text
   ctx.fillStyle = "#6b7280";
-  ctx.font = "12px sans-serif";
+  ctx.font = "12px Kanit, sans-serif";
   ctx.textAlign = "center";
   ctx.fillText("Scan QR Code", qrX + qrSize / 2, qrY + qrSize + 18);
 

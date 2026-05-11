@@ -1,18 +1,27 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useMsal } from "@azure/msal-react";
+import { loginRequest } from "@/lib/msalConfig";
+import { api } from "@/lib/api";
 
 interface AuthUser {
+  id?: string;
   email: string;
   name?: string;
+  photoUrl?: string;
+  role?: string;
+  permissions?: string[];
+  department?: string;
+  position?: string;
+  status?: "active" | "inactive";
 }
 
 interface AuthContextType {
   user: AuthUser | null;
-  login: (email: string, name?: string) => void;
+  login: () => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-const STORAGE_KEY = "lis_auth_user";
 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
@@ -21,22 +30,120 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as AuthUser) : null;
-    } catch {
-      return null;
-    }
-  });
+  const { instance, accounts } = useMsal();
+  const account = accounts[0] ?? null;
+  const [syncedUser, setSyncedUser] = useState<AuthUser | null>(null);
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | undefined>();
+
+  const user: AuthUser | null = account
+    ? {
+        id: syncedUser?.id,
+        email: account.username,
+        name: syncedUser?.name ?? account.name ?? account.username,
+        photoUrl: profilePhotoUrl,
+        role: syncedUser?.role,
+        permissions: syncedUser?.permissions,
+        department: syncedUser?.department,
+        position: syncedUser?.position,
+        status: syncedUser?.status,
+      }
+    : null;
 
   useEffect(() => {
-    if (user) localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-    else localStorage.removeItem(STORAGE_KEY);
-  }, [user]);
+    if (!account) {
+      setSyncedUser(null);
+      return;
+    }
 
-  const login = (email: string, name?: string) => setUser({ email, name });
-  const logout = () => setUser(null);
+    let active = true;
+    const claims = account.idTokenClaims as { tid?: string; oid?: string } | undefined;
+
+    api
+      .post<{
+        id: string;
+        email: string;
+        name: string;
+        roleId: string;
+        permissions?: string[];
+        department: string;
+        position: string;
+        status: "active" | "inactive";
+      }>("/access-control/users/microsoft", {
+        email: account.username,
+        name: account.name ?? account.username,
+        microsoftId: claims?.oid ?? account.localAccountId,
+        tenantId: claims?.tid,
+      })
+      .then((res) => {
+        if (!active) return;
+        setSyncedUser({
+          id: res.data.data.id,
+          email: res.data.data.email,
+          name: res.data.data.name,
+          role: res.data.data.roleId,
+          permissions: res.data.data.permissions ?? [],
+          department: res.data.data.department,
+          position: res.data.data.position,
+          status: res.data.data.status,
+        });
+      })
+      .catch((err) => {
+        console.error("Failed to sync Microsoft user", err);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [account]);
+
+  useEffect(() => {
+    if (!account) {
+      setProfilePhotoUrl(undefined);
+      return;
+    }
+
+    let alive = true;
+    let objectUrl: string | undefined;
+
+    instance
+      .acquireTokenSilent({
+        account,
+        scopes: ["User.Read"],
+      })
+      .then(async (token) => {
+        const res = await fetch("https://graph.microsoft.com/v1.0/me/photo/$value", {
+          headers: { Authorization: `Bearer ${token.accessToken}` },
+        });
+        if (!res.ok) return null;
+        return res.blob();
+      })
+      .then((blob) => {
+        if (!alive || !blob) return;
+        objectUrl = URL.createObjectURL(blob);
+        setProfilePhotoUrl(objectUrl);
+      })
+      .catch(() => {
+        if (alive) setProfilePhotoUrl(undefined);
+      });
+
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [account, instance]);
+
+  const login = async () => {
+    await instance.loginRedirect({
+      ...loginRequest,
+      redirectStartPage: window.location.origin + import.meta.env.BASE_URL,
+    });
+  };
+
+  const logout = () => {
+    instance.logoutRedirect({
+      postLogoutRedirectUri: window.location.origin + import.meta.env.BASE_URL,
+    });
+  };
 
   return (
     <AuthContext.Provider value={{ user, login, logout }}>

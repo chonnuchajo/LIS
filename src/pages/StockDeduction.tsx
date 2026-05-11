@@ -1,61 +1,25 @@
-import { useState, useRef, useEffect } from "react";
-import { ClipboardList, QrCode, Barcode } from "lucide-react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { ClipboardList, History, Filter } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { toast } from "sonner";
-
-const mockDeductions = [
-  { id: "DED-001", sample: "Paracetamol 500 mg", standard: "Paracetamol RS", lotNo: "STD-2024-001", usedAmount: "25 mg", date: "27/03/2567", operator: "สมชาย" },
-  { id: "DED-002", sample: "Amoxicillin 250 mg", standard: "Amoxicillin RS", lotNo: "STD-2024-002", usedAmount: "30 mg", date: "27/03/2567", operator: "สมหญิง" },
-  { id: "DED-003", sample: "Ibuprofen 400 mg", standard: "Ibuprofen RS", lotNo: "STD-2024-003", usedAmount: "20 mg", date: "26/03/2567", operator: "สมชาย" },
-];
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { api } from "@/lib/api";
 
 const StockDeduction = () => {
-  const [deductions] = useState(mockDeductions);
-  const [scanMode, setScanMode] = useState<"qr" | "barcode" | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const [type, setType] = useState<string>("");
 
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-  };
-
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch {
-      toast.error("ไม่สามารถเปิดกล้องได้");
-      setScanMode(null);
-    }
-  };
-
-  useEffect(() => {
-    if (scanMode) {
-      startCamera();
-    }
-    return () => stopCamera();
-  }, [scanMode]);
-
-  const handleCloseScan = () => {
-    stopCamera();
-    setScanMode(null);
-  };
-
-  const handleSimulateScan = () => {
-    toast.success(`สแกน${scanMode === "qr" ? "QR Code" : "Barcode"} สำเร็จ — ตัดสต็อก Standard เรียบร้อย`);
-    handleCloseScan();
-  };
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["stock-deductions", type],
+    queryFn: () =>
+      api.getStockTransactions({
+        action: "deduct",
+        itemType: type || undefined,
+        limit: 200,
+      }),
+  });
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -63,18 +27,27 @@ const StockDeduction = () => {
       <main className="flex-1 p-6 overflow-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">การบันทึก Standard</h1>
-            <p className="text-sm text-muted-foreground">บันทึกรายการ Standard ที่ใช้ในการวิเคราะห์</p>
+            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+              <History className="w-6 h-6" />
+              ประวัติการตัด Stock
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              รายการตัด stock จากการใช้งานในห้องปฏิบัติการ — บันทึกใน MongoDB
+            </p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={() => setScanMode("qr")} variant="outline" className="gap-2">
-              <QrCode className="w-4 h-4" />
-              สแกน QR Code
-            </Button>
-            <Button onClick={() => setScanMode("barcode")} variant="outline" className="gap-2">
-              <Barcode className="w-4 h-4" />
-              สแกน Barcode
-            </Button>
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <Select value={type || "all"} onValueChange={(v) => setType(v === "all" ? "" : v)}>
+              <SelectTrigger className="h-9 w-44">
+                <SelectValue placeholder="ทุกหมวด" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทุกหมวด</SelectItem>
+                <SelectItem value="standard">Standards</SelectItem>
+                <SelectItem value="solvent">สารเคมี</SelectItem>
+                <SelectItem value="glassware">เครื่องแก้ว</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -82,41 +55,66 @@ const StockDeduction = () => {
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
               <ClipboardList className="w-5 h-5" />
-              รายการบันทึก Standard
-              <Badge className="bg-primary/10 text-primary">{deductions.length}</Badge>
+              ประวัติการตัด Stock
+              <Badge className="bg-primary/10 text-primary">{data.length}</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {deductions.length === 0 ? (
+            {isLoading ? (
+              <div className="text-center py-12 text-muted-foreground">กำลังโหลด...</div>
+            ) : data.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>ยังไม่มีรายการบันทึก</p>
+                <p>ยังไม่มีรายการตัด stock</p>
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>รหัส</TableHead>
-                    <TableHead>ตัวอย่าง</TableHead>
-                    <TableHead>Standard ที่ใช้</TableHead>
-                    <TableHead>Lot No.</TableHead>
-                    <TableHead>ปริมาณที่ใช้</TableHead>
-                    <TableHead>วันที่</TableHead>
+                    <TableHead>เวลา</TableHead>
+                    <TableHead>หมวด</TableHead>
+                    <TableHead>รายการ</TableHead>
+                    <TableHead>Tier</TableHead>
+                    <TableHead className="text-right">จำนวนที่ตัด</TableHead>
+                    <TableHead>คงเหลือ</TableHead>
+                    <TableHead>Sample ID</TableHead>
                     <TableHead>ผู้ดำเนินการ</TableHead>
+                    <TableHead>หมายเหตุ</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {deductions.map(item => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-semibold text-primary">{item.id}</TableCell>
-                      <TableCell>{item.sample}</TableCell>
-                      <TableCell>{item.standard}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{item.lotNo}</Badge>
+                  {data.map((t) => (
+                    <TableRow key={t._id}>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        {new Date(t.createdAt).toLocaleString("th-TH")}
                       </TableCell>
-                      <TableCell>{item.usedAmount}</TableCell>
-                      <TableCell className="text-sm">{item.date}</TableCell>
-                      <TableCell>{item.operator}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{t.itemType}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">{t.itemName}</div>
+                        {t.itemCode && (
+                          <div className="text-xs text-muted-foreground">{t.itemCode}</div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {t.tier ? <Badge variant="outline">{t.tier}</Badge> : "-"}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-destructive">
+                        {t.delta != null ? t.delta : "-"} {t.unit || ""}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {t.beforeQty ?? "-"} → <strong>{t.afterQty ?? "-"}</strong>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {t.sampleId ? <Badge variant="outline">{t.sampleId}</Badge> : "-"}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {t.userName || t.userEmail || "-"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {t.note || ""}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -124,32 +122,6 @@ const StockDeduction = () => {
             )}
           </CardContent>
         </Card>
-
-        {/* Scan Dialog */}
-        <Dialog open={!!scanMode} onOpenChange={(open) => { if (!open) handleCloseScan(); }}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                {scanMode === "qr" ? <QrCode className="w-5 h-5" /> : <Barcode className="w-5 h-5" />}
-                {scanMode === "qr" ? "สแกน QR Code" : "สแกน Barcode"}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="relative aspect-square bg-muted rounded-lg overflow-hidden">
-                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-48 h-48 border-2 border-primary rounded-lg" />
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground text-center">
-                วาง{scanMode === "qr" ? "QR Code" : "Barcode"} ไว้ในกรอบเพื่อสแกน
-              </p>
-              <Button onClick={handleSimulateScan} className="w-full">
-                จำลองการสแกน (Demo)
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
       </main>
     </div>
   );

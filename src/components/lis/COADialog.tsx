@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Printer, Download } from "lucide-react";
-import logo from "@/assets/icp-ladda-logo.png";
+import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
 import type { SampleItem } from "@/components/lis/SampleColumn";
 import type { PhysicalResult } from "@/context/SampleContext";
 
@@ -58,9 +58,9 @@ const COADialog = ({ open, onOpenChange, sample, physical }: COADialogProps) => 
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head><title>COA ${sample.id}</title>
       <meta charset="utf-8"/>
-      <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+      <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
       <style>
-        body{font-family:'Sarabun',sans-serif;margin:0;padding:24px;color:#000;font-size:13px;}
+        body{font-family:'Kanit',sans-serif;margin:0;padding:24px;color:#000;font-size:13px;}
         table{border-collapse:collapse;width:100%;}
         td,th{border:1px solid #000;padding:6px 10px;vertical-align:top;}
         .no-border td,.no-border th{border:none;padding:2px 0;}
@@ -83,14 +83,14 @@ const COADialog = ({ open, onOpenChange, sample, physical }: COADialogProps) => 
           <DialogTitle>ใบรายงานผลการทดสอบ (COA) — {sample.id}</DialogTitle>
         </DialogHeader>
 
-        <div ref={printRef} className="bg-white text-black p-6 font-[Sarabun]" style={{ fontSize: 13 }}>
+        <div ref={printRef} className="bg-white text-black p-6 font-[Kanit]" style={{ fontSize: 13 }}>
           {/* Header */}
           <table className="w-full border-collapse" style={{ border: "1px solid #000" }}>
             <tbody>
               <tr>
                 <td style={{ border: "1px solid #000", width: "32%", verticalAlign: "top", padding: 8 }}>
                   <div className="flex items-center gap-2 mb-1">
-                    <img src={logo} alt="ICP Ladda" className="h-12" />
+                    <img src={ICP_LADDA_LOGO_URL} alt="ICP Ladda" className="h-12" />
                   </div>
                   <div className="font-semibold">บริษัท ไอ ซี พี ลัดดา จำกัด</div>
                   <div className="text-[11px] leading-tight">

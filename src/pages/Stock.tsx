@@ -1,220 +1,1030 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Package, AlertTriangle, Clock, Plus, Pencil, Trash2, Minus, ArrowDownToLine, History, Search } from "lucide-react";
+import { toast } from "sonner";
+
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, AlertTriangle, Clock } from "lucide-react";
-import { stockStandards, stockSolvents, StockStandardItem, StockSolventItem } from "@/data/stockData";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+
+import { api } from "@/lib/api";
+import type {
+  StockStandardItem, StockSolventItem, StockGlasswareItem,
+  StockTransactionItem, StockTier,
+} from "@/types/stock";
 
 const EXPIRY_WARNING_DAYS = 180;
-const LOW_STANDARD_QTY = 50;
-const LOW_SOLVENT_QTY = 500;
+const LOW_STD_QTY = 1;
+const LOW_SOL_QTY = 3;
+const LOW_GLASS_QTY = 5;
 
-const Stock = () => {
+// ---------- helpers ----------
+const parseExp = (s?: string): number | null => {
+  if (!s || s === "-") return null;
+  // accept dd/mm/yyyy or dd-mm-yyyy or yyyy-mm-dd
+  const m = s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime();
+  const m2 = s.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (m2) return new Date(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3])).getTime();
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? t : null;
+};
+
+const isExpiringSoon = (s?: string, now = Date.now()) => {
+  const t = parseExp(s);
+  return t != null && t < now + EXPIRY_WARNING_DAYS * 86400000;
+};
+
+const fmtNum = (v: number | string | null | undefined) =>
+  v === null || v === undefined || v === "" ? "-" : String(v);
+
+// ============================================================
+// Standards Tab
+// ============================================================
+function StandardsTab() {
+  const qc = useQueryClient();
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["stock", "standards"],
+    queryFn: api.getStandards,
+  });
+
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<StockStandardItem | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<StockStandardItem | null>(null);
+  const [moving, setMoving] = useState<{ item: StockStandardItem; mode: "deduct" | "receive" } | null>(null);
+
   const now = Date.now();
-  const [standards] = useState<StockStandardItem[]>(stockStandards);
-  const [solvents] = useState<StockSolventItem[]>(stockSolvents);
 
-  const lowStandards = standards.filter(s => s.remainingQty < LOW_STANDARD_QTY);
-  const expiringStandards = standards.filter(s => new Date(s.expiryDate).getTime() < now + EXPIRY_WARNING_DAYS * 86400000);
-  const lowSolvents = solvents.filter(s => s.remainingQty < LOW_SOLVENT_QTY);
-  const expiringSolvents = solvents.filter(s => new Date(s.expiryDate).getTime() < now + EXPIRY_WARNING_DAYS * 86400000);
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return data;
+    return data.filter(s => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q));
+  }, [data, search]);
 
-  const stdAlerts = lowStandards.length + expiringStandards.length;
-  const solAlerts = lowSolvents.length + expiringSolvents.length;
+  const totalQty = (s: StockStandardItem) =>
+    (s.primary?.qty ?? 0) + (s.supplier?.qty ?? 0) + (s.working?.qty ?? 0);
 
+  const lowList = data.filter(s => totalQty(s) < LOW_STD_QTY);
+  const expiringList = data.filter(s =>
+    isExpiringSoon(s.primary?.exp, now) || isExpiringSoon(s.supplier?.exp, now) || isExpiringSoon(s.working?.exp, now)
+  );
+
+  return (
+    <div className="space-y-4">
+      {(lowList.length > 0 || expiringList.length > 0) && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              <span className="font-semibold text-destructive">
+                แจ้งเตือน Standard ({lowList.length + expiringList.length} รายการ)
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+              {lowList.slice(0, 8).map(s => (
+                <div key={`low-${s._id}`} className="flex items-center gap-2 text-destructive">
+                  <Package className="w-3.5 h-3.5" />
+                  <span><strong>{s.name}</strong> เหลือรวม {totalQty(s)} ขวด</span>
+                </div>
+              ))}
+              {expiringList.slice(0, 8).map(s => (
+                <div key={`exp-${s._id}`} className="flex items-center gap-2 text-amber-600">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span><strong>{s.name}</strong> ใกล้หมดอายุ ({s.primary?.exp || s.supplier?.exp || s.working?.exp})</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 space-y-0">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Package className="w-5 h-5" /> Standards (สาร Standard)
+            <Badge variant="outline">{data.length}</Badge>
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="ค้นหา code หรือชื่อ" className="pl-8 h-9 w-64"
+              />
+            </div>
+            <Button size="sm" onClick={() => setCreating(true)}>
+              <Plus className="w-4 h-4 mr-1" /> เพิ่มรายการ
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16">Code</TableHead>
+                  <TableHead>ชื่อ</TableHead>
+                  <TableHead className="text-center">Primary<br /><span className="text-xs font-normal text-muted-foreground">qty / size / EXP</span></TableHead>
+                  <TableHead className="text-center">Supplier<br /><span className="text-xs font-normal text-muted-foreground">qty / size / EXP</span></TableHead>
+                  <TableHead className="text-center">Working<br /><span className="text-xs font-normal text-muted-foreground">qty / size / EXP</span></TableHead>
+                  <TableHead>ความถี่</TableHead>
+                  <TableHead>อุณหภูมิ</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                  <TableHead className="w-32 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">กำลังโหลด...</TableCell></TableRow>
+                ) : filtered.length === 0 ? (
+                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">ไม่มีข้อมูล</TableCell></TableRow>
+                ) : filtered.map(item => {
+                  const total = totalQty(item);
+                  const isLow = total < LOW_STD_QTY;
+                  const isExpiring =
+                    isExpiringSoon(item.primary?.exp, now) ||
+                    isExpiringSoon(item.supplier?.exp, now) ||
+                    isExpiringSoon(item.working?.exp, now);
+                  return (
+                    <TableRow key={item._id}>
+                      <TableCell className="font-semibold text-primary">{item.code}</TableCell>
+                      <TableCell className="font-medium">{item.name}</TableCell>
+                      <TierCell tier={item.primary} />
+                      <TierCell tier={item.supplier} />
+                      <TierCell tier={item.working} />
+                      <TableCell className="text-xs">{item.frequency || "-"}</TableCell>
+                      <TableCell className="text-xs">{item.storageTemp || "-"}</TableCell>
+                      <TableCell>
+                        {isLow && <Badge className="bg-destructive/10 text-destructive text-xs mr-1">ใกล้หมด</Badge>}
+                        {isExpiring && <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมดอายุ</Badge>}
+                        {!isLow && !isExpiring && <Badge className="bg-emerald-100 text-emerald-700 text-xs">ปกติ</Badge>}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-1">
+                          <Button size="icon" variant="ghost" title="ตัด stock" onClick={() => setMoving({ item, mode: "deduct" })}><Minus className="w-4 h-4" /></Button>
+                          <Button size="icon" variant="ghost" title="รับเข้า" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
+                          <Button size="icon" variant="ghost" title="แก้ไข" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
+                          <Button size="icon" variant="ghost" title="ลบ" onClick={() => setDeleting(item)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {(creating || editing) && (
+        <StandardDialog
+          item={editing}
+          onClose={() => { setCreating(false); setEditing(null); }}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ["stock", "standards"] }); }}
+        />
+      )}
+      {deleting && (
+        <DeleteDialog
+          name={`${deleting.code} ${deleting.name}`}
+          onCancel={() => setDeleting(null)}
+          onConfirm={async () => {
+            await api.deleteStandard(deleting._id);
+            toast.success("ลบรายการแล้ว");
+            qc.invalidateQueries({ queryKey: ["stock", "standards"] });
+            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+            setDeleting(null);
+          }}
+        />
+      )}
+      {moving && (
+        <StandardMoveDialog
+          {...moving}
+          onClose={() => setMoving(null)}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: ["stock", "standards"] });
+            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function TierCell({ tier }: { tier: { qty: number; sizeMg: number | string | null; exp: string } }) {
+  const isExp = isExpiringSoon(tier?.exp);
+  return (
+    <TableCell className="text-center text-sm">
+      <div className="font-semibold">{tier?.qty ?? 0}</div>
+      <div className="text-xs text-muted-foreground">{fmtNum(tier?.sizeMg)} mg</div>
+      <div className={`text-xs ${isExp ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+        {tier?.exp || "-"}
+      </div>
+    </TableCell>
+  );
+}
+
+// ============================================================
+// Solvents Tab
+// ============================================================
+function SolventsTab() {
+  const qc = useQueryClient();
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["stock", "solvents"],
+    queryFn: api.getSolvents,
+  });
+
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<StockSolventItem | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<StockSolventItem | null>(null);
+  const [moving, setMoving] = useState<{ item: StockSolventItem; mode: "deduct" | "receive" } | null>(null);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
+  }, [data, search]);
+
+  const lowList = data.filter(s => s.qty < LOW_SOL_QTY);
+
+  return (
+    <div className="space-y-4">
+      {lowList.length > 0 && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              <span className="font-semibold text-destructive">สารเคมีใกล้หมด ({lowList.length} รายการ)</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-sm text-destructive">
+              {lowList.map(s => <div key={s._id}>• {s.name} เหลือ {s.qty} ขวด</div>)}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      <Card>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 space-y-0">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Package className="w-5 h-5" /> สารเคมี / Solvents
+            <Badge variant="outline">{data.length}</Badge>
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา" className="pl-8 h-9 w-64" />
+            </div>
+            <Button size="sm" onClick={() => setCreating(true)}><Plus className="w-4 h-4 mr-1" /> เพิ่มรายการ</Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>รายการ</TableHead>
+                <TableHead className="text-right">ขนาด (ลิตร)</TableHead>
+                <TableHead className="text-right">จำนวน (ขวด)</TableHead>
+                <TableHead className="text-right">ราคา (บาท)</TableHead>
+                <TableHead>หมายเหตุ</TableHead>
+                <TableHead className="w-32 text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={6} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
+              ) : filtered.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">ไม่มีข้อมูล</TableCell></TableRow>
+              ) : filtered.map(item => (
+                <TableRow key={item._id}>
+                  <TableCell className="font-medium">{item.name}</TableCell>
+                  <TableCell className="text-right">{item.sizeLiter}</TableCell>
+                  <TableCell className="text-right">
+                    <Badge className={item.qty < LOW_SOL_QTY ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}>
+                      {item.qty}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">{item.price.toLocaleString()}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{item.note}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "deduct" })}><Minus className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => setDeleting(item)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {(creating || editing) && (
+        <SimpleItemDialog
+          title="สารเคมี"
+          item={editing}
+          fields={[
+            { key: "name", label: "ชื่อรายการ", type: "text", required: true },
+            { key: "sizeLiter", label: "ขนาด (ลิตร)", type: "number" },
+            { key: "qty", label: "จำนวนคงเหลือ (ขวด)", type: "number" },
+            { key: "price", label: "ราคา (บาท)", type: "number" },
+            { key: "note", label: "หมายเหตุ", type: "text" },
+          ]}
+          onClose={() => { setCreating(false); setEditing(null); }}
+          onSubmit={async (payload) => {
+            if (editing) await api.updateSolvent(editing._id, payload);
+            else await api.createSolvent(payload);
+            qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
+            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+          }}
+        />
+      )}
+      {deleting && (
+        <DeleteDialog
+          name={deleting.name}
+          onCancel={() => setDeleting(null)}
+          onConfirm={async () => {
+            await api.deleteSolvent(deleting._id);
+            toast.success("ลบรายการแล้ว");
+            qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
+            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+            setDeleting(null);
+          }}
+        />
+      )}
+      {moving && (
+        <SimpleMoveDialog
+          title={moving.mode === "deduct" ? "ตัด stock สารเคมี" : "รับเข้าสารเคมี"}
+          mode={moving.mode}
+          itemName={moving.item.name}
+          currentQty={moving.item.qty}
+          unit="ขวด"
+          onClose={() => setMoving(null)}
+          onSubmit={async (qty, note) => {
+            if (moving.mode === "deduct") await api.deductSolvent(moving.item._id, { qty, note });
+            else await api.receiveSolvent(moving.item._id, { qty, note });
+            qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
+            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Glassware Tab
+// ============================================================
+function GlasswareTab() {
+  const qc = useQueryClient();
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["stock", "glassware"],
+    queryFn: api.getGlassware,
+  });
+
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<StockGlasswareItem | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<StockGlasswareItem | null>(null);
+  const [moving, setMoving] = useState<{ item: StockGlasswareItem; mode: "deduct" | "receive" } | null>(null);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
+  }, [data, search]);
+
+  const lowList = data.filter(s => s.qty < LOW_GLASS_QTY);
+
+  return (
+    <div className="space-y-4">
+      {lowList.length > 0 && (
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              <span className="font-semibold text-destructive">เครื่องแก้วใกล้หมด ({lowList.length} รายการ)</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-sm text-destructive">
+              {lowList.map(s => <div key={s._id}>• {s.name} เหลือ {s.qty} ชิ้น</div>)}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      <Card>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 space-y-0">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Package className="w-5 h-5" /> เครื่องแก้ว / Glassware
+            <Badge variant="outline">{data.length}</Badge>
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา" className="pl-8 h-9 w-64" />
+            </div>
+            <Button size="sm" onClick={() => setCreating(true)}><Plus className="w-4 h-4 mr-1" /> เพิ่มรายการ</Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>รายการ</TableHead>
+                <TableHead className="text-right">จำนวน (ชิ้น)</TableHead>
+                <TableHead className="text-right">ราคา/ชิ้น (บาท)</TableHead>
+                <TableHead>หมายเหตุ</TableHead>
+                <TableHead className="w-32 text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={5} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
+              ) : filtered.length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">ไม่มีข้อมูล</TableCell></TableRow>
+              ) : filtered.map(item => (
+                <TableRow key={item._id}>
+                  <TableCell className="font-medium">{item.name}</TableCell>
+                  <TableCell className="text-right">
+                    <Badge className={item.qty < LOW_GLASS_QTY ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}>
+                      {item.qty}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">{item.pricePerPiece.toLocaleString()}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{item.note}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "deduct" })}><Minus className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => setDeleting(item)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {(creating || editing) && (
+        <SimpleItemDialog
+          title="เครื่องแก้ว"
+          item={editing}
+          fields={[
+            { key: "name", label: "ชื่อรายการ", type: "text", required: true },
+            { key: "qty", label: "จำนวนคงเหลือ (ชิ้น)", type: "number" },
+            { key: "pricePerPiece", label: "ราคา/ชิ้น (บาท)", type: "number" },
+            { key: "note", label: "หมายเหตุ", type: "text" },
+          ]}
+          onClose={() => { setCreating(false); setEditing(null); }}
+          onSubmit={async (payload) => {
+            if (editing) await api.updateGlassware(editing._id, payload);
+            else await api.createGlassware(payload);
+            qc.invalidateQueries({ queryKey: ["stock", "glassware"] });
+            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+          }}
+        />
+      )}
+      {deleting && (
+        <DeleteDialog
+          name={deleting.name}
+          onCancel={() => setDeleting(null)}
+          onConfirm={async () => {
+            await api.deleteGlassware(deleting._id);
+            toast.success("ลบรายการแล้ว");
+            qc.invalidateQueries({ queryKey: ["stock", "glassware"] });
+            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+            setDeleting(null);
+          }}
+        />
+      )}
+      {moving && (
+        <SimpleMoveDialog
+          title={moving.mode === "deduct" ? "ตัด stock เครื่องแก้ว" : "รับเข้าเครื่องแก้ว"}
+          mode={moving.mode}
+          itemName={moving.item.name}
+          currentQty={moving.item.qty}
+          unit="ชิ้น"
+          onClose={() => setMoving(null)}
+          onSubmit={async (qty, note) => {
+            if (moving.mode === "deduct") await api.deductGlassware(moving.item._id, { qty, note });
+            else await api.receiveGlassware(moving.item._id, { qty, note });
+            qc.invalidateQueries({ queryKey: ["stock", "glassware"] });
+            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// History Tab
+// ============================================================
+function HistoryTab() {
+  const [type, setType] = useState<string>("");
+  const [action, setAction] = useState<string>("");
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["stock", "transactions", type, action],
+    queryFn: () => api.getStockTransactions({ itemType: type || undefined, action: action || undefined, limit: 300 }),
+  });
+
+  return (
+    <Card>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle className="text-base flex items-center gap-2">
+          <History className="w-5 h-5" /> ประวัติการใช้ / รับเข้า
+          <Badge variant="outline">{data.length}</Badge>
+        </CardTitle>
+        <div className="flex gap-2">
+          <Select value={type || "all"} onValueChange={v => setType(v === "all" ? "" : v)}>
+            <SelectTrigger className="h-9 w-40"><SelectValue placeholder="ทุกหมวด" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ทุกหมวด</SelectItem>
+              <SelectItem value="standard">Standards</SelectItem>
+              <SelectItem value="solvent">สารเคมี</SelectItem>
+              <SelectItem value="glassware">เครื่องแก้ว</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={action || "all"} onValueChange={v => setAction(v === "all" ? "" : v)}>
+            <SelectTrigger className="h-9 w-40"><SelectValue placeholder="ทุก action" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ทุก action</SelectItem>
+              <SelectItem value="deduct">ตัด stock</SelectItem>
+              <SelectItem value="receive">รับเข้า</SelectItem>
+              <SelectItem value="create">สร้างใหม่</SelectItem>
+              <SelectItem value="update">แก้ไข</SelectItem>
+              <SelectItem value="delete">ลบ</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>เวลา</TableHead>
+              <TableHead>หมวด</TableHead>
+              <TableHead>รายการ</TableHead>
+              <TableHead>Action</TableHead>
+              <TableHead className="text-right">Δ qty</TableHead>
+              <TableHead>คงเหลือ</TableHead>
+              <TableHead>โดย</TableHead>
+              <TableHead>หมายเหตุ</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow><TableCell colSpan={8} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
+            ) : data.length === 0 ? (
+              <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">ไม่มีประวัติ</TableCell></TableRow>
+            ) : data.map(t => (
+              <TableRow key={t._id}>
+                <TableCell className="text-xs whitespace-nowrap">{new Date(t.createdAt).toLocaleString("th-TH")}</TableCell>
+                <TableCell><Badge variant="outline">{t.itemType}</Badge></TableCell>
+                <TableCell>
+                  <div className="font-medium">{t.itemName || t.itemId}</div>
+                  {t.itemCode && <div className="text-xs text-muted-foreground">{t.itemCode}</div>}
+                  {t.tier && <Badge className="text-xs mt-1" variant="outline">{t.tier}</Badge>}
+                </TableCell>
+                <TableCell><ActionBadge action={t.action} /></TableCell>
+                <TableCell className={`text-right font-mono ${t.delta != null && t.delta < 0 ? "text-destructive" : t.delta != null && t.delta > 0 ? "text-emerald-600" : ""}`}>
+                  {t.delta != null ? (t.delta > 0 ? `+${t.delta}` : t.delta) : "-"}
+                </TableCell>
+                <TableCell className="text-sm">
+                  {t.beforeQty ?? "-"} → <strong>{t.afterQty ?? "-"}</strong> {t.unit || ""}
+                </TableCell>
+                <TableCell className="text-xs">{t.userName || t.userEmail || "-"}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{t.note || ""}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ActionBadge({ action }: { action: string }) {
+  const map: Record<string, string> = {
+    create: "bg-blue-100 text-blue-700",
+    update: "bg-slate-100 text-slate-700",
+    delete: "bg-destructive/10 text-destructive",
+    deduct: "bg-amber-100 text-amber-700",
+    receive: "bg-emerald-100 text-emerald-700",
+  };
+  return <Badge className={`text-xs ${map[action] || ""}`}>{action}</Badge>;
+}
+
+// ============================================================
+// Reusable dialogs
+// ============================================================
+function DeleteDialog({ name, onCancel, onConfirm }: { name: string; onCancel: () => void; onConfirm: () => void | Promise<void> }) {
+  return (
+    <AlertDialog open onOpenChange={open => { if (!open) onCancel(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>ยืนยันลบรายการ?</AlertDialogTitle>
+          <AlertDialogDescription>กำลังจะลบ "{name}" — การลบไม่สามารถย้อนกลับได้</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onCancel}>ยกเลิก</AlertDialogCancel>
+          <AlertDialogAction onClick={() => onConfirm()} className="bg-destructive hover:bg-destructive/90">ลบ</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+interface SimpleField {
+  key: string;
+  label: string;
+  type: "text" | "number";
+  required?: boolean;
+}
+function SimpleItemDialog<T extends { _id?: string }>({
+  title, item, fields, onClose, onSubmit,
+}: {
+  title: string;
+  item: T | null;
+  fields: SimpleField[];
+  onClose: () => void;
+  onSubmit: (payload: Record<string, unknown>) => Promise<void>;
+}) {
+  const [form, setForm] = useState<Record<string, unknown>>(() => {
+    const init: Record<string, unknown> = {};
+    for (const f of fields) init[f.key] = (item as Record<string, unknown> | null)?.[f.key] ?? (f.type === "number" ? 0 : "");
+    return init;
+  });
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const payload: Record<string, unknown> = { ...form };
+      for (const f of fields) if (f.type === "number") payload[f.key] = Number(payload[f.key]) || 0;
+      await onSubmit(payload);
+      toast.success(item ? "แก้ไขสำเร็จ" : "เพิ่มรายการสำเร็จ");
+      onClose();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <form onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>{item ? `แก้ไข${title}` : `เพิ่ม${title}`}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {fields.map(f => (
+              <div key={f.key} className="space-y-1">
+                <Label htmlFor={f.key}>{f.label}{f.required && <span className="text-destructive ml-1">*</span>}</Label>
+                <Input
+                  id={f.key} type={f.type} required={f.required}
+                  value={String(form[f.key] ?? "")}
+                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                />
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
+            <Button type="submit" disabled={busy}>{busy ? "กำลังบันทึก..." : "บันทึก"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SimpleMoveDialog({
+  title, mode, itemName, currentQty, unit, onClose, onSubmit,
+}: {
+  title: string;
+  mode: "deduct" | "receive";
+  itemName: string;
+  currentQty: number;
+  unit: string;
+  onClose: () => void;
+  onSubmit: (qty: number, note?: string) => Promise<void>;
+}) {
+  const [qty, setQty] = useState<string>("1");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const n = Number(qty);
+    if (!n || n <= 0) { toast.error("กรุณาระบุจำนวน"); return; }
+    if (mode === "deduct" && n > currentQty) { toast.error("จำนวนไม่พอ"); return; }
+    setBusy(true);
+    try {
+      await onSubmit(n, note || undefined);
+      toast.success(mode === "deduct" ? "ตัด stock สำเร็จ" : "รับเข้าสำเร็จ");
+      onClose();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <form onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>{itemName} — คงเหลือ {currentQty} {unit}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <div>
+              <Label>จำนวน ({unit})</Label>
+              <Input type="number" min="1" value={qty} onChange={e => setQty(e.target.value)} required />
+            </div>
+            <div>
+              <Label>หมายเหตุ</Label>
+              <Input value={note} onChange={e => setNote(e.target.value)} placeholder="optional" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
+            <Button type="submit" disabled={busy}>{busy ? "กำลังบันทึก..." : "ยืนยัน"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StandardMoveDialog({
+  item, mode, onClose, onSaved,
+}: {
+  item: StockStandardItem;
+  mode: "deduct" | "receive";
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [tier, setTier] = useState<StockTier>("primary");
+  const [qty, setQty] = useState("1");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const n = Number(qty);
+    if (!n || n <= 0) { toast.error("กรุณาระบุจำนวน"); return; }
+    const before = item[tier]?.qty ?? 0;
+    if (mode === "deduct" && n > before) { toast.error("จำนวนไม่พอ"); return; }
+    setBusy(true);
+    try {
+      if (mode === "deduct") await api.deductStandard(item._id, { tier, qty: n, note: note || undefined });
+      else await api.receiveStandard(item._id, { tier, qty: n, note: note || undefined });
+      toast.success(mode === "deduct" ? "ตัด stock สำเร็จ" : "รับเข้าสำเร็จ");
+      onSaved();
+      onClose();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <form onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>{mode === "deduct" ? "ตัด stock Standard" : "รับเข้า Standard"}</DialogTitle>
+            <DialogDescription>{item.code} — {item.name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <div>
+              <Label>เลือก tier</Label>
+              <Select value={tier} onValueChange={(v) => setTier(v as StockTier)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="primary">Primary (คงเหลือ {item.primary?.qty ?? 0})</SelectItem>
+                  <SelectItem value="supplier">Supplier (คงเหลือ {item.supplier?.qty ?? 0})</SelectItem>
+                  <SelectItem value="working">Working (คงเหลือ {item.working?.qty ?? 0})</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>จำนวน (ขวด)</Label>
+              <Input type="number" min="1" value={qty} onChange={e => setQty(e.target.value)} required />
+            </div>
+            <div>
+              <Label>หมายเหตุ</Label>
+              <Input value={note} onChange={e => setNote(e.target.value)} placeholder="optional" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
+            <Button type="submit" disabled={busy}>{busy ? "กำลังบันทึก..." : "ยืนยัน"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StandardDialog({
+  item, onClose, onSaved,
+}: {
+  item: StockStandardItem | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!item;
+  const [form, setForm] = useState<StockStandardItem>(() => item ?? {
+    _id: "",
+    code: "",
+    name: "",
+    primary: { qty: 0, ordered: 0, sizeMg: null, exp: "", usesPerBottle: null, pricePerUnit: 0, totalPrice: 0 },
+    supplier: { qty: 0, sizeMg: null, exp: "" },
+    working: { qty: 0, sizeMg: null, exp: "" },
+    usagePerUseMg: null,
+    frequency: "",
+    storageTemp: "",
+    status: "",
+    expiryStatus: "",
+  });
+  const [busy, setBusy] = useState(false);
+
+  const setField = (path: string, value: unknown) => {
+    setForm(prev => {
+      const copy: StockStandardItem = JSON.parse(JSON.stringify(prev));
+      const keys = path.split(".");
+      let target: Record<string, unknown> = copy as unknown as Record<string, unknown>;
+      for (let i = 0; i < keys.length - 1; i++) target = target[keys[i]] as Record<string, unknown>;
+      target[keys[keys.length - 1]] = value;
+      return copy;
+    });
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const payload = { ...form };
+      // strip _id from payload (it's url param for updates)
+      const { _id: _stripId, createdAt: _stripCa, updatedAt: _stripUa, ...body } = payload;
+      void _stripId; void _stripCa; void _stripUa;
+      // numeric coercion
+      body.primary.qty = Number(body.primary.qty) || 0;
+      body.primary.ordered = Number(body.primary.ordered) || 0;
+      body.primary.pricePerUnit = Number(body.primary.pricePerUnit) || 0;
+      body.supplier.qty = Number(body.supplier.qty) || 0;
+      body.working.qty = Number(body.working.qty) || 0;
+      if (isEdit) await api.updateStandard(item!._id, body);
+      else await api.createStandard(body);
+      toast.success(isEdit ? "แก้ไขสำเร็จ" : "เพิ่มรายการสำเร็จ");
+      onSaved();
+      onClose();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <form onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>{isEdit ? `แก้ไข Standard: ${item?.name}` : "เพิ่ม Standard ใหม่"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Code <span className="text-destructive">*</span></Label>
+                <Input required value={form.code} onChange={e => setField("code", e.target.value)} />
+              </div>
+              <div>
+                <Label>ชื่อ <span className="text-destructive">*</span></Label>
+                <Input required value={form.name} onChange={e => setField("name", e.target.value)} />
+              </div>
+            </div>
+
+            {(["primary", "supplier", "working"] as const).map(tier => (
+              <div key={tier} className="border rounded-md p-3">
+                <div className="font-semibold mb-2 capitalize">{tier} stock</div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label>จำนวน (ขวด)</Label>
+                    <Input type="number" value={String(form[tier]?.qty ?? 0)} onChange={e => setField(`${tier}.qty`, e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>ขนาด (mg)</Label>
+                    <Input value={String(form[tier]?.sizeMg ?? "")} onChange={e => setField(`${tier}.sizeMg`, e.target.value)} placeholder="เช่น 100 หรือ -" />
+                  </div>
+                  <div>
+                    <Label>EXP</Label>
+                    <Input value={String(form[tier]?.exp ?? "")} onChange={e => setField(`${tier}.exp`, e.target.value)} placeholder="dd/mm/yyyy" />
+                  </div>
+                </div>
+                {tier === "primary" && (
+                  <div className="grid grid-cols-3 gap-3 mt-3">
+                    <div>
+                      <Label>สั่งแล้ว (ขวด)</Label>
+                      <Input type="number" value={String(form.primary?.ordered ?? 0)} onChange={e => setField("primary.ordered", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label>ครั้งที่ใช้/ขวด</Label>
+                      <Input value={String(form.primary?.usesPerBottle ?? "")} onChange={e => setField("primary.usesPerBottle", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label>ราคา/หน่วย (บาท)</Label>
+                      <Input type="number" value={String(form.primary?.pricePerUnit ?? 0)} onChange={e => setField("primary.pricePerUnit", e.target.value)} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>อัตราการใช้/ครั้ง (mg)</Label>
+                <Input value={String(form.usagePerUseMg ?? "")} onChange={e => setField("usagePerUseMg", e.target.value)} />
+              </div>
+              <div>
+                <Label>ความถี่</Label>
+                <Input value={form.frequency} onChange={e => setField("frequency", e.target.value)} placeholder="เช่น 1/1 Week" />
+              </div>
+              <div>
+                <Label>อุณหภูมิที่เก็บ (°C)</Label>
+                <Input value={form.storageTemp} onChange={e => setField("storageTemp", e.target.value)} placeholder="เช่น 20 ± 4" />
+              </div>
+              <div>
+                <Label>หมายเหตุ</Label>
+                <Input value={form.status} onChange={e => setField("status", e.target.value)} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
+            <Button type="submit" disabled={busy}>{busy ? "กำลังบันทึก..." : "บันทึก"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ============================================================
+// Page
+// ============================================================
+const StockPage = () => {
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
       <main className="flex-1 p-6 overflow-auto">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Package className="w-6 h-6" />
-            Stock Management
+            <Package className="w-6 h-6" /> Stock Management
           </h1>
-          <p className="text-sm text-muted-foreground">จัดการ Standard และ Solvent สำหรับห้องปฏิบัติการ</p>
+          <p className="text-sm text-muted-foreground">
+            จัดการ inventory: Standards, สารเคมี, เครื่องแก้ว — บันทึกข้อมูลใน MongoDB
+          </p>
         </div>
 
         <Tabs defaultValue="standard">
           <TabsList className="mb-4">
-            <TabsTrigger value="standard">
-              Standard
-              {stdAlerts > 0 && (
-                <Badge className="ml-2 bg-destructive/10 text-destructive text-xs">{stdAlerts}</Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="solvent">
-              Solvent
-              {solAlerts > 0 && (
-                <Badge className="ml-2 bg-destructive/10 text-destructive text-xs">{solAlerts}</Badge>
-              )}
-            </TabsTrigger>
+            <TabsTrigger value="standard">Standards</TabsTrigger>
+            <TabsTrigger value="solvent">สารเคมี</TabsTrigger>
+            <TabsTrigger value="glassware">เครื่องแก้ว</TabsTrigger>
+            <TabsTrigger value="history">ประวัติ</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="standard">
-            {stdAlerts > 0 && (
-              <Card className="mb-4 border-destructive/30 bg-destructive/5">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <AlertTriangle className="w-5 h-5 text-destructive" />
-                    <span className="font-semibold text-destructive">แจ้งเตือน Standard ({stdAlerts} รายการ)</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                    {lowStandards.map(s => (
-                      <div key={s.id} className="flex items-center gap-2 text-destructive">
-                        <Package className="w-3.5 h-3.5" />
-                        <span>Standard <strong>{s.name}</strong> เหลือ {s.remainingQty} {s.unit} (ใกล้หมด)</span>
-                      </div>
-                    ))}
-                    {expiringStandards.map(s => (
-                      <div key={`exp-${s.id}`} className="flex items-center gap-2 text-amber-600">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>Standard <strong>{s.name}</strong> หมดอายุ {s.expiryDate}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">รายการ Standard ในคลัง</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>รหัส</TableHead>
-                      <TableHead>ชื่อ Standard</TableHead>
-                      <TableHead>LOT NO.</TableHead>
-                      <TableHead>ผู้ผลิต</TableHead>
-                      <TableHead>Purity (%)</TableHead>
-                      <TableHead>วันที่รับ</TableHead>
-                      <TableHead>วันหมดอายุ</TableHead>
-                      <TableHead>คงเหลือ</TableHead>
-                      <TableHead>ที่เก็บ</TableHead>
-                      <TableHead>สถานะ</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {standards.map(item => {
-                      const isLow = item.remainingQty < LOW_STANDARD_QTY;
-                      const isExpiring = new Date(item.expiryDate).getTime() < now + EXPIRY_WARNING_DAYS * 86400000;
-                      return (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-semibold text-primary">{item.id}</TableCell>
-                          <TableCell>{item.name}</TableCell>
-                          <TableCell><Badge variant="outline">{item.lotNo}</Badge></TableCell>
-                          <TableCell>{item.manufacturer}</TableCell>
-                          <TableCell>{item.purity}%</TableCell>
-                          <TableCell>{item.receivedDate}</TableCell>
-                          <TableCell>
-                            <span className={isExpiring ? "text-destructive font-medium" : ""}>{item.expiryDate}</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={isLow ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}>
-                              {item.remainingQty} {item.unit}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{item.location}</TableCell>
-                          <TableCell>
-                            {isLow && <Badge className="bg-destructive/10 text-destructive text-xs mr-1">ใกล้หมด</Badge>}
-                            {isExpiring && <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมดอายุ</Badge>}
-                            {!isLow && !isExpiring && <Badge className="bg-emerald-100 text-emerald-700 text-xs">ปกติ</Badge>}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="solvent">
-            {solAlerts > 0 && (
-              <Card className="mb-4 border-destructive/30 bg-destructive/5">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <AlertTriangle className="w-5 h-5 text-destructive" />
-                    <span className="font-semibold text-destructive">แจ้งเตือน Solvent ({solAlerts} รายการ)</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                    {lowSolvents.map(s => (
-                      <div key={s.id} className="flex items-center gap-2 text-destructive">
-                        <Package className="w-3.5 h-3.5" />
-                        <span>Solvent <strong>{s.name}</strong> เหลือ {s.remainingQty} {s.unit} (ใกล้หมด)</span>
-                      </div>
-                    ))}
-                    {expiringSolvents.map(s => (
-                      <div key={`exp-${s.id}`} className="flex items-center gap-2 text-amber-600">
-                        <Clock className="w-3.5 h-3.5" />
-                        <span>Solvent <strong>{s.name}</strong> หมดอายุ {s.expiryDate}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">รายการ Solvent ในคลัง</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>รหัส</TableHead>
-                      <TableHead>ชื่อ Solvent</TableHead>
-                      <TableHead>LOT NO.</TableHead>
-                      <TableHead>ผู้ผลิต</TableHead>
-                      <TableHead>Grade</TableHead>
-                      <TableHead>วันที่รับ</TableHead>
-                      <TableHead>วันหมดอายุ</TableHead>
-                      <TableHead>คงเหลือ</TableHead>
-                      <TableHead>ที่เก็บ</TableHead>
-                      <TableHead>สถานะ</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {solvents.map(item => {
-                      const isLow = item.remainingQty < LOW_SOLVENT_QTY;
-                      const isExpiring = new Date(item.expiryDate).getTime() < now + EXPIRY_WARNING_DAYS * 86400000;
-                      return (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-semibold text-primary">{item.id}</TableCell>
-                          <TableCell>{item.name}</TableCell>
-                          <TableCell><Badge variant="outline">{item.lotNo}</Badge></TableCell>
-                          <TableCell>{item.manufacturer}</TableCell>
-                          <TableCell><Badge className="bg-accent text-accent-foreground">{item.grade}</Badge></TableCell>
-                          <TableCell>{item.receivedDate}</TableCell>
-                          <TableCell>
-                            <span className={isExpiring ? "text-destructive font-medium" : ""}>{item.expiryDate}</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={isLow ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}>
-                              {item.remainingQty} {item.unit}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{item.location}</TableCell>
-                          <TableCell>
-                            {isLow && <Badge className="bg-destructive/10 text-destructive text-xs mr-1">ใกล้หมด</Badge>}
-                            {isExpiring && <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมดอายุ</Badge>}
-                            {!isLow && !isExpiring && <Badge className="bg-emerald-100 text-emerald-700 text-xs">ปกติ</Badge>}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          <TabsContent value="standard"><StandardsTab /></TabsContent>
+          <TabsContent value="solvent"><SolventsTab /></TabsContent>
+          <TabsContent value="glassware"><GlasswareTab /></TabsContent>
+          <TabsContent value="history"><HistoryTab /></TabsContent>
         </Tabs>
       </main>
     </div>
   );
 };
 
-export default Stock;
+export default StockPage;

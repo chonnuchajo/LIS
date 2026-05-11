@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { QrCode, Camera, X, Plus, Clock, CheckCircle2 } from "lucide-react";
+import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
+import { QrCode, Camera, X, Clock, CheckCircle2 } from "lucide-react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,8 +10,10 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useSamples } from "@/context/SampleContext";
+import { api } from "@/lib/api";
 import { getStandardForSample } from "@/data/stockData";
 import type { SampleItem } from "@/components/lis/SampleColumn";
+import type { Petition } from "@/types/petition.types";
 
 interface ReceivedSample {
   runNo: string;
@@ -33,50 +36,158 @@ const instruments = [
   { value: "HPLC-03", label: "HPLC-03" },
 ];
 
+const READER_ID = "receive-sample-qr-reader";
+
+interface ScannedPayload {
+  id?: unknown;
+  petitionId?: unknown;
+  petitionNo?: unknown;
+  sampleId?: unknown;
+  itemSeq?: unknown;
+}
+
+function parseScannedPayload(raw: string): { code: string; payload: ScannedPayload | null } {
+  const text = raw.trim();
+  if (!text) return { code: "", payload: null };
+
+  try {
+    const payload = JSON.parse(text) as ScannedPayload;
+    const value = payload.id ?? payload.petitionId ?? payload.petitionNo ?? payload.sampleId;
+    return { code: value ? String(value).trim() : text, payload };
+  } catch {
+    // QR may be plain text or a URL.
+  }
+
+  try {
+    const url = new URL(text);
+    const parts = url.pathname.split("/").filter(Boolean);
+    return { code: decodeURIComponent(parts[parts.length - 1] || text).trim(), payload: null };
+  } catch {
+    return { code: text, payload: null };
+  }
+}
+
+async function fetchPetitionByCode(code: string): Promise<Petition> {
+  try {
+    const res = await api.get<Petition>(`/petitions/scan/${encodeURIComponent(code)}`);
+    return res.data.data;
+  } catch {
+    const res = await api.get<Petition>(`/petitions/${encodeURIComponent(code)}`);
+    return res.data.data;
+  }
+}
+
 const SendSample = () => {
-  const { sentSamples, sentItems, receiveSample } = useSamples();
+  const { sentSamples, sentItems, receiveSample, refetch } = useSamples();
   const [receivedSamples, setReceivedSamples] = useState<ReceivedSample[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
 
   const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
+    if (scanner) {
+      try {
+        const state = scanner.getState();
+        if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
+          scanner.stop().catch(() => {});
+        }
+      } catch {
+        // Scanner may already be stopped.
+      }
     }
     setScanning(false);
   };
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      setScanning(true);
-      toast.info("กล้องเปิดแล้ว กรุณาสแกน QR Code");
-      setTimeout(() => simulateScan(), 3000);
-    } catch {
-      toast.error("ไม่สามารถเปิดกล้องได้");
-      simulateScan();
-    }
+  const startCamera = () => {
+    setScanning(true);
+    return;
+    toast.info("กำลังเปิดกล้อง...");
+    window.setTimeout(async () => {
+      try {
+        const scanner = new Html5Qrcode(READER_ID);
+        scannerRef.current = scanner;
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        const onScan = (decodedText: string) => {
+          stopCamera();
+          setScannerOpen(false);
+          handleScannedText(decodedText);
+        };
+
+        try {
+          await scanner.start({ facingMode: { ideal: "environment" } }, config, onScan, () => {});
+        } catch {
+          const cameras = await Html5Qrcode.getCameras();
+          if (cameras.length === 0) throw new Error("No camera found");
+          const backCamera = cameras.find((camera) =>
+            /back|environment|rear|หลัง/i.test(camera.label),
+          );
+          await scanner.start((backCamera ?? cameras[0]).id, config, onScan, () => {});
+        }
+
+        toast.info("เปิดกล้องแล้ว กรุณาสแกน QR Code");
+      } catch (error) {
+        console.error("receive scanner open error:", error);
+        scannerRef.current = null;
+        setScanning(false);
+        toast.error("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้กล้องหรือเลือกอุปกรณ์ที่มีกล้อง");
+      }
+    }, 0);
   };
 
-  const simulateScan = () => {
-    if (sentSamples.length === 0) {
-      toast.warning("ไม่มีตัวอย่างรอรับเข้าระบบแล้ว");
-      stopCamera();
-      setScannerOpen(false);
-      return;
-    }
-    const sample = sentSamples[0];
-    handleScannedData(sample);
-    stopCamera();
-    setScannerOpen(false);
-  };
+  useEffect(() => {
+    if (!scannerOpen || !scanning) return;
+    let active = true;
 
-  const handleScannedData = (sample: SampleItem) => {
+    const timer = window.setTimeout(async () => {
+      try {
+        const scanner = new Html5Qrcode(READER_ID);
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+        const onScan = (decodedText: string) => {
+          if (!active) return;
+          stopCamera();
+          setScannerOpen(false);
+          handleScannedText(decodedText);
+        };
+        const startWith = (source: MediaTrackConstraints | string) =>
+          scanner.start(source, config, onScan, () => {});
+
+        try {
+          await startWith({ facingMode: { exact: "environment" } });
+        } catch {
+          const cameras = await Html5Qrcode.getCameras();
+          if (cameras.length === 0) throw new Error("No camera found");
+          const backCamera = cameras.find((camera) =>
+            /back|environment|rear|หลัง/i.test(camera.label),
+          );
+          const fallbackCamera = backCamera ?? (cameras.length > 1 ? cameras[cameras.length - 1] : cameras[0]);
+          await startWith(fallbackCamera.id);
+        }
+
+        if (!active) {
+          scanner.stop().catch(() => {});
+          return;
+        }
+        scannerRef.current = scanner;
+        toast.info("เปิดกล้องแล้ว กรุณาสแกน QR Code");
+      } catch (error) {
+        if (!active) return;
+        console.error("receive scanner open error:", error);
+        scannerRef.current = null;
+        setScanning(false);
+        toast.error("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการใช้กล้องหรือเลือกอุปกรณ์ที่มีกล้อง");
+      }
+    }, 100);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scannerOpen, scanning]);
+
+  const handleScannedData = (sample: SampleItem, updateContext = true) => {
     const now = new Date();
     const standard = getStandardForSample(sample.name);
     const runNo = `RCV-${now.getFullYear()}-${String(receivedSamples.length + 1).padStart(3, "0")}`;
@@ -94,12 +205,89 @@ const SendSample = () => {
     };
 
     setReceivedSamples(prev => [...prev, newSample]);
-    receiveSample(sample); // Remove from sent list
+    if (updateContext) receiveSample(sample); // Remove from sent list
     toast.success(`สแกนสำเร็จ: ${sample.name}`);
   };
 
   const updateInstrument = (index: number, value: string) => {
     setReceivedSamples(prev => prev.map((s, i) => i === index ? { ...s, instrument: value } : s));
+  };
+
+  const receiveScannedSample = async (sample: SampleItem) => {
+    try {
+      await api.patch<SampleItem>(`/samples/${encodeURIComponent(sample.id)}`, {
+        ...sample,
+        status: "physical",
+      });
+    } catch {
+      await api.createSample({ ...sample, status: "physical" });
+    }
+    await refetch();
+  };
+
+  const handleScannedText = async (raw: string) => {
+    const { code, payload } = parseScannedPayload(raw);
+    if (!code) {
+      toast.error("ไม่พบข้อมูลใน QR Code");
+      return;
+    }
+
+    try {
+      const legacyId = payload?.sampleId ?? payload?.id;
+      const localSample = [
+        ...sentSamples,
+        ...sentItems.map(item => ({
+          id: item.id,
+          name: item.name,
+          status: "sent" as const,
+          date: item.date,
+          time: item.time,
+          sender: item.sender,
+        })),
+      ].find(sample => sample.id === legacyId || sample.id === code);
+
+      if (localSample) {
+        handleScannedData(localSample, false);
+        await receiveScannedSample(localSample);
+        return;
+      }
+
+      const petition = await fetchPetitionByCode(code);
+      const itemSeq = Number(payload?.itemSeq);
+      const item = petition.items.find(it => payload?.sampleId && it.sampleId === String(payload.sampleId))
+        ?? petition.items.find(it => Number.isFinite(itemSeq) && it.seq === itemSeq)
+        ?? petition.items[0];
+
+      if (!item) {
+        toast.error("ไม่พบรายการตัวอย่างในคำร้องนี้");
+        return;
+      }
+
+      const now = new Date();
+      const sample: SampleItem = {
+        id: item.sampleId || `${petition.petitionNo}-${item.seq}`,
+        name: [item.sampleName, item.commonName].filter(Boolean).join(" "),
+        status: "sent",
+        date: now.toLocaleDateString("th-TH"),
+        time: now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
+        sender: petition.sampleSubmittedBy || petition.requester.fullName,
+      };
+
+      handleScannedData(sample, false);
+      await receiveScannedSample(sample);
+      try {
+        await api.patch<Petition>(`/petitions/${petition._id}/receive`);
+      } catch {
+        try {
+          await api.patch<Petition>(`/petitions/${petition._id}`, { status: "pendingReview" });
+        } catch (statusErr) {
+          console.error("update petition status error:", statusErr);
+        }
+      }
+    } catch (error) {
+      console.error("receive scan error:", error);
+      toast.error("สแกนไม่สำเร็จ ไม่พบคำร้องหรือตัวอย่างจาก QR Code นี้");
+    }
   };
 
   useEffect(() => { return () => stopCamera(); }, []);
@@ -237,9 +425,8 @@ const SendSample = () => {
             </DialogHeader>
             <div className="space-y-4">
               <div className="relative aspect-square bg-accent rounded-xl overflow-hidden flex items-center justify-center">
-                {scanning ? (
-                  <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-                ) : (
+                <div id={READER_ID} className={`h-full w-full ${scanning ? "block" : "hidden"}`} />
+                {!scanning && (
                   <div className="text-center space-y-3">
                     <QrCode className="w-16 h-16 mx-auto text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">กดปุ่มด้านล่างเพื่อเปิดกล้อง</p>
@@ -261,9 +448,6 @@ const SendSample = () => {
                     <X className="w-4 h-4" /> หยุดสแกน
                   </Button>
                 )}
-                <Button variant="outline" className="gap-2" onClick={simulateScan}>
-                  <Plus className="w-4 h-4" /> จำลองสแกน
-                </Button>
               </div>
             </div>
           </DialogContent>

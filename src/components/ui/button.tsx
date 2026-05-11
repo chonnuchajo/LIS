@@ -15,12 +15,21 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        // ===== extended =====
+        primary: "bg-primary-500 text-white hover:bg-primary-600",
+        "primary-outline":
+          "border border-primary-500 text-primary-500 bg-white hover:bg-primary-50",
+        danger: "bg-red-500 text-white hover:bg-red-500/90",
+        "danger-outline":
+          "border border-red-500 text-red-500 bg-white hover:bg-red-50",
+        success: "bg-green-500 text-white hover:bg-green-500/90",
       },
       size: {
         default: "h-10 px-4 py-2",
         sm: "h-9 rounded-md px-3",
         lg: "h-11 rounded-md px-8",
         icon: "h-10 w-10",
+        "icon-sm": "h-9 w-9",
       },
     },
     defaultVariants: {

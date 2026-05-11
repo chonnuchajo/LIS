@@ -1,0 +1,1 @@
+import{m as e}from"./msalConfig-CPkQm1Q5.js";async function i(){await e.initialize(),await e.handleRedirectPromise(),window.opener?window.close():window.location.replace("/LIS/")}i().catch(console.error);

@@ -12,6 +12,20 @@ const badgeVariants = cva(
         secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
+        // ===== solid =====
+        primary: "border-transparent bg-primary-500 text-white",
+        yellow: "border-transparent bg-yellow-500 text-white",
+        green: "border-transparent bg-green-500 text-white",
+        red: "border-transparent bg-red-500 text-white",
+        blue: "border-transparent bg-primary-500 text-white",
+        gray: "border-transparent bg-grey-500 text-white",
+        // ===== soft =====
+        "primary-soft": "border-transparent bg-primary-50 text-primary-600",
+        "yellow-soft": "border-transparent bg-yellow-50 text-yellow-500",
+        "green-soft": "border-transparent bg-green-50 text-green-500",
+        "red-soft": "border-transparent bg-red-50 text-red-500",
+        "blue-soft": "border-transparent bg-primary-50 text-primary-500",
+        "gray-soft": "border-transparent bg-grey-100 text-grey-600",
       },
     },
     defaultVariants: {
