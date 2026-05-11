@@ -168,7 +168,7 @@ export default function ScannerPage() {
     return () => clearTimeout(t);
   }, [phase]);
 
-  const statusCfg = petition ? PETITION_STATUS_CONFIG[petition.status] : null;
+  const targetStatusCfg = PETITION_STATUS_CONFIG.sampleSent;
 
   return (
     <div className="min-h-screen bg-grey-50 flex flex-col items-center py-8 px-4">
@@ -242,7 +242,7 @@ export default function ScannerPage() {
             <div className="p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-base font-bold text-black-500">{petition.petitionNo}</span>
-                {statusCfg && <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>}
+                <Badge variant={targetStatusCfg.variant}>{targetStatusCfg.label}</Badge>
               </div>
 
               <div className="border-t border-grey-100" />
@@ -301,11 +301,9 @@ export default function ScannerPage() {
           <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-center space-y-3">
             <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto" />
             <p className="text-2xl font-bold text-green-700">ส่งตัวอย่างแล้ว</p>
-            {statusCfg && (
-              <div className="flex justify-center">
-                <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
-              </div>
-            )}
+            <div className="flex justify-center">
+              <Badge variant={targetStatusCfg.variant}>{targetStatusCfg.label}</Badge>
+            </div>
             <p className="text-sm text-grey-500">
               คำร้องเลขที่{' '}
               <span className="font-semibold text-black-500">{petition.petitionNo}</span>

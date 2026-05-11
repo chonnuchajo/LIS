@@ -7,7 +7,9 @@ import { SampleProvider } from "@/context/SampleContext";
 import { AuthProvider } from "@/context/AuthContext";
 import PrivateRoute from "@/components/PrivateRoute";
 import Home from "./pages/Home";
-import Index from "./pages/Index";
+import DashboardRedirect from "./pages/DashboardRedirect";
+import LabDashboard from "./pages/LabDashboard";
+import QCDashboard from "./pages/QCDashboard";
 import Login from "./pages/Login";
 import SendSample from "./pages/SendSample";
 import RecordResults from "./pages/RecordResults";
@@ -43,7 +45,9 @@ const App = () => (
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/scanner" element={<ScannerPage />} />
-              <Route path="/" element={<PrivateRoute moduleId="dashboard"><Index /></PrivateRoute>} />
+              <Route path="/" element={<PrivateRoute moduleId="dashboard"><DashboardRedirect /></PrivateRoute>} />
+              <Route path="/dashboard/lab" element={<PrivateRoute moduleId="dashboard"><LabDashboard /></PrivateRoute>} />
+              <Route path="/dashboard/qc" element={<PrivateRoute moduleId="qc"><QCDashboard /></PrivateRoute>} />
               <Route path="/home" element={<PrivateRoute moduleId="dashboard"><Home /></PrivateRoute>} />
               <Route path="/send-sample" element={<PrivateRoute moduleId="samples"><SendSample /></PrivateRoute>} />
               <Route path="/physical-inspection" element={<PrivateRoute moduleId="samples"><PhysicalInspection /></PrivateRoute>} />

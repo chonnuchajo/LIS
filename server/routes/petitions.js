@@ -140,21 +140,7 @@ router.patch('/:id/deliver', async (req, res) => {
   try {
     const id = req.params.id;
     const q = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { petitionNo: id };
-    const nextStatus = req.body?.status || 'sampleSent';
-    const doc = await Petition.findOneAndUpdate(q, { status: nextStatus }, { new: true });
-    if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
-    res.json(doc);
-  } catch (err) {
-    res.status(400).json({ error: { message: err.message } });
-  }
-});
-
-// PATCH /api/petitions/:id/receive  → mark sample as received (scan รับ)
-router.patch('/:id/receive', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const q = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { petitionNo: id };
-    const doc = await Petition.findOneAndUpdate(q, { status: 'pendingReview' }, { new: true });
+    const doc = await Petition.findOneAndUpdate(q, { status: 'sampleSent' }, { new: true });
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
     res.json(doc);
   } catch (err) {

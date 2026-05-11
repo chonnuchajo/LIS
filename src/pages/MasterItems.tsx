@@ -48,6 +48,7 @@ type MasterItem = Record<string, unknown>;
 type MasterItemForm = {
   itemCode: string;
   itemName: string;
+  itemType: string;
   category: string;
   unit: string;
   status: string;
@@ -57,22 +58,50 @@ type MasterItemForm = {
 const emptyForm: MasterItemForm = {
   itemCode: "",
   itemName: "",
+  itemType: "",
   category: "",
   unit: "",
   status: "active",
   description: "",
 };
 
-const DIRECT_MASTER_ITEM_URL = "https://n8n-plant.icpladda.com/webhook/api/itme-all";
+const DIRECT_MASTER_ITEM_URL = "https://n8n-plant.icpladda.com/webhook/API/Item-production";
+
+const classificationTypes = [
+  { key: "ulv", code: "ULV", label: "น้ำ (ยูแอลวี)", group: "water" },
+  { key: "ec", code: "EC", label: "น้ำ (อีซี)", group: "water" },
+  { key: "ew", code: "EW", label: "น้ำ (อีดับเบิ้ลยู)", group: "water" },
+  { key: "sc", code: "SC", label: "น้ำ (เอสซี)", group: "water" },
+  { key: "sl", code: "SL", label: "น้ำ (เอสแอล)", group: "water" },
+  { key: "wv", code: "W/V", label: "น้ำ (ดับเบิ้ลยูวี)", group: "water" },
+  { key: "ww", code: "W/W", label: "ทราย/เม็ด", group: "sand" },
+  { key: "wp", code: "WP", label: "ผง (ดับเบิลยูพี)", group: "powder" },
+  { key: "wdg", code: "WDG", label: "เม็ด/ผงเม็ด (ดับเบิลยูจี)", group: "powder" },
+  { key: "gr", code: "GR", label: "ทราย/เม็ด (จีอาร์)", group: "sand" },
+  { key: "st", code: "ST", label: "เม็ดละลายน้ำ (เอสที)", group: "sand" },
+  { key: "sp", code: "SP", label: "ผง (เอสพี)", group: "powder" },
+  { key: "ds", code: "DS", label: "ผง (ดีเอส)", group: "powder" },
+  { key: "dp", code: "DP", label: "ผงฝุ่น", group: "powder" },
+] as const;
+
+const productTypeLabels: Record<string, string> = {
+  water: "น้ำ",
+  sand: "ยา",
+  powder: "ผง",
+};
 
 const idKeys = ["_id", "id", "itemId", "item_id", "item_no", "code", "itemCode"];
 const codeKeys = ["item_no", "itemCode", "item_code", "code", "Code", "ITEM_CODE"];
 const nameKeys = ["item_name1", "itemName", "item_name", "name", "Name", "ITEM_NAME", "description"];
+const typeKeys = ["common_name", "commonname", "commonName", "itemType", "item_type"];
 const categoryKeys = ["inventory_posting_group", "category", "type", "group", "itemGroup", "item_group"];
 const unitKeys = ["base_unit_of_mea", "unit", "uom", "UOM", "unitName"];
 const statusKeys = ["status", "active", "isActive"];
 const descriptionKeys = ["item_name2", "item_name3", "description", "detail", "remark", "note"];
 const hiddenTableKeys = [
+  "trade_name",
+  "tradename",
+  "tradeName",
   "search_name",
   "dm1",
   "dm2",
@@ -110,6 +139,52 @@ function displayValue(value: unknown) {
   return String(value);
 }
 
+function normalizeClassificationValue(value: unknown) {
+  return String(value ?? "").trim().toLowerCase().replace(/[\s_-]/g, "");
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getClassification(value: unknown) {
+  const rawValue = String(value ?? "").trim();
+  const normalized = normalizeClassificationValue(rawValue);
+  const exactMatch = classificationTypes.find((item) => (
+    normalizeClassificationValue(item.key) === normalized ||
+    normalizeClassificationValue(item.code) === normalized ||
+    normalizeClassificationValue(item.label) === normalized
+  ));
+  if (exactMatch) return exactMatch;
+
+  const upperValue = rawValue.toUpperCase();
+  return [...classificationTypes]
+    .sort((a, b) => b.code.length - a.code.length)
+    .find((item) => {
+      const pattern = new RegExp(`(^|[^A-Z0-9])${escapeRegExp(item.code.toUpperCase())}([^A-Z0-9]|$)`);
+      return pattern.test(upperValue);
+    });
+}
+
+function displayProductType(value: unknown) {
+  const rawValue = String(value ?? "").trim();
+  if (!rawValue) return "-";
+  return productTypeLabels[rawValue] ?? rawValue;
+}
+
+function getItemCategory(item: MasterItem) {
+  return String(firstValue(item, categoryKeys)).trim();
+}
+
+function getProductTypeGroup(item: MasterItem) {
+  const source = [
+    firstValue(item, typeKeys),
+    firstValue(item, descriptionKeys),
+    firstValue(item, nameKeys),
+  ].filter(Boolean).join(" ");
+  return getClassification(source)?.group ?? "";
+}
+
 function getItemId(item: MasterItem) {
   const value = firstValue(item, idKeys);
   return value ? String(value) : "";
@@ -117,9 +192,15 @@ function getItemId(item: MasterItem) {
 
 function itemToForm(item: MasterItem): MasterItemForm {
   const statusValue = firstValue(item, statusKeys);
+  const classification = getClassification([
+    firstValue(item, typeKeys),
+    firstValue(item, descriptionKeys),
+    firstValue(item, nameKeys),
+  ].filter(Boolean).join(" "));
   return {
     itemCode: String(firstValue(item, codeKeys)),
     itemName: String(firstValue(item, nameKeys)),
+    itemType: classification?.code ?? String(firstValue(item, typeKeys)),
     category: String(firstValue(item, categoryKeys)),
     unit: String(firstValue(item, unitKeys)),
     status:
@@ -131,15 +212,29 @@ function itemToForm(item: MasterItem): MasterItemForm {
 }
 
 function buildPayload(form: MasterItemForm, editing: MasterItem | null) {
-  return {
+  const classification = getClassification(form.itemType);
+  const itemType = classification?.code ?? form.itemType.trim();
+  const category = form.category.trim();
+  const payload = {
     ...(editing ?? {}),
+  };
+  delete payload.product_type;
+  delete payload.productType;
+  delete payload.product_group;
+  delete payload.productGroup;
+
+  return {
+    ...payload,
     item_no: form.itemCode.trim(),
     item_name1: form.itemName.trim(),
-    inventory_posting_group: form.category.trim(),
+    common_name: itemType,
+    commonname: itemType,
+    inventory_posting_group: category,
     base_unit_of_mea: form.unit.trim(),
     itemCode: form.itemCode.trim(),
     itemName: form.itemName.trim(),
-    category: form.category.trim(),
+    itemType,
+    category,
     unit: form.unit.trim(),
     status: form.status,
     description: form.description.trim(),
@@ -159,6 +254,8 @@ async function fetchDirectMasterItems() {
 export default function MasterItems() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [productTypeFilter, setProductTypeFilter] = useState("all");
   const [editing, setEditing] = useState<MasterItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<MasterItem | null>(null);
@@ -184,15 +281,29 @@ export default function MasterItems() {
 
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((item) => JSON.stringify(item).toLowerCase().includes(q));
-  }, [items, search]);
+    return items.filter((item) => {
+      const matchesSearch = !q || JSON.stringify(item).toLowerCase().includes(q);
+      const matchesCategory = categoryFilter === "all" || getItemCategory(item) === categoryFilter;
+      const matchesProductType = productTypeFilter === "all" || getProductTypeGroup(item) === productTypeFilter;
+      return matchesSearch && matchesCategory && matchesProductType;
+    });
+  }, [categoryFilter, items, productTypeFilter, search]);
+
+  const categoryOptions = useMemo(() => {
+    const values = new Set<string>();
+    items.forEach((item) => {
+      const category = getItemCategory(item);
+      if (category) values.add(category);
+    });
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [items]);
 
   const extraColumns = useMemo(() => {
     const used = new Set([
       ...idKeys,
       ...codeKeys,
       ...nameKeys,
+      ...typeKeys,
       ...categoryKeys,
       ...unitKeys,
       ...statusKeys,
@@ -292,6 +403,32 @@ export default function MasterItems() {
               รายการ Item
               <Badge variant="outline">{filteredItems.length}</Badge>
             </CardTitle>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full md:w-44">
+                <SelectValue placeholder="หมวดหมู่" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทุกหมวดหมู่</SelectItem>
+                {categoryOptions.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {value}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={productTypeFilter} onValueChange={setProductTypeFilter}>
+              <SelectTrigger className="w-full md:w-44">
+                <SelectValue placeholder="ประเภทสินค้า" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทุกประเภทสินค้า</SelectItem>
+                {Object.entries(productTypeLabels).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="relative w-full md:w-80">
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -315,6 +452,8 @@ export default function MasterItems() {
                     <TableRow>
                       <TableHead>Code</TableHead>
                       <TableHead>ชื่อ Item</TableHead>
+                      <TableHead>commonname</TableHead>
+                      <TableHead>ประเภทสินค้า</TableHead>
                       <TableHead>หมวดหมู่</TableHead>
                       <TableHead>Unit</TableHead>
                       <TableHead>Status</TableHead>
@@ -327,13 +466,13 @@ export default function MasterItems() {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={6 + extraColumns.length} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={8 + extraColumns.length} className="py-8 text-center text-muted-foreground">
                           กำลังโหลด...
                         </TableCell>
                       </TableRow>
                     ) : filteredItems.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6 + extraColumns.length} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={8 + extraColumns.length} className="py-8 text-center text-muted-foreground">
                           ไม่มีข้อมูล
                         </TableCell>
                       </TableRow>
@@ -349,7 +488,9 @@ export default function MasterItems() {
                             <TableCell className="min-w-56 font-medium">
                               {displayValue(firstValue(item, nameKeys))}
                             </TableCell>
-                            <TableCell>{displayValue(firstValue(item, categoryKeys))}</TableCell>
+                            <TableCell>{displayValue(firstValue(item, typeKeys))}</TableCell>
+                            <TableCell>{displayProductType(getProductTypeGroup(item))}</TableCell>
+                            <TableCell>{displayValue(getItemCategory(item))}</TableCell>
                             <TableCell>{displayValue(firstValue(item, unitKeys))}</TableCell>
                             <TableCell>
                               <Badge variant={form.status === "inactive" ? "secondary" : "default"}>
@@ -428,6 +569,14 @@ function MasterItemDialog({
     setForm((current) => ({ ...current, [key]: value }));
   };
 
+  const setClassification = (value: string) => {
+    const classification = getClassification(value);
+    setForm((current) => ({
+      ...current,
+      itemType: classification?.code ?? value,
+    }));
+  };
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!form.itemCode.trim() || !form.itemName.trim()) {
@@ -480,6 +629,21 @@ function MasterItemDialog({
                 onChange={(event) => setField("itemName", event.target.value)}
                 required
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="itemType">ประเภท</Label>
+              <Select value={getClassification(form.itemType)?.code ?? ""} onValueChange={setClassification}>
+                <SelectTrigger id="itemType">
+                  <SelectValue placeholder="เลือกประเภท" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classificationTypes.map((item) => (
+                    <SelectItem key={item.key} value={item.code}>
+                      {item.code} - {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="category">หมวดหมู่</Label>

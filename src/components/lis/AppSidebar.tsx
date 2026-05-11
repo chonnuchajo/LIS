@@ -150,11 +150,19 @@ const AppSidebar = () => {
               )}
               <div className="space-y-1">
                 {visibleItems.map((item) => {
-                  const isActive = location.pathname === item.path;
+                  const targetPath =
+                    item.path === "/"
+                      ? user?.role === "qc"
+                        ? "/dashboard/qc"
+                        : "/dashboard/lab"
+                      : item.path;
+                  const isActive =
+                    location.pathname === targetPath ||
+                    (item.path === "/" && location.pathname.startsWith("/dashboard/"));
                   const Btn = (
                     <button
                       key={item.path}
-                      onClick={() => navigate(item.path)}
+                      onClick={() => navigate(targetPath)}
                       className={cn(
                         "flex items-center w-full rounded-lg text-sm font-medium transition-colors",
                         collapsed ? "justify-center h-10 px-0" : "gap-3 px-3 py-2.5",

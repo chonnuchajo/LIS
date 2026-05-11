@@ -276,10 +276,10 @@ const SendSample = () => {
       handleScannedData(sample, false);
       await receiveScannedSample(sample);
       try {
-        await api.patch<Petition>(`/petitions/${petition._id}/receive`);
+        await api.patch<Petition>(`/petitions/${petition._id}/deliver`, { status: "sampleSent" });
       } catch {
         try {
-          await api.patch<Petition>(`/petitions/${petition._id}`, { status: "pendingReview" });
+          await api.patch<Petition>(`/petitions/${petition._id}`, { status: "sampleSent" });
         } catch (statusErr) {
           console.error("update petition status error:", statusErr);
         }

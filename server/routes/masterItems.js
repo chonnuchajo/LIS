@@ -2,7 +2,7 @@ const express = require('express');
 
 const router = express.Router();
 
-const DEFAULT_WEBHOOK_URL = 'https://n8n-plant.icpladda.com/webhook/api/itme-all';
+const DEFAULT_WEBHOOK_URL = 'https://n8n-plant.icpladda.com/webhook/API/Item-production';
 const WEBHOOK_URL = process.env.MASTER_ITEMS_WEBHOOK_URL || DEFAULT_WEBHOOK_URL;
 
 async function forwardToWebhook(req, res) {
