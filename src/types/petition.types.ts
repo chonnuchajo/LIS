@@ -140,6 +140,37 @@ export interface PetitionAssignee {
   assignedBy?: string;
 }
 
+// ===== Audit log =====
+export type PetitionAuditEvent =
+  | 'created'
+  | 'statusChanged'
+  | 'assigned'
+  | 'reviewed'
+  | 'updated'
+  | 'deleted';
+
+export interface PetitionAuditLogEntry {
+  _id: string;
+  petitionId: string;
+  petitionNo: string;
+  event: PetitionAuditEvent;
+  fromStatus?: PetitionStatus;
+  toStatus?: PetitionStatus;
+  actor?: string;
+  note?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export const PETITION_AUDIT_EVENT_LABELS: Record<PetitionAuditEvent, string> = {
+  created: 'สร้างคำร้อง',
+  statusChanged: 'เปลี่ยนสถานะ',
+  assigned: 'มอบหมาย',
+  reviewed: 'พิจารณา',
+  updated: 'แก้ไขข้อมูล',
+  deleted: 'ลบคำร้อง',
+};
+
 // ===== Petition (root) =====
 export interface Petition {
   _id: string;

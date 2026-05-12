@@ -1,12 +1,4 @@
-export type ModuleId =
-  | "dashboard"
-  | "samples"
-  | "results"
-  | "qc"
-  | "stock"
-  | "reports"
-  | "admin"
-  | "access";
+export type ModuleId = string;
 
 export interface AccessUser {
   role?: string;

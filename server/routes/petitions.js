@@ -6,12 +6,24 @@ const Sample = require('../models/Sample');
 const PhysicalResult = require('../models/PhysicalResult');
 const Approval = require('../models/Approval');
 const RealtimeDensity = require('../models/RealtimeDensity');
+const PetitionAuditLog = require('../models/PetitionAuditLog');
 
 function sampleIdsFromPetition(petition) {
   if (!petition || !Array.isArray(petition.items)) return [];
   return petition.items
     .map((item) => item.sampleId || `${petition.petitionNo}-${item.seq}`)
     .filter(Boolean);
+}
+
+function logAudit(petition, payload) {
+  if (!petition) return;
+  PetitionAuditLog.create({
+    petitionId: petition._id,
+    petitionNo: petition.petitionNo,
+    ...payload,
+  }).catch((err) => {
+    console.error('[audit-log] failed to write:', err.message);
+  });
 }
 
 // Generate next petition number: P-YYMM-#### (resets monthly)
@@ -99,6 +111,23 @@ router.get('/scan/:code', async (req, res) => {
   }
 });
 
+// GET /api/petitions/:id/audit-logs → chronological status/event trail for a petition
+router.get('/:id/audit-logs', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const petition = mongoose.Types.ObjectId.isValid(id)
+      ? await Petition.findById(id).select('_id petitionNo').lean()
+      : await Petition.findOne({ petitionNo: id }).select('_id petitionNo').lean();
+    if (!petition) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    const logs = await PetitionAuditLog.find({ petitionId: petition._id })
+      .sort({ createdAt: 1 })
+      .lean();
+    res.json({ items: logs });
+  } catch (err) {
+    res.status(400).json({ error: { message: err.message } });
+  }
+});
+
 // GET /api/petitions/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -129,6 +158,12 @@ router.post('/', async (req, res) => {
       petitionNo,
       status: 'deliveringQC',
     });
+    logAudit(doc, {
+      event: 'created',
+      toStatus: doc.status,
+      actor: body.actor || body.requester?.fullName || 'system',
+      note: 'สร้างคำร้องใหม่',
+    });
     res.status(201).json(doc);
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
@@ -140,8 +175,18 @@ router.patch('/:id/deliver', async (req, res) => {
   try {
     const id = req.params.id;
     const q = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { petitionNo: id };
+    const before = await Petition.findOne(q).lean();
+    if (!before) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
     const doc = await Petition.findOneAndUpdate(q, { status: 'sampleSent' }, { new: true });
-    if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if (before.status !== doc.status) {
+      logAudit(doc, {
+        event: 'statusChanged',
+        fromStatus: before.status,
+        toStatus: doc.status,
+        actor: req.body?.actor || 'system',
+        note: 'สแกนส่งตัวอย่าง',
+      });
+    }
     res.json(doc);
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
@@ -161,6 +206,7 @@ router.patch('/:id/assign', async (req, res) => {
     const doc = await Petition.findOne(q);
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
 
+    const prevStatus = doc.status;
     doc.assignedTo = {
       employeeId: String(employeeId).trim(),
       name: String(name).trim(),
@@ -172,6 +218,14 @@ router.patch('/:id/assign', async (req, res) => {
     if (doc.status === 'pendingReview') doc.status = 'inProgress';
 
     await doc.save();
+    logAudit(doc, {
+      event: 'assigned',
+      fromStatus: prevStatus,
+      toStatus: doc.status,
+      actor: assignedBy || 'system',
+      note: `มอบหมายให้ ${doc.assignedTo.name}`,
+      metadata: { assignee: doc.assignedTo },
+    });
     res.json(doc);
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
@@ -182,10 +236,29 @@ router.patch('/:id/assign', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const updates = { ...req.body };
+    const actor = updates.actor;
+    delete updates.actor;
     delete updates.petitionNo;
     delete updates._id;
+    const before = await Petition.findById(req.params.id).lean();
+    if (!before) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
     const doc = await Petition.findByIdAndUpdate(req.params.id, updates, { new: true });
-    if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if (before.status !== doc.status) {
+      logAudit(doc, {
+        event: 'statusChanged',
+        fromStatus: before.status,
+        toStatus: doc.status,
+        actor: actor || 'system',
+        note: 'อัปเดตคำร้อง',
+      });
+    } else {
+      logAudit(doc, {
+        event: 'updated',
+        toStatus: doc.status,
+        actor: actor || 'system',
+        note: 'อัปเดตคำร้อง',
+      });
+    }
     res.json(doc);
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
@@ -199,6 +272,7 @@ router.post('/:id/review', async (req, res) => {
     if (!action || !reviewedBy) return badRequest(res, 'ข้อมูลรีวิวไม่ครบ');
     const doc = await Petition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    const prevStatus = doc.status;
     doc.reviewHistory.push({
       action,
       reviewedBy,
@@ -215,6 +289,14 @@ router.post('/:id/review', async (req, res) => {
       }
     }
     await doc.save();
+    logAudit(doc, {
+      event: prevStatus !== doc.status ? 'statusChanged' : 'reviewed',
+      fromStatus: prevStatus,
+      toStatus: doc.status,
+      actor: reviewedBy,
+      note: note || `พิจารณา: ${action}`,
+      metadata: { action },
+    });
     res.json(doc);
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
@@ -226,6 +308,12 @@ router.delete('/:id', async (req, res) => {
   try {
     const doc = await Petition.findByIdAndDelete(req.params.id);
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    logAudit(doc, {
+      event: 'deleted',
+      fromStatus: doc.status,
+      actor: req.query.actor || 'system',
+      note: 'ลบคำร้อง',
+    });
     const sampleIds = sampleIdsFromPetition(doc);
     if (sampleIds.length > 0) {
       await Promise.all([

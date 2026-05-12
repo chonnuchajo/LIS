@@ -10,6 +10,7 @@ import { PETITION_STATUS_CONFIG } from '@/types/petition.types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
+import { useAuth } from '@/hooks/useAuth';
 
 const READER_ID = 'icp-qr-reader';
 type Phase = 'idle' | 'scanning' | 'confirming' | 'loading' | 'success' | 'error' | 'no-camera';
@@ -45,17 +46,18 @@ async function fetchPetitionByScannedCode(code: string): Promise<Petition> {
   }
 }
 
-async function deliverPetition(id: string): Promise<Petition> {
+async function deliverPetition(id: string, actor?: string): Promise<Petition> {
   try {
-    const res = await api.patch<Petition>(`/petitions/${id}/deliver`, { status: 'sampleSent' });
+    const res = await api.patch<Petition>(`/petitions/${id}/deliver`, { status: 'sampleSent', actor });
     return res.data.data;
   } catch {
-    const res = await api.patch<Petition>(`/petitions/${id}`, { status: 'sampleSent' });
+    const res = await api.patch<Petition>(`/petitions/${id}`, { status: 'sampleSent', actor });
     return res.data.data;
   }
 }
 
 export default function ScannerPage() {
+  const { user } = useAuth();
   const [phase, setPhase] = useState<Phase>('idle');
   const [petition, setPetition] = useState<Petition | null>(null);
   const [pendingId, setPendingId] = useState('');
@@ -143,7 +145,7 @@ export default function ScannerPage() {
     if (!id) return;
     setPhase('loading');
     try {
-      const delivered = await deliverPetition(id);
+      const delivered = await deliverPetition(id, user?.name || user?.email);
       setPetition(delivered);
       setPhase('success');
     } catch (err: unknown) {

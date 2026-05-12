@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import {
+  FileCog,
   KeyRound,
   LockKeyhole,
   Plus,
@@ -52,17 +53,21 @@ type ModulePermission = {
   id: string;
   name: string;
   description: string;
+  group?: string;
+  path?: string;
+  paths?: string[];
+  locked?: boolean;
 };
 
 const modules: ModulePermission[] = [
-  { id: "dashboard", name: "Dashboard", description: "View lab overview and active workload" },
-  { id: "samples", name: "Samples", description: "Send, receive, and inspect samples" },
-  { id: "results", name: "Results", description: "Record analysis results and standards" },
-  { id: "qc", name: "QC Approval", description: "Approve or reject final results" },
-  { id: "stock", name: "Stock", description: "Manage standard and solvent stock" },
-  { id: "reports", name: "Reports", description: "View reports and export data" },
-  { id: "admin", name: "Admin Data", description: "Access approved data and logs" },
-  { id: "access", name: "Access Control", description: "Manage users, roles, and permissions" },
+  { id: "dashboard", name: "Dashboard", description: "View lab overview and active workload", group: "Main", path: "/", paths: ["/", "/home"] },
+  { id: "samples", name: "Samples", description: "Send, receive, and inspect samples", group: "Lab", path: "/petitions", paths: ["/petitions", "/petitions/new", "/petitions/:id", "/petitions/:id/edit", "/send-sample", "/physical-inspection"] },
+  { id: "results", name: "Results", description: "Record analysis results and standards", group: "Lab", path: "/record-results", paths: ["/record-results", "/stock-deduction", "/daily-check"] },
+  { id: "qc", name: "QC Approval", description: "Approve or reject final results", group: "Quality", path: "/qc-approval", paths: ["/dashboard/qc", "/dashboard/lab", "/qc-approval", "/petitions/assign"] },
+  { id: "stock", name: "Stock", description: "Manage standard and solvent stock", group: "Inventory", path: "/stock", paths: ["/stock", "/master-items"] },
+  { id: "reports", name: "Reports", description: "View reports and export data", group: "Reports", path: "/report", paths: ["/report"] },
+  { id: "admin", name: "Admin Data", description: "Access approved data and logs", group: "Admin", path: "/admin-data", paths: ["/admin-data"] },
+  { id: "access", name: "Access Control", description: "Manage users, roles, and permissions", group: "Admin", path: "/access-control", paths: ["/access-control", "/settings"] },
 ];
 
 const defaultRoles: Role[] = [
@@ -136,6 +141,14 @@ const AccessControl = () => {
     roleId: "viewer",
   });
   const [newRole, setNewRole] = useState({ name: "", description: "" });
+  const [newModule, setNewModule] = useState({
+    id: "",
+    name: "",
+    group: "",
+    paths: "",
+    description: "",
+  });
+  const [pathDrafts, setPathDrafts] = useState<Record<string, string>>({});
 
   const loadAccessControl = async () => {
     setLoading(true);
@@ -171,6 +184,32 @@ const AccessControl = () => {
       roleById[user.roleId]?.name.toLowerCase().includes(query)
     );
   });
+
+  const pageRouteMappings = useMemo(
+    () =>
+      permissionModules.flatMap((module) =>
+        (module.paths?.length ? module.paths : [module.path].filter(Boolean)).map((path) => ({
+          path,
+          moduleId: module.id,
+          moduleName: module.name,
+          group: module.group ?? "General",
+        })),
+      ),
+    [permissionModules],
+  );
+
+  const pathListToText = (module: ModulePermission) =>
+    (module.paths?.length ? module.paths : [module.path].filter(Boolean)).join(", ");
+
+  const parsePaths = (value: string) =>
+    value
+      .split(/[\n,]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const notifyModuleMappingChanged = () => {
+    window.dispatchEvent(new Event("lis-access-modules-changed"));
+  };
 
   const updateUser = async (id: string, patch: Partial<AppUser>) => {
     const previous = users;
@@ -251,6 +290,75 @@ const AccessControl = () => {
     }
   };
 
+  const addModule = async () => {
+    if (!newModule.name.trim()) {
+      toast.error("Module name is required");
+      return;
+    }
+    try {
+      const res = await api.post<ModulePermission>("/access-control/modules", {
+        id: newModule.id.trim(),
+        name: newModule.name.trim(),
+        group: newModule.group.trim() || "General",
+        paths: parsePaths(newModule.paths),
+        description: newModule.description.trim(),
+      });
+      setPermissionModules((current) => [...current, res.data.data]);
+      setPermissions((current) => ({
+        ...current,
+        admin: Array.from(new Set([...(current.admin ?? []), res.data.data.id])),
+      }));
+      setNewModule({ id: "", name: "", group: "", paths: "", description: "" });
+      notifyModuleMappingChanged();
+      toast.success("Page module added");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add page module");
+    }
+  };
+
+  const updateModule = async (id: string, patch: Partial<ModulePermission>) => {
+    const previous = permissionModules;
+    setPermissionModules((current) =>
+      current.map((module) => (module.id === id ? { ...module, ...patch } : module)),
+    );
+    try {
+      const res = await api.patch<ModulePermission>(`/access-control/modules/${id}`, patch);
+      setPermissionModules((current) =>
+        current.map((module) => (module.id === id ? res.data.data : module)),
+      );
+      setPathDrafts((current) => {
+        const next = { ...current };
+        delete next[id];
+        return next;
+      });
+      notifyModuleMappingChanged();
+    } catch (err) {
+      setPermissionModules(previous);
+      toast.error(err instanceof Error ? err.message : "Failed to update page module");
+    }
+  };
+
+  const deleteModule = async (id: string) => {
+    const module = permissionModules.find((item) => item.id === id);
+    if (module?.locked) return;
+    try {
+      await api.delete(`/access-control/modules/${id}`);
+      setPermissionModules((current) => current.filter((item) => item.id !== id));
+      setPermissions((current) =>
+        Object.fromEntries(
+          Object.entries(current).map(([roleId, moduleIds]) => [
+            roleId,
+            moduleIds.filter((moduleId) => moduleId !== id),
+          ]),
+        ),
+      );
+      notifyModuleMappingChanged();
+      toast.success("Page module removed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove page module");
+    }
+  };
+
   const togglePermission = async (roleId: string, moduleId: string) => {
     const current = permissions[roleId] ?? [];
     const nextRolePermissions = current.includes(moduleId)
@@ -316,6 +424,10 @@ const AccessControl = () => {
               <ShieldCheck className="h-4 w-4" />
               Roles
             </TabsTrigger>
+            <TabsTrigger value="modules" className="gap-1.5">
+              <FileCog className="h-4 w-4" />
+              Page Modules
+            </TabsTrigger>
             <TabsTrigger value="matrix" className="gap-1.5">
               <KeyRound className="h-4 w-4" />
               Access Matrix
@@ -377,6 +489,41 @@ const AccessControl = () => {
                     <Plus className="h-4 w-4" />
                     Add
                   </Button>
+                </div>
+
+                <div className="rounded-md border">
+                  <div className="border-b px-4 py-3">
+                    <p className="text-sm font-semibold">Page URL Mapping</p>
+                    <p className="text-xs text-muted-foreground">
+                      These URLs decide which Module ID is checked when a user opens a protected page.
+                    </p>
+                  </div>
+                  <div className="max-h-72 overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="min-w-[260px]">Page URL</TableHead>
+                          <TableHead className="min-w-[160px]">Module ID</TableHead>
+                          <TableHead className="min-w-[220px]">Module</TableHead>
+                          <TableHead className="min-w-[140px]">Group</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pageRouteMappings.map((mapping) => (
+                          <TableRow key={`${mapping.moduleId}-${mapping.path}`}>
+                            <TableCell>
+                              <Badge variant="outline">{mapping.path}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge>{mapping.moduleId}</Badge>
+                            </TableCell>
+                            <TableCell>{mapping.moduleName}</TableCell>
+                            <TableCell>{mapping.group}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -566,6 +713,160 @@ const AccessControl = () => {
             </div>
           </TabsContent>
 
+          <TabsContent value="modules">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Page Module Groups</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Add a module ID for each protected page so roles can be assigned in the matrix.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid gap-3 rounded-md border bg-muted/30 p-3 md:grid-cols-2 xl:grid-cols-[150px_1fr_160px_1.2fr_1fr_auto]">
+                  <Input
+                    value={newModule.id}
+                    onChange={(event) => setNewModule({ ...newModule, id: event.target.value })}
+                    placeholder="module-id"
+                  />
+                  <Input
+                    value={newModule.name}
+                    onChange={(event) => setNewModule({ ...newModule, name: event.target.value })}
+                    placeholder="Page name"
+                  />
+                  <Input
+                    value={newModule.group}
+                    onChange={(event) =>
+                      setNewModule({ ...newModule, group: event.target.value })
+                    }
+                    placeholder="Group"
+                  />
+                  <Input
+                    value={newModule.paths}
+                    onChange={(event) => setNewModule({ ...newModule, paths: event.target.value })}
+                    placeholder="/new-page, /new-page/:id"
+                  />
+                  <Input
+                    value={newModule.description}
+                    onChange={(event) =>
+                      setNewModule({ ...newModule, description: event.target.value })
+                    }
+                    placeholder="Description"
+                  />
+                  <Button onClick={addModule} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Add
+                  </Button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[150px]">Module ID</TableHead>
+                        <TableHead className="min-w-[190px]">Page</TableHead>
+                        <TableHead className="min-w-[150px]">Group</TableHead>
+                        <TableHead className="min-w-[260px]">Page URLs</TableHead>
+                        <TableHead className="min-w-[260px]">Description</TableHead>
+                        <TableHead className="w-12"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {permissionModules.map((module) => (
+                        <TableRow key={module.id}>
+                          <TableCell>
+                            <Badge variant="outline">{module.id}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              value={module.name}
+                              onChange={(event) =>
+                                setPermissionModules((current) =>
+                                  current.map((item) =>
+                                    item.id === module.id
+                                      ? { ...item, name: event.target.value }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              onBlur={(event) =>
+                                updateModule(module.id, {
+                                  name: event.target.value.trim() || module.id,
+                                })
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              value={module.group ?? ""}
+                              onChange={(event) =>
+                                setPermissionModules((current) =>
+                                  current.map((item) =>
+                                    item.id === module.id
+                                      ? { ...item, group: event.target.value }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              onBlur={(event) =>
+                                updateModule(module.id, {
+                                  group: event.target.value.trim() || "General",
+                                })
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              value={pathDrafts[module.id] ?? pathListToText(module)}
+                              onChange={(event) =>
+                                setPathDrafts((current) => ({
+                                  ...current,
+                                  [module.id]: event.target.value,
+                                }))
+                              }
+                              onBlur={(event) =>
+                                updateModule(module.id, { paths: parsePaths(event.target.value) })
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              value={module.description}
+                              onChange={(event) =>
+                                setPermissionModules((current) =>
+                                  current.map((item) =>
+                                    item.id === module.id
+                                      ? { ...item, description: event.target.value }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              onBlur={(event) =>
+                                updateModule(module.id, {
+                                  description: event.target.value.trim(),
+                                })
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteModule(module.id)}
+                              disabled={module.locked}
+                              aria-label="Delete page module"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="matrix">
             <Card>
               <CardHeader>
@@ -589,7 +890,15 @@ const AccessControl = () => {
                         <TableRow key={module.id}>
                           <TableCell>
                             <p className="font-medium">{module.name}</p>
-                            <p className="text-xs text-muted-foreground">{module.description}</p>
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              {module.group && <Badge variant="secondary">{module.group}</Badge>}
+                              {pathListToText(module) && (
+                                <Badge variant="outline">{pathListToText(module)}</Badge>
+                              )}
+                            </div>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {module.description}
+                            </p>
                           </TableCell>
                           {roles.map((role) => (
                             <TableCell key={role.id} className="text-center">

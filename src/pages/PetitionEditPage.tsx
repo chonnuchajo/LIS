@@ -5,11 +5,13 @@ import AppSidebar from '@/components/lis/AppSidebar';
 import { Button } from '@/components/ui/button';
 import PetitionForm from '@/components/petition/PetitionForm';
 import { updatePetition, usePetition } from '@/hooks/usePetition';
+import { useAuth } from '@/hooks/useAuth';
 import type { PetitionFormValues } from '@/lib/validations';
 
 export default function PetitionEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { data, loading, error } = usePetition(id);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -98,7 +100,7 @@ export default function PetitionEditPage() {
               setSubmitting(true);
               setSubmitError(null);
               try {
-                await updatePetition(id, values);
+                await updatePetition(id, values, user?.name || user?.email);
                 navigate(`/petitions/${id}`);
               } catch (err) {
                 const message =

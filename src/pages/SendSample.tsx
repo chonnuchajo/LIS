@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { useSamples } from "@/context/SampleContext";
+import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
 import { getStandardForSample } from "@/data/stockData";
 import type { SampleItem } from "@/components/lis/SampleColumn";
@@ -78,6 +79,7 @@ async function fetchPetitionByCode(code: string): Promise<Petition> {
 }
 
 const SendSample = () => {
+  const { user } = useAuth();
   const { sentSamples, sentItems, receiveSample, refetch } = useSamples();
   const [receivedSamples, setReceivedSamples] = useState<ReceivedSample[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -275,11 +277,12 @@ const SendSample = () => {
 
       handleScannedData(sample, false);
       await receiveScannedSample(sample);
+      const actor = user?.name || user?.email;
       try {
-        await api.patch<Petition>(`/petitions/${petition._id}/deliver`, { status: "sampleSent" });
+        await api.patch<Petition>(`/petitions/${petition._id}/deliver`, { status: "sampleSent", actor });
       } catch {
         try {
-          await api.patch<Petition>(`/petitions/${petition._id}`, { status: "sampleSent" });
+          await api.patch<Petition>(`/petitions/${petition._id}`, { status: "sampleSent", actor });
         } catch (statusErr) {
           console.error("update petition status error:", statusErr);
         }

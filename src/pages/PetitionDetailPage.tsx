@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, FileText, Pencil, Printer, Stamp, Trash2 } from 'lucide-react';
+import { ArrowLeft, FileText, Pencil, Printer, Trash2 } from 'lucide-react';
 import AppSidebar from '@/components/lis/AppSidebar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,9 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PetitionView from '@/components/petition/PetitionView';
 import PetitionPrintTemplate from '@/components/petition/PetitionPrintTemplate';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
+import PetitionAuditLog from '@/components/petition/PetitionAuditLog';
 import ReviewHistory from '@/components/review/ReviewHistory';
 import LabAgreementReviewView from '@/components/review/LabAgreementReviewView';
-import { usePetition, deletePetition } from '@/hooks/usePetition';
+import { usePetition, usePetitionAuditLog, deletePetition } from '@/hooks/usePetition';
 import {
   PETITION_STATUS_CONFIG,
   type Petition,
@@ -19,8 +20,6 @@ import {
 } from '@/types/petition.types';
 import { useAuth } from '@/hooks/useAuth';
 import { useSamples } from '@/context/SampleContext';
-
-const FINAL_STATUSES = new Set(['normal', 'defective']);
 
 function QcNoteSection({ petition }: { petition: Petition }) {
   const qcNote = (petition.reviewHistory ?? []).find((e) => e.action === 'note') ?? null;
@@ -105,6 +104,7 @@ export default function PetitionDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { data, loading, error } = usePetition(id);
+  const { data: auditLogs, loading: auditLoading, error: auditError } = usePetitionAuditLog(id);
   const { user } = useAuth();
   const { refetch: refetchSamples } = useSamples();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -148,7 +148,7 @@ export default function PetitionDetailPage() {
     if (!data) return;
     setDeleting(true);
     try {
-      await deletePetition(data._id);
+      await deletePetition(data._id, user?.name || user?.email);
       refetchSamples();
       navigate('/petitions', { replace: true });
     } catch {
@@ -177,7 +177,6 @@ export default function PetitionDetailPage() {
             const isRequester = user?.email === data.requester.email;
             const canEdit = data.status === 'deliveringQC' && isRequester;
             const canDelete = isAdmin || (data.status === 'deliveringQC' && isRequester);
-            const canReview = !FINAL_STATUSES.has(data.status) && canActAsReviewer;
 
             return (
               <div className="space-y-6">
@@ -251,16 +250,6 @@ export default function PetitionDetailPage() {
                           </Button>
                         </>
                       )}
-                      {canReview && (
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          onClick={() => navigate(`/petitions/${data._id}/review`)}
-                        >
-                          <Stamp className="h-4 w-4" />
-                          พิจารณา
-                        </Button>
-                      )}
                     </div>
                   </div>
 
@@ -289,6 +278,19 @@ export default function PetitionDetailPage() {
                       </CardContent>
                     </Card>
                   )}
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>ประวัติการเปลี่ยนสถานะ (Audit Log)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <PetitionAuditLog
+                        entries={auditLogs}
+                        loading={auditLoading}
+                        error={auditError}
+                      />
+                    </CardContent>
+                  </Card>
 
                   {canActAsReviewer && data.labAgreementReview && (
                     <Card>

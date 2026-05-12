@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   Database,
+  FlaskConical,
   PackageSearch,
   Pencil,
   Plus,
@@ -40,10 +41,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 
 type MasterItem = Record<string, unknown>;
+type SimpleInstrument = "GC" | "HPLC" | "";
+
+type SimpleMethodRow = {
+  key: string;
+  tradeName: string;
+  commonName: string;
+  instrument: SimpleInstrument;
+  itemCount: number;
+  itemNos: string[];
+  items: MasterItem[];
+};
 
 type MasterItemForm = {
   itemCode: string;
@@ -98,6 +111,19 @@ const categoryKeys = ["inventory_posting_group", "category", "type", "group", "i
 const unitKeys = ["base_unit_of_mea", "unit", "uom", "UOM", "unitName"];
 const statusKeys = ["status", "active", "isActive"];
 const descriptionKeys = ["item_name2", "item_name3", "description", "detail", "remark", "note"];
+const tradeNameKeys = ["trade_name", "tradename", "tradeName", "item_name1", "itemName"];
+const commonNameKeys = ["common_name", "commonname", "commonName", "item_name2", "itemType"];
+const methodInstrumentKeys = [
+  "simple_method",
+  "simpleMethod",
+  "method",
+  "method_name",
+  "test_method",
+  "testMethod",
+  "instrument",
+  "instrument_type",
+  "machine",
+];
 const hiddenTableKeys = [
   "trade_name",
   "tradename",
@@ -129,6 +155,14 @@ function firstValue(item: MasterItem, keys: string[]) {
     const value = item[key];
     if (value !== undefined && value !== null && value !== "") return value;
   }
+  return "";
+}
+
+function detectInstrument(value: unknown): SimpleInstrument {
+  const text = String(value ?? "").trim().toUpperCase();
+  if (!text) return "";
+  if (/\bHPLC\b/.test(text)) return "HPLC";
+  if (/\bGC\b/.test(text)) return "GC";
   return "";
 }
 
@@ -188,6 +222,52 @@ function getProductTypeGroup(item: MasterItem) {
 function getItemId(item: MasterItem) {
   const value = firstValue(item, idKeys);
   return value ? String(value) : "";
+}
+
+function getSimpleInstrument(item: MasterItem): SimpleInstrument {
+  for (const key of methodInstrumentKeys) {
+    const instrument = detectInstrument(item[key]);
+    if (instrument) return instrument;
+  }
+  return "";
+}
+
+function buildSimpleMethodRows(items: MasterItem[]): SimpleMethodRow[] {
+  const groups = new Map<string, SimpleMethodRow>();
+
+  items.forEach((item) => {
+    const tradeName = String(firstValue(item, tradeNameKeys)).trim();
+    const commonName = String(firstValue(item, commonNameKeys)).trim();
+    if (!tradeName && !commonName) return;
+
+    const key = `${tradeName.toLowerCase()}||${commonName.toLowerCase()}`;
+    const itemNo = String(firstValue(item, codeKeys)).trim();
+    const instrument = getSimpleInstrument(item);
+    const existing = groups.get(key);
+
+    if (existing) {
+      existing.itemCount += 1;
+      existing.items.push(item);
+      if (itemNo && !existing.itemNos.includes(itemNo)) existing.itemNos.push(itemNo);
+      if (!existing.instrument && instrument) existing.instrument = instrument;
+      return;
+    }
+
+    groups.set(key, {
+      key,
+      tradeName,
+      commonName,
+      instrument,
+      itemCount: 1,
+      itemNos: itemNo ? [itemNo] : [],
+      items: [item],
+    });
+  });
+
+  return Array.from(groups.values()).sort((a, b) => (
+    a.tradeName.localeCompare(b.tradeName, ["th", "en"]) ||
+    a.commonName.localeCompare(b.commonName, ["th", "en"])
+  ));
 }
 
 function itemToForm(item: MasterItem): MasterItemForm {
@@ -259,6 +339,8 @@ export default function MasterItems() {
   const [editing, setEditing] = useState<MasterItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<MasterItem | null>(null);
+  const [methodDrafts, setMethodDrafts] = useState<Record<string, SimpleInstrument>>({});
+  const [savingMethodKey, setSavingMethodKey] = useState<string | null>(null);
 
   const {
     data: items = [],
@@ -298,6 +380,9 @@ export default function MasterItems() {
     return Array.from(values).sort((a, b) => a.localeCompare(b));
   }, [items]);
 
+  const simpleMethodRows = useMemo(() => buildSimpleMethodRows(items), [items]);
+  const configuredMethodCount = simpleMethodRows.filter((row) => row.instrument).length;
+
   const extraColumns = useMemo(() => {
     const used = new Set([
       ...idKeys,
@@ -308,6 +393,7 @@ export default function MasterItems() {
       ...unitKeys,
       ...statusKeys,
       ...descriptionKeys,
+      ...methodInstrumentKeys,
       ...hiddenTableKeys,
     ]);
     const keys: string[] = [];
@@ -349,6 +435,46 @@ export default function MasterItems() {
     }
   };
 
+  const setMethodDraft = (key: string, value: string) => {
+    setMethodDrafts((current) => ({
+      ...current,
+      [key]: value === "GC" || value === "HPLC" ? value : "",
+    }));
+  };
+
+  const saveSimpleMethod = async (row: SimpleMethodRow) => {
+    const instrument = methodDrafts[row.key] ?? row.instrument;
+    const patchTargets = row.items
+      .map((item) => ({ item, id: getItemId(item) }))
+      .filter((target) => target.id);
+
+    if (patchTargets.length === 0) {
+      toast.error("ไม่พบรหัส item สำหรับบันทึก method");
+      return;
+    }
+
+    setSavingMethodKey(row.key);
+    try {
+      await Promise.all(patchTargets.map(({ item, id }) => api.patch(`/master-items/${encodeURIComponent(id)}`, {
+        ...item,
+        simple_method: instrument,
+        simpleMethod: instrument,
+        instrument,
+      })));
+      toast.success("บันทึก simple method สำเร็จ");
+      setMethodDrafts((current) => {
+        const next = { ...current };
+        delete next[row.key];
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ["master-items"] });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSavingMethodKey(null);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
@@ -375,7 +501,7 @@ export default function MasterItems() {
           </div>
         </div>
 
-        <div className="mb-4 grid gap-3 md:grid-cols-3">
+        <div className="mb-4 grid gap-3 md:grid-cols-4">
           <Card>
             <CardContent className="p-4">
               <div className="text-sm text-muted-foreground">ทั้งหมด</div>
@@ -394,8 +520,27 @@ export default function MasterItems() {
               <div className="mt-1 text-2xl font-semibold">{filteredItems.length}</div>
             </CardContent>
           </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-sm text-muted-foreground">Simple Method</div>
+              <div className="mt-1 text-2xl font-semibold">{configuredMethodCount}/{simpleMethodRows.length}</div>
+            </CardContent>
+          </Card>
         </div>
 
+        <Tabs defaultValue="items" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="items" className="gap-1.5">
+              <PackageSearch className="h-4 w-4" />
+              Items
+            </TabsTrigger>
+            <TabsTrigger value="simple-method" className="gap-1.5">
+              <FlaskConical className="h-4 w-4" />
+              Simple Method
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="items">
         <Card>
           <CardHeader className="flex flex-col gap-3 space-y-0 md:flex-row md:items-center md:justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -522,6 +667,21 @@ export default function MasterItems() {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="simple-method">
+            <SimpleMethodTab
+              rows={simpleMethodRows}
+              isLoading={isLoading}
+              isError={isError}
+              error={error}
+              methodDrafts={methodDrafts}
+              savingMethodKey={savingMethodKey}
+              onDraftChange={setMethodDraft}
+              onSave={saveSimpleMethod}
+            />
+          </TabsContent>
+        </Tabs>
 
         {(creating || editing) && (
           <MasterItemDialog
@@ -549,6 +709,117 @@ export default function MasterItems() {
         )}
       </main>
     </div>
+  );
+}
+
+function SimpleMethodTab({
+  rows,
+  isLoading,
+  isError,
+  error,
+  methodDrafts,
+  savingMethodKey,
+  onDraftChange,
+  onSave,
+}: {
+  rows: SimpleMethodRow[];
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+  methodDrafts: Record<string, SimpleInstrument>;
+  savingMethodKey: string | null;
+  onDraftChange: (key: string, value: string) => void;
+  onSave: (row: SimpleMethodRow) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-2 space-y-0 md:flex-row md:items-center md:justify-between">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <FlaskConical className="h-5 w-5" />
+          จัดการ Simple Method
+          <Badge variant="outline">{rows.length}</Badge>
+        </CardTitle>
+        <div className="text-sm text-muted-foreground">เรียงตาม tradename และ commonname</div>
+      </CardHeader>
+      <CardContent>
+        {isError ? (
+          <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4" />
+            {(error as Error).message}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>tradename</TableHead>
+                  <TableHead>commonname</TableHead>
+                  <TableHead className="w-28 text-center">Items</TableHead>
+                  <TableHead className="w-44">Method/Instrument</TableHead>
+                  <TableHead className="w-28 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                      กำลังโหลด...
+                    </TableCell>
+                  </TableRow>
+                ) : rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                      ไม่มีข้อมูล simple method
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  rows.map((row) => {
+                    const draftValue = methodDrafts[row.key] ?? row.instrument;
+                    const selectValue = draftValue || "unassigned";
+                    const isDirty = methodDrafts[row.key] !== undefined && methodDrafts[row.key] !== row.instrument;
+                    const isSaving = savingMethodKey === row.key;
+
+                    return (
+                      <TableRow key={row.key}>
+                        <TableCell className="min-w-52 font-medium">{displayValue(row.tradeName)}</TableCell>
+                        <TableCell className="min-w-72">{displayValue(row.commonName)}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="secondary">{row.itemCount}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Select value={selectValue} onValueChange={(value) => onDraftChange(row.key, value)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="unassigned">ยังไม่กำหนด</SelectItem>
+                              <SelectItem value="GC">GC</SelectItem>
+                              <SelectItem value="HPLC">HPLC</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end">
+                            <Button
+                              size="sm"
+                              variant={isDirty ? "default" : "outline"}
+                              disabled={isSaving || !isDirty}
+                              onClick={() => onSave(row)}
+                            >
+                              {isSaving ? "กำลังบันทึก..." : "บันทึก"}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
