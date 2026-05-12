@@ -35,15 +35,30 @@ const navGroups = [
     ],
   },
   {
-    label: "อื่นๆ",
+    label: "ควบคุมคุณภาพ",
     items: [
-      { icon: UserCheck, label: "Assign คำร้อง", path: "/petitions/assign", moduleId: "qc" },
       { icon: FlaskConical, label: "การตรวจกายภาพ", path: "/physical-inspection", moduleId: "samples" },
-      { icon: ClipboardList, label: "การบันทึก Standard", path: "/stock-deduction", moduleId: "results" },
       { icon: ShieldCheck, label: "อนุมัติผล QC", path: "/qc-approval", moduleId: "qc" },
+    ],
+  },
+  {
+    label: "ห้องปฏิบัติการ",
+    items: [
+      { icon: ClipboardList, label: "การบันทึก Standard", path: "/stock-deduction", moduleId: "results" },
       { icon: Scale, label: "Daily Check", path: "/daily-check", moduleId: "results" },
+      { icon: UserCheck, label: "Assign คำร้อง", path: "/petitions/assign", moduleId: "qc" },
+    ],
+  },
+  {
+    label: "Inventory",
+    items: [
       { icon: Package, label: "Stock Management", path: "/stock", moduleId: "stock" },
       { icon: Database, label: "Master Item", path: "/master-items", moduleId: "stock" },
+    ],
+  },
+  {
+    label: "อื่นๆ",
+    items: [
       { icon: Database, label: "Admin Data", path: "/admin-data", moduleId: "admin" },
       { icon: LockKeyhole, label: "Access Control", path: "/access-control", moduleId: "access" },
       { icon: Settings, label: "ตั้งค่าระบบ", path: "/settings", moduleId: "access" },

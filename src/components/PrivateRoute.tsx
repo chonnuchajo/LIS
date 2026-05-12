@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { hasModulePermission, type ModuleId } from "@/lib/accessControl";
 import { api } from "@/lib/api";
+import { DEV_MODE } from "@/config/dev";
 
 type AccessModule = {
   id: string;
@@ -103,6 +104,10 @@ const PrivateRoute = ({ children, moduleId }: { children: React.ReactNode; modul
       alive = false;
     };
   }, [location.pathname, mappingVersion]);
+
+  if (DEV_MODE) {
+    return <>{children}</>;
+  }
 
   // Wait while MSAL is processing (redirect callback etc.)
   if (inProgress !== InteractionStatus.None) {

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "@/lib/msalConfig";
 import { api } from "@/lib/api";
+import { DEV_MODE, DEV_USER } from "@/config/dev";
 
 interface AuthUser {
   id?: string;
@@ -35,7 +36,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [syncedUser, setSyncedUser] = useState<AuthUser | null>(null);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | undefined>();
 
-  const user: AuthUser | null = account
+  const user: AuthUser | null = DEV_MODE
+    ? DEV_USER
+    : account
     ? {
         id: syncedUser?.id,
         email: account.username,
