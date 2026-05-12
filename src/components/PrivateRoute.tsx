@@ -3,98 +3,69 @@ import { useIsAuthenticated, useMsal } from "@azure/msal-react";
 import { InteractionStatus } from "@azure/msal-browser";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { hasModulePermission, type ModuleId } from "@/lib/accessControl";
+import { findGroupIdsForPath, userMatchesAnyGroup } from "@/lib/accessControl";
 import { api } from "@/lib/api";
 import { DEV_MODE } from "@/config/dev";
 
-type AccessModule = {
+type AccessGroup = {
   id: string;
-  path?: string;
   paths?: string[];
 };
 
 type AccessControlState = {
-  modules: AccessModule[];
+  groups: AccessGroup[];
 };
 
-let moduleMapCache: AccessModule[] | null = null;
-let moduleMapRequest: Promise<AccessModule[]> | null = null;
+let groupMapCache: AccessGroup[] | null = null;
+let groupMapRequest: Promise<AccessGroup[]> | null = null;
 
-function normalizePath(path: string) {
-  if (!path || path === "/") return "/";
-  return path.replace(/\/+$/, "");
-}
-
-function pathMatches(pattern: string, pathname: string) {
-  const normalizedPattern = normalizePath(pattern);
-  const normalizedPath = normalizePath(pathname);
-
-  if (normalizedPattern === normalizedPath) return true;
-  if (normalizedPattern.endsWith("/*")) {
-    return normalizedPath.startsWith(normalizedPattern.slice(0, -2));
-  }
-
-  const patternParts = normalizedPattern.split("/");
-  const pathParts = normalizedPath.split("/");
-  if (patternParts.length !== pathParts.length) return false;
-
-  return patternParts.every((part, index) => part.startsWith(":") || part === pathParts[index]);
-}
-
-function findMappedModuleId(pathname: string, modules: AccessModule[]) {
-  for (const module of modules) {
-    const paths = module.paths?.length ? module.paths : [module.path].filter(Boolean);
-    if (paths.some((path) => pathMatches(path, pathname))) return module.id;
-  }
-  return undefined;
-}
-
-function loadModuleMap() {
-  if (moduleMapCache) return Promise.resolve(moduleMapCache);
-  if (!moduleMapRequest) {
-    moduleMapRequest = api
+function loadGroupMap() {
+  if (groupMapCache) return Promise.resolve(groupMapCache);
+  if (!groupMapRequest) {
+    groupMapRequest = api
       .get<AccessControlState>("/access-control")
       .then((res) => {
-        moduleMapCache = res.data.data.modules;
-        return moduleMapCache;
+        groupMapCache = res.data.data.groups;
+        return groupMapCache;
       })
       .finally(() => {
-        moduleMapRequest = null;
+        groupMapRequest = null;
       });
   }
-  return moduleMapRequest;
+  return groupMapRequest;
 }
 
-const PrivateRoute = ({ children, moduleId }: { children: React.ReactNode; moduleId?: ModuleId | ModuleId[] }) => {
+const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useIsAuthenticated();
   const { inProgress } = useMsal();
   const { user } = useAuth();
   const location = useLocation();
-  const [mappedModuleId, setMappedModuleId] = useState<ModuleId | undefined>();
+  const [mappedGroupIds, setMappedGroupIds] = useState<string[]>([]);
   const [mappingLoaded, setMappingLoaded] = useState(false);
   const [mappingVersion, setMappingVersion] = useState(0);
 
   useEffect(() => {
     const refreshMapping = () => {
-      moduleMapCache = null;
+      groupMapCache = null;
       setMappingVersion((current) => current + 1);
     };
-    window.addEventListener("lis-access-modules-changed", refreshMapping);
+    window.addEventListener("lis-access-groups-changed", refreshMapping);
     return () => {
-      window.removeEventListener("lis-access-modules-changed", refreshMapping);
+      window.removeEventListener("lis-access-groups-changed", refreshMapping);
     };
   }, []);
 
   useEffect(() => {
     let alive = true;
     setMappingLoaded(false);
-    loadModuleMap()
-      .then((modules) => {
+    loadGroupMap()
+      .then((groups) => {
         if (!alive) return;
-        setMappedModuleId(findMappedModuleId(location.pathname, modules));
+        const ids = findGroupIdsForPath(location.pathname, groups);
+        setMappedGroupIds(ids.length ? ids : ["others"]);
       })
       .catch(() => {
-        if (alive) setMappedModuleId(undefined);
+        if (alive) setMappedGroupIds([]);
       })
       .finally(() => {
         if (alive) setMappingLoaded(true);
@@ -109,7 +80,6 @@ const PrivateRoute = ({ children, moduleId }: { children: React.ReactNode; modul
     return <>{children}</>;
   }
 
-  // Wait while MSAL is processing (redirect callback etc.)
   if (inProgress !== InteractionStatus.None) {
     return null;
   }
@@ -126,18 +96,13 @@ const PrivateRoute = ({ children, moduleId }: { children: React.ReactNode; modul
     return null;
   }
 
-  const effectiveModuleId = mappedModuleId ?? moduleId;
-  const allowed = Array.isArray(effectiveModuleId)
-    ? effectiveModuleId.some((id) => hasModulePermission(user, id))
-    : hasModulePermission(user, effectiveModuleId);
-
-  if (!allowed) {
+  if (!userMatchesAnyGroup(user, mappedGroupIds)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-6">
         <div className="max-w-md rounded-lg border bg-card p-6 text-center shadow-sm">
           <h1 className="text-lg font-semibold text-foreground">ไม่มีสิทธิ์เข้าใช้งานหน้านี้</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Role ของคุณยังไม่ได้รับสิทธิ์ใน Module Permission Matrix สำหรับหน้านี้
+            Role ของคุณยังไม่ได้รับสิทธิ์ในกลุ่มที่ครอบคลุมหน้านี้
           </p>
         </div>
       </div>

@@ -1,22 +1,24 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const User = require('../models/User');
 const Role = require('../models/Role');
-const AccessModule = require('../models/AccessModule');
+const AccessGroup = require('../models/AccessGroup');
 
-const defaultModules = [
-  { id: 'dashboard', name: 'Dashboard', description: 'View lab overview and active workload', group: 'Main', path: '/', paths: ['/', '/home'], locked: true, sortOrder: 10 },
-  { id: 'samples', name: 'Samples', description: 'Send, receive, and inspect samples', group: 'Lab', path: '/petitions', paths: ['/petitions', '/petitions/new', '/petitions/:id', '/petitions/:id/edit', '/send-sample', '/physical-inspection'], locked: true, sortOrder: 20 },
-  { id: 'results', name: 'Results', description: 'Record analysis results and standards', group: 'Lab', path: '/record-results', paths: ['/record-results', '/stock-deduction', '/daily-check'], locked: true, sortOrder: 30 },
-  { id: 'qc', name: 'QC Approval', description: 'Approve or reject final results', group: 'Quality', path: '/qc-approval', paths: ['/dashboard/qc', '/dashboard/lab', '/qc-approval', '/petitions/assign'], locked: true, sortOrder: 40 },
-  { id: 'stock', name: 'Stock', description: 'Manage standard and solvent stock', group: 'Inventory', path: '/stock', paths: ['/stock', '/master-items'], locked: true, sortOrder: 50 },
-  { id: 'reports', name: 'Reports', description: 'View reports and export data', group: 'Reports', path: '/report', paths: ['/report'], locked: true, sortOrder: 60 },
-  { id: 'admin', name: 'Admin Data', description: 'Access approved data and logs', group: 'Admin', path: '/admin-data', paths: ['/admin-data'], locked: true, sortOrder: 70 },
-  { id: 'access', name: 'Access Control', description: 'Manage users, roles, and permissions', group: 'Admin', path: '/access-control', paths: ['/access-control', '/settings'], locked: true, sortOrder: 80 },
+const defaultGroups = [
+  { id: 'dashboard', name: 'หน้าหลัก', description: 'ภาพรวมแล็บและงานที่กำลังดำเนินการ', paths: ['/', '/home', '/dashboard/lab'], locked: false, sortOrder: 10 },
+  { id: 'samples', name: 'งานตัวอย่าง', description: 'รับ ส่ง และตรวจกายภาพตัวอย่าง', paths: ['/petitions', '/petitions/new', '/petitions/:id', '/petitions/:id/edit', '/send-sample', '/physical-inspection'], locked: false, sortOrder: 20 },
+  { id: 'results', name: 'ผลวิเคราะห์', description: 'บันทึกผลและมาตรฐาน', paths: ['/record-results', '/stock-deduction', '/daily-check'], locked: false, sortOrder: 30 },
+  { id: 'qc', name: 'ควบคุมคุณภาพ', description: 'อนุมัติหรือปฏิเสธผลและ Assign คำร้อง', paths: ['/dashboard/qc', '/qc-approval', '/petitions/assign', '/petitions/:id'], locked: false, sortOrder: 40 },
+  { id: 'stock', name: 'สต๊อก', description: 'จัดการ standard และตัวทำละลาย', paths: ['/stock', '/master-items'], locked: false, sortOrder: 50 },
+  { id: 'reports', name: 'รายงาน', description: 'ดูรายงานและส่งออกข้อมูล', paths: ['/report'], locked: false, sortOrder: 60 },
+  { id: 'admin', name: 'ข้อมูลแอดมิน', description: 'ข้อมูลที่อนุมัติแล้วและบันทึกการใช้งาน', paths: ['/admin-data'], locked: false, sortOrder: 70 },
+  { id: 'access', name: 'สิทธิ์เข้าใช้งาน', description: 'จัดการผู้ใช้ บทบาท และสิทธิ์', paths: ['/access-control', '/settings'], locked: false, sortOrder: 80 },
+  { id: 'others', name: 'อื่นๆ', description: 'หน้าที่ยังไม่ถูกกำหนดกลุ่ม (รับช่วงต่ออัตโนมัติเมื่อลบกลุ่มอื่น)', paths: [], locked: true, sortOrder: 999 },
 ];
 
 const defaultRoles = [
-  { id: 'admin', name: 'Administrator', description: 'Full system access', locked: true, permissions: defaultModules.map(m => m.id) },
+  { id: 'admin', name: 'Administrator', description: 'Full system access', locked: true, permissions: defaultGroups.map(g => g.id) },
   { id: 'lab', name: 'Lab Analyst', description: 'Sample handling and result entry', permissions: ['dashboard', 'samples', 'results', 'stock'] },
   { id: 'qc', name: 'QC Reviewer', description: 'Review and approve results', permissions: ['dashboard', 'results', 'qc', 'reports'] },
   { id: 'viewer', name: 'Viewer', description: 'Read-only access to dashboards and reports', permissions: ['dashboard', 'reports'] },
@@ -40,45 +42,67 @@ function normalizePaths(value) {
     .filter(Boolean);
 }
 
-async function ensureModules() {
-  await Promise.all(defaultModules.map(async (module) => {
-    await AccessModule.updateOne(
-      { id: module.id },
-      { $setOnInsert: module },
+// One-time migration from legacy `accessmodules` collection to the new
+// `accessgroups` collection. Runs only when the new collection is empty.
+async function migrateLegacyModules() {
+  const count = await AccessGroup.countDocuments();
+  if (count > 0) return;
+  try {
+    const legacy = await mongoose.connection.db
+      .collection('accessmodules')
+      .find({})
+      .toArray();
+    if (!legacy.length) return;
+    await AccessGroup.insertMany(
+      legacy.map((m) => ({
+        id: m.id,
+        name: m.name,
+        description: m.description || '',
+        paths: m.paths?.length ? m.paths : [m.path].filter(Boolean),
+        locked: !!m.locked,
+        sortOrder: typeof m.sortOrder === 'number' ? m.sortOrder : 0,
+      })),
+      { ordered: false },
+    );
+    await mongoose.connection.db.collection('accessmodules').drop().catch(() => {});
+  } catch {
+    // Legacy collection may not exist; nothing to do.
+  }
+}
+
+async function ensureGroups() {
+  await migrateLegacyModules();
+  await Promise.all(defaultGroups.map(async (group) => {
+    await AccessGroup.updateOne(
+      { id: group.id },
+      { $setOnInsert: group },
       { upsert: true },
     );
-    await AccessModule.updateOne(
-      { id: module.id, $or: [{ paths: { $exists: false } }, { paths: { $size: 0 } }] },
-      { $set: { paths: module.paths, path: module.path } },
+    await AccessGroup.updateOne(
+      { id: group.id, $or: [{ paths: { $exists: false } }, { paths: { $size: 0 } }] },
+      { $set: { paths: group.paths } },
     );
   }));
-  return AccessModule.find().sort({ sortOrder: 1, name: 1 }).lean();
-}
-
-async function removePathsFromOtherModules(moduleId, paths) {
-  if (!paths.length) return;
-  await AccessModule.updateMany(
-    { id: { $ne: moduleId } },
-    { $pull: { paths: { $in: paths } } },
-  );
-}
-
-async function normalizeModulePathOwnership(module) {
-  const paths = module.paths?.length ? module.paths : [module.path].filter(Boolean);
-  await removePathsFromOtherModules(module.id, paths);
+  // Ensure '/' belongs to the dashboard group and nowhere else.
+  await AccessGroup.updateOne({ id: 'dashboard' }, { $addToSet: { paths: '/' } });
+  await AccessGroup.updateMany({ id: { $ne: 'dashboard' } }, { $pull: { paths: '/' } });
+  // Unlock previously-locked default groups so admins can remove them; keep 'others' locked.
+  await AccessGroup.updateMany({ id: { $ne: 'others' } }, { $set: { locked: false } });
+  await AccessGroup.updateOne({ id: 'others' }, { $set: { locked: true } });
+  return AccessGroup.find().sort({ sortOrder: 1, name: 1 }).lean();
 }
 
 async function ensureDefaults() {
-  const modules = await ensureModules();
+  const groups = await ensureGroups();
   const count = await Role.countDocuments();
   if (count === 0) {
     await Role.insertMany(defaultRoles);
   }
   await Role.updateOne(
     { id: 'admin' },
-    { $addToSet: { permissions: { $each: modules.map(module => module.id) } } },
+    { $addToSet: { permissions: { $each: groups.map(group => group.id) } } },
   );
-  return modules;
+  return groups;
 }
 
 async function getRolePermissions(roleId) {
@@ -110,21 +134,20 @@ function formatRole(role) {
   };
 }
 
-function formatModule(module) {
+function formatGroup(group) {
   return {
-    id: module.id,
-    name: module.name,
-    description: module.description || '',
-    group: module.group || 'General',
-    path: module.path || '',
-    paths: module.paths?.length ? module.paths : [module.path].filter(Boolean),
-    locked: module.locked,
+    id: group.id,
+    name: group.name,
+    description: group.description || '',
+    paths: group.paths || [],
+    locked: group.locked,
+    sortOrder: group.sortOrder ?? 0,
   };
 }
 
 router.get('/', async (req, res) => {
   try {
-    const modules = await ensureDefaults();
+    const groups = await ensureDefaults();
     const [users, roles] = await Promise.all([
       User.find().sort({ name: 1, email: 1 }),
       Role.find().sort({ locked: -1, name: 1 }),
@@ -132,7 +155,7 @@ router.get('/', async (req, res) => {
     res.json({
       users: users.map(formatUser),
       roles: roles.map(formatRole),
-      modules: modules.map(formatModule),
+      groups: groups.map(formatGroup),
       permissions: Object.fromEntries(roles.map(role => [role.id, role.permissions || []])),
     });
   } catch (err) {
@@ -266,8 +289,8 @@ router.delete('/roles/:id', async (req, res) => {
 
 router.put('/roles/:id/permissions', async (req, res) => {
   try {
-    const modules = await ensureModules();
-    const validIds = new Set(modules.map(module => module.id));
+    const groups = await ensureGroups();
+    const validIds = new Set(groups.map(group => group.id));
     const permissions = Array.isArray(req.body.permissions)
       ? req.body.permissions.filter(id => validIds.has(id))
       : [];
@@ -283,64 +306,57 @@ router.put('/roles/:id/permissions', async (req, res) => {
   }
 });
 
-router.post('/modules', async (req, res) => {
+router.post('/groups', async (req, res) => {
   try {
-    const { name, description, group } = req.body;
-    const paths = normalizePaths(req.body.paths ?? req.body.path);
+    const { name, description } = req.body;
+    const paths = normalizePaths(req.body.paths);
     const id = slugify(req.body.id || name);
-    if (!id) return res.status(400).json({ error: 'module id is required' });
-    if (!name) return res.status(400).json({ error: 'module name is required' });
+    if (!id) return res.status(400).json({ error: 'group id is required' });
+    if (!name) return res.status(400).json({ error: 'group name is required' });
 
-    const module = await AccessModule.create({
+    const group = await AccessGroup.create({
       id,
       name,
       description,
-      group: group || 'General',
-      path: paths[0] || '',
       paths,
       locked: false,
       sortOrder: Date.now(),
     });
-    await normalizeModulePathOwnership(module);
-    await Role.updateOne({ id: 'admin' }, { $addToSet: { permissions: module.id } });
-    res.status(201).json(formatModule(module));
+    await Role.updateOne({ id: 'admin' }, { $addToSet: { permissions: group.id } });
+    res.status(201).json(formatGroup(group));
   } catch (err) {
-    if (err.code === 11000) return res.status(409).json({ error: 'Module already exists' });
+    if (err.code === 11000) return res.status(409).json({ error: 'Group already exists' });
     res.status(400).json({ error: err.message });
   }
 });
 
-router.patch('/modules/:id', async (req, res) => {
+router.patch('/groups/:id', async (req, res) => {
   try {
     const patch = {};
-    ['name', 'description', 'group', 'path'].forEach(key => {
+    ['name', 'description', 'sortOrder'].forEach(key => {
       if (req.body[key] !== undefined) patch[key] = req.body[key];
     });
-    if (req.body.paths !== undefined) {
+    if (req.body.paths !== undefined && req.params.id !== 'others') {
       patch.paths = normalizePaths(req.body.paths);
-      patch.path = patch.paths[0] || '';
     }
-    const module = await AccessModule.findOneAndUpdate(
+    const group = await AccessGroup.findOneAndUpdate(
       { id: req.params.id },
       patch,
       { new: true },
     );
-    if (!module) return res.status(404).json({ error: 'module not found' });
-    if (req.body.paths !== undefined) {
-      await normalizeModulePathOwnership(module);
-    }
-    res.json(formatModule(module));
+    if (!group) return res.status(404).json({ error: 'group not found' });
+    res.json(formatGroup(group));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-router.delete('/modules/:id', async (req, res) => {
+router.delete('/groups/:id', async (req, res) => {
   try {
-    const module = await AccessModule.findOne({ id: req.params.id });
-    if (!module) return res.status(404).json({ error: 'module not found' });
-    if (module.locked) return res.status(400).json({ error: 'locked module cannot be deleted' });
-    await module.deleteOne();
+    const group = await AccessGroup.findOne({ id: req.params.id });
+    if (!group) return res.status(404).json({ error: 'group not found' });
+    if (group.locked) return res.status(400).json({ error: 'locked group cannot be deleted' });
+    await group.deleteOne();
     await Role.updateMany({}, { $pull: { permissions: req.params.id } });
     res.json({ success: true });
   } catch (err) {

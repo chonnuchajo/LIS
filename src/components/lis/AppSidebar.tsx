@@ -1,16 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  LayoutDashboard, Download, ClipboardList, FileBarChart, Settings, User, LogOut,
-  Package, ShieldCheck, Database, FlaskConical, Scale, Home, LockKeyhole, FileText,
-  ChevronLeft, ChevronRight, UserCheck,
+  ChevronLeft, ChevronRight, LogOut, User,
 } from "lucide-react";
+import { NAV_ITEMS } from "@/lib/navItems";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { hasModulePermission, type ModuleId } from "@/lib/accessControl";
+import { hasGroupPermission, pathMatches } from "@/lib/accessControl";
 import { api } from "@/lib/api";
 
 type RoleOption = {
@@ -18,56 +17,17 @@ type RoleOption = {
   name: string;
 };
 
-type AccessControlState = {
-  roles: RoleOption[];
+type NavGroup = {
+  id: string;
+  name?: string;
+  paths?: string[];
+  sortOrder?: number;
 };
 
-const navGroups = [
-  {
-    label: "หน้าหลัก",
-    items: [
-      { icon: Home, label: "หน้าแรก", path: "/home", moduleId: "dashboard" },
-      { icon: LayoutDashboard, label: "แดชบอร์ด", path: "/", moduleId: "dashboard" },
-      { icon: FileText, label: "รายการคำร้อง", path: "/petitions", moduleId: "samples" },
-      { icon: Download, label: "การรับตัวอย่าง", path: "/send-sample", moduleId: "samples" },
-      { icon: ClipboardList, label: "ผลวิเคราะห์", path: "/record-results", moduleId: "results" },
-      { icon: FileBarChart, label: "รายงานสรุป", path: "/report", moduleId: "reports" },
-    ],
-  },
-  {
-    label: "ควบคุมคุณภาพ",
-    items: [
-      { icon: FlaskConical, label: "การตรวจกายภาพ", path: "/physical-inspection", moduleId: "samples" },
-      { icon: ShieldCheck, label: "อนุมัติผล QC", path: "/qc-approval", moduleId: "qc" },
-    ],
-  },
-  {
-    label: "ห้องปฏิบัติการ",
-    items: [
-      { icon: ClipboardList, label: "การบันทึก Standard", path: "/stock-deduction", moduleId: "results" },
-      { icon: Scale, label: "Daily Check", path: "/daily-check", moduleId: "results" },
-      { icon: UserCheck, label: "Assign คำร้อง", path: "/petitions/assign", moduleId: "qc" },
-    ],
-  },
-  {
-    label: "Inventory",
-    items: [
-      { icon: Package, label: "Stock Management", path: "/stock", moduleId: "stock" },
-      { icon: Database, label: "Master Item", path: "/master-items", moduleId: "stock" },
-    ],
-  },
-  {
-    label: "อื่นๆ",
-    items: [
-      { icon: Database, label: "Admin Data", path: "/admin-data", moduleId: "admin" },
-      { icon: LockKeyhole, label: "Access Control", path: "/access-control", moduleId: "access" },
-      { icon: Settings, label: "ตั้งค่าระบบ", path: "/settings", moduleId: "access" },
-    ],
-  },
-] satisfies Array<{
-  label: string;
-  items: Array<{ icon: typeof Home; label: string; path: string; moduleId: ModuleId }>;
-}>;
+type AccessControlState = {
+  roles: RoleOption[];
+  groups: NavGroup[];
+};
 
 const STORAGE_KEY = "lis.sidebar.collapsed";
 
@@ -76,6 +36,7 @@ const AppSidebar = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [roleNameById, setRoleNameById] = useState<Record<string, string>>({});
+  const [navGroups, setNavGroupsState] = useState<NavGroup[]>([]);
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -86,20 +47,25 @@ const AppSidebar = () => {
     localStorage.setItem(STORAGE_KEY, collapsed ? "1" : "0");
   }, [collapsed]);
 
-  useEffect(() => {
+  const loadNavData = () => {
     let alive = true;
     api.get<AccessControlState>("/access-control")
       .then((res) => {
         if (!alive) return;
-        setRoleNameById(Object.fromEntries(res.data.data.roles.map((role) => [role.id, role.name])));
+        const { roles, groups } = res.data.data;
+        setRoleNameById(Object.fromEntries(roles.map((r) => [r.id, r.name])));
+        if (groups?.length) setNavGroupsState(groups);
       })
-      .catch(() => {
-        if (alive) setRoleNameById({});
-      });
+      .catch(() => { if (alive) setRoleNameById({}); });
+    return () => { alive = false; };
+  };
 
-    return () => {
-      alive = false;
-    };
+  useEffect(() => loadNavData(), []);
+
+  useEffect(() => {
+    const handler = () => loadNavData();
+    window.addEventListener("lis-access-groups-changed", handler);
+    return () => window.removeEventListener("lis-access-groups-changed", handler);
   }, []);
 
   const handleLogout = () => {
@@ -107,6 +73,27 @@ const AppSidebar = () => {
     toast.success("ออกจากระบบสำเร็จ");
     navigate("/login", { replace: true });
   };
+
+  const sections = useMemo(() => {
+    const sorted = [...navGroups].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+    if (sorted.length === 0) return [{ id: "all", label: "เมนู", items: [...NAV_ITEMS] }];
+
+    const coveredPaths = sorted
+      .filter((g) => g.id !== "others")
+      .flatMap((g) => g.paths ?? []);
+
+    const result = sorted
+      .map((group) => {
+        const items = group.id === "others"
+          ? NAV_ITEMS.filter((item) => !coveredPaths.some((p) => pathMatches(p, item.path)))
+          : NAV_ITEMS.filter((item) => (group.paths ?? []).some((p) => pathMatches(p, item.path)));
+        return { id: group.id, label: group.name || group.id, items };
+      })
+      .filter((g) => g.items.length > 0);
+
+    return result;
+  }, [navGroups]);
+
   const roleLabel = user?.role ? roleNameById[user.role] ?? user.role : "No role";
 
   return (
@@ -152,15 +139,16 @@ const AppSidebar = () => {
 
         {/* Nav */}
         <nav className={cn("flex-1 py-3 overflow-y-auto", collapsed ? "px-2" : "px-3")}>
-          {navGroups.map((group, gIdx) => {
-            const visibleItems = group.items.filter((item) => hasModulePermission(user, item.moduleId));
+          {sections.map((section, sIdx) => {
+            if (!hasGroupPermission(user, section.id)) return null;
+            const visibleItems = section.items;
             if (visibleItems.length === 0) return null;
 
             return (
-            <div key={group.label} className={cn(gIdx > 0 && (collapsed ? "mt-3 pt-3 border-t border-border" : "mt-4"))}>
+            <div key={section.id} className={cn(sIdx > 0 && (collapsed ? "mt-3 pt-3 border-t border-border" : "mt-4"))}>
               {!collapsed && (
                 <div className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {group.label}
+                  {section.label}
                 </div>
               )}
               <div className="space-y-1">
