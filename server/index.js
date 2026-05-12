@@ -23,6 +23,8 @@ app.use('/api/petitions', require('./routes/petitions'));
 app.use('/api/employees', require('./routes/employees'));
 app.use('/api/master-items', require('./routes/masterItems'));
 app.use('/LIS/api/master-items', require('./routes/masterItems'));
+app.use('/api/machines', require('./routes/machines'));
+app.use('/LIS/api/machines', require('./routes/machines'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
 

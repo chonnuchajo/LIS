@@ -10,6 +10,8 @@ import {
   RefreshCw,
   Search,
   Trash2,
+  Wrench,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,7 +45,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/lib/api";
+import { api, type MachineItem } from "@/lib/api";
 
 type MasterItem = Record<string, unknown>;
 type SimpleInstrument = "GC" | "HPLC" | "";
@@ -538,6 +540,10 @@ export default function MasterItems() {
               <FlaskConical className="h-4 w-4" />
               Simple Method
             </TabsTrigger>
+            <TabsTrigger value="machines" className="gap-1.5">
+              <Wrench className="h-4 w-4" />
+              รายการเครื่อง
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="items">
@@ -680,6 +686,10 @@ export default function MasterItems() {
               onDraftChange={setMethodDraft}
               onSave={saveSimpleMethod}
             />
+          </TabsContent>
+
+          <TabsContent value="machines">
+            <MachinesTab />
           </TabsContent>
         </Tabs>
 
@@ -951,6 +961,359 @@ function MasterItemDialog({
                 value={form.description}
                 onChange={(event) => setField("description", event.target.value)}
               />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
+            <Button type="submit" disabled={busy}>{busy ? "กำลังบันทึก..." : "บันทึก"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const emptyMachineForm: MachineItem = {
+  code: "",
+  registerNo: "",
+  name: "",
+  manufacturer: "",
+  model: "",
+  serialNo: "",
+  manualDoc: "",
+  installDate: "",
+  startDate: "",
+  location: "",
+  status: "active",
+  note: "",
+};
+
+function MachinesTab() {
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState("");
+  const [locationFilter, setLocationFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [editing, setEditing] = useState<MachineItem | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<MachineItem | null>(null);
+  const [seeding, setSeeding] = useState(false);
+
+  const {
+    data: machines = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching,
+  } = useQuery({
+    queryKey: ["machines"],
+    queryFn: () => api.getMachines(),
+  });
+
+  const locationOptions = useMemo(() => {
+    const values = new Set<string>();
+    machines.forEach((m) => { if (m.location) values.add(m.location); });
+    return Array.from(values).sort((a, b) => a.localeCompare(b, ["th", "en"]));
+  }, [machines]);
+
+  const filteredMachines = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return machines.filter((m) => {
+      const matchesSearch = !q || [m.code, m.name, m.manufacturer, m.model, m.serialNo, m.registerNo, m.location]
+        .some((v) => String(v ?? "").toLowerCase().includes(q));
+      const matchesLocation = locationFilter === "all" || m.location === locationFilter;
+      const matchesStatus = statusFilter === "all" || m.status === statusFilter;
+      return matchesSearch && matchesLocation && matchesStatus;
+    });
+  }, [machines, search, locationFilter, statusFilter]);
+
+  const handleSeed = async () => {
+    setSeeding(true);
+    try {
+      const result = await api.seedMachines();
+      toast.success(`นำเข้าข้อมูลตั้งต้น: เพิ่มใหม่ ${result.inserted} / ทั้งหมด ${result.total}`);
+      queryClient.invalidateQueries({ queryKey: ["machines"] });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleting?._id) return;
+    try {
+      await api.deleteMachine(deleting._id);
+      toast.success("ลบเครื่องมือสำเร็จ");
+      setDeleting(null);
+      queryClient.invalidateQueries({ queryKey: ["machines"] });
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
+  const closeDialog = () => {
+    setCreating(false);
+    setEditing(null);
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 space-y-0 md:flex-row md:items-center md:justify-between">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Wrench className="h-5 w-5" />
+          รายการเครื่องมือ
+          <Badge variant="outline">{filteredMachines.length}</Badge>
+        </CardTitle>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={locationFilter} onValueChange={setLocationFilter}>
+            <SelectTrigger className="w-full md:w-48">
+              <SelectValue placeholder="สถานที่ตั้ง" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ทุกสถานที่</SelectItem>
+              {locationOptions.map((value) => (
+                <SelectItem key={value} value={value}>{value}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full md:w-36">
+              <SelectValue placeholder="สถานะ" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ทุกสถานะ</SelectItem>
+              <SelectItem value="active">active</SelectItem>
+              <SelectItem value="inactive">inactive</SelectItem>
+              <SelectItem value="retired">retired</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="ค้นหารหัส, ชื่อ, ยี่ห้อ..."
+              className="pl-8"
+            />
+          </div>
+          <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          </Button>
+          <Button variant="outline" onClick={handleSeed} disabled={seeding} title="นำเข้าข้อมูลตั้งต้นจาก machine.xls (เพิ่มเฉพาะรหัสที่ยังไม่มี)">
+            <Download className="h-4 w-4" />
+            {seeding ? "กำลังนำเข้า..." : "นำเข้าข้อมูลตั้งต้น"}
+          </Button>
+          <Button onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4" />
+            เพิ่มเครื่องมือ
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isError ? (
+          <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4" />
+            {(error as Error).message}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>รหัส</TableHead>
+                  <TableHead>ทะเบียน</TableHead>
+                  <TableHead>ชื่อเครื่องมือ</TableHead>
+                  <TableHead>ยี่ห้อ / ผู้ผลิต</TableHead>
+                  <TableHead>รุ่น</TableHead>
+                  <TableHead>S/N</TableHead>
+                  <TableHead>วันที่ติดตั้ง</TableHead>
+                  <TableHead>เริ่มใช้งาน</TableHead>
+                  <TableHead>สถานที่</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-24 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">กำลังโหลด...</TableCell>
+                  </TableRow>
+                ) : filteredMachines.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
+                      ยังไม่มีข้อมูลเครื่องมือ — กด "นำเข้าข้อมูลตั้งต้น" เพื่อโหลดข้อมูลจาก machine.xls
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredMachines.map((m) => (
+                    <TableRow key={m._id ?? m.code}>
+                      <TableCell className="font-semibold text-primary">{m.code}</TableCell>
+                      <TableCell>{displayValue(m.registerNo)}</TableCell>
+                      <TableCell className="min-w-52 font-medium">{m.name}</TableCell>
+                      <TableCell>{displayValue(m.manufacturer)}</TableCell>
+                      <TableCell>{displayValue(m.model)}</TableCell>
+                      <TableCell>{displayValue(m.serialNo)}</TableCell>
+                      <TableCell>{displayValue(m.installDate)}</TableCell>
+                      <TableCell>{displayValue(m.startDate)}</TableCell>
+                      <TableCell>{displayValue(m.location)}</TableCell>
+                      <TableCell>
+                        <Badge variant={m.status === "active" ? "default" : "secondary"}>{m.status ?? "active"}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-1">
+                          <Button size="icon" variant="ghost" onClick={() => setEditing(m)} title="แก้ไข">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button size="icon" variant="ghost" onClick={() => setDeleting(m)} title="ลบ">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+
+      {(creating || editing) && (
+        <MachineDialog
+          item={editing}
+          onClose={closeDialog}
+          onSaved={() => queryClient.invalidateQueries({ queryKey: ["machines"] })}
+        />
+      )}
+
+      {deleting && (
+        <Dialog open onOpenChange={(open) => { if (!open) setDeleting(null); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>ยืนยันลบเครื่องมือ</DialogTitle>
+            </DialogHeader>
+            <div className="text-sm text-muted-foreground">
+              {deleting.code} - {deleting.name}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleting(null)}>ยกเลิก</Button>
+              <Button variant="destructive" onClick={handleDelete}>ลบ</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </Card>
+  );
+}
+
+function MachineDialog({
+  item,
+  onClose,
+  onSaved,
+}: {
+  item: MachineItem | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState<MachineItem>(() => item ? { ...item } : { ...emptyMachineForm });
+  const [busy, setBusy] = useState(false);
+  const isEdit = !!item?._id;
+
+  const setField = <K extends keyof MachineItem>(key: K, value: MachineItem[K]) => {
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!form.code.trim() || !form.name.trim()) {
+      toast.error("กรุณาระบุรหัสและชื่อเครื่องมือ");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (isEdit && item?._id) {
+        await api.updateMachine(item._id, form);
+        toast.success("แก้ไขเครื่องมือสำเร็จ");
+      } else {
+        await api.createMachine(form);
+        toast.success("เพิ่มเครื่องมือสำเร็จ");
+      }
+      onSaved();
+      onClose();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-2xl">
+        <form onSubmit={submit}>
+          <DialogHeader>
+            <DialogTitle>{isEdit ? "แก้ไขเครื่องมือ" : "เพิ่มเครื่องมือ"}</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="m-code">รหัสเครื่องมือ *</Label>
+              <Input id="m-code" value={form.code} onChange={(e) => setField("code", e.target.value)} required placeholder="LD-049" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="m-register">หมายเลขทะเบียน</Label>
+              <Input id="m-register" value={form.registerNo ?? ""} onChange={(e) => setField("registerNo", e.target.value)} />
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label htmlFor="m-name">ชื่อเครื่องมือ *</Label>
+              <Input id="m-name" value={form.name} onChange={(e) => setField("name", e.target.value)} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="m-manufacturer">ยี่ห้อ / ผู้ผลิต</Label>
+              <Input id="m-manufacturer" value={form.manufacturer ?? ""} onChange={(e) => setField("manufacturer", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="m-model">รุ่น</Label>
+              <Input id="m-model" value={form.model ?? ""} onChange={(e) => setField("model", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="m-serial">หมายเลขเครื่อง (S/N)</Label>
+              <Input id="m-serial" value={form.serialNo ?? ""} onChange={(e) => setField("serialNo", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="m-doc">เอกสารวิธีปฏิบัติงาน</Label>
+              <Input id="m-doc" value={form.manualDoc ?? ""} onChange={(e) => setField("manualDoc", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="m-install">วันที่ติดตั้ง</Label>
+              <Input id="m-install" value={form.installDate ?? ""} onChange={(e) => setField("installDate", e.target.value)} placeholder="dd/mm/yyyy" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="m-start">วันที่เริ่มใช้งาน</Label>
+              <Input id="m-start" value={form.startDate ?? ""} onChange={(e) => setField("startDate", e.target.value)} placeholder="dd/mm/yyyy" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="m-location">สถานที่ตั้ง</Label>
+              <Input id="m-location" value={form.location ?? ""} onChange={(e) => setField("location", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>สถานะ</Label>
+              <Select value={form.status ?? "active"} onValueChange={(v) => setField("status", v as MachineItem["status"])}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">active</SelectItem>
+                  <SelectItem value="inactive">inactive</SelectItem>
+                  <SelectItem value="retired">retired</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <Label htmlFor="m-note">หมายเหตุ</Label>
+              <Textarea id="m-note" value={form.note ?? ""} onChange={(e) => setField("note", e.target.value)} />
             </div>
           </div>
 

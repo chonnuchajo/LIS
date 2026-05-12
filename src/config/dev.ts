@@ -1,6 +1,6 @@
 // DEV MODE: เปลี่ยนเป็น true เพื่อข้าม Microsoft login ตอน development
 // ห้ามเปิดใน production
-export const DEV_MODE = true;
+export const DEV_MODE = false;
 
 export const DEV_USER = {
   id: "dev-user-001",

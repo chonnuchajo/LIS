@@ -128,4 +128,33 @@ export const api = {
       : "";
     return request<StockTransactionItem[]>(`/stock/transactions${qs}`);
   },
+
+  // Machines (รายการเครื่อง)
+  getMachines: () => request<MachineItem[]>("/machines"),
+  createMachine: (data: Partial<MachineItem>) =>
+    request<MachineItem>("/machines", { method: "POST", body: JSON.stringify(data) }),
+  updateMachine: (id: string, data: Partial<MachineItem>) =>
+    request<MachineItem>(`/machines/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteMachine: (id: string) =>
+    request<{ success: true }>(`/machines/${id}`, { method: "DELETE" }),
+  seedMachines: () =>
+    request<{ inserted: number; matched: number; total: number }>("/machines/seed", { method: "POST" }),
+};
+
+export type MachineItem = {
+  _id?: string;
+  code: string;
+  registerNo?: string;
+  name: string;
+  manufacturer?: string;
+  model?: string;
+  serialNo?: string;
+  manualDoc?: string;
+  installDate?: string;
+  startDate?: string;
+  location?: string;
+  status?: "active" | "inactive" | "retired";
+  note?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
