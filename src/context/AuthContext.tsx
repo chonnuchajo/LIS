@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "@/lib/msalConfig";
 import { api } from "@/lib/api";
-import { DEV_MODE, DEV_USER } from "@/config/dev";
+import { DEV_MODE, DEV_USERS, DEV_DEFAULT_ROLE } from "@/config/dev";
 
 interface AuthUser {
   id?: string;
@@ -20,6 +20,8 @@ interface AuthContextType {
   user: AuthUser | null;
   login: () => Promise<void>;
   logout: () => void;
+  devRole?: string;
+  switchDevRole?: (role: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -35,9 +37,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const account = accounts[0] ?? null;
   const [syncedUser, setSyncedUser] = useState<AuthUser | null>(null);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | undefined>();
+  const [devRole, setDevRole] = useState<string>(
+    () => localStorage.getItem("dev_role") ?? DEV_DEFAULT_ROLE
+  );
+
+  const switchDevRole = (role: string) => {
+    localStorage.setItem("dev_role", role);
+    setDevRole(role);
+  };
 
   const user: AuthUser | null = DEV_MODE
-    ? DEV_USER
+    ? (DEV_USERS[devRole] ?? DEV_USERS[DEV_DEFAULT_ROLE])
     : account
     ? {
         id: syncedUser?.id,
@@ -149,7 +159,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, devRole: DEV_MODE ? devRole : undefined, switchDevRole: DEV_MODE ? switchDevRole : undefined }}>
       {children}
     </AuthContext.Provider>
   );

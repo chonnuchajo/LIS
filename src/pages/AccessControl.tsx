@@ -5,19 +5,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { NAV_ITEMS, type NavItem } from "@/lib/navItems";
 import {
-  FileCog,
+  ChevronsUpDown,
+  FolderTree,
   KeyRound,
   LockKeyhole,
   Plus,
@@ -49,26 +46,14 @@ type Role = {
   locked?: boolean;
 };
 
-type ModulePermission = {
+type AccessGroup = {
   id: string;
   name: string;
   description: string;
-  group?: string;
-  path?: string;
-  paths?: string[];
+  paths: string[];
   locked?: boolean;
+  sortOrder?: number;
 };
-
-const modules: ModulePermission[] = [
-  { id: "dashboard", name: "Dashboard", description: "View lab overview and active workload", group: "Main", path: "/", paths: ["/", "/home"] },
-  { id: "samples", name: "Samples", description: "Send, receive, and inspect samples", group: "Lab", path: "/petitions", paths: ["/petitions", "/petitions/new", "/petitions/:id", "/petitions/:id/edit", "/send-sample", "/physical-inspection"] },
-  { id: "results", name: "Results", description: "Record analysis results and standards", group: "Lab", path: "/record-results", paths: ["/record-results", "/stock-deduction", "/daily-check"] },
-  { id: "qc", name: "QC Approval", description: "Approve or reject final results", group: "Quality", path: "/qc-approval", paths: ["/dashboard/qc", "/dashboard/lab", "/qc-approval", "/petitions/assign"] },
-  { id: "stock", name: "Stock", description: "Manage standard and solvent stock", group: "Inventory", path: "/stock", paths: ["/stock", "/master-items"] },
-  { id: "reports", name: "Reports", description: "View reports and export data", group: "Reports", path: "/report", paths: ["/report"] },
-  { id: "admin", name: "Admin Data", description: "Access approved data and logs", group: "Admin", path: "/admin-data", paths: ["/admin-data"] },
-  { id: "access", name: "Access Control", description: "Manage users, roles, and permissions", group: "Admin", path: "/access-control", paths: ["/access-control", "/settings"] },
-];
 
 const defaultRoles: Role[] = [
   { id: "admin", name: "Administrator", description: "Full system access", locked: true },
@@ -77,60 +62,106 @@ const defaultRoles: Role[] = [
   { id: "viewer", name: "Viewer", description: "Read-only access to dashboards and reports" },
 ];
 
-const defaultUsers: AppUser[] = [
-  {
-    id: "USR-001",
-    name: "System Admin",
-    email: "admin@icpladda.com",
-    roleId: "admin",
-    department: "IT",
-    position: "System Administrator",
-    status: "active",
-    lastActive: "Today",
-  },
-  {
-    id: "USR-002",
-    name: "Lab Analyst",
-    email: "lab@icpladda.com",
-    roleId: "lab",
-    department: "Laboratory",
-    position: "Lab Analyst",
-    status: "active",
-    lastActive: "Today",
-  },
-  {
-    id: "USR-003",
-    name: "QC Reviewer",
-    email: "qc@icpladda.com",
-    roleId: "qc",
-    department: "Quality Control",
-    position: "QC Reviewer",
-    status: "active",
-    lastActive: "Yesterday",
-  },
-];
+const defaultUsers: AppUser[] = [];
 
-const defaultPermissions: Record<string, string[]> = {
-  admin: modules.map((m) => m.id),
-  lab: ["dashboard", "samples", "results", "stock"],
-  qc: ["dashboard", "results", "qc", "reports"],
-  viewer: ["dashboard", "reports"],
-};
+const defaultPermissions: Record<string, string[]> = {};
 
 type AccessControlState = {
   users: AppUser[];
   roles: Role[];
-  modules: ModulePermission[];
+  groups: AccessGroup[];
   permissions: Record<string, string[]>;
+};
+
+type PathPickerProps = {
+  value: string[];
+  onChange: (next: string[]) => void;
+  disabled?: boolean;
+  placeholder?: string;
+};
+
+const PathPicker = ({ value, onChange, disabled, placeholder }: PathPickerProps) => {
+  const selectedNavItems = NAV_ITEMS.filter((item) => value.includes(item.path));
+  const extraPaths = value.filter((p) => !NAV_ITEMS.some((item) => item.path === p));
+
+  const toggle = (item: NavItem, checked: boolean) => {
+    if (checked) {
+      if (!value.includes(item.path)) onChange([...value, item.path]);
+    } else {
+      onChange(value.filter((p) => p !== item.path));
+    }
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          className="w-full justify-between font-normal"
+        >
+          <span className="truncate text-left">
+            {selectedNavItems.length === 0 && extraPaths.length === 0
+              ? (placeholder ?? "เลือกหน้า")
+              : `${selectedNavItems.length} หน้า${extraPaths.length ? ` + ${extraPaths.length} extra` : ""}`}
+          </span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-2" align="start">
+        <div className="max-h-72 space-y-0.5 overflow-auto">
+          {NAV_ITEMS.map((item) => {
+            const checked = value.includes(item.path);
+            return (
+              <label
+                key={item.path}
+                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-accent"
+              >
+                <Checkbox
+                  checked={checked}
+                  onCheckedChange={(c) => toggle(item, c === true)}
+                />
+                <item.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="truncate text-sm">{item.label}</span>
+                <span className="ml-auto truncate font-mono text-[10px] text-muted-foreground">
+                  {item.path}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+        {extraPaths.length > 0 && (
+          <div className="mt-2 border-t pt-2">
+            <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Extra paths (non-nav)
+            </p>
+            <div className="space-y-0.5">
+              {extraPaths.map((p) => (
+                <div key={p} className="flex items-center gap-2 px-2 py-1">
+                  <span className="truncate font-mono text-[11px] text-muted-foreground">{p}</span>
+                  <button
+                    type="button"
+                    onClick={() => onChange(value.filter((x) => x !== p))}
+                    className="ml-auto text-xs text-destructive hover:underline"
+                  >
+                    remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
 };
 
 const AccessControl = () => {
   const [users, setUsers] = useState<AppUser[]>(defaultUsers);
   const [roles, setRoles] = useState<Role[]>(defaultRoles);
-  const [permissionModules, setPermissionModules] = useState<ModulePermission[]>(modules);
-  const [permissions, setPermissions] = useState<Record<string, string[]>>(
-    defaultPermissions,
-  );
+  const [groups, setGroups] = useState<AccessGroup[]>([]);
+  const [permissions, setPermissions] = useState<Record<string, string[]>>(defaultPermissions);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [newUser, setNewUser] = useState({
@@ -141,14 +172,17 @@ const AccessControl = () => {
     roleId: "viewer",
   });
   const [newRole, setNewRole] = useState({ name: "", description: "" });
-  const [newModule, setNewModule] = useState({
+  const [newGroup, setNewGroup] = useState<{
+    id: string;
+    name: string;
+    paths: string[];
+    description: string;
+  }>({
     id: "",
     name: "",
-    group: "",
-    paths: "",
+    paths: [],
     description: "",
   });
-  const [pathDrafts, setPathDrafts] = useState<Record<string, string>>({});
 
   const loadAccessControl = async () => {
     setLoading(true);
@@ -156,7 +190,7 @@ const AccessControl = () => {
       const res = await api.get<AccessControlState>("/access-control");
       setUsers(res.data.data.users);
       setRoles(res.data.data.roles);
-      setPermissionModules(res.data.data.modules);
+      setGroups(res.data.data.groups);
       setPermissions(res.data.data.permissions);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load access control");
@@ -187,28 +221,20 @@ const AccessControl = () => {
 
   const pageRouteMappings = useMemo(
     () =>
-      permissionModules.flatMap((module) =>
-        (module.paths?.length ? module.paths : [module.path].filter(Boolean)).map((path) => ({
+      groups.flatMap((group) =>
+        (group.paths ?? []).map((path) => ({
           path,
-          moduleId: module.id,
-          moduleName: module.name,
-          group: module.group ?? "General",
+          groupId: group.id,
+          groupName: group.name,
         })),
       ),
-    [permissionModules],
+    [groups],
   );
 
-  const pathListToText = (module: ModulePermission) =>
-    (module.paths?.length ? module.paths : [module.path].filter(Boolean)).join(", ");
+  const pathListToText = (group: AccessGroup) => (group.paths ?? []).join(", ");
 
-  const parsePaths = (value: string) =>
-    value
-      .split(/[\n,]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-  const notifyModuleMappingChanged = () => {
-    window.dispatchEvent(new Event("lis-access-modules-changed"));
+  const notifyGroupMappingChanged = () => {
+    window.dispatchEvent(new Event("lis-access-groups-changed"));
   };
 
   const updateUser = async (id: string, patch: Partial<AppUser>) => {
@@ -290,80 +316,70 @@ const AccessControl = () => {
     }
   };
 
-  const addModule = async () => {
-    if (!newModule.name.trim()) {
-      toast.error("Module name is required");
+  const addGroup = async () => {
+    if (!newGroup.name.trim()) {
+      toast.error("Group name is required");
       return;
     }
     try {
-      const res = await api.post<ModulePermission>("/access-control/modules", {
-        id: newModule.id.trim(),
-        name: newModule.name.trim(),
-        group: newModule.group.trim() || "General",
-        paths: parsePaths(newModule.paths),
-        description: newModule.description.trim(),
+      const res = await api.post<AccessGroup>("/access-control/groups", {
+        id: newGroup.id.trim(),
+        name: newGroup.name.trim(),
+        paths: newGroup.paths,
+        description: newGroup.description.trim(),
       });
-      setPermissionModules((current) => [...current, res.data.data]);
+      setGroups((current) => [...current, res.data.data]);
       setPermissions((current) => ({
         ...current,
         admin: Array.from(new Set([...(current.admin ?? []), res.data.data.id])),
       }));
-      setNewModule({ id: "", name: "", group: "", paths: "", description: "" });
-      notifyModuleMappingChanged();
-      toast.success("Page module added");
+      setNewGroup({ id: "", name: "", paths: [], description: "" });
+      notifyGroupMappingChanged();
+      toast.success("Group added");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to add page module");
+      toast.error(err instanceof Error ? err.message : "Failed to add group");
     }
   };
 
-  const updateModule = async (id: string, patch: Partial<ModulePermission>) => {
-    const previous = permissionModules;
-    setPermissionModules((current) =>
-      current.map((module) => (module.id === id ? { ...module, ...patch } : module)),
-    );
+  const updateGroup = async (id: string, patch: Partial<AccessGroup>) => {
+    const previous = groups;
+    setGroups((current) => current.map((group) => (group.id === id ? { ...group, ...patch } : group)));
     try {
-      const res = await api.patch<ModulePermission>(`/access-control/modules/${id}`, patch);
-      setPermissionModules((current) =>
-        current.map((module) => (module.id === id ? res.data.data : module)),
-      );
-      setPathDrafts((current) => {
-        const next = { ...current };
-        delete next[id];
-        return next;
-      });
-      notifyModuleMappingChanged();
+      const res = await api.patch<AccessGroup>(`/access-control/groups/${id}`, patch);
+      setGroups((current) => current.map((group) => (group.id === id ? res.data.data : group)));
+      notifyGroupMappingChanged();
     } catch (err) {
-      setPermissionModules(previous);
-      toast.error(err instanceof Error ? err.message : "Failed to update page module");
+      setGroups(previous);
+      toast.error(err instanceof Error ? err.message : "Failed to update group");
     }
   };
 
-  const deleteModule = async (id: string) => {
-    const module = permissionModules.find((item) => item.id === id);
-    if (module?.locked) return;
+  const deleteGroup = async (id: string) => {
+    const group = groups.find((item) => item.id === id);
+    if (group?.locked) return;
     try {
-      await api.delete(`/access-control/modules/${id}`);
-      setPermissionModules((current) => current.filter((item) => item.id !== id));
+      await api.delete(`/access-control/groups/${id}`);
+      setGroups((current) => current.filter((item) => item.id !== id));
       setPermissions((current) =>
         Object.fromEntries(
-          Object.entries(current).map(([roleId, moduleIds]) => [
+          Object.entries(current).map(([roleId, groupIds]) => [
             roleId,
-            moduleIds.filter((moduleId) => moduleId !== id),
+            groupIds.filter((groupId) => groupId !== id),
           ]),
         ),
       );
-      notifyModuleMappingChanged();
-      toast.success("Page module removed");
+      notifyGroupMappingChanged();
+      toast.success("Group removed");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to remove page module");
+      toast.error(err instanceof Error ? err.message : "Failed to remove group");
     }
   };
 
-  const togglePermission = async (roleId: string, moduleId: string) => {
+  const togglePermission = async (roleId: string, groupId: string) => {
     const current = permissions[roleId] ?? [];
-    const nextRolePermissions = current.includes(moduleId)
-      ? current.filter((id) => id !== moduleId)
-      : [...current, moduleId];
+    const nextRolePermissions = current.includes(groupId)
+      ? current.filter((id) => id !== groupId)
+      : [...current, groupId];
     const nextPermissions = { ...permissions, [roleId]: nextRolePermissions };
     setPermissions(nextPermissions);
     try {
@@ -374,6 +390,21 @@ const AccessControl = () => {
       setPermissions(permissions);
       toast.error(err instanceof Error ? err.message : "Failed to update permissions");
     }
+  };
+
+  const coveredNavPaths = useMemo(() => {
+    const set = new Set<string>();
+    groups
+      .filter((g) => g.id !== "others")
+      .forEach((g) => (g.paths ?? []).forEach((p) => set.add(p)));
+    return set;
+  }, [groups]);
+
+  const renderNavItemsForGroup = (group: AccessGroup) => {
+    if (group.id === "others") {
+      return NAV_ITEMS.filter((item) => !coveredNavPaths.has(item.path));
+    }
+    return NAV_ITEMS.filter((item) => (group.paths ?? []).includes(item.path));
   };
 
   return (
@@ -387,7 +418,7 @@ const AccessControl = () => {
               User, Role & Access Control
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Manage application users, role membership, and module permissions.
+              จัดการผู้ใช้ บทบาท และกลุ่ม navigation ที่แต่ละ role เข้าถึงได้
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
@@ -400,8 +431,8 @@ const AccessControl = () => {
               <p className="text-xs text-muted-foreground">Roles</p>
             </div>
             <div className="rounded-md border bg-card px-4 py-2">
-              <p className="text-lg font-bold">{permissionModules.length}</p>
-              <p className="text-xs text-muted-foreground">Modules</p>
+              <p className="text-lg font-bold">{groups.length}</p>
+              <p className="text-xs text-muted-foreground">Groups</p>
             </div>
           </div>
         </div>
@@ -424,9 +455,9 @@ const AccessControl = () => {
               <ShieldCheck className="h-4 w-4" />
               Roles
             </TabsTrigger>
-            <TabsTrigger value="modules" className="gap-1.5">
-              <FileCog className="h-4 w-4" />
-              Page Modules
+            <TabsTrigger value="groups" className="gap-1.5">
+              <FolderTree className="h-4 w-4" />
+              Group Control
             </TabsTrigger>
             <TabsTrigger value="matrix" className="gap-1.5">
               <KeyRound className="h-4 w-4" />
@@ -495,7 +526,7 @@ const AccessControl = () => {
                   <div className="border-b px-4 py-3">
                     <p className="text-sm font-semibold">Page URL Mapping</p>
                     <p className="text-xs text-muted-foreground">
-                      These URLs decide which Module ID is checked when a user opens a protected page.
+                      แต่ละ URL อยู่ใน group ใด — group นี้คือสิ่งที่ role ต้องได้รับสิทธิ์
                     </p>
                   </div>
                   <div className="max-h-72 overflow-auto">
@@ -503,22 +534,20 @@ const AccessControl = () => {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="min-w-[260px]">Page URL</TableHead>
-                          <TableHead className="min-w-[160px]">Module ID</TableHead>
-                          <TableHead className="min-w-[220px]">Module</TableHead>
-                          <TableHead className="min-w-[140px]">Group</TableHead>
+                          <TableHead className="min-w-[160px]">Group ID</TableHead>
+                          <TableHead className="min-w-[220px]">Group Name</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {pageRouteMappings.map((mapping) => (
-                          <TableRow key={`${mapping.moduleId}-${mapping.path}`}>
+                          <TableRow key={`${mapping.groupId}-${mapping.path}`}>
                             <TableCell>
                               <Badge variant="outline">{mapping.path}</Badge>
                             </TableCell>
                             <TableCell>
-                              <Badge>{mapping.moduleId}</Badge>
+                              <Badge>{mapping.groupId}</Badge>
                             </TableCell>
-                            <TableCell>{mapping.moduleName}</TableCell>
-                            <TableCell>{mapping.group}</TableCell>
+                            <TableCell>{mapping.groupName}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -701,7 +730,7 @@ const AccessControl = () => {
                     </CardHeader>
                     <CardContent className="flex items-center justify-between">
                       <Badge variant="outline">
-                        {(permissions[role.id] ?? []).length} permissions
+                        {(permissions[role.id] ?? []).length} groups
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {users.filter((user) => user.roleId === role.id).length} users
@@ -713,46 +742,37 @@ const AccessControl = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="modules">
+          <TabsContent value="groups">
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Page Module Groups</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Group Control</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Add a module ID for each protected page so roles can be assigned in the matrix.
+                  จัดกลุ่ม navigation — แต่ละ group ประกอบด้วย URL หลายตัว และเป็นหน่วยที่ role อนุญาตหรือปิดสิทธิ์
                 </p>
               </CardHeader>
               <CardContent className="space-y-5">
-                <div className="grid gap-3 rounded-md border bg-muted/30 p-3 md:grid-cols-2 xl:grid-cols-[150px_1fr_160px_1.2fr_1fr_auto]">
+                <div className="grid gap-3 rounded-md border bg-muted/30 p-3 md:grid-cols-2 xl:grid-cols-[150px_1fr_1.2fr_1fr_auto]">
                   <Input
-                    value={newModule.id}
-                    onChange={(event) => setNewModule({ ...newModule, id: event.target.value })}
-                    placeholder="module-id"
+                    value={newGroup.id}
+                    onChange={(e) => setNewGroup({ ...newGroup, id: e.target.value })}
+                    placeholder="group-id"
                   />
                   <Input
-                    value={newModule.name}
-                    onChange={(event) => setNewModule({ ...newModule, name: event.target.value })}
-                    placeholder="Page name"
+                    value={newGroup.name}
+                    onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
+                    placeholder="ชื่อกลุ่ม (nav section label)"
+                  />
+                  <PathPicker
+                    value={newGroup.paths}
+                    onChange={(paths) => setNewGroup({ ...newGroup, paths })}
+                    placeholder="เลือกหน้า navigation"
                   />
                   <Input
-                    value={newModule.group}
-                    onChange={(event) =>
-                      setNewModule({ ...newModule, group: event.target.value })
-                    }
-                    placeholder="Group"
-                  />
-                  <Input
-                    value={newModule.paths}
-                    onChange={(event) => setNewModule({ ...newModule, paths: event.target.value })}
-                    placeholder="/new-page, /new-page/:id"
-                  />
-                  <Input
-                    value={newModule.description}
-                    onChange={(event) =>
-                      setNewModule({ ...newModule, description: event.target.value })
-                    }
+                    value={newGroup.description}
+                    onChange={(e) => setNewGroup({ ...newGroup, description: e.target.value })}
                     placeholder="Description"
                   />
-                  <Button onClick={addModule} className="gap-2">
+                  <Button onClick={addGroup} className="gap-2">
                     <Plus className="h-4 w-4" />
                     Add
                   </Button>
@@ -762,88 +782,65 @@ const AccessControl = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="min-w-[150px]">Module ID</TableHead>
-                        <TableHead className="min-w-[190px]">Page</TableHead>
-                        <TableHead className="min-w-[150px]">Group</TableHead>
+                        <TableHead className="min-w-[200px]">Nav Pages</TableHead>
+                        <TableHead className="min-w-[190px]">Group Name</TableHead>
                         <TableHead className="min-w-[260px]">Page URLs</TableHead>
                         <TableHead className="min-w-[260px]">Description</TableHead>
                         <TableHead className="w-12"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {permissionModules.map((module) => (
-                        <TableRow key={module.id}>
+                      {groups.map((group) => (
+                        <TableRow key={group.id}>
                           <TableCell>
-                            <Badge variant="outline">{module.id}</Badge>
+                            <div className="space-y-1">
+                              {renderNavItemsForGroup(group).map((item) => (
+                                <div key={item.path} className="flex items-center gap-1.5 text-sm">
+                                  <item.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                  <span>{item.label}</span>
+                                </div>
+                              ))}
+                              <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground">
+                                {group.id}
+                              </Badge>
+                            </div>
                           </TableCell>
                           <TableCell>
                             <Input
-                              value={module.name}
-                              onChange={(event) =>
-                                setPermissionModules((current) =>
+                              value={group.name}
+                              onChange={(e) =>
+                                setGroups((current) =>
                                   current.map((item) =>
-                                    item.id === module.id
-                                      ? { ...item, name: event.target.value }
-                                      : item,
+                                    item.id === group.id ? { ...item, name: e.target.value } : item,
                                   ),
                                 )
                               }
-                              onBlur={(event) =>
-                                updateModule(module.id, {
-                                  name: event.target.value.trim() || module.id,
-                                })
+                              onBlur={(e) =>
+                                updateGroup(group.id, { name: e.target.value.trim() || group.id })
                               }
                             />
                           </TableCell>
                           <TableCell>
-                            <Input
-                              value={module.group ?? ""}
-                              onChange={(event) =>
-                                setPermissionModules((current) =>
-                                  current.map((item) =>
-                                    item.id === module.id
-                                      ? { ...item, group: event.target.value }
-                                      : item,
-                                  ),
-                                )
-                              }
-                              onBlur={(event) =>
-                                updateModule(module.id, {
-                                  group: event.target.value.trim() || "General",
-                                })
-                              }
+                            <PathPicker
+                              value={group.paths ?? []}
+                              onChange={(paths) => updateGroup(group.id, { paths })}
+                              disabled={group.id === "others"}
                             />
                           </TableCell>
                           <TableCell>
                             <Input
-                              value={pathDrafts[module.id] ?? pathListToText(module)}
-                              onChange={(event) =>
-                                setPathDrafts((current) => ({
-                                  ...current,
-                                  [module.id]: event.target.value,
-                                }))
-                              }
-                              onBlur={(event) =>
-                                updateModule(module.id, { paths: parsePaths(event.target.value) })
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={module.description}
-                              onChange={(event) =>
-                                setPermissionModules((current) =>
+                              value={group.description}
+                              onChange={(e) =>
+                                setGroups((current) =>
                                   current.map((item) =>
-                                    item.id === module.id
-                                      ? { ...item, description: event.target.value }
+                                    item.id === group.id
+                                      ? { ...item, description: e.target.value }
                                       : item,
                                   ),
                                 )
                               }
-                              onBlur={(event) =>
-                                updateModule(module.id, {
-                                  description: event.target.value.trim(),
-                                })
+                              onBlur={(e) =>
+                                updateGroup(group.id, { description: e.target.value.trim() })
                               }
                             />
                           </TableCell>
@@ -851,9 +848,9 @@ const AccessControl = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => deleteModule(module.id)}
-                              disabled={module.locked}
-                              aria-label="Delete page module"
+                              onClick={() => deleteGroup(group.id)}
+                              disabled={group.locked}
+                              aria-label="Delete group"
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
@@ -870,14 +867,14 @@ const AccessControl = () => {
           <TabsContent value="matrix">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Module Permission Matrix</CardTitle>
+                <CardTitle className="text-base">Group Permission Matrix</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="min-w-[260px]">Module</TableHead>
+                        <TableHead className="min-w-[260px]">Group</TableHead>
                         {roles.map((role) => (
                           <TableHead key={role.id} className="min-w-[150px] text-center">
                             {role.name}
@@ -886,26 +883,21 @@ const AccessControl = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {permissionModules.map((module) => (
-                        <TableRow key={module.id}>
+                      {groups.map((group) => (
+                        <TableRow key={group.id}>
                           <TableCell>
-                            <p className="font-medium">{module.name}</p>
-                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                              {module.group && <Badge variant="secondary">{module.group}</Badge>}
-                              {pathListToText(module) && (
-                                <Badge variant="outline">{pathListToText(module)}</Badge>
-                              )}
-                            </div>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {module.description}
-                            </p>
+                            <p className="font-medium">{group.name}</p>
+                            {pathListToText(group) && (
+                              <Badge variant="outline" className="mt-1">{pathListToText(group)}</Badge>
+                            )}
+                            <p className="mt-1 text-xs text-muted-foreground">{group.description}</p>
                           </TableCell>
                           {roles.map((role) => (
                             <TableCell key={role.id} className="text-center">
                               <Checkbox
-                                checked={(permissions[role.id] ?? []).includes(module.id)}
-                                onCheckedChange={() => togglePermission(role.id, module.id)}
-                                aria-label={`${role.name} ${module.name}`}
+                                checked={(permissions[role.id] ?? []).includes(group.id)}
+                                onCheckedChange={() => togglePermission(role.id, group.id)}
+                                aria-label={`${role.name} ${group.name}`}
                               />
                             </TableCell>
                           ))}
