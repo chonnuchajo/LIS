@@ -517,14 +517,14 @@ const AccessControl = () => {
   };
 
   const savePermissions = async (roleId: string, nextRolePermissions: string[]) => {
-    const previous = permissions;
-    setPermissions({ ...permissions, [roleId]: nextRolePermissions });
+    const previous = permissions[roleId];
+    setPermissions((current) => ({ ...current, [roleId]: nextRolePermissions }));
     try {
       await api.put(`/access-control/roles/${roleId}/permissions`, {
         permissions: nextRolePermissions,
       });
     } catch (err) {
-      setPermissions(previous);
+      setPermissions((current) => ({ ...current, [roleId]: previous }));
       toast.error(err instanceof Error ? err.message : "Failed to update permissions");
     }
   };
@@ -1112,7 +1112,7 @@ const AccessControl = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {groups.map((group) => {
+                      {sortedGroups.map((group) => {
                         const groupPaths = getGroupPagePaths(group);
                         const expanded = expandedGroups.has(group.id);
                         return (
@@ -1123,8 +1123,9 @@ const AccessControl = () => {
                                   <button
                                     type="button"
                                     onClick={() => toggleExpandedGroup(group.id)}
-                                    className="mt-0.5 text-muted-foreground hover:text-foreground"
+                                    className="mt-0.5 rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                     aria-label={expanded ? "ยุบรายหน้า" : "ขยายรายหน้า"}
+                                    aria-expanded={expanded}
                                   >
                                     {expanded ? (
                                       <ChevronDown className="h-4 w-4" />
