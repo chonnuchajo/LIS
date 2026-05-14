@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { hasGroupPermission, pathMatches } from "@/lib/accessControl";
+import { pathMatches, userCanAccessPath } from "@/lib/accessControl";
 import { api } from "@/lib/api";
 
 type RoleOption = {
@@ -170,8 +170,9 @@ const AppSidebar = () => {
         {/* Nav */}
         <nav className={cn("flex-1 py-3 overflow-y-auto", collapsed ? "px-2" : "px-3")}>
           {sections.map((section, sIdx) => {
-            if (!hasGroupPermission(user, section.id)) return null;
-            const visibleItems = section.items;
+            const visibleItems = section.items.filter((item) =>
+              userCanAccessPath(user, item.path, navGroups),
+            );
             if (visibleItems.length === 0) return null;
 
             return (
