@@ -62,7 +62,9 @@ Add `userCanAccessPath(user, pathname, groups)`:
 
 `PrivateRoute` calls `userCanAccessPath(user, location.pathname, groups)` instead of building `mappedGroupIds` + `userMatchesAnyGroup`. The existing group-map cache, the `lis-access-groups-changed` refresh listener, and the `DEV_MODE` bypass are unchanged.
 
-`userMatchesAnyGroup` / `findGroupIdsForPath` may become unused once `PrivateRoute` switches over — remove them if so; keep `hasGroupPermission` only if other callers still need it (verify with a grep during implementation).
+**`AppSidebar` (`src/components/lis/AppSidebar.tsx`)** currently hides an entire sidebar *section* with `if (!hasGroupPermission(user, section.id)) return null;` — i.e. it filters by group ID. Under the paths-first model that check would always fail (permissions hold paths, not group IDs), hiding every section. Change it to filter **per nav item**: build `visibleItems` by keeping only items where `userCanAccessPath(user, item.path, navGroups)` is true. The existing `if (visibleItems.length === 0) return null;` line then naturally hides empty sections, so the section-level `hasGroupPermission` check is removed entirely.
+
+After these changes `hasGroupPermission`, `findGroupIdsForPath`, and `userMatchesAnyGroup` have no remaining callers (verify with a grep) — remove all three. Keep `pathMatches` and the internal `normalizePath`.
 
 ### 4. Backend (`server/routes/accessControl.js`)
 
@@ -90,6 +92,6 @@ No change to the `Role` schema (`permissions` is already a string array). No mig
 ## Testing
 
 - **Unit (`src/lib/accessControl.ts`):** `userCanAccessPath` — admin bypass; exact path match; pattern path match (`/petitions/:id`); legacy group-ID entry grants all its paths; legacy `others` entry grants uncovered paths only; inactive user denied; empty permissions denied.
-- **Manual UI:** expand/collapse a group row; tick a single page → only that page accessible for the role; tick the group checkbox → all pages accessible and checkbox shows `checked`; untick one page → checkbox shows `indeterminate`; verify per-page selection works for the `others` group; reload and confirm persistence.
+- **Manual UI:** expand/collapse a group row; tick a single page → only that page accessible for the role *and* only that nav item appears in the sidebar; tick the group checkbox → all pages accessible and checkbox shows `checked`; untick one page → checkbox shows `indeterminate`; verify per-page selection works for the `others` group; reload and confirm persistence.
 - **Backend:** `PUT /roles/:id/permissions` with a body containing page paths → paths are persisted (not stripped); with a bogus path → stripped.
 - Run `npm run test` and `npm run lint`.
