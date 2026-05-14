@@ -11,22 +11,26 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/LIS-DB
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+function mountApi(path, router) {
+  app.use(`/api${path}`, router);
+  app.use(`/LIS/api${path}`, router);
+}
+
 // API Routes
-app.use('/api/samples', require('./routes/samples'));
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/physical-results', require('./routes/physicalResults'));
-app.use('/api/approvals', require('./routes/approvals'));
-app.use('/api/densities', require('./routes/densities'));
-app.use('/api/stock', require('./routes/stock'));
-app.use('/api/access-control', require('./routes/accessControl'));
-app.use('/api/petitions', require('./routes/petitions'));
-app.use('/api/employees', require('./routes/employees'));
-app.use('/api/master-items', require('./routes/masterItems'));
-app.use('/LIS/api/master-items', require('./routes/masterItems'));
-app.use('/api/machines', require('./routes/machines'));
-app.use('/LIS/api/machines', require('./routes/machines'));
+mountApi('/samples', require('./routes/samples'));
+mountApi('/auth', require('./routes/auth'));
+mountApi('/physical-results', require('./routes/physicalResults'));
+mountApi('/approvals', require('./routes/approvals'));
+mountApi('/densities', require('./routes/densities'));
+mountApi('/stock', require('./routes/stock'));
+mountApi('/access-control', require('./routes/accessControl'));
+mountApi('/petitions', require('./routes/petitions'));
+mountApi('/employees', require('./routes/employees'));
+mountApi('/master-items', require('./routes/masterItems'));
+mountApi('/machines', require('./routes/machines'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
+app.get('/LIS/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
 
 // Serve React build if dist folder exists
 const fs = require('fs');
