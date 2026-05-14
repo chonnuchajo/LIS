@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { NAV_ITEMS, type NavItem } from "@/lib/navItems";
 import {
+  ChevronDown,
+  ChevronRight,
   ChevronsUpDown,
   FolderTree,
   GripVertical,
@@ -194,6 +196,7 @@ const AccessControl = () => {
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
   const [navDrag, setNavDrag] = useState<{ groupId: string; path: string } | null>(null);
   const [navDragOverPath, setNavDragOverPath] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const loadAccessControl = async () => {
     setLoading(true);
@@ -217,6 +220,11 @@ const AccessControl = () => {
   const roleById = useMemo(
     () => Object.fromEntries(roles.map((role) => [role.id, role])),
     [roles],
+  );
+
+  const navItemByPath = useMemo(
+    () => new Map(NAV_ITEMS.map((item) => [item.path, item])),
+    [],
   );
 
   const filteredUsers = users.filter((user) => {
@@ -257,8 +265,6 @@ const AccessControl = () => {
     () => sortedGroups.filter((group) => group.id !== "others"),
     [sortedGroups],
   );
-
-  const pathListToText = (group: AccessGroup) => (group.paths ?? []).join(", ");
 
   const notifyGroupMappingChanged = () => {
     window.dispatchEvent(new Event("lis-access-groups-changed"));
@@ -468,23 +474,6 @@ const AccessControl = () => {
     updateGroup(groupId, { paths });
   };
 
-  const togglePermission = async (roleId: string, groupId: string) => {
-    const current = permissions[roleId] ?? [];
-    const nextRolePermissions = current.includes(groupId)
-      ? current.filter((id) => id !== groupId)
-      : [...current, groupId];
-    const nextPermissions = { ...permissions, [roleId]: nextRolePermissions };
-    setPermissions(nextPermissions);
-    try {
-      await api.put(`/access-control/roles/${roleId}/permissions`, {
-        permissions: nextRolePermissions,
-      });
-    } catch (err) {
-      setPermissions(permissions);
-      toast.error(err instanceof Error ? err.message : "Failed to update permissions");
-    }
-  };
-
   const coveredNavPaths = useMemo(() => {
     const set = new Set<string>();
     groups
@@ -509,6 +498,89 @@ const AccessControl = () => {
     return (group.paths ?? [])
       .map((path) => NAV_ITEMS.find((item) => item.path === path))
       .filter((item): item is NavItem => Boolean(item));
+  };
+
+  const getGroupPagePaths = (group: AccessGroup): string[] => {
+    if (group.id === "others") {
+      return renderNavItemsForGroup(group).map((item) => item.path);
+    }
+    return group.paths ?? [];
+  };
+
+  const toggleExpandedGroup = (groupId: string) => {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
+  const savePermissions = async (roleId: string, nextRolePermissions: string[]) => {
+    const previous = permissions;
+    setPermissions({ ...permissions, [roleId]: nextRolePermissions });
+    try {
+      await api.put(`/access-control/roles/${roleId}/permissions`, {
+        permissions: nextRolePermissions,
+      });
+    } catch (err) {
+      setPermissions(previous);
+      toast.error(err instanceof Error ? err.message : "Failed to update permissions");
+    }
+  };
+
+  const groupCheckState = (
+    roleId: string,
+    group: AccessGroup,
+  ): boolean | "indeterminate" => {
+    const current = permissions[roleId] ?? [];
+    if (current.includes(group.id)) return true;
+    const groupPaths = getGroupPagePaths(group);
+    if (groupPaths.length === 0) return false;
+    const granted = groupPaths.filter((path) => current.includes(path));
+    if (granted.length === 0) return false;
+    if (granted.length === groupPaths.length) return true;
+    return "indeterminate";
+  };
+
+  const isPageGranted = (roleId: string, group: AccessGroup, path: string) => {
+    const current = permissions[roleId] ?? [];
+    return current.includes(group.id) || current.includes(path);
+  };
+
+  const toggleGroupForRole = (roleId: string, group: AccessGroup, checked: boolean) => {
+    const current = permissions[roleId] ?? [];
+    const groupPaths = getGroupPagePaths(group);
+    const groupPathSet = new Set(groupPaths);
+    const next = current.filter(
+      (entry) => entry !== group.id && !groupPathSet.has(entry),
+    );
+    if (checked) next.push(...groupPaths);
+    savePermissions(roleId, next);
+  };
+
+  const togglePageForRole = (
+    roleId: string,
+    group: AccessGroup,
+    path: string,
+    checked: boolean,
+  ) => {
+    const current = permissions[roleId] ?? [];
+    const groupPaths = getGroupPagePaths(group);
+    const groupPathSet = new Set(groupPaths);
+    const hadLegacyGroup = current.includes(group.id);
+    const granted = new Set(
+      hadLegacyGroup
+        ? groupPaths
+        : groupPaths.filter((p) => current.includes(p)),
+    );
+    if (checked) granted.add(path);
+    else granted.delete(path);
+    const next = current.filter(
+      (entry) => entry !== group.id && !groupPathSet.has(entry),
+    );
+    next.push(...groupPaths.filter((p) => granted.has(p)));
+    savePermissions(roleId, next);
   };
 
   return (
@@ -834,7 +906,7 @@ const AccessControl = () => {
                     </CardHeader>
                     <CardContent className="flex items-center justify-between">
                       <Badge variant="outline">
-                        {(permissions[role.id] ?? []).length} groups
+                        {(permissions[role.id] ?? []).length} permissions
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {users.filter((user) => user.roleId === role.id).length} users
@@ -1040,26 +1112,101 @@ const AccessControl = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {groups.map((group) => (
-                        <TableRow key={group.id}>
-                          <TableCell>
-                            <p className="font-medium">{group.name}</p>
-                            {pathListToText(group) && (
-                              <Badge variant="outline" className="mt-1">{pathListToText(group)}</Badge>
-                            )}
-                            <p className="mt-1 text-xs text-muted-foreground">{group.description}</p>
-                          </TableCell>
-                          {roles.map((role) => (
-                            <TableCell key={role.id} className="text-center">
-                              <Checkbox
-                                checked={(permissions[role.id] ?? []).includes(group.id)}
-                                onCheckedChange={() => togglePermission(role.id, group.id)}
-                                aria-label={`${role.name} ${group.name}`}
-                              />
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
+                      {groups.map((group) => {
+                        const groupPaths = getGroupPagePaths(group);
+                        const expanded = expandedGroups.has(group.id);
+                        return (
+                          <Fragment key={group.id}>
+                            <TableRow>
+                              <TableCell>
+                                <div className="flex items-start gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleExpandedGroup(group.id)}
+                                    className="mt-0.5 text-muted-foreground hover:text-foreground"
+                                    aria-label={expanded ? "ยุบรายหน้า" : "ขยายรายหน้า"}
+                                  >
+                                    {expanded ? (
+                                      <ChevronDown className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                  <div>
+                                    <p className="font-medium">{group.name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {groupPaths.length} หน้า
+                                    </p>
+                                    {group.description && (
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        {group.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              {roles.map((role) => (
+                                <TableCell key={role.id} className="text-center">
+                                  <Checkbox
+                                    checked={groupCheckState(role.id, group)}
+                                    onCheckedChange={(c) =>
+                                      toggleGroupForRole(role.id, group, c === true)
+                                    }
+                                    aria-label={`${role.name} ${group.name}`}
+                                  />
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                            {expanded &&
+                              groupPaths.map((path) => {
+                                const navItem = navItemByPath.get(path);
+                                return (
+                                  <TableRow
+                                    key={`${group.id}-${path}`}
+                                    className="bg-muted/30"
+                                  >
+                                    <TableCell className="py-1.5 pl-12">
+                                      <div className="flex items-center gap-2">
+                                        {navItem ? (
+                                          <>
+                                            <navItem.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                            <span className="text-sm">{navItem.label}</span>
+                                            <span className="ml-1 font-mono text-[10px] text-muted-foreground">
+                                              {path}
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <span className="font-mono text-xs text-muted-foreground">
+                                            {path}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    {roles.map((role) => (
+                                      <TableCell
+                                        key={role.id}
+                                        className="py-1.5 text-center"
+                                      >
+                                        <Checkbox
+                                          checked={isPageGranted(role.id, group, path)}
+                                          onCheckedChange={(c) =>
+                                            togglePageForRole(
+                                              role.id,
+                                              group,
+                                              path,
+                                              c === true,
+                                            )
+                                          }
+                                          aria-label={`${role.name} ${navItem?.label ?? path}`}
+                                        />
+                                      </TableCell>
+                                    ))}
+                                  </TableRow>
+                                );
+                              })}
+                          </Fragment>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
