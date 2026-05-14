@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   ChevronLeft, ChevronRight, LogOut, User,
@@ -30,13 +31,31 @@ type AccessControlState = {
 };
 
 const STORAGE_KEY = "lis.sidebar.collapsed";
+const ACCESS_CONTROL_QUERY_KEY = ["access-control"];
+const EMPTY_GROUPS: NavGroup[] = [];
 
 const AppSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
-  const [roleNameById, setRoleNameById] = useState<Record<string, string>>({});
-  const [navGroups, setNavGroupsState] = useState<NavGroup[]>([]);
+  const queryClient = useQueryClient();
+
+  // Cached via React Query so the sidebar keeps its grouped layout across
+  // page navigations instead of flashing the flat fallback menu on remount.
+  const { data: accessControl } = useQuery({
+    queryKey: ACCESS_CONTROL_QUERY_KEY,
+    queryFn: async () => {
+      const res = await api.get<AccessControlState>("/access-control");
+      return res.data.data;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const roleNameById = useMemo<Record<string, string>>(
+    () => Object.fromEntries((accessControl?.roles ?? []).map((r) => [r.id, r.name])),
+    [accessControl],
+  );
+  const navGroups = accessControl?.groups?.length ? accessControl.groups : EMPTY_GROUPS;
 
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -47,26 +66,11 @@ const AppSidebar = () => {
     localStorage.setItem(STORAGE_KEY, collapsed ? "1" : "0");
   }, [collapsed]);
 
-  const loadNavData = () => {
-    let alive = true;
-    api.get<AccessControlState>("/access-control")
-      .then((res) => {
-        if (!alive) return;
-        const { roles, groups } = res.data.data;
-        setRoleNameById(Object.fromEntries(roles.map((r) => [r.id, r.name])));
-        if (groups?.length) setNavGroupsState(groups);
-      })
-      .catch(() => { if (alive) setRoleNameById({}); });
-    return () => { alive = false; };
-  };
-
-  useEffect(() => loadNavData(), []);
-
   useEffect(() => {
-    const handler = () => loadNavData();
+    const handler = () => queryClient.invalidateQueries({ queryKey: ACCESS_CONTROL_QUERY_KEY });
     window.addEventListener("lis-access-groups-changed", handler);
     return () => window.removeEventListener("lis-access-groups-changed", handler);
-  }, []);
+  }, [queryClient]);
 
   const handleLogout = () => {
     logout();
@@ -75,7 +79,12 @@ const AppSidebar = () => {
   };
 
   const sections = useMemo(() => {
-    const sorted = [...navGroups].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+    const sorted = [...navGroups].sort((a, b) => {
+      // 'others' is the locked catch-all — always pinned last, regardless of sortOrder.
+      if (a.id === "others") return 1;
+      if (b.id === "others") return -1;
+      return (a.sortOrder ?? 999) - (b.sortOrder ?? 999);
+    });
     if (sorted.length === 0) return [{ id: "all", label: "เมนู", items: [...NAV_ITEMS] }];
 
     const coveredPaths = sorted
@@ -84,9 +93,30 @@ const AppSidebar = () => {
 
     const result = sorted
       .map((group) => {
-        const items = group.id === "others"
-          ? NAV_ITEMS.filter((item) => !coveredPaths.some((p) => pathMatches(p, item.path)))
-          : NAV_ITEMS.filter((item) => (group.paths ?? []).some((p) => pathMatches(p, item.path)));
+        let items: typeof NAV_ITEMS;
+        if (group.id === "others") {
+          // Membership is computed (uncovered pages), but group.paths is honored
+          // as an ordering hint so the admin's arrangement sticks.
+          const uncovered = NAV_ITEMS.filter(
+            (item) => !coveredPaths.some((p) => pathMatches(p, item.path)),
+          );
+          items = [];
+          for (const p of group.paths ?? []) {
+            const match = uncovered.find((item) => pathMatches(p, item.path));
+            if (match && !items.includes(match)) items.push(match);
+          }
+          for (const item of uncovered) {
+            if (!items.includes(item)) items.push(item);
+          }
+        } else {
+          // Follow the order stored in group.paths so the admin's arrangement sticks.
+          items = [];
+          for (const p of group.paths ?? []) {
+            for (const item of NAV_ITEMS) {
+              if (pathMatches(p, item.path) && !items.includes(item)) items.push(item);
+            }
+          }
+        }
         return { id: group.id, label: group.name || group.id, items };
       })
       .filter((g) => g.items.length > 0);

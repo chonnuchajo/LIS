@@ -72,22 +72,37 @@ async function migrateLegacyModules() {
 
 async function ensureGroups() {
   await migrateLegacyModules();
-  await Promise.all(defaultGroups.map(async (group) => {
-    await AccessGroup.updateOne(
-      { id: group.id },
-      { $setOnInsert: group },
+
+  // 'others' is the locked catch-all that the sidebar relies on as a fallback —
+  // it must always exist, even if every other group has been deleted. Because
+  // it's never deletable, a freshly-inserted 'others' is a reliable marker that
+  // this is the very first run on this database.
+  const othersDefault = defaultGroups.find(group => group.id === 'others');
+  let firstRun = false;
+  if (othersDefault) {
+    const result = await AccessGroup.updateOne(
+      { id: 'others' },
+      { $setOnInsert: othersDefault },
       { upsert: true },
     );
-    await AccessGroup.updateOne(
-      { id: group.id, $or: [{ paths: { $exists: false } }, { paths: { $size: 0 } }] },
-      { $set: { paths: group.paths } },
-    );
-  }));
-  // Ensure '/' belongs to the dashboard group and nowhere else.
-  await AccessGroup.updateOne({ id: 'dashboard' }, { $addToSet: { paths: '/' } });
-  await AccessGroup.updateMany({ id: { $ne: 'dashboard' } }, { $pull: { paths: '/' } });
-  // Unlock previously-locked default groups so admins can remove them; keep 'others' locked.
-  await AccessGroup.updateMany({ id: { $ne: 'others' } }, { $set: { locked: false } });
+    firstRun = result.upsertedCount === 1;
+  }
+
+  // First-time seed only. Seed the default groups exactly once, on the first
+  // run ever (detected via 'others' above). After that, never re-create deleted
+  // defaults — deletions must stick across refreshes, even if the admin deletes
+  // every group. The extra count guard avoids re-seeding on top of groups that
+  // a legacy migration already created.
+  if (firstRun) {
+    const existingNonOthers = await AccessGroup.countDocuments({ id: { $ne: 'others' } });
+    if (existingNonOthers === 0) {
+      const seeds = defaultGroups.filter(group => group.id !== 'others');
+      if (seeds.length) {
+        await AccessGroup.insertMany(seeds, { ordered: false }).catch(() => {});
+      }
+    }
+  }
+
   await AccessGroup.updateOne({ id: 'others' }, { $set: { locked: true } });
   return AccessGroup.find().sort({ sortOrder: 1, name: 1 }).lean();
 }
@@ -314,13 +329,20 @@ router.post('/groups', async (req, res) => {
     if (!id) return res.status(400).json({ error: 'group id is required' });
     if (!name) return res.status(400).json({ error: 'group name is required' });
 
+    // Place new groups right after the current last group, but always before
+    // the locked 'others' catch-all (sortOrder 999).
+    const last = await AccessGroup.findOne({ id: { $ne: 'others' } })
+      .sort({ sortOrder: -1 })
+      .lean();
+    const sortOrder = (last?.sortOrder ?? 0) + 10;
+
     const group = await AccessGroup.create({
       id,
       name,
       description,
       paths,
       locked: false,
-      sortOrder: Date.now(),
+      sortOrder,
     });
     await Role.updateOne({ id: 'admin' }, { $addToSet: { permissions: group.id } });
     res.status(201).json(formatGroup(group));
@@ -336,7 +358,9 @@ router.patch('/groups/:id', async (req, res) => {
     ['name', 'description', 'sortOrder'].forEach(key => {
       if (req.body[key] !== undefined) patch[key] = req.body[key];
     });
-    if (req.body.paths !== undefined && req.params.id !== 'others') {
+    // 'others' membership stays computed (catch-all), but its paths are still
+    // writable as an ordering hint for the sidebar.
+    if (req.body.paths !== undefined) {
       patch.paths = normalizePaths(req.body.paths);
     }
     const group = await AccessGroup.findOneAndUpdate(

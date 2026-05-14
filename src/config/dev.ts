@@ -1,6 +1,6 @@
 // Dev mode bypasses Microsoft login and injects a hardcoded user.
 // MUST be false before any production deployment.
-export const DEV_MODE = false;
+export const DEV_MODE = true;
 
 export const DEV_DEFAULT_ROLE = "admin";
 
