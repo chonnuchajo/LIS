@@ -523,6 +523,7 @@ const AccessControl = () => {
       await api.put(`/access-control/roles/${roleId}/permissions`, {
         permissions: nextRolePermissions,
       });
+      notifyGroupMappingChanged();
     } catch (err) {
       setPermissions((current) => ({ ...current, [roleId]: previous }));
       toast.error(err instanceof Error ? err.message : "Failed to update permissions");
