@@ -305,7 +305,10 @@ router.delete('/roles/:id', async (req, res) => {
 router.put('/roles/:id/permissions', async (req, res) => {
   try {
     const groups = await ensureGroups();
-    const validIds = new Set(groups.map(group => group.id));
+    const validIds = new Set([
+      ...groups.map(group => group.id),
+      ...groups.flatMap(group => group.paths || []),
+    ]);
     const permissions = Array.isArray(req.body.permissions)
       ? req.body.permissions.filter(id => validIds.has(id))
       : [];
