@@ -3,7 +3,7 @@ import { useIsAuthenticated, useMsal } from "@azure/msal-react";
 import { InteractionStatus } from "@azure/msal-browser";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { findGroupIdsForPath, userMatchesAnyGroup } from "@/lib/accessControl";
+import { userCanAccessPath } from "@/lib/accessControl";
 import { api } from "@/lib/api";
 import { DEV_MODE } from "@/config/dev";
 
@@ -40,8 +40,9 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { inProgress } = useMsal();
   const { user } = useAuth();
   const location = useLocation();
-  const [mappedGroupIds, setMappedGroupIds] = useState<string[]>([]);
+  const [groups, setGroups] = useState<AccessGroup[]>([]);
   const [mappingLoaded, setMappingLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [mappingVersion, setMappingVersion] = useState(0);
 
   useEffect(() => {
@@ -59,13 +60,13 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
     let alive = true;
     setMappingLoaded(false);
     loadGroupMap()
-      .then((groups) => {
+      .then((loadedGroups) => {
         if (!alive) return;
-        const ids = findGroupIdsForPath(location.pathname, groups);
-        setMappedGroupIds(ids.length ? ids : ["others"]);
+        setGroups(loadedGroups);
+        setLoadFailed(false);
       })
       .catch(() => {
-        if (alive) setMappedGroupIds([]);
+        if (alive) setLoadFailed(true);
       })
       .finally(() => {
         if (alive) setMappingLoaded(true);
@@ -74,7 +75,7 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
     return () => {
       alive = false;
     };
-  }, [location.pathname, mappingVersion]);
+  }, [mappingVersion]);
 
   if (DEV_MODE) {
     return <>{children}</>;
@@ -96,13 +97,13 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
     return null;
   }
 
-  if (!userMatchesAnyGroup(user, mappedGroupIds)) {
+  if (!loadFailed && !userCanAccessPath(user, location.pathname, groups)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-6">
         <div className="max-w-md rounded-lg border bg-card p-6 text-center shadow-sm">
           <h1 className="text-lg font-semibold text-foreground">ไม่มีสิทธิ์เข้าใช้งานหน้านี้</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Role ของคุณยังไม่ได้รับสิทธิ์ในกลุ่มที่ครอบคลุมหน้านี้
+            Role ของคุณยังไม่ได้รับสิทธิ์สำหรับหน้านี้
           </p>
         </div>
       </div>
