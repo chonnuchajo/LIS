@@ -10,33 +10,70 @@ import type {
 
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
-const BASE = import.meta.env.BASE_URL + "api";
+function normalizeBaseUrl(value: string | undefined) {
+  const base = (value || "").trim().replace(/\/+$/, "");
+  return base || "";
+}
+
+const APP_API_BASE = `${normalizeBaseUrl(import.meta.env.BASE_URL)}/api`;
+const API_BASES = Array.from(
+  new Set(
+    [
+      normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL),
+      APP_API_BASE,
+      "/api",
+    ].filter(Boolean),
+  ),
+);
+
+async function fetchApi(path: string, options?: RequestInit): Promise<unknown> {
+  let lastError: Error | null = null;
+
+  for (let i = 0; i < API_BASES.length; i += 1) {
+    const base = API_BASES[i];
+    const res = await fetch(`${base}${path}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...options?.headers },
+    });
+    const contentType = res.headers.get("content-type") || "";
+
+    if (res.ok) {
+      if (contentType.includes("application/json")) {
+        return res.json();
+      }
+      lastError = new Error(`API returned non-JSON response from ${base}${path}`);
+      continue;
+    }
+
+    if (res.status === 404 && i < API_BASES.length - 1) {
+      continue;
+    }
+
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    const message =
+      typeof body === "object" && body
+        ? String(
+            (body as { message?: unknown }).message ||
+              (body as { error?: { message?: unknown } }).error?.message ||
+              (body as { error?: unknown }).error ||
+              "API Error",
+          )
+        : "API Error";
+    const err = new Error(message) as Error & { response?: { data: unknown } };
+    err.response = { data: body };
+    throw err;
+  }
+
+  throw lastError ?? new Error("API Error");
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    ...options,
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(body.error || "API Error");
-  }
-  return res.json();
+  return fetchApi(path, options) as Promise<T>;
 }
 
 // Generic axios-style methods for pages that use api.get/api.patch pattern
 async function axiosStyleRequest<T>(path: string, options?: RequestInit): Promise<{ data: { data: T } }> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    ...options,
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ message: res.statusText }));
-    const err = new Error(body.message || body.error?.message || "API Error") as Error & { response?: { data: unknown } };
-    err.response = { data: body };
-    throw err;
-  }
-  const data = await res.json();
+  const data = await fetchApi(path, options);
   return { data: { data } };
 }
 
