@@ -382,7 +382,9 @@ const AccessControl = () => {
       setGroups((current) => current.map((group) => (group.id === id ? res.data.data : group)));
       notifyGroupMappingChanged();
     } catch (err) {
-      setGroups(previous);
+      setGroups((current) =>
+        current.some((group) => group.id === id) ? previous : current,
+      );
       toast.error(err instanceof Error ? err.message : "Failed to update group");
     }
   };
