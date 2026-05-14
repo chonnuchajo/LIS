@@ -40,14 +40,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [devRole, setDevRole] = useState<string>(
     () => localStorage.getItem("dev_role") ?? DEV_DEFAULT_ROLE
   );
+  const [devPermissions, setDevPermissions] = useState<Record<string, string[]>>({});
 
   const switchDevRole = (role: string) => {
     localStorage.setItem("dev_role", role);
     setDevRole(role);
   };
 
+  // In DEV_MODE there is no Microsoft sync, so the dev user carries no
+  // permissions. Pull the access matrix from the backend so switching the dev
+  // role mirrors what that role would actually see in production.
+  useEffect(() => {
+    if (!DEV_MODE) return;
+
+    let active = true;
+    const loadMatrix = () => {
+      api
+        .get<{ permissions?: Record<string, string[]> }>("/access-control")
+        .then((res) => {
+          if (active) setDevPermissions(res.data.data.permissions ?? {});
+        })
+        .catch((err) => {
+          console.error("Failed to load access matrix for dev role", err);
+        });
+    };
+
+    loadMatrix();
+    window.addEventListener("lis-access-groups-changed", loadMatrix);
+    return () => {
+      active = false;
+      window.removeEventListener("lis-access-groups-changed", loadMatrix);
+    };
+  }, []);
+
+  const devUser: AuthUser | null = DEV_MODE
+    ? (() => {
+        const base = DEV_USERS[devRole] ?? DEV_USERS[DEV_DEFAULT_ROLE];
+        return {
+          ...base,
+          permissions: devPermissions[base.role ?? devRole] ?? base.permissions ?? [],
+        };
+      })()
+    : null;
+
   const user: AuthUser | null = DEV_MODE
-    ? (DEV_USERS[devRole] ?? DEV_USERS[DEV_DEFAULT_ROLE])
+    ? devUser
     : account
     ? {
         id: syncedUser?.id,
