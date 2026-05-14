@@ -1,6 +1,8 @@
 // Dev mode bypasses Microsoft login and injects a hardcoded user.
-// MUST be false before any production deployment.
-export const DEV_MODE = false;
+// Driven by Vite's build mode: true under `npm run dev`, false under
+// `npm run build`. Never hardcode this — a tracked literal causes endless
+// merge conflicts and risks shipping a dev-mode production build.
+export const DEV_MODE = import.meta.env.DEV;
 
 export const DEV_DEFAULT_ROLE = "admin";
 
