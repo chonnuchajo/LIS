@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,11 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { NAV_ITEMS, type NavItem } from "@/lib/navItems";
 import {
+  ChevronDown,
+  ChevronRight,
   ChevronsUpDown,
   FolderTree,
+  GripVertical,
   KeyRound,
   LockKeyhole,
   Plus,
@@ -78,11 +81,17 @@ type PathPickerProps = {
   onChange: (next: string[]) => void;
   disabled?: boolean;
   placeholder?: string;
+  excludePaths?: string[];
 };
 
-const PathPicker = ({ value, onChange, disabled, placeholder }: PathPickerProps) => {
+const PathPicker = ({ value, onChange, disabled, placeholder, excludePaths = [] }: PathPickerProps) => {
   const selectedNavItems = NAV_ITEMS.filter((item) => value.includes(item.path));
   const extraPaths = value.filter((p) => !NAV_ITEMS.some((item) => item.path === p));
+  // Pages already assigned to another group are hidden — unless they're already
+  // in this group's selection, so they stay visible and can be unchecked.
+  const availableNavItems = NAV_ITEMS.filter(
+    (item) => value.includes(item.path) || !excludePaths.includes(item.path),
+  );
 
   const toggle = (item: NavItem, checked: boolean) => {
     if (checked) {
@@ -111,7 +120,7 @@ const PathPicker = ({ value, onChange, disabled, placeholder }: PathPickerProps)
       </PopoverTrigger>
       <PopoverContent className="w-80 p-2" align="start">
         <div className="max-h-72 space-y-0.5 overflow-auto">
-          {NAV_ITEMS.map((item) => {
+          {availableNavItems.map((item) => {
             const checked = value.includes(item.path);
             return (
               <label
@@ -183,6 +192,11 @@ const AccessControl = () => {
     paths: [],
     description: "",
   });
+  const [dragGroupId, setDragGroupId] = useState<string | null>(null);
+  const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
+  const [navDrag, setNavDrag] = useState<{ groupId: string; path: string } | null>(null);
+  const [navDragOverPath, setNavDragOverPath] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   const loadAccessControl = async () => {
     setLoading(true);
@@ -208,6 +222,11 @@ const AccessControl = () => {
     [roles],
   );
 
+  const navItemByPath = useMemo(
+    () => new Map(NAV_ITEMS.map((item) => [item.path, item])),
+    [],
+  );
+
   const filteredUsers = users.filter((user) => {
     const query = search.toLowerCase();
     return (
@@ -231,7 +250,21 @@ const AccessControl = () => {
     [groups],
   );
 
-  const pathListToText = (group: AccessGroup) => (group.paths ?? []).join(", ");
+  const sortedGroups = useMemo(
+    () =>
+      [...groups].sort((a, b) => {
+        // 'others' is the locked catch-all — always pinned last, regardless of sortOrder.
+        if (a.id === "others") return 1;
+        if (b.id === "others") return -1;
+        return (a.sortOrder ?? 999) - (b.sortOrder ?? 999);
+      }),
+    [groups],
+  );
+
+  const reorderableGroups = useMemo(
+    () => sortedGroups.filter((group) => group.id !== "others"),
+    [sortedGroups],
+  );
 
   const notifyGroupMappingChanged = () => {
     window.dispatchEvent(new Event("lis-access-groups-changed"));
@@ -375,21 +408,70 @@ const AccessControl = () => {
     }
   };
 
-  const togglePermission = async (roleId: string, groupId: string) => {
-    const current = permissions[roleId] ?? [];
-    const nextRolePermissions = current.includes(groupId)
-      ? current.filter((id) => id !== groupId)
-      : [...current, groupId];
-    const nextPermissions = { ...permissions, [roleId]: nextRolePermissions };
-    setPermissions(nextPermissions);
-    try {
-      await api.put(`/access-control/roles/${roleId}/permissions`, {
-        permissions: nextRolePermissions,
+  const reorderGroups = async (sourceId: string, targetId: string) => {
+    if (sourceId === targetId || sourceId === "others" || targetId === "others") return;
+
+    const ordered = [...reorderableGroups];
+    const from = ordered.findIndex((group) => group.id === sourceId);
+    const to = ordered.findIndex((group) => group.id === targetId);
+    if (from < 0 || to < 0) return;
+
+    const [moved] = ordered.splice(from, 1);
+    ordered.splice(to, 0, moved);
+
+    const updates = ordered
+      .map((group, index) => ({ id: group.id, sortOrder: (index + 1) * 10 }))
+      .filter(({ id, sortOrder }) => {
+        const previousOrder = reorderableGroups.find((group) => group.id === id)?.sortOrder ?? 0;
+        return previousOrder !== sortOrder;
       });
+    if (updates.length === 0) return;
+
+    const previous = groups;
+    setGroups((list) =>
+      list.map((group) => {
+        const update = updates.find((u) => u.id === group.id);
+        return update ? { ...group, sortOrder: update.sortOrder } : group;
+      }),
+    );
+    try {
+      await Promise.all(
+        updates.map((update) =>
+          api.patch(`/access-control/groups/${update.id}`, { sortOrder: update.sortOrder }),
+        ),
+      );
+      notifyGroupMappingChanged();
     } catch (err) {
-      setPermissions(permissions);
-      toast.error(err instanceof Error ? err.message : "Failed to update permissions");
+      setGroups(previous);
+      toast.error(err instanceof Error ? err.message : "Failed to reorder group");
     }
+  };
+
+  const reorderNavPaths = (groupId: string, sourcePath: string, targetPath: string) => {
+    if (sourcePath === targetPath) return;
+    const group = groups.find((item) => item.id === groupId);
+    if (!group) return;
+
+    if (group.id === "others") {
+      // 'others' membership is computed — derive the order from what's currently
+      // displayed, then persist it to paths as an ordering hint.
+      const displayed = renderNavItemsForGroup(group).map((item) => item.path);
+      const from = displayed.indexOf(sourcePath);
+      const to = displayed.indexOf(targetPath);
+      if (from < 0 || to < 0) return;
+      const [moved] = displayed.splice(from, 1);
+      displayed.splice(to, 0, moved);
+      updateGroup(groupId, { paths: displayed });
+      return;
+    }
+
+    const paths = [...(group.paths ?? [])];
+    const from = paths.indexOf(sourcePath);
+    const to = paths.indexOf(targetPath);
+    if (from < 0 || to < 0) return;
+    const [moved] = paths.splice(from, 1);
+    paths.splice(to, 0, moved);
+    updateGroup(groupId, { paths });
   };
 
   const coveredNavPaths = useMemo(() => {
@@ -400,11 +482,105 @@ const AccessControl = () => {
     return set;
   }, [groups]);
 
-  const renderNavItemsForGroup = (group: AccessGroup) => {
+  const renderNavItemsForGroup = (group: AccessGroup): NavItem[] => {
     if (group.id === "others") {
-      return NAV_ITEMS.filter((item) => !coveredNavPaths.has(item.path));
+      // Membership is computed (everything not covered by another group), but
+      // group.paths is used purely as an ordering hint so it can be reordered.
+      const uncovered = NAV_ITEMS.filter((item) => !coveredNavPaths.has(item.path));
+      const order = group.paths ?? [];
+      const ordered = order
+        .map((path) => uncovered.find((item) => item.path === path))
+        .filter((item): item is NavItem => Boolean(item));
+      const rest = uncovered.filter((item) => !order.includes(item.path));
+      return [...ordered, ...rest];
     }
-    return NAV_ITEMS.filter((item) => (group.paths ?? []).includes(item.path));
+    // Preserve the order stored in group.paths — that order drives the sidebar.
+    return (group.paths ?? [])
+      .map((path) => NAV_ITEMS.find((item) => item.path === path))
+      .filter((item): item is NavItem => Boolean(item));
+  };
+
+  const getGroupPagePaths = (group: AccessGroup): string[] => {
+    if (group.id === "others") {
+      return renderNavItemsForGroup(group).map((item) => item.path);
+    }
+    return group.paths ?? [];
+  };
+
+  const toggleExpandedGroup = (groupId: string) => {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
+  const savePermissions = async (roleId: string, nextRolePermissions: string[]) => {
+    const previous = permissions[roleId];
+    setPermissions((current) => ({ ...current, [roleId]: nextRolePermissions }));
+    try {
+      await api.put(`/access-control/roles/${roleId}/permissions`, {
+        permissions: nextRolePermissions,
+      });
+    } catch (err) {
+      setPermissions((current) => ({ ...current, [roleId]: previous }));
+      toast.error(err instanceof Error ? err.message : "Failed to update permissions");
+    }
+  };
+
+  const groupCheckState = (
+    roleId: string,
+    group: AccessGroup,
+  ): boolean | "indeterminate" => {
+    const current = permissions[roleId] ?? [];
+    if (current.includes(group.id)) return true;
+    const groupPaths = getGroupPagePaths(group);
+    if (groupPaths.length === 0) return false;
+    const granted = groupPaths.filter((path) => current.includes(path));
+    if (granted.length === 0) return false;
+    if (granted.length === groupPaths.length) return true;
+    return "indeterminate";
+  };
+
+  const isPageGranted = (roleId: string, group: AccessGroup, path: string) => {
+    const current = permissions[roleId] ?? [];
+    return current.includes(group.id) || current.includes(path);
+  };
+
+  const toggleGroupForRole = (roleId: string, group: AccessGroup, checked: boolean) => {
+    const current = permissions[roleId] ?? [];
+    const groupPaths = getGroupPagePaths(group);
+    const groupPathSet = new Set(groupPaths);
+    const next = current.filter(
+      (entry) => entry !== group.id && !groupPathSet.has(entry),
+    );
+    if (checked) next.push(...groupPaths);
+    savePermissions(roleId, next);
+  };
+
+  const togglePageForRole = (
+    roleId: string,
+    group: AccessGroup,
+    path: string,
+    checked: boolean,
+  ) => {
+    const current = permissions[roleId] ?? [];
+    const groupPaths = getGroupPagePaths(group);
+    const groupPathSet = new Set(groupPaths);
+    const hadLegacyGroup = current.includes(group.id);
+    const granted = new Set(
+      hadLegacyGroup
+        ? groupPaths
+        : groupPaths.filter((p) => current.includes(p)),
+    );
+    if (checked) granted.add(path);
+    else granted.delete(path);
+    const next = current.filter(
+      (entry) => entry !== group.id && !groupPathSet.has(entry),
+    );
+    next.push(...groupPaths.filter((p) => granted.has(p)));
+    savePermissions(roleId, next);
   };
 
   return (
@@ -730,7 +906,7 @@ const AccessControl = () => {
                     </CardHeader>
                     <CardContent className="flex items-center justify-between">
                       <Badge variant="outline">
-                        {(permissions[role.id] ?? []).length} groups
+                        {(permissions[role.id] ?? []).length} permissions
                       </Badge>
                       <span className="text-xs text-muted-foreground">
                         {users.filter((user) => user.roleId === role.id).length} users
@@ -751,26 +927,17 @@ const AccessControl = () => {
                 </p>
               </CardHeader>
               <CardContent className="space-y-5">
-                <div className="grid gap-3 rounded-md border bg-muted/30 p-3 md:grid-cols-2 xl:grid-cols-[150px_1fr_1.2fr_1fr_auto]">
-                  <Input
-                    value={newGroup.id}
-                    onChange={(e) => setNewGroup({ ...newGroup, id: e.target.value })}
-                    placeholder="group-id"
-                  />
+                <div className="grid gap-3 rounded-md border bg-muted/30 p-3 md:grid-cols-2 xl:grid-cols-[1fr_1.5fr_auto]">
                   <Input
                     value={newGroup.name}
                     onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
-                    placeholder="ชื่อกลุ่ม (nav section label)"
+                    placeholder="ชื่อกลุ่ม"
                   />
                   <PathPicker
                     value={newGroup.paths}
                     onChange={(paths) => setNewGroup({ ...newGroup, paths })}
                     placeholder="เลือกหน้า navigation"
-                  />
-                  <Input
-                    value={newGroup.description}
-                    onChange={(e) => setNewGroup({ ...newGroup, description: e.target.value })}
-                    placeholder="Description"
+                    excludePaths={Array.from(coveredNavPaths)}
                   />
                   <Button onClick={addGroup} className="gap-2">
                     <Plus className="h-4 w-4" />
@@ -782,67 +949,128 @@ const AccessControl = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="min-w-[200px]">Nav Pages</TableHead>
-                        <TableHead className="min-w-[190px]">Group Name</TableHead>
-                        <TableHead className="min-w-[260px]">Page URLs</TableHead>
-                        <TableHead className="min-w-[260px]">Description</TableHead>
+                        <TableHead className="w-14">ลำดับ</TableHead>
+                        <TableHead className="min-w-[180px]">Group name</TableHead>
+                        <TableHead className="min-w-[280px]">Nav Pages</TableHead>
                         <TableHead className="w-12"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {groups.map((group) => (
-                        <TableRow key={group.id}>
+                      {sortedGroups.map((group) => {
+                        const isOthers = group.id === "others";
+                        return (
+                        <TableRow
+                          key={group.id}
+                          onDragOver={(e) => {
+                            if (isOthers || !dragGroupId || dragGroupId === group.id) return;
+                            e.preventDefault();
+                            if (dragOverGroupId !== group.id) setDragOverGroupId(group.id);
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            if (dragGroupId) reorderGroups(dragGroupId, group.id);
+                            setDragGroupId(null);
+                            setDragOverGroupId(null);
+                          }}
+                          className={cn(
+                            dragGroupId === group.id && "opacity-50",
+                            dragOverGroupId === group.id && "border-t-2 border-primary",
+                          )}
+                        >
                           <TableCell>
-                            <div className="space-y-1">
-                              {renderNavItemsForGroup(group).map((item) => (
-                                <div key={item.path} className="flex items-center gap-1.5 text-sm">
-                                  <item.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                  <span>{item.label}</span>
-                                </div>
-                              ))}
+                            {!isOthers && (
+                              <div
+                                draggable
+                                onDragStart={() => setDragGroupId(group.id)}
+                                onDragEnd={() => {
+                                  setDragGroupId(null);
+                                  setDragOverGroupId(null);
+                                }}
+                                className="flex cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
+                                aria-label="ลากเพื่อจัดลำดับกลุ่ม"
+                              >
+                                <GripVertical className="h-4 w-4" />
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1.5">
+                              <Input
+                                value={group.name}
+                                onChange={(e) =>
+                                  setGroups((current) =>
+                                    current.map((item) =>
+                                      item.id === group.id ? { ...item, name: e.target.value } : item,
+                                    ),
+                                  )
+                                }
+                                onBlur={(e) =>
+                                  updateGroup(group.id, { name: e.target.value.trim() || group.id })
+                                }
+                              />
                               <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground">
                                 {group.id}
                               </Badge>
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Input
-                              value={group.name}
-                              onChange={(e) =>
-                                setGroups((current) =>
-                                  current.map((item) =>
-                                    item.id === group.id ? { ...item, name: e.target.value } : item,
-                                  ),
-                                )
-                              }
-                              onBlur={(e) =>
-                                updateGroup(group.id, { name: e.target.value.trim() || group.id })
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <PathPicker
-                              value={group.paths ?? []}
-                              onChange={(paths) => updateGroup(group.id, { paths })}
-                              disabled={group.id === "others"}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={group.description}
-                              onChange={(e) =>
-                                setGroups((current) =>
-                                  current.map((item) =>
-                                    item.id === group.id
-                                      ? { ...item, description: e.target.value }
-                                      : item,
-                                  ),
-                                )
-                              }
-                              onBlur={(e) =>
-                                updateGroup(group.id, { description: e.target.value.trim() })
-                              }
-                            />
+                            <div className="space-y-2">
+                              <PathPicker
+                                value={group.paths ?? []}
+                                onChange={(paths) => updateGroup(group.id, { paths })}
+                                disabled={group.id === "others"}
+                                excludePaths={Array.from(coveredNavPaths)}
+                              />
+                              <div className="space-y-1">
+                                {renderNavItemsForGroup(group).map((item) => (
+                                  <div
+                                    key={item.path}
+                                    draggable
+                                    onDragStart={(e) => {
+                                      e.stopPropagation();
+                                      setNavDrag({ groupId: group.id, path: item.path });
+                                    }}
+                                    onDragEnd={() => {
+                                      setNavDrag(null);
+                                      setNavDragOverPath(null);
+                                    }}
+                                    onDragOver={(e) => {
+                                      if (
+                                        !navDrag ||
+                                        navDrag.groupId !== group.id ||
+                                        navDrag.path === item.path
+                                      )
+                                        return;
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (navDragOverPath !== item.path)
+                                        setNavDragOverPath(item.path);
+                                    }}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (navDrag && navDrag.groupId === group.id)
+                                        reorderNavPaths(group.id, navDrag.path, item.path);
+                                      setNavDrag(null);
+                                      setNavDragOverPath(null);
+                                    }}
+                                    className={cn(
+                                      "flex items-center gap-1.5 rounded text-sm text-muted-foreground cursor-grab active:cursor-grabbing",
+                                      navDrag?.groupId === group.id &&
+                                        navDrag.path === item.path &&
+                                        "opacity-50",
+                                      navDragOverPath === item.path &&
+                                        navDrag?.groupId === group.id &&
+                                        "border-t-2 border-primary",
+                                    )}
+                                  >
+                                    <GripVertical className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                                    <item.icon className="h-3.5 w-3.5 shrink-0" />
+                                    <span>{item.label}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           </TableCell>
                           <TableCell>
                             <Button
@@ -856,7 +1084,8 @@ const AccessControl = () => {
                             </Button>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -883,26 +1112,102 @@ const AccessControl = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {groups.map((group) => (
-                        <TableRow key={group.id}>
-                          <TableCell>
-                            <p className="font-medium">{group.name}</p>
-                            {pathListToText(group) && (
-                              <Badge variant="outline" className="mt-1">{pathListToText(group)}</Badge>
-                            )}
-                            <p className="mt-1 text-xs text-muted-foreground">{group.description}</p>
-                          </TableCell>
-                          {roles.map((role) => (
-                            <TableCell key={role.id} className="text-center">
-                              <Checkbox
-                                checked={(permissions[role.id] ?? []).includes(group.id)}
-                                onCheckedChange={() => togglePermission(role.id, group.id)}
-                                aria-label={`${role.name} ${group.name}`}
-                              />
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
+                      {sortedGroups.map((group) => {
+                        const groupPaths = getGroupPagePaths(group);
+                        const expanded = expandedGroups.has(group.id);
+                        return (
+                          <Fragment key={group.id}>
+                            <TableRow>
+                              <TableCell>
+                                <div className="flex items-start gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleExpandedGroup(group.id)}
+                                    className="mt-0.5 rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                    aria-label={expanded ? "ยุบรายหน้า" : "ขยายรายหน้า"}
+                                    aria-expanded={expanded}
+                                  >
+                                    {expanded ? (
+                                      <ChevronDown className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronRight className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                  <div>
+                                    <p className="font-medium">{group.name}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {groupPaths.length} หน้า
+                                    </p>
+                                    {group.description && (
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        {group.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              {roles.map((role) => (
+                                <TableCell key={role.id} className="text-center">
+                                  <Checkbox
+                                    checked={groupCheckState(role.id, group)}
+                                    onCheckedChange={(c) =>
+                                      toggleGroupForRole(role.id, group, c === true)
+                                    }
+                                    aria-label={`${role.name} ${group.name}`}
+                                  />
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                            {expanded &&
+                              groupPaths.map((path) => {
+                                const navItem = navItemByPath.get(path);
+                                return (
+                                  <TableRow
+                                    key={`${group.id}-${path}`}
+                                    className="bg-muted/30"
+                                  >
+                                    <TableCell className="py-1.5 pl-12">
+                                      <div className="flex items-center gap-2">
+                                        {navItem ? (
+                                          <>
+                                            <navItem.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                            <span className="text-sm">{navItem.label}</span>
+                                            <span className="ml-1 font-mono text-[10px] text-muted-foreground">
+                                              {path}
+                                            </span>
+                                          </>
+                                        ) : (
+                                          <span className="font-mono text-xs text-muted-foreground">
+                                            {path}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                    {roles.map((role) => (
+                                      <TableCell
+                                        key={role.id}
+                                        className="py-1.5 text-center"
+                                      >
+                                        <Checkbox
+                                          checked={isPageGranted(role.id, group, path)}
+                                          onCheckedChange={(c) =>
+                                            togglePageForRole(
+                                              role.id,
+                                              group,
+                                              path,
+                                              c === true,
+                                            )
+                                          }
+                                          aria-label={`${role.name} ${navItem?.label ?? path}`}
+                                        />
+                                      </TableCell>
+                                    ))}
+                                  </TableRow>
+                                );
+                              })}
+                          </Fragment>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
