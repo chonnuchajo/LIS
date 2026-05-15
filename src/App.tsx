@@ -39,7 +39,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter basename="/LIS">
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
       
         <AuthProvider>
           <DevRoleSwitcher />
@@ -47,7 +47,7 @@ const App = () => (
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/scanner" element={<ScannerPage />} />
-              <Route path="/" element={<PrivateRoute><DashboardRedirect /></PrivateRoute>} />
+              <Route path="/" element={<PrivateRoute><Home/></PrivateRoute>} />
               <Route path="/dashboard/lab" element={<PrivateRoute><LabDashboard /></PrivateRoute>} />
               <Route path="/dashboard/qc" element={<PrivateRoute><QCDashboard /></PrivateRoute>} />
               <Route path="/home" element={<PrivateRoute><Home /></PrivateRoute>} />

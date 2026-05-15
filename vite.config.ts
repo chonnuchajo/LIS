@@ -4,7 +4,7 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 export default defineConfig(({ mode }) => ({
-  base: mode === "production" ? "/LIS/" : "/",
+  base: "/LIS/",
 
   server: {
     host: "0.0.0.0",
@@ -14,10 +14,11 @@ export default defineConfig(({ mode }) => ({
       usePolling: true,
     },
     proxy: {
-      "/api": {
+      "/LIS/api": {
         target: "http://localhost:3001",
         changeOrigin: true,
         secure: false,
+        rewrite: (path) => path.replace(/^\/LIS/, ""),
       },
     },
   },
