@@ -21,12 +21,12 @@ const GROUPS = [
   { id: 'others', name: 'อื่นๆ', description: '', paths: [], locked: true, sortOrder: 999 },
   { id: 'qc', name: 'QC', description: '', paths: ['/physical-inspection', '/qc-approval'], locked: false, sortOrder: 1778742461866 },
   { id: 'lab', name: 'Lab', description: '', paths: ['/record-results', '/daily-check', '/stock-deduction', '/petitions/assign'], locked: false, sortOrder: 1778742461876 },
-  { id: 'inventory', name: 'Inventory', description: '', paths: ['/master-items', '/stock'], locked: false, sortOrder: 1778742461886 },
+  { id: 'inventory', name: 'Inventory', description: '', paths: ['/master-items', '/simple-method', '/machines', '/stock'], locked: false, sortOrder: 1778742461886 },
 ];
 
 const ROLES = [
   { id: 'admin', name: 'Administrator', description: 'Full system access', locked: true, permissions: ['others', 'qc', 'lab', 'inventory'] },
-  { id: 'lab', name: 'Lab Analyst', description: 'Sample handling and result entry', locked: false, permissions: ['/record-results', '/daily-check', '/stock-deduction', '/petitions/assign', '/master-items', '/stock'] },
+  { id: 'lab', name: 'Lab Analyst', description: 'Sample handling and result entry', locked: false, permissions: ['/record-results', '/daily-check', '/stock-deduction', '/petitions/assign', '/master-items', '/simple-method', '/machines', '/stock'] },
   { id: 'qc', name: 'QC Reviewer', description: 'Review and approve results', locked: false, permissions: ['inventory', '/physical-inspection'] },
   { id: 'viewer', name: 'Viewer', description: 'Read-only access to dashboards and reports', locked: false, permissions: ['/home', '/', '/petitions'] },
 ];

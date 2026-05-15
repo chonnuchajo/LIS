@@ -14,25 +14,26 @@ type AccessGroup = {
 
 type AccessControlState = {
   groups: AccessGroup[];
+  permissions: Record<string, string[]>;
 };
 
-let groupMapCache: AccessGroup[] | null = null;
-let groupMapRequest: Promise<AccessGroup[]> | null = null;
+let accessControlCache: AccessControlState | null = null;
+let accessControlRequest: Promise<AccessControlState> | null = null;
 
-function loadGroupMap() {
-  if (groupMapCache) return Promise.resolve(groupMapCache);
-  if (!groupMapRequest) {
-    groupMapRequest = api
+function loadAccessControl() {
+  if (accessControlCache) return Promise.resolve(accessControlCache);
+  if (!accessControlRequest) {
+    accessControlRequest = api
       .get<AccessControlState>("/access-control")
       .then((res) => {
-        groupMapCache = res.data.data.groups;
-        return groupMapCache;
+        accessControlCache = res.data.data;
+        return accessControlCache;
       })
       .finally(() => {
-        groupMapRequest = null;
+        accessControlRequest = null;
       });
   }
-  return groupMapRequest;
+  return accessControlRequest;
 }
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
@@ -40,14 +41,14 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const { inProgress } = useMsal();
   const { user } = useAuth();
   const location = useLocation();
-  const [groups, setGroups] = useState<AccessGroup[]>([]);
+  const [accessControl, setAccessControl] = useState<AccessControlState | null>(null);
   const [mappingLoaded, setMappingLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [mappingVersion, setMappingVersion] = useState(0);
 
   useEffect(() => {
     const refreshMapping = () => {
-      groupMapCache = null;
+      accessControlCache = null;
       setMappingVersion((current) => current + 1);
     };
     window.addEventListener("lis-access-groups-changed", refreshMapping);
@@ -58,11 +59,13 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     let alive = true;
-    setMappingLoaded(false);
-    loadGroupMap()
-      .then((loadedGroups) => {
+    if (!accessControl) {
+      setMappingLoaded(false);
+    }
+    loadAccessControl()
+      .then((loadedAccessControl) => {
         if (!alive) return;
-        setGroups(loadedGroups);
+        setAccessControl(loadedAccessControl);
         setLoadFailed(false);
       })
       .catch(() => {
@@ -97,7 +100,12 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
     return null;
   }
 
-  if (!loadFailed && !userCanAccessPath(user, location.pathname, groups)) {
+  const currentUser = user?.role && accessControl?.permissions[user.role]
+    ? { ...user, permissions: accessControl.permissions[user.role] }
+    : user;
+  const isRedirectOnlyRoute = location.pathname === "/";
+
+  if (!loadFailed && !isRedirectOnlyRoute && !userCanAccessPath(currentUser, location.pathname, accessControl?.groups ?? [])) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-6">
         <div className="max-w-md rounded-lg border bg-card p-6 text-center shadow-sm">

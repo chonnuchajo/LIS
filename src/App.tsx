@@ -15,7 +15,7 @@ import SendSample from "./pages/SendSample";
 import RecordResults from "./pages/RecordResults";
 import Report from "./pages/Report";
 import Stock from "./pages/Stock";
-import MasterItems from "./pages/MasterItems";
+import MasterItems, { MachinesPage, SimpleMethodPage } from "./pages/MasterItems";
 import QCApproval from "./pages/QCApproval";
 import AdminData from "./pages/AdminData";
 import SettingsPage from "./pages/SettingsPage";
@@ -60,6 +60,8 @@ const App = () => (
               <Route path="/daily-check" element={<PrivateRoute><DailyCheck /></PrivateRoute>} />
               <Route path="/stock" element={<PrivateRoute><Stock /></PrivateRoute>} />
               <Route path="/master-items" element={<PrivateRoute><MasterItems /></PrivateRoute>} />
+              <Route path="/simple-method" element={<PrivateRoute><SimpleMethodPage /></PrivateRoute>} />
+              <Route path="/machines" element={<PrivateRoute><MachinesPage /></PrivateRoute>} />
               <Route path="/admin-data" element={<PrivateRoute><AdminData /></PrivateRoute>} />
               <Route path="/access-control" element={<PrivateRoute><AccessControl /></PrivateRoute>} />
               <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />

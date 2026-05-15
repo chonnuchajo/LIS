@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { NAV_ITEMS, type NavItem } from "@/lib/navItems";
+import { PAGE_ITEMS, type NavItem } from "@/lib/navItems";
 import {
   ChevronDown,
   ChevronRight,
@@ -82,14 +82,22 @@ type PathPickerProps = {
   disabled?: boolean;
   placeholder?: string;
   excludePaths?: string[];
+  emptyMessage?: string;
 };
 
-const PathPicker = ({ value, onChange, disabled, placeholder, excludePaths = [] }: PathPickerProps) => {
-  const selectedNavItems = NAV_ITEMS.filter((item) => value.includes(item.path));
-  const extraPaths = value.filter((p) => !NAV_ITEMS.some((item) => item.path === p));
-  // Pages already assigned to another group are hidden — unless they're already
-  // in this group's selection, so they stay visible and can be unchecked.
-  const availableNavItems = NAV_ITEMS.filter(
+const PathPicker = ({
+  value,
+  onChange,
+  disabled,
+  placeholder,
+  excludePaths = [],
+  emptyMessage = "No available pages",
+}: PathPickerProps) => {
+  const selectedNavItems = PAGE_ITEMS.filter((item) => value.includes(item.path));
+  const extraPaths = value.filter((p) => !PAGE_ITEMS.some((item) => item.path === p));
+  // Access control manages every route-like page, including detail/edit pages
+  // that are not shown in the sidebar.
+  const availableNavItems = PAGE_ITEMS.filter(
     (item) => value.includes(item.path) || !excludePaths.includes(item.path),
   );
 
@@ -120,7 +128,11 @@ const PathPicker = ({ value, onChange, disabled, placeholder, excludePaths = [] 
       </PopoverTrigger>
       <PopoverContent className="w-80 p-2" align="start">
         <div className="max-h-72 space-y-0.5 overflow-auto">
-          {availableNavItems.map((item) => {
+          {availableNavItems.length === 0 ? (
+            <div className="rounded border border-dashed px-3 py-2 text-sm text-muted-foreground">
+              {emptyMessage}
+            </div>
+          ) : availableNavItems.map((item) => {
             const checked = value.includes(item.path);
             return (
               <label
@@ -223,7 +235,7 @@ const AccessControl = () => {
   );
 
   const navItemByPath = useMemo(
-    () => new Map(NAV_ITEMS.map((item) => [item.path, item])),
+    () => new Map(PAGE_ITEMS.map((item) => [item.path, item])),
     [],
   );
 
@@ -237,18 +249,6 @@ const AccessControl = () => {
       roleById[user.roleId]?.name.toLowerCase().includes(query)
     );
   });
-
-  const pageRouteMappings = useMemo(
-    () =>
-      groups.flatMap((group) =>
-        (group.paths ?? []).map((path) => ({
-          path,
-          groupId: group.id,
-          groupName: group.name,
-        })),
-      ),
-    [groups],
-  );
 
   const sortedGroups = useMemo(
     () =>
@@ -269,6 +269,8 @@ const AccessControl = () => {
   const notifyGroupMappingChanged = () => {
     window.dispatchEvent(new Event("lis-access-groups-changed"));
   };
+
+  const uniquePaths = (paths: string[]) => Array.from(new Set(paths));
 
   const updateUser = async (id: string, patch: Partial<AppUser>) => {
     const previous = users;
@@ -354,14 +356,35 @@ const AccessControl = () => {
       toast.error("Group name is required");
       return;
     }
+    const paths = uniquePaths(newGroup.paths);
+    const movedPathSet = new Set(paths);
     try {
       const res = await api.post<AccessGroup>("/access-control/groups", {
         id: newGroup.id.trim(),
         name: newGroup.name.trim(),
-        paths: newGroup.paths,
+        paths,
         description: newGroup.description.trim(),
       });
+      const updates = groups
+        .filter((group) => group.id !== "others")
+        .map((group) => ({
+          ...group,
+          paths: (group.paths ?? []).filter((path) => !movedPathSet.has(path)),
+        }))
+        .filter((group) => group.paths.length !== (groups.find((item) => item.id === group.id)?.paths ?? []).length);
+
+      await Promise.all(
+        updates.map((group) =>
+          api.patch<AccessGroup>(`/access-control/groups/${group.id}`, { paths: group.paths }),
+        ),
+      );
       setGroups((current) => [...current, res.data.data]);
+      setGroups((current) =>
+        current.map((group) => {
+          const update = updates.find((item) => item.id === group.id);
+          return update ? { ...group, paths: update.paths } : group;
+        }),
+      );
       setPermissions((current) => ({
         ...current,
         admin: Array.from(new Set([...(current.admin ?? []), res.data.data.id])),
@@ -371,6 +394,42 @@ const AccessControl = () => {
       toast.success("Group added");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to add group");
+    }
+  };
+
+  const updateGroupPaths = async (id: string, paths: string[]) => {
+    if (id === "others") {
+      updateGroup(id, { paths: uniquePaths(paths) });
+      return;
+    }
+
+    const nextPaths = uniquePaths(paths);
+    const movedPathSet = new Set(nextPaths);
+    const previous = groups;
+    const nextGroups = groups.map((group) => {
+      if (group.id === id) return { ...group, paths: nextPaths };
+      if (group.id === "others") return group;
+      return {
+        ...group,
+        paths: (group.paths ?? []).filter((path) => !movedPathSet.has(path)),
+      };
+    });
+    const changedGroups = nextGroups.filter((group) => {
+      const prev = previous.find((item) => item.id === group.id);
+      return prev && (prev.paths ?? []).join("\0") !== (group.paths ?? []).join("\0");
+    });
+
+    setGroups(nextGroups);
+    try {
+      await Promise.all(
+        changedGroups.map((group) =>
+          api.patch<AccessGroup>(`/access-control/groups/${group.id}`, { paths: group.paths }),
+        ),
+      );
+      notifyGroupMappingChanged();
+    } catch (err) {
+      setGroups(previous);
+      toast.error(err instanceof Error ? err.message : "Failed to update group pages");
     }
   };
 
@@ -488,7 +547,7 @@ const AccessControl = () => {
     if (group.id === "others") {
       // Membership is computed (everything not covered by another group), but
       // group.paths is used purely as an ordering hint so it can be reordered.
-      const uncovered = NAV_ITEMS.filter((item) => !coveredNavPaths.has(item.path));
+      const uncovered = PAGE_ITEMS.filter((item) => !coveredNavPaths.has(item.path));
       const order = group.paths ?? [];
       const ordered = order
         .map((path) => uncovered.find((item) => item.path === path))
@@ -498,7 +557,7 @@ const AccessControl = () => {
     }
     // Preserve the order stored in group.paths — that order drives the sidebar.
     return (group.paths ?? [])
-      .map((path) => NAV_ITEMS.find((item) => item.path === path))
+      .map((path) => PAGE_ITEMS.find((item) => item.path === path))
       .filter((item): item is NavItem => Boolean(item));
   };
 
@@ -522,10 +581,13 @@ const AccessControl = () => {
     const previous = permissions[roleId];
     setPermissions((current) => ({ ...current, [roleId]: nextRolePermissions }));
     try {
-      await api.put(`/access-control/roles/${roleId}/permissions`, {
+      const res = await api.put<{ roleId: string; permissions: string[] }>(`/access-control/roles/${roleId}/permissions`, {
         permissions: nextRolePermissions,
       });
-      notifyGroupMappingChanged();
+      setPermissions((current) => ({
+        ...current,
+        [roleId]: res.data.data.permissions,
+      }));
     } catch (err) {
       setPermissions((current) => ({ ...current, [roleId]: previous }));
       toast.error(err instanceof Error ? err.message : "Failed to update permissions");
@@ -558,7 +620,7 @@ const AccessControl = () => {
     const next = current.filter(
       (entry) => entry !== group.id && !groupPathSet.has(entry),
     );
-    if (checked) next.push(...groupPaths);
+    if (checked) next.push(group.id);
     savePermissions(roleId, next);
   };
 
@@ -699,39 +761,6 @@ const AccessControl = () => {
                     <Plus className="h-4 w-4" />
                     Add
                   </Button>
-                </div>
-
-                <div className="rounded-md border">
-                  <div className="border-b px-4 py-3">
-                    <p className="text-sm font-semibold">Page URL Mapping</p>
-                    <p className="text-xs text-muted-foreground">
-                      แต่ละ URL อยู่ใน group ใด — group นี้คือสิ่งที่ role ต้องได้รับสิทธิ์
-                    </p>
-                  </div>
-                  <div className="max-h-72 overflow-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="min-w-[260px]">Page URL</TableHead>
-                          <TableHead className="min-w-[160px]">Group ID</TableHead>
-                          <TableHead className="min-w-[220px]">Group Name</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {pageRouteMappings.map((mapping) => (
-                          <TableRow key={`${mapping.groupId}-${mapping.path}`}>
-                            <TableCell>
-                              <Badge variant="outline">{mapping.path}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge>{mapping.groupId}</Badge>
-                            </TableCell>
-                            <TableCell>{mapping.groupName}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
@@ -940,7 +969,6 @@ const AccessControl = () => {
                     value={newGroup.paths}
                     onChange={(paths) => setNewGroup({ ...newGroup, paths })}
                     placeholder="เลือกหน้า navigation"
-                    excludePaths={Array.from(coveredNavPaths)}
                   />
                   <Button onClick={addGroup} className="gap-2">
                     <Plus className="h-4 w-4" />
@@ -1020,9 +1048,8 @@ const AccessControl = () => {
                             <div className="space-y-2">
                               <PathPicker
                                 value={group.paths ?? []}
-                                onChange={(paths) => updateGroup(group.id, { paths })}
+                                onChange={(paths) => updateGroupPaths(group.id, paths)}
                                 disabled={group.id === "others"}
-                                excludePaths={Array.from(coveredNavPaths)}
                               />
                               <div className="space-y-1">
                                 {renderNavItemsForGroup(group).map((item) => (
