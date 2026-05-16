@@ -50,6 +50,9 @@ const petitionHasLabItems = (petition: Petition) =>
   petition.items.some(it => isLabBatchNo(it.batchNo));
 const isLabRole = (role?: string) => !!role && role.toLowerCase().includes("lab");
 
+const ALL_RECEIPTS_ROLES = new Set(["admin", "lab-head", "qc-head"]);
+const canSeeAllReceipts = (role?: string) => !!role && ALL_RECEIPTS_ROLES.has(role);
+
 interface ScannedPayload {
   id?: unknown;
   petitionId?: unknown;
@@ -105,14 +108,20 @@ const SendSample = () => {
   }, [notLabNotice]);
 
   useEffect(() => {
+    if (!user) return;
     let active = true;
-    api.get<{ items: SampleReceipt[] }>("/sample-receipts")
+    const seeAll = canSeeAllReceipts(user.role);
+    const receiverKey = user.name || user.email || "แอดมิน";
+    const url = seeAll
+      ? "/sample-receipts"
+      : `/sample-receipts?receiver=${encodeURIComponent(receiverKey)}`;
+    api.get<{ items: SampleReceipt[] }>(url)
       .then(res => {
         if (active) setReceivedSamples(res.data.data.items || []);
       })
       .catch(err => console.error("load sample-receipts:", err));
     return () => { active = false; };
-  }, []);
+  }, [user]);
 
   const upsertLocal = (receipt: SampleReceipt) =>
     setReceivedSamples(prev => {
