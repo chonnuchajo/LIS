@@ -19,6 +19,7 @@ import {
 import PetitionView from '@/components/petition/PetitionView';
 import PetitionPrintTemplate from '@/components/petition/PetitionPrintTemplate';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
+import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
 import ReviewHistory from '@/components/review/ReviewHistory';
 import LabAgreementReviewView from '@/components/review/LabAgreementReviewView';
 import { usePetition, deletePetition } from '@/hooks/usePetition';
@@ -123,8 +124,21 @@ export default function PetitionDetailPage() {
 
   function triggerPrint(target: 'label' | 'agreement') {
     flushSync(() => setPrintTarget(target));
-    window.print();
+    const img = new Image();
+    img.src = ICP_LADDA_LOGO_URL;
+    if (img.complete && img.naturalWidth > 0) {
+      window.print();
+    } else {
+      const done = () => window.print();
+      img.onload = done;
+      img.onerror = done;
+    }
   }
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = ICP_LADDA_LOGO_URL;
+  }, []);
 
   useEffect(() => {
     const before = () => {
@@ -210,14 +224,14 @@ export default function PetitionDetailPage() {
                         <Printer className="h-4 w-4" />
                         พิมพ์ฉลาก
                       </Button>
-                      {data.labAgreementReview && (
+                      {data.status !== 'deliveringQC' && (
                         <Button
                           variant="primary-outline"
                           size="sm"
                           onClick={() => triggerPrint('agreement')}
                         >
                           <FileText className="h-4 w-4" />
-                          พิมพ์ข้อตกลง
+                          พิมพ์ใบคำขอรับบริการ
                         </Button>
                       )}
                       {canEdit && (
