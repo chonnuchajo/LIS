@@ -19,7 +19,7 @@ export default function QCDashboard() {
   const { data: petitionData, loading: petitionLoading } = usePetitionList({ page: 1, limit: 100 });
   const allPetitions = petitionData?.items ?? [];
   const qcPetitions = allPetitions.filter((petition) => QC_STATUSES.includes(petition.status));
-  const completedPetitions = allPetitions.filter((petition) => petition.status === "normal" || petition.status === "defective");
+  const completedPetitions = allPetitions.filter((petition) => petition.status === "success");
   const rejectedQcCount = doneSamples.filter((sample) => approvals[sample.id]?.qcStatus === "rejected").length;
   const approvedQcCount = doneSamples.filter((sample) => approvals[sample.id]?.qcStatus === "approved").length;
   const pendingQcSamples = doneSamples.filter((sample) => !approvals[sample.id]?.qcStatus || approvals[sample.id]?.qcStatus === "pending");

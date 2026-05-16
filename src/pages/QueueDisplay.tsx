@@ -33,6 +33,15 @@ const REFRESH_MS = 5_000;
 const MAX_ITEMS_PER_GROUP = 9;
 const NEW_WORK_ALERT_MS = 10_000;
 const NEW_SAMPLE_SOUND_URL = `${import.meta.env.BASE_URL}sound/new.mp3`;
+const LAB_BATCH_LAST_DIGITS = new Set(["1", "6"]);
+
+const isLabBatchNo = (batchNo?: string | null) => {
+  const trimmed = String(batchNo ?? "").trim();
+  return trimmed.length > 0 && LAB_BATCH_LAST_DIGITS.has(trimmed.slice(-1));
+};
+
+const petitionHasLabItems = (petition: Petition) =>
+  petition.items.some((item) => isLabBatchNo(item.batchNo));
 
 const QUEUE_CONFIG: Record<QueueMode, QueueConfig> = {
   lab: {
@@ -61,7 +70,7 @@ const QUEUE_CONFIG: Record<QueueMode, QueueConfig> = {
         id: "done",
         title: "เรียบร้อยแล้ว",
         subtitle: "ตรวจเสร็จแล้ว",
-        statuses: ["normal", "defective"],
+        statuses: ["success"],
         icon: CheckCircle2,
         tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
       },
@@ -93,7 +102,7 @@ const QUEUE_CONFIG: Record<QueueMode, QueueConfig> = {
         id: "done",
         title: "เรียบร้อยแล้ว",
         subtitle: "อนุมัติผลแล้ว",
-        statuses: ["normal", "defective"],
+        statuses: ["success"],
         icon: CheckCircle2,
         tone: "border-emerald-200 bg-emerald-50 text-emerald-700",
       },
@@ -177,8 +186,9 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
     const groupStatuses = config.groups.flatMap((group) => group.statuses);
     return (data?.items ?? [])
       .filter((petition) => groupStatuses.includes(petition.status))
+      .filter((petition) => (mode === "lab" ? petitionHasLabItems(petition) : true))
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [config.groups, data?.items]);
+  }, [config.groups, data?.items, mode]);
 
   const itemsByGroup = useMemo(() => {
     return config.groups.map((group) => ({

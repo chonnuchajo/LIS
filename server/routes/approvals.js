@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const Approval = require('../models/Approval');
+const Petition = require('../models/Petition');
+const PetitionAuditLog = require('../models/PetitionAuditLog');
 
 router.get('/', async (req, res) => {
   try {
@@ -35,7 +37,7 @@ router.post('/:sampleId/lab', async (req, res) => {
 
 router.post('/:sampleId/qc', async (req, res) => {
   try {
-    const { status, note } = req.body;
+    const { status, note, actor } = req.body;
     if (!['approved', 'rejected', 'pending'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
@@ -44,6 +46,36 @@ router.post('/:sampleId/qc', async (req, res) => {
       { qcStatus: status, qcNote: note },
       { new: true, upsert: true }
     );
+
+    // Petition → success when all samples have qcStatus === 'approved'
+    if (status === 'approved') {
+      const petition = await Petition.findOne({ 'items.sampleId': req.params.sampleId });
+      if (petition && petition.status !== 'success') {
+        const sampleIds = (petition.items || [])
+          .map((it) => it.sampleId || `${petition.petitionNo}-${it.seq}`)
+          .filter(Boolean);
+        const approvals = await Approval.find({ sampleId: { $in: sampleIds } }).lean();
+        const allApproved =
+          sampleIds.length > 0 &&
+          sampleIds.every((sid) => approvals.find((a) => a.sampleId === sid)?.qcStatus === 'approved');
+        if (allApproved) {
+          const prevStatus = petition.status;
+          petition.status = 'success';
+          if (!petition.completedAt) petition.completedAt = new Date();
+          await petition.save();
+          PetitionAuditLog.create({
+            petitionId: petition._id,
+            petitionNo: petition.petitionNo,
+            event: 'statusChanged',
+            fromStatus: prevStatus,
+            toStatus: petition.status,
+            actor: actor || 'system',
+            note: 'QC อนุมัติครบทุกตัวอย่าง',
+          }).catch((err) => console.error('[audit-log] failed:', err.message));
+        }
+      }
+    }
+
     res.json(approval);
   } catch (err) {
     res.status(500).json({ error: err.message });

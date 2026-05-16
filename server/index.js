@@ -25,6 +25,7 @@ mountApi('/densities', require('./routes/densities'));
 mountApi('/stock', require('./routes/stock'));
 mountApi('/access-control', require('./routes/accessControl'));
 mountApi('/petitions', require('./routes/petitions'));
+mountApi('/sample-receipts', require('./routes/sampleReceipts'));
 mountApi('/employees', require('./routes/employees'));
 mountApi('/master-items', require('./routes/masterItems'));
 mountApi('/machines', require('./routes/machines'));

@@ -87,10 +87,15 @@ const PetitionSchema = new mongoose.Schema(
     petitionNo: { type: String, required: true, unique: true, index: true },
     status: {
       type: String,
-      enum: ['deliveringQC', 'sampleSent', 'pendingReview', 'inProgress', 'normal', 'defective'],
+      enum: ['deliveringQC', 'sampleSent', 'pendingReview', 'inProgress', 'success'],
       default: 'deliveringQC',
       index: true,
     },
+    sampleSentAt: Date,
+    receivedAt: Date,
+    receivedBy: String,
+    firstResultAt: Date,
+    completedAt: Date,
     serviceAgreement: ServiceAgreementSchema,
     requester: {
       fullName: { type: String, required: true },

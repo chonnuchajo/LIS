@@ -24,7 +24,15 @@ import {
 
 const norm = (value?: string | null) => (value ?? '').trim().toLowerCase();
 
-function isOwnedByUser(
+const RECEIVER_ROLES = new Set(['qc', 'lab']);
+const RECEIVED_STATUSES = new Set<Petition['status']>([
+  'sampleSent',
+  'pendingReview',
+  'inProgress',
+  'success',
+]);
+
+function isOwnSubmission(
   petition: Petition,
   user: { email?: string; name?: string } | null,
 ): boolean {
@@ -33,11 +41,31 @@ function isOwnedByUser(
   const userName = norm(user.name);
   const requesterEmail = norm(petition.requester.email);
   const requesterName = norm(petition.requester.fullName);
-  const assigneeName = norm(petition.assignedTo?.name);
 
   if (userEmail && requesterEmail && userEmail === requesterEmail) return true;
   if (userName && requesterName && userName === requesterName) return true;
-  if (userName && assigneeName && userName === assigneeName) return true;
+  return false;
+}
+
+function isAssignedTo(
+  petition: Petition,
+  user: { name?: string } | null,
+): boolean {
+  if (!user) return false;
+  const userName = norm(user.name);
+  const assigneeName = norm(petition.assignedTo?.name);
+  return !!userName && !!assigneeName && userName === assigneeName;
+}
+
+function canSeePetition(
+  petition: Petition,
+  user: { email?: string; name?: string; role?: string } | null,
+): boolean {
+  if (!user) return false;
+  const role = user.role ?? '';
+  if (isOwnSubmission(petition, user)) return true;
+  if (isAssignedTo(petition, user)) return true;
+  if (RECEIVER_ROLES.has(role) && RECEIVED_STATUSES.has(petition.status)) return true;
   return false;
 }
 
@@ -73,7 +101,7 @@ export default function PetitionListPage() {
   const ownedItems = useMemo(() => {
     if (!data?.items) return [];
     if (canViewAll) return data.items;
-    return data.items.filter((p) => isOwnedByUser(p, user));
+    return data.items.filter((p) => canSeePetition(p, user));
   }, [data?.items, canViewAll, user]);
 
   const totalCount = canViewAll ? data?.total ?? 0 : ownedItems.length;

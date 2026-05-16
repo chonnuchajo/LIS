@@ -7,19 +7,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePetitionList } from "@/hooks/usePetition";
-import type { Petition, PetitionItem, PetitionStatus } from "@/types/petition.types";
+import type { Petition, PetitionStatus } from "@/types/petition.types";
 import { toast } from "sonner";
 
 const LAB_STATUSES: PetitionStatus[] = ["sampleSent", "pendingReview", "inProgress"];
-const LAB_BATCH_NOS = new Set(["1", "6"]);
+const LAB_BATCH_LAST_DIGITS = new Set(["1", "6"]);
 
-const isLabItem = (item: PetitionItem) =>
-  !!item.batchNo && LAB_BATCH_NOS.has(String(item.batchNo).trim());
+const isLabBatchNo = (batchNo?: string | null) => {
+  const trimmed = String(batchNo ?? "").trim();
+  return trimmed.length > 0 && LAB_BATCH_LAST_DIGITS.has(trimmed.slice(-1));
+};
 
-const withLabItems = (petitions: Petition[]) =>
-  petitions
-    .map((p) => ({ ...p, items: p.items.filter(isLabItem) }))
-    .filter((p) => p.items.length > 0);
+const hasLabItem = (petition: Petition) =>
+  petition.items.some((item) => isLabBatchNo(item.batchNo));
+
+const onlyLabPetitions = (petitions: Petition[]) => petitions.filter(hasLabItem);
 
 const formatDate = (value: string) => new Date(value).toLocaleDateString("th-TH");
 const formatTime = (value: string) => new Date(value).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
@@ -28,14 +30,14 @@ export default function LabDashboard() {
   const navigate = useNavigate();
   const { data: petitionData, loading: petitionLoading } = usePetitionList({ page: 1, limit: 100 });
   const allPetitions = petitionData?.items ?? [];
-  const labPetitions = withLabItems(allPetitions.filter((petition) => LAB_STATUSES.includes(petition.status)));
-  const completedPetitions = withLabItems(
-    allPetitions.filter((petition) => petition.status === "normal" || petition.status === "defective"),
+  const labPetitions = onlyLabPetitions(allPetitions.filter((petition) => LAB_STATUSES.includes(petition.status)));
+  const completedPetitions = onlyLabPetitions(
+    allPetitions.filter((petition) => petition.status === "success"),
   );
-  const waitingReceivePetitions = withLabItems(
+  const waitingReceivePetitions = onlyLabPetitions(
     allPetitions.filter((petition) => petition.status === "sampleSent"),
   );
-  const inProgressPetitions = withLabItems(
+  const inProgressPetitions = onlyLabPetitions(
     allPetitions.filter((petition) => petition.status === "pendingReview" || petition.status === "inProgress"),
   );
   const labTotal = labPetitions.length + completedPetitions.length;

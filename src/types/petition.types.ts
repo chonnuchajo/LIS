@@ -3,17 +3,15 @@ export type PetitionStatus =
   | 'deliveringQC'   // กำลังส่งตัวอย่าง (ยื่นคำร้อง)
   | 'sampleSent'     // ส่งตัวอย่างแล้ว (สแกนส่ง)
   | 'pendingReview'  // รับตัวอย่างแล้ว (สแกนรับ)
-  | 'inProgress'     // QC กำลังตรวจ
-  | 'normal'         // ตรวจแล้ว: ปกติ
-  | 'defective';     // ตรวจแล้ว: ไม่ปกติ
+  | 'inProgress'     // QC กำลังตรวจ (เริ่มบันทึกผล)
+  | 'success';       // QC อนุมัติครบทุกตัวอย่าง
 
 export const PETITION_STATUSES: PetitionStatus[] = [
   'deliveringQC',
   'sampleSent',
   'pendingReview',
   'inProgress',
-  'normal',
-  'defective',
+  'success',
 ];
 
 export type StatusBadgeVariant =
@@ -32,8 +30,7 @@ export const PETITION_STATUS_CONFIG: Record<
   sampleSent:    { label: 'ส่งตัวอย่างแล้ว',  variant: 'primary-soft' },
   pendingReview: { label: 'รับตัวอย่างแล้ว',  variant: 'yellow-soft' },
   inProgress:    { label: 'QC กำลังตรวจ',     variant: 'blue-soft' },
-  normal:        { label: 'ปกติ',           variant: 'green-soft' },
-  defective:     { label: 'ไม่ปกติ',        variant: 'red-soft' },
+  success:       { label: 'อนุมัติเรียบร้อย',  variant: 'green-soft' },
 };
 
 // ===== Sample return =====
@@ -196,6 +193,11 @@ export interface Petition {
   labAgreementReview?: LabAgreementReview | null;
   assignedTo?: PetitionAssignee | null;
   prodOrderNos?: string[];
+  sampleSentAt?: string | null;
+  receivedAt?: string | null;
+  receivedBy?: string;
+  firstResultAt?: string | null;
+  completedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

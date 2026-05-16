@@ -203,7 +203,6 @@ router.post('/', async (req, res) => {
     for (const item of body.items) {
       const batch = String(item.batchNo || '').trim();
       if (!batch) return badRequest(res, `ตัวอย่าง "${item.sampleName || item.seq}": กรุณากรอกเลขแบช`);
-      if (!/[16]$/.test(batch)) return badRequest(res, `ตัวอย่าง "${item.sampleName || item.seq}": เลขแบชต้องลงท้ายด้วย 1 หรือ 6`);
     }
     const petitionNo = await nextPetitionNo();
     const doc = await Petition.create({
@@ -230,7 +229,9 @@ router.patch('/:id/deliver', async (req, res) => {
     const q = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { petitionNo: id };
     const before = await Petition.findOne(q).lean();
     if (!before) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
-    const doc = await Petition.findOneAndUpdate(q, { status: 'sampleSent' }, { new: true });
+    const update = { status: 'sampleSent' };
+    if (!before.sampleSentAt) update.sampleSentAt = new Date();
+    const doc = await Petition.findOneAndUpdate(q, update, { new: true });
     if (before.status !== doc.status) {
       logAudit(doc, {
         event: 'statusChanged',
@@ -240,6 +241,36 @@ router.patch('/:id/deliver', async (req, res) => {
         note: 'สแกนส่งตัวอย่าง',
       });
     }
+    res.json(doc);
+  } catch (err) {
+    res.status(400).json({ error: { message: err.message } });
+  }
+});
+
+// PATCH /api/petitions/:id/receive  → QC/Lab รับตัวอย่าง (scan รับ)
+router.patch('/:id/receive', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const q = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { petitionNo: id };
+    const before = await Petition.findOne(q).lean();
+    if (!before) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if (before.status !== 'sampleSent') {
+      return badRequest(res, `ไม่สามารถรับได้: สถานะปัจจุบันคือ ${before.status}`);
+    }
+    const actor = req.body?.actor || 'system';
+    const update = {
+      status: 'pendingReview',
+      receivedAt: new Date(),
+      receivedBy: actor,
+    };
+    const doc = await Petition.findOneAndUpdate(q, update, { new: true });
+    logAudit(doc, {
+      event: 'statusChanged',
+      fromStatus: before.status,
+      toStatus: doc.status,
+      actor,
+      note: 'สแกนรับตัวอย่าง',
+    });
     res.json(doc);
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
