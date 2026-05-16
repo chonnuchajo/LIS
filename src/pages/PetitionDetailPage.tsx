@@ -9,10 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PetitionView from '@/components/petition/PetitionView';
 import PetitionPrintTemplate from '@/components/petition/PetitionPrintTemplate';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
-import PetitionAuditLog from '@/components/petition/PetitionAuditLog';
 import ReviewHistory from '@/components/review/ReviewHistory';
 import LabAgreementReviewView from '@/components/review/LabAgreementReviewView';
-import { usePetition, usePetitionAuditLog, deletePetition } from '@/hooks/usePetition';
+import { usePetition, deletePetition } from '@/hooks/usePetition';
 import {
   PETITION_STATUS_CONFIG,
   type Petition,
@@ -104,7 +103,6 @@ export default function PetitionDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { data, loading, error } = usePetition(id);
-  const { data: auditLogs, loading: auditLoading, error: auditError } = usePetitionAuditLog(id);
   const { user } = useAuth();
   const { refetch: refetchSamples } = useSamples();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -278,19 +276,6 @@ export default function PetitionDetailPage() {
                       </CardContent>
                     </Card>
                   )}
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>ประวัติการเปลี่ยนสถานะ (Audit Log)</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <PetitionAuditLog
-                        entries={auditLogs}
-                        loading={auditLoading}
-                        error={auditError}
-                      />
-                    </CardContent>
-                  </Card>
 
                   {canActAsReviewer && data.labAgreementReview && (
                     <Card>
