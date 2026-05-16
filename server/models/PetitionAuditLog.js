@@ -24,5 +24,8 @@ const PetitionAuditLogSchema = new mongoose.Schema(
 );
 
 PetitionAuditLogSchema.index({ petitionId: 1, createdAt: -1 });
+PetitionAuditLogSchema.index({ createdAt: -1 });
+PetitionAuditLogSchema.index({ event: 1, createdAt: -1 });
+PetitionAuditLogSchema.index({ toStatus: 1, createdAt: -1 });
 
 module.exports = mongoose.model('PetitionAuditLog', PetitionAuditLogSchema);

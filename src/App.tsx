@@ -10,6 +10,7 @@ import Home from "./pages/Home";
 import DashboardRedirect from "./pages/DashboardRedirect";
 import LabDashboard from "./pages/LabDashboard";
 import QCDashboard from "./pages/QCDashboard";
+import QueueDisplay from "./pages/QueueDisplay";
 import Login from "./pages/Login";
 import SendSample from "./pages/SendSample";
 import RecordResults from "./pages/RecordResults";
@@ -30,6 +31,7 @@ import PetitionNewPage from "./pages/PetitionNewPage";
 import PetitionDetailPage from "./pages/PetitionDetailPage";
 import PetitionEditPage from "./pages/PetitionEditPage";
 import PetitionAssignPage from "./pages/PetitionAssignPage";
+import PetitionAuditLogPage from "./pages/PetitionAuditLogPage";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
 
 const queryClient = new QueryClient();
@@ -50,6 +52,8 @@ const App = () => (
               <Route path="/" element={<PrivateRoute><DashboardRedirect /></PrivateRoute>} />
               <Route path="/dashboard/lab" element={<PrivateRoute><LabDashboard /></PrivateRoute>} />
               <Route path="/dashboard/qc" element={<PrivateRoute><QCDashboard /></PrivateRoute>} />
+              <Route path="/queue/lab" element={<QueueDisplay mode="lab" />} />
+              <Route path="/queue/qc" element={<QueueDisplay mode="qc" />} />
               <Route path="/home" element={<PrivateRoute><Home /></PrivateRoute>} />
               <Route path="/send-sample" element={<PrivateRoute><SendSample /></PrivateRoute>} />
               <Route path="/physical-inspection" element={<PrivateRoute><PhysicalInspection /></PrivateRoute>} />
@@ -66,6 +70,8 @@ const App = () => (
               <Route path="/access-control" element={<PrivateRoute><AccessControl /></PrivateRoute>} />
               <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
               <Route path="/petitions" element={<PrivateRoute><PetitionListPage /></PrivateRoute>} />
+              <Route path="/adutuilog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
+              <Route path="/auditlog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
               <Route path="/petitions/assign" element={<PrivateRoute><PetitionAssignPage /></PrivateRoute>} />
               <Route path="/petitions/new" element={<PrivateRoute><PetitionNewPage /></PrivateRoute>} />
               <Route path="/petitions/:id" element={<PrivateRoute><PetitionDetailPage /></PrivateRoute>} />
