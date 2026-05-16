@@ -328,6 +328,7 @@ const AccessControl = () => {
       setRoles((current) => [...current, res.data.data]);
       setPermissions((current) => ({ ...current, [res.data.data.id]: [] }));
       setNewRole({ name: "", description: "" });
+      notifyGroupMappingChanged();
       toast.success("Role added");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to add role");
@@ -345,6 +346,7 @@ const AccessControl = () => {
         delete next[id];
         return next;
       });
+      notifyGroupMappingChanged();
       toast.success("Role removed");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to remove role");
