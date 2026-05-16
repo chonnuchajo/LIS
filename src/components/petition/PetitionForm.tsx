@@ -477,10 +477,6 @@ export default function PetitionForm({
               <li>ห้องปฏิบัติการรับผิดชอบผลการทดสอบเฉพาะกับตัวอย่างที่นำมาทดสอบเท่านั้น</li>
               <li>ยินยอมให้เปิดเผยข้อมูลตัวอย่าง และผลทดสอบแก่หน่วยงานอื่น (กรณีลูกค้าภายในองค์กร)</li>
             </ol>
-            <label className="flex items-start gap-2 pt-1 text-sm font-semibold text-black-500">
-              <Checkbox />
-              <span>ข้าพเจ้าได้รับทราบ และยอมรับเงื่อนไขการให้บริการของห้องปฏิบัติการ บริษัท ไอ ซี พี ลัดดา จำกัด ทุกประการ</span>
-            </label>
           </div>
         </CardContent>
       </Card>
@@ -808,7 +804,7 @@ export default function PetitionForm({
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div>
-            <FieldLabel>ผู้นำส่งตัวอย่าง</FieldLabel>
+            <FieldLabel required>ผู้นำส่งตัวอย่าง</FieldLabel>
             <Controller
               control={control}
               name="sampleSubmittedBy"
@@ -821,10 +817,12 @@ export default function PetitionForm({
                 />
               )}
             />
+            <ErrorMsg msg={errors.sampleSubmittedBy?.message} />
           </div>
           <div>
-            <FieldLabel>วันที่</FieldLabel>
+            <FieldLabel required>วันที่</FieldLabel>
             <Input type="date" {...register('sampleSubmittedDate')} />
+            <ErrorMsg msg={errors.sampleSubmittedDate?.message} />
           </div>
         </CardContent>
       </Card>

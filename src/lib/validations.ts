@@ -57,8 +57,8 @@ export const petitionFormSchema = z.object({
   storageCondition: z.enum(['room', 'chilled']).default('room'),
   packageType: z.enum(['plasticBag', 'glassBottle', 'plasticBottle', 'can', 'other']).default('plasticBottle'),
   packageTypeOther: z.string().optional().default(''),
-  sampleSubmittedBy: z.string().optional().default(''),
-  sampleSubmittedDate: z.string().nullable().optional(),
+  sampleSubmittedBy: z.string().min(1, 'กรุณาเลือกผู้นำส่งตัวอย่าง').transform(trim),
+  sampleSubmittedDate: z.string().min(1, 'กรุณาเลือกวันที่นำส่ง').nullable().refine((v) => !!v, { message: 'กรุณาเลือกวันที่นำส่ง' }),
   items: z.array(petitionItemSchema).min(1, 'ต้องมีตัวอย่างอย่างน้อย 1 รายการ'),
   cause: z.string().optional().default(''),
 });
