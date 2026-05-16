@@ -6,6 +6,16 @@ import AppSidebar from '@/components/lis/AppSidebar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import PetitionView from '@/components/petition/PetitionView';
 import PetitionPrintTemplate from '@/components/petition/PetitionPrintTemplate';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
@@ -220,7 +230,7 @@ export default function PetitionDetailPage() {
                           แก้ไข
                         </Button>
                       )}
-                      {canDelete && !confirmDelete && (
+                      {canDelete && (
                         <Button
                           variant="danger-outline"
                           size="sm"
@@ -230,26 +240,37 @@ export default function PetitionDetailPage() {
                           ลบคำร้อง
                         </Button>
                       )}
-                      {canDelete && confirmDelete && (
-                        <>
-                          <span className="self-center text-sm text-red-500 font-medium">
-                            ยืนยันการลบคำร้องนี้?
-                          </span>
-                          <Button variant="danger" size="sm" disabled={deleting} onClick={handleDelete}>
-                            {deleting ? 'กำลังลบ...' : 'ยืนยัน'}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={deleting}
-                            onClick={() => setConfirmDelete(false)}
-                          >
-                            ยกเลิก
-                          </Button>
-                        </>
-                      )}
                     </div>
                   </div>
+
+                  <AlertDialog
+                    open={confirmDelete}
+                    onOpenChange={(open) => {
+                      if (!open && !deleting) setConfirmDelete(false);
+                    }}
+                  >
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>ยืนยันการลบคำร้องนี้?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          กำลังจะลบคำร้อง "{data.petitionNo}" — การลบไม่สามารถย้อนกลับได้
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={deleting}>ยกเลิก</AlertDialogCancel>
+                        <AlertDialogAction
+                          disabled={deleting}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            handleDelete();
+                          }}
+                          className="bg-destructive hover:bg-destructive/90"
+                        >
+                          {deleting ? 'กำลังลบ...' : 'ยืนยัน'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
 
                   <div className="flex flex-wrap items-baseline gap-3">
                     <h1 className="text-2xl font-bold text-black-500">{data.petitionNo}</h1>
