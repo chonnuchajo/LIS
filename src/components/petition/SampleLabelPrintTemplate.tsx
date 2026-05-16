@@ -78,8 +78,8 @@ function LabelCard({
   const qrValue = getQrValue(petition, item);
   return (
     <div
-      className="border border-black p-3 mx-auto"
-      style={{ width: '14cm', breakAfter: 'page', pageBreakAfter: 'always' }}
+      className="label-card border border-black"
+      style={{ width: '14cm', padding: '0.3cm 0.4cm' }}
     >
       <div className="flex items-start gap-2 mb-2">
         <div className="pt-0.5">
@@ -130,10 +130,34 @@ function LabelCard({
 export default function SampleLabelPrintTemplate({ petition }: { petition: Petition }) {
   const yearShort = currentBuddhistYearShort();
   return (
-    <div className="text-sm" style={{ fontFamily: 'inherit' }}>
-      {petition.items.map((item) => (
-        <LabelCard key={item.seq} petition={petition} item={item} yearShort={yearShort} />
-      ))}
-    </div>
+    <>
+      <style>{`
+        @page {
+          size: 6in 4in;
+          margin: 0;
+        }
+        @media print {
+          html, body { margin: 0; padding: 0; }
+          .label-page {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 6in;
+            height: 4in;
+            box-sizing: border-box;
+            break-after: page;
+            page-break-after: always;
+          }
+          .label-page:last-child { break-after: auto; page-break-after: auto; }
+        }
+      `}</style>
+      <div className="text-sm" style={{ fontFamily: 'inherit' }}>
+        {petition.items.map((item) => (
+          <div key={item.seq} className="label-page">
+            <LabelCard petition={petition} item={item} yearShort={yearShort} />
+          </div>
+        ))}
+      </div>
+    </>
   );
 }

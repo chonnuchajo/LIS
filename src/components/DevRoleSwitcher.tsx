@@ -124,7 +124,7 @@ export const DevRoleSwitcher = () => {
         touchAction: "none",
         userSelect: "none",
       }}
-      className="fixed z-[9999] flex flex-col items-end gap-1"
+      className="fixed z-[9999] flex flex-col items-end gap-1 print:hidden"
     >
       <div
         title="ลากเพื่อย้ายตำแหน่ง"
