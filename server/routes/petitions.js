@@ -200,6 +200,11 @@ router.post('/', async (req, res) => {
     if (!Array.isArray(body.items) || body.items.length === 0) {
       return badRequest(res, 'ต้องมีตัวอย่างอย่างน้อย 1 รายการ');
     }
+    for (const item of body.items) {
+      const batch = String(item.batchNo || '').trim();
+      if (!batch) return badRequest(res, `ตัวอย่าง "${item.sampleName || item.seq}": กรุณากรอกเลขแบช`);
+      if (!/[16]$/.test(batch)) return badRequest(res, `ตัวอย่าง "${item.sampleName || item.seq}": เลขแบชต้องลงท้ายด้วย 1 หรือ 6`);
+    }
     const petitionNo = await nextPetitionNo();
     const doc = await Petition.create({
       ...body,

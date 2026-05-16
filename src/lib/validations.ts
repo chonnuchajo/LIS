@@ -27,7 +27,9 @@ export const petitionItemSchema = z.object({
   seq: z.number().int().positive(),
   sampleName: z.string().min(1, 'กรุณากรอกชื่อตัวอย่าง').transform(trim),
   commonName: z.string().optional().default(''),
-  batchNo: z.string().optional().default(''),
+  batchNo: z.string()
+    .min(1, 'กรุณากรอกเลขแบช')
+    .refine((val) => /[16]$/.test(val), { message: 'เลขแบชต้องลงท้ายด้วย 1 หรือ 6' }),
   productionDate: z.string().nullable().optional(),
   submissionNo: z.string().optional().default(''),
   packageUnit: z.string().optional().default(''),

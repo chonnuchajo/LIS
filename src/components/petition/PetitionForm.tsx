@@ -724,8 +724,9 @@ export default function PetitionForm({
                   <ErrorMsg msg={errors.items?.[idx]?.sampleName?.message} />
                 </div>
                 <div>
-                  <FieldLabel>Batch / Lot No.</FieldLabel>
+                  <FieldLabel required>Batch / Lot No.</FieldLabel>
                   <Input {...register(`items.${idx}.batchNo` as const)} />
+                  <ErrorMsg msg={errors.items?.[idx]?.batchNo?.message} />
                 </div>
                 <div>
                   <FieldLabel>วันที่ผลิต</FieldLabel>
