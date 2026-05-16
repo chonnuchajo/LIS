@@ -19,6 +19,7 @@ import AppSidebar from "@/components/lis/AppSidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -47,13 +49,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { api, type MachineItem } from "@/lib/api";
 
 type MasterItem = Record<string, unknown>;
-type SimpleInstrument = "GC" | "HPLC" | "";
+type SimpleInstrument = "GC" | "HPLC";
+
+const INSTRUMENT_ORDER: SimpleInstrument[] = ["GC", "HPLC"];
 
 type SimpleMethodRow = {
   key: string;
   tradeName: string;
   commonName: string;
-  instrument: SimpleInstrument;
+  instruments: SimpleInstrument[];
   itemCount: number;
   itemNos: string[];
   items: MasterItem[];
@@ -159,12 +163,36 @@ function firstValue(item: MasterItem, keys: string[]) {
   return "";
 }
 
-function detectInstrument(value: unknown): SimpleInstrument {
+function detectInstruments(value: unknown): SimpleInstrument[] {
   const text = String(value ?? "").trim().toUpperCase();
-  if (!text) return "";
-  if (/\bHPLC\b/.test(text)) return "HPLC";
-  if (/\bGC\b/.test(text)) return "GC";
-  return "";
+  if (!text) return [];
+  const found: SimpleInstrument[] = [];
+  if (/\bGC\b/.test(text)) found.push("GC");
+  if (/\bHPLC\b/.test(text)) found.push("HPLC");
+  return found;
+}
+
+function sortInstruments(values: Iterable<SimpleInstrument>): SimpleInstrument[] {
+  const set = new Set(values);
+  return INSTRUMENT_ORDER.filter((value) => set.has(value));
+}
+
+function toggleInstrument(
+  current: SimpleInstrument[],
+  value: SimpleInstrument,
+  enabled: boolean,
+): SimpleInstrument[] {
+  const next = new Set(current);
+  if (enabled) next.add(value);
+  else next.delete(value);
+  return sortInstruments(next);
+}
+
+function instrumentsEqual(a: SimpleInstrument[], b: SimpleInstrument[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedA = sortInstruments(a);
+  const sortedB = sortInstruments(b);
+  return sortedA.every((value, index) => value === sortedB[index]);
 }
 
 function displayValue(value: unknown) {
@@ -225,16 +253,23 @@ function getItemId(item: MasterItem) {
   return value ? String(value) : "";
 }
 
-function getSimpleInstrument(item: MasterItem): SimpleInstrument {
+function getSimpleInstruments(item: MasterItem): SimpleInstrument[] {
+  const collected = new Set<SimpleInstrument>();
   for (const key of methodInstrumentKeys) {
-    const instrument = detectInstrument(item[key]);
-    if (instrument) return instrument;
+    for (const instrument of detectInstruments(item[key])) {
+      collected.add(instrument);
+    }
   }
-  return "";
+  return sortInstruments(collected);
 }
 
-function buildSimpleMethodRows(items: MasterItem[]): SimpleMethodRow[] {
+function buildSimpleMethodRows(
+  items: MasterItem[],
+  overrides: Record<string, SimpleInstrument[]> = {},
+): SimpleMethodRow[] {
   const groups = new Map<string, SimpleMethodRow>();
+
+  const instrumentSets = new Map<string, Set<SimpleInstrument>>();
 
   items.forEach((item) => {
     const tradeName = String(firstValue(item, tradeNameKeys)).trim();
@@ -243,14 +278,17 @@ function buildSimpleMethodRows(items: MasterItem[]): SimpleMethodRow[] {
 
     const key = `${tradeName.toLowerCase()}||${commonName.toLowerCase()}`;
     const itemNo = String(firstValue(item, codeKeys)).trim();
-    const instrument = getSimpleInstrument(item);
+    const override = itemNo ? overrides[itemNo] : undefined;
+    const instruments = override ?? getSimpleInstruments(item);
     const existing = groups.get(key);
+    const instrumentSet = instrumentSets.get(key) ?? new Set<SimpleInstrument>();
+    instruments.forEach((value) => instrumentSet.add(value));
+    instrumentSets.set(key, instrumentSet);
 
     if (existing) {
       existing.itemCount += 1;
       existing.items.push(item);
       if (itemNo && !existing.itemNos.includes(itemNo)) existing.itemNos.push(itemNo);
-      if (!existing.instrument && instrument) existing.instrument = instrument;
       return;
     }
 
@@ -258,11 +296,15 @@ function buildSimpleMethodRows(items: MasterItem[]): SimpleMethodRow[] {
       key,
       tradeName,
       commonName,
-      instrument,
+      instruments: [],
       itemCount: 1,
       itemNos: itemNo ? [itemNo] : [],
       items: [item],
     });
+  });
+
+  groups.forEach((row, key) => {
+    row.instruments = sortInstruments(instrumentSets.get(key) ?? new Set());
   });
 
   return Array.from(groups.values()).sort((a, b) => (
@@ -634,10 +676,15 @@ export default function MasterItems() {
   );
 }
 
+type SimpleMethodFilter = "all" | "gc-only" | "hplc-only" | "both" | "unassigned";
+
 export function SimpleMethodPage() {
   const queryClient = useQueryClient();
-  const [methodDrafts, setMethodDrafts] = useState<Record<string, SimpleInstrument>>({});
-  const [savingMethodKey, setSavingMethodKey] = useState<string | null>(null);
+  const [methodDrafts, setMethodDrafts] = useState<Record<string, SimpleInstrument[]>>({});
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [savingAll, setSavingAll] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState<SimpleMethodFilter>("all");
 
   const {
     data: items = [],
@@ -656,53 +703,123 @@ export function SimpleMethodPage() {
     },
   });
 
-  const rows = useMemo(() => buildSimpleMethodRows(items), [items]);
+  const { data: overrides = {} } = useQuery({
+    queryKey: ["simple-methods"],
+    queryFn: async () => {
+      const res = await api.get<Array<{ itemNo: string; instruments: string[] }>>("/simple-methods");
+      const map: Record<string, SimpleInstrument[]> = {};
+      (res.data.data || []).forEach((entry) => {
+        if (!entry || !entry.itemNo) return;
+        const filtered = (entry.instruments || [])
+          .map((value) => String(value).toUpperCase())
+          .filter((value): value is SimpleInstrument => value === "GC" || value === "HPLC");
+        map[entry.itemNo] = sortInstruments(filtered);
+      });
+      return map;
+    },
+  });
 
-  const setMethodDraft = (key: string, value: string) => {
+  const rows = useMemo(() => buildSimpleMethodRows(items, overrides), [items, overrides]);
+
+  const visibleRows = useMemo(() => {
+    const needle = searchText.trim().toLowerCase();
+    return rows.filter((row) => {
+      if (needle) {
+        const haystack = `${row.tradeName} ${row.commonName} ${row.itemNos.join(" ")}`.toLowerCase();
+        if (!haystack.includes(needle)) return false;
+      }
+      if (statusFilter === "all") return true;
+      const hasGC = row.instruments.includes("GC");
+      const hasHPLC = row.instruments.includes("HPLC");
+      switch (statusFilter) {
+        case "gc-only": return hasGC && !hasHPLC;
+        case "hplc-only": return hasHPLC && !hasGC;
+        case "both": return hasGC && hasHPLC;
+        case "unassigned": return row.instruments.length === 0;
+        default: return true;
+      }
+    });
+  }, [rows, searchText, statusFilter]);
+
+  const dirtyRows = useMemo(
+    () => rows.filter((row) => {
+      const draft = methodDrafts[row.key];
+      return draft !== undefined && !instrumentsEqual(draft, row.instruments);
+    }),
+    [rows, methodDrafts],
+  );
+
+  const setMethodDraft = (key: string, instruments: SimpleInstrument[]) => {
     setMethodDrafts((current) => ({
       ...current,
-      [key]: value === "GC" || value === "HPLC" ? value : "",
+      [key]: sortInstruments(instruments),
     }));
   };
 
-  const saveSimpleMethod = async (row: SimpleMethodRow) => {
-    const instrument = methodDrafts[row.key] ?? row.instrument;
-    const patchTargets = row.items
-      .map((item) => ({ item, id: getItemId(item) }))
-      .filter((target) => target.id);
+  const toggleRowSelected = (key: string, selected: boolean) => {
+    setSelectedKeys((current) => {
+      const next = new Set(current);
+      if (selected) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  };
 
-    if (patchTargets.length === 0) {
-      toast.error("ไม่พบรหัส item สำหรับบันทึก method");
-      return;
-    }
-
-    setSavingMethodKey(row.key);
-    try {
-      await Promise.all(patchTargets.map(({ item, id }) => api.patch(`/master-items/${encodeURIComponent(id)}`, {
-        ...item,
-        simple_method: instrument,
-        simpleMethod: instrument,
-        instrument,
-      })));
-      toast.success("บันทึก simple method สำเร็จ");
-      setMethodDrafts((current) => {
-        const next = { ...current };
-        delete next[row.key];
-        return next;
+  const toggleAllVisibleSelected = (selected: boolean) => {
+    setSelectedKeys((current) => {
+      const next = new Set(current);
+      visibleRows.forEach((row) => {
+        if (selected) next.add(row.key);
+        else next.delete(row.key);
       });
-      queryClient.invalidateQueries({ queryKey: ["master-items"] });
+      return next;
+    });
+  };
+
+  const applyBulk = (instruments: SimpleInstrument[]) => {
+    if (selectedKeys.size === 0) return;
+    const sorted = sortInstruments(instruments);
+    setMethodDrafts((current) => {
+      const next = { ...current };
+      selectedKeys.forEach((key) => {
+        next[key] = sorted;
+      });
+      return next;
+    });
+  };
+
+  const saveAllDirty = async () => {
+    if (dirtyRows.length === 0) return;
+    setSavingAll(true);
+    try {
+      const updates = dirtyRows.flatMap((row) => {
+        const instruments = methodDrafts[row.key] ?? row.instruments;
+        return row.items
+          .map((item) => String(firstValue(item, codeKeys)).trim())
+          .filter((itemNo) => itemNo)
+          .map((itemNo) => ({ itemNo, instruments }));
+      });
+      if (updates.length === 0) {
+        toast.error("ไม่พบรหัส item สำหรับบันทึก method");
+        return;
+      }
+      await api.put("/simple-methods", { updates });
+      toast.success(`บันทึก ${dirtyRows.length} รายการสำเร็จ`);
+      setMethodDrafts({});
+      setSelectedKeys(new Set());
+      queryClient.invalidateQueries({ queryKey: ["simple-methods"] });
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
-      setSavingMethodKey(null);
+      setSavingAll(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-screen bg-background">
       <AppSidebar />
-      <main className="flex-1 overflow-auto p-6">
-        <div className="mb-6">
+      <main className="relative flex flex-1 flex-col overflow-hidden p-6 pb-24">
+        <div className="mb-4 shrink-0">
           <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
             <FlaskConical className="h-6 w-6" />
             Simple Method
@@ -713,15 +830,74 @@ export function SimpleMethodPage() {
         </div>
 
         <SimpleMethodTab
-          rows={rows}
+          rows={visibleRows}
+          totalRows={rows.length}
           isLoading={isLoading}
           isError={isError}
           error={error}
           methodDrafts={methodDrafts}
-          savingMethodKey={savingMethodKey}
+          selectedKeys={selectedKeys}
+          searchText={searchText}
+          statusFilter={statusFilter}
+          onSearchTextChange={setSearchText}
+          onStatusFilterChange={setStatusFilter}
           onDraftChange={setMethodDraft}
-          onSave={saveSimpleMethod}
+          onToggleRow={toggleRowSelected}
+          onToggleAll={toggleAllVisibleSelected}
         />
+
+        <div className="pointer-events-none absolute inset-x-6 bottom-6 z-30 flex justify-center">
+          <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-full border bg-card px-4 py-2 shadow-lg">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">เลือก</span>
+                <Badge variant="secondary" className="rounded-full">{selectedKeys.size}</Badge>
+                <span className="text-muted-foreground">รายการ</span>
+              </div>
+              <div className="mx-1 h-6 w-px bg-border" aria-hidden />
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">เปลี่ยนเป็น:</span>
+                {INSTRUMENT_ORDER.map((instrument) => (
+                  <Button
+                    key={instrument}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 rounded-full px-3"
+                    disabled={selectedKeys.size === 0}
+                    onClick={() => applyBulk([instrument])}
+                  >
+                    {instrument}
+                  </Button>
+                ))}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 rounded-full px-3"
+                  disabled={selectedKeys.size === 0}
+                  onClick={() => applyBulk([...INSTRUMENT_ORDER])}
+                >
+                  ทั้งหมด
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 rounded-full px-3 text-muted-foreground"
+                  disabled={selectedKeys.size === 0}
+                  onClick={() => applyBulk([])}
+                >
+                  ล้าง
+                </Button>
+              </div>
+              <div className="mx-1 h-6 w-px bg-border" aria-hidden />
+              <Button
+                size="sm"
+                disabled={dirtyRows.length === 0 || savingAll}
+                onClick={saveAllDirty}
+                className="rounded-full"
+              >
+                {savingAll ? "กำลังบันทึก..." : `บันทึก${dirtyRows.length > 0 ? ` (${dirtyRows.length})` : ""}`}
+              </Button>
+            </div>
+          </div>
       </main>
     </div>
   );
@@ -750,49 +926,105 @@ export function MachinesPage() {
 
 function SimpleMethodTab({
   rows,
+  totalRows,
   isLoading,
   isError,
   error,
   methodDrafts,
-  savingMethodKey,
+  selectedKeys,
+  searchText,
+  statusFilter,
+  onSearchTextChange,
+  onStatusFilterChange,
   onDraftChange,
-  onSave,
+  onToggleRow,
+  onToggleAll,
 }: {
   rows: SimpleMethodRow[];
+  totalRows: number;
   isLoading: boolean;
   isError: boolean;
   error: unknown;
-  methodDrafts: Record<string, SimpleInstrument>;
-  savingMethodKey: string | null;
-  onDraftChange: (key: string, value: string) => void;
-  onSave: (row: SimpleMethodRow) => void;
+  methodDrafts: Record<string, SimpleInstrument[]>;
+  selectedKeys: Set<string>;
+  searchText: string;
+  statusFilter: SimpleMethodFilter;
+  onSearchTextChange: (value: string) => void;
+  onStatusFilterChange: (value: SimpleMethodFilter) => void;
+  onDraftChange: (key: string, instruments: SimpleInstrument[]) => void;
+  onToggleRow: (key: string, selected: boolean) => void;
+  onToggleAll: (selected: boolean) => void;
 }) {
+  const visibleSelectedCount = rows.reduce(
+    (acc, row) => acc + (selectedKeys.has(row.key) ? 1 : 0),
+    0,
+  );
+  const allSelected: boolean | "indeterminate" =
+    rows.length > 0 && visibleSelectedCount === rows.length
+      ? true
+      : visibleSelectedCount === 0
+        ? false
+        : "indeterminate";
+  const isFiltered = rows.length !== totalRows;
+
   return (
-    <Card>
-      <CardHeader className="flex flex-col gap-2 space-y-0 md:flex-row md:items-center md:justify-between">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <FlaskConical className="h-5 w-5" />
-          จัดการ Simple Method
-          <Badge variant="outline">{rows.length}</Badge>
-        </CardTitle>
-        <div className="text-sm text-muted-foreground">เรียงตาม tradename และ commonname</div>
+    <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <CardHeader className="flex shrink-0 flex-col gap-3 space-y-0">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <FlaskConical className="h-5 w-5" />
+            จัดการ Simple Method
+            <Badge variant="outline">
+              {isFiltered ? `${rows.length}/${totalRows}` : totalRows}
+            </Badge>
+          </CardTitle>
+        </div>
+        <div className="flex flex-col gap-2 md:flex-row md:items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchText}
+              onChange={(event) => onSearchTextChange(event.target.value)}
+              placeholder="ค้นหา tradename / commonname / item no..."
+              className="pl-8"
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={(value) => onStatusFilterChange(value as SimpleMethodFilter)}>
+            <SelectTrigger className="w-full md:w-48">
+              <SelectValue placeholder="ทุก Method" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ทุก Method</SelectItem>
+              <SelectItem value="gc-only">GC เท่านั้น</SelectItem>
+              <SelectItem value="hplc-only">HPLC เท่านั้น</SelectItem>
+              <SelectItem value="both">GC + HPLC</SelectItem>
+              <SelectItem value="unassigned">ยังไม่กำหนด</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
         {isError ? (
-          <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          <div className="m-6 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
             <AlertCircle className="h-4 w-4" />
             {(error as Error).message}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative h-full overflow-auto border-t">
             <Table>
-              <TableHeader>
+              <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={(checked) => onToggleAll(!!checked)}
+                      aria-label="เลือกทุกแถว"
+                    />
+                  </TableHead>
                   <TableHead>tradename</TableHead>
                   <TableHead>commonname</TableHead>
                   <TableHead className="w-28 text-center">Items</TableHead>
-                  <TableHead className="w-44">Method/Instrument</TableHead>
-                  <TableHead className="w-28 text-right">Actions</TableHead>
+                  <TableHead className="w-64">Method/Instrument</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -810,41 +1042,85 @@ function SimpleMethodTab({
                   </TableRow>
                 ) : (
                   rows.map((row) => {
-                    const draftValue = methodDrafts[row.key] ?? row.instrument;
-                    const selectValue = draftValue || "unassigned";
-                    const isDirty = methodDrafts[row.key] !== undefined && methodDrafts[row.key] !== row.instrument;
-                    const isSaving = savingMethodKey === row.key;
+                    const draftValue = methodDrafts[row.key] ?? row.instruments;
+                    const allChecked: boolean | "indeterminate" =
+                      draftValue.length === INSTRUMENT_ORDER.length
+                        ? true
+                        : draftValue.length === 0
+                          ? false
+                          : "indeterminate";
+                    const isDirty =
+                      methodDrafts[row.key] !== undefined &&
+                      !instrumentsEqual(methodDrafts[row.key], row.instruments);
+                    const isRowSelected = selectedKeys.has(row.key);
 
                     return (
-                      <TableRow key={row.key}>
+                      <TableRow
+                        key={row.key}
+                        data-state={isRowSelected ? "selected" : undefined}
+                        className="cursor-pointer"
+                        onClick={() => onToggleRow(row.key, !isRowSelected)}
+                      >
+                        <TableCell onClick={(event) => event.stopPropagation()}>
+                          <Checkbox
+                            checked={isRowSelected}
+                            onCheckedChange={(checked) => onToggleRow(row.key, !!checked)}
+                            aria-label={`เลือกแถว ${row.tradeName}`}
+                          />
+                        </TableCell>
                         <TableCell className="min-w-52 font-medium">{displayValue(row.tradeName)}</TableCell>
                         <TableCell className="min-w-72">{displayValue(row.commonName)}</TableCell>
                         <TableCell className="text-center">
                           <Badge variant="secondary">{row.itemCount}</Badge>
                         </TableCell>
-                        <TableCell>
-                          <Select value={selectValue} onValueChange={(value) => onDraftChange(row.key, value)}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="unassigned">ยังไม่กำหนด</SelectItem>
-                              <SelectItem value="GC">GC</SelectItem>
-                              <SelectItem value="HPLC">HPLC</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-end">
-                            <Button
-                              size="sm"
-                              variant={isDirty ? "default" : "outline"}
-                              disabled={isSaving || !isDirty}
-                              onClick={() => onSave(row)}
-                            >
-                              {isSaving ? "กำลังบันทึก..." : "บันทึก"}
-                            </Button>
-                          </div>
+                        <TableCell onClick={(event) => event.stopPropagation()}>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className={`flex min-h-9 w-full flex-wrap items-center gap-1.5 rounded-md border bg-background px-2 py-1.5 text-left text-sm ring-offset-background transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                                  isDirty ? "border-primary" : "border-input"
+                                }`}
+                              >
+                                {draftValue.length === 0 ? (
+                                  <span className="text-muted-foreground">เลือก method...</span>
+                                ) : (
+                                  draftValue.map((m) => (
+                                    <Badge key={m} variant="secondary" className="rounded-full">
+                                      {m}
+                                    </Badge>
+                                  ))
+                                )}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent align="start" className="w-44 p-2">
+                              <div className="flex flex-col gap-1">
+                                <label className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent">
+                                  <Checkbox
+                                    checked={allChecked}
+                                    onCheckedChange={(checked) =>
+                                      onDraftChange(row.key, checked ? [...INSTRUMENT_ORDER] : [])
+                                    }
+                                  />
+                                  ทั้งหมด
+                                </label>
+                                {INSTRUMENT_ORDER.map((instrument) => (
+                                  <label
+                                    key={instrument}
+                                    className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                                  >
+                                    <Checkbox
+                                      checked={draftValue.includes(instrument)}
+                                      onCheckedChange={(checked) =>
+                                        onDraftChange(row.key, toggleInstrument(draftValue, instrument, !!checked))
+                                      }
+                                    />
+                                    {instrument}
+                                  </label>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                         </TableCell>
                       </TableRow>
                     );

@@ -28,6 +28,7 @@ mountApi('/petitions', require('./routes/petitions'));
 mountApi('/sample-receipts', require('./routes/sampleReceipts'));
 mountApi('/employees', require('./routes/employees'));
 mountApi('/master-items', require('./routes/masterItems'));
+mountApi('/simple-methods', require('./routes/simpleMethods'));
 mountApi('/machines', require('./routes/machines'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
