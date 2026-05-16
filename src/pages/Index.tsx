@@ -1,3 +1,4 @@
-import DashboardRedirect from "./DashboardRedirect";
 
-export default DashboardRedirect;
+import home from "./Home";
+
+export default home;

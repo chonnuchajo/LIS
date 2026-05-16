@@ -43,7 +43,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api, type MachineItem } from "@/lib/api";
 
@@ -341,8 +340,6 @@ export default function MasterItems() {
   const [editing, setEditing] = useState<MasterItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<MasterItem | null>(null);
-  const [methodDrafts, setMethodDrafts] = useState<Record<string, SimpleInstrument>>({});
-  const [savingMethodKey, setSavingMethodKey] = useState<string | null>(null);
 
   const {
     data: items = [],
@@ -381,9 +378,6 @@ export default function MasterItems() {
     });
     return Array.from(values).sort((a, b) => a.localeCompare(b));
   }, [items]);
-
-  const simpleMethodRows = useMemo(() => buildSimpleMethodRows(items), [items]);
-  const configuredMethodCount = simpleMethodRows.filter((row) => row.instrument).length;
 
   const extraColumns = useMemo(() => {
     const used = new Set([
@@ -437,46 +431,6 @@ export default function MasterItems() {
     }
   };
 
-  const setMethodDraft = (key: string, value: string) => {
-    setMethodDrafts((current) => ({
-      ...current,
-      [key]: value === "GC" || value === "HPLC" ? value : "",
-    }));
-  };
-
-  const saveSimpleMethod = async (row: SimpleMethodRow) => {
-    const instrument = methodDrafts[row.key] ?? row.instrument;
-    const patchTargets = row.items
-      .map((item) => ({ item, id: getItemId(item) }))
-      .filter((target) => target.id);
-
-    if (patchTargets.length === 0) {
-      toast.error("ไม่พบรหัส item สำหรับบันทึก method");
-      return;
-    }
-
-    setSavingMethodKey(row.key);
-    try {
-      await Promise.all(patchTargets.map(({ item, id }) => api.patch(`/master-items/${encodeURIComponent(id)}`, {
-        ...item,
-        simple_method: instrument,
-        simpleMethod: instrument,
-        instrument,
-      })));
-      toast.success("บันทึก simple method สำเร็จ");
-      setMethodDrafts((current) => {
-        const next = { ...current };
-        delete next[row.key];
-        return next;
-      });
-      queryClient.invalidateQueries({ queryKey: ["master-items"] });
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setSavingMethodKey(null);
-    }
-  };
-
   return (
     <div className="flex min-h-screen bg-background">
       <AppSidebar />
@@ -503,7 +457,7 @@ export default function MasterItems() {
           </div>
         </div>
 
-        <div className="mb-4 grid gap-3 md:grid-cols-4">
+        <div className="mb-4 grid gap-3 md:grid-cols-3">
           <Card>
             <CardContent className="p-4">
               <div className="text-sm text-muted-foreground">ทั้งหมด</div>
@@ -522,31 +476,8 @@ export default function MasterItems() {
               <div className="mt-1 text-2xl font-semibold">{filteredItems.length}</div>
             </CardContent>
           </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">Simple Method</div>
-              <div className="mt-1 text-2xl font-semibold">{configuredMethodCount}/{simpleMethodRows.length}</div>
-            </CardContent>
-          </Card>
         </div>
 
-        <Tabs defaultValue="items" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="items" className="gap-1.5">
-              <PackageSearch className="h-4 w-4" />
-              Items
-            </TabsTrigger>
-            <TabsTrigger value="simple-method" className="gap-1.5">
-              <FlaskConical className="h-4 w-4" />
-              Simple Method
-            </TabsTrigger>
-            <TabsTrigger value="machines" className="gap-1.5">
-              <Wrench className="h-4 w-4" />
-              รายการเครื่อง
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="items">
         <Card>
           <CardHeader className="flex flex-col gap-3 space-y-0 md:flex-row md:items-center md:justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -673,25 +604,6 @@ export default function MasterItems() {
             )}
           </CardContent>
         </Card>
-          </TabsContent>
-
-          <TabsContent value="simple-method">
-            <SimpleMethodTab
-              rows={simpleMethodRows}
-              isLoading={isLoading}
-              isError={isError}
-              error={error}
-              methodDrafts={methodDrafts}
-              savingMethodKey={savingMethodKey}
-              onDraftChange={setMethodDraft}
-              onSave={saveSimpleMethod}
-            />
-          </TabsContent>
-
-          <TabsContent value="machines">
-            <MachinesTab />
-          </TabsContent>
-        </Tabs>
 
         {(creating || editing) && (
           <MasterItemDialog
@@ -717,6 +629,120 @@ export default function MasterItems() {
             </DialogContent>
           </Dialog>
         )}
+      </main>
+    </div>
+  );
+}
+
+export function SimpleMethodPage() {
+  const queryClient = useQueryClient();
+  const [methodDrafts, setMethodDrafts] = useState<Record<string, SimpleInstrument>>({});
+  const [savingMethodKey, setSavingMethodKey] = useState<string | null>(null);
+
+  const {
+    data: items = [],
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ["master-items"],
+    queryFn: async () => {
+      try {
+        const res = await api.get<unknown>("/master-items");
+        return normalizeItems(res.data.data);
+      } catch {
+        return fetchDirectMasterItems();
+      }
+    },
+  });
+
+  const rows = useMemo(() => buildSimpleMethodRows(items), [items]);
+
+  const setMethodDraft = (key: string, value: string) => {
+    setMethodDrafts((current) => ({
+      ...current,
+      [key]: value === "GC" || value === "HPLC" ? value : "",
+    }));
+  };
+
+  const saveSimpleMethod = async (row: SimpleMethodRow) => {
+    const instrument = methodDrafts[row.key] ?? row.instrument;
+    const patchTargets = row.items
+      .map((item) => ({ item, id: getItemId(item) }))
+      .filter((target) => target.id);
+
+    if (patchTargets.length === 0) {
+      toast.error("ไม่พบรหัส item สำหรับบันทึก method");
+      return;
+    }
+
+    setSavingMethodKey(row.key);
+    try {
+      await Promise.all(patchTargets.map(({ item, id }) => api.patch(`/master-items/${encodeURIComponent(id)}`, {
+        ...item,
+        simple_method: instrument,
+        simpleMethod: instrument,
+        instrument,
+      })));
+      toast.success("บันทึก simple method สำเร็จ");
+      setMethodDrafts((current) => {
+        const next = { ...current };
+        delete next[row.key];
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ["master-items"] });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSavingMethodKey(null);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen bg-background">
+      <AppSidebar />
+      <main className="flex-1 overflow-auto p-6">
+        <div className="mb-6">
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+            <FlaskConical className="h-6 w-6" />
+            Simple Method
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            กำหนด GC/HPLC ตาม tradename และ commonname
+          </p>
+        </div>
+
+        <SimpleMethodTab
+          rows={rows}
+          isLoading={isLoading}
+          isError={isError}
+          error={error}
+          methodDrafts={methodDrafts}
+          savingMethodKey={savingMethodKey}
+          onDraftChange={setMethodDraft}
+          onSave={saveSimpleMethod}
+        />
+      </main>
+    </div>
+  );
+}
+
+export function MachinesPage() {
+  return (
+    <div className="flex min-h-screen bg-background">
+      <AppSidebar />
+      <main className="flex-1 overflow-auto p-6">
+        <div className="mb-6">
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+            <Wrench className="h-6 w-6" />
+            รายการเครื่อง
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            จัดการเครื่องมือและข้อมูลทะเบียนเครื่อง
+          </p>
+        </div>
+
+        <MachinesTab />
       </main>
     </div>
   );

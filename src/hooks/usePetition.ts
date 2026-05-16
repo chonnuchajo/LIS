@@ -10,6 +10,7 @@ interface ApiError extends Error {
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
+    cache: 'no-store',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
   });
@@ -88,9 +89,69 @@ export function usePetitionList(params: PetitionListParams) {
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
+    if (!data) setLoading(true);
     setError(null);
     apiFetch<PetitionListResponse>(`/petitions?${queryString}`)
+      .then((res) => {
+        if (!alive) return;
+        setData(res);
+      })
+      .catch((e: Error) => {
+        if (!alive) return;
+        setError(e.message);
+      })
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [queryString, reloadKey]);
+
+  return { data, loading, error, refresh };
+}
+
+// ===== Audit log list =====
+interface PetitionAuditLogListParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  event?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+}
+
+interface PetitionAuditLogListResponse {
+  items: PetitionAuditLogEntry[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export function usePetitionAuditLogList(params: PetitionAuditLogListParams) {
+  const [data, setData] = useState<PetitionAuditLogListResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  const queryString = (() => {
+    const sp = new URLSearchParams();
+    if (params.page) sp.set('page', String(params.page));
+    if (params.limit) sp.set('limit', String(params.limit));
+    if (params.search) sp.set('search', params.search);
+    if (params.event) sp.set('event', params.event);
+    if (params.status) sp.set('status', params.status);
+    if (params.from) sp.set('from', params.from);
+    if (params.to) sp.set('to', params.to);
+    return sp.toString();
+  })();
+
+  useEffect(() => {
+    let alive = true;
+    if (!data) setLoading(true);
+    setError(null);
+    apiFetch<PetitionAuditLogListResponse>(`/petitions/audit-logs?${queryString}`)
       .then((res) => {
         if (!alive) return;
         setData(res);

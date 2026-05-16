@@ -86,6 +86,54 @@ router.get('/submitted-orders', async (_req, res) => {
   }
 });
 
+// GET /api/petitions/audit-logs?page=1&limit=20&search=&event=&status=&from=&to=
+router.get('/audit-logs', async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    const search = String(req.query.search || '').trim();
+    const event = String(req.query.event || '').trim();
+    const status = String(req.query.status || '').trim();
+    const from = String(req.query.from || '').trim();
+    const to = String(req.query.to || '').trim();
+
+    const q = {};
+    if (event) q.event = event;
+    if (status) q.toStatus = status;
+    if (search) {
+      const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      q.$or = [
+        { petitionNo: rx },
+        { actor: rx },
+        { note: rx },
+      ];
+    }
+    if (from || to) {
+      q.createdAt = {};
+      if (from) {
+        const start = new Date(from);
+        if (!Number.isNaN(start.getTime())) q.createdAt.$gte = start;
+      }
+      if (to) {
+        const end = new Date(to);
+        if (!Number.isNaN(end.getTime())) {
+          end.setHours(23, 59, 59, 999);
+          q.createdAt.$lte = end;
+        }
+      }
+      if (Object.keys(q.createdAt).length === 0) delete q.createdAt;
+    }
+
+    const [items, total] = await Promise.all([
+      PetitionAuditLog.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      PetitionAuditLog.countDocuments(q),
+    ]);
+    res.json({ items, total, page, limit });
+  } catch (err) {
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
 // GET /api/petitions/scan/:code
 router.get('/scan/:code', async (req, res) => {
   try {
@@ -151,6 +199,11 @@ router.post('/', async (req, res) => {
     }
     if (!Array.isArray(body.items) || body.items.length === 0) {
       return badRequest(res, 'ต้องมีตัวอย่างอย่างน้อย 1 รายการ');
+    }
+    for (const item of body.items) {
+      const batch = String(item.batchNo || '').trim();
+      if (!batch) return badRequest(res, `ตัวอย่าง "${item.sampleName || item.seq}": กรุณากรอกเลขแบช`);
+      if (!/[16]$/.test(batch)) return badRequest(res, `ตัวอย่าง "${item.sampleName || item.seq}": เลขแบชต้องลงท้ายด้วย 1 หรือ 6`);
     }
     const petitionNo = await nextPetitionNo();
     const doc = await Petition.create({
