@@ -65,8 +65,8 @@ export default function PetitionEditPage() {
               reportAddressOther: data.reportAddressOther ?? '',
               invoiceAddressType: data.invoiceAddressType ?? 'default',
               invoiceAddressOther: data.invoiceAddressOther ?? '',
-              storageCondition: data.storageCondition ?? 'room',
-              packageType: data.packageType ?? 'plasticBottle',
+              storageCondition: data.storageCondition,
+              packageType: data.packageType,
               packageTypeOther: data.packageTypeOther ?? '',
               sampleSubmittedBy: data.sampleSubmittedBy ?? '',
               sampleSubmittedDate: data.sampleSubmittedDate

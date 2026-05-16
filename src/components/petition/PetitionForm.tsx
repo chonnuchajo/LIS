@@ -199,6 +199,55 @@ function RadioOption({ value, children }: { value: string; children: React.React
   );
 }
 
+function TestItemsField({
+  idx,
+  control,
+}: {
+  idx: number;
+  control: ReturnType<typeof useForm<PetitionFormValues>>['control'];
+}) {
+  const [explicitMode, setExplicitMode] = useState<'ai' | 'other' | null>(null);
+  return (
+    <Controller
+      control={control}
+      name={`items.${idx}.testItems` as const}
+      render={({ field }) => {
+        const derivedMode: 'ai' | 'other' | null =
+          field.value === '%AI' ? 'ai' : field.value ? 'other' : null;
+        const mode = explicitMode ?? derivedMode;
+        return (
+          <div className="space-y-2">
+            <RadioGroup
+              value={mode ?? ''}
+              onValueChange={(value) => {
+                if (value === 'ai') {
+                  setExplicitMode('ai');
+                  field.onChange('%AI');
+                } else {
+                  setExplicitMode('other');
+                  field.onChange(field.value === '%AI' ? '' : field.value || '');
+                }
+              }}
+              className="flex flex-wrap gap-x-8 gap-y-3"
+            >
+              <RadioOption value="ai">%AI</RadioOption>
+              <RadioOption value="other">อื่นๆ (โปรดระบุ)</RadioOption>
+            </RadioGroup>
+            {mode === 'other' && (
+              <Textarea
+                rows={3}
+                value={field.value === '%AI' ? '' : field.value || ''}
+                onChange={field.onChange}
+                placeholder="ระบุรายการทดสอบ"
+              />
+            )}
+          </div>
+        );
+      }}
+    />
+  );
+}
+
 export default function PetitionForm({
   defaultValues,
   onSubmit,
@@ -246,8 +295,8 @@ export default function PetitionForm({
       reportAddressOther: defaultValues?.reportAddressOther ?? '',
       invoiceAddressType: defaultValues?.invoiceAddressType ?? 'default',
       invoiceAddressOther: defaultValues?.invoiceAddressOther ?? '',
-      storageCondition: defaultValues?.storageCondition ?? 'room',
-      packageType: defaultValues?.packageType ?? 'plasticBottle',
+      storageCondition: defaultValues?.storageCondition,
+      packageType: defaultValues?.packageType,
       packageTypeOther: defaultValues?.packageTypeOther ?? '',
       sampleSubmittedBy: defaultValues?.sampleSubmittedBy ?? '',
       sampleSubmittedDate: defaultValues?.sampleSubmittedDate ?? null,
@@ -355,7 +404,7 @@ export default function PetitionForm({
     }
     onChange(option.sampleName);
     setValue(`items.${idx}.commonName`, option.commonName, { shouldDirty: true });
-    setValue(`items.${idx}.batchNo`, option.batchNo, { shouldDirty: true });
+    // Batch / Lot No. is intentionally NOT auto-populated — user fills it in
     setValue(`items.${idx}.productionDate`, option.productionDate, { shouldDirty: true });
     setValue(`items.${idx}.packageUnit`, option.packageUnit, { shouldDirty: true });
     setValue(`items.${idx}.note`, option.note, { shouldDirty: true });
@@ -626,26 +675,27 @@ export default function PetitionForm({
           </div>
 
           <div className="space-y-3">
-            <FieldLabel>การเก็บรักษาตัวอย่าง</FieldLabel>
+            <FieldLabel required>การเก็บรักษาตัวอย่าง</FieldLabel>
             <Controller
               control={control}
               name="storageCondition"
               render={({ field }) => (
-                <RadioGroup value={field.value} onValueChange={field.onChange} className="flex flex-wrap gap-x-8 gap-y-3">
+                <RadioGroup value={field.value ?? ''} onValueChange={field.onChange} className="flex flex-wrap gap-x-8 gap-y-3">
                   <RadioOption value="room">อุณหภูมิห้อง</RadioOption>
                   <RadioOption value="chilled">แช่เย็น</RadioOption>
                 </RadioGroup>
               )}
             />
+            <ErrorMsg msg={errors.storageCondition?.message} />
           </div>
 
           <div className="space-y-3">
-            <FieldLabel>ภาชนะบรรจุ</FieldLabel>
+            <FieldLabel required>ภาชนะบรรจุ</FieldLabel>
             <Controller
               control={control}
               name="packageType"
               render={({ field }) => (
-                <RadioGroup value={field.value} onValueChange={field.onChange} className="grid gap-3 sm:grid-cols-3">
+                <RadioGroup value={field.value ?? ''} onValueChange={field.onChange} className="grid gap-3 sm:grid-cols-3">
                   <RadioOption value="plasticBag">ถุงพลาสติก</RadioOption>
                   <RadioOption value="glassBottle">ขวดแก้ว</RadioOption>
                   <RadioOption value="plasticBottle">ขวดพลาสติก</RadioOption>
@@ -657,6 +707,7 @@ export default function PetitionForm({
             {watch('packageType') === 'other' && (
               <Input {...register('packageTypeOther')} placeholder="โปรดระบุ" />
             )}
+            <ErrorMsg msg={errors.packageType?.message} />
           </div>
         </CardContent>
       </Card>
@@ -737,36 +788,9 @@ export default function PetitionForm({
                   <Input {...register(`items.${idx}.testUnit` as const)} />
                 </div>
                 <div className="md:col-span-2">
-                  <FieldLabel>รายการทดสอบ</FieldLabel>
-                  <Controller
-                    control={control}
-                    name={`items.${idx}.testItems` as const}
-                    render={({ field }) => {
-                      const mode = field.value === '%AI' ? 'ai' : 'other';
-                      return (
-                        <div className="space-y-2">
-                          <RadioGroup
-                            value={mode}
-                            onValueChange={(value) => {
-                              field.onChange(value === 'ai' ? '%AI' : field.value === '%AI' ? '' : field.value);
-                            }}
-                            className="flex flex-wrap gap-x-8 gap-y-3"
-                          >
-                            <RadioOption value="ai">%AI</RadioOption>
-                            <RadioOption value="other">อื่นๆ (โปรดระบุ)</RadioOption>
-                          </RadioGroup>
-                          {mode === 'other' && (
-                            <Textarea
-                              rows={3}
-                              value={field.value === '%AI' ? '' : field.value || ''}
-                              onChange={field.onChange}
-                              placeholder="ระบุรายการทดสอบ"
-                            />
-                          )}
-                        </div>
-                      );
-                    }}
-                  />
+                  <FieldLabel required>รายการทดสอบ</FieldLabel>
+                  <TestItemsField idx={idx} control={control} />
+                  <ErrorMsg msg={errors.items?.[idx]?.testItems?.message} />
                 </div>
                 <div className="md:col-span-2">
                   <FieldLabel>หมายเหตุ</FieldLabel>

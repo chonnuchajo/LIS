@@ -13,85 +13,125 @@ const TEST_DELIVERY_LABEL = {
   taxInvoice: 'ใบกำกับภาษี',
 } as const;
 
+const STORAGE_CONDITION_LABEL = {
+  room: 'อุณหภูมิห้อง',
+  chilled: 'แช่เย็น',
+} as const;
+
+const PACKAGE_TYPE_LABEL = {
+  plasticBag: 'ถุงพลาสติก',
+  glassBottle: 'ขวดแก้ว',
+  plasticBottle: 'ขวดพลาสติก',
+  can: 'กระป๋อง',
+  other: 'อื่นๆ',
+} as const;
+
+const SAMPLE_DELIVERY_LABEL = {
+  self: 'ลูกค้านำเอง',
+  courier: 'จัดส่งทางไปรษณีย์',
+} as const;
+
+const TEST_DURATION_LABEL = {
+  normal: 'ปกติ',
+  extended: 'ช้ากว่าปกติได้',
+  urgent: 'เร็วกว่าปกติได้',
+} as const;
+
 function Field({ label, value }: { label: string; value?: React.ReactNode }) {
-  if (value === undefined || value === null || value === '') return null;
+  const display = value === undefined || value === null || value === '' ? '-' : value;
   return (
     <div>
       <p className="text-xs text-grey-500 mb-0.5">{label}</p>
-      <p className="text-sm text-black-500">{value}</p>
+      <div className="text-sm text-black-500">{display}</div>
     </div>
   );
 }
 
 export default function PetitionView({ petition: p }: Props) {
   const sa = p.serviceAgreement;
+
+  const testMethodValue =
+    sa?.testMethod === 'standard'
+      ? 'วิธีปกติ (กรณีลูกค้าไม่ระบุวิธี)'
+      : sa?.testMethod === 'custom'
+        ? `วิธีเฉพาะตามเอกสารของลูกค้า${sa.testMethodDetail ? `: ${sa.testMethodDetail}` : ''}`
+        : sa?.testMethod === 'previous'
+          ? `วิธีเดียวกับ ${sa.testMethodDoneBefore || '-'}`
+          : '-';
+
+  const testDurationValue =
+    sa?.testDuration === 'urgent'
+      ? `เร็วกว่าปกติได้ ภายใน ${sa.testDurationDays ?? '-'} วัน`
+      : sa?.testDuration === 'extended'
+        ? `ช้ากว่าปกติได้ ภายใน ${sa.testDurationDays ?? '-'} วัน`
+        : sa?.testDuration
+          ? TEST_DURATION_LABEL[sa.testDuration]
+          : '-';
+
+  const reportAddressValue =
+    p.reportAddressType === 'other'
+      ? p.reportAddressOther || '-'
+      : p.reportAddressType === 'default'
+        ? 'ตามที่อยู่บริษัทที่เลือก'
+        : '-';
+
+  const invoiceAddressValue =
+    p.invoiceAddressType === 'other'
+      ? p.invoiceAddressOther || '-'
+      : p.invoiceAddressType === 'default'
+        ? 'ตามที่อยู่บริษัทที่เลือก'
+        : '-';
+
+  const packageValue =
+    p.packageType === 'other'
+      ? `อื่นๆ${p.packageTypeOther ? `: ${p.packageTypeOther}` : ''}`
+      : p.packageType
+        ? PACKAGE_TYPE_LABEL[p.packageType]
+        : '-';
+
   return (
     <div className="space-y-4">
+      {/* ===== Section 1: Service Agreement Review ===== */}
       <Card>
         <CardHeader>
-          <CardTitle>ข้อตกลงการให้บริการ</CardTitle>
+          <CardTitle className="text-xl">การทบทวนข้อตกลงการบริการทดสอบ</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2">
+        <CardContent className="grid gap-4 md:grid-cols-2">
           <Field
-            label="วิธีจัดส่งตัวอย่าง"
-            value={sa?.sampleDelivery === 'self' ? 'ลูกค้านำเอง' : sa?.sampleDelivery === 'courier' ? 'จัดส่งทางไปรษณีย์' : '-'}
+            label="1. ตัวอย่างนำส่งห้องปฏิบัติการโดย"
+            value={sa?.sampleDelivery ? SAMPLE_DELIVERY_LABEL[sa.sampleDelivery] : '-'}
           />
+          <Field label="2. วิธีทดสอบ" value={testMethodValue} />
+          <Field label="3. ระยะเวลาดำเนินการทดสอบ" value={testDurationValue} />
           <Field
-            label="วิธีทดสอบ"
-            value={
-              sa?.testMethod === 'standard'
-                ? 'วิธีมาตรฐาน'
-                : sa?.testMethod === 'custom'
-                  ? `วิธีอื่น: ${sa.testMethodDetail || '-'}`
-                  : sa?.testMethod === 'previous'
-                    ? `วิธีเดียวกับ ${sa.testMethodDoneBefore || '-'}`
-                    : '-'
-            }
-          />
-          <Field
-            label="ระยะเวลา"
-            value={
-              sa?.testDuration === 'urgent'
-                ? `เร็วกว่าปกติ ${sa.testDurationDays ?? '-'} วัน`
-                : sa?.testDuration === 'extended'
-                  ? `ช้ากว่าปกติ ${sa.testDurationDays ?? '-'} วัน`
-                  : 'ปกติ'
-            }
-          />
-          <Field
-            label="ค่าความไม่แน่นอน"
+            label="4. ค่า Uncertainty"
             value={sa?.requireUncertainty ? 'ต้องการ' : 'ไม่ต้องการ'}
           />
         </CardContent>
       </Card>
 
+      {/* ===== Section 2: Service Request Form ===== */}
       <Card>
         <CardHeader>
-          <CardTitle>ผู้ยื่นคำร้อง</CardTitle>
+          <CardTitle className="text-xl">ใบคำขอรับบริการ</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2">
-          <Field label="ชื่อ-นามสกุล" value={p.requester.fullName} />
-          <Field label="แผนก" value={p.requester.department} />
-          <Field label="เบอร์โทรศัพท์" value={p.requester.phone} />
-          <Field label="อีเมล" value={p.requester.email} />
-          {p.requester.address && (
-            <div className="md:col-span-2">
-              <Field label="ที่อยู่" value={p.requester.address} />
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="ชื่อบริษัทผู้ส่งตัวอย่างที่ระบุในใบรายงานผล" value={p.reportCustomerName} />
+            <Field label="ที่อยู่ที่ระบุในใบรายงานผล" value={reportAddressValue} />
+            <Field label="ที่อยู่ในการออกใบกำกับภาษี" value={invoiceAddressValue} />
+            <Field label="ชื่อ-สกุลผู้ติดต่อ" value={p.requester.contactName || p.requester.fullName} />
+            <Field label="ตำแหน่ง" value={p.requester.position} />
+            <Field label="แผนก" value={p.requester.department} />
+            <Field label="เบอร์โทรศัพท์" value={p.requester.phone} />
+            <Field label="โทรสาร" value={p.requester.fax} />
+            <Field label="อีเมล" value={p.requester.email} />
+          </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>การจัดการตัวอย่าง / ช่องทางส่งผล</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2">
-          {p.sampleReturn && (
-            <Field label="หลังทดสอบ" value={SAMPLE_RETURN_LABELS[p.sampleReturn]} />
-          )}
+          <Field label="ตัวอย่างหลังการทดสอบ" value={p.sampleReturn ? SAMPLE_RETURN_LABELS[p.sampleReturn] : '-'} />
+
           <Field
-            label="ช่องทางส่งผล"
+            label="รายละเอียดการทดสอบ (การส่งผล)"
             value={
               p.testDelivery && p.testDelivery.length > 0 ? (
                 <span className="flex flex-wrap gap-1.5">
@@ -102,9 +142,18 @@ export default function PetitionView({ petition: p }: Props) {
               ) : '-'
             }
           />
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field
+              label="การเก็บรักษาตัวอย่าง"
+              value={p.storageCondition ? STORAGE_CONDITION_LABEL[p.storageCondition] : '-'}
+            />
+            <Field label="ภาชนะบรรจุ" value={packageValue} />
+          </div>
         </CardContent>
       </Card>
 
+      {/* ===== Items ===== */}
       <Card>
         <CardHeader>
           <CardTitle>รายการตัวอย่าง ({p.items.length})</CardTitle>
@@ -113,24 +162,27 @@ export default function PetitionView({ petition: p }: Props) {
           {p.items.map((item) => (
             <div
               key={item.seq}
-              className="rounded-[10px] border border-black-50 p-3 space-y-1"
+              className="rounded-[10px] border border-black-50 p-4 space-y-3"
             >
-              <p className="text-sm font-semibold text-black-500">
-                {item.seq}. {item.sampleName}
+              <div className="flex flex-wrap items-baseline gap-2">
+                <p className="text-sm font-semibold text-black-500">
+                  ตัวอย่างที่ {item.seq}: {item.sampleName || '-'}
+                </p>
                 {item.sampleId && (
-                  <span className="ml-2 text-xs text-primary-500">[{item.sampleId}]</span>
+                  <span className="text-xs text-primary-500">[{item.sampleId}]</span>
                 )}
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-grey-500">
-                {item.batchNo && <span>Batch: <span className="text-black-500">{item.batchNo}</span></span>}
-                {item.productionDate && <span>วันผลิต: <span className="text-black-500">{item.productionDate}</span></span>}
-                {item.packageUnit && <span>บรรจุ: <span className="text-black-500">{item.packageUnit}</span></span>}
-                {item.testUnit && <span>หน่วยทดสอบ: <span className="text-black-500">{item.testUnit}</span></span>}
               </div>
-              {item.testItems && (
-                <p className="text-xs text-grey-500">รายการทดสอบ: <span className="text-black-500">{item.testItems}</span></p>
-              )}
-              {item.note && <p className="text-xs text-grey-500">หมายเหตุ: {item.note}</p>}
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Batch / Lot No." value={item.batchNo} />
+                <Field label="วันที่ผลิต" value={item.productionDate} />
+                <Field label="ขนาดบรรจุ" value={item.packageUnit} />
+                <Field label="หน่วยทดสอบ" value={item.testUnit} />
+              </div>
+
+              <Field label="รายการทดสอบ" value={item.testItems} />
+
+              {item.note && <Field label="หมายเหตุ" value={item.note} />}
             </div>
           ))}
         </CardContent>
@@ -139,10 +191,22 @@ export default function PetitionView({ petition: p }: Props) {
       {p.cause && (
         <Card>
           <CardHeader>
-            <CardTitle>สาเหตุ / ข้อมูลเพิ่มเติม</CardTitle>
+            <CardTitle>สาเหตุการตรวจ / ข้อมูลเพิ่มเติม</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-black-500 whitespace-pre-wrap">{p.cause}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {(p.sampleSubmittedBy || p.sampleSubmittedDate) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>ข้อมูลผู้นำส่งตัวอย่าง</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <Field label="ผู้นำส่งตัวอย่าง" value={p.sampleSubmittedBy} />
+            <Field label="วันที่นำส่ง" value={p.sampleSubmittedDate} />
           </CardContent>
         </Card>
       )}
