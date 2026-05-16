@@ -63,9 +63,26 @@ const AppSidebar = () => {
     return localStorage.getItem(STORAGE_KEY) === "1";
   });
 
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = localStorage.getItem(GROUPS_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, collapsed ? "1" : "0");
   }, [collapsed]);
+
+  useEffect(() => {
+    localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(collapsedGroups));
+  }, [collapsedGroups]);
+
+  const toggleGroup = (id: string) =>
+    setCollapsedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
 
   useEffect(() => {
     const handler = () => queryClient.invalidateQueries({ queryKey: ACCESS_CONTROL_QUERY_KEY });
@@ -176,14 +193,36 @@ const AppSidebar = () => {
             );
             if (visibleItems.length === 0) return null;
 
+            const isGroupCollapsed = !collapsed && !!collapsedGroups[section.id];
             return (
-            <div key={section.id} className={cn(sIdx > 0 && (collapsed ? "mt-3 pt-3 border-t border-border" : "mt-4"))}>
-              {!collapsed && (
-                <div className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {section.label}
-                </div>
+            <div
+              key={section.id}
+              className={cn(
+                sIdx > 0 &&
+                  (collapsed
+                    ? "mt-3 pt-3 border-t border-border"
+                    : isGroupCollapsed
+                      ? "mt-3 pt-3 border-t border-border"
+                      : "mt-4")
               )}
-              <div className="space-y-1">
+            >
+              {!collapsed && (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(section.id)}
+                  aria-expanded={!isGroupCollapsed}
+                  className="group flex w-full items-center justify-between px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <span className="truncate">{section.label}</span>
+                  <ChevronDown
+                    className={cn(
+                      "w-3.5 h-3.5 shrink-0 transition-transform duration-200",
+                      isGroupCollapsed && "-rotate-90"
+                    )}
+                  />
+                </button>
+              )}
+              <div className={cn("space-y-1 overflow-hidden", isGroupCollapsed && "hidden")}>
                 {visibleItems.map((item) => {
                   const targetPath =
                     item.path === "/"
