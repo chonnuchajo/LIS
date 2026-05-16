@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AppSidebar from "@/components/lis/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -6,9 +7,30 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Database, Search, Download, Activity } from "lucide-react";
+import { Database, Search, Download, Activity, History, ExternalLink } from "lucide-react";
 import { useSamples } from "@/context/SampleContext";
 import { doneSamples } from "@/data/mockData";
+import { usePetitionAuditLogList } from "@/hooks/usePetition";
+import {
+  PETITION_AUDIT_EVENT_LABELS,
+  PETITION_STATUS_CONFIG,
+  type PetitionAuditEvent,
+  type PetitionStatus,
+} from "@/types/petition.types";
+
+const EVENT_VARIANT: Record<PetitionAuditEvent, "gray-soft" | "primary-soft" | "yellow-soft" | "blue-soft" | "green-soft" | "red-soft"> = {
+  created: "primary-soft",
+  statusChanged: "blue-soft",
+  assigned: "yellow-soft",
+  reviewed: "green-soft",
+  updated: "gray-soft",
+  deleted: "red-soft",
+};
+
+function statusLabel(status?: string) {
+  if (!status) return null;
+  return PETITION_STATUS_CONFIG[status as PetitionStatus]?.label ?? status;
+}
 
 // Mock Active Log data
 const activeLogData = [
@@ -19,9 +41,11 @@ const activeLogData = [
 ];
 
 const AdminData = () => {
+  const navigate = useNavigate();
   const { approvals } = useSamples();
   const [search, setSearch] = useState("");
   const [logSearch, setLogSearch] = useState("");
+  const { data: auditData, loading: auditLoading, error: auditError } = usePetitionAuditLogList({ page: 1, limit: 10 });
 
   // Only show QC-approved records (complete results)
   const approvedRecords = doneSamples
@@ -92,6 +116,7 @@ const AdminData = () => {
           <TabsList className="mb-4">
             <TabsTrigger value="database" className="gap-1.5"><Database className="w-4 h-4" />ฐานข้อมูลผลลัพธ์</TabsTrigger>
             <TabsTrigger value="activelog" className="gap-1.5"><Activity className="w-4 h-4" />Active Log</TabsTrigger>
+            <TabsTrigger value="auditlog" className="gap-1.5"><History className="w-4 h-4" />Audit Log</TabsTrigger>
           </TabsList>
 
           <TabsContent value="database">
@@ -202,6 +227,93 @@ const AdminData = () => {
                           <TableCell><Badge className="bg-accent text-accent-foreground">{l.runtime}</Badge></TableCell>
                         </TableRow>
                       ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="auditlog">
+            <Card>
+              <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">ประวัติการเปลี่ยนสถานะ (10 รายการล่าสุด)</CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">บันทึกการทำรายการของคำร้องทั้งหมด</p>
+                </div>
+                <Button variant="outline" onClick={() => navigate("/auditlog")} className="gap-2">
+                  <ExternalLink className="w-4 h-4" />ดูทั้งหมด
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>วันที่</TableHead>
+                        <TableHead>เลขที่คำร้อง</TableHead>
+                        <TableHead>เหตุการณ์</TableHead>
+                        <TableHead>สถานะ</TableHead>
+                        <TableHead>ผู้ทำรายการ</TableHead>
+                        <TableHead>หมายเหตุ</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {auditLoading && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">กำลังโหลด audit log...</TableCell>
+                        </TableRow>
+                      )}
+                      {!auditLoading && auditError && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center text-destructive py-8">โหลด audit log ไม่สำเร็จ: {auditError}</TableCell>
+                        </TableRow>
+                      )}
+                      {!auditLoading && !auditError && auditData && auditData.items.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">ยังไม่มีรายการ audit log</TableCell>
+                        </TableRow>
+                      )}
+                      {!auditLoading && !auditError && auditData?.items.map((entry) => {
+                        const from = statusLabel(entry.fromStatus);
+                        const to = statusLabel(entry.toStatus);
+                        return (
+                          <TableRow
+                            key={entry._id}
+                            className="cursor-pointer"
+                            onClick={() => navigate(`/petitions/${entry.petitionId}`)}
+                          >
+                            <TableCell className="text-muted-foreground whitespace-nowrap text-xs">
+                              {new Date(entry.createdAt).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}
+                            </TableCell>
+                            <TableCell className="font-semibold text-primary">{entry.petitionNo}</TableCell>
+                            <TableCell>
+                              <Badge variant={EVENT_VARIANT[entry.event]}>
+                                {PETITION_AUDIT_EVENT_LABELS[entry.event]}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {to ? (
+                                <span className="text-sm">
+                                  {from && from !== to ? (
+                                    <>
+                                      <span className="text-muted-foreground">{from}</span>
+                                      <span className="mx-1 text-muted-foreground">→</span>
+                                      <span className="font-medium">{to}</span>
+                                    </>
+                                  ) : (
+                                    <span className="font-medium">{to}</span>
+                                  )}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell>{entry.actor || "system"}</TableCell>
+                            <TableCell className="max-w-[360px] truncate text-muted-foreground text-xs">{entry.note || "-"}</TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
