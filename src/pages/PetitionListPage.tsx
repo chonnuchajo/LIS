@@ -15,10 +15,31 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { usePetitionList } from '@/hooks/usePetition';
+import { useAuth } from '@/hooks/useAuth';
 import {
   PETITION_STATUSES,
   PETITION_STATUS_CONFIG,
+  type Petition,
 } from '@/types/petition.types';
+
+const norm = (value?: string | null) => (value ?? '').trim().toLowerCase();
+
+function isOwnedByUser(
+  petition: Petition,
+  user: { email?: string; name?: string } | null,
+): boolean {
+  if (!user) return false;
+  const userEmail = norm(user.email);
+  const userName = norm(user.name);
+  const requesterEmail = norm(petition.requester.email);
+  const requesterName = norm(petition.requester.fullName);
+  const assigneeName = norm(petition.assignedTo?.name);
+
+  if (userEmail && requesterEmail && userEmail === requesterEmail) return true;
+  if (userName && requesterName && userName === requesterName) return true;
+  if (userName && assigneeName && userName === assigneeName) return true;
+  return false;
+}
 
 const PAGE_SIZE = 20;
 
@@ -26,8 +47,10 @@ export default function PetitionListPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { user } = useAuth();
   const visibleStatuses = PETITION_STATUSES;
   const createdNo = (location.state as { createdNo?: string } | null)?.createdNo;
+  const canViewAll = user?.role === 'admin';
 
   const status = searchParams.get('status') ?? '';
   const search = searchParams.get('search') ?? '';
@@ -37,12 +60,27 @@ export default function PetitionListPage() {
   useEffect(() => setSearchInput(search), [search]);
 
   const params = useMemo(
-    () => ({ page, limit: PAGE_SIZE, status: status || undefined, search: search || undefined }),
-    [page, status, search],
+    () => ({
+      page: canViewAll ? page : 1,
+      limit: canViewAll ? PAGE_SIZE : 500,
+      status: status || undefined,
+      search: search || undefined,
+    }),
+    [page, status, search, canViewAll],
   );
   const { data, loading, error, refresh } = usePetitionList(params);
 
-  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
+  const ownedItems = useMemo(() => {
+    if (!data?.items) return [];
+    if (canViewAll) return data.items;
+    return data.items.filter((p) => isOwnedByUser(p, user));
+  }, [data?.items, canViewAll, user]);
+
+  const totalCount = canViewAll ? data?.total ?? 0 : ownedItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const visibleItems = canViewAll
+    ? ownedItems
+    : ownedItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   function updateParams(next: Record<string, string | undefined>) {
     const sp = new URLSearchParams(searchParams);
@@ -156,15 +194,19 @@ export default function PetitionListPage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {!loading && data && data.items.length === 0 && (
+                {!loading && data && visibleItems.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-grey-500 py-8">
-                      {hasFilters ? 'ไม่พบคำร้องตามเงื่อนไขที่ค้นหา' : 'ยังไม่มีคำร้องในระบบ'}
+                      {hasFilters
+                        ? 'ไม่พบคำร้องตามเงื่อนไขที่ค้นหา'
+                        : canViewAll
+                          ? 'ยังไม่มีคำร้องในระบบ'
+                          : 'ยังไม่มีคำร้องที่คุณยื่นหรือได้รับมอบหมาย'}
                     </TableCell>
                   </TableRow>
                 )}
                 {!loading &&
-                  data?.items.map((p) => {
+                  visibleItems.map((p) => {
                     const statusCfg =
                       PETITION_STATUS_CONFIG[p.status] ?? { label: p.status, variant: 'gray-soft' as const };
                     return (
@@ -195,11 +237,11 @@ export default function PetitionListPage() {
             </Table>
           </div>
 
-          {data && data.total > 0 && (
+          {data && totalCount > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
               <span className="text-grey-500">
-                แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, data.total)} จาก{' '}
-                {data.total} รายการ
+                แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)} จาก{' '}
+                {totalCount} รายการ
               </span>
               <div className="flex items-center gap-2">
                 <Button

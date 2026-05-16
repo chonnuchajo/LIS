@@ -11,7 +11,7 @@ import { usePetitionList } from "@/hooks/usePetition";
 import type { PetitionStatus } from "@/types/petition.types";
 import { toast } from "sonner";
 
-const QC_STATUSES: PetitionStatus[] = ["deliveringQC", "sampleSent", "pendingReview", "inProgress"];
+const QC_STATUSES: PetitionStatus[] = ["sampleSent", "pendingReview", "inProgress"];
 
 export default function QCDashboard() {
   const navigate = useNavigate();
