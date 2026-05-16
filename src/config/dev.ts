@@ -5,56 +5,24 @@ export const DEV_MODE =
 
 export const DEV_DEFAULT_ROLE = "admin";
 
-type DevUser = {
-  id?: string;
+export type DevAuthUser = {
+  id: string;
   email: string;
-  name?: string;
-  role?: string;
-  permissions?: string[];
-  department?: string;
-  position?: string;
-  status?: "active" | "inactive";
+  name: string;
+  role: string;
+  permissions: string[];
+  department: string;
+  position: string;
+  status: "active";
 };
 
-export const DEV_USERS: Record<string, DevUser> = {
-  admin: {
-    id: "dev-admin",
-    email: "dev@icpladda.com",
-    name: "Dev Admin",
-    role: "admin",
-    permissions: [],
-    department: "IT",
-    position: "Administrator",
-    status: "active",
-  },
-  lab: {
-    id: "dev-lab",
-    email: "lab.dev@icpladda.com",
-    name: "Dev Lab",
-    role: "lab",
-    permissions: [],
-    department: "Lab",
-    position: "Lab Technician",
-    status: "active",
-  },
-  qc: {
-    id: "dev-qc",
-    email: "qc.dev@icpladda.com",
-    name: "Dev QC",
-    role: "qc",
-    permissions: [],
-    department: "QC",
-    position: "QC Officer",
-    status: "active",
-  },
-  viewer: {
-    id: "dev-viewer",
-    email: "viewer.dev@icpladda.com",
-    name: "Dev Viewer",
-    role: "viewer",
-    permissions: [],
-    department: "Office",
-    position: "Viewer",
-    status: "active",
-  },
-};
+export const synthesizeDevUser = (role: { id: string; name: string }): DevAuthUser => ({
+  id: `dev-${role.id}`,
+  email: `${role.id}.dev@icpladda.com`,
+  name: `Dev ${role.name}`,
+  role: role.id,
+  permissions: [],
+  department: role.name,
+  position: role.name,
+  status: "active",
+});
