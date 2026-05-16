@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "@/lib/msalConfig";
 import { api } from "@/lib/api";
-import { DEV_MODE, DEV_USERS, DEV_DEFAULT_ROLE } from "@/config/dev";
+import { DEV_MODE, DEV_DEFAULT_ROLE, synthesizeDevUser } from "@/config/dev";
 
 interface AuthUser {
   id?: string;
@@ -21,6 +21,7 @@ interface AuthContextType {
   login: () => Promise<void>;
   logout: () => void;
   devRole?: string;
+  devRoles?: { id: string; name: string }[];
   switchDevRole?: (role: string) => void;
 }
 
@@ -41,6 +42,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     () => localStorage.getItem("dev_role") ?? DEV_DEFAULT_ROLE
   );
   const [devPermissions, setDevPermissions] = useState<Record<string, string[]>>({});
+  const [devRoles, setDevRoles] = useState<{ id: string; name: string }[]>([]);
 
   const switchDevRole = (role: string) => {
     localStorage.setItem("dev_role", role);
@@ -56,9 +58,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     let active = true;
     const loadMatrix = () => {
       api
-        .get<{ permissions?: Record<string, string[]> }>("/access-control")
+        .get<{
+          permissions?: Record<string, string[]>;
+          roles?: { id: string; name: string }[];
+        }>("/access-control")
         .then((res) => {
-          if (active) setDevPermissions(res.data.data.permissions ?? {});
+          if (!active) return;
+          setDevPermissions(res.data.data.permissions ?? {});
+          setDevRoles(res.data.data.roles ?? []);
         })
         .catch((err) => {
           console.error("Failed to load access matrix for dev role", err);
@@ -73,12 +80,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!DEV_MODE) return;
+    if (devRoles.length === 0) return; // not loaded yet — don't kick
+    if (devRoles.some((r) => r.id === devRole)) return; // current role still valid
+    switchDevRole(DEV_DEFAULT_ROLE);
+  }, [devRoles, devRole]);
+
   const devUser: AuthUser | null = DEV_MODE
     ? (() => {
-        const base = DEV_USERS[devRole] ?? DEV_USERS[DEV_DEFAULT_ROLE];
+        const role =
+          devRoles.find((r) => r.id === devRole) ??
+          devRoles.find((r) => r.id === DEV_DEFAULT_ROLE);
+        if (!role) return null;
+        const base = synthesizeDevUser(role);
         return {
           ...base,
-          permissions: devPermissions[base.role ?? devRole] ?? base.permissions ?? [],
+          permissions: devPermissions[role.id] ?? [],
         };
       })()
     : null;
@@ -196,7 +214,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, devRole: DEV_MODE ? devRole : undefined, switchDevRole: DEV_MODE ? switchDevRole : undefined }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        logout,
+        devRole: DEV_MODE ? devRole : undefined,
+        devRoles: DEV_MODE ? devRoles : undefined,
+        switchDevRole: DEV_MODE ? switchDevRole : undefined,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

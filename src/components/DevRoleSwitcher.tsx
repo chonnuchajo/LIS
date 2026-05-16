@@ -1,13 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { DEV_MODE, DEV_USERS } from "@/config/dev";
+import { DEV_MODE } from "@/config/dev";
 import { useAuth } from "@/context/AuthContext";
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: "Admin",
-  lab: "Lab",
-  qc: "QC",
-  viewer: "Viewer",
-};
 
 const STORAGE_KEY = "dev-role-switcher-pos";
 const DRAG_THRESHOLD = 4;
@@ -30,7 +23,7 @@ const clamp = (val: number, min: number, max: number) =>
   Math.min(Math.max(val, min), max);
 
 export const DevRoleSwitcher = () => {
-  const { devRole, switchDevRole } = useAuth();
+  const { devRole, devRoles, switchDevRole } = useAuth();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<Pos | null>(() => loadPos());
   const dragState = useRef<{
@@ -61,7 +54,7 @@ export const DevRoleSwitcher = () => {
     return () => window.removeEventListener("resize", onResize);
   }, [pos]);
 
-  if (!DEV_MODE || !switchDevRole || !devRole) return null;
+  if (!DEV_MODE || !switchDevRole || !devRole || !devRoles || devRoles.length === 0) return null;
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest("button")) return;
@@ -140,17 +133,17 @@ export const DevRoleSwitcher = () => {
         DEV MODE
       </div>
       <div className="flex gap-1 rounded-md border border-orange-300 bg-white p-1 shadow-md">
-        {Object.keys(DEV_USERS).map((role) => (
+        {devRoles.map((role) => (
           <button
-            key={role}
-            onClick={() => switchDevRole(role)}
+            key={role.id}
+            onClick={() => switchDevRole(role.id)}
             className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-              devRole === role
+              devRole === role.id
                 ? "bg-orange-500 text-white"
                 : "text-gray-600 hover:bg-orange-100"
             }`}
           >
-            {ROLE_LABELS[role] ?? role}
+            {role.name}
           </button>
         ))}
       </div>
