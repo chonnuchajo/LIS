@@ -27,7 +27,6 @@ export type NavItem = {
 
 export const NAV_ITEMS: NavItem[] = [
   { icon: Home, label: "หน้าแรก", path: "/home" },
-  { icon: LayoutDashboard, label: "แดชบอร์ด", path: "/" },
   { icon: LayoutDashboard, label: "Lab Dashboard", path: "/dashboard/lab" },
   { icon: LayoutDashboard, label: "QC Dashboard", path: "/dashboard/qc" },
   { icon: FileText, label: "รายการคำร้อง", path: "/petitions" },

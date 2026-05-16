@@ -356,11 +356,16 @@ const AccessControl = () => {
       toast.error("Group name is required");
       return;
     }
+    const groupId = newGroup.id.trim();
+    if (groups.some((group) => group.id === groupId)) {
+      toast.error("Group ID already exists");
+      return;
+    }
     const paths = uniquePaths(newGroup.paths);
     const movedPathSet = new Set(paths);
     try {
       const res = await api.post<AccessGroup>("/access-control/groups", {
-        id: newGroup.id.trim(),
+        id: groupId,
         name: newGroup.name.trim(),
         paths,
         description: newGroup.description.trim(),
@@ -962,7 +967,14 @@ const AccessControl = () => {
                 <div className="grid gap-3 rounded-md border bg-muted/30 p-3 md:grid-cols-2 xl:grid-cols-[1fr_1.5fr_auto]">
                   <Input
                     value={newGroup.name}
-                    onChange={(e) => setNewGroup({ ...newGroup, name: e.target.value })}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      const isThai = /[฀-๿]/.test(name);
+                      const id = isThai
+                        ? name.trim().replace(/\s+/g, "-")
+                        : name.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+                      setNewGroup({ ...newGroup, name, id });
+                    }}
                     placeholder="ชื่อกลุ่ม"
                   />
                   <PathPicker
@@ -1039,9 +1051,6 @@ const AccessControl = () => {
                                   updateGroup(group.id, { name: e.target.value.trim() || group.id })
                                 }
                               />
-                              <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground">
-                                {group.id}
-                              </Badge>
                             </div>
                           </TableCell>
                           <TableCell>

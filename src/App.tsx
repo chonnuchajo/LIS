@@ -7,7 +7,6 @@ import { SampleProvider } from "@/context/SampleContext";
 import { AuthProvider } from "@/context/AuthContext";
 import PrivateRoute from "@/components/PrivateRoute";
 import Home from "./pages/Home";
-import DashboardRedirect from "./pages/DashboardRedirect";
 import LabDashboard from "./pages/LabDashboard";
 import QCDashboard from "./pages/QCDashboard";
 import Login from "./pages/Login";
@@ -47,7 +46,7 @@ const App = () => (
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/scanner" element={<ScannerPage />} />
-              <Route path="/" element={<PrivateRoute><DashboardRedirect /></PrivateRoute>} />
+              <Route path="/" element={<PrivateRoute><Home /></PrivateRoute>} />
               <Route path="/dashboard/lab" element={<PrivateRoute><LabDashboard /></PrivateRoute>} />
               <Route path="/dashboard/qc" element={<PrivateRoute><QCDashboard /></PrivateRoute>} />
               <Route path="/home" element={<PrivateRoute><Home /></PrivateRoute>} />
