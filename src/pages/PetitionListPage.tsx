@@ -76,7 +76,7 @@ export default function PetitionListPage() {
               <p className="text-sm text-grey-500">รายการคำร้องขอตรวจตัวอย่างทั้งหมดในระบบ</p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="primary" onClick={() => navigate('/petitions/new')}>
+              <Button onClick={() => navigate('/petitions/new')}>
                 <FilePlus2 className="h-4 w-4" />
                 ยื่นคำร้องใหม่
               </Button>
@@ -125,7 +125,7 @@ export default function PetitionListPage() {
                 ))}
               </NativeSelect>
             </div>
-            <Button type="submit" variant="primary" size="default">
+            <Button type="submit" size="default">
               ค้นหา
             </Button>
             {hasFilters && (
