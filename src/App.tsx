@@ -48,11 +48,7 @@ const App = () => (
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/scanner" element={<ScannerPage />} />
-<<<<<<< HEAD
-              <Route path="/" element={<PrivateRoute><Home/></PrivateRoute>} />
-=======
               <Route path="/" element={<PrivateRoute><Home /></PrivateRoute>} />
->>>>>>> origin/main
               <Route path="/dashboard/lab" element={<PrivateRoute><LabDashboard /></PrivateRoute>} />
               <Route path="/dashboard/qc" element={<PrivateRoute><QCDashboard /></PrivateRoute>} />
               <Route path="/queue/lab" element={<QueueDisplay mode="lab" />} />

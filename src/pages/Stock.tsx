@@ -37,9 +37,9 @@ const LOW_GLASS_QTY = 5;
 const parseExp = (s?: string): number | null => {
   if (!s || s === "-") return null;
   // accept dd/mm/yyyy or dd-mm-yyyy or yyyy-mm-dd
-  const m = s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  const m = s.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
   if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime();
-  const m2 = s.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  const m2 = s.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
   if (m2) return new Date(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3])).getTime();
   const t = Date.parse(s);
   return Number.isFinite(t) ? t : null;

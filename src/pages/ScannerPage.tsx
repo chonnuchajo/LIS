@@ -118,7 +118,6 @@ export default function ScannerPage() {
         } catch { /* ignore */ }
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
   async function fetchAndConfirm(id: string) {

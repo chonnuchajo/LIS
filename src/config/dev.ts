@@ -1,18 +1,10 @@
-<<<<<<< HEAD
 // Dev mode bypasses Microsoft login and injects a hardcoded user.
 // Vite sets import.meta.env.DEV to false for production builds.
-=======
-
->>>>>>> origin/main
 export const DEV_MODE =
   import.meta.env.DEV && import.meta.env.VITE_DEV_MODE !== "false";
 
 export const DEV_DEFAULT_ROLE = "admin";
 
-<<<<<<< HEAD
-=======
-
->>>>>>> origin/main
 type DevUser = {
   id?: string;
   email: string;

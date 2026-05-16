@@ -17,6 +17,7 @@ export interface SampleItem {
   density?: number;
   aiPercent?: number;
   preResult?: number;
+  batchNo?: string;
   status: "sent" | "physical" | "testing" | "done";
 }
 

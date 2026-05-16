@@ -131,7 +131,7 @@ const COADialog = ({ open, onOpenChange, sample, physical }: COADialogProps) => 
                 <td style={{ width: "50%", padding: 8, verticalAlign: "top" }}>
                   <div className="text-right text-[11px] italic mb-1">ข้อมูลจากลูกค้า</div>
                   <div>ชื่อตัวอย่าง : {sample.name}</div>
-                  <div>แบทช์หมายเลข : {(sample as any).batchNo || `26RD-${sample.id.slice(-6)}`}</div>
+                  <div>แบทช์หมายเลข : {sample.batchNo || `26RD-${sample.id.slice(-6)}`}</div>
                   <div>วันที่ผลิต/นำเข้า : {toThaiDate(sampleDate)}</div>
                   <div>เลขที่ใบนำส่ง : {sample.id}</div>
                   <div>ผู้ผลิต/ผู้ขาย : -</div>
