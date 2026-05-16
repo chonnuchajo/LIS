@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  ChevronLeft, ChevronRight, LogOut, User,
+  ChevronDown, ChevronLeft, ChevronRight, LogOut, User,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/navItems";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,7 @@ type AccessControlState = {
 };
 
 const STORAGE_KEY = "lis.sidebar.collapsed";
+const GROUPS_STORAGE_KEY = "lis.sidebar.collapsedGroups";
 const ACCESS_CONTROL_QUERY_KEY = ["access-control"];
 const EMPTY_GROUPS: NavGroup[] = [];
 
