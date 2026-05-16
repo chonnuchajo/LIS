@@ -1140,18 +1140,22 @@ const AccessControl = () => {
                 <CardTitle className="text-base">Group Permission Matrix</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="min-w-[260px]">Group</TableHead>
-                        {roles.map((role) => (
-                          <TableHead key={role.id} className="min-w-[150px] text-center">
-                            {role.name}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
+                <Table containerClassName="max-h-[calc(100vh-260px)]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 top-0 z-30 min-w-[260px] bg-card shadow-[1px_1px_0_0_hsl(var(--border))]">
+                        Group
+                      </TableHead>
+                      {roles.map((role) => (
+                        <TableHead
+                          key={role.id}
+                          className="sticky top-0 z-20 min-w-[150px] bg-card text-center shadow-[0_1px_0_0_hsl(var(--border))]"
+                        >
+                          {role.name}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
                     <TableBody>
                       {sortedGroups.map((group) => {
                         const groupPaths = getGroupPagePaths(group);
@@ -1159,7 +1163,7 @@ const AccessControl = () => {
                         return (
                           <Fragment key={group.id}>
                             <TableRow>
-                              <TableCell>
+                              <TableCell className="sticky left-0 z-10 bg-card shadow-[1px_0_0_0_hsl(var(--border))]">
                                 <div className="flex items-start gap-2">
                                   <button
                                     type="button"
@@ -1207,7 +1211,7 @@ const AccessControl = () => {
                                     key={`${group.id}-${path}`}
                                     className="bg-muted/30"
                                   >
-                                    <TableCell className="py-1.5 pl-12">
+                                    <TableCell className="sticky left-0 z-10 bg-card py-1.5 pl-12 shadow-[1px_0_0_0_hsl(var(--border))]">
                                       <div className="flex items-center gap-2">
                                         {navItem ? (
                                           <>
@@ -1249,9 +1253,8 @@ const AccessControl = () => {
                           </Fragment>
                         );
                       })}
-                    </TableBody>
-                  </Table>
-                </div>
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
