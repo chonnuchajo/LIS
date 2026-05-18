@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FlaskConical, Send, RefreshCw, CheckSquare, Square } from 'lucide-react';
-import AppSidebar from '@/components/lis/AppSidebar';
+import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -148,11 +148,9 @@ export default function PendingSamplePage() {
     .reduce((sum, o) => sum + o.items.length, 0);
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto pb-28">
+    <AppLayout mainClassName="p-4 sm:p-6 overflow-auto pb-28">
         <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-black-500">รอส่งคำขอ</h1>
               <p className="text-sm text-grey-500">
@@ -299,7 +297,7 @@ export default function PendingSamplePage() {
           )}
 
           {someSelected && (
-            <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-between gap-4 border-t border-primary-200 bg-white px-6 py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] md:left-64">
+            <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-wrap items-center justify-between gap-3 border-t border-primary-200 bg-white px-4 sm:px-6 py-3 sm:py-4 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] md:left-72">
               <div className="text-sm">
                 <span className="font-semibold text-primary-500">{selected.size}</span>{' '}
                 <span className="text-black-500">ใบสั่งผลิต</span>
@@ -317,7 +315,6 @@ export default function PendingSamplePage() {
             </div>
           )}
         </div>
-      </main>
-    </div>
+    </AppLayout>
   );
 }

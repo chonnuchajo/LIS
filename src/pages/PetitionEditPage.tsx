@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import AppSidebar from '@/components/lis/AppSidebar';
+import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
 import PetitionForm from '@/components/petition/PetitionForm';
 import { updatePetition, usePetition } from '@/hooks/usePetition';
@@ -17,9 +17,7 @@ export default function PetitionEditPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         {loading ? (
           <p className="text-grey-500">กำลังโหลดข้อมูล...</p>
         ) : error || !data ? (
@@ -142,7 +140,6 @@ export default function PetitionEditPage() {
             );
           })()
         )}
-      </main>
-    </div>
+    </AppLayout>
   );
 }

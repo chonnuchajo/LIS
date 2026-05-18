@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import AppSidebar from '@/components/lis/AppSidebar';
+import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
 import PetitionForm from '@/components/petition/PetitionForm';
 import SampleLabelStep, { type LabelItem } from '@/components/petition/SampleLabelStep';
@@ -57,9 +57,7 @@ export default function PetitionNewPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="space-y-4">
           <div>
             <h1 className="text-2xl font-bold text-black-500">คำขอตรวจตัวอย่าง</h1>
@@ -110,7 +108,6 @@ export default function PetitionNewPage() {
             />
           )}
         </div>
-      </main>
-    </div>
+    </AppLayout>
   );
 }

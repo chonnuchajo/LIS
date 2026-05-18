@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, FileText, Pencil, Printer, Trash2 } from 'lucide-react';
-import AppSidebar from '@/components/lis/AppSidebar';
+import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -180,11 +180,10 @@ export default function PetitionDetailPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background print:block print:min-h-0 print:bg-white">
-      <div className="print:hidden">
-        <AppSidebar />
-      </div>
-      <main className="flex-1 p-6 overflow-auto print:block print:w-full print:p-0 print:overflow-visible">
+    <AppLayout
+      className="print:block print:min-h-0 print:bg-white"
+      mainClassName="p-4 sm:p-6 overflow-auto print:block print:w-full print:p-0 print:overflow-visible"
+    >
         {loading ? (
           <p className="text-grey-500">กำลังโหลดข้อมูล...</p>
         ) : error || !data ? (
@@ -330,7 +329,6 @@ export default function PetitionDetailPage() {
             );
           })()
         )}
-      </main>
-    </div>
+    </AppLayout>
   );
 }

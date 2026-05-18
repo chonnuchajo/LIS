@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Send, RefreshCw, Package, MapPin, Hash, FlaskConical } from 'lucide-react';
-import AppSidebar from '@/components/lis/AppSidebar';
+import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,9 +57,7 @@ export default function PendingSampleDetailPage() {
   const header = items[0];
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon-sm" onClick={() => navigate(-1)}>
@@ -263,7 +261,6 @@ export default function PendingSampleDetailPage() {
             </>
           )}
         </div>
-      </main>
-    </div>
+    </AppLayout>
   );
 }

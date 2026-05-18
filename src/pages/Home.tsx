@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { CheckCircle2, AlertTriangle, Droplets, FlaskConical, Clock, ImageIcon, Search, Calendar as CalendarIcon } from "lucide-react";
-import AppSidebar from "@/components/lis/AppSidebar";
+import AppLayout from "@/components/lis/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -81,9 +81,7 @@ const Home = () => {
   const abnormalCount = yesterdayResults.filter(s => s.result?.physical === "abnormal").length;
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-foreground">หน้าแรก</h1>
           <p className="text-sm text-muted-foreground">
@@ -119,7 +117,7 @@ const Home = () => {
                     placeholder="ค้นหาชื่อยา..."
                     value={searchName}
                     onChange={e => setSearchName(e.target.value)}
-                    className="pl-8 h-9 w-[200px]"
+                    className="pl-8 h-9 w-full sm:w-[200px]"
                   />
                 </div>
                 <div className="relative">
@@ -128,7 +126,7 @@ const Home = () => {
                     type="date"
                     value={searchDate}
                     onChange={e => setSearchDate(e.target.value)}
-                    className="pl-8 h-9 w-[170px]"
+                    className="pl-8 h-9 w-full sm:w-[170px]"
                   />
                 </div>
               </div>
@@ -225,14 +223,14 @@ const Home = () => {
                                     </Badge>
                                   </button>
                                 </DialogTrigger>
-                                <DialogContent className="max-w-2xl">
+                                <DialogContent className="sm:max-w-2xl">
                                   <DialogHeader>
                                     <DialogTitle className="flex items-center gap-2">
                                       <ImageIcon className="w-5 h-5 text-amber-600" />
                                       เปรียบเทียบสี — {sample.name} ({sample.id})
                                     </DialogTitle>
                                   </DialogHeader>
-                                  <div className="grid grid-cols-2 gap-4 mt-2">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                                     <div className="space-y-2">
                                       <div className="flex items-center justify-between">
                                         <span className="text-sm font-medium text-muted-foreground">แบชก่อนหน้า</span>
@@ -342,8 +340,7 @@ const Home = () => {
             )}
           </CardContent>
         </Card>
-      </main>
-    </div>
+    </AppLayout>
   );
 };
 

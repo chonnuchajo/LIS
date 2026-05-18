@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import AppSidebar from "@/components/lis/AppSidebar";
+import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -463,9 +463,7 @@ export default function MasterItems() {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 overflow-auto p-6">
+    <AppLayout>
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
@@ -646,7 +644,7 @@ export default function MasterItems() {
 
         {deleting && (
           <Dialog open onOpenChange={(open) => { if (!open) setDeleting(null); }}>
-            <DialogContent className="max-w-md">
+            <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>ยืนยันลบ Item</DialogTitle>
               </DialogHeader>
@@ -660,8 +658,7 @@ export default function MasterItems() {
             </DialogContent>
           </Dialog>
         )}
-      </main>
-    </div>
+    </AppLayout>
   );
 }
 
@@ -809,9 +806,7 @@ export function SimpleMethodPage() {
   };
 
   return (
-    <div className="flex h-screen bg-background">
-      <AppSidebar />
-      <main className="relative flex flex-1 flex-col overflow-hidden p-6 pb-24">
+    <AppLayout fixedHeight mainClassName="relative flex flex-col overflow-hidden p-4 sm:p-6 pb-24">
         <div className="mb-4 shrink-0">
           <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
             <FlaskConical className="h-6 w-6" />
@@ -891,16 +886,13 @@ export function SimpleMethodPage() {
               </Button>
             </div>
           </div>
-      </main>
-    </div>
+    </AppLayout>
   );
 }
 
 export function MachinesPage() {
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 overflow-auto p-6">
+    <AppLayout>
         <div className="mb-6">
           <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
             <Wrench className="h-6 w-6" />
@@ -912,8 +904,7 @@ export function MachinesPage() {
         </div>
 
         <MachinesTab />
-      </main>
-    </div>
+    </AppLayout>
   );
 }
 
@@ -1175,7 +1166,7 @@ function MasterItemDialog({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{isEdit ? "แก้ไข Item" : "เพิ่ม Item"}</DialogTitle>
@@ -1479,7 +1470,7 @@ function MachinesTab() {
 
       {deleting && (
         <Dialog open onOpenChange={(open) => { if (!open) setDeleting(null); }}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>ยืนยันลบเครื่องมือ</DialogTitle>
             </DialogHeader>
@@ -1540,7 +1531,7 @@ function MachineDialog({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{isEdit ? "แก้ไขเครื่องมือ" : "เพิ่มเครื่องมือ"}</DialogTitle>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import AppSidebar from "@/components/lis/AppSidebar";
+import AppLayout from "@/components/lis/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -45,9 +45,7 @@ const RecordResults = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <ClipboardList className="w-6 h-6" />
@@ -70,11 +68,11 @@ const RecordResults = () => {
                   <TableRow>
                     <TableHead>เลขตัวอย่าง</TableHead>
                     <TableHead>ชื่อยา</TableHead>
-                    <TableHead>ผู้วิเคราะห์</TableHead>
-                    <TableHead>เครื่องมือ</TableHead>
-                    <TableHead>สถานะ</TableHead>
+                    <TableHead className="hidden lg:table-cell">ผู้วิเคราะห์</TableHead>
+                    <TableHead className="hidden lg:table-cell">เครื่องมือ</TableHead>
+                    <TableHead className="hidden md:table-cell">สถานะ</TableHead>
                     <TableHead>การอนุมัติ</TableHead>
-                    <TableHead>ไฟล์ COA</TableHead>
+                    <TableHead className="hidden md:table-cell">ไฟล์ COA</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -87,9 +85,9 @@ const RecordResults = () => {
                       <TableRow key={sample.id}>
                         <TableCell className="font-semibold text-primary">{sample.id}</TableCell>
                         <TableCell>{sample.name}</TableCell>
-                        <TableCell>{sample.receiver || "-"}</TableCell>
-                        <TableCell>{sample.instrument || "-"}</TableCell>
-                        <TableCell>
+                        <TableCell className="hidden lg:table-cell">{sample.receiver || "-"}</TableCell>
+                        <TableCell className="hidden lg:table-cell">{sample.instrument || "-"}</TableCell>
+                        <TableCell className="hidden md:table-cell">
                           {isApproved ? (
                             <Badge className="bg-lis-stat-green text-lis-stat-green-icon gap-1">
                               <CheckCircle className="w-3 h-3" />Pre-result → QC
@@ -128,7 +126,7 @@ const RecordResults = () => {
                             </Select>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           {isApproved ? (
                             <Button
                               size="sm"
@@ -150,14 +148,13 @@ const RecordResults = () => {
             </div>
           </CardContent>
         </Card>
-      </main>
       <COADialog
         open={!!coaSample}
         onOpenChange={(o) => !o && setCoaSample(null)}
         sample={coaSample}
         physical={coaSample ? physicalResults[coaSample.id] : undefined}
       />
-    </div>
+    </AppLayout>
   );
 };
 

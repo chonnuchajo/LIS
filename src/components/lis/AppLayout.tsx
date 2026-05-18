@@ -1,0 +1,95 @@
+import { useState, type ReactNode } from "react";
+import { Menu } from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
+import AppSidebar from "@/components/lis/AppSidebar";
+import { cn } from "@/lib/utils";
+
+interface AppLayoutProps {
+  children: ReactNode;
+  /** Optional page title to show in the mobile topbar */
+  title?: string;
+  /** Extra classes on the outer wrapper (e.g. for print styles) */
+  className?: string;
+  /** Extra classes on the inner <main> element (replaces default `p-6` padding if you want) */
+  mainClassName?: string;
+  /** Use `h-screen` (fixed height) instead of `min-h-screen` — for pages that manage their own internal scroll */
+  fixedHeight?: boolean;
+}
+
+/**
+ * Single shell for every protected page. Replaces the previous inline pattern:
+ *   <div className="flex min-h-screen"><AppSidebar /><main>...</main></div>
+ *
+ * - Desktop (>=md): static sidebar on the left
+ * - Mobile (<md): hamburger topbar + Sheet drawer
+ */
+const AppLayout = ({
+  children,
+  title,
+  className,
+  mainClassName,
+  fixedHeight = false,
+}: AppLayoutProps) => {
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  return (
+    <div
+      className={cn(
+        "flex bg-background",
+        fixedHeight ? "h-screen" : "min-h-screen",
+        className,
+      )}
+    >
+      {/* Desktop sidebar */}
+      <div className="hidden md:flex print:hidden">
+        <AppSidebar variant="desktop" />
+      </div>
+
+      {/* Mobile topbar — fixed at top, only on <md */}
+      <header className="md:hidden print:hidden fixed top-0 inset-x-0 z-40 h-14 bg-card border-b border-border flex items-center gap-3 px-3 shadow-sm">
+        <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+          <SheetTrigger asChild>
+            <button
+              type="button"
+              aria-label="เปิดเมนู"
+              className="inline-flex items-center justify-center h-10 w-10 rounded-md text-foreground hover:bg-accent transition-colors"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+          </SheetTrigger>
+          <SheetContent side="left" className="p-0 w-[280px] max-w-[85vw]">
+            <SheetTitle className="sr-only">เมนูหลัก</SheetTitle>
+            <AppSidebar variant="drawer" onNavigate={() => setDrawerOpen(false)} />
+          </SheetContent>
+        </Sheet>
+
+        <img
+          src={ICP_LADDA_LOGO_URL}
+          alt="ICP Logo"
+          className="h-8 w-8 rounded-full object-contain"
+        />
+        <div className="min-w-0 flex-1">
+          {title ? (
+            <h1 className="text-sm font-semibold text-foreground truncate">{title}</h1>
+          ) : (
+            <h1 className="text-sm font-bold text-foreground tracking-wide">LIS</h1>
+          )}
+        </div>
+      </header>
+
+      {/* Main content — push down to clear the fixed mobile topbar */}
+      <main
+        className={cn(
+          "flex-1 min-w-0 pt-14 md:pt-0",
+          fixedHeight && "flex flex-col overflow-hidden",
+          mainClassName ?? "p-4 sm:p-6 overflow-auto",
+        )}
+      >
+        {children}
+      </main>
+    </div>
+  );
+};
+
+export default AppLayout;

@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Send, Plus, Trash2, QrCode, Download, Printer, ScanLine, CheckCircle2, Clock, FlaskConical, Droplets, Palette, User } from "lucide-react";
-import AppSidebar from "@/components/lis/AppSidebar";
+import AppLayout from "@/components/lis/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -206,9 +206,7 @@ const SendingSample = () => {
   );
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-foreground">การส่งตัวอย่าง</h1>
@@ -357,7 +355,7 @@ const SendingSample = () => {
 
         {/* Pending list */}
         <Card className="mb-6">
-          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <CardTitle className="text-base flex items-center gap-2">
               รายการตัวอย่างที่จะส่ง
               <Badge className="bg-primary/10 text-primary">{pendingItems.length}</Badge>
@@ -410,7 +408,7 @@ const SendingSample = () => {
         {/* Sent items with label */}
         {sentItems.length > 0 && (
           <Card>
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <QrCode className="w-5 h-5" />
                 รายการตัวอย่าง — Label (10×5 cm)
@@ -470,7 +468,7 @@ const SendingSample = () => {
 
         {/* Preview dialog */}
         <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader><DialogTitle>Label Preview (10×5 cm)</DialogTitle></DialogHeader>
             {previewImage && <img src={previewImage} alt="Preview" className="w-full rounded" style={{ aspectRatio: "2/1" }} />}
           </DialogContent>
@@ -505,8 +503,7 @@ const SendingSample = () => {
             </div>
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
+    </AppLayout>
   );
 };
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import AppSidebar from "@/components/lis/AppSidebar";
+import AppLayout from "@/components/lis/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -101,9 +101,7 @@ const AdminData = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Database className="w-6 h-6" />
@@ -121,12 +119,12 @@ const AdminData = () => {
 
           <TabsContent value="database">
             <Card>
-              <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <CardTitle className="text-base">ผลลัพธ์ที่ QC อนุมัติแล้ว ({filtered.length} รายการ)</CardTitle>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input placeholder="ค้นหา..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 w-60" />
+                    <Input placeholder="ค้นหา..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 w-full sm:w-60" />
                   </div>
                   <Button variant="outline" onClick={handleExport} className="gap-2">
                     <Download className="w-4 h-4" />Export CSV
@@ -140,39 +138,39 @@ const AdminData = () => {
                       <TableRow>
                         <TableHead>Sample ID</TableHead>
                         <TableHead>ชื่อยา</TableHead>
-                        <TableHead>วันที่</TableHead>
-                        <TableHead>เวลา</TableHead>
-                        <TableHead>ผู้วิเคราะห์</TableHead>
-                        <TableHead>เครื่องมือ</TableHead>
-                        <TableHead>Density</TableHead>
-                        <TableHead>%AI</TableHead>
-                        <TableHead>Result</TableHead>
+                        <TableHead className="hidden md:table-cell">วันที่</TableHead>
+                        <TableHead className="hidden xl:table-cell">เวลา</TableHead>
+                        <TableHead className="hidden lg:table-cell">ผู้วิเคราะห์</TableHead>
+                        <TableHead className="hidden lg:table-cell">เครื่องมือ</TableHead>
+                        <TableHead className="hidden xl:table-cell">Density</TableHead>
+                        <TableHead className="hidden md:table-cell">%AI</TableHead>
+                        <TableHead className="hidden md:table-cell">Result</TableHead>
                         <TableHead>QC</TableHead>
-                        <TableHead>หมายเหตุ</TableHead>
+                        <TableHead className="hidden lg:table-cell">หมายเหตุ</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filtered.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={11} className="text-center text-muted-foreground py-8">ยังไม่มีข้อมูลที่ผ่านการอนุมัติ QC</TableCell>
+                          <TableCell colSpan={11} className="text-center text-muted-foreground py-8 table-cell">ยังไม่มีข้อมูลที่ผ่านการอนุมัติ QC</TableCell>
                         </TableRow>
                       ) : filtered.map(r => (
                         <TableRow key={r.id}>
                           <TableCell className="font-semibold text-primary">{r.id}</TableCell>
                           <TableCell>{r.name}</TableCell>
-                          <TableCell>{r.date}</TableCell>
-                          <TableCell>{r.time}</TableCell>
-                          <TableCell>{r.receiver || "-"}</TableCell>
-                          <TableCell>{r.instrument || "-"}</TableCell>
-                          <TableCell>{r.density ?? "-"}</TableCell>
-                          <TableCell>{r.aiPercent != null ? `${r.aiPercent}%` : "-"}</TableCell>
-                          <TableCell>{r.preResult != null ? `${r.preResult}%` : "-"}</TableCell>
+                          <TableCell className="hidden md:table-cell">{r.date}</TableCell>
+                          <TableCell className="hidden xl:table-cell">{r.time}</TableCell>
+                          <TableCell className="hidden lg:table-cell">{r.receiver || "-"}</TableCell>
+                          <TableCell className="hidden lg:table-cell">{r.instrument || "-"}</TableCell>
+                          <TableCell className="hidden xl:table-cell">{r.density ?? "-"}</TableCell>
+                          <TableCell className="hidden md:table-cell">{r.aiPercent != null ? `${r.aiPercent}%` : "-"}</TableCell>
+                          <TableCell className="hidden md:table-cell">{r.preResult != null ? `${r.preResult}%` : "-"}</TableCell>
                           <TableCell>
                             <Badge className={r.qcResult === "ผ่าน" ? "bg-emerald-100 text-emerald-700" : "bg-destructive/10 text-destructive"}>
                               {r.qcResult}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{r.qcNote || "-"}</TableCell>
+                          <TableCell className="hidden lg:table-cell text-xs text-muted-foreground max-w-[150px] truncate">{r.qcNote || "-"}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -184,15 +182,15 @@ const AdminData = () => {
 
           <TabsContent value="activelog">
             <Card>
-              <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-base">Active Injection Log</CardTitle>
                   <p className="text-xs text-muted-foreground mt-1">บันทึกเวลาการฉีดตัวอย่างจากเครื่อง GC/HPLC (เข็มแรก - เข็มสุดท้าย)</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input placeholder="ค้นหา..." value={logSearch} onChange={e => setLogSearch(e.target.value)} className="pl-9 w-60" />
+                    <Input placeholder="ค้นหา..." value={logSearch} onChange={e => setLogSearch(e.target.value)} className="pl-9 w-full sm:w-60" />
                   </div>
                   <Button variant="outline" onClick={handleExportLogs} className="gap-2">
                     <Download className="w-4 h-4" />Export CSV
@@ -204,26 +202,26 @@ const AdminData = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Log ID</TableHead>
+                        <TableHead className="hidden md:table-cell">Log ID</TableHead>
                         <TableHead>Sample ID</TableHead>
                         <TableHead>ชื่อยา</TableHead>
-                        <TableHead>เครื่องมือ</TableHead>
-                        <TableHead>เวลาฉีดเข็มแรก</TableHead>
-                        <TableHead>เวลาฉีดเข็มสุดท้าย</TableHead>
-                        <TableHead>จำนวนเข็ม</TableHead>
+                        <TableHead className="hidden lg:table-cell">เครื่องมือ</TableHead>
+                        <TableHead className="hidden xl:table-cell">เวลาฉีดเข็มแรก</TableHead>
+                        <TableHead className="hidden xl:table-cell">เวลาฉีดเข็มสุดท้าย</TableHead>
+                        <TableHead className="hidden md:table-cell">จำนวนเข็ม</TableHead>
                         <TableHead>Runtime</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredLogs.map(l => (
                         <TableRow key={l.id}>
-                          <TableCell className="font-semibold text-primary">{l.id}</TableCell>
+                          <TableCell className="hidden md:table-cell font-semibold text-primary">{l.id}</TableCell>
                           <TableCell>{l.sampleId}</TableCell>
                           <TableCell>{l.drugName}</TableCell>
-                          <TableCell><Badge variant="outline">{l.instrument}</Badge></TableCell>
-                          <TableCell className="text-xs">{l.firstInjection}</TableCell>
-                          <TableCell className="text-xs">{l.lastInjection}</TableCell>
-                          <TableCell className="text-center font-semibold">{l.totalInjections}</TableCell>
+                          <TableCell className="hidden lg:table-cell"><Badge variant="outline">{l.instrument}</Badge></TableCell>
+                          <TableCell className="hidden xl:table-cell text-xs">{l.firstInjection}</TableCell>
+                          <TableCell className="hidden xl:table-cell text-xs">{l.lastInjection}</TableCell>
+                          <TableCell className="hidden md:table-cell text-center font-semibold">{l.totalInjections}</TableCell>
                           <TableCell><Badge className="bg-accent text-accent-foreground">{l.runtime}</Badge></TableCell>
                         </TableRow>
                       ))}
@@ -236,7 +234,7 @@ const AdminData = () => {
 
           <TabsContent value="auditlog">
             <Card>
-              <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-base">ประวัติการเปลี่ยนสถานะ (10 รายการล่าสุด)</CardTitle>
                   <p className="text-xs text-muted-foreground mt-1">บันทึกการทำรายการของคำร้องทั้งหมด</p>
@@ -250,12 +248,12 @@ const AdminData = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>วันที่</TableHead>
+                        <TableHead className="hidden md:table-cell">วันที่</TableHead>
                         <TableHead>เลขที่คำร้อง</TableHead>
                         <TableHead>เหตุการณ์</TableHead>
-                        <TableHead>สถานะ</TableHead>
-                        <TableHead>ผู้ทำรายการ</TableHead>
-                        <TableHead>หมายเหตุ</TableHead>
+                        <TableHead className="hidden md:table-cell">สถานะ</TableHead>
+                        <TableHead className="hidden lg:table-cell">ผู้ทำรายการ</TableHead>
+                        <TableHead className="hidden lg:table-cell">หมายเหตุ</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -283,7 +281,7 @@ const AdminData = () => {
                             className="cursor-pointer"
                             onClick={() => navigate(`/petitions/${entry.petitionId}`)}
                           >
-                            <TableCell className="text-muted-foreground whitespace-nowrap text-xs">
+                            <TableCell className="hidden md:table-cell text-muted-foreground whitespace-nowrap text-xs">
                               {new Date(entry.createdAt).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}
                             </TableCell>
                             <TableCell className="font-semibold text-primary">{entry.petitionNo}</TableCell>
@@ -292,7 +290,7 @@ const AdminData = () => {
                                 {PETITION_AUDIT_EVENT_LABELS[entry.event]}
                               </Badge>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="hidden md:table-cell">
                               {to ? (
                                 <span className="text-sm">
                                   {from && from !== to ? (
@@ -309,8 +307,8 @@ const AdminData = () => {
                                 <span className="text-muted-foreground">-</span>
                               )}
                             </TableCell>
-                            <TableCell>{entry.actor || "system"}</TableCell>
-                            <TableCell className="max-w-[360px] truncate text-muted-foreground text-xs">{entry.note || "-"}</TableCell>
+                            <TableCell className="hidden lg:table-cell">{entry.actor || "system"}</TableCell>
+                            <TableCell className="hidden lg:table-cell max-w-[360px] truncate text-muted-foreground text-xs">{entry.note || "-"}</TableCell>
                           </TableRow>
                         );
                       })}
@@ -321,8 +319,7 @@ const AdminData = () => {
             </Card>
           </TabsContent>
         </Tabs>
-      </main>
-    </div>
+    </AppLayout>
   );
 };
 

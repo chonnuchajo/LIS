@@ -1,5 +1,5 @@
 import { useState } from "react";
-import AppSidebar from "@/components/lis/AppSidebar";
+import AppLayout from "@/components/lis/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -38,9 +38,7 @@ const QCApproval = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <ShieldCheck className="w-6 h-6" />
@@ -60,13 +58,13 @@ const QCApproval = () => {
                   <TableRow>
                     <TableHead>เลขตัวอย่าง</TableHead>
                     <TableHead>ชื่อยา</TableHead>
-                    <TableHead>ผู้วิเคราะห์</TableHead>
-                    <TableHead>เครื่องมือ</TableHead>
-                    <TableHead>% AI</TableHead>
+                    <TableHead className="hidden lg:table-cell">ผู้วิเคราะห์</TableHead>
+                    <TableHead className="hidden lg:table-cell">เครื่องมือ</TableHead>
+                    <TableHead className="hidden md:table-cell">% AI</TableHead>
                     <TableHead>สถานะ QC</TableHead>
-                    <TableHead>หมายเหตุ</TableHead>
-                    <TableHead>ไฟล์ผลทดลอง</TableHead>
-                    <TableHead>ยืนยัน</TableHead>
+                    <TableHead className="hidden lg:table-cell">หมายเหตุ</TableHead>
+                    <TableHead className="hidden md:table-cell">ไฟล์ผลทดลอง</TableHead>
+                    <TableHead className="hidden md:table-cell">ยืนยัน</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -78,9 +76,9 @@ const QCApproval = () => {
                       <TableRow key={sample.id}>
                         <TableCell className="font-semibold text-primary">{sample.id}</TableCell>
                         <TableCell>{sample.name}</TableCell>
-                        <TableCell>{sample.receiver || "-"}</TableCell>
-                        <TableCell>{sample.instrument || "-"}</TableCell>
-                        <TableCell>
+                        <TableCell className="hidden lg:table-cell">{sample.receiver || "-"}</TableCell>
+                        <TableCell className="hidden lg:table-cell">{sample.instrument || "-"}</TableCell>
+                        <TableCell className="hidden md:table-cell">
                           {sample.preResult !== undefined ? (
                             <span className="font-semibold">{sample.preResult}%</span>
                           ) : "-"}
@@ -106,7 +104,7 @@ const QCApproval = () => {
                             </Select>
                           )}
                         </TableCell>
-                        <TableCell className="max-w-[200px]">
+                        <TableCell className="hidden lg:table-cell max-w-[200px]">
                           <Input
                             placeholder="พิมพ์หมายเหตุ..."
                             className="h-8 text-xs"
@@ -114,7 +112,7 @@ const QCApproval = () => {
                             onChange={e => setQcNotes(prev => ({ ...prev, [sample.id]: e.target.value }))}
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           {qcStatus !== "pending" ? (
                             <Button size="sm" variant="outline" className="gap-1" onClick={() => handleGeneratePdf(sample.id)}>
                               <FileText className="w-3.5 h-3.5" /> สร้าง PDF
@@ -123,7 +121,7 @@ const QCApproval = () => {
                             <span className="text-xs text-muted-foreground">รอ QC</span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           {qcStatus === "approved" ? (
                             <Button size="sm" className="gap-1 bg-primary" onClick={() => handleConfirmSend(sample.id)}>
                               <Send className="w-3.5 h-3.5" /> ยืนยัน
@@ -177,8 +175,7 @@ const QCApproval = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
+    </AppLayout>
   );
 };
 

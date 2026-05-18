@@ -12,6 +12,7 @@ import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { pathMatches, userCanAccessPath } from "@/lib/accessControl";
 import { api } from "@/lib/api";
+import { useIsTablet } from "@/hooks/use-mobile";
 
 type RoleOption = {
   id: string;
@@ -35,14 +36,22 @@ const GROUPS_STORAGE_KEY = "lis.sidebar.collapsedGroups";
 const ACCESS_CONTROL_QUERY_KEY = ["access-control"];
 const EMPTY_GROUPS: NavGroup[] = [];
 
-const AppSidebar = () => {
+export type AppSidebarVariant = "desktop" | "drawer";
+
+interface AppSidebarProps {
+  variant?: AppSidebarVariant;
+  /** Called when the user picks a nav item — useful for the drawer to close itself. */
+  onNavigate?: () => void;
+}
+
+const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
+  const isTablet = useIsTablet();
+  const isDrawer = variant === "drawer";
 
-  // Cached via React Query so the sidebar keeps its grouped layout across
-  // page navigations instead of flashing the flat fallback menu on remount.
   const { data: accessControl } = useQuery({
     queryKey: ACCESS_CONTROL_QUERY_KEY,
     queryFn: async () => {
@@ -58,10 +67,13 @@ const AppSidebar = () => {
   );
   const navGroups = accessControl?.groups?.length ? accessControl.groups : EMPTY_GROUPS;
 
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
+  const [storedCollapsed, setStoredCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem(STORAGE_KEY) === "1";
   });
+
+  // Manual expand from auto-collapsed state lasts the session only
+  const [manualExpand, setManualExpand] = useState(false);
 
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
     if (typeof window === "undefined") return {};
@@ -73,9 +85,27 @@ const AppSidebar = () => {
     }
   });
 
+  // Drawer variant: always expanded, no collapse mechanics
+  // Desktop variant: auto-collapse on tablet width unless user manually expanded this session
+  const collapsed = isDrawer
+    ? false
+    : isTablet
+      ? !manualExpand
+      : storedCollapsed;
+
+  const toggleCollapsed = () => {
+    if (isDrawer) return;
+    if (isTablet) {
+      setManualExpand((v) => !v);
+      return;
+    }
+    setStoredCollapsed((v) => !v);
+  };
+
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, collapsed ? "1" : "0");
-  }, [collapsed]);
+    if (isDrawer) return;
+    localStorage.setItem(STORAGE_KEY, storedCollapsed ? "1" : "0");
+  }, [storedCollapsed, isDrawer]);
 
   useEffect(() => {
     localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(collapsedGroups));
@@ -93,12 +123,12 @@ const AppSidebar = () => {
   const handleLogout = () => {
     logout();
     toast.success("ออกจากระบบสำเร็จ");
+    onNavigate?.();
     navigate("/login", { replace: true });
   };
 
   const sections = useMemo(() => {
     const sorted = [...navGroups].sort((a, b) => {
-      // 'others' is the locked catch-all — always pinned last, regardless of sortOrder.
       if (a.id === "others") return 1;
       if (b.id === "others") return -1;
       return (a.sortOrder ?? 999) - (b.sortOrder ?? 999);
@@ -113,8 +143,6 @@ const AppSidebar = () => {
       .map((group) => {
         let items: typeof NAV_ITEMS;
         if (group.id === "others") {
-          // Membership is computed (uncovered pages), but group.paths is honored
-          // as an ordering hint so the admin's arrangement sticks.
           const uncovered = NAV_ITEMS.filter(
             (item) => !coveredPaths.some((p) => pathMatches(p, item.path)),
           );
@@ -127,7 +155,6 @@ const AppSidebar = () => {
             if (!items.includes(item)) items.push(item);
           }
         } else {
-          // Follow the order stored in group.paths so the admin's arrangement sticks.
           items = [];
           for (const p of group.paths ?? []) {
             for (const item of NAV_ITEMS) {
@@ -148,19 +175,26 @@ const AppSidebar = () => {
     <TooltipProvider delayDuration={200}>
       <aside
         className={cn(
-          "relative flex flex-col min-h-screen bg-card border-r border-border transition-[width] duration-200 ease-out",
-          collapsed ? "w-16" : "w-72"
+          "relative flex flex-col bg-card border-r border-border",
+          isDrawer
+            ? "w-full h-full"
+            : cn(
+                "min-h-screen transition-[width] duration-200 ease-out",
+                collapsed ? "w-16" : "w-72",
+              ),
         )}
       >
-        {/* Toggle button — sits on the right edge */}
-        <button
-          type="button"
-          onClick={() => setCollapsed(v => !v)}
-          aria-label={collapsed ? "ขยายเมนู" : "ซ่อนเมนู"}
-          className="absolute -right-3 top-7 z-10 w-6 h-6 rounded-full border border-border bg-card shadow-sm flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-        >
-          {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-        </button>
+        {/* Desktop-only toggle button — drawer does not need it */}
+        {!isDrawer && (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "ขยายเมนู" : "ซ่อนเมนู"}
+            className="absolute -right-3 top-7 z-10 w-6 h-6 rounded-full border border-border bg-card shadow-sm flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+          </button>
+        )}
 
         {/* Header */}
         <div className={cn(
@@ -236,7 +270,10 @@ const AppSidebar = () => {
                   const Btn = (
                     <button
                       key={item.path}
-                      onClick={() => navigate(targetPath)}
+                      onClick={() => {
+                        navigate(targetPath);
+                        onNavigate?.();
+                      }}
                       className={cn(
                         "flex items-center w-full rounded-lg text-sm font-medium transition-colors",
                         collapsed ? "justify-center h-10 px-0" : "gap-3 px-3 py-2.5",

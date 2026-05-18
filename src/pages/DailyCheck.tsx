@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Scale, CheckCircle2, Clock, RotateCcw, List, ClipboardList } from "lucide-react";
-import AppSidebar from "@/components/lis/AppSidebar";
+import AppLayout from "@/components/lis/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -151,9 +151,7 @@ const DailyCheck = () => {
   const passCount = Object.values(records).filter(r => r.status100 === "pass" && r.status10 === "pass").length;
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Daily Check</h1>
@@ -357,8 +355,7 @@ const DailyCheck = () => {
             </Card>
           </TabsContent>
         </Tabs>
-      </main>
-    </div>
+    </AppLayout>
   );
 };
 
