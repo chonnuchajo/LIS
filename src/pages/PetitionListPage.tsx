@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table';
 import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
+import { formatPetitionWorkSections } from '@/lib/petitionSections';
 import {
   PETITION_STATUSES,
   PETITION_STATUS_CONFIG,
@@ -209,6 +210,7 @@ export default function PetitionListPage() {
                   <TableHead>เลขที่คำร้อง</TableHead>
                   <TableHead>ผู้ยื่น</TableHead>
                   <TableHead>แผนก</TableHead>
+                  <TableHead>ส่วนงาน</TableHead>
                   <TableHead>ชื่อตัวอย่าง</TableHead>
                   <TableHead>สถานะ</TableHead>
                   <TableHead>วันที่ยื่น</TableHead>
@@ -217,14 +219,14 @@ export default function PetitionListPage() {
               <TableBody>
                 {loading && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-grey-500 py-8">
+                    <TableCell colSpan={7} className="text-center text-grey-500 py-8">
                       กำลังโหลดข้อมูล...
                     </TableCell>
                   </TableRow>
                 )}
                 {!loading && data && visibleItems.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center text-grey-500 py-8">
+                    <TableCell colSpan={7} className="text-center text-grey-500 py-8">
                       {hasFilters
                         ? 'ไม่พบคำร้องตามเงื่อนไขที่ค้นหา'
                         : canViewAll
@@ -246,6 +248,9 @@ export default function PetitionListPage() {
                         <TableCell className="font-medium text-primary-500">{p.petitionNo}</TableCell>
                         <TableCell>{p.requester.fullName}</TableCell>
                         <TableCell>{p.requester.department}</TableCell>
+                        <TableCell>
+                          <Badge variant="primary-soft">{formatPetitionWorkSections(p)}</Badge>
+                        </TableCell>
                         <TableCell>
                           {p.items?.map((it) => it.sampleName).filter(Boolean).join(', ') || '-'}
                         </TableCell>

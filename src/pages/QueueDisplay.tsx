@@ -3,6 +3,7 @@ import { CheckCircle2, Clock, FlaskConical, RefreshCw, ShieldCheck, Sparkles } f
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
+import { formatPetitionWorkSections, petitionHasLabItems } from "@/lib/petitionSections";
 import { usePetitionList } from "@/hooks/usePetition";
 import {
   PETITION_STATUS_CONFIG,
@@ -33,15 +34,6 @@ const REFRESH_MS = 5_000;
 const MAX_ITEMS_PER_GROUP = 9;
 const NEW_WORK_ALERT_MS = 10_000;
 const NEW_SAMPLE_SOUND_URL = `${import.meta.env.BASE_URL}sound/new.mp3`;
-const LAB_BATCH_LAST_DIGITS = new Set(["1", "6"]);
-
-const isLabBatchNo = (batchNo?: string | null) => {
-  const trimmed = String(batchNo ?? "").trim();
-  return trimmed.length > 0 && LAB_BATCH_LAST_DIGITS.has(trimmed.slice(-1));
-};
-
-const petitionHasLabItems = (petition: Petition) =>
-  petition.items.some((item) => isLabBatchNo(item.batchNo));
 
 const QUEUE_CONFIG: Record<QueueMode, QueueConfig> = {
   lab: {
@@ -147,6 +139,12 @@ function QueueCard({ petition }: { petition: Petition }) {
         </div>
         <Badge variant={statusCfg.variant} className="shrink-0 px-3 py-1 text-sm">
           {statusCfg.label}
+        </Badge>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <span className="text-sm font-semibold text-slate-500">ส่วนงาน</span>
+        <Badge variant="primary-soft" className="px-3 py-1 text-sm">
+          {formatPetitionWorkSections(petition)}
         </Badge>
       </div>
       <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t border-slate-100 pt-3">

@@ -55,11 +55,8 @@ const INSTRUMENT_ORDER: SimpleInstrument[] = ["GC", "HPLC"];
 
 type SimpleMethodRow = {
   key: string;
-  tradeName: string;
   commonName: string;
   instruments: SimpleInstrument[];
-  itemCount: number;
-  itemNos: string[];
   items: MasterItem[];
 };
 
@@ -268,15 +265,13 @@ function buildSimpleMethodRows(
   overrides: Record<string, SimpleInstrument[]> = {},
 ): SimpleMethodRow[] {
   const groups = new Map<string, SimpleMethodRow>();
-
   const instrumentSets = new Map<string, Set<SimpleInstrument>>();
 
   items.forEach((item) => {
-    const tradeName = String(firstValue(item, tradeNameKeys)).trim();
     const commonName = String(firstValue(item, commonNameKeys)).trim();
-    if (!tradeName && !commonName) return;
+    if (!commonName) return;
 
-    const key = `${tradeName.toLowerCase()}||${commonName.toLowerCase()}`;
+    const key = commonName.toLowerCase();
     const itemNo = String(firstValue(item, codeKeys)).trim();
     const override = itemNo ? overrides[itemNo] : undefined;
     const instruments = override ?? getSimpleInstruments(item);
@@ -286,19 +281,14 @@ function buildSimpleMethodRows(
     instrumentSets.set(key, instrumentSet);
 
     if (existing) {
-      existing.itemCount += 1;
       existing.items.push(item);
-      if (itemNo && !existing.itemNos.includes(itemNo)) existing.itemNos.push(itemNo);
       return;
     }
 
     groups.set(key, {
       key,
-      tradeName,
       commonName,
       instruments: [],
-      itemCount: 1,
-      itemNos: itemNo ? [itemNo] : [],
       items: [item],
     });
   });
@@ -308,7 +298,6 @@ function buildSimpleMethodRows(
   });
 
   return Array.from(groups.values()).sort((a, b) => (
-    a.tradeName.localeCompare(b.tradeName, ["th", "en"]) ||
     a.commonName.localeCompare(b.commonName, ["th", "en"])
   ));
 }
@@ -725,7 +714,7 @@ export function SimpleMethodPage() {
     const needle = searchText.trim().toLowerCase();
     return rows.filter((row) => {
       if (needle) {
-        const haystack = `${row.tradeName} ${row.commonName} ${row.itemNos.join(" ")}`.toLowerCase();
+        const haystack = row.commonName.toLowerCase();
         if (!haystack.includes(needle)) return false;
       }
       if (statusFilter === "all") return true;
@@ -803,7 +792,11 @@ export function SimpleMethodPage() {
         toast.error("ไม่พบรหัส item สำหรับบันทึก method");
         return;
       }
-      await api.put("/simple-methods", { updates });
+      await Promise.all(
+        updates.map(({ itemNo, instruments }) =>
+          api.put(`/simple-methods/${encodeURIComponent(itemNo)}`, { instruments }),
+        ),
+      );
       toast.success(`บันทึก ${dirtyRows.length} รายการสำเร็จ`);
       setMethodDrafts({});
       setSelectedKeys(new Set());
@@ -825,7 +818,7 @@ export function SimpleMethodPage() {
             Simple Method
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            กำหนด GC/HPLC ตาม tradename และ commonname
+            กำหนด GC/HPLC ตาม commonname
           </p>
         </div>
 
@@ -985,7 +978,7 @@ function SimpleMethodTab({
             <Input
               value={searchText}
               onChange={(event) => onSearchTextChange(event.target.value)}
-              placeholder="ค้นหา tradename / commonname / item no..."
+              placeholder="Search commonname..."
               className="pl-8"
             />
           </div>
@@ -1021,22 +1014,20 @@ function SimpleMethodTab({
                       aria-label="เลือกทุกแถว"
                     />
                   </TableHead>
-                  <TableHead>tradename</TableHead>
                   <TableHead>commonname</TableHead>
-                  <TableHead className="w-28 text-center">Items</TableHead>
                   <TableHead className="w-64">Method/Instrument</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
                       กำลังโหลด...
                     </TableCell>
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
                       ไม่มีข้อมูล simple method
                     </TableCell>
                   </TableRow>
@@ -1065,14 +1056,10 @@ function SimpleMethodTab({
                           <Checkbox
                             checked={isRowSelected}
                             onCheckedChange={(checked) => onToggleRow(row.key, !!checked)}
-                            aria-label={`เลือกแถว ${row.tradeName}`}
+                            aria-label={`Select row ${row.commonName}`}
                           />
                         </TableCell>
-                        <TableCell className="min-w-52 font-medium">{displayValue(row.tradeName)}</TableCell>
-                        <TableCell className="min-w-72">{displayValue(row.commonName)}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="secondary">{row.itemCount}</Badge>
-                        </TableCell>
+                        <TableCell className="min-w-72 font-medium">{displayValue(row.commonName)}</TableCell>
                         <TableCell onClick={(event) => event.stopPropagation()}>
                           <Popover>
                             <PopoverTrigger asChild>
