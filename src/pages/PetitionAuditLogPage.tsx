@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, History, Search, X } from 'lucide-react';
-import AppSidebar from '@/components/lis/AppSidebar';
+import AppLayout from '@/components/lis/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -97,11 +97,9 @@ export default function PetitionAuditLogPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="flex items-center gap-2 text-2xl font-bold text-black-500">
                 <History className="h-6 w-6 text-primary-500" />
@@ -285,7 +283,6 @@ export default function PetitionAuditLogPage() {
             </div>
           )}
         </div>
-      </main>
-    </div>
+    </AppLayout>
   );
 }

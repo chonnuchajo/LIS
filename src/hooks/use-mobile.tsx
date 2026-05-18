@@ -1,6 +1,7 @@
 import * as React from "react";
 
 const MOBILE_BREAKPOINT = 768;
+const DESKTOP_BREAKPOINT = 1024;
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
@@ -16,4 +17,25 @@ export function useIsMobile() {
   }, []);
 
   return !!isMobile;
+}
+
+// iPad portrait band: sidebar should auto-collapse to icon rail
+export function useIsTablet() {
+  const [isTablet, setIsTablet] = React.useState<boolean | undefined>(undefined);
+
+  React.useEffect(() => {
+    const mql = window.matchMedia(
+      `(min-width: ${MOBILE_BREAKPOINT}px) and (max-width: ${DESKTOP_BREAKPOINT - 1}px)`,
+    );
+    const onChange = () => {
+      const w = window.innerWidth;
+      setIsTablet(w >= MOBILE_BREAKPOINT && w < DESKTOP_BREAKPOINT);
+    };
+    mql.addEventListener("change", onChange);
+    const w = window.innerWidth;
+    setIsTablet(w >= MOBILE_BREAKPOINT && w < DESKTOP_BREAKPOINT);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  return !!isTablet;
 }

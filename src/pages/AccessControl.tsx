@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import AppSidebar from "@/components/lis/AppSidebar";
+import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -656,9 +656,7 @@ const AccessControl = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 overflow-auto p-6">
+    <AppLayout>
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
@@ -775,11 +773,11 @@ const AccessControl = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>User</TableHead>
-                        <TableHead>Department</TableHead>
-                        <TableHead>Position</TableHead>
+                        <TableHead className="hidden lg:table-cell">Department</TableHead>
+                        <TableHead className="hidden lg:table-cell">Position</TableHead>
                         <TableHead>Role</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Last active</TableHead>
+                        <TableHead className="hidden md:table-cell">Status</TableHead>
+                        <TableHead className="hidden xl:table-cell">Last active</TableHead>
                         <TableHead className="w-12"></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -797,7 +795,7 @@ const AccessControl = () => {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="min-w-[160px]">
+                          <TableCell className="hidden lg:table-cell min-w-[160px]">
                             <Input
                               value={user.department}
                               onChange={(event) =>
@@ -816,7 +814,7 @@ const AccessControl = () => {
                               }
                             />
                           </TableCell>
-                          <TableCell className="min-w-[160px]">
+                          <TableCell className="hidden lg:table-cell min-w-[160px]">
                             <Input
                               value={user.position}
                               onChange={(event) =>
@@ -835,7 +833,7 @@ const AccessControl = () => {
                               }
                             />
                           </TableCell>
-                          <TableCell className="min-w-[180px]">
+                          <TableCell className="min-w-[140px] sm:min-w-[180px]">
                             <Select
                               value={user.roleId}
                               onValueChange={(value) => updateUser(user.id, { roleId: value })}
@@ -852,7 +850,7 @@ const AccessControl = () => {
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="hidden md:table-cell">
                             <Select
                               value={user.status}
                               onValueChange={(value) =>
@@ -868,7 +866,7 @@ const AccessControl = () => {
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="hidden xl:table-cell">
                             <Badge
                               className={cn(
                                 user.status === "active"
@@ -1259,8 +1257,7 @@ const AccessControl = () => {
             </Card>
           </TabsContent>
         </Tabs>
-      </main>
-    </div>
+    </AppLayout>
   );
 };
 

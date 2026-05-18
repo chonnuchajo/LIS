@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ClipboardCheck, RefreshCw, Search, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
-import AppSidebar from '@/components/lis/AppSidebar';
+import AppLayout from '@/components/lis/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -149,9 +149,7 @@ export default function PetitionAssignPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -322,7 +320,6 @@ export default function PetitionAssignPage() {
             </Table>
           </div>
         </div>
-      </main>
-    </div>
+    </AppLayout>
   );
 }

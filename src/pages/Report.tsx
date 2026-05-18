@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import AppSidebar from "@/components/lis/AppSidebar";
+import AppLayout from "@/components/lis/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -220,9 +220,7 @@ const Report = () => {
   const totalSamples = personnelData.reduce((sum, p) => sum + p.samplesAnalyzed, 0);
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <FileBarChart className="w-6 h-6" />
@@ -532,8 +530,7 @@ const Report = () => {
             </Card>
           </TabsContent>
         </Tabs>
-      </main>
-    </div>
+    </AppLayout>
   );
 };
 

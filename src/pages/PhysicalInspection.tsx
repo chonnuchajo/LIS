@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { FlaskConical, Camera, Droplets, Palette, CheckCircle2, Clock, Package, Send } from "lucide-react";
-import AppSidebar from "@/components/lis/AppSidebar";
+import AppLayout from "@/components/lis/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -69,9 +69,7 @@ const PhysicalInspection = () => {
   const sentCount = allSamples.filter(s => s.sampleStatus === "sent").length;
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-foreground">การตรวจกายภาพ</h1>
@@ -319,8 +317,7 @@ const PhysicalInspection = () => {
             e.target.value = "";
           }}
         />
-      </main>
-    </div>
+    </AppLayout>
   );
 };
 

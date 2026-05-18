@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, FilePlus2, Search, X } from 'lucide-react';
-import AppSidebar from '@/components/lis/AppSidebar';
+import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -132,11 +132,9 @@ export default function PetitionListPage() {
   const hasFilters = !!status || !!search;
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-black-500">รายการคำร้อง</h1>
               <p className="text-sm text-grey-500">รายการคำร้องขอตรวจตัวอย่างทั้งหมดในระบบ</p>
@@ -297,7 +295,6 @@ export default function PetitionListPage() {
             </div>
           )}
         </div>
-      </main>
-    </div>
+    </AppLayout>
   );
 }

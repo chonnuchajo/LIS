@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Package, AlertTriangle, Clock, Plus, Pencil, Trash2, Minus, ArrowDownToLine, History, Search } from "lucide-react";
 import { toast } from "sonner";
 
-import AppSidebar from "@/components/lis/AppSidebar";
+import AppLayout from "@/components/lis/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -115,7 +115,7 @@ function StandardsTab() {
       )}
 
       <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Package className="w-5 h-5" /> Standards (สาร Standard)
             <Badge variant="outline">{data.length}</Badge>
@@ -125,7 +125,7 @@ function StandardsTab() {
               <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="ค้นหา code หรือชื่อ" className="pl-8 h-9 w-64"
+                placeholder="ค้นหา code หรือชื่อ" className="pl-8 h-9 w-full sm:w-64"
               />
             </div>
             <Button size="sm" onClick={() => setCreating(true)}>
@@ -140,11 +140,11 @@ function StandardsTab() {
                 <TableRow>
                   <TableHead className="w-16">Code</TableHead>
                   <TableHead>ชื่อ</TableHead>
-                  <TableHead className="text-center">Primary<br /><span className="text-xs font-normal text-muted-foreground">qty / size / EXP</span></TableHead>
-                  <TableHead className="text-center">Supplier<br /><span className="text-xs font-normal text-muted-foreground">qty / size / EXP</span></TableHead>
-                  <TableHead className="text-center">Working<br /><span className="text-xs font-normal text-muted-foreground">qty / size / EXP</span></TableHead>
-                  <TableHead>ความถี่</TableHead>
-                  <TableHead>อุณหภูมิ</TableHead>
+                  <TableHead className="hidden md:table-cell text-center">Primary<br /><span className="text-xs font-normal text-muted-foreground">qty / size / EXP</span></TableHead>
+                  <TableHead className="hidden lg:table-cell text-center">Supplier<br /><span className="text-xs font-normal text-muted-foreground">qty / size / EXP</span></TableHead>
+                  <TableHead className="hidden lg:table-cell text-center">Working<br /><span className="text-xs font-normal text-muted-foreground">qty / size / EXP</span></TableHead>
+                  <TableHead className="hidden xl:table-cell">ความถี่</TableHead>
+                  <TableHead className="hidden xl:table-cell">อุณหภูมิ</TableHead>
                   <TableHead>สถานะ</TableHead>
                   <TableHead className="w-32 text-right">Actions</TableHead>
                 </TableRow>
@@ -165,11 +165,11 @@ function StandardsTab() {
                     <TableRow key={item._id}>
                       <TableCell className="font-semibold text-primary">{item.code}</TableCell>
                       <TableCell className="font-medium">{item.name}</TableCell>
-                      <TierCell tier={item.primary} />
-                      <TierCell tier={item.supplier} />
-                      <TierCell tier={item.working} />
-                      <TableCell className="text-xs">{item.frequency || "-"}</TableCell>
-                      <TableCell className="text-xs">{item.storageTemp || "-"}</TableCell>
+                      <TierCell tier={item.primary} className="hidden md:table-cell" />
+                      <TierCell tier={item.supplier} className="hidden lg:table-cell" />
+                      <TierCell tier={item.working} className="hidden lg:table-cell" />
+                      <TableCell className="hidden xl:table-cell text-xs">{item.frequency || "-"}</TableCell>
+                      <TableCell className="hidden xl:table-cell text-xs">{item.storageTemp || "-"}</TableCell>
                       <TableCell>
                         {isLow && <Badge className="bg-destructive/10 text-destructive text-xs mr-1">ใกล้หมด</Badge>}
                         {isExpiring && <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมดอายุ</Badge>}
@@ -226,10 +226,10 @@ function StandardsTab() {
   );
 }
 
-function TierCell({ tier }: { tier: { qty: number; sizeMg: number | string | null; exp: string } }) {
+function TierCell({ tier, className = "" }: { tier: { qty: number; sizeMg: number | string | null; exp: string }; className?: string }) {
   const isExp = isExpiringSoon(tier?.exp);
   return (
-    <TableCell className="text-center text-sm">
+    <TableCell className={`text-center text-sm ${className}`.trim()}>
       <div className="font-semibold">{tier?.qty ?? 0}</div>
       <div className="text-xs text-muted-foreground">{fmtNum(tier?.sizeMg)} mg</div>
       <div className={`text-xs ${isExp ? "text-destructive font-medium" : "text-muted-foreground"}`}>
@@ -278,7 +278,7 @@ function SolventsTab() {
         </Card>
       )}
       <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Package className="w-5 h-5" /> สารเคมี / Solvents
             <Badge variant="outline">{data.length}</Badge>
@@ -286,7 +286,7 @@ function SolventsTab() {
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา" className="pl-8 h-9 w-64" />
+              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา" className="pl-8 h-9 w-full sm:w-64" />
             </div>
             <Button size="sm" onClick={() => setCreating(true)}><Plus className="w-4 h-4 mr-1" /> เพิ่มรายการ</Button>
           </div>
@@ -426,7 +426,7 @@ function GlasswareTab() {
         </Card>
       )}
       <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Package className="w-5 h-5" /> เครื่องแก้ว / Glassware
             <Badge variant="outline">{data.length}</Badge>
@@ -434,7 +434,7 @@ function GlasswareTab() {
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา" className="pl-8 h-9 w-64" />
+              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา" className="pl-8 h-9 w-full sm:w-64" />
             </div>
             <Button size="sm" onClick={() => setCreating(true)}><Plus className="w-4 h-4 mr-1" /> เพิ่มรายการ</Button>
           </div>
@@ -545,7 +545,7 @@ function HistoryTab() {
 
   return (
     <Card>
-      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 space-y-0">
+      <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
         <CardTitle className="text-base flex items-center gap-2">
           <History className="w-5 h-5" /> ประวัติการใช้ / รับเข้า
           <Badge variant="outline">{data.length}</Badge>
@@ -690,7 +690,7 @@ function SimpleItemDialog<T extends { _id?: string }>({
 
   return (
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{item ? `แก้ไข${title}` : `เพิ่ม${title}`}</DialogTitle>
@@ -751,7 +751,7 @@ function SimpleMoveDialog({
 
   return (
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
@@ -812,7 +812,7 @@ function StandardMoveDialog({
 
   return (
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="sm:max-w-md">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{mode === "deduct" ? "ตัด stock Standard" : "รับเข้า Standard"}</DialogTitle>
@@ -911,13 +911,13 @@ function StandardDialog({
 
   return (
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{isEdit ? `แก้ไข Standard: ${item?.name}` : "เพิ่ม Standard ใหม่"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>Code <span className="text-destructive">*</span></Label>
                 <Input required value={form.code} onChange={e => setField("code", e.target.value)} />
@@ -931,7 +931,7 @@ function StandardDialog({
             {(["primary", "supplier", "working"] as const).map(tier => (
               <div key={tier} className="border rounded-md p-3">
                 <div className="font-semibold mb-2 capitalize">{tier} stock</div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   <div>
                     <Label>จำนวน (ขวด)</Label>
                     <Input type="number" value={String(form[tier]?.qty ?? 0)} onChange={e => setField(`${tier}.qty`, e.target.value)} />
@@ -946,7 +946,7 @@ function StandardDialog({
                   </div>
                 </div>
                 {tier === "primary" && (
-                  <div className="grid grid-cols-3 gap-3 mt-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
                     <div>
                       <Label>สั่งแล้ว (ขวด)</Label>
                       <Input type="number" value={String(form.primary?.ordered ?? 0)} onChange={e => setField("primary.ordered", e.target.value)} />
@@ -964,7 +964,7 @@ function StandardDialog({
               </div>
             ))}
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <Label>อัตราการใช้/ครั้ง (mg)</Label>
                 <Input value={String(form.usagePerUseMg ?? "")} onChange={e => setField("usagePerUseMg", e.target.value)} />
@@ -998,9 +998,7 @@ function StandardDialog({
 // ============================================================
 const StockPage = () => {
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Package className="w-6 h-6" /> Stock Management
@@ -1022,8 +1020,7 @@ const StockPage = () => {
           <TabsContent value="glassware"><GlasswareTab /></TabsContent>
           <TabsContent value="history"><HistoryTab /></TabsContent>
         </Tabs>
-      </main>
-    </div>
+    </AppLayout>
   );
 };
 

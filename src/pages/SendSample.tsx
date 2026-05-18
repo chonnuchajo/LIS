@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import { QrCode, Camera, X, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
-import AppSidebar from "@/components/lis/AppSidebar";
+import AppLayout from "@/components/lis/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -358,9 +358,7 @@ const SendSample = () => {
   useEffect(() => { return () => stopCamera(); }, []);
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-foreground">การรับตัวอย่าง</h1>
@@ -539,8 +537,7 @@ const SendSample = () => {
             </div>
           </DialogContent>
         </Dialog>
-      </main>
-    </div>
+    </AppLayout>
   );
 };
 

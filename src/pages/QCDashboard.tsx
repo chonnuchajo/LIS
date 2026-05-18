@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle, Download, FileCheck2, ShieldCheck, UserCheck } from "lucide-react";
-import AppSidebar from "@/components/lis/AppSidebar";
+import AppLayout from "@/components/lis/AppLayout";
 import PetitionDashboardTable from "@/components/lis/PetitionDashboardTable";
 import StatCard from "@/components/lis/StatCard";
 import { Badge } from "@/components/ui/badge";
@@ -26,9 +26,7 @@ export default function QCDashboard() {
   const formattedDate = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <AppSidebar />
-      <main className="flex-1 p-6 overflow-auto">
+    <AppLayout>
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -62,7 +60,7 @@ export default function QCDashboard() {
 
           <Card>
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <CardTitle className="text-base">ผลวิเคราะห์รอ QC</CardTitle>
                 <Button size="sm" variant="primary-outline" onClick={() => navigate("/qc-approval")}>
                   ไปหน้าอนุมัติ
@@ -99,7 +97,6 @@ export default function QCDashboard() {
           emptyText="ยังไม่มีคำร้องที่ตรวจเสร็จแล้ว"
           actionLabel="ดูรายละเอียด"
         />
-      </main>
-    </div>
+    </AppLayout>
   );
 }
