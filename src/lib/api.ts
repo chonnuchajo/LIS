@@ -176,6 +176,17 @@ export const api = {
     request<{ success: true }>(`/machines/${id}`, { method: "DELETE" }),
   seedMachines: () =>
     request<{ inserted: number; matched: number; total: number }>("/machines/seed", { method: "POST" }),
+
+  // Parameters (พารามิเตอร์การตรวจสอบของสารแต่ละชนิด)
+  getParameters: () => request<ParameterItem[]>("/parameters"),
+  createParameter: (data: Partial<ParameterItem>) =>
+    request<ParameterItem>("/parameters", { method: "POST", body: JSON.stringify(data) }),
+  updateParameter: (id: string, data: Partial<ParameterItem>) =>
+    request<ParameterItem>(`/parameters/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteParameter: (id: string) =>
+    request<{ success: true }>(`/parameters/${id}`, { method: "DELETE" }),
+  bulkCreateParameters: (items: Partial<ParameterItem>[]) =>
+    request<ParameterItem[]>("/parameters/bulk", { method: "POST", body: JSON.stringify(items) }),
 };
 
 export type MachineItem = {
@@ -191,6 +202,34 @@ export type MachineItem = {
   startDate?: string;
   location?: string;
   status?: "active" | "inactive" | "retired";
+  note?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ParameterValueFieldType = "text" | "number" | "float" | "enum" | "photo";
+
+export type ParameterValueField = {
+  label: string;
+  type: ParameterValueFieldType;
+  unit?: string;
+  min?: number | null;
+  max?: number | null;
+  options?: string[];
+  required?: boolean;
+};
+
+export type ParameterItem = {
+  _id?: string;
+  name: string;
+  status?: "active" | "inactive";
+  applyAll?: boolean;
+  commonNames?: string[];
+  itemNames?: string[];
+  productTypes?: string[];
+  categories?: string[];
+  valueFields?: ParameterValueField[];
+  sortOrder?: number;
   note?: string;
   createdAt?: string;
   updatedAt?: string;

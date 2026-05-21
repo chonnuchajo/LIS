@@ -14,6 +14,7 @@ import {
   Scale,
   ScanLine,
   Settings,
+  SlidersHorizontal,
   ShieldCheck,
   UserCheck,
   Wrench,
@@ -44,6 +45,7 @@ export const NAV_ITEMS: NavItem[] = [
   { icon: FlaskConical, label: "Simple Method", path: "/simple-method" },
   { icon: Wrench, label: "รายการเครื่อง", path: "/machines" },
   { icon: Database, label: "Admin Data", path: "/admin-data" },
+  { icon: SlidersHorizontal, label: "พารามิเตอร์ตรวจสอบ", path: "/parameter-settings" },
   { icon: LockKeyhole, label: "Access Control", path: "/access-control" },
   { icon: Settings, label: "ตั้งค่าระบบ", path: "/settings" },
 ];

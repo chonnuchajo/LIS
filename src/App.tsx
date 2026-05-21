@@ -19,6 +19,7 @@ import MasterItems, { MachinesPage, SimpleMethodPage } from "./pages/MasterItems
 import QCApproval from "./pages/QCApproval";
 import AdminData from "./pages/AdminData";
 import SettingsPage from "./pages/SettingsPage";
+import ParameterSettings from "./pages/ParameterSettings";
 import AccessControl from "./pages/AccessControl";
 import StockDeduction from "./pages/StockDeduction";
 import PhysicalInspection from "./pages/PhysicalInspection";
@@ -68,6 +69,7 @@ const App = () => (
               <Route path="/admin-data" element={<PrivateRoute><AdminData /></PrivateRoute>} />
               <Route path="/access-control" element={<PrivateRoute><AccessControl /></PrivateRoute>} />
               <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
+              <Route path="/parameter-settings" element={<PrivateRoute><ParameterSettings /></PrivateRoute>} />
               <Route path="/petitions" element={<PrivateRoute><PetitionListPage /></PrivateRoute>} />
               <Route path="/adutuilog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
               <Route path="/auditlog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
