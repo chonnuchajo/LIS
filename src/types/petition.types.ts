@@ -1,10 +1,12 @@
+import type { ProductionPlan } from './productionPlan.types';
+
 // ===== Petition status =====
 export type PetitionStatus =
-  | 'deliveringQC'   // กำลังส่งตัวอย่าง (ยื่นคำร้อง)
-  | 'sampleSent'     // ส่งตัวอย่างแล้ว (สแกนส่ง)
-  | 'pendingReview'  // รับตัวอย่างแล้ว (สแกนรับ)
-  | 'inProgress'     // QC กำลังตรวจ (เริ่มบันทึกผล)
-  | 'success';       // QC อนุมัติครบทุกตัวอย่าง
+  | 'deliveringQC'
+  | 'sampleSent'
+  | 'pendingReview'
+  | 'inProgress'
+  | 'success';
 
 export const PETITION_STATUSES: PetitionStatus[] = [
   'deliveringQC',
@@ -33,46 +35,14 @@ export const PETITION_STATUS_CONFIG: Record<
   success:       { label: 'อนุมัติเรียบร้อย',  variant: 'green-soft' },
 };
 
-// ===== Sample return =====
-export type SampleReturn = 'return' | 'discard' | 'keep';
+// ===== Department =====
+export type PetitionDept = 'production' | 'rm' | 'fg';
 
-export const SAMPLE_RETURN_LABELS: Record<SampleReturn, string> = {
-  return:  'คืนตัวอย่าง',
-  discard: 'ทำลายตัวอย่าง',
-  keep:    'เก็บตัวอย่างไว้',
+export const PETITION_DEPT_LABELS: Record<PetitionDept, string> = {
+  production: 'แผนกผลิต',
+  rm: 'แผนก RM (วัตถุดิบ)',
+  fg: 'แผนก FG (สินค้าสำเร็จรูป)',
 };
-
-// ===== Service agreement =====
-export type SampleDelivery = 'self' | 'courier';
-export type TestMethod = 'standard' | 'custom' | 'previous';
-export type TestDuration = 'normal' | 'extended' | 'urgent';
-
-export interface ServiceAgreement {
-  sampleDelivery: SampleDelivery;
-  testMethod: TestMethod;
-  testMethodDoneBefore?: string | null;   // เลขที่คำร้องเดิม
-  testMethodDetail?: string;              // รายละเอียดวิธีทดสอบกรณี custom
-  testDuration: TestDuration;
-  testDurationDays?: number | null;       // จำนวนวันกรณี extended/urgent
-  requireUncertainty: boolean;            // ต้องการค่าความไม่แน่นอน
-}
-
-// ===== Requester / Test delivery =====
-export interface PetitionRequester {
-  fullName: string;
-  department: string;
-  address?: string;
-  phone?: string;
-  fax?: string;
-  email?: string;
-  contactName?: string;
-  position?: string;
-}
-
-export type TestDeliveryChannel = 'email' | 'mail' | 'self' | 'report' | 'fax' | 'taxInvoice';
-export type AddressChoice = 'default' | 'other';
-export type StorageCondition = 'room' | 'chilled';
-export type PackageType = 'plasticBag' | 'glassBottle' | 'plasticBottle' | 'can' | 'other';
 
 // ===== Items =====
 export type ItemCondition = 'normal' | 'defective';
@@ -81,23 +51,28 @@ export interface PetitionItem {
   seq: number;
   sampleName: string;
   commonName?: string;
-  batchNo?: string;
-  productionDate?: string | null; // ISO date (YYYY-MM-DD)
+  batchNo: string;
+  productionDate?: string | null;
   submissionNo?: string;
-  packageUnit?: string;            // ขนาดบรรจุ
-  testUnit?: string;               // หน่วยทดสอบ
-  testItems?: string;              // รายการทดสอบ
+  packageUnit?: string;
+  testUnit?: string;
+  testItems?: string;
   note?: string;
-  // ข้อมูลฉลาก (ติดตัวอย่าง)
   labelManufacturer?: string;
   labelSeller?: string;
   labelQuantity?: string;
   labelSampledBy?: string;
   labelSampledDate?: string;
   labelRemark?: string;
-  // QC
-  sampleId?: string;               // เลขตัวอย่างที่ QC กำหนด
+  sampleId?: string;
   condition?: ItemCondition;
+}
+
+// ===== Submitter (ผู้นำส่ง) =====
+export interface PetitionSubmitter {
+  employeeId?: string;
+  name: string;
+  submittedAt: string;
 }
 
 // ===== Review history =====
@@ -115,17 +90,6 @@ export interface ReviewEntry {
   reviewedAt: string;
   note?: string;
   specificGravities?: SpecificGravity[];
-}
-
-// ===== Lab agreement review (FM-QP-07-01-001-R02) =====
-export interface LabAgreementReview {
-  reviewedAt: string;
-  reviewedBy: string;
-  capabilityOk: boolean;
-  methodOk: boolean;
-  scheduleOk: boolean;
-  acceptable: boolean;
-  remark?: string;
 }
 
 export interface PetitionAssignee {
@@ -168,29 +132,16 @@ export const PETITION_AUDIT_EVENT_LABELS: Record<PetitionAuditEvent, string> = {
   deleted: 'ลบคำร้อง',
 };
 
-// ===== Petition (root) =====
-export interface Petition {
+// ===== Petition (discriminated by dept) =====
+interface PetitionBase {
   _id: string;
   petitionNo: string;
+  dept: PetitionDept;
   status: PetitionStatus;
-  serviceAgreement?: ServiceAgreement;
-  requester: PetitionRequester;
-  sampleReturn?: SampleReturn;
-  testDelivery?: TestDeliveryChannel[];
-  reportCustomerName?: string;
-  reportAddressType?: AddressChoice;
-  reportAddressOther?: string;
-  invoiceAddressType?: AddressChoice;
-  invoiceAddressOther?: string;
-  storageCondition?: StorageCondition;
-  packageType?: PackageType;
-  packageTypeOther?: string;
-  sampleSubmittedBy?: string;
-  sampleSubmittedDate?: string | null;
+  submittedBy: PetitionSubmitter;
   items: PetitionItem[];
-  cause?: string;                   // สาเหตุการตรวจ
+  cause?: string;
   reviewHistory?: ReviewEntry[];
-  labAgreementReview?: LabAgreementReview | null;
   assignedTo?: PetitionAssignee | null;
   prodOrderNos?: string[];
   sampleSentAt?: string | null;
@@ -200,4 +151,49 @@ export interface Petition {
   completedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProductionPetition extends PetitionBase {
+  dept: 'production';
+  productionPlans: ProductionPlan[];
+}
+
+export interface RmPetition extends PetitionBase {
+  dept: 'rm';
+}
+
+export interface FgPetition extends PetitionBase {
+  dept: 'fg';
+}
+
+export type Petition = ProductionPetition | RmPetition | FgPetition;
+
+// ===== QC Test Results =====
+export interface QCTestResult {
+  _id?: string;
+  petitionId: string;
+  petitionNo?: string;
+  itemSeq: number;
+  sampleId?: string;
+  sampleName?: string;
+  parameterId: string;
+  parameterName?: string;
+  values: Record<string, unknown>;
+  enteredBy?: { name: string; email: string };
+  enteredAt?: string;
+  updatedBy?: { name: string; email: string };
+  updatedAt?: string;
+}
+
+export interface SaveQCResultPayload {
+  petitionId: string;
+  petitionNo?: string;
+  itemSeq: number;
+  sampleId?: string;
+  sampleName?: string;
+  parameterId: string;
+  parameterName?: string;
+  fieldLabel: string;
+  value: unknown;
+  enteredBy: { name: string; email: string };
 }

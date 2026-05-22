@@ -1,0 +1,302 @@
+import { test, expect, request as pwRequest } from '@playwright/test';
+
+const BASE = 'http://localhost:8000/LIS';
+const API = 'http://localhost:3001/api';
+const PETITION_NO = 'P-2605-0001';
+let PETITION_ID = '';
+
+test.describe('QC Testing pages', () => {
+  test.beforeAll(async () => {
+    // Look up petition ID dynamically (it may be re-created between sessions)
+    const ctx = await pwRequest.newContext();
+    const res = await ctx.get(`${API}/petitions?search=${PETITION_NO}&limit=1`);
+    const data = await res.json();
+    const p = data.items?.find((x: { petitionNo: string }) => x.petitionNo === PETITION_NO);
+    if (!p) throw new Error(`Petition ${PETITION_NO} not found in DB. Create it first.`);
+    PETITION_ID = p._id;
+    await ctx.dispose();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    page.on('pageerror', (err) => console.log('[pageerror]', err.message));
+    page.on('console', (m) => {
+      if (m.type() === 'error') console.log('[console.error]', m.text());
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+  });
+
+  // ── 1. List page ──────────────────────────────────────────────────────────
+
+  test('list page: sampleSent petitions are hidden, only pendingReview/inProgress show', async ({ page }) => {
+    // Set petition to sampleSent — it should NOT appear in the list
+    await page.request.patch(`http://localhost:3001/api/petitions/${PETITION_ID}`, {
+      data: { status: 'sampleSent', actor: 'test' },
+    });
+
+    await page.goto(`${BASE}/qc-testing`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: 'การทดสอบ QC' })).toBeVisible({ timeout: 10_000 });
+
+    // sampleSent petition row should NOT exist in the table
+    const row = page.locator('tr').filter({ hasText: PETITION_NO });
+    await expect(row).toHaveCount(0);
+
+    await page.screenshot({
+      path: 'tests/e2e/screenshots/qc-testing-list-empty.png',
+      fullPage: false,
+    });
+  });
+
+  test('list page: pendingReview/inProgress show "เข้าตรวจ" button → navigates to detail', async ({ page }) => {
+    // Promote petition to pendingReview
+    await page.request.patch(`http://localhost:3001/api/petitions/${PETITION_ID}/receive`, {
+      data: { actor: 'test' },
+    });
+
+    await page.goto(`${BASE}/qc-testing`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+
+    // Row should appear with "เข้าตรวจ" button
+    const row = page.locator('tr').filter({ hasText: PETITION_NO });
+    await expect(row).toBeVisible({ timeout: 10_000 });
+    await expect(row.getByRole('button', { name: 'เข้าตรวจ' })).toBeVisible();
+
+    // Click → navigate to detail
+    await row.getByRole('button', { name: 'เข้าตรวจ' }).click();
+    await expect(page).toHaveURL(`${BASE}/qc-testing/${PETITION_ID}`, { timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: PETITION_NO })).toBeVisible({ timeout: 10_000 });
+
+    await page.screenshot({
+      path: 'tests/e2e/screenshots/qc-testing-list-filter.png',
+      fullPage: false,
+    });
+  });
+
+  // ── 2. Detail page ────────────────────────────────────────────────────────
+
+  test('detail page: sidebar visible + petition header', async ({ page }) => {
+    await page.goto(`${BASE}/qc-testing/${PETITION_ID}`);
+
+    // AppLayout sidebar must be present
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+
+    // Petition number in header
+    await expect(
+      page.getByRole('heading', { name: PETITION_NO }),
+    ).toBeVisible({ timeout: 10_000 });
+
+    // Back button
+    await expect(
+      page.getByRole('button', { name: '' }).first(),
+    ).toBeVisible();
+
+    await page.screenshot({
+      path: 'tests/e2e/screenshots/qc-testing-detail-header.png',
+      fullPage: false,
+    });
+  });
+
+  test('detail page: item card + applyAll parameter shows fields', async ({ page }) => {
+    await page.goto(`${BASE}/qc-testing/${PETITION_ID}`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: PETITION_NO })).toBeVisible({ timeout: 10_000 });
+
+    // Item seq 1 card
+    await expect(page.getByText(/รายการที่ 1/)).toBeVisible({ timeout: 8_000 });
+
+    // parameter "กายภาพ" (applyAll=true, matches even when testItems is empty)
+    await expect(page.getByText('กายภาพ')).toBeVisible({ timeout: 8_000 });
+
+    // field "ลักษณะ" (enum) — expect a combobox/select
+    await expect(page.getByText('ลักษณะ')).toBeVisible();
+    // field "สี" (text) — expect a label
+    await expect(page.getByText('สี')).toBeVisible();
+
+    await page.screenshot({
+      path: 'tests/e2e/screenshots/qc-testing-detail-fields.png',
+      fullPage: true,
+    });
+  });
+
+  test('detail page: entering text value triggers auto-save indicator', async ({ page }) => {
+    await page.goto(`${BASE}/qc-testing/${PETITION_ID}`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: PETITION_NO })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('กายภาพ')).toBeVisible({ timeout: 8_000 });
+
+    // Find "สี" text input and type a value
+    const colorInput = page.locator('label:has-text("สี")').locator('xpath=following::input[1]');
+    await expect(colorInput).toBeVisible();
+    await colorInput.fill('เหลืองอ่อน');
+
+    // Saving spinner should appear (or saved check) within 2 seconds
+    // The debounce is 800ms, so check within 2s for saved state
+    await expect(
+      page.locator('svg').filter({ has: page.locator('[class*="animate-spin"]') }).or(
+        page.locator('[class*="text-green-500"]'),
+      ).first(),
+    ).toBeVisible({ timeout: 3_000 });
+
+    // Wait for debounce + API to complete (up to 3s after typing)
+    await page.waitForTimeout(1_500);
+
+    // "บันทึกแล้ว" text or green check icon should appear
+    const greenCheck = page.locator('.text-green-500').first();
+    await expect(greenCheck).toBeVisible({ timeout: 5_000 });
+
+    await page.screenshot({
+      path: 'tests/e2e/screenshots/qc-testing-detail-saved.png',
+      fullPage: true,
+    });
+  });
+
+  test('detail page: value persists after page reload', async ({ page }) => {
+    await page.goto(`${BASE}/qc-testing/${PETITION_ID}`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('กายภาพ')).toBeVisible({ timeout: 10_000 });
+
+    // Type a value
+    const colorInput = page.locator('label:has-text("สี")').locator('xpath=following::input[1]');
+    await colorInput.fill('ขาวขุ่น');
+    // Wait for auto-save
+    await page.waitForTimeout(1_800);
+    await expect(page.locator('.text-green-500').first()).toBeVisible({ timeout: 5_000 });
+
+    // Reload
+    await page.reload();
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('กายภาพ')).toBeVisible({ timeout: 10_000 });
+
+    // Value should be pre-populated
+    const reloadedInput = page.locator('label:has-text("สี")').locator('xpath=following::input[1]');
+    await expect(reloadedInput).toHaveValue('ขาวขุ่น', { timeout: 5_000 });
+
+    await page.screenshot({
+      path: 'tests/e2e/screenshots/qc-testing-detail-persisted.png',
+      fullPage: true,
+    });
+  });
+
+  // ── Conditional note for enum value ─────────────────────────────────────
+
+  test('detail page: enum value in requireNoteOn shows note textarea', async ({ page }) => {
+    // Configure the "กายภาพ" parameter so that "ของเหลวขุ่น" requires a note
+    const paramsRes = await page.request.get(`${API}/parameters`);
+    const params = await paramsRes.json();
+    const physical = params.find((p: { name: string }) => p.name === 'กายภาพ');
+    if (!physical) throw new Error('Parameter "กายภาพ" not found');
+
+    // Patch valueFields: add requireNoteOn=["ของเหลวขุ่น"] on the "ลักษณะ" field
+    const updatedFields = physical.valueFields.map((f: { label: string; type: string; options?: string[] }) => {
+      if (f.label === 'ลักษณะ' && f.type === 'enum') {
+        return { ...f, requireNoteOn: ['ของเหลวขุ่น'] };
+      }
+      return f;
+    });
+    await page.request.patch(`${API}/parameters/${physical._id}`, {
+      data: { valueFields: updatedFields },
+    });
+
+    // Open QC testing detail page
+    await page.goto(`${BASE}/qc-testing/${PETITION_ID}`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('กายภาพ')).toBeVisible({ timeout: 10_000 });
+
+    // Find "ลักษณะ" select and pick "ของเหลวขุ่น"
+    const select = page.locator('label:has-text("ลักษณะ")').locator('xpath=following::button[1]');
+    await select.click();
+    await page.getByRole('option', { name: 'ของเหลวขุ่น' }).click();
+
+    // Note textarea should appear — target the one with placeholder mentioning "ของเหลวขุ่น"
+    const noteArea = page.locator('textarea[placeholder*="ของเหลวขุ่น"]');
+    await expect(noteArea).toBeVisible({ timeout: 3_000 });
+
+    // Type a note and verify auto-save
+    await noteArea.fill('ขุ่นมาก ตกตะกอนชั้นล่าง');
+    await page.waitForTimeout(1_500);
+
+    // Pick an option that does NOT require a note → that specific note textarea should disappear
+    await select.click();
+    await page.getByRole('option', { name: 'ของเหลวใส' }).click();
+    await expect(noteArea).toHaveCount(0);
+
+    await page.screenshot({
+      path: 'tests/e2e/screenshots/qc-testing-note-feature.png',
+      fullPage: true,
+    });
+
+    // Cleanup: restore parameter
+    await page.request.patch(`${API}/parameters/${physical._id}`, {
+      data: { valueFields: physical.valueFields },
+    });
+  });
+
+  // ── Auto-advance status ─────────────────────────────────────────────────
+
+  test('detail page: opening pendingReview petition auto-advances to inProgress', async ({ page }) => {
+    // Reset petition to pendingReview via API
+    await page.request.patch(`${API}/petitions/${PETITION_ID}`, {
+      data: { status: 'pendingReview', actor: 'test' },
+    });
+
+    // Verify it's pendingReview before opening
+    const before = await page.request.get(`${API}/petitions/${PETITION_ID}`);
+    const beforeBody = await before.json();
+    expect(beforeBody.status).toBe('pendingReview');
+
+    // Open detail page → should auto-PATCH to inProgress
+    await page.goto(`${BASE}/qc-testing/${PETITION_ID}`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: PETITION_NO })).toBeVisible({ timeout: 10_000 });
+
+    // Wait briefly for the auto-advance PATCH to land
+    await page.waitForTimeout(1_500);
+
+    // Verify status is now inProgress
+    const after = await page.request.get(`${API}/petitions/${PETITION_ID}`);
+    const afterBody = await after.json();
+    expect(afterBody.status).toBe('inProgress');
+  });
+
+  // ── QC Dashboard navigation ──────────────────────────────────────────────
+
+  test('QC Dashboard: "ดูรายการคำร้องทั้งหมด" navigates to /qc-testing', async ({ page }) => {
+    await page.goto(`${BASE}/dashboard/qc`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+
+    // The "คำร้องสำหรับ QC" card has the "ดูรายการคำร้องทั้งหมด" button
+    const viewAllBtn = page.getByRole('button', { name: 'ดูรายการคำร้องทั้งหมด' }).first();
+    await expect(viewAllBtn).toBeVisible({ timeout: 10_000 });
+    await viewAllBtn.click();
+
+    await expect(page).toHaveURL(`${BASE}/qc-testing`, { timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: 'การทดสอบ QC' })).toBeVisible();
+  });
+
+  // ── 3. Probe: navigation and edge cases ──────────────────────────────────
+
+  test('🔍 back button from detail navigates to list', async ({ page }) => {
+    await page.goto(`${BASE}/qc-testing/${PETITION_ID}`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: PETITION_NO })).toBeVisible({ timeout: 10_000 });
+
+    // Click back (ArrowLeft button — first button inside main content, not sidebar)
+    await page.locator('main button, [role="main"] button').first().click();
+    await expect(page).toHaveURL(`${BASE}/qc-testing`, { timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: 'การทดสอบ QC' })).toBeVisible();
+  });
+
+  test('🔍 non-existent petition shows error state without crashing sidebar', async ({ page }) => {
+    await page.goto(`${BASE}/qc-testing/000000000000000000000000`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+    // Should show error message, not a blank/crashed page
+    await expect(
+      page.getByText(/ไม่พบข้อมูลคำร้อง|ไม่พบ|error/i),
+    ).toBeVisible({ timeout: 10_000 });
+
+    await page.screenshot({
+      path: 'tests/e2e/screenshots/qc-testing-detail-notfound.png',
+      fullPage: false,
+    });
+  });
+});

@@ -151,8 +151,8 @@ function QueueCard({ petition }: { petition: Petition }) {
       </div>
       <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t border-slate-100 pt-3">
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-slate-800">{petition.requester.fullName}</div>
-          <div className="truncate text-sm text-slate-500">{petition.requester.department || "-"}</div>
+          <div className="truncate text-sm font-semibold text-slate-800">{petition.submittedBy?.name ?? '-'}</div>
+          <div className="truncate text-sm text-slate-500">{petition.dept || "-"}</div>
         </div>
         <div className="text-right">
           <div className="text-lg font-bold text-primary-700">{updated.time}</div>

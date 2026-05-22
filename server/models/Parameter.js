@@ -7,6 +7,7 @@ const ValueFieldSchema = new mongoose.Schema({
   min: { type: Number, default: null },
   max: { type: Number, default: null },
   options: { type: [String], default: [] },
+  requireNoteOn: { type: [String], default: [] },
   required: { type: Boolean, default: false },
 }, { _id: false });
 
@@ -30,6 +31,13 @@ ParameterSchema.pre('validate', function (next) {
     }
     if (f.type === 'enum' && (!f.options || f.options.length === 0)) {
       return next(new Error(`options ต้องมีอย่างน้อย 1 ตัวสำหรับช่อง "${f.label}"`));
+    }
+    if (f.requireNoteOn && f.requireNoteOn.length > 0) {
+      const opts = f.options || [];
+      const invalid = f.requireNoteOn.filter((v) => !opts.includes(v));
+      if (invalid.length > 0) {
+        return next(new Error(`requireNoteOn ต้องอยู่ใน options ของช่อง "${f.label}" (ค่าที่ไม่ตรง: ${invalid.join(', ')})`));
+      }
     }
     if (f.min != null && f.max != null && f.min > f.max) {
       return next(new Error(`min > max ในช่อง "${f.label}"`));

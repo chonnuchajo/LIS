@@ -187,6 +187,15 @@ export const api = {
     request<{ success: true }>(`/parameters/${id}`, { method: "DELETE" }),
   bulkCreateParameters: (items: Partial<ParameterItem>[]) =>
     request<ParameterItem[]>("/parameters/bulk", { method: "POST", body: JSON.stringify(items) }),
+
+  // QC Test Results
+  getQCResults: (petitionId: string) =>
+    request<import("@/types/petition.types").QCTestResult[]>(`/qc-results/${petitionId}`),
+  saveQCResult: (data: import("@/types/petition.types").SaveQCResultPayload) =>
+    request<import("@/types/petition.types").QCTestResult>("/qc-results", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 };
 
 export type MachineItem = {
@@ -207,15 +216,15 @@ export type MachineItem = {
   updatedAt?: string;
 };
 
-export type ParameterValueFieldType = "text" | "number" | "float" | "enum" | "photo";
+export type ParameterValueFieldType = "text" | "number" | "float" | "enum" | "photo" | "timer";
 
 export type ParameterValueField = {
   label: string;
   type: ParameterValueFieldType;
   unit?: string;
-  min?: number | null;
-  max?: number | null;
+  standardValue?: number | null;
   options?: string[];
+  requireNoteOn?: string[];
   required?: boolean;
 };
 

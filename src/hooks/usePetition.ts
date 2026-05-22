@@ -1,6 +1,16 @@
 import { useEffect, useState, useCallback } from 'react';
-import type { Petition, PetitionAuditLogEntry } from '@/types/petition.types';
-import type { PetitionFormValues } from '@/lib/validations';
+import type {
+  Petition,
+  PetitionAuditLogEntry,
+  PetitionDept,
+} from '@/types/petition.types';
+import type {
+  ProductionPetitionFormValues,
+  RmPetitionFormValues,
+  FgPetitionFormValues,
+  LabRequestFormValues,
+} from '@/lib/validations';
+import type { LabRequest } from '@/types/labRequest.types';
 
 const BASE = import.meta.env.BASE_URL + 'api';
 
@@ -62,6 +72,7 @@ interface PetitionListParams {
   limit?: number;
   status?: string;
   search?: string;
+  dept?: PetitionDept;
 }
 interface PetitionListResponse {
   items: Petition[];
@@ -84,6 +95,7 @@ export function usePetitionList(params: PetitionListParams) {
     if (params.limit) sp.set('limit', String(params.limit));
     if (params.status) sp.set('status', params.status);
     if (params.search) sp.set('search', params.search);
+    if (params.dept) sp.set('dept', params.dept);
     return sp.toString();
   })();
 
@@ -169,20 +181,22 @@ export function usePetitionAuditLogList(params: PetitionAuditLogListParams) {
   return { data, loading, error, refresh };
 }
 
-// ===== Mutations =====
-export async function createPetition(
-  values: PetitionFormValues,
-  prodOrderNos?: string[],
-): Promise<Petition> {
+// ===== Petition mutations =====
+type CreatePetitionPayload =
+  | (ProductionPetitionFormValues & { prodOrderNos?: string[] })
+  | (RmPetitionFormValues & { prodOrderNos?: string[] })
+  | (FgPetitionFormValues & { prodOrderNos?: string[] });
+
+export async function createPetition(payload: CreatePetitionPayload): Promise<Petition> {
   return apiFetch<Petition>('/petitions', {
     method: 'POST',
-    body: JSON.stringify({ ...values, prodOrderNos: prodOrderNos ?? [] }),
+    body: JSON.stringify(payload),
   });
 }
 
 export async function updatePetition(
   id: string,
-  values: PetitionFormValues,
+  values: Partial<CreatePetitionPayload>,
   actor?: string,
 ): Promise<Petition> {
   return apiFetch<Petition>(`/petitions/${id}`, {
@@ -199,6 +213,73 @@ export async function deletePetition(id: string, actor?: string): Promise<void> 
 export async function getSubmittedOrderNos(): Promise<Set<string>> {
   const list = await apiFetch<string[]>('/petitions/submitted-orders');
   return new Set(list);
+}
+
+// ===== Lab request mutations =====
+export type CreateLabRequestPayload = LabRequestFormValues & {
+  petitionId: string;
+};
+
+export async function createLabRequest(payload: CreateLabRequestPayload): Promise<LabRequest> {
+  return apiFetch<LabRequest>('/lab-requests', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateLabRequest(
+  id: string,
+  values: Partial<LabRequestFormValues>,
+): Promise<LabRequest> {
+  return apiFetch<LabRequest>(`/lab-requests/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(values),
+  });
+}
+
+export async function deleteLabRequest(id: string): Promise<void> {
+  await apiFetch<{ success: true }>(`/lab-requests/${id}`, { method: 'DELETE' });
+}
+
+interface LabRequestListResponse {
+  items: LabRequest[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export function useLabRequestsByPetition(petitionId: string | undefined) {
+  const [data, setData] = useState<LabRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  useEffect(() => {
+    if (!petitionId) {
+      setLoading(false);
+      return;
+    }
+    let alive = true;
+    setLoading(true);
+    setError(null);
+    apiFetch<LabRequestListResponse>(`/lab-requests?petitionId=${encodeURIComponent(petitionId)}&limit=100`)
+      .then((res) => {
+        if (!alive) return;
+        setData(res.items ?? []);
+      })
+      .catch((e: Error) => {
+        if (!alive) return;
+        setError(e.message);
+      })
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [petitionId, reloadKey]);
+
+  return { data, loading, error, refresh };
 }
 
 // ===== Audit log =====

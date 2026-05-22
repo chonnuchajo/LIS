@@ -11,7 +11,6 @@ import LabDashboard from "./pages/LabDashboard";
 import QCDashboard from "./pages/QCDashboard";
 import QueueDisplay from "./pages/QueueDisplay";
 import Login from "./pages/Login";
-import SendSample from "./pages/SendSample";
 import RecordResults from "./pages/RecordResults";
 import Report from "./pages/Report";
 import Stock from "./pages/Stock";
@@ -22,7 +21,6 @@ import SettingsPage from "./pages/SettingsPage";
 import ParameterSettings from "./pages/ParameterSettings";
 import AccessControl from "./pages/AccessControl";
 import StockDeduction from "./pages/StockDeduction";
-import PhysicalInspection from "./pages/PhysicalInspection";
 import DailyCheck from "./pages/DailyCheck";
 import NotFound from "./pages/NotFound";
 import ScannerPage from "./pages/ScannerPage";
@@ -32,6 +30,8 @@ import PetitionDetailPage from "./pages/PetitionDetailPage";
 import PetitionEditPage from "./pages/PetitionEditPage";
 import PetitionAssignPage from "./pages/PetitionAssignPage";
 import PetitionAuditLogPage from "./pages/PetitionAuditLogPage";
+import QCTestingPage from "./pages/QCTestingPage";
+import QCTestingDetailPage from "./pages/QCTestingDetailPage";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
 
 const queryClient = new QueryClient();
@@ -55,8 +55,6 @@ const App = () => (
               <Route path="/queue/lab" element={<QueueDisplay mode="lab" />} />
               <Route path="/queue/qc" element={<QueueDisplay mode="qc" />} />
               <Route path="/home" element={<PrivateRoute><Home /></PrivateRoute>} />
-              <Route path="/send-sample" element={<PrivateRoute><SendSample /></PrivateRoute>} />
-              <Route path="/physical-inspection" element={<PrivateRoute><PhysicalInspection /></PrivateRoute>} />
               <Route path="/stock-deduction" element={<PrivateRoute><StockDeduction /></PrivateRoute>} />
               <Route path="/record-results" element={<PrivateRoute><RecordResults /></PrivateRoute>} />
               <Route path="/qc-approval" element={<PrivateRoute><QCApproval /></PrivateRoute>} />
@@ -77,6 +75,8 @@ const App = () => (
               <Route path="/petitions/new" element={<PrivateRoute><PetitionNewPage /></PrivateRoute>} />
               <Route path="/petitions/:id" element={<PrivateRoute><PetitionDetailPage /></PrivateRoute>} />
               <Route path="/petitions/:id/edit" element={<PrivateRoute><PetitionEditPage /></PrivateRoute>} />
+              <Route path="/qc-testing" element={<PrivateRoute><QCTestingPage /></PrivateRoute>} />
+              <Route path="/qc-testing/:id" element={<PrivateRoute><QCTestingDetailPage /></PrivateRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </SampleProvider>

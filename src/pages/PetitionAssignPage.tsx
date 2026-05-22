@@ -113,8 +113,8 @@ export default function PetitionAssignPage() {
         if (!query) return true;
         return [
           petition.petitionNo,
-          petition.requester.fullName,
-          petition.requester.department,
+          petition.submittedBy?.name,
+          petition.dept,
           petition.assignedTo?.name,
         ]
           .filter(Boolean)
@@ -264,8 +264,8 @@ export default function PetitionAssignPage() {
                         </button>
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium text-black-500">{petition.requester.fullName}</div>
-                        <div className="text-xs text-grey-500">{petition.requester.department}</div>
+                        <div className="font-medium text-black-500">{petition.submittedBy?.name ?? '-'}</div>
+                        <div className="text-xs text-grey-500">{petition.dept}</div>
                       </TableCell>
                       <TableCell>
                         <div>{petition.items.length} รายการ</div>

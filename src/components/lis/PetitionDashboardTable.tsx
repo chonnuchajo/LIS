@@ -14,12 +14,16 @@ export default function PetitionDashboardTable({
   loading,
   emptyText,
   actionLabel,
+  viewAllPath = "/petitions",
+  actionPathPrefix = "/petitions",
 }: {
   title: string;
   petitions: Petition[];
   loading: boolean;
   emptyText: string;
   actionLabel: string;
+  viewAllPath?: string;
+  actionPathPrefix?: string;
 }) {
   const navigate = useNavigate();
 
@@ -28,7 +32,7 @@ export default function PetitionDashboardTable({
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <CardTitle className="text-base">{title}</CardTitle>
-          <Button variant="primary-outline" size="sm" onClick={() => navigate("/petitions")}>
+          <Button variant="primary-outline" size="sm" onClick={() => navigate(viewAllPath)}>
             ดูรายการคำร้องทั้งหมด
           </Button>
         </div>
@@ -60,8 +64,8 @@ export default function PetitionDashboardTable({
                   return (
                     <TableRow key={petition._id}>
                       <TableCell className="font-semibold text-primary">{petition.petitionNo}</TableCell>
-                      <TableCell>{petition.requester.fullName}</TableCell>
-                      <TableCell>{petition.requester.department}</TableCell>
+                      <TableCell>{petition.submittedBy?.name ?? '-'}</TableCell>
+                      <TableCell>{petition.dept}</TableCell>
                       <TableCell>{petition.items.length} รายการ</TableCell>
                       <TableCell>
                         <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
@@ -70,7 +74,7 @@ export default function PetitionDashboardTable({
                         {formatDate(petition.updatedAt)} {formatTime(petition.updatedAt)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button size="sm" variant="primary" onClick={() => navigate(`/petitions/${petition._id}`)}>
+                        <Button size="sm" variant="primary" onClick={() => navigate(`${actionPathPrefix}/${petition._id}`)}>
                           {actionLabel}
                         </Button>
                       </TableCell>

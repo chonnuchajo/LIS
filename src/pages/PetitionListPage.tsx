@@ -18,6 +18,7 @@ import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
 import {
   PETITION_STATUSES,
+  PETITION_DEPT_LABELS,
   PETITION_STATUS_CONFIG,
   type Petition,
 } from '@/types/petition.types';
@@ -37,13 +38,9 @@ function isOwnSubmission(
   user: { email?: string; name?: string } | null,
 ): boolean {
   if (!user) return false;
-  const userEmail = norm(user.email);
   const userName = norm(user.name);
-  const requesterEmail = norm(petition.requester.email);
-  const requesterName = norm(petition.requester.fullName);
-
-  if (userEmail && requesterEmail && userEmail === requesterEmail) return true;
-  if (userName && requesterName && userName === requesterName) return true;
+  const submitterName = norm(petition.submittedBy?.name);
+  if (userName && submitterName && userName === submitterName) return true;
   return false;
 }
 
@@ -242,8 +239,8 @@ export default function PetitionListPage() {
                         onClick={() => navigate(`/petitions/${p._id}`)}
                       >
                         <TableCell className="font-medium text-primary-500">{p.petitionNo}</TableCell>
-                        <TableCell>{p.requester.fullName}</TableCell>
-                        <TableCell>{p.requester.department}</TableCell>
+                        <TableCell>{p.submittedBy?.name ?? '-'}</TableCell>
+                        <TableCell>{PETITION_DEPT_LABELS[p.dept]}</TableCell>
                         <TableCell>
                           {p.items?.map((it) => it.sampleName).filter(Boolean).join(', ') || '-'}
                         </TableCell>

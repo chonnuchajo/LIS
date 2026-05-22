@@ -1,145 +1,399 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
-import PetitionForm from '@/components/petition/PetitionForm';
-import { updatePetition, usePetition } from '@/hooks/usePetition';
-import { useAuth } from '@/hooks/useAuth';
-import type { PetitionFormValues } from '@/lib/validations';
+import { Card, CardContent } from '@/components/ui/card';
+import ItemsStep, { type ItemRowValues } from '@/components/petition/wizard/ItemsStep';
+import type { SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
+import ProductionPlanStep from '@/components/petition/wizard/ProductionPlanStep';
+import LabRequestStep, { type LabRequestRowValues } from '@/components/petition/wizard/LabRequestStep';
+import { isLabBatch, type ProductionPlan } from '@/types/productionPlan.types';
+import {
+  usePetition,
+  useLabRequestsByPetition,
+  updatePetition,
+  updateLabRequest,
+  createLabRequest,
+} from '@/hooks/usePetition';
+import type { ProductionPetition } from '@/types/petition.types';
+import type { LabRequest } from '@/types/labRequest.types';
+
+type StepKey = 'items' | 'plan' | 'lab';
+
+const PRODUCTION_STEPS: { key: StepKey; label: string }[] = [
+  { key: 'items', label: '1. ผู้นำส่ง + รายการตัวอย่าง' },
+  { key: 'plan', label: '2. ใบวางแผน-ควบคุมการผลิต' },
+  { key: 'lab', label: '3. ใบคำขอรับบริการ' },
+];
+
+const SIMPLE_STEPS: { key: StepKey; label: string }[] = [
+  { key: 'items', label: '1. ผู้นำส่ง + รายการตัวอย่าง' },
+];
+
+function labRequestToFormValues(lr: LabRequest, sampleName: string): LabRequestRowValues {
+  return {
+    batchNo: lr.batchNo,
+    sampleSeq: lr.sampleSeq,
+    sampleName,
+    requester: {
+      fullName: lr.requester?.fullName ?? '',
+      department: lr.requester?.department ?? '',
+      address: lr.requester?.address ?? '',
+      phone: lr.requester?.phone ?? '',
+      fax: lr.requester?.fax ?? '',
+      email: lr.requester?.email ?? '',
+      contactName: lr.requester?.contactName ?? '',
+      position: lr.requester?.position ?? '',
+    },
+    serviceAgreement: {
+      sampleDelivery: lr.serviceAgreement.sampleDelivery,
+      testMethod: lr.serviceAgreement.testMethod,
+      testMethodDoneBefore: lr.serviceAgreement.testMethodDoneBefore ?? null,
+      testMethodDetail: lr.serviceAgreement.testMethodDetail ?? '',
+      testDuration: lr.serviceAgreement.testDuration,
+      testDurationDays: lr.serviceAgreement.testDurationDays ?? null,
+      requireUncertainty: lr.serviceAgreement.requireUncertainty,
+    },
+    reportCustomerName: lr.reportCustomerName ?? '',
+    reportAddressType: lr.reportAddressType ?? 'default',
+    reportAddressOther: lr.reportAddressOther ?? '',
+    invoiceAddressType: lr.invoiceAddressType ?? 'default',
+    invoiceAddressOther: lr.invoiceAddressOther ?? '',
+    testDelivery: lr.testDelivery ?? ['email'],
+    storageCondition: lr.storageCondition ?? ['room'],
+    packageType: lr.packageType ?? ['plasticBag'],
+    packageTypeOther: lr.packageTypeOther ?? '',
+    sampleReturn: lr.sampleReturn ?? 'return',
+  };
+}
 
 export default function PetitionEditPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { data, loading, error } = usePetition(id);
+  const { data: existingLabRequests, loading: labLoading } = useLabRequestsByPetition(
+    data?._id,
+  );
+
+  const [initialized, setInitialized] = useState(false);
+  const [stepIdx, setStepIdx] = useState(0);
+
+  const [submitter, setSubmitter] = useState<SubmitterValues>({ employeeId: '', name: '' });
+  const [items, setItems] = useState<ItemRowValues[]>([]);
+  const [plan, setPlanState] = useState<ProductionPlan | null>(null);
+  const [labRequest, setLabRequest] = useState<LabRequestRowValues | null>(null);
+  const [existingLabReqId, setExistingLabReqId] = useState<string | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [stepError, setStepError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!data || labLoading || initialized) return;
+    setSubmitter({
+      employeeId: data.submittedBy.employeeId ?? '',
+      name: data.submittedBy.name,
+    });
+    const mappedItems: ItemRowValues[] = data.items.map((it) => ({
+      seq: it.seq,
+      sampleName: it.sampleName,
+      commonName: it.commonName ?? '',
+      batchNo: it.batchNo,
+      productionDate: it.productionDate ?? null,
+      packageUnit: it.packageUnit ?? '',
+      submissionNo: it.submissionNo ?? '',
+      testUnit: it.testUnit ?? '',
+      testItems: it.testItems ?? '',
+      note: it.note ?? '',
+    }));
+    setItems(mappedItems);
+    if (data.dept === 'production') {
+      const prod = data as ProductionPetition;
+      setPlanState(prod.productionPlans[0] ?? null);
+    }
+    const labItems = mappedItems.filter((it) => it.batchNo && isLabBatch(it.batchNo));
+    if (existingLabRequests.length > 0) {
+      const lr = existingLabRequests[0];
+      const matchItem = data.items.find((it) => it.batchNo === lr.batchNo);
+      setLabRequest(labRequestToFormValues(lr, matchItem?.sampleName ?? ''));
+      setExistingLabReqId(lr._id);
+    } else if (labItems.length > 0) {
+      const first = labItems[0];
+      setLabRequest({
+        batchNo: first.batchNo,
+        sampleSeq: first.seq,
+        sampleName: first.sampleName,
+        requester: {
+          fullName: data.submittedBy.name,
+          department: '',
+          address: '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000',
+          phone: '034-305281-2',
+          fax: '',
+          email: '',
+          contactName: data.submittedBy.name,
+          position: '',
+        },
+        serviceAgreement: {
+          sampleDelivery: 'self',
+          testMethod: 'standard',
+          testMethodDoneBefore: null,
+          testMethodDetail: '',
+          testDuration: 'normal',
+          testDurationDays: null,
+          requireUncertainty: false,
+        },
+        reportCustomerName: 'ICP Ladda Co., LTD.',
+        reportAddressType: 'default',
+        reportAddressOther: '',
+        invoiceAddressType: 'default',
+        invoiceAddressOther: '',
+        testDelivery: ['email'],
+        storageCondition: ['room'],
+        packageType: ['plasticBag'],
+        packageTypeOther: '',
+        sampleReturn: 'return',
+      });
+    }
+    setInitialized(true);
+  }, [data, existingLabRequests, labLoading, initialized]);
+
+  const labBatches = useMemo(
+    () => items.filter((it) => it.batchNo && isLabBatch(it.batchNo)),
+    [items],
+  );
+
+  const steps = useMemo(() => {
+    if (data?.dept !== 'production') return SIMPLE_STEPS;
+    return PRODUCTION_STEPS;
+  }, [data?.dept]);
+
+  const currentStep = steps[stepIdx]?.key ?? 'items';
+
+  function validateStep(): boolean {
+    setStepError(null);
+    if (currentStep === 'items') {
+      if (!submitter.name.trim()) {
+        setStepError('ไม่พบชื่อผู้ยื่นคำขอ');
+        return false;
+      }
+      if (items.length === 0) {
+        setStepError('ต้องมีตัวอย่างอย่างน้อย 1 รายการ');
+        return false;
+      }
+      for (const it of items) {
+        if (!it.sampleName.trim()) {
+          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกชื่อตัวอย่าง`);
+          return false;
+        }
+        if (!it.batchNo.trim()) {
+          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกเลขแบช`);
+          return false;
+        }
+      }
+      const seen = new Set<string>();
+      for (const it of items) {
+        const key = it.batchNo.trim();
+        if (seen.has(key)) {
+          setStepError(`พบ batch ซ้ำ: ${key}`);
+          return false;
+        }
+        seen.add(key);
+      }
+    }
+    return true;
+  }
+
+  function goNext() {
+    if (!validateStep()) return;
+    if (currentStep === 'plan' && labBatches.length === 0) {
+      void handleSave();
+      return;
+    }
+    setStepIdx((i) => Math.min(steps.length - 1, i + 1));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function goBack() {
+    setStepError(null);
+    setStepIdx((i) => Math.max(0, i - 1));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function handleSave() {
+    if (!validateStep()) return;
+    if (!id || !data) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const mappedItems = items.map((it, idx) => ({ ...it, seq: idx + 1 }));
+      const submittedBy = {
+        employeeId: submitter.employeeId || undefined,
+        name: submitter.name,
+        submittedAt: data.submittedBy.submittedAt,
+      };
+      if (data.dept === 'production') {
+        await updatePetition(
+          id,
+          {
+            dept: 'production',
+            submittedBy,
+            items: mappedItems,
+            productionPlans: plan ? [plan] : [],
+            labRequests: [],
+            cause: data.cause ?? '',
+          },
+          submitter.name,
+        );
+      } else {
+        await updatePetition(
+          id,
+          {
+            dept: data.dept as 'rm',
+            submittedBy,
+            items: mappedItems,
+            cause: data.cause ?? '',
+          },
+          submitter.name,
+        );
+      }
+      if (labBatches.length > 0 && labRequest) {
+        if (existingLabReqId) {
+          await updateLabRequest(existingLabReqId, labRequest);
+        } else {
+          await createLabRequest({ ...labRequest, petitionId: id });
+        }
+      }
+      navigate(`/petitions/${id}`);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading || labLoading) {
+    return (
+      <AppLayout>
+        <p className="text-grey-500">กำลังโหลดข้อมูล...</p>
+      </AppLayout>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <AppLayout>
+        <div className="rounded-[10px] border border-red-500 bg-red-50 p-4 text-sm text-red-500">
+          โหลดข้อมูลไม่สำเร็จ: {error ?? 'ไม่พบคำร้อง'}
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
-        {loading ? (
-          <p className="text-grey-500">กำลังโหลดข้อมูล...</p>
-        ) : error || !data ? (
-          <div className="rounded-[10px] border border-red-500 bg-red-50 p-4 text-sm text-red-500">
-            โหลดข้อมูลไม่สำเร็จ: {error ?? 'ไม่พบคำร้อง'}
-          </div>
-        ) : data.status !== 'deliveringQC' ? (
-          <div className="space-y-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate(`/petitions/${id}`)}>
-              <ArrowLeft className="h-4 w-4" />
-              กลับไปหน้ารายละเอียด
-            </Button>
-            <div className="rounded-[10px] border border-yellow-500 bg-yellow-50 p-4 text-sm text-black-500">
-              แก้ไขได้เฉพาะคำร้องที่อยู่ในสถานะ "กำลังส่งให้ QC" เท่านั้น
-            </div>
-          </div>
-        ) : (
-          (() => {
-            const defaults: Partial<PetitionFormValues> = {
-              serviceAgreement: {
-                sampleDelivery: data.serviceAgreement?.sampleDelivery ?? 'self',
-                testMethod: data.serviceAgreement?.testMethod ?? 'standard',
-                testMethodDoneBefore: data.serviceAgreement?.testMethodDoneBefore ?? null,
-                testMethodDetail: data.serviceAgreement?.testMethodDetail ?? '',
-                testDuration: data.serviceAgreement?.testDuration ?? 'normal',
-                testDurationDays: data.serviceAgreement?.testDurationDays ?? null,
-                requireUncertainty: data.serviceAgreement?.requireUncertainty ?? false,
-              },
-              requester: {
-                fullName: data.requester.fullName,
-                department: data.requester.department,
-                address: data.requester.address ?? '',
-                phone: data.requester.phone ?? '',
-                fax: data.requester.fax ?? '',
-                email: data.requester.email ?? '',
-                contactName: data.requester.contactName ?? '',
-                position: data.requester.position ?? '',
-              },
-              sampleReturn: data.sampleReturn,
-              testDelivery: data.testDelivery ?? [],
-              reportCustomerName: data.reportCustomerName ?? 'ICP Ladda Co., LTD.',
-              reportAddressType: data.reportAddressType ?? 'default',
-              reportAddressOther: data.reportAddressOther ?? '',
-              invoiceAddressType: data.invoiceAddressType ?? 'default',
-              invoiceAddressOther: data.invoiceAddressOther ?? '',
-              storageCondition: data.storageCondition,
-              packageType: data.packageType,
-              packageTypeOther: data.packageTypeOther ?? '',
-              sampleSubmittedBy: data.sampleSubmittedBy ?? '',
-              sampleSubmittedDate: data.sampleSubmittedDate
-                ? new Date(data.sampleSubmittedDate).toISOString().slice(0, 10)
-                : null,
-              items: data.items.map((it) => ({
-                seq: it.seq,
-                sampleName: it.sampleName,
-                commonName: it.commonName ?? '',
-                batchNo: it.batchNo ?? '',
-                productionDate: it.productionDate
-                  ? new Date(it.productionDate).toISOString().slice(0, 10)
-                  : null,
-                submissionNo: it.submissionNo ?? '',
-                packageUnit: it.packageUnit ?? '',
-                testUnit: it.testUnit ?? '',
-                testItems: it.testItems ?? '',
-                note: it.note ?? '',
-                labelManufacturer: it.labelManufacturer ?? '',
-                labelSeller: it.labelSeller ?? '',
-                labelQuantity: it.labelQuantity ?? '',
-                labelSampledBy: it.labelSampledBy ?? '',
-                labelSampledDate: it.labelSampledDate ?? '',
-                labelRemark: it.labelRemark ?? '',
-              })),
-              cause: data.cause ?? '',
-            };
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/petitions/${id}`)}>
+            <ArrowLeft className="h-4 w-4" />
+            กลับไปหน้ารายละเอียด
+          </Button>
+          <h1 className="text-2xl font-bold text-black-500">แก้ไขคำร้อง {data.petitionNo}</h1>
+        </div>
 
-            async function handleSubmit(values: PetitionFormValues) {
-              if (!id) return;
-              setSubmitting(true);
-              setSubmitError(null);
-              try {
-                await updatePetition(id, values, user?.name || user?.email);
-                navigate(`/petitions/${id}`);
-              } catch (err) {
-                const message =
-                  typeof err === 'object' && err !== null && 'response' in err
-                    ? (err as { response?: { data?: { error?: { message?: string } } } }).response
-                        ?.data?.error?.message
-                    : err instanceof Error
-                      ? err.message
-                      : null;
-                setSubmitError(message ?? 'แก้ไขคำร้องไม่สำเร็จ');
-              } finally {
-                setSubmitting(false);
-              }
-            }
-
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+          {steps.map((s, i) => {
+            const active = i === stepIdx;
+            const done = i < stepIdx;
+            const skipped = s.key === 'lab' && labBatches.length === 0;
             return (
-              <div className="space-y-4">
-                <Button variant="ghost" size="sm" onClick={() => navigate(`/petitions/${id}`)}>
-                  <ArrowLeft className="h-4 w-4" />
-                  กลับ
-                </Button>
-                <div>
-                  <h1 className="text-2xl font-bold text-black-500">
-                    แก้ไขคำร้อง {data.petitionNo}
-                  </h1>
-                </div>
-                {submitError && (
-                  <div className="rounded-[10px] border border-red-500 bg-red-50 p-3 text-sm text-red-500">
-                    {submitError}
-                  </div>
-                )}
-                <PetitionForm
-                  defaultValues={defaults}
-                  onSubmit={handleSubmit}
-                  submitting={submitting}
-                  submitLabel="บันทึกการแก้ไข"
-                />
+              <div key={s.key} className="flex items-center gap-2">
+                <span
+                  className={
+                    active
+                      ? 'font-semibold text-primary-500'
+                      : done
+                        ? 'text-grey-500'
+                        : skipped
+                          ? 'text-grey-300 line-through'
+                          : 'text-grey-400'
+                  }
+                >
+                  {s.label}
+                </span>
+                {i < steps.length - 1 && <span className="text-grey-300">→</span>}
               </div>
             );
-          })()
+          })}
+        </div>
+
+        {stepError && (
+          <div className="rounded-[10px] border border-red-500 bg-red-50 p-3 text-sm text-red-500">
+            {stepError}
+          </div>
         )}
+        {submitError && (
+          <div className="rounded-[10px] border border-red-500 bg-red-50 p-3 text-sm text-red-500 whitespace-pre-wrap">
+            {submitError}
+          </div>
+        )}
+
+        <Card>
+          <CardContent className="p-5">
+            {currentStep === 'items' && initialized && (
+              <ItemsStep
+                value={items}
+                onChange={setItems}
+                submitter={submitter}
+                onSubmitterChange={setSubmitter}
+                submitterReadOnly
+              />
+            )}
+            {currentStep === 'plan' && data.dept === 'production' && plan && (
+              <ProductionPlanStep items={items} plan={plan} onChange={setPlanState} />
+            )}
+            {currentStep === 'lab' && labRequest && (
+              <LabRequestStep
+                items={labBatches}
+                request={labRequest}
+                onChange={setLabRequest}
+              />
+            )}
+            {currentStep === 'lab' && !labRequest && initialized && (
+              <p className="text-sm text-grey-500">ไม่มี batch ที่ต้องยื่นใบคำขอรับบริการ</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button variant="ghost" onClick={goBack} disabled={stepIdx === 0 || submitting}>
+            <ArrowLeft className="h-4 w-4" />
+            ย้อนกลับ
+          </Button>
+          <div className="flex gap-2">
+            {stepIdx < steps.length - 1 ? (
+              <Button onClick={goNext} disabled={submitting}>
+                {currentStep === 'plan' && labBatches.length === 0 ? (
+                  <>
+                    <Save className="h-4 w-4" />
+                    บันทึก (ไม่มี batch ส่ง lab)
+                  </>
+                ) : (
+                  <>
+                    ถัดไป
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button onClick={handleSave} disabled={submitting}>
+                <Save className="h-4 w-4" />
+                {submitting ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
     </AppLayout>
   );
 }

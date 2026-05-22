@@ -5,7 +5,7 @@ const PetitionItemSchema = new mongoose.Schema(
     seq: { type: Number, required: true },
     sampleName: { type: String, required: true },
     commonName: String,
-    batchNo: String,
+    batchNo: { type: String, required: true },
     productionDate: String,
     submissionNo: String,
     packageUnit: String,
@@ -44,32 +44,6 @@ const ReviewEntrySchema = new mongoose.Schema(
   { _id: false },
 );
 
-const ServiceAgreementSchema = new mongoose.Schema(
-  {
-    sampleDelivery: { type: String, enum: ['self', 'courier'] },
-    testMethod: { type: String, enum: ['standard', 'custom', 'previous'] },
-    testMethodDoneBefore: String,
-    testMethodDetail: String,
-    testDuration: { type: String, enum: ['normal', 'extended', 'urgent'] },
-    testDurationDays: Number,
-    requireUncertainty: Boolean,
-  },
-  { _id: false },
-);
-
-const LabAgreementReviewSchema = new mongoose.Schema(
-  {
-    reviewedAt: { type: Date, default: Date.now },
-    reviewedBy: String,
-    capabilityOk: Boolean,
-    methodOk: Boolean,
-    scheduleOk: Boolean,
-    acceptable: Boolean,
-    remark: String,
-  },
-  { _id: false },
-);
-
 const PetitionAssigneeSchema = new mongoose.Schema(
   {
     employeeId: { type: String, required: true },
@@ -82,9 +56,129 @@ const PetitionAssigneeSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const MachineCheckSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    ok: Boolean,
+    dateOk: String,
+  },
+  { _id: false },
+);
+
+const PhysicalCheckSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    result1: String,
+    pass1: Boolean,
+    inspector1: String,
+    result2: String,
+    pass2: Boolean,
+  },
+  { _id: false },
+);
+
+const WeighingRowSchema = new mongoose.Schema(
+  {
+    seq: { type: Number, required: true },
+    rawMaterial: String,
+    amounts: { type: [Number], default: [] },
+  },
+  { _id: false },
+);
+
+const ProductionStepSchema = new mongoose.Schema(
+  {
+    description: String,
+    startDate: String,
+    startTime: String,
+    endDate: String,
+    endTime: String,
+  },
+  { _id: false },
+);
+
+const DowntimeSchema = new mongoose.Schema(
+  {
+    fromTime: String,
+    toTime: String,
+    reason: String,
+  },
+  { _id: false },
+);
+
+const ProductionPlanSchema = new mongoose.Schema(
+  {
+    batchNo: { type: String, required: true },
+    batchNos: { type: [String], default: undefined },
+
+    // ส่วนที่ 1
+    planDate: String,
+    productionDate: String,
+    commonName: String,
+    quantity: String,
+    staffNames: String,
+
+    // ส่วนที่ 2
+    machineChecks: { type: [MachineCheckSchema], default: [] },
+    machineInspectedBy: String,
+    machineInspectedAt: String,
+    machineDefectNote: String,
+
+    // ส่วนที่ 3
+    cleaning: {
+      continuous: { type: Boolean, default: false },
+      solvent: Number,
+      water: Number,
+      kaolin: Number,
+      sand: Number,
+      inspectedBy: String,
+      inspectedAt: String,
+    },
+
+    // ส่วนที่ 4
+    actualStart: { date: String, time: String },
+    actualEnd: { date: String, time: String },
+    actualQty: String,
+    downtimes: { type: [DowntimeSchema], default: [] },
+    physicalChecks: { type: [PhysicalCheckSchema], default: [] },
+    sendToLab: Boolean,
+    followUpFail1: String,
+    followUpFail2: String,
+    weighingRef: { docNo: String, docDate: String },
+    weighingRows: { type: [WeighingRowSchema], default: [] },
+    weigher: String,
+    weigherTime: String,
+    weighSupervisor: String,
+    weighSupervisorTime: String,
+    mixer: String,
+    mixerTime: String,
+    mixSupervisor: String,
+    mixSupervisorTime: String,
+    steps: { type: [ProductionStepSchema], default: [] },
+    approver: String,
+    approvedAt: String,
+  },
+  { _id: false },
+);
+
+const SubmittedBySchema = new mongoose.Schema(
+  {
+    employeeId: String,
+    name: { type: String, required: true },
+    submittedAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
 const PetitionSchema = new mongoose.Schema(
   {
     petitionNo: { type: String, required: true, unique: true, index: true },
+    dept: {
+      type: String,
+      enum: ['production', 'rm', 'fg'],
+      required: true,
+      index: true,
+    },
     status: {
       type: String,
       enum: ['deliveringQC', 'sampleSent', 'pendingReview', 'inProgress', 'success'],
@@ -96,33 +190,11 @@ const PetitionSchema = new mongoose.Schema(
     receivedBy: String,
     firstResultAt: Date,
     completedAt: Date,
-    serviceAgreement: ServiceAgreementSchema,
-    requester: {
-      fullName: { type: String, required: true },
-      department: { type: String, required: true },
-      address: String,
-      phone: String,
-      fax: String,
-      email: String,
-      contactName: String,
-      position: String,
-    },
-    sampleReturn: { type: String, enum: ['return', 'discard', 'keep'] },
-    testDelivery: [{ type: String, enum: ['email', 'mail', 'self', 'report', 'fax', 'taxInvoice'] }],
-    reportCustomerName: String,
-    reportAddressType: { type: String, enum: ['default', 'other'] },
-    reportAddressOther: String,
-    invoiceAddressType: { type: String, enum: ['default', 'other'] },
-    invoiceAddressOther: String,
-    storageCondition: { type: String, enum: ['room', 'chilled'] },
-    packageType: { type: String, enum: ['plasticBag', 'glassBottle', 'plasticBottle', 'can', 'other'] },
-    packageTypeOther: String,
-    sampleSubmittedBy: String,
-    sampleSubmittedDate: String,
+    submittedBy: { type: SubmittedBySchema, required: true },
     items: { type: [PetitionItemSchema], default: [] },
+    productionPlans: { type: [ProductionPlanSchema], default: [] },
     cause: String,
     reviewHistory: { type: [ReviewEntrySchema], default: [] },
-    labAgreementReview: LabAgreementReviewSchema,
     assignedTo: PetitionAssigneeSchema,
     prodOrderNos: { type: [String], default: [], index: true },
   },

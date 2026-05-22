@@ -83,12 +83,7 @@ export default function LabDashboard() {
 
           <Card>
             <CardHeader className="pb-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <CardTitle className="text-base">ตัวอย่างรอรับเข้าระบบ</CardTitle>
-                <Button size="sm" variant="primary-outline" onClick={() => navigate("/send-sample")}>
-                  ไปหน้ารับตัวอย่าง
-                </Button>
-              </div>
+              <CardTitle className="text-base">ตัวอย่างรอรับเข้าระบบ</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {waitingReceivePetitions.length === 0 ? (
@@ -103,7 +98,7 @@ export default function LabDashboard() {
                           {petition.items.map((item) => item.sampleName).filter(Boolean).join(", ") || "-"}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {petition.requester.fullName} · {formatDate(petition.updatedAt)} {formatTime(petition.updatedAt)}
+                          {petition.submittedBy?.name ?? '-'} · {formatDate(petition.updatedAt)} {formatTime(petition.updatedAt)}
                         </p>
                       </div>
                       <Badge variant="primary-soft">รอรับ</Badge>

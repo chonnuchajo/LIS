@@ -56,6 +56,8 @@ export default function QCDashboard() {
             loading={petitionLoading}
             emptyText="ยังไม่มีคำร้องที่รอ QC ดำเนินการ"
             actionLabel="ตรวจสอบ"
+            viewAllPath="/qc-testing"
+            actionPathPrefix="/qc-testing"
           />
 
           <Card>

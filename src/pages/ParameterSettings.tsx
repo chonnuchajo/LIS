@@ -66,6 +66,7 @@ const VALUE_TYPE_OPTIONS: { value: ParameterValueFieldType; label: string }[] = 
   { value: "float", label: "ทศนิยม (Float)" },
   { value: "enum", label: "ตัวเลือก (Enum)" },
   { value: "photo", label: "ภาพถ่าย (Photo)" },
+  { value: "timer", label: "จับเวลา (Timer)" },
 ];
 
 type MasterItemRecord = Record<string, unknown>;
@@ -147,9 +148,9 @@ const emptyValueField = (): ParameterValueField => ({
   label: "",
   type: "text",
   unit: "",
-  min: null,
-  max: null,
+  standardValue: null,
   options: [],
+  requireNoteOn: [],
   required: false,
 });
 
@@ -396,7 +397,19 @@ function ValueFieldEditor({
   };
 
   const removeOption = (opt: string) => {
-    onChange({ ...field, options: (field.options ?? []).filter((o) => o !== opt) });
+    onChange({
+      ...field,
+      options: (field.options ?? []).filter((o) => o !== opt),
+      requireNoteOn: (field.requireNoteOn ?? []).filter((o) => o !== opt),
+    });
+  };
+
+  const toggleRequireNote = (opt: string) => {
+    const current = field.requireNoteOn ?? [];
+    const next = current.includes(opt)
+      ? current.filter((o) => o !== opt)
+      : [...current, opt];
+    onChange({ ...field, requireNoteOn: next });
   };
 
   const requiresUnit = field.type === "number" || field.type === "float";
@@ -433,9 +446,17 @@ function ValueFieldEditor({
           </Button>
         </div>
 
-        <div className="flex-1 space-y-4">
+        <div className="flex-1 space-y-3">
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Checkbox
+              checked={!!field.required}
+              onCheckedChange={(v) => onChange({ ...field, required: v === true })}
+              className="h-3.5 w-3.5"
+            />
+            บังคับกรอก
+          </label>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
-            <div className="sm:col-span-5 space-y-1.5">
+            <div className="sm:col-span-6 space-y-1.5">
               <Label className="text-sm">ชื่อช่อง *</Label>
               <Input
                 value={field.label}
@@ -444,7 +465,7 @@ function ValueFieldEditor({
                 className="h-10"
               />
             </div>
-            <div className="sm:col-span-4 space-y-1.5">
+            <div className="sm:col-span-6 space-y-1.5">
               <Label className="text-sm">ชนิดข้อมูล *</Label>
               <Select
                 value={field.type}
@@ -454,8 +475,8 @@ function ValueFieldEditor({
                     type: v as ParameterValueFieldType,
                     unit: v === "number" || v === "float" ? field.unit ?? "" : "",
                     options: v === "enum" ? field.options ?? [] : [],
-                    min: v === "number" || v === "float" ? field.min : null,
-                    max: v === "number" || v === "float" ? field.max : null,
+                    requireNoteOn: v === "enum" ? field.requireNoteOn ?? [] : [],
+                    standardValue: v === "number" || v === "float" ? field.standardValue : null,
                   })
                 }
               >
@@ -471,17 +492,6 @@ function ValueFieldEditor({
                 </SelectContent>
               </Select>
             </div>
-            <div className="sm:col-span-3 flex items-end pb-2">
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={!!field.required}
-                  onCheckedChange={(v) =>
-                    onChange({ ...field, required: v === true })
-                  }
-                />
-                บังคับกรอก
-              </label>
-            </div>
           </div>
 
           {requiresUnit ? (
@@ -495,29 +505,15 @@ function ValueFieldEditor({
                   className="h-10"
                 />
               </div>
-              <div className="sm:col-span-4 space-y-1.5">
-                <Label className="text-sm">ค่าต่ำสุด (optional)</Label>
+              <div className="sm:col-span-8 space-y-1.5">
+                <Label className="text-sm">ค่ามาตรฐาน *</Label>
                 <Input
                   type="number"
-                  value={field.min ?? ""}
+                  value={field.standardValue ?? ""}
                   onChange={(e) =>
                     onChange({
                       ...field,
-                      min: e.target.value === "" ? null : Number(e.target.value),
-                    })
-                  }
-                  className="h-10"
-                />
-              </div>
-              <div className="sm:col-span-4 space-y-1.5">
-                <Label className="text-sm">ค่าสูงสุด (optional)</Label>
-                <Input
-                  type="number"
-                  value={field.max ?? ""}
-                  onChange={(e) =>
-                    onChange({
-                      ...field,
-                      max: e.target.value === "" ? null : Number(e.target.value),
+                      standardValue: e.target.value === "" ? null : Number(e.target.value),
                     })
                   }
                   className="h-10"
@@ -547,23 +543,36 @@ function ValueFieldEditor({
                 </Button>
               </div>
               {(field.options ?? []).length > 0 ? (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {(field.options ?? []).map((opt) => (
-                    <Badge
-                      key={opt}
-                      variant="secondary"
-                      className="gap-1 pr-1 text-xs font-normal"
-                    >
-                      {opt}
-                      <button
-                        type="button"
-                        onClick={() => removeOption(opt)}
-                        className="rounded-full p-0.5 hover:bg-muted-foreground/20"
+                <div className="mt-2 space-y-1">
+                  {(field.options ?? []).map((opt) => {
+                    const needsNote = (field.requireNoteOn ?? []).includes(opt);
+                    return (
+                      <div
+                        key={opt}
+                        className="flex items-center justify-between gap-2 rounded border bg-background px-2 py-1 text-xs"
                       >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
+                        <span className="font-medium">{opt}</span>
+                        <div className="flex items-center gap-3">
+                          <label className="flex cursor-pointer items-center gap-1 text-muted-foreground">
+                            <Checkbox
+                              checked={needsNote}
+                              onCheckedChange={() => toggleRequireNote(opt)}
+                              className="h-3.5 w-3.5"
+                            />
+                            ต้องการคำอธิบาย
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => removeOption(opt)}
+                            className="rounded p-0.5 text-destructive hover:bg-destructive/10"
+                            title="ลบตัวเลือก"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -666,16 +675,11 @@ function ParameterDialog({
       if ((f.type === "number" || f.type === "float") && !f.unit?.trim()) {
         return `ช่อง "${f.label}": ต้องระบุหน่วย`;
       }
+      if ((f.type === "number" || f.type === "float") && f.standardValue == null) {
+        return `ช่อง "${f.label}": ต้องระบุค่ามาตรฐาน`;
+      }
       if (f.type === "enum" && (!f.options || f.options.length === 0)) {
         return `ช่อง "${f.label}": ต้องมีตัวเลือกอย่างน้อย 1 ตัว`;
-      }
-      if (
-        (f.type === "number" || f.type === "float") &&
-        f.min != null &&
-        f.max != null &&
-        f.min > f.max
-      ) {
-        return `ช่อง "${f.label}": ค่าต่ำสุดต้องไม่มากกว่าค่าสูงสุด`;
       }
     }
     return null;
@@ -720,7 +724,7 @@ function ParameterDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && !busy && onClose()}>
-      <DialogContent className="max-h-[92vh] w-[95vw] max-w-5xl overflow-y-auto p-6 sm:p-8">
+      <DialogContent className="max-h-[92vh] w-[95vw] sm:max-w-5xl overflow-y-auto p-6 sm:p-8">
         <DialogHeader className="mb-2">
           <DialogTitle className="text-xl">
             {isEdit ? "แก้ไขพารามิเตอร์" : "เพิ่มพารามิเตอร์การตรวจสอบ"}
@@ -961,10 +965,6 @@ export default function ParameterSettings() {
   }, [parameters, search, statusFilter]);
 
   const activeCount = parameters.filter((p) => (p.status ?? "active") === "active").length;
-  const totalValueFields = parameters.reduce(
-    (sum, p) => sum + (p.valueFields?.length ?? 0),
-    0,
-  );
 
   const closeDialog = () => {
     setCreating(false);
@@ -1014,7 +1014,7 @@ export default function ParameterSettings() {
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="mb-4 grid grid-cols-3 gap-3">
         <SummaryCard label="ทั้งหมด" value={parameters.length} />
         <SummaryCard label="เปิดใช้งาน" value={activeCount} tone="active" />
         <SummaryCard
@@ -1022,7 +1022,6 @@ export default function ParameterSettings() {
           value={parameters.length - activeCount}
           tone="inactive"
         />
-        <SummaryCard label="ช่องรับค่ารวม" value={totalValueFields} />
       </div>
 
       <Card>
