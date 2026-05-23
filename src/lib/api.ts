@@ -225,6 +225,7 @@ export type ParameterValueField = {
   standardValue?: number | null;
   options?: string[];
   requireNoteOn?: string[];
+  expectedValues?: string[];
   required?: boolean;
 };
 
