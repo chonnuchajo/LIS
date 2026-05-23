@@ -51,18 +51,10 @@ export function isFieldAbnormal(
   return isEnumAbnormal(field, value) || isNumericAbnormal(field, value);
 }
 
-const TIMER_UNIT_TO_MS: Record<TimerUnit, number> = {
-  minute: 60_000,
-  hour: 3_600_000,
-  day: 86_400_000,
-  month: 30 * 86_400_000,
-};
-
 export function timerDurationMs(field: ParameterValueField): number | null {
   if (field.type !== "timer") return null;
-  if (!field.timerDuration || field.timerDuration <= 0) return null;
-  if (!field.timerUnit) return null;
-  return field.timerDuration * TIMER_UNIT_TO_MS[field.timerUnit];
+  if (!field.timerDurationSec || field.timerDurationSec <= 0) return null;
+  return field.timerDurationSec * 1000;
 }
 
 export function timerRemainingMs(
@@ -85,4 +77,65 @@ export function isTimerDone(
   if (!startedAtIso) return false;
   const remaining = timerRemainingMs(field, startedAtIso);
   return remaining != null && remaining <= 0;
+}
+
+export type TimerParts = {
+  months?: number;
+  days?: number;
+  hours?: number;
+  minutes?: number;
+  seconds?: number;
+};
+
+const SEC_PER_MINUTE = 60;
+const SEC_PER_HOUR = 3600;
+const SEC_PER_DAY = 86400;
+const SEC_PER_MONTH = 30 * 86400;
+
+export function partsToSec(parts: TimerParts): number {
+  return (parts.months ?? 0) * SEC_PER_MONTH
+    + (parts.days ?? 0) * SEC_PER_DAY
+    + (parts.hours ?? 0) * SEC_PER_HOUR
+    + (parts.minutes ?? 0) * SEC_PER_MINUTE
+    + (parts.seconds ?? 0);
+}
+
+export function secToParts(sec: number, unit: TimerUnit): TimerParts {
+  let remaining = Math.max(0, Math.floor(sec));
+  const out: TimerParts = {};
+  if (unit === "month") {
+    out.months = Math.floor(remaining / SEC_PER_MONTH);
+    remaining %= SEC_PER_MONTH;
+  }
+  if (unit === "month" || unit === "day") {
+    out.days = Math.floor(remaining / SEC_PER_DAY);
+    remaining %= SEC_PER_DAY;
+  }
+  if (unit === "month" || unit === "day" || unit === "hour") {
+    out.hours = Math.floor(remaining / SEC_PER_HOUR);
+    remaining %= SEC_PER_HOUR;
+  }
+  out.minutes = Math.floor(remaining / SEC_PER_MINUTE);
+  out.seconds = remaining % SEC_PER_MINUTE;
+  return out;
+}
+
+export function formatTimerHuman(sec: number): string {
+  if (!sec || sec <= 0) return "0 วินาที";
+  const total = Math.floor(sec);
+  const months = Math.floor(total / SEC_PER_MONTH);
+  let r = total % SEC_PER_MONTH;
+  const days = Math.floor(r / SEC_PER_DAY);
+  r %= SEC_PER_DAY;
+  const hours = Math.floor(r / SEC_PER_HOUR);
+  r %= SEC_PER_HOUR;
+  const minutes = Math.floor(r / SEC_PER_MINUTE);
+  const seconds = r % SEC_PER_MINUTE;
+  const parts: string[] = [];
+  if (months) parts.push(`${months} เดือน`);
+  if (days) parts.push(`${days} วัน`);
+  if (hours) parts.push(`${hours} ชม`);
+  if (minutes) parts.push(`${minutes} นาที`);
+  if (seconds) parts.push(`${seconds} วินาที`);
+  return parts.join(" ");
 }

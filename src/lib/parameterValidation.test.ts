@@ -6,6 +6,9 @@ import {
   timerDurationMs,
   timerRemainingMs,
   isTimerDone,
+  partsToSec,
+  secToParts,
+  formatTimerHuman,
 } from "./parameterValidation";
 import type { ParameterValueField } from "./api";
 
@@ -215,41 +218,28 @@ describe("isFieldAbnormal", () => {
 const makeTimer = (overrides: Partial<ParameterValueField>): ParameterValueField => ({
   label: "incubation",
   type: "timer",
-  timerDuration: 30,
+  timerDurationSec: 1800,
   timerUnit: "minute",
   ...overrides,
 });
 
 describe("timerDurationMs", () => {
   it("returns null for non-timer types", () => {
-    const f: ParameterValueField = { label: "x", type: "number", timerDuration: 30, timerUnit: "minute" };
+    const f: ParameterValueField = { label: "x", type: "number", timerDurationSec: 1800, timerUnit: "minute" };
     expect(timerDurationMs(f)).toBeNull();
   });
 
-  it("returns null when duration is null/0/negative", () => {
-    expect(timerDurationMs(makeTimer({ timerDuration: null }))).toBeNull();
-    expect(timerDurationMs(makeTimer({ timerDuration: 0 }))).toBeNull();
-    expect(timerDurationMs(makeTimer({ timerDuration: -5 }))).toBeNull();
+  it("returns null when durationSec is null/0/negative", () => {
+    expect(timerDurationMs(makeTimer({ timerDurationSec: null }))).toBeNull();
+    expect(timerDurationMs(makeTimer({ timerDurationSec: 0 }))).toBeNull();
+    expect(timerDurationMs(makeTimer({ timerDurationSec: -5 }))).toBeNull();
   });
 
-  it("returns null when unit is missing", () => {
-    expect(timerDurationMs(makeTimer({ timerUnit: undefined }))).toBeNull();
-  });
-
-  it("converts minute to ms", () => {
-    expect(timerDurationMs(makeTimer({ timerDuration: 30, timerUnit: "minute" }))).toBe(1_800_000);
-  });
-
-  it("converts hour to ms", () => {
-    expect(timerDurationMs(makeTimer({ timerDuration: 2, timerUnit: "hour" }))).toBe(7_200_000);
-  });
-
-  it("converts day to ms", () => {
-    expect(timerDurationMs(makeTimer({ timerDuration: 1, timerUnit: "day" }))).toBe(86_400_000);
-  });
-
-  it("converts month (30 days) to ms", () => {
-    expect(timerDurationMs(makeTimer({ timerDuration: 1, timerUnit: "month" }))).toBe(2_592_000_000);
+  it("converts sec to ms", () => {
+    expect(timerDurationMs(makeTimer({ timerDurationSec: 1800 }))).toBe(1_800_000);
+    expect(timerDurationMs(makeTimer({ timerDurationSec: 7200 }))).toBe(7_200_000);
+    expect(timerDurationMs(makeTimer({ timerDurationSec: 86400 }))).toBe(86_400_000);
+    expect(timerDurationMs(makeTimer({ timerDurationSec: 2592000 }))).toBe(2_592_000_000);
   });
 });
 
@@ -265,30 +255,30 @@ describe("timerRemainingMs", () => {
   });
 
   it("returns null when field has no duration", () => {
-    const f = makeTimer({ timerDuration: null });
+    const f = makeTimer({ timerDurationSec: null });
     expect(timerRemainingMs(f, new Date(FIXED_NOW).toISOString())).toBeNull();
   });
 
   it("returns full duration when startedAt is null/undefined", () => {
-    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    const f = makeTimer({ timerDurationSec: 1800 });
     expect(timerRemainingMs(f, null)).toBe(1_800_000);
     expect(timerRemainingMs(f, undefined)).toBe(1_800_000);
   });
 
   it("computes remaining when partially elapsed", () => {
     const startedAt = new Date(FIXED_NOW - 5 * 60_000).toISOString();
-    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    const f = makeTimer({ timerDurationSec: 1800 });
     expect(timerRemainingMs(f, startedAt)).toBe(25 * 60_000);
   });
 
   it("returns 0 when fully elapsed (clamped, not negative)", () => {
     const startedAt = new Date(FIXED_NOW - 31 * 60_000).toISOString();
-    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    const f = makeTimer({ timerDurationSec: 1800 });
     expect(timerRemainingMs(f, startedAt)).toBe(0);
   });
 
   it("returns null for invalid ISO string", () => {
-    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    const f = makeTimer({ timerDurationSec: 1800 });
     expect(timerRemainingMs(f, "not-a-date")).toBeNull();
   });
 });
@@ -311,19 +301,131 @@ describe("isTimerDone", () => {
 
   it("returns false when still running", () => {
     const startedAt = new Date(FIXED_NOW - 5 * 60_000).toISOString();
-    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    const f = makeTimer({ timerDurationSec: 1800 });
     expect(isTimerDone(f, startedAt)).toBe(false);
   });
 
   it("returns true when fully elapsed", () => {
     const startedAt = new Date(FIXED_NOW - 60 * 60_000).toISOString();
-    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    const f = makeTimer({ timerDurationSec: 1800 });
     expect(isTimerDone(f, startedAt)).toBe(true);
   });
 
   it("returns true at exact boundary", () => {
     const startedAt = new Date(FIXED_NOW - 30 * 60_000).toISOString();
-    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    const f = makeTimer({ timerDurationSec: 1800 });
     expect(isTimerDone(f, startedAt)).toBe(true);
+  });
+});
+
+describe("partsToSec", () => {
+  it("returns 0 for empty parts", () => {
+    expect(partsToSec({})).toBe(0);
+  });
+
+  it("computes seconds only", () => {
+    expect(partsToSec({ seconds: 45 })).toBe(45);
+  });
+
+  it("computes minutes + seconds", () => {
+    expect(partsToSec({ minutes: 1, seconds: 30 })).toBe(90);
+  });
+
+  it("computes hour + minute + second", () => {
+    expect(partsToSec({ hours: 1, minutes: 30, seconds: 45 })).toBe(5445);
+  });
+
+  it("computes day + lower parts", () => {
+    expect(partsToSec({ days: 1, hours: 1, minutes: 1, seconds: 1 })).toBe(90061);
+  });
+
+  it("computes month + lower parts (30-day month)", () => {
+    expect(partsToSec({
+      months: 1, days: 2, hours: 3, minutes: 4, seconds: 5,
+    })).toBe(1 * 2592000 + 2 * 86400 + 3 * 3600 + 4 * 60 + 5);
+  });
+
+  it("treats undefined fields as 0", () => {
+    expect(partsToSec({ hours: 2 })).toBe(7200);
+  });
+});
+
+describe("secToParts", () => {
+  it("zero seconds returns zeroed parts for hour unit", () => {
+    expect(secToParts(0, "hour")).toEqual({ hours: 0, minutes: 0, seconds: 0 });
+  });
+
+  it("90 sec + minute unit → 1m 30s", () => {
+    expect(secToParts(90, "minute")).toEqual({ minutes: 1, seconds: 30 });
+  });
+
+  it("5445 sec + hour unit → 1h 30m 45s", () => {
+    expect(secToParts(5445, "hour")).toEqual({ hours: 1, minutes: 30, seconds: 45 });
+  });
+
+  it("90061 sec + day unit → 1d 1h 1m 1s", () => {
+    expect(secToParts(90061, "day")).toEqual({
+      days: 1, hours: 1, minutes: 1, seconds: 1,
+    });
+  });
+
+  it("2592000 sec + month unit → 1mo 0d 0h 0m 0s", () => {
+    expect(secToParts(2592000, "month")).toEqual({
+      months: 1, days: 0, hours: 0, minutes: 0, seconds: 0,
+    });
+  });
+
+  it("5445 sec + day unit redistributes (no day component)", () => {
+    expect(secToParts(5445, "day")).toEqual({
+      days: 0, hours: 1, minutes: 30, seconds: 45,
+    });
+  });
+
+  it("negative seconds clamps to 0", () => {
+    expect(secToParts(-100, "hour")).toEqual({ hours: 0, minutes: 0, seconds: 0 });
+  });
+
+  it("fractional seconds are floored", () => {
+    expect(secToParts(90.7, "minute")).toEqual({ minutes: 1, seconds: 30 });
+  });
+
+  it("roundtrip: secToParts → partsToSec returns same value", () => {
+    const sec = 90061;
+    const parts = secToParts(sec, "day");
+    expect(partsToSec(parts)).toBe(sec);
+  });
+});
+
+describe("formatTimerHuman", () => {
+  it("0 → '0 วินาที'", () => {
+    expect(formatTimerHuman(0)).toBe("0 วินาที");
+  });
+
+  it("60 → '1 นาที'", () => {
+    expect(formatTimerHuman(60)).toBe("1 นาที");
+  });
+
+  it("3600 → '1 ชม'", () => {
+    expect(formatTimerHuman(3600)).toBe("1 ชม");
+  });
+
+  it("3661 → '1 ชม 1 นาที 1 วินาที'", () => {
+    expect(formatTimerHuman(3661)).toBe("1 ชม 1 นาที 1 วินาที");
+  });
+
+  it("5445 → '1 ชม 30 นาที 45 วินาที'", () => {
+    expect(formatTimerHuman(5445)).toBe("1 ชม 30 นาที 45 วินาที");
+  });
+
+  it("90061 → '1 วัน 1 ชม 1 นาที 1 วินาที'", () => {
+    expect(formatTimerHuman(90061)).toBe("1 วัน 1 ชม 1 นาที 1 วินาที");
+  });
+
+  it("2592000 (30 days) → '1 เดือน'", () => {
+    expect(formatTimerHuman(2592000)).toBe("1 เดือน");
+  });
+
+  it("skips zero parts", () => {
+    expect(formatTimerHuman(3600 + 45)).toBe("1 ชม 45 วินาที");
   });
 });

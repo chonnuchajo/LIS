@@ -239,7 +239,7 @@ export type ParameterValueField = {
   options?: string[];
   requireNoteOn?: string[];
   expectedValues?: string[];
-  timerDuration?: number | null;
+  timerDurationSec?: number | null;
   timerUnit?: TimerUnit;
   required?: boolean;
 };
