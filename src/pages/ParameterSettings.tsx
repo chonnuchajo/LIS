@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -61,6 +61,12 @@ import {
   getCommonName,
   productTypeLabels,
 } from "@/lib/productClassification";
+import {
+  partsToSec,
+  secToParts,
+  formatTimerHuman,
+  type TimerParts,
+} from "@/lib/parameterValidation";
 
 const VALUE_TYPE_OPTIONS: { value: ParameterValueFieldType; label: string }[] = [
   { value: "text", label: "ข้อความ (Text)" },
@@ -167,7 +173,7 @@ const emptyValueField = (): ParameterValueField => ({
   options: [],
   requireNoteOn: [],
   expectedValues: [],
-  timerDuration: null,
+  timerDurationSec: null,
   timerUnit: undefined,
   required: false,
 });
@@ -428,15 +434,73 @@ function StandardPreview({ field }: { field: ParameterValueField }) {
   return <p className="text-xs text-emerald-700">{text}</p>;
 }
 
-const TIMER_UNIT_LABELS: Record<TimerUnit, string> = {
-  minute: "นาที",
-  hour: "ชั่วโมง",
-  day: "วัน",
-  month: "เดือน",
+const TIMER_PART_LABEL: Record<keyof TimerParts, string> = {
+  months: "เดือน",
+  days: "วัน",
+  hours: "ชม",
+  minutes: "นาที",
+  seconds: "วิ",
 };
 
+function pickPartsForUnit(unit: TimerUnit): Array<keyof TimerParts> {
+  switch (unit) {
+    case "minute": return ["minutes", "seconds"];
+    case "hour": return ["hours", "minutes", "seconds"];
+    case "day": return ["days", "hours", "minutes", "seconds"];
+    case "month": return ["months", "days", "hours", "minutes", "seconds"];
+  }
+}
+
+function TimerDurationInput({
+  unit,
+  sec,
+  onChange,
+}: {
+  unit: TimerUnit | undefined;
+  sec: number;
+  onChange: (newSec: number) => void;
+}) {
+  if (!unit) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        เลือก "หน่วย" ก่อน
+      </p>
+    );
+  }
+  const parts = secToParts(sec, unit);
+  const keys = pickPartsForUnit(unit);
+  return (
+    <div className="flex items-center gap-1">
+      {keys.map((key, i) => (
+        <Fragment key={key}>
+          {i > 0 && <span className="text-muted-foreground text-lg">:</span>}
+          <div className="flex flex-col items-center">
+            <Input
+              type="number"
+              min={0}
+              value={parts[key] ?? 0}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                const next: TimerParts = {
+                  ...parts,
+                  [key]: Number.isFinite(v) && v >= 0 ? v : 0,
+                };
+                onChange(partsToSec(next));
+              }}
+              className="h-10 w-20 text-center"
+            />
+            <span className="text-[10px] text-muted-foreground mt-0.5">
+              {TIMER_PART_LABEL[key]}
+            </span>
+          </div>
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
 function TimerPreview({ field }: { field: ParameterValueField }) {
-  if (!field.timerDuration || !field.timerUnit) {
+  if (!field.timerDurationSec || field.timerDurationSec <= 0 || !field.timerUnit) {
     return (
       <p className="text-xs text-muted-foreground">
         ยังไม่ได้กำหนดระยะเวลา
@@ -445,7 +509,7 @@ function TimerPreview({ field }: { field: ParameterValueField }) {
   }
   return (
     <p className="text-xs text-emerald-700">
-      จับเวลา: {field.timerDuration} {TIMER_UNIT_LABELS[field.timerUnit]}
+      จับเวลา: {formatTimerHuman(field.timerDurationSec)} ({field.timerDurationSec.toLocaleString()} วินาที)
     </p>
   );
 }
@@ -573,7 +637,7 @@ function ValueFieldEditor({
                     standardValue: v === "number" || v === "float" ? field.standardValue : null,
                     standardOperator: v === "number" || v === "float" ? field.standardOperator : undefined,
                     standardValue2: v === "number" || v === "float" ? field.standardValue2 ?? null : null,
-                    timerDuration: v === "timer" ? field.timerDuration ?? null : null,
+                    timerDurationSec: v === "timer" ? field.timerDurationSec ?? null : null,
                     timerUnit: v === "timer" ? field.timerUnit : undefined,
                   })
                 }
@@ -810,17 +874,12 @@ function ValueFieldEditor({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
                 <div className="sm:col-span-6 space-y-1.5">
                   <Label className="text-sm">ระยะเวลา *</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={field.timerDuration ?? ""}
-                    onChange={(e) =>
-                      onChange({
-                        ...field,
-                        timerDuration: e.target.value === "" ? null : Number(e.target.value),
-                      })
+                  <TimerDurationInput
+                    unit={field.timerUnit}
+                    sec={field.timerDurationSec ?? 0}
+                    onChange={(newSec) =>
+                      onChange({ ...field, timerDurationSec: newSec })
                     }
-                    className="h-10"
                   />
                 </div>
                 <div className="sm:col-span-6 space-y-1.5">
@@ -964,11 +1023,11 @@ function ParameterDialog({
         return `ช่อง "${f.label}": ต้องมีตัวเลือกอย่างน้อย 1 ตัว`;
       }
       if (f.type === "timer") {
-        if (f.timerDuration == null || f.timerDuration <= 0) {
-          return `ช่อง "${f.label}": ต้องระบุระยะเวลา > 0`;
-        }
         if (!f.timerUnit) {
           return `ช่อง "${f.label}": ต้องระบุหน่วยเวลา`;
+        }
+        if (!f.timerDurationSec || f.timerDurationSec <= 0) {
+          return `ช่อง "${f.label}": ต้องระบุระยะเวลา > 0`;
         }
       }
     }
