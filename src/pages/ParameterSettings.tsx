@@ -557,6 +557,7 @@ function ValueFieldEditor({
                 <div className="mt-2 space-y-1">
                   {(field.options ?? []).map((opt) => {
                     const needsNote = (field.requireNoteOn ?? []).includes(opt);
+                    const isExpected = (field.expectedValues ?? []).includes(opt);
                     return (
                       <div
                         key={opt}
@@ -564,6 +565,14 @@ function ValueFieldEditor({
                       >
                         <span className="font-medium">{opt}</span>
                         <div className="flex items-center gap-3">
+                          <label className="flex cursor-pointer items-center gap-1 text-emerald-700">
+                            <Checkbox
+                              checked={isExpected}
+                              onCheckedChange={() => toggleExpected(opt)}
+                              className="h-3.5 w-3.5"
+                            />
+                            ปกติ
+                          </label>
                           <label className="flex cursor-pointer items-center gap-1 text-muted-foreground">
                             <Checkbox
                               checked={needsNote}
@@ -590,6 +599,29 @@ function ValueFieldEditor({
                   ยังไม่มีตัวเลือก — ต้องมีอย่างน้อย 1 ตัว
                 </p>
               )}
+              {(field.options ?? []).length > 0 ? (() => {
+                const expected = field.expectedValues ?? [];
+                const opts = field.options ?? [];
+                if (expected.length === 0) {
+                  return (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      ยังไม่ได้กำหนดค่าที่คาดหวัง — จะไม่ตรวจค่าผิดปกติ
+                    </p>
+                  );
+                }
+                if (expected.length === opts.length) {
+                  return (
+                    <p className="mt-1 text-xs text-amber-700">
+                      ทุกค่าถูกตั้งเป็นปกติ — จะไม่มี abnormal
+                    </p>
+                  );
+                }
+                return (
+                  <p className="mt-1 text-xs text-emerald-700">
+                    ค่าที่คาดหวัง: {expected.join(", ")} — ค่าอื่นจะถูกมาร์คผิดปกติ
+                  </p>
+                );
+              })() : null}
             </div>
           ) : null}
         </div>
