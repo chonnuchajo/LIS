@@ -402,6 +402,7 @@ function ValueFieldEditor({
       ...field,
       options: (field.options ?? []).filter((o) => o !== opt),
       requireNoteOn: (field.requireNoteOn ?? []).filter((o) => o !== opt),
+      expectedValues: (field.expectedValues ?? []).filter((o) => o !== opt),
     });
   };
 
@@ -411,6 +412,14 @@ function ValueFieldEditor({
       ? current.filter((o) => o !== opt)
       : [...current, opt];
     onChange({ ...field, requireNoteOn: next });
+  };
+
+  const toggleExpected = (opt: string) => {
+    const current = field.expectedValues ?? [];
+    const next = current.includes(opt)
+      ? current.filter((o) => o !== opt)
+      : [...current, opt];
+    onChange({ ...field, expectedValues: next });
   };
 
   const requiresUnit = field.type === "number" || field.type === "float";
