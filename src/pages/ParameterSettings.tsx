@@ -5,12 +5,18 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  GripVertical,
+  Hash,
+  Image as ImageIcon,
+  List as ListIcon,
   Pencil,
   Plus,
   RefreshCw,
   Search,
   SlidersHorizontal,
+  Timer as TimerIcon,
   Trash2,
+  Type as TypeIcon,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -514,6 +520,107 @@ function TimerPreview({ field }: { field: ParameterValueField }) {
   );
 }
 
+const FIELD_TYPE_META: Record<
+  ParameterValueFieldType,
+  {
+    label: string;
+    Icon: typeof TypeIcon;
+    accent: string;
+    tint: string;
+    text: string;
+    iconText: string;
+  }
+> = {
+  text: {
+    label: "ข้อความ",
+    Icon: TypeIcon,
+    accent: "bg-slate-400",
+    tint: "bg-slate-50/60",
+    text: "text-slate-700",
+    iconText: "text-slate-500",
+  },
+  number: {
+    label: "จำนวนเต็ม",
+    Icon: Hash,
+    accent: "bg-blue-500",
+    tint: "bg-blue-50/50",
+    text: "text-blue-700",
+    iconText: "text-blue-500",
+  },
+  float: {
+    label: "ทศนิยม",
+    Icon: Hash,
+    accent: "bg-blue-500",
+    tint: "bg-blue-50/50",
+    text: "text-blue-700",
+    iconText: "text-blue-500",
+  },
+  enum: {
+    label: "ตัวเลือก",
+    Icon: ListIcon,
+    accent: "bg-violet-500",
+    tint: "bg-violet-50/50",
+    text: "text-violet-700",
+    iconText: "text-violet-500",
+  },
+  timer: {
+    label: "จับเวลา",
+    Icon: TimerIcon,
+    accent: "bg-amber-500",
+    tint: "bg-amber-50/50",
+    text: "text-amber-700",
+    iconText: "text-amber-500",
+  },
+  photo: {
+    label: "ภาพถ่าย",
+    Icon: ImageIcon,
+    accent: "bg-pink-500",
+    tint: "bg-pink-50/50",
+    text: "text-pink-700",
+    iconText: "text-pink-500",
+  },
+};
+
+function summarizeField(field: ParameterValueField): string {
+  switch (field.type) {
+    case "text":
+      return "ข้อความ";
+    case "number":
+    case "float": {
+      const unit = field.unit ? ` ${field.unit}` : "";
+      const op = field.standardOperator;
+      const v1 = field.standardValue;
+      const v2 = field.standardValue2;
+      if (!op || v1 == null) return field.unit ? `หน่วย ${field.unit}` : "ยังไม่ตั้งเงื่อนไข";
+      switch (op) {
+        case "lt": return `< ${v1}${unit}`;
+        case "lte": return `≤ ${v1}${unit}`;
+        case "eq": return `= ${v1}${unit}`;
+        case "gte": return `≥ ${v1}${unit}`;
+        case "gt": return `> ${v1}${unit}`;
+        case "between": return v2 != null ? `${v1} - ${v2}${unit}` : `≥ ${v1}${unit}`;
+        case "tolerance": return v2 != null ? `${v1} ± ${v2}%${unit}` : `= ${v1}${unit}`;
+      }
+      return "";
+    }
+    case "enum": {
+      const opts = field.options ?? [];
+      if (opts.length === 0) return "ยังไม่มีตัวเลือก";
+      const expected = field.expectedValues ?? [];
+      const head = opts.slice(0, 3).join("/");
+      const more = opts.length > 3 ? `+${opts.length - 3}` : "";
+      const exp = expected.length > 0 ? ` · ปกติ: ${expected.join(",")}` : "";
+      return `${head}${more}${exp}`;
+    }
+    case "timer": {
+      if (!field.timerDurationSec || field.timerDurationSec <= 0) return "ยังไม่ตั้งระยะเวลา";
+      return formatTimerHuman(field.timerDurationSec);
+    }
+    case "photo":
+      return "ภาพถ่าย";
+  }
+}
+
 type ValueFieldEditorProps = {
   field: ParameterValueField;
   index: number;
@@ -532,6 +639,7 @@ function ValueFieldEditor({
   onMove,
 }: ValueFieldEditorProps) {
   const [optionDraft, setOptionDraft] = useState("");
+  const [expanded, setExpanded] = useState(!field.label?.trim());
 
   const addOption = () => {
     const v = optionDraft.trim();
@@ -571,39 +679,87 @@ function ValueFieldEditor({
 
   const requiresUnit = field.type === "number" || field.type === "float";
   const isEnum = field.type === "enum";
+  const meta = FIELD_TYPE_META[field.type];
+  const TypeIconComp = meta.Icon;
 
   return (
-    <div className="rounded-lg border bg-muted/30 p-4">
-      <div className="flex items-start gap-3">
-        <div className="flex flex-col gap-1 pt-1">
+    <div className="group relative overflow-hidden rounded-lg border border-grey-200 bg-background transition-shadow hover:shadow-sm">
+      {/* type-color accent stripe */}
+      <div className={cn("absolute inset-y-0 left-0 w-1", meta.accent)} aria-hidden />
+
+      {/* header row — always visible */}
+      <div className="flex items-center gap-2 pl-4 pr-2 py-2">
+        <div className="flex flex-col gap-0.5">
           <Button
             type="button"
             size="icon"
             variant="ghost"
-            className="h-7 w-7"
+            className="h-5 w-5"
             disabled={index === 0}
             onClick={() => onMove(-1)}
             title="เลื่อนขึ้น"
           >
-            <ChevronUp className="h-4 w-4" />
+            <ChevronUp className="h-3 w-3" />
           </Button>
-          <span className="text-center text-xs font-medium text-muted-foreground">
-            {index + 1}
-          </span>
           <Button
             type="button"
             size="icon"
             variant="ghost"
-            className="h-7 w-7"
+            className="h-5 w-5"
             disabled={index === total - 1}
             onClick={() => onMove(1)}
             title="เลื่อนลง"
           >
-            <ChevronDown className="h-4 w-4" />
+            <ChevronDown className="h-3 w-3" />
           </Button>
         </div>
+        <GripVertical className="h-4 w-4 text-grey-300" aria-hidden />
+        <span className="font-mono text-xs text-muted-foreground tabular-nums w-5 text-right">
+          {index + 1}
+        </span>
+        <TypeIconComp className={cn("h-4 w-4 shrink-0", meta.iconText)} />
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex-1 flex items-baseline gap-2 min-w-0 text-left hover:opacity-80"
+        >
+          <span className="font-medium text-sm truncate">
+            {field.label?.trim() || <span className="text-muted-foreground italic">ยังไม่ได้ตั้งชื่อ</span>}
+          </span>
+          <span className={cn("text-xs font-medium", meta.text)}>
+            {meta.label}
+          </span>
+          <span className="text-xs text-muted-foreground font-mono truncate">
+            · {summarizeField(field)}
+          </span>
+          {field.required && <span className="text-xs text-red-500 shrink-0">*</span>}
+        </button>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7"
+          onClick={() => setExpanded((v) => !v)}
+          title={expanded ? "ย่อ" : "ขยาย"}
+        >
+          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </Button>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7 text-destructive hover:text-destructive"
+          onClick={onRemove}
+          title="ลบช่อง"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
 
-        <div className="flex-1 space-y-3">
+      {/* body — collapsible */}
+      {expanded ? (
+        <div className={cn("pl-4 pr-3 pb-4 pt-2 border-t border-grey-100", meta.tint)}>
+        <div className="space-y-3">
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Checkbox
               checked={!!field.required}
@@ -906,18 +1062,8 @@ function ValueFieldEditor({
             </div>
           ) : null}
         </div>
-
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8 text-destructive hover:text-destructive"
-          onClick={onRemove}
-          title="ลบช่อง"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
