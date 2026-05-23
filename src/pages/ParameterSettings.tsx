@@ -428,6 +428,28 @@ function StandardPreview({ field }: { field: ParameterValueField }) {
   return <p className="text-xs text-emerald-700">{text}</p>;
 }
 
+const TIMER_UNIT_LABELS: Record<TimerUnit, string> = {
+  minute: "นาที",
+  hour: "ชั่วโมง",
+  day: "วัน",
+  month: "เดือน",
+};
+
+function TimerPreview({ field }: { field: ParameterValueField }) {
+  if (!field.timerDuration || !field.timerUnit) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        ยังไม่ได้กำหนดระยะเวลา
+      </p>
+    );
+  }
+  return (
+    <p className="text-xs text-emerald-700">
+      จับเวลา: {field.timerDuration} {TIMER_UNIT_LABELS[field.timerUnit]}
+    </p>
+  );
+}
+
 type ValueFieldEditorProps = {
   field: ParameterValueField;
   index: number;
@@ -780,6 +802,48 @@ function ValueFieldEditor({
                   </p>
                 );
               })() : null}
+            </div>
+          ) : null}
+
+          {field.type === "timer" ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
+                <div className="sm:col-span-6 space-y-1.5">
+                  <Label className="text-sm">ระยะเวลา *</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={field.timerDuration ?? ""}
+                    onChange={(e) =>
+                      onChange({
+                        ...field,
+                        timerDuration: e.target.value === "" ? null : Number(e.target.value),
+                      })
+                    }
+                    className="h-10"
+                  />
+                </div>
+                <div className="sm:col-span-6 space-y-1.5">
+                  <Label className="text-sm">หน่วย *</Label>
+                  <Select
+                    value={field.timerUnit ?? ""}
+                    onValueChange={(v) =>
+                      onChange({ ...field, timerUnit: v as TimerUnit })
+                    }
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="เลือกหน่วย" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="minute">นาที</SelectItem>
+                      <SelectItem value="hour">ชั่วโมง</SelectItem>
+                      <SelectItem value="day">วัน</SelectItem>
+                      <SelectItem value="month">เดือน (30 วัน)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <TimerPreview field={field} />
             </div>
           ) : null}
         </div>
