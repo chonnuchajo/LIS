@@ -2,6 +2,41 @@ const express = require("express");
 const router = express.Router();
 const QCTestResult = require("../models/QCTestResult");
 
+// GET /api/qc-results/testers?petitionIds=id1,id2,...
+// Returns a map of petitionId → unique tester names (from enteredBy/updatedBy)
+router.get("/testers", async (req, res) => {
+  try {
+    const raw = String(req.query.petitionIds || "").trim();
+    if (!raw) return res.json({});
+    const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    if (ids.length === 0) return res.json({});
+
+    const docs = await QCTestResult.find(
+      { petitionId: { $in: ids } },
+      { petitionId: 1, enteredBy: 1, updatedBy: 1 }
+    ).lean();
+
+    const map = {};
+    for (const id of ids) map[id] = [];
+    const seen = {};
+    for (const id of ids) seen[id] = new Set();
+
+    // Show only the current owner (= latest editor) of each doc.
+    // Matches what the detail page displays per field, so list ↔ detail are consistent.
+    for (const d of docs) {
+      const pid = d.petitionId;
+      const name = d.updatedBy?.name || d.enteredBy?.name;
+      if (name && !seen[pid].has(name)) {
+        seen[pid].add(name);
+        map[pid].push(name);
+      }
+    }
+    res.json(map);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/qc-results/:petitionId
 router.get("/:petitionId", async (req, res) => {
   try {

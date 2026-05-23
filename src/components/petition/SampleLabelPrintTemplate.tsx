@@ -133,17 +133,17 @@ export default function SampleLabelPrintTemplate({ petition }: { petition: Petit
     <>
       <style>{`
         @page {
-          size: 6in 4in;
+          size: 152.4mm 101.6mm;
           margin: 0;
         }
         @media print {
-          html, body { margin: 0; padding: 0; }
+          html, body { margin: 0; padding: 0; width: 152.4mm; height: 101.6mm; }
           .label-page {
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 6in;
-            height: 4in;
+            width: 152.4mm;
+            height: 101.6mm;
             box-sizing: border-box;
             break-after: page;
             page-break-after: always;

@@ -32,7 +32,7 @@ export const PETITION_STATUS_CONFIG: Record<
   sampleSent:    { label: 'ส่งตัวอย่างแล้ว',  variant: 'primary-soft' },
   pendingReview: { label: 'รับตัวอย่างแล้ว',  variant: 'yellow-soft' },
   inProgress:    { label: 'QC กำลังตรวจ',     variant: 'blue-soft' },
-  success:       { label: 'อนุมัติเรียบร้อย',  variant: 'green-soft' },
+  success:       { label: 'ทดสอบเสร็จสิ้น',  variant: 'green-soft' },
 };
 
 // ===== Department =====

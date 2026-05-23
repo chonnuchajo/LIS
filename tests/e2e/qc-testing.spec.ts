@@ -27,19 +27,27 @@ test.describe('QC Testing pages', () => {
 
   // ── 1. List page ──────────────────────────────────────────────────────────
 
-  test('list page: sampleSent petitions are hidden, only pendingReview/inProgress show', async ({ page }) => {
-    // Set petition to sampleSent — it should NOT appear in the list
+  test('list page: sampleSent shows "รอสแกนรับ" placeholder (no enter button)', async ({ page }) => {
+    // Reset petition to sampleSent
     await page.request.patch(`http://localhost:3001/api/petitions/${PETITION_ID}`, {
       data: { status: 'sampleSent', actor: 'test' },
     });
 
     await page.goto(`${BASE}/qc-testing`);
     await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole('heading', { name: 'การทดสอบ QC' })).toBeVisible({ timeout: 10_000 });
 
-    // sampleSent petition row should NOT exist in the table
     const row = page.locator('tr').filter({ hasText: PETITION_NO });
-    await expect(row).toHaveCount(0);
+    await expect(row).toBeVisible({ timeout: 10_000 });
+    await expect(row.getByText('ส่งตัวอย่างแล้ว')).toBeVisible();
+
+    // No "เข้าตรวจ" button — instead a placeholder
+    await expect(row.getByRole('button', { name: 'เข้าตรวจ' })).toHaveCount(0);
+    await expect(row.getByText('รอสแกนรับ')).toBeVisible();
+
+    // Status NOT auto-pushed
+    const res = await page.request.get(`${API}/petitions/${PETITION_ID}`);
+    const body = await res.json();
+    expect(body.status).toBe('sampleSent');
 
     await page.screenshot({
       path: 'tests/e2e/screenshots/qc-testing-list-empty.png',
@@ -47,8 +55,11 @@ test.describe('QC Testing pages', () => {
     });
   });
 
-  test('list page: pendingReview/inProgress show "เข้าตรวจ" button → navigates to detail', async ({ page }) => {
-    // Promote petition to pendingReview
+  test('list page: pendingReview shows "เข้าตรวจ" button → navigates to detail', async ({ page }) => {
+    // Reset and advance to pendingReview
+    await page.request.patch(`http://localhost:3001/api/petitions/${PETITION_ID}`, {
+      data: { status: 'sampleSent', actor: 'test' },
+    });
     await page.request.patch(`http://localhost:3001/api/petitions/${PETITION_ID}/receive`, {
       data: { actor: 'test' },
     });
@@ -56,15 +67,36 @@ test.describe('QC Testing pages', () => {
     await page.goto(`${BASE}/qc-testing`);
     await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
 
-    // Row should appear with "เข้าตรวจ" button
     const row = page.locator('tr').filter({ hasText: PETITION_NO });
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await expect(row.getByRole('button', { name: 'เข้าตรวจ' })).toBeVisible();
+
+    // "เข้าตรวจ" button is now visible
+    const enterBtn = row.getByRole('button', { name: 'เข้าตรวจ' });
+    await expect(enterBtn).toBeVisible();
 
     // Click → navigate to detail
-    await row.getByRole('button', { name: 'เข้าตรวจ' }).click();
+    await enterBtn.click();
     await expect(page).toHaveURL(`${BASE}/qc-testing/${PETITION_ID}`, { timeout: 5_000 });
     await expect(page.getByRole('heading', { name: PETITION_NO })).toBeVisible({ timeout: 10_000 });
+  });
+
+  test('list page: "สแกน QR รับตัวอย่าง" button is visible', async ({ page }) => {
+    await page.goto(`${BASE}/qc-testing`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+
+    // QR scan button should be visible
+    await expect(
+      page.getByRole('button', { name: /สแกน QR รับตัวอย่าง/ }),
+    ).toBeVisible({ timeout: 10_000 });
+
+    // Clicking opens the modal
+    await page.getByRole('button', { name: /สแกน QR รับตัวอย่าง/ }).click();
+    await expect(page.getByRole('heading', { name: 'สแกน QR รับตัวอย่าง' })).toBeVisible({ timeout: 5_000 });
+
+    // Close modal
+    await page.locator('[id="qc-receive-qr-reader"]').first().waitFor({ state: 'attached' });
+    // Close by clicking outside or X button
+    await page.locator('button:has(svg.lucide-x)').last().click();
 
     await page.screenshot({
       path: 'tests/e2e/screenshots/qc-testing-list-filter.png',
@@ -231,28 +263,92 @@ test.describe('QC Testing pages', () => {
     });
   });
 
+  // ── Save draft / Submit result ───────────────────────────────────────────
+
+  test('detail page: "บันทึกแบบร่าง" navigates back to list', async ({ page }) => {
+    await page.request.patch(`${API}/petitions/${PETITION_ID}`, {
+      data: { status: 'pendingReview', actor: 'test' },
+    });
+    await page.goto(`${BASE}/qc-testing/${PETITION_ID}`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('กายภาพ')).toBeVisible({ timeout: 10_000 });
+
+    await page.getByRole('button', { name: /บันทึกแบบร่าง/ }).click();
+    await expect(page).toHaveURL(`${BASE}/qc-testing`, { timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: 'การทดสอบ QC' })).toBeVisible();
+  });
+
+  test('detail page: "บันทึกผล" with complete fields → status success', async ({ page }) => {
+    await page.request.patch(`${API}/petitions/${PETITION_ID}`, {
+      data: { status: 'pendingReview', actor: 'test' },
+    });
+
+    await page.goto(`${BASE}/qc-testing/${PETITION_ID}`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('กายภาพ')).toBeVisible({ timeout: 10_000 });
+
+    // Ensure ลักษณะ + สี are filled (in case the petition was wiped)
+    const select = page.locator('label:has-text("ลักษณะ")').locator('xpath=following::button[1]');
+    const selectText = await select.innerText();
+    if (selectText.includes('เลือก')) {
+      await select.click();
+      await page.getByRole('option', { name: 'ของเหลวใส' }).click();
+      await page.waitForTimeout(1_200);
+    }
+    const colorInput = page.locator('label:has-text("สี")').locator('xpath=following::input[1]');
+    const colorVal = await colorInput.inputValue();
+    if (!colorVal.trim()) {
+      await colorInput.fill('เขียวอ่อน');
+      await page.waitForTimeout(1_200);
+    }
+
+    // Click "บันทึกผล" → status should change to success
+    await page.getByRole('button', { name: /บันทึกผล/ }).click();
+    await expect(page).toHaveURL(`${BASE}/qc-testing`, { timeout: 8_000 });
+
+    const res = await page.request.get(`${API}/petitions/${PETITION_ID}`);
+    const body = await res.json();
+    expect(body.status).toBe('success');
+  });
+
   // ── Auto-advance status ─────────────────────────────────────────────────
 
-  test('detail page: opening pendingReview petition auto-advances to inProgress', async ({ page }) => {
+  test('detail page: opening pendingReview does NOT advance status (only on field entry)', async ({ page }) => {
     // Reset petition to pendingReview via API
     await page.request.patch(`${API}/petitions/${PETITION_ID}`, {
       data: { status: 'pendingReview', actor: 'test' },
     });
 
-    // Verify it's pendingReview before opening
-    const before = await page.request.get(`${API}/petitions/${PETITION_ID}`);
-    const beforeBody = await before.json();
-    expect(beforeBody.status).toBe('pendingReview');
-
-    // Open detail page → should auto-PATCH to inProgress
+    // Open detail page → should NOT auto-PATCH
     await page.goto(`${BASE}/qc-testing/${PETITION_ID}`);
     await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('heading', { name: PETITION_NO })).toBeVisible({ timeout: 10_000 });
 
-    // Wait briefly for the auto-advance PATCH to land
+    // Wait briefly to ensure no advance occurred
     await page.waitForTimeout(1_500);
 
-    // Verify status is now inProgress
+    // Status should STILL be pendingReview
+    const after = await page.request.get(`${API}/petitions/${PETITION_ID}`);
+    const afterBody = await after.json();
+    expect(afterBody.status).toBe('pendingReview');
+  });
+
+  test('detail page: entering a value advances pendingReview → inProgress', async ({ page }) => {
+    // Reset to pendingReview
+    await page.request.patch(`${API}/petitions/${PETITION_ID}`, {
+      data: { status: 'pendingReview', actor: 'test' },
+    });
+
+    await page.goto(`${BASE}/qc-testing/${PETITION_ID}`);
+    await expect(page.locator('aside')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('กายภาพ')).toBeVisible({ timeout: 10_000 });
+
+    // Type into "สี" field
+    const colorInput = page.locator('label:has-text("สี")').locator('xpath=following::input[1]');
+    await colorInput.fill('ทดสอบ');
+    await page.waitForTimeout(1_800);
+
+    // Status should now be inProgress
     const after = await page.request.get(`${API}/petitions/${PETITION_ID}`);
     const afterBody = await after.json();
     expect(afterBody.status).toBe('inProgress');

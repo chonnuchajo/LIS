@@ -606,6 +606,8 @@ const PP_CSS = `
 }
 @media print {
   html, body { margin: 0; padding: 0; background: #fff; }
+  .pp-page { padding-right: 1px; }
+  .pp-table { width: calc(100% - 1px); }
   .pp-section, .pp-downtime, .pp-physical, .pp-weighing, .pp-signatures {
     break-inside: avoid; page-break-inside: avoid;
   }

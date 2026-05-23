@@ -1,11 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FlaskConical, Search, PackageCheck } from 'lucide-react';
-import { toast } from 'sonner';
+import { FlaskConical, Search, QrCode } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 import { usePetitionList } from '@/hooks/usePetition';
-import { useAuth } from '@/hooks/useAuth';
-import { api } from '@/lib/api';
 import {
   PETITION_DEPT_LABELS,
   PETITION_STATUS_CONFIG,
@@ -15,6 +12,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import QrReceiveModal from '@/components/petition/QrReceiveModal';
+
+const ENTRY_STATUSES = new Set(['pendingReview', 'inProgress']);
 import {
   Table,
   TableBody,
@@ -33,13 +33,12 @@ import {
 
 export default function QCTestingPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [dept, setDept] = useState<PetitionDept | ''>('');
-  const [receiving, setReceiving] = useState<string | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const { data, loading, refresh } = usePetitionList({
-    status: 'pendingReview,inProgress',
+    status: 'sampleSent,pendingReview,inProgress',
     search,
     dept: dept || undefined,
     limit: 50,
@@ -47,31 +46,19 @@ export default function QCTestingPage() {
 
   const petitions: Petition[] = data?.items ?? [];
 
-  const handleReceive = async (petitionId: string) => {
-    setReceiving(petitionId);
-    try {
-      await api.patch(`/petitions/${petitionId}/receive`, {
-        actor: user?.name ?? 'system',
-      });
-      toast.success('รับตัวอย่างเรียบร้อย');
-      refresh();
-    } catch (err) {
-      toast.error('รับตัวอย่างไม่สำเร็จ');
-      console.error(err);
-    } finally {
-      setReceiving(null);
-    }
-  };
-
   return (
     <AppLayout title="การทดสอบ QC">
     <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <FlaskConical className="h-6 w-6 text-primary-500" />
         <h1 className="text-2xl font-bold">การทดสอบ QC</h1>
-        <Badge variant="blue-soft" className="ml-auto">
+        <Badge variant="blue-soft" className="ml-2">
           {data?.total ?? 0} รายการ
         </Badge>
+        <Button variant="primary" className="ml-auto gap-2" onClick={() => setScanOpen(true)}>
+          <QrCode className="h-4 w-4" />
+          สแกน QR รับตัวอย่าง
+        </Button>
       </div>
 
       {/* Filters */}
@@ -129,17 +116,12 @@ export default function QCTestingPage() {
               petitions.map((p) => {
                 const statusCfg = PETITION_STATUS_CONFIG[p.status];
                 const sampleNames = p.items?.map((it) => it.sampleName).filter(Boolean).join(', ') || '-';
+                const canEnter = ENTRY_STATUSES.has(p.status);
                 return (
                   <TableRow
                     key={p._id}
-                    className={
-                      p.status === 'sampleSent'
-                        ? 'hover:bg-grey-50'
-                        : 'cursor-pointer hover:bg-grey-50'
-                    }
-                    onClick={() => {
-                      if (p.status !== 'sampleSent') navigate(`/qc-testing/${p._id}`);
-                    }}
+                    className={canEnter ? 'cursor-pointer hover:bg-grey-50' : 'hover:bg-grey-50'}
+                    onClick={() => { if (canEnter) navigate(`/qc-testing/${p._id}`); }}
                   >
                     <TableCell className="font-semibold text-primary-500">{p.petitionNo}</TableCell>
                     <TableCell>
@@ -154,20 +136,7 @@ export default function QCTestingPage() {
                       <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      {p.status === 'sampleSent' ? (
-                        <Button
-                          size="sm"
-                          variant="primary-outline"
-                          disabled={receiving === p._id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleReceive(p._id);
-                          }}
-                        >
-                          <PackageCheck className="h-4 w-4 mr-1" />
-                          {receiving === p._id ? 'กำลังรับ...' : 'รับตัวอย่าง'}
-                        </Button>
-                      ) : (
+                      {canEnter ? (
                         <Button
                           size="sm"
                           onClick={(e) => {
@@ -177,6 +146,8 @@ export default function QCTestingPage() {
                         >
                           เข้าตรวจ
                         </Button>
+                      ) : (
+                        <span className="text-xs text-grey-400">รอสแกนรับ</span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -187,6 +158,11 @@ export default function QCTestingPage() {
         </Table>
       </div>
     </div>
+    <QrReceiveModal
+      open={scanOpen}
+      onClose={() => setScanOpen(false)}
+      onReceived={refresh}
+    />
     </AppLayout>
   );
 }

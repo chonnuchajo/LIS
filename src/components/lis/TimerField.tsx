@@ -9,6 +9,7 @@ interface TimerFieldProps {
   field: ParameterValueField;
   value: unknown;
   onChange: (val: unknown) => void;
+  disabled?: boolean;
 }
 
 function formatRemaining(ms: number): string {
@@ -32,7 +33,7 @@ function formatTime(d: Date): string {
   return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function TimerField({ field, value, onChange }: TimerFieldProps) {
+export function TimerField({ field, value, onChange, disabled = false }: TimerFieldProps) {
   const startedAt = typeof value === "string" && value ? value : null;
   const duration = timerDurationMs(field);
 
@@ -50,6 +51,7 @@ export function TimerField({ field, value, onChange }: TimerFieldProps) {
         <Button
           size="sm"
           onClick={() => onChange(new Date().toISOString())}
+          disabled={disabled}
           className="h-8"
           type="button"
         >
@@ -69,6 +71,7 @@ export function TimerField({ field, value, onChange }: TimerFieldProps) {
         field={field}
         startedAt={startedAt}
         onReset={() => onChange(null)}
+        disabled={disabled}
       />
     );
   }
@@ -78,6 +81,7 @@ export function TimerField({ field, value, onChange }: TimerFieldProps) {
       field={field}
       startedAt={startedAt}
       onReset={() => onChange(null)}
+      disabled={disabled}
     />
   );
 }
@@ -86,10 +90,12 @@ function TimerRunning({
   field,
   startedAt,
   onReset,
+  disabled = false,
 }: {
   field: ParameterValueField;
   startedAt: string;
   onReset: () => void;
+  disabled?: boolean;
 }) {
   const [, setTick] = useState(0);
 
@@ -116,6 +122,7 @@ function TimerRunning({
           size="sm"
           variant="outline"
           onClick={onReset}
+          disabled={disabled}
           className="h-7"
           type="button"
         >
@@ -137,10 +144,12 @@ function TimerDone({
   field,
   startedAt,
   onReset,
+  disabled = false,
 }: {
   field: ParameterValueField;
   startedAt: string;
   onReset: () => void;
+  disabled?: boolean;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [soundPlaying, setSoundPlaying] = useState(true);
@@ -198,6 +207,7 @@ function TimerDone({
         size="sm"
         variant="outline"
         onClick={onReset}
+        disabled={disabled}
         className="h-7"
         type="button"
       >

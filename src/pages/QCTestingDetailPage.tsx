@@ -83,6 +83,7 @@ interface TestFieldProps {
   noteSaveInfo?: FieldSaveInfo;
   onChange: (val: unknown) => void;
   onNoteChange: (val: unknown) => void;
+  disabled?: boolean;
 }
 
 function TestField({
@@ -93,6 +94,7 @@ function TestField({
   noteSaveInfo,
   onChange,
   onNoteChange,
+  disabled = false,
 }: TestFieldProps) {
   const strVal = value == null ? '' : String(value);
   const strNote = noteValue == null ? '' : String(noteValue);
@@ -134,9 +136,9 @@ function TestField({
 
       {/* Input by type */}
       {field.type === 'timer' ? (
-        <TimerField field={field} value={value} onChange={onChange} />
+        <TimerField field={field} value={value} onChange={onChange} disabled={disabled} />
       ) : field.type === 'enum' ? (
-        <Select value={strVal || '__none__'} onValueChange={(v) => onChange(v === '__none__' ? '' : v)}>
+        <Select value={strVal || '__none__'} onValueChange={(v) => onChange(v === '__none__' ? '' : v)} disabled={disabled}>
           <SelectTrigger
             className={cn(
               'h-8 text-sm',
@@ -146,9 +148,10 @@ function TestField({
             <SelectValue placeholder="เลือกค่า..." />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__none__">— เลือก —</SelectItem>
+            {/* onSelect fires on every selection (even same value) so the latest editor is always recorded */}
+            <SelectItem value="__none__" onSelect={() => onChange('')}>— เลือก —</SelectItem>
             {field.options?.map((opt) => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+              <SelectItem key={opt} value={opt} onSelect={() => onChange(opt)}>{opt}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -162,6 +165,7 @@ function TestField({
           max={field.type !== 'text' ? (field as any).max : undefined}
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
           className={cn(
             'h-8 text-sm',
             isAbnormal && 'border-red-400 ring-1 ring-red-200',
@@ -196,8 +200,9 @@ function TestField({
           <textarea
             value={strNote}
             onChange={(e) => onNoteChange(e.target.value)}
+            disabled={disabled}
             placeholder={`อธิบายเพิ่มเติมเมื่อเลือก "${strVal}"`}
-            className="w-full text-sm rounded border border-amber-300 bg-white px-2 py-1 min-h-[60px] focus:outline-none focus:ring-1 focus:ring-amber-400"
+            className="w-full text-sm rounded border border-amber-300 bg-white px-2 py-1 min-h-[60px] focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:bg-grey-50 disabled:cursor-not-allowed"
           />
           {noteSaveInfo?.state === 'saved' && noteSaveInfo.savedBy && (
             <p className="text-xs text-amber-700">
@@ -426,6 +431,29 @@ export default function QCTestingDetailPage() {
     }
   };
 
+  const handleSendBack = async () => {
+    const receiver = petition.receivedBy?.trim();
+    const target = receiver || 'ผู้รับงาน';
+    if (!window.confirm(`ส่งคำร้องนี้กลับให้ "${target}" แก้ไข?`)) return;
+    setSubmitting(true);
+    try {
+      await api.patch(`/petitions/${petition._id}`, {
+        status: 'inProgress',
+        actor: user?.name ?? 'system',
+      });
+      toast.success('ส่งกลับให้แก้ไขเรียบร้อย', {
+        description: receiver ? `${receiver} สามารถแก้ไขผลทดสอบได้แล้ว` : undefined,
+      });
+      navigate('/qc-approval');
+    } catch {
+      toast.error('ส่งกลับไม่สำเร็จ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const isLocked = petition.status === 'success';
+
   return (
     <AppLayout title={petition.petitionNo}>
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -504,6 +532,7 @@ export default function QCTestingDetailPage() {
                               noteValue={values[k]?.[noteLabel] ?? ''}
                               saveInfo={saveStates[k]?.[field.label]}
                               noteSaveInfo={saveStates[k]?.[noteLabel]}
+                              disabled={isLocked}
                               onChange={(val) =>
                                 handleFieldChange(petition, item, param, field.label, val)
                               }
@@ -552,9 +581,30 @@ export default function QCTestingDetailPage() {
       )}
 
       {petition.status === 'success' && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-center">
-          <CheckCircle2 className="h-6 w-6 text-green-500 mx-auto mb-1" />
-          <p className="text-sm font-semibold text-green-700">บันทึกผลแล้ว</p>
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4 flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-1">
+            <CheckCircle2 className="h-6 w-6 text-green-500" />
+            <p className="text-sm font-semibold text-green-700">บันทึกผลแล้ว</p>
+            <p className="text-xs text-grey-500">
+              {petition.receivedBy
+                ? `ผู้รับงาน: ${petition.receivedBy}`
+                : 'ไม่ระบุผู้รับงาน'}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSendBack}
+            disabled={submitting}
+            className="gap-2"
+          >
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            ส่งให้แก้ไข
+          </Button>
         </div>
       )}
     </div>
