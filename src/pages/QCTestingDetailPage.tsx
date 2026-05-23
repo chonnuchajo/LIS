@@ -8,6 +8,7 @@ import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { isFieldAbnormal } from '@/lib/parameterValidation';
 import { cn } from '@/lib/utils';
+import { TimerField } from '@/components/lis/TimerField';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -132,7 +133,9 @@ function TestField({
       </div>
 
       {/* Input by type */}
-      {field.type === 'enum' ? (
+      {field.type === 'timer' ? (
+        <TimerField field={field} value={value} onChange={onChange} />
+      ) : field.type === 'enum' ? (
         <Select value={strVal || '__none__'} onValueChange={(v) => onChange(v === '__none__' ? '' : v)}>
           <SelectTrigger
             className={cn(
@@ -153,7 +156,7 @@ function TestField({
         <div className="text-xs text-grey-400 italic py-1">แนบรูปภาพ (ยังไม่รองรับในเวอร์ชันนี้)</div>
       ) : (
         <Input
-          type={field.type === 'number' || field.type === 'float' || field.type === 'timer' ? 'number' : 'text'}
+          type={field.type === 'number' || field.type === 'float' ? 'number' : 'text'}
           step={field.type === 'float' ? 'any' : undefined}
           min={field.type !== 'text' ? (field as any).min : undefined}
           max={field.type !== 'text' ? (field as any).max : undefined}
