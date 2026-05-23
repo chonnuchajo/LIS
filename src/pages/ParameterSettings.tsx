@@ -149,6 +149,8 @@ const emptyValueField = (): ParameterValueField => ({
   type: "text",
   unit: "",
   standardValue: null,
+  standardOperator: undefined,
+  standardValue2: null,
   options: [],
   requireNoteOn: [],
   expectedValues: [],
@@ -488,6 +490,8 @@ function ValueFieldEditor({
                     requireNoteOn: v === "enum" ? field.requireNoteOn ?? [] : [],
                     expectedValues: v === "enum" ? field.expectedValues ?? [] : [],
                     standardValue: v === "number" || v === "float" ? field.standardValue : null,
+                    standardOperator: v === "number" || v === "float" ? field.standardOperator : undefined,
+                    standardValue2: v === "number" || v === "float" ? field.standardValue2 ?? null : null,
                   })
                 }
               >
@@ -718,8 +722,25 @@ function ParameterDialog({
       if ((f.type === "number" || f.type === "float") && !f.unit?.trim()) {
         return `ช่อง "${f.label}": ต้องระบุหน่วย`;
       }
-      if ((f.type === "number" || f.type === "float") && f.standardValue == null) {
-        return `ช่อง "${f.label}": ต้องระบุค่ามาตรฐาน`;
+      if (f.type === "number" || f.type === "float") {
+        if (f.standardOperator) {
+          if (f.standardValue == null) {
+            return `ช่อง "${f.label}": ต้องระบุค่ามาตรฐาน`;
+          }
+          if (f.standardOperator === "between") {
+            if (f.standardValue2 == null) {
+              return `ช่อง "${f.label}": ต้องระบุค่าสิ้นสุดของช่วง`;
+            }
+            if (f.standardValue > f.standardValue2) {
+              return `ช่อง "${f.label}": ค่าเริ่มต้นต้องน้อยกว่าหรือเท่ากับค่าสิ้นสุด`;
+            }
+          }
+          if (f.standardOperator === "tolerance") {
+            if (f.standardValue2 == null || f.standardValue2 <= 0) {
+              return `ช่อง "${f.label}": tolerance % ต้องมากกว่า 0`;
+            }
+          }
+        }
       }
       if (f.type === "enum" && (!f.options || f.options.length === 0)) {
         return `ช่อง "${f.label}": ต้องมีตัวเลือกอย่างน้อย 1 ตัว`;
