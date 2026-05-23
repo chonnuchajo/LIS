@@ -52,6 +52,7 @@ import {
   type ParameterItem,
   type ParameterValueField,
   type ParameterValueFieldType,
+  type StandardOperator,
 } from "@/lib/api";
 import {
   formatClassificationOption,
@@ -67,6 +68,17 @@ const VALUE_TYPE_OPTIONS: { value: ParameterValueFieldType; label: string }[] = 
   { value: "enum", label: "ตัวเลือก (Enum)" },
   { value: "photo", label: "ภาพถ่าย (Photo)" },
   { value: "timer", label: "จับเวลา (Timer)" },
+];
+
+const OPERATOR_OPTIONS: { value: StandardOperator | "none"; label: string }[] = [
+  { value: "none", label: "ไม่ตรวจค่าผิดปกติ" },
+  { value: "lt", label: "< น้อยกว่า" },
+  { value: "lte", label: "≤ น้อยกว่าหรือเท่ากับ" },
+  { value: "eq", label: "= เท่ากับ" },
+  { value: "gte", label: "≥ มากกว่าหรือเท่ากับ" },
+  { value: "gt", label: "> มากกว่า" },
+  { value: "between", label: "ระหว่าง (range)" },
+  { value: "tolerance", label: "± % (tolerance)" },
 ];
 
 type MasterItemRecord = Record<string, unknown>;
@@ -369,6 +381,50 @@ function OptionRow({
   );
 }
 
+function StandardPreview({ field }: { field: ParameterValueField }) {
+  const op = field.standardOperator;
+  const v1 = field.standardValue;
+  const v2 = field.standardValue2;
+  const unit = field.unit ? ` ${field.unit}` : "";
+
+  if (!op) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        ยังไม่ได้กำหนดเงื่อนไข — จะไม่ตรวจค่าผิดปกติ
+      </p>
+    );
+  }
+  if (v1 == null) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        ยังไม่ได้กรอกค่ามาตรฐาน
+      </p>
+    );
+  }
+
+  let text = "";
+  switch (op) {
+    case "lt": text = `ค่าปกติ: < ${v1}${unit}`; break;
+    case "lte": text = `ค่าปกติ: ≤ ${v1}${unit}`; break;
+    case "eq": text = `ค่าปกติ: = ${v1}${unit}`; break;
+    case "gte": text = `ค่าปกติ: ≥ ${v1}${unit}`; break;
+    case "gt": text = `ค่าปกติ: > ${v1}${unit}`; break;
+    case "between":
+      if (v2 == null) return <p className="text-xs text-muted-foreground">ยังไม่ได้กรอกค่าสิ้นสุดของช่วง</p>;
+      text = `ค่าปกติ: ${v1} - ${v2}${unit}`;
+      break;
+    case "tolerance":
+      if (v2 == null || v2 <= 0) return <p className="text-xs text-muted-foreground">ยังไม่ได้กรอก tolerance %</p>;
+      {
+        const low = v1 - Math.abs(v1) * (v2 / 100);
+        const high = v1 + Math.abs(v1) * (v2 / 100);
+        text = `ค่าปกติ: ${v1} ± ${v2}% (${low} - ${high})${unit}`;
+      }
+      break;
+  }
+  return <p className="text-xs text-emerald-700">{text}</p>;
+}
+
 type ValueFieldEditorProps = {
   field: ParameterValueField;
   index: number;
@@ -510,30 +566,123 @@ function ValueFieldEditor({
           </div>
 
           {requiresUnit ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
-              <div className="sm:col-span-4 space-y-1.5">
-                <Label className="text-sm">หน่วย *</Label>
-                <Input
-                  value={field.unit ?? ""}
-                  onChange={(e) => onChange({ ...field, unit: e.target.value })}
-                  placeholder="เช่น %, mg/L, cP"
-                  className="h-10"
-                />
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
+                <div className="sm:col-span-3 space-y-1.5">
+                  <Label className="text-sm">หน่วย *</Label>
+                  <Input
+                    value={field.unit ?? ""}
+                    onChange={(e) => onChange({ ...field, unit: e.target.value })}
+                    placeholder="เช่น %, mg/L, cP"
+                    className="h-10"
+                  />
+                </div>
+                <div className="sm:col-span-4 space-y-1.5">
+                  <Label className="text-sm">เงื่อนไข</Label>
+                  <Select
+                    value={field.standardOperator ?? "none"}
+                    onValueChange={(v) => {
+                      const op = v === "none" ? undefined : (v as StandardOperator);
+                      onChange({
+                        ...field,
+                        standardOperator: op,
+                        standardValue2:
+                          op === "between" || op === "tolerance" ? field.standardValue2 ?? null : null,
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {OPERATOR_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {field.standardOperator === "between" ? (
+                  <>
+                    <div className="sm:col-span-3 space-y-1.5">
+                      <Label className="text-sm">ตั้งแต่ *</Label>
+                      <Input
+                        type="number"
+                        value={field.standardValue ?? ""}
+                        onChange={(e) =>
+                          onChange({
+                            ...field,
+                            standardValue: e.target.value === "" ? null : Number(e.target.value),
+                          })
+                        }
+                        className="h-10"
+                      />
+                    </div>
+                    <div className="sm:col-span-2 space-y-1.5">
+                      <Label className="text-sm">ถึง *</Label>
+                      <Input
+                        type="number"
+                        value={field.standardValue2 ?? ""}
+                        onChange={(e) =>
+                          onChange({
+                            ...field,
+                            standardValue2: e.target.value === "" ? null : Number(e.target.value),
+                          })
+                        }
+                        className="h-10"
+                      />
+                    </div>
+                  </>
+                ) : field.standardOperator === "tolerance" ? (
+                  <>
+                    <div className="sm:col-span-3 space-y-1.5">
+                      <Label className="text-sm">ค่ามาตรฐาน *</Label>
+                      <Input
+                        type="number"
+                        value={field.standardValue ?? ""}
+                        onChange={(e) =>
+                          onChange({
+                            ...field,
+                            standardValue: e.target.value === "" ? null : Number(e.target.value),
+                          })
+                        }
+                        className="h-10"
+                      />
+                    </div>
+                    <div className="sm:col-span-2 space-y-1.5">
+                      <Label className="text-sm">± (%) *</Label>
+                      <Input
+                        type="number"
+                        value={field.standardValue2 ?? ""}
+                        onChange={(e) =>
+                          onChange({
+                            ...field,
+                            standardValue2: e.target.value === "" ? null : Number(e.target.value),
+                          })
+                        }
+                        className="h-10"
+                      />
+                    </div>
+                  </>
+                ) : field.standardOperator ? (
+                  <div className="sm:col-span-5 space-y-1.5">
+                    <Label className="text-sm">ค่ามาตรฐาน *</Label>
+                    <Input
+                      type="number"
+                      value={field.standardValue ?? ""}
+                      onChange={(e) =>
+                        onChange({
+                          ...field,
+                          standardValue: e.target.value === "" ? null : Number(e.target.value),
+                        })
+                      }
+                      className="h-10"
+                    />
+                  </div>
+                ) : null}
               </div>
-              <div className="sm:col-span-8 space-y-1.5">
-                <Label className="text-sm">ค่ามาตรฐาน *</Label>
-                <Input
-                  type="number"
-                  value={field.standardValue ?? ""}
-                  onChange={(e) =>
-                    onChange({
-                      ...field,
-                      standardValue: e.target.value === "" ? null : Number(e.target.value),
-                    })
-                  }
-                  className="h-10"
-                />
-              </div>
+              <StandardPreview field={field} />
             </div>
           ) : null}
 
