@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FlaskConical, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, FlaskConical, CheckCircle2, Loader2, AlertCircle, AlertTriangle, Save, Send } from 'lucide-react';
+import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import { usePetition } from '@/hooks/usePetition';
 import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { isEnumAbnormal } from '@/lib/parameterValidation';
+import { cn } from '@/lib/utils';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -77,6 +80,7 @@ function TestField({
   const strNote = noteValue == null ? '' : String(noteValue);
   const requireNoteOn = field.requireNoteOn ?? [];
   const showNote = field.type === 'enum' && requireNoteOn.includes(strVal);
+  const isAbnormal = isEnumAbnormal(field, value);
 
   return (
     <div className="space-y-1">
@@ -86,6 +90,14 @@ function TestField({
           {field.unit && <span className="text-grey-400 font-normal ml-1">({field.unit})</span>}
           {field.required && <span className="text-red-500 ml-1">*</span>}
         </label>
+        {isAbnormal && (
+          <span
+            className="inline-flex items-center"
+            title={`ค่าผิดปกติ — คาดหวัง: ${(field.expectedValues ?? []).join(', ')}`}
+          >
+            <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+          </span>
+        )}
         {/* save state indicator */}
         {saveInfo?.state === 'saving' && (
           <Loader2 className="h-3 w-3 animate-spin text-grey-400" />
@@ -101,7 +113,12 @@ function TestField({
       {/* Input by type */}
       {field.type === 'enum' ? (
         <Select value={strVal || '__none__'} onValueChange={(v) => onChange(v === '__none__' ? '' : v)}>
-          <SelectTrigger className="h-8 text-sm">
+          <SelectTrigger
+            className={cn(
+              'h-8 text-sm',
+              isAbnormal && 'border-red-400 ring-1 ring-red-200',
+            )}
+          >
             <SelectValue placeholder="เลือกค่า..." />
           </SelectTrigger>
           <SelectContent>
@@ -181,6 +198,7 @@ export default function QCTestingDetailPage() {
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({});
   // key: resultKey(itemSeq, parameterId) → { fieldLabel → FieldSaveInfo }
   const [saveStates, setSaveStates] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
+  const [submitting, setSubmitting] = useState(false);
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Load parameters and existing results
@@ -188,17 +206,18 @@ export default function QCTestingDetailPage() {
     api.getParameters().then(setParameters).catch(() => {});
   }, []);
 
-  // Auto-advance status pendingReview → inProgress on entering the page
+  // Auto-advance status pendingReview → inProgress when QC enters the first value
   const advancedRef = useRef(false);
-  useEffect(() => {
+  const advanceToInProgress = useCallback(() => {
     if (!petition || advancedRef.current) return;
-    if (petition.status === 'pendingReview') {
-      advancedRef.current = true;
-      api.patch(`/petitions/${petition._id}`, {
-        status: 'inProgress',
-        actor: user?.name ?? 'system',
-      }).catch(() => {});
-    }
+    if (petition.status !== 'pendingReview') return;
+    advancedRef.current = true;
+    api.patch(`/petitions/${petition._id}`, {
+      status: 'inProgress',
+      actor: user?.name ?? 'system',
+    }).catch(() => {
+      advancedRef.current = false;
+    });
   }, [petition, user]);
 
   useEffect(() => {
@@ -234,6 +253,9 @@ export default function QCTestingDetailPage() {
       newVal: unknown,
     ) => {
       const k = resultKey(item.seq, param._id!);
+
+      // First field entry triggers pendingReview → inProgress
+      advanceToInProgress();
 
       // Update local value immediately
       setValues((prev) => ({
@@ -287,7 +309,7 @@ export default function QCTestingDetailPage() {
         }
       }, 800);
     },
-    [user],
+    [user, advanceToInProgress],
   );
 
   if (petitionLoading) {
@@ -311,6 +333,65 @@ export default function QCTestingDetailPage() {
   }
 
   const items = petition.items ?? [];
+
+  const validate = (): string[] => {
+    const missing: string[] = [];
+    items.forEach((item) => {
+      const matched = matchParameters(item, parameters);
+      matched.forEach((param) => {
+        const k = resultKey(item.seq, param._id!);
+        const itemValues = values[k] ?? {};
+        (param.valueFields ?? []).forEach((field) => {
+          const val = itemValues[field.label];
+          if (field.required && (val == null || String(val).trim() === '')) {
+            missing.push(`รายการ ${item.seq} › ${param.name} › ${field.label}`);
+            return;
+          }
+          // Conditional note required when value is in requireNoteOn
+          if (
+            field.type === 'enum' &&
+            (field.requireNoteOn ?? []).includes(String(val ?? ''))
+          ) {
+            const noteVal = itemValues[noteLabelFor(field.label)];
+            if (!noteVal || String(noteVal).trim() === '') {
+              missing.push(`รายการ ${item.seq} › ${param.name} › ${field.label} (คำอธิบาย)`);
+            }
+          }
+        });
+      });
+    });
+    return missing;
+  };
+
+  const handleSaveDraft = () => {
+    toast.success('บันทึกแบบร่างเรียบร้อย', {
+      description: 'ค่าที่กรอกถูกบันทึกอัตโนมัติแล้ว',
+    });
+    navigate('/qc-testing');
+  };
+
+  const handleSubmitResult = async () => {
+    const missing = validate();
+    if (missing.length > 0) {
+      toast.error('กรอกข้อมูลไม่ครบ', {
+        description: `ขาด ${missing.length} ช่อง:\n${missing.slice(0, 5).join('\n')}${missing.length > 5 ? `\n…และอีก ${missing.length - 5}` : ''}`,
+      });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.patch(`/petitions/${petition._id}`, {
+        status: 'success',
+        actor: user?.name ?? 'system',
+      });
+      toast.success('บันทึกผลเรียบร้อย');
+      navigate('/qc-testing');
+    } catch {
+      toast.error('บันทึกผลไม่สำเร็จ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <AppLayout title={petition.petitionNo}>
@@ -408,6 +489,41 @@ export default function QCTestingDetailPage() {
           </Card>
         );
       })}
+
+      {/* Action buttons */}
+      {items.length > 0 && petition.status !== 'success' && (
+        <div className="sticky bottom-0 -mx-6 px-6 py-3 bg-white border-t shadow-md flex items-center justify-end gap-3">
+          <Button
+            variant="outline"
+            onClick={handleSaveDraft}
+            disabled={submitting}
+            className="gap-2"
+          >
+            <Save className="h-4 w-4" />
+            บันทึกแบบร่าง
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSubmitResult}
+            disabled={submitting}
+            className="gap-2"
+          >
+            {submitting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            บันทึกผล
+          </Button>
+        </div>
+      )}
+
+      {petition.status === 'success' && (
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-center">
+          <CheckCircle2 className="h-6 w-6 text-green-500 mx-auto mb-1" />
+          <p className="text-sm font-semibold text-green-700">บันทึกผลแล้ว</p>
+        </div>
+      )}
     </div>
     </AppLayout>
   );
