@@ -218,11 +218,22 @@ export type MachineItem = {
 
 export type ParameterValueFieldType = "text" | "number" | "float" | "enum" | "photo" | "timer";
 
+export type StandardOperator =
+  | "lt"
+  | "lte"
+  | "eq"
+  | "gte"
+  | "gt"
+  | "between"
+  | "tolerance";
+
 export type ParameterValueField = {
   label: string;
   type: ParameterValueFieldType;
   unit?: string;
   standardValue?: number | null;
+  standardOperator?: StandardOperator;
+  standardValue2?: number | null;
   options?: string[];
   requireNoteOn?: string[];
   expectedValues?: string[];
