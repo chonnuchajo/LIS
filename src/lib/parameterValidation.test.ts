@@ -1,5 +1,12 @@
-import { describe, it, expect } from "vitest";
-import { isEnumAbnormal, isNumericAbnormal, isFieldAbnormal } from "./parameterValidation";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  isEnumAbnormal,
+  isNumericAbnormal,
+  isFieldAbnormal,
+  timerDurationMs,
+  timerRemainingMs,
+  isTimerDone,
+} from "./parameterValidation";
 import type { ParameterValueField } from "./api";
 
 const makeField = (overrides: Partial<ParameterValueField>): ParameterValueField => ({
@@ -202,5 +209,121 @@ describe("isFieldAbnormal", () => {
   it("returns false for text fields", () => {
     const field: ParameterValueField = { label: "t", type: "text" };
     expect(isFieldAbnormal(field, "anything")).toBe(false);
+  });
+});
+
+const makeTimer = (overrides: Partial<ParameterValueField>): ParameterValueField => ({
+  label: "incubation",
+  type: "timer",
+  timerDuration: 30,
+  timerUnit: "minute",
+  ...overrides,
+});
+
+describe("timerDurationMs", () => {
+  it("returns null for non-timer types", () => {
+    const f: ParameterValueField = { label: "x", type: "number", timerDuration: 30, timerUnit: "minute" };
+    expect(timerDurationMs(f)).toBeNull();
+  });
+
+  it("returns null when duration is null/0/negative", () => {
+    expect(timerDurationMs(makeTimer({ timerDuration: null }))).toBeNull();
+    expect(timerDurationMs(makeTimer({ timerDuration: 0 }))).toBeNull();
+    expect(timerDurationMs(makeTimer({ timerDuration: -5 }))).toBeNull();
+  });
+
+  it("returns null when unit is missing", () => {
+    expect(timerDurationMs(makeTimer({ timerUnit: undefined }))).toBeNull();
+  });
+
+  it("converts minute to ms", () => {
+    expect(timerDurationMs(makeTimer({ timerDuration: 30, timerUnit: "minute" }))).toBe(1_800_000);
+  });
+
+  it("converts hour to ms", () => {
+    expect(timerDurationMs(makeTimer({ timerDuration: 2, timerUnit: "hour" }))).toBe(7_200_000);
+  });
+
+  it("converts day to ms", () => {
+    expect(timerDurationMs(makeTimer({ timerDuration: 1, timerUnit: "day" }))).toBe(86_400_000);
+  });
+
+  it("converts month (30 days) to ms", () => {
+    expect(timerDurationMs(makeTimer({ timerDuration: 1, timerUnit: "month" }))).toBe(2_592_000_000);
+  });
+});
+
+describe("timerRemainingMs", () => {
+  const FIXED_NOW = new Date("2026-05-23T15:30:00Z").getTime();
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns null when field has no duration", () => {
+    const f = makeTimer({ timerDuration: null });
+    expect(timerRemainingMs(f, new Date(FIXED_NOW).toISOString())).toBeNull();
+  });
+
+  it("returns full duration when startedAt is null/undefined", () => {
+    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    expect(timerRemainingMs(f, null)).toBe(1_800_000);
+    expect(timerRemainingMs(f, undefined)).toBe(1_800_000);
+  });
+
+  it("computes remaining when partially elapsed", () => {
+    const startedAt = new Date(FIXED_NOW - 5 * 60_000).toISOString();
+    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    expect(timerRemainingMs(f, startedAt)).toBe(25 * 60_000);
+  });
+
+  it("returns 0 when fully elapsed (clamped, not negative)", () => {
+    const startedAt = new Date(FIXED_NOW - 31 * 60_000).toISOString();
+    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    expect(timerRemainingMs(f, startedAt)).toBe(0);
+  });
+
+  it("returns null for invalid ISO string", () => {
+    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    expect(timerRemainingMs(f, "not-a-date")).toBeNull();
+  });
+});
+
+describe("isTimerDone", () => {
+  const FIXED_NOW = new Date("2026-05-23T15:30:00Z").getTime();
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns false when not started", () => {
+    const f = makeTimer({});
+    expect(isTimerDone(f, null)).toBe(false);
+  });
+
+  it("returns false when still running", () => {
+    const startedAt = new Date(FIXED_NOW - 5 * 60_000).toISOString();
+    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    expect(isTimerDone(f, startedAt)).toBe(false);
+  });
+
+  it("returns true when fully elapsed", () => {
+    const startedAt = new Date(FIXED_NOW - 60 * 60_000).toISOString();
+    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    expect(isTimerDone(f, startedAt)).toBe(true);
+  });
+
+  it("returns true at exact boundary", () => {
+    const startedAt = new Date(FIXED_NOW - 30 * 60_000).toISOString();
+    const f = makeTimer({ timerDuration: 30, timerUnit: "minute" });
+    expect(isTimerDone(f, startedAt)).toBe(true);
   });
 });

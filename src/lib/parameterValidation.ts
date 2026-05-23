@@ -1,4 +1,4 @@
-import type { ParameterValueField } from "./api";
+import type { ParameterValueField, TimerUnit } from "./api";
 
 export function isEnumAbnormal(
   field: ParameterValueField,
@@ -49,4 +49,40 @@ export function isFieldAbnormal(
   value: unknown,
 ): boolean {
   return isEnumAbnormal(field, value) || isNumericAbnormal(field, value);
+}
+
+const TIMER_UNIT_TO_MS: Record<TimerUnit, number> = {
+  minute: 60_000,
+  hour: 3_600_000,
+  day: 86_400_000,
+  month: 30 * 86_400_000,
+};
+
+export function timerDurationMs(field: ParameterValueField): number | null {
+  if (field.type !== "timer") return null;
+  if (!field.timerDuration || field.timerDuration <= 0) return null;
+  if (!field.timerUnit) return null;
+  return field.timerDuration * TIMER_UNIT_TO_MS[field.timerUnit];
+}
+
+export function timerRemainingMs(
+  field: ParameterValueField,
+  startedAtIso: string | null | undefined,
+): number | null {
+  const total = timerDurationMs(field);
+  if (total == null) return null;
+  if (!startedAtIso) return total;
+  const startedAt = new Date(startedAtIso).getTime();
+  if (Number.isNaN(startedAt)) return null;
+  const elapsed = Date.now() - startedAt;
+  return Math.max(0, total - elapsed);
+}
+
+export function isTimerDone(
+  field: ParameterValueField,
+  startedAtIso: string | null | undefined,
+): boolean {
+  if (!startedAtIso) return false;
+  const remaining = timerRemainingMs(field, startedAtIso);
+  return remaining != null && remaining <= 0;
 }
