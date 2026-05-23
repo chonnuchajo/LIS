@@ -3,20 +3,13 @@ import { CheckCircle2, Play, RotateCcw, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ParameterValueField } from "@/lib/api";
-import { timerDurationMs, timerRemainingMs, isTimerDone } from "@/lib/parameterValidation";
+import { timerDurationMs, timerRemainingMs, isTimerDone, formatTimerHuman } from "@/lib/parameterValidation";
 
 interface TimerFieldProps {
   field: ParameterValueField;
   value: unknown;
   onChange: (val: unknown) => void;
 }
-
-const UNIT_LABEL: Record<string, string> = {
-  minute: "นาที",
-  hour: "ชั่วโมง",
-  day: "วัน",
-  month: "เดือน",
-};
 
 function formatRemaining(ms: number): string {
   if (ms < 60_000) return `${Math.ceil(ms / 1000)}s`;
@@ -33,11 +26,6 @@ function formatRemaining(ms: number): string {
   const d = Math.floor(ms / 86_400_000);
   const h = Math.floor((ms % 86_400_000) / 3_600_000);
   return `${d}d ${h}h`;
-}
-
-function formatTotal(field: ParameterValueField): string {
-  if (!field.timerDuration || !field.timerUnit) return "";
-  return `${field.timerDuration} ${UNIT_LABEL[field.timerUnit] ?? field.timerUnit}`;
 }
 
 function formatTime(d: Date): string {
@@ -69,7 +57,7 @@ export function TimerField({ field, value, onChange }: TimerFieldProps) {
           เริ่มจับเวลา
         </Button>
         <span className="text-xs text-grey-500">
-          ระยะเวลา {formatTotal(field)}
+          ระยะเวลา {formatTimerHuman(field.timerDurationSec ?? 0)}
         </span>
       </div>
     );
@@ -122,7 +110,7 @@ function TimerRunning({
     <div className="space-y-1">
       <div className="flex items-center gap-3">
         <span className="text-sm font-mono">
-          เหลือ {formatRemaining(remainingNow)} / {formatTotal(field)}
+          เหลือ {formatRemaining(remainingNow)} / {formatTimerHuman(field.timerDurationSec ?? 0)}
         </span>
         <Button
           size="sm"
