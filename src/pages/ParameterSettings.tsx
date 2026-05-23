@@ -53,6 +53,7 @@ import {
   type ParameterValueField,
   type ParameterValueFieldType,
   type StandardOperator,
+  type TimerUnit,
 } from "@/lib/api";
 import {
   formatClassificationOption,
@@ -166,6 +167,8 @@ const emptyValueField = (): ParameterValueField => ({
   options: [],
   requireNoteOn: [],
   expectedValues: [],
+  timerDuration: null,
+  timerUnit: undefined,
   required: false,
 });
 
@@ -548,6 +551,8 @@ function ValueFieldEditor({
                     standardValue: v === "number" || v === "float" ? field.standardValue : null,
                     standardOperator: v === "number" || v === "float" ? field.standardOperator : undefined,
                     standardValue2: v === "number" || v === "float" ? field.standardValue2 ?? null : null,
+                    timerDuration: v === "timer" ? field.timerDuration ?? null : null,
+                    timerUnit: v === "timer" ? field.timerUnit : undefined,
                   })
                 }
               >
@@ -893,6 +898,14 @@ function ParameterDialog({
       }
       if (f.type === "enum" && (!f.options || f.options.length === 0)) {
         return `ช่อง "${f.label}": ต้องมีตัวเลือกอย่างน้อย 1 ตัว`;
+      }
+      if (f.type === "timer") {
+        if (f.timerDuration == null || f.timerDuration <= 0) {
+          return `ช่อง "${f.label}": ต้องระบุระยะเวลา > 0`;
+        }
+        if (!f.timerUnit) {
+          return `ช่อง "${f.label}": ต้องระบุหน่วยเวลา`;
+        }
       }
     }
     return null;
