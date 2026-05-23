@@ -227,6 +227,8 @@ export type StandardOperator =
   | "between"
   | "tolerance";
 
+export type TimerUnit = "minute" | "hour" | "day" | "month";
+
 export type ParameterValueField = {
   label: string;
   type: ParameterValueFieldType;
@@ -237,6 +239,8 @@ export type ParameterValueField = {
   options?: string[];
   requireNoteOn?: string[];
   expectedValues?: string[];
+  timerDuration?: number | null;
+  timerUnit?: TimerUnit;
   required?: boolean;
 };
 
