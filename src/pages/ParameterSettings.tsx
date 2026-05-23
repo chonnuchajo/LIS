@@ -151,6 +151,7 @@ const emptyValueField = (): ParameterValueField => ({
   standardValue: null,
   options: [],
   requireNoteOn: [],
+  expectedValues: [],
   required: false,
 });
 
@@ -476,6 +477,7 @@ function ValueFieldEditor({
                     unit: v === "number" || v === "float" ? field.unit ?? "" : "",
                     options: v === "enum" ? field.options ?? [] : [],
                     requireNoteOn: v === "enum" ? field.requireNoteOn ?? [] : [],
+                    expectedValues: v === "enum" ? field.expectedValues ?? [] : [],
                     standardValue: v === "number" || v === "float" ? field.standardValue : null,
                   })
                 }
