@@ -16,7 +16,7 @@ const ValueFieldSchema = new mongoose.Schema({
     default: null,
   },
   standardValue2: { type: Number, default: null },
-  timerDuration: { type: Number, default: null },
+  timerDurationSec: { type: Number, default: null },
   timerUnit: {
     type: String,
     enum: ['minute', 'hour', 'day', 'month', null],
@@ -79,11 +79,11 @@ ParameterSchema.pre('validate', function (next) {
       }
     }
     if (f.type === 'timer') {
-      if (f.timerDuration == null || f.timerDuration <= 0) {
-        return next(new Error(`ช่อง "${f.label}": ต้องระบุระยะเวลา (timer) > 0`));
-      }
       if (!f.timerUnit) {
         return next(new Error(`ช่อง "${f.label}": ต้องระบุหน่วยเวลา (นาที/ชั่วโมง/วัน/เดือน)`));
+      }
+      if (f.timerDurationSec == null || f.timerDurationSec <= 0) {
+        return next(new Error(`ช่อง "${f.label}": ต้องระบุระยะเวลา > 0`));
       }
     }
     if (f.min != null && f.max != null && f.min > f.max) {
