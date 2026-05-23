@@ -6,7 +6,7 @@ import AppLayout from '@/components/lis/AppLayout';
 import { usePetition } from '@/hooks/usePetition';
 import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { isEnumAbnormal } from '@/lib/parameterValidation';
+import { isFieldAbnormal } from '@/lib/parameterValidation';
 import { cn } from '@/lib/utils';
 import {
   PETITION_DEPT_LABELS,
@@ -57,6 +57,23 @@ function resultKey(itemSeq: number, parameterId: string) {
 
 export const noteLabelFor = (mainLabel: string) => `${mainLabel}__note`;
 
+function describeStandard(field: ParameterValueField): string {
+  const op = field.standardOperator;
+  const v1 = field.standardValue;
+  const v2 = field.standardValue2;
+  const unit = field.unit ? ` ${field.unit}` : '';
+  switch (op) {
+    case 'lt': return `< ${v1}${unit}`;
+    case 'lte': return `≤ ${v1}${unit}`;
+    case 'eq': return `= ${v1}${unit}`;
+    case 'gte': return `≥ ${v1}${unit}`;
+    case 'gt': return `> ${v1}${unit}`;
+    case 'between': return `${v1} - ${v2}${unit}`;
+    case 'tolerance': return `${v1} ± ${v2}%${unit}`;
+    default: return '';
+  }
+}
+
 interface TestFieldProps {
   field: ParameterValueField;
   value: unknown;
@@ -80,7 +97,7 @@ function TestField({
   const strNote = noteValue == null ? '' : String(noteValue);
   const requireNoteOn = field.requireNoteOn ?? [];
   const showNote = field.type === 'enum' && requireNoteOn.includes(strVal);
-  const isAbnormal = isEnumAbnormal(field, value);
+  const isAbnormal = isFieldAbnormal(field, value);
 
   return (
     <div className="space-y-1">
@@ -93,7 +110,11 @@ function TestField({
         {isAbnormal && (
           <span
             className="inline-flex items-center"
-            title={`ค่าผิดปกติ — คาดหวัง: ${(field.expectedValues ?? []).join(', ')}`}
+            title={
+              field.type === 'enum'
+                ? `ค่าผิดปกติ — คาดหวัง: ${(field.expectedValues ?? []).join(', ')}`
+                : `ค่าผิดปกติ — คาดหวัง: ${describeStandard(field)}`
+            }
           >
             <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
           </span>
@@ -138,8 +159,17 @@ function TestField({
           max={field.type !== 'text' ? (field as any).max : undefined}
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
-          className="h-8 text-sm"
-          placeholder={field.standardValue != null ? `มาตรฐาน: ${field.standardValue}` : undefined}
+          className={cn(
+            'h-8 text-sm',
+            isAbnormal && 'border-red-400 ring-1 ring-red-200',
+          )}
+          placeholder={
+            field.standardOperator
+              ? `มาตรฐาน: ${describeStandard(field)}`
+              : field.standardValue != null
+                ? `มาตรฐาน: ${field.standardValue}`
+                : undefined
+          }
         />
       )}
 
