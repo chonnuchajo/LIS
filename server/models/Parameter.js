@@ -9,6 +9,13 @@ const ValueFieldSchema = new mongoose.Schema({
   options: { type: [String], default: [] },
   requireNoteOn: { type: [String], default: [] },
   expectedValues: { type: [String], default: [] },
+  standardValue: { type: Number, default: null },
+  standardOperator: {
+    type: String,
+    enum: ['lt', 'lte', 'eq', 'gte', 'gt', 'between', 'tolerance', null],
+    default: null,
+  },
+  standardValue2: { type: Number, default: null },
   required: { type: Boolean, default: false },
 }, { _id: false });
 
@@ -45,6 +52,24 @@ ParameterSchema.pre('validate', function (next) {
       const invalid = f.expectedValues.filter((v) => !opts.includes(v));
       if (invalid.length > 0) {
         return next(new Error(`expectedValues ต้องอยู่ใน options ของช่อง "${f.label}" (ค่าที่ไม่ตรง: ${invalid.join(', ')})`));
+      }
+    }
+    if (['number', 'float'].includes(f.type) && f.standardOperator) {
+      if (f.standardValue == null) {
+        return next(new Error(`ช่อง "${f.label}": ต้องระบุค่ามาตรฐานเมื่อมี standardOperator`));
+      }
+      if (f.standardOperator === 'between') {
+        if (f.standardValue2 == null) {
+          return next(new Error(`ช่อง "${f.label}": ต้องระบุค่าสิ้นสุดของช่วง (between)`));
+        }
+        if (f.standardValue > f.standardValue2) {
+          return next(new Error(`ช่อง "${f.label}": ค่าเริ่มต้นต้องน้อยกว่าหรือเท่ากับค่าสิ้นสุด (between)`));
+        }
+      }
+      if (f.standardOperator === 'tolerance') {
+        if (f.standardValue2 == null || f.standardValue2 <= 0) {
+          return next(new Error(`ช่อง "${f.label}": tolerance % ต้องมากกว่า 0`));
+        }
       }
     }
     if (f.min != null && f.max != null && f.min > f.max) {
