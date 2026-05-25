@@ -20,7 +20,6 @@ const ALLOWED_DOC_MIME = new Set([
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'text/csv',
-  'text/plain',
 ]);
 
 const DOC_MIME_EXT = {
@@ -30,7 +29,6 @@ const DOC_MIME_EXT = {
   'application/msword': '.doc',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
   'text/csv': '.csv',
-  'text/plain': '.txt',
 };
 
 const paramFileStorage = multer.diskStorage({
