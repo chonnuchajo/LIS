@@ -659,7 +659,7 @@ const AccessControl = () => {
     <AppLayout>
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+            <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
               <LockKeyhole className="h-6 w-6" />
               User, Role & Access Control
             </h1>
@@ -667,7 +667,7 @@ const AccessControl = () => {
               จัดการผู้ใช้ บทบาท และกลุ่ม navigation ที่แต่ละ role เข้าถึงได้
             </p>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-3 gap-2 text-center w-full lg:w-auto">
             <div className="rounded-md border bg-card px-4 py-2">
               <p className="text-lg font-bold">{users.length}</p>
               <p className="text-xs text-muted-foreground">Users</p>
@@ -692,28 +692,30 @@ const AccessControl = () => {
         )}
 
         <Tabs defaultValue="users">
-          <TabsList className="mb-4">
-            <TabsTrigger value="users" className="gap-1.5">
-              <UsersRound className="h-4 w-4" />
-              Users
-            </TabsTrigger>
-            <TabsTrigger value="roles" className="gap-1.5">
-              <ShieldCheck className="h-4 w-4" />
-              Roles
-            </TabsTrigger>
-            <TabsTrigger value="groups" className="gap-1.5">
-              <FolderTree className="h-4 w-4" />
-              Group Control
-            </TabsTrigger>
-            <TabsTrigger value="matrix" className="gap-1.5">
-              <KeyRound className="h-4 w-4" />
-              Access Matrix
-            </TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+            <TabsList className="mb-4 w-max">
+              <TabsTrigger value="users" className="gap-1.5">
+                <UsersRound className="h-4 w-4" />
+                Users
+              </TabsTrigger>
+              <TabsTrigger value="roles" className="gap-1.5">
+                <ShieldCheck className="h-4 w-4" />
+                Roles
+              </TabsTrigger>
+              <TabsTrigger value="groups" className="gap-1.5">
+                <FolderTree className="h-4 w-4" />
+                Group Control
+              </TabsTrigger>
+              <TabsTrigger value="matrix" className="gap-1.5">
+                <KeyRound className="h-4 w-4" />
+                Access Matrix
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="users">
             <Card>
-              <CardHeader className="gap-4 pb-3 lg:flex-row lg:items-center lg:justify-between">
+              <CardHeader className="flex flex-col gap-4 pb-3 lg:flex-row lg:items-center lg:justify-between">
                 <CardTitle className="text-base">User Management</CardTitle>
                 <div className="relative w-full lg:w-80">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -726,7 +728,7 @@ const AccessControl = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-5">
-                <div className="grid gap-3 rounded-md border bg-muted/30 p-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_180px_auto]">
+                <div className="grid gap-3 rounded-md border bg-muted/30 p-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_180px_auto]">
                   <Input
                     value={newUser.name}
                     onChange={(event) => setNewUser({ ...newUser, name: event.target.value })}
@@ -768,8 +770,8 @@ const AccessControl = () => {
                   </Button>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <Table>
+                <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+                  <Table className="min-w-[700px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>User</TableHead>
@@ -964,7 +966,7 @@ const AccessControl = () => {
                 </p>
               </CardHeader>
               <CardContent className="space-y-5">
-                <div className="grid gap-3 rounded-md border bg-muted/30 p-3 md:grid-cols-2 xl:grid-cols-[1fr_1.5fr_auto]">
+                <div className="grid gap-3 rounded-md border bg-muted/30 p-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1fr_1.5fr_auto]">
                   <Input
                     value={newGroup.name}
                     onChange={(e) => {
@@ -988,8 +990,8 @@ const AccessControl = () => {
                   </Button>
                 </div>
 
-                <div className="overflow-x-auto">
-                  <Table>
+                <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+                  <Table className="min-w-[700px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-14">ลำดับ</TableHead>

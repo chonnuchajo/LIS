@@ -37,6 +37,43 @@ router.get("/testers", async (req, res) => {
   }
 });
 
+// GET /api/qc-results/progress?petitionIds=id1,id2,...
+// Returns map of petitionId → [{ itemSeq, parameterId, filledLabels }] so the
+// client can compute filled vs. required totals (denominator needs Parameter
+// metadata that the QCTestResult collection doesn't carry).
+router.get("/progress", async (req, res) => {
+  try {
+    const raw = String(req.query.petitionIds || "").trim();
+    if (!raw) return res.json({});
+    const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    if (ids.length === 0) return res.json({});
+
+    const docs = await QCTestResult.find(
+      { petitionId: { $in: ids } },
+      { petitionId: 1, itemSeq: 1, parameterId: 1, values: 1 }
+    ).lean();
+
+    const map = {};
+    for (const id of ids) map[id] = [];
+    for (const d of docs) {
+      const filledLabels = Object.entries(d.values || {})
+        .filter(([, v]) => v != null && String(v).trim() !== "")
+        .map(([k]) => k);
+      const bucket = map[d.petitionId];
+      if (bucket) {
+        bucket.push({
+          itemSeq: d.itemSeq,
+          parameterId: String(d.parameterId),
+          filledLabels,
+        });
+      }
+    }
+    res.json(map);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/qc-results/:petitionId
 router.get("/:petitionId", async (req, res) => {
   try {

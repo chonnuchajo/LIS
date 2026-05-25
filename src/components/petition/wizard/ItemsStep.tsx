@@ -26,9 +26,19 @@ interface Props {
   submitter: SubmitterValues;
   onSubmitterChange: (v: SubmitterValues) => void;
   submitterReadOnly?: boolean;
+  deliverer: SubmitterValues;
+  onDelivererChange: (v: SubmitterValues) => void;
 }
 
-export default function ItemsStep({ value, onChange, submitter, onSubmitterChange, submitterReadOnly }: Props) {
+export default function ItemsStep({
+  value,
+  onChange,
+  submitter,
+  onSubmitterChange,
+  submitterReadOnly,
+  deliverer,
+  onDelivererChange,
+}: Props) {
   const { options, optionMap, loading, error } = useLotOptions();
 
   function setItem(idx: number, patch: Partial<ItemRowValues>) {
@@ -76,14 +86,17 @@ export default function ItemsStep({ value, onChange, submitter, onSubmitterChang
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-lg font-semibold">ผู้ยื่นคำขอ</h2>
-        {!submitterReadOnly && <p className="text-sm text-grey-500">เลือกจากระบบ HR เท่านั้น</p>}
-        <div className="mt-3">
+        <h2 className="text-lg font-semibold">ผู้ยื่นคำขอ และ ผู้นำส่ง</h2>
+        <p className="text-sm text-grey-500">
+          ผู้ยื่นคำขอ = ผู้ใช้งานที่เข้าสู่ระบบ · ผู้นำส่ง = ผู้ที่จะถือตัวอย่างไปส่ง (เลือกจากระบบ HR)
+        </p>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <SubmitterPicker value={submitter} onChange={onSubmitterChange} readOnly={submitterReadOnly} />
+          <SubmitterPicker value={deliverer} onChange={onDelivererChange} />
         </div>
       </div>
 
-      <div className="border-t border-grey-200 pt-4 flex items-start justify-between gap-3">
+      <div className="border-t border-grey-200 pt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">รายการตัวอย่าง</h2>
           <p className="text-sm text-grey-500">
@@ -126,7 +139,7 @@ export default function ItemsStep({ value, onChange, submitter, onSubmitterChang
                   </Button>
                 )}
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <Label>ชื่อตัวอย่าง / ค้นหาจาก lot</Label>
                   <Input
@@ -174,7 +187,7 @@ export default function ItemsStep({ value, onChange, submitter, onSubmitterChang
                     onChange={(e) => setItem(idx, { submissionNo: e.target.value })}
                   />
                 </div>
-                <div className="md:col-span-2">
+                <div className="sm:col-span-2">
                   <Label>หมายเหตุ</Label>
                   <Textarea
                     rows={2}

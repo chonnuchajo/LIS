@@ -55,7 +55,7 @@ export default function LabRequestStep({ items, request, onChange }: Props) {
       {/* Requester info */}
       <div>
         <h3 className="font-semibold mb-2">ข้อมูลลูกค้า / ผู้ขอบริการ</h3>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <Label>ชื่อ-นามสกุล</Label>
             <div className="mt-1 rounded-[10px] border border-black-50 bg-grey-50 px-3 py-2 text-sm text-black-500">
@@ -68,7 +68,7 @@ export default function LabRequestStep({ items, request, onChange }: Props) {
               {req.requester.department || '-'}
             </div>
           </div>
-          <div className="md:col-span-2">
+          <div className="sm:col-span-2">
             <Label>ที่อยู่</Label>
             <Textarea rows={2} value={req.requester.address ?? ''} onChange={(e) => setRequester('address', e.target.value)} />
           </div>
@@ -263,8 +263,8 @@ export default function LabRequestStep({ items, request, onChange }: Props) {
       {/* Customer/report info */}
       <div>
         <h3 className="font-semibold mb-2">ข้อมูลในใบรายงานผล / ใบกำกับภาษี</h3>
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="md:col-span-2">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
             <Label>ชื่อบริษัทผู้ส่งตัวอย่างในใบรายงานผล</Label>
             <Input
               value={req.reportCustomerName ?? ''}
@@ -328,7 +328,7 @@ export default function LabRequestStep({ items, request, onChange }: Props) {
             </div>
           </div>
           {(req.packageType ?? []).includes('other') && (
-            <div className="md:col-span-2">
+            <div className="sm:col-span-2">
               <Label>ระบุภาชนะอื่นๆ</Label>
               <Input
                 value={req.packageTypeOther ?? ''}

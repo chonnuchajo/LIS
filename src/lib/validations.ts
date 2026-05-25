@@ -34,8 +34,13 @@ export const petitionItemSchema = z.object({
 
 export const submitterSchema = z.object({
   employeeId: z.string().optional(),
-  name: z.string().min(1, 'กรุณาเลือกผู้นำส่ง').transform(trim),
+  name: z.string().min(1, 'กรุณาเลือกผู้ยื่นคำขอ').transform(trim),
   submittedAt: z.string().optional(),
+});
+
+export const delivererSchema = z.object({
+  employeeId: z.string().optional(),
+  name: z.string().min(1, 'กรุณาเลือกผู้นำส่ง').transform(trim),
 });
 
 // ===== Production plan =====
@@ -155,6 +160,7 @@ export const labRequestFormSchema = z.object({
 export const productionPetitionFormSchema = z.object({
   dept: z.literal('production'),
   submittedBy: submitterSchema,
+  deliveredBy: delivererSchema,
   items: z.array(petitionItemSchema).min(1, 'ต้องมีตัวอย่างอย่างน้อย 1 รายการ'),
   productionPlans: z.array(productionPlanSchema).min(1, 'ต้องมีใบวางแผนอย่างน้อย 1 รายการ'),
   labRequests: z.array(labRequestFormSchema).default([]),
@@ -164,6 +170,7 @@ export const productionPetitionFormSchema = z.object({
 export const rmPetitionFormSchema = z.object({
   dept: z.literal('rm'),
   submittedBy: submitterSchema,
+  deliveredBy: delivererSchema,
   items: z.array(petitionItemSchema).min(1, 'ต้องมีตัวอย่างอย่างน้อย 1 รายการ'),
   cause: z.string().optional().default(''),
 });
@@ -171,6 +178,7 @@ export const rmPetitionFormSchema = z.object({
 export const fgPetitionFormSchema = z.object({
   dept: z.literal('fg'),
   submittedBy: submitterSchema,
+  deliveredBy: delivererSchema,
   items: z.array(petitionItemSchema).min(1, 'ต้องมีตัวอย่างอย่างน้อย 1 รายการ'),
   cause: z.string().optional().default(''),
 });

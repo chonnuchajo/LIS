@@ -1,9 +1,24 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { PETITION_DEPT_LABELS, type Petition } from '@/types/petition.types';
+import {
+  PETITION_DEPT_LABELS,
+  type Petition,
+  type QCTestResult,
+} from '@/types/petition.types';
 import { isLabBatch } from '@/types/productionPlan.types';
+import { useAuth } from '@/hooks/useAuth';
+import { api, type ParameterItem } from '@/lib/api';
+import { matchParametersForItem } from '@/lib/petitionTestItems';
 
 interface Props { petition: Petition; }
+
+function formatResultValue(value: unknown): string {
+  if (value == null || value === '') return '-';
+  if (typeof value === 'boolean') return value ? '✓' : '✗';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
 
 function Field({ label, value }: { label: string; value?: React.ReactNode }) {
   const display = value === undefined || value === null || value === '' ? '-' : value;
@@ -16,6 +31,25 @@ function Field({ label, value }: { label: string; value?: React.ReactNode }) {
 }
 
 export default function PetitionView({ petition: p }: Props) {
+  const { user } = useAuth();
+  const canSeeTestItems = !!user?.role && user.role !== 'viewer';
+  const [parameters, setParameters] = useState<ParameterItem[]>([]);
+  const [results, setResults] = useState<QCTestResult[]>([]);
+  useEffect(() => {
+    if (!canSeeTestItems) return;
+    api.getParameters().then(setParameters).catch(() => {});
+  }, [canSeeTestItems]);
+  useEffect(() => {
+    if (!canSeeTestItems || !p._id) return;
+    api.getQCResults(p._id).then(setResults).catch(() => {});
+  }, [canSeeTestItems, p._id]);
+
+  const resultsByKey = useMemo(() => {
+    const map = new Map<string, QCTestResult>();
+    for (const r of results) map.set(`${r.itemSeq}__${r.parameterId}`, r);
+    return map;
+  }, [results]);
+
   return (
     <div className="space-y-4">
       <Card>
@@ -37,7 +71,7 @@ export default function PetitionView({ petition: p }: Props) {
           />
           <Field label="แผนก" value={<Badge variant="blue-soft">{PETITION_DEPT_LABELS[p.dept]}</Badge>} />
           <Field label="เลขที่คำร้อง" value={p.petitionNo} />
-          <Field label="ผู้นำส่ง" value={p.submittedBy?.name} />
+          <Field label="ผู้นำส่ง" value={p.deliveredBy?.name ?? p.submittedBy?.name} />
           <Field
             label="วันที่นำส่ง"
             value={
@@ -59,6 +93,7 @@ export default function PetitionView({ petition: p }: Props) {
         <CardContent className="space-y-3">
           {p.items.map((item) => {
             const lab = item.batchNo && isLabBatch(item.batchNo);
+            const matchedParams = canSeeTestItems ? matchParametersForItem(item, parameters) : [];
             return (
               <div key={item.seq} className="rounded-[10px] border border-black-50 p-4 space-y-3">
                 <div className="flex flex-wrap items-baseline gap-2">
@@ -77,6 +112,65 @@ export default function PetitionView({ petition: p }: Props) {
                   <Field label="ชื่อสามัญ" value={item.commonName} />
                 </div>
                 {item.note && <Field label="หมายเหตุ" value={item.note} />}
+                {canSeeTestItems && (
+                  <Field
+                    label="รายการทดลอง / ผลตรวจ"
+                    value={
+                      matchedParams.length > 0 ? (
+                        <div className="space-y-1.5">
+                          {matchedParams.map((param) => {
+                            const result = param._id
+                              ? resultsByKey.get(`${item.seq}__${param._id}`)
+                              : undefined;
+                            const entries = result
+                              ? Object.entries(result.values ?? {}).filter(
+                                  ([key]) => !key.endsWith('__note'),
+                                )
+                              : [];
+                            return (
+                              <div
+                                key={param._id ?? param.name}
+                                className="rounded-[8px] border border-grey-200 px-3 py-2"
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span
+                                      className={`inline-flex h-5 items-center rounded-md px-1.5 text-[10px] font-semibold uppercase tracking-wide ${
+                                        (param.scope ?? 'qc') === 'lab'
+                                          ? 'bg-sky-100 text-sky-800'
+                                          : 'bg-indigo-100 text-indigo-800'
+                                      }`}
+                                    >
+                                      {(param.scope ?? 'qc') === 'lab' ? 'Lab' : 'QC'}
+                                    </span>
+                                    <span className="text-sm font-medium text-black-500">
+                                      {param.name}
+                                    </span>
+                                  </div>
+                                  {entries.length === 0 && (
+                                    <Badge variant="gray-soft">ยังไม่บันทึก</Badge>
+                                  )}
+                                </div>
+                                {entries.length > 0 && (
+                                  <div className="mt-1.5 grid gap-1 text-xs text-grey-700 md:grid-cols-2">
+                                    {entries.map(([fieldLabel, val]) => (
+                                      <div key={fieldLabel} className="flex gap-1.5">
+                                        <span className="text-grey-500">{fieldLabel}:</span>
+                                        <span className="text-black-500 font-medium">
+                                          {formatResultValue(val)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : undefined
+                    }
+                  />
+                )}
               </div>
             );
           })}

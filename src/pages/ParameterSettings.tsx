@@ -43,6 +43,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -56,6 +57,7 @@ import { cn } from "@/lib/utils";
 import {
   api,
   type ParameterItem,
+  type ParameterScope,
   type ParameterValueField,
   type ParameterValueFieldType,
   type StandardOperator,
@@ -184,8 +186,9 @@ const emptyValueField = (): ParameterValueField => ({
   required: false,
 });
 
-const emptyForm = (): ParameterItem => ({
+const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
   name: "",
+  scope,
   status: "active",
   applyAll: false,
   commonNames: [],
@@ -196,6 +199,16 @@ const emptyForm = (): ParameterItem => ({
   sortOrder: 0,
   note: "",
 });
+
+const SCOPE_LABEL: Record<ParameterScope, string> = {
+  lab: "Lab",
+  qc: "QC",
+};
+
+const SCOPE_BADGE_CLASS: Record<ParameterScope, string> = {
+  lab: "bg-sky-100 text-sky-800 hover:bg-sky-100",
+  qc: "bg-indigo-100 text-indigo-800 hover:bg-indigo-100",
+};
 
 type MultiSelectPopoverProps = {
   label: string;
@@ -1071,6 +1084,7 @@ function ValueFieldEditor({
 type DialogProps = {
   open: boolean;
   item: ParameterItem | null;
+  defaultScope: ParameterScope;
   itemNameOptions: string[];
   commonNameOptions: string[];
   productTypeOptions: string[];
@@ -1082,6 +1096,7 @@ type DialogProps = {
 function ParameterDialog({
   open,
   item,
+  defaultScope,
   itemNameOptions,
   commonNameOptions,
   productTypeOptions,
@@ -1090,14 +1105,14 @@ function ParameterDialog({
   onSaved,
 }: DialogProps) {
   const isEdit = !!item?._id;
-  const [form, setForm] = useState<ParameterItem>(emptyForm());
+  const [form, setForm] = useState<ParameterItem>(emptyForm(defaultScope));
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setForm(item ? { ...emptyForm(), ...item } : emptyForm());
+      setForm(item ? { ...emptyForm(defaultScope), ...item, scope: item.scope ?? defaultScope } : emptyForm(defaultScope));
     }
-  }, [open, item]);
+  }, [open, item, defaultScope]);
 
   const set = <K extends keyof ParameterItem>(key: K, value: ParameterItem[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -1190,6 +1205,7 @@ function ParameterDialog({
     setBusy(true);
     const payload: Partial<ParameterItem> = {
       name: form.name.trim(),
+      scope: form.scope ?? "qc",
       status: form.status ?? "active",
       applyAll: !!form.applyAll,
       commonNames: form.applyAll ? [] : form.commonNames ?? [],
@@ -1228,7 +1244,7 @@ function ParameterDialog({
 
         <form onSubmit={submit} className="space-y-6">
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-12">
-            <div className="sm:col-span-7 space-y-1.5">
+            <div className="sm:col-span-5 space-y-1.5">
               <Label className="text-sm font-medium">ชื่อพารามิเตอร์ *</Label>
               <Input
                 value={form.name}
@@ -1239,6 +1255,21 @@ function ParameterDialog({
               />
             </div>
             <div className="sm:col-span-3 space-y-1.5">
+              <Label className="text-sm font-medium">หน่วยงาน *</Label>
+              <Select
+                value={form.scope ?? "qc"}
+                onValueChange={(v) => set("scope", v as ParameterScope)}
+              >
+                <SelectTrigger className="h-11 text-base">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="qc">QC</SelectItem>
+                  <SelectItem value="lab">Lab</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="sm:col-span-2 space-y-1.5">
               <Label className="text-sm font-medium">สถานะ</Label>
               <Select
                 value={form.status ?? "active"}
@@ -1248,8 +1279,8 @@ function ParameterDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="active">เปิดใช้งาน</SelectItem>
-                  <SelectItem value="inactive">ปิดใช้งาน</SelectItem>
+                  <SelectItem value="active">เปิด</SelectItem>
+                  <SelectItem value="inactive">ปิด</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1395,6 +1426,7 @@ function ParameterDialog({
 
 export default function ParameterSettings() {
   const queryClient = useQueryClient();
+  const [scopeTab, setScopeTab] = useState<ParameterScope>("qc");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [editing, setEditing] = useState<ParameterItem | null>(null);
@@ -1434,9 +1466,14 @@ export default function ParameterSettings() {
     [masterItems],
   );
 
+  const scopedParameters = useMemo(
+    () => parameters.filter((p) => (p.scope ?? "qc") === scopeTab),
+    [parameters, scopeTab],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const sorted = [...parameters].sort(
+    const sorted = [...scopedParameters].sort(
       (a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999),
     );
     return sorted.filter((p) => {
@@ -1457,9 +1494,11 @@ export default function ParameterSettings() {
         statusFilter === "all" || (p.status ?? "active") === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [parameters, search, statusFilter]);
+  }, [scopedParameters, search, statusFilter]);
 
-  const activeCount = parameters.filter((p) => (p.status ?? "active") === "active").length;
+  const activeCount = scopedParameters.filter((p) => (p.status ?? "active") === "active").length;
+  const qcCount = parameters.filter((p) => (p.scope ?? "qc") === "qc").length;
+  const labCount = parameters.filter((p) => p.scope === "lab").length;
 
   const closeDialog = () => {
     setCreating(false);
@@ -1482,7 +1521,7 @@ export default function ParameterSettings() {
     <AppLayout>
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+          <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
             <SlidersHorizontal className="h-6 w-6" />
             พารามิเตอร์การตรวจสอบ
           </h1>
@@ -1509,12 +1548,33 @@ export default function ParameterSettings() {
         </div>
       </div>
 
-      <div className="mb-4 grid grid-cols-3 gap-3">
-        <SummaryCard label="ทั้งหมด" value={parameters.length} />
+      <Tabs
+        value={scopeTab}
+        onValueChange={(v) => setScopeTab(v as ParameterScope)}
+        className="mb-4"
+      >
+        <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:inline-grid">
+          <TabsTrigger value="qc" className="gap-2">
+            QC
+            <span className="rounded-full bg-muted px-1.5 text-xs font-semibold tabular-nums">
+              {qcCount}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="lab" className="gap-2">
+            Lab
+            <span className="rounded-full bg-muted px-1.5 text-xs font-semibold tabular-nums">
+              {labCount}
+            </span>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <SummaryCard label={`ทั้งหมดใน ${SCOPE_LABEL[scopeTab]}`} value={scopedParameters.length} />
         <SummaryCard label="เปิดใช้งาน" value={activeCount} tone="active" />
         <SummaryCard
           label="ปิดใช้งาน"
-          value={parameters.length - activeCount}
+          value={scopedParameters.length - activeCount}
           tone="inactive"
         />
       </div>
@@ -1563,8 +1623,8 @@ export default function ParameterSettings() {
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+              <Table className="min-w-[800px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12">#</TableHead>
@@ -1586,13 +1646,20 @@ export default function ParameterSettings() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filtered.map((p, i) => (
+                    filtered.map((p, i) => {
+                      const pScope = (p.scope ?? "qc") as ParameterScope;
+                      return (
                       <TableRow key={p._id ?? i}>
                         <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                         <TableCell>
-                          <div className="font-medium">{p.name}</div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <Badge className={cn("text-[10px] font-semibold uppercase", SCOPE_BADGE_CLASS[pScope])}>
+                              {SCOPE_LABEL[pScope]}
+                            </Badge>
+                            <span className="font-medium">{p.name}</span>
+                          </div>
                           {p.note ? (
-                            <div className="text-xs text-muted-foreground">{p.note}</div>
+                            <div className="mt-0.5 text-xs text-muted-foreground">{p.note}</div>
                           ) : null}
                         </TableCell>
                         <TableCell>
@@ -1630,7 +1697,8 @@ export default function ParameterSettings() {
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -1642,6 +1710,7 @@ export default function ParameterSettings() {
       <ParameterDialog
         open={creating || !!editing}
         item={editing}
+        defaultScope={scopeTab}
         itemNameOptions={itemNameOptions}
         commonNameOptions={commonNameOptions}
         productTypeOptions={productTypeOptions}

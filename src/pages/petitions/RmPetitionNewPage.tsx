@@ -7,7 +7,7 @@ export default function RmPetitionNewPage() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-black-500">คำขอแผนก RM (วัตถุดิบ)</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-black-500">คำขอแผนก RM (วัตถุดิบ)</h1>
         <Card>
           <CardContent className="space-y-3 p-5">
             <p className="text-grey-600">

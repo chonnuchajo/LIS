@@ -103,7 +103,7 @@ const AdminData = () => {
   return (
     <AppLayout>
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
             <Database className="w-6 h-6" />
             Admin - ฐานข้อมูลตัวอย่าง
           </h1>
@@ -111,11 +111,13 @@ const AdminData = () => {
         </div>
 
         <Tabs defaultValue="database">
-          <TabsList className="mb-4">
-            <TabsTrigger value="database" className="gap-1.5"><Database className="w-4 h-4" />ฐานข้อมูลผลลัพธ์</TabsTrigger>
-            <TabsTrigger value="activelog" className="gap-1.5"><Activity className="w-4 h-4" />Active Log</TabsTrigger>
-            <TabsTrigger value="auditlog" className="gap-1.5"><History className="w-4 h-4" />Audit Log</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+            <TabsList className="mb-4 w-max">
+              <TabsTrigger value="database" className="gap-1.5"><Database className="w-4 h-4" />ฐานข้อมูลผลลัพธ์</TabsTrigger>
+              <TabsTrigger value="activelog" className="gap-1.5"><Activity className="w-4 h-4" />Active Log</TabsTrigger>
+              <TabsTrigger value="auditlog" className="gap-1.5"><History className="w-4 h-4" />Audit Log</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="database">
             <Card>
@@ -132,8 +134,8 @@ const AdminData = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
+                <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+                  <Table className="min-w-[600px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Sample ID</TableHead>
@@ -198,8 +200,8 @@ const AdminData = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
+                <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+                  <Table className="min-w-[600px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="hidden md:table-cell">Log ID</TableHead>
@@ -244,8 +246,8 @@ const AdminData = () => {
                 </Button>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
+                <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+                  <Table className="min-w-[600px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="hidden md:table-cell">วันที่</TableHead>

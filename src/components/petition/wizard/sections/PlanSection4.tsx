@@ -57,7 +57,7 @@ export default function PlanSection4({ value, onChange }: Props) {
       <h3 className="font-semibold">ส่วนที่ 4: การควบคุมการผลิต</h3>
 
       {/* 4A: actual start/end */}
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         <div>
           <Label>เริ่มผลิตจริง — วัน/เดือน/ปี</Label>
           <Input
@@ -111,7 +111,7 @@ export default function PlanSection4({ value, onChange }: Props) {
           <p className="text-sm text-grey-400">ยังไม่มีข้อมูล downtime</p>
         )}
         {value.downtimes.map((d, idx) => (
-          <div key={idx} className="grid items-end gap-2 md:grid-cols-4">
+          <div key={idx} className="grid items-end gap-2 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
             <div>
               <Label className="text-xs">ตั้งแต่เวลา</Label>
               <Input
@@ -148,7 +148,7 @@ export default function PlanSection4({ value, onChange }: Props) {
       <div>
         <Label>การตรวจสอบทางกายภาพ</Label>
         <div className="overflow-x-auto mt-1">
-          <table className="w-full border-collapse text-sm">
+          <table className="w-full min-w-[700px] border-collapse text-sm">
             <thead>
               <tr className="bg-grey-50">
                 <th className="border border-grey-300 p-2 text-left">หัวข้อ</th>
@@ -210,7 +210,7 @@ export default function PlanSection4({ value, onChange }: Props) {
           />
           ส่งสารวิเคราะห์
         </label>
-        <div className="grid gap-3 md:grid-cols-2 mt-2">
+        <div className="grid gap-3 sm:grid-cols-2 mt-2">
           <div>
             <Label>การดำเนินการเมื่อครั้งที่ 1 ไม่ผ่าน</Label>
             <Input
@@ -230,7 +230,7 @@ export default function PlanSection4({ value, onChange }: Props) {
 
       {/* Weighing */}
       <div>
-        <div className="grid gap-3 md:grid-cols-2 mb-2">
+        <div className="grid gap-3 sm:grid-cols-2 mb-2">
           <div>
             <Label>ใบเบิกวัตถุดิบ — เลขที่</Label>
             <Input
@@ -253,7 +253,7 @@ export default function PlanSection4({ value, onChange }: Props) {
         </div>
         <Label>รายละเอียดการชั่งน้ำหนัก (30 แถว × 9 ช่อง)</Label>
         <div className="overflow-x-auto mt-1 max-h-[400px]">
-          <table className="w-full border-collapse text-xs">
+          <table className="w-full min-w-[800px] border-collapse text-xs">
             <thead className="sticky top-0 bg-grey-50">
               <tr>
                 <th className="border border-grey-300 p-1 w-10">#</th>
@@ -296,7 +296,7 @@ export default function PlanSection4({ value, onChange }: Props) {
       </div>
 
       {/* Signatures */}
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label>พนักงานชั่ง</Label>
           <Input value={value.weigher ?? ''} onChange={(e) => set('weigher', e.target.value)} />
@@ -369,7 +369,7 @@ export default function PlanSection4({ value, onChange }: Props) {
       <div>
         <Label>ขั้นตอนการผลิต (30 แถว)</Label>
         <div className="overflow-x-auto mt-1 max-h-[400px]">
-          <table className="w-full border-collapse text-xs">
+          <table className="w-full min-w-[700px] border-collapse text-xs">
             <thead className="sticky top-0 bg-grey-50">
               <tr>
                 <th className="border border-grey-300 p-1">ขั้นตอน</th>

@@ -19,7 +19,7 @@ export default function PlanSection2({ value, onChange }: Props) {
     <div className="space-y-3">
       <h3 className="font-semibold">ส่วนที่ 2: ตรวจสอบสภาพเครื่องจักร</h3>
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-sm">
+        <table className="w-full min-w-[600px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-grey-300 bg-grey-50">
               <th className="border border-grey-300 p-2 text-left">หัวข้อ</th>
@@ -66,7 +66,7 @@ export default function PlanSection2({ value, onChange }: Props) {
         />
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label>ตรวจสอบโดย</Label>
           <Input

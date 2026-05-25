@@ -47,7 +47,7 @@ const RecordResults = () => {
   return (
     <AppLayout>
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
             <ClipboardList className="w-6 h-6" />
             บันทึกผลการทดสอบ
           </h1>
@@ -62,8 +62,8 @@ const RecordResults = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
+            <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+              <Table className="min-w-[600px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>เลขตัวอย่าง</TableHead>

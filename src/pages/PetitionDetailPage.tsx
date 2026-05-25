@@ -306,7 +306,7 @@ export default function PetitionDetailPage() {
                 </AlertDialog>
 
                 <div className="flex flex-wrap items-baseline gap-3">
-                  <h1 className="text-2xl font-bold text-black-500">{data.petitionNo}</h1>
+                  <h1 className="text-xl md:text-2xl font-bold text-black-500">{data.petitionNo}</h1>
                   <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
                   <Badge variant="blue-soft">{PETITION_DEPT_LABELS[data.dept]}</Badge>
                   <span className="text-xs text-grey-500">

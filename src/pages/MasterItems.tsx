@@ -543,7 +543,7 @@ export default function MasterItems() {
     <AppLayout>
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+            <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
               <Database className="h-6 w-6" />
               Master Item
             </h1>
@@ -563,7 +563,7 @@ export default function MasterItems() {
           </div>
         </div>
 
-        <div className="mb-4 grid gap-3 md:grid-cols-3">
+        <div className="mb-4 grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardContent className="p-4">
               <div className="text-sm text-muted-foreground">ทั้งหมด</div>
@@ -585,14 +585,14 @@ export default function MasterItems() {
         </div>
 
         <Card>
-          <CardHeader className="flex flex-col gap-3 space-y-0 md:flex-row md:items-center md:justify-between">
+          <CardHeader className="flex flex-col gap-3 space-y-0 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
               <PackageSearch className="h-5 w-5" />
               รายการ Item
               <Badge variant="outline">{filteredItems.length}</Badge>
             </CardTitle>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full md:w-44">
+              <SelectTrigger className="w-full sm:w-44">
                 <SelectValue placeholder="หมวดหมู่" />
               </SelectTrigger>
               <SelectContent>
@@ -605,7 +605,7 @@ export default function MasterItems() {
               </SelectContent>
             </Select>
             <Select value={productTypeFilter} onValueChange={setProductTypeFilter}>
-              <SelectTrigger className="w-full md:w-44">
+              <SelectTrigger className="w-full sm:w-44">
                 <SelectValue placeholder="ประเภทสินค้า" />
               </SelectTrigger>
               <SelectContent>
@@ -617,7 +617,7 @@ export default function MasterItems() {
                 ))}
               </SelectContent>
             </Select>
-            <div className="relative w-full md:w-80">
+            <div className="relative w-full sm:w-80">
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
@@ -634,8 +634,8 @@ export default function MasterItems() {
                 {(error as Error).message}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+                <Table className="min-w-[900px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Code</TableHead>
@@ -907,7 +907,7 @@ export function SimpleMethodPage() {
   return (
     <AppLayout fixedHeight mainClassName="relative flex flex-col overflow-hidden p-4 sm:p-6 pb-24">
         <div className="mb-4 shrink-0">
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+          <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
             <FlaskConical className="h-6 w-6" />
             Simple Method
           </h1>
@@ -993,7 +993,7 @@ export function MachinesPage() {
   return (
     <AppLayout>
         <div className="mb-6">
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+          <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
             <Wrench className="h-6 w-6" />
             รายการเครื่อง
           </h1>
@@ -1297,13 +1297,13 @@ function MasterItemDialog({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{isEdit ? "แก้ไข Item" : "เพิ่ม Item"}</DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4 md:grid-cols-2">
+          <div className="grid gap-4 py-4 grid-cols-1 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="itemCode">Code</Label>
               <Input
@@ -1488,7 +1488,7 @@ function MachinesTab() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-col gap-3 space-y-0 md:flex-row md:items-center md:justify-between">
+      <CardHeader className="flex flex-col gap-3 space-y-0 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
         <CardTitle className="flex items-center gap-2 text-base">
           <Wrench className="h-5 w-5" />
           รายการเครื่องมือ
@@ -1496,7 +1496,7 @@ function MachinesTab() {
         </CardTitle>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={locationFilter} onValueChange={setLocationFilter}>
-            <SelectTrigger className="w-full md:w-48">
+            <SelectTrigger className="w-full sm:w-48">
               <SelectValue placeholder="สถานที่ตั้ง" />
             </SelectTrigger>
             <SelectContent>
@@ -1507,7 +1507,7 @@ function MachinesTab() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full md:w-36">
+            <SelectTrigger className="w-full sm:w-36">
               <SelectValue placeholder="สถานะ" />
             </SelectTrigger>
             <SelectContent>
@@ -1517,7 +1517,7 @@ function MachinesTab() {
               <SelectItem value="retired">retired</SelectItem>
             </SelectContent>
           </Select>
-          <div className="relative w-full md:w-72">
+          <div className="relative w-full sm:w-72">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
@@ -1546,8 +1546,8 @@ function MachinesTab() {
             {(error as Error).message}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+            <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>รหัส</TableHead>
@@ -1679,13 +1679,13 @@ function MachineDialog({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{isEdit ? "แก้ไขเครื่องมือ" : "เพิ่มเครื่องมือ"}</DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4 md:grid-cols-2">
+          <div className="grid gap-4 py-4 grid-cols-1 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="m-code">รหัสเครื่องมือ *</Label>
               <Input id="m-code" value={form.code} onChange={(e) => setField("code", e.target.value)} required placeholder="LD-049" />

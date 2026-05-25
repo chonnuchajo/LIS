@@ -27,6 +27,7 @@ const ValueFieldSchema = new mongoose.Schema({
 
 const ParameterSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, index: true },
+  scope: { type: String, enum: ['lab', 'qc'], default: 'qc', index: true },
   status: { type: String, enum: ['active', 'inactive'], default: 'active', index: true },
   applyAll: { type: Boolean, default: false },
   commonNames: { type: [String], default: [] },

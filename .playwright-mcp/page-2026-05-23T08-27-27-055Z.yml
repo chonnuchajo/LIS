@@ -1,0 +1,241 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e160]:
+    - generic "ลากเพื่อย้ายตำแหน่ง" [ref=e161]: DEV MODE
+    - generic [ref=e162]:
+      - button "Administrator" [ref=e163] [cursor=pointer]
+      - button "Lab Analyst" [ref=e164] [cursor=pointer]
+      - button "Lab Head" [ref=e165] [cursor=pointer]
+      - button "Lab Inventory" [ref=e166] [cursor=pointer]
+      - button "QC Head" [ref=e167] [cursor=pointer]
+      - button "QC Reviewer" [ref=e168] [cursor=pointer]
+      - button "QC Staff" [ref=e169] [cursor=pointer]
+      - button "Viewer" [ref=e170] [cursor=pointer]
+  - generic [ref=e3]:
+    - complementary [ref=e5]:
+      - button "ซ่อนเมนู" [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+      - generic [ref=e9]:
+        - img "ICP Logo" [ref=e10]
+        - generic [ref=e11]:
+          - heading "LIS" [level=1] [ref=e12]
+          - paragraph [ref=e13]:
+            - text: LAB INFORMATION
+            - text: SYSTEM
+      - navigation [ref=e14]:
+        - generic [ref=e171]:
+          - button "หน้าหลัก" [expanded] [ref=e172] [cursor=pointer]:
+            - generic [ref=e173]: หน้าหลัก
+            - img [ref=e174]
+          - generic [ref=e176]:
+            - button "หน้าแรก" [ref=e177] [cursor=pointer]:
+              - img [ref=e178]
+              - generic [ref=e181]: หน้าแรก
+            - button "Lab Dashboard" [ref=e182] [cursor=pointer]:
+              - img [ref=e183]
+              - generic [ref=e188]: Lab Dashboard
+            - button "QC Dashboard" [ref=e189] [cursor=pointer]:
+              - img [ref=e190]
+              - generic [ref=e195]: QC Dashboard
+            - button "รายการคำร้อง" [ref=e196] [cursor=pointer]:
+              - img [ref=e197]
+              - generic [ref=e200]: รายการคำร้อง
+        - generic [ref=e201]:
+          - button "LAB" [expanded] [ref=e202] [cursor=pointer]:
+            - generic [ref=e203]: LAB
+            - img [ref=e204]
+          - generic [ref=e206]:
+            - button "Daily Check" [ref=e207] [cursor=pointer]:
+              - img [ref=e208]
+              - generic [ref=e212]: Daily Check
+            - button "การบันทึก Standard" [ref=e213] [cursor=pointer]:
+              - img [ref=e214]
+              - generic [ref=e217]: การบันทึก Standard
+            - button "Assign คำร้อง" [ref=e218] [cursor=pointer]:
+              - img [ref=e219]
+              - generic [ref=e223]: Assign คำร้อง
+        - generic [ref=e224]:
+          - button "QC" [expanded] [ref=e225] [cursor=pointer]:
+            - generic [ref=e226]: QC
+            - img [ref=e227]
+          - generic [ref=e229]:
+            - button "อนุมัติผล QC" [ref=e230] [cursor=pointer]:
+              - img [ref=e231]
+              - generic [ref=e234]: อนุมัติผล QC
+            - button "การทดสอบ QC" [ref=e235] [cursor=pointer]:
+              - img [ref=e236]
+              - generic [ref=e238]: การทดสอบ QC
+        - generic [ref=e239]:
+          - button "ผลวิเคราะห์" [expanded] [ref=e240] [cursor=pointer]:
+            - generic [ref=e241]: ผลวิเคราะห์
+            - img [ref=e242]
+          - button "ผลวิเคราะห์" [ref=e245] [cursor=pointer]:
+            - img [ref=e246]
+            - generic [ref=e249]: ผลวิเคราะห์
+        - generic [ref=e250]:
+          - button "CONFIG DATA" [expanded] [ref=e251] [cursor=pointer]:
+            - generic [ref=e252]: CONFIG DATA
+            - img [ref=e253]
+          - generic [ref=e255]:
+            - button "Master Item" [ref=e256] [cursor=pointer]:
+              - img [ref=e257]
+              - generic [ref=e261]: Master Item
+            - button "Simple Method" [ref=e262] [cursor=pointer]:
+              - img [ref=e263]
+              - generic [ref=e265]: Simple Method
+            - button "รายการเครื่อง" [ref=e266] [cursor=pointer]:
+              - img [ref=e267]
+              - generic [ref=e269]: รายการเครื่อง
+            - button "พารามิเตอร์ตรวจสอบ" [ref=e270] [cursor=pointer]:
+              - img [ref=e271]
+              - generic [ref=e272]: พารามิเตอร์ตรวจสอบ
+        - generic [ref=e273]:
+          - button "INVENTORY" [expanded] [ref=e274] [cursor=pointer]:
+            - generic [ref=e275]: INVENTORY
+            - img [ref=e276]
+          - button "Stock Management" [ref=e279] [cursor=pointer]:
+            - img [ref=e280]
+            - generic [ref=e284]: Stock Management
+        - generic [ref=e285]:
+          - button "รายงาน" [expanded] [ref=e286] [cursor=pointer]:
+            - generic [ref=e287]: รายงาน
+            - img [ref=e288]
+          - button "รายงานสรุป" [ref=e291] [cursor=pointer]:
+            - img [ref=e292]
+            - generic [ref=e295]: รายงานสรุป
+        - generic [ref=e296]:
+          - button "ข้อมูลแอดมิน" [expanded] [ref=e297] [cursor=pointer]:
+            - generic [ref=e298]: ข้อมูลแอดมิน
+            - img [ref=e299]
+          - button "Admin Data" [ref=e302] [cursor=pointer]:
+            - img [ref=e303]
+            - generic [ref=e307]: Admin Data
+        - generic [ref=e308]:
+          - button "สิทธิ์การเข้าถึง" [expanded] [ref=e309] [cursor=pointer]:
+            - generic [ref=e310]: สิทธิ์การเข้าถึง
+            - img [ref=e311]
+          - button "Access Control" [ref=e314] [cursor=pointer]:
+            - img [ref=e315]
+            - generic [ref=e319]: Access Control
+        - generic [ref=e320]:
+          - button "อื่นๆ" [expanded] [ref=e321] [cursor=pointer]:
+            - generic [ref=e322]: อื่นๆ
+            - img [ref=e323]
+          - button "ตั้งค่าระบบ" [ref=e326] [cursor=pointer]:
+            - img [ref=e327]
+            - generic [ref=e330]: ตั้งค่าระบบ
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - img [ref=e18]
+          - generic [ref=e21]:
+            - paragraph [ref=e331]: Dev Administrator
+            - paragraph [ref=e332]: admin.dev@icpladda.com
+            - paragraph [ref=e22]: "Role: Administrator"
+            - paragraph [ref=e23]: Administrator · Administrator
+        - button "ออกจากระบบ" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+          - text: ออกจากระบบ
+    - main [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - img [ref=e32]
+          - generic [ref=e35]:
+            - heading "QC Dashboard" [level=1] [ref=e36]
+            - paragraph [ref=e37]: วันเสาร์ที่ 23 พฤษภาคม 2569 · กะบ่าย
+        - generic [ref=e38]:
+          - generic [ref=e39]:
+            - img [ref=e40]
+            - textbox "ค้นหาเลขคำร้อง..." [ref=e43]
+            - generic [ref=e44]: /
+          - button "ส่งออก" [ref=e45] [cursor=pointer]:
+            - img
+            - generic [ref=e46]: ส่งออก
+      - generic [ref=e47]:
+        - button "คำร้องที่ QC ติดตาม 3 รวมงานเสร็จแล้ว 1" [ref=e333] [cursor=pointer]:
+          - generic [ref=e49]:
+            - img [ref=e51]
+            - generic [ref=e54]:
+              - paragraph [ref=e55]: คำร้องที่ QC ติดตาม
+              - paragraph [ref=e56]: "3"
+              - generic [ref=e57]: รวมงานเสร็จแล้ว 1
+        - button "รอรับเข้าระบบ 0 ไม่มีค้าง" [ref=e58] [cursor=pointer]:
+          - generic [ref=e59]:
+            - img [ref=e61]
+            - generic [ref=e64]:
+              - paragraph [ref=e65]: รอรับเข้าระบบ
+              - paragraph [ref=e66]: "0"
+              - generic [ref=e67]: ไม่มีค้าง
+        - button "กำลังดำเนินการ 2 ไม่มีเกินกำหนด" [ref=e334] [cursor=pointer]:
+          - generic [ref=e69]:
+            - img [ref=e71]
+            - generic [ref=e73]:
+              - paragraph [ref=e74]: กำลังดำเนินการ
+              - paragraph [ref=e75]: "2"
+              - generic [ref=e76]: ไม่มีเกินกำหนด
+        - button "ตรวจเสร็จแล้ว 1 เฉลี่ย 0.4h / งาน" [active] [pressed] [ref=e335] [cursor=pointer]:
+          - generic [ref=e78]:
+            - img [ref=e80]
+            - generic [ref=e83]:
+              - paragraph [ref=e84]: ตรวจเสร็จแล้ว
+              - paragraph [ref=e85]: "1"
+              - generic [ref=e86]: เฉลี่ย 0.4h / งาน
+      - generic [ref=e87]:
+        - generic [ref=e88]:
+          - generic [ref=e89]:
+            - generic [ref=e90]:
+              - heading "ตรวจเสร็จแล้ว" [level=3] [ref=e388]
+              - button "ดูรายการคำร้องทั้งหมด" [ref=e92] [cursor=pointer]
+            - generic [ref=e94]:
+              - button "ทั้งหมด 2" [ref=e336] [cursor=pointer]:
+                - text: ทั้งหมด
+                - generic [ref=e96]: "2"
+              - button "เกินกำหนด 0" [ref=e97] [cursor=pointer]:
+                - text: เกินกำหนด
+                - generic [ref=e98]: "0"
+              - button "4-24h 0" [ref=e99] [cursor=pointer]:
+                - text: 4-24h
+                - generic [ref=e100]: "0"
+              - button "ใหม่ 2" [ref=e337] [cursor=pointer]:
+                - text: ใหม่
+                - generic [ref=e102]: "2"
+          - table [ref=e340]:
+            - rowgroup [ref=e341]:
+              - row "คำร้อง ผู้ยื่น ตัวอย่าง สถานะ อายุงาน" [ref=e342]:
+                - columnheader "คำร้อง" [ref=e343]
+                - columnheader "ผู้ยื่น" [ref=e344]
+                - columnheader "ตัวอย่าง" [ref=e345]
+                - columnheader "สถานะ" [ref=e346]
+                - columnheader "อายุงาน" [ref=e347]
+                - columnheader [ref=e348]
+            - rowgroup [ref=e349]:
+              - row "P-2605-0001 แผนกผลิต Dev Viewer 1 BROMADIOLONE 0.005% W/W (PUBLIC HEALTH) · KG · BROMADIOLONE 0.005% W/W (PUBLIC HEALTH) ทดสอบเสร็จสิ้น 23h" [ref=e389] [cursor=pointer]:
+                - cell "P-2605-0001 แผนกผลิต" [ref=e390]:
+                  - generic [ref=e392]:
+                    - generic [ref=e393]: P-2605-0001
+                    - generic [ref=e394]: แผนกผลิต
+                - cell "Dev Viewer" [ref=e395]
+                - cell "1 BROMADIOLONE 0.005% W/W (PUBLIC HEALTH) · KG · BROMADIOLONE 0.005% W/W (PUBLIC HEALTH)" [ref=e396]:
+                  - generic [ref=e397]:
+                    - generic [ref=e398]: "1"
+                    - generic [ref=e399]: BROMADIOLONE 0.005% W/W (PUBLIC HEALTH) · KG · BROMADIOLONE 0.005% W/W (PUBLIC HEALTH)
+                - cell "ทดสอบเสร็จสิ้น" [ref=e400]:
+                  - generic [ref=e401]: ทดสอบเสร็จสิ้น
+                - cell "23h" [ref=e402]:
+                  - generic "22/5/2569 16:39" [ref=e403]: 23h
+                - cell [ref=e404]:
+                  - img [ref=e405]
+        - generic [ref=e135]:
+          - heading "ผลวิเคราะห์รอ QC" [level=3] [ref=e138]
+          - generic [ref=e140]:
+            - img [ref=e142]
+            - paragraph [ref=e145]: ไม่มีผลวิเคราะห์ที่รอ QC
+            - paragraph [ref=e146]: ทุกเคสได้รับการอนุมัติแล้ว ✨
+      - button "ตรวจเสร็จแล้ววันนี้ 1 รายการ · ล่าสุด 17:02" [ref=e387] [cursor=pointer]:
+        - generic [ref=e150]:
+          - img [ref=e152]
+          - generic [ref=e155]:
+            - paragraph [ref=e156]: ตรวจเสร็จแล้ววันนี้
+            - paragraph [ref=e157]: 1 รายการ · ล่าสุด 17:02
+        - img [ref=e158]

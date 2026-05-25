@@ -80,6 +80,7 @@ export default function PetitionEditPage() {
   const [stepIdx, setStepIdx] = useState(0);
 
   const [submitter, setSubmitter] = useState<SubmitterValues>({ employeeId: '', name: '' });
+  const [deliverer, setDeliverer] = useState<SubmitterValues>({ employeeId: '', name: '' });
   const [items, setItems] = useState<ItemRowValues[]>([]);
   const [plan, setPlanState] = useState<ProductionPlan | null>(null);
   const [labRequest, setLabRequest] = useState<LabRequestRowValues | null>(null);
@@ -94,6 +95,10 @@ export default function PetitionEditPage() {
     setSubmitter({
       employeeId: data.submittedBy.employeeId ?? '',
       name: data.submittedBy.name,
+    });
+    setDeliverer({
+      employeeId: data.deliveredBy?.employeeId ?? data.submittedBy.employeeId ?? '',
+      name: data.deliveredBy?.name ?? data.submittedBy.name,
     });
     const mappedItems: ItemRowValues[] = data.items.map((it) => ({
       seq: it.seq,
@@ -177,6 +182,10 @@ export default function PetitionEditPage() {
         setStepError('ไม่พบชื่อผู้ยื่นคำขอ');
         return false;
       }
+      if (!deliverer.name.trim()) {
+        setStepError('กรุณาเลือกผู้นำส่ง');
+        return false;
+      }
       if (items.length === 0) {
         setStepError('ต้องมีตัวอย่างอย่างน้อย 1 รายการ');
         return false;
@@ -232,12 +241,17 @@ export default function PetitionEditPage() {
         name: submitter.name,
         submittedAt: data.submittedBy.submittedAt,
       };
+      const deliveredBy = {
+        employeeId: deliverer.employeeId || undefined,
+        name: deliverer.name,
+      };
       if (data.dept === 'production') {
         await updatePetition(
           id,
           {
             dept: 'production',
             submittedBy,
+            deliveredBy,
             items: mappedItems,
             productionPlans: plan ? [plan] : [],
             labRequests: [],
@@ -251,6 +265,7 @@ export default function PetitionEditPage() {
           {
             dept: data.dept as 'rm',
             submittedBy,
+            deliveredBy,
             items: mappedItems,
             cause: data.cause ?? '',
           },
@@ -293,12 +308,12 @@ export default function PetitionEditPage() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate(`/petitions/${id}`)}>
             <ArrowLeft className="h-4 w-4" />
             กลับไปหน้ารายละเอียด
           </Button>
-          <h1 className="text-2xl font-bold text-black-500">แก้ไขคำร้อง {data.petitionNo}</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-black-500">แก้ไขคำร้อง {data.petitionNo}</h1>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
@@ -339,7 +354,7 @@ export default function PetitionEditPage() {
         )}
 
         <Card>
-          <CardContent className="p-5">
+          <CardContent className="p-4 md:p-5">
             {currentStep === 'items' && initialized && (
               <ItemsStep
                 value={items}
@@ -347,6 +362,8 @@ export default function PetitionEditPage() {
                 submitter={submitter}
                 onSubmitterChange={setSubmitter}
                 submitterReadOnly
+                deliverer={deliverer}
+                onDelivererChange={setDeliverer}
               />
             )}
             {currentStep === 'plan' && data.dept === 'production' && plan && (

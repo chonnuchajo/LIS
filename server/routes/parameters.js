@@ -5,7 +5,11 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
   try {
-    const items = await Parameter.find().sort({ sortOrder: 1, name: 1 });
+    const filter = {};
+    if (req.query.scope === 'lab' || req.query.scope === 'qc') {
+      filter.scope = req.query.scope;
+    }
+    const items = await Parameter.find(filter).sort({ sortOrder: 1, name: 1 });
     res.json(items);
   } catch (err) {
     res.status(500).json({ error: err.message });

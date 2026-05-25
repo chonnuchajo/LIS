@@ -196,7 +196,20 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  getQCProgress: (petitionIds: string[]) => {
+    if (petitionIds.length === 0) return Promise.resolve({} as QCProgressMap);
+    const qs = new URLSearchParams({ petitionIds: petitionIds.join(",") }).toString();
+    return request<QCProgressMap>(`/qc-results/progress?${qs}`);
+  },
 };
+
+export type QCProgressEntry = {
+  itemSeq: number;
+  parameterId: string;
+  filledLabels: string[];
+};
+
+export type QCProgressMap = Record<string, QCProgressEntry[]>;
 
 export type MachineItem = {
   _id?: string;
@@ -244,9 +257,12 @@ export type ParameterValueField = {
   required?: boolean;
 };
 
+export type ParameterScope = "lab" | "qc";
+
 export type ParameterItem = {
   _id?: string;
   name: string;
+  scope?: ParameterScope;
   status?: "active" | "inactive";
   applyAll?: boolean;
   commonNames?: string[];

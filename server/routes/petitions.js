@@ -203,6 +203,9 @@ router.post('/', async (req, res) => {
       return badRequest(res, 'กรุณาระบุแผนก (production / rm / fg)');
     }
     if (!body.submittedBy?.name) {
+      return badRequest(res, 'กรุณาระบุผู้ยื่นคำขอ');
+    }
+    if (!body.deliveredBy?.name) {
       return badRequest(res, 'กรุณาระบุผู้นำส่ง');
     }
     if (!Array.isArray(body.items) || body.items.length === 0) {

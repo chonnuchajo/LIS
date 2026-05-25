@@ -170,6 +170,14 @@ const SubmittedBySchema = new mongoose.Schema(
   { _id: false },
 );
 
+const DeliveredBySchema = new mongoose.Schema(
+  {
+    employeeId: String,
+    name: { type: String, required: true },
+  },
+  { _id: false },
+);
+
 const PetitionSchema = new mongoose.Schema(
   {
     petitionNo: { type: String, required: true, unique: true, index: true },
@@ -191,6 +199,7 @@ const PetitionSchema = new mongoose.Schema(
     firstResultAt: Date,
     completedAt: Date,
     submittedBy: { type: SubmittedBySchema, required: true },
+    deliveredBy: { type: DeliveredBySchema },
     items: { type: [PetitionItemSchema], default: [] },
     productionPlans: { type: [ProductionPlanSchema], default: [] },
     cause: String,

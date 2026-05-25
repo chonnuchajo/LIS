@@ -16,25 +16,29 @@ test.describe('Petition new (production) — read-only user fields', () => {
       timeout: 15000,
     });
 
-    // ===== Step 1: ผู้ยื่นคำขอ =====
-    await expect(page.getByRole('heading', { name: 'ผู้ยื่นคำขอ' })).toBeVisible();
+    // ===== Step 1: ผู้ยื่นคำขอ + ผู้นำส่ง =====
+    await expect(
+      page.getByRole('heading', { name: /ผู้ยื่นคำขอ.*ผู้นำส่ง/ }),
+    ).toBeVisible();
 
-    // Section "ผู้ยื่นคำขอ" should NOT contain HR description text
-    const itemsSection = page.locator('div').filter({
-      has: page.getByRole('heading', { name: 'ผู้ยื่นคำขอ', level: 2 }),
-    }).first();
+    // ผู้ยื่นคำขอ is read-only (no combobox under that label)
+    const requesterCombobox = page.getByRole('combobox', { name: /ผู้ยื่นคำขอ/ });
+    await expect(requesterCombobox).toHaveCount(0);
 
-    // Check there is no combobox button (HR picker) — must be read-only div
-    const hrCombobox = page.getByRole('combobox', { name: /ผู้นำส่ง|ผู้ยื่นคำขอ/ });
-    await expect(hrCombobox).toHaveCount(0);
-
-    // Read-only display should be inside the section
+    // Read-only display for ผู้ยื่นคำขอ
     const submitterDisplay = page.locator('label:has-text("ผู้ยื่นคำขอ") + div').first();
     await expect(submitterDisplay).toBeVisible();
     const submitterText = (await submitterDisplay.innerText()).trim();
     console.log('[step1] ผู้ยื่นคำขอ shown as:', JSON.stringify(submitterText));
     expect(submitterText.length).toBeGreaterThan(0);
     expect(submitterText).not.toBe('-');
+
+    // ผู้นำส่ง is an editable HR picker (combobox present) and defaulted to logged-in user
+    const delivererCombobox = page.getByRole('combobox').filter({ hasText: /./ }).first();
+    await expect(delivererCombobox).toBeVisible();
+    const delivererText = (await delivererCombobox.innerText()).trim();
+    console.log('[step1] ผู้นำส่ง shown as:', JSON.stringify(delivererText));
+    expect(delivererText.length).toBeGreaterThan(0);
 
     // Screenshot step 1
     await page.screenshot({

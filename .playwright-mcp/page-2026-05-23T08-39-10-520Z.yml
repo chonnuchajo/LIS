@@ -1,0 +1,85 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - complementary [ref=e5]:
+      - button "ซ่อนเมนู" [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+      - generic [ref=e9]:
+        - img "ICP Logo" [ref=e10]
+        - generic [ref=e11]:
+          - heading "LIS" [level=1] [ref=e12]
+          - paragraph [ref=e13]:
+            - text: LAB INFORMATION
+            - text: SYSTEM
+      - navigation [ref=e14]
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - img [ref=e18]
+          - generic [ref=e21]:
+            - paragraph
+            - paragraph
+            - paragraph [ref=e22]: "Role: No role"
+            - paragraph [ref=e23]: Unassigned
+        - button "ออกจากระบบ" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+          - text: ออกจากระบบ
+    - main [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - img [ref=e32]
+          - generic [ref=e35]:
+            - heading "QC Dashboard" [level=1] [ref=e36]
+            - paragraph [ref=e37]: วันเสาร์ที่ 23 พฤษภาคม 2569 · กะบ่าย
+        - generic [ref=e38]:
+          - generic [ref=e39]:
+            - img [ref=e40]
+            - textbox "ค้นหาเลขคำร้อง..." [ref=e43]
+            - generic [ref=e44]: /
+          - button "ส่งออก" [ref=e45] [cursor=pointer]:
+            - img
+            - generic [ref=e46]: ส่งออก
+      - generic [ref=e47]:
+        - button "คำร้องที่ QC ติดตาม 0 รวมงานเสร็จแล้ว 0" [ref=e48] [cursor=pointer]:
+          - generic [ref=e49]:
+            - img [ref=e51]
+            - generic [ref=e54]:
+              - paragraph [ref=e55]: คำร้องที่ QC ติดตาม
+              - paragraph [ref=e56]: "0"
+              - generic [ref=e57]: รวมงานเสร็จแล้ว 0
+        - button "รอรับเข้าระบบ 0" [ref=e58] [cursor=pointer]:
+          - generic [ref=e59]:
+            - img [ref=e61]
+            - generic [ref=e64]:
+              - paragraph [ref=e65]: รอรับเข้าระบบ
+              - paragraph [ref=e66]: "0"
+        - button "กำลังดำเนินการ 0" [ref=e67] [cursor=pointer]:
+          - generic [ref=e68]:
+            - img [ref=e70]
+            - generic [ref=e72]:
+              - paragraph [ref=e73]: กำลังดำเนินการ
+              - paragraph [ref=e74]: "0"
+        - button "ตรวจเสร็จแล้ว 0" [ref=e75] [cursor=pointer]:
+          - generic [ref=e76]:
+            - img [ref=e78]
+            - generic [ref=e81]:
+              - paragraph [ref=e82]: ตรวจเสร็จแล้ว
+              - paragraph [ref=e83]: "0"
+      - generic [ref=e84]:
+        - generic [ref=e87]:
+          - heading "คำร้องที่ QC ต้องติดตาม" [level=3] [ref=e88]
+          - button "ดูรายการคำร้องทั้งหมด" [ref=e89] [cursor=pointer]
+        - generic [ref=e117]:
+          - heading "ผลวิเคราะห์รอ QC" [level=3] [ref=e120]
+          - generic [ref=e122]:
+            - img [ref=e124]
+            - paragraph [ref=e127]: ไม่มีผลวิเคราะห์ที่รอ QC
+            - paragraph [ref=e128]: ทุกเคสได้รับการอนุมัติแล้ว ✨
+      - button "ตรวจเสร็จแล้ววันนี้ 0 รายการ" [ref=e131] [cursor=pointer]:
+        - generic [ref=e132]:
+          - img [ref=e134]
+          - generic [ref=e137]:
+            - paragraph [ref=e138]: ตรวจเสร็จแล้ววันนี้
+            - paragraph [ref=e139]: 0 รายการ
+        - img [ref=e140]

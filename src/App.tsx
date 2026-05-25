@@ -34,7 +34,14 @@ import QCTestingPage from "./pages/QCTestingPage";
 import QCTestingDetailPage from "./pages/QCTestingDetailPage";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchInterval: 10000,
+      refetchIntervalInBackground: false,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

@@ -65,8 +65,8 @@ const Login = () => {
       </div>
 
       {/* Right - Login */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-background">
-        <div className="w-full max-w-md space-y-8">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-background">
+        <div className="w-full max-w-md space-y-6 sm:space-y-8">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 justify-center mb-4">
             <img src={ICP_LADDA_LOGO_URL} alt="ICP Logo" className="w-12 h-12 rounded-full object-contain" />
@@ -77,7 +77,7 @@ const Login = () => {
           </div>
 
           <div className="text-center lg:text-left">
-            <h1 className="text-2xl font-bold text-foreground">เข้าสู่ระบบ</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">เข้าสู่ระบบ</h1>
             <p className="text-sm text-muted-foreground mt-1">
               ใช้บัญชี Microsoft องค์กรของคุณเพื่อเข้าสู่ระบบ
             </p>

@@ -207,9 +207,9 @@ const SendingSample = () => {
 
   return (
     <AppLayout>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">การส่งตัวอย่าง</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-foreground">การส่งตัวอย่าง</h1>
             <p className="text-sm text-muted-foreground">
               เพิ่มรายการตัวอย่างเพื่อส่งเข้าห้องปฏิบัติการ
               {user && <span className="ml-2 text-primary">· {user.email}</span>}
@@ -247,7 +247,8 @@ const SendingSample = () => {
                 คุณยังไม่ได้ส่งตัวอย่างเข้าระบบ
               </p>
             ) : (
-              <Table>
+              <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+              <Table className="min-w-[800px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>รหัส</TableHead>
@@ -313,6 +314,7 @@ const SendingSample = () => {
                   })}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -373,7 +375,8 @@ const SendingSample = () => {
                 <p className="text-sm">ยังไม่มีรายการ กรุณาเพิ่มตัวอย่างด้านบน</p>
               </div>
             ) : (
-              <Table>
+              <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+              <Table className="min-w-[700px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>รหัส</TableHead>
@@ -401,6 +404,7 @@ const SendingSample = () => {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -422,7 +426,7 @@ const SendingSample = () => {
               )}
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {sentItems.map(item => (
                   <Card key={item.id} className="p-3 space-y-2 shadow-sm">
                     <div className="flex items-center justify-between">
@@ -468,7 +472,7 @@ const SendingSample = () => {
 
         {/* Preview dialog */}
         <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Label Preview (10×5 cm)</DialogTitle></DialogHeader>
             {previewImage && <img src={previewImage} alt="Preview" className="w-full rounded" style={{ aspectRatio: "2/1" }} />}
           </DialogContent>
@@ -476,7 +480,7 @@ const SendingSample = () => {
 
         {/* Scan confirm dialog */}
         <Dialog open={scanDialogOpen} onOpenChange={setScanDialogOpen}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <ScanLine className="w-5 h-5" /> สแกนยืนยันการส่งตัวอย่าง

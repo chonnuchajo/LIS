@@ -17,7 +17,7 @@ export default function PlanSection1({ value, batchNos, onChange }: Props) {
   return (
     <div className="space-y-3">
       <h3 className="font-semibold">ส่วนที่ 1: การวางแผนผลิต</h3>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label>ว.ด.ป.ที่วางแผน</Label>
           <Input
@@ -34,7 +34,7 @@ export default function PlanSection1({ value, batchNos, onChange }: Props) {
             onChange={(e) => set('productionDate', e.target.value)}
           />
         </div>
-        <div className="md:col-span-2">
+        <div className="sm:col-span-2">
           <Label>ชื่อสามัญ, % สารและลักษณะสูตร</Label>
           <Textarea
             rows={2}
@@ -55,7 +55,7 @@ export default function PlanSection1({ value, batchNos, onChange }: Props) {
             {batchNos.join(', ')}
           </div>
         </div>
-        <div className="md:col-span-2">
+        <div className="sm:col-span-2">
           <Label>รายชื่อพนักงานผลิต</Label>
           <Textarea
             rows={2}

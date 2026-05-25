@@ -23,9 +23,9 @@ const StockDeduction = () => {
 
   return (
     <AppLayout>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
               <History className="w-6 h-6" />
               ประวัติการตัด Stock
             </h1>
@@ -36,7 +36,7 @@ const StockDeduction = () => {
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-muted-foreground" />
             <Select value={type || "all"} onValueChange={(v) => setType(v === "all" ? "" : v)}>
-              <SelectTrigger className="h-9 w-44">
+              <SelectTrigger className="h-9 w-full sm:w-44">
                 <SelectValue placeholder="ทุกหมวด" />
               </SelectTrigger>
               <SelectContent>
@@ -66,7 +66,8 @@ const StockDeduction = () => {
                 <p>ยังไม่มีรายการตัด stock</p>
               </div>
             ) : (
-              <Table>
+              <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+              <Table className="min-w-[900px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>เวลา</TableHead>
@@ -117,6 +118,7 @@ const StockDeduction = () => {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>

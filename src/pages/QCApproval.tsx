@@ -46,7 +46,7 @@ const QCApproval = () => {
   return (
     <AppLayout>
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
             <ShieldCheck className="w-6 h-6" />
             QC Approval
           </h1>
@@ -69,8 +69,8 @@ const QCApproval = () => {
             ) : successPetitions.length === 0 ? (
               <p className="py-4 text-center text-sm text-muted-foreground">ไม่มีคำร้องที่รออนุมัติ</p>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+                <Table className="min-w-[700px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>เลขที่คำร้อง</TableHead>

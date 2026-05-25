@@ -1,0 +1,193 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e160]:
+    - generic "ลากเพื่อย้ายตำแหน่ง" [ref=e161]: DEV MODE
+    - generic [ref=e162]:
+      - button "Administrator" [ref=e163] [cursor=pointer]
+      - button "Lab Analyst" [ref=e164] [cursor=pointer]
+      - button "Lab Head" [ref=e165] [cursor=pointer]
+      - button "Lab Inventory" [ref=e166] [cursor=pointer]
+      - button "QC Head" [ref=e167] [cursor=pointer]
+      - button "QC Reviewer" [ref=e168] [cursor=pointer]
+      - button "QC Staff" [ref=e169] [cursor=pointer]
+      - button "Viewer" [ref=e170] [cursor=pointer]
+  - generic [ref=e407]:
+    - complementary [ref=e409]:
+      - button "ซ่อนเมนู" [ref=e410] [cursor=pointer]:
+        - img [ref=e411]
+      - generic [ref=e413]:
+        - img "ICP Logo" [ref=e414]
+        - generic [ref=e415]:
+          - heading "LIS" [level=1] [ref=e416]
+          - paragraph [ref=e417]:
+            - text: LAB INFORMATION
+            - text: SYSTEM
+      - navigation [ref=e418]:
+        - generic [ref=e419]:
+          - button "หน้าหลัก" [expanded] [ref=e420] [cursor=pointer]:
+            - generic [ref=e421]: หน้าหลัก
+            - img [ref=e422]
+          - generic [ref=e424]:
+            - button "หน้าแรก" [ref=e425] [cursor=pointer]:
+              - img [ref=e426]
+              - generic [ref=e429]: หน้าแรก
+            - button "Lab Dashboard" [ref=e430] [cursor=pointer]:
+              - img [ref=e431]
+              - generic [ref=e436]: Lab Dashboard
+            - button "QC Dashboard" [ref=e437] [cursor=pointer]:
+              - img [ref=e438]
+              - generic [ref=e443]: QC Dashboard
+            - button "รายการคำร้อง" [ref=e444] [cursor=pointer]:
+              - img [ref=e445]
+              - generic [ref=e448]: รายการคำร้อง
+        - generic [ref=e449]:
+          - button "LAB" [expanded] [ref=e450] [cursor=pointer]:
+            - generic [ref=e451]: LAB
+            - img [ref=e452]
+          - generic [ref=e454]:
+            - button "Daily Check" [ref=e455] [cursor=pointer]:
+              - img [ref=e456]
+              - generic [ref=e460]: Daily Check
+            - button "การบันทึก Standard" [ref=e461] [cursor=pointer]:
+              - img [ref=e462]
+              - generic [ref=e465]: การบันทึก Standard
+            - button "Assign คำร้อง" [ref=e466] [cursor=pointer]:
+              - img [ref=e467]
+              - generic [ref=e471]: Assign คำร้อง
+        - generic [ref=e472]:
+          - button "QC" [expanded] [ref=e473] [cursor=pointer]:
+            - generic [ref=e474]: QC
+            - img [ref=e475]
+          - generic [ref=e477]:
+            - button "อนุมัติผล QC" [ref=e478] [cursor=pointer]:
+              - img [ref=e479]
+              - generic [ref=e482]: อนุมัติผล QC
+            - button "การทดสอบ QC" [ref=e483] [cursor=pointer]:
+              - img [ref=e484]
+              - generic [ref=e486]: การทดสอบ QC
+        - generic [ref=e487]:
+          - button "ผลวิเคราะห์" [expanded] [ref=e488] [cursor=pointer]:
+            - generic [ref=e489]: ผลวิเคราะห์
+            - img [ref=e490]
+          - button "ผลวิเคราะห์" [ref=e493] [cursor=pointer]:
+            - img [ref=e494]
+            - generic [ref=e497]: ผลวิเคราะห์
+        - generic [ref=e498]:
+          - button "CONFIG DATA" [expanded] [ref=e499] [cursor=pointer]:
+            - generic [ref=e500]: CONFIG DATA
+            - img [ref=e501]
+          - generic [ref=e503]:
+            - button "Master Item" [ref=e504] [cursor=pointer]:
+              - img [ref=e505]
+              - generic [ref=e509]: Master Item
+            - button "Simple Method" [ref=e510] [cursor=pointer]:
+              - img [ref=e511]
+              - generic [ref=e513]: Simple Method
+            - button "รายการเครื่อง" [ref=e514] [cursor=pointer]:
+              - img [ref=e515]
+              - generic [ref=e517]: รายการเครื่อง
+            - button "พารามิเตอร์ตรวจสอบ" [ref=e518] [cursor=pointer]:
+              - img [ref=e519]
+              - generic [ref=e520]: พารามิเตอร์ตรวจสอบ
+        - generic [ref=e521]:
+          - button "INVENTORY" [expanded] [ref=e522] [cursor=pointer]:
+            - generic [ref=e523]: INVENTORY
+            - img [ref=e524]
+          - button "Stock Management" [ref=e527] [cursor=pointer]:
+            - img [ref=e528]
+            - generic [ref=e532]: Stock Management
+        - generic [ref=e533]:
+          - button "รายงาน" [expanded] [ref=e534] [cursor=pointer]:
+            - generic [ref=e535]: รายงาน
+            - img [ref=e536]
+          - button "รายงานสรุป" [ref=e539] [cursor=pointer]:
+            - img [ref=e540]
+            - generic [ref=e543]: รายงานสรุป
+        - generic [ref=e544]:
+          - button "ข้อมูลแอดมิน" [expanded] [ref=e545] [cursor=pointer]:
+            - generic [ref=e546]: ข้อมูลแอดมิน
+            - img [ref=e547]
+          - button "Admin Data" [ref=e550] [cursor=pointer]:
+            - img [ref=e551]
+            - generic [ref=e555]: Admin Data
+        - generic [ref=e556]:
+          - button "สิทธิ์การเข้าถึง" [expanded] [ref=e557] [cursor=pointer]:
+            - generic [ref=e558]: สิทธิ์การเข้าถึง
+            - img [ref=e559]
+          - button "Access Control" [ref=e562] [cursor=pointer]:
+            - img [ref=e563]
+            - generic [ref=e567]: Access Control
+        - generic [ref=e568]:
+          - button "อื่นๆ" [expanded] [ref=e569] [cursor=pointer]:
+            - generic [ref=e570]: อื่นๆ
+            - img [ref=e571]
+          - button "ตั้งค่าระบบ" [ref=e574] [cursor=pointer]:
+            - img [ref=e575]
+            - generic [ref=e578]: ตั้งค่าระบบ
+      - generic [ref=e579]:
+        - generic [ref=e580]:
+          - img [ref=e582]
+          - generic [ref=e585]:
+            - paragraph [ref=e586]: Dev Administrator
+            - paragraph [ref=e587]: admin.dev@icpladda.com
+            - paragraph [ref=e588]: "Role: Administrator"
+            - paragraph [ref=e589]: Administrator · Administrator
+        - button "ออกจากระบบ" [ref=e590] [cursor=pointer]:
+          - img [ref=e591]
+          - text: ออกจากระบบ
+    - main [ref=e594]:
+      - generic [ref=e595]:
+        - generic [ref=e596]:
+          - button [ref=e597] [cursor=pointer]:
+            - img
+          - img [ref=e598]
+          - heading "P-2605-0001" [level=1] [ref=e600]
+          - generic [ref=e601]: แผนกผลิต
+          - generic [ref=e602]: "ผู้นำส่ง: Dev Viewer"
+        - generic [ref=e603]:
+          - generic [ref=e604]: "สลับไป:"
+          - button "P-2605-0003 ·3" [ref=e605] [cursor=pointer]:
+            - generic [ref=e607]: P-2605-0003
+            - generic [ref=e608]: ·3
+          - button "P-2605-0002 ·1" [ref=e609] [cursor=pointer]:
+            - generic [ref=e611]: P-2605-0002
+            - generic [ref=e612]: ·1
+        - generic [ref=e613]:
+          - 'heading "รายการที่ 1: BROMADIOLONE 0.005% W/W (PUBLIC HEALTH) · KG · BROMADIOLONE 0.005% W/W (PUBLIC HEALTH) Batch: RM260518-007" [level=3] [ref=e615]':
+            - generic [ref=e616]: "รายการที่ 1: BROMADIOLONE 0.005% W/W (PUBLIC HEALTH) · KG · BROMADIOLONE 0.005% W/W (PUBLIC HEALTH)"
+            - generic [ref=e617]: "Batch: RM260518-007"
+          - generic [ref=e619]:
+            - heading "กายภาพ" [level=3] [ref=e621]
+            - generic [ref=e622]:
+              - generic [ref=e623]:
+                - generic [ref=e624]:
+                  - generic [ref=e625]: ลักษณะ
+                  - img [ref=e626]
+                - combobox [disabled] [ref=e629]:
+                  - generic: ของเหลวขุ่น
+                  - img [ref=e630]
+                - paragraph [ref=e632]: กรอกโดย Dev Administrator เมื่อ 16:51
+              - generic [ref=e633]:
+                - generic [ref=e634]:
+                  - generic [ref=e635]: สี
+                  - img [ref=e636]
+                - textbox [disabled] [ref=e639]: ทดสอบ
+                - paragraph [ref=e640]: กรอกโดย Dev Administrator เมื่อ 16:51
+              - generic [ref=e641]:
+                - generic [ref=e642]:
+                  - generic [ref=e643]: ปกติ/ไม่ปกติ*
+                  - img [ref=e644]
+                - combobox [disabled] [ref=e647]:
+                  - generic: ปกติ
+                  - img [ref=e648]
+                - paragraph [ref=e650]: กรอกโดย Dev Administrator เมื่อ 16:51
+        - generic [ref=e651]:
+          - generic [ref=e652]:
+            - img [ref=e653]
+            - paragraph [ref=e656]: บันทึกผลแล้ว
+            - paragraph [ref=e657]: "ผู้รับงาน: test"
+          - button "ส่งให้แก้ไข" [ref=e658] [cursor=pointer]:
+            - img
+            - text: ส่งให้แก้ไข

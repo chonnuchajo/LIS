@@ -4,13 +4,21 @@ import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import { AlertCircle, CheckCircle2, QrCode, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Petition } from '@/types/petition.types';
-import { PETITION_STATUS_CONFIG } from '@/types/petition.types';
+import { PETITION_DEPT_LABELS, PETITION_STATUS_CONFIG } from '@/types/petition.types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
 
 const READER_ID = 'qc-receive-qr-reader';
 type Phase = 'scanning' | 'confirming' | 'loading' | 'success' | 'error' | 'no-camera';
+
+interface ReceivedRow {
+  _id: string;
+  petitionNo: string;
+  dept: Petition['dept'];
+  itemCount: number;
+}
 
 function extractScannedCode(raw: string): string {
   const text = raw.trim();
@@ -57,7 +65,11 @@ export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
   const [petition, setPetition] = useState<Petition | null>(null);
   const [pendingId, setPendingId] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [continuousMode, setContinuousMode] = useState(true);
+  const [receivedList, setReceivedList] = useState<ReceivedRow[]>([]);
+  const [flashMsg, setFlashMsg] = useState<string | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const flashTimer = useRef<number | null>(null);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -66,8 +78,20 @@ export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
       setPetition(null);
       setPendingId('');
       setErrorMsg('');
+      setReceivedList([]);
+      setFlashMsg(null);
     }
   }, [open]);
+
+  // Clear pending flash timer on unmount / close
+  useEffect(() => {
+    return () => {
+      if (flashTimer.current) {
+        window.clearTimeout(flashTimer.current);
+        flashTimer.current = null;
+      }
+    };
+  }, []);
 
   // Start camera when in scanning phase
   useEffect(() => {
@@ -130,6 +154,13 @@ export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
     setPhase('loading');
     try {
       const found = await fetchPetitionByScannedCode(code);
+      // Dedup: skip if already received in this session
+      if (receivedList.some((r) => r._id === found._id)) {
+        setPetition(found);
+        setErrorMsg(`คำร้อง ${found.petitionNo} รับไปแล้วใน session นี้`);
+        setPhase('error');
+        return;
+      }
       setPetition(found);
       setPendingId(found._id);
       // Only allow receive if status is sampleSent
@@ -146,17 +177,39 @@ export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
     }
   }
 
+  function showFlash(msg: string) {
+    setFlashMsg(msg);
+    if (flashTimer.current) window.clearTimeout(flashTimer.current);
+    flashTimer.current = window.setTimeout(() => {
+      setFlashMsg(null);
+      flashTimer.current = null;
+    }, 1500);
+  }
+
   async function confirmReceive() {
     const id = petition?._id || pendingId;
     if (!id) return;
     setPhase('loading');
     try {
       const received = await receivePetition(id, user?.name || user?.email);
-      setPetition(received);
-      setPhase('success');
       onReceived();
-      // Navigate to detail page so QC can start entering values
-      navigate(`/qc-testing/${received._id}`);
+      if (continuousMode) {
+        setReceivedList((prev) => [
+          { _id: received._id, petitionNo: received.petitionNo, dept: received.dept, itemCount: received.items?.length ?? 0 },
+          ...prev,
+        ]);
+        showFlash(`รับแล้ว: ${received.petitionNo}`);
+        // Reset back to scanning so camera re-engages
+        setPetition(null);
+        setPendingId('');
+        setErrorMsg('');
+        setPhase('scanning');
+      } else {
+        setPetition(received);
+        setPhase('success');
+        // Navigate to detail page so QC can start entering values
+        navigate(`/qc-testing/${received._id}`);
+      }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่';
       setErrorMsg(msg);
@@ -183,10 +236,23 @@ export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
             <QrCode className="h-5 w-5 text-primary-500" />
             <h2 className="text-base font-bold">สแกน QR รับตัวอย่าง</h2>
           </div>
-          <button onClick={onClose} className="text-grey-400 hover:text-grey-700">
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-xs text-grey-600 cursor-pointer">
+              <span>สแกนต่อเนื่อง</span>
+              <Switch checked={continuousMode} onCheckedChange={setContinuousMode} />
+            </label>
+            <button onClick={onClose} className="text-grey-400 hover:text-grey-700">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
+
+        {flashMsg && (
+          <div className="bg-green-100 border-b border-green-200 px-5 py-2 text-sm text-green-700 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" />
+            {flashMsg}
+          </div>
+        )}
 
         <div className="p-5 space-y-4">
           {/* Camera reader element — must stay mounted while scanning */}
@@ -254,6 +320,36 @@ export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
               <p className="text-red-600 text-sm">{errorMsg || 'เกิดข้อผิดพลาด'}</p>
               <Button variant="primary" className="w-full" onClick={rescan}>
                 ลองใหม่
+              </Button>
+            </div>
+          )}
+
+          {receivedList.length > 0 && (
+            <div className="border-t pt-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-grey-500 uppercase tracking-wide">
+                  รับแล้วใน session นี้
+                </p>
+                <Badge variant="blue-soft">{receivedList.length}</Badge>
+              </div>
+              <ul className="space-y-1 max-h-40 overflow-y-auto">
+                {receivedList.map((r) => (
+                  <li
+                    key={r._id}
+                    className="flex items-center justify-between gap-2 rounded-md bg-grey-50 px-3 py-2 text-sm"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                      <span className="font-semibold text-primary-500">{r.petitionNo}</span>
+                      <span className="text-xs text-grey-500 truncate">
+                        {PETITION_DEPT_LABELS[r.dept]} · {r.itemCount} รายการ
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <Button variant="primary" className="w-full mt-2" onClick={onClose}>
+                เสร็จสิ้น ({receivedList.length})
               </Button>
             </div>
           )}

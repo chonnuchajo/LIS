@@ -45,7 +45,7 @@ export default function ProductionPlanStep({ items, plan, onChange }: Props) {
       </div>
 
       <Tabs value={section} onValueChange={setSection}>
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="1">ส่วนที่ 1 วางแผน</TabsTrigger>
           <TabsTrigger value="2">ส่วนที่ 2 เครื่องจักร</TabsTrigger>
           <TabsTrigger value="3">ส่วนที่ 3 ทำความสะอาด</TabsTrigger>

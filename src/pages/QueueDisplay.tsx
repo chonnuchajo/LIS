@@ -9,6 +9,12 @@ import {
   type Petition,
   type PetitionStatus,
 } from "@/types/petition.types";
+import { api, type ParameterItem, type QCProgressMap } from "@/lib/api";
+import {
+  computePetitionProgress,
+  isSameLocalDay,
+  type PetitionProgress,
+} from "@/lib/qcProgress";
 
 type QueueMode = "lab" | "qc";
 
@@ -129,12 +135,27 @@ function getSampleSummary(petition: Petition) {
   return `${name} +${petition.items.length - 1}`;
 }
 
-function QueueCard({ petition }: { petition: Petition }) {
+function QueueCard({
+  petition,
+  progress,
+}: {
+  petition: Petition;
+  progress?: PetitionProgress;
+}) {
   const updated = formatDateTime(petition.updatedAt);
   const statusCfg = PETITION_STATUS_CONFIG[petition.status] ?? {
     label: petition.status,
     variant: "gray-soft" as const,
   };
+
+  const showBar = progress && progress.total > 0;
+  const barColor = showBar
+    ? progress.percent >= 100
+      ? "bg-emerald-500"
+      : progress.percent > 0
+        ? "bg-primary-500"
+        : "bg-slate-300"
+    : "";
 
   return (
     <article className="rounded-lg border border-primary-100 bg-white p-4 shadow-sm">
@@ -149,6 +170,7 @@ function QueueCard({ petition }: { petition: Petition }) {
           {statusCfg.label}
         </Badge>
       </div>
+
       <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t border-slate-100 pt-3">
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold text-slate-800">{petition.submittedBy?.name ?? '-'}</div>
@@ -159,6 +181,31 @@ function QueueCard({ petition }: { petition: Petition }) {
           <div className="text-xs text-slate-500">{updated.date}</div>
         </div>
       </div>
+
+      {showBar && (
+        <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-3">
+          <div
+            className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100"
+            role="progressbar"
+            aria-valuenow={progress.percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div
+              className={cn("h-full transition-all duration-500", barColor)}
+              style={{ width: `${progress.percent}%` }}
+            />
+          </div>
+          <span
+            className={cn(
+              "shrink-0 text-base font-bold tabular-nums",
+              progress.percent >= 100 ? "text-emerald-600" : "text-primary-700",
+            )}
+          >
+            {progress.percent}%
+          </span>
+        </div>
+      )}
     </article>
   );
 }
@@ -174,6 +221,27 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
   const popupTimerRef = useRef<number | null>(null);
   const alertAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  // "Today" is bound at mount and refreshed at midnight so the board auto-clears
+  // when the local day rolls over.
+  const [today, setToday] = useState(() => new Date());
+  useEffect(() => {
+    const next = new Date(today);
+    next.setHours(24, 0, 0, 5);
+    const ms = Math.max(next.getTime() - Date.now(), 1000);
+    const t = window.setTimeout(() => setToday(new Date()), ms);
+    return () => window.clearTimeout(t);
+  }, [today]);
+
+  // Parameters drive the denominator for the QC progress bar.
+  const [parameters, setParameters] = useState<ParameterItem[]>([]);
+  useEffect(() => {
+    if (mode !== "qc") return;
+    api
+      .getParameters()
+      .then((all) => setParameters(all.filter((p) => (p.scope ?? "qc") === "qc")))
+      .catch(() => {});
+  }, [mode]);
+
   useEffect(() => {
     const timer = window.setInterval(() => {
       setNow(new Date());
@@ -187,8 +255,48 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
     return (data?.items ?? [])
       .filter((petition) => groupStatuses.includes(petition.status))
       .filter((petition) => (mode === "lab" ? petitionHasLabItems(petition) : true))
+      .filter((petition) =>
+        // Only show petitions that entered today's queue. completedAt is
+        // preferred for finished rows so a sample sent yesterday and finished
+        // today still appears under "done" today.
+        petition.status === "success"
+          ? isSameLocalDay(petition.completedAt ?? petition.updatedAt, today)
+          : isSameLocalDay(
+              petition.sampleSentAt ?? petition.receivedAt ?? petition.createdAt,
+              today,
+            ),
+      )
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [config.groups, data?.items, mode]);
+  }, [config.groups, data?.items, mode, today]);
+
+  // Fetch how many values each visible petition has filled so far. Re-fetches
+  // on the same cadence as the petition list, plus when the visible set changes.
+  const [progressMap, setProgressMap] = useState<QCProgressMap>({});
+  const visibleProgressIds = useMemo(
+    () =>
+      mode === "qc"
+        ? allItems
+            .filter((p) => p.status === "pendingReview" || p.status === "inProgress" || p.status === "sampleSent")
+            .map((p) => p._id)
+            .join(",")
+        : "",
+    [allItems, mode],
+  );
+  useEffect(() => {
+    if (!visibleProgressIds) {
+      setProgressMap({});
+      return;
+    }
+    let cancelled = false;
+    const fetchOnce = () =>
+      api
+        .getQCProgress(visibleProgressIds.split(","))
+        .then((map) => { if (!cancelled) setProgressMap(map); })
+        .catch(() => {});
+    fetchOnce();
+    const interval = window.setInterval(fetchOnce, REFRESH_MS);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [visibleProgressIds]);
 
   const itemsByGroup = useMemo(() => {
     return config.groups.map((group) => ({
@@ -314,7 +422,7 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
 
       <section className="flex items-center justify-between border-b border-primary-100 bg-white px-10 py-5">
         <div className="rounded-lg bg-primary-50 px-5 py-3">
-          <div className="text-lg text-slate-500">คิวทั้งหมด</div>
+          <div className="text-lg text-slate-500">คิววันนี้</div>
           <div className="text-4xl font-bold text-primary-700">{allItems.length}</div>
         </div>
         <div className="flex items-center gap-2 text-xl text-slate-600">
@@ -361,9 +469,22 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
                         ไม่มีรายการ
                       </div>
                     ) : (
-                      visibleItems.map((petition) => (
-                        <QueueCard key={petition._id} petition={petition} />
-                      ))
+                      visibleItems.map((petition) => {
+                        // Bar is only meaningful for QC mode rows that QC is
+                        // actively (or about to be) filling. "Done" rows are
+                        // implicitly 100% and would add visual noise.
+                        const showProgress =
+                          mode === "qc" &&
+                          (petition.status === "sampleSent" ||
+                            petition.status === "pendingReview" ||
+                            petition.status === "inProgress");
+                        const progress = showProgress
+                          ? computePetitionProgress(petition, parameters, progressMap[petition._id])
+                          : undefined;
+                        return (
+                          <QueueCard key={petition._id} petition={petition} progress={progress} />
+                        );
+                      })
                     )}
                     {hiddenCount > 0 && (
                       <div className="rounded-lg bg-primary px-4 py-3 text-center text-xl font-semibold text-primary-foreground">

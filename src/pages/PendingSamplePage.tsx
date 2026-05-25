@@ -152,7 +152,7 @@ export default function PendingSamplePage() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-black-500">รอส่งคำขอ</h1>
+              <h1 className="text-xl md:text-2xl font-bold text-black-500">รอส่งคำขอ</h1>
               <p className="text-sm text-grey-500">
                 รายการใบสั่งผลิตที่ต้องส่งตรวจ QC (ลงท้ายด้วย 1 หรือ 6)
               </p>

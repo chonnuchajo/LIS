@@ -68,11 +68,17 @@ export interface PetitionItem {
   condition?: ItemCondition;
 }
 
-// ===== Submitter (ผู้นำส่ง) =====
+// ===== Submitter (ผู้ยื่นคำขอ) =====
 export interface PetitionSubmitter {
   employeeId?: string;
   name: string;
   submittedAt: string;
+}
+
+// ===== Deliverer (ผู้นำส่ง) =====
+export interface PetitionDeliverer {
+  employeeId?: string;
+  name: string;
 }
 
 // ===== Review history =====
@@ -139,6 +145,7 @@ interface PetitionBase {
   dept: PetitionDept;
   status: PetitionStatus;
   submittedBy: PetitionSubmitter;
+  deliveredBy?: PetitionDeliverer;
   items: PetitionItem[];
   cause?: string;
   reviewHistory?: ReviewEntry[];

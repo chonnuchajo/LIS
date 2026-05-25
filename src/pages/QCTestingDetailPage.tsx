@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, FlaskConical, CheckCircle2, Loader2, AlertCircle, AlertTriangle, Save, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
-import { usePetition } from '@/hooks/usePetition';
+import { usePetition, usePetitionList } from '@/hooks/usePetition';
 import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { isFieldAbnormal } from '@/lib/parameterValidation';
@@ -231,6 +231,11 @@ export default function QCTestingDetailPage() {
   const { user } = useAuth();
 
   const { data: petition, loading: petitionLoading, error: petitionError } = usePetition(id);
+  // Active worklist for tab-strip switcher (other petitions currently in QC)
+  const { data: worklistData } = usePetitionList({
+    status: 'pendingReview,inProgress',
+    limit: 20,
+  });
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const [savedResults, setSavedResults] = useState<QCTestResult[]>([]);
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({});
@@ -239,9 +244,11 @@ export default function QCTestingDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  // Load parameters and existing results
+  // Load parameters and existing results (QC scope only)
   useEffect(() => {
-    api.getParameters().then(setParameters).catch(() => {});
+    api.getParameters()
+      .then((all) => setParameters(all.filter((p) => (p.scope ?? 'qc') === 'qc')))
+      .catch(() => {});
   }, []);
 
   // Auto-advance status pendingReview → inProgress when QC enters the first value
@@ -463,12 +470,48 @@ export default function QCTestingDetailPage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <FlaskConical className="h-5 w-5 text-primary-500" />
-        <h1 className="text-xl font-bold">{petition.petitionNo}</h1>
+        <h1 className="text-lg md:text-xl font-bold">{petition.petitionNo}</h1>
         <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
         <span className="text-sm text-grey-500 ml-auto">
           ผู้นำส่ง: {petition.submittedBy?.name ?? '-'}
         </span>
       </div>
+
+      {/* Active worklist tab strip — switch between petitions currently in QC */}
+      {worklistData && worklistData.items.length > 1 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 -mt-2">
+          <span className="text-xs text-grey-500 shrink-0 mr-1">สลับไป:</span>
+          {worklistData.items.map((p) => {
+            const isActive = p._id === petition._id;
+            return (
+              <button
+                key={p._id}
+                type="button"
+                onClick={() => navigate(`/qc-testing/${p._id}`)}
+                className={cn(
+                  'shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs border transition-colors',
+                  isActive
+                    ? 'bg-primary-500 text-white border-primary-500 cursor-default'
+                    : 'bg-white text-grey-700 border-grey-200 hover:border-primary-300 hover:bg-primary-50',
+                )}
+                disabled={isActive}
+                title={`${PETITION_DEPT_LABELS[p.dept]} · ${p.items?.length ?? 0} รายการ`}
+              >
+                <span
+                  className={cn(
+                    'h-2 w-2 rounded-full',
+                    p.status === 'inProgress' ? 'bg-amber-400' : 'bg-blue-400',
+                  )}
+                />
+                <span className="font-semibold">{p.petitionNo}</span>
+                <span className={cn(isActive ? 'text-white/80' : 'text-grey-400')}>
+                  ·{p.items?.length ?? 0}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {items.length === 0 && (
         <div className="text-center py-12 text-grey-400">ไม่มีรายการตัวอย่างในคำร้องนี้</div>
@@ -554,7 +597,7 @@ export default function QCTestingDetailPage() {
 
       {/* Action buttons */}
       {items.length > 0 && petition.status !== 'success' && (
-        <div className="sticky bottom-0 -mx-6 px-6 py-3 bg-white border-t shadow-md flex items-center justify-end gap-3">
+        <div className="sticky bottom-0 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-white border-t shadow-md flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <Button
             variant="outline"
             onClick={handleSaveDraft}

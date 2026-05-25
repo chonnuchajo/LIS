@@ -26,7 +26,7 @@ export default function PlanSection3({ value, onChange }: Props) {
         งานต่อเนื่อง — ไม่ล้างเครื่อง
       </label>
 
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Label>โซเวสโซ่ (ลิตร)</Label>
           <Input
@@ -65,7 +65,7 @@ export default function PlanSection3({ value, onChange }: Props) {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label>ตรวจสอบโดย</Label>
           <Input

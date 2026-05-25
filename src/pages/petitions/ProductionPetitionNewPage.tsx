@@ -99,13 +99,21 @@ export default function ProductionPetitionNewPage() {
     employeeId: user?.id ?? '',
     name: user?.name ?? '',
   });
+  const [deliverer, setDeliverer] = useState<SubmitterValues>({
+    employeeId: user?.id ?? '',
+    name: user?.name ?? '',
+  });
+  const [delivererTouched, setDelivererTouched] = useState(false);
 
   // Re-sync submitter when user auth resolves (read-only — always match logged-in user)
   useEffect(() => {
     if (user?.name) {
       setSubmitter({ employeeId: user.id ?? '', name: user.name });
+      if (!delivererTouched) {
+        setDeliverer({ employeeId: user.id ?? '', name: user.name });
+      }
     }
-  }, [user?.id, user?.name]);
+  }, [user?.id, user?.name, delivererTouched]);
 
   const [items, setItems] = useState<ItemRowValues[]>([makeBlankItem(1)]);
 
@@ -166,6 +174,10 @@ export default function ProductionPetitionNewPage() {
     if (currentStep === 'items') {
       if (!submitter.name.trim()) {
         setStepError('ไม่พบชื่อผู้ยื่นคำขอ กรุณาเข้าสู่ระบบใหม่');
+        return false;
+      }
+      if (!deliverer.name.trim()) {
+        setStepError('กรุณาเลือกผู้นำส่ง');
         return false;
       }
       if (items.length === 0) {
@@ -229,6 +241,10 @@ export default function ProductionPetitionNewPage() {
           employeeId: submitter.employeeId || undefined,
           name: submitter.name,
         },
+        deliveredBy: {
+          employeeId: deliverer.employeeId || undefined,
+          name: deliverer.name,
+        },
         items: items.map((it, idx) => ({ ...it, seq: idx + 1 })),
         productionPlans: plan ? [plan] : [],
         labRequests: [],
@@ -262,7 +278,7 @@ export default function ProductionPetitionNewPage() {
             กลับ
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-black-500">คำขอแผนกผลิต</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-black-500">คำขอแผนกผลิต</h1>
           </div>
         </div>
 
@@ -306,7 +322,7 @@ export default function ProductionPetitionNewPage() {
         )}
 
         <Card>
-          <CardContent className="p-5">
+          <CardContent className="p-4 md:p-5">
             {currentStep === 'items' && (
               <ItemsStep
                 value={items}
@@ -314,6 +330,11 @@ export default function ProductionPetitionNewPage() {
                 submitter={submitter}
                 onSubmitterChange={setSubmitter}
                 submitterReadOnly
+                deliverer={deliverer}
+                onDelivererChange={(v) => {
+                  setDelivererTouched(true);
+                  setDeliverer(v);
+                }}
               />
             )}
             {currentStep === 'plan' && plan && (
@@ -329,14 +350,14 @@ export default function ProductionPetitionNewPage() {
           </CardContent>
         </Card>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button variant="ghost" onClick={goBack} disabled={stepIdx === 0 || submitting}>
+        <div className="flex flex-col-reverse sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-between gap-3">
+          <Button variant="ghost" onClick={goBack} disabled={stepIdx === 0 || submitting} className="w-full sm:w-auto">
             <ArrowLeft className="h-4 w-4" />
             ย้อนกลับ
           </Button>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             {stepIdx < STEPS.length - 1 ? (
-              <Button onClick={goNext} disabled={submitting}>
+              <Button onClick={goNext} disabled={submitting} className="w-full sm:w-auto">
                 {currentStep === 'plan' && labBatches.length === 0 ? (
                   <>
                     <Save className="h-4 w-4" />
@@ -350,7 +371,7 @@ export default function ProductionPetitionNewPage() {
                 )}
               </Button>
             ) : (
-              <Button onClick={handleSubmit} disabled={submitting}>
+              <Button onClick={handleSubmit} disabled={submitting} className="w-full sm:w-auto">
                 <Save className="h-4 w-4" />
                 {submitting ? 'กำลังบันทึก...' : 'บันทึก'}
               </Button>
