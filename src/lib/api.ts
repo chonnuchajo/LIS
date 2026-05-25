@@ -288,6 +288,8 @@ export type ParameterItem = {
   updatedAt?: string;
 };
 
+// These functions use bare fetch (not fetchApi) because FormData upload
+// must not have Content-Type forced to application/json.
 export async function uploadQcPhoto(file: File): Promise<{ url: string }> {
   const form = new FormData();
   form.append('photo', file);
@@ -296,8 +298,9 @@ export async function uploadQcPhoto(file: File): Promise<{ url: string }> {
     body: form,
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error((body as any).error || 'Upload failed');
+    const body = await res.json().catch(() => ({ error: res.statusText })) as any;
+    const message = body?.message || body?.error?.message || body?.error || 'Upload failed';
+    throw new Error(String(message));
   }
   return res.json();
 }
@@ -309,7 +312,8 @@ export async function deleteQcPhoto(url: string): Promise<void> {
     body: JSON.stringify({ url }),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error((body as any).error || 'Delete failed');
+    const body = await res.json().catch(() => ({ error: res.statusText })) as any;
+    const message = body?.message || body?.error?.message || body?.error || 'Delete failed';
+    throw new Error(String(message));
   }
 }
