@@ -49,9 +49,33 @@ if (fs.existsSync(distPath)) {
   });
 }
 
+function loadAllModels() {
+  const modelsDir = path.join(__dirname, 'models');
+  for (const file of fs.readdirSync(modelsDir)) {
+    if (file.endsWith('.js')) require(path.join(modelsDir, file));
+  }
+}
+
+async function ensureCollections() {
+  const names = Object.keys(mongoose.models);
+  const existing = new Set(
+    (await mongoose.connection.db.listCollections().toArray()).map(c => c.name)
+  );
+  for (const name of names) {
+    const model = mongoose.models[name];
+    if (!existing.has(model.collection.name)) {
+      await model.createCollection();
+      console.log(`📦 Created collection: ${model.collection.name}`);
+    }
+    await model.syncIndexes();
+  }
+}
+
 mongoose.connect(MONGODB_URI)
-  .then(() => {
+  .then(async () => {
     console.log('✅ Connected to MongoDB:', MONGODB_URI);
+    loadAllModels();
+    await ensureCollections();
     app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   })
   .catch(err => {
