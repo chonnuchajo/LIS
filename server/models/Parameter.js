@@ -23,7 +23,7 @@ const ValueFieldSchema = new mongoose.Schema({
     default: null,
   },
   required: { type: Boolean, default: false },
-  maxPhotos: { type: Number, default: 5 },
+  maxPhotos: { type: Number, default: 5, min: 1, max: 20 },
 }, { _id: false });
 
 const ParameterSchema = new mongoose.Schema({
