@@ -6,6 +6,7 @@ import { uploadQcPhoto, deleteQcPhoto, type ParameterValueField } from '@/lib/ap
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from '@/components/ui/dialog';
 
 interface PhotoFieldProps {
@@ -18,6 +19,7 @@ interface PhotoFieldProps {
 export function PhotoField({ field, value, onChange, disabled = false }: PhotoFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const maxPhotos = field.maxPhotos ?? 5;
   const canAdd = !disabled && value.length < maxPhotos;
@@ -38,11 +40,15 @@ export function PhotoField({ field, value, onChange, disabled = false }: PhotoFi
   }
 
   async function handleDelete(url: string) {
+    if (deletingUrl) return;
+    setDeletingUrl(url);
     try {
       await deleteQcPhoto(url);
       onChange(value.filter((u) => u !== url));
     } catch (err: any) {
       toast.error(err.message || 'ลบไม่สำเร็จ');
+    } finally {
+      setDeletingUrl(null);
     }
   }
 
@@ -68,10 +74,12 @@ export function PhotoField({ field, value, onChange, disabled = false }: PhotoFi
                 <button
                   type="button"
                   onClick={() => handleDelete(url)}
+                  disabled={deletingUrl === url}
                   className={cn(
                     'absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5',
                     'flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity',
                     'hover:bg-red-600',
+                    deletingUrl === url && 'opacity-50 cursor-not-allowed',
                   )}
                   title="ลบภาพ"
                 >
@@ -125,13 +133,16 @@ export function PhotoField({ field, value, onChange, disabled = false }: PhotoFi
 
       {/* Lightbox */}
       <Dialog open={!!lightbox} onOpenChange={() => setLightbox(null)}>
-        <DialogContent className="max-w-3xl p-2 bg-black/90 border-0">
+        <DialogContent className="sm:max-w-3xl p-2 bg-black/90 border-0">
           {lightbox && (
-            <img
-              src={lightbox}
-              alt="QC photo full"
-              className="w-full max-h-[80vh] object-contain rounded"
-            />
+            <>
+              <DialogTitle className="sr-only">ภาพ QC</DialogTitle>
+              <img
+                src={lightbox}
+                alt="QC photo full"
+                className="w-full max-h-[80vh] object-contain rounded"
+              />
+            </>
           )}
         </DialogContent>
       </Dialog>
