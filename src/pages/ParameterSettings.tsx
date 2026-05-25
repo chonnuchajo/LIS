@@ -632,7 +632,7 @@ function summarizeField(field: ParameterValueField): string {
       return formatTimerHuman(field.timerDurationSec);
     }
     case "photo":
-      return "ภาพถ่าย";
+      return `ภาพถ่าย (สูงสุด ${field.maxPhotos ?? 5})`;
   }
 }
 
@@ -1212,6 +1212,11 @@ function ParameterDialog({
         }
         if (!f.timerDurationSec || f.timerDurationSec <= 0) {
           return `ช่อง "${f.label}": ต้องระบุระยะเวลา > 0`;
+        }
+      }
+      if (f.type === "photo") {
+        if (!f.maxPhotos || f.maxPhotos < 1 || f.maxPhotos > 20) {
+          return `ช่อง "${f.label}": จำนวนภาพสูงสุดต้องอยู่ระหว่าง 1–20`;
         }
       }
     }
