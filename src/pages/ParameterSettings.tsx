@@ -1300,6 +1300,9 @@ function ParameterDialog({
         if (!f.allowedFileTypes || f.allowedFileTypes.length === 0) {
           return `ช่อง "${f.label}": ต้องเลือกประเภทไฟล์อย่างน้อย 1 ชนิด`;
         }
+        if (!f.maxFiles || f.maxFiles < 1 || f.maxFiles > 20) {
+          return `ช่อง "${f.label}": จำนวนไฟล์สูงสุดต้องอยู่ระหว่าง 1–20`;
+        }
       }
     }
     return null;
