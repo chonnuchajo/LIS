@@ -184,11 +184,13 @@ const emptyValueField = (): ParameterValueField => ({
   timerDurationSec: null,
   timerUnit: undefined,
   required: false,
+  maxPhotos: 5,
 });
 
 const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
   name: "",
   scope,
+  shareWithLab: false,
   status: "active",
   applyAll: false,
   commonNames: [],
@@ -808,6 +810,7 @@ function ValueFieldEditor({
                     standardValue2: v === "number" || v === "float" ? field.standardValue2 ?? null : null,
                     timerDurationSec: v === "timer" ? field.timerDurationSec ?? null : null,
                     timerUnit: v === "timer" ? field.timerUnit : undefined,
+                    maxPhotos: v === "photo" ? (field.maxPhotos ?? 5) : undefined,
                   })
                 }
               >
@@ -1074,6 +1077,26 @@ function ValueFieldEditor({
               <TimerPreview field={field} />
             </div>
           ) : null}
+
+          {field.type === "photo" ? (
+            <div className="space-y-1.5">
+              <Label className="text-sm">จำนวนภาพสูงสุด *</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={field.maxPhotos ?? 5}
+                  onChange={(e) => {
+                    const n = Math.max(1, Math.min(20, parseInt(e.target.value) || 1));
+                    onChange({ ...field, maxPhotos: n });
+                  }}
+                  className="h-10 w-24"
+                />
+                <span className="text-sm text-grey-500">ภาพ (สูงสุด 20)</span>
+              </div>
+            </div>
+          ) : null}
         </div>
         </div>
       ) : null}
@@ -1203,9 +1226,11 @@ function ParameterDialog({
       return;
     }
     setBusy(true);
+    const scope = form.scope ?? "qc";
     const payload: Partial<ParameterItem> = {
       name: form.name.trim(),
-      scope: form.scope ?? "qc",
+      scope,
+      shareWithLab: scope === "qc" ? !!form.shareWithLab : false,
       status: form.status ?? "active",
       applyAll: !!form.applyAll,
       commonNames: form.applyAll ? [] : form.commonNames ?? [],
@@ -1294,6 +1319,26 @@ function ParameterDialog({
               />
             </div>
           </div>
+
+          {(form.scope ?? "qc") === "qc" ? (
+            <div className="rounded-lg border bg-sky-50/40 p-4">
+              <label className="flex cursor-pointer items-start gap-3">
+                <Checkbox
+                  checked={!!form.shareWithLab}
+                  onCheckedChange={(v) => set("shareWithLab", v === true)}
+                  className="mt-0.5"
+                />
+                <div className="space-y-0.5">
+                  <span className="text-sm font-medium">
+                    แชร์ผลให้ Lab อ่าน
+                  </span>
+                  <p className="text-xs text-muted-foreground">
+                    QC เป็นผู้กรอกค่า — Lab สามารถดูผลได้แบบอ่านอย่างเดียว
+                  </p>
+                </div>
+              </label>
+            </div>
+          ) : null}
 
           <div className="rounded-lg border p-5">
             <div className="flex items-center justify-between">
@@ -1656,6 +1701,15 @@ export default function ParameterSettings() {
                             <Badge className={cn("text-[10px] font-semibold uppercase", SCOPE_BADGE_CLASS[pScope])}>
                               {SCOPE_LABEL[pScope]}
                             </Badge>
+                            {pScope === "qc" && p.shareWithLab ? (
+                              <Badge
+                                variant="outline"
+                                className="border-sky-300 bg-sky-50 text-[10px] text-sky-800"
+                                title="แชร์ให้ Lab อ่านได้"
+                              >
+                                → Lab
+                              </Badge>
+                            ) : null}
                             <span className="font-medium">{p.name}</span>
                           </div>
                           {p.note ? (
