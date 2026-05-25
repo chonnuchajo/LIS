@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { isFieldAbnormal } from '@/lib/parameterValidation';
 import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
+import { PhotoField } from '@/components/lis/PhotoField';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -156,7 +157,12 @@ function TestField({
           </SelectContent>
         </Select>
       ) : field.type === 'photo' ? (
-        <div className="text-xs text-grey-400 italic py-1">แนบรูปภาพ (ยังไม่รองรับในเวอร์ชันนี้)</div>
+        <PhotoField
+          field={field}
+          value={Array.isArray(value) ? value as string[] : []}
+          onChange={onChange as (urls: string[]) => void}
+          disabled={disabled}
+        />
       ) : (
         <Input
           type={field.type === 'number' || field.type === 'float' ? 'number' : 'text'}
