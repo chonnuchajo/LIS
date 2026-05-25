@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FlaskConical, CheckCircle2, Loader2, AlertCircle, AlertTriangle, Save, Send } from 'lucide-react';
+import { ArrowLeft, FlaskConical, CheckCircle2, Loader2, AlertCircle, AlertTriangle, RotateCcw, Save, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import { usePetition, usePetitionList } from '@/hooks/usePetition';
@@ -242,6 +242,7 @@ export default function QCTestingDetailPage() {
   // key: resultKey(itemSeq, parameterId) → { fieldLabel → FieldSaveInfo }
   const [saveStates, setSaveStates] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [wasReturned, setWasReturned] = useState(false);
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Load parameters and existing results (QC scope only)
@@ -264,6 +265,19 @@ export default function QCTestingDetailPage() {
       advancedRef.current = false;
     });
   }, [petition, user]);
+
+  // Detect if this petition was previously sent back from QC Approval
+  useEffect(() => {
+    if (!petition?._id) {
+      setWasReturned(false);
+      return;
+    }
+    let alive = true;
+    api.getReturnedFlags([petition._id])
+      .then((map) => { if (alive) setWasReturned(!!map[petition._id]); })
+      .catch(() => { if (alive) setWasReturned(false); });
+    return () => { alive = false; };
+  }, [petition?._id]);
 
   useEffect(() => {
     if (!id) return;
@@ -379,6 +393,22 @@ export default function QCTestingDetailPage() {
 
   const items = petition.items ?? [];
 
+  const countAbnormal = (): number => {
+    let count = 0;
+    items.forEach((item) => {
+      const matched = matchParameters(item, parameters);
+      matched.forEach((param) => {
+        const k = resultKey(item.seq, param._id!);
+        const itemValues = values[k] ?? {};
+        (param.valueFields ?? []).forEach((field) => {
+          if (isFieldAbnormal(field, itemValues[field.label])) count += 1;
+        });
+      });
+    });
+    return count;
+  };
+  const abnormalCount = countAbnormal();
+
   const validate = (): string[] => {
     const missing: string[] = [];
     items.forEach((item) => {
@@ -423,6 +453,10 @@ export default function QCTestingDetailPage() {
       });
       return;
     }
+    if (abnormalCount > 0) {
+      const ok = window.confirm(`พบค่าผิดปกติ ${abnormalCount} รายการ ยืนยันบันทึกผล?`);
+      if (!ok) return;
+    }
     setSubmitting(true);
     try {
       await api.patch(`/petitions/${petition._id}`, {
@@ -463,7 +497,7 @@ export default function QCTestingDetailPage() {
 
   return (
     <AppLayout title={petition.petitionNo}>
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">
         <Button variant="ghost" size="sm" onClick={() => navigate('/qc-testing')}>
@@ -472,6 +506,24 @@ export default function QCTestingDetailPage() {
         <FlaskConical className="h-5 w-5 text-primary-500" />
         <h1 className="text-lg md:text-xl font-bold">{petition.petitionNo}</h1>
         <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+        {wasReturned && (
+          <span
+            className="inline-flex items-center text-orange-500"
+            title="ส่งกลับมาบันทึกผลใหม่"
+            aria-label="ส่งกลับมาบันทึกผลใหม่"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </span>
+        )}
+        {abnormalCount > 0 && (
+          <span
+            className="inline-flex items-center text-red-500"
+            title={`พบค่าผิดปกติ ${abnormalCount} รายการ`}
+            aria-label={`พบค่าผิดปกติ ${abnormalCount} รายการ`}
+          >
+            <AlertTriangle className="h-4 w-4" />
+          </span>
+        )}
         <span className="text-sm text-grey-500 ml-auto">
           ผู้นำส่ง: {petition.submittedBy?.name ?? '-'}
         </span>
@@ -633,6 +685,12 @@ export default function QCTestingDetailPage() {
                 ? `ผู้รับงาน: ${petition.receivedBy}`
                 : 'ไม่ระบุผู้รับงาน'}
             </p>
+            {abnormalCount > 0 && (
+              <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                คำร้องนี้มีค่าผิดปกติ — ตรวจสอบก่อนอนุมัติ
+              </p>
+            )}
           </div>
           <Button
             variant="outline"

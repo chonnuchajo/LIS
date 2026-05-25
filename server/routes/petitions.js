@@ -139,6 +139,36 @@ router.get('/audit-logs', async (req, res) => {
   }
 });
 
+// GET /api/petitions/returned-flags?petitionIds=id1,id2,...
+// Returns map of petitionId → boolean (true if petition has ever transitioned
+// from success → inProgress, i.e. was sent back from QC Approval for re-edit).
+router.get('/returned-flags', async (req, res) => {
+  try {
+    const raw = String(req.query.petitionIds || '').trim();
+    if (!raw) return res.json({});
+    const ids = raw.split(',').map((s) => s.trim()).filter(Boolean);
+    if (ids.length === 0) return res.json({});
+
+    const objectIds = ids
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
+    const returnedIds = await PetitionAuditLog.distinct('petitionId', {
+      petitionId: { $in: objectIds },
+      event: 'statusChanged',
+      fromStatus: 'success',
+      toStatus: 'inProgress',
+    });
+    const returnedSet = new Set(returnedIds.map((id) => String(id)));
+
+    const map = {};
+    for (const id of ids) map[id] = returnedSet.has(id);
+    res.json(map);
+  } catch (err) {
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
 // GET /api/petitions/scan/:code
 router.get('/scan/:code', async (req, res) => {
   try {

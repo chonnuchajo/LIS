@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Clock, FlaskConical, RefreshCw, ShieldCheck, Sparkles } from "lucide-react";
+import { CheckCircle2, Clock, FlaskConical, RefreshCw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
@@ -138,9 +138,11 @@ function getSampleSummary(petition: Petition) {
 function QueueCard({
   petition,
   progress,
+  returned,
 }: {
   petition: Petition;
   progress?: PetitionProgress;
+  returned?: boolean;
 }) {
   const updated = formatDateTime(petition.updatedAt);
   const statusCfg = PETITION_STATUS_CONFIG[petition.status] ?? {
@@ -161,7 +163,15 @@ function QueueCard({
     <article className="rounded-lg border border-primary-100 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate text-2xl font-bold text-primary-700">{petition.petitionNo}</div>
+          <div className="flex items-center gap-2">
+            <span className="truncate text-2xl font-bold text-primary-700">{petition.petitionNo}</span>
+            {returned && (
+              <RotateCcw
+                className="h-5 w-5 shrink-0 text-orange-500"
+                aria-label="ส่งกลับมาบันทึกผลใหม่"
+              />
+            )}
+          </div>
           <div className="mt-1 truncate text-base font-medium text-slate-700">
             {getSampleSummary(petition)}
           </div>
@@ -256,18 +266,39 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
       .filter((petition) => groupStatuses.includes(petition.status))
       .filter((petition) => (mode === "lab" ? petitionHasLabItems(petition) : true))
       .filter((petition) =>
-        // Only show petitions that entered today's queue. completedAt is
-        // preferred for finished rows so a sample sent yesterday and finished
-        // today still appears under "done" today.
+        // Only the "done" board resets per local day so finished samples don't
+        // pile up across days. New / in-progress rows stay visible regardless
+        // of when they entered the queue.
         petition.status === "success"
           ? isSameLocalDay(petition.completedAt ?? petition.updatedAt, today)
-          : isSameLocalDay(
-              petition.sampleSentAt ?? petition.receivedAt ?? petition.createdAt,
-              today,
-            ),
+          : true,
       )
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   }, [config.groups, data?.items, mode, today]);
+
+  // Flag petitions that QC approval has sent back for re-entry. Re-fetches on
+  // the same cadence as the petition list and keys off every visible petition
+  // (any group can contain a returned row).
+  const [returnedMap, setReturnedMap] = useState<Record<string, boolean>>({});
+  const visibleReturnedIds = useMemo(
+    () => allItems.map((p) => p._id).join(","),
+    [allItems],
+  );
+  useEffect(() => {
+    if (!visibleReturnedIds) {
+      setReturnedMap({});
+      return;
+    }
+    let cancelled = false;
+    const fetchOnce = () =>
+      api
+        .getReturnedFlags(visibleReturnedIds.split(","))
+        .then((map) => { if (!cancelled) setReturnedMap(map || {}); })
+        .catch(() => {});
+    fetchOnce();
+    const interval = window.setInterval(fetchOnce, REFRESH_MS);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [visibleReturnedIds]);
 
   // Fetch how many values each visible petition has filled so far. Re-fetches
   // on the same cadence as the petition list, plus when the visible set changes.
@@ -422,7 +453,7 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
 
       <section className="flex items-center justify-between border-b border-primary-100 bg-white px-10 py-5">
         <div className="rounded-lg bg-primary-50 px-5 py-3">
-          <div className="text-lg text-slate-500">คิววันนี้</div>
+          <div className="text-lg text-slate-500">ในคิว</div>
           <div className="text-4xl font-bold text-primary-700">{allItems.length}</div>
         </div>
         <div className="flex items-center gap-2 text-xl text-slate-600">
@@ -482,7 +513,12 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
                           ? computePetitionProgress(petition, parameters, progressMap[petition._id])
                           : undefined;
                         return (
-                          <QueueCard key={petition._id} petition={petition} progress={progress} />
+                          <QueueCard
+                            key={petition._id}
+                            petition={petition}
+                            progress={progress}
+                            returned={returnedMap[petition._id]}
+                          />
                         );
                       })
                     )}
