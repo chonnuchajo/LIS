@@ -49,16 +49,21 @@ router.get('/', async (req, res) => {
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
     const status = req.query.status;
+    const dept = req.query.dept;
     const search = (req.query.search || '').trim();
 
     const q = {};
-    if (status) q.status = status;
+    if (status) {
+      const list = String(status).split(',').map((s) => s.trim()).filter(Boolean);
+      q.status = list.length > 1 ? { $in: list } : list[0];
+    }
+    if (dept && ['production', 'rm', 'fg'].includes(String(dept))) q.dept = dept;
     if (search) {
       const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
       q.$or = [
         { petitionNo: rx },
-        { 'requester.fullName': rx },
-        { 'requester.department': rx },
+        { 'submittedBy.name': rx },
+        { 'items.batchNo': rx },
       ];
     }
 
@@ -194,8 +199,14 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
-    if (!body.requester?.fullName || !body.requester?.department) {
-      return badRequest(res, 'กรุณากรอกชื่อ-นามสกุลและแผนก');
+    if (!body.dept || !['production', 'rm', 'fg'].includes(body.dept)) {
+      return badRequest(res, 'กรุณาระบุแผนก (production / rm / fg)');
+    }
+    if (!body.submittedBy?.name) {
+      return badRequest(res, 'กรุณาระบุผู้ยื่นคำขอ');
+    }
+    if (!body.deliveredBy?.name) {
+      return badRequest(res, 'กรุณาระบุผู้นำส่ง');
     }
     if (!Array.isArray(body.items) || body.items.length === 0) {
       return badRequest(res, 'ต้องมีตัวอย่างอย่างน้อย 1 รายการ');
@@ -203,6 +214,17 @@ router.post('/', async (req, res) => {
     for (const item of body.items) {
       const batch = String(item.batchNo || '').trim();
       if (!batch) return badRequest(res, `ตัวอย่าง "${item.sampleName || item.seq}": กรุณากรอกเลขแบช`);
+    }
+    if (body.dept === 'production') {
+      if (!Array.isArray(body.productionPlans) || body.productionPlans.length === 0) {
+        return badRequest(res, 'แผนกผลิตต้องมีใบวางแผนอย่างน้อย 1 รายการ');
+      }
+      const itemBatches = new Set(body.items.map((it) => String(it.batchNo).trim()));
+      for (const plan of body.productionPlans) {
+        if (!plan.batchNo || !itemBatches.has(String(plan.batchNo).trim())) {
+          return badRequest(res, `ใบวางแผนอ้างถึง batchNo ที่ไม่อยู่ในรายการตัวอย่าง: ${plan.batchNo}`);
+        }
+      }
     }
     const petitionNo = await nextPetitionNo();
     const doc = await Petition.create({
@@ -213,7 +235,7 @@ router.post('/', async (req, res) => {
     logAudit(doc, {
       event: 'created',
       toStatus: doc.status,
-      actor: body.actor || body.requester?.fullName || 'system',
+      actor: body.actor || body.submittedBy?.name || 'system',
       note: 'สร้างคำร้องใหม่',
     });
     res.status(201).json(doc);

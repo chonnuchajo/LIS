@@ -1,0 +1,261 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e179]:
+    - generic "ลากเพื่อย้ายตำแหน่ง" [ref=e180]: DEV MODE
+    - generic [ref=e181]:
+      - button "Administrator" [ref=e182] [cursor=pointer]
+      - button "Lab Analyst" [ref=e183] [cursor=pointer]
+      - button "Lab Head" [ref=e184] [cursor=pointer]
+      - button "Lab Inventory" [ref=e185] [cursor=pointer]
+      - button "QC Head" [ref=e186] [cursor=pointer]
+      - button "QC Reviewer" [ref=e187] [cursor=pointer]
+      - button "QC Staff" [ref=e188] [cursor=pointer]
+      - button "Viewer" [ref=e189] [cursor=pointer]
+  - generic [ref=e353]:
+    - complementary [ref=e355]:
+      - button "ซ่อนเมนู" [ref=e356] [cursor=pointer]:
+        - img [ref=e357]
+      - generic [ref=e359]:
+        - img "ICP Logo" [ref=e360]
+        - generic [ref=e361]:
+          - heading "LIS" [level=1] [ref=e362]
+          - paragraph [ref=e363]:
+            - text: LAB INFORMATION
+            - text: SYSTEM
+      - navigation [ref=e364]:
+        - generic [ref=e365]:
+          - button "หน้าหลัก" [expanded] [ref=e366] [cursor=pointer]:
+            - generic [ref=e367]: หน้าหลัก
+            - img [ref=e368]
+          - generic [ref=e370]:
+            - button "หน้าแรก" [ref=e371] [cursor=pointer]:
+              - img [ref=e372]
+              - generic [ref=e375]: หน้าแรก
+            - button "Lab Dashboard" [ref=e376] [cursor=pointer]:
+              - img [ref=e377]
+              - generic [ref=e382]: Lab Dashboard
+            - button "QC Dashboard" [ref=e383] [cursor=pointer]:
+              - img [ref=e384]
+              - generic [ref=e389]: QC Dashboard
+            - button "รายการคำร้อง" [ref=e390] [cursor=pointer]:
+              - img [ref=e391]
+              - generic [ref=e394]: รายการคำร้อง
+        - generic [ref=e395]:
+          - button "LAB" [expanded] [ref=e396] [cursor=pointer]:
+            - generic [ref=e397]: LAB
+            - img [ref=e398]
+          - generic [ref=e400]:
+            - button "Daily Check" [ref=e401] [cursor=pointer]:
+              - img [ref=e402]
+              - generic [ref=e406]: Daily Check
+            - button "การบันทึก Standard" [ref=e407] [cursor=pointer]:
+              - img [ref=e408]
+              - generic [ref=e411]: การบันทึก Standard
+            - button "Assign คำร้อง" [ref=e412] [cursor=pointer]:
+              - img [ref=e413]
+              - generic [ref=e417]: Assign คำร้อง
+        - generic [ref=e418]:
+          - button "QC" [expanded] [ref=e419] [cursor=pointer]:
+            - generic [ref=e420]: QC
+            - img [ref=e421]
+          - generic [ref=e423]:
+            - button "อนุมัติผล QC" [ref=e424] [cursor=pointer]:
+              - img [ref=e425]
+              - generic [ref=e428]: อนุมัติผล QC
+            - button "การทดสอบ QC" [ref=e429] [cursor=pointer]:
+              - img [ref=e430]
+              - generic [ref=e432]: การทดสอบ QC
+        - generic [ref=e433]:
+          - button "ผลวิเคราะห์" [expanded] [ref=e434] [cursor=pointer]:
+            - generic [ref=e435]: ผลวิเคราะห์
+            - img [ref=e436]
+          - button "ผลวิเคราะห์" [ref=e439] [cursor=pointer]:
+            - img [ref=e440]
+            - generic [ref=e443]: ผลวิเคราะห์
+        - generic [ref=e444]:
+          - button "CONFIG DATA" [expanded] [ref=e445] [cursor=pointer]:
+            - generic [ref=e446]: CONFIG DATA
+            - img [ref=e447]
+          - generic [ref=e449]:
+            - button "Master Item" [ref=e450] [cursor=pointer]:
+              - img [ref=e451]
+              - generic [ref=e455]: Master Item
+            - button "Simple Method" [ref=e456] [cursor=pointer]:
+              - img [ref=e457]
+              - generic [ref=e459]: Simple Method
+            - button "รายการเครื่อง" [ref=e460] [cursor=pointer]:
+              - img [ref=e461]
+              - generic [ref=e463]: รายการเครื่อง
+            - button "พารามิเตอร์ตรวจสอบ" [ref=e464] [cursor=pointer]:
+              - img [ref=e465]
+              - generic [ref=e466]: พารามิเตอร์ตรวจสอบ
+        - generic [ref=e467]:
+          - button "INVENTORY" [expanded] [ref=e468] [cursor=pointer]:
+            - generic [ref=e469]: INVENTORY
+            - img [ref=e470]
+          - button "Stock Management" [ref=e473] [cursor=pointer]:
+            - img [ref=e474]
+            - generic [ref=e478]: Stock Management
+        - generic [ref=e479]:
+          - button "รายงาน" [expanded] [ref=e480] [cursor=pointer]:
+            - generic [ref=e481]: รายงาน
+            - img [ref=e482]
+          - button "รายงานสรุป" [ref=e485] [cursor=pointer]:
+            - img [ref=e486]
+            - generic [ref=e489]: รายงานสรุป
+        - generic [ref=e490]:
+          - button "ข้อมูลแอดมิน" [expanded] [ref=e491] [cursor=pointer]:
+            - generic [ref=e492]: ข้อมูลแอดมิน
+            - img [ref=e493]
+          - button "Admin Data" [ref=e496] [cursor=pointer]:
+            - img [ref=e497]
+            - generic [ref=e501]: Admin Data
+        - generic [ref=e502]:
+          - button "สิทธิ์การเข้าถึง" [expanded] [ref=e503] [cursor=pointer]:
+            - generic [ref=e504]: สิทธิ์การเข้าถึง
+            - img [ref=e505]
+          - button "Access Control" [ref=e508] [cursor=pointer]:
+            - img [ref=e509]
+            - generic [ref=e513]: Access Control
+        - generic [ref=e514]:
+          - button "อื่นๆ" [expanded] [ref=e515] [cursor=pointer]:
+            - generic [ref=e516]: อื่นๆ
+            - img [ref=e517]
+          - button "ตั้งค่าระบบ" [ref=e520] [cursor=pointer]:
+            - img [ref=e521]
+            - generic [ref=e524]: ตั้งค่าระบบ
+      - generic [ref=e525]:
+        - generic [ref=e526]:
+          - img [ref=e528]
+          - generic [ref=e531]:
+            - paragraph [ref=e532]: Dev Administrator
+            - paragraph [ref=e533]: admin.dev@icpladda.com
+            - paragraph [ref=e534]: "Role: Administrator"
+            - paragraph [ref=e535]: Administrator · Administrator
+        - button "ออกจากระบบ" [ref=e536] [cursor=pointer]:
+          - img [ref=e537]
+          - text: ออกจากระบบ
+    - main [ref=e540]:
+      - generic [ref=e542]:
+        - generic [ref=e543]:
+          - button "กลับ" [ref=e544] [cursor=pointer]:
+            - img
+            - text: กลับ
+          - generic [ref=e545]:
+            - button "พิมพ์ฉลาก" [ref=e546] [cursor=pointer]:
+              - img
+              - text: พิมพ์ฉลาก
+            - button "พิมพ์ใบคำขอรับบริการ" [ref=e547] [cursor=pointer]:
+              - img
+              - text: พิมพ์ใบคำขอรับบริการ
+            - button "พิมพ์ใบวางแผน-ควบคุมการผลิต" [ref=e548] [cursor=pointer]:
+              - img
+              - text: พิมพ์ใบวางแผน-ควบคุมการผลิต
+            - button "ลบคำร้อง" [ref=e549] [cursor=pointer]:
+              - img
+              - text: ลบคำร้อง
+        - generic [ref=e550]:
+          - heading "P-2605-0003" [level=1] [ref=e551]
+          - generic [ref=e552]: QC กำลังตรวจ
+          - generic [ref=e553]: แผนกผลิต
+          - generic [ref=e554]: ยื่นเมื่อ 23 พ.ค. 2569 14:09
+        - generic [ref=e555]:
+          - generic [ref=e556]:
+            - heading "ข้อมูลคำขอ" [level=3] [ref=e558]
+            - generic [ref=e559]:
+              - generic [ref=e560]:
+                - paragraph [ref=e561]: ผู้ยื่นคำขอ
+                - generic [ref=e562]: Dev Administrator
+              - generic [ref=e563]:
+                - paragraph [ref=e564]: วัน-เวลาที่ส่งคำร้อง
+                - generic [ref=e565]: 23 พ.ค. 2569 14:09
+              - generic [ref=e566]:
+                - paragraph [ref=e567]: แผนก
+                - generic [ref=e569]: แผนกผลิต
+              - generic [ref=e570]:
+                - paragraph [ref=e571]: เลขที่คำร้อง
+                - generic [ref=e572]: P-2605-0003
+              - generic [ref=e573]:
+                - paragraph [ref=e574]: ผู้นำส่ง
+                - generic [ref=e575]: พรหมพิริยะ ทองรุ่งรัตนกุล
+              - generic [ref=e576]:
+                - paragraph [ref=e577]: วันที่นำส่ง
+                - generic [ref=e578]: 23 พ.ค. 2569 14:10
+          - generic [ref=e579]:
+            - heading "รายการตัวอย่าง (3)" [level=3] [ref=e581]
+            - generic [ref=e582]:
+              - generic [ref=e583]:
+                - generic [ref=e584]:
+                  - paragraph [ref=e585]: "ตัวอย่างที่ 1: เจนท์-จี · 24*1 kg · FIPRONIL 0.3% GR"
+                  - generic [ref=e586]: ส่ง lab
+                - generic [ref=e587]:
+                  - generic [ref=e588]:
+                    - paragraph [ref=e589]: Batch / Lot No.
+                    - generic [ref=e590]: FG260514-001
+                  - generic [ref=e591]:
+                    - paragraph [ref=e592]: วันที่ผลิต
+                    - generic [ref=e593]: 2026-05-13
+                  - generic [ref=e594]:
+                    - paragraph [ref=e595]: ขนาดบรรจุ
+                    - generic [ref=e596]: 24*1 kg
+                  - generic [ref=e597]:
+                    - paragraph [ref=e598]: ชื่อสามัญ
+                    - generic [ref=e599]: FIPRONIL 0.3% GR
+                - generic [ref=e600]:
+                  - paragraph [ref=e601]: หมายเหตุ
+                  - generic [ref=e602]: "LDI: FC-GENTG-1X24"
+                - generic [ref=e603]:
+                  - paragraph [ref=e604]: รายการทดลอง / ผลตรวจ
+                  - generic [ref=e608]:
+                    - generic [ref=e609]: กายภาพ
+                    - generic [ref=e610]: ยังไม่บันทึก
+              - generic [ref=e611]:
+                - generic [ref=e612]:
+                  - paragraph [ref=e613]: "ตัวอย่างที่ 2: นอร์ดิค 6 จี · 15 kg · CARTAP HYDROCHLORIDE 3% + FENOBUCARB 3% GR"
+                  - generic [ref=e614]: ส่ง lab
+                - generic [ref=e615]:
+                  - generic [ref=e616]:
+                    - paragraph [ref=e617]: Batch / Lot No.
+                    - generic [ref=e618]: FG260521-006
+                  - generic [ref=e619]:
+                    - paragraph [ref=e620]: วันที่ผลิต
+                    - generic [ref=e621]: 2026-05-19
+                  - generic [ref=e622]:
+                    - paragraph [ref=e623]: ขนาดบรรจุ
+                    - generic [ref=e624]: 15 kg
+                  - generic [ref=e625]:
+                    - paragraph [ref=e626]: ชื่อสามัญ
+                    - generic [ref=e627]: CARTAP HYDROCHLORIDE 3% + FENOBUCARB 3% GR
+                - generic [ref=e628]:
+                  - paragraph [ref=e629]: หมายเหตุ
+                  - generic [ref=e630]: "LDI: FC-NDK6G-15"
+                - generic [ref=e631]:
+                  - paragraph [ref=e632]: รายการทดลอง / ผลตรวจ
+                  - generic [ref=e636]:
+                    - generic [ref=e637]: กายภาพ
+                    - generic [ref=e638]: ยังไม่บันทึก
+              - generic [ref=e639]:
+                - paragraph [ref=e641]: "ตัวอย่างที่ 3: โบร์มาการ์ด - อ.ย. · 20*1 kg · BROMADIOLONE 0.005% W/W (PUBLIC HEALTH)"
+                - generic [ref=e642]:
+                  - generic [ref=e643]:
+                    - paragraph [ref=e644]: Batch / Lot No.
+                    - generic [ref=e645]: FG260521-003
+                  - generic [ref=e646]:
+                    - paragraph [ref=e647]: วันที่ผลิต
+                    - generic [ref=e648]: 2026-05-21
+                  - generic [ref=e649]:
+                    - paragraph [ref=e650]: ขนาดบรรจุ
+                    - generic [ref=e651]: 20*1 kg
+                  - generic [ref=e652]:
+                    - paragraph [ref=e653]: ชื่อสามัญ
+                    - generic [ref=e654]: BROMADIOLONE 0.005% W/W (PUBLIC HEALTH)
+                - generic [ref=e655]:
+                  - paragraph [ref=e656]: หมายเหตุ
+                  - generic [ref=e657]: "MF: FPH-BROMG-1X20"
+                - generic [ref=e658]:
+                  - paragraph [ref=e659]: รายการทดลอง / ผลตรวจ
+                  - generic [ref=e663]:
+                    - generic [ref=e664]: กายภาพ
+                    - generic [ref=e665]: ยังไม่บันทึก

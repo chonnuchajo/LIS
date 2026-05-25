@@ -101,7 +101,7 @@ export default function PetitionAuditLogPage() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="flex items-center gap-2 text-2xl font-bold text-black-500">
+              <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-black-500">
                 <History className="h-6 w-6 text-primary-500" />
                 ประวัติการเปลี่ยนสถานะ (Audit Log)
               </h1>
@@ -122,7 +122,7 @@ export default function PetitionAuditLogPage() {
 
           <form
             onSubmit={applySearch}
-            className="grid gap-3 rounded-[10px] border border-black-50 bg-white p-3 lg:grid-cols-[minmax(240px,1fr)_180px_180px_150px_150px_auto_auto]"
+            className="grid gap-3 rounded-[10px] border border-black-50 bg-white p-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(240px,1fr)_180px_180px_150px_150px_auto_auto]"
           >
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-500" />
@@ -178,8 +178,8 @@ export default function PetitionAuditLogPage() {
             )}
           </form>
 
-          <div className="rounded-[10px] border border-black-50 bg-white">
-            <Table>
+          <div className="rounded-[10px] border border-black-50 bg-white overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+            <Table className="min-w-[600px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>วันที่</TableHead>

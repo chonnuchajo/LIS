@@ -131,8 +131,8 @@ export default function PetitionAssignPage() {
         if (!query) return true;
         return [
           petition.petitionNo,
-          petition.requester.fullName,
-          petition.requester.department,
+          petition.submittedBy?.name,
+          petition.dept,
           petition.assignedTo?.name,
         ]
           .filter(Boolean)
@@ -171,9 +171,9 @@ export default function PetitionAssignPage() {
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Assign คำร้องให้เจ้าหน้าที่</h1>
+              <h1 className="text-xl md:text-2xl font-bold text-foreground">Assign คำร้องให้เจ้าหน้าที่</h1>
               <p className="text-sm text-muted-foreground">
-                เลือกเจ้าหน้าที่แผนกควบคุมคุณภาพหรือ Lab/วิเคราะห์ เฉพาะประเภทพนักงานรายเดือน
+                เลือกเจ้าหน้าที่แผนก Lab/วิเคราะห์ เฉพาะประเภทพนักงานรายเดือน
               </p>
             </div>
             <Button
@@ -188,7 +188,7 @@ export default function PetitionAssignPage() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">คำร้องรอ assign</CardTitle>
@@ -237,8 +237,8 @@ export default function PetitionAssignPage() {
             </div>
           </div>
 
-          <div className="rounded-[10px] border border-black-50 bg-white">
-            <Table>
+          <div className="rounded-[10px] border border-black-50 bg-white overflow-x-auto">
+            <Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>เลขที่คำร้อง</TableHead>
@@ -283,8 +283,8 @@ export default function PetitionAssignPage() {
                         </button>
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium text-black-500">{petition.requester.fullName}</div>
-                        <div className="text-xs text-grey-500">{petition.requester.department}</div>
+                        <div className="font-medium text-black-500">{petition.submittedBy?.name ?? '-'}</div>
+                        <div className="text-xs text-grey-500">{petition.dept}</div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="primary-soft">{formatPetitionWorkSections(petition)}</Badge>

@@ -83,7 +83,7 @@ const Home = () => {
   return (
     <AppLayout>
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-foreground">หน้าแรก</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">หน้าแรก</h1>
           <p className="text-sm text-muted-foreground">
             รายงานผลการตรวจสอบกายภาพประจำวัน · {formattedDate}
           </p>
@@ -144,8 +144,8 @@ const Home = () => {
                 {hasSearch ? "ไม่พบรายการที่ค้นหา" : "ไม่มีข้อมูลผลตรวจสอบกายภาพจากเมื่อวาน"}
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+                <Table className="min-w-[600px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[140px]">รหัสตัวอย่าง</TableHead>
@@ -223,7 +223,7 @@ const Home = () => {
                                     </Badge>
                                   </button>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-2xl">
+                                <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                                   <DialogHeader>
                                     <DialogTitle className="flex items-center gap-2">
                                       <ImageIcon className="w-5 h-5 text-amber-600" />
@@ -295,8 +295,8 @@ const Home = () => {
             {todaySamples.length === 0 ? (
               <p className="text-center py-8 text-muted-foreground">ยังไม่มีตัวอย่างที่ส่งในวันนี้</p>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+                <Table className="min-w-[600px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[140px]">รหัสตัวอย่าง</TableHead>

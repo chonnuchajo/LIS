@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, FilePlus2, Search, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, FilePlus2, Search, X } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { NativeSelect } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import {
   Table,
   TableBody,
@@ -16,16 +18,21 @@ import {
 } from '@/components/ui/table';
 import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
+<<<<<<< HEAD
 import { formatPetitionWorkSections } from '@/lib/petitionSections';
+=======
+import { api, type ParameterItem } from '@/lib/api';
+import { parameterNamesForPetition } from '@/lib/petitionTestItems';
+>>>>>>> d1bdc1d7f523319a67c643490821323511c0a0d9
 import {
   PETITION_STATUSES,
+  PETITION_DEPT_LABELS,
   PETITION_STATUS_CONFIG,
   type Petition,
 } from '@/types/petition.types';
 
 const norm = (value?: string | null) => (value ?? '').trim().toLowerCase();
 
-const RECEIVER_ROLES = new Set(['qc', 'lab']);
 const RECEIVED_STATUSES = new Set<Petition['status']>([
   'sampleSent',
   'pendingReview',
@@ -33,18 +40,24 @@ const RECEIVED_STATUSES = new Set<Petition['status']>([
   'success',
 ]);
 
+const LAB_BATCH_LAST_DIGITS = new Set(['1', '6']);
+
+const isLabBatchNo = (batchNo?: string | null) => {
+  const trimmed = String(batchNo ?? '').trim();
+  return trimmed.length > 0 && LAB_BATCH_LAST_DIGITS.has(trimmed.slice(-1));
+};
+
+const petitionHasLabItems = (petition: Petition) =>
+  petition.items.some((item) => isLabBatchNo(item.batchNo));
+
 function isOwnSubmission(
   petition: Petition,
   user: { email?: string; name?: string } | null,
 ): boolean {
   if (!user) return false;
-  const userEmail = norm(user.email);
   const userName = norm(user.name);
-  const requesterEmail = norm(petition.requester.email);
-  const requesterName = norm(petition.requester.fullName);
-
-  if (userEmail && requesterEmail && userEmail === requesterEmail) return true;
-  if (userName && requesterName && userName === requesterName) return true;
+  const submitterName = norm(petition.submittedBy?.name);
+  if (userName && submitterName && userName === submitterName) return true;
   return false;
 }
 
@@ -58,6 +71,14 @@ function isAssignedTo(
   return !!userName && !!assigneeName && userName === assigneeName;
 }
 
+function isLabRole(role: string): boolean {
+  return role === 'lab' || role.startsWith('lab-') || role.startsWith('lab_');
+}
+
+function isQcRole(role: string): boolean {
+  return role === 'qc' || role.startsWith('qc-') || role.startsWith('qc_');
+}
+
 function canSeePetition(
   petition: Petition,
   user: { email?: string; name?: string; role?: string } | null,
@@ -66,7 +87,10 @@ function canSeePetition(
   const role = user.role ?? '';
   if (isOwnSubmission(petition, user)) return true;
   if (isAssignedTo(petition, user)) return true;
-  if (RECEIVER_ROLES.has(role) && RECEIVED_STATUSES.has(petition.status)) return true;
+  if (RECEIVED_STATUSES.has(petition.status)) {
+    if (isLabRole(role)) return petitionHasLabItems(petition);
+    if (isQcRole(role)) return true;
+  }
   return false;
 }
 
@@ -80,10 +104,20 @@ export default function PetitionListPage() {
   const visibleStatuses = PETITION_STATUSES;
   const createdNo = (location.state as { createdNo?: string } | null)?.createdNo;
   const canViewAll = user?.role === 'admin';
+  const canCreatePetition = user?.role === 'admin' || user?.role === 'viewer';
+  const canSeeTestItems = !!user?.role && user.role !== 'viewer';
 
   const status = searchParams.get('status') ?? '';
   const search = searchParams.get('search') ?? '';
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
+
+  const selectedStatuses = useMemo<Petition['status'][]>(() => {
+    if (!status) return [];
+    return status
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s): s is Petition['status'] => visibleStatuses.includes(s as Petition['status']));
+  }, [status, visibleStatuses]);
 
   const [searchInput, setSearchInput] = useState(search);
   useEffect(() => setSearchInput(search), [search]);
@@ -98,6 +132,12 @@ export default function PetitionListPage() {
     [page, status, search, canViewAll],
   );
   const { data, loading, error, refresh } = usePetitionList(params);
+
+  const [parameters, setParameters] = useState<ParameterItem[]>([]);
+  useEffect(() => {
+    if (!canSeeTestItems) return;
+    api.getParameters().then(setParameters).catch(() => {});
+  }, [canSeeTestItems]);
 
   const ownedItems = useMemo(() => {
     if (!data?.items) return [];
@@ -137,15 +177,17 @@ export default function PetitionListPage() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-black-500">รายการคำร้อง</h1>
+              <h1 className="text-xl md:text-2xl font-bold text-black-500">รายการคำร้อง</h1>
               <p className="text-sm text-grey-500">รายการคำร้องขอตรวจตัวอย่างทั้งหมดในระบบ</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={() => navigate('/petitions/new')}>
-                <FilePlus2 className="h-4 w-4" />
-                ยื่นคำร้องใหม่
-              </Button>
-            </div>
+            {canCreatePetition && (
+              <div className="flex items-center gap-2">
+                <Button onClick={() => navigate('/petitions/new')}>
+                  <FilePlus2 className="h-4 w-4" />
+                  ยื่นคำร้องใหม่
+                </Button>
+              </div>
+            )}
           </div>
 
           {createdNo && (
@@ -177,18 +219,66 @@ export default function PetitionListPage() {
                 />
               </div>
             </div>
-            <div className="w-full md:w-56">
-              <NativeSelect
-                value={status}
-                onChange={(e) => updateParams({ status: e.target.value || undefined, page: undefined })}
-              >
-                <option value="">สถานะทั้งหมด</option>
-                {visibleStatuses.map((s) => (
-                  <option key={s} value={s}>
-                    {PETITION_STATUS_CONFIG[s].label}
-                  </option>
-                ))}
-              </NativeSelect>
+            <div className="w-full sm:w-56">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className={cn(
+                      'flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                      selectedStatuses.length === 0 && 'text-grey-500',
+                    )}
+                  >
+                    <span className="truncate text-left">
+                      {selectedStatuses.length === 0
+                        ? 'สถานะทั้งหมด'
+                        : selectedStatuses.length === 1
+                          ? PETITION_STATUS_CONFIG[selectedStatuses[0]].label
+                          : `เลือก ${selectedStatuses.length} สถานะ`}
+                    </span>
+                    <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
+                  <div className="flex items-center justify-between px-1 pb-2 border-b border-black-50 mb-1">
+                    <span className="text-xs font-medium text-grey-700">เลือกสถานะ</span>
+                    {selectedStatuses.length > 0 && (
+                      <button
+                        type="button"
+                        className="text-xs text-primary-500 hover:underline"
+                        onClick={() => updateParams({ status: undefined, page: undefined })}
+                      >
+                        ล้าง
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    {visibleStatuses.map((s) => {
+                      const checked = selectedStatuses.includes(s);
+                      return (
+                        <label
+                          key={s}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-accent cursor-pointer text-sm"
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(v) => {
+                              const next = v
+                                ? [...selectedStatuses, s]
+                                : selectedStatuses.filter((x) => x !== s);
+                              updateParams({
+                                status: next.length ? next.join(',') : undefined,
+                                page: undefined,
+                              });
+                            }}
+                          />
+                          <span>{PETITION_STATUS_CONFIG[s].label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
             <Button type="submit" size="default">
               ค้นหา
@@ -201,8 +291,8 @@ export default function PetitionListPage() {
             )}
           </form>
 
-          <div className="rounded-[10px] border border-black-50 bg-white">
-            <Table>
+          <div className="rounded-[10px] border border-black-50 bg-white overflow-x-auto">
+            <Table className="min-w-[700px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>เลขที่คำร้อง</TableHead>
@@ -210,6 +300,7 @@ export default function PetitionListPage() {
                   <TableHead>แผนก</TableHead>
                   <TableHead>ส่วนงาน</TableHead>
                   <TableHead>ชื่อตัวอย่าง</TableHead>
+                  {canSeeTestItems && <TableHead>รายการทดลอง</TableHead>}
                   <TableHead>สถานะ</TableHead>
                   <TableHead>วันที่ยื่น</TableHead>
                 </TableRow>
@@ -217,14 +308,22 @@ export default function PetitionListPage() {
               <TableBody>
                 {loading && (
                   <TableRow>
+<<<<<<< HEAD
                     <TableCell colSpan={7} className="text-center text-grey-500 py-8">
+=======
+                    <TableCell colSpan={canSeeTestItems ? 7 : 6} className="text-center text-grey-500 py-8">
+>>>>>>> d1bdc1d7f523319a67c643490821323511c0a0d9
                       กำลังโหลดข้อมูล...
                     </TableCell>
                   </TableRow>
                 )}
                 {!loading && data && visibleItems.length === 0 && (
                   <TableRow>
+<<<<<<< HEAD
                     <TableCell colSpan={7} className="text-center text-grey-500 py-8">
+=======
+                    <TableCell colSpan={canSeeTestItems ? 7 : 6} className="text-center text-grey-500 py-8">
+>>>>>>> d1bdc1d7f523319a67c643490821323511c0a0d9
                       {hasFilters
                         ? 'ไม่พบคำร้องตามเงื่อนไขที่ค้นหา'
                         : canViewAll
@@ -244,14 +343,19 @@ export default function PetitionListPage() {
                         onClick={() => navigate(`/petitions/${p._id}`)}
                       >
                         <TableCell className="font-medium text-primary-500">{p.petitionNo}</TableCell>
-                        <TableCell>{p.requester.fullName}</TableCell>
-                        <TableCell>{p.requester.department}</TableCell>
+                        <TableCell>{p.submittedBy?.name ?? '-'}</TableCell>
+                        <TableCell>{PETITION_DEPT_LABELS[p.dept]}</TableCell>
                         <TableCell>
                           <Badge variant="primary-soft">{formatPetitionWorkSections(p)}</Badge>
                         </TableCell>
                         <TableCell>
                           {p.items?.map((it) => it.sampleName).filter(Boolean).join(', ') || '-'}
                         </TableCell>
+                        {canSeeTestItems && (
+                          <TableCell className="max-w-[280px] whitespace-pre-wrap text-sm text-grey-700">
+                            {parameterNamesForPetition(p, parameters).join(' • ') || '-'}
+                          </TableCell>
+                        )}
                         <TableCell>
                           <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
                         </TableCell>

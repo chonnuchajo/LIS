@@ -59,16 +59,16 @@ export default function PendingSampleDetailPage() {
   return (
     <AppLayout>
         <div className="space-y-4">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button variant="ghost" size="icon-sm" onClick={() => navigate(-1)}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-black-500 truncate">{prodOrderNo}</h1>
+              <h1 className="text-xl md:text-2xl font-bold text-black-500 truncate">{prodOrderNo}</h1>
               <p className="text-sm text-grey-500">รายละเอียดตัวอย่างก่อนส่งตรวจ</p>
             </div>
             {!loading && items.length > 0 && (
-              <Button variant="primary" onClick={handleSend}>
+              <Button variant="primary" onClick={handleSend} className="w-full sm:w-auto">
                 <Send className="h-4 w-4" />
                 ส่งคำขอตรวจ
               </Button>

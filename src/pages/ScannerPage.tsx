@@ -251,14 +251,14 @@ export default function ScannerPage() {
               <div className="flex gap-2 text-sm">
                 <User className="w-4 h-4 text-grey-400 mt-0.5 shrink-0" />
                 <div>
-                  <p className="font-medium text-black-500">{petition.requester.fullName}</p>
-                  <p className="text-grey-400 text-xs">{petition.requester.email}</p>
+                  <p className="font-medium text-black-500">{petition.submittedBy?.name ?? '-'}</p>
+                  <p className="text-grey-400 text-xs">{petition.petitionNo}</p>
                 </div>
               </div>
 
               <div className="flex gap-2 text-sm">
                 <Building2 className="w-4 h-4 text-grey-400 mt-0.5 shrink-0" />
-                <span className="text-grey-600">{petition.requester.department}</span>
+                <span className="text-grey-600">{petition.dept}</span>
               </div>
 
               {petition.items.length > 0 && (
@@ -310,7 +310,7 @@ export default function ScannerPage() {
               <span className="font-semibold text-black-500">{petition.petitionNo}</span>
             </p>
             <p className="text-xs text-grey-400">
-              {petition.requester.fullName} · {petition.requester.department}
+              {petition.submittedBy?.name ?? '-'} · {petition.dept}
             </p>
             <Button variant="primary" className="mt-2 w-full" onClick={reset}>
               กลับ

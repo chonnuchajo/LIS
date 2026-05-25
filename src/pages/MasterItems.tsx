@@ -46,7 +46,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { api, type MachineItem } from "@/lib/api";
+import { api, type MachineItem, type ParameterItem } from "@/lib/api";
+import {
+  classificationTypes,
+  getClassification,
+  getCommonName,
+  productTypeLabels,
+} from "@/lib/productClassification";
 
 type MasterItem = Record<string, unknown>;
 type SimpleInstrument = "GC" | "HPLC";
@@ -68,6 +74,7 @@ type MasterItemForm = {
   unit: string;
   status: string;
   description: string;
+  requiredInspectionQty: string;
 };
 
 const emptyForm: MasterItemForm = {
@@ -78,32 +85,24 @@ const emptyForm: MasterItemForm = {
   unit: "",
   status: "active",
   description: "",
+  requiredInspectionQty: "0",
 };
+
+type MasterItemOverride = {
+  itemNo: string;
+  itemCode: string;
+  itemName: string;
+  itemType: string;
+  category: string;
+  unit: string;
+  status: string;
+  description: string;
+  requiredInspectionQty: number;
+};
+
+type MasterItemOverrideMap = Record<string, MasterItemOverride>;
 
 const DIRECT_MASTER_ITEM_URL = "https://n8n-plant.icpladda.com/webhook/API/Item-production";
-
-const classificationTypes = [
-  { key: "ulv", code: "ULV", label: "น้ำ (ยูแอลวี)", group: "water" },
-  { key: "ec", code: "EC", label: "น้ำ (อีซี)", group: "water" },
-  { key: "ew", code: "EW", label: "น้ำ (อีดับเบิ้ลยู)", group: "water" },
-  { key: "sc", code: "SC", label: "น้ำ (เอสซี)", group: "water" },
-  { key: "sl", code: "SL", label: "น้ำ (เอสแอล)", group: "water" },
-  { key: "wv", code: "W/V", label: "น้ำ (ดับเบิ้ลยูวี)", group: "water" },
-  { key: "ww", code: "W/W", label: "ทราย/เม็ด", group: "sand" },
-  { key: "wp", code: "WP", label: "ผง (ดับเบิลยูพี)", group: "powder" },
-  { key: "wdg", code: "WDG", label: "เม็ด/ผงเม็ด (ดับเบิลยูจี)", group: "powder" },
-  { key: "gr", code: "GR", label: "ทราย/เม็ด (จีอาร์)", group: "sand" },
-  { key: "st", code: "ST", label: "เม็ดละลายน้ำ (เอสที)", group: "sand" },
-  { key: "sp", code: "SP", label: "ผง (เอสพี)", group: "powder" },
-  { key: "ds", code: "DS", label: "ผง (ดีเอส)", group: "powder" },
-  { key: "dp", code: "DP", label: "ผงฝุ่น", group: "powder" },
-] as const;
-
-const productTypeLabels: Record<string, string> = {
-  water: "น้ำ",
-  sand: "ยา",
-  powder: "ผง",
-};
 
 const idKeys = ["_id", "id", "itemId", "item_id", "item_no", "code", "itemCode"];
 const codeKeys = ["item_no", "itemCode", "item_code", "code", "Code", "ITEM_CODE"];
@@ -137,6 +136,30 @@ const hiddenTableKeys = [
   "purch_unit_mea",
   "unit_cost",
 ];
+
+const OVERRIDE_FIELD_MAP: Array<{ key: keyof MasterItemOverride; targets: string[] }> = [
+  { key: "itemCode", targets: codeKeys },
+  { key: "itemName", targets: nameKeys },
+  { key: "itemType", targets: typeKeys },
+  { key: "category", targets: categoryKeys },
+  { key: "unit", targets: unitKeys },
+  { key: "status", targets: statusKeys },
+  { key: "description", targets: descriptionKeys },
+];
+
+function applyOverride(item: MasterItem, override?: MasterItemOverride): MasterItem {
+  if (!override) return item;
+  const merged: MasterItem = { ...item };
+  OVERRIDE_FIELD_MAP.forEach(({ key, targets }) => {
+    const value = override[key];
+    if (typeof value === "string" && value !== "") {
+      targets.forEach((target) => {
+        merged[target] = value;
+      });
+    }
+  });
+  return merged;
+}
 
 function normalizeItems(payload: unknown): MasterItem[] {
   if (Array.isArray(payload)) return payload.filter(isObject);
@@ -199,33 +222,6 @@ function displayValue(value: unknown) {
   return String(value);
 }
 
-function normalizeClassificationValue(value: unknown) {
-  return String(value ?? "").trim().toLowerCase().replace(/[\s_-]/g, "");
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function getClassification(value: unknown) {
-  const rawValue = String(value ?? "").trim();
-  const normalized = normalizeClassificationValue(rawValue);
-  const exactMatch = classificationTypes.find((item) => (
-    normalizeClassificationValue(item.key) === normalized ||
-    normalizeClassificationValue(item.code) === normalized ||
-    normalizeClassificationValue(item.label) === normalized
-  ));
-  if (exactMatch) return exactMatch;
-
-  const upperValue = rawValue.toUpperCase();
-  return [...classificationTypes]
-    .sort((a, b) => b.code.length - a.code.length)
-    .find((item) => {
-      const pattern = new RegExp(`(^|[^A-Z0-9])${escapeRegExp(item.code.toUpperCase())}([^A-Z0-9]|$)`);
-      return pattern.test(upperValue);
-    });
-}
-
 function displayProductType(value: unknown) {
   const rawValue = String(value ?? "").trim();
   if (!rawValue) return "-";
@@ -243,6 +239,37 @@ function getProductTypeGroup(item: MasterItem) {
     firstValue(item, nameKeys),
   ].filter(Boolean).join(" ");
   return getClassification(source)?.group ?? "";
+}
+
+const PARAM_ITEM_NAME_KEYS = ["item_name1", "itemName", "item_name", "name"];
+
+function getItemNameForParam(item: MasterItem): string {
+  for (const key of PARAM_ITEM_NAME_KEYS) {
+    const value = item[key];
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return String(value).trim();
+    }
+  }
+  return "";
+}
+
+function countParametersFor(item: MasterItem, parameters: ParameterItem[]): number {
+  if (parameters.length === 0) return 0;
+  const itemName = getItemNameForParam(item);
+  const productType = getProductTypeGroup(item);
+  const category = getItemCategory(item);
+  const commonName = getCommonName(firstValue(item, commonNameKeys))
+    || getCommonName(firstValue(item, nameKeys));
+
+  return parameters.filter((parameter) => {
+    if ((parameter.status ?? "active") !== "active") return false;
+    if (parameter.applyAll) return true;
+    if (itemName && parameter.itemNames?.includes(itemName)) return true;
+    if (productType && parameter.productTypes?.includes(productType)) return true;
+    if (category && parameter.categories?.includes(category)) return true;
+    if (commonName && parameter.commonNames?.includes(commonName)) return true;
+    return false;
+  }).length;
 }
 
 function getItemId(item: MasterItem) {
@@ -302,7 +329,7 @@ function buildSimpleMethodRows(
   ));
 }
 
-function itemToForm(item: MasterItem): MasterItemForm {
+function itemToForm(item: MasterItem, metaQty = 0): MasterItemForm {
   const statusValue = firstValue(item, statusKeys);
   const classification = getClassification([
     firstValue(item, typeKeys),
@@ -320,6 +347,7 @@ function itemToForm(item: MasterItem): MasterItemForm {
         ? statusValue ? "active" : "inactive"
         : String(statusValue || "active"),
     description: String(firstValue(item, descriptionKeys)),
+    requiredInspectionQty: String(metaQty || 0),
   };
 }
 
@@ -368,9 +396,9 @@ export default function MasterItems() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [productTypeFilter, setProductTypeFilter] = useState("all");
-  const [editing, setEditing] = useState<MasterItem | null>(null);
+  const [editing, setEditing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
   const [creating, setCreating] = useState(false);
-  const [deleting, setDeleting] = useState<MasterItem | null>(null);
+  const [deleting, setDeleting] = useState<{ item: MasterItem; originalItemNo: string } | null>(null);
 
   const {
     data: items = [],
@@ -391,24 +419,54 @@ export default function MasterItems() {
     },
   });
 
+  const { data: overrideMap = {} } = useQuery<MasterItemOverrideMap>({
+    queryKey: ["master-item-meta"],
+    queryFn: async () => {
+      const res = await api.get<MasterItemOverride[]>("/master-item-meta");
+      const map: MasterItemOverrideMap = {};
+      (res.data.data || []).forEach((entry) => {
+        if (entry && entry.itemNo) map[entry.itemNo] = entry;
+      });
+      return map;
+    },
+  });
+
+  const { data: parameters = [] } = useQuery({
+    queryKey: ["parameters"],
+    queryFn: () => api.getParameters(),
+  });
+
+  const enrichedItems = useMemo(
+    () => items.map((item) => {
+      const originalItemNo = String(firstValue(item, codeKeys)).trim();
+      const override = overrideMap[originalItemNo];
+      return {
+        item: applyOverride(item, override),
+        originalItemNo,
+        override,
+      };
+    }),
+    [items, overrideMap],
+  );
+
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return items.filter((item) => {
+    return enrichedItems.filter(({ item }) => {
       const matchesSearch = !q || JSON.stringify(item).toLowerCase().includes(q);
       const matchesCategory = categoryFilter === "all" || getItemCategory(item) === categoryFilter;
       const matchesProductType = productTypeFilter === "all" || getProductTypeGroup(item) === productTypeFilter;
       return matchesSearch && matchesCategory && matchesProductType;
     });
-  }, [categoryFilter, items, productTypeFilter, search]);
+  }, [categoryFilter, enrichedItems, productTypeFilter, search]);
 
   const categoryOptions = useMemo(() => {
     const values = new Set<string>();
-    items.forEach((item) => {
+    enrichedItems.forEach(({ item }) => {
       const category = getItemCategory(item);
       if (category) values.add(category);
     });
     return Array.from(values).sort((a, b) => a.localeCompare(b));
-  }, [items]);
+  }, [enrichedItems]);
 
   const extraColumns = useMemo(() => {
     const used = new Set([
@@ -433,7 +491,7 @@ export default function MasterItems() {
     return keys;
   }, [items]);
 
-  const activeCount = items.filter((item) => {
+  const activeCount = enrichedItems.filter(({ item }) => {
     const status = firstValue(item, statusKeys);
     if (status === "") return true;
     return status === true || String(status || "").toLowerCase() === "active";
@@ -446,7 +504,7 @@ export default function MasterItems() {
 
   const handleDelete = async () => {
     if (!deleting) return;
-    const id = getItemId(deleting);
+    const id = getItemId(deleting.item);
     if (!id) {
       toast.error("ไม่พบรหัส item สำหรับลบ");
       return;
@@ -454,9 +512,17 @@ export default function MasterItems() {
 
     try {
       await api.delete(`/master-items/${encodeURIComponent(id)}`);
+      if (deleting.originalItemNo) {
+        try {
+          await api.delete(`/master-item-meta/${encodeURIComponent(deleting.originalItemNo)}`);
+        } catch {
+          // override delete is best-effort
+        }
+      }
       toast.success("ลบ item สำเร็จ");
       setDeleting(null);
       queryClient.invalidateQueries({ queryKey: ["master-items"] });
+      queryClient.invalidateQueries({ queryKey: ["master-item-meta"] });
     } catch (err) {
       toast.error((err as Error).message);
     }
@@ -466,7 +532,7 @@ export default function MasterItems() {
     <AppLayout>
         <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+            <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
               <Database className="h-6 w-6" />
               Master Item
             </h1>
@@ -486,7 +552,7 @@ export default function MasterItems() {
           </div>
         </div>
 
-        <div className="mb-4 grid gap-3 md:grid-cols-3">
+        <div className="mb-4 grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardContent className="p-4">
               <div className="text-sm text-muted-foreground">ทั้งหมด</div>
@@ -508,14 +574,14 @@ export default function MasterItems() {
         </div>
 
         <Card>
-          <CardHeader className="flex flex-col gap-3 space-y-0 md:flex-row md:items-center md:justify-between">
+          <CardHeader className="flex flex-col gap-3 space-y-0 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
               <PackageSearch className="h-5 w-5" />
               รายการ Item
               <Badge variant="outline">{filteredItems.length}</Badge>
             </CardTitle>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full md:w-44">
+              <SelectTrigger className="w-full sm:w-44">
                 <SelectValue placeholder="หมวดหมู่" />
               </SelectTrigger>
               <SelectContent>
@@ -528,7 +594,7 @@ export default function MasterItems() {
               </SelectContent>
             </Select>
             <Select value={productTypeFilter} onValueChange={setProductTypeFilter}>
-              <SelectTrigger className="w-full md:w-44">
+              <SelectTrigger className="w-full sm:w-44">
                 <SelectValue placeholder="ประเภทสินค้า" />
               </SelectTrigger>
               <SelectContent>
@@ -540,7 +606,7 @@ export default function MasterItems() {
                 ))}
               </SelectContent>
             </Select>
-            <div className="relative w-full md:w-80">
+            <div className="relative w-full sm:w-80">
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
@@ -557,8 +623,8 @@ export default function MasterItems() {
                 {(error as Error).message}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+                <Table className="min-w-[900px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Code</TableHead>
@@ -567,6 +633,7 @@ export default function MasterItems() {
                       <TableHead>ประเภทสินค้า</TableHead>
                       <TableHead>หมวดหมู่</TableHead>
                       <TableHead>Unit</TableHead>
+                      <TableHead className="text-center">จำนวนต้องตรวจสอบ</TableHead>
                       <TableHead>Status</TableHead>
                       {extraColumns.map((key) => (
                         <TableHead key={key}>{key}</TableHead>
@@ -577,20 +644,21 @@ export default function MasterItems() {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={8 + extraColumns.length} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={9 + extraColumns.length} className="py-8 text-center text-muted-foreground">
                           กำลังโหลด...
                         </TableCell>
                       </TableRow>
                     ) : filteredItems.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8 + extraColumns.length} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={9 + extraColumns.length} className="py-8 text-center text-muted-foreground">
                           ไม่มีข้อมูล
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredItems.map((item, index) => {
-                        const form = itemToForm(item);
-                        const rowKey = getItemId(item) || `row-${index}`;
+                      filteredItems.map(({ item, originalItemNo, override }, index) => {
+                        const metaQty = countParametersFor(item, parameters);
+                        const form = itemToForm(item, metaQty);
+                        const rowKey = getItemId(item) || originalItemNo || `row-${index}`;
                         return (
                           <TableRow key={rowKey}>
                             <TableCell className="font-semibold text-primary">
@@ -603,6 +671,15 @@ export default function MasterItems() {
                             <TableCell>{displayProductType(getProductTypeGroup(item))}</TableCell>
                             <TableCell>{displayValue(getItemCategory(item))}</TableCell>
                             <TableCell>{displayValue(firstValue(item, unitKeys))}</TableCell>
+                            <TableCell className="text-center">
+                              {metaQty > 0 ? (
+                                <Badge variant="secondary" className="font-medium">{metaQty}</Badge>
+                              ) : (
+                                <Badge variant="outline" className="border-amber-500/40 bg-amber-50 text-amber-700 dark:bg-amber-950/30">
+                                  0
+                                </Badge>
+                              )}
+                            </TableCell>
                             <TableCell>
                               <Badge variant={form.status === "inactive" ? "secondary" : "default"}>
                                 {form.status}
@@ -615,10 +692,20 @@ export default function MasterItems() {
                             ))}
                             <TableCell>
                               <div className="flex justify-end gap-1">
-                                <Button size="icon" variant="ghost" onClick={() => setEditing(item)} title="แก้ไข">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => setEditing({ item, originalItemNo, override })}
+                                  title="แก้ไข"
+                                >
                                   <Pencil className="h-4 w-4" />
                                 </Button>
-                                <Button size="icon" variant="ghost" onClick={() => setDeleting(item)} title="ลบ">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => setDeleting({ item, originalItemNo })}
+                                  title="ลบ"
+                                >
                                   <Trash2 className="h-4 w-4 text-destructive" />
                                 </Button>
                               </div>
@@ -636,9 +723,14 @@ export default function MasterItems() {
 
         {(creating || editing) && (
           <MasterItemDialog
-            item={editing}
+            item={editing?.item ?? null}
+            originalItemNo={editing?.originalItemNo ?? ""}
+            initialMetaQty={editing ? countParametersFor(editing.item, parameters) : 0}
             onClose={closeDialog}
-            onSaved={() => queryClient.invalidateQueries({ queryKey: ["master-items"] })}
+            onSaved={() => {
+              queryClient.invalidateQueries({ queryKey: ["master-items"] });
+              queryClient.invalidateQueries({ queryKey: ["master-item-meta"] });
+            }}
           />
         )}
 
@@ -649,7 +741,7 @@ export default function MasterItems() {
                 <DialogTitle>ยืนยันลบ Item</DialogTitle>
               </DialogHeader>
               <div className="text-sm text-muted-foreground">
-                {displayValue(firstValue(deleting, codeKeys))} - {displayValue(firstValue(deleting, nameKeys))}
+                {displayValue(firstValue(deleting.item, codeKeys))} - {displayValue(firstValue(deleting.item, nameKeys))}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDeleting(null)}>ยกเลิก</Button>
@@ -808,7 +900,7 @@ export function SimpleMethodPage() {
   return (
     <AppLayout fixedHeight mainClassName="relative flex flex-col overflow-hidden p-4 sm:p-6 pb-24">
         <div className="mb-4 shrink-0">
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+          <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
             <FlaskConical className="h-6 w-6" />
             Simple Method
           </h1>
@@ -894,7 +986,7 @@ export function MachinesPage() {
   return (
     <AppLayout>
         <div className="mb-6">
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+          <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
             <Wrench className="h-6 w-6" />
             รายการเครื่อง
           </h1>
@@ -1115,14 +1207,20 @@ function SimpleMethodTab({
 
 function MasterItemDialog({
   item,
+  originalItemNo,
+  initialMetaQty,
   onClose,
   onSaved,
 }: {
   item: MasterItem | null;
+  originalItemNo: string;
+  initialMetaQty: number;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [form, setForm] = useState<MasterItemForm>(() => item ? itemToForm(item) : emptyForm);
+  const [form, setForm] = useState<MasterItemForm>(() =>
+    item ? itemToForm(item, initialMetaQty) : { ...emptyForm, requiredInspectionQty: String(initialMetaQty || 0) },
+  );
   const [busy, setBusy] = useState(false);
   const isEdit = !!item;
 
@@ -1145,14 +1243,34 @@ function MasterItemDialog({
       return;
     }
 
-    const payload = buildPayload(form, item);
+    const itemTypeCode = getClassification(form.itemType)?.code ?? form.itemType.trim();
+    const qtyValue = Math.max(0, Math.floor(Number(form.requiredInspectionQty) || 0));
+    const overrideKey = (isEdit && originalItemNo ? originalItemNo : form.itemCode.trim());
+    const overridePayload = {
+      itemCode: form.itemCode.trim(),
+      itemName: form.itemName.trim(),
+      itemType: itemTypeCode,
+      category: form.category.trim(),
+      unit: form.unit.trim(),
+      status: form.status,
+      description: form.description.trim(),
+      requiredInspectionQty: qtyValue,
+    };
+
     setBusy(true);
     try {
-      if (isEdit) {
-        const id = getItemId(item);
-        await api.patch(`/master-items/${encodeURIComponent(id)}`, payload);
-      } else {
-        await api.post("/master-items", payload);
+      await api.put(`/master-item-meta/${encodeURIComponent(overrideKey)}`, overridePayload);
+      // best-effort sync to n8n webhook (may not persist there)
+      try {
+        const payload = buildPayload(form, item);
+        if (isEdit) {
+          const id = getItemId(item);
+          if (id) await api.patch(`/master-items/${encodeURIComponent(id)}`, payload);
+        } else {
+          await api.post("/master-items", payload);
+        }
+      } catch {
+        // webhook sync failure is non-fatal — override is source of truth
       }
       toast.success(isEdit ? "แก้ไข item สำเร็จ" : "เพิ่ม item สำเร็จ");
       onSaved();
@@ -1166,13 +1284,13 @@ function MasterItemDialog({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{isEdit ? "แก้ไข Item" : "เพิ่ม Item"}</DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4 md:grid-cols-2">
+          <div className="grid gap-4 py-4 grid-cols-1 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="itemCode">Code</Label>
               <Input
@@ -1180,6 +1298,7 @@ function MasterItemDialog({
                 value={form.itemCode}
                 onChange={(event) => setField("itemCode", event.target.value)}
                 required
+                disabled={isEdit}
               />
             </div>
             <div className="space-y-1.5">
@@ -1189,6 +1308,7 @@ function MasterItemDialog({
                 value={form.itemName}
                 onChange={(event) => setField("itemName", event.target.value)}
                 required
+                disabled={isEdit}
               />
             </div>
             <div className="space-y-1.5">
@@ -1212,6 +1332,7 @@ function MasterItemDialog({
                 id="category"
                 value={form.category}
                 onChange={(event) => setField("category", event.target.value)}
+                disabled={isEdit}
               />
             </div>
             <div className="space-y-1.5">
@@ -1220,7 +1341,21 @@ function MasterItemDialog({
                 id="unit"
                 value={form.unit}
                 onChange={(event) => setField("unit", event.target.value)}
+                disabled={isEdit}
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="requiredInspectionQty">จำนวนต้องตรวจสอบ</Label>
+              <Input
+                id="requiredInspectionQty"
+                type="number"
+                value={form.requiredInspectionQty}
+                disabled
+                readOnly
+              />
+              <p className="text-xs text-muted-foreground">
+                คำนวนอัตโนมัติจากพารามิเตอร์ที่ตั้งไว้ในหน้า "พารามิเตอร์การตรวจสอบ"
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Status</Label>
@@ -1340,7 +1475,7 @@ function MachinesTab() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-col gap-3 space-y-0 md:flex-row md:items-center md:justify-between">
+      <CardHeader className="flex flex-col gap-3 space-y-0 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
         <CardTitle className="flex items-center gap-2 text-base">
           <Wrench className="h-5 w-5" />
           รายการเครื่องมือ
@@ -1348,7 +1483,7 @@ function MachinesTab() {
         </CardTitle>
         <div className="flex flex-wrap items-center gap-2">
           <Select value={locationFilter} onValueChange={setLocationFilter}>
-            <SelectTrigger className="w-full md:w-48">
+            <SelectTrigger className="w-full sm:w-48">
               <SelectValue placeholder="สถานที่ตั้ง" />
             </SelectTrigger>
             <SelectContent>
@@ -1359,7 +1494,7 @@ function MachinesTab() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full md:w-36">
+            <SelectTrigger className="w-full sm:w-36">
               <SelectValue placeholder="สถานะ" />
             </SelectTrigger>
             <SelectContent>
@@ -1369,7 +1504,7 @@ function MachinesTab() {
               <SelectItem value="retired">retired</SelectItem>
             </SelectContent>
           </Select>
-          <div className="relative w-full md:w-72">
+          <div className="relative w-full sm:w-72">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
@@ -1398,8 +1533,8 @@ function MachinesTab() {
             {(error as Error).message}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+            <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>รหัส</TableHead>
@@ -1531,13 +1666,13 @@ function MachineDialog({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{isEdit ? "แก้ไขเครื่องมือ" : "เพิ่มเครื่องมือ"}</DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4 md:grid-cols-2">
+          <div className="grid gap-4 py-4 grid-cols-1 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="m-code">รหัสเครื่องมือ *</Label>
               <Input id="m-code" value={form.code} onChange={(e) => setField("code", e.target.value)} required placeholder="LD-049" />

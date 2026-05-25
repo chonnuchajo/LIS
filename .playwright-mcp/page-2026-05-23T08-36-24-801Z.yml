@@ -1,0 +1,89 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - complementary [ref=e5]:
+      - button "ซ่อนเมนู" [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+      - generic [ref=e9]:
+        - img "ICP Logo" [ref=e10]
+        - generic [ref=e11]:
+          - heading "LIS" [level=1] [ref=e12]
+          - paragraph [ref=e13]:
+            - text: LAB INFORMATION
+            - text: SYSTEM
+      - navigation [ref=e14]
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - img [ref=e18]
+          - generic [ref=e21]:
+            - paragraph
+            - paragraph
+            - paragraph [ref=e22]: "Role: No role"
+            - paragraph [ref=e23]: Unassigned
+        - button "ออกจากระบบ" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+          - text: ออกจากระบบ
+    - main [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - img [ref=e32]
+          - generic [ref=e34]:
+            - heading "Lab Dashboard" [level=1] [ref=e35]
+            - paragraph [ref=e36]: วันเสาร์ที่ 23 พฤษภาคม 2569 · กะบ่าย
+        - generic [ref=e37]:
+          - generic [ref=e38]:
+            - img [ref=e39]
+            - textbox "ค้นหาเลขคำร้อง..." [ref=e42]
+            - generic [ref=e43]: /
+          - button "ส่งออก" [ref=e44] [cursor=pointer]:
+            - img
+            - generic [ref=e45]: ส่งออก
+          - button "สร้างคำร้องใหม่ N" [ref=e46] [cursor=pointer]:
+            - img
+            - text: สร้างคำร้องใหม่
+            - generic [ref=e47]: "N"
+      - generic [ref=e48]:
+        - button "งานทั้งหมดใน Lab 0 รวมงานเสร็จแล้ว 0" [ref=e49] [cursor=pointer]:
+          - generic [ref=e50]:
+            - img [ref=e52]
+            - generic [ref=e55]:
+              - paragraph [ref=e56]: งานทั้งหมดใน Lab
+              - paragraph [ref=e57]: "0"
+              - generic [ref=e58]: รวมงานเสร็จแล้ว 0
+        - button "รอรับเข้าระบบ 0" [ref=e59] [cursor=pointer]:
+          - generic [ref=e60]:
+            - img [ref=e62]
+            - generic [ref=e65]:
+              - paragraph [ref=e66]: รอรับเข้าระบบ
+              - paragraph [ref=e67]: "0"
+        - button "กำลังดำเนินการ 0" [ref=e68] [cursor=pointer]:
+          - generic [ref=e69]:
+            - img [ref=e71]
+            - generic [ref=e73]:
+              - paragraph [ref=e74]: กำลังดำเนินการ
+              - paragraph [ref=e75]: "0"
+        - button "ตรวจเสร็จแล้ว 0" [ref=e76] [cursor=pointer]:
+          - generic [ref=e77]:
+            - img [ref=e79]
+            - generic [ref=e82]:
+              - paragraph [ref=e83]: ตรวจเสร็จแล้ว
+              - paragraph [ref=e84]: "0"
+      - generic [ref=e85]:
+        - generic [ref=e88]:
+          - heading "คำร้องสำหรับ Lab" [level=3] [ref=e89]
+          - button "ดูรายการคำร้องทั้งหมด" [ref=e90] [cursor=pointer]
+        - generic [ref=e118]:
+          - heading "ตัวอย่างรอรับเข้าระบบ" [level=3] [ref=e121]
+          - generic [ref=e123]:
+            - img [ref=e125]
+            - paragraph [ref=e128]: ไม่มีตัวอย่างที่รอรับเข้าระบบ
+            - paragraph [ref=e129]: เคลียร์งานครบแล้ว ✨
+      - button "ตรวจเสร็จแล้ววันนี้ 0 รายการ" [expanded] [ref=e132] [cursor=pointer]:
+        - generic [ref=e133]:
+          - img [ref=e135]
+          - generic [ref=e138]:
+            - paragraph [ref=e139]: ตรวจเสร็จแล้ววันนี้
+            - paragraph [ref=e140]: 0 รายการ
+        - img [ref=e141]

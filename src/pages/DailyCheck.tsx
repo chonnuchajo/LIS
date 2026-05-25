@@ -152,12 +152,12 @@ const DailyCheck = () => {
 
   return (
     <AppLayout>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Daily Check</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-foreground">Daily Check</h1>
             <p className="text-sm text-muted-foreground">Calibrate เครื่องชั่ง ประจำวัน — {today}</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Badge variant="outline" className="text-sm gap-1 py-1 px-3">
               <Clock className="w-3.5 h-3.5" /> ตรวจแล้ว {checkedCount}/{SCALES.length}
             </Badge>
@@ -178,7 +178,7 @@ const DailyCheck = () => {
           </TabsList>
 
           <TabsContent value="check">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {SCALES.map(scale => {
                 const r = getRecord(scale.id);
                 const isChecked = !!r.checkedAt;
@@ -301,8 +301,8 @@ const DailyCheck = () => {
                 {history.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">ยังไม่มีรายการบันทึก</p>
                 ) : (
-                  <div className="overflow-auto">
-                    <Table>
+                  <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+                    <Table className="min-w-[900px]">
                       <TableHeader>
                         <TableRow>
                           <TableHead>เครื่องชั่ง</TableHead>

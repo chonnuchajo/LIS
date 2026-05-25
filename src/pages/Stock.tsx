@@ -120,8 +120,8 @@ function StandardsTab() {
             <Package className="w-5 h-5" /> Standards (สาร Standard)
             <Badge variant="outline">{data.length}</Badge>
           </CardTitle>
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[180px]">
               <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search} onChange={e => setSearch(e.target.value)}
@@ -134,8 +134,8 @@ function StandardsTab() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+            <Table className="min-w-[700px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-16">Code</TableHead>
@@ -283,8 +283,8 @@ function SolventsTab() {
             <Package className="w-5 h-5" /> สารเคมี / Solvents
             <Badge variant="outline">{data.length}</Badge>
           </CardTitle>
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[180px]">
               <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา" className="pl-8 h-9 w-full sm:w-64" />
             </div>
@@ -292,7 +292,8 @@ function SolventsTab() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+          <Table className="min-w-[700px]">
             <TableHeader>
               <TableRow>
                 <TableHead>รายการ</TableHead>
@@ -331,6 +332,7 @@ function SolventsTab() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -431,8 +433,8 @@ function GlasswareTab() {
             <Package className="w-5 h-5" /> เครื่องแก้ว / Glassware
             <Badge variant="outline">{data.length}</Badge>
           </CardTitle>
-          <div className="flex items-center gap-2">
-            <div className="relative">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[180px]">
               <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา" className="pl-8 h-9 w-full sm:w-64" />
             </div>
@@ -440,7 +442,8 @@ function GlasswareTab() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+          <Table className="min-w-[700px]">
             <TableHeader>
               <TableRow>
                 <TableHead>รายการ</TableHead>
@@ -477,6 +480,7 @@ function GlasswareTab() {
               ))}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -550,9 +554,9 @@ function HistoryTab() {
           <History className="w-5 h-5" /> ประวัติการใช้ / รับเข้า
           <Badge variant="outline">{data.length}</Badge>
         </CardTitle>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Select value={type || "all"} onValueChange={v => setType(v === "all" ? "" : v)}>
-            <SelectTrigger className="h-9 w-40"><SelectValue placeholder="ทุกหมวด" /></SelectTrigger>
+            <SelectTrigger className="h-9 w-full sm:w-40"><SelectValue placeholder="ทุกหมวด" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">ทุกหมวด</SelectItem>
               <SelectItem value="standard">Standards</SelectItem>
@@ -561,7 +565,7 @@ function HistoryTab() {
             </SelectContent>
           </Select>
           <Select value={action || "all"} onValueChange={v => setAction(v === "all" ? "" : v)}>
-            <SelectTrigger className="h-9 w-40"><SelectValue placeholder="ทุก action" /></SelectTrigger>
+            <SelectTrigger className="h-9 w-full sm:w-40"><SelectValue placeholder="ทุก action" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">ทุก action</SelectItem>
               <SelectItem value="deduct">ตัด stock</SelectItem>
@@ -574,7 +578,8 @@ function HistoryTab() {
         </div>
       </CardHeader>
       <CardContent>
-        <Table>
+        <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+        <Table className="min-w-[900px]">
           <TableHeader>
             <TableRow>
               <TableHead>เวลา</TableHead>
@@ -614,6 +619,7 @@ function HistoryTab() {
             ))}
           </TableBody>
         </Table>
+        </div>
       </CardContent>
     </Card>
   );
@@ -690,7 +696,7 @@ function SimpleItemDialog<T extends { _id?: string }>({
 
   return (
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{item ? `แก้ไข${title}` : `เพิ่ม${title}`}</DialogTitle>
@@ -751,7 +757,7 @@ function SimpleMoveDialog({
 
   return (
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
@@ -812,7 +818,7 @@ function StandardMoveDialog({
 
   return (
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{mode === "deduct" ? "ตัด stock Standard" : "รับเข้า Standard"}</DialogTitle>
@@ -911,7 +917,7 @@ function StandardDialog({
 
   return (
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{isEdit ? `แก้ไข Standard: ${item?.name}` : "เพิ่ม Standard ใหม่"}</DialogTitle>
@@ -1000,7 +1006,7 @@ const StockPage = () => {
   return (
     <AppLayout>
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
             <Package className="w-6 h-6" /> Stock Management
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -1009,7 +1015,7 @@ const StockPage = () => {
         </div>
 
         <Tabs defaultValue="standard">
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 flex-wrap h-auto">
             <TabsTrigger value="standard">Standards</TabsTrigger>
             <TabsTrigger value="solvent">สารเคมี</TabsTrigger>
             <TabsTrigger value="glassware">เครื่องแก้ว</TabsTrigger>

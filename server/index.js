@@ -25,11 +25,15 @@ mountApi('/densities', require('./routes/densities'));
 mountApi('/stock', require('./routes/stock'));
 mountApi('/access-control', require('./routes/accessControl'));
 mountApi('/petitions', require('./routes/petitions'));
+mountApi('/lab-requests', require('./routes/labRequests'));
 mountApi('/sample-receipts', require('./routes/sampleReceipts'));
 mountApi('/employees', require('./routes/employees'));
 mountApi('/master-items', require('./routes/masterItems'));
+mountApi('/master-item-meta', require('./routes/masterItemMeta'));
 mountApi('/simple-methods', require('./routes/simpleMethods'));
 mountApi('/machines', require('./routes/machines'));
+mountApi('/parameters', require('./routes/parameters'));
+mountApi('/qc-results', require('./routes/qcResults'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
 app.get('/LIS/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));

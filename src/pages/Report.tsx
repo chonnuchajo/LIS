@@ -129,7 +129,7 @@ const DateRangePicker = ({ dateFrom, dateTo, onFromChange, onToChange }: {
   dateFrom?: Date; dateTo?: Date;
   onFromChange: (d?: Date) => void; onToChange: (d?: Date) => void;
 }) => (
-  <div className="flex items-center gap-2">
+  <div className="flex flex-wrap items-center gap-2">
     <Popover>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className={cn("gap-1.5 text-xs", !dateFrom && "text-muted-foreground")}>
@@ -222,7 +222,7 @@ const Report = () => {
   return (
     <AppLayout>
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
             <FileBarChart className="w-6 h-6" />
             รายงานสรุป
           </h1>
@@ -230,7 +230,7 @@ const Report = () => {
         </div>
 
         <Tabs defaultValue="dashboard">
-          <TabsList className="mb-4">
+          <TabsList className="mb-4 flex-wrap h-auto">
             <TabsTrigger value="dashboard" className="gap-1.5"><LayoutDashboard className="w-4 h-4" />Dashboard ภาพรวม</TabsTrigger>
             <TabsTrigger value="trend" className="gap-1.5"><TrendingUp className="w-4 h-4" />%AI</TabsTrigger>
             <TabsTrigger value="oee" className="gap-1.5"><Gauge className="w-4 h-4" />OEE เครื่องวิเคราะห์</TabsTrigger>
@@ -246,7 +246,7 @@ const Report = () => {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <Card>
                 <CardContent className="p-4 text-center">
                   <p className="text-xs text-muted-foreground">ตัวอย่างสัปดาห์นี้</p>
@@ -274,7 +274,7 @@ const Report = () => {
             </div>
 
             {/* Weekly Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-1.5">
@@ -345,7 +345,7 @@ const Report = () => {
                 <CardTitle className="text-base">%AI (รายเดือน)</CardTitle>
                 <div className="flex flex-wrap items-center gap-3 mt-3">
                   <Select value={selectedDrug} onValueChange={setSelectedDrug}>
-                    <SelectTrigger className="w-52 h-9 text-xs">
+                    <SelectTrigger className="w-full sm:w-52 h-9 text-xs">
                       <SelectValue placeholder="เลือกชื่อยา" />
                     </SelectTrigger>
                     <SelectContent>
@@ -385,7 +385,7 @@ const Report = () => {
           <TabsContent value="oee">
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <Select value={selectedInstrument} onValueChange={setSelectedInstrument}>
-                <SelectTrigger className="w-44 h-9 text-xs">
+                <SelectTrigger className="w-full sm:w-44 h-9 text-xs">
                   <SelectValue placeholder="เลือกเครื่อง" />
                 </SelectTrigger>
                 <SelectContent>
@@ -396,7 +396,7 @@ const Report = () => {
               </Select>
               <DateRangePicker dateFrom={oeeDateFrom} dateTo={oeeDateTo} onFromChange={setOeeDateFrom} onToChange={setOeeDateTo} />
             </div>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
               {filteredOee.map(d => (
                 <Card key={d.instrument} className="text-center">
                   <CardContent className="p-3">
@@ -427,7 +427,7 @@ const Report = () => {
                 </ChartContainer>
                 <div className="mt-6">
                   <h3 className="font-semibold text-sm mb-3">Active Injection Log (สรุปรายเครื่อง)</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {filteredOee.map(d => (
                       <div key={d.instrument} className="bg-accent/50 rounded-lg p-3 text-sm space-y-1">
                         <p className="font-semibold text-foreground">{d.instrument}</p>
@@ -450,7 +450,7 @@ const Report = () => {
             )}
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <Select value={selectedPersonnel} onValueChange={setSelectedPersonnel}>
-                <SelectTrigger className="w-44 h-9 text-xs">
+                <SelectTrigger className="w-full sm:w-44 h-9 text-xs">
                   <SelectValue placeholder={employeesLoading ? "กำลังโหลดรายชื่อ..." : "เลือกบุคลากร"} />
                 </SelectTrigger>
                 <SelectContent>
@@ -464,7 +464,7 @@ const Report = () => {
               </Select>
               <DateRangePicker dateFrom={workloadDateFrom} dateTo={workloadDateTo} onFromChange={setWorkloadDateFrom} onToChange={setWorkloadDateTo} />
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">ปริมาณงาน vs ชั่วโมงทำงาน (สัปดาห์นี้)</CardTitle>
@@ -509,7 +509,7 @@ const Report = () => {
                 ) : filteredPersonnel.length === 0 ? (
                   <p className="py-4 text-center text-sm text-muted-foreground">ไม่พบรายชื่อเจ้าหน้าที่ตามเงื่อนไข</p>
                 ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {filteredPersonnel.map(p => (
                     <div key={p.name} className={`rounded-lg p-4 border ${p.overload ? "border-destructive/30 bg-destructive/5" : "border-border bg-accent/30"}`}>
                       <div className="flex items-center justify-between mb-2">

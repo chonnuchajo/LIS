@@ -4,7 +4,7 @@ const router = express.Router();
 
 const EMPLOYEE_API_URL = 'https://n8n-plant.icpladda.com/webhook/api/employee';
 const MONTHLY_TYPE = 'รายเดือน';
-const ALLOWED_DEPARTMENTS = ['ควบคุมคุณภาพ', 'Lab/วิเคราะห์'];
+const ALLOWED_DEPARTMENTS = ['Lab/วิเคราะห์'];
 
 function normalizeEmployee(row) {
   return {

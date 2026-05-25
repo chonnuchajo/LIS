@@ -176,7 +176,40 @@ export const api = {
     request<{ success: true }>(`/machines/${id}`, { method: "DELETE" }),
   seedMachines: () =>
     request<{ inserted: number; matched: number; total: number }>("/machines/seed", { method: "POST" }),
+
+  // Parameters (พารามิเตอร์การตรวจสอบของสารแต่ละชนิด)
+  getParameters: () => request<ParameterItem[]>("/parameters"),
+  createParameter: (data: Partial<ParameterItem>) =>
+    request<ParameterItem>("/parameters", { method: "POST", body: JSON.stringify(data) }),
+  updateParameter: (id: string, data: Partial<ParameterItem>) =>
+    request<ParameterItem>(`/parameters/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteParameter: (id: string) =>
+    request<{ success: true }>(`/parameters/${id}`, { method: "DELETE" }),
+  bulkCreateParameters: (items: Partial<ParameterItem>[]) =>
+    request<ParameterItem[]>("/parameters/bulk", { method: "POST", body: JSON.stringify(items) }),
+
+  // QC Test Results
+  getQCResults: (petitionId: string) =>
+    request<import("@/types/petition.types").QCTestResult[]>(`/qc-results/${petitionId}`),
+  saveQCResult: (data: import("@/types/petition.types").SaveQCResultPayload) =>
+    request<import("@/types/petition.types").QCTestResult>("/qc-results", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getQCProgress: (petitionIds: string[]) => {
+    if (petitionIds.length === 0) return Promise.resolve({} as QCProgressMap);
+    const qs = new URLSearchParams({ petitionIds: petitionIds.join(",") }).toString();
+    return request<QCProgressMap>(`/qc-results/progress?${qs}`);
+  },
 };
+
+export type QCProgressEntry = {
+  itemSeq: number;
+  parameterId: string;
+  filledLabels: string[];
+};
+
+export type QCProgressMap = Record<string, QCProgressEntry[]>;
 
 export type MachineItem = {
   _id?: string;
@@ -191,6 +224,53 @@ export type MachineItem = {
   startDate?: string;
   location?: string;
   status?: "active" | "inactive" | "retired";
+  note?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ParameterValueFieldType = "text" | "number" | "float" | "enum" | "photo" | "timer";
+
+export type StandardOperator =
+  | "lt"
+  | "lte"
+  | "eq"
+  | "gte"
+  | "gt"
+  | "between"
+  | "tolerance";
+
+export type TimerUnit = "minute" | "hour" | "day" | "month";
+
+export type ParameterValueField = {
+  label: string;
+  type: ParameterValueFieldType;
+  unit?: string;
+  standardValue?: number | null;
+  standardOperator?: StandardOperator;
+  standardValue2?: number | null;
+  options?: string[];
+  requireNoteOn?: string[];
+  expectedValues?: string[];
+  timerDurationSec?: number | null;
+  timerUnit?: TimerUnit;
+  required?: boolean;
+};
+
+export type ParameterScope = "lab" | "qc";
+
+export type ParameterItem = {
+  _id?: string;
+  name: string;
+  scope?: ParameterScope;
+  status?: "active" | "inactive";
+  applyAll?: boolean;
+  commonNames?: string[];
+  itemNames?: string[];
+  productTypes?: string[];
+  categories?: string[];
+  valueFields?: ParameterValueField[];
+  sortOrder?: number;
   note?: string;
   createdAt?: string;
   updatedAt?: string;
