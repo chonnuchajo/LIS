@@ -18,12 +18,9 @@ import {
 } from '@/components/ui/table';
 import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
-<<<<<<< HEAD
 import { formatPetitionWorkSections } from '@/lib/petitionSections';
-=======
 import { api, type ParameterItem } from '@/lib/api';
 import { parameterNamesForPetition } from '@/lib/petitionTestItems';
->>>>>>> d1bdc1d7f523319a67c643490821323511c0a0d9
 import {
   PETITION_STATUSES,
   PETITION_DEPT_LABELS,
@@ -308,22 +305,14 @@ export default function PetitionListPage() {
               <TableBody>
                 {loading && (
                   <TableRow>
-<<<<<<< HEAD
-                    <TableCell colSpan={7} className="text-center text-grey-500 py-8">
-=======
-                    <TableCell colSpan={canSeeTestItems ? 7 : 6} className="text-center text-grey-500 py-8">
->>>>>>> d1bdc1d7f523319a67c643490821323511c0a0d9
+                    <TableCell colSpan={canSeeTestItems ? 8 : 7} className="text-center text-grey-500 py-8">
                       กำลังโหลดข้อมูล...
                     </TableCell>
                   </TableRow>
                 )}
                 {!loading && data && visibleItems.length === 0 && (
                   <TableRow>
-<<<<<<< HEAD
-                    <TableCell colSpan={7} className="text-center text-grey-500 py-8">
-=======
-                    <TableCell colSpan={canSeeTestItems ? 7 : 6} className="text-center text-grey-500 py-8">
->>>>>>> d1bdc1d7f523319a67c643490821323511c0a0d9
+                    <TableCell colSpan={canSeeTestItems ? 8 : 7} className="text-center text-grey-500 py-8">
                       {hasFilters
                         ? 'ไม่พบคำร้องตามเงื่อนไขที่ค้นหา'
                         : canViewAll

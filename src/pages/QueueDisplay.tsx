@@ -162,16 +162,12 @@ function QueueCard({
           {statusCfg.label}
         </Badge>
       </div>
-<<<<<<< HEAD
       <div className="mt-3 flex items-center gap-2">
         <span className="text-sm font-semibold text-slate-500">ส่วนงาน</span>
         <Badge variant="primary-soft" className="px-3 py-1 text-sm">
           {formatPetitionWorkSections(petition)}
         </Badge>
       </div>
-=======
-
->>>>>>> d1bdc1d7f523319a67c643490821323511c0a0d9
       <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t border-slate-100 pt-3">
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold text-slate-800">{petition.submittedBy?.name ?? '-'}</div>
