@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+server/uploads/qc-photos/*
+!server/uploads/qc-photos/.gitkeep

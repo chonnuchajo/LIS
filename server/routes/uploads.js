@@ -7,12 +7,14 @@ const { randomUUID } = require('crypto');
 const router = express.Router();
 
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'qc-photos');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    const MIME_EXT = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+    const ext = MIME_EXT[file.mimetype] || '.jpg';
     cb(null, `${randomUUID()}${ext}`);
   },
 });
@@ -70,10 +72,8 @@ router.delete('/qc-photo', (req, res) => {
 
 // Multer error handler
 router.use((err, _req, res, _next) => {
-  if (err instanceof multer.MulterError || err.message) {
-    return res.status(400).json({ error: err.message });
-  }
-  res.status(500).json({ error: 'Upload error' });
+  const status = err instanceof multer.MulterError ? 400 : 500;
+  res.status(status).json({ error: err.message || 'Upload error' });
 });
 
 module.exports = router;
