@@ -239,7 +239,7 @@ export type MachineItem = {
   updatedAt?: string;
 };
 
-export type ParameterValueFieldType = "text" | "number" | "float" | "enum" | "photo" | "timer";
+export type ParameterValueFieldType = "text" | "number" | "float" | "enum" | "photo" | "file" | "timer";
 
 export type StandardOperator =
   | "lt"
@@ -266,6 +266,8 @@ export type ParameterValueField = {
   timerUnit?: TimerUnit;
   required?: boolean;
   maxPhotos?: number;
+  maxFiles?: number;
+  allowedFileTypes?: string[];
 };
 
 export type ParameterScope = "lab" | "qc";
@@ -314,6 +316,34 @@ export async function deleteQcPhoto(url: string): Promise<void> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText })) as any;
     const message = body?.message || body?.error?.message || body?.error || 'Delete failed';
+    throw new Error(String(message));
+  }
+}
+
+export async function uploadParamFile(file: File): Promise<{ url: string; name: string; size: number }> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${APP_API_BASE}/uploads/param-file`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText })) as any;
+    const message = body?.error || body?.message || res.statusText;
+    throw new Error(String(message));
+  }
+  return res.json();
+}
+
+export async function deleteParamFile(url: string): Promise<void> {
+  const res = await fetch(`${APP_API_BASE}/uploads/param-file`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText })) as any;
+    const message = body?.error || body?.message || res.statusText;
     throw new Error(String(message));
   }
 }
