@@ -19,7 +19,6 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { usePetitionList } from '@/hooks/usePetition';
 import { api } from '@/lib/api';
-import { formatPetitionWorkSections, petitionHasLabItems } from '@/lib/petitionSections';
 import {
   PETITION_STATUS_CONFIG,
   type Petition,
@@ -40,11 +39,6 @@ function employeeLabel(employee: EmployeeAssignee) {
   return `${employee.name} (${employee.employeeId})`;
 }
 
-function isLabAssignee(employee: EmployeeAssignee) {
-  const department = employee.department.trim().toLowerCase();
-  return department.includes('lab') || department.includes('\u0e27\u0e34\u0e40\u0e04\u0e23\u0e32\u0e30');
-}
-
 function getCommonNames(petition: Petition) {
   return Array.from(
     new Set(
@@ -58,12 +52,6 @@ function getCommonNames(petition: Petition) {
 export default function PetitionAssignPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const {
-    data: sampleSentData,
-    loading: sampleSentLoading,
-    error: sampleSentError,
-    refresh: refreshSampleSent,
-  } = usePetitionList({ page: 1, limit: 100, status: 'sampleSent' });
   const {
     data: pendingData,
     loading: pendingLoading,
@@ -91,7 +79,7 @@ export default function PetitionAssignPage() {
     api.get<EmployeeAssignee[]>('/employees/assignees')
       .then((res) => {
         if (!alive) return;
-        setEmployees(res.data.data.filter(isLabAssignee));
+        setEmployees(res.data.data);
       })
       .catch((err: Error) => {
         if (!alive) return;
@@ -110,23 +98,17 @@ export default function PetitionAssignPage() {
     () => new Map(employees.map((employee) => [employee.employeeId, employee])),
     [employees],
   );
-  const loading = sampleSentLoading || pendingLoading || inProgressLoading;
-  const error = sampleSentError || pendingError || inProgressError;
+  const loading = pendingLoading || inProgressLoading;
+  const error = pendingError || inProgressError;
 
   function refreshPetitions() {
-    refreshSampleSent();
     refreshPending();
     refreshInProgress();
   }
 
   const petitions = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return [
-      ...(sampleSentData?.items ?? []),
-      ...(pendingData?.items ?? []),
-      ...(inProgressData?.items ?? []),
-    ]
-      .filter(petitionHasLabItems)
+    return [...(pendingData?.items ?? []), ...(inProgressData?.items ?? [])]
       .filter((petition) => {
         if (!query) return true;
         return [
@@ -138,7 +120,7 @@ export default function PetitionAssignPage() {
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(query));
       });
-  }, [inProgressData?.items, pendingData?.items, sampleSentData?.items, search]);
+  }, [inProgressData?.items, pendingData?.items, search]);
 
   async function assignPetition(petition: Petition) {
     const employeeId = selectedByPetition[petition._id] || petition.assignedTo?.employeeId || '';
@@ -243,7 +225,6 @@ export default function PetitionAssignPage() {
                 <TableRow>
                   <TableHead>เลขที่คำร้อง</TableHead>
                   <TableHead>ผู้ยื่น</TableHead>
-                  <TableHead>Section</TableHead>
                   <TableHead>ตัวอย่าง</TableHead>
                   <TableHead>สถานะ</TableHead>
                   <TableHead>เจ้าหน้าที่</TableHead>
@@ -253,14 +234,14 @@ export default function PetitionAssignPage() {
               <TableBody>
                 {(loading || employeesLoading) && (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-grey-500">
+                    <TableCell colSpan={6} className="py-8 text-center text-grey-500">
                       กำลังโหลดข้อมูล...
                     </TableCell>
                   </TableRow>
                 )}
                 {!loading && !employeesLoading && petitions.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-grey-500">
+                    <TableCell colSpan={6} className="py-8 text-center text-grey-500">
                       ไม่พบคำร้องที่ต้อง assign
                     </TableCell>
                   </TableRow>
@@ -285,9 +266,6 @@ export default function PetitionAssignPage() {
                       <TableCell>
                         <div className="font-medium text-black-500">{petition.submittedBy?.name ?? '-'}</div>
                         <div className="text-xs text-grey-500">{petition.dept}</div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="primary-soft">{formatPetitionWorkSections(petition)}</Badge>
                       </TableCell>
                       <TableCell>
                         <div>{petition.items.length} รายการ</div>

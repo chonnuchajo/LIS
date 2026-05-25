@@ -18,7 +18,6 @@ import {
 } from '@/components/ui/table';
 import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
-import { formatPetitionWorkSections } from '@/lib/petitionSections';
 import { api, type ParameterItem } from '@/lib/api';
 import { parameterNamesForPetition } from '@/lib/petitionTestItems';
 import {
@@ -295,7 +294,6 @@ export default function PetitionListPage() {
                   <TableHead>เลขที่คำร้อง</TableHead>
                   <TableHead>ผู้ยื่น</TableHead>
                   <TableHead>แผนก</TableHead>
-                  <TableHead>ส่วนงาน</TableHead>
                   <TableHead>ชื่อตัวอย่าง</TableHead>
                   {canSeeTestItems && <TableHead>รายการทดลอง</TableHead>}
                   <TableHead>สถานะ</TableHead>
@@ -305,14 +303,14 @@ export default function PetitionListPage() {
               <TableBody>
                 {loading && (
                   <TableRow>
-                    <TableCell colSpan={canSeeTestItems ? 8 : 7} className="text-center text-grey-500 py-8">
+                    <TableCell colSpan={canSeeTestItems ? 7 : 6} className="text-center text-grey-500 py-8">
                       กำลังโหลดข้อมูล...
                     </TableCell>
                   </TableRow>
                 )}
                 {!loading && data && visibleItems.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={canSeeTestItems ? 8 : 7} className="text-center text-grey-500 py-8">
+                    <TableCell colSpan={canSeeTestItems ? 7 : 6} className="text-center text-grey-500 py-8">
                       {hasFilters
                         ? 'ไม่พบคำร้องตามเงื่อนไขที่ค้นหา'
                         : canViewAll
@@ -334,9 +332,6 @@ export default function PetitionListPage() {
                         <TableCell className="font-medium text-primary-500">{p.petitionNo}</TableCell>
                         <TableCell>{p.submittedBy?.name ?? '-'}</TableCell>
                         <TableCell>{PETITION_DEPT_LABELS[p.dept]}</TableCell>
-                        <TableCell>
-                          <Badge variant="primary-soft">{formatPetitionWorkSections(p)}</Badge>
-                        </TableCell>
                         <TableCell>
                           {p.items?.map((it) => it.sampleName).filter(Boolean).join(', ') || '-'}
                         </TableCell>
