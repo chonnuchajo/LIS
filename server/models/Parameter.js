@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const ValueFieldSchema = new mongoose.Schema({
   label: { type: String, required: true, trim: true },
-  type: { type: String, enum: ['text', 'number', 'float', 'enum', 'photo'], required: true },
+  type: { type: String, enum: ['text', 'number', 'float', 'enum', 'photo', 'file', 'timer'], required: true },
   unit: { type: String, default: '' },
   min: { type: Number, default: null },
   max: { type: Number, default: null },
@@ -24,11 +24,14 @@ const ValueFieldSchema = new mongoose.Schema({
   },
   required: { type: Boolean, default: false },
   maxPhotos: { type: Number, default: 5, min: 1, max: 20 },
+  maxFiles: { type: Number, default: 5, min: 1, max: 20 },
+  allowedFileTypes: { type: [String], default: ['pdf'] },
 }, { _id: false });
 
 const ParameterSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true, index: true },
   scope: { type: String, enum: ['lab', 'qc'], default: 'qc', index: true },
+  shareWithLab: { type: Boolean, default: false },
   status: { type: String, enum: ['active', 'inactive'], default: 'active', index: true },
   applyAll: { type: Boolean, default: false },
   commonNames: { type: [String], default: [] },
