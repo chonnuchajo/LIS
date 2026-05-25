@@ -265,6 +265,7 @@ export type ParameterValueField = {
   timerDurationSec?: number | null;
   timerUnit?: TimerUnit;
   required?: boolean;
+  maxPhotos?: number;
 };
 
 export type ParameterScope = "lab" | "qc";
@@ -273,6 +274,7 @@ export type ParameterItem = {
   _id?: string;
   name: string;
   scope?: ParameterScope;
+  shareWithLab?: boolean;
   status?: "active" | "inactive";
   applyAll?: boolean;
   commonNames?: string[];
@@ -285,3 +287,29 @@ export type ParameterItem = {
   createdAt?: string;
   updatedAt?: string;
 };
+
+export async function uploadQcPhoto(file: File): Promise<{ url: string }> {
+  const form = new FormData();
+  form.append('photo', file);
+  const res = await fetch(`${APP_API_BASE}/uploads/qc-photo`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error((body as any).error || 'Upload failed');
+  }
+  return res.json();
+}
+
+export async function deleteQcPhoto(url: string): Promise<void> {
+  const res = await fetch(`${APP_API_BASE}/uploads/qc-photo`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error((body as any).error || 'Delete failed');
+  }
+}
