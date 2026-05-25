@@ -9,6 +9,7 @@ import {
   Hash,
   Image as ImageIcon,
   List as ListIcon,
+  Paperclip,
   Pencil,
   Plus,
   RefreshCw,
@@ -77,11 +78,12 @@ import {
 } from "@/lib/parameterValidation";
 
 const VALUE_TYPE_OPTIONS: { value: ParameterValueFieldType; label: string }[] = [
-  { value: "text", label: "ข้อความ (Text)" },
+  { value: "text",  label: "ข้อความ (Text)" },
   { value: "number", label: "จำนวนเต็ม (Number)" },
   { value: "float", label: "ทศนิยม (Float)" },
-  { value: "enum", label: "ตัวเลือก (Enum)" },
+  { value: "enum",  label: "ตัวเลือก (Enum)" },
   { value: "photo", label: "ภาพถ่าย (Photo)" },
+  { value: "file",  label: "แนบไฟล์ (File)" },
   { value: "timer", label: "จับเวลา (Timer)" },
 ];
 
@@ -94,6 +96,13 @@ const OPERATOR_OPTIONS: { value: StandardOperator | "none"; label: string }[] = 
   { value: "gt", label: "> มากกว่า" },
   { value: "between", label: "ระหว่าง (range)" },
   { value: "tolerance", label: "± % (tolerance)" },
+];
+
+const FILE_TYPE_OPTIONS: { value: string; label: string; accept: string }[] = [
+  { value: 'pdf',   label: 'PDF',   accept: 'application/pdf' },
+  { value: 'excel', label: 'Excel', accept: '.xls,.xlsx' },
+  { value: 'word',  label: 'Word',  accept: '.doc,.docx' },
+  { value: 'csv',   label: 'CSV',   accept: '.csv' },
 ];
 
 type MasterItemRecord = Record<string, unknown>;
@@ -185,6 +194,8 @@ const emptyValueField = (): ParameterValueField => ({
   timerUnit: undefined,
   required: false,
   maxPhotos: 5,
+  maxFiles: 5,
+  allowedFileTypes: ['pdf'],
 });
 
 const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
@@ -594,6 +605,14 @@ const FIELD_TYPE_META: Record<
     text: "text-pink-700",
     iconText: "text-pink-500",
   },
+  file: {
+    label: "แนบไฟล์",
+    Icon: Paperclip,
+    accent: "bg-teal-500",
+    tint: "bg-teal-50/50",
+    text: "text-teal-700",
+    iconText: "text-teal-500",
+  },
 };
 
 function summarizeField(field: ParameterValueField): string {
@@ -633,6 +652,12 @@ function summarizeField(field: ParameterValueField): string {
     }
     case "photo":
       return `ภาพถ่าย (สูงสุด ${field.maxPhotos ?? 5})`;
+    case "file": {
+      const types = (field.allowedFileTypes ?? ['pdf'])
+        .map((t) => t.toUpperCase())
+        .join(', ');
+      return `${types} (สูงสุด ${field.maxFiles ?? 5} ไฟล์)`;
+    }
   }
 }
 
@@ -811,6 +836,10 @@ function ValueFieldEditor({
                     timerDurationSec: v === "timer" ? field.timerDurationSec ?? null : null,
                     timerUnit: v === "timer" ? field.timerUnit : undefined,
                     maxPhotos: v === "photo" ? (field.maxPhotos ?? 5) : undefined,
+                    maxFiles: v === "file" ? (field.maxFiles ?? 5) : field.maxFiles,
+                    allowedFileTypes: v === "file"
+                      ? (field.allowedFileTypes?.length ? field.allowedFileTypes : ['pdf'])
+                      : field.allowedFileTypes,
                   })
                 }
               >
@@ -1078,6 +1107,54 @@ function ValueFieldEditor({
             </div>
           ) : null}
 
+          {field.type === "file" ? (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm">จำนวนไฟล์สูงสุด (1–20)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={field.maxFiles ?? 5}
+                  onChange={(e) => {
+                    const v = Math.min(20, Math.max(1, Number(e.target.value) || 1));
+                    onChange({ ...field, maxFiles: v });
+                  }}
+                  className="h-10 w-28"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">ประเภทไฟล์ที่รับได้ *</Label>
+                <div className="flex flex-wrap gap-4">
+                  {FILE_TYPE_OPTIONS.map((opt) => {
+                    const checked = (field.allowedFileTypes ?? []).includes(opt.value);
+                    return (
+                      <label
+                        key={opt.value}
+                        className="flex cursor-pointer items-center gap-1.5 text-sm"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) => {
+                            const current = field.allowedFileTypes ?? [];
+                            const next = v
+                              ? [...current, opt.value]
+                              : current.filter((t) => t !== opt.value);
+                            onChange({ ...field, allowedFileTypes: next });
+                          }}
+                        />
+                        {opt.label}
+                      </label>
+                    );
+                  })}
+                </div>
+                {(field.allowedFileTypes ?? []).length === 0 ? (
+                  <p className="text-xs text-destructive">ต้องเลือกอย่างน้อย 1 ประเภท</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
           {field.type === "photo" ? (
             <div className="space-y-1.5">
               <Label className="text-sm">จำนวนภาพสูงสุด *</Label>
@@ -1217,6 +1294,11 @@ function ParameterDialog({
       if (f.type === "photo") {
         if (!f.maxPhotos || f.maxPhotos < 1 || f.maxPhotos > 20) {
           return `ช่อง "${f.label}": จำนวนภาพสูงสุดต้องอยู่ระหว่าง 1–20`;
+        }
+      }
+      if (f.type === "file") {
+        if (!f.allowedFileTypes || f.allowedFileTypes.length === 0) {
+          return `ช่อง "${f.label}": ต้องเลือกประเภทไฟล์อย่างน้อย 1 ชนิด`;
         }
       }
     }
@@ -1900,7 +1982,11 @@ function ValueFieldBadges({ fields }: { fields: ParameterValueField[] }) {
               ? f.unit
                 ? ` [${f.unit}]`
                 : ""
-              : "";
+              : f.type === "file"
+                ? f.allowedFileTypes?.length
+                  ? ` [${f.allowedFileTypes.map((t) => t.toUpperCase()).join("/")}]`
+                  : ""
+                : "";
         return (
           <span
             key={i}
