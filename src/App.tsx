@@ -32,6 +32,8 @@ import PetitionAssignPage from "./pages/PetitionAssignPage";
 import PetitionAuditLogPage from "./pages/PetitionAuditLogPage";
 import QCTestingPage from "./pages/QCTestingPage";
 import QCTestingDetailPage from "./pages/QCTestingDetailPage";
+import LabTestingPage from "./pages/LabTestingPage";
+import LabTestingDetailPage from "./pages/LabTestingDetailPage";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
 
 const queryClient = new QueryClient({
@@ -84,6 +86,8 @@ const App = () => (
               <Route path="/petitions/:id/edit" element={<PrivateRoute><PetitionEditPage /></PrivateRoute>} />
               <Route path="/qc-testing" element={<PrivateRoute><QCTestingPage /></PrivateRoute>} />
               <Route path="/qc-testing/:id" element={<PrivateRoute><QCTestingDetailPage /></PrivateRoute>} />
+              <Route path="/lab-testing" element={<PrivateRoute><LabTestingPage /></PrivateRoute>} />
+              <Route path="/lab-testing/:id" element={<PrivateRoute><LabTestingDetailPage /></PrivateRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </SampleProvider>
