@@ -138,6 +138,17 @@ export const PETITION_AUDIT_EVENT_LABELS: Record<PetitionAuditEvent, string> = {
   deleted: 'ลบคำร้อง',
 };
 
+// ===== Phase 2 tracking (for parameters with hasPhases=true) =====
+export interface PhaseTriggerInfo {
+  parameterId: string;
+  parameterName?: string;
+  fieldLabel: string;
+  itemSeq: number;
+  triggeredAt: string;
+}
+
+export type PetitionPhase = 1 | 2;
+
 // ===== Petition (discriminated by dept) =====
 interface PetitionBase {
   _id: string;
@@ -156,6 +167,11 @@ interface PetitionBase {
   receivedBy?: string;
   firstResultAt?: string | null;
   completedAt?: string | null;
+  // 2-phase testing
+  currentPhase?: PetitionPhase;
+  phase2UnlockedAt?: string | null;
+  phase2DueAt?: string | null;
+  phase2TriggeredBy?: PhaseTriggerInfo | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -186,6 +202,8 @@ export interface QCTestResult {
   parameterId: string;
   parameterName?: string;
   values: Record<string, unknown>;
+  // Phase 2 ("ค่าหลัง") values — only populated for parameters with hasPhases=true
+  valuesPhase2?: Record<string, unknown>;
   enteredBy?: { name: string; email: string };
   enteredAt?: string;
   updatedBy?: { name: string; email: string };
@@ -203,4 +221,6 @@ export interface SaveQCResultPayload {
   fieldLabel: string;
   value: unknown;
   enteredBy: { name: string; email: string };
+  // 1 = Phase 1 (default, ค่าก่อน), 2 = Phase 2 (ค่าหลัง)
+  phase?: PetitionPhase;
 }

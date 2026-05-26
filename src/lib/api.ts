@@ -201,6 +201,22 @@ export const api = {
     const qs = new URLSearchParams({ petitionIds: petitionIds.join(",") }).toString();
     return request<QCProgressMap>(`/qc-results/progress?${qs}`);
   },
+  getAbnormalFlags: (petitionIds: string[]) => {
+    if (petitionIds.length === 0) return Promise.resolve({} as Record<string, boolean>);
+    const qs = new URLSearchParams({ petitionIds: petitionIds.join(",") }).toString();
+    return request<Record<string, boolean>>(`/qc-results/abnormal-flags?${qs}`);
+  },
+  getReturnedFlags: (petitionIds: string[]) => {
+    if (petitionIds.length === 0) return Promise.resolve({} as Record<string, boolean>);
+    const qs = new URLSearchParams({ petitionIds: petitionIds.join(",") }).toString();
+    return request<Record<string, boolean>>(`/petitions/returned-flags?${qs}`);
+  },
+  // Manual phase advance (admin override) for 2-phase petitions
+  advancePetitionPhase: (petitionId: string, actor?: string) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/advance-phase`, {
+      method: "PATCH",
+      body: JSON.stringify({ actor }),
+    }),
 };
 
 export type QCProgressEntry = {
@@ -229,7 +245,7 @@ export type MachineItem = {
   updatedAt?: string;
 };
 
-export type ParameterValueFieldType = "text" | "number" | "float" | "enum" | "photo" | "timer";
+export type ParameterValueFieldType = "text" | "number" | "float" | "enum" | "photo" | "file" | "timer" | "reference";
 
 export type StandardOperator =
   | "lt"
@@ -241,6 +257,8 @@ export type StandardOperator =
   | "tolerance";
 
 export type TimerUnit = "minute" | "hour" | "day" | "month";
+
+export type ParameterFieldPhase = "both" | "before" | "after";
 
 export type ParameterValueField = {
   label: string;
@@ -255,6 +273,17 @@ export type ParameterValueField = {
   timerDurationSec?: number | null;
   timerUnit?: TimerUnit;
   required?: boolean;
+  maxPhotos?: number;
+  maxFiles?: number;
+  allowedFileTypes?: string[];
+  // 2-phase fields
+  phase?: ParameterFieldPhase; // default 'both'
+  triggersPhase2?: boolean;
+  // For type='reference' — pulls value from another parameter's saved field
+  // on the SAME petition + itemSeq.
+  refParameterId?: string | null;
+  refFieldLabel?: string | null;
+  refPhase?: 1 | 2 | null;
 };
 
 export type ParameterScope = "lab" | "qc";
@@ -263,15 +292,77 @@ export type ParameterItem = {
   _id?: string;
   name: string;
   scope?: ParameterScope;
+  shareWithLab?: boolean;
   status?: "active" | "inactive";
   applyAll?: boolean;
   commonNames?: string[];
   itemNames?: string[];
   productTypes?: string[];
   categories?: string[];
+  subCategories?: string[];
   valueFields?: ParameterValueField[];
   sortOrder?: number;
   note?: string;
+  // 2-phase testing toggle — when true, this parameter is split into ก่อน/หลัง
+  hasPhases?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
+
+// These functions use bare fetch (not fetchApi) because FormData upload
+// must not have Content-Type forced to application/json.
+export async function uploadQcPhoto(file: File): Promise<{ url: string }> {
+  const form = new FormData();
+  form.append('photo', file);
+  const res = await fetch(`${APP_API_BASE}/uploads/qc-photo`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText })) as any;
+    const message = body?.message || body?.error?.message || body?.error || 'Upload failed';
+    throw new Error(String(message));
+  }
+  return res.json();
+}
+
+export async function deleteQcPhoto(url: string): Promise<void> {
+  const res = await fetch(`${APP_API_BASE}/uploads/qc-photo`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText })) as any;
+    const message = body?.message || body?.error?.message || body?.error || 'Delete failed';
+    throw new Error(String(message));
+  }
+}
+
+export async function uploadParamFile(file: File): Promise<{ url: string; name: string; size: number }> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch(`${APP_API_BASE}/uploads/param-file`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText })) as any;
+    const message = body?.error || body?.message || res.statusText;
+    throw new Error(String(message));
+  }
+  return res.json();
+}
+
+export async function deleteParamFile(url: string): Promise<void> {
+  const res = await fetch(`${APP_API_BASE}/uploads/param-file`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText })) as any;
+    const message = body?.error || body?.message || res.statusText;
+    throw new Error(String(message));
+  }
+}

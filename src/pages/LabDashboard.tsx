@@ -9,7 +9,6 @@ import {
   Download,
   FlaskConical,
   Hourglass,
-  Plus,
   Search,
 } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
@@ -156,10 +155,6 @@ export default function LabDashboard() {
           <Button variant="outline" size="sm" className="gap-2" onClick={() => toast.success("กำลังส่งออกรายงาน Lab...")}>
             <Download className="w-4 h-4" /> <span className="hidden md:inline">ส่งออก</span>
           </Button>
-          <Button size="sm" className="gap-2" onClick={() => navigate("/petitions/new")}>
-            <Plus className="w-4 h-4" /> สร้างคำร้องใหม่
-            <kbd className="ml-1 hidden md:inline-flex items-center rounded border border-primary-foreground/30 bg-primary-foreground/10 px-1 text-[10px] font-mono">N</kbd>
-          </Button>
         </div>
       </div>
 
@@ -210,11 +205,6 @@ export default function LabDashboard() {
             activeKpi || query
               ? "ไม่พบคำร้องตามเงื่อนไข"
               : "ยังไม่มีคำร้องที่รอ Lab ดำเนินการ"
-          }
-          emptyAction={
-            !(activeKpi || query)
-              ? { label: "สร้างคำร้องใหม่", onClick: () => navigate("/petitions/new") }
-              : undefined
           }
         />
 

@@ -3,6 +3,7 @@ import {
   isEnumAbnormal,
   isNumericAbnormal,
   isFieldAbnormal,
+  countAbnormalInResults,
   timerDurationMs,
   timerRemainingMs,
   isTimerDone,
@@ -10,7 +11,8 @@ import {
   secToParts,
   formatTimerHuman,
 } from "./parameterValidation";
-import type { ParameterValueField } from "./api";
+import type { ParameterItem, ParameterValueField } from "./api";
+import type { QCTestResult } from "@/types/petition.types";
 
 const makeField = (overrides: Partial<ParameterValueField>): ParameterValueField => ({
   label: "test",
@@ -190,6 +192,77 @@ describe("isNumericAbnormal", () => {
       expect(isNumericAbnormal(neg, -9)).toBe(false);
       expect(isNumericAbnormal(neg, -8.99)).toBe(true);
     });
+  });
+});
+
+describe("countAbnormalInResults", () => {
+  const enumField: ParameterValueField = {
+    label: "สถานะ", type: "enum",
+    options: ["ปกติ", "ผิดปกติ"], expectedValues: ["ปกติ"],
+  };
+  const numField: ParameterValueField = {
+    label: "pH", type: "number", unit: "%",
+    standardOperator: "between", standardValue: 4, standardValue2: 6,
+  };
+  const param: ParameterItem = {
+    _id: "p1", name: "ทดสอบ", valueFields: [enumField, numField],
+  };
+  const param2: ParameterItem = {
+    _id: "p2", name: "อีกอัน", valueFields: [enumField],
+  };
+
+  const result = (parameterId: string, values: Record<string, unknown>): QCTestResult => ({
+    petitionId: "x", itemSeq: 1, parameterId, values,
+  });
+
+  it("returns 0 for empty inputs", () => {
+    expect(countAbnormalInResults([], [param])).toBe(0);
+    expect(countAbnormalInResults([result("p1", {})], [])).toBe(0);
+  });
+
+  it("returns 0 when all values are normal", () => {
+    const results = [result("p1", { "สถานะ": "ปกติ", "pH": 5 })];
+    expect(countAbnormalInResults(results, [param])).toBe(0);
+  });
+
+  it("counts a single abnormal enum", () => {
+    const results = [result("p1", { "สถานะ": "ผิดปกติ", "pH": 5 })];
+    expect(countAbnormalInResults(results, [param])).toBe(1);
+  });
+
+  it("counts a single abnormal numeric", () => {
+    const results = [result("p1", { "สถานะ": "ปกติ", "pH": 99 })];
+    expect(countAbnormalInResults(results, [param])).toBe(1);
+  });
+
+  it("counts both abnormal fields in same result", () => {
+    const results = [result("p1", { "สถานะ": "ผิดปกติ", "pH": 99 })];
+    expect(countAbnormalInResults(results, [param])).toBe(2);
+  });
+
+  it("counts across multiple results & parameters", () => {
+    const results = [
+      result("p1", { "สถานะ": "ผิดปกติ", "pH": 5 }),
+      result("p2", { "สถานะ": "ผิดปกติ" }),
+      result("p1", { "สถานะ": "ปกติ", "pH": 100 }),
+    ];
+    expect(countAbnormalInResults(results, [param, param2])).toBe(3);
+  });
+
+  it("ignores result with unknown parameterId", () => {
+    const results = [result("unknown", { "สถานะ": "ผิดปกติ" })];
+    expect(countAbnormalInResults(results, [param])).toBe(0);
+  });
+
+  it("ignores empty/unfilled fields (not yet entered)", () => {
+    const results = [result("p1", { "สถานะ": "", "pH": null })];
+    expect(countAbnormalInResults(results, [param])).toBe(0);
+  });
+
+  it("handles parameter without valueFields", () => {
+    const bare: ParameterItem = { _id: "p3", name: "เปล่า" };
+    const results = [result("p3", { x: "y" })];
+    expect(countAbnormalInResults(results, [bare])).toBe(0);
   });
 });
 

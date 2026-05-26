@@ -1,4 +1,5 @@
-import type { ParameterValueField, TimerUnit } from "./api";
+import type { ParameterItem, ParameterValueField, TimerUnit } from "./api";
+import type { QCTestResult } from "@/types/petition.types";
 
 export function isEnumAbnormal(
   field: ParameterValueField,
@@ -49,6 +50,27 @@ export function isFieldAbnormal(
   value: unknown,
 ): boolean {
   return isEnumAbnormal(field, value) || isNumericAbnormal(field, value);
+}
+
+export function countAbnormalInResults(
+  results: QCTestResult[],
+  parameters: ParameterItem[],
+): number {
+  if (!results?.length || !parameters?.length) return 0;
+  const paramById = new Map<string, ParameterItem>();
+  for (const p of parameters) {
+    if (p._id) paramById.set(String(p._id), p);
+  }
+  let count = 0;
+  for (const r of results) {
+    const param = paramById.get(String(r.parameterId));
+    if (!param?.valueFields?.length) continue;
+    const values = (r.values ?? {}) as Record<string, unknown>;
+    for (const field of param.valueFields) {
+      if (isFieldAbnormal(field, values[field.label])) count += 1;
+    }
+  }
+  return count;
 }
 
 export function timerDurationMs(field: ParameterValueField): number | null {

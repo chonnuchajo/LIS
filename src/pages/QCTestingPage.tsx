@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FlaskConical, Search, QrCode } from 'lucide-react';
+import { FlaskConical, Search, QrCode, AlertTriangle, RotateCcw } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 import { usePetitionList } from '@/hooks/usePetition';
+import { api } from '@/lib/api';
 import {
   PETITION_DEPT_LABELS,
   PETITION_STATUS_CONFIG,
@@ -46,9 +47,33 @@ export default function QCTestingPage() {
 
   const petitions: Petition[] = data?.items ?? [];
 
+  // Bulk-fetch abnormal flag for petitions that may have results
+  // (sampleSent has no results yet, so skip it)
+  const [abnormalMap, setAbnormalMap] = useState<Record<string, boolean>>({});
+  const [returnedMap, setReturnedMap] = useState<Record<string, boolean>>({});
+  const flaggablePetitionIds = petitions
+    .filter((p) => p.status === 'pendingReview' || p.status === 'inProgress')
+    .map((p) => p._id);
+  const flaggableKey = flaggablePetitionIds.join(',');
+  useEffect(() => {
+    if (flaggablePetitionIds.length === 0) {
+      setAbnormalMap({});
+      setReturnedMap({});
+      return;
+    }
+    let alive = true;
+    api.getAbnormalFlags(flaggablePetitionIds)
+      .then((map) => { if (alive) setAbnormalMap(map || {}); })
+      .catch(() => { if (alive) setAbnormalMap({}); });
+    api.getReturnedFlags(flaggablePetitionIds)
+      .then((map) => { if (alive) setReturnedMap(map || {}); })
+      .catch(() => { if (alive) setReturnedMap({}); });
+    return () => { alive = false; };
+  }, [flaggableKey]);
+
   return (
     <AppLayout title="การทดสอบ QC">
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-6">
       <div className="flex items-center gap-3 flex-wrap">
         <FlaskConical className="h-6 w-6 text-primary-500" />
         <h1 className="text-2xl font-bold">การทดสอบ QC</h1>
@@ -90,11 +115,8 @@ export default function QCTestingPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>เลขที่คำร้อง</TableHead>
-              <TableHead>แผนก</TableHead>
-              <TableHead>ผู้นำส่ง</TableHead>
+              <TableHead>คำร้อง</TableHead>
               <TableHead>รายการตัวอย่าง</TableHead>
-              <TableHead>จำนวนรายการ</TableHead>
               <TableHead>สถานะ</TableHead>
               <TableHead className="text-right">การดำเนินการ</TableHead>
             </TableRow>
@@ -102,20 +124,20 @@ export default function QCTestingPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-grey-400">
+                <TableCell colSpan={4} className="text-center py-12 text-grey-400">
                   กำลังโหลด...
                 </TableCell>
               </TableRow>
             ) : petitions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-grey-400">
+                <TableCell colSpan={4} className="text-center py-12 text-grey-400">
                   ไม่มีคำร้องที่รอตรวจ
                 </TableCell>
               </TableRow>
             ) : (
               petitions.map((p) => {
                 const statusCfg = PETITION_STATUS_CONFIG[p.status];
-                const sampleNames = p.items?.map((it) => it.sampleName).filter(Boolean).join(', ') || '-';
+                const items = p.items ?? [];
                 const canEnter = ENTRY_STATUSES.has(p.status);
                 return (
                   <TableRow
@@ -123,19 +145,47 @@ export default function QCTestingPage() {
                     className={canEnter ? 'cursor-pointer hover:bg-grey-50' : 'hover:bg-grey-50'}
                     onClick={() => { if (canEnter) navigate(`/qc-testing/${p._id}`); }}
                   >
-                    <TableCell className="font-semibold text-primary-500">{p.petitionNo}</TableCell>
-                    <TableCell>
-                      <Badge variant="blue-soft">{PETITION_DEPT_LABELS[p.dept]}</Badge>
+                    <TableCell className="align-top">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-primary-500">{p.petitionNo}</span>
+                        {returnedMap[p._id] && (
+                          <RotateCcw
+                            className="h-4 w-4 text-orange-500 shrink-0"
+                            aria-label="ส่งกลับมาบันทึกผลใหม่"
+                          />
+                        )}
+                        {abnormalMap[p._id] && (
+                          <AlertTriangle
+                            className="h-4 w-4 text-red-500 shrink-0"
+                            aria-label="พบค่าผิดปกติในผลทดสอบ"
+                          />
+                        )}
+                      </div>
+                      <div className="text-xs text-grey-500 mt-0.5">
+                        โดย {p.submittedBy?.name ?? '-'} จาก {PETITION_DEPT_LABELS[p.dept]}
+                      </div>
+                      <div className="text-xs text-grey-500 mt-0.5">{items.length} รายการ</div>
                     </TableCell>
-                    <TableCell>{p.submittedBy?.name ?? '-'}</TableCell>
-                    <TableCell className="max-w-[200px] truncate text-sm text-grey-600">
-                      {sampleNames}
+                    <TableCell className="max-w-[280px] text-sm text-grey-600 align-top">
+                      {items.length > 0 ? (
+                        <div className="space-y-1">
+                          {items.map((it) => (
+                            <div key={it.seq} className="flex items-center gap-1.5 flex-wrap">
+                              <span>{it.commonName || '-'}</span>
+                              {it.batchNo && (
+                                <Badge variant="blue-soft" className="font-normal text-[11px] px-1.5 py-0">
+                                  {it.batchNo}
+                                </Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : '-'}
                     </TableCell>
-                    <TableCell>{p.items?.length ?? 0} รายการ</TableCell>
-                    <TableCell>
+                    <TableCell className="align-top">
                       <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right align-top">
                       {canEnter ? (
                         <Button
                           size="sm"

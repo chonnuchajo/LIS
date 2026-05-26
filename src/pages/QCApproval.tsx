@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, FlaskConical } from "lucide-react";
+import { ShieldCheck, FlaskConical, AlertTriangle, RotateCcw } from "lucide-react";
 import { usePetitionList } from "@/hooks/usePetition";
 import { PETITION_DEPT_LABELS, PETITION_STATUS_CONFIG } from "@/types/petition.types";
+import { api } from "@/lib/api";
 
 const API_BASE = import.meta.env.BASE_URL + "api";
 
@@ -20,15 +21,20 @@ const QCApproval = () => {
   const successPetitions = petitionData?.items ?? [];
 
   const [testersMap, setTestersMap] = useState<Record<string, string[]>>({});
+  const [abnormalMap, setAbnormalMap] = useState<Record<string, boolean>>({});
+  const [returnedMap, setReturnedMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (successPetitions.length === 0) {
       setTestersMap({});
+      setAbnormalMap({});
+      setReturnedMap({});
       return;
     }
-    const ids = successPetitions.map((p) => p._id).join(",");
+    const ids = successPetitions.map((p) => p._id);
+    const idsParam = ids.join(",");
     let alive = true;
-    fetch(`${API_BASE}/qc-results/testers?petitionIds=${encodeURIComponent(ids)}`, {
+    fetch(`${API_BASE}/qc-results/testers?petitionIds=${encodeURIComponent(idsParam)}`, {
       cache: "no-store",
     })
       .then((r) => (r.ok ? r.json() : {}))
@@ -37,6 +43,20 @@ const QCApproval = () => {
       })
       .catch(() => {
         if (alive) setTestersMap({});
+      });
+    api.getAbnormalFlags(ids)
+      .then((map) => {
+        if (alive) setAbnormalMap(map || {});
+      })
+      .catch(() => {
+        if (alive) setAbnormalMap({});
+      });
+    api.getReturnedFlags(ids)
+      .then((map) => {
+        if (alive) setReturnedMap(map || {});
+      })
+      .catch(() => {
+        if (alive) setReturnedMap({});
       });
     return () => {
       alive = false;
@@ -92,7 +112,23 @@ const QCApproval = () => {
                           className="cursor-pointer hover:bg-grey-50"
                           onClick={() => navigate(`/qc-testing/${p._id}`)}
                         >
-                          <TableCell className="font-semibold text-primary">{p.petitionNo}</TableCell>
+                          <TableCell className="font-semibold text-primary">
+                            <div className="flex items-center gap-1.5">
+                              <span>{p.petitionNo}</span>
+                              {returnedMap[p._id] && (
+                                <RotateCcw
+                                  className="h-4 w-4 text-orange-500 shrink-0"
+                                  aria-label="ส่งกลับมาบันทึกผลใหม่"
+                                />
+                              )}
+                              {abnormalMap[p._id] && (
+                                <AlertTriangle
+                                  className="h-4 w-4 text-red-500 shrink-0"
+                                  aria-label="พบค่าผิดปกติในผลทดสอบ"
+                                />
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <Badge variant="blue-soft">{PETITION_DEPT_LABELS[p.dept]}</Badge>
                           </TableCell>

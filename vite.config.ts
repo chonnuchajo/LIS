@@ -20,6 +20,12 @@ export default defineConfig(({ mode }) => ({
         secure: false,
         rewrite: (path) => path.replace(/^\/LIS/, ""),
       },
+      "/LIS/uploads": {
+        target: "http://localhost:3001",
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/LIS/, ""),
+      },
     },
   },
 

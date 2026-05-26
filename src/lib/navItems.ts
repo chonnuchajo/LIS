@@ -37,6 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
   { icon: FileBarChart, label: "รายงานสรุป", path: "/report" },
   { icon: ShieldCheck, label: "อนุมัติผล QC", path: "/qc-approval" },
   { icon: FlaskConical, label: "การทดสอบ QC", path: "/qc-testing" },
+  { icon: FlaskConical, label: "การทดสอบ Lab", path: "/lab-testing" },
   { icon: UserCheck, label: "Assign คำร้อง", path: "/petitions/assign" },
   { icon: Package, label: "Stock Management", path: "/stock" },
   { icon: Database, label: "Master Item", path: "/master-items" },
@@ -55,6 +56,7 @@ export const PAGE_ITEMS: NavItem[] = [
   { icon: Pencil, label: "Edit Petition", path: "/petitions/:id/edit" },
   { icon: ScanLine, label: "Scanner", path: "/scanner" },
   { icon: FlaskConical, label: "QC Testing Detail", path: "/qc-testing/:id" },
+  { icon: FlaskConical, label: "Lab Testing Detail", path: "/lab-testing/:id" },
   { icon: Monitor, label: "Lab Queue TV", path: "/queue/lab" },
   { icon: Monitor, label: "QC Queue TV", path: "/queue/qc" },
 ];
