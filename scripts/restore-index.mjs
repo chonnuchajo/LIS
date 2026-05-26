@@ -8,7 +8,7 @@ const indexHtml = `<!doctype html>
     <title>ICPLadda - LIS</title>
     <meta name="description" content="LIS - Lab Information System">
     <meta name="author" content="ICP Ladda" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" href="/LIS/favicon.png">
   </head>
   <body>
     <div id="root"></div>

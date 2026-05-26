@@ -9,6 +9,7 @@
     "build": "vite build",
     "postbuild": "node scripts/deploy-dist-to-root.mjs",
     "build:dev": "vite build --mode development",
+    "build:watch": "node scripts/build-watch.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
