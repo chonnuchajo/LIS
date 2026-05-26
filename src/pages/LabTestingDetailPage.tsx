@@ -7,8 +7,10 @@ import {
   Loader2,
   AlertCircle,
   AlertTriangle,
+  RotateCcw,
   Save,
   Send,
+  ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
@@ -18,16 +20,21 @@ import { useAuth } from '@/hooks/useAuth';
 import { isFieldAbnormal } from '@/lib/parameterValidation';
 import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
+import { PhaseBanner } from '@/components/lis/PhaseBanner';
+import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
+import { matchParametersForItem } from '@/lib/petitionTestItems';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
   type PetitionItem,
+  type PetitionPhase,
   type QCTestResult,
 } from '@/types/petition.types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Select,
   SelectContent,
@@ -35,6 +42,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+
+const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -52,15 +61,6 @@ function formatTime(d: Date | string | undefined) {
 
 const isLabBatchNo = (batchNo?: string | null) => /[16]$/.test(String(batchNo ?? '').trim());
 
-function matchLabParameters(item: PetitionItem, params: ParameterItem[]): ParameterItem[] {
-  const active = params.filter((p) => p.status !== 'inactive');
-  if (!item.testItems) return active.filter((p) => p.applyAll);
-  const names = item.testItems
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  return active.filter((p) => names.includes((p.name ?? '').toLowerCase()));
-}
 
 function resultKey(itemSeq: number, parameterId: string) {
   return `${itemSeq}__${parameterId}`;
@@ -251,8 +251,12 @@ export default function LabTestingDetailPage() {
   const [allParameters, setAllParameters] = useState<ParameterItem[]>([]);
   const [savedResults, setSavedResults] = useState<QCTestResult[]>([]);
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({});
+  const [valuesPhase2, setValuesPhase2] = useState<Record<string, Record<string, unknown>>>({});
   const [saveStates, setSaveStates] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
+  const [saveStatesPhase2, setSaveStatesPhase2] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [wasReturned, setWasReturned] = useState(false);
+  const [selectedPhase, setSelectedPhase] = useState<PetitionPhase>(1);
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Load all parameters, filter for Lab scope + shared QC params
@@ -281,26 +285,51 @@ export default function LabTestingDetailPage() {
     });
   }, [petition, user]);
 
+  // Default the visible phase tab to the petition's current phase
+  useEffect(() => {
+    if (!petition) return;
+    setSelectedPhase((petition.currentPhase ?? 1) as PetitionPhase);
+  }, [petition?._id, petition?.currentPhase]);
+
+  // Detect if this petition was previously sent back from QC Approval
+  useEffect(() => {
+    if (!petition?._id) {
+      setWasReturned(false);
+      return;
+    }
+    let alive = true;
+    api.getReturnedFlags([petition._id])
+      .then((map) => { if (alive) setWasReturned(!!map[petition._id]); })
+      .catch(() => { if (alive) setWasReturned(false); });
+    return () => { alive = false; };
+  }, [petition?._id]);
+
   useEffect(() => {
     if (!id) return;
     api.getQCResults(id).then((results) => {
       setSavedResults(results);
       const v: Record<string, Record<string, unknown>> = {};
+      const v2: Record<string, Record<string, unknown>> = {};
       const s: Record<string, Record<string, FieldSaveInfo>> = {};
+      const s2: Record<string, Record<string, FieldSaveInfo>> = {};
       results.forEach((r) => {
         const k = resultKey(r.itemSeq, r.parameterId);
         v[k] = { ...(r.values as Record<string, unknown>) };
+        v2[k] = { ...((r.valuesPhase2 ?? {}) as Record<string, unknown>) };
         s[k] = {};
-        Object.keys(r.values as object).forEach((fieldLabel) => {
-          s[k][fieldLabel] = {
-            state: 'saved',
-            savedAt: r.updatedAt ? new Date(r.updatedAt) : undefined,
-            savedBy: r.updatedBy?.name || r.enteredBy?.name,
-          };
-        });
+        s2[k] = {};
+        const stamp: FieldSaveInfo = {
+          state: 'saved',
+          savedAt: r.updatedAt ? new Date(r.updatedAt) : undefined,
+          savedBy: r.updatedBy?.name || r.enteredBy?.name,
+        };
+        Object.keys(r.values as object).forEach((label) => { s[k][label] = stamp; });
+        Object.keys(r.valuesPhase2 ?? {}).forEach((label) => { s2[k][label] = stamp; });
       });
       setValues(v);
+      setValuesPhase2(v2);
       setSaveStates(s);
+      setSaveStatesPhase2(s2);
     }).catch(() => {});
   }, [id]);
 
@@ -311,22 +340,26 @@ export default function LabTestingDetailPage() {
       param: ParameterItem,
       fieldLabel: string,
       newVal: unknown,
+      phase: PetitionPhase = 1,
     ) => {
       const k = resultKey(item.seq, param._id!);
 
       advanceToInProgress();
 
-      setValues((prev) => ({
+      const setValuesFn = phase === 2 ? setValuesPhase2 : setValues;
+      const setStatesFn = phase === 2 ? setSaveStatesPhase2 : setSaveStates;
+
+      setValuesFn((prev) => ({
         ...prev,
         [k]: { ...(prev[k] ?? {}), [fieldLabel]: newVal },
       }));
 
-      setSaveStates((prev) => ({
+      setStatesFn((prev) => ({
         ...prev,
         [k]: { ...(prev[k] ?? {}), [fieldLabel]: { state: 'saving' } },
       }));
 
-      const debounceKey = `${k}__${fieldLabel}`;
+      const debounceKey = `${k}__${fieldLabel}__p${phase}`;
       clearTimeout(debounceRefs.current[debounceKey]);
       debounceRefs.current[debounceKey] = setTimeout(async () => {
         try {
@@ -344,9 +377,10 @@ export default function LabTestingDetailPage() {
               name: user?.name ?? 'Unknown',
               email: user?.email ?? '',
             },
+            phase,
           });
           const now = new Date();
-          setSaveStates((prev) => ({
+          setStatesFn((prev) => ({
             ...prev,
             [k]: {
               ...(prev[k] ?? {}),
@@ -358,7 +392,7 @@ export default function LabTestingDetailPage() {
             },
           }));
         } catch {
-          setSaveStates((prev) => ({
+          setStatesFn((prev) => ({
             ...prev,
             [k]: { ...(prev[k] ?? {}), [fieldLabel]: { state: 'error' } },
           }));
@@ -391,32 +425,83 @@ export default function LabTestingDetailPage() {
   // Show only Lab batch items (batchNo ending in 1 or 6)
   const labItems = (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
 
+  // 2-phase support: does any matched parameter use hasPhases?
+  const hasAnyPhasedParam = labItems.some((item) =>
+    matchParametersForItem(item, allParameters).some((p) => p.hasPhases),
+  );
+  const currentPhase: PetitionPhase = (petition.currentPhase ?? 1) as PetitionPhase;
+  // If user hasn't picked a tab, default to current phase
+  const effectivePhase: PetitionPhase = hasAnyPhasedParam ? selectedPhase : 1;
+
+  // Returns fields visible in the given phase for a parameter.
+  // Non-phased parameters always show all fields in Phase 1.
+  const visibleFields = (param: ParameterItem, phase: PetitionPhase): ParameterValueField[] => {
+    const fields = param.valueFields ?? [];
+    if (!param.hasPhases) return phase === 1 ? fields : [];
+    return fields.filter((f) => {
+      const p = f.phase ?? 'both';
+      if (p === 'both') return true;
+      return phase === 1 ? p === 'before' : p === 'after';
+    });
+  };
+
+  const valuesForPhase = (phase: PetitionPhase) => (phase === 2 ? valuesPhase2 : values);
+  const savesForPhase = (phase: PetitionPhase) => (phase === 2 ? saveStatesPhase2 : saveStates);
+
+  // Resolve a reference field's value from another parameter's saved result on the same item
+  const resolveReference = (itemSeq: number, field: ParameterValueField) => {
+    if (!field.refParameterId || !field.refFieldLabel) {
+      return { value: '' as unknown, sourceName: undefined as string | undefined };
+    }
+    const refKey = resultKey(itemSeq, field.refParameterId);
+    const sourceDict = field.refPhase === 2 ? valuesPhase2 : values;
+    const value = sourceDict[refKey]?.[field.refFieldLabel] ?? '';
+    const sourceName = savedResults.find(
+      (r) => r.parameterId === field.refParameterId && r.itemSeq === itemSeq,
+    )?.parameterName;
+    return { value, sourceName };
+  };
+
   const countAbnormal = (): number => {
     let count = 0;
     labItems.forEach((item) => {
-      const matched = matchLabParameters(item, allParameters);
+      const matched = matchParametersForItem(item, allParameters);
       matched.forEach((param) => {
         if (param.scope !== 'lab') return; // skip read-only shared QC params
         const k = resultKey(item.seq, param._id!);
-        const itemValues = values[k] ?? {};
+        // Check Phase 1 values for all non-after fields
+        const p1Values = values[k] ?? {};
         (param.valueFields ?? []).forEach((field) => {
-          if (isFieldAbnormal(field, itemValues[field.label])) count += 1;
+          if ((field.phase ?? 'both') === 'after') return;
+          if (isFieldAbnormal(field, p1Values[field.label])) count += 1;
         });
+        // Check Phase 2 values for both/after fields if phased
+        if (param.hasPhases) {
+          const p2Values = valuesPhase2[k] ?? {};
+          (param.valueFields ?? []).forEach((field) => {
+            const ph = field.phase ?? 'both';
+            if (ph === 'before') return;
+            if (isFieldAbnormal(field, p2Values[field.label])) count += 1;
+          });
+        }
       });
     });
     return count;
   };
   const abnormalCount = countAbnormal();
 
-  const validate = (): string[] => {
+  // Validate the currently-active phase only — Phase 2 submit doesn't require Phase 1 re-edit.
+  const validate = (phaseToCheck: PetitionPhase): string[] => {
     const missing: string[] = [];
+    const phaseValues = valuesForPhase(phaseToCheck);
     labItems.forEach((item) => {
-      const matched = matchLabParameters(item, allParameters);
+      const matched = matchParametersForItem(item, allParameters);
       matched.forEach((param) => {
         if (param.scope !== 'lab') return; // only validate Lab-owned params
         const k = resultKey(item.seq, param._id!);
-        const itemValues = values[k] ?? {};
-        (param.valueFields ?? []).forEach((field) => {
+        const itemValues = phaseValues[k] ?? {};
+        visibleFields(param, phaseToCheck).forEach((field) => {
+          if (field.type === 'reference') return; // reference fields are auto-resolved
           const val = itemValues[field.label];
           if (field.required && (val == null || String(val).trim() === '')) {
             missing.push(`รายการ ${item.seq} › ${param.name} › ${field.label}`);
@@ -445,7 +530,7 @@ export default function LabTestingDetailPage() {
   };
 
   const handleSubmitResult = async () => {
-    const missing = validate();
+    const missing = validate(effectivePhase);
     if (missing.length > 0) {
       toast.error('กรอกข้อมูลไม่ครบ', {
         description: `ขาด ${missing.length} ช่อง:\n${missing.slice(0, 5).join('\n')}${missing.length > 5 ? `\n…และอีก ${missing.length - 5}` : ''}`,
@@ -471,7 +556,9 @@ export default function LabTestingDetailPage() {
     }
   };
 
-  const isLocked = petition.status === 'success';
+  const isFullAccess = FULL_ACCESS_ROLES.has(user?.role ?? '');
+  const isAssigned = isFullAccess || petition.assignedTo?.name === user?.name;
+  const isLocked = petition.status === 'success' || !isAssigned;
 
   return (
     <AppLayout title={petition.petitionNo}>
@@ -484,6 +571,15 @@ export default function LabTestingDetailPage() {
           <FlaskConical className="h-5 w-5 text-sky-500" />
           <h1 className="text-lg md:text-xl font-bold">{petition.petitionNo}</h1>
           <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+          {wasReturned && (
+            <span
+              className="inline-flex items-center text-orange-500"
+              title="ส่งกลับมาบันทึกผลใหม่"
+              aria-label="ส่งกลับมาบันทึกผลใหม่"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </span>
+          )}
           {abnormalCount > 0 && (
             <span
               className="inline-flex items-center text-red-500"
@@ -496,6 +592,16 @@ export default function LabTestingDetailPage() {
             ผู้นำส่ง: {petition.submittedBy?.name ?? '-'}
           </span>
         </div>
+
+        {!isAssigned && (
+          <Alert variant="destructive">
+            <ShieldAlert className="h-4 w-4" />
+            <AlertDescription>
+              คุณไม่ได้ถูก assign งานนี้
+              {petition.assignedTo?.name && ` — มอบหมายให้: ${petition.assignedTo.name}`}
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Worklist tab strip */}
         {worklistData && worklistData.items.filter((p) =>
@@ -532,11 +638,26 @@ export default function LabTestingDetailPage() {
           <div className="text-center py-12 text-grey-400">ไม่มีรายการ Lab ในคำร้องนี้</div>
         )}
 
+        {hasAnyPhasedParam && (
+          <PhaseBanner
+            currentPhase={currentPhase}
+            selectedPhase={selectedPhase}
+            onSelectPhase={setSelectedPhase}
+            phase2DueAt={petition.phase2DueAt}
+            phase2UnlockedAt={petition.phase2UnlockedAt}
+            triggeredByName={petition.phase2TriggeredBy?.parameterName}
+          />
+        )}
+
         {/* Each Lab item */}
         {labItems.map((item) => {
-          const matchedParams = matchLabParameters(item, allParameters);
+          const matchedParams = matchParametersForItem(item, allParameters);
           const labOwnedParams = matchedParams.filter((p) => p.scope === 'lab');
           const sharedQcParams = matchedParams.filter((p) => p.scope === 'qc' && p.shareWithLab);
+          const phaseValues = valuesForPhase(effectivePhase);
+          const phaseSaves = savesForPhase(effectivePhase);
+          // Phase 2 is locked until petition.currentPhase advances
+          const phaseLocked = effectivePhase === 2 && currentPhase === 1;
           return (
             <Card key={item.seq} className="overflow-hidden">
               <CardHeader className="bg-sky-50/60 pb-3">
@@ -568,7 +689,7 @@ export default function LabTestingDetailPage() {
                     {/* Lab-owned parameters (editable) */}
                     {labOwnedParams.map((param) => {
                       const k = resultKey(item.seq, param._id!);
-                      const fields = param.valueFields ?? [];
+                      const fields = visibleFields(param, effectivePhase);
                       if (fields.length === 0) return null;
                       return (
                         <div key={param._id} className="space-y-3">
@@ -579,29 +700,57 @@ export default function LabTestingDetailPage() {
                             <Badge className="bg-sky-100 text-sky-800 text-[10px] font-semibold uppercase hover:bg-sky-100">
                               Lab
                             </Badge>
+                            {param.hasPhases && (
+                              <Badge className="bg-amber-100 text-amber-800 text-[10px] font-semibold uppercase hover:bg-amber-100">
+                                Phase {effectivePhase}
+                              </Badge>
+                            )}
                             {param.note && (
                               <span className="text-xs text-grey-400">{param.note}</span>
                             )}
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-2">
                             {fields.map((field) => {
+                              if (field.type === 'reference') {
+                                const { value: refValue, sourceName } = resolveReference(item.seq, field);
+                                return (
+                                  <ReferenceFieldDisplay
+                                    key={field.label}
+                                    field={field}
+                                    resolvedValue={refValue}
+                                    sourceName={sourceName}
+                                  />
+                                );
+                              }
                               const noteLabel = noteLabelFor(field.label);
+                              const beforeRef =
+                                param.hasPhases &&
+                                effectivePhase === 2 &&
+                                (field.phase ?? 'both') === 'both'
+                                  ? (values[k]?.[field.label] ?? '')
+                                  : null;
                               return (
-                                <TestField
-                                  key={field.label}
-                                  field={field}
-                                  value={values[k]?.[field.label] ?? ''}
-                                  noteValue={values[k]?.[noteLabel] ?? ''}
-                                  saveInfo={saveStates[k]?.[field.label]}
-                                  noteSaveInfo={saveStates[k]?.[noteLabel]}
-                                  disabled={isLocked}
-                                  onChange={(val) =>
-                                    handleFieldChange(petition, item, param, field.label, val)
-                                  }
-                                  onNoteChange={(val) =>
-                                    handleFieldChange(petition, item, param, noteLabel, val)
-                                  }
-                                />
+                                <div key={field.label}>
+                                  <TestField
+                                    field={field}
+                                    value={phaseValues[k]?.[field.label] ?? ''}
+                                    noteValue={phaseValues[k]?.[noteLabel] ?? ''}
+                                    saveInfo={phaseSaves[k]?.[field.label]}
+                                    noteSaveInfo={phaseSaves[k]?.[noteLabel]}
+                                    disabled={isLocked || phaseLocked}
+                                    onChange={(val) =>
+                                      handleFieldChange(petition, item, param, field.label, val, effectivePhase)
+                                    }
+                                    onNoteChange={(val) =>
+                                      handleFieldChange(petition, item, param, noteLabel, val, effectivePhase)
+                                    }
+                                  />
+                                  {beforeRef != null && beforeRef !== '' ? (
+                                    <p className="text-[10px] text-grey-400 mt-0.5">
+                                      ก่อน: <span className="font-mono">{String(beforeRef)}</span>
+                                    </p>
+                                  ) : null}
+                                </div>
                               );
                             })}
                           </div>
@@ -612,7 +761,7 @@ export default function LabTestingDetailPage() {
                     {/* Shared QC parameters (read-only) */}
                     {sharedQcParams.map((param) => {
                       const k = resultKey(item.seq, param._id!);
-                      const fields = param.valueFields ?? [];
+                      const fields = visibleFields(param, effectivePhase);
                       if (fields.length === 0) return null;
                       return (
                         <div key={param._id} className="space-y-3 rounded-lg bg-indigo-50/40 border border-indigo-100 p-3">
@@ -623,21 +772,37 @@ export default function LabTestingDetailPage() {
                             <Badge className="bg-indigo-100 text-indigo-800 text-[10px] font-semibold uppercase hover:bg-indigo-100">
                               QC กรอกแล้ว
                             </Badge>
+                            {param.hasPhases && (
+                              <Badge className="bg-amber-100 text-amber-800 text-[10px] font-semibold uppercase hover:bg-amber-100">
+                                Phase {effectivePhase}
+                              </Badge>
+                            )}
                             {param.note && (
                               <span className="text-xs text-grey-400">{param.note}</span>
                             )}
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-2">
                             {fields.map((field) => {
+                              if (field.type === 'reference') {
+                                const { value: refValue, sourceName } = resolveReference(item.seq, field);
+                                return (
+                                  <ReferenceFieldDisplay
+                                    key={field.label}
+                                    field={field}
+                                    resolvedValue={refValue}
+                                    sourceName={sourceName}
+                                  />
+                                );
+                              }
                               const noteLabel = noteLabelFor(field.label);
                               return (
                                 <TestField
                                   key={field.label}
                                   field={field}
-                                  value={values[k]?.[field.label] ?? ''}
-                                  noteValue={values[k]?.[noteLabel] ?? ''}
-                                  saveInfo={saveStates[k]?.[field.label]}
-                                  noteSaveInfo={saveStates[k]?.[noteLabel]}
+                                  value={phaseValues[k]?.[field.label] ?? ''}
+                                  noteValue={phaseValues[k]?.[noteLabel] ?? ''}
+                                  saveInfo={phaseSaves[k]?.[field.label]}
+                                  noteSaveInfo={phaseSaves[k]?.[noteLabel]}
                                   readOnly
                                   onChange={() => {}}
                                   onNoteChange={() => {}}

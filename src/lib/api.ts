@@ -211,6 +211,12 @@ export const api = {
     const qs = new URLSearchParams({ petitionIds: petitionIds.join(",") }).toString();
     return request<Record<string, boolean>>(`/petitions/returned-flags?${qs}`);
   },
+  // Manual phase advance (admin override) for 2-phase petitions
+  advancePetitionPhase: (petitionId: string, actor?: string) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/advance-phase`, {
+      method: "PATCH",
+      body: JSON.stringify({ actor }),
+    }),
 };
 
 export type QCProgressEntry = {
@@ -239,7 +245,7 @@ export type MachineItem = {
   updatedAt?: string;
 };
 
-export type ParameterValueFieldType = "text" | "number" | "float" | "enum" | "photo" | "file" | "timer";
+export type ParameterValueFieldType = "text" | "number" | "float" | "enum" | "photo" | "file" | "timer" | "reference";
 
 export type StandardOperator =
   | "lt"
@@ -251,6 +257,8 @@ export type StandardOperator =
   | "tolerance";
 
 export type TimerUnit = "minute" | "hour" | "day" | "month";
+
+export type ParameterFieldPhase = "both" | "before" | "after";
 
 export type ParameterValueField = {
   label: string;
@@ -268,6 +276,14 @@ export type ParameterValueField = {
   maxPhotos?: number;
   maxFiles?: number;
   allowedFileTypes?: string[];
+  // 2-phase fields
+  phase?: ParameterFieldPhase; // default 'both'
+  triggersPhase2?: boolean;
+  // For type='reference' — pulls value from another parameter's saved field
+  // on the SAME petition + itemSeq.
+  refParameterId?: string | null;
+  refFieldLabel?: string | null;
+  refPhase?: 1 | 2 | null;
 };
 
 export type ParameterScope = "lab" | "qc";
@@ -283,9 +299,12 @@ export type ParameterItem = {
   itemNames?: string[];
   productTypes?: string[];
   categories?: string[];
+  subCategories?: string[];
   valueFields?: ParameterValueField[];
   sortOrder?: number;
   note?: string;
+  // 2-phase testing toggle — when true, this parameter is split into ก่อน/หลัง
+  hasPhases?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };

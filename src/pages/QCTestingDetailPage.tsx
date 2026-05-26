@@ -10,10 +10,14 @@ import { isFieldAbnormal } from '@/lib/parameterValidation';
 import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
 import { PhotoField } from '@/components/lis/PhotoField';
+import { PhaseBanner } from '@/components/lis/PhaseBanner';
+import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
+import { matchParametersForItem } from '@/lib/petitionTestItems';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
   type PetitionItem,
+  type PetitionPhase,
   type QCTestResult,
 } from '@/types/petition.types';
 import { Button } from '@/components/ui/button';
@@ -40,17 +44,6 @@ function formatTime(d: Date | string | undefined) {
   if (!d) return '';
   const date = typeof d === 'string' ? new Date(d) : d;
   return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-}
-
-function matchParameters(item: PetitionItem, params: ParameterItem[]): ParameterItem[] {
-  if (!item.testItems) return params.filter((p) => p.applyAll && p.status !== 'inactive');
-  const names = item.testItems
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  return params.filter(
-    (p) => p.status !== 'inactive' && names.includes((p.name ?? '').toLowerCase()),
-  );
 }
 
 function resultKey(itemSeq: number, parameterId: string) {
@@ -245,10 +238,13 @@ export default function QCTestingDetailPage() {
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const [savedResults, setSavedResults] = useState<QCTestResult[]>([]);
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({});
+  const [valuesPhase2, setValuesPhase2] = useState<Record<string, Record<string, unknown>>>({});
   // key: resultKey(itemSeq, parameterId) → { fieldLabel → FieldSaveInfo }
   const [saveStates, setSaveStates] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
+  const [saveStatesPhase2, setSaveStatesPhase2] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [wasReturned, setWasReturned] = useState(false);
+  const [selectedPhase, setSelectedPhase] = useState<PetitionPhase>(1);
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Load parameters and existing results (QC scope only)
@@ -285,27 +281,38 @@ export default function QCTestingDetailPage() {
     return () => { alive = false; };
   }, [petition?._id]);
 
+  // Default the visible phase tab to the petition's current phase
+  useEffect(() => {
+    if (!petition) return;
+    setSelectedPhase((petition.currentPhase ?? 1) as PetitionPhase);
+  }, [petition?._id, petition?.currentPhase]);
+
   useEffect(() => {
     if (!id) return;
     api.getQCResults(id).then((results) => {
       setSavedResults(results);
-      // Populate local values state from DB
       const v: Record<string, Record<string, unknown>> = {};
+      const v2: Record<string, Record<string, unknown>> = {};
       const s: Record<string, Record<string, FieldSaveInfo>> = {};
+      const s2: Record<string, Record<string, FieldSaveInfo>> = {};
       results.forEach((r) => {
         const k = resultKey(r.itemSeq, r.parameterId);
         v[k] = { ...(r.values as Record<string, unknown>) };
+        v2[k] = { ...((r.valuesPhase2 ?? {}) as Record<string, unknown>) };
         s[k] = {};
-        Object.keys(r.values as object).forEach((fieldLabel) => {
-          s[k][fieldLabel] = {
-            state: 'saved',
-            savedAt: r.updatedAt ? new Date(r.updatedAt) : undefined,
-            savedBy: r.updatedBy?.name || r.enteredBy?.name,
-          };
-        });
+        s2[k] = {};
+        const stamp: FieldSaveInfo = {
+          state: 'saved',
+          savedAt: r.updatedAt ? new Date(r.updatedAt) : undefined,
+          savedBy: r.updatedBy?.name || r.enteredBy?.name,
+        };
+        Object.keys(r.values as object).forEach((label) => { s[k][label] = stamp; });
+        Object.keys(r.valuesPhase2 ?? {}).forEach((label) => { s2[k][label] = stamp; });
       });
       setValues(v);
+      setValuesPhase2(v2);
       setSaveStates(s);
+      setSaveStatesPhase2(s2);
     }).catch(() => {});
   }, [id]);
 
@@ -316,26 +323,25 @@ export default function QCTestingDetailPage() {
       param: ParameterItem,
       fieldLabel: string,
       newVal: unknown,
+      phase: PetitionPhase = 1,
     ) => {
       const k = resultKey(item.seq, param._id!);
-
-      // First field entry triggers pendingReview → inProgress
       advanceToInProgress();
 
-      // Update local value immediately
-      setValues((prev) => ({
+      const setValuesFn = phase === 2 ? setValuesPhase2 : setValues;
+      const setStatesFn = phase === 2 ? setSaveStatesPhase2 : setSaveStates;
+
+      setValuesFn((prev) => ({
         ...prev,
         [k]: { ...(prev[k] ?? {}), [fieldLabel]: newVal },
       }));
 
-      // Set saving state
-      setSaveStates((prev) => ({
+      setStatesFn((prev) => ({
         ...prev,
         [k]: { ...(prev[k] ?? {}), [fieldLabel]: { state: 'saving' } },
       }));
 
-      // Debounce the actual save
-      const debounceKey = `${k}__${fieldLabel}`;
+      const debounceKey = `${k}__${fieldLabel}__p${phase}`;
       clearTimeout(debounceRefs.current[debounceKey]);
       debounceRefs.current[debounceKey] = setTimeout(async () => {
         try {
@@ -353,9 +359,10 @@ export default function QCTestingDetailPage() {
               name: user?.name ?? 'Unknown',
               email: user?.email ?? '',
             },
+            phase,
           });
           const now = new Date();
-          setSaveStates((prev) => ({
+          setStatesFn((prev) => ({
             ...prev,
             [k]: {
               ...(prev[k] ?? {}),
@@ -367,7 +374,7 @@ export default function QCTestingDetailPage() {
             },
           }));
         } catch {
-          setSaveStates((prev) => ({
+          setStatesFn((prev) => ({
             ...prev,
             [k]: { ...(prev[k] ?? {}), [fieldLabel]: { state: 'error' } },
           }));
@@ -399,36 +406,79 @@ export default function QCTestingDetailPage() {
 
   const items = petition.items ?? [];
 
+  // 2-phase support
+  const hasAnyPhasedParam = items.some((item) =>
+    matchParametersForItem(item, parameters).some((p) => p.hasPhases),
+  );
+  const currentPhase: PetitionPhase = (petition.currentPhase ?? 1) as PetitionPhase;
+  const effectivePhase: PetitionPhase = hasAnyPhasedParam ? selectedPhase : 1;
+
+  const visibleFields = (param: ParameterItem, phase: PetitionPhase): ParameterValueField[] => {
+    const fields = param.valueFields ?? [];
+    if (!param.hasPhases) return phase === 1 ? fields : [];
+    return fields.filter((f) => {
+      const p = f.phase ?? 'both';
+      if (p === 'both') return true;
+      return phase === 1 ? p === 'before' : p === 'after';
+    });
+  };
+
+  const valuesForPhase = (phase: PetitionPhase) => (phase === 2 ? valuesPhase2 : values);
+  const savesForPhase = (phase: PetitionPhase) => (phase === 2 ? saveStatesPhase2 : saveStates);
+
+  const resolveReference = (itemSeq: number, field: ParameterValueField) => {
+    if (!field.refParameterId || !field.refFieldLabel) {
+      return { value: '' as unknown, sourceName: undefined as string | undefined };
+    }
+    const refKey = resultKey(itemSeq, field.refParameterId);
+    const sourceDict = field.refPhase === 2 ? valuesPhase2 : values;
+    const value = sourceDict[refKey]?.[field.refFieldLabel] ?? '';
+    const sourceName = savedResults.find(
+      (r) => r.parameterId === field.refParameterId && r.itemSeq === itemSeq,
+    )?.parameterName;
+    return { value, sourceName };
+  };
+
   const countAbnormal = (): number => {
     let count = 0;
     items.forEach((item) => {
-      const matched = matchParameters(item, parameters);
+      const matched = matchParametersForItem(item, parameters);
       matched.forEach((param) => {
         const k = resultKey(item.seq, param._id!);
-        const itemValues = values[k] ?? {};
+        const p1Values = values[k] ?? {};
         (param.valueFields ?? []).forEach((field) => {
-          if (isFieldAbnormal(field, itemValues[field.label])) count += 1;
+          if ((field.phase ?? 'both') === 'after') return;
+          if (isFieldAbnormal(field, p1Values[field.label])) count += 1;
         });
+        if (param.hasPhases) {
+          const p2Values = valuesPhase2[k] ?? {};
+          (param.valueFields ?? []).forEach((field) => {
+            const ph = field.phase ?? 'both';
+            if (ph === 'before') return;
+            if (isFieldAbnormal(field, p2Values[field.label])) count += 1;
+          });
+        }
       });
     });
     return count;
   };
   const abnormalCount = countAbnormal();
 
-  const validate = (): string[] => {
+  const validate = (phaseToCheck: PetitionPhase): string[] => {
     const missing: string[] = [];
+    const phaseValues = valuesForPhase(phaseToCheck);
     items.forEach((item) => {
-      const matched = matchParameters(item, parameters);
+      const matched = matchParametersForItem(item, parameters);
       matched.forEach((param) => {
         const k = resultKey(item.seq, param._id!);
-        const itemValues = values[k] ?? {};
-        (param.valueFields ?? []).forEach((field) => {
+        const itemValues = phaseValues[k] ?? {};
+        visibleFields(param, phaseToCheck).forEach((field) => {
+          if (field.type === 'reference') return; // reference fields are auto-resolved
           const val = itemValues[field.label];
           if (field.required && (val == null || String(val).trim() === '')) {
             missing.push(`รายการ ${item.seq} › ${param.name} › ${field.label}`);
             return;
           }
-          // Conditional note required when value is in requireNoteOn
           if (
             field.type === 'enum' &&
             (field.requireNoteOn ?? []).includes(String(val ?? ''))
@@ -452,7 +502,7 @@ export default function QCTestingDetailPage() {
   };
 
   const handleSubmitResult = async () => {
-    const missing = validate();
+    const missing = validate(effectivePhase);
     if (missing.length > 0) {
       toast.error('กรอกข้อมูลไม่ครบ', {
         description: `ขาด ${missing.length} ช่อง:\n${missing.slice(0, 5).join('\n')}${missing.length > 5 ? `\n…และอีก ${missing.length - 5}` : ''}`,
@@ -575,9 +625,23 @@ export default function QCTestingDetailPage() {
         <div className="text-center py-12 text-grey-400">ไม่มีรายการตัวอย่างในคำร้องนี้</div>
       )}
 
+      {hasAnyPhasedParam && (
+        <PhaseBanner
+          currentPhase={currentPhase}
+          selectedPhase={selectedPhase}
+          onSelectPhase={setSelectedPhase}
+          phase2DueAt={petition.phase2DueAt}
+          phase2UnlockedAt={petition.phase2UnlockedAt}
+          triggeredByName={petition.phase2TriggeredBy?.parameterName}
+        />
+      )}
+
       {/* Each item */}
       {items.map((item) => {
-        const matchedParams = matchParameters(item, parameters);
+        const matchedParams = matchParametersForItem(item, parameters);
+        const phaseValues = valuesForPhase(effectivePhase);
+        const phaseSaves = savesForPhase(effectivePhase);
+        const phaseLocked = effectivePhase === 2 && currentPhase === 1;
         return (
           <Card key={item.seq} className="overflow-hidden">
             <CardHeader className="bg-grey-50 pb-3">
@@ -610,7 +674,7 @@ export default function QCTestingDetailPage() {
               ) : (
                 matchedParams.map((param) => {
                   const k = resultKey(item.seq, param._id!);
-                  const fields = param.valueFields ?? [];
+                  const fields = visibleFields(param, effectivePhase);
                   if (fields.length === 0) return null;
                   return (
                     <div key={param._id} className="space-y-3">
@@ -618,29 +682,57 @@ export default function QCTestingDetailPage() {
                         <h3 className="text-sm font-semibold text-grey-800 border-b pb-1 flex-1">
                           {param.name}
                         </h3>
+                        {param.hasPhases && (
+                          <Badge className="bg-amber-100 text-amber-800 text-[10px] font-semibold uppercase hover:bg-amber-100">
+                            Phase {effectivePhase}
+                          </Badge>
+                        )}
                         {param.note && (
                           <span className="text-xs text-grey-400">{param.note}</span>
                         )}
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-2">
                         {fields.map((field) => {
+                          if (field.type === 'reference') {
+                            const { value: refValue, sourceName } = resolveReference(item.seq, field);
+                            return (
+                              <ReferenceFieldDisplay
+                                key={field.label}
+                                field={field}
+                                resolvedValue={refValue}
+                                sourceName={sourceName}
+                              />
+                            );
+                          }
                           const noteLabel = noteLabelFor(field.label);
+                          const beforeRef =
+                            param.hasPhases &&
+                            effectivePhase === 2 &&
+                            (field.phase ?? 'both') === 'both'
+                              ? (values[k]?.[field.label] ?? '')
+                              : null;
                           return (
-                            <TestField
-                              key={field.label}
-                              field={field}
-                              value={values[k]?.[field.label] ?? ''}
-                              noteValue={values[k]?.[noteLabel] ?? ''}
-                              saveInfo={saveStates[k]?.[field.label]}
-                              noteSaveInfo={saveStates[k]?.[noteLabel]}
-                              disabled={isLocked}
-                              onChange={(val) =>
-                                handleFieldChange(petition, item, param, field.label, val)
-                              }
-                              onNoteChange={(val) =>
-                                handleFieldChange(petition, item, param, noteLabel, val)
-                              }
-                            />
+                            <div key={field.label}>
+                              <TestField
+                                field={field}
+                                value={phaseValues[k]?.[field.label] ?? ''}
+                                noteValue={phaseValues[k]?.[noteLabel] ?? ''}
+                                saveInfo={phaseSaves[k]?.[field.label]}
+                                noteSaveInfo={phaseSaves[k]?.[noteLabel]}
+                                disabled={isLocked || phaseLocked}
+                                onChange={(val) =>
+                                  handleFieldChange(petition, item, param, field.label, val, effectivePhase)
+                                }
+                                onNoteChange={(val) =>
+                                  handleFieldChange(petition, item, param, noteLabel, val, effectivePhase)
+                                }
+                              />
+                              {beforeRef != null && beforeRef !== '' ? (
+                                <p className="text-[10px] text-grey-400 mt-0.5">
+                                  ก่อน: <span className="font-mono">{String(beforeRef)}</span>
+                                </p>
+                              ) : null}
+                            </div>
                           );
                         })}
                       </div>

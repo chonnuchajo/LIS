@@ -7,6 +7,7 @@ const PhysicalResult = require('../models/PhysicalResult');
 const Approval = require('../models/Approval');
 const RealtimeDensity = require('../models/RealtimeDensity');
 const PetitionAuditLog = require('../models/PetitionAuditLog');
+const { maybeAdvancePhase } = require('../lib/phaseAdvance');
 
 function sampleIdsFromPetition(petition) {
   if (!petition || !Array.isArray(petition.items)) return [];
@@ -67,10 +68,19 @@ router.get('/', async (req, res) => {
       ];
     }
 
-    const [items, total] = await Promise.all([
-      Petition.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    const [docs, total] = await Promise.all([
+      Petition.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
       Petition.countDocuments(q),
     ]);
+    // Lazy phase advance for petitions whose phase2DueAt has elapsed
+    const now = new Date();
+    const items = [];
+    for (const doc of docs) {
+      if (doc.currentPhase === 1 && doc.phase2DueAt && doc.phase2DueAt <= now) {
+        await maybeAdvancePhase(doc);
+      }
+      items.push(doc.toObject());
+    }
     res.json({ items, total, page, limit });
   } catch (err) {
     res.status(500).json({ error: { message: err.message } });
@@ -215,11 +225,33 @@ router.get('/:id/audit-logs', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const id = req.params.id;
-    const doc = mongoose.Types.ObjectId.isValid(id)
-      ? await Petition.findById(id).lean()
-      : await Petition.findOne({ petitionNo: id }).lean();
+    let doc = mongoose.Types.ObjectId.isValid(id)
+      ? await Petition.findById(id)
+      : await Petition.findOne({ petitionNo: id });
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
-    res.json(doc);
+    // Lazy phase advance: if phase2DueAt has elapsed, transition to Phase 2 on read
+    doc = await maybeAdvancePhase(doc);
+    res.json(doc.toObject());
+  } catch (err) {
+    res.status(400).json({ error: { message: err.message } });
+  }
+});
+
+// PATCH /api/petitions/:id/advance-phase — manual phase advance (admin override)
+router.patch('/:id/advance-phase', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const q = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { petitionNo: id };
+    const doc = await Petition.findOne(q);
+    if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if (doc.currentPhase === 2) {
+      return badRequest(res, 'คำร้องนี้อยู่ใน Phase 2 แล้ว');
+    }
+    // Force unlock: set due to now and let maybeAdvancePhase run
+    doc.phase2DueAt = new Date();
+    const actor = req.body?.actor || 'system';
+    const advanced = await maybeAdvancePhase(doc, actor);
+    res.json(advanced.toObject());
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
   }

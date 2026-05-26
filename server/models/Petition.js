@@ -206,6 +206,24 @@ const PetitionSchema = new mongoose.Schema(
     reviewHistory: { type: [ReviewEntrySchema], default: [] },
     assignedTo: PetitionAssigneeSchema,
     prodOrderNos: { type: [String], default: [], index: true },
+
+    // 2-phase testing — used when at least one parameter on this petition has hasPhases=true
+    currentPhase: { type: Number, enum: [1, 2], default: 1, index: true },
+    phase2UnlockedAt: { type: Date, default: null },
+    phase2DueAt: { type: Date, default: null },
+    phase2TriggeredBy: {
+      type: new mongoose.Schema(
+        {
+          parameterId: String,
+          parameterName: String,
+          fieldLabel: String,
+          itemSeq: Number,
+          triggeredAt: Date,
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
   },
   { timestamps: true },
 );

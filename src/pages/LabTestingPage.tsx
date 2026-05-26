@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FlaskConical, Search, AlertTriangle } from 'lucide-react';
+import { FlaskConical, Search, AlertTriangle, QrCode, RotateCcw } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 import { usePetitionList } from '@/hooks/usePetition';
+import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
 import {
   PETITION_DEPT_LABELS,
@@ -28,6 +29,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import LabScanAcceptModal from '@/components/petition/LabScanAcceptModal';
+
+const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
 
 const ENTRY_STATUSES = new Set(['pendingReview', 'inProgress']);
 const isLabBatchNo = (batchNo?: string | null) => /[16]$/.test(String(batchNo ?? '').trim());
@@ -35,19 +39,25 @@ const hasLabItem = (p: Petition) => (p.items ?? []).some((it) => isLabBatchNo(it
 
 export default function LabTestingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isFullAccess = FULL_ACCESS_ROLES.has(user?.role ?? '');
   const [search, setSearch] = useState('');
   const [dept, setDept] = useState<PetitionDept | ''>('');
+  const [scanOpen, setScanOpen] = useState(false);
 
-  const { data, loading } = usePetitionList({
+  const { data, loading, refresh } = usePetitionList({
     status: 'sampleSent,pendingReview,inProgress',
     search,
     dept: dept || undefined,
     limit: 50,
   });
 
-  const petitions: Petition[] = (data?.items ?? []).filter(hasLabItem);
+  const petitions: Petition[] = (data?.items ?? [])
+    .filter(hasLabItem)
+    .filter((p) => isFullAccess || p.assignedTo?.name === user?.name);
 
   const [abnormalMap, setAbnormalMap] = useState<Record<string, boolean>>({});
+  const [returnedMap, setReturnedMap] = useState<Record<string, boolean>>({});
   const flaggablePetitionIds = petitions
     .filter((p) => p.status === 'pendingReview' || p.status === 'inProgress')
     .map((p) => p._id);
@@ -55,17 +65,26 @@ export default function LabTestingPage() {
   useEffect(() => {
     if (flaggablePetitionIds.length === 0) {
       setAbnormalMap({});
+      setReturnedMap({});
       return;
     }
     let alive = true;
     api.getAbnormalFlags(flaggablePetitionIds)
       .then((map) => { if (alive) setAbnormalMap(map || {}); })
       .catch(() => { if (alive) setAbnormalMap({}); });
+    api.getReturnedFlags(flaggablePetitionIds)
+      .then((map) => { if (alive) setReturnedMap(map || {}); })
+      .catch(() => { if (alive) setReturnedMap({}); });
     return () => { alive = false; };
   }, [flaggableKey]);
 
   return (
     <AppLayout title="การทดสอบ Lab">
+      <LabScanAcceptModal
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onAccepted={() => { setScanOpen(false); refresh(); }}
+      />
       <div className="space-y-6">
         <div className="flex items-center gap-3 flex-wrap">
           <FlaskConical className="h-6 w-6 text-sky-500" />
@@ -73,6 +92,10 @@ export default function LabTestingPage() {
           <Badge variant="blue-soft" className="ml-2">
             {petitions.length} รายการ
           </Badge>
+          <Button variant="primary" className="ml-auto gap-2" onClick={() => setScanOpen(true)}>
+            <QrCode className="h-4 w-4" />
+            สแกน QR รับงาน
+          </Button>
         </div>
 
         <div className="flex gap-3 flex-wrap">
@@ -135,6 +158,12 @@ export default function LabTestingPage() {
                       <TableCell className="align-top">
                         <div className="flex items-center gap-1.5">
                           <span className="font-semibold text-sky-600">{p.petitionNo}</span>
+                          {returnedMap[p._id] && (
+                            <RotateCcw
+                              className="h-4 w-4 text-orange-500 shrink-0"
+                              aria-label="ส่งกลับมาบันทึกผลใหม่"
+                            />
+                          )}
                           {abnormalMap[p._id] && (
                             <AlertTriangle
                               className="h-4 w-4 text-red-500 shrink-0"
@@ -170,8 +199,6 @@ export default function LabTestingPage() {
                         {canEnter ? (
                           <Button
                             size="sm"
-                            variant="outline"
-                            className="border-sky-300 text-sky-700 hover:bg-sky-50"
                             onClick={(e) => {
                               e.stopPropagation();
                               navigate(`/lab-testing/${p._id}`);

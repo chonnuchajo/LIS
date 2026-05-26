@@ -8,6 +8,7 @@ import {
   GripVertical,
   Hash,
   Image as ImageIcon,
+  Link2,
   List as ListIcon,
   Paperclip,
   Pencil,
@@ -85,6 +86,7 @@ const VALUE_TYPE_OPTIONS: { value: ParameterValueFieldType; label: string }[] = 
   { value: "photo", label: "ภาพถ่าย (Photo)" },
   { value: "file",  label: "แนบไฟล์ (File)" },
   { value: "timer", label: "จับเวลา (Timer)" },
+  { value: "reference", label: "ดึงค่าจาก parameter อื่น (Reference)" },
 ];
 
 const OPERATOR_OPTIONS: { value: StandardOperator | "none"; label: string }[] = [
@@ -123,7 +125,22 @@ const CATEGORY_KEYS = [
   "item_group",
   "group",
 ];
+const ITEM_NO_KEYS = ["item_no", "itemNo", "item_code", "itemCode", "code"];
 const COMMON_NAME_DIRECT_KEYS = ["common_name", "commonname", "commonName"];
+
+const SUB_CATEGORY_PARENTS = ["RM", "FG"] as const;
+type SubCategoryParent = (typeof SUB_CATEGORY_PARENTS)[number];
+
+function extractItemNoPrefix(itemNo: string): string {
+  const cleaned = itemNo.trim();
+  if (!cleaned) return "";
+  const dashIdx = cleaned.indexOf("-");
+  return (dashIdx > 0 ? cleaned.slice(0, dashIdx) : cleaned).toUpperCase();
+}
+
+function getItemSubCategory(item: MasterItemRecord): string {
+  return extractItemNoPrefix(firstString(item, ITEM_NO_KEYS));
+}
 
 function getItemProductType(item: MasterItemRecord): string {
   const source = PRODUCT_TYPE_SOURCE_KEYS
@@ -196,6 +213,11 @@ const emptyValueField = (): ParameterValueField => ({
   maxPhotos: 5,
   maxFiles: 5,
   allowedFileTypes: ['pdf'],
+  phase: "both",
+  triggersPhase2: false,
+  refParameterId: null,
+  refFieldLabel: null,
+  refPhase: 1,
 });
 
 const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
@@ -208,9 +230,11 @@ const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
   itemNames: [],
   productTypes: [],
   categories: [],
+  subCategories: [],
   valueFields: [],
   sortOrder: 0,
   note: "",
+  hasPhases: false,
 });
 
 const SCOPE_LABEL: Record<ParameterScope, string> = {
@@ -613,6 +637,14 @@ const FIELD_TYPE_META: Record<
     text: "text-teal-700",
     iconText: "text-teal-500",
   },
+  reference: {
+    label: "อ้างอิง",
+    Icon: Link2,
+    accent: "bg-emerald-500",
+    tint: "bg-emerald-50/50",
+    text: "text-emerald-700",
+    iconText: "text-emerald-500",
+  },
 };
 
 function summarizeField(field: ParameterValueField): string {
@@ -658,6 +690,11 @@ function summarizeField(field: ParameterValueField): string {
         .join(', ');
       return `${types} (สูงสุด ${field.maxFiles ?? 5} ไฟล์)`;
     }
+    case "reference": {
+      if (!field.refParameterId || !field.refFieldLabel) return "ยังไม่ได้เลือก parameter ต้นทาง";
+      const phaseLabel = field.refPhase === 2 ? " · phase 2" : "";
+      return `← ${field.refFieldLabel}${phaseLabel}`;
+    }
   }
 }
 
@@ -668,6 +705,9 @@ type ValueFieldEditorProps = {
   onChange: (next: ParameterValueField) => void;
   onRemove: () => void;
   onMove: (dir: -1 | 1) => void;
+  hasPhases?: boolean;
+  allParameters?: ParameterItem[];
+  currentParameterId?: string;
 };
 
 function ValueFieldEditor({
@@ -677,6 +717,9 @@ function ValueFieldEditor({
   onChange,
   onRemove,
   onMove,
+  hasPhases = false,
+  allParameters = [],
+  currentParameterId,
 }: ValueFieldEditorProps) {
   const [optionDraft, setOptionDraft] = useState("");
   const [expanded, setExpanded] = useState(!field.label?.trim());
@@ -800,14 +843,51 @@ function ValueFieldEditor({
       {expanded ? (
         <div className={cn("pl-4 pr-3 pb-4 pt-2 border-t border-grey-100", meta.tint)}>
         <div className="space-y-3">
-          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Checkbox
-              checked={!!field.required}
-              onCheckedChange={(v) => onChange({ ...field, required: v === true })}
-              className="h-3.5 w-3.5"
-            />
-            บังคับกรอก
-          </label>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Checkbox
+                checked={!!field.required}
+                onCheckedChange={(v) => onChange({ ...field, required: v === true })}
+                className="h-3.5 w-3.5"
+              />
+              บังคับกรอก
+            </label>
+            {hasPhases ? (
+              <>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">ใช้ตอนไหน:</span>
+                  <Select
+                    value={field.phase ?? "both"}
+                    onValueChange={(v) =>
+                      onChange({ ...field, phase: v as "both" | "before" | "after" })
+                    }
+                  >
+                    <SelectTrigger className="h-7 w-[140px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="both">ทั้ง 2 phase</SelectItem>
+                      <SelectItem value="before">เฉพาะก่อน (Phase 1)</SelectItem>
+                      <SelectItem value="after">เฉพาะหลัง (Phase 2)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {field.phase !== "after" ? (
+                  <label
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                    title="เมื่อกรอกช่องนี้ (หรือ timer ครบเวลา) จะ unlock Phase 2 ให้ Lab ตรวจค่าหลัง"
+                  >
+                    <Checkbox
+                      checked={!!field.triggersPhase2}
+                      onCheckedChange={(v) => onChange({ ...field, triggersPhase2: v === true })}
+                      className="h-3.5 w-3.5"
+                    />
+                    <span>ตัวเริ่ม Phase 2</span>
+                  </label>
+                ) : null}
+              </>
+            ) : null}
+          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
             <div className="sm:col-span-6 space-y-1.5">
               <Label className="text-sm">ชื่อช่อง *</Label>
@@ -840,6 +920,12 @@ function ValueFieldEditor({
                     allowedFileTypes: v === "file"
                       ? (field.allowedFileTypes?.length ? field.allowedFileTypes : ['pdf'])
                       : field.allowedFileTypes,
+                    // reference fields can't be required or trigger Phase 2 — reset to defaults
+                    refParameterId: v === "reference" ? field.refParameterId ?? null : null,
+                    refFieldLabel: v === "reference" ? field.refFieldLabel ?? null : null,
+                    refPhase: v === "reference" ? field.refPhase ?? 1 : null,
+                    required: v === "reference" ? false : field.required,
+                    triggersPhase2: v === "reference" ? false : field.triggersPhase2,
                   })
                 }
               >
@@ -1174,9 +1260,118 @@ function ValueFieldEditor({
               </div>
             </div>
           ) : null}
+
+          {field.type === "reference" ? (
+            <ReferenceFieldConfig
+              field={field}
+              onChange={onChange}
+              allParameters={allParameters}
+              currentParameterId={currentParameterId}
+            />
+          ) : null}
         </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+type ReferenceFieldConfigProps = {
+  field: ParameterValueField;
+  onChange: (next: ParameterValueField) => void;
+  allParameters: ParameterItem[];
+  currentParameterId?: string;
+};
+
+function ReferenceFieldConfig({
+  field,
+  onChange,
+  allParameters,
+  currentParameterId,
+}: ReferenceFieldConfigProps) {
+  const sourceOptions = allParameters.filter(
+    (p) => p._id && p._id !== currentParameterId && p.status !== "inactive",
+  );
+  const selectedSource = sourceOptions.find((p) => p._id === field.refParameterId);
+  // Exclude reference fields from the field picker to avoid chained refs
+  const fieldOptions = (selectedSource?.valueFields ?? []).filter(
+    (f) => f.type !== "reference",
+  );
+
+  return (
+    <div className="space-y-3 rounded-md border border-emerald-200 bg-emerald-50/40 p-3">
+      <div className="flex items-center gap-2 text-xs text-emerald-800">
+        <Link2 className="h-3.5 w-3.5" />
+        <span className="font-medium">ดึงค่าจาก parameter อื่นในคำร้องเดียวกัน</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+        <div className="sm:col-span-6 space-y-1.5">
+          <Label className="text-sm">Parameter ต้นทาง *</Label>
+          <Select
+            value={field.refParameterId ?? "__none__"}
+            onValueChange={(v) =>
+              onChange({
+                ...field,
+                refParameterId: v === "__none__" ? null : v,
+                refFieldLabel: null,
+              })
+            }
+          >
+            <SelectTrigger className="h-10">
+              <SelectValue placeholder="เลือก parameter..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">— เลือก —</SelectItem>
+              {sourceOptions.map((p) => (
+                <SelectItem key={p._id} value={p._id!}>
+                  {p.name} <span className="text-grey-400">({(p.scope ?? "qc").toUpperCase()})</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="sm:col-span-4 space-y-1.5">
+          <Label className="text-sm">Field ต้นทาง *</Label>
+          <Select
+            value={field.refFieldLabel ?? "__none__"}
+            onValueChange={(v) =>
+              onChange({ ...field, refFieldLabel: v === "__none__" ? null : v })
+            }
+            disabled={!selectedSource}
+          >
+            <SelectTrigger className="h-10">
+              <SelectValue placeholder="เลือก field..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">— เลือก —</SelectItem>
+              {fieldOptions.map((f) => (
+                <SelectItem key={f.label} value={f.label}>
+                  {f.label} <span className="text-grey-400">({f.type})</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="sm:col-span-2 space-y-1.5">
+          <Label className="text-sm">Phase</Label>
+          <Select
+            value={String(field.refPhase ?? 1)}
+            onValueChange={(v) => onChange({ ...field, refPhase: Number(v) as 1 | 2 })}
+            disabled={!selectedSource?.hasPhases}
+          >
+            <SelectTrigger className="h-10">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">Phase 1</SelectItem>
+              <SelectItem value="2">Phase 2</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <p className="text-xs text-emerald-700/80">
+        ค่าจะถูกดึงจาก parameter ต้นทางบน <span className="font-medium">item เดียวกัน</span> ในคำร้องนี้ — ไม่ต้องกรอกซ้ำ
+      </p>
     </div>
   );
 }
@@ -1189,6 +1384,8 @@ type DialogProps = {
   commonNameOptions: string[];
   productTypeOptions: string[];
   categoryOptions: string[];
+  subCategoryByParent: Record<SubCategoryParent, string[]>;
+  allParameters: ParameterItem[];
   onClose: () => void;
   onSaved: () => void;
 };
@@ -1201,6 +1398,8 @@ function ParameterDialog({
   commonNameOptions,
   productTypeOptions,
   categoryOptions,
+  subCategoryByParent,
+  allParameters,
   onClose,
   onSaved,
 }: DialogProps) {
@@ -1248,7 +1447,8 @@ function ParameterDialog({
         (form.commonNames?.length ?? 0) +
         (form.itemNames?.length ?? 0) +
         (form.productTypes?.length ?? 0) +
-        (form.categories?.length ?? 0);
+        (form.categories?.length ?? 0) +
+        (form.subCategories?.length ?? 0);
       if (total === 0) {
         return "กรุณาเลือก 'ใช้กับ' อย่างน้อย 1 รายการ หรือเลือก 'ใช้กับทั้งหมด'";
       }
@@ -1304,6 +1504,30 @@ function ParameterDialog({
           return `ช่อง "${f.label}": จำนวนไฟล์สูงสุดต้องอยู่ระหว่าง 1–20`;
         }
       }
+      if (f.type === "reference") {
+        if (!f.refParameterId || !f.refFieldLabel) {
+          return `ช่อง "${f.label}": ต้องเลือก parameter และ field ต้นทาง`;
+        }
+        if (f.required) {
+          return `ช่อง "${f.label}": field แบบ reference บังคับกรอกไม่ได้ (ดึงค่าอัตโนมัติ)`;
+        }
+        if (f.triggersPhase2) {
+          return `ช่อง "${f.label}": field แบบ reference ใช้เป็น trigger ไม่ได้`;
+        }
+      }
+      if (form.hasPhases && f.triggersPhase2 && f.phase === "after") {
+        return `ช่อง "${f.label}": ตัวเริ่ม Phase 2 ต้องอยู่ใน Phase 1 (เลือก "ทั้ง 2 phase" หรือ "เฉพาะก่อน")`;
+      }
+    }
+    if (form.hasPhases) {
+      const hasBefore = fields.some((f) => f.phase === "both" || f.phase === "before");
+      const hasTrigger = fields.some((f) => f.triggersPhase2);
+      if (!hasBefore) {
+        return "Parameter แบบ 2-phase ต้องมีอย่างน้อย 1 field ที่กรอกใน Phase 1 (เลือก 'ทั้ง 2 phase' หรือ 'เฉพาะก่อน')";
+      }
+      if (!hasTrigger) {
+        return "Parameter แบบ 2-phase ต้องมีอย่างน้อย 1 field ติ๊ก 'ตัวเริ่ม Phase 2'";
+      }
     }
     return null;
   };
@@ -1327,9 +1551,11 @@ function ParameterDialog({
       itemNames: form.applyAll ? [] : form.itemNames ?? [],
       productTypes: form.applyAll ? [] : form.productTypes ?? [],
       categories: form.applyAll ? [] : form.categories ?? [],
+      subCategories: form.applyAll ? [] : form.subCategories ?? [],
       valueFields: form.valueFields ?? [],
       sortOrder: form.sortOrder ?? 0,
       note: form.note?.trim() || "",
+      hasPhases: !!form.hasPhases,
     };
     try {
       if (isEdit && item?._id) {
@@ -1430,6 +1656,24 @@ function ParameterDialog({
             </div>
           ) : null}
 
+          <div className="rounded-lg border bg-amber-50/40 p-4">
+            <label className="flex cursor-pointer items-start gap-3">
+              <Checkbox
+                checked={!!form.hasPhases}
+                onCheckedChange={(v) => set("hasPhases", v === true)}
+                className="mt-0.5"
+              />
+              <div className="space-y-0.5">
+                <span className="text-sm font-medium">
+                  Parameter นี้มี 2 phase (ค่าก่อน / ค่าหลัง)
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  เปิดเมื่อ parameter ต้องวัด 2 รอบ (เช่น stability test "อบ 14 วัน") — ตั้ง field ที่เป็นตัว trigger ในรายการช่องด้านล่าง
+                </p>
+              </div>
+            </label>
+          </div>
+
           <div className="rounded-lg border p-5">
             <div className="flex items-center justify-between">
               <div>
@@ -1486,11 +1730,56 @@ function ParameterDialog({
                 label="หมวดหมู่"
                 placeholder="เลือกหมวดหมู่ (RM / FG)"
                 values={form.categories ?? []}
-                onChange={(v) => set("categories", v)}
+                onChange={(v) => {
+                  const activeParents = new Set(
+                    v.filter((c): c is SubCategoryParent =>
+                      (SUB_CATEGORY_PARENTS as readonly string[]).includes(c),
+                    ),
+                  );
+                  const allowedSubs = new Set(
+                    Array.from(activeParents).flatMap((p) => subCategoryByParent[p] ?? []),
+                  );
+                  setForm((prev) => ({
+                    ...prev,
+                    categories: v,
+                    subCategories: (prev.subCategories ?? []).filter((s) => allowedSubs.has(s)),
+                  }));
+                }}
                 options={categoryOptions}
                 disabled={form.applyAll}
                 emptyText="ยังไม่มีหมวดหมู่"
               />
+              {(() => {
+                const activeParents = (form.categories ?? []).filter(
+                  (c): c is SubCategoryParent =>
+                    (SUB_CATEGORY_PARENTS as readonly string[]).includes(c),
+                );
+                if (activeParents.length === 0) return null;
+                const grouped = activeParents
+                  .map((parent) => ({
+                    label: `${parent} — หมวดย่อยจาก code`,
+                    options: subCategoryByParent[parent] ?? [],
+                  }))
+                  .filter((g) => g.options.length > 0);
+                const flatOptions = grouped.flatMap((g) => g.options);
+                return (
+                  <div className="md:col-span-2 space-y-1.5">
+                    <MultiSelectPopover
+                      label={`หมวดหมู่ย่อย (prefix code ของ ${activeParents.join(" / ")})`}
+                      placeholder="เลือก prefix เช่น F, FC, RO, RC ..."
+                      values={form.subCategories ?? []}
+                      onChange={(v) => set("subCategories", v)}
+                      options={flatOptions}
+                      groupedOptions={grouped.length > 1 ? grouped : undefined}
+                      disabled={form.applyAll}
+                      emptyText="ไม่พบ prefix จาก master items"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      ครอบคลุมทุก code ที่ <span className="font-semibold">ขึ้นต้นด้วย</span> prefix ที่เลือก — เช่น เลือก <span className="font-mono">RO</span> จะรวม <span className="font-mono">ROLS</span>, <span className="font-mono">ROPH</span> ด้วย
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -1522,6 +1811,9 @@ function ParameterDialog({
                     onChange={(next) => updateField(i, next)}
                     onRemove={() => removeField(i)}
                     onMove={(dir) => moveField(i, dir)}
+                    hasPhases={!!form.hasPhases}
+                    allParameters={allParameters}
+                    currentParameterId={item?._id}
                   />
                 ))}
               </div>
@@ -1600,6 +1892,19 @@ export default function ParameterSettings() {
     () => uniqueSorted(masterItems.map(getItemCommonName)),
     [masterItems],
   );
+  const subCategoryByParent = useMemo(() => {
+    const acc: Record<SubCategoryParent, Set<string>> = { RM: new Set(), FG: new Set() };
+    for (const item of masterItems) {
+      const parent = getItemCategory(item).toUpperCase();
+      if (parent !== "RM" && parent !== "FG") continue;
+      const prefix = getItemSubCategory(item);
+      if (prefix) acc[parent as SubCategoryParent].add(prefix);
+    }
+    return {
+      RM: Array.from(acc.RM).sort((a, b) => a.localeCompare(b)),
+      FG: Array.from(acc.FG).sort((a, b) => a.localeCompare(b)),
+    } satisfies Record<SubCategoryParent, string[]>;
+  }, [masterItems]);
 
   const scopedParameters = useMemo(
     () => parameters.filter((p) => (p.scope ?? "qc") === scopeTab),
@@ -1619,6 +1924,7 @@ export default function ParameterSettings() {
         ...(p.itemNames ?? []),
         ...(p.productTypes ?? []),
         ...(p.categories ?? []),
+        ...(p.subCategories ?? []),
         ...(p.valueFields ?? []).map((f) => f.label),
       ]
         .filter(Boolean)
@@ -1859,6 +2165,8 @@ export default function ParameterSettings() {
         commonNameOptions={commonNameOptions}
         productTypeOptions={productTypeOptions}
         categoryOptions={categoryOptions}
+        subCategoryByParent={subCategoryByParent}
+        allParameters={parameters}
         onClose={closeDialog}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["parameters"] })}
       />
@@ -1941,6 +2249,11 @@ function ApplyToBadges({ item }: { item: ParameterItem }) {
       label: "หมวดหมู่",
       values: item.categories ?? [],
       color: "bg-amber-50 text-amber-700",
+    },
+    {
+      label: "หมวดย่อย",
+      values: item.subCategories ?? [],
+      color: "bg-orange-50 text-orange-700",
     },
   ].filter((g) => g.values.length > 0);
 

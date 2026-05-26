@@ -1,24 +1,9 @@
 import type { ParameterItem } from "@/lib/api";
 import type { QCProgressEntry } from "@/lib/api";
-import type { Petition, PetitionItem } from "@/types/petition.types";
+import type { Petition } from "@/types/petition.types";
+import { matchParametersForItem } from "@/lib/petitionTestItems";
 
-export function matchParametersForItem(
-  item: PetitionItem,
-  params: ParameterItem[],
-): ParameterItem[] {
-  if (!item.testItems) {
-    return params.filter((p) => p.applyAll && p.status !== "inactive");
-  }
-  const names = item.testItems
-    .split(",")
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  return params.filter(
-    (p) =>
-      p.status !== "inactive" &&
-      names.includes((p.name ?? "").toLowerCase()),
-  );
-}
+export { matchParametersForItem };
 
 // Photo fields are not yet implementable in the UI, so they do not count
 // toward the denominator. Conditional enum notes are situational and also

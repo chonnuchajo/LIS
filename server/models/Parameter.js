@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const ValueFieldSchema = new mongoose.Schema({
   label: { type: String, required: true, trim: true },
-  type: { type: String, enum: ['text', 'number', 'float', 'enum', 'photo', 'file', 'timer'], required: true },
+  type: { type: String, enum: ['text', 'number', 'float', 'enum', 'photo', 'file', 'timer', 'reference'], required: true },
   unit: { type: String, default: '' },
   min: { type: Number, default: null },
   max: { type: Number, default: null },
@@ -26,6 +26,22 @@ const ValueFieldSchema = new mongoose.Schema({
   maxPhotos: { type: Number, default: 5, min: 1, max: 20 },
   maxFiles: { type: Number, default: 5, min: 1, max: 20 },
   allowedFileTypes: { type: [String], default: ['pdf'] },
+  // 2-phase support: which phase this field appears in
+  // 'both'   = field appears in both Phase 1 (ก่อน) and Phase 2 (หลัง) — collected twice
+  // 'before' = field only appears in Phase 1
+  // 'after'  = field only appears in Phase 2 (deferred value)
+  phase: {
+    type: String,
+    enum: ['both', 'before', 'after'],
+    default: 'both',
+  },
+  // When true, completing this field (or timer expiry) advances petition.currentPhase from 1 → 2
+  triggersPhase2: { type: Boolean, default: false },
+  // For type='reference' — pulls value from another parameter's saved field
+  // on the SAME petition + itemSeq (no re-entry).
+  refParameterId: { type: String, default: null },
+  refFieldLabel: { type: String, default: null },
+  refPhase: { type: Number, enum: [1, 2, null], default: 1 },
 }, { _id: false });
 
 const ParameterSchema = new mongoose.Schema({
@@ -38,9 +54,12 @@ const ParameterSchema = new mongoose.Schema({
   itemNames: { type: [String], default: [] },
   productTypes: { type: [String], default: [] },
   categories: { type: [String], default: [] },
+  subCategories: { type: [String], default: [] },
   valueFields: { type: [ValueFieldSchema], default: [] },
   sortOrder: { type: Number, default: 0 },
   note: { type: String, default: '' },
+  // 2-phase testing flag — when true this parameter is split into Phase 1 (ก่อน) / Phase 2 (หลัง)
+  hasPhases: { type: Boolean, default: false, index: true },
 }, { timestamps: true });
 
 ParameterSchema.pre('validate', function (next) {
@@ -91,10 +110,46 @@ ParameterSchema.pre('validate', function (next) {
         return next(new Error(`ช่อง "${f.label}": ต้องระบุระยะเวลา > 0`));
       }
     }
+    if (f.type === 'reference') {
+      if (!f.refParameterId || !f.refFieldLabel) {
+        return next(new Error(`ช่อง "${f.label}": ต้องระบุ parameter และ field ต้นทาง`));
+      }
+      if (f.required) {
+        return next(new Error(`ช่อง "${f.label}": field แบบ reference บังคับกรอกไม่ได้ (ดึงค่าอัตโนมัติ)`));
+      }
+      if (f.triggersPhase2) {
+        return next(new Error(`ช่อง "${f.label}": field แบบ reference ใช้เป็น trigger ไม่ได้`));
+      }
+    }
     if (f.min != null && f.max != null && f.min > f.max) {
       return next(new Error(`min > max ในช่อง "${f.label}"`));
     }
   }
+
+  // Phase validation
+  if (this.hasPhases) {
+    const fields = this.valueFields || [];
+    const hasBeforeField = fields.some((f) => f.phase === 'both' || f.phase === 'before');
+    const hasTrigger = fields.some((f) => f.triggersPhase2);
+    if (!hasBeforeField) {
+      return next(new Error('Parameter แบบ 2-phase ต้องมีอย่างน้อย 1 field ที่กรอกใน Phase 1 (phase=before หรือ both)'));
+    }
+    if (!hasTrigger) {
+      return next(new Error('Parameter แบบ 2-phase ต้องมีอย่างน้อย 1 field ที่ติ๊ก "ส่งให้ Lab ตรวจค่าหลัง" (triggersPhase2)'));
+    }
+    for (const f of fields) {
+      if (f.triggersPhase2 && f.phase === 'after') {
+        return next(new Error(`ช่อง "${f.label}": ตัว trigger ต้องอยู่ใน Phase 1 (phase=before หรือ both) ไม่ใช่ after`));
+      }
+    }
+  } else {
+    // Non-phased: reset phase fields to defaults
+    for (const f of this.valueFields || []) {
+      if (f.phase && f.phase !== 'both') f.phase = 'both';
+      if (f.triggersPhase2) f.triggersPhase2 = false;
+    }
+  }
+
   next();
 });
 
