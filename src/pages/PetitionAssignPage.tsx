@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { ClipboardCheck, Cog, FlaskConical, Hourglass, RefreshCw, Search, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
@@ -27,9 +28,54 @@ import {
   type Petition,
   type PetitionAssignee,
   type PetitionAssignedMachine,
+  type PetitionItem,
 } from '@/types/petition.types';
 
 type TabKey = 'normal' | 'phase2';
+
+type Instrument = 'GC' | 'HPLC';
+const INSTRUMENT_ORDER: Instrument[] = ['GC', 'HPLC'];
+
+type SubstanceGroup = {
+  groupKey: string;       // `${sampleName.lower}||${commonName.lower}`
+  sampleName: string;
+  commonName: string;
+  items: PetitionItem[];
+  requiredInstruments: Instrument[];
+};
+
+// Master-items lookup
+type MasterItemRaw = Record<string, unknown>;
+const MASTER_COMMON_NAME_KEYS = ['common_name', 'commonname', 'commonName', 'item_name2', 'itemType'];
+const MASTER_ITEM_NO_KEYS = ['item_no', 'itemCode', 'item_code', 'code', 'Code', 'ITEM_CODE'];
+
+function pickField(item: MasterItemRaw, keys: string[]): string {
+  for (const key of keys) {
+    const value = item[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value).trim();
+    }
+  }
+  return '';
+}
+
+function groupKeyOf(sampleName: string, commonName: string): string {
+  return `${(sampleName || '').trim().toLowerCase()}||${(commonName || '').trim().toLowerCase()}`;
+}
+
+function sortInstruments(values: Iterable<Instrument>): Instrument[] {
+  const set = new Set(values);
+  return INSTRUMENT_ORDER.filter((v) => set.has(v));
+}
+
+// A machine "is" an instrument if its name starts with that token (e.g. "HPLC 1260 1" → HPLC).
+// HPLC is checked first so we don't misclassify it as GC.
+function machineInstrument(machine: MachineItem): Instrument | null {
+  const text = String(machine.name || '').trim().toUpperCase();
+  if (text.startsWith('HPLC')) return 'HPLC';
+  if (text.startsWith('GC')) return 'GC';
+  return null;
+}
 
 // Phase 2 = either explicitly advanced or timer elapsed but list hasn't been refreshed
 function isPhase2Petition(petition: Petition): boolean {
@@ -52,23 +98,43 @@ function employeeLabel(employee: EmployeeAssignee) {
   return `${employee.name} (${employee.employeeId})`;
 }
 
-function toAssignedMachine(machine: MachineItem): PetitionAssignedMachine {
+function toAssignedMachine(
+  machine: MachineItem,
+  group: SubstanceGroup,
+): PetitionAssignedMachine {
   return {
     machineId: machine._id || machine.code,
     code: machine.code,
     name: machine.name,
     location: machine.location,
+    sampleName: group.sampleName || undefined,
+    commonName: group.commonName || undefined,
   };
 }
 
-function getCommonNames(petition: Petition) {
-  return Array.from(
-    new Set(
-      petition.items
-        .map((item) => item.commonName?.trim())
-        .filter((name): name is string => Boolean(name)),
-    ),
-  );
+function buildSubstanceGroups(
+  petition: Petition,
+  commonNameToInstruments: Map<string, Instrument[]>,
+): SubstanceGroup[] {
+  const groups = new Map<string, SubstanceGroup>();
+  petition.items.forEach((item) => {
+    const sampleName = (item.sampleName ?? '').trim();
+    const commonName = (item.commonName ?? '').trim();
+    const key = groupKeyOf(sampleName, commonName);
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        groupKey: key,
+        sampleName,
+        commonName,
+        items: [],
+        requiredInstruments: commonNameToInstruments.get(commonName.toLowerCase()) ?? [],
+      };
+      groups.set(key, group);
+    }
+    group.items.push(item);
+  });
+  return Array.from(groups.values());
 }
 
 export default function PetitionAssignPage() {
@@ -93,7 +159,8 @@ export default function PetitionAssignPage() {
   const [machinesLoading, setMachinesLoading] = useState(true);
   const [machinesError, setMachinesError] = useState<string | null>(null);
   const [selectedByPetition, setSelectedByPetition] = useState<Record<string, string>>({});
-  const [machinesByPetition, setMachinesByPetition] = useState<Record<string, string[]>>({});
+  // machinesByPetition[petitionId][groupKey] = machine ids selected for that substance group
+  const [machinesByPetition, setMachinesByPetition] = useState<Record<string, Record<string, string[]>>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<TabKey>('normal');
@@ -155,23 +222,102 @@ export default function PetitionAssignPage() {
   const loading = pendingLoading || inProgressLoading;
   const error = pendingError || inProgressError;
 
-  function getSelectedMachineIds(petition: Petition): string[] {
-    if (machinesByPetition[petition._id] !== undefined) {
-      return machinesByPetition[petition._id];
+  const { data: masterItems = [] } = useQuery<MasterItemRaw[]>({
+    queryKey: ['master-items-for-petition-assign'],
+    queryFn: async () => {
+      const res = await api.get<unknown>('/master-items');
+      const payload = res.data.data;
+      if (Array.isArray(payload)) return payload as MasterItemRaw[];
+      if (payload && typeof payload === 'object') {
+        const arr =
+          (payload as { data?: unknown }).data ??
+          (payload as { items?: unknown }).items;
+        if (Array.isArray(arr)) return arr as MasterItemRaw[];
+      }
+      return [];
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: simpleMethods = [] } = useQuery<Array<{ itemNo: string; instruments: Instrument[] }>>({
+    queryKey: ['simple-methods'],
+    queryFn: async () => {
+      const res = await api.get<Array<{ itemNo: string; instruments: string[] }>>('/simple-methods');
+      return (res.data.data ?? []).map((entry) => ({
+        itemNo: entry.itemNo,
+        instruments: (entry.instruments ?? []).filter(
+          (v): v is Instrument => v === 'GC' || v === 'HPLC',
+        ),
+      }));
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  // commonName (lowercased) → required instruments (union across master items sharing the commonName)
+  const commonNameToInstruments = useMemo(() => {
+    const itemNoToInstruments = new Map<string, Instrument[]>();
+    simpleMethods.forEach((entry) => {
+      if (entry.itemNo) itemNoToInstruments.set(entry.itemNo.trim(), entry.instruments);
+    });
+
+    const map = new Map<string, Set<Instrument>>();
+    masterItems.forEach((item) => {
+      const commonName = pickField(item, MASTER_COMMON_NAME_KEYS);
+      if (!commonName) return;
+      const itemNo = pickField(item, MASTER_ITEM_NO_KEYS);
+      const instruments = itemNoToInstruments.get(itemNo);
+      if (!instruments || instruments.length === 0) return;
+      const key = commonName.trim().toLowerCase();
+      const set = map.get(key) ?? new Set<Instrument>();
+      instruments.forEach((v) => set.add(v));
+      map.set(key, set);
+    });
+
+    const result = new Map<string, Instrument[]>();
+    map.forEach((set, key) => result.set(key, sortInstruments(set)));
+    return result;
+  }, [masterItems, simpleMethods]);
+
+  // Cache substance groups per petition
+  const groupsByPetition = useMemo(() => {
+    const out = new Map<string, SubstanceGroup[]>();
+    [...(pendingData?.items ?? []), ...(inProgressData?.items ?? [])].forEach((petition) => {
+      out.set(petition._id, buildSubstanceGroups(petition, commonNameToInstruments));
+    });
+    return out;
+  }, [pendingData?.items, inProgressData?.items, commonNameToInstruments]);
+
+  function getSelectedMachineIdsForGroup(petition: Petition, group: SubstanceGroup): string[] {
+    const perGroup = machinesByPetition[petition._id];
+    if (perGroup && perGroup[group.groupKey] !== undefined) {
+      return perGroup[group.groupKey];
     }
-    return (petition.assignedMachines ?? []).map((m) => m.machineId);
+    // Baseline from petition.assignedMachines — entries whose substance identity matches this group
+    return (petition.assignedMachines ?? [])
+      .filter((m) => groupKeyOf(m.sampleName ?? '', m.commonName ?? '') === group.groupKey)
+      .map((m) => m.machineId);
   }
 
-  function toggleMachineForPetition(petitionId: string, machineKey: string) {
+  function toggleMachineForGroup(petitionId: string, groupKey: string, machineKey: string) {
     setMachinesByPetition((prev) => {
       const petition = allPetitions.find((p) => p._id === petitionId);
-      const baseline = prev[petitionId]
-        ?? petition?.assignedMachines?.map((m) => m.machineId)
-        ?? [];
-      const next = baseline.includes(machineKey)
-        ? baseline.filter((id) => id !== machineKey)
-        : [...baseline, machineKey];
-      return { ...prev, [petitionId]: next };
+      const groups = petition ? buildSubstanceGroups(petition, commonNameToInstruments) : [];
+      const baselineMap: Record<string, string[]> = { ...(prev[petitionId] ?? {}) };
+      if (baselineMap[groupKey] === undefined) {
+        const group = groups.find((g) => g.groupKey === groupKey);
+        baselineMap[groupKey] = group
+          ? (petition?.assignedMachines ?? [])
+              .filter(
+                (m) => groupKeyOf(m.sampleName ?? '', m.commonName ?? '') === group.groupKey,
+              )
+              .map((m) => m.machineId)
+          : [];
+      }
+      const current = baselineMap[groupKey];
+      baselineMap[groupKey] = current.includes(machineKey)
+        ? current.filter((id) => id !== machineKey)
+        : [...current, machineKey];
+      return { ...prev, [petitionId]: baselineMap };
     });
   }
 
@@ -218,11 +364,15 @@ export default function PetitionAssignPage() {
       return;
     }
 
-    const machineIds = getSelectedMachineIds(petition);
-    const machinesPayload: PetitionAssignedMachine[] = machineIds
-      .map((id) => machineById.get(id))
-      .filter((m): m is MachineItem => Boolean(m))
-      .map(toAssignedMachine);
+    const groups = groupsByPetition.get(petition._id) ?? buildSubstanceGroups(petition, commonNameToInstruments);
+    const machinesPayload: PetitionAssignedMachine[] = [];
+    groups.forEach((group) => {
+      const ids = getSelectedMachineIdsForGroup(petition, group);
+      ids.forEach((id) => {
+        const machine = machineById.get(id);
+        if (machine) machinesPayload.push(toAssignedMachine(machine, group));
+      });
+    });
 
     setSavingId(petition._id);
     try {
@@ -357,10 +507,12 @@ export default function PetitionAssignPage() {
                 loading={loading || employeesLoading || machinesLoading}
                 employees={employees}
                 machines={machines}
+                machineById={machineById}
+                groupsByPetition={groupsByPetition}
                 selectedByPetition={selectedByPetition}
                 setSelectedByPetition={setSelectedByPetition}
-                getSelectedMachineIds={getSelectedMachineIds}
-                onToggleMachine={toggleMachineForPetition}
+                getSelectedMachineIdsForGroup={getSelectedMachineIdsForGroup}
+                onToggleMachine={toggleMachineForGroup}
                 savingId={savingId}
                 assignPetition={assignPetition}
                 onPetitionClick={(id) => navigate(`/petitions/${id}`)}
@@ -389,10 +541,12 @@ export default function PetitionAssignPage() {
                 loading={loading || employeesLoading || machinesLoading}
                 employees={employees}
                 machines={machines}
+                machineById={machineById}
+                groupsByPetition={groupsByPetition}
                 selectedByPetition={selectedByPetition}
                 setSelectedByPetition={setSelectedByPetition}
-                getSelectedMachineIds={getSelectedMachineIds}
-                onToggleMachine={toggleMachineForPetition}
+                getSelectedMachineIdsForGroup={getSelectedMachineIdsForGroup}
+                onToggleMachine={toggleMachineForGroup}
                 savingId={savingId}
                 assignPetition={assignPetition}
                 onPetitionClick={(id) => navigate(`/petitions/${id}`)}
@@ -411,9 +565,10 @@ interface MachinePickerProps {
   machines: MachineItem[];
   selectedIds: string[];
   onToggle: (machineKey: string) => void;
+  label?: string;
 }
 
-function MachinePicker({ machines, selectedIds, onToggle }: MachinePickerProps) {
+function MachinePicker({ machines, selectedIds, onToggle, label = 'เลือกเครื่อง' }: MachinePickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
@@ -444,8 +599,8 @@ function MachinePicker({ machines, selectedIds, onToggle }: MachinePickerProps) 
         >
           <Cog className="h-4 w-4" />
           {selectedMachines.length === 0
-            ? 'เลือกเครื่อง'
-            : `${selectedMachines.length} เครื่อง`}
+            ? label
+            : `${label} (${selectedMachines.length})`}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-3" align="start">
@@ -477,7 +632,7 @@ function MachinePicker({ machines, selectedIds, onToggle }: MachinePickerProps) 
                   />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium text-black-500 truncate">
-                      {machine.code} — {machine.name}
+                      {machine.name}
                     </div>
                     {machine.location && (
                       <div className="text-[11px] text-grey-500 truncate">{machine.location}</div>
@@ -492,7 +647,7 @@ function MachinePicker({ machines, selectedIds, onToggle }: MachinePickerProps) 
           <div className="mt-2 pt-2 border-t flex flex-wrap gap-1">
             {selectedMachines.map((m) => (
               <Badge key={m._id || m.code} variant="primary-soft" className="text-[10px]">
-                {m.code}
+                {m.name}
               </Badge>
             ))}
           </div>
@@ -507,10 +662,12 @@ interface AssignTableProps {
   loading: boolean;
   employees: EmployeeAssignee[];
   machines: MachineItem[];
+  machineById: Map<string, MachineItem>;
+  groupsByPetition: Map<string, SubstanceGroup[]>;
   selectedByPetition: Record<string, string>;
   setSelectedByPetition: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  getSelectedMachineIds: (petition: Petition) => string[];
-  onToggleMachine: (petitionId: string, machineKey: string) => void;
+  getSelectedMachineIdsForGroup: (petition: Petition, group: SubstanceGroup) => string[];
+  onToggleMachine: (petitionId: string, groupKey: string, machineKey: string) => void;
   savingId: string | null;
   assignPetition: (petition: Petition) => Promise<void>;
   onPetitionClick: (id: string) => void;
@@ -523,9 +680,11 @@ function AssignTable({
   loading,
   employees,
   machines,
+  machineById,
+  groupsByPetition,
   selectedByPetition,
   setSelectedByPetition,
-  getSelectedMachineIds,
+  getSelectedMachineIdsForGroup,
   onToggleMachine,
   savingId,
   assignPetition,
@@ -585,11 +744,14 @@ function AssignTable({
                 </TableCell>
                 <TableCell>
                   <div>{petition.items.length} รายการ</div>
-                  {getCommonNames(petition).length > 0 && (
-                    <div className="mt-1 max-w-[260px] text-xs text-grey-500">
-                      Common name: {getCommonNames(petition).join(', ')}
-                    </div>
-                  )}
+                  <div className="mt-1 max-w-[280px] space-y-0.5 text-xs text-grey-500">
+                    {(groupsByPetition.get(petition._id) ?? []).map((g) => (
+                      <div key={g.groupKey} className="truncate">
+                        • {g.commonName || '-'}{' '}
+                        <span className="text-grey-400">×{g.items.length}</span>
+                      </div>
+                    ))}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -623,12 +785,59 @@ function AssignTable({
                     </div>
                   )}
                 </TableCell>
-                <TableCell className="min-w-[220px]">
-                  <MachinePicker
-                    machines={machines}
-                    selectedIds={getSelectedMachineIds(petition)}
-                    onToggle={(machineKey: string) => onToggleMachine(petition._id, machineKey)}
-                  />
+                <TableCell className="min-w-[280px]">
+                  <div className="space-y-2">
+                    {(groupsByPetition.get(petition._id) ?? []).map((group) => {
+                      const required = group.requiredInstruments;
+                      const allSelectedIds = getSelectedMachineIdsForGroup(petition, group);
+                      return (
+                        <div key={group.groupKey} className="rounded-md border border-grey-100 p-2">
+                          <div className="mb-1.5 flex items-center gap-1.5 text-[11px]">
+                            <span className="font-medium text-black-500 truncate max-w-[160px]">
+                              {group.commonName || group.sampleName || '(ไม่มีชื่อ)'}
+                            </span>
+                          </div>
+                          {required.length === 0 ? (
+                            <div className="rounded border border-amber-200 bg-amber-50/50 px-2 py-1.5 text-[11px] text-amber-700">
+                              ยังไม่ได้กำหนด method (GC/HPLC) สำหรับสารนี้ใน simple method — เลือกเครื่องไม่ได้
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {required.map((inst) => {
+                                const filteredMachines = machines.filter(
+                                  (m) => machineInstrument(m) === inst,
+                                );
+                                const selectedForInst = allSelectedIds.filter((id) => {
+                                  const m = machineById.get(id);
+                                  return m ? machineInstrument(m) === inst : false;
+                                });
+                                return (
+                                  <div key={inst}>
+                                    <MachinePicker
+                                      label={`เลือกเครื่อง ${inst}`}
+                                      machines={filteredMachines}
+                                      selectedIds={selectedForInst}
+                                      onToggle={(machineKey: string) =>
+                                        onToggleMachine(petition._id, group.groupKey, machineKey)
+                                      }
+                                    />
+                                    {filteredMachines.length === 0 && (
+                                      <div className="mt-1 text-[11px] text-red-500">
+                                        ไม่พบเครื่อง {inst}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {(groupsByPetition.get(petition._id) ?? []).length === 0 && (
+                      <div className="text-xs text-grey-500">ไม่มีตัวอย่างให้ assign</div>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="text-right">
                   <Button

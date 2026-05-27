@@ -62,6 +62,10 @@ const PetitionAssignedMachineSchema = new mongoose.Schema(
     code: { type: String, required: true },
     name: { type: String, required: true },
     location: String,
+    // Substance identity — petition items sharing the same sampleName+commonName form
+    // one substance group; each group is assigned its own machine(s).
+    sampleName: String,
+    commonName: String,
   },
   { _id: false },
 );

@@ -112,6 +112,10 @@ export interface PetitionAssignedMachine {
   code: string;
   name: string;
   location?: string;
+  // Substance identity — when a petition has multiple substances, each substance
+  // group (items sharing sampleName + commonName) gets its own machine assignment.
+  sampleName?: string;
+  commonName?: string;
 }
 
 // ===== Audit log =====
