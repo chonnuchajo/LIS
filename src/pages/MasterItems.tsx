@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -256,8 +257,8 @@ function getItemNameForParam(item: MasterItem): string {
   return "";
 }
 
-function countParametersFor(item: MasterItem, parameters: ParameterItem[]): number {
-  if (parameters.length === 0) return 0;
+function getParametersFor(item: MasterItem, parameters: ParameterItem[]): ParameterItem[] {
+  if (parameters.length === 0) return [];
   const itemName = getItemNameForParam(item);
   const productType = getProductTypeGroup(item);
   const category = getItemCategory(item);
@@ -272,7 +273,11 @@ function countParametersFor(item: MasterItem, parameters: ParameterItem[]): numb
     if (category && parameter.categories?.includes(category)) return true;
     if (commonName && parameter.commonNames?.includes(commonName)) return true;
     return false;
-  }).length;
+  });
+}
+
+function countParametersFor(item: MasterItem, parameters: ParameterItem[]): number {
+  return getParametersFor(item, parameters).length;
 }
 
 function getItemId(item: MasterItem) {
@@ -408,6 +413,7 @@ export default function MasterItems() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [productTypeFilter, setProductTypeFilter] = useState("all");
   const [editing, setEditing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
+  const [viewing, setViewing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<{ item: MasterItem; originalItemNo: string } | null>(null);
 
@@ -644,7 +650,7 @@ export default function MasterItems() {
                       <TableHead>ประเภทสินค้า</TableHead>
                       <TableHead>หมวดหมู่</TableHead>
                       <TableHead>Unit</TableHead>
-                      <TableHead className="text-center">จำนวนต้องตรวจสอบ</TableHead>
+                      <TableHead className="text-center">พารามิเตอร์</TableHead>
                       <TableHead>Status</TableHead>
                       {extraColumns.map((key) => (
                         <TableHead key={key}>{key}</TableHead>
@@ -667,11 +673,16 @@ export default function MasterItems() {
                       </TableRow>
                     ) : (
                       filteredItems.map(({ item, originalItemNo, override }, index) => {
-                        const metaQty = countParametersFor(item, parameters);
+                        const matchedParameters = getParametersFor(item, parameters);
+                        const metaQty = matchedParameters.length;
                         const form = itemToForm(item, metaQty);
                         const rowKey = getItemId(item) || originalItemNo || `row-${index}`;
                         return (
-                          <TableRow key={rowKey}>
+                          <TableRow
+                            key={rowKey}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => setViewing({ item, originalItemNo, override })}
+                          >
                             <TableCell className="font-semibold text-primary">
                               {displayValue(firstValue(item, codeKeys))}
                             </TableCell>
@@ -683,13 +694,50 @@ export default function MasterItems() {
                             <TableCell>{displayValue(getItemCategory(item))}</TableCell>
                             <TableCell>{displayValue(firstValue(item, unitKeys))}</TableCell>
                             <TableCell className="text-center">
-                              {metaQty > 0 ? (
-                                <Badge variant="secondary" className="font-medium">{metaQty}</Badge>
-                              ) : (
-                                <Badge variant="outline" className="border-amber-500/40 bg-amber-50 text-amber-700 dark:bg-amber-950/30">
-                                  0
-                                </Badge>
-                              )}
+                              <HoverCard openDelay={120} closeDelay={80}>
+                                <HoverCardTrigger asChild>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => event.stopPropagation()}
+                                    className="inline-flex cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                                  >
+                                    {metaQty > 0 ? (
+                                      <Badge variant="secondary" className="font-medium">{metaQty}</Badge>
+                                    ) : (
+                                      <Badge variant="outline" className="border-amber-500/40 bg-amber-50 text-amber-700 dark:bg-amber-950/30">
+                                        0
+                                      </Badge>
+                                    )}
+                                  </button>
+                                </HoverCardTrigger>
+                                <HoverCardContent align="center" className="w-72 p-3">
+                                  {metaQty > 0 ? (
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+                                        <span>พารามิเตอร์ที่ตรงกับ Item นี้</span>
+                                        <span>{metaQty} รายการ</span>
+                                      </div>
+                                      <ul className="space-y-1 text-sm">
+                                        {matchedParameters.map((param) => (
+                                          <li key={param._id ?? param.name} className="flex items-center gap-2">
+                                            <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary/70" />
+                                            <span className="min-w-0 flex-1 truncate font-medium">{param.name}</span>
+                                            {param.scope && (
+                                              <Badge variant="outline" className="h-4 px-1 text-[10px] uppercase">
+                                                {param.scope}
+                                              </Badge>
+                                            )}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  ) : (
+                                    <div className="text-sm text-muted-foreground">
+                                      ยังไม่มีพารามิเตอร์ที่ตรงกับ Item นี้
+                                    </div>
+                                  )}
+                                </HoverCardContent>
+                              </HoverCard>
                             </TableCell>
                             <TableCell>
                               <Badge variant={form.status === "inactive" ? "secondary" : "default"}>
@@ -701,7 +749,7 @@ export default function MasterItems() {
                                 {displayValue(item[key])}
                               </TableCell>
                             ))}
-                            <TableCell>
+                            <TableCell onClick={(event) => event.stopPropagation()}>
                               <div className="flex justify-end gap-1">
                                 <Button
                                   size="icon"
@@ -741,6 +789,20 @@ export default function MasterItems() {
             onSaved={() => {
               queryClient.invalidateQueries({ queryKey: ["master-items"] });
               queryClient.invalidateQueries({ queryKey: ["master-item-meta"] });
+            }}
+          />
+        )}
+
+        {viewing && (
+          <MasterItemDetailDialog
+            item={viewing.item}
+            originalItemNo={viewing.originalItemNo}
+            parameters={getParametersFor(viewing.item, parameters)}
+            extraColumns={extraColumns}
+            onClose={() => setViewing(null)}
+            onEdit={() => {
+              setEditing(viewing);
+              setViewing(null);
             }}
           />
         )}
@@ -1358,7 +1420,7 @@ function MasterItemDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="requiredInspectionQty">จำนวนต้องตรวจสอบ</Label>
+              <Label htmlFor="requiredInspectionQty">พารามิเตอร์</Label>
               <Input
                 id="requiredInspectionQty"
                 type="number"
@@ -1397,6 +1459,129 @@ function MasterItemDialog({
             <Button type="submit" disabled={busy}>{busy ? "กำลังบันทึก..." : "บันทึก"}</Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MasterItemDetailDialog({
+  item,
+  originalItemNo,
+  parameters,
+  extraColumns,
+  onClose,
+  onEdit,
+}: {
+  item: MasterItem;
+  originalItemNo: string;
+  parameters: ParameterItem[];
+  extraColumns: string[];
+  onClose: () => void;
+  onEdit: () => void;
+}) {
+  const classification = getClassification(firstValue(item, typeKeys));
+  const productType = getProductTypeGroup(item);
+  const statusValue = firstValue(item, statusKeys);
+  const statusLabel = statusValue === false || String(statusValue || "").toLowerCase() === "inactive"
+    ? "inactive"
+    : "active";
+
+  const fields: Array<{ label: string; value: React.ReactNode; full?: boolean }> = [
+    { label: "Code", value: <span className="font-semibold text-primary">{displayValue(originalItemNo || firstValue(item, codeKeys))}</span> },
+    { label: "ชื่อ Item", value: displayValue(firstValue(item, nameKeys)) },
+    { label: "commonname", value: displayValue(firstValue(item, commonNameKeys)) },
+    { label: "ประเภท", value: classification ? `${classification.code} - ${classification.label}` : displayValue(firstValue(item, typeKeys)) },
+    { label: "ประเภทสินค้า", value: displayProductType(productType) },
+    { label: "หมวดหมู่", value: displayValue(getItemCategory(item)) },
+    { label: "Unit", value: displayValue(firstValue(item, unitKeys)) },
+    {
+      label: "Status",
+      value: (
+        <Badge variant={statusLabel === "inactive" ? "secondary" : "default"}>{statusLabel}</Badge>
+      ),
+    },
+    {
+      label: "รายละเอียด",
+      value: displayValue(firstValue(item, descriptionKeys)),
+      full: true,
+    },
+  ];
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-start justify-between gap-2">
+            <DialogTitle>รายละเอียด Item</DialogTitle>
+            <Button size="icon" variant="ghost" onClick={onEdit} title="แก้ไข" className="-mt-1">
+              <Pencil className="h-4 w-4" />
+            </Button>
+          </div>
+        </DialogHeader>
+
+        <div className="grid gap-4 py-2 grid-cols-1 md:grid-cols-2">
+          {fields.map((field) => (
+            <div
+              key={field.label}
+              className={`space-y-1 ${field.full ? "md:col-span-2" : ""}`}
+            >
+              <div className="text-xs font-medium text-muted-foreground">{field.label}</div>
+              <div className="text-sm break-words">{field.value}</div>
+            </div>
+          ))}
+
+          <div className="md:col-span-2 space-y-2">
+            <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+              <span>พารามิเตอร์ที่ตรงกับ Item นี้</span>
+              <span>{parameters.length} รายการ</span>
+            </div>
+            {parameters.length > 0 ? (
+              <ul className="space-y-1 rounded-md border bg-muted/30 p-3 text-sm">
+                {parameters.map((param) => (
+                  <li key={param._id ?? param.name} className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary/70" />
+                    <span className="min-w-0 flex-1 truncate font-medium">{param.name}</span>
+                    {param.scope && (
+                      <Badge variant="outline" className="h-4 px-1 text-[10px] uppercase">
+                        {param.scope}
+                      </Badge>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+                ยังไม่มีพารามิเตอร์ที่ตรงกับ Item นี้
+              </div>
+            )}
+          </div>
+
+          {extraColumns.length > 0 && extraColumns.some((key) => String(item[key] ?? "").trim() !== "") && (
+            <div className="md:col-span-2 space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">ข้อมูลเพิ่มเติม</div>
+              <div className="grid gap-2 rounded-md border bg-muted/30 p-3 sm:grid-cols-2">
+                {extraColumns.map((key) => {
+                  const value = displayValue(item[key]);
+                  if (!value || value === "-") return null;
+                  return (
+                    <div key={key} className="space-y-0.5">
+                      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{key}</div>
+                      <div className="text-sm break-words">{value}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>ปิด</Button>
+          <Button onClick={onEdit}>
+            <Pencil className="h-4 w-4 mr-1.5" />
+            แก้ไข
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SampleProvider } from "@/context/SampleContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { NotificationProvider } from "@/context/NotificationContext";
+import DailyCheckReminderWatcher from "@/components/lis/DailyCheckReminderWatcher";
 import PrivateRoute from "@/components/PrivateRoute";
 import Home from "./pages/Home";
 import LabDashboard from "./pages/LabDashboard";
@@ -54,8 +56,10 @@ const App = () => (
       
         <AuthProvider>
           <DevRoleSwitcher />
-          <SampleProvider>
-            <Routes>
+          <NotificationProvider>
+            <DailyCheckReminderWatcher />
+            <SampleProvider>
+              <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/scanner" element={<ScannerPage />} />
               <Route path="/" element={<PrivateRoute><Home /></PrivateRoute>} />
@@ -90,7 +94,8 @@ const App = () => (
               <Route path="/lab-testing/:id" element={<PrivateRoute><LabTestingDetailPage /></PrivateRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </SampleProvider>
+            </SampleProvider>
+          </NotificationProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
