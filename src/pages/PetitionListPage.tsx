@@ -19,7 +19,7 @@ import {
 import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
 import { api, type ParameterItem } from '@/lib/api';
-import { parameterNamesForPetition } from '@/lib/petitionTestItems';
+import { matchParametersForItem, parameterNamesForPetition } from '@/lib/petitionTestItems';
 import {
   PETITION_STATUSES,
   PETITION_DEPT_LABELS,
@@ -45,6 +45,16 @@ const isLabBatchNo = (batchNo?: string | null) => {
 
 const petitionHasLabItems = (petition: Petition) =>
   petition.items.some((item) => isLabBatchNo(item.batchNo));
+
+const petitionHasLabReadableItem = (
+  petition: Petition,
+  labParams: ParameterItem[],
+) =>
+  petition.items.some(
+    (item) =>
+      isLabBatchNo(item.batchNo) &&
+      matchParametersForItem(item, labParams).length > 0,
+  );
 
 function isOwnSubmission(
   petition: Petition,
@@ -130,16 +140,41 @@ export default function PetitionListPage() {
   const { data, loading, error, refresh } = usePetitionList(params);
 
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
+  const [paramsLoaded, setParamsLoaded] = useState(false);
   useEffect(() => {
-    if (!canSeeTestItems) return;
-    api.getParameters().then(setParameters).catch(() => {});
+    if (!canSeeTestItems) {
+      setParamsLoaded(true);
+      return;
+    }
+    api.getParameters()
+      .then(setParameters)
+      .catch(() => {})
+      .finally(() => setParamsLoaded(true));
   }, [canSeeTestItems]);
+
+  const userRole = user?.role ?? '';
+  const isLabUser = isLabRole(userRole);
+  // For lab users, only parameters readable by lab (lab scope or qc-shared-with-lab)
+  // are relevant — both for the displayed parameter list and for deciding which
+  // petitions should appear at all.
+  const displayParameters = useMemo<ParameterItem[]>(
+    () =>
+      isLabUser
+        ? parameters.filter(
+            (p) => p.scope === 'lab' || (p.scope === 'qc' && p.shareWithLab === true),
+          )
+        : parameters,
+    [parameters, isLabUser],
+  );
 
   const ownedItems = useMemo(() => {
     if (!data?.items) return [];
-    if (canViewAll) return data.items;
-    return data.items.filter((p) => canSeePetition(p, user));
-  }, [data?.items, canViewAll, user]);
+    let items = canViewAll ? data.items : data.items.filter((p) => canSeePetition(p, user));
+    if (isLabUser && paramsLoaded) {
+      items = items.filter((p) => petitionHasLabReadableItem(p, displayParameters));
+    }
+    return items;
+  }, [data?.items, canViewAll, user, isLabUser, paramsLoaded, displayParameters]);
 
   const totalCount = canViewAll ? data?.total ?? 0 : ownedItems.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -337,7 +372,7 @@ export default function PetitionListPage() {
                         </TableCell>
                         {canSeeTestItems && (
                           <TableCell className="max-w-[280px] whitespace-pre-wrap text-sm text-grey-700">
-                            {parameterNamesForPetition(p, parameters).join(' • ') || '-'}
+                            {parameterNamesForPetition(p, displayParameters).join(' • ') || '-'}
                           </TableCell>
                         )}
                         <TableCell>

@@ -249,6 +249,7 @@ export default function LabTestingDetailPage() {
   });
 
   const [allParameters, setAllParameters] = useState<ParameterItem[]>([]);
+  const [paramsLoaded, setParamsLoaded] = useState(false);
   const [savedResults, setSavedResults] = useState<QCTestResult[]>([]);
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({});
   const [valuesPhase2, setValuesPhase2] = useState<Record<string, Record<string, unknown>>>({});
@@ -268,7 +269,8 @@ export default function LabTestingDetailPage() {
         );
         setAllParameters(labParams);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setParamsLoaded(true));
   }, []);
 
   // Auto-advance status pendingReview → inProgress when Lab enters the first value
@@ -422,8 +424,15 @@ export default function LabTestingDetailPage() {
     );
   }
 
-  // Show only Lab batch items (batchNo ending in 1 or 6)
-  const labItems = (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
+  // Show only Lab items: lab-batch (batchNo 1/6) AND have at least one
+  // lab-scope or QC-shared-with-lab parameter matching the item's classification.
+  // Items with no Lab-readable params should not appear here.
+  const allLabBatchItems = (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
+  const labItems = paramsLoaded
+    ? allLabBatchItems.filter(
+        (it) => matchParametersForItem(it, allParameters).length > 0,
+      )
+    : allLabBatchItems;
 
   // 2-phase support: does any matched parameter use hasPhases?
   const hasAnyPhasedParam = labItems.some((item) =>
@@ -605,12 +614,22 @@ export default function LabTestingDetailPage() {
 
         {/* Worklist tab strip */}
         {worklistData && worklistData.items.filter((p) =>
-          (p.items ?? []).some((it) => isLabBatchNo(it.batchNo))
+          (p.items ?? []).some(
+            (it) =>
+              isLabBatchNo(it.batchNo) &&
+              matchParametersForItem(it, allParameters).length > 0,
+          )
         ).length > 1 && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 -mt-2">
             <span className="text-xs text-grey-500 shrink-0 mr-1">สลับไป:</span>
             {worklistData.items
-              .filter((p) => (p.items ?? []).some((it) => isLabBatchNo(it.batchNo)))
+              .filter((p) =>
+                (p.items ?? []).some(
+                  (it) =>
+                    isLabBatchNo(it.batchNo) &&
+                    matchParametersForItem(it, allParameters).length > 0,
+                ),
+              )
               .map((p) => {
                 const isActive = p._id === petition._id;
                 return (
