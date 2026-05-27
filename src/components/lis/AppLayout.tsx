@@ -80,16 +80,28 @@ const AppLayout = ({
         <NotificationBell />
       </header>
 
-      {/* Main content — push down to clear the fixed mobile topbar */}
-      <main
+      {/* Right column — desktop topbar + main; push down to clear the fixed mobile topbar */}
+      <div
         className={cn(
-          "flex-1 min-w-0 pt-14 md:pt-0",
-          fixedHeight && "flex flex-col overflow-hidden",
-          mainClassName ?? "p-4 sm:p-6 overflow-auto",
+          "flex-1 min-w-0 flex flex-col pt-14 md:pt-0",
+          fixedHeight && "overflow-hidden",
         )}
       >
-        {children}
-      </main>
+        {/* Desktop topbar — only on >=md, holds the notification bell on the right */}
+        <header className="hidden md:flex print:hidden sticky top-0 z-30 h-12 items-center justify-end gap-2 px-4 lg:px-6 bg-background/80 backdrop-blur-sm">
+          <NotificationBell />
+        </header>
+
+        <main
+          className={cn(
+            "flex-1 min-w-0",
+            fixedHeight && "flex flex-col overflow-hidden",
+            mainClassName ?? "p-4 sm:p-6 overflow-auto",
+          )}
+        >
+          {children}
+        </main>
+      </div>
     </div>
   );
 };

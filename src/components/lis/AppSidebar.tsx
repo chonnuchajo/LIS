@@ -13,7 +13,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { pathMatches, userCanAccessPath } from "@/lib/accessControl";
 import { api } from "@/lib/api";
 import { useIsTablet } from "@/hooks/use-mobile";
-import NotificationBell from "@/components/lis/NotificationBell";
 
 type RoleOption = {
   id: string;
@@ -218,13 +217,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
               </p>
             </div>
           )}
-          {!collapsed && <NotificationBell className="h-9 w-9 shrink-0" />}
         </div>
-        {collapsed && !isDrawer && (
-          <div className="flex justify-center py-2 border-b border-border">
-            <NotificationBell className="h-9 w-9" />
-          </div>
-        )}
 
         {/* Nav */}
         <nav className={cn("flex-1 py-3 overflow-y-auto", collapsed ? "px-2" : "px-3")}>
