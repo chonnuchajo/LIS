@@ -1,0 +1,30 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - img "ห้องปฏิบัติการเคมี" [ref=e5]
+      - generic [ref=e7]:
+        - generic [ref=e8]:
+          - img "ICP Logo" [ref=e9]
+          - generic [ref=e10]:
+            - heading "LIS" [level=2] [ref=e11]
+            - paragraph [ref=e12]: LAB INFORMATION SYSTEM
+        - heading "ระบบจัดการห้องปฏิบัติการ" [level=1] [ref=e13]
+        - paragraph [ref=e14]: ระบบบริหารจัดการข้อมูลห้องปฏิบัติการเคมีเกษตรภัณฑ์ สำหรับการตรวจวิเคราะห์คุณภาพสารเคมีทางการเกษตร
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - heading "เข้าสู่ระบบ" [level=1] [ref=e18]
+        - paragraph [ref=e19]: ใช้บัญชี Microsoft องค์กรของคุณเพื่อเข้าสู่ระบบ
+      - generic [ref=e20]:
+        - button "Sign in with Microsoft" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+          - text: Sign in with Microsoft
+        - generic [ref=e31]: เข้าสู่ระบบด้วยบัญชีองค์กร ICP Ladda เท่านั้น
+        - generic [ref=e32]:
+          - paragraph [ref=e33]: หมายเหตุ
+          - list [ref=e34]:
+            - listitem [ref=e35]: ใช้ได้เฉพาะบัญชี Microsoft ของ ICP Ladda เท่านั้น
+            - listitem [ref=e36]: หากไม่สามารถเข้าสู่ระบบได้ กรุณาติดต่อผู้ดูแลระบบ
+      - paragraph [ref=e37]: © 2026 ICP Laboratory Information System

@@ -1,0 +1,212 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - complementary [ref=e5]:
+      - button "ซ่อนเมนู" [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+      - generic [ref=e9]:
+        - img "ICP Logo" [ref=e10]
+        - generic [ref=e11]:
+          - heading "LIS" [level=1] [ref=e12]
+          - paragraph [ref=e13]:
+            - text: LAB INFORMATION
+            - text: SYSTEM
+        - button "การแจ้งเตือน" [ref=e14] [cursor=pointer]:
+          - img [ref=e15]
+      - navigation [ref=e18]
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - img [ref=e22]
+          - generic [ref=e25]:
+            - paragraph
+            - paragraph
+            - paragraph [ref=e26]: "Role: No role"
+            - paragraph [ref=e27]: Unassigned
+        - button "ออกจากระบบ" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+          - text: ออกจากระบบ
+    - main [ref=e32]:
+      - generic [ref=e33]:
+        - generic [ref=e34]:
+          - heading "พารามิเตอร์การตรวจสอบ" [level=1] [ref=e35]:
+            - img [ref=e36]
+            - text: พารามิเตอร์การตรวจสอบ
+          - paragraph [ref=e37]: กำหนดพารามิเตอร์ที่ต้องตรวจ — เลือกใช้กับ Item Name / ประเภท ได้พร้อมกัน และกำหนดช่องค่าที่ผู้กรอกต้องใส่
+        - generic [ref=e38]:
+          - button "Refresh" [ref=e39] [cursor=pointer]:
+            - img
+            - text: Refresh
+          - button "เพิ่มพารามิเตอร์" [ref=e40] [cursor=pointer]:
+            - img
+            - text: เพิ่มพารามิเตอร์
+      - tablist [ref=e42]:
+        - tab "QC 5" [selected] [ref=e43] [cursor=pointer]:
+          - text: QC
+          - generic [ref=e44]: "5"
+        - tab "Lab 1" [ref=e45] [cursor=pointer]:
+          - text: Lab
+          - generic [ref=e46]: "1"
+      - generic [ref=e47]:
+        - generic [ref=e49]:
+          - paragraph [ref=e50]: ทั้งหมดใน QC
+          - paragraph [ref=e51]: "5"
+        - generic [ref=e53]:
+          - paragraph [ref=e54]: เปิดใช้งาน
+          - paragraph [ref=e55]: "5"
+        - generic [ref=e57]:
+          - paragraph [ref=e58]: ปิดใช้งาน
+          - paragraph [ref=e59]: "0"
+      - generic [ref=e60]:
+        - generic [ref=e61]:
+          - heading "รายการพารามิเตอร์" [level=3] [ref=e62]
+          - generic [ref=e63]:
+            - generic [ref=e64]:
+              - img [ref=e65]
+              - textbox "ค้นหาชื่อ / ใช้กับ / ช่อง..." [ref=e68]
+            - combobox [ref=e69] [cursor=pointer]:
+              - generic: ทุกสถานะ
+              - img [ref=e70]
+        - table [ref=e75]:
+          - rowgroup [ref=e76]:
+            - row "# ชื่อ ใช้กับ ค่าที่ต้องใส่ สถานะ จัดการ" [ref=e77]:
+              - columnheader "#" [ref=e78]
+              - columnheader "ชื่อ" [ref=e79]
+              - columnheader "ใช้กับ" [ref=e80]
+              - columnheader "ค่าที่ต้องใส่" [ref=e81]
+              - columnheader "สถานะ" [ref=e82]
+              - columnheader "จัดการ" [ref=e83]
+          - rowgroup [ref=e84]:
+            - row "1 QC กายภาพ ทั้งหมด ลักษณะ · enum (ของเหลวใส/ของเหลวขุ่น/ของเหลวหนืด...) * สี · text * ปกติ/ไม่ปกติ · enum (ปกติ/ไม่ปกติ) * เปิด" [ref=e85]:
+              - cell "1" [ref=e86]
+              - cell "QC กายภาพ" [ref=e87]:
+                - generic [ref=e88]:
+                  - generic [ref=e89]: QC
+                  - generic [ref=e90]: กายภาพ
+              - cell "ทั้งหมด" [ref=e91]:
+                - generic [ref=e92]: ทั้งหมด
+              - cell "ลักษณะ · enum (ของเหลวใส/ของเหลวขุ่น/ของเหลวหนืด...) * สี · text * ปกติ/ไม่ปกติ · enum (ปกติ/ไม่ปกติ) *" [ref=e93]:
+                - generic [ref=e94]:
+                  - generic "enum (ของเหลวใส/ของเหลวขุ่น/ของเหลวหนืด...)" [ref=e95]:
+                    - generic [ref=e96]: ลักษณะ
+                    - generic [ref=e97]: · enum
+                    - generic [ref=e98]: (ของเหลวใส/ของเหลวขุ่น/ของเหลวหนืด...)
+                    - generic [ref=e99]: "*"
+                  - generic "text" [ref=e100]:
+                    - generic [ref=e101]: สี
+                    - generic [ref=e102]: · text
+                    - generic [ref=e103]: "*"
+                  - generic "enum (ปกติ/ไม่ปกติ)" [ref=e104]:
+                    - generic [ref=e105]: ปกติ/ไม่ปกติ
+                    - generic [ref=e106]: · enum
+                    - generic [ref=e107]: (ปกติ/ไม่ปกติ)
+                    - generic [ref=e108]: "*"
+              - cell "เปิด" [ref=e109]:
+                - generic [ref=e110]: เปิด
+              - cell [ref=e111]:
+                - button "แก้ไข" [ref=e112] [cursor=pointer]:
+                  - img
+                - button "ลบ" [ref=e113] [cursor=pointer]:
+                  - img
+            - 'row "2 QC การละลาย ประเภท: water ค่า · float [m/cm^3] * เปิด" [ref=e114]':
+              - cell "2" [ref=e115]
+              - cell "QC การละลาย" [ref=e116]:
+                - generic [ref=e117]:
+                  - generic [ref=e118]: QC
+                  - generic [ref=e119]: การละลาย
+              - 'cell "ประเภท: water" [ref=e120]':
+                - generic "water" [ref=e122]:
+                  - generic [ref=e123]: "ประเภท:"
+                  - generic [ref=e124]: water
+              - cell "ค่า · float [m/cm^3] *" [ref=e125]:
+                - generic "float [m/cm^3]" [ref=e127]:
+                  - generic [ref=e128]: ค่า
+                  - generic [ref=e129]: · float
+                  - generic [ref=e130]: "[m/cm^3]"
+                  - generic [ref=e131]: "*"
+              - cell "เปิด" [ref=e132]:
+                - generic [ref=e133]: เปิด
+              - cell [ref=e134]:
+                - button "แก้ไข" [ref=e135] [cursor=pointer]:
+                  - img
+                - button "ลบ" [ref=e136] [cursor=pointer]:
+                  - img
+            - 'row "3 QC → Lab ค่า ถพ. ประเภท: water ค่าถพ. · float [m/cm^3] * อุณหภูมิ · float [C] * เปิด" [ref=e137]':
+              - cell "3" [ref=e138]
+              - cell "QC → Lab ค่า ถพ." [ref=e139]:
+                - generic [ref=e140]:
+                  - generic [ref=e141]: QC
+                  - generic "แชร์ให้ Lab อ่านได้" [ref=e142]: → Lab
+                  - generic [ref=e143]: ค่า ถพ.
+              - 'cell "ประเภท: water" [ref=e144]':
+                - generic "water" [ref=e146]:
+                  - generic [ref=e147]: "ประเภท:"
+                  - generic [ref=e148]: water
+              - cell "ค่าถพ. · float [m/cm^3] * อุณหภูมิ · float [C] *" [ref=e149]:
+                - generic [ref=e150]:
+                  - generic "float [m/cm^3]" [ref=e151]:
+                    - generic [ref=e152]: ค่าถพ.
+                    - generic [ref=e153]: · float
+                    - generic [ref=e154]: "[m/cm^3]"
+                    - generic [ref=e155]: "*"
+                  - generic "float [C]" [ref=e156]:
+                    - generic [ref=e157]: อุณหภูมิ
+                    - generic [ref=e158]: · float
+                    - generic [ref=e159]: "[C]"
+                    - generic [ref=e160]: "*"
+              - cell "เปิด" [ref=e161]:
+                - generic [ref=e162]: เปิด
+              - cell [ref=e163]:
+                - button "แก้ไข" [ref=e164] [cursor=pointer]:
+                  - img
+                - button "ลบ" [ref=e165] [cursor=pointer]:
+                  - img
+            - 'row "4 QC ถ่ายภาพ หมวดหมู่: RM ภาพตัวอย่าง · photo * เปิด" [ref=e166]':
+              - cell "4" [ref=e167]
+              - cell "QC ถ่ายภาพ" [ref=e168]:
+                - generic [ref=e169]:
+                  - generic [ref=e170]: QC
+                  - generic [ref=e171]: ถ่ายภาพ
+              - 'cell "หมวดหมู่: RM" [ref=e172]':
+                - generic "RM" [ref=e174]:
+                  - generic [ref=e175]: "หมวดหมู่:"
+                  - generic [ref=e176]: RM
+              - cell "ภาพตัวอย่าง · photo *" [ref=e177]:
+                - generic "photo" [ref=e179]:
+                  - generic [ref=e180]: ภาพตัวอย่าง
+                  - generic [ref=e181]: · photo
+                  - generic [ref=e182]: "*"
+              - cell "เปิด" [ref=e183]:
+                - generic [ref=e184]: เปิด
+              - cell [ref=e185]:
+                - button "แก้ไข" [ref=e186] [cursor=pointer]:
+                  - img
+                - button "ลบ" [ref=e187] [cursor=pointer]:
+                  - img
+            - 'row "5 QC อบ หมวดหมู่: RM หมวดย่อย: RO อบ · timer * เปิด" [ref=e188]':
+              - cell "5" [ref=e189]
+              - cell "QC อบ" [ref=e190]:
+                - generic [ref=e191]:
+                  - generic [ref=e192]: QC
+                  - generic [ref=e193]: อบ
+              - 'cell "หมวดหมู่: RM หมวดย่อย: RO" [ref=e194]':
+                - generic [ref=e195]:
+                  - generic "RM" [ref=e196]:
+                    - generic [ref=e197]: "หมวดหมู่:"
+                    - generic [ref=e198]: RM
+                  - generic "RO" [ref=e199]:
+                    - generic [ref=e200]: "หมวดย่อย:"
+                    - generic [ref=e201]: RO
+              - cell "อบ · timer *" [ref=e202]:
+                - generic "timer" [ref=e204]:
+                  - generic [ref=e205]: อบ
+                  - generic [ref=e206]: · timer
+                  - generic [ref=e207]: "*"
+              - cell "เปิด" [ref=e208]:
+                - generic [ref=e209]: เปิด
+              - cell [ref=e210]:
+                - button "แก้ไข" [ref=e211] [cursor=pointer]:
+                  - img
+                - button "ลบ" [ref=e212] [cursor=pointer]:
+                  - img
