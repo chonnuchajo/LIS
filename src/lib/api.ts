@@ -284,6 +284,12 @@ export type ParameterValueField = {
   refParameterId?: string | null;
   refFieldLabel?: string | null;
   refPhase?: 1 | 2 | null;
+  // Per-option filter: keyed by option string.
+  // ถ้า key ไม่มี = option แสดงให้ทุก item (default)
+  optionFilters?: Record<string, {
+    productTypes?: string[];   // 'water' | 'sand' | 'powder'
+    subCategories?: string[];  // เช่น 'ULV', 'EC' (uppercase)
+  }>;
 };
 
 export type ParameterScope = "lab" | "qc";
