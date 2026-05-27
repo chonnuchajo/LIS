@@ -6,10 +6,7 @@ import {
   FlaskConical,
   PackageSearch,
   Pencil,
-  Plus,
-  RefreshCw,
   Search,
-  Trash2,
   Wrench,
   Download,
 } from "lucide-react";
@@ -414,16 +411,12 @@ export default function MasterItems() {
   const [productTypeFilter, setProductTypeFilter] = useState("all");
   const [editing, setEditing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
   const [viewing, setViewing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [deleting, setDeleting] = useState<{ item: MasterItem; originalItemNo: string } | null>(null);
 
   const {
     data: items = [],
     isLoading,
     isError,
     error,
-    refetch,
-    isFetching,
   } = useQuery({
     queryKey: ["master-items"],
     queryFn: async () => {
@@ -514,59 +507,16 @@ export default function MasterItems() {
     return status === true || String(status || "").toLowerCase() === "active";
   }).length;
 
-  const closeDialog = () => {
-    setCreating(false);
-    setEditing(null);
-  };
-
-  const handleDelete = async () => {
-    if (!deleting) return;
-    const id = getItemId(deleting.item);
-    if (!id) {
-      toast.error("ไม่พบรหัส item สำหรับลบ");
-      return;
-    }
-
-    try {
-      await api.delete(`/master-items/${encodeURIComponent(id)}`);
-      if (deleting.originalItemNo) {
-        try {
-          await api.delete(`/master-item-meta/${encodeURIComponent(deleting.originalItemNo)}`);
-        } catch {
-          // override delete is best-effort
-        }
-      }
-      toast.success("ลบ item สำเร็จ");
-      setDeleting(null);
-      queryClient.invalidateQueries({ queryKey: ["master-items"] });
-      queryClient.invalidateQueries({ queryKey: ["master-item-meta"] });
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
-  };
-
   return (
     <AppLayout>
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
-              <Database className="h-6 w-6" />
-              Master Item
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              จัดการรายการ item จาก n8n webhook
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
-              <RefreshCw className={isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-              Refresh
-            </Button>
-            <Button onClick={() => setCreating(true)}>
-              <Plus className="h-4 w-4" />
-              เพิ่ม Item
-            </Button>
-          </div>
+        <div className="mb-6">
+          <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
+            <Database className="h-6 w-6" />
+            Master Item
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            จัดการรายการ item จาก n8n webhook
+          </p>
         </div>
 
         <div className="mb-4 grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -759,14 +709,6 @@ export default function MasterItems() {
                                 >
                                   <Pencil className="h-4 w-4" />
                                 </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => setDeleting({ item, originalItemNo })}
-                                  title="ลบ"
-                                >
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -780,12 +722,12 @@ export default function MasterItems() {
           </CardContent>
         </Card>
 
-        {(creating || editing) && (
+        {editing && (
           <MasterItemDialog
-            item={editing?.item ?? null}
-            originalItemNo={editing?.originalItemNo ?? ""}
-            initialMetaQty={editing ? countParametersFor(editing.item, parameters) : 0}
-            onClose={closeDialog}
+            item={editing.item}
+            originalItemNo={editing.originalItemNo}
+            initialMetaQty={countParametersFor(editing.item, parameters)}
+            onClose={() => setEditing(null)}
             onSaved={() => {
               queryClient.invalidateQueries({ queryKey: ["master-items"] });
               queryClient.invalidateQueries({ queryKey: ["master-item-meta"] });
@@ -805,23 +747,6 @@ export default function MasterItems() {
               setViewing(null);
             }}
           />
-        )}
-
-        {deleting && (
-          <Dialog open onOpenChange={(open) => { if (!open) setDeleting(null); }}>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>ยืนยันลบ Item</DialogTitle>
-              </DialogHeader>
-              <div className="text-sm text-muted-foreground">
-                {displayValue(firstValue(deleting.item, codeKeys))} - {displayValue(firstValue(deleting.item, nameKeys))}
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setDeleting(null)}>ยกเลิก</Button>
-                <Button variant="destructive" onClick={handleDelete}>ลบ</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         )}
     </AppLayout>
   );
