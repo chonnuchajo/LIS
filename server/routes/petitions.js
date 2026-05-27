@@ -392,6 +392,8 @@ router.patch('/:id/assign', async (req, res) => {
           code: String(m.code).trim(),
           name: String(m.name).trim(),
           location: m.location ? String(m.location).trim() : undefined,
+          sampleName: m.sampleName ? String(m.sampleName).trim() : undefined,
+          commonName: m.commonName ? String(m.commonName).trim() : undefined,
         }));
     }
 
