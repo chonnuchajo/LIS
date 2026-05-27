@@ -90,23 +90,46 @@ describe('visibleEnumOptions', () => {
     expect(visibleEnumOptions(field, makeItem({ commonName: 'WP', sampleName: 'Foo WP' }))).not.toContain('ของเหลวใส');
   });
 
-  it('uses AND between productTypes and subCategories dimensions', () => {
+  it('uses OR across productTypes and subCategories dimensions', () => {
     const field = makeEnumField({
       optionFilters: {
-        'ของเหลวใส': { productTypes: ['water'], subCategories: ['ULV'] },
+        'ของเหลวใส': { productTypes: ['water'], subCategories: ['ROLS'] },
       },
     });
-    expect(visibleEnumOptions(field, makeItem({ commonName: 'EW', sampleId: 'ULV-001' }))).toContain('ของเหลวใส');
-    expect(visibleEnumOptions(field, makeItem({ commonName: 'EW', sampleId: 'EW-001' }))).not.toContain('ของเหลวใส');
-    expect(visibleEnumOptions(field, makeItem({ commonName: 'WP', sampleName: 'Foo WP', sampleId: 'ULV-001' }))).not.toContain('ของเหลวใส');
+    // water item w/ non-matching subCat — water matches → show
+    expect(visibleEnumOptions(field, makeItem({ commonName: 'EW', sampleId: 'EW-001' }))).toContain('ของเหลวใส');
+    // powder item w/ matching subCat — subCat matches → show
+    expect(visibleEnumOptions(field, makeItem({ commonName: 'WP', sampleName: 'Foo WP', sampleId: 'ROLS-001' }))).toContain('ของเหลวใส');
+    // powder item w/ non-matching subCat — neither matches → hide
+    expect(visibleEnumOptions(field, makeItem({ commonName: 'WP', sampleName: 'Foo WP', sampleId: 'WP-001' }))).not.toContain('ของเหลวใส');
   });
 
-  it('treats empty productTypes/subCategories arrays as "no constraint on that dimension"', () => {
+  it('treats entry with all empty arrays as "show always"', () => {
     const field = makeEnumField({
       optionFilters: {
-        'ของเหลวใส': { productTypes: [], subCategories: ['ULV'] },
+        'ของเหลวใส': { productTypes: [], subCategories: [] },
       },
     });
-    expect(visibleEnumOptions(field, makeItem({ commonName: 'WP', sampleName: 'Foo WP', sampleId: 'ULV-001' }))).toContain('ของเหลวใส');
+    expect(visibleEnumOptions(field, makeItem({ commonName: 'WP', sampleName: 'Foo WP' }))).toContain('ของเหลวใส');
+  });
+
+  it('matches by itemNames (exact sampleName)', () => {
+    const field = makeEnumField({
+      optionFilters: {
+        'ของเหลวใส': { itemNames: ['Imidacloprid 10% EW'] },
+      },
+    });
+    expect(visibleEnumOptions(field, makeItem({ sampleName: 'Imidacloprid 10% EW' }))).toContain('ของเหลวใส');
+    expect(visibleEnumOptions(field, makeItem({ sampleName: 'Other Item' }))).not.toContain('ของเหลวใส');
+  });
+
+  it('matches by commonNames (case-insensitive)', () => {
+    const field = makeEnumField({
+      optionFilters: {
+        'ของเหลวใส': { commonNames: ['ULV'] },
+      },
+    });
+    expect(visibleEnumOptions(field, makeItem({ commonName: 'ulv', sampleName: 'X ULV' }))).toContain('ของเหลวใส');
+    expect(visibleEnumOptions(field, makeItem({ commonName: 'EW' }))).not.toContain('ของเหลวใส');
   });
 });

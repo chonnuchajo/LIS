@@ -108,9 +108,11 @@ export function parameterNamesForPetition(
   return names;
 }
 
-// Filter enum options based on item's productType/subCategory.
-// AND ระหว่างมิติ productTypes/subCategories, OR ภายในแต่ละ list.
+// Filter enum options based on item's classification.
 // option ที่ไม่มี entry ใน optionFilters = แสดงเสมอ (backward-compatible).
+// option ที่มี entry แต่ทุกมิติว่าง = แสดงเสมอ.
+// option ที่ตั้ง filter ≥ 1 มิติ — OR ข้ามมิติ (เหมือน parameterAppliesToItem).
+// Categories (RM/FG) ไม่ enforce ที่ runtime เพราะ item ไม่พก context นี้.
 export function visibleEnumOptions(
   field: ParameterValueField,
   item: PetitionItem,
@@ -119,16 +121,37 @@ export function visibleEnumOptions(
   const filters = field.optionFilters;
   if (!filters) return options;
 
+  const sampleName = item.sampleName?.trim() ?? '';
+  const itemCommonName = (
+    item.commonName?.trim() || getCommonName(item.sampleName)
+  ).toUpperCase();
   const itemProductType = getItemProductType(item);
   const itemSubCat = getItemSubCategory(item);
 
   return options.filter((opt) => {
     const f = filters[opt];
     if (!f) return true;
-    const pts = f.productTypes ?? [];
-    const scs = f.subCategories ?? [];
-    const ptOK = pts.length === 0 || (!!itemProductType && pts.includes(itemProductType));
-    const scOK = scs.length === 0 || (!!itemSubCat && scs.includes(itemSubCat));
-    return ptOK && scOK;
+    const itemNames = f.itemNames ?? [];
+    const commonNames = f.commonNames ?? [];
+    const productTypes = f.productTypes ?? [];
+    const subCategories = f.subCategories ?? [];
+    if (
+      itemNames.length === 0 &&
+      commonNames.length === 0 &&
+      productTypes.length === 0 &&
+      subCategories.length === 0
+    ) {
+      return true;
+    }
+    if (sampleName && itemNames.some((n) => n.trim() === sampleName)) return true;
+    if (
+      itemCommonName &&
+      commonNames.some((c) => c.toUpperCase() === itemCommonName)
+    ) {
+      return true;
+    }
+    if (itemProductType && productTypes.includes(itemProductType)) return true;
+    if (itemSubCat && subCategories.includes(itemSubCat)) return true;
+    return false;
   });
 }

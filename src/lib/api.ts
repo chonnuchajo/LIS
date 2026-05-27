@@ -177,6 +177,29 @@ export const api = {
   seedMachines: () =>
     request<{ inserted: number; matched: number; total: number }>("/machines/seed", { method: "POST" }),
 
+  // Daily Check (Calibrate เครื่องชั่งประจำวัน)
+  getDailyChecks: (params?: {
+    date?: string;          // YYYY-MM-DD หรือ "all"
+    from?: string;
+    to?: string;
+    scaleId?: string;
+    status?: "pass" | "fail";
+  }) => {
+    const qs = params
+      ? "?" + new URLSearchParams(
+          Object.entries(params).filter(([, v]) => v != null && v !== "").map(([k, v]) => [k, String(v)]),
+        ).toString()
+      : "";
+    return request<{ data: DailyCheckRecord[] }>(`/daily-checks${qs}`).then(r => r.data);
+  },
+  createDailyCheck: (data: CreateDailyCheckPayload) =>
+    request<{ data: DailyCheckRecord }>("/daily-checks", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }).then(r => r.data),
+  getDailyCheckTodaySummary: () =>
+    request<{ data: DailyCheckTodaySummary }>("/daily-checks/summary/today").then(r => r.data),
+
   // Parameters (พารามิเตอร์การตรวจสอบของสารแต่ละชนิด)
   getParameters: () => request<ParameterItem[]>("/parameters"),
   createParameter: (data: Partial<ParameterItem>) =>
@@ -226,6 +249,51 @@ export type QCProgressEntry = {
 };
 
 export type QCProgressMap = Record<string, QCProgressEntry[]>;
+
+export type DailyCheckRecord = {
+  _id?: string;
+  scaleId: string;
+  scaleName: string;
+  model?: string;
+  weights100: [string, string, string] | string[];
+  weights10: [string, string, string] | string[];
+  avg100: number;
+  avg10: number;
+  status100: "pass" | "fail";
+  status10: "pass" | "fail";
+  status: "pass" | "fail";
+  tolerance?: number;
+  recorder: string;
+  recorderId?: string;
+  recorderEmail?: string;
+  date: string;       // YYYY-MM-DD
+  checkedAt: string;  // ISO
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateDailyCheckPayload = {
+  scaleId: string;
+  scaleName: string;
+  model?: string;
+  weights100: string[];
+  weights10: string[];
+  avg100: number;
+  avg10: number;
+  status100: "pass" | "fail";
+  status10: "pass" | "fail";
+  tolerance?: number;
+  recorder: string;
+  recorderId?: string;
+  recorderEmail?: string;
+};
+
+export type DailyCheckTodaySummary = {
+  date: string;
+  count: number;
+  scaleIds: string[];
+  allPass: boolean;
+};
 
 export type MachineItem = {
   _id?: string;
@@ -285,10 +353,15 @@ export type ParameterValueField = {
   refFieldLabel?: string | null;
   refPhase?: 1 | 2 | null;
   // Per-option filter: keyed by option string.
-  // ถ้า key ไม่มี = option แสดงให้ทุก item (default)
+  // ถ้า key ไม่มี = option แสดงให้ทุก item (default).
+  // ถ้ามี key แต่ทุกมิติเป็น array ว่าง = แสดงเสมอ.
+  // หากตั้งค่าอย่างน้อย 1 มิติ — OR ข้ามมิติ (เหมือน parameter-level "ใช้กับ").
   optionFilters?: Record<string, {
+    itemNames?: string[];      // exact match กับ item.sampleName
+    commonNames?: string[];    // 'EW' | 'WP' | 'ULV' ... (uppercase)
     productTypes?: string[];   // 'water' | 'sand' | 'powder'
-    subCategories?: string[];  // เช่น 'ULV', 'EC' (uppercase)
+    categories?: string[];     // 'RM' | 'FG' (UI parity เท่านั้น — ไม่ enforce ที่ runtime)
+    subCategories?: string[];  // prefix code เช่น 'F', 'FC', 'RO' (uppercase)
   }>;
 };
 
