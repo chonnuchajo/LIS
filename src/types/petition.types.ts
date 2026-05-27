@@ -107,6 +107,13 @@ export interface PetitionAssignee {
   assignedBy?: string;
 }
 
+export interface PetitionAssignedMachine {
+  machineId: string;
+  code: string;
+  name: string;
+  location?: string;
+}
+
 // ===== Audit log =====
 export type PetitionAuditEvent =
   | 'created'
@@ -161,6 +168,7 @@ interface PetitionBase {
   cause?: string;
   reviewHistory?: ReviewEntry[];
   assignedTo?: PetitionAssignee | null;
+  assignedMachines?: PetitionAssignedMachine[];
   prodOrderNos?: string[];
   sampleSentAt?: string | null;
   receivedAt?: string | null;

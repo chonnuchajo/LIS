@@ -364,7 +364,7 @@ router.patch('/:id/receive', async (req, res) => {
 // PATCH /api/petitions/:id/assign
 router.patch('/:id/assign', async (req, res) => {
   try {
-    const { employeeId, name, department, position, assignedBy } = req.body || {};
+    const { employeeId, name, department, position, assignedBy, machines } = req.body || {};
     if (!employeeId || !name) return badRequest(res, 'กรุณาเลือกเจ้าหน้าที่');
 
     const q = mongoose.Types.ObjectId.isValid(req.params.id)
@@ -383,6 +383,18 @@ router.patch('/:id/assign', async (req, res) => {
       assignedAt: new Date(),
       assignedBy: assignedBy ? String(assignedBy).trim() : undefined,
     };
+
+    if (Array.isArray(machines)) {
+      doc.assignedMachines = machines
+        .filter((m) => m && m.machineId && m.code && m.name)
+        .map((m) => ({
+          machineId: String(m.machineId).trim(),
+          code: String(m.code).trim(),
+          name: String(m.name).trim(),
+          location: m.location ? String(m.location).trim() : undefined,
+        }));
+    }
+
     if (doc.status === 'pendingReview') doc.status = 'inProgress';
 
     await doc.save();
@@ -391,8 +403,8 @@ router.patch('/:id/assign', async (req, res) => {
       fromStatus: prevStatus,
       toStatus: doc.status,
       actor: assignedBy || 'system',
-      note: `มอบหมายให้ ${doc.assignedTo.name}`,
-      metadata: { assignee: doc.assignedTo },
+      note: `มอบหมายให้ ${doc.assignedTo.name}${doc.assignedMachines?.length ? ` (เครื่อง: ${doc.assignedMachines.map((m) => m.code).join(', ')})` : ''}`,
+      metadata: { assignee: doc.assignedTo, machines: doc.assignedMachines },
     });
     res.json(doc);
   } catch (err) {

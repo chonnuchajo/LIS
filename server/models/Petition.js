@@ -56,6 +56,16 @@ const PetitionAssigneeSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const PetitionAssignedMachineSchema = new mongoose.Schema(
+  {
+    machineId: { type: String, required: true },
+    code: { type: String, required: true },
+    name: { type: String, required: true },
+    location: String,
+  },
+  { _id: false },
+);
+
 const MachineCheckSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
@@ -205,6 +215,7 @@ const PetitionSchema = new mongoose.Schema(
     cause: String,
     reviewHistory: { type: [ReviewEntrySchema], default: [] },
     assignedTo: PetitionAssigneeSchema,
+    assignedMachines: { type: [PetitionAssignedMachineSchema], default: [] },
     prodOrderNos: { type: [String], default: [], index: true },
 
     // 2-phase testing — used when at least one parameter on this petition has hasPhases=true
