@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Filter,
   GripVertical,
   Hash,
   Image as ImageIcon,
@@ -710,6 +711,66 @@ type ValueFieldEditorProps = {
   currentParameterId?: string;
 };
 
+function SubCategoryChips({
+  values,
+  onChange,
+}: {
+  values: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [draft, setDraft] = useState('');
+  const add = () => {
+    const v = draft.trim().toUpperCase();
+    if (!v) return;
+    if (values.includes(v)) {
+      setDraft('');
+      return;
+    }
+    onChange([...values, v]);
+    setDraft('');
+  };
+  const remove = (v: string) => onChange(values.filter((x) => x !== v));
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-grey-600">หมวดย่อย (subCategory)</Label>
+      <div className="flex gap-1.5">
+        <Input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder="เช่น ULV"
+          className="h-7 text-sm uppercase"
+        />
+        <Button type="button" size="sm" variant="outline" className="h-7" onClick={add}>
+          เพิ่ม
+        </Button>
+      </div>
+      {values.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {values.map((v) => (
+            <Badge key={v} variant="secondary" className="gap-1 text-xs">
+              {v}
+              <button
+                type="button"
+                onClick={() => remove(v)}
+                className="text-grey-500 hover:text-red-500"
+                aria-label={`ลบ ${v}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ValueFieldEditor({
   field,
   index,
@@ -736,11 +797,14 @@ function ValueFieldEditor({
   };
 
   const removeOption = (opt: string) => {
+    const nextFilters = { ...(field.optionFilters ?? {}) };
+    delete nextFilters[opt];
     onChange({
       ...field,
       options: (field.options ?? []).filter((o) => o !== opt),
       requireNoteOn: (field.requireNoteOn ?? []).filter((o) => o !== opt),
       expectedValues: (field.expectedValues ?? []).filter((o) => o !== opt),
+      optionFilters: Object.keys(nextFilters).length > 0 ? nextFilters : undefined,
     });
   };
 
@@ -758,6 +822,25 @@ function ValueFieldEditor({
       ? current.filter((o) => o !== opt)
       : [...current, opt];
     onChange({ ...field, expectedValues: next });
+  };
+
+  const setOptionFilter = (
+    opt: string,
+    next: { productTypes?: string[]; subCategories?: string[] },
+  ) => {
+    const current = field.optionFilters ?? {};
+    const hasAny = (next.productTypes?.length ?? 0) > 0 || (next.subCategories?.length ?? 0) > 0;
+    let nextFilters: Record<string, { productTypes?: string[]; subCategories?: string[] }>;
+    if (!hasAny) {
+      nextFilters = { ...current };
+      delete nextFilters[opt];
+    } else {
+      nextFilters = { ...current, [opt]: next };
+    }
+    onChange({
+      ...field,
+      optionFilters: Object.keys(nextFilters).length > 0 ? nextFilters : undefined,
+    });
   };
 
   const requiresUnit = field.type === "number" || field.type === "float";
@@ -1094,7 +1177,25 @@ function ValueFieldEditor({
                         key={opt}
                         className="flex items-center justify-between gap-2 rounded border bg-background px-2 py-1 text-xs"
                       >
-                        <span className="font-medium">{opt}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium">{opt}</span>
+                          {(() => {
+                            const f = field.optionFilters?.[opt];
+                            if (!f) return null;
+                            const pts = f.productTypes ?? [];
+                            const scs = f.subCategories ?? [];
+                            if (pts.length === 0 && scs.length === 0) return null;
+                            const ptLabel = pts.map((p) => productTypeLabels[p] ?? p).join(', ');
+                            const scLabel = scs.join(', ');
+                            const parts = [ptLabel, scLabel].filter(Boolean).join(' · ');
+                            return (
+                              <Badge variant="secondary" className="gap-1 text-[10px] bg-emerald-50 text-emerald-700">
+                                <Filter className="h-2.5 w-2.5" />
+                                {parts}
+                              </Badge>
+                            );
+                          })()}
+                        </div>
                         <div className="flex items-center gap-3">
                           <label className="flex cursor-pointer items-center gap-1 text-emerald-700">
                             <Checkbox
@@ -1112,6 +1213,72 @@ function ValueFieldEditor({
                             />
                             ต้องการคำอธิบาย
                           </label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className={cn(
+                                  "rounded p-0.5 hover:bg-emerald-50",
+                                  (field.optionFilters?.[opt]?.productTypes?.length ?? 0) +
+                                    (field.optionFilters?.[opt]?.subCategories?.length ?? 0) > 0
+                                    ? "text-emerald-600"
+                                    : "text-grey-400",
+                                )}
+                                title="แสดงเฉพาะ item ที่..."
+                              >
+                                <Filter className="h-3.5 w-3.5" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-72 p-3 space-y-3" align="end">
+                              <div className="text-xs font-semibold text-grey-700">แสดงเฉพาะ item ที่...</div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs text-grey-600">ประเภทสินค้า</Label>
+                                <div className="flex flex-wrap gap-3">
+                                  {(['water', 'sand', 'powder'] as const).map((pt) => {
+                                    const current = field.optionFilters?.[opt]?.productTypes ?? [];
+                                    const checked = current.includes(pt);
+                                    return (
+                                      <label key={pt} className="flex items-center gap-1.5 text-sm">
+                                        <Checkbox
+                                          checked={checked}
+                                          onCheckedChange={(v) => {
+                                            const nextPT = v
+                                              ? Array.from(new Set([...current, pt]))
+                                              : current.filter((x) => x !== pt);
+                                            setOptionFilter(opt, {
+                                              productTypes: nextPT,
+                                              subCategories: field.optionFilters?.[opt]?.subCategories ?? [],
+                                            });
+                                          }}
+                                        />
+                                        <span>{productTypeLabels[pt] ?? pt}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              <SubCategoryChips
+                                values={field.optionFilters?.[opt]?.subCategories ?? []}
+                                onChange={(scs) =>
+                                  setOptionFilter(opt, {
+                                    productTypes: field.optionFilters?.[opt]?.productTypes ?? [],
+                                    subCategories: scs,
+                                  })
+                                }
+                              />
+                              <div className="flex justify-end pt-1">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 text-xs"
+                                  onClick={() => setOptionFilter(opt, { productTypes: [], subCategories: [] })}
+                                >
+                                  เคลียร์
+                                </Button>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                           <button
                             type="button"
                             onClick={() => removeOption(opt)}
