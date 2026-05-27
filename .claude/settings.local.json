@@ -7,7 +7,12 @@
       "Bash(npx tsc *)",
       "Bash(node *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/api/parameters)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Project\\\\LIS\" -Force)",
+      "Bash(Select-Object Name)",
+      "Bash(sed 's/[><]//g')",
+      "Bash(grep -v \"^C:\\\\\\\\Project\\\\\\\\LIS\\\\\\\\src/pages/DashboardRedirect.tsx\")",
+      "Bash(grep -v \"^C:\\\\\\\\Project\\\\\\\\LIS\\\\\\\\src/pages/.*Page\\\\\\\\.tsx\")"
     ]
   }
 }
