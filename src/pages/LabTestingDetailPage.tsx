@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
-import { matchParametersForItem } from '@/lib/petitionTestItems';
+import { matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -87,6 +87,7 @@ function describeStandard(field: ParameterValueField): string {
 
 interface TestFieldProps {
   field: ParameterValueField;
+  item: PetitionItem;
   value: unknown;
   noteValue: unknown;
   saveInfo?: FieldSaveInfo;
@@ -99,6 +100,7 @@ interface TestFieldProps {
 
 function TestField({
   field,
+  item,
   value,
   noteValue,
   saveInfo,
@@ -165,9 +167,22 @@ function TestField({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">— เลือก —</SelectItem>
-            {field.options?.map((opt) => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-            ))}
+            {(() => {
+              const visible = visibleEnumOptions(field, item);
+              const savedOutOfScope = strVal && !visible.includes(strVal);
+              return (
+                <>
+                  {visible.map((opt) => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                  {savedOutOfScope && (
+                    <SelectItem key="__saved__" value={strVal} disabled>
+                      {strVal} (นอกเงื่อนไข — ค่าเดิม)
+                    </SelectItem>
+                  )}
+                </>
+              );
+            })()}
           </SelectContent>
         </Select>
       ) : field.type === 'photo' ? (
@@ -752,6 +767,7 @@ export default function LabTestingDetailPage() {
                                 <div key={field.label}>
                                   <TestField
                                     field={field}
+                                    item={item}
                                     value={phaseValues[k]?.[field.label] ?? ''}
                                     noteValue={phaseValues[k]?.[noteLabel] ?? ''}
                                     saveInfo={phaseSaves[k]?.[field.label]}
@@ -818,6 +834,7 @@ export default function LabTestingDetailPage() {
                                 <TestField
                                   key={field.label}
                                   field={field}
+                                  item={item}
                                   value={phaseValues[k]?.[field.label] ?? ''}
                                   noteValue={phaseValues[k]?.[noteLabel] ?? ''}
                                   saveInfo={phaseSaves[k]?.[field.label]}
