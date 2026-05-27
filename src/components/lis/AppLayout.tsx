@@ -3,6 +3,7 @@ import { Menu } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
 import AppSidebar from "@/components/lis/AppSidebar";
+import NotificationBell from "@/components/lis/NotificationBell";
 import { cn } from "@/lib/utils";
 
 interface AppLayoutProps {
@@ -76,6 +77,7 @@ const AppLayout = ({
             <h1 className="text-sm font-bold text-foreground tracking-wide">LIS</h1>
           )}
         </div>
+        <NotificationBell />
       </header>
 
       {/* Main content — push down to clear the fixed mobile topbar */}

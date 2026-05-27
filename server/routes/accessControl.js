@@ -318,8 +318,13 @@ router.put('/roles/:id/permissions', async (req, res) => {
       ...groups.map(group => group.id),
       ...groups.flatMap(group => group.paths || []),
     ]);
+    // Also accept route-shaped strings (`/...`) so per-page entries from the
+    // computed 'others' group — paths that live only in the frontend's
+    // PAGE_ITEMS and aren't stored in any group's `paths` — survive the filter.
     const permissions = Array.isArray(req.body.permissions)
-      ? req.body.permissions.filter(id => validIds.has(id))
+      ? req.body.permissions.filter(
+          id => typeof id === 'string' && (validIds.has(id) || id.startsWith('/')),
+        )
       : [];
     const role = await Role.findOneAndUpdate(
       { id: req.params.id },

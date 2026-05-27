@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
-import { matchParametersForItem } from '@/lib/petitionTestItems';
+import { matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -87,6 +87,7 @@ function describeStandard(field: ParameterValueField): string {
 
 interface TestFieldProps {
   field: ParameterValueField;
+  item: PetitionItem;
   value: unknown;
   noteValue: unknown;
   saveInfo?: FieldSaveInfo;
@@ -99,6 +100,7 @@ interface TestFieldProps {
 
 function TestField({
   field,
+  item,
   value,
   noteValue,
   saveInfo,
@@ -165,9 +167,22 @@ function TestField({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">— เลือก —</SelectItem>
-            {field.options?.map((opt) => (
-              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-            ))}
+            {(() => {
+              const visible = visibleEnumOptions(field, item);
+              const savedOutOfScope = strVal && !visible.includes(strVal);
+              return (
+                <>
+                  {visible.map((opt) => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                  {savedOutOfScope && (
+                    <SelectItem key="__saved__" value={strVal} disabled>
+                      {strVal} (นอกเงื่อนไข — ค่าเดิม)
+                    </SelectItem>
+                  )}
+                </>
+              );
+            })()}
           </SelectContent>
         </Select>
       ) : field.type === 'photo' ? (
@@ -249,6 +264,7 @@ export default function LabTestingDetailPage() {
   });
 
   const [allParameters, setAllParameters] = useState<ParameterItem[]>([]);
+  const [paramsLoaded, setParamsLoaded] = useState(false);
   const [savedResults, setSavedResults] = useState<QCTestResult[]>([]);
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({});
   const [valuesPhase2, setValuesPhase2] = useState<Record<string, Record<string, unknown>>>({});
@@ -268,7 +284,8 @@ export default function LabTestingDetailPage() {
         );
         setAllParameters(labParams);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setParamsLoaded(true));
   }, []);
 
   // Auto-advance status pendingReview → inProgress when Lab enters the first value
@@ -422,8 +439,15 @@ export default function LabTestingDetailPage() {
     );
   }
 
-  // Show only Lab batch items (batchNo ending in 1 or 6)
-  const labItems = (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
+  // Show only Lab items: lab-batch (batchNo 1/6) AND have at least one
+  // lab-scope or QC-shared-with-lab parameter matching the item's classification.
+  // Items with no Lab-readable params should not appear here.
+  const allLabBatchItems = (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
+  const labItems = paramsLoaded
+    ? allLabBatchItems.filter(
+        (it) => matchParametersForItem(it, allParameters).length > 0,
+      )
+    : allLabBatchItems;
 
   // 2-phase support: does any matched parameter use hasPhases?
   const hasAnyPhasedParam = labItems.some((item) =>
@@ -605,12 +629,22 @@ export default function LabTestingDetailPage() {
 
         {/* Worklist tab strip */}
         {worklistData && worklistData.items.filter((p) =>
-          (p.items ?? []).some((it) => isLabBatchNo(it.batchNo))
+          (p.items ?? []).some(
+            (it) =>
+              isLabBatchNo(it.batchNo) &&
+              matchParametersForItem(it, allParameters).length > 0,
+          )
         ).length > 1 && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 -mt-2">
             <span className="text-xs text-grey-500 shrink-0 mr-1">สลับไป:</span>
             {worklistData.items
-              .filter((p) => (p.items ?? []).some((it) => isLabBatchNo(it.batchNo)))
+              .filter((p) =>
+                (p.items ?? []).some(
+                  (it) =>
+                    isLabBatchNo(it.batchNo) &&
+                    matchParametersForItem(it, allParameters).length > 0,
+                ),
+              )
               .map((p) => {
                 const isActive = p._id === petition._id;
                 return (
@@ -733,6 +767,7 @@ export default function LabTestingDetailPage() {
                                 <div key={field.label}>
                                   <TestField
                                     field={field}
+                                    item={item}
                                     value={phaseValues[k]?.[field.label] ?? ''}
                                     noteValue={phaseValues[k]?.[noteLabel] ?? ''}
                                     saveInfo={phaseSaves[k]?.[field.label]}
@@ -799,6 +834,7 @@ export default function LabTestingDetailPage() {
                                 <TestField
                                   key={field.label}
                                   field={field}
+                                  item={item}
                                   value={phaseValues[k]?.[field.label] ?? ''}
                                   noteValue={phaseValues[k]?.[noteLabel] ?? ''}
                                   saveInfo={phaseSaves[k]?.[field.label]}

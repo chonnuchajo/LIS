@@ -4,12 +4,14 @@ import { FlaskConical, Search, AlertTriangle, QrCode, RotateCcw } from 'lucide-r
 import AppLayout from '@/components/lis/AppLayout';
 import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
-import { api } from '@/lib/api';
+import { api, type ParameterItem } from '@/lib/api';
+import { matchParametersForItem } from '@/lib/petitionTestItems';
 import {
   PETITION_DEPT_LABELS,
   PETITION_STATUS_CONFIG,
   type Petition,
   type PetitionDept,
+  type PetitionItem,
 } from '@/types/petition.types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -35,7 +37,8 @@ const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
 
 const ENTRY_STATUSES = new Set(['pendingReview', 'inProgress']);
 const isLabBatchNo = (batchNo?: string | null) => /[16]$/.test(String(batchNo ?? '').trim());
-const hasLabItem = (p: Petition) => (p.items ?? []).some((it) => isLabBatchNo(it.batchNo));
+const isLabReadableItem = (it: PetitionItem, params: ParameterItem[]) =>
+  isLabBatchNo(it.batchNo) && matchParametersForItem(it, params).length > 0;
 
 export default function LabTestingPage() {
   const navigate = useNavigate();
@@ -44,6 +47,21 @@ export default function LabTestingPage() {
   const [search, setSearch] = useState('');
   const [dept, setDept] = useState<PetitionDept | ''>('');
   const [scanOpen, setScanOpen] = useState(false);
+  const [labParams, setLabParams] = useState<ParameterItem[]>([]);
+  const [paramsLoaded, setParamsLoaded] = useState(false);
+
+  useEffect(() => {
+    api.getParameters()
+      .then((all) =>
+        setLabParams(
+          all.filter(
+            (p) => p.scope === 'lab' || (p.scope === 'qc' && p.shareWithLab === true),
+          ),
+        ),
+      )
+      .catch(() => {})
+      .finally(() => setParamsLoaded(true));
+  }, []);
 
   const { data, loading, refresh } = usePetitionList({
     status: 'sampleSent,pendingReview,inProgress',
@@ -53,7 +71,11 @@ export default function LabTestingPage() {
   });
 
   const petitions: Petition[] = (data?.items ?? [])
-    .filter(hasLabItem)
+    .filter((p) =>
+      paramsLoaded
+        ? (p.items ?? []).some((it) => isLabReadableItem(it, labParams))
+        : (p.items ?? []).some((it) => isLabBatchNo(it.batchNo)),
+    )
     .filter((p) => isFullAccess || p.assignedTo?.name === user?.name);
 
   const [abnormalMap, setAbnormalMap] = useState<Record<string, boolean>>({});
@@ -147,7 +169,9 @@ export default function LabTestingPage() {
               ) : (
                 petitions.map((p) => {
                   const statusCfg = PETITION_STATUS_CONFIG[p.status];
-                  const labItems = (p.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
+                  const labItems = (p.items ?? []).filter((it) =>
+                    paramsLoaded ? isLabReadableItem(it, labParams) : isLabBatchNo(it.batchNo),
+                  );
                   const canEnter = ENTRY_STATUSES.has(p.status);
                   return (
                     <TableRow

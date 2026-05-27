@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Filter,
   GripVertical,
   Hash,
   Image as ImageIcon,
@@ -698,6 +699,14 @@ function summarizeField(field: ParameterValueField): string {
   }
 }
 
+type OptionFilter = {
+  itemNames?: string[];
+  commonNames?: string[];
+  productTypes?: string[];
+  categories?: string[];
+  subCategories?: string[];
+};
+
 type ValueFieldEditorProps = {
   field: ParameterValueField;
   index: number;
@@ -708,7 +717,180 @@ type ValueFieldEditorProps = {
   hasPhases?: boolean;
   allParameters?: ParameterItem[];
   currentParameterId?: string;
+  itemNameOptions?: string[];
+  commonNameOptions?: string[];
+  productTypeOptions?: string[];
+  categoryOptions?: string[];
+  subCategoryByParent?: Record<SubCategoryParent, string[]>;
 };
+
+function summarizeOptionFilter(f: OptionFilter | undefined): string {
+  if (!f) return '';
+  const parts: string[] = [];
+  if ((f.itemNames?.length ?? 0) > 0) {
+    parts.push(`item: ${(f.itemNames ?? []).slice(0, 2).join('/')}${(f.itemNames?.length ?? 0) > 2 ? `+${(f.itemNames?.length ?? 0) - 2}` : ''}`);
+  }
+  if ((f.commonNames?.length ?? 0) > 0) {
+    parts.push(`common: ${(f.commonNames ?? []).slice(0, 3).join('/')}`);
+  }
+  if ((f.productTypes?.length ?? 0) > 0) {
+    parts.push((f.productTypes ?? []).map((p) => productTypeLabels[p] ?? p).join('/'));
+  }
+  if ((f.categories?.length ?? 0) > 0) {
+    parts.push((f.categories ?? []).join('/'));
+  }
+  if ((f.subCategories?.length ?? 0) > 0) {
+    parts.push(`sub: ${(f.subCategories ?? []).slice(0, 3).join('/')}`);
+  }
+  return parts.join(' · ');
+}
+
+function OptionFilterBadge({ filter }: { filter?: OptionFilter }) {
+  const label = summarizeOptionFilter(filter);
+  if (!label) return null;
+  return (
+    <Badge variant="secondary" className="gap-1 text-[10px] bg-emerald-50 text-emerald-700 max-w-[280px] truncate">
+      <Filter className="h-2.5 w-2.5 shrink-0" />
+      <span className="truncate">{label}</span>
+    </Badge>
+  );
+}
+
+function OptionFilterDialog({
+  opt,
+  filter,
+  itemNameOptions,
+  commonNameOptions,
+  productTypeOptions,
+  categoryOptions,
+  subCategoryByParent,
+  onSetFilter,
+  onClear,
+}: {
+  opt: string;
+  filter?: OptionFilter;
+  itemNameOptions: string[];
+  commonNameOptions: string[];
+  productTypeOptions: string[];
+  categoryOptions: string[];
+  subCategoryByParent?: Record<SubCategoryParent, string[]>;
+  onSetFilter: (next: OptionFilter) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const hasAny =
+    (filter?.itemNames?.length ?? 0) +
+      (filter?.commonNames?.length ?? 0) +
+      (filter?.productTypes?.length ?? 0) +
+      (filter?.categories?.length ?? 0) +
+      (filter?.subCategories?.length ?? 0) >
+    0;
+
+  const activeParents = (filter?.categories ?? []).filter(
+    (c): c is SubCategoryParent => (SUB_CATEGORY_PARENTS as readonly string[]).includes(c),
+  );
+  const groupedSubs = activeParents
+    .map((parent) => ({
+      label: `${parent} — หมวดย่อยจาก code`,
+      options: subCategoryByParent?.[parent] ?? [],
+    }))
+    .filter((g) => g.options.length > 0);
+  const flatSubOptions = groupedSubs.flatMap((g) => g.options);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={cn(
+          "rounded p-0.5 hover:bg-emerald-50",
+          hasAny ? "text-emerald-600" : "text-grey-400",
+        )}
+        title="แสดงเฉพาะ item ที่..."
+      >
+        <Filter className="h-3.5 w-3.5" />
+      </button>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-base">แสดงเฉพาะ item ที่... — "{opt}"</DialogTitle>
+          <p className="text-xs text-muted-foreground">
+            เลือกได้หลายมิติพร้อมกัน — OR ข้ามมิติ (ตรงมิติใดมิติหนึ่งก็แสดง). ปล่อยว่างทั้งหมด = แสดงทุก item
+          </p>
+        </DialogHeader>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 pt-2">
+          <MultiSelectPopover
+            label="Item Name"
+            placeholder="เลือก item name"
+            values={filter?.itemNames ?? []}
+            onChange={(v) => onSetFilter({ itemNames: v })}
+            options={itemNameOptions}
+            emptyText="ยังไม่มี master items"
+          />
+          <MultiSelectPopover
+            label="Common Name"
+            placeholder="เลือก common name (EC / SC / WP ...)"
+            values={filter?.commonNames ?? []}
+            onChange={(v) => onSetFilter({ commonNames: v })}
+            options={commonNameOptions}
+            labelFor={formatClassificationOption}
+            emptyText="ยังไม่มี common name"
+          />
+          <MultiSelectPopover
+            label="ประเภท"
+            placeholder="เลือกประเภทสินค้า (น้ำ / ทราย / ผง)"
+            values={filter?.productTypes ?? []}
+            onChange={(v) => onSetFilter({ productTypes: v })}
+            options={productTypeOptions}
+            labelFor={formatProductTypeOption}
+            emptyText="ยังไม่มีประเภท"
+          />
+          <MultiSelectPopover
+            label="หมวดหมู่"
+            placeholder="เลือกหมวดหมู่ (RM / FG)"
+            values={filter?.categories ?? []}
+            onChange={(v) => {
+              const nextParents = new Set(
+                v.filter((c): c is SubCategoryParent =>
+                  (SUB_CATEGORY_PARENTS as readonly string[]).includes(c),
+                ),
+              );
+              const allowedSubs = new Set(
+                Array.from(nextParents).flatMap((p) => subCategoryByParent?.[p] ?? []),
+              );
+              onSetFilter({
+                categories: v,
+                subCategories: (filter?.subCategories ?? []).filter((s) => allowedSubs.has(s)),
+              });
+            }}
+            options={categoryOptions}
+            emptyText="ยังไม่มีหมวดหมู่"
+          />
+          {activeParents.length > 0 && (
+            <div className="md:col-span-2">
+              <MultiSelectPopover
+                label={`หมวดหมู่ย่อย (prefix code ของ ${activeParents.join(' / ')})`}
+                placeholder="เลือก prefix เช่น F, FC, RO, RC ..."
+                values={filter?.subCategories ?? []}
+                onChange={(v) => onSetFilter({ subCategories: v })}
+                options={flatSubOptions}
+                groupedOptions={groupedSubs.length > 1 ? groupedSubs : undefined}
+                emptyText="ไม่พบ prefix จาก master items"
+              />
+            </div>
+          )}
+        </div>
+        <DialogFooter className="gap-2 pt-2">
+          <Button type="button" variant="ghost" onClick={onClear} disabled={!hasAny}>
+            เคลียร์ทั้งหมด
+          </Button>
+          <Button type="button" onClick={() => setOpen(false)}>
+            เสร็จ
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function ValueFieldEditor({
   field,
@@ -720,6 +902,11 @@ function ValueFieldEditor({
   hasPhases = false,
   allParameters = [],
   currentParameterId,
+  itemNameOptions = [],
+  commonNameOptions = [],
+  productTypeOptions = [],
+  categoryOptions = [],
+  subCategoryByParent,
 }: ValueFieldEditorProps) {
   const [optionDraft, setOptionDraft] = useState("");
   const [expanded, setExpanded] = useState(!field.label?.trim());
@@ -736,11 +923,14 @@ function ValueFieldEditor({
   };
 
   const removeOption = (opt: string) => {
+    const nextFilters = { ...(field.optionFilters ?? {}) };
+    delete nextFilters[opt];
     onChange({
       ...field,
       options: (field.options ?? []).filter((o) => o !== opt),
       requireNoteOn: (field.requireNoteOn ?? []).filter((o) => o !== opt),
       expectedValues: (field.expectedValues ?? []).filter((o) => o !== opt),
+      optionFilters: Object.keys(nextFilters).length > 0 ? nextFilters : undefined,
     });
   };
 
@@ -758,6 +948,40 @@ function ValueFieldEditor({
       ? current.filter((o) => o !== opt)
       : [...current, opt];
     onChange({ ...field, expectedValues: next });
+  };
+
+  const setOptionFilter = (opt: string, next: OptionFilter) => {
+    const current = field.optionFilters ?? {};
+    const merged: OptionFilter = { ...(current[opt] ?? {}), ...next };
+    // Drop empty arrays so the entry "has any" check is honest
+    const nonEmpty: OptionFilter = {};
+    if ((merged.itemNames?.length ?? 0) > 0) nonEmpty.itemNames = merged.itemNames;
+    if ((merged.commonNames?.length ?? 0) > 0) nonEmpty.commonNames = merged.commonNames;
+    if ((merged.productTypes?.length ?? 0) > 0) nonEmpty.productTypes = merged.productTypes;
+    if ((merged.categories?.length ?? 0) > 0) nonEmpty.categories = merged.categories;
+    if ((merged.subCategories?.length ?? 0) > 0) nonEmpty.subCategories = merged.subCategories;
+    const hasAny = Object.keys(nonEmpty).length > 0;
+    let nextFilters: Record<string, OptionFilter>;
+    if (!hasAny) {
+      nextFilters = { ...current };
+      delete nextFilters[opt];
+    } else {
+      nextFilters = { ...current, [opt]: nonEmpty };
+    }
+    onChange({
+      ...field,
+      optionFilters: Object.keys(nextFilters).length > 0 ? nextFilters : undefined,
+    });
+  };
+
+  const clearOptionFilter = (opt: string) => {
+    const current = field.optionFilters ?? {};
+    const nextFilters = { ...current };
+    delete nextFilters[opt];
+    onChange({
+      ...field,
+      optionFilters: Object.keys(nextFilters).length > 0 ? nextFilters : undefined,
+    });
   };
 
   const requiresUnit = field.type === "number" || field.type === "float";
@@ -1094,8 +1318,11 @@ function ValueFieldEditor({
                         key={opt}
                         className="flex items-center justify-between gap-2 rounded border bg-background px-2 py-1 text-xs"
                       >
-                        <span className="font-medium">{opt}</span>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span className="font-medium truncate">{opt}</span>
+                          <OptionFilterBadge filter={field.optionFilters?.[opt]} />
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
                           <label className="flex cursor-pointer items-center gap-1 text-emerald-700">
                             <Checkbox
                               checked={isExpected}
@@ -1112,6 +1339,17 @@ function ValueFieldEditor({
                             />
                             ต้องการคำอธิบาย
                           </label>
+                          <OptionFilterDialog
+                            opt={opt}
+                            filter={field.optionFilters?.[opt]}
+                            itemNameOptions={itemNameOptions}
+                            commonNameOptions={commonNameOptions}
+                            productTypeOptions={productTypeOptions}
+                            categoryOptions={categoryOptions}
+                            subCategoryByParent={subCategoryByParent}
+                            onSetFilter={(next) => setOptionFilter(opt, next)}
+                            onClear={() => clearOptionFilter(opt)}
+                          />
                           <button
                             type="button"
                             onClick={() => removeOption(opt)}
@@ -1814,6 +2052,11 @@ function ParameterDialog({
                     hasPhases={!!form.hasPhases}
                     allParameters={allParameters}
                     currentParameterId={item?._id}
+                    itemNameOptions={itemNameOptions}
+                    commonNameOptions={commonNameOptions}
+                    productTypeOptions={productTypeOptions}
+                    categoryOptions={categoryOptions}
+                    subCategoryByParent={subCategoryByParent}
                   />
                 ))}
               </div>

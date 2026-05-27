@@ -1,4 +1,4 @@
-import type { ParameterItem } from '@/lib/api';
+import type { ParameterItem, ParameterValueField } from '@/lib/api';
 import type { PetitionItem, Petition } from '@/types/petition.types';
 import { getClassification, getCommonName } from '@/lib/productClassification';
 
@@ -7,6 +7,18 @@ function extractItemNoPrefix(itemNo: string | undefined | null): string {
   if (!cleaned) return '';
   const dashIdx = cleaned.indexOf('-');
   return (dashIdx > 0 ? cleaned.slice(0, dashIdx) : cleaned).toUpperCase();
+}
+
+export function getItemProductType(item: PetitionItem): string {
+  return (
+    getClassification(item.sampleName)?.group ??
+    getClassification(item.commonName)?.group ??
+    ''
+  );
+}
+
+export function getItemSubCategory(item: PetitionItem): string {
+  return extractItemNoPrefix(item.sampleId);
 }
 
 // Returns true when the parameter's "ใช้กับ" criteria fit this petition item.
@@ -47,13 +59,10 @@ export function parameterAppliesToItem(
     return true;
   }
 
-  const productType =
-    getClassification(item.sampleName)?.group ??
-    getClassification(item.commonName)?.group ??
-    '';
+  const productType = getItemProductType(item);
   if (productType && productTypes.includes(productType)) return true;
 
-  const subCat = extractItemNoPrefix(item.sampleId);
+  const subCat = getItemSubCategory(item);
   if (subCat && subCategories.includes(subCat)) return true;
 
   return false;
@@ -97,4 +106,52 @@ export function parameterNamesForPetition(
     }
   }
   return names;
+}
+
+// Filter enum options based on item's classification.
+// option ที่ไม่มี entry ใน optionFilters = แสดงเสมอ (backward-compatible).
+// option ที่มี entry แต่ทุกมิติว่าง = แสดงเสมอ.
+// option ที่ตั้ง filter ≥ 1 มิติ — OR ข้ามมิติ (เหมือน parameterAppliesToItem).
+// Categories (RM/FG) ไม่ enforce ที่ runtime เพราะ item ไม่พก context นี้.
+export function visibleEnumOptions(
+  field: ParameterValueField,
+  item: PetitionItem,
+): string[] {
+  const options = field.options ?? [];
+  const filters = field.optionFilters;
+  if (!filters) return options;
+
+  const sampleName = item.sampleName?.trim() ?? '';
+  const itemCommonName = (
+    item.commonName?.trim() || getCommonName(item.sampleName)
+  ).toUpperCase();
+  const itemProductType = getItemProductType(item);
+  const itemSubCat = getItemSubCategory(item);
+
+  return options.filter((opt) => {
+    const f = filters[opt];
+    if (!f) return true;
+    const itemNames = f.itemNames ?? [];
+    const commonNames = f.commonNames ?? [];
+    const productTypes = f.productTypes ?? [];
+    const subCategories = f.subCategories ?? [];
+    if (
+      itemNames.length === 0 &&
+      commonNames.length === 0 &&
+      productTypes.length === 0 &&
+      subCategories.length === 0
+    ) {
+      return true;
+    }
+    if (sampleName && itemNames.some((n) => n.trim() === sampleName)) return true;
+    if (
+      itemCommonName &&
+      commonNames.some((c) => c.toUpperCase() === itemCommonName)
+    ) {
+      return true;
+    }
+    if (itemProductType && productTypes.includes(itemProductType)) return true;
+    if (itemSubCat && subCategories.includes(itemSubCat)) return true;
+    return false;
+  });
 }

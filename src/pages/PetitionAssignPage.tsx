@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ClipboardCheck, FlaskConical, Hourglass, RefreshCw, Search, UserCheck } from 'lucide-react';
+import { ClipboardCheck, Cog, FlaskConical, Hourglass, RefreshCw, Search, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { NativeSelect } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
@@ -19,11 +21,12 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/hooks/useAuth';
 import { usePetitionList } from '@/hooks/usePetition';
-import { api } from '@/lib/api';
+import { api, type MachineItem } from '@/lib/api';
 import {
   PETITION_STATUS_CONFIG,
   type Petition,
   type PetitionAssignee,
+  type PetitionAssignedMachine,
 } from '@/types/petition.types';
 
 type TabKey = 'normal' | 'phase2';
@@ -47,6 +50,15 @@ interface EmployeeAssignee {
 
 function employeeLabel(employee: EmployeeAssignee) {
   return `${employee.name} (${employee.employeeId})`;
+}
+
+function toAssignedMachine(machine: MachineItem): PetitionAssignedMachine {
+  return {
+    machineId: machine._id || machine.code,
+    code: machine.code,
+    name: machine.name,
+    location: machine.location,
+  };
 }
 
 function getCommonNames(petition: Petition) {
@@ -77,7 +89,11 @@ export default function PetitionAssignPage() {
   const [employees, setEmployees] = useState<EmployeeAssignee[]>([]);
   const [employeesLoading, setEmployeesLoading] = useState(true);
   const [employeesError, setEmployeesError] = useState<string | null>(null);
+  const [machines, setMachines] = useState<MachineItem[]>([]);
+  const [machinesLoading, setMachinesLoading] = useState(true);
+  const [machinesError, setMachinesError] = useState<string | null>(null);
   const [selectedByPetition, setSelectedByPetition] = useState<Record<string, string>>({});
+  const [machinesByPetition, setMachinesByPetition] = useState<Record<string, string[]>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<TabKey>('normal');
@@ -105,12 +121,59 @@ export default function PetitionAssignPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    setMachinesLoading(true);
+    setMachinesError(null);
+
+    api.getMachines()
+      .then((items) => {
+        if (!alive) return;
+        setMachines((items ?? []).filter((m) => m.status !== 'retired'));
+      })
+      .catch((err: Error) => {
+        if (!alive) return;
+        setMachinesError(err.message);
+      })
+      .finally(() => {
+        if (alive) setMachinesLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const employeeById = useMemo(
     () => new Map(employees.map((employee) => [employee.employeeId, employee])),
     [employees],
   );
+  const machineById = useMemo(
+    () => new Map(machines.map((machine) => [machine._id || machine.code, machine])),
+    [machines],
+  );
   const loading = pendingLoading || inProgressLoading;
   const error = pendingError || inProgressError;
+
+  function getSelectedMachineIds(petition: Petition): string[] {
+    if (machinesByPetition[petition._id] !== undefined) {
+      return machinesByPetition[petition._id];
+    }
+    return (petition.assignedMachines ?? []).map((m) => m.machineId);
+  }
+
+  function toggleMachineForPetition(petitionId: string, machineKey: string) {
+    setMachinesByPetition((prev) => {
+      const petition = allPetitions.find((p) => p._id === petitionId);
+      const baseline = prev[petitionId]
+        ?? petition?.assignedMachines?.map((m) => m.machineId)
+        ?? [];
+      const next = baseline.includes(machineKey)
+        ? baseline.filter((id) => id !== machineKey)
+        : [...baseline, machineKey];
+      return { ...prev, [petitionId]: next };
+    });
+  }
 
   function refreshPetitions() {
     refreshPending();
@@ -155,16 +218,28 @@ export default function PetitionAssignPage() {
       return;
     }
 
+    const machineIds = getSelectedMachineIds(petition);
+    const machinesPayload: PetitionAssignedMachine[] = machineIds
+      .map((id) => machineById.get(id))
+      .filter((m): m is MachineItem => Boolean(m))
+      .map(toAssignedMachine);
+
     setSavingId(petition._id);
     try {
       await api.patch<Petition>(`/petitions/${petition._id}/assign`, {
-        employeeId: employee.employeeId,
-        name: employee.name,
-        department: employee.department,
-        position: employee.position,
-        assignedBy: user?.name || user?.email,
-      } satisfies PetitionAssignee);
-      toast.success(`Assign ${petition.petitionNo} ให้ ${employee.name} แล้ว`);
+        ...({
+          employeeId: employee.employeeId,
+          name: employee.name,
+          department: employee.department,
+          position: employee.position,
+          assignedBy: user?.name || user?.email,
+        } satisfies PetitionAssignee),
+        machines: machinesPayload,
+      });
+      const machineSummary = machinesPayload.length
+        ? ` (เครื่อง: ${machinesPayload.map((m) => m.code).join(', ')})`
+        : '';
+      toast.success(`Assign ${petition.petitionNo} ให้ ${employee.name}${machineSummary} แล้ว`);
       refreshPetitions();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'บันทึก assignment ไม่สำเร็จ');
@@ -237,9 +312,13 @@ export default function PetitionAssignPage() {
             </Card>
           </div>
 
-          {(error || employeesError) && (
+          {(error || employeesError || machinesError) && (
             <div className="rounded-[10px] border border-red-500 bg-red-50 p-3 text-sm text-red-500">
-              {error ? `โหลดคำร้องไม่สำเร็จ: ${error}` : `โหลดข้อมูลพนักงานไม่สำเร็จ: ${employeesError}`}
+              {error
+                ? `โหลดคำร้องไม่สำเร็จ: ${error}`
+                : employeesError
+                  ? `โหลดข้อมูลพนักงานไม่สำเร็จ: ${employeesError}`
+                  : `โหลดข้อมูลเครื่องไม่สำเร็จ: ${machinesError}`}
             </div>
           )}
 
@@ -275,10 +354,13 @@ export default function PetitionAssignPage() {
               </div>
               <AssignTable
                 petitions={visiblePetitions}
-                loading={loading || employeesLoading}
+                loading={loading || employeesLoading || machinesLoading}
                 employees={employees}
+                machines={machines}
                 selectedByPetition={selectedByPetition}
                 setSelectedByPetition={setSelectedByPetition}
+                getSelectedMachineIds={getSelectedMachineIds}
+                onToggleMachine={toggleMachineForPetition}
                 savingId={savingId}
                 assignPetition={assignPetition}
                 onPetitionClick={(id) => navigate(`/petitions/${id}`)}
@@ -304,10 +386,13 @@ export default function PetitionAssignPage() {
               </div>
               <AssignTable
                 petitions={visiblePetitions}
-                loading={loading || employeesLoading}
+                loading={loading || employeesLoading || machinesLoading}
                 employees={employees}
+                machines={machines}
                 selectedByPetition={selectedByPetition}
                 setSelectedByPetition={setSelectedByPetition}
+                getSelectedMachineIds={getSelectedMachineIds}
+                onToggleMachine={toggleMachineForPetition}
                 savingId={savingId}
                 assignPetition={assignPetition}
                 onPetitionClick={(id) => navigate(`/petitions/${id}`)}
@@ -322,12 +407,110 @@ export default function PetitionAssignPage() {
   );
 }
 
+interface MachinePickerProps {
+  machines: MachineItem[];
+  selectedIds: string[];
+  onToggle: (machineKey: string) => void;
+}
+
+function MachinePicker({ machines, selectedIds, onToggle }: MachinePickerProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return machines;
+    return machines.filter((m) =>
+      [m.code, m.name, m.location, m.model, m.manufacturer]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q)),
+    );
+  }, [machines, query]);
+
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const selectedMachines = useMemo(
+    () => machines.filter((m) => selectedSet.has(m._id || m.code)),
+    [machines, selectedSet],
+  );
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="primary-outline"
+          size="sm"
+          className="w-full justify-start"
+        >
+          <Cog className="h-4 w-4" />
+          {selectedMachines.length === 0
+            ? 'เลือกเครื่อง'
+            : `${selectedMachines.length} เครื่อง`}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-3" align="start">
+        <div className="relative mb-2">
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-grey-500" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="ค้นหาเครื่อง (รหัส/ชื่อ/ตำแหน่ง)"
+            className="pl-8 h-8 text-xs"
+          />
+        </div>
+        <div className="max-h-64 overflow-y-auto space-y-1">
+          {filtered.length === 0 ? (
+            <div className="py-4 text-center text-xs text-grey-500">ไม่พบเครื่อง</div>
+          ) : (
+            filtered.map((machine) => {
+              const key = machine._id || machine.code;
+              const checked = selectedSet.has(key);
+              return (
+                <label
+                  key={key}
+                  className="flex items-start gap-2 rounded px-2 py-1.5 hover:bg-grey-50 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={() => onToggle(key)}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-black-500 truncate">
+                      {machine.code} — {machine.name}
+                    </div>
+                    {machine.location && (
+                      <div className="text-[11px] text-grey-500 truncate">{machine.location}</div>
+                    )}
+                  </div>
+                </label>
+              );
+            })
+          )}
+        </div>
+        {selectedMachines.length > 0 && (
+          <div className="mt-2 pt-2 border-t flex flex-wrap gap-1">
+            {selectedMachines.map((m) => (
+              <Badge key={m._id || m.code} variant="primary-soft" className="text-[10px]">
+                {m.code}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 interface AssignTableProps {
   petitions: Petition[];
   loading: boolean;
   employees: EmployeeAssignee[];
+  machines: MachineItem[];
   selectedByPetition: Record<string, string>;
   setSelectedByPetition: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  getSelectedMachineIds: (petition: Petition) => string[];
+  onToggleMachine: (petitionId: string, machineKey: string) => void;
   savingId: string | null;
   assignPetition: (petition: Petition) => Promise<void>;
   onPetitionClick: (id: string) => void;
@@ -339,8 +522,11 @@ function AssignTable({
   petitions,
   loading,
   employees,
+  machines,
   selectedByPetition,
   setSelectedByPetition,
+  getSelectedMachineIds,
+  onToggleMachine,
   savingId,
   assignPetition,
   onPetitionClick,
@@ -349,7 +535,7 @@ function AssignTable({
 }: AssignTableProps) {
   return (
     <div className="rounded-[10px] border border-black-50 bg-white overflow-x-auto">
-      <Table className="min-w-[800px]">
+      <Table className="min-w-[960px]">
         <TableHeader>
           <TableRow>
             <TableHead>เลขที่คำร้อง</TableHead>
@@ -357,20 +543,21 @@ function AssignTable({
             <TableHead>ตัวอย่าง</TableHead>
             <TableHead>สถานะ</TableHead>
             <TableHead>เจ้าหน้าที่</TableHead>
+            <TableHead>เครื่อง</TableHead>
             <TableHead className="text-right">บันทึก</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading && (
             <TableRow>
-              <TableCell colSpan={6} className="py-8 text-center text-grey-500">
+              <TableCell colSpan={7} className="py-8 text-center text-grey-500">
                 กำลังโหลดข้อมูล...
               </TableCell>
             </TableRow>
           )}
           {!loading && petitions.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="py-8 text-center text-grey-500">
+              <TableCell colSpan={7} className="py-8 text-center text-grey-500">
                 {emptyText}
               </TableCell>
             </TableRow>
@@ -435,6 +622,13 @@ function AssignTable({
                       ปัจจุบัน: {petition.assignedTo.name}
                     </div>
                   )}
+                </TableCell>
+                <TableCell className="min-w-[220px]">
+                  <MachinePicker
+                    machines={machines}
+                    selectedIds={getSelectedMachineIds(petition)}
+                    onToggle={(machineKey: string) => onToggleMachine(petition._id, machineKey)}
+                  />
                 </TableCell>
                 <TableCell className="text-right">
                   <Button

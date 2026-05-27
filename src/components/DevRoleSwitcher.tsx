@@ -35,28 +35,43 @@ export const DevRoleSwitcher = () => {
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
+  // เช็คตำแหน่งทุกครั้งที่ขนาดจอเปลี่ยน — ถ้าออกนอก viewport (เช่นย้ายจอเล็กไปใหญ่
+  // แล้วตำแหน่งเดิมไม่เห็นเพราะเนื้อหารอบ ๆ ขยับ) ให้ดึงกลับเข้าขอบ ไม่ใช่หาย
   useEffect(() => {
-    if (!pos) return;
-    const onResize = () => {
+    const checkBounds = () => {
       const el = containerRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
-      setPos((prev) =>
-        prev
-          ? {
-              x: clamp(prev.x, 0, window.innerWidth - rect.width),
-              y: clamp(prev.y, 0, window.innerHeight - rect.height),
-            }
-          : prev,
-      );
+      const maxX = Math.max(0, window.innerWidth - rect.width);
+      const maxY = Math.max(0, window.innerHeight - rect.height);
+      setPos((prev) => {
+        if (!prev) return prev;
+        const clamped = { x: clamp(prev.x, 0, maxX), y: clamp(prev.y, 0, maxY) };
+        // ถ้าเลยขอบทั้งสองด้านมาก (เช่นเปลี่ยนจาก mobile portrait → desktop landscape)
+        // ให้รีเซ็ตไปมุมขวาล่างให้เห็นแน่ ๆ
+        const offscreen =
+          prev.x < 0 || prev.y < 0 ||
+          prev.x > window.innerWidth - 40 || prev.y > window.innerHeight - 40;
+        if (offscreen) return null;
+        return clamped;
+      });
     };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [pos]);
+    window.addEventListener("resize", checkBounds);
+    checkBounds();
+    return () => window.removeEventListener("resize", checkBounds);
+  }, []);
 
   if (!DEV_MODE || !switchDevRole || !devRole || !devRoles || devRoles.length === 0) return null;
 
+  // กัน Radix Popover/Dialog ที่เปิดอยู่บนหน้า dismiss ตัวเองเพราะคิดว่าคลิก outside
+  // ทุก ๆ pointerdown ภายใน dev switcher (ทั้งลากและคลิกปุ่ม) ต้องไม่ leak ไปถึง document
+  const stopOutside = (e: React.PointerEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    e.nativeEvent.stopPropagation();
+  };
+
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    stopOutside(e);
     if ((e.target as HTMLElement).closest("button")) return;
     const el = containerRef.current;
     if (!el) return;
@@ -118,11 +133,14 @@ export const DevRoleSwitcher = () => {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      onMouseDown={stopOutside}
+      onClick={stopOutside}
       style={{
         ...positionStyle,
         cursor: isDragging ? "grabbing" : "grab",
         touchAction: "none",
         userSelect: "none",
+        pointerEvents: "auto",
       }}
       className="fixed z-[9999] flex flex-col items-end gap-1 print:hidden"
     >

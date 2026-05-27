@@ -1139,17 +1139,20 @@ const AccessControl = () => {
               <CardHeader>
                 <CardTitle className="text-base">Group Permission Matrix</CardTitle>
               </CardHeader>
-              <CardContent>
-                <Table containerClassName="max-h-[calc(100vh-260px)]">
+              <CardContent className="p-2 sm:p-4 md:p-6">
+                <Table
+                  className="min-w-max"
+                  containerClassName="relative w-full overflow-auto max-h-[calc(100vh-14rem)]"
+                >
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="sticky left-0 top-0 z-30 min-w-[260px] bg-card shadow-[1px_1px_0_0_hsl(var(--border))]">
+                      <TableHead className="sticky left-0 top-0 z-30 min-w-[180px] w-[180px] sm:min-w-[220px] sm:w-[220px] md:min-w-[240px] md:w-[240px] bg-card shadow-[1px_1px_0_0_hsl(var(--border))]">
                         Group
                       </TableHead>
                       {roles.map((role) => (
                         <TableHead
                           key={role.id}
-                          className="sticky top-0 z-20 min-w-[150px] bg-card text-center shadow-[0_1px_0_0_hsl(var(--border))]"
+                          className="sticky top-0 z-20 min-w-[100px] w-[100px] sm:min-w-[110px] sm:w-[110px] md:min-w-[130px] md:w-[130px] bg-card text-center shadow-[0_1px_0_0_hsl(var(--border))]"
                         >
                           {role.name}
                         </TableHead>
@@ -1163,7 +1166,7 @@ const AccessControl = () => {
                         return (
                           <Fragment key={group.id}>
                             <TableRow>
-                              <TableCell className="sticky left-0 z-10 bg-card shadow-[1px_0_0_0_hsl(var(--border))]">
+                              <TableCell className="sticky left-0 z-10 min-w-[180px] w-[180px] sm:min-w-[220px] sm:w-[220px] md:min-w-[240px] md:w-[240px] bg-card shadow-[1px_0_0_0_hsl(var(--border))]">
                                 <div className="flex items-start gap-2">
                                   <button
                                     type="button"
@@ -1211,7 +1214,7 @@ const AccessControl = () => {
                                     key={`${group.id}-${path}`}
                                     className="bg-muted/30"
                                   >
-                                    <TableCell className="sticky left-0 z-10 bg-card py-1.5 pl-12 shadow-[1px_0_0_0_hsl(var(--border))]">
+                                    <TableCell className="sticky left-0 z-10 min-w-[180px] w-[180px] sm:min-w-[220px] sm:w-[220px] md:min-w-[240px] md:w-[240px] bg-card py-1.5 pl-12 shadow-[1px_0_0_0_hsl(var(--border))]">
                                       <div className="flex items-center gap-2">
                                         {navItem ? (
                                           <>

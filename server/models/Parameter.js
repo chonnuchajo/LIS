@@ -42,6 +42,17 @@ const ValueFieldSchema = new mongoose.Schema({
   refParameterId: { type: String, default: null },
   refFieldLabel: { type: String, default: null },
   refPhase: { type: Number, enum: [1, 2, null], default: 1 },
+  optionFilters: {
+    type: Map,
+    of: new mongoose.Schema({
+      itemNames: { type: [String], default: [] },
+      commonNames: { type: [String], default: [] },
+      productTypes: { type: [String], default: [] },
+      categories: { type: [String], default: [] },
+      subCategories: { type: [String], default: [] },
+    }, { _id: false }),
+    default: undefined,
+  },
 }, { _id: false });
 
 const ParameterSchema = new mongoose.Schema({
@@ -69,6 +80,31 @@ ParameterSchema.pre('validate', function (next) {
     }
     if (f.type === 'enum' && (!f.options || f.options.length === 0)) {
       return next(new Error(`options ต้องมีอย่างน้อย 1 ตัวสำหรับช่อง "${f.label}"`));
+    }
+    if (f.type === 'enum' && f.optionFilters) {
+      const opts = new Set(f.options || []);
+      const allowedPT = new Set(['water', 'sand', 'powder']);
+      const allowedCat = new Set(['RM', 'FG']);
+      // Drop orphan keys (option ถูกลบไปแล้ว แต่ filter ยังค้างอยู่)
+      for (const key of Array.from(f.optionFilters.keys())) {
+        if (!opts.has(key)) f.optionFilters.delete(key);
+      }
+      // Validate productTypes / categories values + normalize subCategories
+      for (const [key, val] of f.optionFilters.entries()) {
+        const pts = val?.productTypes || [];
+        const badPT = pts.filter((p) => !allowedPT.has(p));
+        if (badPT.length > 0) {
+          return next(new Error(`optionFilters[${key}].productTypes มีค่าที่ไม่รองรับ: ${badPT.join(', ')} (รองรับเฉพาะ water/sand/powder) — ช่อง "${f.label}"`));
+        }
+        const cats = val?.categories || [];
+        const badCat = cats.filter((c) => !allowedCat.has(c));
+        if (badCat.length > 0) {
+          return next(new Error(`optionFilters[${key}].categories มีค่าที่ไม่รองรับ: ${badCat.join(', ')} (รองรับเฉพาะ RM/FG) — ช่อง "${f.label}"`));
+        }
+        // Normalize subCategories + commonNames to uppercase trimmed
+        val.subCategories = (val?.subCategories || []).map((s) => String(s).trim().toUpperCase()).filter(Boolean);
+        val.commonNames = (val?.commonNames || []).map((s) => String(s).trim().toUpperCase()).filter(Boolean);
+      }
     }
     if (f.requireNoteOn && f.requireNoteOn.length > 0) {
       const opts = f.options || [];
