@@ -42,6 +42,14 @@ const ValueFieldSchema = new mongoose.Schema({
   refParameterId: { type: String, default: null },
   refFieldLabel: { type: String, default: null },
   refPhase: { type: Number, enum: [1, 2, null], default: 1 },
+  optionFilters: {
+    type: Map,
+    of: new mongoose.Schema({
+      productTypes: { type: [String], default: [] },
+      subCategories: { type: [String], default: [] },
+    }, { _id: false }),
+    default: undefined,
+  },
 }, { _id: false });
 
 const ParameterSchema = new mongoose.Schema({
@@ -69,6 +77,25 @@ ParameterSchema.pre('validate', function (next) {
     }
     if (f.type === 'enum' && (!f.options || f.options.length === 0)) {
       return next(new Error(`options ต้องมีอย่างน้อย 1 ตัวสำหรับช่อง "${f.label}"`));
+    }
+    if (f.type === 'enum' && f.optionFilters) {
+      const opts = new Set(f.options || []);
+      const allowedPT = new Set(['water', 'sand', 'powder']);
+      // Drop orphan keys (option ถูกลบไปแล้ว แต่ filter ยังค้างอยู่)
+      for (const key of Array.from(f.optionFilters.keys())) {
+        if (!opts.has(key)) f.optionFilters.delete(key);
+      }
+      // Validate productTypes values
+      for (const [key, val] of f.optionFilters.entries()) {
+        const pts = val?.productTypes || [];
+        const invalid = pts.filter((p) => !allowedPT.has(p));
+        if (invalid.length > 0) {
+          return next(new Error(`optionFilters[${key}].productTypes มีค่าที่ไม่รองรับ: ${invalid.join(', ')} (รองรับเฉพาะ water/sand/powder) — ช่อง "${f.label}"`));
+        }
+        // Normalize subCategories to uppercase trimmed
+        const scs = (val?.subCategories || []).map((s) => String(s).trim().toUpperCase()).filter(Boolean);
+        val.subCategories = scs;
+      }
     }
     if (f.requireNoteOn && f.requireNoteOn.length > 0) {
       const opts = f.options || [];
