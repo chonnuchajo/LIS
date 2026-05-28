@@ -288,17 +288,38 @@ router.post('/', async (req, res) => {
         }
       }
     }
+    let revisionOf = null;
+    if (body.revisionOf) {
+      if (!mongoose.Types.ObjectId.isValid(body.revisionOf)) {
+        return badRequest(res, 'revisionOf ไม่ใช่รหัสคำร้องที่ถูกต้อง');
+      }
+      const predecessor = await Petition.findById(body.revisionOf).lean();
+      if (!predecessor) {
+        return badRequest(res, 'ไม่พบคำร้องต้นทาง');
+      }
+      if (predecessor.status !== 'rejected') {
+        return badRequest(res, 'คำร้องต้นทางไม่ได้ถูกส่งกลับให้แก้ไข');
+      }
+      const submitterId = body.submittedBy?.employeeId?.trim();
+      const predecessorId = predecessor.submittedBy?.employeeId?.trim();
+      if (predecessorId && submitterId && predecessorId !== submitterId) {
+        return res.status(403).json({ error: { message: 'เฉพาะผู้ยื่นคำร้องเดิมเท่านั้นที่สามารถยื่นแก้ไขได้' } });
+      }
+      revisionOf = predecessor._id;
+    }
     const petitionNo = await nextPetitionNo();
     const doc = await Petition.create({
       ...body,
       petitionNo,
       status: 'deliveringQC',
+      revisionOf,
     });
     logAudit(doc, {
       event: 'created',
       toStatus: doc.status,
       actor: body.actor || body.submittedBy?.name || 'system',
-      note: 'สร้างคำร้องใหม่',
+      note: revisionOf ? `สร้างคำร้องใหม่ (แก้ไขจาก ${body.revisionOf})` : 'สร้างคำร้องใหม่',
+      metadata: revisionOf ? { revisionOf: String(revisionOf) } : undefined,
     });
     res.status(201).json(doc);
   } catch (err) {
