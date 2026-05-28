@@ -6,7 +6,9 @@ export type PetitionStatus =
   | 'sampleSent'
   | 'pendingReview'
   | 'inProgress'
-  | 'success';
+  | 'success'
+  | 'approved'
+  | 'rejected';
 
 export const PETITION_STATUSES: PetitionStatus[] = [
   'deliveringQC',
@@ -14,6 +16,8 @@ export const PETITION_STATUSES: PetitionStatus[] = [
   'pendingReview',
   'inProgress',
   'success',
+  'approved',
+  'rejected',
 ];
 
 export type StatusBadgeVariant =
@@ -33,6 +37,8 @@ export const PETITION_STATUS_CONFIG: Record<
   pendingReview: { label: 'รับตัวอย่างแล้ว',  variant: 'yellow-soft' },
   inProgress:    { label: 'QC กำลังตรวจ',     variant: 'blue-soft' },
   success:       { label: 'ทดสอบเสร็จสิ้น',  variant: 'green-soft' },
+  approved:      { label: 'อนุมัติแล้ว',        variant: 'green-soft' },
+  rejected:      { label: 'ส่งกลับให้แก้ไข',    variant: 'red-soft' },
 };
 
 // ===== Department =====
@@ -184,6 +190,9 @@ interface PetitionBase {
   phase2UnlockedAt?: string | null;
   phase2DueAt?: string | null;
   phase2TriggeredBy?: PhaseTriggerInfo | null;
+  revisionOf?: string | null;
+  approvedAt?: string | null;
+  rejectedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
