@@ -300,7 +300,10 @@ router.post('/', async (req, res) => {
       }
       const submitterId = body.submittedBy?.employeeId?.trim();
       const predecessorId = predecessor.submittedBy?.employeeId?.trim();
-      if (predecessorId && submitterId && predecessorId !== submitterId) {
+      if (!submitterId || !predecessorId) {
+        return res.status(403).json({ error: { message: 'การยื่นคำร้องแก้ไขต้องระบุรหัสพนักงาน' } });
+      }
+      if (submitterId !== predecessorId) {
         return res.status(403).json({ error: { message: 'เฉพาะผู้ยื่นคำร้องเดิมเท่านั้นที่สามารถยื่นแก้ไขได้' } });
       }
       revisionOf = predecessor._id;
@@ -536,6 +539,9 @@ router.post('/:id/review', async (req, res) => {
     if (!action || !reviewedBy) return badRequest(res, 'ข้อมูลรีวิวไม่ครบ');
     const doc = await Petition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if ((doc.status === 'approved' || doc.status === 'rejected') && status && status !== doc.status) {
+      return res.status(409).json({ error: { message: 'คำร้องนี้ปิดแล้ว ไม่สามารถเปลี่ยนสถานะได้' } });
+    }
     const prevStatus = doc.status;
     doc.reviewHistory.push({
       action,
