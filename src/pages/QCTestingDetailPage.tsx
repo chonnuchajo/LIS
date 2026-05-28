@@ -240,10 +240,18 @@ function TestField({
         <p className="text-xs text-red-400">บันทึกไม่สำเร็จ</p>
       )}
       {previousValue !== undefined && previousValue !== '' && previousValue !== null && (
-        <p className="text-xs text-grey-400 flex items-center gap-1 mt-0.5">
-          <span>ค่าเดิม: <span className="font-mono">{String(previousValue)}</span></span>
+        <p
+          className={cn(
+            'mt-1 inline-flex items-center gap-1.5 rounded border px-2 py-1 text-sm',
+            isFieldAbnormal(field, previousValue)
+              ? 'border-red-300 bg-red-50 text-red-700'
+              : 'border-grey-200 bg-grey-50 text-grey-700',
+          )}
+        >
+          <span className="font-medium">ค่าเดิม:</span>
+          <span className="font-mono font-semibold text-base">{String(previousValue)}</span>
           {isFieldAbnormal(field, previousValue) && (
-            <AlertTriangle className="h-3 w-3 text-orange-400" />
+            <AlertTriangle className="h-4 w-4 text-red-500" />
           )}
         </p>
       )}
