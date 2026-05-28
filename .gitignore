@@ -28,3 +28,6 @@ server/uploads/qc-photos/*
 
 server/uploads/param-files/*
 !server/uploads/param-files/.gitkeep
+
+.playwright-mcp/
+.claude/scheduled_tasks.lock
