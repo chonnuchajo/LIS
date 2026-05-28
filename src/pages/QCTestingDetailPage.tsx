@@ -31,6 +31,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { RevisionRequestDialog } from '@/components/petition/RevisionRequestDialog';
+import { buildPreviousValueLookup, getPreviousValue, type PreviousValueLookup } from '@/lib/revisionHelpers';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -79,6 +81,7 @@ interface TestFieldProps {
   onChange: (val: unknown) => void;
   onNoteChange: (val: unknown) => void;
   disabled?: boolean;
+  previousValue?: unknown;
 }
 
 function TestField({
@@ -91,6 +94,7 @@ function TestField({
   onChange,
   onNoteChange,
   disabled = false,
+  previousValue,
 }: TestFieldProps) {
   const strVal = value == null ? '' : String(value);
   const strNote = noteValue == null ? '' : String(noteValue);
@@ -235,6 +239,14 @@ function TestField({
       {saveInfo?.state === 'error' && (
         <p className="text-xs text-red-400">บันทึกไม่สำเร็จ</p>
       )}
+      {previousValue !== undefined && previousValue !== '' && previousValue !== null && (
+        <p className="text-xs text-grey-400 flex items-center gap-1 mt-0.5">
+          <span>ค่าเดิม: <span className="font-mono">{String(previousValue)}</span></span>
+          {isFieldAbnormal(field, previousValue) && (
+            <AlertTriangle className="h-3 w-3 text-orange-400" />
+          )}
+        </p>
+      )}
     </div>
   );
 }
@@ -260,6 +272,8 @@ export default function QCTestingDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [wasReturned, setWasReturned] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<PetitionPhase>(1);
+  const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
+  const [previousLookup, setPreviousLookup] = useState<PreviousValueLookup>(new Map());
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Load parameters and existing results (QC scope only)
@@ -295,6 +309,25 @@ export default function QCTestingDetailPage() {
       .catch(() => { if (alive) setWasReturned(false); });
     return () => { alive = false; };
   }, [petition?._id]);
+
+  // Load previous petition's results for inline comparison (revision petitions only)
+  useEffect(() => {
+    if (!petition?.revisionOf) {
+      setPreviousLookup(new Map());
+      return;
+    }
+    let alive = true;
+    Promise.all([
+      api.getPetition(String(petition.revisionOf)),
+      api.getQCResults(String(petition.revisionOf)),
+    ])
+      .then(([prevPetition, prevResults]) => {
+        if (!alive) return;
+        setPreviousLookup(buildPreviousValueLookup(prevPetition.items, prevResults));
+      })
+      .catch(() => { if (alive) setPreviousLookup(new Map()); });
+    return () => { alive = false; };
+  }, [petition?.revisionOf]);
 
   // Default the visible phase tab to the petition's current phase
   useEffect(() => {
@@ -543,24 +576,30 @@ export default function QCTestingDetailPage() {
     }
   };
 
-  const handleSendBack = async () => {
-    const receiver = petition.receivedBy?.trim();
-    const target = receiver || 'ผู้รับงาน';
-    if (!window.confirm(`ส่งคำร้องนี้กลับให้ "${target}" แก้ไข?`)) return;
+  const handleApprove = async () => {
+    if (!window.confirm('อนุมัติคำร้องนี้?')) return;
     setSubmitting(true);
     try {
-      await api.patch(`/petitions/${petition._id}`, {
-        status: 'inProgress',
-        actor: user?.name ?? 'system',
-      });
+      await api.approvePetition(petition._id, user?.name ?? 'system');
+      toast.success('อนุมัติเรียบร้อย');
+      navigate('/qc-approval');
+    } catch {
+      toast.error('อนุมัติไม่สำเร็จ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReject = async (note: string) => {
+    try {
+      await api.rejectPetition(petition._id, user?.name ?? 'system', note);
       toast.success('ส่งกลับให้แก้ไขเรียบร้อย', {
-        description: receiver ? `${receiver} สามารถแก้ไขผลทดสอบได้แล้ว` : undefined,
+        description: `ส่งให้ ${petition.submittedBy?.name ?? 'ผู้ยื่น'}`,
       });
       navigate('/qc-approval');
     } catch {
       toast.error('ส่งกลับไม่สำเร็จ');
-    } finally {
-      setSubmitting(false);
+      throw new Error('reject failed');
     }
   };
 
@@ -742,6 +781,7 @@ export default function QCTestingDetailPage() {
                                 onNoteChange={(val) =>
                                   handleFieldChange(petition, item, param, noteLabel, val, effectivePhase)
                                 }
+                                previousValue={getPreviousValue(previousLookup, item, param._id!, field.label)}
                               />
                               {beforeRef != null && beforeRef !== '' ? (
                                 <p className="text-[10px] text-grey-400 mt-0.5">
@@ -793,7 +833,7 @@ export default function QCTestingDetailPage() {
         <div className="rounded-lg border border-green-200 bg-green-50 p-4 flex flex-col items-center gap-3">
           <div className="flex flex-col items-center gap-1">
             <CheckCircle2 className="h-6 w-6 text-green-500" />
-            <p className="text-sm font-semibold text-green-700">บันทึกผลแล้ว</p>
+            <p className="text-sm font-semibold text-green-700">บันทึกผลแล้ว — รออนุมัติ</p>
             <p className="text-xs text-grey-500">
               {petition.receivedBy
                 ? `ผู้รับงาน: ${petition.receivedBy}`
@@ -802,26 +842,59 @@ export default function QCTestingDetailPage() {
             {abnormalCount > 0 && (
               <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                คำร้องนี้มีค่าผิดปกติ — ตรวจสอบก่อนอนุมัติ
+                คำร้องนี้มีค่าผิดปกติ {abnormalCount} รายการ
               </p>
             )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSendBack}
-            disabled={submitting}
-            className="gap-2"
-          >
-            {submitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-            ส่งให้แก้ไข
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRevisionDialogOpen(true)}
+              disabled={submitting}
+              className="gap-2"
+            >
+              <RotateCcw className="h-4 w-4" />
+              ส่งให้แก้ไข
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleApprove}
+              disabled={submitting}
+              className="gap-2"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              อนุมัติคำร้อง
+            </Button>
+          </div>
         </div>
       )}
+
+      {(petition.status === 'approved' || petition.status === 'rejected') && (
+        <div className={`rounded-lg border p-4 flex flex-col items-center gap-2 ${
+          petition.status === 'approved' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
+        }`}>
+          {petition.status === 'approved' ? (
+            <CheckCircle2 className="h-6 w-6 text-green-500" />
+          ) : (
+            <RotateCcw className="h-6 w-6 text-red-500" />
+          )}
+          <p className={`text-sm font-semibold ${
+            petition.status === 'approved' ? 'text-green-700' : 'text-red-700'
+          }`}>
+            {petition.status === 'approved' ? 'อนุมัติแล้ว' : 'ส่งกลับให้แก้ไขแล้ว'}
+          </p>
+        </div>
+      )}
+
+      <RevisionRequestDialog
+        open={revisionDialogOpen}
+        onOpenChange={setRevisionDialogOpen}
+        petitionNo={petition.petitionNo}
+        submitterName={petition.submittedBy?.name ?? 'ผู้ยื่น'}
+        onConfirm={handleReject}
+      />
     </div>
     </AppLayout>
   );

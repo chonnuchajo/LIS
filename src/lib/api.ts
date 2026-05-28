@@ -250,6 +250,8 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status: "rejected", actor, revisionNote }),
     }),
+  getPetition: (petitionId: string) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`),
 };
 
 export type QCProgressEntry = {
