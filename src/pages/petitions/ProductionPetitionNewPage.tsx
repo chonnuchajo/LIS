@@ -92,11 +92,12 @@ function makeBlankLabRequest(
 export default function ProductionPetitionNewPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const prodOrderNosFromState = (location.state as { prodOrderNos?: string[] } | null)?.prodOrderNos;
   const revisionOfId = searchParams.get('revisionOf');
   const [revisionSource, setRevisionSource] = useState<Petition | null>(null);
+  const [batchMatches, setBatchMatches] = useState<Petition[]>([]);
 
   const [stepIdx, setStepIdx] = useState(0);
   const currentStep = STEPS[stepIdx].key;
@@ -175,6 +176,46 @@ export default function ProductionPetitionNewPage() {
       });
     return () => { alive = false; };
   }, [revisionOfId, navigate, user?.employeeId]);
+
+  // Detect if any typed batchNo matches a rejected petition by this submitter.
+  // Suggests converting to a revision instead of creating a fresh petition.
+  // Skipped when already in revision mode (revisionOfId set).
+  useEffect(() => {
+    if (revisionOfId || !user?.employeeId) {
+      setBatchMatches([]);
+      return;
+    }
+    const batches = Array.from(
+      new Set(
+        items
+          .map((it) => it.batchNo?.trim())
+          .filter((b): b is string => !!b && b.length >= 3),
+      ),
+    );
+    if (batches.length === 0) {
+      setBatchMatches([]);
+      return;
+    }
+    let alive = true;
+    const handle = setTimeout(async () => {
+      try {
+        const results = await Promise.all(
+          batches.map((b) => api.findRejectedByBatch(b, user.employeeId!).catch(() => [] as Petition[])),
+        );
+        if (!alive) return;
+        const flat = results.flat();
+        const dedup = new Map<string, Petition>();
+        for (const p of flat) dedup.set(p._id, p);
+        setBatchMatches(Array.from(dedup.values()));
+      } catch {
+        if (alive) setBatchMatches([]);
+      }
+    }, 600);
+    return () => {
+      alive = false;
+      clearTimeout(handle);
+    };
+  }, [items, user?.employeeId, revisionOfId]);
 
   const labBatches = useMemo(
     () => items.filter((it) => it.batchNo && isLabBatch(it.batchNo)),
@@ -347,6 +388,41 @@ export default function ProductionPetitionNewPage() {
               ยื่นแก้ไขจากคำร้อง{' '}
               <span className="font-semibold">{revisionSource.petitionNo}</span>
             </p>
+          </div>
+        )}
+
+        {!revisionOfId && batchMatches.length > 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+            <div className="flex items-start gap-2">
+              <RotateCcw className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800">
+                พบคำร้องที่เคยถูกส่งให้แก้ไขโดยใช้เลขแบชเดียวกัน — ต้องการยื่นเป็นการแก้ไขหรือไม่?
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5 pl-6">
+              {batchMatches.map((m) => {
+                const batches = Array.from(
+                  new Set((m.items ?? []).map((it) => it.batchNo).filter(Boolean)),
+                ).join(', ');
+                return (
+                  <div key={m._id} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-amber-900">
+                      <span className="font-semibold">{m.petitionNo}</span>
+                      <span className="text-amber-700"> · Batch: {batches}</span>
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1"
+                      onClick={() => setSearchParams({ revisionOf: m._id })}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      ใช้เป็นการแก้ไข
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

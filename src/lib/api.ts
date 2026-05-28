@@ -252,6 +252,10 @@ export const api = {
     }),
   getPetition: (petitionId: string) =>
     request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`),
+  findRejectedByBatch: (batchNo: string, employeeId: string) => {
+    const qs = new URLSearchParams({ batchNo, employeeId }).toString();
+    return request<import("@/types/petition.types").Petition[]>(`/petitions/rejected-by-batch?${qs}`);
+  },
 };
 
 export type QCProgressEntry = {
