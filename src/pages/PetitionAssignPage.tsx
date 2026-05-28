@@ -145,7 +145,7 @@ export default function PetitionAssignPage() {
     loading: pendingLoading,
     error: pendingError,
     refresh: refreshPending,
-  } = usePetitionList({ page: 1, limit: 100, status: 'pendingReview' });
+  } = usePetitionList({ page: 1, limit: 100, status: 'sampleSent,pendingReview' });
   const {
     data: inProgressData,
     loading: inProgressLoading,

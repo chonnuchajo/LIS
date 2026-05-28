@@ -31,6 +31,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { RevisionRequestDialog } from '@/components/petition/RevisionRequestDialog';
+import { buildPreviousValueLookup, getPreviousValue, type PreviousValueLookup } from '@/lib/revisionHelpers';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -79,6 +81,7 @@ interface TestFieldProps {
   onChange: (val: unknown) => void;
   onNoteChange: (val: unknown) => void;
   disabled?: boolean;
+  previousValue?: unknown;
 }
 
 function TestField({
@@ -91,6 +94,7 @@ function TestField({
   onChange,
   onNoteChange,
   disabled = false,
+  previousValue,
 }: TestFieldProps) {
   const strVal = value == null ? '' : String(value);
   const strNote = noteValue == null ? '' : String(noteValue);
@@ -235,6 +239,22 @@ function TestField({
       {saveInfo?.state === 'error' && (
         <p className="text-xs text-red-400">บันทึกไม่สำเร็จ</p>
       )}
+      {previousValue !== undefined && previousValue !== '' && previousValue !== null && (
+        <p
+          className={cn(
+            'mt-1 inline-flex items-center gap-1.5 rounded border px-2 py-1 text-sm',
+            isFieldAbnormal(field, previousValue)
+              ? 'border-red-300 bg-red-50 text-red-700'
+              : 'border-grey-200 bg-grey-50 text-grey-700',
+          )}
+        >
+          <span className="font-medium">ค่าเดิม:</span>
+          <span className="font-mono font-semibold text-base">{String(previousValue)}</span>
+          {isFieldAbnormal(field, previousValue) && (
+            <AlertTriangle className="h-4 w-4 text-red-500" />
+          )}
+        </p>
+      )}
     </div>
   );
 }
@@ -260,6 +280,8 @@ export default function QCTestingDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [wasReturned, setWasReturned] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<PetitionPhase>(1);
+  const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
+  const [previousLookup, setPreviousLookup] = useState<PreviousValueLookup>(new Map());
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Load parameters and existing results (QC scope only)
@@ -283,18 +305,80 @@ export default function QCTestingDetailPage() {
     });
   }, [petition, user]);
 
-  // Detect if this petition was previously sent back from QC Approval
+  // Resolve the predecessor petition for inline comparison.
+  // Two paths: explicit (petition.revisionOf set via "ยื่นแก้ไขใหม่" button) OR
+  // implicit (a rejected petition exists with same submitter employeeId + a
+  // matching batchNo). QC sees the link either way; the submitter need not know.
+  const [implicitPredecessorNo, setImplicitPredecessorNo] = useState<string | null>(null);
   useEffect(() => {
-    if (!petition?._id) {
+    if (!petition) {
+      setPreviousLookup(new Map());
+      setImplicitPredecessorNo(null);
       setWasReturned(false);
       return;
     }
     let alive = true;
-    api.getReturnedFlags([petition._id])
-      .then((map) => { if (alive) setWasReturned(!!map[petition._id]); })
-      .catch(() => { if (alive) setWasReturned(false); });
+
+    const loadFromPredecessor = async (predecessorId: string, predecessorNo?: string) => {
+      try {
+        const [prevPetition, prevResults] = await Promise.all([
+          api.getPetition(predecessorId),
+          api.getQCResults(predecessorId),
+        ]);
+        if (!alive) return;
+        setPreviousLookup(buildPreviousValueLookup(prevPetition.items, prevResults));
+        setImplicitPredecessorNo(predecessorNo ?? prevPetition.petitionNo ?? null);
+        setWasReturned(true);
+      } catch {
+        if (alive) {
+          setPreviousLookup(new Map());
+          setImplicitPredecessorNo(null);
+        }
+      }
+    };
+
+    if (petition.revisionOf) {
+      loadFromPredecessor(String(petition.revisionOf));
+      return () => { alive = false; };
+    }
+
+    // No explicit revisionOf — try to detect via batch + submitter
+    const submitterEmpId = petition.submittedBy?.employeeId?.trim();
+    const batches = Array.from(
+      new Set((petition.items ?? []).map((it) => it.batchNo?.trim()).filter((b): b is string => !!b)),
+    );
+    if (!submitterEmpId || batches.length === 0) {
+      setPreviousLookup(new Map());
+      setImplicitPredecessorNo(null);
+      setWasReturned(false);
+      return;
+    }
+    (async () => {
+      try {
+        const results = await Promise.all(
+          batches.map((b) => api.findRejectedByBatch(b, submitterEmpId).catch(() => [] as typeof petition[])),
+        );
+        if (!alive) return;
+        const flat = results.flat().filter((p) => p._id !== petition._id);
+        if (flat.length === 0) {
+          setPreviousLookup(new Map());
+          setImplicitPredecessorNo(null);
+          setWasReturned(false);
+          return;
+        }
+        // Pick the most recently rejected (endpoint already sorts by rejectedAt desc)
+        const predecessor = flat[0];
+        await loadFromPredecessor(predecessor._id, predecessor.petitionNo);
+      } catch {
+        if (alive) {
+          setPreviousLookup(new Map());
+          setImplicitPredecessorNo(null);
+          setWasReturned(false);
+        }
+      }
+    })();
     return () => { alive = false; };
-  }, [petition?._id]);
+  }, [petition?._id, petition?.revisionOf, petition?.submittedBy?.employeeId, petition?.items]);
 
   // Default the visible phase tab to the petition's current phase
   useEffect(() => {
@@ -543,24 +627,30 @@ export default function QCTestingDetailPage() {
     }
   };
 
-  const handleSendBack = async () => {
-    const receiver = petition.receivedBy?.trim();
-    const target = receiver || 'ผู้รับงาน';
-    if (!window.confirm(`ส่งคำร้องนี้กลับให้ "${target}" แก้ไข?`)) return;
+  const handleApprove = async () => {
+    if (!window.confirm('อนุมัติคำร้องนี้?')) return;
     setSubmitting(true);
     try {
-      await api.patch(`/petitions/${petition._id}`, {
-        status: 'inProgress',
-        actor: user?.name ?? 'system',
-      });
+      await api.approvePetition(petition._id, user?.name ?? 'system');
+      toast.success('อนุมัติเรียบร้อย');
+      navigate('/qc-approval');
+    } catch {
+      toast.error('อนุมัติไม่สำเร็จ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReject = async (note: string) => {
+    try {
+      await api.rejectPetition(petition._id, user?.name ?? 'system', note);
       toast.success('ส่งกลับให้แก้ไขเรียบร้อย', {
-        description: receiver ? `${receiver} สามารถแก้ไขผลทดสอบได้แล้ว` : undefined,
+        description: `ส่งให้ ${petition.submittedBy?.name ?? 'ผู้ยื่น'}`,
       });
       navigate('/qc-approval');
     } catch {
       toast.error('ส่งกลับไม่สำเร็จ');
-    } finally {
-      setSubmitting(false);
+      throw new Error('reject failed');
     }
   };
 
@@ -580,8 +670,10 @@ export default function QCTestingDetailPage() {
         {wasReturned && (
           <span
             className="inline-flex items-center text-orange-500"
-            title="ส่งกลับมาบันทึกผลใหม่"
-            aria-label="ส่งกลับมาบันทึกผลใหม่"
+            title={implicitPredecessorNo
+              ? `อ้างอิงจากคำร้อง ${implicitPredecessorNo} (batch เดิม)`
+              : 'ส่งกลับมาบันทึกผลใหม่'}
+            aria-label="คำร้องแก้ไข"
           >
             <RotateCcw className="h-4 w-4" />
           </span>
@@ -599,6 +691,23 @@ export default function QCTestingDetailPage() {
           ผู้นำส่ง: {petition.submittedBy?.name ?? '-'}
         </span>
       </div>
+
+      {wasReturned && implicitPredecessorNo && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 flex items-center gap-2 -mt-2">
+          <RotateCcw className="h-4 w-4 text-orange-500 shrink-0" />
+          <p className="text-sm text-orange-800">
+            คำร้องนี้ใช้เลขแบชเดียวกับคำร้อง{' '}
+            <button
+              type="button"
+              onClick={() => navigate(`/petitions/${implicitPredecessorNo}`)}
+              className="font-semibold underline hover:text-orange-900"
+            >
+              {implicitPredecessorNo}
+            </button>{' '}
+            ที่เคยถูกส่งให้แก้ไข — ค่าเดิมแสดงใต้แต่ละช่อง
+          </p>
+        </div>
+      )}
 
       {/* Active worklist tab strip — switch between petitions currently in QC */}
       {worklistData && worklistData.items.length > 1 && (
@@ -742,6 +851,7 @@ export default function QCTestingDetailPage() {
                                 onNoteChange={(val) =>
                                   handleFieldChange(petition, item, param, noteLabel, val, effectivePhase)
                                 }
+                                previousValue={getPreviousValue(previousLookup, item, param._id!, field.label)}
                               />
                               {beforeRef != null && beforeRef !== '' ? (
                                 <p className="text-[10px] text-grey-400 mt-0.5">
@@ -793,7 +903,7 @@ export default function QCTestingDetailPage() {
         <div className="rounded-lg border border-green-200 bg-green-50 p-4 flex flex-col items-center gap-3">
           <div className="flex flex-col items-center gap-1">
             <CheckCircle2 className="h-6 w-6 text-green-500" />
-            <p className="text-sm font-semibold text-green-700">บันทึกผลแล้ว</p>
+            <p className="text-sm font-semibold text-green-700">บันทึกผลแล้ว — รออนุมัติ</p>
             <p className="text-xs text-grey-500">
               {petition.receivedBy
                 ? `ผู้รับงาน: ${petition.receivedBy}`
@@ -802,26 +912,59 @@ export default function QCTestingDetailPage() {
             {abnormalCount > 0 && (
               <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
                 <AlertTriangle className="h-3.5 w-3.5" />
-                คำร้องนี้มีค่าผิดปกติ — ตรวจสอบก่อนอนุมัติ
+                คำร้องนี้มีค่าผิดปกติ {abnormalCount} รายการ
               </p>
             )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSendBack}
-            disabled={submitting}
-            className="gap-2"
-          >
-            {submitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-            ส่งให้แก้ไข
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRevisionDialogOpen(true)}
+              disabled={submitting}
+              className="gap-2"
+            >
+              <RotateCcw className="h-4 w-4" />
+              ส่งให้แก้ไข
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleApprove}
+              disabled={submitting}
+              className="gap-2"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              อนุมัติคำร้อง
+            </Button>
+          </div>
         </div>
       )}
+
+      {(petition.status === 'approved' || petition.status === 'rejected') && (
+        <div className={`rounded-lg border p-4 flex flex-col items-center gap-2 ${
+          petition.status === 'approved' ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
+        }`}>
+          {petition.status === 'approved' ? (
+            <CheckCircle2 className="h-6 w-6 text-green-500" />
+          ) : (
+            <RotateCcw className="h-6 w-6 text-red-500" />
+          )}
+          <p className={`text-sm font-semibold ${
+            petition.status === 'approved' ? 'text-green-700' : 'text-red-700'
+          }`}>
+            {petition.status === 'approved' ? 'อนุมัติแล้ว' : 'ส่งกลับให้แก้ไขแล้ว'}
+          </p>
+        </div>
+      )}
+
+      <RevisionRequestDialog
+        open={revisionDialogOpen}
+        onOpenChange={setRevisionDialogOpen}
+        petitionNo={petition.petitionNo}
+        submitterName={petition.submittedBy?.name ?? 'ผู้ยื่น'}
+        onConfirm={handleReject}
+      />
     </div>
     </AppLayout>
   );

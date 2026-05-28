@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/table';
 import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
+import { useNotifications } from '@/context/NotificationContext';
 import { api, type ParameterItem } from '@/lib/api';
 import { matchParametersForItem, parameterNamesForPetition } from '@/lib/petitionTestItems';
 import {
@@ -138,6 +139,27 @@ export default function PetitionListPage() {
     [page, status, search, canViewAll],
   );
   const { data, loading, error, refresh } = usePetitionList(params);
+
+  // Push bell notification for rejected petitions owned by the current user.
+  // NotificationContext de-dupes by id, so this is safe to run on every refresh.
+  const { push } = useNotifications();
+  useEffect(() => {
+    if (!user?.employeeId || !data?.items) return;
+    for (const p of data.items) {
+      if (p.status !== 'rejected') continue;
+      if (p.submittedBy?.employeeId !== user.employeeId) continue;
+      const rejectEntry = [...(p.reviewHistory ?? [])].reverse().find((e) => e.action === 'reject');
+      if (!rejectEntry) continue;
+      push({
+        id: `petition-rejected-${p._id}`,
+        title: `คำร้อง ${p.petitionNo} ถูกส่งกลับให้แก้ไข`,
+        message: rejectEntry.note,
+        level: 'warning',
+        link: `/petitions/${p._id}`,
+        persistent: true,
+      });
+    }
+  }, [user?.employeeId, data?.items, push]);
 
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const [paramsLoaded, setParamsLoaded] = useState(false);

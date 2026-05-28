@@ -150,8 +150,8 @@ router.get('/audit-logs', async (req, res) => {
 });
 
 // GET /api/petitions/returned-flags?petitionIds=id1,id2,...
-// Returns map of petitionId → boolean (true if petition has ever transitioned
-// from success → inProgress, i.e. was sent back from QC Approval for re-edit).
+// Returns map of petitionId → boolean (true if petition is a revision of another
+// petition, i.e. its predecessor was sent back from QC for re-submission).
 router.get('/returned-flags', async (req, res) => {
   try {
     const raw = String(req.query.petitionIds || '').trim();
@@ -163,17 +163,41 @@ router.get('/returned-flags', async (req, res) => {
       .filter((id) => mongoose.Types.ObjectId.isValid(id))
       .map((id) => new mongoose.Types.ObjectId(id));
 
-    const returnedIds = await PetitionAuditLog.distinct('petitionId', {
-      petitionId: { $in: objectIds },
-      event: 'statusChanged',
-      fromStatus: 'success',
-      toStatus: 'inProgress',
-    });
-    const returnedSet = new Set(returnedIds.map((id) => String(id)));
+    const withRevision = await Petition.find({
+      _id: { $in: objectIds },
+      revisionOf: { $ne: null },
+    }).select('_id').lean();
+    const set = new Set(withRevision.map((d) => String(d._id)));
 
     const map = {};
-    for (const id of ids) map[id] = returnedSet.has(id);
+    for (const id of ids) map[id] = set.has(id);
     res.json(map);
+  } catch (err) {
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
+// GET /api/petitions/rejected-by-batch?batchNo=X&employeeId=Y
+// Returns rejected petitions whose items contain the given batchNo AND whose
+// submittedBy.employeeId matches the requester. Used to suggest "this looks
+// like a revision of an earlier rejected petition" on the new-petition form.
+// Without employeeId we return nothing — preventing cross-user batch lookup.
+router.get('/rejected-by-batch', async (req, res) => {
+  try {
+    const batchNo = String(req.query.batchNo || '').trim();
+    const employeeId = String(req.query.employeeId || '').trim();
+    if (!batchNo || !employeeId) return res.json([]);
+
+    const docs = await Petition.find({
+      status: 'rejected',
+      'submittedBy.employeeId': employeeId,
+      'items.batchNo': batchNo,
+    })
+      .select('_id petitionNo submittedBy items reviewHistory rejectedAt dept')
+      .sort({ rejectedAt: -1 })
+      .limit(10)
+      .lean();
+    res.json(docs);
   } catch (err) {
     res.status(500).json({ error: { message: err.message } });
   }
@@ -288,17 +312,41 @@ router.post('/', async (req, res) => {
         }
       }
     }
+    let revisionOf = null;
+    if (body.revisionOf) {
+      if (!mongoose.Types.ObjectId.isValid(body.revisionOf)) {
+        return badRequest(res, 'revisionOf ไม่ใช่รหัสคำร้องที่ถูกต้อง');
+      }
+      const predecessor = await Petition.findById(body.revisionOf).lean();
+      if (!predecessor) {
+        return badRequest(res, 'ไม่พบคำร้องต้นทาง');
+      }
+      if (predecessor.status !== 'rejected') {
+        return badRequest(res, 'คำร้องต้นทางไม่ได้ถูกส่งกลับให้แก้ไข');
+      }
+      const submitterId = body.submittedBy?.employeeId?.trim();
+      const predecessorId = predecessor.submittedBy?.employeeId?.trim();
+      if (!submitterId || !predecessorId) {
+        return res.status(403).json({ error: { message: 'การยื่นคำร้องแก้ไขต้องระบุรหัสพนักงาน' } });
+      }
+      if (submitterId !== predecessorId) {
+        return res.status(403).json({ error: { message: 'เฉพาะผู้ยื่นคำร้องเดิมเท่านั้นที่สามารถยื่นแก้ไขได้' } });
+      }
+      revisionOf = predecessor._id;
+    }
     const petitionNo = await nextPetitionNo();
     const doc = await Petition.create({
       ...body,
       petitionNo,
       status: 'deliveringQC',
+      revisionOf,
     });
     logAudit(doc, {
       event: 'created',
       toStatus: doc.status,
       actor: body.actor || body.submittedBy?.name || 'system',
-      note: 'สร้างคำร้องใหม่',
+      note: revisionOf ? `สร้างคำร้องใหม่ (แก้ไขจาก ${body.revisionOf})` : 'สร้างคำร้องใหม่',
+      metadata: revisionOf ? { revisionOf: String(revisionOf) } : undefined,
     });
     res.status(201).json(doc);
   } catch (err) {
@@ -414,7 +462,7 @@ router.patch('/:id/assign', async (req, res) => {
   }
 });
 
-// PATCH /api/petitions/:id  (general update; only allowed when status === deliveringQC for end users)
+// PATCH /api/petitions/:id  (general update + approve/reject transitions)
 router.patch('/:id', async (req, res) => {
   try {
     const updates = { ...req.body };
@@ -422,8 +470,71 @@ router.patch('/:id', async (req, res) => {
     delete updates.actor;
     delete updates.petitionNo;
     delete updates._id;
-    const before = await Petition.findById(req.params.id).lean();
+    delete updates.revisionOf;     // revisionOf is set on create only
+    delete updates.approvedAt;     // server-managed
+    delete updates.rejectedAt;     // server-managed
+
+    const before = await Petition.findById(req.params.id);
     if (!before) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+
+    // Terminal-state guard
+    if ((before.status === 'approved' || before.status === 'rejected') && updates.status && updates.status !== before.status) {
+      return res.status(409).json({ error: { message: 'คำร้องนี้ปิดแล้ว ไม่สามารถเปลี่ยนสถานะได้' } });
+    }
+
+    // Approve transition: success → approved
+    if (updates.status === 'approved') {
+      if (before.status !== 'success') {
+        return res.status(409).json({ error: { message: 'อนุมัติได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
+      }
+      before.status = 'approved';
+      before.approvedAt = new Date();
+      before.reviewHistory.push({
+        action: 'approve',
+        reviewedBy: actor || 'system',
+        reviewedAt: new Date(),
+      });
+      await before.save();
+      logAudit(before, {
+        event: 'statusChanged',
+        fromStatus: 'success',
+        toStatus: 'approved',
+        actor: actor || 'system',
+        note: 'อนุมัติคำร้อง',
+      });
+      return res.json(before);
+    }
+
+    // Reject transition: success → rejected
+    if (updates.status === 'rejected') {
+      if (before.status !== 'success') {
+        return res.status(409).json({ error: { message: 'ส่งกลับให้แก้ไขได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
+      }
+      const note = String(updates.revisionNote || '').trim();
+      if (!note) {
+        return badRequest(res, 'กรุณาระบุข้อความที่ต้องการให้แก้ไข');
+      }
+      before.status = 'rejected';
+      before.rejectedAt = new Date();
+      before.reviewHistory.push({
+        action: 'reject',
+        reviewedBy: actor || 'system',
+        reviewedAt: new Date(),
+        note,
+      });
+      await before.save();
+      logAudit(before, {
+        event: 'statusChanged',
+        fromStatus: 'success',
+        toStatus: 'rejected',
+        actor: actor || 'system',
+        note: `ส่งกลับให้แก้ไข: ${note}`,
+      });
+      return res.json(before);
+    }
+
+    // Generic update path (no terminal transition)
+    delete updates.revisionNote;
     const doc = await Petition.findByIdAndUpdate(req.params.id, updates, { new: true });
     if (before.status !== doc.status) {
       logAudit(doc, {
@@ -454,6 +565,9 @@ router.post('/:id/review', async (req, res) => {
     if (!action || !reviewedBy) return badRequest(res, 'ข้อมูลรีวิวไม่ครบ');
     const doc = await Petition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if ((doc.status === 'approved' || doc.status === 'rejected') && status && status !== doc.status) {
+      return res.status(409).json({ error: { message: 'คำร้องนี้ปิดแล้ว ไม่สามารถเปลี่ยนสถานะได้' } });
+    }
     const prevStatus = doc.status;
     doc.reviewHistory.push({
       action,

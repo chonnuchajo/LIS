@@ -240,6 +240,22 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ actor }),
     }),
+  approvePetition: (petitionId: string, actor: string) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "approved", actor }),
+    }),
+  rejectPetition: (petitionId: string, actor: string, revisionNote: string) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "rejected", actor, revisionNote }),
+    }),
+  getPetition: (petitionId: string) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`),
+  findRejectedByBatch: (batchNo: string, employeeId: string) => {
+    const qs = new URLSearchParams({ batchNo, employeeId }).toString();
+    return request<import("@/types/petition.types").Petition[]>(`/petitions/rejected-by-batch?${qs}`);
+  },
 };
 
 export type QCProgressEntry = {

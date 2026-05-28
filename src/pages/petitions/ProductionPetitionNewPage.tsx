@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Save } from 'lucide-react';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, RotateCcw, Save } from 'lucide-react';
+import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,6 +16,8 @@ import {
 } from '@/types/productionPlan.types';
 import { createPetition, createLabRequest } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
+import { api } from '@/lib/api';
+import type { Petition, ProductionPetition } from '@/types/petition.types';
 
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
 const ICP_LADDA_COMPANY = 'ICP Ladda Co., LTD.';
@@ -89,8 +92,11 @@ function makeBlankLabRequest(
 export default function ProductionPetitionNewPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const prodOrderNos = (location.state as { prodOrderNos?: string[] } | null)?.prodOrderNos;
+  const prodOrderNosFromState = (location.state as { prodOrderNos?: string[] } | null)?.prodOrderNos;
+  const revisionOfId = searchParams.get('revisionOf');
+  const [revisionSource, setRevisionSource] = useState<Petition | null>(null);
 
   const [stepIdx, setStepIdx] = useState(0);
   const currentStep = STEPS[stepIdx].key;
@@ -118,6 +124,57 @@ export default function ProductionPetitionNewPage() {
   const [items, setItems] = useState<ItemRowValues[]>([makeBlankItem(1)]);
 
   const [plan, setPlanState] = useState<ProductionPlan | null>(null);
+
+  // Pre-fill from a rejected predecessor when ?revisionOf=<id> is present
+  useEffect(() => {
+    if (!revisionOfId) return;
+    let alive = true;
+    api.getPetition(revisionOfId)
+      .then((source) => {
+        if (!alive) return;
+        if (source.status !== 'rejected') {
+          toast.error('คำร้องต้นทางไม่ได้ถูกส่งกลับให้แก้ไข');
+          navigate('/petitions');
+          return;
+        }
+        if (
+          user?.employeeId &&
+          source.submittedBy?.employeeId &&
+          user.employeeId !== source.submittedBy.employeeId
+        ) {
+          toast.error('คุณไม่ใช่ผู้ยื่นของคำร้องต้นทาง');
+          navigate('/petitions');
+          return;
+        }
+        setRevisionSource(source);
+        // Pre-fill items (strip sampleId so backend regenerates)
+        setItems(
+          source.items.map((it, idx) => ({
+            seq: idx + 1,
+            sampleName: it.sampleName ?? '',
+            commonName: it.commonName ?? '',
+            batchNo: it.batchNo ?? '',
+            productionDate: it.productionDate ?? null,
+            packageUnit: it.packageUnit ?? '',
+            submissionNo: it.submissionNo ?? '',
+            testUnit: it.testUnit ?? '',
+            testItems: it.testItems ?? '',
+            note: it.note ?? '',
+          })),
+        );
+        if (source.dept === 'production') {
+          const plans = (source as ProductionPetition).productionPlans ?? [];
+          if (plans.length > 0) setPlanState(plans[0]);
+        }
+      })
+      .catch(() => {
+        if (alive) {
+          toast.error('โหลดคำร้องต้นทางไม่สำเร็จ');
+          navigate('/petitions');
+        }
+      });
+    return () => { alive = false; };
+  }, [revisionOfId, navigate, user?.employeeId]);
 
   const labBatches = useMemo(
     () => items.filter((it) => it.batchNo && isLabBatch(it.batchNo)),
@@ -248,10 +305,11 @@ export default function ProductionPetitionNewPage() {
         items: items.map((it, idx) => ({ ...it, seq: idx + 1 })),
         productionPlans: plan ? [plan] : [],
         labRequests: [],
-        prodOrderNos: prodOrderNos ?? [],
+        prodOrderNos: prodOrderNosFromState ?? [],
         cause: '',
+        revisionOf: revisionOfId || undefined,
       };
-      const created = await createPetition(payload);
+      const created = await createPetition(payload as Parameters<typeof createPetition>[0]);
 
       if (labBatches.length > 0 && labRequest) {
         try {
@@ -281,6 +339,17 @@ export default function ProductionPetitionNewPage() {
             <h1 className="text-xl md:text-2xl font-bold text-black-500">คำขอแผนกผลิต</h1>
           </div>
         </div>
+
+        {revisionSource && (
+          <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 flex items-center gap-2">
+            <RotateCcw className="h-4 w-4 text-orange-500 shrink-0" />
+            <p className="text-sm text-orange-800">
+              ยื่นแก้ไขจากคำร้อง{' '}
+              <span className="font-semibold">{revisionSource.petitionNo}</span>
+            </p>
+          </div>
+        )}
+
 
         {/* Stepper */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">

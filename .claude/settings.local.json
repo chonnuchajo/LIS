@@ -12,8 +12,14 @@
       "Bash(Select-Object Name)",
       "Bash(sed 's/[><]//g')",
       "Bash(grep -v \"^C:\\\\\\\\Project\\\\\\\\LIS\\\\\\\\src/pages/DashboardRedirect.tsx\")",
+<<<<<<< HEAD
       "Bash(git push:*)",
       "Bash(grep -v \"^C:\\\\\\\\Project\\\\\\\\LIS\\\\\\\\src/pages/.*Page\\\\\\\\.tsx\")"
+=======
+      "Bash(grep -v \"^C:\\\\\\\\Project\\\\\\\\LIS\\\\\\\\src/pages/.*Page\\\\\\\\.tsx\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+>>>>>>> a45d86e79ea3496fee953cd30222e082a395baf9
     ]
   }
 }
