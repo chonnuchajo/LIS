@@ -177,6 +177,32 @@ router.get('/returned-flags', async (req, res) => {
   }
 });
 
+// GET /api/petitions/rejected-by-batch?batchNo=X&employeeId=Y
+// Returns rejected petitions whose items contain the given batchNo AND whose
+// submittedBy.employeeId matches the requester. Used to suggest "this looks
+// like a revision of an earlier rejected petition" on the new-petition form.
+// Without employeeId we return nothing — preventing cross-user batch lookup.
+router.get('/rejected-by-batch', async (req, res) => {
+  try {
+    const batchNo = String(req.query.batchNo || '').trim();
+    const employeeId = String(req.query.employeeId || '').trim();
+    if (!batchNo || !employeeId) return res.json([]);
+
+    const docs = await Petition.find({
+      status: 'rejected',
+      'submittedBy.employeeId': employeeId,
+      'items.batchNo': batchNo,
+    })
+      .select('_id petitionNo submittedBy items reviewHistory rejectedAt dept')
+      .sort({ rejectedAt: -1 })
+      .limit(10)
+      .lean();
+    res.json(docs);
+  } catch (err) {
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
 // GET /api/petitions/scan/:code
 router.get('/scan/:code', async (req, res) => {
   try {
