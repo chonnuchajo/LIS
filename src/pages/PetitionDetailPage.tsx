@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, FileText, Pencil, Printer, Trash2 } from 'lucide-react';
+import { ArrowLeft, FileText, Pencil, Printer, RotateCcw, Trash2 } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -223,6 +223,48 @@ export default function PetitionDetailPage() {
               )}
 
               <div className="print:hidden space-y-6">
+                {data.status === 'rejected' && (() => {
+                  const rejectEntry = [...(data.reviewHistory ?? [])].reverse().find((e) => e.action === 'reject');
+                  const isSubmitter =
+                    !!user?.employeeId &&
+                    !!data.submittedBy?.employeeId &&
+                    user.employeeId === data.submittedBy.employeeId;
+                  return (
+                    <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <RotateCcw className="h-5 w-5 text-orange-500" />
+                        <p className="text-sm font-semibold text-orange-800">คำร้องนี้ถูกส่งกลับให้แก้ไข</p>
+                      </div>
+                      {rejectEntry && (
+                        <>
+                          <p className="text-xs text-orange-700">
+                            ผู้ตรวจสอบ: {rejectEntry.reviewedBy} · เมื่อ{' '}
+                            {new Date(rejectEntry.reviewedAt).toLocaleString('th-TH', {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })}
+                          </p>
+                          {rejectEntry.note && (
+                            <p className="text-sm text-black-700 whitespace-pre-wrap rounded border border-orange-200 bg-white px-3 py-2">
+                              {rejectEntry.note}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      {isSubmitter && (
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => navigate(`/petitions/new?revisionOf=${data._id}`)}
+                          className="gap-2"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          ยื่นแก้ไขใหม่
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div className="flex flex-wrap items-center gap-3">
                   <Button variant="ghost" size="sm" onClick={() => navigate('/petitions')}>
                     <ArrowLeft className="h-4 w-4" />
