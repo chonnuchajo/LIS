@@ -685,14 +685,14 @@ export default function QCTestingDetailPage() {
       </div>
 
       {wasReturned && implicitPredecessorNo && (
-        <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 flex items-center gap-2 -mt-2">
-          <RotateCcw className="h-4 w-4 text-orange-500 shrink-0" />
-          <p className="text-sm text-orange-800">
+        <div className="rounded-lg border-2 border-orange-300 bg-orange-50 px-5 py-4 flex items-center gap-3 -mt-2 shadow-sm">
+          <RotateCcw className="h-6 w-6 text-orange-500 shrink-0" />
+          <p className="text-base md:text-lg text-orange-800 leading-relaxed">
             คำร้องนี้ใช้เลขแบชเดียวกับคำร้อง{' '}
             <button
               type="button"
               onClick={() => navigate(`/petitions/${implicitPredecessorNo}`)}
-              className="font-semibold underline hover:text-orange-900"
+              className="font-bold underline hover:text-orange-900 text-lg md:text-xl"
             >
               {implicitPredecessorNo}
             </button>{' '}
