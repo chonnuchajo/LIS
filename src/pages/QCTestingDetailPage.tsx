@@ -297,37 +297,80 @@ export default function QCTestingDetailPage() {
     });
   }, [petition, user]);
 
-  // Detect if this petition was previously sent back from QC Approval
+  // Resolve the predecessor petition for inline comparison.
+  // Two paths: explicit (petition.revisionOf set via "ยื่นแก้ไขใหม่" button) OR
+  // implicit (a rejected petition exists with same submitter employeeId + a
+  // matching batchNo). QC sees the link either way; the submitter need not know.
+  const [implicitPredecessorNo, setImplicitPredecessorNo] = useState<string | null>(null);
   useEffect(() => {
-    if (!petition?._id) {
+    if (!petition) {
+      setPreviousLookup(new Map());
+      setImplicitPredecessorNo(null);
       setWasReturned(false);
       return;
     }
     let alive = true;
-    api.getReturnedFlags([petition._id])
-      .then((map) => { if (alive) setWasReturned(!!map[petition._id]); })
-      .catch(() => { if (alive) setWasReturned(false); });
-    return () => { alive = false; };
-  }, [petition?._id]);
 
-  // Load previous petition's results for inline comparison (revision petitions only)
-  useEffect(() => {
-    if (!petition?.revisionOf) {
-      setPreviousLookup(new Map());
-      return;
-    }
-    let alive = true;
-    Promise.all([
-      api.getPetition(String(petition.revisionOf)),
-      api.getQCResults(String(petition.revisionOf)),
-    ])
-      .then(([prevPetition, prevResults]) => {
+    const loadFromPredecessor = async (predecessorId: string, predecessorNo?: string) => {
+      try {
+        const [prevPetition, prevResults] = await Promise.all([
+          api.getPetition(predecessorId),
+          api.getQCResults(predecessorId),
+        ]);
         if (!alive) return;
         setPreviousLookup(buildPreviousValueLookup(prevPetition.items, prevResults));
-      })
-      .catch(() => { if (alive) setPreviousLookup(new Map()); });
+        setImplicitPredecessorNo(predecessorNo ?? prevPetition.petitionNo ?? null);
+        setWasReturned(true);
+      } catch {
+        if (alive) {
+          setPreviousLookup(new Map());
+          setImplicitPredecessorNo(null);
+        }
+      }
+    };
+
+    if (petition.revisionOf) {
+      loadFromPredecessor(String(petition.revisionOf));
+      return () => { alive = false; };
+    }
+
+    // No explicit revisionOf — try to detect via batch + submitter
+    const submitterEmpId = petition.submittedBy?.employeeId?.trim();
+    const batches = Array.from(
+      new Set((petition.items ?? []).map((it) => it.batchNo?.trim()).filter((b): b is string => !!b)),
+    );
+    if (!submitterEmpId || batches.length === 0) {
+      setPreviousLookup(new Map());
+      setImplicitPredecessorNo(null);
+      setWasReturned(false);
+      return;
+    }
+    (async () => {
+      try {
+        const results = await Promise.all(
+          batches.map((b) => api.findRejectedByBatch(b, submitterEmpId).catch(() => [] as typeof petition[])),
+        );
+        if (!alive) return;
+        const flat = results.flat().filter((p) => p._id !== petition._id);
+        if (flat.length === 0) {
+          setPreviousLookup(new Map());
+          setImplicitPredecessorNo(null);
+          setWasReturned(false);
+          return;
+        }
+        // Pick the most recently rejected (endpoint already sorts by rejectedAt desc)
+        const predecessor = flat[0];
+        await loadFromPredecessor(predecessor._id, predecessor.petitionNo);
+      } catch {
+        if (alive) {
+          setPreviousLookup(new Map());
+          setImplicitPredecessorNo(null);
+          setWasReturned(false);
+        }
+      }
+    })();
     return () => { alive = false; };
-  }, [petition?.revisionOf]);
+  }, [petition?._id, petition?.revisionOf, petition?.submittedBy?.employeeId, petition?.items]);
 
   // Default the visible phase tab to the petition's current phase
   useEffect(() => {
@@ -619,8 +662,10 @@ export default function QCTestingDetailPage() {
         {wasReturned && (
           <span
             className="inline-flex items-center text-orange-500"
-            title="ส่งกลับมาบันทึกผลใหม่"
-            aria-label="ส่งกลับมาบันทึกผลใหม่"
+            title={implicitPredecessorNo
+              ? `อ้างอิงจากคำร้อง ${implicitPredecessorNo} (batch เดิม)`
+              : 'ส่งกลับมาบันทึกผลใหม่'}
+            aria-label="คำร้องแก้ไข"
           >
             <RotateCcw className="h-4 w-4" />
           </span>
@@ -638,6 +683,23 @@ export default function QCTestingDetailPage() {
           ผู้นำส่ง: {petition.submittedBy?.name ?? '-'}
         </span>
       </div>
+
+      {wasReturned && implicitPredecessorNo && (
+        <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-2 flex items-center gap-2 -mt-2">
+          <RotateCcw className="h-4 w-4 text-orange-500 shrink-0" />
+          <p className="text-sm text-orange-800">
+            คำร้องนี้ใช้เลขแบชเดียวกับคำร้อง{' '}
+            <button
+              type="button"
+              onClick={() => navigate(`/petitions/${implicitPredecessorNo}`)}
+              className="font-semibold underline hover:text-orange-900"
+            >
+              {implicitPredecessorNo}
+            </button>{' '}
+            ที่เคยถูกส่งให้แก้ไข — ค่าเดิมแสดงใต้แต่ละช่อง
+          </p>
+        </div>
+      )}
 
       {/* Active worklist tab strip — switch between petitions currently in QC */}
       {worklistData && worklistData.items.length > 1 && (

@@ -12,7 +12,9 @@
       "Bash(Select-Object Name)",
       "Bash(sed 's/[><]//g')",
       "Bash(grep -v \"^C:\\\\\\\\Project\\\\\\\\LIS\\\\\\\\src/pages/DashboardRedirect.tsx\")",
-      "Bash(grep -v \"^C:\\\\\\\\Project\\\\\\\\LIS\\\\\\\\src/pages/.*Page\\\\\\\\.tsx\")"
+      "Bash(grep -v \"^C:\\\\\\\\Project\\\\\\\\LIS\\\\\\\\src/pages/.*Page\\\\\\\\.tsx\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
