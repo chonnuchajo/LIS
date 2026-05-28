@@ -203,7 +203,7 @@ const PetitionSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['deliveringQC', 'sampleSent', 'pendingReview', 'inProgress', 'success'],
+      enum: ['deliveringQC', 'sampleSent', 'pendingReview', 'inProgress', 'success', 'approved', 'rejected'],
       default: 'deliveringQC',
       index: true,
     },
@@ -239,6 +239,14 @@ const PetitionSchema = new mongoose.Schema(
       ),
       default: null,
     },
+    revisionOf: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Petition',
+      default: null,
+      index: true,
+    },
+    approvedAt: { type: Date, default: null },
+    rejectedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
