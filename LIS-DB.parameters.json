@@ -1,0 +1,206 @@
+[{
+  "_id": {
+    "$oid": "6a0d09f7b143bc4f0aaafc29"
+  },
+  "name": "กายภาพ",
+  "status": "active",
+  "applyAll": true,
+  "commonNames": [],
+  "itemNames": [],
+  "productTypes": [],
+  "valueFields": [
+    {
+      "label": "ลักษณะ",
+      "type": "enum",
+      "unit": "",
+      "min": null,
+      "max": null,
+      "options": [
+        "ของเหลวใส",
+        "ของเหลวขุ่น",
+        "ของเหลวหนืด",
+        "เม็ดทรงกระบอก",
+        "เกล็ด",
+        "ผงละเลียด",
+        "เม็ดทราย",
+        "เม็ดหยาบ",
+        "เม็ด",
+        "ก้อนเล็ก",
+        "ก้อนใหญ่"
+      ],
+      "requireNoteOn": [],
+      "expectedValues": [],
+      "required": false
+    },
+    {
+      "label": "สี",
+      "type": "text",
+      "unit": "",
+      "min": null,
+      "max": null,
+      "options": [],
+      "requireNoteOn": [],
+      "expectedValues": [],
+      "required": false
+    },
+    {
+      "label": "ปกติ/ไม่ปกติ",
+      "type": "enum",
+      "unit": "",
+      "min": null,
+      "max": null,
+      "options": [
+        "ปกติ",
+        "ไม่ปกติ"
+      ],
+      "requireNoteOn": [
+        "ไม่ปกติ"
+      ],
+      "expectedValues": [
+        "ปกติ"
+      ],
+      "required": true
+    }
+  ],
+  "sortOrder": 0,
+  "note": "",
+  "createdAt": {
+    "$date": "2026-05-20T01:10:15.950Z"
+  },
+  "updatedAt": {
+    "$date": "2026-05-23T01:30:47.122Z"
+  },
+  "__v": 0,
+  "categories": []
+},
+{
+  "_id": {
+    "$oid": "6a0e61fddea0305d55d336bd"
+  },
+  "name": "การละลาย",
+  "status": "active",
+  "applyAll": false,
+  "commonNames": [],
+  "itemNames": [],
+  "productTypes": [
+    "water"
+  ],
+  "categories": [],
+  "valueFields": [
+    {
+      "label": "ค่า",
+      "type": "float",
+      "unit": "m/cm^3",
+      "min": null,
+      "max": null,
+      "options": [],
+      "requireNoteOn": [],
+      "expectedValues": [],
+      "standardValue": 0.1,
+      "standardOperator": "between",
+      "standardValue2": 0.9,
+      "required": true
+    }
+  ],
+  "sortOrder": 0,
+  "note": "",
+  "createdAt": {
+    "$date": "2026-05-21T01:38:05.414Z"
+  },
+  "updatedAt": {
+    "$date": "2026-05-23T01:54:43.981Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a0e63729ab68e576580b285"
+  },
+  "name": "ถ่ายภาพ",
+  "status": "active",
+  "applyAll": false,
+  "commonNames": [],
+  "itemNames": [],
+  "productTypes": [],
+  "categories": [
+    "RM"
+  ],
+  "valueFields": [
+    {
+      "label": "ภาพตัวอย่าง",
+      "type": "photo",
+      "unit": "",
+      "min": null,
+      "max": null,
+      "options": [],
+      "required": true
+    }
+  ],
+  "sortOrder": 0,
+  "note": "",
+  "createdAt": {
+    "$date": "2026-05-21T01:44:18.035Z"
+  },
+  "updatedAt": {
+    "$date": "2026-05-21T01:44:18.035Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6a13ae4abcb0f3bbdd70d053"
+  },
+  "name": "ค่า ถพ.",
+  "scope": "qc",
+  "status": "active",
+  "applyAll": false,
+  "commonNames": [],
+  "itemNames": [],
+  "productTypes": [
+    "water"
+  ],
+  "categories": [],
+  "valueFields": [
+    {
+      "label": "ค่าถพ.",
+      "type": "float",
+      "unit": "m/cm^3",
+      "min": null,
+      "max": null,
+      "options": [],
+      "requireNoteOn": [],
+      "expectedValues": [],
+      "standardValue": null,
+      "standardOperator": null,
+      "standardValue2": null,
+      "timerDurationSec": null,
+      "timerUnit": null,
+      "required": true
+    },
+    {
+      "label": "อุณหภูมิ",
+      "type": "float",
+      "unit": "C",
+      "min": null,
+      "max": null,
+      "options": [],
+      "requireNoteOn": [],
+      "expectedValues": [],
+      "standardValue": null,
+      "standardOperator": null,
+      "standardValue2": null,
+      "timerDurationSec": null,
+      "timerUnit": null,
+      "required": true
+    }
+  ],
+  "sortOrder": 0,
+  "note": "",
+  "createdAt": {
+    "$date": "2026-05-25T02:04:58.099Z"
+  },
+  "updatedAt": {
+    "$date": "2026-05-25T02:06:07.397Z"
+  },
+  "__v": 0
+}]
