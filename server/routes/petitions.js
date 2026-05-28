@@ -435,7 +435,7 @@ router.patch('/:id/assign', async (req, res) => {
   }
 });
 
-// PATCH /api/petitions/:id  (general update; only allowed when status === deliveringQC for end users)
+// PATCH /api/petitions/:id  (general update + approve/reject transitions)
 router.patch('/:id', async (req, res) => {
   try {
     const updates = { ...req.body };
@@ -443,8 +443,71 @@ router.patch('/:id', async (req, res) => {
     delete updates.actor;
     delete updates.petitionNo;
     delete updates._id;
-    const before = await Petition.findById(req.params.id).lean();
+    delete updates.revisionOf;     // revisionOf is set on create only
+    delete updates.approvedAt;     // server-managed
+    delete updates.rejectedAt;     // server-managed
+
+    const before = await Petition.findById(req.params.id);
     if (!before) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+
+    // Terminal-state guard
+    if ((before.status === 'approved' || before.status === 'rejected') && updates.status && updates.status !== before.status) {
+      return res.status(409).json({ error: { message: 'คำร้องนี้ปิดแล้ว ไม่สามารถเปลี่ยนสถานะได้' } });
+    }
+
+    // Approve transition: success → approved
+    if (updates.status === 'approved') {
+      if (before.status !== 'success') {
+        return res.status(409).json({ error: { message: 'อนุมัติได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
+      }
+      before.status = 'approved';
+      before.approvedAt = new Date();
+      before.reviewHistory.push({
+        action: 'approve',
+        reviewedBy: actor || 'system',
+        reviewedAt: new Date(),
+      });
+      await before.save();
+      logAudit(before, {
+        event: 'statusChanged',
+        fromStatus: 'success',
+        toStatus: 'approved',
+        actor: actor || 'system',
+        note: 'อนุมัติคำร้อง',
+      });
+      return res.json(before);
+    }
+
+    // Reject transition: success → rejected
+    if (updates.status === 'rejected') {
+      if (before.status !== 'success') {
+        return res.status(409).json({ error: { message: 'ส่งกลับให้แก้ไขได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
+      }
+      const note = String(updates.revisionNote || '').trim();
+      if (!note) {
+        return badRequest(res, 'กรุณาระบุข้อความที่ต้องการให้แก้ไข');
+      }
+      before.status = 'rejected';
+      before.rejectedAt = new Date();
+      before.reviewHistory.push({
+        action: 'reject',
+        reviewedBy: actor || 'system',
+        reviewedAt: new Date(),
+        note,
+      });
+      await before.save();
+      logAudit(before, {
+        event: 'statusChanged',
+        fromStatus: 'success',
+        toStatus: 'rejected',
+        actor: actor || 'system',
+        note: `ส่งกลับให้แก้ไข: ${note}`,
+      });
+      return res.json(before);
+    }
+
+    // Generic update path (no terminal transition)
+    delete updates.revisionNote;
     const doc = await Petition.findByIdAndUpdate(req.params.id, updates, { new: true });
     if (before.status !== doc.status) {
       logAudit(doc, {
