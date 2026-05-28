@@ -240,6 +240,16 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ actor }),
     }),
+  approvePetition: (petitionId: string, actor: string) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "approved", actor }),
+    }),
+  rejectPetition: (petitionId: string, actor: string, revisionNote: string) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "rejected", actor, revisionNote }),
+    }),
 };
 
 export type QCProgressEntry = {
