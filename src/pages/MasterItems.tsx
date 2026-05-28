@@ -6,7 +6,10 @@ import {
   FlaskConical,
   PackageSearch,
   Pencil,
+  Plus,
+  RefreshCw,
   Search,
+  Trash2,
   Wrench,
   Download,
 } from "lucide-react";
