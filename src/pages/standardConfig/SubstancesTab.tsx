@@ -43,6 +43,7 @@ export default function SubstancesTab() {
 
   // Optimistic local cache for in-flight edits
   const [pending, setPending] = useState<Record<string, Partial<StandardConfigDoc>>>({});
+  const [errored, setErrored] = useState<Set<string>>(new Set());
 
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -94,15 +95,15 @@ export default function SubstancesTab() {
         delete next[vars.nameLower];
         return next;
       });
+      setErrored((s) => {
+        const n = new Set(s); n.delete(vars.nameLower); return n;
+      });
       queryClient.invalidateQueries({ queryKey: ["standard-configs"] });
     },
     onError: (err: Error, vars) => {
       toast.error(`บันทึก ${vars.nameLower} ไม่สำเร็จ — ${err.message}`);
-      setPending((p) => {
-        const next = { ...p };
-        delete next[vars.nameLower];
-        return next;
-      });
+      setErrored((s) => new Set(s).add(vars.nameLower));
+      // DO NOT delete from `pending` — keep the local edit visible per spec
     },
   });
 
@@ -132,6 +133,12 @@ export default function SubstancesTab() {
   ) => {
     const patch = { gc: row.gc, hplc: row.hplc, [field]: next };
     setPending((p) => ({ ...p, [row.nameLower]: patch }));
+    mutation.mutate({ nameLower: row.nameLower, patch });
+  };
+
+  const retry = (row: StandardConfigDoc) => {
+    const patch = pending[row.nameLower];
+    if (!patch) return;
     mutation.mutate({ nameLower: row.nameLower, patch });
   };
 
@@ -231,7 +238,14 @@ export default function SubstancesTab() {
             ) : (
               filteredRows.map((row) => (
                 <TableRow key={row._id}>
-                  <TableCell className="font-medium">{row.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      <span>{row.name}</span>
+                      {errored.has(row.nameLower) && (
+                        <Button size="sm" variant="outline" onClick={() => retry(row)}>ลองอีกครั้ง</Button>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <Badge variant={row.isManual ? "secondary" : "outline"}>
                       {row.isManual ? "manual" : "master"}

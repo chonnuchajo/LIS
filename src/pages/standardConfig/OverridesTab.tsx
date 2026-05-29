@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +49,155 @@ function renderSlots(cfg: { enabled: boolean; unit: string; slots: number[] }) {
   );
 }
 
+type OverrideFormValue = {
+  matchType: MatchType;
+  matchValue: string;
+  scope: OverrideScope;
+  priority: number;
+  note: string;
+  gc: InstrumentConfig;
+  hplc: InstrumentConfig;
+};
+
+function OverrideForm({
+  value, onChange, lockMatchType, configs, commonNames,
+}: {
+  value: OverrideFormValue;
+  onChange: (next: OverrideFormValue) => void;
+  lockMatchType: boolean;
+  configs: StandardConfigDoc[];
+  commonNames: string[];
+}) {
+  const preview = useMemo(() => {
+    if (!value.matchValue.trim()) return [];
+    const needle = value.matchValue.trim().toLowerCase();
+    const hits: { commonName: string; substanceIndex: number }[] = [];
+    for (const cn of commonNames) {
+      const substances = parseSubstances(cn);
+      if (value.matchType === "commonName") {
+        if (cn.toLowerCase() === needle) hits.push({ commonName: cn, substanceIndex: 0 });
+      } else if (value.matchType === "substring") {
+        if (cn.toLowerCase().includes(needle)) hits.push({ commonName: cn, substanceIndex: 0 });
+      } else {
+        substances.forEach((sub, i) => {
+          if (sub.trim().toLowerCase() === needle) hits.push({ commonName: cn, substanceIndex: i });
+        });
+      }
+      if (hits.length >= 200) break;
+    }
+    return hits;
+  }, [value.matchValue, value.matchType, commonNames]);
+
+  return (
+    <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+      <div>
+        <Label className="text-sm">Match type</Label>
+        <RadioGroup
+          value={value.matchType}
+          onValueChange={(v) => onChange({ ...value, matchType: v as MatchType })}
+          className="flex gap-4 mt-1"
+        >
+          {(["substring", "substance", "commonName"] as MatchType[]).map((mt) => (
+            <label key={mt} className={`flex items-center gap-1 text-sm ${lockMatchType ? "opacity-40" : ""}`}>
+              <RadioGroupItem value={mt} disabled={lockMatchType} /> {mt}
+            </label>
+          ))}
+        </RadioGroup>
+        {lockMatchType && (
+          <div className="text-xs text-muted-foreground mt-1">
+            ไม่สามารถแก้ match type ของ rule ที่มีอยู่ — ลบแล้วสร้างใหม่
+          </div>
+        )}
+      </div>
+      <div>
+        <Label htmlFor="match-value" className="text-sm">Match value</Label>
+        {value.matchType === "substring" ? (
+          <Input
+            id="match-value"
+            value={value.matchValue}
+            onChange={(e) => onChange({ ...value, matchValue: e.target.value })}
+          />
+        ) : value.matchType === "substance" ? (
+          <Select value={value.matchValue} onValueChange={(v) => onChange({ ...value, matchValue: v })}>
+            <SelectTrigger><SelectValue placeholder="เลือก substance" /></SelectTrigger>
+            <SelectContent>
+              {configs.map((c) => (<SelectItem key={c._id} value={c.name}>{c.name}</SelectItem>))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <Select value={value.matchValue} onValueChange={(v) => onChange({ ...value, matchValue: v })}>
+            <SelectTrigger><SelectValue placeholder="เลือก commonName" /></SelectTrigger>
+            <SelectContent>
+              {commonNames.map((cn) => (<SelectItem key={cn} value={cn}>{cn}</SelectItem>))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+      <div>
+        <Label className="text-sm">Scope</Label>
+        <RadioGroup
+          value={value.scope}
+          onValueChange={(v) => onChange({ ...value, scope: v as OverrideScope })}
+          className="flex gap-4 mt-1"
+        >
+          <label className={`flex items-center gap-1 text-sm ${value.matchType === "commonName" ? "opacity-40" : ""}`}>
+            <RadioGroupItem value="substanceOnly" disabled={value.matchType === "commonName"} />
+            เฉพาะ substance ที่ match
+          </label>
+          <label className="flex items-center gap-1 text-sm">
+            <RadioGroupItem value="wholeCommonName" /> ทั้ง commonName
+          </label>
+        </RadioGroup>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <Label htmlFor="priority" className="text-sm">Priority</Label>
+          <Input
+            id="priority" type="number" value={value.priority}
+            onChange={(e) => onChange({ ...value, priority: Number(e.target.value) })}
+          />
+        </div>
+        <div>
+          <Label htmlFor="note" className="text-sm">Note</Label>
+          <Input
+            id="note" value={value.note}
+            onChange={(e) => onChange({ ...value, note: e.target.value })}
+          />
+        </div>
+      </div>
+      <SlotEditor label="GC" value={value.gc} onChange={(gc) => onChange({ ...value, gc })} />
+      <SlotEditor label="HPLC" value={value.hplc} onChange={(hplc) => onChange({ ...value, hplc })} />
+      {value.matchValue.trim() && (
+        <div className="rounded border bg-muted/40 p-2 text-xs">
+          <div className="font-medium mb-1">จะกระทบ commonName เหล่านี้ ({preview.length} รายการ):</div>
+          {preview.length === 0 ? (
+            <div className="text-muted-foreground">ไม่ match commonName ใดๆ</div>
+          ) : (
+            <ul className="space-y-0.5">
+              {preview.slice(0, 5).map((h, i) => (
+                <li key={i}>· {h.commonName} (substance #{h.substanceIndex + 1})</li>
+              ))}
+              {preview.length > 5 && (
+                <li className="text-muted-foreground">… และอีก {preview.length - 5}</li>
+              )}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function overlaps(a: StandardOverrideDoc, b: { matchType: MatchType; matchValueLower: string }): boolean {
+  if (a.matchType === "substring" && b.matchType === "substring") {
+    return a.matchValueLower.includes(b.matchValueLower) || b.matchValueLower.includes(a.matchValueLower);
+  }
+  if (a.matchType === b.matchType) {
+    return a.matchValueLower === b.matchValueLower;
+  }
+  return false;
+}
+
 export default function OverridesTab() {
   const queryClient = useQueryClient();
   const { data = [], isLoading } = useQuery<StandardOverrideDoc[]>({
@@ -71,15 +220,6 @@ export default function OverridesTab() {
     },
   });
 
-  const [addOpen, setAddOpen] = useState(false);
-  const [matchType, setMatchType] = useState<MatchType>("substring");
-  const [matchValue, setMatchValue] = useState("");
-  const [scope, setScope] = useState<OverrideScope>("substanceOnly");
-  const [priority, setPriority] = useState(0);
-  const [note, setNote] = useState("");
-  const [gc, setGc] = useState<InstrumentConfig>({ enabled: false, unit: "ml", slots: [] });
-  const [hplc, setHplc] = useState<InstrumentConfig>({ enabled: false, unit: "ml", slots: [] });
-
   const commonNames = useMemo(() => {
     const keys = ["common_name", "commonname", "commonName", "item_name2", "itemType"];
     const set = new Set<string>();
@@ -95,41 +235,113 @@ export default function OverridesTab() {
     return [...set].sort();
   }, [masterItems]);
 
-  const preview = useMemo(() => {
-    if (!matchValue.trim()) return [];
-    const needle = matchValue.trim().toLowerCase();
-    const hits: { commonName: string; substanceIndex: number }[] = [];
-    for (const cn of commonNames) {
-      const substances = parseSubstances(cn);
-      if (matchType === "commonName") {
-        if (cn.toLowerCase() === needle) hits.push({ commonName: cn, substanceIndex: 0 });
-      } else if (matchType === "substring") {
-        if (cn.toLowerCase().includes(needle)) hits.push({ commonName: cn, substanceIndex: 0 });
-      } else {
-        substances.forEach((sub, i) => {
-          if (sub.trim().toLowerCase() === needle) hits.push({ commonName: cn, substanceIndex: i });
-        });
-      }
-      if (hits.length >= 200) break;
+  // Add dialog state
+  const [addOpen, setAddOpen] = useState(false);
+  const initialAdd: OverrideFormValue = {
+    matchType: "substring",
+    matchValue: "",
+    scope: "substanceOnly",
+    priority: 0,
+    note: "",
+    gc: { enabled: false, unit: "ml", slots: [] },
+    hplc: { enabled: false, unit: "ml", slots: [] },
+  };
+  const [addValue, setAddValue] = useState<OverrideFormValue>(initialAdd);
+
+  // Edit dialog state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<OverrideFormValue | null>(null);
+
+  const openEdit = (row: StandardOverrideDoc) => {
+    setEditingId(row._id);
+    setEditValue({
+      matchType: row.matchType,
+      matchValue: row.matchValue,
+      scope: row.scope,
+      priority: row.priority,
+      note: row.note,
+      gc: row.gc,
+      hplc: row.hplc,
+    });
+  };
+
+  const checkConflict = (formValue: OverrideFormValue, excludeId?: string): StandardOverrideDoc | null => {
+    const needle = {
+      matchType: formValue.matchType,
+      matchValueLower: formValue.matchValue.trim().toLowerCase(),
+    };
+    for (const row of data) {
+      if (excludeId && row._id === excludeId) continue;
+      if (row.priority !== formValue.priority) continue;
+      if (overlaps(row, needle)) return row;
     }
-    return hits;
-  }, [matchValue, matchType, commonNames]);
+    return null;
+  };
 
   const createMutation = useMutation({
     mutationFn: () =>
       api.createStandardOverride({
-        matchType, matchValue: matchValue.trim(), scope, priority, note, gc, hplc,
+        matchType: addValue.matchType,
+        matchValue: addValue.matchValue.trim(),
+        scope: addValue.scope,
+        priority: addValue.priority,
+        note: addValue.note,
+        gc: addValue.gc,
+        hplc: addValue.hplc,
       }),
     onSuccess: () => {
       toast.success("เพิ่ม override rule สำเร็จ");
       setAddOpen(false);
-      setMatchValue(""); setNote(""); setPriority(0);
-      setGc({ enabled: false, unit: "ml", slots: [] });
-      setHplc({ enabled: false, unit: "ml", slots: [] });
+      setAddValue(initialAdd);
       queryClient.invalidateQueries({ queryKey: ["standard-overrides"] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
+
+  const submitAdd = () => {
+    const conflict = checkConflict(addValue);
+    if (conflict) {
+      const ok = confirm(
+        `rule นี้ priority เท่ากับ '${conflict.matchType} ${conflict.matchValue}' — อาจ match ทับกัน. บันทึกต่อ?`,
+      );
+      if (!ok) return;
+    }
+    createMutation.mutate();
+  };
+
+  const updateMutation = useMutation({
+    mutationFn: () => {
+      if (!editingId || !editValue) throw new Error("no edit state");
+      return api.updateStandardOverride(editingId, {
+        matchValue: editValue.matchValue,
+        scope: editValue.scope,
+        priority: editValue.priority,
+        note: editValue.note,
+        gc: editValue.gc,
+        hplc: editValue.hplc,
+        // matchType intentionally omitted — server ignores it
+      });
+    },
+    onSuccess: () => {
+      toast.success("อัพเดต rule สำเร็จ");
+      setEditingId(null);
+      setEditValue(null);
+      queryClient.invalidateQueries({ queryKey: ["standard-overrides"] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const submitEdit = () => {
+    if (!editValue) return;
+    const conflict = checkConflict(editValue, editingId ?? undefined);
+    if (conflict) {
+      const ok = confirm(
+        `rule นี้ priority เท่ากับ '${conflict.matchType} ${conflict.matchValue}' — อาจ match ทับกัน. บันทึกต่อ?`,
+      );
+      if (!ok) return;
+    }
+    updateMutation.mutate();
+  };
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteStandardOverride(id),
@@ -151,91 +363,18 @@ export default function OverridesTab() {
           </DialogTrigger>
           <DialogContent className="max-w-xl">
             <DialogHeader><DialogTitle>เพิ่ม Override Rule</DialogTitle></DialogHeader>
-            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
-              <div>
-                <Label className="text-sm">Match type</Label>
-                <RadioGroup value={matchType} onValueChange={(v) => setMatchType(v as MatchType)} className="flex gap-4 mt-1">
-                  <label className="flex items-center gap-1 text-sm"><RadioGroupItem value="substring" /> Substring</label>
-                  <label className="flex items-center gap-1 text-sm"><RadioGroupItem value="substance" /> Substance</label>
-                  <label className="flex items-center gap-1 text-sm"><RadioGroupItem value="commonName" /> CommonName</label>
-                </RadioGroup>
-              </div>
-              <div>
-                <Label htmlFor="match-value" className="text-sm">Match value</Label>
-                {matchType === "substring" ? (
-                  <Input id="match-value" value={matchValue} onChange={(e) => setMatchValue(e.target.value)} />
-                ) : matchType === "substance" ? (
-                  <Select value={matchValue} onValueChange={setMatchValue}>
-                    <SelectTrigger><SelectValue placeholder="เลือก substance" /></SelectTrigger>
-                    <SelectContent>
-                      {configs.map((c) => (<SelectItem key={c._id} value={c.name}>{c.name}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Select value={matchValue} onValueChange={setMatchValue}>
-                    <SelectTrigger><SelectValue placeholder="เลือก commonName" /></SelectTrigger>
-                    <SelectContent>
-                      {commonNames.map((cn) => (<SelectItem key={cn} value={cn}>{cn}</SelectItem>))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              <div>
-                <Label className="text-sm">Scope</Label>
-                <RadioGroup
-                  value={scope}
-                  onValueChange={(v) => setScope(v as OverrideScope)}
-                  className="flex gap-4 mt-1"
-                >
-                  <label className={`flex items-center gap-1 text-sm ${matchType === "commonName" ? "opacity-40" : ""}`}>
-                    <RadioGroupItem value="substanceOnly" disabled={matchType === "commonName"} />
-                    เฉพาะ substance ที่ match
-                  </label>
-                  <label className="flex items-center gap-1 text-sm">
-                    <RadioGroupItem value="wholeCommonName" /> ทั้ง commonName
-                  </label>
-                </RadioGroup>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="priority" className="text-sm">Priority</Label>
-                  <Input
-                    id="priority"
-                    type="number"
-                    value={priority}
-                    onChange={(e) => setPriority(Number(e.target.value))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="note" className="text-sm">Note</Label>
-                  <Input id="note" value={note} onChange={(e) => setNote(e.target.value)} />
-                </div>
-              </div>
-              <SlotEditor label="GC" value={gc} onChange={setGc} />
-              <SlotEditor label="HPLC" value={hplc} onChange={setHplc} />
-              {matchValue.trim() && (
-                <div className="rounded border bg-muted/40 p-2 text-xs">
-                  <div className="font-medium mb-1">จะกระทบ commonName เหล่านี้ ({preview.length} รายการ):</div>
-                  {preview.length === 0 ? (
-                    <div className="text-muted-foreground">ไม่ match commonName ใดๆ</div>
-                  ) : (
-                    <ul className="space-y-0.5">
-                      {preview.slice(0, 5).map((h, i) => (
-                        <li key={i}>· {h.commonName} (substance #{h.substanceIndex + 1})</li>
-                      ))}
-                      {preview.length > 5 && (
-                        <li className="text-muted-foreground">… และอีก {preview.length - 5}</li>
-                      )}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </div>
+            <OverrideForm
+              value={addValue}
+              onChange={setAddValue}
+              lockMatchType={false}
+              configs={configs}
+              commonNames={commonNames}
+            />
             <DialogFooter>
               <Button variant="ghost" onClick={() => setAddOpen(false)}>ยกเลิก</Button>
               <Button
-                onClick={() => createMutation.mutate()}
-                disabled={!matchValue.trim() || createMutation.isPending}
+                onClick={submitAdd}
+                disabled={!addValue.matchValue.trim() || createMutation.isPending}
               >
                 บันทึก
               </Button>
@@ -255,12 +394,13 @@ export default function OverridesTab() {
               <TableHead>HPLC</TableHead>
               <TableHead className="w-[140px]">Note</TableHead>
               <TableHead className="w-[60px]" />
+              <TableHead className="w-[60px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
                   ยังไม่มี override rules
                 </TableCell>
               </TableRow>
@@ -276,6 +416,11 @@ export default function OverridesTab() {
                   <TableCell>{renderSlots(row.gc)}</TableCell>
                   <TableCell>{renderSlots(row.hplc)}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{row.note}</TableCell>
+                  <TableCell>
+                    <Button size="icon" variant="ghost" onClick={() => openEdit(row)}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
                   <TableCell>
                     <Button
                       size="icon"
@@ -294,6 +439,30 @@ export default function OverridesTab() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={editingId !== null} onOpenChange={(open) => { if (!open) { setEditingId(null); setEditValue(null); } }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader><DialogTitle>แก้ Override Rule</DialogTitle></DialogHeader>
+          {editValue && (
+            <OverrideForm
+              value={editValue}
+              onChange={setEditValue}
+              lockMatchType
+              configs={configs}
+              commonNames={commonNames}
+            />
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setEditingId(null); setEditValue(null); }}>ยกเลิก</Button>
+            <Button
+              onClick={submitEdit}
+              disabled={!editValue?.matchValue.trim() || updateMutation.isPending}
+            >
+              บันทึก
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
