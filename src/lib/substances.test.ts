@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseSubstances, substanceKey } from "./substances";
+import { parseSubstances, substanceKey, extractSubstanceName } from "./substances";
 
 describe("parseSubstances", () => {
   it("returns single substance unchanged", () => {
@@ -55,5 +55,27 @@ describe("substanceKey", () => {
 
   it("handles mixed case and whitespace together", () => {
     expect(substanceKey("  Bispyribac-SODIUM ")).toBe("bispyribac-sodium");
+  });
+});
+
+describe("extractSubstanceName", () => {
+  it("returns the leading word", () => {
+    expect(extractSubstanceName("ABAMECTIN 1.8% W/V EC (BROWN)")).toBe("ABAMECTIN");
+  });
+  it("returns the only word when no whitespace", () => {
+    expect(extractSubstanceName("PROPANIL")).toBe("PROPANIL");
+  });
+  it("preserves hyphenated substance names", () => {
+    expect(extractSubstanceName("BISPYRIBAC-SODIUM 10% SC")).toBe("BISPYRIBAC-SODIUM");
+  });
+  it("preserves leading product codes that contain a hyphen", () => {
+    expect(extractSubstanceName("ABSORB-P SHK205N")).toBe("ABSORB-P");
+  });
+  it("returns empty string for empty/whitespace input", () => {
+    expect(extractSubstanceName("")).toBe("");
+    expect(extractSubstanceName("   ")).toBe("");
+  });
+  it("trims leading whitespace before taking the first token", () => {
+    expect(extractSubstanceName("  CHLOROTHALONIL 50%")).toBe("CHLOROTHALONIL");
   });
 });

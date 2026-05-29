@@ -32,3 +32,12 @@ export function parseSubstances(commonName: string): string[] {
 export function substanceKey(value: string): string {
   return value.trim().toLowerCase();
 }
+
+// Take the first whitespace-separated token. Used to reduce a product spec
+// like "ABAMECTIN 1.8% W/V EC (BROWN)" to its active substance "ABAMECTIN".
+// Used after parseSubstances() splits on "+".
+export function extractSubstanceName(raw: string): string {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) return "";
+  return trimmed.split(/\s+/)[0] || "";
+}

@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const StandardConfig = require('../models/StandardConfig');
-const { parseSubstances, substanceKey } = require('../utils/substances');
+const { parseSubstances, substanceKey, extractSubstanceName } = require('../utils/substances');
 
 const router = express.Router();
 
@@ -169,9 +169,11 @@ router.post('/sync', async (_req, res) => {
       const substances = parseSubstances(commonName);
       const instruments = itemNoToInstruments.get(itemNo) || [];
       substances.forEach((sub, i) => {
-        const key = substanceKey(sub);
+        const substance = extractSubstanceName(sub);
+        if (!substance) return;
+        const key = substanceKey(substance);
         if (!key) return;
-        const prev = initial.get(key) || { name: sub, gc: false, hplc: false };
+        const prev = initial.get(key) || { name: substance, gc: false, hplc: false };
         const instr = String(instruments[i] || '').toUpperCase();
         if (instr === 'GC') prev.gc = true;
         if (instr === 'HPLC') prev.hplc = true;

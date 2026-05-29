@@ -32,4 +32,10 @@ function substanceKey(value) {
   return String(value || '').trim().toLowerCase();
 }
 
-module.exports = { parseSubstances, substanceKey };
+function extractSubstanceName(raw) {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return '';
+  return trimmed.split(/\s+/)[0] || '';
+}
+
+module.exports = { parseSubstances, substanceKey, extractSubstanceName };
