@@ -9,12 +9,10 @@ function normalizeInstruments(value) {
   const list = Array.isArray(value)
     ? value
     : String(value || '').split(',');
-  const set = new Set();
-  list.forEach((entry) => {
+  return list.map((entry) => {
     const token = String(entry).trim().toUpperCase();
-    if (ALLOWED.has(token)) set.add(token);
+    return ALLOWED.has(token) ? token : '';
   });
-  return ['GC', 'HPLC'].filter((token) => set.has(token));
 }
 
 router.get('/', async (_req, res) => {

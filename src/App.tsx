@@ -36,6 +36,7 @@ import QCTestingPage from "./pages/QCTestingPage";
 import QCTestingDetailPage from "./pages/QCTestingDetailPage";
 import LabTestingPage from "./pages/LabTestingPage";
 import LabTestingDetailPage from "./pages/LabTestingDetailPage";
+import StandardConfig from "./pages/StandardConfig";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
 
 const queryClient = new QueryClient({
@@ -81,6 +82,7 @@ const App = () => (
               <Route path="/access-control" element={<PrivateRoute><AccessControl /></PrivateRoute>} />
               <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
               <Route path="/parameter-settings" element={<PrivateRoute><ParameterSettings /></PrivateRoute>} />
+              <Route path="/standard-config" element={<PrivateRoute><StandardConfig /></PrivateRoute>} />
               <Route path="/petitions" element={<PrivateRoute><PetitionListPage /></PrivateRoute>} />
               <Route path="/adutuilog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
               <Route path="/auditlog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />

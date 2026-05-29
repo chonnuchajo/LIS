@@ -1,0 +1,83 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - complementary [ref=e5]:
+      - button "ซ่อนเมนู" [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+      - generic [ref=e9]:
+        - img "ICP Logo" [ref=e10]
+        - generic [ref=e11]:
+          - heading "LIS" [level=1] [ref=e12]
+          - paragraph [ref=e13]:
+            - text: LAB INFORMATION
+            - text: SYSTEM
+      - navigation [ref=e14]
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - img [ref=e18]
+          - generic [ref=e21]:
+            - paragraph
+            - paragraph
+            - paragraph [ref=e22]: "Role: No role"
+            - paragraph [ref=e23]: Unassigned
+        - button "ออกจากระบบ" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+          - text: ออกจากระบบ
+    - generic [ref=e28]:
+      - banner [ref=e29]:
+        - button "การแจ้งเตือน" [ref=e30] [cursor=pointer]:
+          - img [ref=e31]
+          - generic [ref=e34]: "1"
+      - main [ref=e35]:
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - generic [ref=e38]:
+              - heading "Assign คำร้องให้เจ้าหน้าที่" [level=1] [ref=e39]
+              - paragraph [ref=e40]: เลือกเจ้าหน้าที่แผนก Lab/วิเคราะห์ เฉพาะประเภทพนักงานรายเดือน
+            - button "รีเฟรช" [ref=e41] [cursor=pointer]:
+              - img
+              - text: รีเฟรช
+          - generic [ref=e42]:
+            - generic [ref=e43]:
+              - heading "คำร้องรอ assign" [level=3] [ref=e45]
+              - generic [ref=e47]: "0"
+            - generic [ref=e48]:
+              - heading "คำร้องที่มีผู้รับผิดชอบ" [level=3] [ref=e50]
+              - generic [ref=e52]: "0"
+            - generic [ref=e53]:
+              - heading "Phase 2 (หลังอบ)" [level=3] [ref=e55]:
+                - img [ref=e56]
+                - text: Phase 2 (หลังอบ)
+              - generic [ref=e60]: "0"
+            - generic [ref=e61]:
+              - heading "เจ้าหน้าที่ที่เลือกได้" [level=3] [ref=e63]
+              - generic [ref=e65]: "0"
+          - generic [ref=e66]:
+            - tablist [ref=e67]:
+              - tab "คำร้องปกติ 0" [selected] [ref=e68] [cursor=pointer]:
+                - img [ref=e69]
+                - text: คำร้องปกติ
+                - generic [ref=e73]: "0"
+              - tab "หลังอบเสร็จ (เลือกทำ) 0" [ref=e74] [cursor=pointer]:
+                - img [ref=e75]
+                - text: หลังอบเสร็จ (เลือกทำ)
+                - generic [ref=e77]: "0"
+            - tabpanel "คำร้องปกติ 0" [ref=e78]:
+              - generic [ref=e80]:
+                - img [ref=e81]
+                - textbox "ค้นหาเลขที่คำร้อง / ผู้ยื่น / แผนก / เจ้าหน้าที่..." [ref=e84]
+              - table [ref=e87]:
+                - rowgroup [ref=e88]:
+                  - row "เลขที่คำร้อง ผู้ยื่น ตัวอย่าง สถานะ เจ้าหน้าที่ เครื่อง บันทึก" [ref=e89]:
+                    - columnheader "เลขที่คำร้อง" [ref=e90]
+                    - columnheader "ผู้ยื่น" [ref=e91]
+                    - columnheader "ตัวอย่าง" [ref=e92]
+                    - columnheader "สถานะ" [ref=e93]
+                    - columnheader "เจ้าหน้าที่" [ref=e94]
+                    - columnheader "เครื่อง" [ref=e95]
+                    - columnheader "บันทึก" [ref=e96]
+                - rowgroup [ref=e97]:
+                  - row "กำลังโหลดข้อมูล..." [ref=e98]:
+                    - cell "กำลังโหลดข้อมูล..." [ref=e99]

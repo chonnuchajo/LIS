@@ -7,6 +7,7 @@ import type {
   StockTransactionItem,
   StockTier,
 } from "@/types/stock";
+import type { StandardConfigDoc } from "@/lib/standardConfig";
 
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
@@ -59,8 +60,16 @@ async function fetchApi(path: string, options?: RequestInit): Promise<unknown> {
               "API Error",
           )
         : "API Error";
-    const err = new Error(message) as Error & { response?: { data: unknown } };
+    const err = new Error(message) as Error & {
+      response?: { data: unknown };
+      field?: string;
+    };
     err.response = { data: body };
+    const field =
+      typeof body === "object" && body
+        ? (body as { field?: unknown }).field
+        : undefined;
+    if (typeof field === "string") err.field = field;
     throw err;
   }
 
@@ -256,6 +265,23 @@ export const api = {
     const qs = new URLSearchParams({ batchNo, employeeId }).toString();
     return request<import("@/types/petition.types").Petition[]>(`/petitions/rejected-by-batch?${qs}`);
   },
+
+  // Standard Config
+  getStandardConfigs: () => request<StandardConfigDoc[]>("/standard-configs"),
+  createStandardConfig: (data: Partial<StandardConfigDoc>) =>
+    request<StandardConfigDoc>("/standard-configs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateStandardConfig: (id: string, data: Partial<StandardConfigDoc>) =>
+    request<StandardConfigDoc>(`/standard-configs/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteStandardConfig: (id: string) =>
+    request<{ ok: true }>(`/standard-configs/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
 };
 
 export type QCProgressEntry = {

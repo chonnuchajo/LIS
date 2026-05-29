@@ -42,6 +42,7 @@ export const NAV_ITEMS: NavItem[] = [
   { icon: Package, label: "Stock Management", path: "/stock" },
   { icon: Database, label: "Master Item", path: "/master-items" },
   { icon: FlaskConical, label: "Simple Method", path: "/simple-method" },
+  { icon: FlaskConical, label: "Standard Config", path: "/standard-config" },
   { icon: Wrench, label: "รายการเครื่อง", path: "/machines" },
   { icon: Database, label: "Admin Data", path: "/admin-data" },
   { icon: SlidersHorizontal, label: "พารามิเตอร์ตรวจสอบ", path: "/parameter-settings" },

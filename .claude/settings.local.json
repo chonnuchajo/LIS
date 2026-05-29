@@ -18,8 +18,14 @@
 =======
       "Bash(grep -v \"^C:\\\\\\\\Project\\\\\\\\LIS\\\\\\\\src/pages/.*Page\\\\\\\\.tsx\")",
       "Bash(git add *)",
+<<<<<<< HEAD
       "Bash(git commit -m ' *)"
 >>>>>>> a45d86e79ea3496fee953cd30222e082a395baf9
+=======
+      "Bash(git commit -m ' *)",
+      "Bash(findstr \":8000\")",
+      "Bash(findstr \"LISTENING\")"
+>>>>>>> 4b6363cb6895f2a809221ce3dc79855234944470
     ]
   }
 }

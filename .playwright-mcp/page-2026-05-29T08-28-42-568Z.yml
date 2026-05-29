@@ -1,0 +1,208 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=e13468]:
+        - img [ref=e13470]
+        - generic [ref=e13473]: Sync เสร็จ — เพิ่ม 0 / อัพเดต 1
+  - generic [ref=e6620]:
+    - generic "ลากเพื่อย้ายตำแหน่ง" [ref=e6880]: DEV MODE
+    - generic [ref=e6622]:
+      - button "Administrator" [ref=e6881] [cursor=pointer]
+      - button "Lab Analyst" [ref=e6882] [cursor=pointer]
+      - button "Lab Head" [ref=e6883] [cursor=pointer]
+      - button "Lab Inventory" [ref=e6884] [cursor=pointer]
+      - button "QC Head" [ref=e6885] [cursor=pointer]
+      - button "QC Reviewer" [ref=e6886] [cursor=pointer]
+      - button "QC Staff" [ref=e6887] [cursor=pointer]
+      - button "Viewer" [ref=e6888] [cursor=pointer]
+  - generic [ref=e3]:
+    - complementary [ref=e5]:
+      - button "ซ่อนเมนู" [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+      - generic [ref=e9]:
+        - img "ICP Logo" [ref=e10]
+        - generic [ref=e11]:
+          - heading "LIS" [level=1] [ref=e12]
+          - paragraph [ref=e13]:
+            - text: LAB INFORMATION
+            - text: SYSTEM
+      - navigation [ref=e14]:
+        - generic [ref=e6631]:
+          - button "หน้าหลัก" [expanded] [ref=e6632] [cursor=pointer]:
+            - generic [ref=e6633]: หน้าหลัก
+            - img [ref=e6634]
+          - generic [ref=e6636]:
+            - button "หน้าแรก" [ref=e6637] [cursor=pointer]:
+              - img [ref=e6638]
+              - generic [ref=e6641]: หน้าแรก
+            - button "Lab Dashboard" [ref=e6642] [cursor=pointer]:
+              - img [ref=e6643]
+              - generic [ref=e6648]: Lab Dashboard
+            - button "QC Dashboard" [ref=e6649] [cursor=pointer]:
+              - img [ref=e6650]
+              - generic [ref=e6655]: QC Dashboard
+            - button "รายการคำร้อง" [ref=e6656] [cursor=pointer]:
+              - img [ref=e6657]
+              - generic [ref=e6660]: รายการคำร้อง
+        - generic [ref=e6661]:
+          - button "LAB" [expanded] [ref=e6662] [cursor=pointer]:
+            - generic [ref=e6663]: LAB
+            - img [ref=e6664]
+          - generic [ref=e6666]:
+            - button "Daily Check" [ref=e6667] [cursor=pointer]:
+              - img [ref=e6668]
+              - generic [ref=e6672]: Daily Check
+            - button "การบันทึก Standard" [ref=e6673] [cursor=pointer]:
+              - img [ref=e6674]
+              - generic [ref=e6677]: การบันทึก Standard
+            - button "Assign คำร้อง" [ref=e6678] [cursor=pointer]:
+              - img [ref=e6679]
+              - generic [ref=e6683]: Assign คำร้อง
+            - button "การทดสอบ Lab" [ref=e6684] [cursor=pointer]:
+              - img [ref=e6685]
+              - generic [ref=e6687]: การทดสอบ Lab
+        - generic [ref=e6688]:
+          - button "QC" [expanded] [ref=e6689] [cursor=pointer]:
+            - generic [ref=e6690]: QC
+            - img [ref=e6691]
+          - generic [ref=e6693]:
+            - button "อนุมัติผล QC" [ref=e6694] [cursor=pointer]:
+              - img [ref=e6695]
+              - generic [ref=e6698]: อนุมัติผล QC
+            - button "การทดสอบ QC" [ref=e6699] [cursor=pointer]:
+              - img [ref=e6700]
+              - generic [ref=e6702]: การทดสอบ QC
+        - generic [ref=e6703]:
+          - button "ผลวิเคราะห์" [expanded] [ref=e6704] [cursor=pointer]:
+            - generic [ref=e6705]: ผลวิเคราะห์
+            - img [ref=e6706]
+          - button "ผลวิเคราะห์" [ref=e6709] [cursor=pointer]:
+            - img [ref=e6710]
+            - generic [ref=e6713]: ผลวิเคราะห์
+        - generic [ref=e6714]:
+          - button "CONFIG DATA" [expanded] [ref=e6715] [cursor=pointer]:
+            - generic [ref=e6716]: CONFIG DATA
+            - img [ref=e6717]
+          - generic [ref=e6719]:
+            - button "Master Item" [ref=e6720] [cursor=pointer]:
+              - img [ref=e6721]
+              - generic [ref=e6725]: Master Item
+            - button "Simple Method" [ref=e6726] [cursor=pointer]:
+              - img [ref=e6727]
+              - generic [ref=e6729]: Simple Method
+            - button "รายการเครื่อง" [ref=e6730] [cursor=pointer]:
+              - img [ref=e6731]
+              - generic [ref=e6733]: รายการเครื่อง
+            - button "พารามิเตอร์ตรวจสอบ" [ref=e6734] [cursor=pointer]:
+              - img [ref=e6735]
+              - generic [ref=e6736]: พารามิเตอร์ตรวจสอบ
+        - generic [ref=e6737]:
+          - button "INVENTORY" [expanded] [ref=e6738] [cursor=pointer]:
+            - generic [ref=e6739]: INVENTORY
+            - img [ref=e6740]
+          - button "Stock Management" [ref=e6743] [cursor=pointer]:
+            - img [ref=e6744]
+            - generic [ref=e6748]: Stock Management
+        - generic [ref=e6749]:
+          - button "รายงาน" [expanded] [ref=e6750] [cursor=pointer]:
+            - generic [ref=e6751]: รายงาน
+            - img [ref=e6752]
+          - button "รายงานสรุป" [ref=e6755] [cursor=pointer]:
+            - img [ref=e6756]
+            - generic [ref=e6759]: รายงานสรุป
+        - generic [ref=e6760]:
+          - button "ข้อมูลแอดมิน" [expanded] [ref=e6761] [cursor=pointer]:
+            - generic [ref=e6762]: ข้อมูลแอดมิน
+            - img [ref=e6763]
+          - button "Admin Data" [ref=e6766] [cursor=pointer]:
+            - img [ref=e6767]
+            - generic [ref=e6771]: Admin Data
+        - generic [ref=e6772]:
+          - button "สิทธิ์การเข้าถึง" [expanded] [ref=e6773] [cursor=pointer]:
+            - generic [ref=e6774]: สิทธิ์การเข้าถึง
+            - img [ref=e6775]
+          - button "Access Control" [ref=e6778] [cursor=pointer]:
+            - img [ref=e6779]
+            - generic [ref=e6783]: Access Control
+        - generic [ref=e6784]:
+          - button "อื่นๆ" [expanded] [ref=e6785] [cursor=pointer]:
+            - generic [ref=e6786]: อื่นๆ
+            - img [ref=e6787]
+          - generic [ref=e6789]:
+            - button "Standard Config" [ref=e6790] [cursor=pointer]:
+              - img [ref=e6791]
+              - generic [ref=e6793]: Standard Config
+            - button "ตั้งค่าระบบ" [ref=e6794] [cursor=pointer]:
+              - img [ref=e6795]
+              - generic [ref=e6798]: ตั้งค่าระบบ
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - img [ref=e18]
+          - generic [ref=e21]:
+            - paragraph [ref=e6799]: Dev Administrator
+            - paragraph [ref=e6800]: admin.dev@icpladda.com
+            - paragraph [ref=e22]: "Role: Administrator"
+            - paragraph [ref=e23]: Administrator · Administrator
+        - button "ออกจากระบบ" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+          - text: ออกจากระบบ
+    - generic [ref=e28]:
+      - banner [ref=e29]:
+        - button "การแจ้งเตือน" [ref=e30] [cursor=pointer]:
+          - img [ref=e31]
+          - generic [ref=e34]: "1"
+      - main [ref=e35]:
+        - generic [ref=e36]:
+          - heading "Standard Config" [level=1] [ref=e37]:
+            - img [ref=e38]
+            - text: Standard Config
+          - paragraph [ref=e40]: ตั้งค่า standard ต่อสาร + override rules (ใช้สำหรับลบสต็อกในอนาคต)
+          - generic [ref=e41]:
+            - tablist [ref=e42]:
+              - tab "Substances" [selected] [ref=e43] [cursor=pointer]
+              - tab "Overrides" [ref=e44] [cursor=pointer]
+            - tabpanel "Substances" [ref=e45]:
+              - generic [ref=e6889]:
+                - generic [ref=e6890]:
+                  - button "Sync จาก Master" [ref=e6891] [cursor=pointer]:
+                    - img
+                    - text: Sync จาก Master
+                  - button "เพิ่ม Standard" [ref=e6892] [cursor=pointer]:
+                    - img
+                    - text: เพิ่ม Standard
+                  - generic [ref=e6893]:
+                    - generic [ref=e6894]:
+                      - img [ref=e6895]
+                      - textbox "ค้นหา..." [ref=e6898]: abam
+                    - combobox [ref=e6899] [cursor=pointer]:
+                      - generic: ทั้งหมด
+                      - img [ref=e6900]
+                - table [ref=e6904]:
+                  - rowgroup [ref=e6905]:
+                    - row "Standard Source GC HPLC" [ref=e6906]:
+                      - columnheader "Standard" [ref=e6907]
+                      - columnheader "Source" [ref=e6908]
+                      - columnheader "GC" [ref=e6909]
+                      - columnheader "HPLC" [ref=e6910]
+                      - columnheader [ref=e6911]
+                  - rowgroup [ref=e6912]:
+                    - row "ABAMECTIN master GC — HPLC —" [ref=e13463]:
+                      - cell "ABAMECTIN" [ref=e6914]:
+                        - generic [ref=e6916]: ABAMECTIN
+                      - cell "master" [ref=e6917]:
+                        - generic [ref=e6918]: master
+                      - cell "GC —" [ref=e13464]:
+                        - generic [ref=e6920]:
+                          - generic [ref=e6921]:
+                            - checkbox "GC" [ref=e13465] [cursor=pointer]
+                            - generic [ref=e6923]: GC
+                          - generic [ref=e6924]: —
+                      - cell "HPLC —" [ref=e13466]:
+                        - generic [ref=e6926]:
+                          - generic [ref=e6927]:
+                            - checkbox "HPLC" [ref=e13467] [cursor=pointer]
+                            - generic [ref=e6929]: HPLC
+                          - generic [ref=e6930]: —
+                      - cell [ref=e6931]
