@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useSearchParams } from "react-router-dom";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api";
 import SlotEditor from "./SlotEditor";
 import type { InstrumentConfig, StandardConfigDoc } from "./types";
@@ -102,6 +110,21 @@ export default function SubstancesTab() {
     return data.map((row) => ({ ...row, ...(pending[row.nameLower] || {}) }));
   }, [data, pending]);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const q = (searchParams.get("q") || "").toLowerCase();
+  const filter = searchParams.get("filter") || "all"; // all | gc | hplc | unset
+
+  const filteredRows = useMemo(() => {
+    return rows
+      .filter((r) => (q ? r.nameLower.includes(q) : true))
+      .filter((r) => {
+        if (filter === "gc") return r.gc.enabled;
+        if (filter === "hplc") return r.hplc.enabled;
+        if (filter === "unset") return !r.gc.enabled && !r.hplc.enabled;
+        return true;
+      });
+  }, [rows, q, filter]);
+
   const handleInstrumentChange = (
     row: StandardConfigDoc,
     field: "gc" | "hplc",
@@ -151,6 +174,41 @@ export default function SubstancesTab() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        <div className="ml-auto flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              placeholder="ค้นหา..."
+              value={searchParams.get("q") || ""}
+              onChange={(e) => {
+                const next = new URLSearchParams(searchParams);
+                if (e.target.value) next.set("q", e.target.value);
+                else next.delete("q");
+                setSearchParams(next, { replace: true });
+              }}
+              className="h-8 w-40 pl-7 text-sm"
+            />
+          </div>
+          <Select
+            value={filter}
+            onValueChange={(v) => {
+              const next = new URLSearchParams(searchParams);
+              if (v === "all") next.delete("filter");
+              else next.set("filter", v);
+              setSearchParams(next, { replace: true });
+            }}
+          >
+            <SelectTrigger className="h-8 w-36 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ทั้งหมด</SelectItem>
+              <SelectItem value="gc">GC enabled</SelectItem>
+              <SelectItem value="hplc">HPLC enabled</SelectItem>
+              <SelectItem value="unset">ยังไม่ตั้งค่า</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <div className="rounded-md border">
         <Table>
@@ -164,14 +222,14 @@ export default function SubstancesTab() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.length === 0 ? (
+            {filteredRows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">
                   ยังไม่มี standard — กด Sync จาก Master เพื่อเริ่ม
                 </TableCell>
               </TableRow>
             ) : (
-              rows.map((row) => (
+              filteredRows.map((row) => (
                 <TableRow key={row._id}>
                   <TableCell className="font-medium">{row.name}</TableCell>
                   <TableCell>
