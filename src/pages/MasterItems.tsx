@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { api, type MachineItem, type ParameterItem } from "@/lib/api";
+import { parseSubstances } from "@/lib/substances";
 import {
   classificationTypes,
   getClassification,
@@ -218,33 +219,6 @@ function detectInstruments(value: unknown): SimpleInstrument[] {
   if (/\bGC\b/.test(text)) found.push("GC");
   if (/\bHPLC\b/.test(text)) found.push("HPLC");
   return found;
-}
-
-function parseSubstances(commonName: string): string[] {
-  const parts = commonName.split("+").map((s) => s.trim()).filter(Boolean);
-  if (parts.length === 0) return [commonName.trim()].filter(Boolean);
-  if (parts.length <= 2) return parts;
-
-  // 3+ parts: short fragments are not separate substances — merge with shorter
-  // neighbor until exactly 2 substances remain.
-  while (parts.length > 2) {
-    let shortestIdx = 0;
-    for (let i = 1; i < parts.length; i += 1) {
-      if (parts[i].length < parts[shortestIdx].length) shortestIdx = i;
-    }
-    let neighborIdx: number;
-    if (shortestIdx === 0) neighborIdx = 1;
-    else if (shortestIdx === parts.length - 1) neighborIdx = shortestIdx - 1;
-    else neighborIdx = parts[shortestIdx - 1].length <= parts[shortestIdx + 1].length
-      ? shortestIdx - 1
-      : shortestIdx + 1;
-
-    const lo = Math.min(shortestIdx, neighborIdx);
-    const hi = Math.max(shortestIdx, neighborIdx);
-    const merged = `${parts[lo]} + ${parts[hi]}`;
-    parts.splice(lo, hi - lo + 1, merged);
-  }
-  return parts;
 }
 
 function emptyAssignments(count: number): AssignmentSlot[] {

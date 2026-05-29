@@ -23,6 +23,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useAuth } from '@/hooks/useAuth';
 import { usePetitionList } from '@/hooks/usePetition';
 import { api, type MachineItem } from '@/lib/api';
+import { parseSubstances } from '@/lib/substances';
 import {
   PETITION_STATUS_CONFIG,
   type Petition,
@@ -50,32 +51,6 @@ type SubstanceGroup = {
   items: PetitionItem[];
   slots: SubstanceSlot[];  // per-substance, positional — aligned to parseSubstances(commonName)
 };
-
-// Split a commonName into its component substances by "+", merging short
-// fragments (3+ parts) down to at most 2 substances — mirrors the same logic in
-// MasterItems' Simple Method tab so positions line up with the stored instruments.
-function parseSubstances(commonName: string): string[] {
-  const parts = commonName.split('+').map((s) => s.trim()).filter(Boolean);
-  if (parts.length === 0) return [commonName.trim()].filter(Boolean);
-  if (parts.length <= 2) return parts;
-
-  while (parts.length > 2) {
-    let shortestIdx = 0;
-    for (let i = 1; i < parts.length; i += 1) {
-      if (parts[i].length < parts[shortestIdx].length) shortestIdx = i;
-    }
-    let neighborIdx: number;
-    if (shortestIdx === 0) neighborIdx = 1;
-    else if (shortestIdx === parts.length - 1) neighborIdx = shortestIdx - 1;
-    else neighborIdx = parts[shortestIdx - 1].length <= parts[shortestIdx + 1].length
-      ? shortestIdx - 1
-      : shortestIdx + 1;
-    const lo = Math.min(shortestIdx, neighborIdx);
-    const hi = Math.max(shortestIdx, neighborIdx);
-    parts.splice(lo, hi - lo + 1, `${parts[lo]} + ${parts[hi]}`);
-  }
-  return parts;
-}
 
 // Master-items lookup
 type MasterItemRaw = Record<string, unknown>;
