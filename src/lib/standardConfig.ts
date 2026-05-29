@@ -16,12 +16,19 @@ export type StandardConfigInput = {
   note?: string;
 };
 
-export type ValidationError = { field: string; message: string };
+export type StandardConfigField = "keyword" | "gcTimes" | "hplcTimes";
+export type ValidationError = { field: StandardConfigField; message: string };
 
 export const MAX_KEYWORD_LEN = 200;
 export const MAX_TIMES = 100000;
 
-/** Parse a raw times input (string | number | null) → integer-or-null. Non-numeric → null. */
+/**
+ * Parse a raw times input (string | number | null) → number-or-null.
+ * Empty/non-numeric → null. Floats pass through on purpose so
+ * validateStandardConfigInput can reject them with a precise "must be integer"
+ * message (returning null here would instead trigger the misleading
+ * "fill at least one instrument" error). Integrality is enforced by the validator.
+ */
 export function normalizeTimes(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
