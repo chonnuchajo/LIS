@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseSubstances } from "./substances";
+import { parseSubstances, substanceKey } from "./substances";
 
 describe("parseSubstances", () => {
   it("returns single substance unchanged", () => {
@@ -36,8 +36,24 @@ describe("parseSubstances", () => {
     ]);
   });
 
-  it("merges down to exactly 2 substances for 4+ parts", () => {
-    const result = parseSubstances("AAAA + BB + CCCC + DDDDDD");
-    expect(result).toHaveLength(2);
+  it("merges down to exactly 2 substances for 4 parts (with deterministic groupings)", () => {
+    expect(parseSubstances("AAAA + BB + CCCC + DDDDDD")).toEqual([
+      "AAAA + BB",
+      "CCCC + DDDDDD",
+    ]);
+  });
+});
+
+describe("substanceKey", () => {
+  it("lowercases the input", () => {
+    expect(substanceKey("ABAMECTIN")).toBe("abamectin");
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(substanceKey("  Anilofos  ")).toBe("anilofos");
+  });
+
+  it("handles mixed case and whitespace together", () => {
+    expect(substanceKey("  Bispyribac-SODIUM ")).toBe("bispyribac-sodium");
   });
 });
