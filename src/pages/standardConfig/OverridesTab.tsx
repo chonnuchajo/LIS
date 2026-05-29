@@ -211,7 +211,7 @@ export default function OverridesTab() {
   });
 
   const { data: masterItems = [] } = useQuery<Array<Record<string, unknown>>>({
-    queryKey: ["master-items-for-overrides"],
+    queryKey: ["master-items"],
     queryFn: async () => {
       // api.get<T>(path) returns {data:{data: T}}
       const res = await api.get<unknown>("/master-items");
@@ -357,7 +357,10 @@ export default function OverridesTab() {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <Dialog open={addOpen} onOpenChange={(open) => {
+          setAddOpen(open);
+          if (!open) setAddValue(initialAdd);
+        }}>
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="w-4 h-4 mr-1" /> เพิ่ม Override Rule</Button>
           </DialogTrigger>

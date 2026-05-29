@@ -28,6 +28,12 @@ function overrideToResult(o: StandardOverrideDoc, fallbackName: string): Resolve
   return { name: o.matchValue || fallbackName, gc: o.gc, hplc: o.hplc, source: "override" };
 }
 
+// NOTE: StandardOverrideDoc.scope (substanceOnly | wholeCommonName) is intentionally
+// not consumed by this lookup in Phase 1 — every matched override returns the same
+// {gc, hplc} regardless. Scope drives Phase 2 stock-deduction semantics: it tells
+// the deduction engine whether an override applies to only the matched substance
+// position or to every substance in the commonName. Keep the field flowing through
+// the schema + UI; honour it when stock deduction is wired up.
 export function resolveStandardConfig(
   commonName: string,
   substanceIndex: number,

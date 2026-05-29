@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,6 +24,45 @@ type Props = {
   disabled?: boolean;
 };
 
+function SlotChip({
+  value, onCommit, onRemove,
+}: {
+  value: number;
+  onCommit: (n: number) => void;
+  onRemove: () => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+  // re-sync if value changes externally
+  useEffect(() => { setDraft(String(value)); }, [value]);
+  const commit = () => {
+    const n = Number(draft);
+    if (Number.isFinite(n) && n > 0) onCommit(n);
+    else setDraft(String(value)); // revert visual
+  };
+  return (
+    <span className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs">
+      <Input
+        type="number"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); commit(); (e.target as HTMLInputElement).blur(); }
+        }}
+        className="h-5 w-14 border-0 bg-transparent p-0 text-xs"
+      />
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-muted-foreground hover:text-destructive"
+        aria-label="remove slot"
+      >
+        <X className="w-3 h-3" />
+      </button>
+    </span>
+  );
+}
+
 export default function SlotEditor({ label, value, onChange, disabled }: Props) {
   const [draft, setDraft] = useState<string>("");
 
@@ -37,13 +76,6 @@ export default function SlotEditor({ label, value, onChange, disabled }: Props) 
     if (value.slots.length >= 20) return;
     onChange({ ...value, slots: [...value.slots, n] });
     setDraft("");
-  };
-  const editSlot = (idx: number, raw: string) => {
-    const n = Number(raw);
-    if (!Number.isFinite(n)) return;
-    const next = [...value.slots];
-    next[idx] = n;
-    onChange({ ...value, slots: next });
   };
 
   return (
@@ -73,22 +105,16 @@ export default function SlotEditor({ label, value, onChange, disabled }: Props) 
       {value.enabled ? (
         <div className="flex flex-wrap gap-1.5 items-center">
           {value.slots.map((s, i) => (
-            <span key={i} className="inline-flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs">
-              <Input
-                type="number"
-                value={s}
-                onChange={(e) => editSlot(i, e.target.value)}
-                className="h-5 w-14 border-0 bg-transparent p-0 text-xs"
-              />
-              <button
-                type="button"
-                onClick={() => removeSlot(i)}
-                className="text-muted-foreground hover:text-destructive"
-                aria-label={`remove slot ${i + 1}`}
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </span>
+            <SlotChip
+              key={i}
+              value={s}
+              onCommit={(n) => {
+                const next = [...value.slots];
+                next[i] = n;
+                onChange({ ...value, slots: next });
+              }}
+              onRemove={() => removeSlot(i)}
+            />
           ))}
           <Input
             type="number"
