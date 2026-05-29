@@ -60,8 +60,16 @@ async function fetchApi(path: string, options?: RequestInit): Promise<unknown> {
               "API Error",
           )
         : "API Error";
-    const err = new Error(message) as Error & { response?: { data: unknown } };
+    const err = new Error(message) as Error & {
+      response?: { data: unknown };
+      field?: string;
+    };
     err.response = { data: body };
+    const field =
+      typeof body === "object" && body
+        ? (body as { field?: unknown }).field
+        : undefined;
+    if (typeof field === "string") err.field = field;
     throw err;
   }
 
