@@ -57,15 +57,40 @@ import {
 
 type MasterItem = Record<string, unknown>;
 type SimpleInstrument = "GC" | "HPLC";
+type AssignmentSlot = SimpleInstrument | "";
+type MatchType = "contains" | "startsWith" | "endsWith";
+
+type ExclusionRule = {
+  _id: string;
+  pattern: string;
+  matchType: MatchType;
+};
 
 const INSTRUMENT_ORDER: SimpleInstrument[] = ["GC", "HPLC"];
 
+const MATCH_TYPE_LABELS: Record<MatchType, string> = {
+  contains: "มีคำ",
+  startsWith: "ขึ้นต้น",
+  endsWith: "ลงท้าย",
+};
+
+function matchesExclusion(commonName: string, rule: ExclusionRule): boolean {
+  const target = commonName.trim().toLowerCase();
+  const needle = rule.pattern.trim().toLowerCase();
+  if (!target || !needle) return false;
+  switch (rule.matchType) {
+    case "startsWith": return target.startsWith(needle);
+    case "endsWith": return target.endsWith(needle);
+    case "contains":
+    default: return target.includes(needle);
+  }
+}
+
 type SimpleMethodRow = {
   key: string;
-  tradeName: string;
   commonName: string;
-  instruments: SimpleInstrument[];
-  itemCount: number;
+  substances: string[];
+  assignments: AssignmentSlot[];
   itemNos: string[];
   items: MasterItem[];
 };
@@ -116,7 +141,6 @@ const categoryKeys = ["inventory_posting_group", "category", "type", "group", "i
 const unitKeys = ["base_unit_of_mea", "unit", "uom", "UOM", "unitName"];
 const statusKeys = ["status", "active", "isActive"];
 const descriptionKeys = ["item_name2", "item_name3", "description", "detail", "remark", "note"];
-const tradeNameKeys = ["trade_name", "tradename", "tradeName", "item_name1", "itemName"];
 const commonNameKeys = ["common_name", "commonname", "commonName", "item_name2", "itemType"];
 const methodInstrumentKeys = [
   "simple_method",
@@ -196,27 +220,63 @@ function detectInstruments(value: unknown): SimpleInstrument[] {
   return found;
 }
 
-function sortInstruments(values: Iterable<SimpleInstrument>): SimpleInstrument[] {
-  const set = new Set(values);
-  return INSTRUMENT_ORDER.filter((value) => set.has(value));
+function parseSubstances(commonName: string): string[] {
+  const parts = commonName.split("+").map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 0) return [commonName.trim()].filter(Boolean);
+  if (parts.length <= 2) return parts;
+
+  // 3+ parts: short fragments are not separate substances — merge with shorter
+  // neighbor until exactly 2 substances remain.
+  while (parts.length > 2) {
+    let shortestIdx = 0;
+    for (let i = 1; i < parts.length; i += 1) {
+      if (parts[i].length < parts[shortestIdx].length) shortestIdx = i;
+    }
+    let neighborIdx: number;
+    if (shortestIdx === 0) neighborIdx = 1;
+    else if (shortestIdx === parts.length - 1) neighborIdx = shortestIdx - 1;
+    else neighborIdx = parts[shortestIdx - 1].length <= parts[shortestIdx + 1].length
+      ? shortestIdx - 1
+      : shortestIdx + 1;
+
+    const lo = Math.min(shortestIdx, neighborIdx);
+    const hi = Math.max(shortestIdx, neighborIdx);
+    const merged = `${parts[lo]} + ${parts[hi]}`;
+    parts.splice(lo, hi - lo + 1, merged);
+  }
+  return parts;
 }
 
-function toggleInstrument(
-  current: SimpleInstrument[],
-  value: SimpleInstrument,
-  enabled: boolean,
-): SimpleInstrument[] {
-  const next = new Set(current);
-  if (enabled) next.add(value);
-  else next.delete(value);
-  return sortInstruments(next);
+function emptyAssignments(count: number): AssignmentSlot[] {
+  return Array.from({ length: count }, () => "");
 }
 
-function instrumentsEqual(a: SimpleInstrument[], b: SimpleInstrument[]): boolean {
+function normalizeAssignment(value: unknown): AssignmentSlot {
+  const token = String(value ?? "").trim().toUpperCase();
+  return token === "GC" || token === "HPLC" ? token : "";
+}
+
+function alignAssignments(source: AssignmentSlot[], substanceCount: number): AssignmentSlot[] {
+  const result = emptyAssignments(substanceCount);
+  for (let i = 0; i < Math.min(source.length, substanceCount); i += 1) {
+    result[i] = source[i];
+  }
+  return result;
+}
+
+function assignmentsEqual(a: AssignmentSlot[], b: AssignmentSlot[]): boolean {
   if (a.length !== b.length) return false;
-  const sortedA = sortInstruments(a);
-  const sortedB = sortInstruments(b);
-  return sortedA.every((value, index) => value === sortedB[index]);
+  return a.every((value, index) => value === b[index]);
+}
+
+function setAssignmentSlot(
+  current: AssignmentSlot[],
+  index: number,
+  value: AssignmentSlot,
+): AssignmentSlot[] {
+  const next = [...current];
+  if (index >= 0 && index < next.length) next[index] = value;
+  return next;
 }
 
 function displayValue(value: unknown) {
@@ -285,40 +345,45 @@ function getItemId(item: MasterItem) {
   return value ? String(value) : "";
 }
 
-function getSimpleInstruments(item: MasterItem): SimpleInstrument[] {
-  const collected = new Set<SimpleInstrument>();
+function getDetectedAssignment(item: MasterItem): AssignmentSlot {
   for (const key of methodInstrumentKeys) {
-    for (const instrument of detectInstruments(item[key])) {
-      collected.add(instrument);
-    }
+    const found = detectInstruments(item[key]);
+    if (found.length > 0) return found[0];
   }
-  return sortInstruments(collected);
+  return "";
 }
 
 function buildSimpleMethodRows(
   items: MasterItem[],
-  overrides: Record<string, SimpleInstrument[]> = {},
+  overrides: Record<string, AssignmentSlot[]> = {},
 ): SimpleMethodRow[] {
   const groups = new Map<string, SimpleMethodRow>();
-
-  const instrumentSets = new Map<string, Set<SimpleInstrument>>();
+  const collected = new Map<string, AssignmentSlot[]>();
 
   items.forEach((item) => {
-    const tradeName = String(firstValue(item, tradeNameKeys)).trim();
     const commonName = String(firstValue(item, commonNameKeys)).trim();
-    if (!tradeName && !commonName) return;
+    if (!commonName) return;
 
-    const key = `${tradeName.toLowerCase()}||${commonName.toLowerCase()}`;
+    const key = commonName.toLowerCase();
     const itemNo = String(firstValue(item, codeKeys)).trim();
+    const substances = parseSubstances(commonName);
+    const count = substances.length;
+
+    let candidate: AssignmentSlot[] = emptyAssignments(count);
     const override = itemNo ? overrides[itemNo] : undefined;
-    const instruments = override ?? getSimpleInstruments(item);
+    if (override && override.length > 0) {
+      candidate = alignAssignments(override, count);
+    } else {
+      const detected = getDetectedAssignment(item);
+      if (detected && count === 1) candidate = [detected];
+    }
+
     const existing = groups.get(key);
-    const instrumentSet = instrumentSets.get(key) ?? new Set<SimpleInstrument>();
-    instruments.forEach((value) => instrumentSet.add(value));
-    instrumentSets.set(key, instrumentSet);
+    const current = collected.get(key) ?? emptyAssignments(count);
+    const merged = current.map((slot, idx) => slot || candidate[idx] || "") as AssignmentSlot[];
+    collected.set(key, merged);
 
     if (existing) {
-      existing.itemCount += 1;
       existing.items.push(item);
       if (itemNo && !existing.itemNos.includes(itemNo)) existing.itemNos.push(itemNo);
       return;
@@ -326,23 +391,21 @@ function buildSimpleMethodRows(
 
     groups.set(key, {
       key,
-      tradeName,
       commonName,
-      instruments: [],
-      itemCount: 1,
+      substances,
+      assignments: emptyAssignments(count),
       itemNos: itemNo ? [itemNo] : [],
       items: [item],
     });
   });
 
   groups.forEach((row, key) => {
-    row.instruments = sortInstruments(instrumentSets.get(key) ?? new Set());
+    row.assignments = collected.get(key) ?? emptyAssignments(row.substances.length);
   });
 
-  return Array.from(groups.values()).sort((a, b) => (
-    a.tradeName.localeCompare(b.tradeName, ["th", "en"]) ||
-    a.commonName.localeCompare(b.commonName, ["th", "en"])
-  ));
+  return Array.from(groups.values()).sort((a, b) =>
+    a.commonName.localeCompare(b.commonName, ["th", "en"]),
+  );
 }
 
 function itemToForm(item: MasterItem, metaQty = 0): MasterItemForm {
@@ -759,7 +822,7 @@ type SimpleMethodFilter = "all" | "gc-only" | "hplc-only" | "both" | "unassigned
 
 export function SimpleMethodPage() {
   const queryClient = useQueryClient();
-  const [methodDrafts, setMethodDrafts] = useState<Record<string, SimpleInstrument[]>>({});
+  const [methodDrafts, setMethodDrafts] = useState<Record<string, AssignmentSlot[]>>({});
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [savingAll, setSavingAll] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -785,16 +848,21 @@ export function SimpleMethodPage() {
   const { data: overrides = {} } = useQuery({
     queryKey: ["simple-methods"],
     queryFn: async () => {
-      const res = await api.get<Array<{ itemNo: string; instruments: string[] }>>("/simple-methods");
-      const map: Record<string, SimpleInstrument[]> = {};
+      const res = await api.get<Array<{ itemNo: string; instruments: unknown[] }>>("/simple-methods");
+      const map: Record<string, AssignmentSlot[]> = {};
       (res.data.data || []).forEach((entry) => {
         if (!entry || !entry.itemNo) return;
-        const filtered = (entry.instruments || [])
-          .map((value) => String(value).toUpperCase())
-          .filter((value): value is SimpleInstrument => value === "GC" || value === "HPLC");
-        map[entry.itemNo] = sortInstruments(filtered);
+        map[entry.itemNo] = (entry.instruments || []).map(normalizeAssignment);
       });
       return map;
+    },
+  });
+
+  const { data: exclusions = [] } = useQuery({
+    queryKey: ["simple-method-exclusions"],
+    queryFn: async () => {
+      const res = await api.get<ExclusionRule[]>("/simple-method-exclusions");
+      return Array.isArray(res.data.data) ? res.data.data : [];
     },
   });
 
@@ -803,35 +871,37 @@ export function SimpleMethodPage() {
   const visibleRows = useMemo(() => {
     const needle = searchText.trim().toLowerCase();
     return rows.filter((row) => {
+      if (exclusions.some((rule) => matchesExclusion(row.commonName, rule))) return false;
       if (needle) {
-        const haystack = `${row.tradeName} ${row.commonName} ${row.itemNos.join(" ")}`.toLowerCase();
+        const haystack = `${row.commonName} ${row.itemNos.join(" ")}`.toLowerCase();
         if (!haystack.includes(needle)) return false;
       }
       if (statusFilter === "all") return true;
-      const hasGC = row.instruments.includes("GC");
-      const hasHPLC = row.instruments.includes("HPLC");
+      const hasGC = row.assignments.includes("GC");
+      const hasHPLC = row.assignments.includes("HPLC");
+      const hasEmpty = row.assignments.some((slot) => slot === "");
       switch (statusFilter) {
-        case "gc-only": return hasGC && !hasHPLC;
-        case "hplc-only": return hasHPLC && !hasGC;
+        case "gc-only": return hasGC && !hasHPLC && !hasEmpty;
+        case "hplc-only": return hasHPLC && !hasGC && !hasEmpty;
         case "both": return hasGC && hasHPLC;
-        case "unassigned": return row.instruments.length === 0;
+        case "unassigned": return hasEmpty;
         default: return true;
       }
     });
-  }, [rows, searchText, statusFilter]);
+  }, [rows, searchText, statusFilter, exclusions]);
 
   const dirtyRows = useMemo(
     () => rows.filter((row) => {
       const draft = methodDrafts[row.key];
-      return draft !== undefined && !instrumentsEqual(draft, row.instruments);
+      return draft !== undefined && !assignmentsEqual(draft, row.assignments);
     }),
     [rows, methodDrafts],
   );
 
-  const setMethodDraft = (key: string, instruments: SimpleInstrument[]) => {
+  const setMethodDraft = (key: string, assignments: AssignmentSlot[]) => {
     setMethodDrafts((current) => ({
       ...current,
-      [key]: sortInstruments(instruments),
+      [key]: assignments,
     }));
   };
 
@@ -855,13 +925,13 @@ export function SimpleMethodPage() {
     });
   };
 
-  const applyBulk = (instruments: SimpleInstrument[]) => {
+  const applyBulk = (value: AssignmentSlot) => {
     if (selectedKeys.size === 0) return;
-    const sorted = sortInstruments(instruments);
     setMethodDrafts((current) => {
       const next = { ...current };
-      selectedKeys.forEach((key) => {
-        next[key] = sorted;
+      visibleRows.forEach((row) => {
+        if (!selectedKeys.has(row.key)) return;
+        next[row.key] = row.substances.map(() => value);
       });
       return next;
     });
@@ -872,7 +942,7 @@ export function SimpleMethodPage() {
     setSavingAll(true);
     try {
       const updates = dirtyRows.flatMap((row) => {
-        const instruments = methodDrafts[row.key] ?? row.instruments;
+        const instruments = methodDrafts[row.key] ?? row.assignments;
         return row.items
           .map((item) => String(firstValue(item, codeKeys)).trim())
           .filter((itemNo) => itemNo)
@@ -902,7 +972,7 @@ export function SimpleMethodPage() {
             Simple Method
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            กำหนด GC/HPLC ตาม tradename และ commonname
+            กำหนด GC/HPLC ตาม commonname
           </p>
         </div>
 
@@ -916,11 +986,13 @@ export function SimpleMethodPage() {
           selectedKeys={selectedKeys}
           searchText={searchText}
           statusFilter={statusFilter}
+          exclusions={exclusions}
           onSearchTextChange={setSearchText}
           onStatusFilterChange={setStatusFilter}
           onDraftChange={setMethodDraft}
           onToggleRow={toggleRowSelected}
           onToggleAll={toggleAllVisibleSelected}
+          onExclusionsChanged={() => queryClient.invalidateQueries({ queryKey: ["simple-method-exclusions"] })}
         />
 
         <div className="pointer-events-none absolute inset-x-6 bottom-6 z-30 flex justify-center">
@@ -932,7 +1004,7 @@ export function SimpleMethodPage() {
               </div>
               <div className="mx-1 h-6 w-px bg-border" aria-hidden />
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">เปลี่ยนเป็น:</span>
+                <span className="text-xs text-muted-foreground">ตั้งทุกสารเป็น:</span>
                 {INSTRUMENT_ORDER.map((instrument) => (
                   <Button
                     key={instrument}
@@ -940,26 +1012,17 @@ export function SimpleMethodPage() {
                     variant="outline"
                     className="h-7 rounded-full px-3"
                     disabled={selectedKeys.size === 0}
-                    onClick={() => applyBulk([instrument])}
+                    onClick={() => applyBulk(instrument)}
                   >
                     {instrument}
                   </Button>
                 ))}
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="h-7 rounded-full px-3"
-                  disabled={selectedKeys.size === 0}
-                  onClick={() => applyBulk([...INSTRUMENT_ORDER])}
-                >
-                  ทั้งหมด
-                </Button>
-                <Button
-                  size="sm"
                   variant="ghost"
                   className="h-7 rounded-full px-3 text-muted-foreground"
                   disabled={selectedKeys.size === 0}
-                  onClick={() => applyBulk([])}
+                  onClick={() => applyBulk("")}
                 >
                   ล้าง
                 </Button>
@@ -1007,11 +1070,13 @@ function SimpleMethodTab({
   selectedKeys,
   searchText,
   statusFilter,
+  exclusions,
   onSearchTextChange,
   onStatusFilterChange,
   onDraftChange,
   onToggleRow,
   onToggleAll,
+  onExclusionsChanged,
 }: {
   rows: SimpleMethodRow[];
   totalRows: number;
@@ -1022,11 +1087,13 @@ function SimpleMethodTab({
   selectedKeys: Set<string>;
   searchText: string;
   statusFilter: SimpleMethodFilter;
+  exclusions: ExclusionRule[];
   onSearchTextChange: (value: string) => void;
   onStatusFilterChange: (value: SimpleMethodFilter) => void;
   onDraftChange: (key: string, instruments: SimpleInstrument[]) => void;
   onToggleRow: (key: string, selected: boolean) => void;
   onToggleAll: (selected: boolean) => void;
+  onExclusionsChanged: () => void;
 }) {
   const visibleSelectedCount = rows.reduce(
     (acc, row) => acc + (selectedKeys.has(row.key) ? 1 : 0),
@@ -1058,7 +1125,7 @@ function SimpleMethodTab({
             <Input
               value={searchText}
               onChange={(event) => onSearchTextChange(event.target.value)}
-              placeholder="ค้นหา tradename / commonname / item no..."
+              placeholder="ค้นหา commonname / item no..."
               className="pl-8"
             />
           </div>
@@ -1074,6 +1141,7 @@ function SimpleMethodTab({
               <SelectItem value="unassigned">ยังไม่กำหนด</SelectItem>
             </SelectContent>
           </Select>
+          <ExclusionManager exclusions={exclusions} onChanged={onExclusionsChanged} />
         </div>
       </CardHeader>
       <CardContent className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
@@ -1094,38 +1162,31 @@ function SimpleMethodTab({
                       aria-label="เลือกทุกแถว"
                     />
                   </TableHead>
-                  <TableHead>tradename</TableHead>
                   <TableHead>commonname</TableHead>
-                  <TableHead className="w-28 text-center">Items</TableHead>
                   <TableHead className="w-64">Method/Instrument</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
                       กำลังโหลด...
                     </TableCell>
                   </TableRow>
                 ) : rows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={3} className="py-8 text-center text-muted-foreground">
                       ไม่มีข้อมูล simple method
                     </TableCell>
                   </TableRow>
                 ) : (
                   rows.map((row) => {
-                    const draftValue = methodDrafts[row.key] ?? row.instruments;
-                    const allChecked: boolean | "indeterminate" =
-                      draftValue.length === INSTRUMENT_ORDER.length
-                        ? true
-                        : draftValue.length === 0
-                          ? false
-                          : "indeterminate";
+                    const draftValue = methodDrafts[row.key] ?? row.assignments;
                     const isDirty =
                       methodDrafts[row.key] !== undefined &&
-                      !instrumentsEqual(methodDrafts[row.key], row.instruments);
+                      !assignmentsEqual(methodDrafts[row.key], row.assignments);
                     const isRowSelected = selectedKeys.has(row.key);
+                    const isMulti = row.substances.length > 1;
 
                     return (
                       <TableRow
@@ -1138,62 +1199,54 @@ function SimpleMethodTab({
                           <Checkbox
                             checked={isRowSelected}
                             onCheckedChange={(checked) => onToggleRow(row.key, !!checked)}
-                            aria-label={`เลือกแถว ${row.tradeName}`}
+                            aria-label={`เลือกแถว ${row.commonName}`}
                           />
                         </TableCell>
-                        <TableCell className="min-w-52 font-medium">{displayValue(row.tradeName)}</TableCell>
-                        <TableCell className="min-w-72">{displayValue(row.commonName)}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="secondary">{row.itemCount}</Badge>
-                        </TableCell>
+                        <TableCell className="min-w-72 font-medium">{displayValue(row.commonName)}</TableCell>
                         <TableCell onClick={(event) => event.stopPropagation()}>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <button
-                                type="button"
-                                className={`flex min-h-9 w-full flex-wrap items-center gap-1.5 rounded-md border bg-background px-2 py-1.5 text-left text-sm ring-offset-background transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                                  isDirty ? "border-primary" : "border-input"
-                                }`}
-                              >
-                                {draftValue.length === 0 ? (
-                                  <span className="text-muted-foreground">เลือก method...</span>
-                                ) : (
-                                  draftValue.map((m) => (
-                                    <Badge key={m} variant="secondary" className="rounded-full">
-                                      {m}
-                                    </Badge>
-                                  ))
-                                )}
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent align="start" className="w-44 p-2">
-                              <div className="flex flex-col gap-1">
-                                <label className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent">
-                                  <Checkbox
-                                    checked={allChecked}
-                                    onCheckedChange={(checked) =>
-                                      onDraftChange(row.key, checked ? [...INSTRUMENT_ORDER] : [])
-                                    }
-                                  />
-                                  ทั้งหมด
-                                </label>
-                                {INSTRUMENT_ORDER.map((instrument) => (
-                                  <label
-                                    key={instrument}
-                                    className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
-                                  >
-                                    <Checkbox
-                                      checked={draftValue.includes(instrument)}
-                                      onCheckedChange={(checked) =>
-                                        onDraftChange(row.key, toggleInstrument(draftValue, instrument, !!checked))
-                                      }
-                                    />
-                                    {instrument}
-                                  </label>
-                                ))}
-                              </div>
-                            </PopoverContent>
-                          </Popover>
+                          <div
+                            className={`flex flex-col gap-1.5 rounded-md border bg-background p-1.5 transition-colors ${
+                              isDirty ? "border-primary" : "border-input"
+                            }`}
+                          >
+                            {row.substances.map((substance, index) => {
+                              const current = draftValue[index] ?? "";
+                              return (
+                                <div
+                                  key={`${row.key}-${index}`}
+                                  className="flex items-center gap-2 text-sm"
+                                >
+                                  {isMulti && (
+                                    <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                                      {substance}
+                                    </span>
+                                  )}
+                                  <div className="flex items-center gap-1">
+                                    {INSTRUMENT_ORDER.map((instrument) => {
+                                      const active = current === instrument;
+                                      return (
+                                        <Button
+                                          key={instrument}
+                                          type="button"
+                                          size="sm"
+                                          variant={active ? "default" : "outline"}
+                                          className="h-7 rounded-full px-3"
+                                          onClick={() =>
+                                            onDraftChange(
+                                              row.key,
+                                              setAssignmentSlot(draftValue, index, active ? "" : instrument),
+                                            )
+                                          }
+                                        >
+                                          {instrument}
+                                        </Button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -1205,6 +1258,134 @@ function SimpleMethodTab({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ExclusionManager({
+  exclusions,
+  onChanged,
+}: {
+  exclusions: ExclusionRule[];
+  onChanged: () => void;
+}) {
+  const [pattern, setPattern] = useState("");
+  const [matchType, setMatchType] = useState<MatchType>("contains");
+  const [adding, setAdding] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const addRule = async () => {
+    const trimmed = pattern.trim();
+    if (!trimmed) return;
+    setAdding(true);
+    try {
+      await api.post("/simple-method-exclusions", { pattern: trimmed, matchType });
+      setPattern("");
+      setMatchType("contains");
+      onChanged();
+      toast.success(`ซ่อนสารที่ ${MATCH_TYPE_LABELS[matchType]} "${trimmed}"`);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const removeRule = async (id: string) => {
+    setRemovingId(id);
+    try {
+      await api.delete(`/simple-method-exclusions/${id}`);
+      onChanged();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className="w-full md:w-auto gap-2">
+          สารที่ไม่ตรวจ
+          {exclusions.length > 0 && (
+            <Badge variant="secondary" className="rounded-full">{exclusions.length}</Badge>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-96 p-3">
+        <div className="space-y-3">
+          <div>
+            <h4 className="text-sm font-semibold">สารที่ไม่ตรวจ Simple Method</h4>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              เพิ่มคำเพื่อซ่อน commonname ที่ไม่ต้องตรวจ (เลือกตำแหน่งที่ตรงได้)
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Input
+              value={pattern}
+              onChange={(event) => setPattern(event.target.value)}
+              placeholder="เช่น seaweed"
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void addRule();
+                }
+              }}
+            />
+            <div className="flex items-center gap-2">
+              <Select value={matchType} onValueChange={(value) => setMatchType(value as MatchType)}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="contains">มีคำนี้</SelectItem>
+                  <SelectItem value="startsWith">ขึ้นต้นด้วย</SelectItem>
+                  <SelectItem value="endsWith">ลงท้ายด้วย</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                onClick={addRule}
+                disabled={adding || !pattern.trim()}
+              >
+                <Plus className="h-4 w-4" />
+                เพิ่ม
+              </Button>
+            </div>
+          </div>
+
+          <div className="max-h-64 overflow-auto rounded-md border">
+            {exclusions.length === 0 ? (
+              <div className="p-3 text-center text-xs text-muted-foreground">
+                ยังไม่มีรายการ
+              </div>
+            ) : (
+              <ul className="divide-y">
+                {exclusions.map((rule) => (
+                  <li key={rule._id} className="flex items-center gap-2 px-3 py-2">
+                    <Badge variant="outline" className="shrink-0 text-xs">
+                      {MATCH_TYPE_LABELS[rule.matchType]}
+                    </Badge>
+                    <span className="flex-1 truncate text-sm">{rule.pattern}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      disabled={removingId === rule._id}
+                      onClick={() => removeRule(rule._id)}
+                      aria-label={`ลบ ${rule.pattern}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

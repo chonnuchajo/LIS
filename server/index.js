@@ -35,6 +35,7 @@ mountApi('/employees', require('./routes/employees'));
 mountApi('/master-items', require('./routes/masterItems'));
 mountApi('/master-item-meta', require('./routes/masterItemMeta'));
 mountApi('/simple-methods', require('./routes/simpleMethods'));
+mountApi('/simple-method-exclusions', require('./routes/simpleMethodExclusions'));
 mountApi('/machines', require('./routes/machines'));
 mountApi('/parameters', require('./routes/parameters'));
 mountApi('/qc-results', require('./routes/qcResults'));
