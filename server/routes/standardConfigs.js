@@ -1,6 +1,5 @@
 const express = require('express');
-const MasterItemMeta = require('../models/MasterItemMeta');
-const SimpleMethod = require('../models/SimpleMethod');
+const mongoose = require('mongoose');
 const StandardConfig = require('../models/StandardConfig');
 const { parseSubstances, substanceKey } = require('../utils/substances');
 
@@ -114,13 +113,46 @@ router.delete('/:nameLower', async (req, res) => {
   }
 });
 
-// POST /sync — derive StandardConfig rows from MasterItemMeta + SimpleMethod.
-// MasterItemMeta.itemType stores the substance common_name (e.g. "Caffeine+Paracetamol").
+// POST /sync — derive StandardConfig rows from master-items webhook + SimpleMethod.
+// Fetches master items from the same n8n webhook as GET /api/master-items (server-to-server).
 // SimpleMethod.instruments[i] gives the instrument for the i-th substance after parseSubstances().
 router.post('/sync', async (_req, res) => {
   try {
-    const masters = await MasterItemMeta.find().lean();
+    let SimpleMethod;
+    try {
+      SimpleMethod = mongoose.model('SimpleMethod');
+    } catch (err) {
+      return res.status(502).json({ message: 'simple-method model unavailable' });
+    }
+
+    // Fetch master items from the n8n webhook (same source as GET /api/master-items)
+    const WEBHOOK_URL =
+      process.env.MASTER_ITEMS_WEBHOOK_URL ||
+      'https://n8n-plant.icpladda.com/webhook/API/Item-production';
+
+    let masters;
+    try {
+      const r = await fetch(WEBHOOK_URL, { headers: { Accept: 'application/json' } });
+      if (!r.ok) {
+        return res.status(502).json({ message: `master items webhook returned ${r.status}` });
+      }
+      const payload = await r.json();
+      masters = Array.isArray(payload) ? payload : [];
+    } catch (err) {
+      return res.status(502).json({ message: 'cannot reach master items webhook', error: err.message });
+    }
+
     const simple = await SimpleMethod.find().lean();
+    const itemNoKeys = ['item_no', 'itemCode', 'item_code', 'code', 'Code', 'ITEM_CODE'];
+    const commonNameKeys = ['common_name', 'commonname', 'commonName', 'item_name2', 'itemType'];
+
+    function pick(obj, keys) {
+      for (const k of keys) {
+        const v = obj && obj[k];
+        if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();
+      }
+      return '';
+    }
 
     const itemNoToInstruments = new Map();
     for (const entry of simple) {
@@ -129,11 +161,10 @@ router.post('/sync', async (_req, res) => {
       itemNoToInstruments.set(itemNo, Array.isArray(entry.instruments) ? entry.instruments : []);
     }
 
-    // itemType in MasterItemMeta stores the common_name / substance identity string
     const initial = new Map();
     for (const m of masters) {
-      const commonName = String(m.itemType || '').trim();
-      const itemNo = String(m.itemNo || '').trim();
+      const commonName = pick(m, commonNameKeys);
+      const itemNo = pick(m, itemNoKeys);
       if (!commonName) continue;
       const substances = parseSubstances(commonName);
       const instruments = itemNoToInstruments.get(itemNo) || [];
