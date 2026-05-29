@@ -1,27 +1,16 @@
 const mongoose = require('mongoose');
 
-const UNITS = ['ml', 'µL', 'ppm', 'mg'];
-
-const InstrumentConfigSchema = new mongoose.Schema(
-  {
-    enabled: { type: Boolean, default: false },
-    unit: { type: String, enum: UNITS, default: 'ml' },
-    slots: { type: [Number], default: [] },
-  },
-  { _id: false },
-);
-
 const StandardConfigSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, unique: true },
-    nameLower: { type: String, required: true, unique: true, index: true },
-    isManual: { type: Boolean, default: false },
-    gc: { type: InstrumentConfigSchema, default: () => ({}) },
-    hplc: { type: InstrumentConfigSchema, default: () => ({}) },
+    // keyword matched (contains, case-insensitive) against a product's commonName
+    keyword: { type: String, required: true, trim: true },
+    keywordLower: { type: String, required: true, unique: true, index: true },
+    // how many times a standard is normally used on each instrument (null = not used)
+    gcTimes: { type: Number, default: null },
+    hplcTimes: { type: Number, default: null },
+    note: { type: String, default: '' },
   },
   { timestamps: true },
 );
-
-StandardConfigSchema.statics.UNITS = UNITS;
 
 module.exports = mongoose.model('StandardConfig', StandardConfigSchema);
