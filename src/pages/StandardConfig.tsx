@@ -214,6 +214,7 @@ export default function StandardConfig() {
                           size="icon"
                           variant="ghost"
                           className="h-8 w-8 text-destructive hover:text-destructive"
+                          disabled={deleteMutation.isPending}
                           onClick={() => {
                             if (window.confirm(`ลบ "${c.keyword}"?`)) deleteMutation.mutate(c._id);
                           }}
@@ -230,7 +231,15 @@ export default function StandardConfig() {
         </div>
       </div>
 
-      <Dialog open={!!form} onOpenChange={(o) => !o && setForm(null)}>
+      <Dialog
+        open={!!form}
+        onOpenChange={(o) => {
+          if (!o) {
+            setForm(null);
+            setFieldError(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{form?.id ? "แก้ไข Standard" : "เพิ่ม Standard"}</DialogTitle>
@@ -238,8 +247,9 @@ export default function StandardConfig() {
           {form ? (
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-sm">Keyword (ในชื่อ commonName) *</Label>
+                <Label htmlFor="sc-keyword" className="text-sm">Keyword (ในชื่อ commonName) *</Label>
                 <Input
+                  id="sc-keyword"
                   list="standard-config-commonnames"
                   value={form.keyword}
                   onChange={(e) => setForm({ ...form, keyword: e.target.value })}
@@ -256,8 +266,9 @@ export default function StandardConfig() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-sm">GC — จำนวนครั้ง</Label>
+                  <Label htmlFor="sc-gctimes" className="text-sm">GC — จำนวนครั้ง</Label>
                   <Input
+                    id="sc-gctimes"
                     type="number"
                     min={0}
                     step={1}
@@ -266,8 +277,9 @@ export default function StandardConfig() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-sm">HPLC — จำนวนครั้ง</Label>
+                  <Label htmlFor="sc-hplctimes" className="text-sm">HPLC — จำนวนครั้ง</Label>
                   <Input
+                    id="sc-hplctimes"
                     type="number"
                     min={0}
                     step={1}
@@ -282,8 +294,9 @@ export default function StandardConfig() {
                 <p className="text-xs text-muted-foreground">อย่างน้อยต้องกรอก 1 เครื่อง</p>
               )}
               <div className="space-y-1.5">
-                <Label className="text-sm">หมายเหตุ</Label>
+                <Label htmlFor="sc-note" className="text-sm">หมายเหตุ</Label>
                 <Input
+                  id="sc-note"
                   value={form.note}
                   onChange={(e) => setForm({ ...form, note: e.target.value })}
                   placeholder="(ไม่บังคับ)"
