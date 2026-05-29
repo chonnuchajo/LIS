@@ -1,0 +1,241 @@
+- generic:
+  - generic:
+    - list
+    - region "Notifications alt+T"
+    - generic [ref=e6620]:
+      - generic [ref=e6822]: DEV MODE
+      - generic [ref=e6622]:
+        - button [ref=e6823] [cursor=pointer]: Administrator
+        - button [ref=e6824] [cursor=pointer]: Lab Analyst
+        - button [ref=e6825] [cursor=pointer]: Lab Head
+        - button [ref=e6826] [cursor=pointer]: Lab Inventory
+        - button [ref=e6827] [cursor=pointer]: QC Head
+        - button [ref=e6828] [cursor=pointer]: QC Reviewer
+        - button [ref=e6829] [cursor=pointer]: QC Staff
+        - button [ref=e6830] [cursor=pointer]: Viewer
+    - generic:
+      - generic:
+        - complementary:
+          - button:
+            - img
+          - generic:
+            - img
+            - generic:
+              - heading [level=1]: LIS
+              - paragraph: LAB INFORMATION SYSTEM
+          - navigation:
+            - generic:
+              - button [expanded]:
+                - generic: หน้าหลัก
+                - img
+              - generic:
+                - button:
+                  - img
+                  - generic: หน้าแรก
+                - button:
+                  - img
+                  - generic: Lab Dashboard
+                - button:
+                  - img
+                  - generic: QC Dashboard
+                - button:
+                  - img
+                  - generic: รายการคำร้อง
+            - generic:
+              - button [expanded]:
+                - generic: LAB
+                - img
+              - generic:
+                - button:
+                  - img
+                  - generic: Daily Check
+                - button:
+                  - img
+                  - generic: การบันทึก Standard
+                - button:
+                  - img
+                  - generic: Assign คำร้อง
+                - button:
+                  - img
+                  - generic: การทดสอบ Lab
+            - generic:
+              - button [expanded]:
+                - generic: QC
+                - img
+              - generic:
+                - button:
+                  - img
+                  - generic: อนุมัติผล QC
+                - button:
+                  - img
+                  - generic: การทดสอบ QC
+            - generic:
+              - button [expanded]:
+                - generic: ผลวิเคราะห์
+                - img
+              - generic:
+                - button:
+                  - img
+                  - generic: ผลวิเคราะห์
+            - generic:
+              - button [expanded]:
+                - generic: CONFIG DATA
+                - img
+              - generic:
+                - button:
+                  - img
+                  - generic: Master Item
+                - button:
+                  - img
+                  - generic: Simple Method
+                - button:
+                  - img
+                  - generic: รายการเครื่อง
+                - button:
+                  - img
+                  - generic: พารามิเตอร์ตรวจสอบ
+            - generic:
+              - button [expanded]:
+                - generic: INVENTORY
+                - img
+              - generic:
+                - button:
+                  - img
+                  - generic: Stock Management
+            - generic:
+              - button [expanded]:
+                - generic: รายงาน
+                - img
+              - generic:
+                - button:
+                  - img
+                  - generic: รายงานสรุป
+            - generic:
+              - button [expanded]:
+                - generic: ข้อมูลแอดมิน
+                - img
+              - generic:
+                - button:
+                  - img
+                  - generic: Admin Data
+            - generic:
+              - button [expanded]:
+                - generic: สิทธิ์การเข้าถึง
+                - img
+              - generic:
+                - button:
+                  - img
+                  - generic: Access Control
+            - generic:
+              - button [expanded]:
+                - generic: อื่นๆ
+                - img
+              - generic:
+                - button:
+                  - img
+                  - generic: Standard Config
+                - button:
+                  - img
+                  - generic: ตั้งค่าระบบ
+          - generic:
+            - generic:
+              - generic:
+                - img
+              - generic:
+                - paragraph: Dev Administrator
+                - paragraph: admin.dev@icpladda.com
+                - paragraph: "Role: Administrator"
+                - paragraph: Administrator · Administrator
+            - button:
+              - img
+              - text: ออกจากระบบ
+      - generic:
+        - banner:
+          - button:
+            - img
+            - generic: "1"
+        - main:
+          - generic:
+            - heading [level=1]:
+              - img
+              - text: Standard Config
+            - paragraph: ตั้งค่า standard ต่อสาร + override rules (ใช้สำหรับลบสต็อกในอนาคต)
+            - generic:
+              - tablist:
+                - tab: Substances
+                - tab [selected]: Overrides
+              - tabpanel:
+                - generic:
+                  - generic:
+                    - button [expanded]:
+                      - img
+                      - text: เพิ่ม Override Rule
+                    - generic: 0 rules
+                  - generic:
+                    - generic:
+                      - table:
+                        - rowgroup:
+                          - row:
+                            - columnheader: Pri
+                            - columnheader: Match
+                            - columnheader: Scope
+                            - columnheader: GC
+                            - columnheader: HPLC
+                            - columnheader: Note
+                            - columnheader
+                            - columnheader
+                        - rowgroup:
+                          - row:
+                            - cell: ยังไม่มี override rules
+  - dialog "เพิ่ม Override Rule" [ref=e6832]:
+    - heading "เพิ่ม Override Rule" [level=2] [ref=e6834]
+    - generic [ref=e6835]:
+      - generic [ref=e6836]:
+        - text: Match type
+        - radiogroup [ref=e6837]:
+          - generic [ref=e6838]:
+            - radio "substring" [checked] [ref=e6839] [cursor=pointer]:
+              - img [ref=e6841]
+            - text: substring
+          - generic [ref=e6843]:
+            - radio "substance" [ref=e6844] [cursor=pointer]
+            - text: substance
+          - generic [ref=e6845]:
+            - radio "commonName" [ref=e6846] [cursor=pointer]
+            - text: commonName
+      - generic [ref=e6847]:
+        - text: Match value
+        - textbox "Match value" [active] [ref=e6848]
+      - generic [ref=e6849]:
+        - text: Scope
+        - radiogroup [ref=e6850]:
+          - generic [ref=e6851]:
+            - radio "เฉพาะ substance ที่ match" [checked] [ref=e6852] [cursor=pointer]:
+              - img [ref=e6854]
+            - text: เฉพาะ substance ที่ match
+          - generic [ref=e6856]:
+            - radio "ทั้ง commonName" [ref=e6857] [cursor=pointer]
+            - text: ทั้ง commonName
+      - generic [ref=e6858]:
+        - generic [ref=e6859]:
+          - text: Priority
+          - spinbutton "Priority" [ref=e6860]: "0"
+        - generic [ref=e6861]:
+          - text: Note
+          - textbox "Note" [ref=e6862]
+      - generic [ref=e6863]:
+        - generic [ref=e6864]:
+          - checkbox "GC" [ref=e6865] [cursor=pointer]
+          - generic [ref=e6866]: GC
+        - generic [ref=e6867]: —
+      - generic [ref=e6868]:
+        - generic [ref=e6869]:
+          - checkbox "HPLC" [ref=e6870] [cursor=pointer]
+          - generic [ref=e6871]: HPLC
+        - generic [ref=e6872]: —
+    - generic [ref=e6873]:
+      - button "ยกเลิก" [ref=e6874] [cursor=pointer]
+      - button "บันทึก" [disabled]
+    - button "Close" [ref=e6875] [cursor=pointer]:
+      - img [ref=e6876]
+      - generic [ref=e6879]: Close

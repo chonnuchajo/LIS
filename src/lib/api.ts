@@ -7,11 +7,7 @@ import type {
   StockTransactionItem,
   StockTier,
 } from "@/types/stock";
-import type {
-  StandardConfigDoc,
-  StandardOverrideDoc,
-  SyncResult,
-} from "@/pages/standardConfig/types";
+import type { StandardConfigDoc } from "@/lib/standardConfig";
 
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
@@ -265,28 +261,19 @@ export const api = {
   // Standard Config
   getStandardConfigs: () => request<StandardConfigDoc[]>("/standard-configs"),
   createStandardConfig: (data: Partial<StandardConfigDoc>) =>
-    request<StandardConfigDoc>("/standard-configs", { method: "POST", body: JSON.stringify(data) }),
-  updateStandardConfig: (nameLower: string, data: Partial<StandardConfigDoc>) =>
-    request<StandardConfigDoc>(`/standard-configs/${encodeURIComponent(nameLower)}`, {
+    request<StandardConfigDoc>("/standard-configs", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateStandardConfig: (id: string, data: Partial<StandardConfigDoc>) =>
+    request<StandardConfigDoc>(`/standard-configs/${encodeURIComponent(id)}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  deleteStandardConfig: (nameLower: string) =>
-    request<{ ok: true }>(`/standard-configs/${encodeURIComponent(nameLower)}`, { method: "DELETE" }),
-  syncStandardConfigs: () =>
-    request<SyncResult>("/standard-configs/sync", { method: "POST" }),
-
-  // Standard Overrides
-  getStandardOverrides: () => request<StandardOverrideDoc[]>("/standard-overrides"),
-  createStandardOverride: (data: Partial<StandardOverrideDoc>) =>
-    request<StandardOverrideDoc>("/standard-overrides", { method: "POST", body: JSON.stringify(data) }),
-  updateStandardOverride: (id: string, data: Partial<StandardOverrideDoc>) =>
-    request<StandardOverrideDoc>(`/standard-overrides/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
+  deleteStandardConfig: (id: string) =>
+    request<{ ok: true }>(`/standard-configs/${encodeURIComponent(id)}`, {
+      method: "DELETE",
     }),
-  deleteStandardOverride: (id: string) =>
-    request<{ ok: true }>(`/standard-overrides/${id}`, { method: "DELETE" }),
 };
 
 export type QCProgressEntry = {
