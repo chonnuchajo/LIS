@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const StandardConfig = require('../models/StandardConfig');
 
 const router = express.Router();
@@ -65,6 +66,7 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(404).json({ message: 'not found' });
     const built = buildBody(req.body);
     if (built.error) return res.status(400).json(built.error);
     const clash = await StandardConfig.findOne({
@@ -82,7 +84,9 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    const doc = await StandardConfig.findByIdAndDelete(req.params.id).lean();
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(404).json({ message: 'not found' });
+    const doc = await StandardConfig.findByIdAndDelete(id).lean();
     if (!doc) return res.status(404).json({ message: 'not found' });
     res.json({ ok: true });
   } catch (err) {
