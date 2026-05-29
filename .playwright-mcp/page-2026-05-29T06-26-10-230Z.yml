@@ -1,0 +1,307 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e100]:
+    - generic "ลากเพื่อย้ายตำแหน่ง" [ref=e101]: DEV MODE
+    - generic [ref=e102]:
+      - button "Administrator" [ref=e103] [cursor=pointer]
+      - button "Lab Analyst" [ref=e104] [cursor=pointer]
+      - button "Lab Head" [ref=e105] [cursor=pointer]
+      - button "Lab Inventory" [ref=e106] [cursor=pointer]
+      - button "QC Head" [ref=e107] [cursor=pointer]
+      - button "QC Reviewer" [ref=e108] [cursor=pointer]
+      - button "QC Staff" [ref=e109] [cursor=pointer]
+      - button "Viewer" [ref=e110] [cursor=pointer]
+  - generic [ref=e3]:
+    - complementary [ref=e5]:
+      - button "ซ่อนเมนู" [ref=e6] [cursor=pointer]:
+        - img [ref=e7]
+      - generic [ref=e9]:
+        - img "ICP Logo" [ref=e10]
+        - generic [ref=e11]:
+          - heading "LIS" [level=1] [ref=e12]
+          - paragraph [ref=e13]:
+            - text: LAB INFORMATION
+            - text: SYSTEM
+      - navigation [ref=e14]:
+        - generic [ref=e111]:
+          - button "หน้าหลัก" [expanded] [ref=e112] [cursor=pointer]:
+            - generic [ref=e113]: หน้าหลัก
+            - img [ref=e114]
+          - generic [ref=e116]:
+            - button "หน้าแรก" [ref=e117] [cursor=pointer]:
+              - img [ref=e118]
+              - generic [ref=e121]: หน้าแรก
+            - button "Lab Dashboard" [ref=e122] [cursor=pointer]:
+              - img [ref=e123]
+              - generic [ref=e128]: Lab Dashboard
+            - button "QC Dashboard" [ref=e129] [cursor=pointer]:
+              - img [ref=e130]
+              - generic [ref=e135]: QC Dashboard
+            - button "รายการคำร้อง" [ref=e136] [cursor=pointer]:
+              - img [ref=e137]
+              - generic [ref=e140]: รายการคำร้อง
+        - generic [ref=e141]:
+          - button "LAB" [expanded] [ref=e142] [cursor=pointer]:
+            - generic [ref=e143]: LAB
+            - img [ref=e144]
+          - generic [ref=e146]:
+            - button "Daily Check" [ref=e147] [cursor=pointer]:
+              - img [ref=e148]
+              - generic [ref=e152]: Daily Check
+            - button "การบันทึก Standard" [ref=e153] [cursor=pointer]:
+              - img [ref=e154]
+              - generic [ref=e157]: การบันทึก Standard
+            - button "Assign คำร้อง" [ref=e158] [cursor=pointer]:
+              - img [ref=e159]
+              - generic [ref=e163]: Assign คำร้อง
+            - button "การทดสอบ Lab" [ref=e164] [cursor=pointer]:
+              - img [ref=e165]
+              - generic [ref=e167]: การทดสอบ Lab
+        - generic [ref=e168]:
+          - button "QC" [expanded] [ref=e169] [cursor=pointer]:
+            - generic [ref=e170]: QC
+            - img [ref=e171]
+          - generic [ref=e173]:
+            - button "อนุมัติผล QC" [ref=e174] [cursor=pointer]:
+              - img [ref=e175]
+              - generic [ref=e178]: อนุมัติผล QC
+            - button "การทดสอบ QC" [ref=e179] [cursor=pointer]:
+              - img [ref=e180]
+              - generic [ref=e182]: การทดสอบ QC
+        - generic [ref=e183]:
+          - button "ผลวิเคราะห์" [expanded] [ref=e184] [cursor=pointer]:
+            - generic [ref=e185]: ผลวิเคราะห์
+            - img [ref=e186]
+          - button "ผลวิเคราะห์" [ref=e189] [cursor=pointer]:
+            - img [ref=e190]
+            - generic [ref=e193]: ผลวิเคราะห์
+        - generic [ref=e194]:
+          - button "CONFIG DATA" [expanded] [ref=e195] [cursor=pointer]:
+            - generic [ref=e196]: CONFIG DATA
+            - img [ref=e197]
+          - generic [ref=e199]:
+            - button "Master Item" [ref=e200] [cursor=pointer]:
+              - img [ref=e201]
+              - generic [ref=e205]: Master Item
+            - button "Simple Method" [ref=e206] [cursor=pointer]:
+              - img [ref=e207]
+              - generic [ref=e209]: Simple Method
+            - button "รายการเครื่อง" [ref=e210] [cursor=pointer]:
+              - img [ref=e211]
+              - generic [ref=e213]: รายการเครื่อง
+            - button "พารามิเตอร์ตรวจสอบ" [ref=e214] [cursor=pointer]:
+              - img [ref=e215]
+              - generic [ref=e216]: พารามิเตอร์ตรวจสอบ
+        - generic [ref=e217]:
+          - button "INVENTORY" [expanded] [ref=e218] [cursor=pointer]:
+            - generic [ref=e219]: INVENTORY
+            - img [ref=e220]
+          - button "Stock Management" [ref=e223] [cursor=pointer]:
+            - img [ref=e224]
+            - generic [ref=e228]: Stock Management
+        - generic [ref=e229]:
+          - button "รายงาน" [expanded] [ref=e230] [cursor=pointer]:
+            - generic [ref=e231]: รายงาน
+            - img [ref=e232]
+          - button "รายงานสรุป" [ref=e235] [cursor=pointer]:
+            - img [ref=e236]
+            - generic [ref=e239]: รายงานสรุป
+        - generic [ref=e240]:
+          - button "ข้อมูลแอดมิน" [expanded] [ref=e241] [cursor=pointer]:
+            - generic [ref=e242]: ข้อมูลแอดมิน
+            - img [ref=e243]
+          - button "Admin Data" [ref=e246] [cursor=pointer]:
+            - img [ref=e247]
+            - generic [ref=e251]: Admin Data
+        - generic [ref=e252]:
+          - button "สิทธิ์การเข้าถึง" [expanded] [ref=e253] [cursor=pointer]:
+            - generic [ref=e254]: สิทธิ์การเข้าถึง
+            - img [ref=e255]
+          - button "Access Control" [ref=e258] [cursor=pointer]:
+            - img [ref=e259]
+            - generic [ref=e263]: Access Control
+        - generic [ref=e264]:
+          - button "อื่นๆ" [expanded] [ref=e265] [cursor=pointer]:
+            - generic [ref=e266]: อื่นๆ
+            - img [ref=e267]
+          - button "ตั้งค่าระบบ" [ref=e270] [cursor=pointer]:
+            - img [ref=e271]
+            - generic [ref=e274]: ตั้งค่าระบบ
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - img [ref=e18]
+          - generic [ref=e21]:
+            - paragraph [ref=e275]: Dev Administrator
+            - paragraph [ref=e276]: admin.dev@icpladda.com
+            - paragraph [ref=e22]: "Role: Administrator"
+            - paragraph [ref=e23]: Administrator · Administrator
+        - button "ออกจากระบบ" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+          - text: ออกจากระบบ
+    - generic [ref=e28]:
+      - banner [ref=e29]:
+        - button "การแจ้งเตือน" [ref=e30] [cursor=pointer]:
+          - img [ref=e31]
+          - generic [ref=e34]: "1"
+      - main [ref=e35]:
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - generic [ref=e38]:
+              - heading "Assign คำร้องให้เจ้าหน้าที่" [level=1] [ref=e39]
+              - paragraph [ref=e40]: เลือกเจ้าหน้าที่แผนก Lab/วิเคราะห์ เฉพาะประเภทพนักงานรายเดือน
+            - button "รีเฟรช" [ref=e41] [cursor=pointer]:
+              - img
+              - text: รีเฟรช
+          - generic [ref=e42]:
+            - generic [ref=e43]:
+              - heading "คำร้องรอ assign" [level=3] [ref=e45]
+              - generic [ref=e47]: "1"
+            - generic [ref=e48]:
+              - heading "คำร้องที่มีผู้รับผิดชอบ" [level=3] [ref=e50]
+              - generic [ref=e52]: "1"
+            - generic [ref=e53]:
+              - heading "Phase 2 (หลังอบ)" [level=3] [ref=e55]:
+                - img [ref=e56]
+                - text: Phase 2 (หลังอบ)
+              - generic [ref=e60]: "0"
+            - generic [ref=e61]:
+              - heading "เจ้าหน้าที่ที่เลือกได้" [level=3] [ref=e63]
+              - generic [ref=e65]: "6"
+          - generic [ref=e66]:
+            - tablist [ref=e67]:
+              - tab "คำร้องปกติ 2" [selected] [ref=e277] [cursor=pointer]:
+                - img [ref=e69]
+                - text: คำร้องปกติ
+                - generic [ref=e73]: "2"
+              - tab "หลังอบเสร็จ (เลือกทำ) 0" [ref=e74] [cursor=pointer]:
+                - img [ref=e75]
+                - text: หลังอบเสร็จ (เลือกทำ)
+                - generic [ref=e77]: "0"
+            - tabpanel "คำร้องปกติ 2" [ref=e278]:
+              - generic [ref=e80]:
+                - img [ref=e81]
+                - textbox "ค้นหาเลขที่คำร้อง / ผู้ยื่น / แผนก / เจ้าหน้าที่..." [ref=e84]
+              - table [ref=e87]:
+                - rowgroup [ref=e88]:
+                  - row "เลขที่คำร้อง ชื่อสาร ตัวอย่าง สถานะ เจ้าหน้าที่ เครื่อง บันทึก" [ref=e89]:
+                    - columnheader "เลขที่คำร้อง" [ref=e90]
+                    - columnheader "ชื่อสาร" [ref=e91]
+                    - columnheader "ตัวอย่าง" [ref=e92]
+                    - columnheader "สถานะ" [ref=e93]
+                    - columnheader "เจ้าหน้าที่" [ref=e94]
+                    - columnheader "เครื่อง" [ref=e95]
+                    - columnheader "บันทึก" [ref=e96]
+                - rowgroup [ref=e97]:
+                  - 'row "P-2605-0005 ผู้ยื่น: Dev Administrator · production PROPANIL 36% + ANILOFOS 18% W/V EC • PROPANIL 36% HPLC • ANILOFOS 18% W/V EC GC 1 ส่งตัวอย่างแล้ว เลือกเจ้าหน้าที่ PROPANIL 36% HPLC เครื่องที่ 1 เลือกเครื่อง + ANILOFOS 18% W/V EC GC เครื่องที่ 2 เลือกเครื่อง Assign" [ref=e279]':
+                    - 'cell "P-2605-0005 ผู้ยื่น: Dev Administrator · production" [ref=e280]':
+                      - button "P-2605-0005" [ref=e281] [cursor=pointer]
+                      - generic [ref=e282]:
+                        - text: "ผู้ยื่น: Dev Administrator"
+                        - generic [ref=e283]: · production
+                    - cell "PROPANIL 36% + ANILOFOS 18% W/V EC • PROPANIL 36% HPLC • ANILOFOS 18% W/V EC GC" [ref=e284]:
+                      - generic [ref=e286]:
+                        - generic [ref=e287]: PROPANIL 36% + ANILOFOS 18% W/V EC
+                        - generic [ref=e288]:
+                          - generic [ref=e289]:
+                            - generic [ref=e290]: • PROPANIL 36%
+                            - generic [ref=e291]: HPLC
+                          - generic [ref=e292]:
+                            - generic [ref=e293]: • ANILOFOS 18% W/V EC
+                            - generic [ref=e294]: GC
+                    - cell "1" [ref=e295]:
+                      - generic [ref=e298]: "1"
+                    - cell "ส่งตัวอย่างแล้ว" [ref=e299]:
+                      - generic [ref=e301]: ส่งตัวอย่างแล้ว
+                    - cell "เลือกเจ้าหน้าที่" [ref=e302]:
+                      - combobox [ref=e303]:
+                        - option "เลือกเจ้าหน้าที่" [selected]
+                        - option "น.ส.แก้ววิศา วาระเพียง (11641) - Lab/วิเคราะห์"
+                        - option "นางสาวเกศกนก สิริเหล่าตระกูล (11604) - Lab/วิเคราะห์"
+                        - option "นางสาวนุชจรินทร์ ดวงเนตร (11431) - Lab/วิเคราะห์"
+                        - option "นางสาวปัญจพร สารจันทร์ (11235) - Lab/วิเคราะห์"
+                        - option "นางสาวรัตติยา ผ่องทอง (11090) - Lab/วิเคราะห์"
+                        - option "นายนคร อ่อนคง (11408) - Lab/วิเคราะห์"
+                    - cell "PROPANIL 36% HPLC เครื่องที่ 1 เลือกเครื่อง + ANILOFOS 18% W/V EC GC เครื่องที่ 2 เลือกเครื่อง" [ref=e304]:
+                      - generic [ref=e307]:
+                        - button "PROPANIL 36% HPLC เครื่องที่ 1 เลือกเครื่อง" [ref=e310] [cursor=pointer]:
+                          - generic [ref=e311]:
+                            - generic [ref=e312]: PROPANIL 36%
+                            - generic [ref=e313]: HPLC
+                          - generic [ref=e314]: เครื่องที่ 1
+                          - generic [ref=e315]:
+                            - img [ref=e316]
+                            - generic [ref=e327]: เลือกเครื่อง
+                        - generic [ref=e328]:
+                          - generic [ref=e329]: +
+                          - button "ANILOFOS 18% W/V EC GC เครื่องที่ 2 เลือกเครื่อง" [ref=e331] [cursor=pointer]:
+                            - generic [ref=e332]:
+                              - generic [ref=e333]: ANILOFOS 18% W/V EC
+                              - generic [ref=e334]: GC
+                            - generic [ref=e335]: เครื่องที่ 2
+                            - generic [ref=e336]:
+                              - img [ref=e337]
+                              - generic [ref=e348]: เลือกเครื่อง
+                    - cell "Assign" [ref=e349]:
+                      - generic [ref=e350]:
+                        - button "Assign" [disabled]:
+                          - img
+                          - text: Assign
+                  - 'row "P-2605-0004 ผู้ยื่น: Dev Administrator · production PROPANIL 36% + ANILOFOS 18% W/V EC • PROPANIL 36% HPLC • ANILOFOS 18% W/V EC GC 1 QC กำลังตรวจ น.ส.แก้ววิศา วาระเพียง (11641) - Lab/วิเคราะห์ ปัจจุบัน: น.ส.แก้ววิศา วาระเพียง PROPANIL 36% HPLC เครื่องที่ 1 HPLC 1260 1 + ANILOFOS 18% W/V EC GC เครื่องที่ 2 เลือกเครื่อง Assign" [ref=e461]':
+                    - 'cell "P-2605-0004 ผู้ยื่น: Dev Administrator · production" [ref=e352]':
+                      - button "P-2605-0004" [ref=e353] [cursor=pointer]
+                      - generic [ref=e354]:
+                        - text: "ผู้ยื่น: Dev Administrator"
+                        - generic [ref=e355]: · production
+                    - cell "PROPANIL 36% + ANILOFOS 18% W/V EC • PROPANIL 36% HPLC • ANILOFOS 18% W/V EC GC" [ref=e356]:
+                      - generic [ref=e358]:
+                        - generic [ref=e359]: PROPANIL 36% + ANILOFOS 18% W/V EC
+                        - generic [ref=e360]:
+                          - generic [ref=e361]:
+                            - generic [ref=e362]: • PROPANIL 36%
+                            - generic [ref=e363]: HPLC
+                          - generic [ref=e364]:
+                            - generic [ref=e365]: • ANILOFOS 18% W/V EC
+                            - generic [ref=e366]: GC
+                    - cell "1" [ref=e367]:
+                      - generic [ref=e370]: "1"
+                    - cell "QC กำลังตรวจ" [ref=e371]:
+                      - generic [ref=e373]: QC กำลังตรวจ
+                    - 'cell "น.ส.แก้ววิศา วาระเพียง (11641) - Lab/วิเคราะห์ ปัจจุบัน: น.ส.แก้ววิศา วาระเพียง" [ref=e374]':
+                      - combobox [ref=e375]:
+                        - option "เลือกเจ้าหน้าที่"
+                        - option "น.ส.แก้ววิศา วาระเพียง (11641) - Lab/วิเคราะห์" [selected]
+                        - option "นางสาวเกศกนก สิริเหล่าตระกูล (11604) - Lab/วิเคราะห์"
+                        - option "นางสาวนุชจรินทร์ ดวงเนตร (11431) - Lab/วิเคราะห์"
+                        - option "นางสาวปัญจพร สารจันทร์ (11235) - Lab/วิเคราะห์"
+                        - option "นางสาวรัตติยา ผ่องทอง (11090) - Lab/วิเคราะห์"
+                        - option "นายนคร อ่อนคง (11408) - Lab/วิเคราะห์"
+                      - generic [ref=e376]:
+                        - img [ref=e377]
+                        - text: "ปัจจุบัน: น.ส.แก้ววิศา วาระเพียง"
+                    - cell "PROPANIL 36% HPLC เครื่องที่ 1 HPLC 1260 1 + ANILOFOS 18% W/V EC GC เครื่องที่ 2 เลือกเครื่อง" [ref=e462]:
+                      - generic [ref=e384]:
+                        - button "PROPANIL 36% HPLC เครื่องที่ 1 HPLC 1260 1" [active] [ref=e463] [cursor=pointer]:
+                          - generic [ref=e388]:
+                            - generic [ref=e389]: PROPANIL 36%
+                            - generic [ref=e390]: HPLC
+                          - generic [ref=e391]: เครื่องที่ 1
+                          - generic [ref=e392]:
+                            - img [ref=e393]
+                            - generic [ref=e404]: HPLC 1260 1
+                        - generic [ref=e405]:
+                          - generic [ref=e406]: +
+                          - button "ANILOFOS 18% W/V EC GC เครื่องที่ 2 เลือกเครื่อง" [ref=e408] [cursor=pointer]:
+                            - generic [ref=e409]:
+                              - generic [ref=e410]: ANILOFOS 18% W/V EC
+                              - generic [ref=e411]: GC
+                            - generic [ref=e412]: เครื่องที่ 2
+                            - generic [ref=e413]:
+                              - img [ref=e414]
+                              - generic [ref=e425]: เลือกเครื่อง
+                    - cell "Assign" [ref=e426]:
+                      - generic [ref=e427]:
+                        - button "Assign" [disabled]:
+                          - img
+                          - text: Assign
