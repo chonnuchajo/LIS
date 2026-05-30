@@ -101,6 +101,7 @@ function dbNameFromUri(uri) {
 
       // insert only missing docs (by _id); $setOnInsert => never overwrite
       let inserted = 0;
+      let dupSkipped = 0;
       for (let i = 0; i < docs.length; i += BATCH_SIZE) {
         const batch = docs.slice(i, i + BATCH_SIZE);
         if (batch.length === 0) continue;
@@ -111,11 +112,26 @@ function dbNameFromUri(uri) {
             upsert: true,
           },
         }));
-        const res = await col.bulkWrite(ops, { ordered: false });
-        inserted += res.upsertedCount;
+        try {
+          const res = await col.bulkWrite(ops, { ordered: false });
+          inserted += res.upsertedCount;
+        } catch (e) {
+          // A doc whose _id is missing here but whose business key already exists
+          // (e.g. seeded with a different _id on another machine) trips a unique
+          // index. With ordered:false the non-conflicting ops still apply — treat
+          // E11000 as "already exists, skip" instead of failing the whole import.
+          const dupErrors = (e.writeErrors || []).filter(we => we.code === 11000);
+          if (e.code === 11000 || (dupErrors.length && dupErrors.length === (e.writeErrors || []).length)) {
+            inserted += e.result?.upsertedCount ?? e.result?.nUpserted ?? 0;
+            dupSkipped += dupErrors.length || 1;
+          } else {
+            throw e;
+          }
+        }
       }
       grandTotal += inserted;
-      console.log(`  ✅ ${name}: file=${docs.length}, inserted=${inserted} (skipped existing=${docs.length - inserted})`);
+      const dupNote = dupSkipped ? `, dup-key skipped=${dupSkipped}` : '';
+      console.log(`  ✅ ${name}: file=${docs.length}, inserted=${inserted} (skipped existing=${docs.length - inserted - dupSkipped}${dupNote})`);
     }
 
     console.log('');
