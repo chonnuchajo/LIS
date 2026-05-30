@@ -1,0 +1,1 @@
+{"collection":"stockstandards","indexes":[{"v":{"$numberInt":"2"},"key":{"code":{"$numberInt":"1"}},"name":"code_1","background":true,"unique":true},{"v":{"$numberInt":"2"},"key":{"name":{"$numberInt":"1"}},"name":"name_1","background":true}],"count":{"$numberInt":"0"},"documents":[]}

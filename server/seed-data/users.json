@@ -1,0 +1,1 @@
+{"collection":"users","indexes":[{"v":{"$numberInt":"2"},"key":{"email":{"$numberInt":"1"}},"name":"email_1","background":true,"unique":true}],"count":{"$numberInt":"0"},"documents":[]}

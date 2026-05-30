@@ -1,0 +1,1 @@
+{"collection":"physicalresults","indexes":[{"v":{"$numberInt":"2"},"key":{"sampleId":{"$numberInt":"1"}},"name":"sampleId_1","background":true,"unique":true}],"count":{"$numberInt":"0"},"documents":[]}

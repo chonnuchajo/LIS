@@ -1,0 +1,1 @@
+{"collection":"masteritemmetas","indexes":[{"v":{"$numberInt":"2"},"key":{"itemNo":{"$numberInt":"1"}},"name":"itemNo_1","background":true,"unique":true}],"count":{"$numberInt":"0"},"documents":[]}
