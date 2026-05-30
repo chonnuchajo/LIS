@@ -1,0 +1,1 @@
+{"collection":"standardconfigs","indexes":[{"v":{"$numberInt":"2"},"key":{"keywordLower":{"$numberInt":"1"}},"name":"keywordLower_1","background":true,"unique":true}],"count":{"$numberInt":"0"},"documents":[]}

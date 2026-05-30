@@ -1,0 +1,1 @@
+{"collection":"samples","indexes":[{"v":{"$numberInt":"2"},"key":{"id":{"$numberInt":"1"}},"name":"id_1","background":true,"unique":true}],"count":{"$numberInt":"0"},"documents":[]}

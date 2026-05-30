@@ -1,0 +1,1 @@
+{"collection":"stocksolvents","indexes":[{"v":{"$numberInt":"2"},"key":{"name":{"$numberInt":"1"}},"name":"name_1","background":true}],"count":{"$numberInt":"0"},"documents":[]}
