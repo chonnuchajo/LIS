@@ -2,9 +2,79 @@
   "database": "LIS-DB",
   "exportedCollections": [
     {
+      "collection": "standardoverrides",
+      "file": "standardoverrides.json",
+      "count": 0
+    },
+    {
+      "collection": "parameters",
+      "file": "parameters.json",
+      "count": 6
+    },
+    {
+      "collection": "machines",
+      "file": "machines.json",
+      "count": 48
+    },
+    {
+      "collection": "roles",
+      "file": "roles.json",
+      "count": 8
+    },
+    {
+      "collection": "qctestresults",
+      "file": "qctestresults.json",
+      "count": 13
+    },
+    {
+      "collection": "petitions",
+      "file": "petitions.json",
+      "count": 5
+    },
+    {
+      "collection": "simplemethodexclusions",
+      "file": "simplemethodexclusions.json",
+      "count": 1
+    },
+    {
       "collection": "stockstandards",
       "file": "stockstandards.json",
       "count": 138
+    },
+    {
+      "collection": "simplemethods",
+      "file": "simplemethods.json",
+      "count": 1419
+    },
+    {
+      "collection": "masteritemmetas",
+      "file": "masteritemmetas.json",
+      "count": 0
+    },
+    {
+      "collection": "users",
+      "file": "users.json",
+      "count": 0
+    },
+    {
+      "collection": "approvals",
+      "file": "approvals.json",
+      "count": 0
+    },
+    {
+      "collection": "petitionauditlogs",
+      "file": "petitionauditlogs.json",
+      "count": 178
+    },
+    {
+      "collection": "realtimedensities",
+      "file": "realtimedensities.json",
+      "count": 0
+    },
+    {
+      "collection": "samplereceipts",
+      "file": "samplereceipts.json",
+      "count": 0
     },
     {
       "collection": "stocksolvents",
@@ -12,9 +82,44 @@
       "count": 5
     },
     {
+      "collection": "labrequests",
+      "file": "labrequests.json",
+      "count": 14
+    },
+    {
+      "collection": "standardconfigs",
+      "file": "standardconfigs.json",
+      "count": 0
+    },
+    {
       "collection": "stockglasswares",
       "file": "stockglasswares.json",
       "count": 50
+    },
+    {
+      "collection": "stocktransactions",
+      "file": "stocktransactions.json",
+      "count": 1
+    },
+    {
+      "collection": "accessgroups",
+      "file": "accessgroups.json",
+      "count": 10
+    },
+    {
+      "collection": "samples",
+      "file": "samples.json",
+      "count": 0
+    },
+    {
+      "collection": "dailychecks",
+      "file": "dailychecks.json",
+      "count": 0
+    },
+    {
+      "collection": "physicalresults",
+      "file": "physicalresults.json",
+      "count": 0
     }
   ]
 }
