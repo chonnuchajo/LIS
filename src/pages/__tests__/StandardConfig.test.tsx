@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import StandardConfig from "../StandardConfig";
+import { ConfirmProvider } from "@/context/ConfirmDialog";
 
 vi.mock("@/components/lis/AppLayout", () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -25,7 +26,9 @@ function renderPage() {
   return render(
     <MemoryRouter>
       <QueryClientProvider client={qc}>
-        <StandardConfig />
+        <ConfirmProvider>
+          <StandardConfig />
+        </ConfirmProvider>
       </QueryClientProvider>
     </MemoryRouter>,
   );

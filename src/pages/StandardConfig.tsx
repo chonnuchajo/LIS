@@ -24,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api } from "@/lib/api";
+import { useConfirm } from "@/context/ConfirmDialog";
 import {
   normalizeTimes,
   validateStandardConfigInput,
@@ -64,6 +65,7 @@ const emptyForm: FormState = {
 
 export default function StandardConfig() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<FormState | null>(null);
   const [fieldError, setFieldError] = useState<{ field: string; message: string } | null>(null);
@@ -252,10 +254,14 @@ export default function StandardConfig() {
                             className="h-8 w-8 text-destructive hover:text-destructive"
                             aria-label="ลบ"
                             disabled={deleteMutation.isPending}
-                            onClick={() => {
-                              if (window.confirm(`ลบ "${c.instrument} — ${c.commonName}"?`)) {
-                                deleteMutation.mutate(c._id);
-                              }
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: "ลบรายการ",
+                                description: `ลบ "${c.instrument} — ${c.commonName}"?`,
+                                confirmText: "ลบ",
+                                variant: "danger",
+                              });
+                              if (ok) deleteMutation.mutate(c._id);
                             }}
                           >
                             <Trash2 className="h-4 w-4" />

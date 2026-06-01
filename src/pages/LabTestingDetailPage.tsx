@@ -17,6 +17,7 @@ import AppLayout from '@/components/lis/AppLayout';
 import { usePetition, usePetitionList } from '@/hooks/usePetition';
 import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useConfirm } from '@/context/ConfirmDialog';
 import { isFieldAbnormal } from '@/lib/parameterValidation';
 import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
@@ -256,6 +257,7 @@ export default function LabTestingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const confirm = useConfirm();
 
   const { data: petition, loading: petitionLoading, error: petitionError } = usePetition(id);
   const { data: worklistData } = usePetitionList({
@@ -562,7 +564,10 @@ export default function LabTestingDetailPage() {
       return;
     }
     if (abnormalCount > 0) {
-      const ok = window.confirm(`พบค่าผิดปกติ ${abnormalCount} รายการ ยืนยันบันทึกผล?`);
+      const ok = await confirm({
+        title: 'พบค่าผิดปกติ',
+        description: `พบค่าผิดปกติ ${abnormalCount} รายการ ยืนยันบันทึกผล?`,
+      });
       if (!ok) return;
     }
     setSubmitting(true);

@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SampleProvider } from "@/context/SampleContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
+import { ConfirmProvider } from "@/context/ConfirmDialog";
 import DailyCheckReminderWatcher from "@/components/lis/DailyCheckReminderWatcher";
 import PrivateRoute from "@/components/PrivateRoute";
 import Home from "./pages/Home";
@@ -51,6 +52,7 @@ const queryClient = new QueryClient({
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
+      <ConfirmProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter basename={import.meta.env.BASE_URL}>
@@ -100,6 +102,7 @@ const App = () => (
           </NotificationProvider>
         </AuthProvider>
       </BrowserRouter>
+      </ConfirmProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

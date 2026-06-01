@@ -6,6 +6,7 @@ import AppLayout from '@/components/lis/AppLayout';
 import { usePetition, usePetitionList } from '@/hooks/usePetition';
 import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useConfirm } from '@/context/ConfirmDialog';
 import { isFieldAbnormal } from '@/lib/parameterValidation';
 import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
@@ -263,6 +264,7 @@ export default function QCTestingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const confirm = useConfirm();
 
   const { data: petition, loading: petitionLoading, error: petitionError } = usePetition(id);
   // Active worklist for tab-strip switcher (other petitions currently in QC)
@@ -609,7 +611,10 @@ export default function QCTestingDetailPage() {
       return;
     }
     if (abnormalCount > 0) {
-      const ok = window.confirm(`พบค่าผิดปกติ ${abnormalCount} รายการ ยืนยันบันทึกผล?`);
+      const ok = await confirm({
+        title: 'พบค่าผิดปกติ',
+        description: `พบค่าผิดปกติ ${abnormalCount} รายการ ยืนยันบันทึกผล?`,
+      });
       if (!ok) return;
     }
     setSubmitting(true);
@@ -628,7 +633,7 @@ export default function QCTestingDetailPage() {
   };
 
   const handleApprove = async () => {
-    if (!window.confirm('อนุมัติคำร้องนี้?')) return;
+    if (!(await confirm({ title: 'อนุมัติคำร้อง', description: 'อนุมัติคำร้องนี้?' }))) return;
     setSubmitting(true);
     try {
       await api.approvePetition(petition._id, user?.name ?? 'system');
