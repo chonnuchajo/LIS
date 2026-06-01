@@ -7,8 +7,14 @@ RewriteBase /LIS/
   RewriteRule ^api/(.*)$ http://localhost:3001/api/$1 [P,L]
 </IfModule>
 
-# SPA fallback: ทุก route ที่ไม่ใช่ไฟล์จริง → index.html
-RewriteRule ^index\.html$ - [L]
+# Production entry is app.html (built, hashed assets). index.html is the Vite dev
+# template (loads /src/main.tsx) and must NEVER be served in prod. Map the directory
+# root and any index.html request → app.html using mod_rewrite only (NOT
+# DirectoryIndex — an unpermitted DirectoryIndex in .htaccess 500s the whole dir).
+RewriteRule ^app\.html$ - [L]
+RewriteRule ^(?:index\.html)?$ /LIS/app.html [L]
+
+# SPA fallback: ทุก route ที่ไม่ใช่ไฟล์จริง → app.html
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . /LIS/index.html [L]
+RewriteRule . /LIS/app.html [L]

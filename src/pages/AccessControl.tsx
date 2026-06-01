@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { PAGE_ITEMS, type NavItem } from "@/lib/navItems";
+import { NAV_ITEMS, PAGE_ITEMS, type NavItem } from "@/lib/navItems";
 import {
   ChevronDown,
   ChevronRight,
@@ -20,6 +20,7 @@ import {
   GripVertical,
   KeyRound,
   LockKeyhole,
+  Minus,
   Plus,
   Search,
   ShieldCheck,
@@ -81,7 +82,10 @@ type PathPickerProps = {
   onChange: (next: string[]) => void;
   disabled?: boolean;
   placeholder?: string;
-  excludePaths?: string[];
+  /** path -> the group that already owns it (so it renders as a "move here" row). */
+  ownedBy?: Map<string, { id: string; name: string }>;
+  /** Move a page owned by another group into this one. */
+  onMovePath?: (path: string) => void;
   emptyMessage?: string;
 };
 
@@ -90,16 +94,16 @@ const PathPicker = ({
   onChange,
   disabled,
   placeholder,
-  excludePaths = [],
+  ownedBy,
+  onMovePath,
   emptyMessage = "No available pages",
 }: PathPickerProps) => {
-  const selectedNavItems = PAGE_ITEMS.filter((item) => value.includes(item.path));
-  const extraPaths = value.filter((p) => !PAGE_ITEMS.some((item) => item.path === p));
-  // Access control manages every route-like page, including detail/edit pages
-  // that are not shown in the sidebar.
-  const availableNavItems = PAGE_ITEMS.filter(
-    (item) => value.includes(item.path) || !excludePaths.includes(item.path),
-  );
+  // Only sidebar nav pages are selectable. Non-nav paths (detail/edit/scanner/
+  // queue) stay stored in the group but are hidden from this editor — they keep
+  // their access without being manageable here. A page belongs to exactly one
+  // group: pages owned by ANOTHER group stay visible but render with their owner
+  // and a "−" button that moves the page out of that group and into this one.
+  const selectedNavItems = NAV_ITEMS.filter((item) => value.includes(item.path));
 
   const toggle = (item: NavItem, checked: boolean) => {
     if (checked) {
@@ -119,21 +123,51 @@ const PathPicker = ({
           className="w-full justify-between font-normal"
         >
           <span className="truncate text-left">
-            {selectedNavItems.length === 0 && extraPaths.length === 0
+            {selectedNavItems.length === 0
               ? (placeholder ?? "เลือกหน้า")
-              : `${selectedNavItems.length} หน้า${extraPaths.length ? ` + ${extraPaths.length} extra` : ""}`}
+              : `${selectedNavItems.length} หน้า`}
           </span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-2" align="start">
         <div className="max-h-72 space-y-0.5 overflow-auto">
-          {availableNavItems.length === 0 ? (
+          {NAV_ITEMS.length === 0 ? (
             <div className="rounded border border-dashed px-3 py-2 text-sm text-muted-foreground">
               {emptyMessage}
             </div>
-          ) : availableNavItems.map((item) => {
+          ) : NAV_ITEMS.map((item) => {
             const checked = value.includes(item.path);
+            const owner = checked ? undefined : ownedBy?.get(item.path);
+            if (owner) {
+              return (
+                <div
+                  key={item.path}
+                  className="flex items-center gap-2 rounded px-2 py-1.5"
+                >
+                  <item.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate text-sm text-muted-foreground">{item.label}</span>
+                  <Badge
+                    variant="outline"
+                    className="ml-auto shrink-0 text-[10px] font-normal"
+                  >
+                    {owner.name}
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    disabled={disabled || !onMovePath}
+                    onClick={() => onMovePath?.(item.path)}
+                    title={`ย้าย "${item.label}" จากกลุ่ม ${owner.name} มากลุ่มนี้`}
+                    aria-label={`ย้าย ${item.label} จากกลุ่ม ${owner.name} มากลุ่มนี้`}
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              );
+            }
             return (
               <label
                 key={item.path}
@@ -141,6 +175,7 @@ const PathPicker = ({
               >
                 <Checkbox
                   checked={checked}
+                  disabled={disabled}
                   onCheckedChange={(c) => toggle(item, c === true)}
                 />
                 <item.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -152,27 +187,6 @@ const PathPicker = ({
             );
           })}
         </div>
-        {extraPaths.length > 0 && (
-          <div className="mt-2 border-t pt-2">
-            <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Extra paths (non-nav)
-            </p>
-            <div className="space-y-0.5">
-              {extraPaths.map((p) => (
-                <div key={p} className="flex items-center gap-2 px-2 py-1">
-                  <span className="truncate font-mono text-[11px] text-muted-foreground">{p}</span>
-                  <button
-                    type="button"
-                    onClick={() => onChange(value.filter((x) => x !== p))}
-                    className="ml-auto text-xs text-destructive hover:underline"
-                  >
-                    remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </PopoverContent>
     </Popover>
   );
@@ -217,6 +231,9 @@ const AccessControl = () => {
       setUsers(res.data.data.users);
       setRoles(res.data.data.roles);
       setGroups(res.data.data.groups);
+      // Default-expand every group so the matrix shows nested pages up front,
+      // matching Group Control (users can still collapse individual groups).
+      setExpandedGroups(new Set(res.data.data.groups.map((group) => group.id)));
       setPermissions(res.data.data.permissions);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to load access control");
@@ -364,7 +381,6 @@ const AccessControl = () => {
       return;
     }
     const paths = uniquePaths(newGroup.paths);
-    const movedPathSet = new Set(paths);
     try {
       const res = await api.post<AccessGroup>("/access-control/groups", {
         id: groupId,
@@ -372,26 +388,7 @@ const AccessControl = () => {
         paths,
         description: newGroup.description.trim(),
       });
-      const updates = groups
-        .filter((group) => group.id !== "others")
-        .map((group) => ({
-          ...group,
-          paths: (group.paths ?? []).filter((path) => !movedPathSet.has(path)),
-        }))
-        .filter((group) => group.paths.length !== (groups.find((item) => item.id === group.id)?.paths ?? []).length);
-
-      await Promise.all(
-        updates.map((group) =>
-          api.patch<AccessGroup>(`/access-control/groups/${group.id}`, { paths: group.paths }),
-        ),
-      );
       setGroups((current) => [...current, res.data.data]);
-      setGroups((current) =>
-        current.map((group) => {
-          const update = updates.find((item) => item.id === group.id);
-          return update ? { ...group, paths: update.paths } : group;
-        }),
-      );
       setPermissions((current) => ({
         ...current,
         admin: Array.from(new Set([...(current.admin ?? []), res.data.data.id])),
@@ -404,40 +401,11 @@ const AccessControl = () => {
     }
   };
 
+  // A page belongs to exactly one group. Moving a page across groups is handled
+  // by movePathToGroup/movePathToNewGroup (remove from owner, add to target);
+  // this just persists the path list for a single group.
   const updateGroupPaths = async (id: string, paths: string[]) => {
-    if (id === "others") {
-      updateGroup(id, { paths: uniquePaths(paths) });
-      return;
-    }
-
-    const nextPaths = uniquePaths(paths);
-    const movedPathSet = new Set(nextPaths);
-    const previous = groups;
-    const nextGroups = groups.map((group) => {
-      if (group.id === id) return { ...group, paths: nextPaths };
-      if (group.id === "others") return group;
-      return {
-        ...group,
-        paths: (group.paths ?? []).filter((path) => !movedPathSet.has(path)),
-      };
-    });
-    const changedGroups = nextGroups.filter((group) => {
-      const prev = previous.find((item) => item.id === group.id);
-      return prev && (prev.paths ?? []).join("\0") !== (group.paths ?? []).join("\0");
-    });
-
-    setGroups(nextGroups);
-    try {
-      await Promise.all(
-        changedGroups.map((group) =>
-          api.patch<AccessGroup>(`/access-control/groups/${group.id}`, { paths: group.paths }),
-        ),
-      );
-      notifyGroupMappingChanged();
-    } catch (err) {
-      setGroups(previous);
-      toast.error(err instanceof Error ? err.message : "Failed to update group pages");
-    }
+    updateGroup(id, { paths: uniquePaths(paths) });
   };
 
   const updateGroup = async (id: string, patch: Partial<AccessGroup>) => {
@@ -554,7 +522,7 @@ const AccessControl = () => {
     if (group.id === "others") {
       // Membership is computed (everything not covered by another group), but
       // group.paths is used purely as an ordering hint so it can be reordered.
-      const uncovered = PAGE_ITEMS.filter((item) => !coveredNavPaths.has(item.path));
+      const uncovered = NAV_ITEMS.filter((item) => !coveredNavPaths.has(item.path));
       const order = group.paths ?? [];
       const ordered = order
         .map((path) => uncovered.find((item) => item.path === path))
@@ -563,8 +531,9 @@ const AccessControl = () => {
       return [...ordered, ...rest];
     }
     // Preserve the order stored in group.paths — that order drives the sidebar.
+    // Only nav pages render; non-nav paths stay stored but hidden from the editor.
     return (group.paths ?? [])
-      .map((path) => PAGE_ITEMS.find((item) => item.path === path))
+      .map((path) => NAV_ITEMS.find((item) => item.path === path))
       .filter((item): item is NavItem => Boolean(item));
   };
 
@@ -573,6 +542,53 @@ const AccessControl = () => {
       return renderNavItemsForGroup(group).map((item) => item.path);
     }
     return group.paths ?? [];
+  };
+
+  // path -> the group that currently owns it (excluding `exceptGroupId` and the
+  // computed "others" bucket). The picker uses this to show pages owned by other
+  // groups as "move here" rows instead of hiding them.
+  const pathOwnerMap = (exceptGroupId: string | null) => {
+    const map = new Map<string, { id: string; name: string }>();
+    groups.forEach((group) => {
+      if (group.id === "others" || group.id === exceptGroupId) return;
+      (group.paths ?? []).forEach((path) => {
+        if (!map.has(path)) map.set(path, { id: group.id, name: group.name });
+      });
+    });
+    return map;
+  };
+
+  // Move a nav page out of whatever group owns it and into `targetGroupId`,
+  // preserving one-group-per-page.
+  const movePathToGroup = (path: string, targetGroupId: string) => {
+    const owner = groups.find(
+      (group) =>
+        group.id !== "others" &&
+        group.id !== targetGroupId &&
+        (group.paths ?? []).includes(path),
+    );
+    if (owner) {
+      updateGroupPaths(owner.id, (owner.paths ?? []).filter((p) => p !== path));
+    }
+    const target = groups.find((group) => group.id === targetGroupId);
+    if (target) {
+      updateGroupPaths(targetGroupId, [...(target.paths ?? []), path]);
+    }
+  };
+
+  // Same move, but the destination is the in-progress "new group" form (not yet
+  // saved), so the page is only added to local form state.
+  const movePathToNewGroup = (path: string) => {
+    const owner = groups.find(
+      (group) => group.id !== "others" && (group.paths ?? []).includes(path),
+    );
+    if (owner) {
+      updateGroupPaths(owner.id, (owner.paths ?? []).filter((p) => p !== path));
+    }
+    setNewGroup((current) => ({
+      ...current,
+      paths: uniquePaths([...current.paths, path]),
+    }));
   };
 
   const toggleExpandedGroup = (groupId: string) => {
@@ -983,6 +999,8 @@ const AccessControl = () => {
                     value={newGroup.paths}
                     onChange={(paths) => setNewGroup({ ...newGroup, paths })}
                     placeholder="เลือกหน้า navigation"
+                    ownedBy={pathOwnerMap(null)}
+                    onMovePath={movePathToNewGroup}
                   />
                   <Button onClick={addGroup} className="gap-2">
                     <Plus className="h-4 w-4" />
@@ -1061,6 +1079,8 @@ const AccessControl = () => {
                                 value={group.paths ?? []}
                                 onChange={(paths) => updateGroupPaths(group.id, paths)}
                                 disabled={group.id === "others"}
+                                ownedBy={pathOwnerMap(group.id)}
+                                onMovePath={(path) => movePathToGroup(path, group.id)}
                               />
                               <div className="space-y-1">
                                 {renderNavItemsForGroup(group).map((item) => (
@@ -1141,18 +1161,18 @@ const AccessControl = () => {
               </CardHeader>
               <CardContent className="p-2 sm:p-4 md:p-6">
                 <Table
-                  className="min-w-max"
-                  containerClassName="relative w-full overflow-auto max-h-[calc(100vh-14rem)]"
+                  className="w-full table-fixed"
+                  containerClassName="relative w-full overflow-x-auto"
                 >
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="sticky left-0 top-0 z-30 min-w-[180px] w-[180px] sm:min-w-[220px] sm:w-[220px] md:min-w-[240px] md:w-[240px] bg-card shadow-[1px_1px_0_0_hsl(var(--border))]">
+                      <TableHead className="sticky left-0 top-0 z-30 min-w-[130px] w-[130px] sm:min-w-[200px] sm:w-[200px] md:min-w-[240px] md:w-[240px] bg-card shadow-[1px_1px_0_0_hsl(var(--border))]">
                         Group
                       </TableHead>
                       {roles.map((role) => (
                         <TableHead
                           key={role.id}
-                          className="sticky top-0 z-20 min-w-[100px] w-[100px] sm:min-w-[110px] sm:w-[110px] md:min-w-[130px] md:w-[130px] bg-card text-center shadow-[0_1px_0_0_hsl(var(--border))]"
+                          className="sticky top-0 z-20 min-w-[56px] sm:min-w-[90px] md:min-w-[120px] bg-card px-1 text-center text-xs leading-tight whitespace-normal break-words sm:px-2 sm:text-sm shadow-[0_1px_0_0_hsl(var(--border))]"
                         >
                           {role.name}
                         </TableHead>
@@ -1166,7 +1186,7 @@ const AccessControl = () => {
                         return (
                           <Fragment key={group.id}>
                             <TableRow>
-                              <TableCell className="sticky left-0 z-10 min-w-[180px] w-[180px] sm:min-w-[220px] sm:w-[220px] md:min-w-[240px] md:w-[240px] bg-card shadow-[1px_0_0_0_hsl(var(--border))]">
+                              <TableCell className="sticky left-0 z-10 min-w-[130px] w-[130px] sm:min-w-[200px] sm:w-[200px] md:min-w-[240px] md:w-[240px] bg-card shadow-[1px_0_0_0_hsl(var(--border))]">
                                 <div className="flex items-start gap-2">
                                   <button
                                     type="button"
@@ -1195,7 +1215,7 @@ const AccessControl = () => {
                                 </div>
                               </TableCell>
                               {roles.map((role) => (
-                                <TableCell key={role.id} className="text-center">
+                                <TableCell key={role.id} className="px-1 text-center sm:px-4">
                                   <Checkbox
                                     checked={groupCheckState(role.id, group)}
                                     onCheckedChange={(c) =>
@@ -1214,7 +1234,7 @@ const AccessControl = () => {
                                     key={`${group.id}-${path}`}
                                     className="bg-muted/30"
                                   >
-                                    <TableCell className="sticky left-0 z-10 min-w-[180px] w-[180px] sm:min-w-[220px] sm:w-[220px] md:min-w-[240px] md:w-[240px] bg-card py-1.5 pl-12 shadow-[1px_0_0_0_hsl(var(--border))]">
+                                    <TableCell className="sticky left-0 z-10 min-w-[130px] w-[130px] sm:min-w-[200px] sm:w-[200px] md:min-w-[240px] md:w-[240px] bg-card py-1.5 pl-12 shadow-[1px_0_0_0_hsl(var(--border))]">
                                       <div className="flex items-center gap-2">
                                         {navItem ? (
                                           <>
@@ -1234,7 +1254,7 @@ const AccessControl = () => {
                                     {roles.map((role) => (
                                       <TableCell
                                         key={role.id}
-                                        className="py-1.5 text-center"
+                                        className="px-1 py-1.5 text-center sm:px-4"
                                       >
                                         <Checkbox
                                           checked={isPageGranted(role.id, group, path)}
