@@ -188,6 +188,8 @@ function parseGlassware(ws) {
     if (!r) continue;
     const name = toStr(r[0]);
     if (!name) continue;
+    // skip footnote rows (e.g. "** หมายเหตุ ราคาประมาณการ...") — not real items
+    if (name.startsWith('**') || name.startsWith('หมายเหตุ')) continue;
     out.push({
       name,
       qty: toNum(r[1]),
