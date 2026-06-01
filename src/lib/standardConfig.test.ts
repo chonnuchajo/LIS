@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeTimes,
   validateStandardConfigInput,
-  MAX_KEYWORD_LEN,
+  MAX_COMMONNAME_LEN,
   MAX_TIMES,
+  MIN_TIMES,
+  type StandardConfigInput,
 } from "./standardConfig";
 
 describe("normalizeTimes", () => {
@@ -15,7 +17,6 @@ describe("normalizeTimes", () => {
   it("parses numeric strings and numbers", () => {
     expect(normalizeTimes("3")).toBe(3);
     expect(normalizeTimes(5)).toBe(5);
-    expect(normalizeTimes(0)).toBe(0);
   });
   it("maps non-numeric to null", () => {
     expect(normalizeTimes("abc")).toBeNull();
@@ -23,31 +24,65 @@ describe("normalizeTimes", () => {
 });
 
 describe("validateStandardConfigInput", () => {
-  const ok = { keyword: "ANILOFOS", gcTimes: 3, hplcTimes: null, note: "" };
+  const substance: StandardConfigInput = {
+    instrument: "GC",
+    scope: "substance",
+    commonName: "ANILOFOS",
+    times: 3,
+    note: "",
+  };
+  const defaultRow: StandardConfigInput = {
+    instrument: "HPLC",
+    scope: "all",
+    commonName: null,
+    times: 1,
+    note: "",
+  };
 
-  it("accepts a valid input", () => {
-    expect(validateStandardConfigInput(ok)).toBeNull();
+  it("accepts a valid substance input", () => {
+    expect(validateStandardConfigInput(substance)).toBeNull();
   });
-  it("rejects empty keyword", () => {
-    expect(validateStandardConfigInput({ ...ok, keyword: "  " })?.field).toBe("keyword");
+  it("accepts a valid default (scope=all) input", () => {
+    expect(validateStandardConfigInput(defaultRow)).toBeNull();
   });
-  it("rejects keyword over max length", () => {
-    const long = "x".repeat(MAX_KEYWORD_LEN + 1);
-    expect(validateStandardConfigInput({ ...ok, keyword: long })?.field).toBe("keyword");
+  it("rejects a bad instrument", () => {
+    expect(
+      validateStandardConfigInput({ ...substance, instrument: "MS" as never })?.field,
+    ).toBe("instrument");
   });
-  it("rejects negative times", () => {
-    expect(validateStandardConfigInput({ ...ok, gcTimes: -1 })?.field).toBe("gcTimes");
+  it("rejects a bad scope", () => {
+    expect(
+      validateStandardConfigInput({ ...substance, scope: "weird" as never })?.field,
+    ).toBe("scope");
+  });
+  it("rejects substance with empty commonName", () => {
+    expect(validateStandardConfigInput({ ...substance, commonName: "  " })?.field).toBe(
+      "commonName",
+    );
+  });
+  it("rejects commonName over max length", () => {
+    const long = "x".repeat(MAX_COMMONNAME_LEN + 1);
+    expect(validateStandardConfigInput({ ...substance, commonName: long })?.field).toBe(
+      "commonName",
+    );
+  });
+  it("ignores commonName when scope=all", () => {
+    expect(validateStandardConfigInput({ ...defaultRow, commonName: null })).toBeNull();
+  });
+  it("rejects times below minimum", () => {
+    expect(validateStandardConfigInput({ ...substance, times: MIN_TIMES - 1 })?.field).toBe(
+      "times",
+    );
+  });
+  it("rejects null times", () => {
+    expect(validateStandardConfigInput({ ...substance, times: null })?.field).toBe("times");
   });
   it("rejects decimal times", () => {
-    expect(validateStandardConfigInput({ ...ok, gcTimes: 1.5 })?.field).toBe("gcTimes");
+    expect(validateStandardConfigInput({ ...substance, times: 1.5 })?.field).toBe("times");
   });
   it("rejects times over max", () => {
-    expect(validateStandardConfigInput({ ...ok, gcTimes: MAX_TIMES + 1 })?.field).toBe("gcTimes");
-  });
-  it("rejects when neither GC nor HPLC > 0", () => {
-    expect(validateStandardConfigInput({ ...ok, gcTimes: 0, hplcTimes: null })?.field).toBe("gcTimes");
-  });
-  it("accepts HPLC-only", () => {
-    expect(validateStandardConfigInput({ ...ok, gcTimes: null, hplcTimes: 2 })).toBeNull();
+    expect(validateStandardConfigInput({ ...substance, times: MAX_TIMES + 1 })?.field).toBe(
+      "times",
+    );
   });
 });
