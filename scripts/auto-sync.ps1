@@ -19,6 +19,19 @@ Write-Log '--- auto-sync start ---'
 $pull = git pull --rebase --autostash origin main 2>&1 | Out-String
 Write-Log "pull: $($pull.Trim())"
 
+# Refresh seed-data from the live MongoDB so a DB wipe stays recoverable from git.
+# export-data.js lists collections dynamically, so new models are picked up with
+# no per-collection wiring. Failures (DB down, etc.) are logged but never abort the sync.
+$serverDir = Join-Path $repo 'server'
+if (Test-Path (Join-Path $serverDir 'export-data.js')) {
+    Push-Location $serverDir
+    $export = & node export-data.js 2>&1 | Out-String
+    Pop-Location
+    Write-Log "seed:export: $($export.Trim())"
+} else {
+    Write-Log 'seed:export: skipped (server\export-data.js not found)'
+}
+
 # Stage everything and check if there is anything to commit
 git add -A
 $staged = git diff --cached --name-only

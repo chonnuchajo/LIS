@@ -17,7 +17,10 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(findstr \":8000\")",
-      "Bash(findstr \"LISTENING\")"
+      "Bash(findstr \"LISTENING\")",
+      "Bash(python -c \"import pandas; print\\('pandas ok'\\)\")",
+      "Bash(python -c \"import odf; print\\('odf ok'\\)\")",
+      "mcp__plugin_playwright_playwright__browser_resize"
     ]
   }
 }
