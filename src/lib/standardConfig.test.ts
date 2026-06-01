@@ -69,6 +69,9 @@ describe("validateStandardConfigInput", () => {
   it("ignores commonName when scope=all", () => {
     expect(validateStandardConfigInput({ ...defaultRow, commonName: null })).toBeNull();
   });
+  it("ignores a non-empty commonName when scope=all", () => {
+    expect(validateStandardConfigInput({ ...defaultRow, commonName: "GARBAGE" })).toBeNull();
+  });
   it("rejects times below minimum", () => {
     expect(validateStandardConfigInput({ ...substance, times: MIN_TIMES - 1 })?.field).toBe(
       "times",

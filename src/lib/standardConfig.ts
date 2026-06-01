@@ -29,7 +29,12 @@ export const MAX_COMMONNAME_LEN = 200;
 export const MAX_TIMES = 100000;
 export const MIN_TIMES = 1;
 
-/** Parse a raw times input (string | number | null) → number-or-null. Empty/non-numeric → null. */
+/**
+ * Parse a raw times input (string | number | null) → number-or-null.
+ * Empty/non-numeric → null. Floats pass through ON PURPOSE: validateStandardConfigInput
+ * rejects them with a precise "must be integer" message. Rounding/truncating here would
+ * hide the user's mistake; returning null here would trigger a misleading "times required".
+ */
 export function normalizeTimes(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
