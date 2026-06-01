@@ -220,7 +220,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
         </div>
 
         {/* Nav */}
-        <nav className={cn("flex-1 py-3 overflow-y-auto", collapsed ? "px-2" : "px-3")}>
+        <nav className={cn("flex-1 py-3 overflow-y-auto scrollbar-hide", collapsed ? "px-2" : "px-3")}>
           {sections.map((section, sIdx) => {
             const visibleItems = section.items.filter((item) =>
               userCanAccessPath(user, item.path, navGroups),

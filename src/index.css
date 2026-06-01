@@ -76,3 +76,14 @@
     font-family: 'Kanit', sans-serif;
   }
 }
+
+@layer utilities {
+  /* ซ่อนแถบ scrollbar แต่ยังเลื่อนเนื้อหาได้ — ใช้กับ nav ของ sidebar */
+  .scrollbar-hide {
+    -ms-overflow-style: none;      /* IE/Edge เก่า */
+    scrollbar-width: none;          /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;                  /* Chrome/Edge/Safari */
+  }
+}

@@ -81,7 +81,16 @@ interface PetitionListResponse {
   limit: number;
 }
 
-export function usePetitionList(params: PetitionListParams) {
+interface PetitionListOptions {
+  // Opt-in: refetch in the background when the tab regains focus/visibility, so a
+  // page kept open picks up server-side changes without a manual refresh.
+  refetchOnFocus?: boolean;
+  // Opt-in: poll every `pollMs` while the tab is visible (off when ≤ 0/undefined).
+  pollMs?: number;
+}
+
+export function usePetitionList(params: PetitionListParams, options: PetitionListOptions = {}) {
+  const { refetchOnFocus = false, pollMs } = options;
   const [data, setData] = useState<PetitionListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +126,30 @@ export function usePetitionList(params: PetitionListParams) {
       alive = false;
     };
   }, [queryString, reloadKey]);
+
+  // Background refetch when the tab regains focus or becomes visible again.
+  useEffect(() => {
+    if (!refetchOnFocus) return;
+    const onFocus = () => refresh();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refetchOnFocus, refresh]);
+
+  // Optional polling while the tab is visible.
+  useEffect(() => {
+    if (!pollMs || pollMs <= 0) return;
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') refresh();
+    }, pollMs);
+    return () => clearInterval(id);
+  }, [pollMs, refresh]);
 
   return { data, loading, error, refresh };
 }

@@ -1,6 +1,11 @@
 import { writeFileSync } from "fs";
+import { fileURLToPath } from "url";
 
-const indexHtml = `<!doctype html>
+// The Vite dev template. root/index.html must ALWAYS be this version so the dev
+// server (npm run dev) can resolve /src/main.tsx. Production is served from
+// app.html instead (see scripts/deploy-dist-to-root.mjs + .htaccess), so this
+// file never needs to hold the built/hashed-asset markup.
+export const devIndexHtml = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -17,7 +22,7 @@ const indexHtml = `<!doctype html>
 </html>
 `;
 
-const authHtml = `<!DOCTYPE html>
+export const devAuthHtml = `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
@@ -29,6 +34,9 @@ const authHtml = `<!DOCTYPE html>
 </html>
 `;
 
-writeFileSync("index.html", indexHtml, "utf8");
-writeFileSync("auth.html", authHtml, "utf8");
-console.log("✅ index.html and auth.html restored");
+// When run directly (node scripts/restore-index.mjs) restore both dev templates.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  writeFileSync("index.html", devIndexHtml, "utf8");
+  writeFileSync("auth.html", devAuthHtml, "utf8");
+  console.log("✅ index.html and auth.html restored");
+}

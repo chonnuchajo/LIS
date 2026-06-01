@@ -35,13 +35,16 @@ import {
 type TabKey = 'normal' | 'phase2';
 
 type Instrument = 'GC' | 'HPLC';
+// What a substance slot requires: a single instrument, or 'BOTH' (usable on
+// either — picker offers GC and HPLC machines; QC chooses one at assign time).
+type SlotRequirement = Instrument | 'BOTH';
 
 // One substance within a commonName (split by "+"), with the instrument the
 // simple-method config assigned to it. `instrument === null` means "not yet
 // configured" → that slot blocks Assign.
 type SubstanceSlot = {
   name: string;
-  instrument: Instrument | null;
+  instrument: SlotRequirement | null;
 };
 
 type SubstanceGroup = {
@@ -89,6 +92,12 @@ function machineInstrument(machine: MachineItem): Instrument | null {
   return null;
 }
 
+// Does a machine satisfy a slot requirement? BOTH accepts any GC or HPLC machine.
+function machineMatchesSlot(mi: Instrument | null, requirement: SlotRequirement): boolean {
+  if (mi === null) return false;
+  return requirement === 'BOTH' ? true : mi === requirement;
+}
+
 // Phase 2 = either explicitly advanced or timer elapsed but list hasn't been refreshed
 function isPhase2Petition(petition: Petition): boolean {
   if (petition.currentPhase === 2) return true;
@@ -126,7 +135,7 @@ function toAssignedMachine(
 
 // commonName (lowercased) → positional instruments, index i = parseSubstances()[i].
 // '' means that substance has no configured method.
-type SlotInstruments = (Instrument | '')[];
+type SlotInstruments = (SlotRequirement | '')[];
 
 function buildSubstanceGroups(
   petition: Petition,
@@ -166,13 +175,19 @@ export default function PetitionAssignPage() {
     loading: pendingLoading,
     error: pendingError,
     refresh: refreshPending,
-  } = usePetitionList({ page: 1, limit: 100, status: 'sampleSent,pendingReview' });
+  } = usePetitionList(
+    { page: 1, limit: 100, status: 'sampleSent,pendingReview' },
+    { refetchOnFocus: true, pollMs: 30_000 },
+  );
   const {
     data: inProgressData,
     loading: inProgressLoading,
     error: inProgressError,
     refresh: refreshInProgress,
-  } = usePetitionList({ page: 1, limit: 100, status: 'inProgress' });
+  } = usePetitionList(
+    { page: 1, limit: 100, status: 'inProgress' },
+    { refetchOnFocus: true, pollMs: 30_000 },
+  );
   const [employees, setEmployees] = useState<EmployeeAssignee[]>([]);
   const [employeesLoading, setEmployeesLoading] = useState(true);
   const [employeesError, setEmployeesError] = useState<string | null>(null);
@@ -282,7 +297,7 @@ export default function PetitionAssignPage() {
         // keep positions — only the value is normalised; invalid/blank → '' so the
         // index still lines up with its substance.
         instruments: (entry.instruments ?? []).map((v) =>
-          v === 'GC' || v === 'HPLC' ? (v as Instrument) : '',
+          v === 'GC' || v === 'HPLC' || v === 'BOTH' ? (v as SlotRequirement) : '',
         ),
       }));
     },
@@ -340,7 +355,8 @@ export default function PetitionAssignPage() {
       const match = saved.find((m) => {
         if (used.has(m.machineId)) return false;
         const machine = machineById.get(m.machineId);
-        return !!machine && machineInstrument(machine) === slot.instrument;
+        return !!machine && slot.instrument !== null
+          && machineMatchesSlot(machineInstrument(machine), slot.instrument);
       });
       if (match) {
         result[i] = match.machineId;
@@ -663,7 +679,7 @@ interface SingleMachinePickerProps {
   onSelect: (machineKey: string) => void;
   slotLabel: string;        // e.g. "เครื่องที่ 1"
   substanceName: string;    // e.g. "PROPANIL 36%"
-  instrument: Instrument;   // GC | HPLC
+  instrument: SlotRequirement;   // GC | HPLC | BOTH
   readOnly?: boolean;       // locked view — show selection without the picker
   disabledIds?: Set<string>; // machines busy on other petitions — not selectable
 }
@@ -709,10 +725,10 @@ function SingleMachinePicker({
             {substanceName || slotLabel}
           </span>
           <Badge
-            variant={instrument === 'GC' ? 'green-soft' : 'blue-soft'}
+            variant={instrument === 'GC' ? 'green-soft' : instrument === 'HPLC' ? 'blue-soft' : 'outline'}
             className="ml-auto shrink-0 px-1 py-0 text-[9px] font-medium"
           >
-            {instrument}
+            {instrument === 'BOTH' ? 'GC/HPLC' : instrument}
           </Badge>
         </div>
         <div className="text-[9px] text-grey-400">{slotLabel}</div>
@@ -977,7 +993,12 @@ function AssignTable({
                                   className="flex items-center gap-1 text-[11px] text-grey-500"
                                 >
                                   <span className="truncate max-w-[150px]">• {slot.name}</span>
-                                  {slot.instrument ? (
+                                  {slot.instrument === 'BOTH' ? (
+                                    <>
+                                      <Badge variant="green-soft" className="px-1 py-0 text-[9px] font-medium">GC</Badge>
+                                      <Badge variant="blue-soft" className="px-1 py-0 text-[9px] font-medium">HPLC</Badge>
+                                    </>
+                                  ) : slot.instrument ? (
                                     <Badge
                                       variant={slot.instrument === 'GC' ? 'green-soft' : 'blue-soft'}
                                       className="px-1 py-0 text-[9px] font-medium"
@@ -1098,7 +1119,7 @@ function AssignTable({
                                     ) : (
                                       (() => {
                                         const filteredMachines = machines.filter(
-                                          (m) => machineInstrument(m) === inst,
+                                          (m) => machineMatchesSlot(machineInstrument(m), inst),
                                         );
                                         return (
                                           <div>
@@ -1121,7 +1142,7 @@ function AssignTable({
                                             />
                                             {filteredMachines.length === 0 && (
                                               <div className="mt-0.5 text-[11px] text-red-500">
-                                                ไม่พบเครื่อง {inst}
+                                                ไม่พบเครื่อง {inst === 'BOTH' ? 'GC/HPLC' : inst}
                                               </div>
                                             )}
                                           </div>

@@ -1,4 +1,5 @@
 Options -MultiViews
+DirectoryIndex app.html
 RewriteEngine On
 RewriteBase /LIS/
 
@@ -7,8 +8,11 @@ RewriteBase /LIS/
   RewriteRule ^api/(.*)$ http://localhost:3001/api/$1 [P,L]
 </IfModule>
 
-# SPA fallback: ทุก route ที่ไม่ใช่ไฟล์จริง → index.html
-RewriteRule ^index\.html$ - [L]
+# Production entry is app.html (index.html is reserved for the Vite dev server).
+RewriteRule ^$ /LIS/app.html [L]
+RewriteRule ^app\.html$ - [L]
+
+# SPA fallback: ทุก route ที่ไม่ใช่ไฟล์จริง → app.html
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule . /LIS/index.html [L]
+RewriteRule . /LIS/app.html [L]

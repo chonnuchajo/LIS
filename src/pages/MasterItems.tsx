@@ -58,7 +58,9 @@ import {
 
 type MasterItem = Record<string, unknown>;
 type SimpleInstrument = "GC" | "HPLC";
-type AssignmentSlot = SimpleInstrument | "";
+// A substance slot can require GC, HPLC, BOTH (usable on either — both buttons
+// light up), or "" (not set). BOTH lets QC pick either machine at assign time.
+type AssignmentSlot = SimpleInstrument | "BOTH" | "";
 type MatchType = "contains" | "startsWith" | "endsWith";
 
 type ExclusionRule = {
@@ -227,7 +229,21 @@ function emptyAssignments(count: number): AssignmentSlot[] {
 
 function normalizeAssignment(value: unknown): AssignmentSlot {
   const token = String(value ?? "").trim().toUpperCase();
-  return token === "GC" || token === "HPLC" ? token : "";
+  return token === "GC" || token === "HPLC" || token === "BOTH" ? token : "";
+}
+
+// Toggle one instrument on/off within a slot. Selecting both GC and HPLC
+// collapses to "BOTH"; deselecting one falls back to the remaining single.
+function toggleInstrument(current: AssignmentSlot, instrument: SimpleInstrument): AssignmentSlot {
+  const next = {
+    GC: current === "GC" || current === "BOTH",
+    HPLC: current === "HPLC" || current === "BOTH",
+  };
+  next[instrument] = !next[instrument];
+  if (next.GC && next.HPLC) return "BOTH";
+  if (next.GC) return "GC";
+  if (next.HPLC) return "HPLC";
+  return "";
 }
 
 function alignAssignments(source: AssignmentSlot[], substanceCount: number): AssignmentSlot[] {
@@ -851,8 +867,8 @@ export function SimpleMethodPage() {
         if (!haystack.includes(needle)) return false;
       }
       if (statusFilter === "all") return true;
-      const hasGC = row.assignments.includes("GC");
-      const hasHPLC = row.assignments.includes("HPLC");
+      const hasGC = row.assignments.some((slot) => slot === "GC" || slot === "BOTH");
+      const hasHPLC = row.assignments.some((slot) => slot === "HPLC" || slot === "BOTH");
       const hasEmpty = row.assignments.some((slot) => slot === "");
       switch (statusFilter) {
         case "gc-only": return hasGC && !hasHPLC && !hasEmpty;
@@ -991,6 +1007,15 @@ export function SimpleMethodPage() {
                     {instrument}
                   </Button>
                 ))}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 rounded-full px-3"
+                  disabled={selectedKeys.size === 0}
+                  onClick={() => applyBulk("BOTH")}
+                >
+                  ทั้งสอง
+                </Button>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -1197,7 +1222,7 @@ function SimpleMethodTab({
                                   )}
                                   <div className="flex items-center gap-1">
                                     {INSTRUMENT_ORDER.map((instrument) => {
-                                      const active = current === instrument;
+                                      const active = current === instrument || current === "BOTH";
                                       return (
                                         <Button
                                           key={instrument}
@@ -1208,7 +1233,7 @@ function SimpleMethodTab({
                                           onClick={() =>
                                             onDraftChange(
                                               row.key,
-                                              setAssignmentSlot(draftValue, index, active ? "" : instrument),
+                                              setAssignmentSlot(draftValue, index, toggleInstrument(current, instrument)),
                                             )
                                           }
                                         >

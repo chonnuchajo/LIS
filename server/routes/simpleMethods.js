@@ -3,7 +3,7 @@ const SimpleMethod = require('../models/SimpleMethod');
 
 const router = express.Router();
 
-const ALLOWED = new Set(['GC', 'HPLC']);
+const ALLOWED = new Set(['GC', 'HPLC', 'BOTH']);
 
 function normalizeInstruments(value) {
   const list = Array.isArray(value)
