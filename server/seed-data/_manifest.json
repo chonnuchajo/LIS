@@ -77,6 +77,11 @@
       "count": 0
     },
     {
+      "collection": "standardconfigs",
+      "file": "standardconfigs.json",
+      "count": 2
+    },
+    {
       "collection": "stocksolvents",
       "file": "stocksolvents.json",
       "count": 5
@@ -85,11 +90,6 @@
       "collection": "labrequests",
       "file": "labrequests.json",
       "count": 14
-    },
-    {
-      "collection": "standardconfigs",
-      "file": "standardconfigs.json",
-      "count": 0
     },
     {
       "collection": "stockglasswares",

@@ -5,6 +5,7 @@ import { FlaskConical, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 import AppLayout from "@/components/lis/AppLayout";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -23,9 +24,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api } from "@/lib/api";
+import { useConfirm } from "@/context/ConfirmDialog";
 import {
   normalizeTimes,
   validateStandardConfigInput,
+  type Instrument,
+  type Scope,
   type StandardConfigDoc,
 } from "@/lib/standardConfig";
 
@@ -41,16 +45,27 @@ function pickCommonName(item: Record<string, unknown>): string {
 
 type FormState = {
   id: string | null;
-  keyword: string;
-  gcTimes: string;
-  hplcTimes: string;
+  instrument: Instrument;
+  scope: Scope;
+  commonName: string;
+  times: string;
   note: string;
+  isDefault: boolean;
 };
 
-const emptyForm: FormState = { id: null, keyword: "", gcTimes: "", hplcTimes: "", note: "" };
+const emptyForm: FormState = {
+  id: null,
+  instrument: "GC",
+  scope: "substance",
+  commonName: "",
+  times: "",
+  note: "",
+  isDefault: false,
+};
 
 export default function StandardConfig() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [search, setSearch] = useState("");
   const [form, setForm] = useState<FormState | null>(null);
   const [fieldError, setFieldError] = useState<{ field: string; message: string } | null>(null);
@@ -60,12 +75,12 @@ export default function StandardConfig() {
     queryFn: () => api.getStandardConfigs(),
   });
 
-  // Suggestions for the keyword combobox — distinct commonNames from master items.
+  // Suggestions for the commonName combobox — distinct commonNames from master items.
   const { data: masterItemRows = [] } = useQuery<Array<Record<string, unknown>>>({
     queryKey: ["master-items"],
     queryFn: async () => {
       const res = await api.get<unknown>("/master-items");
-      const payload = res.data.data;
+      const payload = (res as { data: { data: unknown } }).data.data;
       return Array.isArray(payload) ? (payload as Array<Record<string, unknown>>) : [];
     },
   });
@@ -78,14 +93,18 @@ export default function StandardConfig() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [masterItemRows]);
 
+  // Default rows always shown; substance rows filtered by commonName search.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return configs;
-    return configs.filter((c) => c.keyword.toLowerCase().includes(q));
+    return configs.filter((c) => {
+      if (c.isDefault) return true;
+      if (!q) return true;
+      return (c.commonName ?? "").toLowerCase().includes(q);
+    });
   }, [configs, search]);
 
   const saveMutation = useMutation({
-    mutationFn: (payload: { id: string | null; data: Partial<StandardConfigDoc> }) =>
+    mutationFn: (payload: { id: string | null; data: Record<string, unknown> }) =>
       payload.id
         ? api.updateStandardConfig(payload.id, payload.data)
         : api.createStandardConfig(payload.data),
@@ -118,19 +137,22 @@ export default function StandardConfig() {
     setFieldError(null);
     setForm({
       id: c._id,
-      keyword: c.keyword,
-      gcTimes: c.gcTimes == null ? "" : String(c.gcTimes),
-      hplcTimes: c.hplcTimes == null ? "" : String(c.hplcTimes),
+      instrument: c.instrument,
+      scope: c.scope,
+      commonName: c.commonName ?? "",
+      times: String(c.times),
       note: c.note ?? "",
+      isDefault: c.isDefault,
     });
   };
 
   const submit = () => {
     if (!form) return;
     const input = {
-      keyword: form.keyword,
-      gcTimes: normalizeTimes(form.gcTimes),
-      hplcTimes: normalizeTimes(form.hplcTimes),
+      instrument: form.instrument,
+      scope: form.scope,
+      commonName: form.scope === "all" ? null : form.commonName,
+      times: normalizeTimes(form.times),
       note: form.note,
     };
     const err = validateStandardConfigInput(input);
@@ -139,7 +161,11 @@ export default function StandardConfig() {
       return;
     }
     setFieldError(null);
-    saveMutation.mutate({ id: form.id, data: input });
+    // Default rows only update times + note; the server ignores other fields anyway.
+    const data = form.isDefault
+      ? { times: input.times, note: input.note }
+      : input;
+    saveMutation.mutate({ id: form.id, data });
   };
 
   return (
@@ -151,7 +177,7 @@ export default function StandardConfig() {
             Standard Config
           </h1>
           <p className="text-sm text-muted-foreground">
-            ตั้งค่าจำนวนครั้งที่ใช้ standard ต่อสาร (ใช้สำหรับตัดสต็อกในอนาคต)
+            ตั้งค่าจำนวนครั้งที่ใช้ standard ต่อเครื่อง/ต่อสาร (ใช้สำหรับตัดสต็อกในอนาคต)
           </p>
         </div>
 
@@ -161,12 +187,12 @@ export default function StandardConfig() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="ค้นหา keyword..."
+              placeholder="ค้นหาชื่อสาร..."
               className="pl-8"
             />
           </div>
           <Button onClick={openAdd} className="gap-1">
-            <Plus className="h-4 w-4" /> เพิ่ม Standard
+            <Plus className="h-4 w-4" /> เพิ่มสาร
           </Button>
         </div>
 
@@ -174,9 +200,9 @@ export default function StandardConfig() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Keyword (ใน commonName)</TableHead>
-                <TableHead className="w-28 text-right">GC</TableHead>
-                <TableHead className="w-28 text-right">HPLC</TableHead>
+                <TableHead className="w-24">เครื่อง</TableHead>
+                <TableHead>เป้าหมาย</TableHead>
+                <TableHead className="w-28 text-right">จำนวนครั้ง</TableHead>
                 <TableHead>หมายเหตุ</TableHead>
                 <TableHead className="w-24" />
               </TableRow>
@@ -197,30 +223,50 @@ export default function StandardConfig() {
               ) : (
                 filtered.map((c) => (
                   <TableRow key={c._id}>
-                    <TableCell className="font-medium">{c.keyword}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {c.gcTimes ? `${c.gcTimes} ครั้ง` : "—"}
+                    <TableCell className="font-medium">{c.instrument}</TableCell>
+                    <TableCell>
+                      {c.isDefault ? (
+                        <span className="flex items-center gap-2">
+                          ทั้งหมด
+                          <Badge variant="secondary">ค่าตั้งต้น</Badge>
+                        </span>
+                      ) : (
+                        c.commonName
+                      )}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {c.hplcTimes ? `${c.hplcTimes} ครั้ง` : "—"}
-                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{c.times} ครั้ง</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{c.note}</TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
-                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(c)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          disabled={deleteMutation.isPending}
-                          onClick={() => {
-                            if (window.confirm(`ลบ "${c.keyword}"?`)) deleteMutation.mutate(c._id);
-                          }}
+                          className="h-8 w-8"
+                          aria-label="แก้ไข"
+                          onClick={() => openEdit(c)}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Pencil className="h-4 w-4" />
                         </Button>
+                        {c.isDefault ? null : (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            aria-label="ลบ"
+                            disabled={deleteMutation.isPending}
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: "ลบรายการ",
+                                description: `ลบ "${c.instrument} — ${c.commonName}"?`,
+                                confirmText: "ลบ",
+                                variant: "danger",
+                              });
+                              if (ok) deleteMutation.mutate(c._id);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -242,59 +288,85 @@ export default function StandardConfig() {
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{form?.id ? "แก้ไข Standard" : "เพิ่ม Standard"}</DialogTitle>
+            <DialogTitle>
+              {form?.isDefault
+                ? `แก้ค่าตั้งต้น (เครื่อง ${form.instrument})`
+                : form?.id
+                  ? "แก้ไขสาร"
+                  : "เพิ่มสาร"}
+            </DialogTitle>
           </DialogHeader>
           {form ? (
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="sc-keyword" className="text-sm">Keyword (ในชื่อ commonName) *</Label>
-                <Input
-                  id="sc-keyword"
-                  list="standard-config-commonnames"
-                  value={form.keyword}
-                  onChange={(e) => setForm({ ...form, keyword: e.target.value })}
-                  placeholder="พิมพ์ หรือเลือกจากรายการ — match แบบมีคำนี้อยู่ในชื่อ"
-                />
-                <datalist id="standard-config-commonnames">
-                  {commonNameSuggestions.map((cn) => (
-                    <option key={cn} value={cn} />
+                <Label className="text-sm">เครื่อง *</Label>
+                <div className="flex gap-2">
+                  {(["GC", "HPLC"] as Instrument[]).map((inst) => (
+                    <Button
+                      key={inst}
+                      type="button"
+                      variant={form.instrument === inst ? "default" : "outline"}
+                      disabled={form.isDefault}
+                      onClick={() => setForm({ ...form, instrument: inst })}
+                      className="flex-1"
+                    >
+                      {inst}
+                    </Button>
                   ))}
-                </datalist>
-                {fieldError?.field === "keyword" ? (
+                </div>
+                {fieldError?.field === "instrument" ? (
                   <p className="text-xs text-destructive">{fieldError.message}</p>
                 ) : null}
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="sc-gctimes" className="text-sm">GC — จำนวนครั้ง</Label>
-                  <Input
-                    id="sc-gctimes"
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={form.gcTimes}
-                    onChange={(e) => setForm({ ...form, gcTimes: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="sc-hplctimes" className="text-sm">HPLC — จำนวนครั้ง</Label>
-                  <Input
-                    id="sc-hplctimes"
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={form.hplcTimes}
-                    onChange={(e) => setForm({ ...form, hplcTimes: e.target.value })}
-                  />
-                </div>
-              </div>
-              {fieldError?.field === "gcTimes" || fieldError?.field === "hplcTimes" ? (
-                <p className="text-xs text-destructive">{fieldError.message}</p>
-              ) : (
-                <p className="text-xs text-muted-foreground">อย่างน้อยต้องกรอก 1 เครื่อง</p>
-              )}
+
               <div className="space-y-1.5">
-                <Label htmlFor="sc-note" className="text-sm">หมายเหตุ</Label>
+                <Label htmlFor="sc-commonname" className="text-sm">
+                  สาร (commonName) *
+                </Label>
+                {form.isDefault ? (
+                  <Input id="sc-commonname" value="ทั้งหมด (ค่าตั้งต้น)" disabled />
+                ) : (
+                  <>
+                    <Input
+                      id="sc-commonname"
+                      list="standard-config-commonnames"
+                      value={form.commonName}
+                      onChange={(e) => setForm({ ...form, commonName: e.target.value })}
+                      placeholder="เลือกชื่อสารจากรายการ"
+                    />
+                    <datalist id="standard-config-commonnames">
+                      {commonNameSuggestions.map((cn) => (
+                        <option key={cn} value={cn} />
+                      ))}
+                    </datalist>
+                  </>
+                )}
+                {fieldError?.field === "commonName" ? (
+                  <p className="text-xs text-destructive">{fieldError.message}</p>
+                ) : null}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="sc-times" className="text-sm">
+                  จำนวนครั้ง *
+                </Label>
+                <Input
+                  id="sc-times"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={form.times}
+                  onChange={(e) => setForm({ ...form, times: e.target.value })}
+                />
+                {fieldError?.field === "times" ? (
+                  <p className="text-xs text-destructive">{fieldError.message}</p>
+                ) : null}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="sc-note" className="text-sm">
+                  หมายเหตุ
+                </Label>
                 <Input
                   id="sc-note"
                   value={form.note}
