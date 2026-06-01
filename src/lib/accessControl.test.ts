@@ -66,4 +66,63 @@ describe("userCanAccessPath", () => {
   it("denies a null user", () => {
     expect(userCanAccessPath(null, "/report", groups)).toBe(false);
   });
+
+  describe("public pages", () => {
+    it("lets any signed-in user reach the scanner and queue TV pages without permissions", () => {
+      const user = { role: "viewer", status: "active" as const, permissions: [] };
+      expect(userCanAccessPath(user, "/scanner", groups)).toBe(true);
+      expect(userCanAccessPath(user, "/queue/lab", groups)).toBe(true);
+      expect(userCanAccessPath(user, "/queue/qc", groups)).toBe(true);
+    });
+
+    it("still blocks an inactive account from public pages", () => {
+      const user = { role: "viewer", status: "inactive" as const, permissions: [] };
+      expect(userCanAccessPath(user, "/scanner", groups)).toBe(false);
+    });
+
+    it("does not treat a non-public page as open", () => {
+      const user = { role: "viewer", status: "active" as const, permissions: [] };
+      expect(userCanAccessPath(user, "/queue", groups)).toBe(false);
+    });
+  });
+
+  describe("implied sub-pages", () => {
+    // Granting a parent nav page should ride along to its detail/sub pages.
+    const navGroups = [
+      { id: "petitions", paths: ["/petitions"] },
+      { id: "lab", paths: ["/petitions/assign", "/lab-testing"] },
+      { id: "others", paths: [] },
+    ];
+
+    it("grants the petition detail page when /petitions is granted", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/petitions"] };
+      expect(userCanAccessPath(user, "/petitions/123", navGroups)).toBe(true);
+    });
+
+    it("grants new/edit petition sub-pages when /petitions is granted", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/petitions"] };
+      expect(userCanAccessPath(user, "/petitions/new", navGroups)).toBe(true);
+      expect(userCanAccessPath(user, "/petitions/123/edit", navGroups)).toBe(true);
+    });
+
+    it("grants sub-pages through a legacy group-id entry", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["petitions"] };
+      expect(userCanAccessPath(user, "/petitions/123", navGroups)).toBe(true);
+    });
+
+    it("does NOT grant /petitions/assign (a separately-managed nav page) via /petitions", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/petitions"] };
+      expect(userCanAccessPath(user, "/petitions/assign", navGroups)).toBe(false);
+    });
+
+    it("grants the lab testing detail page when /lab-testing is granted", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/lab-testing"] };
+      expect(userCanAccessPath(user, "/lab-testing/abc", navGroups)).toBe(true);
+    });
+
+    it("'others' does not grant a sub-page already covered by its parent's group", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["others"] };
+      expect(userCanAccessPath(user, "/petitions/123", navGroups)).toBe(false);
+    });
+  });
 });

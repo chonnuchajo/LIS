@@ -4,6 +4,7 @@ const router = express.Router();
 const User = require('../models/User');
 const Role = require('../models/Role');
 const AccessGroup = require('../models/AccessGroup');
+const { findOrphanBackfillPaths } = require('../lib/accessGroups');
 
 const defaultGroups = [
   { id: 'dashboard', name: 'หน้าหลัก', description: 'ภาพรวมแล็บและงานที่กำลังดำเนินการ', paths: ['/', '/home', '/dashboard/lab'], locked: false, sortOrder: 10 },
@@ -105,14 +106,19 @@ async function ensureGroups() {
   }
 
   await AccessGroup.updateOne({ id: 'others' }, { $set: { locked: true } });
-  await AccessGroup.updateOne(
-    { id: 'stock' },
-    { $addToSet: { paths: { $each: ['/simple-method', '/machines'] } } },
-  );
-  await AccessGroup.updateMany(
-    { paths: '/master-items' },
-    { $addToSet: { paths: { $each: ['/simple-method', '/machines'] } } },
-  );
+
+  // Backfill pages added after the original seed (/simple-method, /machines)
+  // ONLY when no group claims them yet — giving legacy DBs a default home in
+  // 'stock' without ever forcing the page back once an admin has regrouped it.
+  // (Doing this unconditionally made Simple Method un-movable between groups.)
+  const existingGroups = await AccessGroup.find().lean();
+  const orphanPaths = findOrphanBackfillPaths(existingGroups);
+  if (orphanPaths.length) {
+    await AccessGroup.updateOne(
+      { id: 'stock' },
+      { $addToSet: { paths: { $each: orphanPaths } } },
+    );
+  }
   return AccessGroup.find().sort({ sortOrder: 1, name: 1 }).lean();
 }
 

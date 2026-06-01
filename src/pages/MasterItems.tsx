@@ -1205,8 +1205,8 @@ function SimpleMethodTab({
                         <TableCell onClick={(event) => event.stopPropagation()}>
                           <div
                             className={`flex flex-col gap-1.5 rounded-md border bg-background p-1.5 transition-colors ${
-                              isDirty ? "border-primary" : "border-input"
-                            }`}
+                              isMulti ? "" : "ml-auto w-fit"
+                            } ${isDirty ? "border-primary" : "border-input"}`}
                           >
                             {row.substances.map((substance, index) => {
                               const current = draftValue[index] ?? "";
@@ -1220,7 +1220,7 @@ function SimpleMethodTab({
                                       {substance}
                                     </span>
                                   )}
-                                  <div className="flex items-center gap-1">
+                                  <div className="ml-auto flex items-center gap-1">
                                     {INSTRUMENT_ORDER.map((instrument) => {
                                       const active = current === instrument || current === "BOTH";
                                       return (
