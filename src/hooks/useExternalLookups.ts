@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api } from "@/lib/api";
-import { buildOverrideMap, normalizeCommonName } from "@/lib/commonNameOverride";
-import type { CommonNameOverrideRow } from "@/lib/commonNameOverride";
+import { api } from '@/lib/api';
+import { buildOverrideMap, normalizeCommonName } from '@/lib/commonNameOverride';
+import type { CommonNameOverrideRow } from '@/lib/commonNameOverride';
 
 export const MF_LOT_API_URLS = [
   { source: 'LDI', url: 'https://n8n-plant.icpladda.com/webhook/API/findlot-ldi' },
@@ -136,7 +136,7 @@ export function useLotOptions() {
     (async () => {
       let cnMap = new Map<string, string>();
       try {
-        const res = await api.get<CommonNameOverrideRow[]>("/common-name-overrides");
+        const res = await api.get<CommonNameOverrideRow[]>('/common-name-overrides');
         cnMap = buildOverrideMap(res.data.data);
       } catch {
         // overrides are optional — fall back to raw names
@@ -149,10 +149,10 @@ export function useLotOptions() {
         }),
       );
       if (!alive) return;
-      const opts = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-      const failed = results.filter((r) => r.status === "rejected").length;
+      const opts = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+      const failed = results.filter((r) => r.status === 'rejected').length;
       setOptions(opts);
-      setError(failed ? "โหลดตัวเลือกจาก MF API ได้ไม่ครบทุกแหล่ง" : null);
+      setError(failed ? 'โหลดตัวเลือกจาก MF API ได้ไม่ครบทุกแหล่ง' : null);
       setLoading(false);
     })().catch((e: Error) => {
       if (alive) {
