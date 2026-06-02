@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 
 import AppLayout from "@/components/lis/AppLayout";
+import PageHeader from "@/components/lis/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -565,15 +566,16 @@ export default function MasterItems() {
 
   return (
     <AppLayout>
-        <div className="mb-6">
-          <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
-            <Database className="h-6 w-6" />
-            Master Item
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            จัดการรายการ item จาก n8n webhook
-          </p>
-        </div>
+        <PageHeader
+          className="mb-6"
+          title={
+            <span className="inline-flex items-center gap-2">
+              <Database className="h-6 w-6" />
+              Master Item
+            </span>
+          }
+          description="จัดการรายการ item จาก n8n webhook"
+        />
 
         <div className="mb-4 grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           <Card>
@@ -956,15 +958,16 @@ export function SimpleMethodPage() {
 
   return (
     <AppLayout fixedHeight mainClassName="relative flex flex-col overflow-hidden p-4 sm:p-6 pb-24">
-        <div className="mb-4 shrink-0">
-          <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
-            <FlaskConical className="h-6 w-6" />
-            Simple Method
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            กำหนด GC/HPLC ตาม commonname
-          </p>
-        </div>
+        <PageHeader
+          className="mb-4 shrink-0"
+          title={
+            <span className="inline-flex items-center gap-2">
+              <FlaskConical className="h-6 w-6" />
+              Simple Method
+            </span>
+          }
+          description="กำหนด GC/HPLC ตาม commonname"
+        />
 
         <SimpleMethodTab
           rows={visibleRows}
@@ -1044,15 +1047,16 @@ export function SimpleMethodPage() {
 export function MachinesPage() {
   return (
     <AppLayout>
-        <div className="mb-6">
-          <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
-            <Wrench className="h-6 w-6" />
-            รายการเครื่อง
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            จัดการเครื่องมือและข้อมูลทะเบียนเครื่อง
-          </p>
-        </div>
+        <PageHeader
+          className="mb-6"
+          title={
+            <span className="inline-flex items-center gap-2">
+              <Wrench className="h-6 w-6" />
+              รายการเครื่อง
+            </span>
+          }
+          description="จัดการเครื่องมือและข้อมูลทะเบียนเครื่อง"
+        />
 
         <MachinesTab />
     </AppLayout>
