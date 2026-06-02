@@ -24,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useAuth } from '@/hooks/useAuth';
 import { usePetitionList } from '@/hooks/usePetition';
 import { api, type MachineItem } from '@/lib/api';
+import { DEV_MODE, synthesizeDevAssignees } from '@/config/dev';
 import { parseSubstances } from '@/lib/substances';
 import {
   PETITION_STATUS_CONFIG,
@@ -189,7 +190,7 @@ export default function PetitionAssignPage() {
     { page: 1, limit: 100, status: 'inProgress' },
     { refetchOnFocus: true, pollMs: 30_000 },
   );
-  const [employees, setEmployees] = useState<EmployeeAssignee[]>([]);
+  const [fetchedEmployees, setFetchedEmployees] = useState<EmployeeAssignee[]>([]);
   const [employeesLoading, setEmployeesLoading] = useState(true);
   const [employeesError, setEmployeesError] = useState<string | null>(null);
   const [machines, setMachines] = useState<MachineItem[]>([]);
@@ -223,7 +224,7 @@ export default function PetitionAssignPage() {
     api.get<EmployeeAssignee[]>('/employees/assignees')
       .then((res) => {
         if (!alive) return;
-        setEmployees(res.data.data);
+        setFetchedEmployees(res.data.data);
       })
       .catch((err: Error) => {
         if (!alive) return;
@@ -260,6 +261,14 @@ export default function PetitionAssignPage() {
       alive = false;
     };
   }, []);
+
+  // In dev mode prepend fake Lab dev users so a petition can be assigned and
+  // then viewed on the lab pages by switching to that role (HR API has no dev
+  // staff). Always shown, even if the HR fetch failed.
+  const employees = useMemo(
+    () => (DEV_MODE ? [...synthesizeDevAssignees(), ...fetchedEmployees] : fetchedEmployees),
+    [fetchedEmployees],
+  );
 
   const employeeById = useMemo(
     () => new Map(employees.map((employee) => [employee.employeeId, employee])),
@@ -409,20 +418,6 @@ export default function PetitionAssignPage() {
     () => [...(pendingData?.items ?? []), ...(inProgressData?.items ?? [])],
     [inProgressData?.items, pendingData?.items],
   );
-
-  // machineId → petitionId that currently occupies it. A machine is "busy" while the
-  // petition using it hasn't finished testing (not success/approved). It frees up after.
-  const machineHolder = useMemo(() => {
-    const FREED = new Set<Petition['status']>(['success', 'approved', 'rejected']);
-    const map = new Map<string, string>();
-    allPetitions.forEach((petition) => {
-      if (FREED.has(petition.status)) return;
-      (petition.assignedMachines ?? []).forEach((m) => {
-        if (m.machineId && !map.has(m.machineId)) map.set(m.machineId, petition._id);
-      });
-    });
-    return map;
-  }, [allPetitions]);
 
   const phase2Petitions = useMemo(
     () => allPetitions.filter(isPhase2Petition),
@@ -611,7 +606,6 @@ export default function PetitionAssignPage() {
                 employees={employees}
                 machines={machines}
                 machineById={machineById}
-                machineHolder={machineHolder}
                 groupsByPetition={groupsByPetition}
                 selectedByPetition={selectedByPetition}
                 setSelectedByPetition={setSelectedByPetition}
@@ -649,7 +643,6 @@ export default function PetitionAssignPage() {
                 employees={employees}
                 machines={machines}
                 machineById={machineById}
-                machineHolder={machineHolder}
                 groupsByPetition={groupsByPetition}
                 selectedByPetition={selectedByPetition}
                 setSelectedByPetition={setSelectedByPetition}
@@ -680,7 +673,6 @@ interface SingleMachinePickerProps {
   substanceName: string;    // e.g. "PROPANIL 36%"
   instrument: SlotRequirement;   // GC | HPLC | BOTH
   readOnly?: boolean;       // locked view — show selection without the picker
-  disabledIds?: Set<string>; // machines busy on other petitions — not selectable
 }
 
 // One box = one machine slot. Single-select: picking a machine replaces the slot,
@@ -693,7 +685,6 @@ function SingleMachinePicker({
   substanceName,
   instrument,
   readOnly = false,
-  disabledIds,
 }: SingleMachinePickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -794,21 +785,16 @@ function SingleMachinePicker({
             filtered.map((machine) => {
               const key = machine._id || machine.code;
               const checked = key === selectedId;
-              const busy = !checked && !!disabledIds?.has(key);
               return (
                 <button
                   type="button"
                   key={key}
-                  disabled={busy}
                   onClick={() => {
-                    if (busy) return;
                     onSelect(key);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-start gap-2 rounded px-2 py-1.5 text-left ${
-                    busy
-                      ? 'cursor-not-allowed opacity-50'
-                      : `hover:bg-grey-50 ${checked ? 'bg-primary-50' : ''}`
+                  className={`flex w-full items-start gap-2 rounded px-2 py-1.5 text-left hover:bg-grey-50 ${
+                    checked ? 'bg-primary-50' : ''
                   }`}
                 >
                   <span
@@ -828,11 +814,6 @@ function SingleMachinePicker({
                       </span>
                     )}
                   </span>
-                  {busy && (
-                    <span className="shrink-0 self-center rounded bg-red-50 px-1 py-0.5 text-[9px] font-medium text-red-500">
-                      ใช้งานอยู่
-                    </span>
-                  )}
                 </button>
               );
             })
@@ -849,7 +830,6 @@ interface AssignTableProps {
   employees: EmployeeAssignee[];
   machines: MachineItem[];
   machineById: Map<string, MachineItem>;
-  machineHolder: Map<string, string>;  // machineId → petitionId currently using it
   groupsByPetition: Map<string, SubstanceGroup[]>;
   selectedByPetition: Record<string, string>;
   setSelectedByPetition: React.Dispatch<React.SetStateAction<Record<string, string>>>;
@@ -876,7 +856,6 @@ function AssignTable({
   employees,
   machines,
   machineById,
-  machineHolder,
   groupsByPetition,
   selectedByPetition,
   setSelectedByPetition,
@@ -949,12 +928,6 @@ function AssignTable({
             // already-assigned petitions are read-only until the user clicks "แก้ไข"
             const isAssigned = !!petition.assignedTo;
             const locked = isAssigned && !editingIds.has(petition._id);
-            // machines busy on OTHER not-finished petitions can't be picked here
-            const busyMachineIds = new Set(
-              [...machineHolder.entries()]
-                .filter(([, holderId]) => holderId !== petition._id)
-                .map(([machineId]) => machineId),
-            );
 
             return (
               <TableRow key={petition._id}>
@@ -1127,7 +1100,6 @@ function AssignTable({
                                               substanceName={slot.name}
                                               instrument={inst}
                                               readOnly={locked}
-                                              disabledIds={busyMachineIds}
                                               machines={filteredMachines}
                                               selectedId={slotMachines[idx] || null}
                                               onSelect={(machineKey: string) =>
