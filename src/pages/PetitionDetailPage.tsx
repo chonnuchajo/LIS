@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { ArrowLeft, FileText, Pencil, Printer, RotateCcw, Trash2 } from 'lucide-react';
+import { FileText, Pencil, Printer, RotateCcw, Trash2 } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
+import PageHeader from '@/components/lis/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -265,58 +266,58 @@ export default function PetitionDetailPage() {
                     </div>
                   );
                 })()}
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button variant="ghost" size="sm" onClick={() => navigate('/petitions')}>
-                    <ArrowLeft className="h-4 w-4" />
-                    กลับ
-                  </Button>
-                  <div className="ml-auto flex flex-wrap gap-2">
-                    <Button variant="primary-outline" size="sm" onClick={() => triggerPrint('label')}>
-                      <Printer className="h-4 w-4" />
-                      พิมพ์ฉลาก
-                    </Button>
-                    {hasLabRequests && (
-                      <Button
-                        variant="primary-outline"
-                        size="sm"
-                        onClick={() => triggerPrint('agreement')}
-                      >
-                        <FileText className="h-4 w-4" />
-                        พิมพ์ใบคำขอรับบริการ
+                <PageHeader
+                  onBack={() => navigate('/petitions')}
+                  title={data.petitionNo}
+                  actions={
+                    <>
+                      <Button variant="primary-outline" size="sm" onClick={() => triggerPrint('label')}>
+                        <Printer className="h-4 w-4" />
+                        พิมพ์ฉลาก
                       </Button>
-                    )}
-                    {isProduction && (
-                      <Button
-                        variant="primary-outline"
-                        size="sm"
-                        onClick={() => triggerPrint('production-plan')}
-                      >
-                        <FileText className="h-4 w-4" />
-                        พิมพ์ใบวางแผน-ควบคุมการผลิต
-                      </Button>
-                    )}
-                    {canEdit && (
-                      <Button
-                        variant="primary-outline"
-                        size="sm"
-                        onClick={() => navigate(`/petitions/${data._id}/edit`)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                        แก้ไข
-                      </Button>
-                    )}
-                    {canDelete && (
-                      <Button
-                        variant="danger-outline"
-                        size="sm"
-                        onClick={() => setConfirmDelete(true)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        ลบคำร้อง
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                      {hasLabRequests && (
+                        <Button
+                          variant="primary-outline"
+                          size="sm"
+                          onClick={() => triggerPrint('agreement')}
+                        >
+                          <FileText className="h-4 w-4" />
+                          พิมพ์ใบคำขอรับบริการ
+                        </Button>
+                      )}
+                      {isProduction && (
+                        <Button
+                          variant="primary-outline"
+                          size="sm"
+                          onClick={() => triggerPrint('production-plan')}
+                        >
+                          <FileText className="h-4 w-4" />
+                          พิมพ์ใบวางแผน-ควบคุมการผลิต
+                        </Button>
+                      )}
+                      {canEdit && (
+                        <Button
+                          variant="primary-outline"
+                          size="sm"
+                          onClick={() => navigate(`/petitions/${data._id}/edit`)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                          แก้ไข
+                        </Button>
+                      )}
+                      {canDelete && (
+                        <Button
+                          variant="danger-outline"
+                          size="sm"
+                          onClick={() => setConfirmDelete(true)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          ลบคำร้อง
+                        </Button>
+                      )}
+                    </>
+                  }
+                />
 
                 <AlertDialog
                   open={confirmDelete}
@@ -348,7 +349,6 @@ export default function PetitionDetailPage() {
                 </AlertDialog>
 
                 <div className="flex flex-wrap items-baseline gap-3">
-                  <h1 className="text-xl md:text-2xl font-bold text-black-500">{data.petitionNo}</h1>
                   <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
                   <Badge variant="blue-soft">{PETITION_DEPT_LABELS[data.dept]}</Badge>
                   <span className="text-xs text-grey-500">
