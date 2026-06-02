@@ -1,0 +1,1 @@
+{"collection":"commonnameoverrides","indexes":[{"v":{"$numberInt":"2"},"key":{"rawKey":{"$numberInt":"1"}},"name":"rawKey_1","background":true,"unique":true}],"count":{"$numberInt":"0"},"documents":[]}
