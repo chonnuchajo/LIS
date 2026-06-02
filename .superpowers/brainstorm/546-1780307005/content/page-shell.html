@@ -1,0 +1,48 @@
+<h2>โครงหน้ามาตรฐาน (ใช้ซ้ำทุกหน้า)</h2>
+<p class="subtitle">หัวข้อ + ปุ่มหลัก + แถบค้นหา/ฟิลเตอร์ + ตาราง วางที่เดิมทุกหน้า → ใช้หน้าไหนก็คุ้นมือ</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header" style="color:#c0392b;">ก่อน — แต่ละหน้าวางไม่เหมือนกัน</div>
+    <div class="mockup-body" style="font-size:12px;">
+      <div style="display:flex; justify-content:space-between;">
+        <b style="font-size:16px;">รายการคำร้อง</b>
+        <button class="mock-button" style="font-size:11px;">+ เพิ่ม</button>
+      </div>
+      <div class="mock-input" style="margin:10px 0 4px;">ค้นหา...</div>
+      <div class="placeholder" style="height:90px; margin-top:6px;">ตารางชิดขอบ หัวตารางเลื่อนหาย</div>
+      <div style="margin-top:6px; opacity:.5;">อีกหน้า: ปุ่มอยู่ล่าง, ฟิลเตอร์คนละที่, สีปุ่มไม่เท่ากัน</div>
+    </div>
+  </div>
+
+  <div class="mockup" data-choice="shell" onclick="toggleSelect(this)" style="cursor:pointer; outline:2px solid rgba(0,150,80,.4);">
+    <div class="mockup-header" style="color:#1e7e45;">หลัง — โครงเดียวกันทุกหน้า</div>
+    <div class="mockup-body" style="font-size:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid rgba(120,120,120,.25); padding-bottom:8px;">
+        <div>
+          <b style="font-size:17px;">รายการคำร้อง</b>
+          <div style="opacity:.55; font-size:11px;">จัดการคำร้องทั้งหมด · 128 รายการ</div>
+        </div>
+        <button class="mock-button">+ สร้างคำร้อง</button>
+      </div>
+      <div style="display:flex; gap:6px; margin:10px 0;">
+        <div class="mock-input" style="flex:1;">🔍 ค้นหา...</div>
+        <div class="mock-button" style="background:#eee; color:#333;">▾ สถานะ</div>
+      </div>
+      <div style="border:1px solid rgba(120,120,120,.2); border-radius:8px; overflow:hidden;">
+        <div style="background:rgba(120,120,120,.1); padding:6px 8px; font-size:11px; font-weight:600;">เลขที่ · ชื่อ · สถานะ · วันที่</div>
+        <div style="padding:6px 8px;">แถวสลับสี · หัวตารางติดบน · คลิกทั้งแถว</div>
+        <div style="padding:6px 8px; background:rgba(120,120,120,.05);">แถวสลับสี</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:14px;">
+  <p class="label">มาพร้อมกัน (ทุกหน้าได้เหมือนกัน)</p>
+  <p style="font-size:13px;">• สถานะ <b>กำลังโหลด</b> (skeleton) · <b>ไม่มีข้อมูล</b> (empty state มีคำแนะนำ) · <b>error</b> ที่อ่านรู้เรื่อง<br/>
+  • ปุ่มมีลำดับชัด: ปุ่มหลัก (เขียวเด่น) / ปุ่มรอง / ปุ่มอันตราย (แดง)<br/>
+  • ระยะห่าง ตัวอักษร สีสถานะ (badge) มาตรฐานเดียวกัน</p>
+</div>
+
+<p class="subtitle">โอเคกับโครงนี้ไหมครับ? คลิกการ์ดขวาเพื่อยืนยัน หรือบอกสิ่งที่อยากปรับ</p>
