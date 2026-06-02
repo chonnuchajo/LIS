@@ -173,6 +173,19 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
 
   const roleLabel = user?.role ? roleNameById[user.role] ?? user.role : "No role";
 
+  // The active nav item is the one whose path is the longest prefix of the
+  // current pathname — so /daily-check stays active on /daily-check/balance,
+  // while /petitions/assign still wins over /petitions on its own page.
+  const activePath = useMemo(() => {
+    const matches = NAV_ITEMS.filter(
+      (item) =>
+        location.pathname === item.path ||
+        location.pathname.startsWith(`${item.path}/`),
+    );
+    matches.sort((a, b) => b.path.length - a.path.length);
+    return matches[0]?.path;
+  }, [location.pathname]);
+
   return (
     <TooltipProvider delayDuration={200}>
       <aside
@@ -284,7 +297,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
                         : "/dashboard/lab"
                       : item.path;
                   const isActive =
-                    location.pathname === targetPath ||
+                    item.path === activePath ||
                     (item.path === "/" && location.pathname.startsWith("/dashboard/"));
                   const Btn = (
                     <button
