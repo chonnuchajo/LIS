@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft,
   FlaskConical,
   CheckCircle2,
   Loader2,
@@ -14,6 +13,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
+import PageHeader from '@/components/lis/PageHeader';
 import { usePetition, usePetitionList } from '@/hooks/usePetition';
 import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -593,12 +593,21 @@ export default function LabTestingDetailPage() {
     <AppLayout title={petition.petitionNo}>
       <div className="space-y-6 pb-20">
         {/* Header */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/lab-testing')}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <FlaskConical className="h-5 w-5 text-sky-500" />
-          <h1 className="text-lg md:text-xl font-bold">{petition.petitionNo}</h1>
+        <PageHeader
+          onBack={() => navigate('/lab-testing')}
+          title={
+            <span className="inline-flex items-center gap-2">
+              <FlaskConical className="h-5 w-5 text-sky-500" />
+              {petition.petitionNo}
+            </span>
+          }
+          actions={
+            <span className="text-sm text-grey-500">
+              ผู้นำส่ง: {petition.submittedBy?.name ?? '-'}
+            </span>
+          }
+        />
+        <div className="flex flex-wrap items-center gap-2">
           <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
           {wasReturned && (
             <span
@@ -617,9 +626,6 @@ export default function LabTestingDetailPage() {
               <AlertTriangle className="h-4 w-4" />
             </span>
           )}
-          <span className="text-sm text-grey-500 ml-auto">
-            ผู้นำส่ง: {petition.submittedBy?.name ?? '-'}
-          </span>
         </div>
 
         {!isAssigned && (
