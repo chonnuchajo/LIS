@@ -4,6 +4,7 @@ import { Package, AlertTriangle, Clock, Plus, Pencil, Trash2, Minus, ArrowDownTo
 import { toast } from "sonner";
 
 import AppLayout from "@/components/lis/AppLayout";
+import PageHeader from "@/components/lis/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -1036,14 +1037,15 @@ function StandardDialog({
 const StockPage = () => {
   return (
     <AppLayout>
-        <div className="mb-6">
-          <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
-            <Package className="w-6 h-6" /> Stock Management
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            จัดการ inventory: Standards, สารเคมี, เครื่องแก้ว — บันทึกข้อมูลใน MongoDB
-          </p>
-        </div>
+        <PageHeader
+          className="mb-6"
+          title={
+            <span className="inline-flex items-center gap-2">
+              <Package className="w-6 h-6" /> Stock Management
+            </span>
+          }
+          description="จัดการ inventory: Standards, สารเคมี, เครื่องแก้ว — บันทึกข้อมูลใน MongoDB"
+        />
 
         <Tabs defaultValue="standard">
           <TabsList className="mb-4 flex-wrap h-auto">
