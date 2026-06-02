@@ -826,6 +826,7 @@ export function SimpleMethodPage() {
   const [savingAll, setSavingAll] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<SimpleMethodFilter>("all");
+  const [editingRow, setEditingRow] = useState<SimpleMethodRow | null>(null);
 
   const {
     data: items = [],
@@ -1003,7 +1004,24 @@ export function SimpleMethodPage() {
           onToggleRow={toggleRowSelected}
           onToggleAll={toggleAllVisibleSelected}
           onExclusionsChanged={() => queryClient.invalidateQueries({ queryKey: ["simple-method-exclusions"] })}
+          onEditCommonName={setEditingRow}
         />
+
+        <CommonNameOverrideManager
+          overrides={cnOverrides}
+          onChanged={() => {
+            queryClient.invalidateQueries({ queryKey: ["common-name-overrides"] });
+          }}
+        />
+        {editingRow && (
+          <CommonNameOverrideDialog
+            row={editingRow}
+            onClose={() => setEditingRow(null)}
+            onSaved={() => {
+              queryClient.invalidateQueries({ queryKey: ["common-name-overrides"] });
+            }}
+          />
+        )}
 
         <div className="pointer-events-none absolute inset-x-6 bottom-6 z-30 flex justify-center">
           <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-full border bg-card px-4 py-2 shadow-lg">
@@ -1097,6 +1115,7 @@ function SimpleMethodTab({
   onToggleRow,
   onToggleAll,
   onExclusionsChanged,
+  onEditCommonName,
 }: {
   rows: SimpleMethodRow[];
   totalRows: number;
@@ -1114,6 +1133,7 @@ function SimpleMethodTab({
   onToggleRow: (key: string, selected: boolean) => void;
   onToggleAll: (selected: boolean) => void;
   onExclusionsChanged: () => void;
+  onEditCommonName: (row: SimpleMethodRow) => void;
 }) {
   const visibleSelectedCount = rows.reduce(
     (acc, row) => acc + (selectedKeys.has(row.key) ? 1 : 0),
@@ -1222,7 +1242,21 @@ function SimpleMethodTab({
                             aria-label={`เลือกแถว ${row.commonName}`}
                           />
                         </TableCell>
-                        <TableCell className="min-w-72 font-medium">{displayValue(row.commonName)}</TableCell>
+                        <TableCell className="min-w-72 font-medium" onClick={(event) => event.stopPropagation()}>
+                          <div className="flex items-center gap-1.5">
+                            <span className="min-w-0 flex-1 truncate">{displayValue(row.commonName)}</span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-1.5 text-muted-foreground"
+                              title="ตั้งชื่อมาตรฐาน"
+                              onClick={() => onEditCommonName(row)}
+                            >
+                              ✎
+                            </Button>
+                          </div>
+                        </TableCell>
                         <TableCell onClick={(event) => event.stopPropagation()}>
                           <div
                             className={`flex flex-col gap-1.5 rounded-md border bg-background p-1.5 transition-colors ${
@@ -1406,6 +1440,124 @@ function ExclusionManager({
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+function CommonNameOverrideDialog({
+  row,
+  onClose,
+  onSaved,
+}: {
+  row: SimpleMethodRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [canonical, setCanonical] = useState(row.commonName);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    const value = canonical.trim();
+    if (!value) {
+      toast.error("กรุณาระบุชื่อมาตรฐาน");
+      return;
+    }
+    setBusy(true);
+    try {
+      // apply the same canonical to every raw common_name that fell into this row
+      for (const raw of row.rawCommonNames) {
+        await api.post("/common-name-overrides", { raw, canonical: value, note: note.trim() });
+      }
+      toast.success("ตั้งชื่อมาตรฐานสำเร็จ");
+      onSaved();
+      onClose();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>ตั้งชื่อมาตรฐาน (common name)</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <span className="text-sm text-muted-foreground">ชื่อจากระบบ (raw)</span>
+            <ul className="mt-1 list-disc pl-5 text-sm">
+              {row.rawCommonNames.map((raw) => <li key={raw}>{raw}</li>)}
+            </ul>
+          </div>
+          <div>
+            <span className="text-sm text-muted-foreground">ชื่อมาตรฐาน</span>
+            <Input value={canonical} onChange={(e) => setCanonical(e.target.value)} />
+          </div>
+          <div>
+            <span className="text-sm text-muted-foreground">หมายเหตุ (ไม่บังคับ)</span>
+            <Input value={note} onChange={(e) => setNote(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>ยกเลิก</Button>
+          <Button onClick={save} disabled={busy}>{busy ? "กำลังบันทึก…" : "บันทึก"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CommonNameOverrideManager({
+  overrides,
+  onChanged,
+}: {
+  overrides: CommonNameOverrideRow[];
+  onChanged: () => void;
+}) {
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  const remove = async (id: string) => {
+    setRemovingId(id);
+    try {
+      await api.delete(`/common-name-overrides/${id}`);
+      onChanged();
+      toast.success("ลบ override แล้ว");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  if (overrides.length === 0) return null;
+
+  return (
+    <Card className="mt-4">
+      <CardContent className="p-4">
+        <div className="mb-2 text-sm font-medium">ชื่อมาตรฐานที่ตั้งไว้ ({overrides.length})</div>
+        <ul className="space-y-1 text-sm">
+          {overrides.map((o) => (
+            <li key={o._id} className="flex items-center gap-2">
+              <span className="flex-1 truncate">
+                <span className="text-muted-foreground">{o.raw}</span>
+                {" → "}
+                <span className="font-medium">{o.canonical}</span>
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={removingId === o._id}
+                onClick={() => o._id && remove(o._id)}
+              >
+                ลบ
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 
