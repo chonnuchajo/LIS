@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import PageHeader from '@/components/lis/PageHeader';
 import ItemsStep, { type ItemRowValues } from '@/components/petition/wizard/ItemsStep';
 import type { SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
 import ProductionPlanStep from '@/components/petition/wizard/ProductionPlanStep';
@@ -330,15 +331,7 @@ export default function ProductionPetitionNewPage() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/petitions/new')}>
-            <ArrowLeft className="h-4 w-4" />
-            กลับ
-          </Button>
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold text-black-500">คำขอแผนกผลิต</h1>
-          </div>
-        </div>
+        <PageHeader title="คำขอแผนกผลิต" onBack={() => navigate('/petitions/new')} />
 
         {revisionSource && (
           <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 flex items-center gap-2">
