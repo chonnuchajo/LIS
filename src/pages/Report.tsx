@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "@/components/lis/AppLayout";
+import PageHeader from "@/components/lis/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -221,13 +222,16 @@ const Report = () => {
 
   return (
     <AppLayout>
-        <div className="mb-6">
-          <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
-            <FileBarChart className="w-6 h-6" />
-            รายงานสรุป
-          </h1>
-          <p className="text-sm text-muted-foreground">ภาพรวม Trend %AI, OEE เครื่องวิเคราะห์ และ Workload บุคลากร</p>
-        </div>
+        <PageHeader
+          className="mb-6"
+          title={
+            <span className="inline-flex items-center gap-2">
+              <FileBarChart className="w-6 h-6" />
+              รายงานสรุป
+            </span>
+          }
+          description="ภาพรวม Trend %AI, OEE เครื่องวิเคราะห์ และ Workload บุคลากร"
+        />
 
         <Tabs defaultValue="dashboard">
           <TabsList className="mb-4 flex-wrap h-auto">
