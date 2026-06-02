@@ -24,7 +24,10 @@ import SettingsPage from "./pages/SettingsPage";
 import ParameterSettings from "./pages/ParameterSettings";
 import AccessControl from "./pages/AccessControl";
 import StockDeduction from "./pages/StockDeduction";
-import DailyCheck from "./pages/DailyCheck";
+import DailyCheckLayout from "./pages/daily-check/DailyCheckLayout";
+import DailyCheckSummary from "./pages/daily-check/DailyCheckSummary";
+import BalanceRoomPage from "./pages/daily-check/BalanceRoomPage";
+import RoomPlaceholderPage from "./pages/daily-check/RoomPlaceholderPage";
 import NotFound from "./pages/NotFound";
 import ScannerPage from "./pages/ScannerPage";
 import PetitionListPage from "./pages/PetitionListPage";
@@ -75,7 +78,13 @@ const App = () => (
               <Route path="/record-results" element={<PrivateRoute><RecordResults /></PrivateRoute>} />
               <Route path="/qc-approval" element={<PrivateRoute><QCApproval /></PrivateRoute>} />
               <Route path="/report" element={<PrivateRoute><Report /></PrivateRoute>} />
-              <Route path="/daily-check" element={<PrivateRoute><DailyCheck /></PrivateRoute>} />
+              <Route path="/daily-check" element={<PrivateRoute><DailyCheckLayout /></PrivateRoute>}>
+                <Route index element={<DailyCheckSummary />} />
+                <Route path="balance" element={<BalanceRoomPage />} />
+                <Route path="sample-prep" element={<RoomPlaceholderPage slug="sample-prep" />} />
+                <Route path="analysis" element={<RoomPlaceholderPage slug="analysis" />} />
+                <Route path="extraction" element={<RoomPlaceholderPage slug="extraction" />} />
+              </Route>
               <Route path="/stock" element={<PrivateRoute><Stock /></PrivateRoute>} />
               <Route path="/master-items" element={<PrivateRoute><MasterItems /></PrivateRoute>} />
               <Route path="/simple-method" element={<PrivateRoute><SimpleMethodPage /></PrivateRoute>} />
