@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { FlaskConical, Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 import AppLayout from "@/components/lis/AppLayout";
+import PageHeader from "@/components/lis/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -171,15 +172,15 @@ export default function StandardConfig() {
   return (
     <AppLayout title="Standard Config">
       <div className="space-y-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
-            <FlaskConical className="w-6 h-6" />
-            Standard Config
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            ตั้งค่าจำนวนครั้งที่ใช้ standard ต่อเครื่อง/ต่อสาร (ใช้สำหรับตัดสต็อกในอนาคต)
-          </p>
-        </div>
+        <PageHeader
+          title={
+            <span className="inline-flex items-center gap-2">
+              <FlaskConical className="w-6 h-6" />
+              Standard Config
+            </span>
+          }
+          description="ตั้งค่าจำนวนครั้งที่ใช้ standard ต่อเครื่อง/ต่อสาร (ใช้สำหรับตัดสต็อกในอนาคต)"
+        />
 
         <div className="flex items-center gap-2">
           <div className="relative flex-1 max-w-sm">
