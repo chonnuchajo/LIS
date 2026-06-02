@@ -50,6 +50,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { api, type MachineItem, type ParameterItem } from "@/lib/api";
 import { parseSubstances } from "@/lib/substances";
+import { buildOverrideMap, normalizeCommonName, normalizeKey } from "@/lib/commonNameOverride";
+import type { CommonNameOverrideRow } from "@/lib/commonNameOverride";
 import {
   classificationTypes,
   getClassification,
@@ -96,6 +98,7 @@ type SimpleMethodRow = {
   substances: string[];
   assignments: AssignmentSlot[];
   itemNos: string[];
+  rawCommonNames: string[];
   items: MasterItem[];
 };
 
@@ -344,18 +347,20 @@ function getDetectedAssignment(item: MasterItem): AssignmentSlot {
   return "";
 }
 
-function buildSimpleMethodRows(
+export function buildSimpleMethodRows(
   items: MasterItem[],
   overrides: Record<string, AssignmentSlot[]> = {},
+  cnMap: Map<string, string> = new Map(),
 ): SimpleMethodRow[] {
   const groups = new Map<string, SimpleMethodRow>();
   const collected = new Map<string, AssignmentSlot[]>();
 
   items.forEach((item) => {
-    const commonName = String(firstValue(item, commonNameKeys)).trim();
-    if (!commonName) return;
+    const rawCommonName = String(firstValue(item, commonNameKeys)).trim();
+    if (!rawCommonName) return;
+    const commonName = normalizeCommonName(rawCommonName, cnMap);
 
-    const key = commonName.toLowerCase();
+    const key = normalizeKey(commonName);
     const itemNo = String(firstValue(item, codeKeys)).trim();
     const substances = parseSubstances(commonName);
     const count = substances.length;
@@ -377,6 +382,7 @@ function buildSimpleMethodRows(
     if (existing) {
       existing.items.push(item);
       if (itemNo && !existing.itemNos.includes(itemNo)) existing.itemNos.push(itemNo);
+      if (!existing.rawCommonNames.includes(rawCommonName)) existing.rawCommonNames.push(rawCommonName);
       return;
     }
 
@@ -386,6 +392,7 @@ function buildSimpleMethodRows(
       substances,
       assignments: emptyAssignments(count),
       itemNos: itemNo ? [itemNo] : [],
+      rawCommonNames: [rawCommonName],
       items: [item],
     });
   });
@@ -858,7 +865,17 @@ export function SimpleMethodPage() {
     },
   });
 
-  const rows = useMemo(() => buildSimpleMethodRows(items, overrides), [items, overrides]);
+  const { data: cnOverrides = [] } = useQuery({
+    queryKey: ["common-name-overrides"],
+    queryFn: async () => {
+      const res = await api.get<CommonNameOverrideRow[]>("/common-name-overrides");
+      return Array.isArray(res.data.data) ? res.data.data : [];
+    },
+  });
+
+  const cnMap = useMemo(() => buildOverrideMap(cnOverrides), [cnOverrides]);
+
+  const rows = useMemo(() => buildSimpleMethodRows(items, overrides, cnMap), [items, overrides, cnMap]);
 
   const visibleRows = useMemo(() => {
     const needle = searchText.trim().toLowerCase();
