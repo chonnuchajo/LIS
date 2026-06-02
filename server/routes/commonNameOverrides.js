@@ -31,7 +31,7 @@ router.post('/', async (req, res) => {
     const rawKey = normalizeKey(raw);
     const doc = await CommonNameOverride.findOneAndUpdate(
       { rawKey },
-      { $set: { raw, canonical, note }, $setOnInsert: { rawKey } },
+      { $set: { raw, canonical, note } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     ).lean();
     res.json({ _id: String(doc._id), raw: doc.raw, canonical: doc.canonical, note: doc.note || '' });
