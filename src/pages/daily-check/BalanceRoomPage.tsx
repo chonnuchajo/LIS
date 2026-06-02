@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Scale, CheckCircle2, Clock, RotateCcw, List, ClipboardList, Filter } from "lucide-react";
-import AppLayout from "@/components/lis/AppLayout";
-import PageHeader from "@/components/lis/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -54,7 +52,7 @@ const emptyDraft = (): ScaleDraft => ({
   status10: "",
 });
 
-const DailyCheck = () => {
+const BalanceRoomPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const todayLabel = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
@@ -178,22 +176,23 @@ const DailyCheck = () => {
   const passCount = Object.values(latestByScale).filter(r => r.status === "pass").length;
 
   return (
-    <AppLayout title="Daily Check">
-      <PageHeader
-        className="mb-6"
-        title="Daily Check"
-        description={`Calibrate เครื่องชั่ง ประจำวัน — ${todayLabel}`}
-        actions={
-          <>
-            <Badge variant="outline" className="text-sm gap-1 py-1 px-3">
-              <Clock className="w-3.5 h-3.5" /> ตรวจแล้ว {checkedCount}/{SCALES.length}
-            </Badge>
-            <Badge className="text-sm gap-1 py-1 px-3 bg-green-100 text-green-700 border-green-300">
-              <CheckCircle2 className="w-3.5 h-3.5" /> ผ่าน {passCount}/{SCALES.length}
-            </Badge>
-          </>
-        }
-      />
+    <>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">
+            ห้องเครื่องชั่ง — Calibrate เครื่องชั่ง
+          </h2>
+          <p className="text-sm text-muted-foreground">ประจำวัน — {todayLabel}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="outline" className="text-sm gap-1 py-1 px-3">
+            <Clock className="w-3.5 h-3.5" /> ตรวจแล้ว {checkedCount}/{SCALES.length}
+          </Badge>
+          <Badge className="text-sm gap-1 py-1 px-3 bg-green-100 text-green-700 border-green-300">
+            <CheckCircle2 className="w-3.5 h-3.5" /> ผ่าน {passCount}/{SCALES.length}
+          </Badge>
+        </div>
+      </div>
 
       <Tabs defaultValue="check" className="space-y-4">
         <TabsList>
@@ -451,8 +450,8 @@ const DailyCheck = () => {
           </Card>
         </TabsContent>
       </Tabs>
-    </AppLayout>
+    </>
   );
 };
 
-export default DailyCheck;
+export default BalanceRoomPage;
