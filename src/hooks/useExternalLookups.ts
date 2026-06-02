@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { api } from "@/lib/api";
+import { buildOverrideMap, normalizeCommonName } from "@/lib/commonNameOverride";
+import type { CommonNameOverrideRow } from "@/lib/commonNameOverride";
 
 export const MF_LOT_API_URLS = [
   { source: 'LDI', url: 'https://n8n-plant.icpladda.com/webhook/API/findlot-ldi' },
@@ -59,7 +62,7 @@ function normalizeDate(value: string): string | null {
   return null;
 }
 
-function normalizeLotOptions(payload: unknown, source: string): MfLotOption[] {
+function normalizeLotOptions(payload: unknown, source: string, cnMap: Map<string, string>): MfLotOption[] {
   return rowsFromPayload(payload)
     .map((row, idx) => {
       const productName = pickString(row, [
@@ -72,7 +75,8 @@ function normalizeLotOptions(payload: unknown, source: string): MfLotOption[] {
         'prod_descript2',
       ]);
       const packsize = pickString(row, ['packsize', 'packageUnit', 'package_unit', 'uom_code']);
-      const commonName = pickString(row, ['common_name', 'commonName', 'active_ingredient']);
+      const rawCommonName = pickString(row, ['common_name', 'commonName', 'active_ingredient']);
+      const commonName = normalizeCommonName(rawCommonName, cnMap);
       const sampleName = [productName, packsize, commonName].filter(Boolean).join(' · ');
       const batchNo = pickString(row, [
         'lot_no',
@@ -129,24 +133,33 @@ export function useLotOptions() {
     let alive = true;
     setLoading(true);
     setError(null);
-    Promise.allSettled(
-      MF_LOT_API_URLS.map(async ({ source, url }) => {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`${source} HTTP ${res.status}`);
-        return normalizeLotOptions(await res.json(), source);
-      }),
-    )
-      .then((results) => {
-        if (!alive) return;
-        const opts = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
-        const failed = results.filter((r) => r.status === 'rejected').length;
-        setOptions(opts);
-        setError(failed ? 'โหลดตัวเลือกจาก MF API ได้ไม่ครบทุกแหล่ง' : null);
-      })
-      .catch((e: Error) => {
-        if (alive) setError(e.message);
-      })
-      .finally(() => alive && setLoading(false));
+    (async () => {
+      let cnMap = new Map<string, string>();
+      try {
+        const res = await api.get<CommonNameOverrideRow[]>("/common-name-overrides");
+        cnMap = buildOverrideMap(res.data.data);
+      } catch {
+        // overrides are optional — fall back to raw names
+      }
+      const results = await Promise.allSettled(
+        MF_LOT_API_URLS.map(async ({ source, url }) => {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`${source} HTTP ${res.status}`);
+          return normalizeLotOptions(await res.json(), source, cnMap);
+        }),
+      );
+      if (!alive) return;
+      const opts = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+      const failed = results.filter((r) => r.status === "rejected").length;
+      setOptions(opts);
+      setError(failed ? "โหลดตัวเลือกจาก MF API ได้ไม่ครบทุกแหล่ง" : null);
+      setLoading(false);
+    })().catch((e: Error) => {
+      if (alive) {
+        setError(e.message);
+        setLoading(false);
+      }
+    });
     return () => {
       alive = false;
     };
