@@ -125,4 +125,24 @@ describe("userCanAccessPath", () => {
       expect(userCanAccessPath(user, "/petitions/123", navGroups)).toBe(false);
     });
   });
+
+  describe("daily-check rooms", () => {
+    const navGroups = [
+      { id: "ops", paths: ["/daily-check"] },
+      { id: "others", paths: [] },
+    ];
+
+    it("grants every room sub-page when /daily-check is granted", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/daily-check"] };
+      expect(userCanAccessPath(user, "/daily-check/balance", navGroups)).toBe(true);
+      expect(userCanAccessPath(user, "/daily-check/sample-prep", navGroups)).toBe(true);
+      expect(userCanAccessPath(user, "/daily-check/analysis", navGroups)).toBe(true);
+      expect(userCanAccessPath(user, "/daily-check/extraction", navGroups)).toBe(true);
+    });
+
+    it("denies room sub-pages when /daily-check is not granted", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/report"] };
+      expect(userCanAccessPath(user, "/daily-check/balance", navGroups)).toBe(false);
+    });
+  });
 });

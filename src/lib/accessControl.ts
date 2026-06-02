@@ -15,6 +15,12 @@ const IMPLIED_CHILD_PATHS: Record<string, string[]> = {
   "/petitions": ["/petitions/new", "/petitions/:id", "/petitions/:id/edit"],
   "/qc-testing": ["/qc-testing/:id"],
   "/lab-testing": ["/lab-testing/:id"],
+  "/daily-check": [
+    "/daily-check/balance",
+    "/daily-check/sample-prep",
+    "/daily-check/analysis",
+    "/daily-check/extraction",
+  ],
 };
 
 // Pages open to every signed-in user — no group/permission needed (shared
