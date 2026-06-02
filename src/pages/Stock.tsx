@@ -4,6 +4,7 @@ import { Package, AlertTriangle, Clock, Plus, Pencil, Trash2, Minus, ArrowDownTo
 import { toast } from "sonner";
 
 import AppLayout from "@/components/lis/AppLayout";
+import PageHeader from "@/components/lis/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -23,35 +24,38 @@ import {
 } from "@/components/ui/select";
 
 import { api } from "@/lib/api";
+import { expiryStatus, qtyStatus } from "@/lib/stockStatus";
 import type {
   StockStandardItem, StockSolventItem, StockGlasswareItem,
   StockTransactionItem, StockTier,
 } from "@/types/stock";
 
-const EXPIRY_WARNING_DAYS = 180;
 const LOW_STD_QTY = 1;
 const LOW_SOL_QTY = 3;
 const LOW_GLASS_QTY = 5;
 
 // ---------- helpers ----------
-const parseExp = (s?: string): number | null => {
-  if (!s || s === "-") return null;
-  // accept dd/mm/yyyy or dd-mm-yyyy or yyyy-mm-dd
-  const m = s.match(/(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
-  if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1])).getTime();
-  const m2 = s.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
-  if (m2) return new Date(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3])).getTime();
-  const t = Date.parse(s);
-  return Number.isFinite(t) ? t : null;
-};
-
-const isExpiringSoon = (s?: string, now = Date.now()) => {
-  const t = parseExp(s);
-  return t != null && t < now + EXPIRY_WARNING_DAYS * 86400000;
-};
-
 const fmtNum = (v: number | string | null | undefined) =>
   v === null || v === undefined || v === "" ? "-" : String(v);
+
+type StandardStatusFilter = "all" | "ok" | "out" | "low" | "expired" | "soon";
+const STANDARD_STATUS_OPTIONS: { value: StandardStatusFilter; label: string }[] = [
+  { value: "all", label: "ทุกสถานะ" },
+  { value: "ok", label: "ปกติ" },
+  { value: "out", label: "หมด" },
+  { value: "low", label: "ใกล้หมด" },
+  { value: "expired", label: "หมดอายุ" },
+  { value: "soon", label: "ใกล้หมดอายุ" },
+];
+
+// worst expiry state across a standard's three tiers ("expired" > "soon" > none)
+const worstExpiry = (item: StockStandardItem, now: number) => {
+  const states = [item.primary?.exp, item.supplier?.exp, item.working?.exp]
+    .map(e => expiryStatus(e, now));
+  if (states.includes("expired")) return "expired" as const;
+  if (states.includes("soon")) return "soon" as const;
+  return "ok" as const;
+};
 
 // ============================================================
 // Standards Tab
@@ -64,6 +68,7 @@ function StandardsTab() {
   });
 
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StandardStatusFilter>("all");
   const [editing, setEditing] = useState<StockStandardItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<StockStandardItem | null>(null);
@@ -71,19 +76,27 @@ function StandardsTab() {
 
   const now = Date.now();
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter(s => s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q));
-  }, [data, search]);
-
   const totalQty = (s: StockStandardItem) =>
     (s.primary?.qty ?? 0) + (s.supplier?.qty ?? 0) + (s.working?.qty ?? 0);
 
-  const lowList = data.filter(s => totalQty(s) < LOW_STD_QTY);
-  const expiringList = data.filter(s =>
-    isExpiringSoon(s.primary?.exp, now) || isExpiringSoon(s.supplier?.exp, now) || isExpiringSoon(s.working?.exp, now)
-  );
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return data.filter(s => {
+      if (q && !s.name.toLowerCase().includes(q) && !s.code.toLowerCase().includes(q)) return false;
+      if (statusFilter === "all") return true;
+      const qStatus = qtyStatus(totalQty(s), LOW_STD_QTY);
+      const eStatus = worstExpiry(s, now);
+      if (statusFilter === "ok") return qStatus === "ok" && eStatus === "ok";
+      if (statusFilter === "out") return qStatus === "out";
+      if (statusFilter === "low") return qStatus === "low";
+      if (statusFilter === "expired") return eStatus === "expired";
+      if (statusFilter === "soon") return eStatus === "soon";
+      return true;
+    });
+  }, [data, search, statusFilter, now]);
+
+  const lowList = data.filter(s => qtyStatus(totalQty(s), LOW_STD_QTY) !== "ok");
+  const expiringList = data.filter(s => worstExpiry(s, now) !== "ok");
 
   return (
     <div className="space-y-4">
@@ -97,18 +110,24 @@ function StandardsTab() {
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-              {lowList.slice(0, 8).map(s => (
-                <div key={`low-${s._id}`} className="flex items-center gap-2 text-destructive">
-                  <Package className="w-3.5 h-3.5" />
-                  <span><strong>{s.name}</strong> เหลือรวม {totalQty(s)} ขวด</span>
-                </div>
-              ))}
-              {expiringList.slice(0, 8).map(s => (
-                <div key={`exp-${s._id}`} className="flex items-center gap-2 text-amber-600">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span><strong>{s.name}</strong> ใกล้หมดอายุ ({s.primary?.exp || s.supplier?.exp || s.working?.exp})</span>
-                </div>
-              ))}
+              {lowList.slice(0, 8).map(s => {
+                const out = qtyStatus(totalQty(s), LOW_STD_QTY) === "out";
+                return (
+                  <div key={`low-${s._id}`} className="flex items-center gap-2 text-destructive">
+                    <Package className="w-3.5 h-3.5" />
+                    <span><strong>{s.name}</strong> {out ? "หมดแล้ว" : `ใกล้หมด เหลือรวม ${totalQty(s)} ขวด`}</span>
+                  </div>
+                );
+              })}
+              {expiringList.slice(0, 8).map(s => {
+                const expired = worstExpiry(s, now) === "expired";
+                return (
+                  <div key={`exp-${s._id}`} className={`flex items-center gap-2 ${expired ? "text-destructive" : "text-amber-600"}`}>
+                    <Clock className="w-3.5 h-3.5" />
+                    <span><strong>{s.name}</strong> {expired ? "หมดอายุแล้ว" : "ใกล้หมดอายุ"} ({s.primary?.exp || s.supplier?.exp || s.working?.exp})</span>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -128,6 +147,14 @@ function StandardsTab() {
                 placeholder="ค้นหา code หรือชื่อ" className="pl-8 h-9 w-full sm:w-64"
               />
             </div>
+            <Select value={statusFilter} onValueChange={v => setStatusFilter(v as StandardStatusFilter)}>
+              <SelectTrigger className="h-9 w-full sm:w-40"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {STANDARD_STATUS_OPTIONS.map(o => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button size="sm" onClick={() => setCreating(true)}>
               <Plus className="w-4 h-4 mr-1" /> เพิ่มรายการ
             </Button>
@@ -156,11 +183,8 @@ function StandardsTab() {
                   <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">ไม่มีข้อมูล</TableCell></TableRow>
                 ) : filtered.map(item => {
                   const total = totalQty(item);
-                  const isLow = total < LOW_STD_QTY;
-                  const isExpiring =
-                    isExpiringSoon(item.primary?.exp, now) ||
-                    isExpiringSoon(item.supplier?.exp, now) ||
-                    isExpiringSoon(item.working?.exp, now);
+                  const qStatus = qtyStatus(total, LOW_STD_QTY);
+                  const eStatus = worstExpiry(item, now);
                   return (
                     <TableRow key={item._id}>
                       <TableCell className="font-semibold text-primary">{item.code}</TableCell>
@@ -171,9 +195,13 @@ function StandardsTab() {
                       <TableCell className="hidden xl:table-cell text-xs">{item.frequency || "-"}</TableCell>
                       <TableCell className="hidden xl:table-cell text-xs">{item.storageTemp || "-"}</TableCell>
                       <TableCell>
-                        {isLow && <Badge className="bg-destructive/10 text-destructive text-xs mr-1">ใกล้หมด</Badge>}
-                        {isExpiring && <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมดอายุ</Badge>}
-                        {!isLow && !isExpiring && <Badge className="bg-emerald-100 text-emerald-700 text-xs">ปกติ</Badge>}
+                        <div className="flex flex-wrap gap-1">
+                          {qStatus === "out" && <Badge className="bg-destructive/15 text-destructive text-xs">หมด</Badge>}
+                          {qStatus === "low" && <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมด</Badge>}
+                          {eStatus === "expired" && <Badge className="bg-destructive/15 text-destructive text-xs">หมดอายุ</Badge>}
+                          {eStatus === "soon" && <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมดอายุ</Badge>}
+                          {qStatus === "ok" && eStatus === "ok" && <Badge className="bg-emerald-100 text-emerald-700 text-xs">ปกติ</Badge>}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-1">
@@ -227,12 +255,16 @@ function StandardsTab() {
 }
 
 function TierCell({ tier, className = "" }: { tier: { qty: number; sizeMg: number | string | null; exp: string }; className?: string }) {
-  const isExp = isExpiringSoon(tier?.exp);
+  const eStatus = expiryStatus(tier?.exp);
+  const expClass =
+    eStatus === "expired" ? "text-destructive font-medium"
+    : eStatus === "soon" ? "text-amber-600 font-medium"
+    : "text-muted-foreground";
   return (
     <TableCell className={`text-center text-sm ${className}`.trim()}>
       <div className="font-semibold">{tier?.qty ?? 0}</div>
       <div className="text-xs text-muted-foreground">{fmtNum(tier?.sizeMg)} mg</div>
-      <div className={`text-xs ${isExp ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+      <div className={`text-xs ${expClass}`}>
         {tier?.exp || "-"}
       </div>
     </TableCell>
@@ -1005,14 +1037,15 @@ function StandardDialog({
 const StockPage = () => {
   return (
     <AppLayout>
-        <div className="mb-6">
-          <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
-            <Package className="w-6 h-6" /> Stock Management
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            จัดการ inventory: Standards, สารเคมี, เครื่องแก้ว — บันทึกข้อมูลใน MongoDB
-          </p>
-        </div>
+        <PageHeader
+          className="mb-6"
+          title={
+            <span className="inline-flex items-center gap-2">
+              <Package className="w-6 h-6" /> Stock Management
+            </span>
+          }
+          description="จัดการ inventory: Standards, สารเคมี, เครื่องแก้ว — บันทึกข้อมูลใน MongoDB"
+        />
 
         <Tabs defaultValue="standard">
           <TabsList className="mb-4 flex-wrap h-auto">

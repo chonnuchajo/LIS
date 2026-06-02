@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  ChevronDown, ChevronLeft, ChevronRight, LogOut, User,
+  ChevronDown, ChevronLeft, ChevronRight, LogOut, Search, User,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/navItems";
 import { cn } from "@/lib/utils";
@@ -84,6 +84,8 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
       return {};
     }
   });
+
+  const [menuQuery, setMenuQuery] = useState("");
 
   // Drawer variant: always expanded, no collapse mechanics
   // Desktop variant: auto-collapse on tablet width unless user manually expanded this session
@@ -221,9 +223,26 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
 
         {/* Nav */}
         <nav className={cn("flex-1 py-3 overflow-y-auto scrollbar-hide", collapsed ? "px-2" : "px-3")}>
+          {!collapsed && (
+            <div className="px-1 pb-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={menuQuery}
+                  onChange={(e) => setMenuQuery(e.target.value)}
+                  placeholder="ค้นหาเมนู..."
+                  className="w-full h-9 pl-8 pr-2 rounded-lg bg-accent/60 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+            </div>
+          )}
           {sections.map((section, sIdx) => {
-            const visibleItems = section.items.filter((item) =>
-              userCanAccessPath(user, item.path, navGroups),
+            const q = menuQuery.trim().toLowerCase();
+            const visibleItems = section.items.filter(
+              (item) =>
+                userCanAccessPath(user, item.path, navGroups) &&
+                (q === "" || item.label.toLowerCase().includes(q)),
             );
             if (visibleItems.length === 0) return null;
 
@@ -297,6 +316,20 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
             </div>
           );
           })}
+          {!collapsed &&
+            menuQuery.trim() !== "" &&
+            sections.every(
+              (s) =>
+                s.items.filter(
+                  (item) =>
+                    userCanAccessPath(user, item.path, navGroups) &&
+                    item.label.toLowerCase().includes(menuQuery.trim().toLowerCase()),
+                ).length === 0,
+            ) && (
+              <p className="px-3 py-4 text-xs text-muted-foreground text-center">
+                ไม่พบเมนู "{menuQuery}"
+              </p>
+            )}
         </nav>
 
         {/* Footer */}

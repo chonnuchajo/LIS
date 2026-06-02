@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Scale, CheckCircle2, Clock, RotateCcw, List, ClipboardList, Filter } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
+import PageHeader from "@/components/lis/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -178,20 +179,21 @@ const DailyCheck = () => {
 
   return (
     <AppLayout title="Daily Check">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-foreground">Daily Check</h1>
-          <p className="text-sm text-muted-foreground">Calibrate เครื่องชั่ง ประจำวัน — {todayLabel}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline" className="text-sm gap-1 py-1 px-3">
-            <Clock className="w-3.5 h-3.5" /> ตรวจแล้ว {checkedCount}/{SCALES.length}
-          </Badge>
-          <Badge className="text-sm gap-1 py-1 px-3 bg-green-100 text-green-700 border-green-300">
-            <CheckCircle2 className="w-3.5 h-3.5" /> ผ่าน {passCount}/{SCALES.length}
-          </Badge>
-        </div>
-      </div>
+      <PageHeader
+        className="mb-6"
+        title="Daily Check"
+        description={`Calibrate เครื่องชั่ง ประจำวัน — ${todayLabel}`}
+        actions={
+          <>
+            <Badge variant="outline" className="text-sm gap-1 py-1 px-3">
+              <Clock className="w-3.5 h-3.5" /> ตรวจแล้ว {checkedCount}/{SCALES.length}
+            </Badge>
+            <Badge className="text-sm gap-1 py-1 px-3 bg-green-100 text-green-700 border-green-300">
+              <CheckCircle2 className="w-3.5 h-3.5" /> ผ่าน {passCount}/{SCALES.length}
+            </Badge>
+          </>
+        }
+      />
 
       <Tabs defaultValue="check" className="space-y-4">
         <TabsList>

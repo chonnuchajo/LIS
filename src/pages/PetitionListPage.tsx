@@ -8,14 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import PageHeader from '@/components/lis/PageHeader';
+import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
+import { statusBadge } from '@/lib/statusBadge';
 import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotifications } from '@/context/NotificationContext';
@@ -225,23 +220,67 @@ export default function PetitionListPage() {
 
   const hasFilters = !!status || !!search;
 
+  const emptyTitle = hasFilters
+    ? 'ไม่พบคำร้องตามเงื่อนไขที่ค้นหา'
+    : canViewAll
+      ? 'ยังไม่มีคำร้องในระบบ'
+      : 'ยังไม่มีคำร้องที่คุณยื่นหรือได้รับมอบหมาย';
+
+  const columns: DataTableColumn<Petition>[] = [
+    {
+      key: 'no',
+      header: 'เลขที่คำร้อง',
+      cell: (p) => <span className="font-medium text-primary-500">{p.petitionNo}</span>,
+    },
+    { key: 'submitter', header: 'ผู้ยื่น', cell: (p) => p.submittedBy?.name ?? '-' },
+    { key: 'dept', header: 'แผนก', cell: (p) => PETITION_DEPT_LABELS[p.dept] },
+    {
+      key: 'sample',
+      header: 'ชื่อตัวอย่าง',
+      cell: (p) => p.items?.map((it) => it.sampleName).filter(Boolean).join(', ') || '-',
+    },
+    ...(canSeeTestItems
+      ? [
+          {
+            key: 'tests',
+            header: 'รายการทดลอง',
+            className: 'max-w-[280px] whitespace-pre-wrap text-sm text-grey-700',
+            cell: (p: Petition) => parameterNamesForPetition(p, displayParameters).join(' • ') || '-',
+          } as DataTableColumn<Petition>,
+        ]
+      : []),
+    {
+      key: 'status',
+      header: 'สถานะ',
+      cell: (p) => {
+        const b = statusBadge(p.status);
+        return <Badge variant={b.variant}>{b.label}</Badge>;
+      },
+    },
+    {
+      key: 'date',
+      header: 'วันที่ยื่น',
+      className: 'text-grey-500',
+      cell: (p) =>
+        new Date(p.createdAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }),
+    },
+  ];
+
   return (
     <AppLayout>
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold text-black-500">รายการคำร้อง</h1>
-              <p className="text-sm text-grey-500">รายการคำร้องขอตรวจตัวอย่างทั้งหมดในระบบ</p>
-            </div>
-            {canCreatePetition && (
-              <div className="flex items-center gap-2">
+          <PageHeader
+            title="รายการคำร้อง"
+            description="รายการคำร้องขอตรวจตัวอย่างทั้งหมดในระบบ"
+            actions={
+              canCreatePetition ? (
                 <Button onClick={() => navigate('/petitions/new')}>
                   <FilePlus2 className="h-4 w-4" />
                   ยื่นคำร้องใหม่
                 </Button>
-              </div>
-            )}
-          </div>
+              ) : undefined
+            }
+          />
 
           {createdNo && (
             <div className="rounded-[10px] border border-green-500 bg-green-50 p-3 text-sm text-green-500">
@@ -344,74 +383,15 @@ export default function PetitionListPage() {
             )}
           </form>
 
-          <div className="rounded-[10px] border border-black-50 bg-white overflow-x-auto">
-            <Table className="min-w-[700px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>เลขที่คำร้อง</TableHead>
-                  <TableHead>ผู้ยื่น</TableHead>
-                  <TableHead>แผนก</TableHead>
-                  <TableHead>ชื่อตัวอย่าง</TableHead>
-                  {canSeeTestItems && <TableHead>รายการทดลอง</TableHead>}
-                  <TableHead>สถานะ</TableHead>
-                  <TableHead>วันที่ยื่น</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading && (
-                  <TableRow>
-                    <TableCell colSpan={canSeeTestItems ? 7 : 6} className="text-center text-grey-500 py-8">
-                      กำลังโหลดข้อมูล...
-                    </TableCell>
-                  </TableRow>
-                )}
-                {!loading && data && visibleItems.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={canSeeTestItems ? 7 : 6} className="text-center text-grey-500 py-8">
-                      {hasFilters
-                        ? 'ไม่พบคำร้องตามเงื่อนไขที่ค้นหา'
-                        : canViewAll
-                          ? 'ยังไม่มีคำร้องในระบบ'
-                          : 'ยังไม่มีคำร้องที่คุณยื่นหรือได้รับมอบหมาย'}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {!loading &&
-                  visibleItems.map((p) => {
-                    const statusCfg =
-                      PETITION_STATUS_CONFIG[p.status] ?? { label: p.status, variant: 'gray-soft' as const };
-                    return (
-                      <TableRow
-                        key={p._id}
-                        className="cursor-pointer"
-                        onClick={() => navigate(`/petitions/${p._id}`)}
-                      >
-                        <TableCell className="font-medium text-primary-500">{p.petitionNo}</TableCell>
-                        <TableCell>{p.submittedBy?.name ?? '-'}</TableCell>
-                        <TableCell>{PETITION_DEPT_LABELS[p.dept]}</TableCell>
-                        <TableCell>
-                          {p.items?.map((it) => it.sampleName).filter(Boolean).join(', ') || '-'}
-                        </TableCell>
-                        {canSeeTestItems && (
-                          <TableCell className="max-w-[280px] whitespace-pre-wrap text-sm text-grey-700">
-                            {parameterNamesForPetition(p, displayParameters).join(' • ') || '-'}
-                          </TableCell>
-                        )}
-                        <TableCell>
-                          <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
-                        </TableCell>
-                        <TableCell className="text-grey-500">
-                          {new Date(p.createdAt).toLocaleString('th-TH', {
-                            dateStyle: 'short',
-                            timeStyle: 'short',
-                          })}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable
+            columns={columns}
+            data={visibleItems}
+            rowKey={(p) => p._id}
+            isLoading={loading}
+            onRowClick={(p) => navigate(`/petitions/${p._id}`)}
+            emptyTitle={emptyTitle}
+            tableClassName="min-w-[700px]"
+          />
 
           {data && totalCount > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 text-sm">

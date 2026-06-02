@@ -26,3 +26,35 @@ export const synthesizeDevUser = (role: { id: string; name: string }): DevAuthUs
   position: role.name,
   status: "active",
 });
+
+// Lab roles offered as fake assignees on /petitions/assign in dev mode. The HR
+// API only returns real staff, so dev has no one to assign to — these let you
+// assign a petition and then switch to that dev role to test the lab pages.
+export const DEV_LAB_ROLES = [
+  { id: "lab-analyst", name: "Lab Analyst" },
+  { id: "lab-head", name: "Lab Head" },
+  { id: "lab-inventory", name: "Lab Inventory" },
+] as const;
+
+export type DevAssignee = {
+  id: number;
+  employeeId: string;
+  name: string;
+  department: string;
+  position: string;
+  empType: string;
+  isActive: boolean;
+};
+
+// `name` mirrors synthesizeDevUser so LabTestingPage's
+// `assignedTo?.name === user?.name` filter matches after switching dev role.
+export const synthesizeDevAssignees = (): DevAssignee[] =>
+  DEV_LAB_ROLES.map((role, index) => ({
+    id: -(index + 1),
+    employeeId: `DEV-${role.id}`,
+    name: synthesizeDevUser(role).name,
+    department: "Lab/วิเคราะห์",
+    position: role.name,
+    empType: "รายเดือน",
+    isActive: true,
+  }));

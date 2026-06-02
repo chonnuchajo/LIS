@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/lis/AppLayout";
+import PageHeader from "@/components/lis/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -102,13 +103,16 @@ const AdminData = () => {
 
   return (
     <AppLayout>
-        <div className="mb-6">
-          <h1 className="text-xl md:text-2xl font-bold text-foreground flex items-center gap-2">
-            <Database className="w-6 h-6" />
-            Admin - ฐานข้อมูลตัวอย่าง
-          </h1>
-          <p className="text-sm text-muted-foreground">ข้อมูลที่ผ่านการอนุมัติ QC แล้ว สำหรับการวิเคราะห์แบบ Data Driven</p>
-        </div>
+        <PageHeader
+          className="mb-6"
+          title={
+            <span className="inline-flex items-center gap-2">
+              <Database className="w-6 h-6" />
+              Admin - ฐานข้อมูลตัวอย่าง
+            </span>
+          }
+          description="ข้อมูลที่ผ่านการอนุมัติ QC แล้ว สำหรับการวิเคราะห์แบบ Data Driven"
+        />
 
         <Tabs defaultValue="database">
           <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">

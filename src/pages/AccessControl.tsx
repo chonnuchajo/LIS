@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import AppLayout from "@/components/lis/AppLayout";
+import PageHeader from "@/components/lis/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -673,31 +674,32 @@ const AccessControl = () => {
 
   return (
     <AppLayout>
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
+        <PageHeader
+          className="mb-6"
+          title={
+            <span className="inline-flex items-center gap-2">
               <LockKeyhole className="h-6 w-6" />
               User, Role & Access Control
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              จัดการผู้ใช้ บทบาท และกลุ่ม navigation ที่แต่ละ role เข้าถึงได้
-            </p>
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-center w-full lg:w-auto">
-            <div className="rounded-md border bg-card px-4 py-2">
-              <p className="text-lg font-bold">{users.length}</p>
-              <p className="text-xs text-muted-foreground">Users</p>
+            </span>
+          }
+          description="จัดการผู้ใช้ บทบาท และกลุ่ม navigation ที่แต่ละ role เข้าถึงได้"
+          actions={
+            <div className="grid grid-cols-3 gap-2 text-center w-full lg:w-auto">
+              <div className="rounded-md border bg-card px-4 py-2">
+                <p className="text-lg font-bold">{users.length}</p>
+                <p className="text-xs text-muted-foreground">Users</p>
+              </div>
+              <div className="rounded-md border bg-card px-4 py-2">
+                <p className="text-lg font-bold">{roles.length}</p>
+                <p className="text-xs text-muted-foreground">Roles</p>
+              </div>
+              <div className="rounded-md border bg-card px-4 py-2">
+                <p className="text-lg font-bold">{groups.length}</p>
+                <p className="text-xs text-muted-foreground">Groups</p>
+              </div>
             </div>
-            <div className="rounded-md border bg-card px-4 py-2">
-              <p className="text-lg font-bold">{roles.length}</p>
-              <p className="text-xs text-muted-foreground">Roles</p>
-            </div>
-            <div className="rounded-md border bg-card px-4 py-2">
-              <p className="text-lg font-bold">{groups.length}</p>
-              <p className="text-xs text-muted-foreground">Groups</p>
-            </div>
-          </div>
-        </div>
+          }
+        />
 
         {loading && (
           <Card className="mb-4">

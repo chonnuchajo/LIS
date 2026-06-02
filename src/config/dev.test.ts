@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { synthesizeDevUser } from "./dev";
+import { synthesizeDevUser, synthesizeDevAssignees } from "./dev";
 
 describe("synthesizeDevUser", () => {
   it("builds a dev AuthUser shape from a role id and name", () => {
@@ -24,5 +24,40 @@ describe("synthesizeDevUser", () => {
     expect(user.email).toBe("custom-role.dev@icpladda.com");
     expect(user.role).toBe("custom-role");
     expect(user.name).toBe("Dev ผู้ตรวจ");
+  });
+});
+
+describe("synthesizeDevAssignees", () => {
+  it("returns the three lab dev roles as Lab/วิเคราะห์ monthly assignees", () => {
+    const assignees = synthesizeDevAssignees();
+
+    expect(assignees.map((a) => a.name)).toEqual([
+      "Dev Lab Analyst",
+      "Dev Lab Head",
+      "Dev Lab Inventory",
+    ]);
+    for (const a of assignees) {
+      expect(a.department).toBe("Lab/วิเคราะห์");
+      expect(a.empType).toBe("รายเดือน");
+      expect(a.isActive).toBe(true);
+      expect(a.employeeId).toBeTruthy();
+    }
+  });
+
+  it("uses a name that matches synthesizeDevUser so assigned petitions round-trip to the lab page", () => {
+    // LabTestingPage filters by `assignedTo?.name === user?.name`, so the
+    // assignee name must equal the synthesized dev user's name for that role.
+    const assignees = synthesizeDevAssignees();
+    const analyst = assignees.find((a) => a.position === "Lab Analyst");
+
+    expect(analyst?.name).toBe(
+      synthesizeDevUser({ id: "lab-analyst", name: "Lab Analyst" }).name,
+    );
+  });
+
+  it("gives each dev assignee a unique employeeId that cannot collide with real numeric HR ids", () => {
+    const ids = synthesizeDevAssignees().map((a) => a.employeeId);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) expect(id).toMatch(/^DEV-/);
   });
 });

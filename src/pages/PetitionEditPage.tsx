@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Save } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import PageHeader from '@/components/lis/PageHeader';
 import ItemsStep, { type ItemRowValues } from '@/components/petition/wizard/ItemsStep';
 import type { SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
 import ProductionPlanStep from '@/components/petition/wizard/ProductionPlanStep';
@@ -308,13 +309,11 @@ export default function PetitionEditPage() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => navigate(`/petitions/${id}`)}>
-            <ArrowLeft className="h-4 w-4" />
-            กลับไปหน้ารายละเอียด
-          </Button>
-          <h1 className="text-xl md:text-2xl font-bold text-black-500">แก้ไขคำร้อง {data.petitionNo}</h1>
-        </div>
+        <PageHeader
+          title={`แก้ไขคำร้อง ${data.petitionNo}`}
+          onBack={() => navigate(`/petitions/${id}`)}
+          backLabel="กลับไปหน้ารายละเอียด"
+        />
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
           {steps.map((s, i) => {

@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 
 import AppLayout from "@/components/lis/AppLayout";
+import PageHeader from "@/components/lis/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -2203,34 +2204,34 @@ export default function ParameterSettings() {
 
   return (
     <AppLayout>
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-xl md:text-2xl font-bold text-foreground">
+      <PageHeader
+        className="mb-6"
+        title={
+          <span className="inline-flex items-center gap-2">
             <SlidersHorizontal className="h-6 w-6" />
             พารามิเตอร์การตรวจสอบ
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            กำหนดพารามิเตอร์ที่ต้องตรวจ — เลือกใช้กับ Item Name / ประเภท
-            ได้พร้อมกัน และกำหนดช่องค่าที่ผู้กรอกต้องใส่
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => parametersQuery.refetch()}
-            disabled={parametersQuery.isFetching}
-          >
-            <RefreshCw
-              className={parametersQuery.isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"}
-            />
-            Refresh
-          </Button>
-          <Button onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4" />
-            เพิ่มพารามิเตอร์
-          </Button>
-        </div>
-      </div>
+          </span>
+        }
+        description="กำหนดพารามิเตอร์ที่ต้องตรวจ — เลือกใช้กับ Item Name / ประเภท ได้พร้อมกัน และกำหนดช่องค่าที่ผู้กรอกต้องใส่"
+        actions={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => parametersQuery.refetch()}
+              disabled={parametersQuery.isFetching}
+            >
+              <RefreshCw
+                className={parametersQuery.isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"}
+              />
+              Refresh
+            </Button>
+            <Button onClick={() => setCreating(true)}>
+              <Plus className="h-4 w-4" />
+              เพิ่มพารามิเตอร์
+            </Button>
+          </>
+        }
+      />
 
       <Tabs
         value={scopeTab}
