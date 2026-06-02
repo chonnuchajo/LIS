@@ -331,7 +331,7 @@ export default function ProductionPetitionNewPage() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        <PageHeader title="คำขอแผนกผลิต" onBack={() => navigate('/petitions/new')} />
+        <PageHeader title="คำขอแผนกผลิต" onBack={() => navigate('/petitions')} />
 
         {revisionSource && (
           <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 flex items-center gap-2">
