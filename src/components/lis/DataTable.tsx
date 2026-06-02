@@ -31,6 +31,8 @@ interface DataTableProps<T> {
   emptyDescription?: ReactNode;
   emptyAction?: ReactNode;
   className?: string;
+  /** Applied to the inner <table> — e.g. "min-w-[700px]" to keep columns from squishing on mobile. */
+  tableClassName?: string;
 }
 
 export function DataTable<T>({
@@ -45,6 +47,7 @@ export function DataTable<T>({
   emptyDescription,
   emptyAction,
   className,
+  tableClassName,
 }: DataTableProps<T>) {
   const body = () => {
     if (isLoading) return <TableSkeleton cols={columns.length} />;
@@ -61,7 +64,7 @@ export function DataTable<T>({
       {overlay ? (
         overlay
       ) : (
-        <Table>
+        <Table className={tableClassName}>
           <TableHeader className="sticky top-0 z-10 bg-muted/50">
             <TableRow>
               {columns.map((c) => (
