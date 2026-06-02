@@ -1249,11 +1249,12 @@ function SimpleMethodTab({
                               type="button"
                               size="sm"
                               variant="ghost"
-                              className="h-6 px-1.5 text-muted-foreground"
+                              className="h-6 w-6 shrink-0 px-0 text-muted-foreground hover:text-foreground"
                               title="ตั้งชื่อมาตรฐาน"
+                              aria-label={`ตั้งชื่อมาตรฐาน ${row.commonName}`}
                               onClick={() => onEditCommonName(row)}
                             >
-                              ✎
+                              <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                         </TableCell>
