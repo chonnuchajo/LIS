@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,7 +25,6 @@ import ParameterSettings from "./pages/ParameterSettings";
 import AccessControl from "./pages/AccessControl";
 import StockDeduction from "./pages/StockDeduction";
 import DailyCheckLayout from "./pages/daily-check/DailyCheckLayout";
-import DailyCheckSummary from "./pages/daily-check/DailyCheckSummary";
 import BalanceRoomPage from "./pages/daily-check/BalanceRoomPage";
 import RoomPlaceholderPage from "./pages/daily-check/RoomPlaceholderPage";
 import NotFound from "./pages/NotFound";
@@ -79,7 +78,7 @@ const App = () => (
               <Route path="/qc-approval" element={<PrivateRoute><QCApproval /></PrivateRoute>} />
               <Route path="/report" element={<PrivateRoute><Report /></PrivateRoute>} />
               <Route path="/daily-check" element={<PrivateRoute><DailyCheckLayout /></PrivateRoute>}>
-                <Route index element={<DailyCheckSummary />} />
+                <Route index element={<Navigate to="/daily-check/balance" replace />} />
                 <Route path="balance" element={<BalanceRoomPage />} />
                 <Route path="sample-prep" element={<RoomPlaceholderPage slug="sample-prep" />} />
                 <Route path="analysis" element={<RoomPlaceholderPage slug="analysis" />} />

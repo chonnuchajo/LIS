@@ -53,23 +53,16 @@ function renderAt(path: string) {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("DailyCheckLayout", () => {
-  it("renders the five-tab room strip", () => {
-    renderAt("/daily-check");
+  it("renders the four-room tab strip", () => {
+    renderAt("/daily-check/analysis");
     const tablist = screen.getByRole("tablist", { name: "ห้องปฏิบัติการ" });
     const tabs = within(tablist).getAllByRole("tab");
     expect(tabs.map((t) => t.textContent?.trim())).toEqual([
-      "สรุป",
       "ห้องเครื่องชั่ง",
       "ห้องเตรียมตัวอย่าง",
       "ห้องวิเคราะห์",
       "ห้องสกัด",
     ]);
-  });
-
-  it("marks the summary tab active on the index route", () => {
-    renderAt("/daily-check");
-    expect(screen.getByRole("tab", { name: "สรุป" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("summary-body")).toBeInTheDocument();
   });
 
   it("marks the matching room tab active on a sub-route", () => {
