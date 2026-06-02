@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ClipboardCheck, Cog, FlaskConical, Hourglass, Pencil, RefreshCw, Search, UserCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
+import PageHeader from '@/components/lis/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -505,24 +506,22 @@ export default function PetitionAssignPage() {
   return (
     <AppLayout>
         <div className="space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold text-foreground">Assign คำร้องให้เจ้าหน้าที่</h1>
-              <p className="text-sm text-muted-foreground">
-                เลือกเจ้าหน้าที่แผนก Lab/วิเคราะห์ เฉพาะประเภทพนักงานรายเดือน
-              </p>
-            </div>
-            <Button
-              variant="primary-outline"
-              onClick={() => {
-                refreshPetitions();
-                toast.info('กำลังโหลดรายการคำร้องล่าสุด');
-              }}
-            >
-              <RefreshCw className="h-4 w-4" />
-              รีเฟรช
-            </Button>
-          </div>
+          <PageHeader
+            title="Assign คำร้องให้เจ้าหน้าที่"
+            description="เลือกเจ้าหน้าที่แผนก Lab/วิเคราะห์ เฉพาะประเภทพนักงานรายเดือน"
+            actions={
+              <Button
+                variant="primary-outline"
+                onClick={() => {
+                  refreshPetitions();
+                  toast.info('กำลังโหลดรายการคำร้องล่าสุด');
+                }}
+              >
+                <RefreshCw className="h-4 w-4" />
+                รีเฟรช
+              </Button>
+            }
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <Card>
