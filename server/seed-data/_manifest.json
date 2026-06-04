@@ -72,6 +72,11 @@
       "count": 0
     },
     {
+      "collection": "envroomconfigs",
+      "file": "envroomconfigs.json",
+      "count": 2
+    },
+    {
       "collection": "petitionauditlogs",
       "file": "petitionauditlogs.json",
       "count": 180
@@ -104,7 +109,7 @@
     {
       "collection": "commonnameoverrides",
       "file": "commonnameoverrides.json",
-      "count": 0
+      "count": 18
     },
     {
       "collection": "stockglasswares",

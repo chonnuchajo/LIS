@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useIsAuthenticated } from "@azure/msal-react";
 import { useAuth } from "@/context/AuthContext";
 import labCover from "@/assets/lab-cover.jpg";
@@ -17,16 +17,26 @@ const MicrosoftIcon = () => (
 const Login = () => {
   const isAuthenticated = useIsAuthenticated();
   const { login } = useAuth();
+  const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  if (isAuthenticated) return <Navigate to="/" replace />;
+  const fromState = (location.state as { from?: Location } | null)?.from;
+  const redirectTarget =
+    (fromState ? `${fromState.pathname}${fromState.search}${fromState.hash}` : "") ||
+    sessionStorage.getItem("lis_login_redirect") ||
+    "/";
+
+  if (isAuthenticated) {
+    sessionStorage.removeItem("lis_login_redirect");
+    return <Navigate to={redirectTarget} replace />;
+  }
 
   const handleLogin = async () => {
     setError("");
     setLoading(true);
     try {
-      await login();
+      await login(redirectTarget);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "เกิดข้อผิดพลาด กรุณาลองใหม่";
       if (!msg.includes("user_cancelled") && !msg.includes("popup_window_error")) {
