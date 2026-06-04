@@ -33,6 +33,7 @@ import NotFound from "./pages/NotFound";
 import ScannerPage from "./pages/ScannerPage";
 import PetitionListPage from "./pages/PetitionListPage";
 import PetitionNewPage from "./pages/PetitionNewPage";
+import ProductionIntegrationPetitionNewPage from "./pages/petitions/ProductionIntegrationPetitionNewPage";
 import PetitionDetailPage from "./pages/PetitionDetailPage";
 import PetitionEditPage from "./pages/PetitionEditPage";
 import PetitionAssignPage from "./pages/PetitionAssignPage";
@@ -102,6 +103,7 @@ const App = () => (
               <Route path="/auditlog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
               <Route path="/petitions/assign" element={<PrivateRoute><PetitionAssignPage /></PrivateRoute>} />
               <Route path="/petitions/new" element={<PrivateRoute><PetitionNewPage /></PrivateRoute>} />
+              <Route path="/petitions/production/new" element={<PrivateRoute><ProductionIntegrationPetitionNewPage /></PrivateRoute>} />
               <Route path="/petitions/:id" element={<PrivateRoute><PetitionDetailPage /></PrivateRoute>} />
               <Route path="/petitions/:id/edit" element={<PrivateRoute><PetitionEditPage /></PrivateRoute>} />
               <Route path="/qc-testing" element={<PrivateRoute><QCTestingPage /></PrivateRoute>} />
