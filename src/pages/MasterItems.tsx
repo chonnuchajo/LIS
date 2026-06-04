@@ -475,6 +475,7 @@ export default function MasterItems() {
   const [productTypeFilter, setProductTypeFilter] = useState("all");
   const [editing, setEditing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
   const [viewing, setViewing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
+  const [editingCommonName, setEditingCommonName] = useState<{ rawCommonName: string; currentCanonical: string } | null>(null);
 
   const {
     data: items = [],
@@ -510,17 +511,30 @@ export default function MasterItems() {
     queryFn: () => api.getParameters(),
   });
 
+  const { data: cnOverrides = [] } = useQuery({
+    queryKey: ["common-name-overrides"],
+    queryFn: async () => {
+      const res = await api.get<CommonNameOverrideRow[]>("/common-name-overrides");
+      return Array.isArray(res.data.data) ? res.data.data : [];
+    },
+  });
+
+  const cnMap = useMemo(() => buildOverrideMap(cnOverrides), [cnOverrides]);
+
   const enrichedItems = useMemo(
     () => items.map((item) => {
       const originalItemNo = String(firstValue(item, codeKeys)).trim();
       const override = overrideMap[originalItemNo];
+      const rawCommonName = String(firstValue(item, commonNameKeys)).trim();
       return {
         item: applyOverride(item, override),
         originalItemNo,
         override,
+        rawCommonName,
+        displayCommonName: normalizeCommonName(rawCommonName, cnMap),
       };
     }),
-    [items, overrideMap],
+    [items, overrideMap, cnMap],
   );
 
   const filteredItems = useMemo(() => {
