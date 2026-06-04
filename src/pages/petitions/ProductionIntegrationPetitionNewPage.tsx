@@ -1,5 +1,5 @@
 import ProductionPetitionNewPage from './ProductionPetitionNewPage';
 
 export default function ProductionIntegrationPetitionNewPage() {
-  return <ProductionPetitionNewPage integrationMode />;
+  return <ProductionPetitionNewPage integrationMode publicMode />;
 }

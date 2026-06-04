@@ -33,6 +33,7 @@ const STEPS: { key: StepKey; label: string }[] = [
 
 interface ProductionPetitionNewPageProps {
   integrationMode?: boolean;
+  publicMode?: boolean;
 }
 
 function makeBlankItem(seq: number): ItemRowValues {
@@ -148,7 +149,10 @@ function makeBlankLabRequest(
   };
 }
 
-export default function ProductionPetitionNewPage({ integrationMode = false }: ProductionPetitionNewPageProps) {
+export default function ProductionPetitionNewPage({
+  integrationMode = false,
+  publicMode = false,
+}: ProductionPetitionNewPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -162,6 +166,16 @@ export default function ProductionPetitionNewPage({ integrationMode = false }: P
   }, [searchParams]);
   const prodOrderNos = prodOrderNosFromState?.length ? prodOrderNosFromState : prodOrderNosFromQuery;
   const initialQueryItem = useMemo(() => makeInitialItemFromQuery(searchParams), [searchParams]);
+  const integrationActor = useMemo(() => {
+    const department = getQueryValue(searchParams, ['department']);
+    const requestNo = getQueryValue(searchParams, ['requestNo']);
+    const mfNo = getQueryValue(searchParams, ['mfNo']);
+    const ref = requestNo || mfNo;
+    return {
+      employeeId: ref || 'production-system',
+      name: department ? `Production System (${department})` : 'Production System',
+    };
+  }, [searchParams]);
   const revisionOfId = searchParams.get('revisionOf');
   const [revisionSource, setRevisionSource] = useState<Petition | null>(null);
 
@@ -169,12 +183,12 @@ export default function ProductionPetitionNewPage({ integrationMode = false }: P
   const currentStep = STEPS[stepIdx].key;
 
   const [submitter, setSubmitter] = useState<SubmitterValues>({
-    employeeId: user?.id ?? '',
-    name: user?.name ?? '',
+    employeeId: user?.id ?? (integrationMode ? integrationActor.employeeId : ''),
+    name: user?.name ?? (integrationMode ? integrationActor.name : ''),
   });
   const [deliverer, setDeliverer] = useState<SubmitterValues>({
-    employeeId: user?.id ?? '',
-    name: user?.name ?? '',
+    employeeId: user?.id ?? (integrationMode ? integrationActor.employeeId : ''),
+    name: user?.name ?? (integrationMode ? integrationActor.name : ''),
   });
   const [delivererTouched, setDelivererTouched] = useState(false);
 
@@ -185,8 +199,13 @@ export default function ProductionPetitionNewPage({ integrationMode = false }: P
       if (!delivererTouched) {
         setDeliverer({ employeeId: user.id ?? '', name: user.name });
       }
+    } else if (integrationMode) {
+      setSubmitter(integrationActor);
+      if (!delivererTouched) {
+        setDeliverer(integrationActor);
+      }
     }
-  }, [user?.id, user?.name, delivererTouched]);
+  }, [user?.id, user?.name, delivererTouched, integrationMode, integrationActor]);
 
   const [items, setItems] = useState<ItemRowValues[]>(() => [initialQueryItem ?? makeBlankItem(1)]);
 
@@ -394,8 +413,7 @@ export default function ProductionPetitionNewPage({ integrationMode = false }: P
     }
   }
 
-  return (
-    <AppLayout>
+  const content = (
       <div className="space-y-4">
         <PageHeader title={integrationMode ? 'Production System Request' : 'คำขอแผนกผลิต'} onBack={() => navigate('/petitions')} />
 
@@ -524,6 +542,15 @@ export default function ProductionPetitionNewPage({ integrationMode = false }: P
           </div>
         </div>
       </div>
-    </AppLayout>
   );
+
+  if (publicMode) {
+    return (
+      <div className="min-h-screen bg-background p-4 sm:p-6">
+        <div className="mx-auto max-w-6xl">{content}</div>
+      </div>
+    );
+  }
+
+  return <AppLayout>{content}</AppLayout>;
 }
