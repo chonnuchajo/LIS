@@ -34,13 +34,16 @@ const EnvRoomConfigCard = ({ room, detectedBoards, saving, onSave }: Props) => {
   const effectiveBoardId =
     boardSel === MANUAL ? "" : boardSel === CUSTOM ? customBoard.trim() : boardSel;
 
+  const toNum = (s: string) => (s.trim() === "" ? NaN : Number(s));
+
   const draft: EnvRoomConfigInput = {
     boardId: effectiveBoardId,
-    tempMin: Number(tempMin),
-    tempMax: Number(tempMax),
-    humidityMax: Number(humidityMax),
+    tempMin: toNum(tempMin),
+    tempMax: toNum(tempMax),
+    humidityMax: toNum(humidityMax),
   };
   const error = validateEnvRoomConfig(draft);
+  const boardIncomplete = boardSel === CUSTOM && customBoard.trim() === "";
 
   return (
     <Card>
@@ -97,11 +100,14 @@ const EnvRoomConfigCard = ({ room, detectedBoards, saving, onSave }: Props) => {
         </div>
 
         {error && <p className="text-xs text-red-600">{error.message}</p>}
+        {!error && boardIncomplete && (
+          <p className="text-xs text-red-600">กรุณาพิมพ์ board id หรือเลือก "ไม่มี (กรอกมือ)"</p>
+        )}
 
         <div className="flex justify-end">
           <Button
             size="sm"
-            disabled={saving || !!error}
+            disabled={saving || !!error || boardIncomplete}
             onClick={() => onSave(room.slug, draft)}
           >
             บันทึก

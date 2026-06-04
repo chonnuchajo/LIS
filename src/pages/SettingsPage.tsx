@@ -11,7 +11,7 @@ import type { EnvRoom, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 
 const SettingsPage = () => {
   const queryClient = useQueryClient();
-  const { rooms } = useEnvRooms();
+  const { rooms, isLoading } = useEnvRooms();
 
   const { data: liveReadings = [] } = useQuery({
     queryKey: ["temphum", "live"],
@@ -48,17 +48,21 @@ const SettingsPage = () => {
       />
       <div className="space-y-3">
         <h2 className="text-sm font-semibold text-muted-foreground">ตั้งค่าห้องตรวจสภาพแวดล้อม</h2>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {rooms.map((room) => (
-            <EnvRoomConfigCard
-              key={room.slug}
-              room={room}
-              detectedBoards={detectedBoards}
-              saving={saveMutation.isPending}
-              onSave={(slug, input) => saveMutation.mutate({ slug, input })}
-            />
-          ))}
-        </div>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">กำลังโหลด…</p>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {rooms.map((room) => (
+              <EnvRoomConfigCard
+                key={room.slug}
+                room={room}
+                detectedBoards={detectedBoards}
+                saving={saveMutation.isPending}
+                onSave={(slug, input) => saveMutation.mutate({ slug, input })}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </AppLayout>
   );

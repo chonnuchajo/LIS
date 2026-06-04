@@ -30,16 +30,16 @@ function renderPage() {
 describe("SettingsPage", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("renders a config card for each of the 3 env rooms", () => {
+  it("renders a config card for each of the 3 env rooms", async () => {
     renderPage();
-    expect(screen.getByText("ห้องชั่งสาร")).toBeInTheDocument();
+    expect(await screen.findByText("ห้องชั่งสาร")).toBeInTheDocument();
     expect(screen.getByText("ห้องเตรียมตัวอย่าง")).toBeInTheDocument();
     expect(screen.getByText("ห้องวิเคราะห์")).toBeInTheDocument();
   });
 
-  it("shows a board selector and threshold inputs per room", () => {
+  it("shows a board selector and threshold inputs per room", async () => {
     renderPage();
-    expect(screen.getAllByText("เซนเซอร์ (board)")).toHaveLength(3);
+    expect(await screen.findAllByText("เซนเซอร์ (board)")).toHaveLength(3);
     expect(screen.getAllByText("อุณหภูมิต่ำสุด (°C)")).toHaveLength(3);
     expect(screen.getAllByText("ความชื้นสูงสุด (%RH)")).toHaveLength(3);
   });
