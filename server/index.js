@@ -39,6 +39,7 @@ mountApi('/standard-configs', require('./routes/standardConfigs'));
 mountApi('/simple-method-exclusions', require('./routes/simpleMethodExclusions'));
 mountApi('/common-name-overrides', require('./routes/commonNameOverrides'));
 mountApi('/machines', require('./routes/machines'));
+mountApi('/methods', require('./routes/methods'));
 mountApi('/parameters', require('./routes/parameters'));
 mountApi('/qc-results', require('./routes/qcResults'));
 mountApi('/uploads', require('./routes/uploads'));
