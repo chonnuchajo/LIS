@@ -53,15 +53,17 @@ function renderAt(path: string) {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("DailyCheckLayout", () => {
-  it("renders the four-room tab strip", () => {
+  it("renders the env + four-room + documents tab strip", () => {
     renderAt("/daily-check/analysis");
     const tablist = screen.getByRole("tablist", { name: "ห้องปฏิบัติการ" });
     const tabs = within(tablist).getAllByRole("tab");
     expect(tabs.map((t) => t.textContent?.trim())).toEqual([
+      "อุณหภูมิ/ความชื้น",
       "ห้องเครื่องชั่ง",
       "ห้องเตรียมตัวอย่าง",
       "ห้องวิเคราะห์",
       "ห้องสกัด",
+      "โหลดเอกสาร",
     ]);
   });
 
