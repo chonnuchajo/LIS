@@ -1009,7 +1009,8 @@ export function SimpleMethodPage() {
 
         {editingRow && (
           <CommonNameOverrideDialog
-            row={editingRow}
+            rawCommonNames={editingRow.rawCommonNames}
+            initialCanonical={editingRow.commonName}
             onClose={() => setEditingRow(null)}
             onSaved={() => {
               queryClient.invalidateQueries({ queryKey: ["common-name-overrides"] });
@@ -1439,15 +1440,17 @@ function ExclusionManager({
 }
 
 function CommonNameOverrideDialog({
-  row,
+  rawCommonNames,
+  initialCanonical,
   onClose,
   onSaved,
 }: {
-  row: SimpleMethodRow;
+  rawCommonNames: string[];
+  initialCanonical: string;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [canonical, setCanonical] = useState(row.commonName);
+  const [canonical, setCanonical] = useState(initialCanonical);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -1459,8 +1462,8 @@ function CommonNameOverrideDialog({
     }
     setBusy(true);
     try {
-      // apply the same canonical to every raw common_name that fell into this row
-      for (const raw of row.rawCommonNames) {
+      // apply the same canonical to every raw common_name passed in
+      for (const raw of rawCommonNames) {
         await api.post("/common-name-overrides", { raw, canonical: value, note: note.trim() });
       }
       toast.success("ตั้งชื่อมาตรฐานสำเร็จ");
@@ -1483,7 +1486,7 @@ function CommonNameOverrideDialog({
           <div>
             <span className="text-sm text-muted-foreground">ชื่อจากระบบ (raw)</span>
             <ul className="mt-1 list-disc pl-5 text-sm">
-              {row.rawCommonNames.map((raw) => <li key={raw}>{raw}</li>)}
+              {rawCommonNames.map((raw) => <li key={raw}>{raw}</li>)}
             </ul>
           </div>
           <div>
