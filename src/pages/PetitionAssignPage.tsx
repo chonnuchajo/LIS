@@ -364,6 +364,10 @@ export default function PetitionAssignPage() {
   // Baseline (slotIndex::code)→machineId mapping for a group, derived from saved
   // assignedMachines: each saved machine is first-fit matched to a required
   // machine-backed method that it satisfies.
+  // NOTE: assignedMachines carries no (slotIndex, methodCode) tag, so reload re-binds
+  // machines to methods by first-fit. Safe while each substance has ≤1 machine-backed
+  // method (GC/HPLC are mutually exclusive). If a substance ever needs 2 machine-backed
+  // methods, persist the slot/code tag (in toAssignedMachine) to disambiguate.
   function baselineSlotsForGroup(petition: Petition, group: SubstanceGroup): Record<string, string> {
     const saved = (petition.assignedMachines ?? []).filter(
       (m) => groupKeyOf(m.sampleName ?? '', m.commonName ?? '') === group.groupKey,
@@ -423,11 +427,18 @@ export default function PetitionAssignPage() {
     });
   }
 
-  // A substance slot is satisfied iff it has ≥1 configured method AND every
-  // machine-backed method in it has a selected machine. Bench (non-machine)
-  // methods are satisfied with no selection. Empty-method slots are never satisfied.
+  // A substance slot is satisfied iff it has ≥1 configured method, EVERY method
+  // code resolves to a known, active registry method, AND every machine-backed
+  // method in it has a selected machine. Bench (non-machine) methods are
+  // satisfied with no selection. Empty-method slots, or slots containing any
+  // unknown/inactive method code, are never satisfied (Assign stays blocked).
   function isSlotSatisfied(slot: SubstanceSlot, sel: Record<string, string>, slotIndex: number): boolean {
     if (slot.methods.length === 0) return false;
+    const allKnown = slot.methods.every((code) => {
+      const method = methodByCode.get(code);
+      return !!method && method.active !== false;
+    });
+    if (!allKnown) return false;
     return machineMethodsOfSlot(slot).every((code) => !!sel[slotMethodKey(slotIndex, code)]);
   }
 
@@ -636,7 +647,6 @@ export default function PetitionAssignPage() {
                 loading={loading || employeesLoading || machinesLoading}
                 employees={employees}
                 machines={machines}
-                machineById={machineById}
                 registryMethods={registryMethods}
                 methodByCode={methodByCode}
                 isGroupSatisfied={isGroupSatisfied}
@@ -676,7 +686,6 @@ export default function PetitionAssignPage() {
                 loading={loading || employeesLoading || machinesLoading}
                 employees={employees}
                 machines={machines}
-                machineById={machineById}
                 registryMethods={registryMethods}
                 methodByCode={methodByCode}
                 isGroupSatisfied={isGroupSatisfied}
@@ -866,7 +875,6 @@ interface AssignTableProps {
   loading: boolean;
   employees: EmployeeAssignee[];
   machines: MachineItem[];
-  machineById: Map<string, MachineItem>;
   registryMethods: MethodDoc[];
   methodByCode: Map<string, MethodDoc>;
   isGroupSatisfied: (petition: Petition, group: SubstanceGroup) => boolean;
@@ -948,9 +956,18 @@ function AssignTable({
             const selectedEmployeeId =
               selectedByPetition[petition._id] ?? petition.assignedTo?.employeeId ?? '';
             const petitionGroups = groupsByPetition.get(petition._id) ?? [];
-            // a substance with no configured method (empty methods) blocks Assign
+            // a substance with no configured method (empty methods), or one whose
+            // method code is unknown/inactive in the registry, blocks Assign
             const hasUnassignableGroup = petitionGroups.some((g) =>
-              g.slots.length === 0 || g.slots.some((s) => s.methods.length === 0),
+              g.slots.length === 0 ||
+              g.slots.some(
+                (s) =>
+                  s.methods.length === 0 ||
+                  s.methods.some((code) => {
+                    const method = methodByCode.get(code);
+                    return !method || method.active === false;
+                  }),
+              ),
             );
             // every machine-backed method on every substance must have a machine picked
             const allMachinesSelected = petitionGroups.every((g) => isGroupSatisfied(petition, g));
