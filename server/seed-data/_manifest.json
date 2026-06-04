@@ -7,6 +7,16 @@
       "count": 0
     },
     {
+      "collection": "envchecks",
+      "file": "envchecks.json",
+      "count": 0
+    },
+    {
+      "collection": "temphums",
+      "file": "temphums.json",
+      "count": 0
+    },
+    {
       "collection": "parameters",
       "file": "parameters.json",
       "count": 6
@@ -64,7 +74,7 @@
     {
       "collection": "petitionauditlogs",
       "file": "petitionauditlogs.json",
-      "count": 178
+      "count": 180
     },
     {
       "collection": "realtimedensities",
@@ -90,6 +100,11 @@
       "collection": "labrequests",
       "file": "labrequests.json",
       "count": 14
+    },
+    {
+      "collection": "commonnameoverrides",
+      "file": "commonnameoverrides.json",
+      "count": 0
     },
     {
       "collection": "stockglasswares",
