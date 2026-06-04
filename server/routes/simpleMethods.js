@@ -3,15 +3,19 @@ const SimpleMethod = require('../models/SimpleMethod');
 
 const router = express.Router();
 
-const ALLOWED = new Set(['GC', 'HPLC', 'BOTH']);
-
-function normalizeInstruments(value) {
-  const list = Array.isArray(value)
-    ? value
-    : String(value || '').split(',');
-  return list.map((entry) => {
-    const token = String(entry).trim().toUpperCase();
-    return ALLOWED.has(token) ? token : '';
+// Normalize an incoming per-substance AND-set array (string[][]).
+// Each slot → array of uppercase non-empty codes, de-duplicated, order preserved.
+function normalizeMethods(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((slot) => {
+    const list = Array.isArray(slot) ? slot : [slot];
+    const seen = new Set();
+    const out = [];
+    for (const entry of list) {
+      const code = String(entry || '').trim().toUpperCase();
+      if (code && !seen.has(code)) { seen.add(code); out.push(code); }
+    }
+    return out;
   });
 }
 
@@ -21,6 +25,7 @@ router.get('/', async (_req, res) => {
     res.json(docs.map((doc) => ({
       itemNo: doc.itemNo,
       instruments: doc.instruments || [],
+      methods: doc.methods, // undefined when not migrated yet → client falls back to instruments
     })));
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -31,13 +36,13 @@ router.put('/:itemNo', async (req, res) => {
   try {
     const itemNo = String(req.params.itemNo || '').trim();
     if (!itemNo) return res.status(400).json({ message: 'itemNo required' });
-    const instruments = normalizeInstruments(req.body && req.body.instruments);
+    const methods = normalizeMethods(req.body && req.body.methods);
     const doc = await SimpleMethod.findOneAndUpdate(
       { itemNo },
-      { $set: { instruments } },
+      { $set: { methods } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     ).lean();
-    res.json({ itemNo: doc.itemNo, instruments: doc.instruments || [] });
+    res.json({ itemNo: doc.itemNo, methods: doc.methods || [], instruments: doc.instruments || [] });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -48,14 +53,14 @@ router.put('/', async (req, res) => {
     const updates = Array.isArray(req.body && req.body.updates) ? req.body.updates : [];
     const ops = updates
       .map((entry) => ({
-        itemNo: String(entry && entry.itemNo || '').trim(),
-        instruments: normalizeInstruments(entry && entry.instruments),
+        itemNo: String((entry && entry.itemNo) || '').trim(),
+        methods: normalizeMethods(entry && entry.methods),
       }))
       .filter((entry) => entry.itemNo)
       .map((entry) => ({
         updateOne: {
           filter: { itemNo: entry.itemNo },
-          update: { $set: { instruments: entry.instruments } },
+          update: { $set: { methods: entry.methods } },
           upsert: true,
         },
       }));
