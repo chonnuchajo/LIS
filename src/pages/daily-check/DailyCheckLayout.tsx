@@ -2,9 +2,9 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import { cn } from "@/lib/utils";
-import { DAILY_CHECK_ROOMS } from "@/lib/dailyCheckRooms";
+import { DAILY_CHECK_TABS } from "@/lib/dailyCheckRooms";
 
-const TABS = DAILY_CHECK_ROOMS.map((r) => ({ route: r.route, label: r.label, icon: r.icon }));
+const TABS = DAILY_CHECK_TABS;
 
 const DailyCheckLayout = () => {
   const navigate = useNavigate();
