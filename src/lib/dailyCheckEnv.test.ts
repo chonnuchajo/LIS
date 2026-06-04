@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ENV_ROOMS, evaluateEnv, getEnvRoom } from "./dailyCheckEnv";
+import { ENV_ROOMS, evaluateEnv, getEnvRoom, isReadingStale, STALE_AFTER_MS } from "./dailyCheckEnv";
 
 const room = ENV_ROOMS[0]; // tempMin 15, tempMax 25, humidityMax 70
 
@@ -48,5 +48,29 @@ describe("getEnvRoom", () => {
 describe("ENV_ROOMS", () => {
   it("covers exactly the 3 rooms with a temp/humidity form", () => {
     expect(ENV_ROOMS.map((r) => r.slug)).toEqual(["balance", "sample-prep", "analysis"]);
+  });
+});
+
+describe("isReadingStale", () => {
+  const now = new Date("2026-06-04T10:00:00Z").getTime();
+
+  it("is fresh when received just now", () => {
+    expect(isReadingStale(new Date(now).toISOString(), now)).toBe(false);
+  });
+
+  it("is fresh right at the threshold boundary", () => {
+    const at = new Date(now - STALE_AFTER_MS).toISOString();
+    expect(isReadingStale(at, now)).toBe(false);
+  });
+
+  it("is stale once older than the threshold", () => {
+    const at = new Date(now - STALE_AFTER_MS - 1000).toISOString();
+    expect(isReadingStale(at, now)).toBe(true);
+  });
+
+  it("treats missing/invalid timestamp as stale", () => {
+    expect(isReadingStale(undefined, now)).toBe(true);
+    expect(isReadingStale("", now)).toBe(true);
+    expect(isReadingStale("not-a-date", now)).toBe(true);
   });
 });

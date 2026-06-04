@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { api, type EnvCheckRecord, type LiveTempHum } from "@/lib/api";
-import { ENV_ROOMS, evaluateEnv, type EnvRoom } from "@/lib/dailyCheckEnv";
+import { ENV_ROOMS, evaluateEnv, isReadingStale, type EnvRoom } from "@/lib/dailyCheckEnv";
 import { useAuth } from "@/context/AuthContext";
 
 interface EnvDraft {
@@ -56,7 +56,7 @@ const EnvironmentCheckPage = () => {
   const { data: liveReadings = [] } = useQuery({
     queryKey: ["temphum", "live"],
     queryFn: api.getLiveTempHum,
-    refetchInterval: 15000,
+    refetchInterval: 30000, // Node-RED pushes ~every 60s; poll at 30s
     refetchOnWindowFocus: true,
   });
 
@@ -209,6 +209,7 @@ const EnvironmentCheckPage = () => {
               const todayRec = latestByRoom[room.slug];
               const d = getDraft(room);
               const live = liveForRoom(room);
+              const liveStale = live ? isReadingStale(live.receivedAt, Date.now()) : false;
               const isCheckedToday = !!todayRec;
               const dirty = !!drafts[room.slug] && (drafts[room.slug].temperature !== "" || drafts[room.slug].humidity !== "");
               const showResult = isCheckedToday && !dirty;
@@ -254,10 +255,12 @@ const EnvironmentCheckPage = () => {
                     {/* แหล่งค่า */}
                     {!showResult && (
                       <div className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2.5 py-1.5">
-                        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <Radio className={`w-3.5 h-3.5 ${live ? "text-green-500" : "text-muted-foreground/50"}`} />
+                        <span className={`flex items-center gap-1.5 text-xs ${liveStale ? "text-amber-600" : "text-muted-foreground"}`}>
+                          <Radio className={`w-3.5 h-3.5 ${live ? (liveStale ? "text-amber-500" : "text-green-500") : "text-muted-foreground/50"}`} />
                           {live
-                            ? `เซนเซอร์ • อัปเดต ${live.receivedAt ? fmtTime(live.receivedAt) : "-"}`
+                            ? liveStale
+                              ? `เซนเซอร์ค้าง • ล่าสุด ${live.receivedAt ? fmtTime(live.receivedAt) : "-"}`
+                              : `เซนเซอร์ • อัปเดต ${live.receivedAt ? fmtTime(live.receivedAt) : "-"}`
                             : "ไม่มีเซนเซอร์ — กรอกเอง"}
                         </span>
                         {live && (
