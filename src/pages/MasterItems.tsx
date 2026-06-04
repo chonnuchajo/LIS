@@ -701,7 +701,7 @@ export default function MasterItems() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredItems.map(({ item, originalItemNo, override }, index) => {
+                      filteredItems.map(({ item, originalItemNo, override, rawCommonName, displayCommonName }, index) => {
                         const matchedParameters = getParametersFor(item, parameters);
                         const metaQty = matchedParameters.length;
                         const form = itemToForm(item, metaQty);
@@ -718,7 +718,29 @@ export default function MasterItems() {
                             <TableCell className="min-w-56 font-medium">
                               {displayValue(firstValue(item, nameKeys))}
                             </TableCell>
-                            <TableCell>{displayValue(firstValue(item, typeKeys))}</TableCell>
+                            <TableCell onClick={(event) => event.stopPropagation()}>
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className="min-w-0 flex-1 truncate"
+                                  title={displayCommonName !== rawCommonName ? `จากระบบ: ${rawCommonName}` : undefined}
+                                >
+                                  {displayValue(displayCommonName)}
+                                </span>
+                                {rawCommonName && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 w-6 shrink-0 px-0 text-muted-foreground hover:text-foreground"
+                                    title="ตั้งชื่อมาตรฐาน"
+                                    aria-label={`ตั้งชื่อมาตรฐาน ${displayCommonName}`}
+                                    onClick={() => setEditingCommonName({ rawCommonName, currentCanonical: displayCommonName })}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
                             <TableCell>{displayProductType(getProductTypeGroup(item))}</TableCell>
                             <TableCell>{displayValue(getItemCategory(item))}</TableCell>
                             <TableCell>{displayValue(firstValue(item, unitKeys))}</TableCell>
@@ -824,6 +846,16 @@ export default function MasterItems() {
             onEdit={() => {
               setEditing(viewing);
               setViewing(null);
+            }}
+          />
+        )}
+        {editingCommonName && (
+          <CommonNameOverrideDialog
+            rawCommonNames={[editingCommonName.rawCommonName]}
+            initialCanonical={editingCommonName.currentCanonical}
+            onClose={() => setEditingCommonName(null)}
+            onSaved={() => {
+              queryClient.invalidateQueries({ queryKey: ["common-name-overrides"] });
             }}
           />
         )}
