@@ -209,6 +209,31 @@ export const api = {
   getDailyCheckTodaySummary: () =>
     request<{ data: DailyCheckTodaySummary }>("/daily-checks/summary/today").then(r => r.data),
 
+  // Env Check (อุณหภูมิ/ความชื้น ประจำวัน)
+  getEnvChecks: (params?: {
+    date?: string;          // YYYY-MM-DD หรือ "all"
+    from?: string;
+    to?: string;
+    room?: string;
+    status?: "pass" | "fail";
+  }) => {
+    const qs = params
+      ? "?" + new URLSearchParams(
+          Object.entries(params).filter(([, v]) => v != null && v !== "").map(([k, v]) => [k, String(v)]),
+        ).toString()
+      : "";
+    return request<{ data: EnvCheckRecord[] }>(`/env-checks${qs}`).then(r => r.data);
+  },
+  createEnvCheck: (data: CreateEnvCheckPayload) =>
+    request<{ data: EnvCheckRecord }>("/env-checks", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }).then(r => r.data),
+  getEnvCheckTodaySummary: () =>
+    request<{ data: EnvCheckTodaySummary }>("/env-checks/summary/today").then(r => r.data),
+  // ค่าสดจากเซนเซอร์ Node-RED (in-memory; [] เมื่อไม่มีค่า)
+  getLiveTempHum: () => request<LiveTempHum[]>("/temphum"),
+
   // Parameters (พารามิเตอร์การตรวจสอบของสารแต่ละชนิด)
   getParameters: () => request<ParameterItem[]>("/parameters"),
   createParameter: (data: Partial<ParameterItem>) =>
@@ -335,6 +360,56 @@ export type DailyCheckTodaySummary = {
   count: number;
   scaleIds: string[];
   allPass: boolean;
+};
+
+export type EnvCheckRecord = {
+  _id?: string;
+  room: "balance" | "sample-prep" | "analysis";
+  roomName: string;
+  temperature: number;
+  humidity: number;
+  tempMin: number;
+  tempMax: number;
+  humidityMax: number;
+  tempStatus: "pass" | "fail";
+  humidityStatus: "pass" | "fail";
+  status: "pass" | "fail";
+  note?: string;
+  recorder: string;
+  recorderId?: string;
+  recorderEmail?: string;
+  date: string;       // YYYY-MM-DD
+  checkedAt: string;  // ISO
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateEnvCheckPayload = {
+  room: "balance" | "sample-prep" | "analysis";
+  roomName: string;
+  temperature: number;
+  humidity: number;
+  tempMin: number;
+  tempMax: number;
+  humidityMax: number;
+  note?: string;
+  recorder: string;
+  recorderId?: string;
+  recorderEmail?: string;
+};
+
+export type EnvCheckTodaySummary = {
+  date: string;
+  count: number;
+  rooms: string[];
+  allPass: boolean;
+};
+
+export type LiveTempHum = {
+  board: string;
+  temp?: number;
+  hum?: number;
+  receivedAt?: string; // ISO
 };
 
 export type MachineItem = {
