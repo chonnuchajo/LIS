@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Factory, RotateCcw, Save } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Factory, Printer, RotateCcw, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import ItemsStep, { type ItemRowValues } from '@/components/petition/wizard/Item
 import type { SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
 import ProductionPlanStep from '@/components/petition/wizard/ProductionPlanStep';
 import LabRequestStep, { type LabRequestRowValues } from '@/components/petition/wizard/LabRequestStep';
+import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
 import {
   isLabBatch,
   makeBlankProductionPlan,
@@ -22,6 +23,7 @@ import type { Petition, ProductionPetition } from '@/types/petition.types';
 
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
 const ICP_LADDA_COMPANY = 'ICP Ladda Co., LTD.';
+const PRODUCTION_RETURN_URL = 'https://app-plant.icpladda.com/production/public/sample_analysis.php?status=&q=';
 
 type StepKey = 'items' | 'plan' | 'lab';
 
@@ -311,6 +313,7 @@ export default function ProductionPetitionNewPage({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
+  const [createdPetition, setCreatedPetition] = useState<Petition | null>(null);
 
   function validateStep(): boolean {
     setStepError(null);
@@ -404,6 +407,11 @@ export default function ProductionPetitionNewPage({
           setError(`สร้างใบคำขอรับบริการไม่สำเร็จ: ${e instanceof Error ? e.message : 'unknown'}`);
         }
       }
+      if (publicMode) {
+        setCreatedPetition(created);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
       navigate(`/petitions/${created._id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'บันทึกคำร้องไม่สำเร็จ';
@@ -413,9 +421,63 @@ export default function ProductionPetitionNewPage({
     }
   }
 
+  function handlePageBack() {
+    if (publicMode) {
+      window.location.href = PRODUCTION_RETURN_URL;
+      return;
+    }
+    navigate('/petitions');
+  }
+
+  function printCreatedLabels() {
+    if (!createdPetition) return;
+    setTimeout(() => window.print(), 50);
+  }
+
+  const successContent = createdPetition ? (
+    <div className="space-y-4">
+      <div className="hidden print:block">
+        <SampleLabelPrintTemplate petition={createdPetition} />
+      </div>
+
+      <div className="print:hidden space-y-4">
+        <PageHeader title="บันทึกคำขอสำเร็จ" onBack={handlePageBack} />
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-green-600" />
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold text-foreground">สร้างคำขอเรียบร้อย</h2>
+                  <p className="text-sm text-muted-foreground">
+                    เลขที่คำขอ: <span className="font-semibold text-foreground">{createdPetition.petitionNo}</span>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    จำนวนสติกเกอร์: {createdPetition.items.length} รายการ
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button onClick={printCreatedLabels} className="w-full sm:w-auto">
+                  <Printer className="h-4 w-4" />
+                  พิมพ์สติกเกอร์
+                </Button>
+                <Button variant="primary-outline" onClick={handlePageBack} className="w-full sm:w-auto">
+                  กลับ Production System
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  ) : null;
+
   const content = (
       <div className="space-y-4">
-        <PageHeader title={integrationMode ? 'Production System Request' : 'คำขอแผนกผลิต'} onBack={() => navigate('/petitions')} />
+        <PageHeader title={integrationMode ? 'Production System Request' : 'คำขอแผนกผลิต'} onBack={handlePageBack} />
 
         {integrationMode && (
           <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
@@ -547,7 +609,7 @@ export default function ProductionPetitionNewPage({
   if (publicMode) {
     return (
       <div className="min-h-screen bg-background p-4 sm:p-6">
-        <div className="mx-auto max-w-6xl">{content}</div>
+        <div className="mx-auto max-w-6xl">{successContent ?? content}</div>
       </div>
     );
   }
