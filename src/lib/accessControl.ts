@@ -16,10 +16,12 @@ const IMPLIED_CHILD_PATHS: Record<string, string[]> = {
   "/qc-testing": ["/qc-testing/:id"],
   "/lab-testing": ["/lab-testing/:id"],
   "/daily-check": [
+    "/daily-check/environment",
     "/daily-check/balance",
     "/daily-check/sample-prep",
     "/daily-check/analysis",
     "/daily-check/extraction",
+    "/daily-check/documents",
   ],
 };
 

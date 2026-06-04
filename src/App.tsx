@@ -27,6 +27,8 @@ import StockDeduction from "./pages/StockDeduction";
 import DailyCheckLayout from "./pages/daily-check/DailyCheckLayout";
 import BalanceRoomPage from "./pages/daily-check/BalanceRoomPage";
 import RoomPlaceholderPage from "./pages/daily-check/RoomPlaceholderPage";
+import EnvironmentCheckPage from "./pages/daily-check/EnvironmentCheckPage";
+import DocumentsPage from "./pages/daily-check/DocumentsPage";
 import NotFound from "./pages/NotFound";
 import ScannerPage from "./pages/ScannerPage";
 import PetitionListPage from "./pages/PetitionListPage";
@@ -78,11 +80,13 @@ const App = () => (
               <Route path="/qc-approval" element={<PrivateRoute><QCApproval /></PrivateRoute>} />
               <Route path="/report" element={<PrivateRoute><Report /></PrivateRoute>} />
               <Route path="/daily-check" element={<PrivateRoute><DailyCheckLayout /></PrivateRoute>}>
-                <Route index element={<Navigate to="/daily-check/balance" replace />} />
+                <Route index element={<Navigate to="/daily-check/environment" replace />} />
+                <Route path="environment" element={<EnvironmentCheckPage />} />
                 <Route path="balance" element={<BalanceRoomPage />} />
                 <Route path="sample-prep" element={<RoomPlaceholderPage slug="sample-prep" />} />
                 <Route path="analysis" element={<RoomPlaceholderPage slug="analysis" />} />
                 <Route path="extraction" element={<RoomPlaceholderPage slug="extraction" />} />
+                <Route path="documents" element={<DocumentsPage />} />
               </Route>
               <Route path="/stock" element={<PrivateRoute><Stock /></PrivateRoute>} />
               <Route path="/master-items" element={<PrivateRoute><MasterItems /></PrivateRoute>} />
