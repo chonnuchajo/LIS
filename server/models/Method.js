@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const MethodSchema = new mongoose.Schema({
-  code: { type: String, required: true, unique: true, uppercase: true, trim: true, index: true },
+  code: { type: String, required: true, unique: true, uppercase: true, trim: true },
   label: { type: String, required: true, trim: true },
   requiresMachine: { type: Boolean, default: false },
   machinePrefix: { type: String, default: '', uppercase: true, trim: true }, // used only when requiresMachine

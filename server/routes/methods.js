@@ -25,6 +25,9 @@ async function ensureDefaults() {
 function validateBody(body, { isCreate }) {
   const code = String((body && body.code) || '').trim().toUpperCase();
   const label = String((body && body.label) || '').trim();
+  if (isCreate && !code) {
+    return { error: { message: 'code required', field: 'code' } };
+  }
   if (isCreate && !/^[A-Z0-9_]+$/.test(code)) {
     return { error: { message: 'code ต้องเป็น A-Z 0-9 _ เท่านั้น', field: 'code' } };
   }
@@ -37,14 +40,14 @@ function validateBody(body, { isCreate }) {
     return { error: { message: 'วิธีที่มีเครื่องต้องระบุ machinePrefix', field: 'machinePrefix' } };
   }
   const defaultTimes = Number(body && body.defaultTimes);
-  if (!Number.isInteger(defaultTimes) || defaultTimes < 1) {
-    return { error: { message: 'defaultTimes ต้องเป็นจำนวนเต็ม >= 1', field: 'defaultTimes' } };
+  if (!Number.isInteger(defaultTimes) || defaultTimes < 1 || defaultTimes > 100000) {
+    return { error: { message: 'defaultTimes ต้องเป็นจำนวนเต็ม 1–100000', field: 'defaultTimes' } };
   }
   return {
     value: {
       code, label, requiresMachine, machinePrefix, defaultTimes,
       order: Number(body && body.order) || 0,
-      active: body && body.active === false ? false : true,
+      active: !(body && (body.active === false || body.active === 'false')),
     },
   };
 }
