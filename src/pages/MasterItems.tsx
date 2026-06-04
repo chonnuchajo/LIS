@@ -1007,12 +1007,6 @@ export function SimpleMethodPage() {
           onEditCommonName={setEditingRow}
         />
 
-        <CommonNameOverrideManager
-          overrides={cnOverrides}
-          onChanged={() => {
-            queryClient.invalidateQueries({ queryKey: ["common-name-overrides"] });
-          }}
-        />
         {editingRow && (
           <CommonNameOverrideDialog
             row={editingRow}
@@ -1507,58 +1501,6 @@ function CommonNameOverrideDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function CommonNameOverrideManager({
-  overrides,
-  onChanged,
-}: {
-  overrides: CommonNameOverrideRow[];
-  onChanged: () => void;
-}) {
-  const [removingId, setRemovingId] = useState<string | null>(null);
-
-  const remove = async (id: string) => {
-    setRemovingId(id);
-    try {
-      await api.delete(`/common-name-overrides/${id}`);
-      onChanged();
-      toast.success("ลบ override แล้ว");
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setRemovingId(null);
-    }
-  };
-
-  if (overrides.length === 0) return null;
-
-  return (
-    <Card className="mt-4">
-      <CardContent className="p-4">
-        <div className="mb-2 text-sm font-medium">ชื่อมาตรฐานที่ตั้งไว้ ({overrides.length})</div>
-        <ul className="space-y-1 text-sm">
-          {overrides.map((o) => (
-            <li key={o._id} className="flex items-center gap-2">
-              <span className="flex-1 truncate">
-                <span className="text-muted-foreground">{o.raw}</span>
-                {" → "}
-                <span className="font-medium">{o.canonical}</span>
-              </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                disabled={removingId === o._id}
-                onClick={() => o._id && remove(o._id)}
-              >
-                ลบ
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </CardContent>
-    </Card>
   );
 }
 
