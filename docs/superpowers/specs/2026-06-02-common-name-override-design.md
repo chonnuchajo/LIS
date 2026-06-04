@@ -19,15 +19,17 @@
 - 2,319 master rows → **742 distinct common_name** → **49 ตัวมี `+`** (35 ตัว 2 ท่อน, 14 ตัว 3 ท่อน)
 - กลุ่มที่ต้อง override ~13–15 ตัว (ดู Appendix A)
 
-### ข้อจำกัดสำคัญ: % map กับสาร เดาจาก string ไม่ได้
-ไม่มีกฎ syntactic ตายตัว — ยืนยันจากที่ user ให้มา:
+### ข้อจำกัดสำคัญ: ปัญหาอยู่ที่ "รูปแบบ string" ไม่ใช่ "ลำดับ %"
+**อัปเดต 2026-06-04:** user ยืนยันว่า **positional reading ถูกเสมอ** — % เรียงตรงตามลำดับสารที่เขียน ไม่มีเคสกลับด้าน (ข้อมูลเดิมที่ว่า DIURON กลับด้าน = บอกผิด)
 
 | string | positional reading | ค่าจริง (user) | ตรงกัน? |
 |---|---|---|---|
 | `TRIFLOXYSTROBIN + TEBUCONAZOLE 25% + 50%` | TRIFLOX=25, TEBU=50 | TEBU=50, TRIFLOX=25 | ✅ |
-| `DIURON + HEXAZINONE 46.8% + 13.2%` | DIURON=46.8, HEXA=13.2 | **DIURON=13.2, HEXA=46.8** | ❌ กลับด้าน |
+| `DIURON + HEXAZINONE 46.8% + 13.2%` | DIURON=46.8, HEXA=13.2 | DIURON=46.8, HEXA=13.2 | ✅ |
 
-→ canonical ทุกตัว **ต้องให้ domain expert ยืนยัน** ไม่ auto-derive
+→ เพราะ positional ถูกเสมอ canonical ของเคส malformed จึง **derive แบบ mechanical ได้** (interleave ชื่อสาร + % ตามตำแหน่ง) แต่ override layer **ยังจำเป็น** เพราะ:
+1. **malformed 3-ท่อน** (`A + B x% + y%`) → `parseSubstances` split `+` ได้ 3 ท่อนผิด → ต้อง reformat เป็น `A x% + B y%` ให้ parse 2 สารถูกตำแหน่ง
+2. **dedup variant** ซ้ำ (สลับที่/เว้นวรรค/ฟอร์แมตต่าง) → ยุบเป็น canonical เดียว
 
 ## Goal / Non-goals
 
@@ -36,7 +38,7 @@
 **Non-goals (YAGNI):**
 - ไม่เขียนกลับ ERP / n8n (best-effort sync เดิมก็ปล่อยไว้)
 - ไม่ parse % เป็น field แยกต่อสาร — เก็บเป็น canonical string ทั้งก้อน
-- ไม่ทำ auto-suggest canonical จาก heuristic (เสี่ยงผิดเหมือนตาราง DIURON)
+- ไม่ทำ auto-suggest canonical จาก heuristic — *(หมายเหตุ 2026-06-04: เหตุผลเดิม "DIURON กลับด้าน" ตกไปแล้ว; positional ถูกเสมอ ⇒ จริง ๆ auto-derive เคส malformed ได้ ถ้า user อยากได้ทีหลัง แต่ default ยังเป็นกรอกมือผ่าน UI ตามที่ build ไว้)*
 
 ## Design
 
@@ -100,23 +102,31 @@ API methods ใน `src/lib/api.ts`: `getCommonNameOverrides`, `upsertCommonName
 3. user ยืนยัน canonical รายตัว (Appendix A) แล้วกรอกผ่าน UI (หรือ seed script one-off ถ้าจะ batch)
 4. `npm run seed:export` + commit (override อยู่ใน seed-data, กู้คืนได้)
 
-## Appendix A — Candidate mappings (⚠️ รอ user ยืนยัน, ห้าม commit ก่อนยืนยัน)
-`?` = positional reading, **ต้องเช็คว่า % ตรงสูตรจริงมั้ย โดยเฉพาะที่ flag ⚠️**
+## Appendix A — Candidate mappings
+**อัปเดต 2026-06-04:** เพราะ positional ถูกเสมอ (ดู §ข้อจำกัดสำคัญ) canonical ทุกแถวด้านล่าง = interleave ชื่อสาร+% ตามตำแหน่งที่เขียน → mechanical, ไม่ ambiguous อีกต่อไป ⚠️ ที่เคย flag เรื่อง % สลับ **ยกเลิกได้ทั้งหมด** เหลือแค่เช็ค unit (เช่น ZC/SL) กับ % ปลายที่ string ขาด
 
-| raw (จาก ERP) | canonical ที่เสนอ | หมายเหตุ |
-|---|---|---|
-| `BIFENTHRIN + IMIDACLOPRID 5% + 25% W/V SC` | `BIFENTHRIN 5% + IMIDACLOPRID 25% W/V SC` | twin #9 ยืนยัน positional |
-| `DIFENOCONAZOLE + AZOXYSTROBIN 12.5%+20% W/V SC` | `AZOXYSTROBIN 20% + DIFENOCONAZOLE 12.5% W/V SC` | twin #7; รวม #7 → canonical เดียว |
-| `DIFENOCONAZOLE + PROPICONAZOLE 15% + 15% W/V EC` | `DIFENOCONAZOLE 15% + PROPICONAZOLE 15% W/V EC` | 15/15 ไม่ ambiguous; รวม #25 |
-| `DIURON + HEXAZINONE 46.8% + 13.2% WG` | `DIURON 13.2% + HEXAZINONE 46.8% WG` | ⚠️ user: % กลับด้าน; รวม #27, #28 ด้วย |
-| `DIURON 46.8%+HEXAZINONE 13.2% WG` | `DIURON 13.2% + HEXAZINONE 46.8% WG` | ⚠️ #27 ก็ผิดตาม user |
-| `DIURON+HEXAZINONE 46.8% +13.2% WG` | `DIURON 13.2% + HEXAZINONE 46.8% WG` | ⚠️ #28 |
-| `TRIFLOXYSTROBIN + TEBUCONAZOLE 25% + 50% WG` | `TEBUCONAZOLE 50% + TRIFLOXYSTROBIN 25% WG` | twin #44 ยืนยัน |
-| `CYMOXANIL + MANCOZEB 8% + 64% WP` | `CYMOXANIL 8% + MANCOZEB 64% WP` | ⚠️ positional, ไม่มี twin |
-| `MESOTRIONE + ATRAZINE 8%+80.8% WG` | `MESOTRIONE 8% + ATRAZINE 80.8% WG` | ⚠️ positional |
-| `QUINCLORAC + BENSULFURON-METHYL 34% + 2% WP` | `QUINCLORAC 34% + BENSULFURON-METHYL 2% WP` | ⚠️ positional |
-| `TRICYCLAZOLE + MANCOZEB 18% + 62% WP` | `TRICYCLAZOLE 18% + MANCOZEB 62% WP` | ⚠️ positional |
-| `THIAMETHOXAM + LAMBDA-CYHALOTHRIN 14.1% + 10.6% W/` | `THIAMETHOXAM 14.1% + LAMBDA-CYHALOTHRIN 10.6% ZC` | twin #46/#47; ⚠️ unit (ZC?) + รวม variant |
-| `2,4-D-TRIISOPROPANOLAMINE SALT+PICLORAM 45.2%+11.6` | `2,4-D-TRIISOPROPANOLAMINE SALT 45.2% + PICLORAM 11.6% SL?` | ⚠️ positional + % ปลายขาด + unit ไม่แน่ |
+**สถานะ:** ✅ = canonical พร้อมกรอก (positional ตรง ไม่ ambiguous) · ❓ = ยังต้อง user เคาะ (string ขาด/unit ไม่แน่)
 
+| สถานะ | raw (จาก ERP) | canonical | หมายเหตุ |
+|---|---|---|---|
+| ✅ | `BIFENTHRIN + IMIDACLOPRID 5% + 25% W/V SC` | `BIFENTHRIN 5% + IMIDACLOPRID 25% W/V SC` | |
+| ✅ | `DIFENOCONAZOLE + AZOXYSTROBIN 12.5%+20% W/V SC` | `AZOXYSTROBIN 20% + DIFENOCONAZOLE 12.5% W/V SC` | %-pairing positional (DIFENO=12.5, AZOXY=20); **จัดลำดับให้ตรง twin #7 ที่เขียน AZOXY ก่อน** เพื่อให้ dedup รวมเป็น row เดียว |
+| ✅ | `DIFENOCONAZOLE + PROPICONAZOLE 15% + 15% W/V EC` | `DIFENOCONAZOLE 15% + PROPICONAZOLE 15% W/V EC` | รวม #25 |
+| ✅ | `DIURON + HEXAZINONE 46.8% + 13.2% WG` | `DIURON 46.8% + HEXAZINONE 13.2% WG` | รวม #27, #28 |
+| ✅ | `DIURON 46.8%+HEXAZINONE 13.2% WG` | `DIURON 46.8% + HEXAZINONE 13.2% WG` | = ตัวบน |
+| ✅ | `DIURON+HEXAZINONE 46.8% +13.2% WG` | `DIURON 46.8% + HEXAZINONE 13.2% WG` | = ตัวบน |
+| ✅ | `TRIFLOXYSTROBIN + TEBUCONAZOLE 25% + 50% WG` | `TEBUCONAZOLE 50% + TRIFLOXYSTROBIN 25% WG` | %-pairing positional (TRIFLOX=25, TEBU=50); **จัดลำดับให้ตรง twin #44 ที่เขียน TEBU ก่อน** เพื่อให้ dedup รวมเป็น row เดียว |
+| ✅ | `CYMOXANIL + MANCOZEB 8% + 64% WP` | `CYMOXANIL 8% + MANCOZEB 64% WP` | |
+| ✅ | `MESOTRIONE + ATRAZINE 8%+80.8% WG` | `MESOTRIONE 8% + ATRAZINE 80.8% WG` | |
+| ✅ | `QUINCLORAC + BENSULFURON-METHYL 34% + 2% WP` | `QUINCLORAC 34% + BENSULFURON-METHYL 2% WP` | |
+| ✅ | `TRICYCLAZOLE + MANCOZEB 18% + 62% WP` | `TRICYCLAZOLE 18% + MANCOZEB 62% WP` | |
+| ✅ | `THIAMETHOXAM + LAMBDA-CYHALOTHRIN 14.1% + 10.6% W/` | `THIAMETHOXAM 14.1% + LAMBDA-CYHALOTHRIN 10.6% ZC` | user ยืนยัน unit = **ZC**; รวม #46/#47 |
+| ❓ | `2,4-D-TRIISOPROPANOLAMINE SALT+PICLORAM 45.2%+11.6` | `2,4-D-TRIISOPROPANOLAMINE SALT 45.2% + PICLORAM 11.6% <2-ตัว>` | %/ลำดับ ok — unit เป็นโค้ด 2 ตัว (เช่น SL) ตามกฎ; ยืนยันโค้ดจริงจาก ERP ตอนกรอก |
+
+**กฎ unit (user 2026-06-04):**
+- string ที่เต็มอยู่แล้ว (เช่น `W/V SC`, `W/V EC`) → **เก็บไว้ตามเดิม ไม่ตัด W/V**
+- เฉพาะ string ที่โดนตัด/เหลือเศษ (เช่น `W/`) → formulation จริงเป็นโค้ด **2 ตัวอักษร** (SC/SL/EW/EC/WP/WG/ZC…) ให้เก็บเฉพาะโค้ด 2 ตัวนั้น
+
+> **2 แถว ❓** ค่า % กับลำดับสารถูกแล้ว (positional) ขาดแค่ส่วนปลาย string ที่ ERP ตัดทิ้ง — แค่ยืนยัน unit/เลขท้ายก็ commit ได้
+>
 > หมายเหตุ duplicate เว้นวรรคล้วน (เช่น `BUTACHLOR 35% + PROPANIL 35%  W/V EC` double-space) จะถูก group key (collapse whitespace) ยุบให้เองโดยไม่ต้องตั้ง override
