@@ -105,7 +105,7 @@ API methods ใน `src/lib/api.ts`: `getCommonNameOverrides`, `upsertCommonName
 ## Appendix A — Candidate mappings
 **อัปเดต 2026-06-04:** เพราะ positional ถูกเสมอ (ดู §ข้อจำกัดสำคัญ) canonical ทุกแถวด้านล่าง = interleave ชื่อสาร+% ตามตำแหน่งที่เขียน → mechanical, ไม่ ambiguous อีกต่อไป ⚠️ ที่เคย flag เรื่อง % สลับ **ยกเลิกได้ทั้งหมด** เหลือแค่เช็ค unit (เช่น ZC/SL) กับ % ปลายที่ string ขาด
 
-**สถานะ:** ✅ = canonical พร้อมกรอก (positional ตรง ไม่ ambiguous) · ❓ = ยังต้อง user เคาะ (string ขาด/unit ไม่แน่)
+**สถานะ:** ✅ ครบทุกแถวแล้ว (positional ตรง, user ยืนยันส่วนที่ string โดนตัด) — กรอกลง DB แล้ว 18 overrides ผ่าน `server/scripts/seed-common-name-overrides.js`
 
 | สถานะ | raw (จาก ERP) | canonical | หมายเหตุ |
 |---|---|---|---|
@@ -121,12 +121,10 @@ API methods ใน `src/lib/api.ts`: `getCommonNameOverrides`, `upsertCommonName
 | ✅ | `QUINCLORAC + BENSULFURON-METHYL 34% + 2% WP` | `QUINCLORAC 34% + BENSULFURON-METHYL 2% WP` | |
 | ✅ | `TRICYCLAZOLE + MANCOZEB 18% + 62% WP` | `TRICYCLAZOLE 18% + MANCOZEB 62% WP` | |
 | ✅ | `THIAMETHOXAM + LAMBDA-CYHALOTHRIN 14.1% + 10.6% W/` | `THIAMETHOXAM 14.1% + LAMBDA-CYHALOTHRIN 10.6% ZC` | user ยืนยัน unit = **ZC**; รวม #46/#47 |
-| ❓ | `2,4-D-TRIISOPROPANOLAMINE SALT+PICLORAM 45.2%+11.6` | `2,4-D-TRIISOPROPANOLAMINE SALT 45.2% + PICLORAM 11.6% <2-ตัว>` | %/ลำดับ ok — unit เป็นโค้ด 2 ตัว (เช่น SL) ตามกฎ; ยืนยันโค้ดจริงจาก ERP ตอนกรอก |
+| ✅ | `2,4-D-TRIISOPROPANOLAMINE SALT+PICLORAM 45.2%+11.6` | `2,4-D-TRIISOPROPANOLAMINE SALT 45.2% + PICLORAM 11.6%` | user 2026-06-04: PICLORAM = 11.6%, string จบที่ % **ไม่มี unit code** ต่อท้าย |
 
 **กฎ unit (user 2026-06-04):**
 - string ที่เต็มอยู่แล้ว (เช่น `W/V SC`, `W/V EC`) → **เก็บไว้ตามเดิม ไม่ตัด W/V**
 - เฉพาะ string ที่โดนตัด/เหลือเศษ (เช่น `W/`) → formulation จริงเป็นโค้ด **2 ตัวอักษร** (SC/SL/EW/EC/WP/WG/ZC…) ให้เก็บเฉพาะโค้ด 2 ตัวนั้น
 
-> **2 แถว ❓** ค่า % กับลำดับสารถูกแล้ว (positional) ขาดแค่ส่วนปลาย string ที่ ERP ตัดทิ้ง — แค่ยืนยัน unit/เลขท้ายก็ commit ได้
->
 > หมายเหตุ duplicate เว้นวรรคล้วน (เช่น `BUTACHLOR 35% + PROPANIL 35%  W/V EC` double-space) จะถูก group key (collapse whitespace) ยุบให้เองโดยไม่ต้องตั้ง override

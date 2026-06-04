@@ -52,12 +52,11 @@ const TARGETS = [
   { tokens: ['QUINCLORAC', 'BENSULFURON'], canonical: 'QUINCLORAC 34% + BENSULFURON-METHYL 2% WP' },
   { tokens: ['TRICYCLAZOLE', 'MANCOZEB'], canonical: 'TRICYCLAZOLE 18% + MANCOZEB 62% WP' },
   { tokens: ['THIAMETHOXAM', 'LAMBDA-CYHALOTHRIN'], canonical: 'THIAMETHOXAM 14.1% + LAMBDA-CYHALOTHRIN 10.6% ZC' },
+  // user 2026-06-04: PICLORAM = 11.6%, string จบที่ % ไม่มี unit code ต่อท้าย
+  { tokens: ['2,4-D', 'PICLORAM'], canonical: '2,4-D-TRIISOPROPANOLAMINE SALT 45.2% + PICLORAM 11.6%' },
 ];
 
-// PENDING (not written): unit code still unconfirmed from ERP.
-const PENDING = [
-  { tokens: ['2,4-D', 'PICLORAM'], note: 'unit (2-letter) ยังไม่ยืนยัน — ดู raw จริงด้านล่างแล้วเติม' },
-];
+const PENDING = [];
 
 (async () => {
   console.log('connecting:', MONGODB_URI);
