@@ -1,4 +1,4 @@
-export type Instrument = "GC" | "HPLC";
+export type Instrument = string; // a Method registry code
 export type Scope = "all" | "substance";
 
 export type StandardConfigDoc = {
@@ -42,9 +42,12 @@ export function normalizeTimes(value: unknown): number | null {
   return n;
 }
 
-export function validateStandardConfigInput(input: StandardConfigInput): ValidationError | null {
-  if (input.instrument !== "GC" && input.instrument !== "HPLC") {
-    return { field: "instrument", message: "กรุณาเลือกเครื่อง (GC หรือ HPLC)" };
+export function validateStandardConfigInput(
+  input: StandardConfigInput,
+  validCodes: Set<string>,
+): ValidationError | null {
+  if (!input.instrument || !validCodes.has(input.instrument)) {
+    return { field: "instrument", message: "กรุณาเลือกวิธีทดสอบ" };
   }
   if (input.scope !== "all" && input.scope !== "substance") {
     return { field: "scope", message: "scope ไม่ถูกต้อง" };

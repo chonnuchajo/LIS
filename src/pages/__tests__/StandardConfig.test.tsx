@@ -16,6 +16,7 @@ vi.mock("@/lib/api", () => ({
     updateStandardConfig: vi.fn(),
     deleteStandardConfig: vi.fn(),
     get: vi.fn(),
+    getMethods: vi.fn(),
   },
 }));
 
@@ -39,9 +40,15 @@ const defaultRows = [
   { _id: "d2", instrument: "HPLC", scope: "all", commonName: null, commonNameLower: null, times: 1, isDefault: true, note: "" },
 ];
 
+const mockMethods = [
+  { _id: 'm1', code: 'GC', label: 'GC', requiresMachine: true, machinePrefix: 'GC', defaultTimes: 3, order: 1, active: true, builtIn: true },
+  { _id: 'm2', code: 'HPLC', label: 'HPLC', requiresMachine: true, machinePrefix: 'HPLC', defaultTimes: 1, order: 2, active: true, builtIn: true },
+];
+
 beforeEach(() => {
   vi.clearAllMocks();
   (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { data: [] } });
+  (api.getMethods as ReturnType<typeof vi.fn>).mockResolvedValue(mockMethods);
 });
 
 describe("StandardConfig page", () => {

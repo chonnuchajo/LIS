@@ -40,51 +40,58 @@ describe("validateStandardConfigInput", () => {
   };
 
   it("accepts a valid substance input", () => {
-    expect(validateStandardConfigInput(substance)).toBeNull();
+    expect(validateStandardConfigInput(substance, new Set(["GC", "HPLC"]))).toBeNull();
   });
   it("accepts a valid default (scope=all) input", () => {
-    expect(validateStandardConfigInput(defaultRow)).toBeNull();
+    expect(validateStandardConfigInput(defaultRow, new Set(["GC", "HPLC"]))).toBeNull();
   });
-  it("rejects a bad instrument", () => {
-    expect(
-      validateStandardConfigInput({ ...substance, instrument: "MS" as never })?.field,
-    ).toBe("instrument");
+  it("rejects an instrument not in the registry", () => {
+    expect(validateStandardConfigInput(
+      { instrument: 'NOPE', scope: 'all', commonName: null, times: 1 },
+      new Set(['GC', 'HPLC', 'TITRATION']),
+    )).toEqual({ field: 'instrument', message: 'กรุณาเลือกวิธีทดสอบ' });
+  });
+  it("accepts a registry method", () => {
+    expect(validateStandardConfigInput(
+      { instrument: 'TITRATION', scope: 'all', commonName: null, times: 1 },
+      new Set(['GC', 'HPLC', 'TITRATION']),
+    )).toBeNull();
   });
   it("rejects a bad scope", () => {
     expect(
-      validateStandardConfigInput({ ...substance, scope: "weird" as never })?.field,
+      validateStandardConfigInput({ ...substance, scope: "weird" as never }, new Set(["GC", "HPLC"]))?.field,
     ).toBe("scope");
   });
   it("rejects substance with empty commonName", () => {
-    expect(validateStandardConfigInput({ ...substance, commonName: "  " })?.field).toBe(
+    expect(validateStandardConfigInput({ ...substance, commonName: "  " }, new Set(["GC", "HPLC"]))?.field).toBe(
       "commonName",
     );
   });
   it("rejects commonName over max length", () => {
     const long = "x".repeat(MAX_COMMONNAME_LEN + 1);
-    expect(validateStandardConfigInput({ ...substance, commonName: long })?.field).toBe(
+    expect(validateStandardConfigInput({ ...substance, commonName: long }, new Set(["GC", "HPLC"]))?.field).toBe(
       "commonName",
     );
   });
   it("ignores commonName when scope=all", () => {
-    expect(validateStandardConfigInput({ ...defaultRow, commonName: null })).toBeNull();
+    expect(validateStandardConfigInput({ ...defaultRow, commonName: null }, new Set(["GC", "HPLC"]))).toBeNull();
   });
   it("ignores a non-empty commonName when scope=all", () => {
-    expect(validateStandardConfigInput({ ...defaultRow, commonName: "GARBAGE" })).toBeNull();
+    expect(validateStandardConfigInput({ ...defaultRow, commonName: "GARBAGE" }, new Set(["GC", "HPLC"]))).toBeNull();
   });
   it("rejects times below minimum", () => {
-    expect(validateStandardConfigInput({ ...substance, times: MIN_TIMES - 1 })?.field).toBe(
+    expect(validateStandardConfigInput({ ...substance, times: MIN_TIMES - 1 }, new Set(["GC", "HPLC"]))?.field).toBe(
       "times",
     );
   });
   it("rejects null times", () => {
-    expect(validateStandardConfigInput({ ...substance, times: null })?.field).toBe("times");
+    expect(validateStandardConfigInput({ ...substance, times: null }, new Set(["GC", "HPLC"]))?.field).toBe("times");
   });
   it("rejects decimal times", () => {
-    expect(validateStandardConfigInput({ ...substance, times: 1.5 })?.field).toBe("times");
+    expect(validateStandardConfigInput({ ...substance, times: 1.5 }, new Set(["GC", "HPLC"]))?.field).toBe("times");
   });
   it("rejects times over max", () => {
-    expect(validateStandardConfigInput({ ...substance, times: MAX_TIMES + 1 })?.field).toBe(
+    expect(validateStandardConfigInput({ ...substance, times: MAX_TIMES + 1 }, new Set(["GC", "HPLC"]))?.field).toBe(
       "times",
     );
   });

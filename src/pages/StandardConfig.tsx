@@ -76,6 +76,8 @@ export default function StandardConfig() {
     queryFn: () => api.getStandardConfigs(),
   });
 
+  const { data: methods = [] } = useQuery({ queryKey: ['methods'], queryFn: () => api.getMethods() });
+
   // Suggestions for the commonName combobox — distinct commonNames from master items.
   const { data: masterItemRows = [] } = useQuery<Array<Record<string, unknown>>>({
     queryKey: ["master-items"],
@@ -156,7 +158,7 @@ export default function StandardConfig() {
       times: normalizeTimes(form.times),
       note: form.note,
     };
-    const err = validateStandardConfigInput(input);
+    const err = validateStandardConfigInput(input, new Set(methods.map((m) => m.code)));
     if (err) {
       setFieldError(err);
       return;
@@ -301,17 +303,17 @@ export default function StandardConfig() {
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label className="text-sm">เครื่อง *</Label>
-                <div className="flex gap-2">
-                  {(["GC", "HPLC"] as Instrument[]).map((inst) => (
+                <div className="flex gap-2 flex-wrap">
+                  {methods.filter((m) => m.active).map((m) => (
                     <Button
-                      key={inst}
+                      key={m.code}
                       type="button"
-                      variant={form.instrument === inst ? "default" : "outline"}
+                      variant={form.instrument === m.code ? "default" : "outline"}
                       disabled={form.isDefault}
-                      onClick={() => setForm({ ...form, instrument: inst })}
+                      onClick={() => setForm({ ...form, instrument: m.code })}
                       className="flex-1"
                     >
-                      {inst}
+                      {m.label}
                     </Button>
                   ))}
                 </div>
