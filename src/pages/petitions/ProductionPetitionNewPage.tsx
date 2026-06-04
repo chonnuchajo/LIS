@@ -69,12 +69,25 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
   const sampleName = getQueryValue(searchParams, ['sampleName', 'itemName', 'productName']);
   const batchNo = getQueryValue(searchParams, ['batchNo', 'lotNo', 'lot']);
   const commonName = getQueryValue(searchParams, ['commonName', 'activeIngredient']);
-  const productionDate = getQueryValue(searchParams, ['productionDate', 'mfgDate']);
+  const productionDate = getQueryValue(searchParams, ['productionDate', 'requestDate', 'mfgDate']);
   const packageUnit = getQueryValue(searchParams, ['quantity', 'packageUnit', 'packSize']);
+  const submissionNo = getQueryValue(searchParams, ['submissionNo', 'requestNo']);
   const testItems = getQueryValue(searchParams, ['testItems', 'tests']);
-  const note = getQueryValue(searchParams, ['note']);
+  const itemNo = getQueryValue(searchParams, ['itemNo']);
+  const mfNo = getQueryValue(searchParams, ['mfNo']);
+  const lotNo = getQueryValue(searchParams, ['lotNo', 'lot']);
+  const priority = getQueryValue(searchParams, ['priority']);
+  const note = [
+    getQueryValue(searchParams, ['note']),
+    lotNo && lotNo !== batchNo ? `Lot: ${lotNo}` : '',
+    itemNo ? `Item: ${itemNo}` : '',
+    mfNo ? `MF: ${mfNo}` : '',
+    priority ? `Priority: ${priority}` : '',
+  ]
+    .filter(Boolean)
+    .join(' | ');
 
-  if (![sampleName, batchNo, commonName, productionDate, packageUnit, testItems, note].some(Boolean)) {
+  if (![sampleName, batchNo, commonName, productionDate, packageUnit, submissionNo, testItems, note].some(Boolean)) {
     return null;
   }
 
@@ -85,6 +98,7 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
     commonName,
     productionDate: productionDate || null,
     packageUnit,
+    submissionNo,
     testItems,
     note,
   };
@@ -143,7 +157,8 @@ export default function ProductionPetitionNewPage({ integrationMode = false }: P
   const prodOrderNosFromQuery = useMemo(() => {
     const plural = splitList(searchParams.get('prodOrderNos'));
     const singular = splitList(searchParams.get('prodOrderNo'));
-    return [...plural, ...singular];
+    const mfNo = splitList(searchParams.get('mfNo'));
+    return [...plural, ...singular, ...mfNo];
   }, [searchParams]);
   const prodOrderNos = prodOrderNosFromState?.length ? prodOrderNosFromState : prodOrderNosFromQuery;
   const initialQueryItem = useMemo(() => makeInitialItemFromQuery(searchParams), [searchParams]);

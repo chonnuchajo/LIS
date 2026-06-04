@@ -18,7 +18,7 @@ interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
-  login: () => Promise<void>;
+  login: (redirectTo?: string) => Promise<void>;
   logout: () => void;
   devRole?: string;
   devRoles?: { id: string; name: string }[];
@@ -200,10 +200,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [account, instance]);
 
-  const login = async () => {
+  const login = async (redirectTo?: string) => {
+    const target = redirectTo || `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (target && target !== "/login") {
+      sessionStorage.setItem("lis_login_redirect", target);
+    }
     await instance.loginRedirect({
       ...loginRequest,
-      redirectStartPage: window.location.origin + import.meta.env.BASE_URL,
+      redirectStartPage: window.location.href,
     });
   };
 
