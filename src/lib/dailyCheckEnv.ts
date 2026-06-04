@@ -57,3 +57,60 @@ export const evaluateEnv = (
     tempStatus === "pass" && humidityStatus === "pass" ? "pass" : "fail";
   return { tempStatus, humidityStatus, status };
 };
+
+/** DB-stored per-room override. `label` is not stored — it comes from ENV_ROOMS. */
+export type EnvRoomConfig = {
+  slug: EnvRoom["slug"];
+  boardId: string;
+  tempMin: number;
+  tempMax: number;
+  humidityMax: number;
+};
+
+/** Editable subset used by the Settings form / PUT body. */
+export type EnvRoomConfigInput = {
+  boardId: string;
+  tempMin: number;
+  tempMax: number;
+  humidityMax: number;
+};
+
+export type EnvRoomConfigErrorField = "boardId" | "tempMin" | "tempMax" | "humidityMax";
+export type EnvRoomConfigError = { field: EnvRoomConfigErrorField; message: string } | null;
+
+/** Validate a config draft. Mirrors the server-side checks in routes/envRoomConfig.js. */
+export const validateEnvRoomConfig = (input: {
+  boardId?: unknown;
+  tempMin?: unknown;
+  tempMax?: unknown;
+  humidityMax?: unknown;
+}): EnvRoomConfigError => {
+  const fields: [EnvRoomConfigErrorField, unknown][] = [
+    ["tempMin", input.tempMin],
+    ["tempMax", input.tempMax],
+    ["humidityMax", input.humidityMax],
+  ];
+  for (const [field, v] of fields) {
+    if (typeof v !== "number" || !Number.isFinite(v)) {
+      return { field, message: "ต้องเป็นตัวเลข" };
+    }
+  }
+  if ((input.tempMin as number) > (input.tempMax as number)) {
+    return { field: "tempMin", message: "อุณหภูมิต่ำสุดต้องไม่เกินสูงสุด" };
+  }
+  if ((input.humidityMax as number) <= 0) {
+    return { field: "humidityMax", message: "ความชื้นสูงสุดต้องมากกว่า 0" };
+  }
+  return null;
+};
+
+/** Overlay DB configs onto code defaults by slug, preserving label + any other default fields. */
+export const mergeEnvRooms = (defaults: EnvRoom[], configs: EnvRoomConfig[]): EnvRoom[] => {
+  const bySlug = new Map(configs.map((c) => [c.slug, c]));
+  return defaults.map((d) => {
+    const c = bySlug.get(d.slug);
+    return c
+      ? { ...d, boardId: c.boardId, tempMin: c.tempMin, tempMax: c.tempMax, humidityMax: c.humidityMax }
+      : d;
+  });
+};
