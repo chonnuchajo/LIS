@@ -231,7 +231,8 @@ export const api = {
     }).then(r => r.data),
   getEnvCheckTodaySummary: () =>
     request<{ data: EnvCheckTodaySummary }>("/env-checks/summary/today").then(r => r.data),
-  // ค่าสดจากเซนเซอร์ Node-RED (in-memory; [] เมื่อไม่มีค่า)
+  // ประวัติค่าอุณหภูมิ/ความชื้นจาก Node-RED (เรียงใหม่สุดก่อน; [] เมื่อยังไม่มี)
+  // ใช้ดึง "ค่าล่าสุดต่อ board" มา pre-fill — การ capture สดทำผ่าน trigger flow ภายหลัง
   getLiveTempHum: () => request<LiveTempHum[]>("/temphum"),
 
   // Parameters (พารามิเตอร์การตรวจสอบของสารแต่ละชนิด)

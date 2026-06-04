@@ -70,9 +70,12 @@ const EnvironmentCheckPage = () => {
       }),
   });
 
+  // GET /temphum คืน history เรียงใหม่สุดก่อน → เก็บ "ค่าล่าสุดต่อ board"
+  // (ค่าที่บันทึกล่าสุด ไม่ใช่ stream สดต่อเนื่อง — การ capture สดผ่าน trigger flow
+  //  ของ /temphum รอทำภายหลัง)
   const liveByBoard = useMemo(() => {
     const map: Record<string, LiveTempHum> = {};
-    for (const r of liveReadings) map[r.board] = r;
+    for (const r of liveReadings) if (!map[r.board]) map[r.board] = r;
     return map;
   }, [liveReadings]);
 
