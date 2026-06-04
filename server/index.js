@@ -45,6 +45,7 @@ mountApi('/uploads', require('./routes/uploads'));
 mountApi('/daily-checks', require('./routes/dailyChecks'));
 mountApi('/temphum', require('./routes/temphum'));
 mountApi('/env-checks', require('./routes/envChecks'));
+mountApi('/env-room-config', require('./routes/envRoomConfig'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
 app.get('/LIS/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
