@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const StandardConfig = require('../models/StandardConfig');
+const Method = require('../models/Method');
 
 const router = express.Router();
 
@@ -8,24 +9,19 @@ const MAX_COMMONNAME_LEN = 200;
 const MAX_TIMES = 100000;
 const MIN_TIMES = 1;
 
-const DEFAULTS = [
-  { instrument: 'GC', times: 3 },
-  { instrument: 'HPLC', times: 1 },
-];
-
-// Make sure the two non-deletable per-instrument defaults exist (recreates them
-// after a DB wipe). Idempotent + race-safe via upsert.
+// Default rows come from the Method registry (one isDefault row per method, scope:'all').
 async function ensureDefaults() {
-  for (const d of DEFAULTS) {
+  const methods = await Method.find().lean();
+  for (const m of methods) {
     await StandardConfig.updateOne(
-      { instrument: d.instrument, scope: 'all' },
+      { instrument: m.code, scope: 'all' },
       {
         $setOnInsert: {
-          instrument: d.instrument,
+          instrument: m.code,
           scope: 'all',
           commonName: null,
           commonNameLower: null,
-          times: d.times,
+          times: m.defaultTimes,
           isDefault: true,
           note: '',
         },
@@ -45,10 +41,11 @@ function validateTimes(value) {
 
 // Build/validate a substance-row body (POST + PUT on non-default rows).
 // Returns { value } or { error: { message, field } }.
-function buildSubstanceBody(body) {
+async function buildSubstanceBody(body) {
   const instrument = String((body && body.instrument) || '').toUpperCase();
-  if (instrument !== 'GC' && instrument !== 'HPLC') {
-    return { error: { message: 'instrument ต้องเป็น GC หรือ HPLC', field: 'instrument' } };
+  const valid = await Method.exists({ code: instrument });
+  if (!valid) {
+    return { error: { message: 'instrument ไม่ตรงกับวิธีที่มีในระบบ', field: 'instrument' } };
   }
   const commonName = String((body && body.commonName) || '').trim();
   if (!commonName) return { error: { message: 'commonName required', field: 'commonName' } };
@@ -87,7 +84,7 @@ router.post('/', async (req, res) => {
     if (req.body && req.body.scope === 'all') {
       return res.status(400).json({ message: 'สร้างค่าตั้งต้นไม่ได้', field: 'scope' });
     }
-    const built = buildSubstanceBody(req.body);
+    const built = await buildSubstanceBody(req.body);
     if (built.error) return res.status(400).json(built.error);
     const existing = await StandardConfig.findOne({
       instrument: built.value.instrument,
@@ -124,7 +121,7 @@ router.put('/:id', async (req, res) => {
       return res.json(doc);
     }
 
-    const built = buildSubstanceBody(req.body);
+    const built = await buildSubstanceBody(req.body);
     if (built.error) return res.status(400).json(built.error);
     const clash = await StandardConfig.findOne({
       instrument: built.value.instrument,

@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 
 const StandardConfigSchema = new mongoose.Schema(
   {
-    // one row = one instrument
-    instrument: { type: String, enum: ['GC', 'HPLC'], required: true },
+    // one row = one method (validated against the Method registry, not a fixed enum)
+    instrument: { type: String, required: true, trim: true, uppercase: true },
     // 'all' = per-instrument default (non-deletable); 'substance' = per-commonName override
     scope: { type: String, enum: ['all', 'substance'], required: true },
     commonName: { type: String, default: null, trim: true }, // null when scope='all'
