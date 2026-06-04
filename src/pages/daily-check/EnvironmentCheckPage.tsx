@@ -14,8 +14,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { api, type EnvCheckRecord, type LiveTempHum } from "@/lib/api";
-import { ENV_ROOMS, evaluateEnv, isReadingStale, type EnvRoom } from "@/lib/dailyCheckEnv";
+import { evaluateEnv, isReadingStale, type EnvRoom } from "@/lib/dailyCheckEnv";
 import { useAuth } from "@/context/AuthContext";
+import { useEnvRooms } from "@/hooks/useEnvRooms";
 
 interface EnvDraft {
   temperature: string;
@@ -38,6 +39,7 @@ const emptyDraft = (): EnvDraft => ({ temperature: "", humidity: "", note: "" })
 
 const EnvironmentCheckPage = () => {
   const { user } = useAuth();
+  const { rooms } = useEnvRooms();
   const queryClient = useQueryClient();
   const todayLabel = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
 
@@ -123,7 +125,7 @@ const EnvironmentCheckPage = () => {
   const createMutation = useMutation({
     mutationFn: api.createEnvCheck,
     onSuccess: (_data, vars) => {
-      const room = ENV_ROOMS.find((r) => r.slug === vars.room)!;
+      const room = rooms.find((r) => r.slug === vars.room)!;
       const pass = evaluateEnv(vars.temperature, vars.humidity, room).status === "pass";
       if (pass) toast.success(`${room.label} อยู่ในเกณฑ์`);
       else toast.warning(`${room.label} เกินเกณฑ์`);
@@ -185,10 +187,10 @@ const EnvironmentCheckPage = () => {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Badge variant="outline" className="text-sm gap-1 py-1 px-3">
-            <Clock className="w-3.5 h-3.5" /> ตรวจแล้ว {checkedCount}/{ENV_ROOMS.length}
+            <Clock className="w-3.5 h-3.5" /> ตรวจแล้ว {checkedCount}/{rooms.length}
           </Badge>
           <Badge className="text-sm gap-1 py-1 px-3 bg-green-100 text-green-700 border-green-300">
-            <CheckCircle2 className="w-3.5 h-3.5" /> ผ่าน {passCount}/{ENV_ROOMS.length}
+            <CheckCircle2 className="w-3.5 h-3.5" /> ผ่าน {passCount}/{rooms.length}
           </Badge>
         </div>
       </div>
@@ -205,7 +207,7 @@ const EnvironmentCheckPage = () => {
 
         <TabsContent value="check">
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {ENV_ROOMS.map((room) => {
+            {rooms.map((room) => {
               const todayRec = latestByRoom[room.slug];
               const d = getDraft(room);
               const live = liveForRoom(room);
@@ -379,7 +381,7 @@ const EnvironmentCheckPage = () => {
                     <SelectTrigger className="h-8 text-xs w-[160px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">ทั้งหมด</SelectItem>
-                      {ENV_ROOMS.map((r) => (
+                      {rooms.map((r) => (
                         <SelectItem key={r.slug} value={r.slug}>{r.label}</SelectItem>
                       ))}
                     </SelectContent>

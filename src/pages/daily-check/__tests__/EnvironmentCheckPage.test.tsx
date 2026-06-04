@@ -9,6 +9,7 @@ vi.mock("@/lib/api", () => ({
   api: {
     getEnvChecks: vi.fn().mockResolvedValue([]),
     getLiveTempHum: vi.fn().mockResolvedValue([]),
+    getEnvRoomConfigs: vi.fn().mockResolvedValue([]),
     createEnvCheck: vi.fn(),
   },
 }));
