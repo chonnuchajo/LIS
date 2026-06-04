@@ -12,7 +12,7 @@ export interface AccessUser {
 // /petitions/assign) is intentionally NOT listed and stays independently
 // controlled — see the guard in `grantMatches`.
 const IMPLIED_CHILD_PATHS: Record<string, string[]> = {
-  "/petitions": ["/petitions/new", "/petitions/:id", "/petitions/:id/edit"],
+  "/petitions": ["/petitions/new", "/petitions/production/new", "/petitions/:id", "/petitions/:id/edit"],
   "/qc-testing": ["/qc-testing/:id"],
   "/lab-testing": ["/lab-testing/:id"],
 };

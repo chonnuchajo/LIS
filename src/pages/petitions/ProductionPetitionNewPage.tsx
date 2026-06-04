@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, RotateCcw, Save } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Factory, RotateCcw, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,10 @@ const STEPS: { key: StepKey; label: string }[] = [
   { key: 'lab', label: '3. ใบคำขอรับบริการ' },
 ];
 
+interface ProductionPetitionNewPageProps {
+  integrationMode?: boolean;
+}
+
 function makeBlankItem(seq: number): ItemRowValues {
   return {
     seq,
@@ -43,6 +47,46 @@ function makeBlankItem(seq: number): ItemRowValues {
     testUnit: '',
     testItems: '',
     note: '',
+  };
+}
+
+function splitList(value: string | null): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getQueryValue(searchParams: URLSearchParams, keys: string[]): string {
+  for (const key of keys) {
+    const value = searchParams.get(key)?.trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues | null {
+  const sampleName = getQueryValue(searchParams, ['sampleName', 'itemName', 'productName']);
+  const batchNo = getQueryValue(searchParams, ['batchNo', 'lotNo', 'lot']);
+  const commonName = getQueryValue(searchParams, ['commonName', 'activeIngredient']);
+  const productionDate = getQueryValue(searchParams, ['productionDate', 'mfgDate']);
+  const packageUnit = getQueryValue(searchParams, ['quantity', 'packageUnit', 'packSize']);
+  const testItems = getQueryValue(searchParams, ['testItems', 'tests']);
+  const note = getQueryValue(searchParams, ['note']);
+
+  if (![sampleName, batchNo, commonName, productionDate, packageUnit, testItems, note].some(Boolean)) {
+    return null;
+  }
+
+  return {
+    ...makeBlankItem(1),
+    sampleName,
+    batchNo,
+    commonName,
+    productionDate: productionDate || null,
+    packageUnit,
+    testItems,
+    note,
   };
 }
 
@@ -90,12 +134,19 @@ function makeBlankLabRequest(
   };
 }
 
-export default function ProductionPetitionNewPage() {
+export default function ProductionPetitionNewPage({ integrationMode = false }: ProductionPetitionNewPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const prodOrderNosFromState = (location.state as { prodOrderNos?: string[] } | null)?.prodOrderNos;
+  const prodOrderNosFromQuery = useMemo(() => {
+    const plural = splitList(searchParams.get('prodOrderNos'));
+    const singular = splitList(searchParams.get('prodOrderNo'));
+    return [...plural, ...singular];
+  }, [searchParams]);
+  const prodOrderNos = prodOrderNosFromState?.length ? prodOrderNosFromState : prodOrderNosFromQuery;
+  const initialQueryItem = useMemo(() => makeInitialItemFromQuery(searchParams), [searchParams]);
   const revisionOfId = searchParams.get('revisionOf');
   const [revisionSource, setRevisionSource] = useState<Petition | null>(null);
 
@@ -122,7 +173,7 @@ export default function ProductionPetitionNewPage() {
     }
   }, [user?.id, user?.name, delivererTouched]);
 
-  const [items, setItems] = useState<ItemRowValues[]>([makeBlankItem(1)]);
+  const [items, setItems] = useState<ItemRowValues[]>(() => [initialQueryItem ?? makeBlankItem(1)]);
 
   const [plan, setPlanState] = useState<ProductionPlan | null>(null);
 
@@ -306,7 +357,7 @@ export default function ProductionPetitionNewPage() {
         items: items.map((it, idx) => ({ ...it, seq: idx + 1 })),
         productionPlans: plan ? [plan] : [],
         labRequests: [],
-        prodOrderNos: prodOrderNosFromState ?? [],
+        prodOrderNos,
         cause: '',
         revisionOf: revisionOfId || undefined,
       };
@@ -331,7 +382,24 @@ export default function ProductionPetitionNewPage() {
   return (
     <AppLayout>
       <div className="space-y-4">
-        <PageHeader title="คำขอแผนกผลิต" onBack={() => navigate('/petitions')} />
+        <PageHeader title={integrationMode ? 'Production System Request' : 'คำขอแผนกผลิต'} onBack={() => navigate('/petitions')} />
+
+        {integrationMode && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+            <div className="flex items-start gap-2">
+              <Factory className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+              <div className="space-y-1 text-sm text-blue-900">
+                <p className="font-medium">Created from Production System</p>
+                {prodOrderNos.length > 0 && (
+                  <p>
+                    Production order: <span className="font-semibold">{prodOrderNos.join(', ')}</span>
+                  </p>
+                )}
+                <p className="text-blue-800">Please review the imported sample data before saving.</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {revisionSource && (
           <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 flex items-center gap-2">

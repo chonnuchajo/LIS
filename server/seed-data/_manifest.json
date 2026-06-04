@@ -7,6 +7,16 @@
       "count": 0
     },
     {
+      "collection": "envchecks",
+      "file": "envchecks.json",
+      "count": 0
+    },
+    {
+      "collection": "temphums",
+      "file": "temphums.json",
+      "count": 0
+    },
+    {
       "collection": "parameters",
       "file": "parameters.json",
       "count": 6
