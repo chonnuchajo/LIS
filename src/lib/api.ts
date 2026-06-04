@@ -8,6 +8,7 @@ import type {
   StockTier,
 } from "@/types/stock";
 import type { StandardConfigDoc } from "@/lib/standardConfig";
+import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
@@ -234,6 +235,15 @@ export const api = {
   // ประวัติค่าอุณหภูมิ/ความชื้นจาก Node-RED (เรียงใหม่สุดก่อน; [] เมื่อยังไม่มี)
   // ใช้ดึง "ค่าล่าสุดต่อ board" มา pre-fill — การ capture สดทำผ่าน trigger flow ภายหลัง
   getLiveTempHum: () => request<LiveTempHum[]>("/temphum"),
+
+  // ── Env room config (board ↔ room mapping + thresholds) ──
+  getEnvRoomConfigs: () =>
+    request<{ data: EnvRoomConfig[] }>("/env-room-config").then((r) => r.data),
+  updateEnvRoomConfig: (slug: EnvRoomConfig["slug"], input: EnvRoomConfigInput) =>
+    request<{ data: EnvRoomConfig }>(`/env-room-config/${slug}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }).then((r) => r.data),
 
   // Parameters (พารามิเตอร์การตรวจสอบของสารแต่ละชนิด)
   getParameters: () => request<ParameterItem[]>("/parameters"),
