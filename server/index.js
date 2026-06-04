@@ -43,6 +43,7 @@ mountApi('/parameters', require('./routes/parameters'));
 mountApi('/qc-results', require('./routes/qcResults'));
 mountApi('/uploads', require('./routes/uploads'));
 mountApi('/daily-checks', require('./routes/dailyChecks'));
+mountApi('/temphum', require('./routes/temphum'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
 app.get('/LIS/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
