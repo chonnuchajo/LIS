@@ -50,6 +50,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { api, type MachineItem, type ParameterItem } from "@/lib/api";
 import { parseSubstances } from "@/lib/substances";
+import { readSlotMethods, type MethodDoc } from "@/lib/methodRegistry";
 import { buildOverrideMap, normalizeCommonName, normalizeKey } from "@/lib/commonNameOverride";
 import type { CommonNameOverrideRow } from "@/lib/commonNameOverride";
 import {
@@ -60,10 +61,8 @@ import {
 } from "@/lib/productClassification";
 
 type MasterItem = Record<string, unknown>;
-type SimpleInstrument = "GC" | "HPLC";
-// A substance slot can require GC, HPLC, BOTH (usable on either — both buttons
-// light up), or "" (not set). BOTH lets QC pick either machine at assign time.
-type AssignmentSlot = SimpleInstrument | "BOTH" | "";
+// A substance slot holds a SET of method codes (an AND-set). A row's assignments
+// is one inner array per substance, positional (slot i ↔ substance i).
 type MatchType = "contains" | "startsWith" | "endsWith";
 
 type ExclusionRule = {
@@ -72,7 +71,17 @@ type ExclusionRule = {
   matchType: MatchType;
 };
 
-const INSTRUMENT_ORDER: SimpleInstrument[] = ["GC", "HPLC"];
+// Toggle one method code on/off within a single substance slot (AND-set).
+function toggleMethod(slot: string[], code: string): string[] {
+  return slot.includes(code) ? slot.filter((c) => c !== code) : [...slot, code];
+}
+
+// Replace one substance slot's method-set, preserving positional alignment.
+function setSlotMethods(row: string[][], index: number, next: string[]): string[][] {
+  const copy = row.map((s) => [...s]);
+  if (index >= 0 && index < copy.length) copy[index] = next;
+  return copy;
+}
 
 const MATCH_TYPE_LABELS: Record<MatchType, string> = {
   contains: "มีคำ",
@@ -96,7 +105,8 @@ type SimpleMethodRow = {
   key: string;
   commonName: string;
   substances: string[];
-  assignments: AssignmentSlot[];
+  // positional: assignments[i] is the AND-set of method codes for substance i
+  assignments: string[][];
   itemNos: string[];
   rawCommonNames: string[];
   items: MasterItem[];
@@ -218,59 +228,50 @@ function firstValue(item: MasterItem, keys: string[]) {
   return "";
 }
 
-function detectInstruments(value: unknown): SimpleInstrument[] {
-  const text = String(value ?? "").trim().toUpperCase();
+// Escape regex-special chars so a method label/code can be matched literally.
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Auto-suggest method codes from an item's ERP method/instrument text. Scans the
+// text for each active method's label or code (case-insensitive whole-word) and
+// returns the matching codes — a convenience over fully manual selection.
+function detectMethods(value: unknown, activeMethods: MethodDoc[]): string[] {
+  const text = String(value ?? "").trim();
   if (!text) return [];
-  const found: SimpleInstrument[] = [];
-  if (/\bGC\b/.test(text)) found.push("GC");
-  if (/\bHPLC\b/.test(text)) found.push("HPLC");
+  const found: string[] = [];
+  for (const m of activeMethods) {
+    const needles = [m.code, m.label].filter((s): s is string => !!s && s.trim() !== "");
+    const hit = needles.some((needle) => {
+      const re = new RegExp(`\\b${escapeRegExp(needle.trim())}\\b`, "i");
+      return re.test(text);
+    });
+    if (hit && !found.includes(m.code)) found.push(m.code);
+  }
   return found;
 }
 
-function emptyAssignments(count: number): AssignmentSlot[] {
-  return Array.from({ length: count }, () => "");
+function emptyAssignments(count: number): string[][] {
+  return Array.from({ length: count }, () => []);
 }
 
-function normalizeAssignment(value: unknown): AssignmentSlot {
-  const token = String(value ?? "").trim().toUpperCase();
-  return token === "GC" || token === "HPLC" || token === "BOTH" ? token : "";
-}
-
-// Toggle one instrument on/off within a slot. Selecting both GC and HPLC
-// collapses to "BOTH"; deselecting one falls back to the remaining single.
-function toggleInstrument(current: AssignmentSlot, instrument: SimpleInstrument): AssignmentSlot {
-  const next = {
-    GC: current === "GC" || current === "BOTH",
-    HPLC: current === "HPLC" || current === "BOTH",
-  };
-  next[instrument] = !next[instrument];
-  if (next.GC && next.HPLC) return "BOTH";
-  if (next.GC) return "GC";
-  if (next.HPLC) return "HPLC";
-  return "";
-}
-
-function alignAssignments(source: AssignmentSlot[], substanceCount: number): AssignmentSlot[] {
+function alignAssignments(source: string[][], substanceCount: number): string[][] {
   const result = emptyAssignments(substanceCount);
   for (let i = 0; i < Math.min(source.length, substanceCount); i += 1) {
-    result[i] = source[i];
+    result[i] = Array.isArray(source[i]) ? [...source[i]] : [];
   }
   return result;
 }
 
-function assignmentsEqual(a: AssignmentSlot[], b: AssignmentSlot[]): boolean {
+function slotsEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
-  return a.every((value, index) => value === b[index]);
+  const sb = [...b].sort();
+  return [...a].sort().every((value, index) => value === sb[index]);
 }
 
-function setAssignmentSlot(
-  current: AssignmentSlot[],
-  index: number,
-  value: AssignmentSlot,
-): AssignmentSlot[] {
-  const next = [...current];
-  if (index >= 0 && index < next.length) next[index] = value;
-  return next;
+function assignmentsEqual(a: string[][], b: string[][]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((slot, index) => slotsEqual(slot, b[index]));
 }
 
 function displayValue(value: unknown) {
@@ -339,21 +340,23 @@ function getItemId(item: MasterItem) {
   return value ? String(value) : "";
 }
 
-function getDetectedAssignment(item: MasterItem): AssignmentSlot {
+function getDetectedSlot(item: MasterItem, activeMethods: MethodDoc[]): string[] {
+  if (activeMethods.length === 0) return [];
   for (const key of methodInstrumentKeys) {
-    const found = detectInstruments(item[key]);
-    if (found.length > 0) return found[0];
+    const found = detectMethods(item[key], activeMethods);
+    if (found.length > 0) return found;
   }
-  return "";
+  return [];
 }
 
 export function buildSimpleMethodRows(
   items: MasterItem[],
-  overrides: Record<string, AssignmentSlot[]> = {},
+  overrides: Record<string, string[][]> = {},
   cnMap: Map<string, string> = new Map(),
+  activeMethods: MethodDoc[] = [],
 ): SimpleMethodRow[] {
   const groups = new Map<string, SimpleMethodRow>();
-  const collected = new Map<string, AssignmentSlot[]>();
+  const collected = new Map<string, string[][]>();
 
   items.forEach((item) => {
     const rawCommonName = String(firstValue(item, commonNameKeys)).trim();
@@ -365,18 +368,21 @@ export function buildSimpleMethodRows(
     const substances = parseSubstances(commonName);
     const count = substances.length;
 
-    let candidate: AssignmentSlot[] = emptyAssignments(count);
+    let candidate: string[][] = emptyAssignments(count);
     const override = itemNo ? overrides[itemNo] : undefined;
     if (override && override.length > 0) {
       candidate = alignAssignments(override, count);
     } else {
-      const detected = getDetectedAssignment(item);
-      if (detected && count === 1) candidate = [detected];
+      const detected = getDetectedSlot(item, activeMethods);
+      if (detected.length > 0 && count === 1) candidate = [detected];
     }
 
     const existing = groups.get(key);
     const current = collected.get(key) ?? emptyAssignments(count);
-    const merged = current.map((slot, idx) => slot || candidate[idx] || "") as AssignmentSlot[];
+    // positional merge: keep substance i; fill empties from the detected/override candidate
+    const merged = current.map((slot, idx) =>
+      slot.length > 0 ? slot : [...(candidate[idx] ?? [])],
+    );
     collected.set(key, merged);
 
     if (existing) {
@@ -863,11 +869,12 @@ export default function MasterItems() {
   );
 }
 
-type SimpleMethodFilter = "all" | "gc-only" | "hplc-only" | "both" | "unassigned";
+// "all" | "unassigned" | a specific method code
+type SimpleMethodFilter = string;
 
 export function SimpleMethodPage() {
   const queryClient = useQueryClient();
-  const [methodDrafts, setMethodDrafts] = useState<Record<string, AssignmentSlot[]>>({});
+  const [methodDrafts, setMethodDrafts] = useState<Record<string, string[][]>>({});
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [savingAll, setSavingAll] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -891,16 +898,17 @@ export function SimpleMethodPage() {
     },
   });
 
-  const { data: overrides = {} } = useQuery({
+  const { data: registryMethods = [] } = useQuery({
+    queryKey: ["methods"],
+    queryFn: () => api.getMethods(),
+  });
+  const activeMethods = useMemo(() => registryMethods.filter((m) => m.active), [registryMethods]);
+
+  const { data: simpleMethodEntries = [] } = useQuery({
     queryKey: ["simple-methods"],
     queryFn: async () => {
-      const res = await api.get<Array<{ itemNo: string; instruments: unknown[] }>>("/simple-methods");
-      const map: Record<string, AssignmentSlot[]> = {};
-      (res.data.data || []).forEach((entry) => {
-        if (!entry || !entry.itemNo) return;
-        map[entry.itemNo] = (entry.instruments || []).map(normalizeAssignment);
-      });
-      return map;
+      const res = await api.get<Array<{ itemNo: string; instruments?: string[]; methods?: string[][] }>>("/simple-methods");
+      return Array.isArray(res.data.data) ? res.data.data : [];
     },
   });
 
@@ -922,7 +930,37 @@ export function SimpleMethodPage() {
 
   const cnMap = useMemo(() => buildOverrideMap(cnOverrides), [cnOverrides]);
 
-  const rows = useMemo(() => buildSimpleMethodRows(items, overrides, cnMap), [items, overrides, cnMap]);
+  // substance count per itemNo, using the (override-resolved) commonName so the
+  // count aligns with parseSubstances exactly as buildSimpleMethodRows does.
+  const substanceCountByItemNo = useMemo(() => {
+    const map = new Map<string, number>();
+    items.forEach((item) => {
+      const itemNo = String(firstValue(item, codeKeys)).trim();
+      if (!itemNo) return;
+      const rawCommonName = String(firstValue(item, commonNameKeys)).trim();
+      if (!rawCommonName) return;
+      const commonName = normalizeCommonName(rawCommonName, cnMap);
+      map.set(itemNo, parseSubstances(commonName).length);
+    });
+    return map;
+  }, [items, cnMap]);
+
+  // itemNo → positional AND-sets, read via readSlotMethods (new methods win,
+  // legacy instruments mapped) and padded/truncated to that item's substance count.
+  const overrides = useMemo(() => {
+    const map: Record<string, string[][]> = {};
+    simpleMethodEntries.forEach((entry) => {
+      if (!entry || !entry.itemNo) return;
+      const count = substanceCountByItemNo.get(entry.itemNo) ?? 0;
+      map[entry.itemNo] = readSlotMethods(entry, count);
+    });
+    return map;
+  }, [simpleMethodEntries, substanceCountByItemNo]);
+
+  const rows = useMemo(
+    () => buildSimpleMethodRows(items, overrides, cnMap, activeMethods),
+    [items, overrides, cnMap, activeMethods],
+  );
 
   const visibleRows = useMemo(() => {
     const needle = searchText.trim().toLowerCase();
@@ -933,16 +971,9 @@ export function SimpleMethodPage() {
         if (!haystack.includes(needle)) return false;
       }
       if (statusFilter === "all") return true;
-      const hasGC = row.assignments.some((slot) => slot === "GC" || slot === "BOTH");
-      const hasHPLC = row.assignments.some((slot) => slot === "HPLC" || slot === "BOTH");
-      const hasEmpty = row.assignments.some((slot) => slot === "");
-      switch (statusFilter) {
-        case "gc-only": return hasGC && !hasHPLC && !hasEmpty;
-        case "hplc-only": return hasHPLC && !hasGC && !hasEmpty;
-        case "both": return hasGC && hasHPLC;
-        case "unassigned": return hasEmpty;
-        default: return true;
-      }
+      if (statusFilter === "unassigned") return row.assignments.some((slot) => slot.length === 0);
+      // otherwise statusFilter is a specific method code
+      return row.assignments.some((slot) => slot.includes(statusFilter));
     });
   }, [rows, searchText, statusFilter, exclusions]);
 
@@ -954,7 +985,7 @@ export function SimpleMethodPage() {
     [rows, methodDrafts],
   );
 
-  const setMethodDraft = (key: string, assignments: AssignmentSlot[]) => {
+  const setMethodDraft = (key: string, assignments: string[][]) => {
     setMethodDrafts((current) => ({
       ...current,
       [key]: assignments,
@@ -981,13 +1012,28 @@ export function SimpleMethodPage() {
     });
   };
 
-  const applyBulk = (value: AssignmentSlot) => {
+  // Toggle a method code ON for every substance slot of each selected row.
+  const applyBulkAdd = (code: string) => {
     if (selectedKeys.size === 0) return;
     setMethodDrafts((current) => {
       const next = { ...current };
       visibleRows.forEach((row) => {
         if (!selectedKeys.has(row.key)) return;
-        next[row.key] = row.substances.map(() => value);
+        const base = current[row.key] ?? row.assignments;
+        next[row.key] = base.map((slot) => (slot.includes(code) ? [...slot] : [...slot, code]));
+      });
+      return next;
+    });
+  };
+
+  // Clear all method codes from every substance slot of each selected row.
+  const applyBulkClear = () => {
+    if (selectedKeys.size === 0) return;
+    setMethodDrafts((current) => {
+      const next = { ...current };
+      visibleRows.forEach((row) => {
+        if (!selectedKeys.has(row.key)) return;
+        next[row.key] = row.substances.map(() => []);
       });
       return next;
     });
@@ -998,11 +1044,11 @@ export function SimpleMethodPage() {
     setSavingAll(true);
     try {
       const updates = dirtyRows.flatMap((row) => {
-        const instruments = methodDrafts[row.key] ?? row.assignments;
+        const methods = methodDrafts[row.key] ?? row.assignments;
         return row.items
           .map((item) => String(firstValue(item, codeKeys)).trim())
           .filter((itemNo) => itemNo)
-          .map((itemNo) => ({ itemNo, instruments }));
+          .map((itemNo) => ({ itemNo, methods }));
       });
       if (updates.length === 0) {
         toast.error("ไม่พบรหัส item สำหรับบันทึก method");
@@ -1030,7 +1076,7 @@ export function SimpleMethodPage() {
               Simple Method
             </span>
           }
-          description="กำหนด GC/HPLC ตาม commonname"
+          description="กำหนดวิธีวิเคราะห์ตาม commonname"
         />
 
         <SimpleMethodTab
@@ -1039,6 +1085,7 @@ export function SimpleMethodPage() {
           isLoading={isLoading}
           isError={isError}
           error={error}
+          activeMethods={activeMethods}
           methodDrafts={methodDrafts}
           selectedKeys={selectedKeys}
           searchText={searchText}
@@ -1072,35 +1119,26 @@ export function SimpleMethodPage() {
                 <span className="text-muted-foreground">รายการ</span>
               </div>
               <div className="mx-1 h-6 w-px bg-border" aria-hidden />
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">ตั้งทุกสารเป็น:</span>
-                {INSTRUMENT_ORDER.map((instrument) => (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">เพิ่มทุกสาร:</span>
+                {activeMethods.map((m) => (
                   <Button
-                    key={instrument}
+                    key={m.code}
                     size="sm"
                     variant="outline"
                     className="h-7 rounded-full px-3"
                     disabled={selectedKeys.size === 0}
-                    onClick={() => applyBulk(instrument)}
+                    onClick={() => applyBulkAdd(m.code)}
                   >
-                    {instrument}
+                    {m.label}
                   </Button>
                 ))}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 rounded-full px-3"
-                  disabled={selectedKeys.size === 0}
-                  onClick={() => applyBulk("BOTH")}
-                >
-                  ทั้งสอง
-                </Button>
                 <Button
                   size="sm"
                   variant="ghost"
                   className="h-7 rounded-full px-3 text-muted-foreground"
                   disabled={selectedKeys.size === 0}
-                  onClick={() => applyBulk("")}
+                  onClick={applyBulkClear}
                 >
                   ล้าง
                 </Button>
@@ -1145,6 +1183,7 @@ function SimpleMethodTab({
   isLoading,
   isError,
   error,
+  activeMethods,
   methodDrafts,
   selectedKeys,
   searchText,
@@ -1163,14 +1202,15 @@ function SimpleMethodTab({
   isLoading: boolean;
   isError: boolean;
   error: unknown;
-  methodDrafts: Record<string, SimpleInstrument[]>;
+  activeMethods: MethodDoc[];
+  methodDrafts: Record<string, string[][]>;
   selectedKeys: Set<string>;
   searchText: string;
   statusFilter: SimpleMethodFilter;
   exclusions: ExclusionRule[];
   onSearchTextChange: (value: string) => void;
   onStatusFilterChange: (value: SimpleMethodFilter) => void;
-  onDraftChange: (key: string, instruments: SimpleInstrument[]) => void;
+  onDraftChange: (key: string, methods: string[][]) => void;
   onToggleRow: (key: string, selected: boolean) => void;
   onToggleAll: (selected: boolean) => void;
   onExclusionsChanged: () => void;
@@ -1216,10 +1256,10 @@ function SimpleMethodTab({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">ทุก Method</SelectItem>
-              <SelectItem value="gc-only">GC เท่านั้น</SelectItem>
-              <SelectItem value="hplc-only">HPLC เท่านั้น</SelectItem>
-              <SelectItem value="both">GC + HPLC</SelectItem>
               <SelectItem value="unassigned">ยังไม่กำหนด</SelectItem>
+              {activeMethods.map((m) => (
+                <SelectItem key={m.code} value={m.code}>{m.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <ExclusionManager exclusions={exclusions} onChanged={onExclusionsChanged} />
@@ -1306,7 +1346,7 @@ function SimpleMethodTab({
                             } ${isDirty ? "border-primary" : "border-input"}`}
                           >
                             {row.substances.map((substance, index) => {
-                              const current = draftValue[index] ?? "";
+                              const current = draftValue[index] ?? [];
                               return (
                                 <div
                                   key={`${row.key}-${index}`}
@@ -1317,12 +1357,12 @@ function SimpleMethodTab({
                                       {substance}
                                     </span>
                                   )}
-                                  <div className="ml-auto flex items-center gap-1">
-                                    {INSTRUMENT_ORDER.map((instrument) => {
-                                      const active = current === instrument || current === "BOTH";
+                                  <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+                                    {activeMethods.map((m) => {
+                                      const active = current.includes(m.code);
                                       return (
                                         <Button
-                                          key={instrument}
+                                          key={m.code}
                                           type="button"
                                           size="sm"
                                           variant={active ? "default" : "outline"}
@@ -1330,11 +1370,11 @@ function SimpleMethodTab({
                                           onClick={() =>
                                             onDraftChange(
                                               row.key,
-                                              setAssignmentSlot(draftValue, index, toggleInstrument(current, instrument)),
+                                              setSlotMethods(draftValue, index, toggleMethod(current, m.code)),
                                             )
                                           }
                                         >
-                                          {instrument}
+                                          {m.label}
                                         </Button>
                                       );
                                     })}
