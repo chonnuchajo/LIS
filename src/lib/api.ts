@@ -9,6 +9,7 @@ import type {
 } from "@/types/stock";
 import type { StandardConfigDoc } from "@/lib/standardConfig";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
+import type { MethodDoc, MethodInput } from './methodRegistry';
 
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
@@ -301,6 +302,15 @@ export const api = {
     const qs = new URLSearchParams({ batchNo, employeeId }).toString();
     return request<import("@/types/petition.types").Petition[]>(`/petitions/rejected-by-batch?${qs}`);
   },
+
+  // Methods (admin-managed method registry)
+  getMethods: () => request<MethodDoc[]>("/methods"),
+  createMethod: (data: MethodInput) =>
+    request<MethodDoc>("/methods", { method: "POST", body: JSON.stringify(data) }),
+  updateMethod: (id: string, data: MethodInput) =>
+    request<MethodDoc>(`/methods/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteMethod: (id: string) =>
+    request<{ ok: true }>(`/methods/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   // Standard Config
   getStandardConfigs: () => request<StandardConfigDoc[]>("/standard-configs"),
