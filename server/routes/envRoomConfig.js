@@ -61,12 +61,12 @@ router.put('/:slug', async (req, res) => {
     const doc = await EnvRoomConfig.findOneAndUpdate(
       { slug },
       { slug, boardId: typeof boardId === 'string' ? boardId : '', tempMin, tempMax, humidityMax },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
+      { new: true, upsert: true },
     ).lean();
 
     res.json({ data: pick(doc) });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
