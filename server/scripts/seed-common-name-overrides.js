@@ -39,14 +39,15 @@ function hasAll(cn, tokens) {
   return tokens.every((t) => u.includes(t.toUpperCase()));
 }
 
-// CONFIRMED canonicals (positional %-pairing; twin rows reordered for dedup).
+// CONFIRMED canonicals: positional %-pairing, substance order kept as written
+// (user 2026-06-04 — no reordering; all variants still dedup to one canonical).
 // `tokens` are the substance base-names used to locate the real ERP raw(s).
 const TARGETS = [
   { tokens: ['BIFENTHRIN', 'IMIDACLOPRID'], canonical: 'BIFENTHRIN 5% + IMIDACLOPRID 25% W/V SC' },
-  { tokens: ['DIFENOCONAZOLE', 'AZOXYSTROBIN'], canonical: 'AZOXYSTROBIN 20% + DIFENOCONAZOLE 12.5% W/V SC' },
+  { tokens: ['DIFENOCONAZOLE', 'AZOXYSTROBIN'], canonical: 'DIFENOCONAZOLE 12.5% + AZOXYSTROBIN 20% W/V SC' },
   { tokens: ['DIFENOCONAZOLE', 'PROPICONAZOLE'], canonical: 'DIFENOCONAZOLE 15% + PROPICONAZOLE 15% W/V EC' },
   { tokens: ['DIURON', 'HEXAZINONE'], canonical: 'DIURON 46.8% + HEXAZINONE 13.2% WG' },
-  { tokens: ['TRIFLOXYSTROBIN', 'TEBUCONAZOLE'], canonical: 'TEBUCONAZOLE 50% + TRIFLOXYSTROBIN 25% WG' },
+  { tokens: ['TRIFLOXYSTROBIN', 'TEBUCONAZOLE'], canonical: 'TRIFLOXYSTROBIN 25% + TEBUCONAZOLE 50% WG' },
   { tokens: ['CYMOXANIL', 'MANCOZEB'], canonical: 'CYMOXANIL 8% + MANCOZEB 64% WP' },
   { tokens: ['MESOTRIONE', 'ATRAZINE'], canonical: 'MESOTRIONE 8% + ATRAZINE 80.8% WG' },
   { tokens: ['QUINCLORAC', 'BENSULFURON'], canonical: 'QUINCLORAC 34% + BENSULFURON-METHYL 2% WP' },

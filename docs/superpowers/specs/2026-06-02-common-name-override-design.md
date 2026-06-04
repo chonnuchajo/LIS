@@ -105,17 +105,17 @@ API methods ใน `src/lib/api.ts`: `getCommonNameOverrides`, `upsertCommonName
 ## Appendix A — Candidate mappings
 **อัปเดต 2026-06-04:** เพราะ positional ถูกเสมอ (ดู §ข้อจำกัดสำคัญ) canonical ทุกแถวด้านล่าง = interleave ชื่อสาร+% ตามตำแหน่งที่เขียน → mechanical, ไม่ ambiguous อีกต่อไป ⚠️ ที่เคย flag เรื่อง % สลับ **ยกเลิกได้ทั้งหมด** เหลือแค่เช็ค unit (เช่น ZC/SL) กับ % ปลายที่ string ขาด
 
-**สถานะ:** ✅ ครบทุกแถวแล้ว (positional ตรง, user ยืนยันส่วนที่ string โดนตัด) — กรอกลง DB แล้ว 18 overrides ผ่าน `server/scripts/seed-common-name-overrides.js`
+**สถานะ:** ✅ ครบทุกแถวแล้ว (positional ตรง, user ยืนยันส่วนที่ string โดนตัด) — กรอกลง DB แล้ว **19 overrides** ผ่าน `server/scripts/seed-common-name-overrides.js`. **ลำดับสารคงตามที่เขียนใน raw ทุกตัว ไม่สลับ** (user 2026-06-04); ทุก variant ของผลิตภัณฑ์เดียวกันยัง dedup เป็น row เดียวเพราะ override ชี้ canonical เดียวกัน
 
 | สถานะ | raw (จาก ERP) | canonical | หมายเหตุ |
 |---|---|---|---|
 | ✅ | `BIFENTHRIN + IMIDACLOPRID 5% + 25% W/V SC` | `BIFENTHRIN 5% + IMIDACLOPRID 25% W/V SC` | |
-| ✅ | `DIFENOCONAZOLE + AZOXYSTROBIN 12.5%+20% W/V SC` | `AZOXYSTROBIN 20% + DIFENOCONAZOLE 12.5% W/V SC` | %-pairing positional (DIFENO=12.5, AZOXY=20); **จัดลำดับให้ตรง twin #7 ที่เขียน AZOXY ก่อน** เพื่อให้ dedup รวมเป็น row เดียว |
+| ✅ | `DIFENOCONAZOLE + AZOXYSTROBIN 12.5%+20% W/V SC` | `DIFENOCONAZOLE 12.5% + AZOXYSTROBIN 20% W/V SC` | คงลำดับเดิม; variant `AZOXYSTROBIN 20%+DIFENOCONAZOLE 12.50% SC` ก็ override → canonical นี้ |
 | ✅ | `DIFENOCONAZOLE + PROPICONAZOLE 15% + 15% W/V EC` | `DIFENOCONAZOLE 15% + PROPICONAZOLE 15% W/V EC` | รวม #25 |
 | ✅ | `DIURON + HEXAZINONE 46.8% + 13.2% WG` | `DIURON 46.8% + HEXAZINONE 13.2% WG` | รวม #27, #28 |
 | ✅ | `DIURON 46.8%+HEXAZINONE 13.2% WG` | `DIURON 46.8% + HEXAZINONE 13.2% WG` | = ตัวบน |
 | ✅ | `DIURON+HEXAZINONE 46.8% +13.2% WG` | `DIURON 46.8% + HEXAZINONE 13.2% WG` | = ตัวบน |
-| ✅ | `TRIFLOXYSTROBIN + TEBUCONAZOLE 25% + 50% WG` | `TEBUCONAZOLE 50% + TRIFLOXYSTROBIN 25% WG` | %-pairing positional (TRIFLOX=25, TEBU=50); **จัดลำดับให้ตรง twin #44 ที่เขียน TEBU ก่อน** เพื่อให้ dedup รวมเป็น row เดียว |
+| ✅ | `TRIFLOXYSTROBIN + TEBUCONAZOLE 25% + 50% WG` | `TRIFLOXYSTROBIN 25% + TEBUCONAZOLE 50% WG` | คงลำดับเดิม; variant `TEBUCONAZOLE 50% + TRIFLOXYSTROBIN 25% WG` ก็ override → canonical นี้ |
 | ✅ | `CYMOXANIL + MANCOZEB 8% + 64% WP` | `CYMOXANIL 8% + MANCOZEB 64% WP` | |
 | ✅ | `MESOTRIONE + ATRAZINE 8%+80.8% WG` | `MESOTRIONE 8% + ATRAZINE 80.8% WG` | |
 | ✅ | `QUINCLORAC + BENSULFURON-METHYL 34% + 2% WP` | `QUINCLORAC 34% + BENSULFURON-METHYL 2% WP` | |
