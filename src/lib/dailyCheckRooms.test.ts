@@ -25,9 +25,14 @@ describe("dailyCheckRooms", () => {
     }
   });
 
-  it("marks the balance and sample-prep rooms as ready", () => {
+  it("marks all four rooms as ready", () => {
     const ready = DAILY_CHECK_ROOMS.filter((r) => r.ready);
-    expect(ready.map((r) => r.slug)).toEqual(["balance", "sample-prep"]);
+    expect(ready.map((r) => r.slug)).toEqual([
+      "balance",
+      "sample-prep",
+      "analysis",
+      "extraction",
+    ]);
   });
 
   it("looks up a room by slug and returns undefined for unknown slugs", () => {

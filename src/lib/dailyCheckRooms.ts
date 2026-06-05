@@ -68,14 +68,14 @@ export const DAILY_CHECK_ROOMS: DailyCheckRoom[] = [
     "GC 8890",
     "HPLC 1260 Infinity III",
     "HPLC Agilent 1260",
-  ]),
+  ], true),
   room("extraction", "ห้องสกัด", FlaskConical, [
     "Asirator pump",
     "Cooling",
     "Desiccator",
     "Heating mantle",
     "Magnetic stirrer",
-  ]),
+  ], true),
 ];
 
 export const getRoomBySlug = (slug: string): DailyCheckRoom | undefined =>
