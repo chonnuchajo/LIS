@@ -2,12 +2,32 @@ import { api } from "@/lib/api";
 import type { PrintDocType } from "@/lib/printConfig";
 
 // แปลง DOM node เป็น HTML string สำหรับส่งไป server.
-// node ควรมี <style> ของตัวเองฝังอยู่แล้ว (templates ส่วนใหญ่ทำแบบนี้);
-// COA ที่ CSS แยก ให้ส่ง css เข้ามาเพื่อ prepend
+// node ควรมี <style> ของตัวเองฝังอยู่แล้ว (บาง template ทำ); ที่เหลือใช้ Tailwind
+// ซึ่งต้องส่ง CSS ของแอปไปด้วย (ดู collectDocumentCss)
 export function serializeForPrint(el: HTMLElement | null, css?: string): string {
   if (!el) throw new Error("ไม่พบเนื้อหาสำหรับพิมพ์");
   const body = el.outerHTML;
   return css ? `<style>${css}</style>${body}` : body;
+}
+
+// รวบรวม CSS ทั้งหมดจาก stylesheet ของหน้า (Tailwind + global) เพื่อให้ PDF ฝั่ง server
+// หน้าตาตรงกับ preview ในแอป. ข้าม sheet ที่อ่านไม่ได้ (cross-origin เช่น Google Fonts).
+export function collectDocumentCss(): string {
+  let css = "";
+  if (typeof document === "undefined") return css;
+  for (const sheet of Array.from(document.styleSheets)) {
+    let rules: CSSRuleList | undefined;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      continue; // cross-origin stylesheet — not readable; server links fonts itself
+    }
+    if (!rules) continue;
+    for (const rule of Array.from(rules)) {
+      css += rule.cssText + "\n";
+    }
+  }
+  return css;
 }
 
 export interface PrintResult {
@@ -20,6 +40,8 @@ export async function printDocument(
   el: HTMLElement | null,
   opts?: { css?: string; copies?: number },
 ): Promise<PrintResult> {
-  const html = serializeForPrint(el, opts?.css);
+  // prepend the app's stylesheet first, then any per-call css (per-call wins on conflict)
+  const combinedCss = [collectDocumentCss(), opts?.css].filter(Boolean).join("\n");
+  const html = serializeForPrint(el, combinedCss || undefined);
   return api.printDocument({ docType, html, copies: opts?.copies });
 }

@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { serializeForPrint } from "./print";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { serializeForPrint, collectDocumentCss } from "./print";
 
 describe("serializeForPrint", () => {
   it("returns the element's outerHTML", () => {
@@ -20,5 +20,26 @@ describe("serializeForPrint", () => {
 
   it("throws on null element", () => {
     expect(() => serializeForPrint(null)).toThrow();
+  });
+});
+
+describe("collectDocumentCss", () => {
+  let styleEl: HTMLStyleElement;
+  beforeEach(() => {
+    styleEl = document.createElement("style");
+    styleEl.textContent = ".lis-test-marker{color:rgb(1,2,3);}";
+    document.head.appendChild(styleEl);
+  });
+  afterEach(() => {
+    styleEl.remove();
+  });
+
+  it("returns CSS text from document stylesheets including injected rules", () => {
+    const css = collectDocumentCss();
+    expect(css).toContain(".lis-test-marker");
+  });
+
+  it("never throws (cross-origin sheets are skipped)", () => {
+    expect(() => collectDocumentCss()).not.toThrow();
   });
 });
