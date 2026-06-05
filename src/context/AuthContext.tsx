@@ -126,23 +126,47 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     let active = true;
     const claims = account.idTokenClaims as { tid?: string; oid?: string } | undefined;
 
-    api
-      .post<{
-        id: string;
-        email: string;
-        name: string;
-        roleId: string;
-        permissions?: string[];
-        department: string;
-        position: string;
-        status: "active" | "inactive";
-      }>("/access-control/users/microsoft", {
-        email: account.username,
-        name: account.name ?? account.username,
-        microsoftId: claims?.oid ?? account.localAccountId,
-        tenantId: claims?.tid,
-      })
-      .then((res) => {
+    // Pull แผนก/ตำแหน่ง from Microsoft Graph so the LIS user record mirrors
+    // Azure AD instead of falling back to "Unassigned". Best-effort: if Graph is
+    // unavailable the backend keeps whatever it already has.
+    const fetchGraphProfile = async (): Promise<{ department?: string; position?: string }> => {
+      try {
+        const token = await instance.acquireTokenSilent({ account, scopes: ["User.Read"] });
+        const res = await fetch(
+          "https://graph.microsoft.com/v1.0/me?$select=department,jobTitle",
+          { headers: { Authorization: `Bearer ${token.accessToken}` } },
+        );
+        if (!res.ok) return {};
+        const profile = (await res.json()) as { department?: string; jobTitle?: string };
+        return {
+          department: profile.department?.trim() || undefined,
+          position: profile.jobTitle?.trim() || undefined,
+        };
+      } catch {
+        return {};
+      }
+    };
+
+    (async () => {
+      const { department, position } = await fetchGraphProfile();
+      try {
+        const res = await api.post<{
+          id: string;
+          email: string;
+          name: string;
+          roleId: string;
+          permissions?: string[];
+          department: string;
+          position: string;
+          status: "active" | "inactive";
+        }>("/access-control/users/microsoft", {
+          email: account.username,
+          name: account.name ?? account.username,
+          microsoftId: claims?.oid ?? account.localAccountId,
+          tenantId: claims?.tid,
+          department,
+          position,
+        });
         if (!active) return;
         setSyncedUser({
           id: res.data.data.id,
@@ -154,15 +178,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           position: res.data.data.position,
           status: res.data.data.status,
         });
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Failed to sync Microsoft user", err);
-      });
+      }
+    })();
 
     return () => {
       active = false;
     };
-  }, [account]);
+  }, [account, instance]);
 
   useEffect(() => {
     if (!account) {
