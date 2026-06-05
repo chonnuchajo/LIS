@@ -60,7 +60,7 @@ export const DAILY_CHECK_ROOMS: DailyCheckRoom[] = [
     "milli-Q",
     "Hood",
     "Density",
-  ]),
+  ], true),
   room("analysis", "ห้องวิเคราะห์", Microscope, [
     "อุณหภูมิ/ความชื้น (ห้องวิเคราะห์)",
     "GC 7890A",

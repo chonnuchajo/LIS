@@ -27,6 +27,7 @@ import StockDeduction from "./pages/StockDeduction";
 import DailyCheckLayout from "./pages/daily-check/DailyCheckLayout";
 import BalanceRoomPage from "./pages/daily-check/BalanceRoomPage";
 import RoomPlaceholderPage from "./pages/daily-check/RoomPlaceholderPage";
+import SamplePrepRoomPage from "./pages/daily-check/SamplePrepRoomPage";
 import EnvironmentCheckPage from "./pages/daily-check/EnvironmentCheckPage";
 import DocumentsPage from "./pages/daily-check/DocumentsPage";
 import NotFound from "./pages/NotFound";
@@ -84,7 +85,7 @@ const App = () => (
                 <Route index element={<Navigate to="/daily-check/environment" replace />} />
                 <Route path="environment" element={<EnvironmentCheckPage />} />
                 <Route path="balance" element={<BalanceRoomPage />} />
-                <Route path="sample-prep" element={<RoomPlaceholderPage slug="sample-prep" />} />
+                <Route path="sample-prep" element={<SamplePrepRoomPage />} />
                 <Route path="analysis" element={<RoomPlaceholderPage slug="analysis" />} />
                 <Route path="extraction" element={<RoomPlaceholderPage slug="extraction" />} />
                 <Route path="documents" element={<DocumentsPage />} />
