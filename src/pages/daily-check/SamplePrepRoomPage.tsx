@@ -139,8 +139,8 @@ const SamplePrepRoomPage = () => {
       readings,
       note: d.note,
       recorder: user.name,
-      recorderId: user.id,
-      recorderEmail: user.email,
+      recorderId: user.id ?? "",
+      recorderEmail: user.email ?? "",
     });
   };
 
