@@ -39,7 +39,7 @@
     {
       "collection": "petitions",
       "file": "petitions.json",
-      "count": 5
+      "count": 0
     },
     {
       "collection": "simplemethodexclusions",
@@ -79,7 +79,7 @@
     {
       "collection": "petitionauditlogs",
       "file": "petitionauditlogs.json",
-      "count": 180
+      "count": 187
     },
     {
       "collection": "realtimedensities",
@@ -104,7 +104,7 @@
     {
       "collection": "labrequests",
       "file": "labrequests.json",
-      "count": 14
+      "count": 15
     },
     {
       "collection": "commonnameoverrides",
