@@ -148,19 +148,50 @@ function valueAt(values: string[], index: number, fallbackToFirst = true): strin
   return values[index] ?? (fallbackToFirst ? values[0] : '') ?? '';
 }
 
+function getNestedSampleValues(
+  searchParams: URLSearchParams,
+  keys: string[],
+  options: { splitComma?: boolean } = {},
+): string[] {
+  const values: Array<{ index: number; value: string }> = [];
+  const lowerKeys = keys.map((key) => key.toLowerCase());
+
+  for (const [rawKey, rawValue] of searchParams.entries()) {
+    const match = rawKey.toLowerCase().match(/^samples\[(\d+)\]\[([^\]]+)\]$/);
+    if (!match || !lowerKeys.includes(match[2])) continue;
+    const index = Number(match[1]);
+    for (const item of splitQueryList(rawValue, options.splitComma)) {
+      values.push({ index, value: item });
+    }
+  }
+
+  return values
+    .sort((a, b) => a.index - b.index)
+    .map((item) => item.value);
+}
+
+function getSampleOrQueryValues(
+  searchParams: URLSearchParams,
+  keys: string[],
+  options: { splitComma?: boolean } = {},
+): string[] {
+  const nested = getNestedSampleValues(searchParams, keys, options);
+  return nested.length ? nested : getQueryValues(searchParams, keys, options);
+}
+
 function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRowValues[] {
   const singleItem = makeInitialItemFromQuery(searchParams);
-  const sampleNames = getQueryValues(searchParams, ['sampleName', 'itemName', 'productName'], { splitComma: true });
-  const batchNos = getQueryValues(searchParams, ['batchNo', 'batch'], { splitComma: true });
-  const lotNos = getQueryValues(searchParams, ['lotNo', 'lot'], { splitComma: true });
-  const commonNames = getQueryValues(searchParams, ['commonName', 'activeIngredient']);
-  const productionDates = getQueryValues(searchParams, ['productionDate', 'requestDate', 'mfgDate'], { splitComma: true });
-  const packageUnits = getQueryValues(searchParams, ['quantity', 'packageUnit', 'packSize', 'packsize']);
-  const testItems = getQueryValues(searchParams, ['testItems', 'tests']);
-  const notes = getQueryValues(searchParams, ['note']);
-  const itemNos = getQueryValues(searchParams, ['itemNo'], { splitComma: true });
-  const mfNos = getQueryValues(searchParams, ['mfNo'], { splitComma: true });
-  const priorities = getQueryValues(searchParams, ['priority'], { splitComma: true });
+  const sampleNames = getSampleOrQueryValues(searchParams, ['sampleName', 'itemName', 'productName'], { splitComma: true });
+  const batchNos = getSampleOrQueryValues(searchParams, ['batchNo', 'batch'], { splitComma: true });
+  const lotNos = getSampleOrQueryValues(searchParams, ['lotNo', 'lot'], { splitComma: true });
+  const commonNames = getSampleOrQueryValues(searchParams, ['commonName', 'activeIngredient']);
+  const productionDates = getSampleOrQueryValues(searchParams, ['productionDate', 'requestDate', 'mfgDate'], { splitComma: true });
+  const packageUnits = getSampleOrQueryValues(searchParams, ['quantity', 'packageUnit', 'packSize', 'packsize']);
+  const testItems = getSampleOrQueryValues(searchParams, ['testItems', 'tests']);
+  const notes = getSampleOrQueryValues(searchParams, ['note']);
+  const itemNos = getSampleOrQueryValues(searchParams, ['itemNo'], { splitComma: true });
+  const mfNos = getSampleOrQueryValues(searchParams, ['mfNo'], { splitComma: true });
+  const priorities = getSampleOrQueryValues(searchParams, ['priority'], { splitComma: true });
 
   const itemCount = Math.max(
     sampleNames.length,
@@ -388,7 +419,7 @@ export default function ProductionPetitionNewPage({
   const prodOrderNosFromQuery = useMemo(() => {
     const plural = getQueryValues(searchParams, ['prodOrderNos'], { splitComma: true });
     const singular = getQueryValues(searchParams, ['prodOrderNo'], { splitComma: true });
-    const mfNo = getQueryValues(searchParams, ['mfNo'], { splitComma: true });
+    const mfNo = getSampleOrQueryValues(searchParams, ['mfNo'], { splitComma: true });
     return [...plural, ...singular, ...mfNo];
   }, [searchParams]);
   const prodOrderNos = prodOrderNosFromState?.length ? prodOrderNosFromState : prodOrderNosFromQuery;
