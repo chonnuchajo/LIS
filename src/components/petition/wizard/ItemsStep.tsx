@@ -18,6 +18,8 @@ export interface ItemRowValues {
   testUnit: string;
   testItems: string;
   note: string;
+  labelQuantity?: string;
+  labelSampledDate?: string;
 }
 
 interface Props {
@@ -29,6 +31,7 @@ interface Props {
   submitterDepartment?: string;
   deliverer: SubmitterValues;
   onDelivererChange: (v: SubmitterValues) => void;
+  itemsReadOnly?: boolean;
 }
 
 export default function ItemsStep({
@@ -40,6 +43,7 @@ export default function ItemsStep({
   submitterDepartment,
   deliverer,
   onDelivererChange,
+  itemsReadOnly = false,
 }: Props) {
   function setItem(idx: number, patch: Partial<ItemRowValues>) {
     onChange(value.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
@@ -88,7 +92,7 @@ export default function ItemsStep({
             กรอกเลข batch และ lot สำหรับทุกตัวอย่าง — batch ที่ลงท้ายด้วย 1 หรือ 6 จะถูกขอใบคำขอรับบริการในขั้นถัดไป
           </p>
         </div>
-        <Button size="sm" variant="primary-outline" onClick={addItem}>
+        <Button size="sm" variant="primary-outline" onClick={addItem} disabled={itemsReadOnly}>
           <Plus className="h-4 w-4" />
           เพิ่มตัวอย่าง
         </Button>
@@ -108,7 +112,7 @@ export default function ItemsStep({
                     </span>
                   )}
                 </div>
-                {value.length > 1 && (
+                {value.length > 1 && !itemsReadOnly && (
                   <Button size="sm" variant="danger-outline" onClick={() => removeItem(idx)}>
                     <Trash2 className="h-4 w-4" />
                     ลบ
@@ -121,6 +125,7 @@ export default function ItemsStep({
                   <Input
                     value={it.sampleName}
                     onChange={(e) => setItem(idx, { sampleName: e.target.value })}
+                    disabled={itemsReadOnly}
                     placeholder="พิมพ์ชื่อตัวอย่าง"
                   />
                 </div>
@@ -129,6 +134,7 @@ export default function ItemsStep({
                   <Input
                     value={it.batchNo}
                     onChange={(e) => setItem(idx, { batchNo: e.target.value })}
+                    disabled={itemsReadOnly}
                     placeholder="เช่น BN240601"
                   />
                 </div>
@@ -137,6 +143,7 @@ export default function ItemsStep({
                   <Input
                     value={it.lotNo}
                     onChange={(e) => setItem(idx, { lotNo: e.target.value })}
+                    disabled={itemsReadOnly}
                     placeholder="เช่น L240601"
                   />
                 </div>
@@ -145,6 +152,7 @@ export default function ItemsStep({
                   <Input
                     value={it.commonName}
                     onChange={(e) => setItem(idx, { commonName: e.target.value })}
+                    disabled={itemsReadOnly}
                   />
                 </div>
                 <div>
@@ -153,6 +161,7 @@ export default function ItemsStep({
                     type="date"
                     value={it.productionDate ?? ''}
                     onChange={(e) => setItem(idx, { productionDate: e.target.value || null })}
+                    disabled={itemsReadOnly}
                   />
                 </div>
                 <div>
@@ -160,6 +169,7 @@ export default function ItemsStep({
                   <Input
                     value={it.packageUnit}
                     onChange={(e) => setItem(idx, { packageUnit: e.target.value })}
+                    disabled={itemsReadOnly}
                     placeholder="เช่น 1 kg × 20 ถุง"
                   />
                 </div>
@@ -180,6 +190,7 @@ export default function ItemsStep({
                     rows={2}
                     value={it.note}
                     onChange={(e) => setItem(idx, { note: e.target.value })}
+                    disabled={itemsReadOnly}
                   />
                 </div>
               </div>

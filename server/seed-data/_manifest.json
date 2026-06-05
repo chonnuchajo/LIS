@@ -94,7 +94,11 @@
     {
       "collection": "equipmentchecks",
       "file": "equipmentchecks.json",
+<<<<<<< HEAD
       "count": 1
+=======
+      "count": 0
+>>>>>>> 42fc752a7b4a742e42fad306988938dd54203f42
     },
     {
       "collection": "standardconfigs",
