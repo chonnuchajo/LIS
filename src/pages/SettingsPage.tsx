@@ -6,6 +6,7 @@ import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import EnvRoomConfigCard from "@/components/lis/EnvRoomConfigCard";
 import PrintConfigCard from "@/components/lis/PrintConfigCard";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { useEnvRooms } from "@/hooks/useEnvRooms";
 import type { EnvRoom, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
@@ -66,40 +67,52 @@ const SettingsPage = () => {
             ตั้งค่าระบบ
           </span>
         }
-        description="ตั้งค่าห้องตรวจสภาพแวดล้อม (Environment) — เลือก board และเกณฑ์ temp/humidity ของแต่ละห้อง"
+        description="จัดการการตั้งค่าระบบ — แยกตามหมวดในแต่ละแท็บ"
       />
-      <div className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground">ตั้งค่าห้องตรวจสภาพแวดล้อม</h2>
-        {isLoading ? (
-          <p className="text-sm text-muted-foreground">กำลังโหลด…</p>
-        ) : (
+      <Tabs defaultValue="environment">
+        <TabsList>
+          <TabsTrigger value="environment">ห้องตรวจสภาพแวดล้อม</TabsTrigger>
+          <TabsTrigger value="printers">เครื่องพิมพ์เอกสาร</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="environment" className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            เลือก board และเกณฑ์ temp/humidity ของแต่ละห้อง
+          </p>
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">กำลังโหลด…</p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {rooms.map((room) => (
+                <EnvRoomConfigCard
+                  key={room.slug}
+                  room={room}
+                  detectedBoards={detectedBoards}
+                  saving={saveMutation.isPending}
+                  onSave={(slug, input) => saveMutation.mutate({ slug, input })}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="printers" className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            เลือกเครื่องพิมพ์ปลายทางของเอกสารแต่ละชนิด
+          </p>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {rooms.map((room) => (
-              <EnvRoomConfigCard
-                key={room.slug}
-                room={room}
-                detectedBoards={detectedBoards}
-                saving={saveMutation.isPending}
-                onSave={(slug, input) => saveMutation.mutate({ slug, input })}
+            {printConfigs.map((cfg) => (
+              <PrintConfigCard
+                key={cfg.slug}
+                config={cfg}
+                printers={printers}
+                saving={savePrintMutation.isPending}
+                onSave={(slug, input) => savePrintMutation.mutate({ slug, input })}
               />
             ))}
           </div>
-        )}
-      </div>
-      <div className="space-y-3 mt-8">
-        <h2 className="text-sm font-semibold text-muted-foreground">เครื่องพิมพ์เอกสาร</h2>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {printConfigs.map((cfg) => (
-            <PrintConfigCard
-              key={cfg.slug}
-              config={cfg}
-              printers={printers}
-              saving={savePrintMutation.isPending}
-              onSave={(slug, input) => savePrintMutation.mutate({ slug, input })}
-            />
-          ))}
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
     </AppLayout>
   );
 };

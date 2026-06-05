@@ -1,6 +1,7 @@
 import type { ParameterItem, ParameterValueField } from '@/lib/api';
 import type { PetitionItem, Petition } from '@/types/petition.types';
 import { getClassification, getCommonName } from '@/lib/productClassification';
+import { isLabBatch } from '@/types/productionPlan.types';
 
 function extractItemNoPrefix(itemNo: string | undefined | null): string {
   const cleaned = String(itemNo ?? '').trim();
@@ -72,7 +73,16 @@ export function matchParametersForItem(
   item: PetitionItem,
   params: ParameterItem[],
 ): ParameterItem[] {
-  const active = params.filter((p) => p.status !== 'inactive');
+  // Lab-scope parameters only apply to items actually sent to lab
+  // (lab batch = batchNo ending in 1/6). This gate is independent of the
+  // param's "ใช้กับ" classification — applyAll must not leak a lab param
+  // onto non-lab items. QC params are unaffected.
+  const itemIsLab = item.batchNo ? isLabBatch(item.batchNo) : false;
+  const active = params.filter(
+    (p) =>
+      p.status !== 'inactive' &&
+      ((p.scope ?? 'qc') !== 'lab' || itemIsLab),
+  );
 
   if (!item.testItems) {
     return active.filter((p) => parameterAppliesToItem(p, item));

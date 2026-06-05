@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   getItemProductType,
   getItemSubCategory,
+  matchParametersForItem,
   visibleEnumOptions,
 } from './petitionTestItems';
-import type { ParameterValueField } from './api';
+import type { ParameterItem, ParameterValueField } from './api';
 import type { PetitionItem } from '@/types/petition.types';
 
 const makeItem = (overrides: Partial<PetitionItem> = {}): PetitionItem => ({
@@ -20,6 +21,39 @@ const makeEnumField = (overrides: Partial<ParameterValueField> = {}): ParameterV
   type: 'enum',
   options: ['ของเหลวใส', 'ของเหลวขุ่น', 'ผงละเอียด'],
   ...overrides,
+});
+
+const makeParam = (overrides: Partial<ParameterItem> = {}): ParameterItem => ({
+  name: '%AI',
+  status: 'active',
+  applyAll: true,
+  ...overrides,
+} as ParameterItem);
+
+describe('matchParametersForItem — lab-scope gating', () => {
+  // A lab-scope parameter only applies to items actually sent to lab
+  // (lab batch = batchNo ending in 1 or 6). applyAll must NOT override this.
+  it('excludes an applyAll lab param from a non-lab-batch item', () => {
+    const param = makeParam({ scope: 'lab' });
+    const item = makeItem({ batchNo: 'AB-2502' }); // ends in 2 → not lab
+    expect(matchParametersForItem(item, [param])).toEqual([]);
+  });
+
+  it('includes an applyAll lab param on a lab-batch item', () => {
+    const param = makeParam({ scope: 'lab' });
+    expect(matchParametersForItem(makeItem({ batchNo: 'AB-2501' }), [param])).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ batchNo: 'AB-2506' }), [param])).toHaveLength(1);
+  });
+
+  it('still matches qc-scope applyAll params on any item (unchanged)', () => {
+    const param = makeParam({ scope: 'qc' });
+    expect(matchParametersForItem(makeItem({ batchNo: 'AB-2502' }), [param])).toHaveLength(1);
+  });
+
+  it('treats a param with no scope as qc (not lab-gated)', () => {
+    const param = makeParam({ scope: undefined });
+    expect(matchParametersForItem(makeItem({ batchNo: 'AB-2502' }), [param])).toHaveLength(1);
+  });
 });
 
 describe('getItemProductType', () => {

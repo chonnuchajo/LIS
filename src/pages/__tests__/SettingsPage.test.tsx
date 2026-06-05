@@ -46,4 +46,14 @@ describe("SettingsPage", () => {
     expect(screen.getAllByText("อุณหภูมิต่ำสุด (°C)")).toHaveLength(3);
     expect(screen.getAllByText("ความชื้นสูงสุด (%RH)")).toHaveLength(3);
   });
+
+  it("groups the settings into an environment tab and a printer tab", async () => {
+    renderPage();
+    expect(
+      await screen.findByRole("tab", { name: "ห้องตรวจสภาพแวดล้อม" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "เครื่องพิมพ์เอกสาร" }),
+    ).toBeInTheDocument();
+  });
 });
