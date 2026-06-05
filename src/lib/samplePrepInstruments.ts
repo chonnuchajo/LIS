@@ -37,7 +37,7 @@ export const SAMPLE_PREP_INSTRUMENTS: SamplePrepInstrument[] = [
   // --- temp: + temperature reading ---
   { id: "LD-009", name: "Hot Air Oven", brand: "Memmert", group: "temp", readings: [TEMP] },
   { id: "LD-010", name: "Oven", brand: "", group: "temp", readings: [TEMP] },
-  { id: "LD-029", name: "Water bath", brand: "MEMMERT", group: "temp", readings: [TEMP] },
+  { id: "LD-029", name: "Water bath", brand: "Memmert", group: "temp", readings: [TEMP] },
   { id: "LD-016", name: "Desiccator 1", brand: "", group: "temp", readings: [TEMP] },
   // --- ph: + pH reading ---
   { id: "LD-011", name: "pH Meter", brand: "Mettler Toledo", group: "ph", readings: [PH] },

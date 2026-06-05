@@ -5,10 +5,12 @@ import {
   samplePrepGroups,
   getSamplePrepInstrument,
 } from "./samplePrepInstruments";
+import { getRoomBySlug } from "./dailyCheckRooms";
 
 describe("samplePrepInstruments catalog", () => {
-  it("targets the sample-prep room", () => {
+  it("slug resolves to a registered Daily Check room", () => {
     expect(SAMPLE_PREP_ROOM_SLUG).toBe("sample-prep");
+    expect(getRoomBySlug(SAMPLE_PREP_ROOM_SLUG)).toBeDefined();
   });
 
   it("has 13 instruments with unique ids", () => {
