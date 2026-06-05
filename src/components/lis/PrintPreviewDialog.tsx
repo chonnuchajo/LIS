@@ -78,8 +78,9 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
               id="print-copies"
               type="number"
               min={1}
+              max={99}
               value={copies}
-              onChange={(e) => setCopies(Math.max(1, parseInt(e.target.value || "1", 10)))}
+              onChange={(e) => setCopies(Math.min(99, Math.max(1, parseInt(e.target.value || "1", 10))))}
               className="w-20"
             />
             {configured && <span className="text-sm text-muted-foreground">→ {cfg?.printerName}</span>}

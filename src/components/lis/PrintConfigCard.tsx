@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,13 @@ export default function PrintConfigCard({ config, printers, saving, onSave }: Pr
   const [printerName, setPrinterName] = useState(config.printerName);
   const [copies, setCopies] = useState(config.copies);
   const [paperSize, setPaperSize] = useState(config.paperSize);
+
+  useEffect(() => {
+    setPrinterName(config.printerName);
+    setCopies(config.copies);
+    setPaperSize(config.paperSize);
+  }, [config]);
+
   const meta = getPrintDocType(config.slug);
 
   function handleSave() {
@@ -47,8 +54,8 @@ export default function PrintConfigCard({ config, printers, saving, onSave }: Pr
         <div className="flex gap-3">
           <div className="space-y-1">
             <Label className="text-xs">จำนวนชุด</Label>
-            <Input type="number" min={1} value={copies}
-              onChange={(e) => setCopies(Math.max(1, parseInt(e.target.value || "1", 10)))}
+            <Input type="number" min={1} max={99} value={copies}
+              onChange={(e) => setCopies(Math.min(99, Math.max(1, parseInt(e.target.value || "1", 10))))}
               className="w-20" />
           </div>
           <div className="space-y-1">
