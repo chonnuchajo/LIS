@@ -18,6 +18,8 @@ export interface ItemRowValues {
   testUnit: string;
   testItems: string;
   note: string;
+  labelQuantity?: string;
+  labelSampledDate?: string;
 }
 
 interface Props {

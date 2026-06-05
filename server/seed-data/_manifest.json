@@ -92,6 +92,11 @@
       "count": 0
     },
     {
+      "collection": "equipmentchecks",
+      "file": "equipmentchecks.json",
+      "count": 0
+    },
+    {
       "collection": "standardconfigs",
       "file": "standardconfigs.json",
       "count": 5

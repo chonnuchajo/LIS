@@ -23,7 +23,7 @@ import type { Petition, ProductionPetition } from '@/types/petition.types';
 
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
 const ICP_LADDA_COMPANY = 'ICP Ladda Co., LTD.';
-const PRODUCTION_RETURN_URL = 'https://app-plant.icpladda.com/production/public/sample_analysis.php?status=&q=';
+const PRODUCTION_RETURN_URL = 'https://app-plant.icpladda.com/production/public/sample_analysis.php';
 
 type StepKey = 'items' | 'plan' | 'lab';
 
@@ -61,6 +61,22 @@ function getQueryValue(searchParams: URLSearchParams, keys: string[]): string {
     if (value) return value;
   }
   return '';
+}
+
+function buildProductionReturnUrl(searchParams: URLSearchParams, createdPetition?: Petition | null): string {
+  const requestNo = getQueryValue(searchParams, ['requestNo', 'submissionNo']);
+  const url = new URL(PRODUCTION_RETURN_URL);
+  url.searchParams.set('status', '');
+  if (requestNo) {
+    url.searchParams.set('q', requestNo);
+    url.searchParams.set('requestNo', requestNo);
+  }
+  url.searchParams.set('lisStatus', 'sent');
+  url.searchParams.set('lisSent', '1');
+  if (createdPetition?.petitionNo) {
+    url.searchParams.set('lisPetitionNo', createdPetition.petitionNo);
+  }
+  return url.toString();
 }
 
 function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues | null {
@@ -148,6 +164,10 @@ function valueAt(values: string[], index: number, fallbackToFirst = true): strin
   return values[index] ?? (fallbackToFirst ? values[0] : '') ?? '';
 }
 
+function makeQuantityLabel(qty: string, unit: string): string {
+  return [qty, unit].filter(Boolean).join(' ');
+}
+
 function getNestedSampleValues(
   searchParams: URLSearchParams,
   keys: string[],
@@ -187,6 +207,8 @@ function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRowValues
   const commonNames = getSampleOrQueryValues(searchParams, ['commonName', 'activeIngredient']);
   const productionDates = getSampleOrQueryValues(searchParams, ['productionDate', 'requestDate', 'mfgDate'], { splitComma: true });
   const packageUnits = getSampleOrQueryValues(searchParams, ['quantity', 'packageUnit', 'packSize', 'packsize']);
+  const quantities = getSampleOrQueryValues(searchParams, ['qty', 'quantityValue', 'amount'], { splitComma: true });
+  const quantityUnits = getSampleOrQueryValues(searchParams, ['unit', 'qtyUnit', 'quantityUnit'], { splitComma: true });
   const testItems = getSampleOrQueryValues(searchParams, ['testItems', 'tests']);
   const notes = getSampleOrQueryValues(searchParams, ['note']);
   const itemNos = getSampleOrQueryValues(searchParams, ['itemNo'], { splitComma: true });
@@ -200,6 +222,8 @@ function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRowValues
     commonNames.length,
     productionDates.length,
     packageUnits.length,
+    quantities.length,
+    quantityUnits.length,
     testItems.length,
     notes.length,
     itemNos.length,
@@ -209,7 +233,14 @@ function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRowValues
 
   if (itemCount <= 1) {
     if (!singleItem) return [];
-    return [{ ...singleItem, packageUnit: packageUnits[0] || singleItem.packageUnit }];
+    const productionDate = productionDates[0] || singleItem.productionDate || '';
+    return [{
+      ...singleItem,
+      productionDate: productionDate || null,
+      packageUnit: packageUnits[0] || singleItem.packageUnit,
+      labelQuantity: makeQuantityLabel(quantities[0] ?? '', quantityUnits[0] ?? ''),
+      labelSampledDate: productionDate,
+    }];
   }
 
   const items: ItemRowValues[] = [];
@@ -233,6 +264,8 @@ function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRowValues
       packageUnit: valueAt(packageUnits, i),
       testItems: valueAt(testItems, i),
       note,
+      labelQuantity: makeQuantityLabel(valueAt(quantities, i, false), valueAt(quantityUnits, i)),
+      labelSampledDate: valueAt(productionDates, i),
     };
 
     if ([
@@ -242,6 +275,8 @@ function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRowValues
       item.commonName,
       item.productionDate,
       item.packageUnit,
+      item.labelQuantity,
+      item.labelSampledDate,
       item.testItems,
       item.note,
     ].some(Boolean)) {
@@ -698,7 +733,7 @@ export default function ProductionPetitionNewPage({
 
   function handlePageBack() {
     if (publicMode) {
-      window.location.href = PRODUCTION_RETURN_URL;
+      window.location.href = buildProductionReturnUrl(searchParams, createdPetition);
       return;
     }
     navigate('/petitions');
