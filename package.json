@@ -8,7 +8,7 @@
     "dev": "vite",
     "prebuild": "node scripts/restore-index.mjs",
     "build": "vite build",
-    "postbuild": "node scripts/deploy-dist-to-root.mjs",
+    "postbuild": "node scripts/deploy-dist-to-root.mjs && node scripts/seed-and-restart-server.mjs",
     "build:dev": "vite build --mode development",
     "build:watch": "node scripts/build-watch.mjs",
     "lint": "eslint .",
