@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { flushSync } from 'react-dom';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { FileText, Pencil, Printer, RotateCcw, Trash2 } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
@@ -20,9 +19,7 @@ import {
 import PetitionView from '@/components/petition/PetitionView';
 import PetitionPrintTemplate from '@/components/petition/PetitionPrintTemplate';
 import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
-import ProductionPlanPrintTemplate from '@/components/petition/ProductionPlanPrintTemplate';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
-import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
 import ReviewHistory from '@/components/review/ReviewHistory';
 import {
   usePetition,
@@ -37,8 +34,6 @@ import {
 } from '@/types/petition.types';
 import { useAuth } from '@/hooks/useAuth';
 import { useSamples } from '@/context/SampleContext';
-
-type PrintTarget = 'label' | 'agreement' | 'production-plan' | null;
 
 function QcNoteSection({ petition }: { petition: Petition }) {
   const qcNote = (petition.reviewHistory ?? []).find((e) => e.action === 'note') ?? null;
@@ -119,49 +114,15 @@ export default function PetitionDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const autoPrintDone = useRef(false);
-  const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
   const [printOpen, setPrintOpen] = useState(false);
-
-  function triggerPrint(target: Exclude<PrintTarget, null>) {
-    flushSync(() => setPrintTarget(target));
-    const img = new Image();
-    img.src = ICP_LADDA_LOGO_URL;
-    if (img.complete && img.naturalWidth > 0) {
-      window.print();
-    } else {
-      const done = () => window.print();
-      img.onload = done;
-      img.onerror = done;
-    }
-  }
-
-  useEffect(() => {
-    const img = new Image();
-    img.src = ICP_LADDA_LOGO_URL;
-  }, []);
-
-  useEffect(() => {
-    const before = () => {
-      document.title = ' ';
-    };
-    const after = () => {
-      document.title = 'ICPLadda - LIS';
-      setPrintTarget(null);
-    };
-    window.addEventListener('beforeprint', before);
-    window.addEventListener('afterprint', after);
-    return () => {
-      window.removeEventListener('beforeprint', before);
-      window.removeEventListener('afterprint', after);
-    };
-  }, []);
+  const [labelPrintOpen, setLabelPrintOpen] = useState(false);
 
   useEffect(() => {
     const state = location.state as { autoPrint?: boolean } | null;
     if (state?.autoPrint && data && !loading && !autoPrintDone.current) {
       autoPrintDone.current = true;
       navigate(location.pathname, { replace: true, state: {} });
-      setTimeout(() => triggerPrint('label'), 300);
+      setTimeout(() => setLabelPrintOpen(true), 300);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, loading]);
@@ -198,28 +159,10 @@ export default function PetitionDetailPage() {
           const isRequester = user?.name === data.submittedBy?.name;
           const canEdit = data.status === 'deliveringQC' && isRequester;
           const canDelete = isAdmin || (data.status === 'deliveringQC' && isRequester);
-          const isProduction = data.dept === 'production';
           const hasLabRequests = (labRequests?.length ?? 0) > 0;
 
           return (
             <div className="space-y-6">
-              {printTarget === 'label' && (
-                <div className="hidden print:block">
-                  <SampleLabelPrintTemplate petition={data} />
-                </div>
-              )}
-              {printTarget === 'production-plan' && isProduction && (
-                <div className="hidden print:block">
-                  {data.productionPlans.map((plan) => (
-                    <ProductionPlanPrintTemplate
-                      key={plan.batchNo}
-                      plan={plan}
-                      petition={data}
-                    />
-                  ))}
-                </div>
-              )}
-
               <div className="print:hidden space-y-6">
                 {data.status === 'rejected' && (() => {
                   const rejectEntry = [...(data.reviewHistory ?? [])].reverse().find((e) => e.action === 'reject');
@@ -268,7 +211,7 @@ export default function PetitionDetailPage() {
                   title={data.petitionNo}
                   actions={
                     <>
-                      <Button variant="primary-outline" size="sm" onClick={() => triggerPrint('label')}>
+                      <Button variant="primary-outline" size="sm" onClick={() => setLabelPrintOpen(true)}>
                         <Printer className="h-4 w-4" />
                         พิมพ์ฉลาก
                       </Button>
@@ -366,6 +309,11 @@ export default function PetitionDetailPage() {
               {hasLabRequests && (
                 <PrintPreviewDialog open={printOpen} onOpenChange={setPrintOpen} docType="service-request">
                   <PetitionPrintTemplate labRequest={labRequests![0]} petition={data} />
+                </PrintPreviewDialog>
+              )}
+              {data && (
+                <PrintPreviewDialog open={labelPrintOpen} onOpenChange={setLabelPrintOpen} docType="sample-label">
+                  <SampleLabelPrintTemplate petition={data} />
                 </PrintPreviewDialog>
               )}
             </div>
