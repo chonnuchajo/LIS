@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import QRCode from 'qrcode';
 import { ArrowLeft, ArrowRight, CheckCircle2, Factory, Printer, RotateCcw, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
@@ -105,6 +106,117 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
     testItems,
     note,
   };
+}
+
+function toBuddhistShort(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String((d.getFullYear() + 543) % 100).padStart(2, '0');
+  return `${dd}/${mm}/${yy}`;
+}
+
+function currentBuddhistYearShort(): string {
+  return String((new Date().getFullYear() + 543) % 100).padStart(2, '0');
+}
+
+function getQrValue(petition: Petition, item: Petition['items'][number]): string {
+  return JSON.stringify({
+    id: petition._id,
+    petitionNo: petition.petitionNo,
+    sampleId: item.sampleId || '',
+    itemSeq: item.seq,
+  });
+}
+
+function PreviewQrCode({ value }: { value: string }) {
+  const qr = QRCode.create(value, { errorCorrectionLevel: 'M' });
+  const size = qr.modules.size;
+  const modules = Array.from(qr.modules.data as Uint8Array);
+
+  return (
+    <svg
+      viewBox={`0 0 ${size} ${size}`}
+      className="h-20 w-20 shrink-0"
+      role="img"
+      aria-label={`QR ${value}`}
+      shapeRendering="crispEdges"
+    >
+      <rect width={size} height={size} fill="#fff" />
+      {modules.map((filled, index) => {
+        if (!filled) return null;
+        const x = index % size;
+        const y = Math.floor(index / size);
+        return <rect key={index} x={x} y={y} width="1" height="1" fill="#000" />;
+      })}
+    </svg>
+  );
+}
+
+function LabelPreview({ petition }: { petition: Petition }) {
+  const yearShort = currentBuddhistYearShort();
+
+  return (
+    <div className="space-y-3">
+      {petition.items.map((item) => {
+        const productLine = [item.sampleName, item.commonName].filter(Boolean).join(' ');
+        return (
+          <div
+            key={item.seq}
+            className="mx-auto w-full max-w-[760px] rounded-md border border-black bg-white p-4 text-black shadow-sm"
+          >
+            <div className="mb-3 flex items-start gap-3">
+              <div className="shrink-0 border border-black bg-white p-1">
+                <PreviewQrCode value={getQrValue(petition, item)} />
+              </div>
+              <div className="flex-1 text-center text-sm font-semibold">
+                ป้ายนำส่งตัวอย่าง บริษัท ไอ ซี พี ลัดดา จำกัด
+              </div>
+              <div className="flex items-end gap-1 whitespace-nowrap text-sm">
+                <span>เลขที่</span>
+                <span className="inline-block min-w-[4rem] border-b border-black px-1 text-center">
+                  {item.sampleId || '\u00a0'}
+                </span>
+                <span>/</span>
+                <span className="inline-block min-w-[2rem] border-b border-black px-1 text-center">
+                  {yearShort}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-sm">
+              <PreviewField label="ชื่อผลิตภัณฑ์ และสารสำคัญ" value={productLine} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <PreviewField label="วัน เดือน ปี ที่ผลิต/นำเข้า" value={toBuddhistShort(item.productionDate)} />
+                <PreviewField label="แบชนัมเบอร์" value={item.batchNo} />
+              </div>
+              <PreviewField label="ผู้ผลิต" value={item.labelManufacturer} />
+              <PreviewField label="ผู้ขาย" value={item.labelSeller} />
+              <div className="grid gap-3 sm:grid-cols-3">
+                <PreviewField label="ปริมาณ" value={item.labelQuantity} />
+                <PreviewField label="สุ่มโดย" value={item.labelSampledBy} />
+                <PreviewField label="ว/ด/ป" value={toBuddhistShort(item.labelSampledDate)} />
+              </div>
+              <PreviewField label="หมายเหตุ" value={item.labelRemark} />
+            </div>
+
+            <div className="mt-3 text-[10px]">F-LAB-01-10 Rev : 01 01/04/67</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PreviewField({ label, value }: { label: string; value?: string }) {
+  return (
+    <div className="flex items-end gap-1">
+      <span className="whitespace-nowrap">{label}</span>
+      <span className="min-h-[1.25rem] flex-1 border-b border-black px-1">{value || ''}</span>
+    </div>
+  );
 }
 
 function makeBlankLabRequest(
@@ -469,6 +581,16 @@ export default function ProductionPetitionNewPage({
                 </Button>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="mb-4">
+              <h2 className="text-base font-semibold text-foreground">Preview สติกเกอร์</h2>
+              <p className="text-sm text-muted-foreground">แสดงตัวอย่างบนหน้าเว็บก่อนสั่งพิมพ์จริง</p>
+            </div>
+            <LabelPreview petition={createdPetition} />
           </CardContent>
         </Card>
       </div>
