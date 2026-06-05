@@ -4,7 +4,8 @@ const BASE = 'http://localhost:8000/LIS';
 const API = 'http://localhost:3001/api';
 
 test.describe('Service Request (ใบขอรับบริการ) print', () => {
-  test('renders print template when clicking พิมพ์ใบคำขอรับบริการ', async ({ page, request }) => {
+  test('opens PrintPreviewDialog, POSTs to /api/print, shows toast on success', async ({ page, request }) => {
+    // --- 1. Discover a petition with a lab request (same approach as original test) ---
     const listRes = await request.get(`${API}/lab-requests?limit=1`);
     expect(listRes.ok()).toBe(true);
     const listBody = (await listRes.json()) as {
@@ -17,73 +18,80 @@ test.describe('Service Request (ใบขอรับบริการ) print',
     const labRequestNo = listBody.items[0].labRequestNo;
     console.log('using petition:', petitionId, 'lab request:', labRequestNo);
 
-    await page.addInitScript(() => {
-      (window as Window & { __printCalls?: number }).__printCalls = 0;
-      window.print = () => {
-        (window as Window & { __printCalls?: number }).__printCalls! += 1;
-        window.dispatchEvent(new Event('beforeprint'));
-      };
-    });
-
     page.on('pageerror', (err) => console.log('[pageerror]', err.message));
     page.on('console', (m) => {
       if (m.type() === 'error') console.log('[console.error]', m.text());
     });
 
+    // --- 2. Mock print API routes BEFORE navigation ---
+    // /api/print/config — service-request has a printer configured
+    await page.route('**/api/print/config', (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: [
+            { slug: 'service-request', printerName: 'TEST', copies: 1, paperSize: 'A4' },
+          ],
+        }),
+      });
+    });
+
+    // /api/print/printers — list of known printers
+    await page.route('**/api/print/printers', (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: ['TEST'] }),
+      });
+    });
+
+    // POST /api/print — capture body + return success; let GETs fall through
+    let capturedPrintBody: Record<string, unknown> | null = null;
+    await page.route('**/api/print', async (route) => {
+      if (route.request().method() === 'POST') {
+        capturedPrintBody = route.request().postDataJSON() as Record<string, unknown>;
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: true, printer: 'TEST', copies: 1 }),
+        });
+      }
+      // Non-POST requests (shouldn't normally happen on bare /api/print) fall through
+      return route.fallback();
+    });
+
+    // --- 3. Navigate to petition detail ---
     await page.setViewportSize({ width: 1500, height: 900 });
     await page.goto(`${BASE}/petitions/${petitionId}`);
     await expect(page.getByRole('heading', { name: /P-\d{4}-\d{4}/ })).toBeVisible({ timeout: 15000 });
 
+    // --- 4. Click print button to open the PrintPreviewDialog ---
     const printButton = page.getByRole('button', { name: 'พิมพ์ใบคำขอรับบริการ' });
     await expect(printButton).toBeVisible();
     await printButton.click();
 
-    await expect
-      .poll(
-        async () =>
-          page.evaluate(() => (window as Window & { __printCalls?: number }).__printCalls ?? 0),
-        { timeout: 10_000 },
-      )
-      .toBeGreaterThanOrEqual(1);
+    // --- 5. Assert the dialog opened with the correct title ---
+    // Title pattern: "ตัวอย่างก่อนพิมพ์ — ใบคำขอ (Petition)"
+    await expect(page.getByRole('heading', { name: /ตัวอย่างก่อนพิมพ์/ })).toBeVisible({ timeout: 10000 });
+    // Also confirm the printer name is shown in the dialog (configured state)
+    await expect(page.getByText('→ TEST')).toBeVisible({ timeout: 5000 });
+    // The "พิมพ์" button inside the dialog should be ENABLED (printer is configured)
+    const dialogPrintButton = page.getByRole('button', { name: /^พิมพ์$/ });
+    await expect(dialogPrintButton).toBeEnabled({ timeout: 5000 });
 
-    await page.evaluate(() => {
-      document.querySelectorAll<HTMLElement>('.hidden.print\\:block').forEach((el) => {
-        el.classList.remove('hidden');
-      });
-    });
+    // --- 6. Click "พิมพ์" inside the dialog and assert POST + toast ---
+    await dialogPrintButton.click();
 
-    const root = page.locator('.pr-root').first();
-    await expect(root).toBeVisible();
+    // Assert POST body has correct docType
+    await expect.poll(() => capturedPrintBody, { timeout: 10000 }).not.toBeNull();
+    expect(capturedPrintBody).toMatchObject({ docType: 'service-request' });
+    expect(typeof (capturedPrintBody as Record<string, unknown>).html).toBe('string');
 
-    const page1Text = await page.locator('.pr-page1').first().innerText();
-    const page2Text = await page.locator('.pr-page2').first().innerText();
-    console.log('=== PAGE 1 TEXT ===');
-    console.log(page1Text);
-    console.log('=== PAGE 2 TEXT ===');
-    console.log(page2Text);
+    // Assert success toast
+    await expect(page.getByText(/ส่งพิมพ์ไปยัง TEST/)).toBeVisible({ timeout: 10000 });
 
-    await page.screenshot({
-      path: 'tests/e2e/screenshots/service-request-screen.png',
-      fullPage: true,
-    });
-    await page.locator('.pr-page1').first().screenshot({
-      path: 'tests/e2e/screenshots/service-request-page1.png',
-    });
-    await page.locator('.pr-page2').first().screenshot({
-      path: 'tests/e2e/screenshots/service-request-page2.png',
-    });
-
-    await page.emulateMedia({ media: 'print' });
-    await page.locator('.pr-page2').first().screenshot({
-      path: 'tests/e2e/screenshots/service-request-page2-print.png',
-    });
-    await page.locator('.pr-page1').first().screenshot({
-      path: 'tests/e2e/screenshots/service-request-page1-print.png',
-    });
-    await page.pdf({
-      path: 'tests/e2e/screenshots/service-request-print.pdf',
-      format: 'A4',
-      printBackground: true,
-    });
+    // Dialog should auto-close after success
+    await expect(page.getByRole('heading', { name: /ตัวอย่างก่อนพิมพ์/ })).not.toBeVisible({ timeout: 5000 });
   });
 });
