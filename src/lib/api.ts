@@ -234,6 +234,27 @@ export const api = {
     }).then(r => r.data),
   getEnvCheckTodaySummary: () =>
     request<{ data: EnvCheckTodaySummary }>("/env-checks/summary/today").then(r => r.data),
+
+  // Equipment Check (เช็กการทำงานเครื่องมือประจำวัน — ห้องเตรียมตัวอย่าง ฯลฯ)
+  getEquipmentChecks: (params: {
+    room: string;
+    date?: string;          // YYYY-MM-DD หรือ "all"
+    from?: string;
+    to?: string;
+    instrumentId?: string;
+    status?: "normal" | "abnormal";
+  }) => {
+    const qs = "?" + new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null && v !== "").map(([k, v]) => [k, String(v)]),
+    ).toString();
+    return request<{ data: EquipmentCheckRecord[] }>(`/equipment-checks${qs}`).then(r => r.data);
+  },
+  createEquipmentCheck: (data: CreateEquipmentCheckPayload) =>
+    request<{ data: EquipmentCheckRecord }>("/equipment-checks", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }).then(r => r.data),
+
   // ประวัติค่าอุณหภูมิ/ความชื้นจาก Node-RED (เรียงใหม่สุดก่อน; [] เมื่อยังไม่มี)
   // ใช้ดึง "ค่าล่าสุดต่อ board" มา pre-fill — การ capture สดทำผ่าน trigger flow ภายหลัง
   getLiveTempHum: () => request<LiveTempHum[]>("/temphum"),
@@ -397,6 +418,39 @@ export type DailyCheckTodaySummary = {
   count: number;
   scaleIds: string[];
   allPass: boolean;
+};
+
+export type EquipmentReading = { key: string; label: string; value: number; unit: string };
+
+export type EquipmentCheckRecord = {
+  _id?: string;
+  roomSlug: string;
+  instrumentId: string;
+  instrumentName: string;
+  brand?: string;
+  status: "normal" | "abnormal";
+  readings: EquipmentReading[];
+  note?: string;
+  recorder: string;
+  recorderId?: string;
+  recorderEmail?: string;
+  date: string;       // YYYY-MM-DD
+  checkedAt: string;  // ISO
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type CreateEquipmentCheckPayload = {
+  roomSlug: string;
+  instrumentId: string;
+  instrumentName: string;
+  brand?: string;
+  status: "normal" | "abnormal";
+  readings?: EquipmentReading[];
+  note?: string;
+  recorder: string;
+  recorderId?: string;
+  recorderEmail?: string;
 };
 
 export type EnvCheckRecord = {
