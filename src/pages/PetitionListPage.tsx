@@ -110,7 +110,7 @@ export default function PetitionListPage() {
   const canSeeTestItems = !!user?.role && user.role !== 'viewer';
 
   const status = searchParams.get('status') ?? '';
-  const search = searchParams.get('search') ?? '';
+  const search = searchParams.get('search') ?? searchParams.get('q') ?? searchParams.get('requestNo') ?? '';
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
 
   const selectedStatuses = useMemo<Petition['status'][]>(() => {
