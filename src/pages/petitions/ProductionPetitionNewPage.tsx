@@ -55,13 +55,6 @@ function makeBlankItem(seq: number): ItemRowValues {
   };
 }
 
-function splitList(value: string | null): string[] {
-  return (value ?? '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function getQueryValue(searchParams: URLSearchParams, keys: string[]): string {
   for (const key of keys) {
     const value = searchParams.get(key)?.trim();
@@ -107,6 +100,125 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
     testItems,
     note,
   };
+}
+
+function splitQueryList(value: string, splitComma = false): string[] {
+  const delimiter = splitComma ? /[,\n|;]+/ : /[\n|;]+/;
+  return value
+    .split(delimiter)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getQueryValues(
+  searchParams: URLSearchParams,
+  keys: string[],
+  options: { splitComma?: boolean } = {},
+): string[] {
+  const values: Array<{ index: number; value: string }> = [];
+  const lowerKeys = keys.map((key) => key.toLowerCase());
+
+  for (const key of keys) {
+    for (const value of searchParams.getAll(key)) {
+      for (const item of splitQueryList(value, options.splitComma)) {
+        values.push({ index: values.length, value: item });
+      }
+    }
+  }
+
+  for (const [rawKey, rawValue] of searchParams.entries()) {
+    const key = rawKey.toLowerCase();
+    for (const base of lowerKeys) {
+      const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const match = key.match(new RegExp(`^${escaped}(?:\\[(\\d+)\\]|_(\\d+)|(\\d+))$`));
+      if (!match) continue;
+      const index = Number(match[1] ?? match[2] ?? match[3]);
+      for (const item of splitQueryList(rawValue, options.splitComma)) {
+        values.push({ index, value: item });
+      }
+    }
+  }
+
+  return values
+    .sort((a, b) => a.index - b.index)
+    .map((item) => item.value);
+}
+
+function valueAt(values: string[], index: number, fallbackToFirst = true): string {
+  return values[index] ?? (fallbackToFirst ? values[0] : '') ?? '';
+}
+
+function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRowValues[] {
+  const singleItem = makeInitialItemFromQuery(searchParams);
+  const sampleNames = getQueryValues(searchParams, ['sampleName', 'itemName', 'productName'], { splitComma: true });
+  const batchNos = getQueryValues(searchParams, ['batchNo', 'batch'], { splitComma: true });
+  const lotNos = getQueryValues(searchParams, ['lotNo', 'lot'], { splitComma: true });
+  const commonNames = getQueryValues(searchParams, ['commonName', 'activeIngredient']);
+  const productionDates = getQueryValues(searchParams, ['productionDate', 'requestDate', 'mfgDate'], { splitComma: true });
+  const packageUnits = getQueryValues(searchParams, ['quantity', 'packageUnit', 'packSize', 'packsize']);
+  const testItems = getQueryValues(searchParams, ['testItems', 'tests']);
+  const notes = getQueryValues(searchParams, ['note']);
+  const itemNos = getQueryValues(searchParams, ['itemNo'], { splitComma: true });
+  const mfNos = getQueryValues(searchParams, ['mfNo'], { splitComma: true });
+  const priorities = getQueryValues(searchParams, ['priority'], { splitComma: true });
+
+  const itemCount = Math.max(
+    sampleNames.length,
+    batchNos.length,
+    lotNos.length,
+    commonNames.length,
+    productionDates.length,
+    packageUnits.length,
+    testItems.length,
+    notes.length,
+    itemNos.length,
+    mfNos.length,
+    priorities.length,
+  );
+
+  if (itemCount <= 1) {
+    if (!singleItem) return [];
+    return [{ ...singleItem, packageUnit: packageUnits[0] || singleItem.packageUnit }];
+  }
+
+  const items: ItemRowValues[] = [];
+  for (let i = 0; i < itemCount; i += 1) {
+    const note = [
+      valueAt(notes, i),
+      valueAt(itemNos, i, false) ? `Item: ${valueAt(itemNos, i, false)}` : '',
+      valueAt(mfNos, i) ? `MF: ${valueAt(mfNos, i)}` : '',
+      valueAt(priorities, i) ? `Priority: ${valueAt(priorities, i)}` : '',
+    ]
+      .filter(Boolean)
+      .join(' | ');
+
+    const item = {
+      ...makeBlankItem(i + 1),
+      sampleName: valueAt(sampleNames, i),
+      batchNo: valueAt(batchNos, i, false),
+      lotNo: valueAt(lotNos, i, false),
+      commonName: valueAt(commonNames, i),
+      productionDate: valueAt(productionDates, i) || null,
+      packageUnit: valueAt(packageUnits, i),
+      testItems: valueAt(testItems, i),
+      note,
+    };
+
+    if ([
+      item.sampleName,
+      item.batchNo,
+      item.lotNo,
+      item.commonName,
+      item.productionDate,
+      item.packageUnit,
+      item.testItems,
+      item.note,
+    ].some(Boolean)) {
+      items.push(item);
+    }
+  }
+
+  return items;
 }
 
 function toBuddhistShort(iso?: string | null): string {
@@ -274,13 +386,13 @@ export default function ProductionPetitionNewPage({
   const { user } = useAuth();
   const prodOrderNosFromState = (location.state as { prodOrderNos?: string[] } | null)?.prodOrderNos;
   const prodOrderNosFromQuery = useMemo(() => {
-    const plural = splitList(searchParams.get('prodOrderNos'));
-    const singular = splitList(searchParams.get('prodOrderNo'));
-    const mfNo = splitList(searchParams.get('mfNo'));
+    const plural = getQueryValues(searchParams, ['prodOrderNos'], { splitComma: true });
+    const singular = getQueryValues(searchParams, ['prodOrderNo'], { splitComma: true });
+    const mfNo = getQueryValues(searchParams, ['mfNo'], { splitComma: true });
     return [...plural, ...singular, ...mfNo];
   }, [searchParams]);
   const prodOrderNos = prodOrderNosFromState?.length ? prodOrderNosFromState : prodOrderNosFromQuery;
-  const initialQueryItem = useMemo(() => makeInitialItemFromQuery(searchParams), [searchParams]);
+  const initialQueryItems = useMemo(() => makeInitialItemsFromQuery(searchParams), [searchParams]);
   const integrationActor = useMemo(() => {
     const department = getQueryValue(searchParams, ['department']);
     const requestNo = getQueryValue(searchParams, ['requestNo']);
@@ -320,7 +432,9 @@ export default function ProductionPetitionNewPage({
     }
   }, [user?.id, user?.name, delivererTouched, integrationMode, integrationActor]);
 
-  const [items, setItems] = useState<ItemRowValues[]>(() => [initialQueryItem ?? makeBlankItem(1)]);
+  const [items, setItems] = useState<ItemRowValues[]>(() =>
+    initialQueryItems.length ? initialQueryItems : [makeBlankItem(1)],
+  );
 
   const [plan, setPlanState] = useState<ProductionPlan | null>(null);
 
