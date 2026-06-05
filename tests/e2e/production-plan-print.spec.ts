@@ -3,7 +3,9 @@ import { test, expect } from '@playwright/test';
 const BASE = 'http://localhost:8000/LIS';
 const API = 'http://localhost:3001/api';
 
-test.describe('Production Plan print', () => {
+// ฟอร์มใบวางแผน-ควบคุมการผลิตถูกซ่อน (ปุ่มพิมพ์เอาออกจากหน้า detail) — เลิกใช้แล้ว รอลบ
+// คงเทสต์ไว้ (skip) เผื่อรื้อกลับ; ตอนลบฟีเจอร์จริงให้ลบไฟล์นี้ทิ้ง (ดู docs/handoff/production-plan-form.md)
+test.describe.skip('Production Plan print', () => {
   test('renders print template when clicking ปุ่มพิมพ์ใบวางแผน-ควบคุมการผลิต', async ({ page, request }) => {
     // Discover a production-dept petition dynamically (DB may have been re-seeded)
     const listRes = await request.get(`${API}/petitions?dept=production&limit=1`);

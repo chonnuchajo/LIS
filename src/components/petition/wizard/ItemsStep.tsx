@@ -3,7 +3,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { useLotOptions } from '@/hooks/useExternalLookups';
 import { isLabBatch } from '@/types/productionPlan.types';
 import SubmitterPicker, { type SubmitterValues } from './SubmitterPicker';
 
@@ -12,6 +11,7 @@ export interface ItemRowValues {
   sampleName: string;
   commonName: string;
   batchNo: string;
+  lotNo: string;
   productionDate: string | null;
   packageUnit: string;
   submissionNo: string;
@@ -26,6 +26,7 @@ interface Props {
   submitter: SubmitterValues;
   onSubmitterChange: (v: SubmitterValues) => void;
   submitterReadOnly?: boolean;
+  submitterDepartment?: string;
   deliverer: SubmitterValues;
   onDelivererChange: (v: SubmitterValues) => void;
 }
@@ -36,29 +37,12 @@ export default function ItemsStep({
   submitter,
   onSubmitterChange,
   submitterReadOnly,
+  submitterDepartment,
   deliverer,
   onDelivererChange,
 }: Props) {
-  const { options, optionMap, loading, error } = useLotOptions();
-
   function setItem(idx: number, patch: Partial<ItemRowValues>) {
     onChange(value.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
-  }
-
-  function applyLot(idx: number, text: string) {
-    const opt = optionMap.get(text);
-    if (opt) {
-      setItem(idx, {
-        sampleName: opt.sampleName,
-        batchNo: opt.batchNo,
-        commonName: opt.commonName,
-        productionDate: opt.productionDate,
-        packageUnit: opt.packageUnit,
-        note: opt.note,
-      });
-    } else {
-      setItem(idx, { sampleName: text });
-    }
   }
 
   function addItem() {
@@ -69,6 +53,7 @@ export default function ItemsStep({
         sampleName: '',
         commonName: '',
         batchNo: '',
+        lotNo: '',
         productionDate: null,
         packageUnit: '',
         submissionNo: '',
@@ -91,7 +76,7 @@ export default function ItemsStep({
           ผู้ยื่นคำขอ = ผู้ใช้งานที่เข้าสู่ระบบ · ผู้นำส่ง = ผู้ที่จะถือตัวอย่างไปส่ง (เลือกจากระบบ HR)
         </p>
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          <SubmitterPicker value={submitter} onChange={onSubmitterChange} readOnly={submitterReadOnly} />
+          <SubmitterPicker value={submitter} onChange={onSubmitterChange} readOnly={submitterReadOnly} department={submitterDepartment} />
           <SubmitterPicker value={deliverer} onChange={onDelivererChange} />
         </div>
       </div>
@@ -100,7 +85,7 @@ export default function ItemsStep({
         <div>
           <h2 className="text-lg font-semibold">รายการตัวอย่าง</h2>
           <p className="text-sm text-grey-500">
-            กรอกเลข batch สำหรับทุกตัวอย่าง — batch ที่ลงท้ายด้วย 1 หรือ 6 จะถูกขอใบคำขอรับบริการในขั้นถัดไป
+            กรอกเลข batch และ lot สำหรับทุกตัวอย่าง — batch ที่ลงท้ายด้วย 1 หรือ 6 จะถูกขอใบคำขอรับบริการในขั้นถัดไป
           </p>
         </div>
         <Button size="sm" variant="primary-outline" onClick={addItem}>
@@ -108,15 +93,6 @@ export default function ItemsStep({
           เพิ่มตัวอย่าง
         </Button>
       </div>
-
-      {loading && <p className="text-sm text-grey-500">กำลังโหลด lot จาก MF/LDI...</p>}
-      {error && <p className="text-sm text-yellow-600">{error}</p>}
-
-      <datalist id="lot-options">
-        {options.map((opt) => (
-          <option key={opt.id} value={opt.label} />
-        ))}
-      </datalist>
 
       <div className="space-y-4">
         {value.map((it, idx) => {
@@ -141,12 +117,11 @@ export default function ItemsStep({
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <Label>ชื่อตัวอย่าง / ค้นหาจาก lot</Label>
+                  <Label>ชื่อตัวอย่าง</Label>
                   <Input
-                    list="lot-options"
                     value={it.sampleName}
-                    onChange={(e) => applyLot(idx, e.target.value)}
-                    placeholder="พิมพ์ชื่อหรือเลือก lot"
+                    onChange={(e) => setItem(idx, { sampleName: e.target.value })}
+                    placeholder="พิมพ์ชื่อตัวอย่าง"
                   />
                 </div>
                 <div>
@@ -155,6 +130,14 @@ export default function ItemsStep({
                     value={it.batchNo}
                     onChange={(e) => setItem(idx, { batchNo: e.target.value })}
                     placeholder="เช่น BN240601"
+                  />
+                </div>
+                <div>
+                  <Label>เลข Lot (Lot No.)</Label>
+                  <Input
+                    value={it.lotNo}
+                    onChange={(e) => setItem(idx, { lotNo: e.target.value })}
+                    placeholder="เช่น L240601"
                   />
                 </div>
                 <div>
@@ -184,8 +167,12 @@ export default function ItemsStep({
                   <Label>เลขที่ใบนำส่ง</Label>
                   <Input
                     value={it.submissionNo}
-                    onChange={(e) => setItem(idx, { submissionNo: e.target.value })}
+                    readOnly
+                    disabled
+                    placeholder="ใช้เลขคำขออัตโนมัติเมื่อบันทึก"
+                    className="bg-grey-50 text-grey-500"
                   />
+                  <p className="mt-1 text-xs text-grey-400">= เลขคำขอ (กำหนดอัตโนมัติ แก้ไขไม่ได้)</p>
                 </div>
                 <div className="sm:col-span-2">
                   <Label>หมายเหตุ</Label>

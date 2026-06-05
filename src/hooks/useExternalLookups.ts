@@ -5,7 +5,6 @@ import type { CommonNameOverrideRow } from '@/lib/commonNameOverride';
 
 export const MF_LOT_API_URLS = [
   { source: 'LDI', url: 'https://n8n-plant.icpladda.com/webhook/API/findlot-ldi' },
-  { source: 'MF', url: 'https://n8n-plant.icpladda.com/webhook/API/findlot' },
 ] as const;
 
 export const EMPLOYEE_API_URL = 'https://n8n-plant.icpladda.com/webhook/api/employee';
@@ -152,7 +151,7 @@ export function useLotOptions() {
       const opts = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
       const failed = results.filter((r) => r.status === 'rejected').length;
       setOptions(opts);
-      setError(failed ? 'โหลดตัวเลือกจาก MF API ได้ไม่ครบทุกแหล่ง' : null);
+      setError(failed ? 'โหลดตัวเลือกจาก LDI API ไม่สำเร็จ' : null);
       setLoading(false);
     })().catch((e: Error) => {
       if (alive) {

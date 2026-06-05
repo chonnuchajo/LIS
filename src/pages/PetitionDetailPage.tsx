@@ -285,16 +285,7 @@ export default function PetitionDetailPage() {
                           พิมพ์ใบคำขอรับบริการ
                         </Button>
                       )}
-                      {isProduction && (
-                        <Button
-                          variant="primary-outline"
-                          size="sm"
-                          onClick={() => triggerPrint('production-plan')}
-                        >
-                          <FileText className="h-4 w-4" />
-                          พิมพ์ใบวางแผน-ควบคุมการผลิต
-                        </Button>
-                      )}
+                      {/* ปุ่มพิมพ์ใบวางแผน-ควบคุมการผลิต ซ่อน — ฟอร์มเลิกใช้แล้ว รอลบ (ดู docs/handoff/production-plan-form.md) */}
                       {canEdit && (
                         <Button
                           variant="primary-outline"

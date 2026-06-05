@@ -16,13 +16,23 @@ export type DevAuthUser = {
   status: "active";
 };
 
+// Mock the HR/Microsoft department per dev role (prod gets it from Microsoft sync).
+// admin→IT, lab*→lab, qc*→qc, viewer→ผลิต 1.
+const devDepartment = (roleId: string): string => {
+  if (roleId === "admin") return "IT";
+  if (roleId.startsWith("lab")) return "lab";
+  if (roleId.startsWith("qc")) return "qc";
+  if (roleId === "viewer") return "ผลิต 1";
+  return roleId;
+};
+
 export const synthesizeDevUser = (role: { id: string; name: string }): DevAuthUser => ({
   id: `dev-${role.id}`,
   email: `${role.id}.dev@icpladda.com`,
   name: `Dev ${role.name}`,
   role: role.id,
   permissions: [],
-  department: role.name,
+  department: devDepartment(role.id),
   position: role.name,
   status: "active",
 });

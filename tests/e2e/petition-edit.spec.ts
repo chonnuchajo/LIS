@@ -40,11 +40,11 @@ test.describe('Petition edit page', () => {
     const noteField = page.locator('label:has-text("หมายเหตุ")').first().locator('xpath=following::textarea[1]');
     await noteField.fill('หมายเหตุจาก playwright test');
 
-    // ไปขั้นถัดไป (plan)
+    // ไปขั้นถัดไป (lab — ใบวางแผน-ควบคุมการผลิต ถูกซ่อนแล้ว)
     await page.getByRole('button', { name: /ถัดไป/ }).click();
-    await expect(page.getByText('2. ใบวางแผน-ควบคุมการผลิต')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('2. ใบคำขอรับบริการ')).toBeVisible({ timeout: 10000 });
 
-    await page.screenshot({ path: 'tests/e2e/screenshots/edit-step2-plan.png', fullPage: true });
+    await page.screenshot({ path: 'tests/e2e/screenshots/edit-step2-lab.png', fullPage: true });
   });
 
   test('step 2 → บันทึก (batch ไม่มี lab) → redirect กลับ detail', async ({ page }) => {
@@ -58,18 +58,14 @@ test.describe('Petition edit page', () => {
     const noteField = page.locator('label:has-text("หมายเหตุ")').first().locator('xpath=following::textarea[1]');
     await noteField.fill('updated by playwright');
 
-    // ไป step 2
-    await page.getByRole('button', { name: /ถัดไป/ }).click();
-    await expect(page.getByText('2. ใบวางแผน-ควบคุมการผลิต')).toBeVisible({ timeout: 10000 });
-
-    // batch TEST0001 ลงท้าย 1 = lab batch → ปุ่มต้องเป็น "ถัดไป"
+    // ไป step 2 (lab — ใบวางแผนถูกซ่อน). ปุ่มอาจเป็น "ถัดไป" (มี lab) หรือ "บันทึก" (ไม่มี lab)
     const nextBtn = page.locator('[class*="bg-primary"]').filter({ hasText: /ถัดไป|บันทึก/ });
     const btnText = await nextBtn.innerText();
-    console.log('[step2] button text:', btnText);
+    console.log('[step1] button text:', btnText);
 
     await nextBtn.click();
 
-    // ถ้ามี step 3 ให้บันทึกจากนั้น
+    // ถ้าไปต่อ lab step ให้บันทึกจากนั้น
     const saveBtn = page.getByRole('button', { name: /บันทึกการแก้ไข/ });
     if (await saveBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await saveBtn.click();
@@ -92,14 +88,10 @@ test.describe('Petition edit page', () => {
     await page.goto(`${BASE}/petitions/${PETITION_WITH_LAB_ID}/edit`);
     await expect(page.getByRole('heading', { name: /แก้ไขคำร้อง/ })).toBeVisible({ timeout: 15000 });
 
-    // Stepper ต้องมี step 3
-    await expect(page.getByText('3. ใบคำขอรับบริการ')).toBeVisible();
+    // Stepper ต้องมี step lab
+    await expect(page.getByText('2. ใบคำขอรับบริการ')).toBeVisible();
 
-    // ไป step 2
-    await page.getByRole('button', { name: /ถัดไป/ }).click();
-    await expect(page.getByText('2. ใบวางแผน-ควบคุมการผลิต')).toBeVisible({ timeout: 10000 });
-
-    // ไป step 3
+    // ไป step 2 (lab — ใบวางแผนถูกซ่อน)
     await page.getByRole('button', { name: /ถัดไป/ }).click();
     await expect(page.getByRole('heading', { name: /ใบคำขอรับบริการ/ })).toBeVisible({ timeout: 10000 });
 
@@ -150,9 +142,9 @@ test.describe('Petition edit page', () => {
     const batchField = page.locator('label:has-text("เลขแบช")').first().locator('xpath=following::input[1]');
     const originalBatch = await batchField.inputValue();
 
-    // ไป step 2
+    // ไป step 2 (lab — ใบวางแผนถูกซ่อน)
     await page.getByRole('button', { name: /ถัดไป/ }).click();
-    await expect(page.getByText('2. ใบวางแผน-ควบคุมการผลิต')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('2. ใบคำขอรับบริการ')).toBeVisible({ timeout: 10000 });
 
     // กลับ
     await page.getByRole('button', { name: /ย้อนกลับ/ }).click();

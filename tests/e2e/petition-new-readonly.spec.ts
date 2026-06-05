@@ -60,22 +60,16 @@ test.describe('Petition new (production) — read-only user fields', () => {
     // Use the labels to locate
     const sampleNameField = page.locator('label:has-text("ชื่อตัวอย่าง")').first().locator('xpath=following::input[1]');
     const batchField = page.locator('label:has-text("เลขแบช")').first().locator('xpath=following::input[1]');
+    const lotField = page.locator('label:has-text("เลข Lot")').first().locator('xpath=following::input[1]');
 
     await sampleNameField.fill('Test Sample A');
     await batchField.fill('TEST00001'); // ends in 1 → lab batch
+    await lotField.fill('LOT00001');
 
     // Click "ถัดไป"
     await page.getByRole('button', { name: /ถัดไป/ }).click();
 
-    // ===== Step 2: production plan — just click next =====
-    await expect(page.getByRole('heading', { name: /ใบวางแผน-ควบคุมการผลิต|วางแผน/ }).first()).toBeVisible({ timeout: 10000 });
-    await page.screenshot({
-      path: 'tests/e2e/screenshots/petition-new-step2.png',
-      fullPage: true,
-    });
-    await page.getByRole('button', { name: /ถัดไป/ }).click();
-
-    // ===== Step 3: Lab request =====
+    // ===== Step 2: Lab request (ใบวางแผน-ควบคุมการผลิต ถูกซ่อนแล้ว — ข้ามไป lab ตรงๆ) =====
     await expect(page.getByRole('heading', { name: /ใบคำขอรับบริการ/ })).toBeVisible({ timeout: 10000 });
 
     // Check the requester customer info section

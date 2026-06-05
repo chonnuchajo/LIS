@@ -58,6 +58,7 @@ export default function PetitionView({ petition: p }: Props) {
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <Field label="ผู้ยื่นคำขอ" value={p.submittedBy?.name} />
+          <Field label="แผนกผู้ยื่น" value={p.submittedBy?.department} />
           <Field
             label="วัน-เวลาที่ส่งคำร้อง"
             value={
@@ -106,10 +107,12 @@ export default function PetitionView({ petition: p }: Props) {
                   {lab && <Badge variant="blue-soft">ส่ง lab</Badge>}
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
-                  <Field label="Batch / Lot No." value={item.batchNo} />
+                  <Field label="Batch No." value={item.batchNo} />
+                  <Field label="Lot No." value={item.lotNo} />
                   <Field label="วันที่ผลิต" value={item.productionDate} />
                   <Field label="ขนาดบรรจุ" value={item.packageUnit} />
                   <Field label="ชื่อสามัญ" value={item.commonName} />
+                  <Field label="เลขที่ใบนำส่ง" value={item.submissionNo} />
                 </div>
                 {item.note && <Field label="หมายเหตุ" value={item.note} />}
                 {canSeeTestItems && (

@@ -335,8 +335,11 @@ router.post('/', async (req, res) => {
       revisionOf = predecessor._id;
     }
     const petitionNo = await nextPetitionNo();
+    // เลขที่ใบนำส่ง = เลขคำขอ เสมอ (ผู้ใช้แก้ไขไม่ได้)
+    const items = body.items.map((it) => ({ ...it, submissionNo: petitionNo }));
     const doc = await Petition.create({
       ...body,
+      items,
       petitionNo,
       status: 'deliveringQC',
       revisionOf,
@@ -535,6 +538,10 @@ router.patch('/:id', async (req, res) => {
 
     // Generic update path (no terminal transition)
     delete updates.revisionNote;
+    // เลขที่ใบนำส่ง = เลขคำขอ เสมอ (กันการแก้ค่าจาก client)
+    if (Array.isArray(updates.items)) {
+      updates.items = updates.items.map((it) => ({ ...it, submissionNo: before.petitionNo }));
+    }
     const doc = await Petition.findByIdAndUpdate(req.params.id, updates, { new: true });
     if (before.status !== doc.status) {
       logAudit(doc, {

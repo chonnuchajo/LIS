@@ -7,7 +7,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import PageHeader from '@/components/lis/PageHeader';
 import ItemsStep, { type ItemRowValues } from '@/components/petition/wizard/ItemsStep';
 import type { SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
-import ProductionPlanStep from '@/components/petition/wizard/ProductionPlanStep';
 import LabRequestStep, { type LabRequestRowValues } from '@/components/petition/wizard/LabRequestStep';
 import { isLabBatch, type ProductionPlan } from '@/types/productionPlan.types';
 import {
@@ -24,8 +23,9 @@ type StepKey = 'items' | 'plan' | 'lab';
 
 const PRODUCTION_STEPS: { key: StepKey; label: string }[] = [
   { key: 'items', label: '1. ผู้นำส่ง + รายการตัวอย่าง' },
-  { key: 'plan', label: '2. ใบวางแผน-ควบคุมการผลิต' },
-  { key: 'lab', label: '3. ใบคำขอรับบริการ' },
+  // 'plan' (ใบวางแผน-ควบคุมการผลิต) ซ่อนจาก wizard — เลิกใช้แล้ว รอลบ (ดู docs/handoff/production-plan-form.md)
+  // ยังคงโหลด/บันทึก productionPlans เดิมไว้เงียบๆ ให้ backend validation ผ่าน
+  { key: 'lab', label: '2. ใบคำขอรับบริการ' },
 ];
 
 const SIMPLE_STEPS: { key: StepKey; label: string }[] = [
@@ -106,9 +106,10 @@ export default function PetitionEditPage() {
       sampleName: it.sampleName,
       commonName: it.commonName ?? '',
       batchNo: it.batchNo,
+      lotNo: it.lotNo ?? '',
       productionDate: it.productionDate ?? null,
       packageUnit: it.packageUnit ?? '',
-      submissionNo: it.submissionNo ?? '',
+      submissionNo: data.petitionNo, // เลขที่ใบนำส่ง = เลขคำขอ เสมอ
       testUnit: it.testUnit ?? '',
       testItems: it.testItems ?? '',
       note: it.note ?? '',
@@ -216,7 +217,8 @@ export default function PetitionEditPage() {
 
   function goNext() {
     if (!validateStep()) return;
-    if (currentStep === 'plan' && labBatches.length === 0) {
+    // ใบวางแผนถูกซ่อน — items เป็น step ก่อน lab; ถ้าไม่มี batch ส่ง lab ให้บันทึกเลย
+    if (currentStep === 'items' && labBatches.length === 0) {
       void handleSave();
       return;
     }
@@ -240,6 +242,7 @@ export default function PetitionEditPage() {
       const submittedBy = {
         employeeId: submitter.employeeId || undefined,
         name: submitter.name,
+        department: data.submittedBy.department, // คงแผนกผู้ยื่นเดิม
         submittedAt: data.submittedBy.submittedAt,
       };
       const deliveredBy = {
@@ -316,10 +319,9 @@ export default function PetitionEditPage() {
         />
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-          {steps.map((s, i) => {
+          {steps.filter((s) => s.key !== 'lab' || labBatches.length > 0).map((s, i, arr) => {
             const active = i === stepIdx;
             const done = i < stepIdx;
-            const skipped = s.key === 'lab' && labBatches.length === 0;
             return (
               <div key={s.key} className="flex items-center gap-2">
                 <span
@@ -328,14 +330,12 @@ export default function PetitionEditPage() {
                       ? 'font-semibold text-primary-500'
                       : done
                         ? 'text-grey-500'
-                        : skipped
-                          ? 'text-grey-300 line-through'
-                          : 'text-grey-400'
+                        : 'text-grey-400'
                   }
                 >
                   {s.label}
                 </span>
-                {i < steps.length - 1 && <span className="text-grey-300">→</span>}
+                {i < arr.length - 1 && <span className="text-grey-300">→</span>}
               </div>
             );
           })}
@@ -361,12 +361,10 @@ export default function PetitionEditPage() {
                 submitter={submitter}
                 onSubmitterChange={setSubmitter}
                 submitterReadOnly
+                submitterDepartment={data?.submittedBy?.department}
                 deliverer={deliverer}
                 onDelivererChange={setDeliverer}
               />
-            )}
-            {currentStep === 'plan' && data.dept === 'production' && plan && (
-              <ProductionPlanStep items={items} plan={plan} onChange={setPlanState} />
             )}
             {currentStep === 'lab' && labRequest && (
               <LabRequestStep
@@ -389,7 +387,7 @@ export default function PetitionEditPage() {
           <div className="flex gap-2">
             {stepIdx < steps.length - 1 ? (
               <Button onClick={goNext} disabled={submitting}>
-                {currentStep === 'plan' && labBatches.length === 0 ? (
+                {currentStep === 'items' && labBatches.length === 0 ? (
                   <>
                     <Save className="h-4 w-4" />
                     บันทึก (ไม่มี batch ส่ง lab)

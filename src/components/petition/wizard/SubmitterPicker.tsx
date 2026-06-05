@@ -27,9 +27,10 @@ interface Props {
   value: SubmitterValues;
   onChange: (v: SubmitterValues) => void;
   readOnly?: boolean;
+  department?: string;
 }
 
-export default function SubmitterPicker({ value, onChange, readOnly }: Props) {
+export default function SubmitterPicker({ value, onChange, readOnly, department }: Props) {
   const { options, loading } = useEmployeeOptions();
   const [open, setOpen] = useState(false);
 
@@ -56,6 +57,12 @@ export default function SubmitterPicker({ value, onChange, readOnly }: Props) {
             {value.name || '-'}
           </div>
         </div>
+        <div>
+          <Label>แผนก (จากระบบ HR)</Label>
+          <div className="mt-1 rounded-[10px] border border-black-50 bg-grey-50 px-3 py-2 text-sm text-black-500">
+            {department || '-'}
+          </div>
+        </div>
       </div>
     );
   }
@@ -63,7 +70,7 @@ export default function SubmitterPicker({ value, onChange, readOnly }: Props) {
   return (
     <div className="grid gap-3">
       <div>
-        <Label>ผู้นำส่ง (เลือกจากระบบ HR)</Label>
+        <Label>ผู้นำส่ง (เลือกจากระบบ HR) <span className="text-red-500">*</span></Label>
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button

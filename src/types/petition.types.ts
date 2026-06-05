@@ -58,6 +58,7 @@ export interface PetitionItem {
   sampleName: string;
   commonName?: string;
   batchNo: string;
+  lotNo?: string;
   productionDate?: string | null;
   submissionNo?: string;
   packageUnit?: string;
@@ -78,6 +79,7 @@ export interface PetitionItem {
 export interface PetitionSubmitter {
   employeeId?: string;
   name: string;
+  department?: string;
   submittedAt: string;
 }
 

@@ -8,7 +8,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import PageHeader from '@/components/lis/PageHeader';
 import ItemsStep, { type ItemRowValues } from '@/components/petition/wizard/ItemsStep';
 import type { SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
-import ProductionPlanStep from '@/components/petition/wizard/ProductionPlanStep';
 import LabRequestStep, { type LabRequestRowValues } from '@/components/petition/wizard/LabRequestStep';
 import {
   isLabBatch,
@@ -27,8 +26,9 @@ type StepKey = 'items' | 'plan' | 'lab';
 
 const STEPS: { key: StepKey; label: string }[] = [
   { key: 'items', label: '1. ผู้นำส่ง + รายการตัวอย่าง' },
-  { key: 'plan', label: '2. ใบวางแผน-ควบคุมการผลิต' },
-  { key: 'lab', label: '3. ใบคำขอรับบริการ' },
+  // 'plan' (ใบวางแผน-ควบคุมการผลิต) ซ่อนจาก wizard — เลิกใช้แล้ว รอลบ (ดู docs/handoff/production-plan-form.md)
+  // ยังคง state `plan` + auto-sync ไว้เพื่อส่ง productionPlans เงียบๆ ให้ backend validation ผ่าน
+  { key: 'lab', label: '2. ใบคำขอรับบริการ' },
 ];
 
 interface ProductionPetitionNewPageProps {
@@ -42,6 +42,7 @@ function makeBlankItem(seq: number): ItemRowValues {
     sampleName: '',
     commonName: '',
     batchNo: '',
+    lotNo: '',
     productionDate: null,
     packageUnit: '',
     submissionNo: '',
@@ -68,7 +69,8 @@ function getQueryValue(searchParams: URLSearchParams, keys: string[]): string {
 
 function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues | null {
   const sampleName = getQueryValue(searchParams, ['sampleName', 'itemName', 'productName']);
-  const batchNo = getQueryValue(searchParams, ['batchNo', 'lotNo', 'lot']);
+  const batchNo = getQueryValue(searchParams, ['batchNo', 'batch']);
+  const lotNo = getQueryValue(searchParams, ['lotNo', 'lot']);
   const commonName = getQueryValue(searchParams, ['commonName', 'activeIngredient']);
   const productionDate = getQueryValue(searchParams, ['productionDate', 'requestDate', 'mfgDate']);
   const packageUnit = getQueryValue(searchParams, ['quantity', 'packageUnit', 'packSize']);
@@ -76,11 +78,9 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
   const testItems = getQueryValue(searchParams, ['testItems', 'tests']);
   const itemNo = getQueryValue(searchParams, ['itemNo']);
   const mfNo = getQueryValue(searchParams, ['mfNo']);
-  const lotNo = getQueryValue(searchParams, ['lotNo', 'lot']);
   const priority = getQueryValue(searchParams, ['priority']);
   const note = [
     getQueryValue(searchParams, ['note']),
-    lotNo && lotNo !== batchNo ? `Lot: ${lotNo}` : '',
     itemNo ? `Item: ${itemNo}` : '',
     mfNo ? `MF: ${mfNo}` : '',
     priority ? `Priority: ${priority}` : '',
@@ -88,7 +88,7 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
     .filter(Boolean)
     .join(' | ');
 
-  if (![sampleName, batchNo, commonName, productionDate, packageUnit, submissionNo, testItems, note].some(Boolean)) {
+  if (![sampleName, batchNo, lotNo, commonName, productionDate, packageUnit, submissionNo, testItems, note].some(Boolean)) {
     return null;
   }
 
@@ -96,10 +96,11 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
     ...makeBlankItem(1),
     sampleName,
     batchNo,
+    lotNo,
     commonName,
     productionDate: productionDate || null,
     packageUnit,
-    submissionNo,
+    // submissionNo เว้นว่าง — backend จะเซ็ต = เลขคำขออัตโนมัติตอนบันทึก
     testItems,
     note,
   };
@@ -186,9 +187,10 @@ export default function ProductionPetitionNewPage({
     employeeId: user?.id ?? (integrationMode ? integrationActor.employeeId : ''),
     name: user?.name ?? (integrationMode ? integrationActor.name : ''),
   });
+  // ผู้นำส่ง = required ต้องเลือกเอง ไม่ default เป็นผู้ล็อกอิน (integration เท่านั้นที่ตั้งค่าให้)
   const [deliverer, setDeliverer] = useState<SubmitterValues>({
-    employeeId: user?.id ?? (integrationMode ? integrationActor.employeeId : ''),
-    name: user?.name ?? (integrationMode ? integrationActor.name : ''),
+    employeeId: integrationMode ? integrationActor.employeeId : '',
+    name: integrationMode ? integrationActor.name : '',
   });
   const [delivererTouched, setDelivererTouched] = useState(false);
 
@@ -196,9 +198,6 @@ export default function ProductionPetitionNewPage({
   useEffect(() => {
     if (user?.name) {
       setSubmitter({ employeeId: user.id ?? '', name: user.name });
-      if (!delivererTouched) {
-        setDeliverer({ employeeId: user.id ?? '', name: user.name });
-      }
     } else if (integrationMode) {
       setSubmitter(integrationActor);
       if (!delivererTouched) {
@@ -240,6 +239,7 @@ export default function ProductionPetitionNewPage({
             sampleName: it.sampleName ?? '',
             commonName: it.commonName ?? '',
             batchNo: it.batchNo ?? '',
+            lotNo: it.lotNo ?? '',
             productionDate: it.productionDate ?? null,
             packageUnit: it.packageUnit ?? '',
             submissionNo: it.submissionNo ?? '',
@@ -336,6 +336,22 @@ export default function ProductionPetitionNewPage({
           setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกเลขแบช`);
           return false;
         }
+        if (!it.lotNo.trim()) {
+          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกเลข lot`);
+          return false;
+        }
+        if (!it.commonName.trim()) {
+          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกชื่อสามัญ`);
+          return false;
+        }
+        if (!it.productionDate) {
+          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณาเลือกวันผลิต`);
+          return false;
+        }
+        if (!it.packageUnit.trim()) {
+          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกขนาดบรรจุ`);
+          return false;
+        }
       }
       const seen = new Set<string>();
       for (const it of items) {
@@ -347,19 +363,13 @@ export default function ProductionPetitionNewPage({
         seen.add(key);
       }
     }
-    if (currentStep === 'plan') {
-      if (!plan) {
-        setStepError('ยังไม่มีข้อมูลใบวางแผน');
-        return false;
-      }
-    }
     return true;
   }
 
   function goNext() {
     if (!validateStep()) return;
-    // skip step 4 if no qualifying batches
-    if (currentStep === 'plan' && labBatches.length === 0) {
+    // ใบวางแผนถูกซ่อน — items เป็น step ก่อน lab; ถ้าไม่มี batch ส่ง lab ให้บันทึกเลย
+    if (currentStep === 'items' && labBatches.length === 0) {
       void handleSubmit();
       return;
     }
@@ -383,6 +393,7 @@ export default function ProductionPetitionNewPage({
         submittedBy: {
           employeeId: submitter.employeeId || undefined,
           name: submitter.name,
+          department: user?.department || undefined,
         },
         deliveredBy: {
           employeeId: deliverer.employeeId || undefined,
@@ -445,13 +456,11 @@ export default function ProductionPetitionNewPage({
         )}
 
 
-        {/* Stepper */}
+        {/* Stepper — ซ่อน step ใบคำขอรับบริการเมื่อไม่มี batch ลงท้าย 1/6 */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-          {STEPS.map((s, i) => {
+          {STEPS.filter((s) => s.key !== 'lab' || labBatches.length > 0).map((s, i, arr) => {
             const active = i === stepIdx;
             const done = i < stepIdx;
-            const disabled =
-              s.key === 'lab' && labBatches.length === 0 && stepIdx >= STEPS.length - 1;
             return (
               <div key={s.key} className="flex items-center gap-2">
                 <span
@@ -460,14 +469,12 @@ export default function ProductionPetitionNewPage({
                       ? 'font-semibold text-primary-500'
                       : done
                         ? 'text-grey-500'
-                        : disabled
-                          ? 'text-grey-300 line-through'
-                          : 'text-grey-400'
+                        : 'text-grey-400'
                   }
                 >
                   {s.label}
                 </span>
-                {i < STEPS.length - 1 && <span className="text-grey-300">→</span>}
+                {i < arr.length - 1 && <span className="text-grey-300">→</span>}
               </div>
             );
           })}
@@ -493,15 +500,13 @@ export default function ProductionPetitionNewPage({
                 submitter={submitter}
                 onSubmitterChange={setSubmitter}
                 submitterReadOnly
+                submitterDepartment={user?.department}
                 deliverer={deliverer}
                 onDelivererChange={(v) => {
                   setDelivererTouched(true);
                   setDeliverer(v);
                 }}
               />
-            )}
-            {currentStep === 'plan' && plan && (
-              <ProductionPlanStep items={items} plan={plan} onChange={setPlanState} />
             )}
             {currentStep === 'lab' && labRequest && (
               <LabRequestStep
@@ -521,7 +526,7 @@ export default function ProductionPetitionNewPage({
           <div className="flex flex-col sm:flex-row gap-2">
             {stepIdx < STEPS.length - 1 ? (
               <Button onClick={goNext} disabled={submitting} className="w-full sm:w-auto">
-                {currentStep === 'plan' && labBatches.length === 0 ? (
+                {currentStep === 'items' && labBatches.length === 0 ? (
                   <>
                     <Save className="h-4 w-4" />
                     บันทึก (ไม่มี batch ส่ง lab)

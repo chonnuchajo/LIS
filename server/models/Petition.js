@@ -6,6 +6,7 @@ const PetitionItemSchema = new mongoose.Schema(
     sampleName: { type: String, required: true },
     commonName: String,
     batchNo: { type: String, required: true },
+    lotNo: String,
     productionDate: String,
     submissionNo: String,
     packageUnit: String,
@@ -179,6 +180,7 @@ const SubmittedBySchema = new mongoose.Schema(
   {
     employeeId: String,
     name: { type: String, required: true },
+    department: String, // แผนกผู้ยื่น จาก HR/Microsoft
     submittedAt: { type: Date, default: Date.now },
   },
   { _id: false },
