@@ -78,9 +78,11 @@ export default function LabRequestStep({ items, request, onChange }: Props) {
           </div>
           <div>
             <Label>E-mail</Label>
-            <div className="mt-1 rounded-[10px] border border-black-50 bg-grey-50 px-3 py-2 text-sm text-black-500">
-              {req.requester.email || '-'}
-            </div>
+            <Input
+              value={req.requester.email ?? ''}
+              onChange={(e) => setRequester('email', e.target.value)}
+              placeholder="email@example.com"
+            />
           </div>
         </div>
       </div>

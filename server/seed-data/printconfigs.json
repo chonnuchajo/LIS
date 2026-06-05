@@ -1,0 +1,1 @@
+{"collection":"printconfigs","indexes":[{"v":{"$numberInt":"2"},"key":{"slug":{"$numberInt":"1"}},"name":"slug_1","background":true,"unique":true}],"count":{"$numberInt":"0"},"documents":[]}

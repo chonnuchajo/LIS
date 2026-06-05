@@ -426,14 +426,21 @@ export default function ProductionPetitionNewPage({
   const initialQueryItems = useMemo(() => makeInitialItemsFromQuery(searchParams), [searchParams]);
   const integrationActor = useMemo(() => {
     const department = getQueryValue(searchParams, ['department']);
+    const requesterName = getQueryValue(searchParams, ['requesterName', 'submittedBy', 'submitterName', 'employeeName']);
+    const requesterEmail = getQueryValue(searchParams, ['requesterEmail', 'email', 'requesterMail', 'mail']);
     const requestNo = getQueryValue(searchParams, ['requestNo']);
     const mfNo = getQueryValue(searchParams, ['mfNo']);
     const ref = requestNo || mfNo;
     return {
       employeeId: ref || 'production-system',
-      name: department ? `Production System (${department})` : 'Production System',
+      name: requesterName || (department ? `Production System (${department})` : 'Production System'),
+      department,
+      email: requesterEmail,
     };
   }, [searchParams]);
+  const submitterDepartment = integrationMode
+    ? integrationActor.department
+    : user?.department;
   const revisionOfId = searchParams.get('revisionOf');
   const [revisionSource, setRevisionSource] = useState<Petition | null>(null);
 
@@ -441,8 +448,8 @@ export default function ProductionPetitionNewPage({
   const currentStep = STEPS[stepIdx].key;
 
   const [submitter, setSubmitter] = useState<SubmitterValues>({
-    employeeId: user?.id ?? (integrationMode ? integrationActor.employeeId : ''),
-    name: user?.name ?? (integrationMode ? integrationActor.name : ''),
+    employeeId: integrationMode ? integrationActor.employeeId : (user?.id ?? ''),
+    name: integrationMode ? integrationActor.name : (user?.name ?? ''),
   });
   // ผู้นำส่ง = required ต้องเลือกเอง ไม่ default เป็นผู้ล็อกอิน (integration เท่านั้นที่ตั้งค่าให้)
   const [deliverer, setDeliverer] = useState<SubmitterValues>({
@@ -453,13 +460,13 @@ export default function ProductionPetitionNewPage({
 
   // Re-sync submitter when user auth resolves (read-only — always match logged-in user)
   useEffect(() => {
-    if (user?.name) {
-      setSubmitter({ employeeId: user.id ?? '', name: user.name });
-    } else if (integrationMode) {
+    if (integrationMode) {
       setSubmitter(integrationActor);
       if (!delivererTouched) {
         setDeliverer(integrationActor);
       }
+    } else if (user?.name) {
+      setSubmitter({ employeeId: user.id ?? '', name: user.name });
     }
   }, [user?.id, user?.name, delivererTouched, integrationMode, integrationActor]);
 
@@ -555,9 +562,9 @@ export default function ProductionPetitionNewPage({
             first.batchNo,
             first.seq,
             first.sampleName,
-            user?.name ?? '',
-            user?.email ?? '',
-            user?.department ?? 'ผลิต',
+            submitter.name,
+            integrationMode ? integrationActor.email : (user?.email ?? ''),
+            submitterDepartment ?? 'ผลิต',
           );
         }
         return prev;
@@ -565,7 +572,7 @@ export default function ProductionPetitionNewPage({
     } else {
       setLabRequest(null);
     }
-  }, [items, submitter.name]);
+  }, [items, submitter.name, submitterDepartment, user?.email, integrationMode, integrationActor.email]);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -653,7 +660,7 @@ export default function ProductionPetitionNewPage({
         submittedBy: {
           employeeId: submitter.employeeId || undefined,
           name: submitter.name,
-          department: user?.department || undefined,
+          department: submitterDepartment || undefined,
         },
         deliveredBy: {
           employeeId: deliverer.employeeId || undefined,
@@ -829,12 +836,13 @@ export default function ProductionPetitionNewPage({
                 submitter={submitter}
                 onSubmitterChange={setSubmitter}
                 submitterReadOnly
-                submitterDepartment={user?.department}
+                submitterDepartment={submitterDepartment}
                 deliverer={deliverer}
                 onDelivererChange={(v) => {
                   setDelivererTouched(true);
                   setDeliverer(v);
                 }}
+                itemsReadOnly={integrationMode}
               />
             )}
             {currentStep === 'lab' && labRequest && (
