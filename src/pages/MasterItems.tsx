@@ -1420,27 +1420,14 @@ function SimpleMethodTab({
                                       {substance}
                                     </span>
                                   )}
-                                  <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-                                    {activeMethods.map((m) => {
-                                      const active = current.includes(m.code);
-                                      return (
-                                        <Button
-                                          key={m.code}
-                                          type="button"
-                                          size="sm"
-                                          variant={active ? "default" : "outline"}
-                                          className="h-7 rounded-full px-3"
-                                          onClick={() =>
-                                            onDraftChange(
-                                              row.key,
-                                              setSlotMethods(draftValue, index, toggleMethod(current, m.code)),
-                                            )
-                                          }
-                                        >
-                                          {m.label}
-                                        </Button>
-                                      );
-                                    })}
+                                  <div className="ml-auto flex items-center justify-end">
+                                    <MethodSlotPicker
+                                      methods={activeMethods}
+                                      selected={current}
+                                      onChange={(next) =>
+                                        onDraftChange(row.key, setSlotMethods(draftValue, index, next))
+                                      }
+                                    />
                                   </div>
                                 </div>
                               );
