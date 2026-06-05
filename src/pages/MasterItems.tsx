@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
+  ChevronDown,
   Database,
   FlaskConical,
   PackageSearch,
@@ -1174,6 +1175,68 @@ export function MachinesPage() {
 
         <MachinesTab />
     </AppLayout>
+  );
+}
+
+// Compact per-slot method picker: a trigger showing the selected method labels as
+// badges (or a muted placeholder), opening a popover of checkboxes for every active
+// method. Selection logic stays in `toggleMethod`; this is presentational only.
+function MethodSlotPicker({
+  methods,
+  selected,
+  onChange,
+}: {
+  methods: MethodDoc[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const selectedLabels = methods.filter((m) => selected.includes(m.code));
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 min-w-24 justify-between gap-1.5 px-2.5"
+        >
+          {selectedLabels.length > 0 ? (
+            <span className="flex flex-wrap items-center gap-1">
+              {selectedLabels.map((m) => (
+                <Badge key={m.code} variant="secondary" className="rounded-full px-2 py-0 text-xs font-normal">
+                  {m.label}
+                </Badge>
+              ))}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">เลือก</span>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-44 p-1.5">
+        {methods.length === 0 ? (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">ยังไม่มี method</div>
+        ) : (
+          <div className="flex flex-col">
+            {methods.map((m) => {
+              const checked = selected.includes(m.code);
+              return (
+                <button
+                  key={m.code}
+                  type="button"
+                  className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                  onClick={() => onChange(toggleMethod(selected, m.code))}
+                >
+                  <Checkbox checked={checked} className="pointer-events-none" tabIndex={-1} />
+                  <span>{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 
