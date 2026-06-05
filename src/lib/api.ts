@@ -9,6 +9,7 @@ import type {
 } from "@/types/stock";
 import type { StandardConfigDoc } from "@/lib/standardConfig";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
+import type { PrintConfig, PrintConfigInput, PrintDocType } from "@/lib/printConfig";
 import type { MethodDoc, MethodInput } from './methodRegistry';
 
 // Development: BASE_URL = "/" → "/api"
@@ -245,6 +246,21 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(input),
     }).then((r) => r.data),
+
+  // Print
+  getPrinters: () => request<{ data: string[] }>("/print/printers").then((r) => r.data),
+  getPrintConfigs: () =>
+    request<{ data: PrintConfig[] }>("/print/config").then((r) => r.data),
+  updatePrintConfig: (slug: PrintDocType, input: PrintConfigInput) =>
+    request<{ data: PrintConfig }>(`/print/config/${slug}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }).then((r) => r.data),
+  printDocument: (payload: { docType: PrintDocType; html: string; copies?: number }) =>
+    request<{ ok: boolean; printer: string; copies: number }>("/print", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }).then((r) => ({ printer: r.printer, copies: r.copies })),
 
   // Parameters (พารามิเตอร์การตรวจสอบของสารแต่ละชนิด)
   getParameters: () => request<ParameterItem[]>("/parameters"),
