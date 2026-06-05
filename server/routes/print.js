@@ -30,8 +30,8 @@ function pick(doc) {
 function validate(body) {
   const { printerName, copies, paperSize } = body || {};
   if (typeof printerName !== 'string') return 'printerName ต้องเป็นข้อความ';
-  if (copies != null && (typeof copies !== 'number' || !Number.isInteger(copies) || copies < 1)) {
-    return 'จำนวนชุดต้องเป็นจำนวนเต็มตั้งแต่ 1';
+  if (copies != null && (typeof copies !== 'number' || !Number.isInteger(copies) || copies < 1 || copies > 99)) {
+    return 'จำนวนชุดต้องเป็นจำนวนเต็ม 1–99';
   }
   if (paperSize != null && !['A4', 'label-6x4'].includes(paperSize)) return 'paperSize ไม่ถูกต้อง';
   return null;
@@ -107,12 +107,12 @@ router.post('/', async (req, res) => {
       return res.status(500).json({ error: 'ไม่พบ Chrome สำหรับสร้าง PDF (ตั้งค่า PRINT_CHROME_PATH)' });
     }
 
-    const copies = (Number.isInteger(copiesOverride) && copiesOverride >= 1) ? copiesOverride : cfg.copies;
+    const copies = (Number.isInteger(copiesOverride) && copiesOverride >= 1 && copiesOverride <= 99) ? copiesOverride : cfg.copies;
     tmpPdf = path.join(os.tmpdir(), `lis-print-${crypto.randomUUID()}.pdf`);
     const puppeteer = require('puppeteer-core');
     browser = await puppeteer.launch({
       executablePath: chromePath,
-      headless: 'new',
+      headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
     const page = await browser.newPage();
@@ -130,7 +130,7 @@ router.post('/', async (req, res) => {
     const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
 </head><body>${html}</body></html>`;
-    await page.setContent(fullHtml, { waitUntil: 'networkidle0', timeout: 15000 });
+    await page.setContent(fullHtml, { waitUntil: 'load', timeout: 15000 });
 
     const pdfOpts = cfg.paperSize === 'label-6x4'
       ? { path: tmpPdf, width: '152.4mm', height: '101.6mm', printBackground: true, preferCSSPageSize: true, margin: { top: 0, right: 0, bottom: 0, left: 0 } }
