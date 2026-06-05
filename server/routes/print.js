@@ -93,21 +93,22 @@ router.post('/', async (req, res) => {
   if (!ALLOWED_SLUGS.includes(docType)) return res.status(400).json({ error: 'docType ไม่ถูกต้อง' });
   if (typeof html !== 'string' || !html.trim()) return res.status(400).json({ error: 'ไม่มีเนื้อหาเอกสาร' });
 
-  const cfgDoc = await PrintConfig.findOne({ slug: docType }).lean();
-  const cfg = cfgDoc ? pick(cfgDoc) : DOC_DEFAULTS.find((d) => d.slug === docType);
-  if (!cfg.printerName) {
-    return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่าเครื่องพิมพ์สำหรับเอกสารนี้ (ตั้งค่าที่หน้าตั้งค่าระบบ)' });
-  }
-
-  const chromePath = process.env.PRINT_CHROME_PATH;
-  if (!chromePath || !fs.existsSync(chromePath)) {
-    return res.status(500).json({ error: 'ไม่พบ Chrome สำหรับสร้าง PDF (ตั้งค่า PRINT_CHROME_PATH)' });
-  }
-
-  const copies = (Number.isInteger(copiesOverride) && copiesOverride >= 1) ? copiesOverride : cfg.copies;
-  const tmpPdf = path.join(os.tmpdir(), `lis-print-${crypto.randomUUID()}.pdf`);
   let browser;
+  let tmpPdf;
   try {
+    const cfgDoc = await PrintConfig.findOne({ slug: docType }).lean();
+    const cfg = cfgDoc ? pick(cfgDoc) : DOC_DEFAULTS.find((d) => d.slug === docType);
+    if (!cfg.printerName) {
+      return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่าเครื่องพิมพ์สำหรับเอกสารนี้ (ตั้งค่าที่หน้าตั้งค่าระบบ)' });
+    }
+
+    const chromePath = process.env.PRINT_CHROME_PATH;
+    if (!chromePath || !fs.existsSync(chromePath)) {
+      return res.status(500).json({ error: 'ไม่พบ Chrome สำหรับสร้าง PDF (ตั้งค่า PRINT_CHROME_PATH)' });
+    }
+
+    const copies = (Number.isInteger(copiesOverride) && copiesOverride >= 1) ? copiesOverride : cfg.copies;
+    tmpPdf = path.join(os.tmpdir(), `lis-print-${crypto.randomUUID()}.pdf`);
     const puppeteer = require('puppeteer-core');
     browser = await puppeteer.launch({
       executablePath: chromePath,
@@ -146,7 +147,7 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: `พิมพ์ไม่สำเร็จ: ${err.message}` });
   } finally {
     if (browser) { try { await browser.close(); } catch (_) {} }
-    fs.promises.unlink(tmpPdf).catch(() => {});
+    if (tmpPdf) fs.promises.unlink(tmpPdf).catch(() => {});
   }
 });
 
