@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import PetitionView from '@/components/petition/PetitionView';
 import PetitionPrintTemplate from '@/components/petition/PetitionPrintTemplate';
+import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
 import ProductionPlanPrintTemplate from '@/components/petition/ProductionPlanPrintTemplate';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
 import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
@@ -119,6 +120,7 @@ export default function PetitionDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const autoPrintDone = useRef(false);
   const [printTarget, setPrintTarget] = useState<PrintTarget>(null);
+  const [printOpen, setPrintOpen] = useState(false);
 
   function triggerPrint(target: Exclude<PrintTarget, null>) {
     flushSync(() => setPrintTarget(target));
@@ -206,11 +208,6 @@ export default function PetitionDetailPage() {
                   <SampleLabelPrintTemplate petition={data} />
                 </div>
               )}
-              {printTarget === 'agreement' && hasLabRequests && (
-                <div className="hidden print:block">
-                  <PetitionPrintTemplate labRequest={labRequests![0]} petition={data} />
-                </div>
-              )}
               {printTarget === 'production-plan' && isProduction && (
                 <div className="hidden print:block">
                   {data.productionPlans.map((plan) => (
@@ -279,7 +276,7 @@ export default function PetitionDetailPage() {
                         <Button
                           variant="primary-outline"
                           size="sm"
-                          onClick={() => triggerPrint('agreement')}
+                          onClick={() => setPrintOpen(true)}
                         >
                           <FileText className="h-4 w-4" />
                           พิมพ์ใบคำขอรับบริการ
@@ -365,6 +362,12 @@ export default function PetitionDetailPage() {
                   </Card>
                 )}
               </div>
+
+              {hasLabRequests && (
+                <PrintPreviewDialog open={printOpen} onOpenChange={setPrintOpen} docType="service-request">
+                  <PetitionPrintTemplate labRequest={labRequests![0]} petition={data} />
+                </PrintPreviewDialog>
+              )}
             </div>
           );
         })()
