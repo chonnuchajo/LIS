@@ -63,3 +63,7 @@ export const ROOM_CATALOGS: Record<string, RoomCatalog> = {
 
 export const getRoomCatalog = (slug: string): RoomCatalog | undefined =>
   ROOM_CATALOGS[slug];
+
+// Room slugs ที่ใช้ model EquipmentCheck (เรียงตามลำดับใน ROOM_CATALOGS:
+// sample-prep, analysis, extraction) — ใช้โดยแท็บรายการบันทึกรวม.
+export const EQUIPMENT_ROOM_SLUGS: string[] = Object.keys(ROOM_CATALOGS);
