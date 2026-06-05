@@ -5,9 +5,11 @@ import { toast } from "sonner";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import EnvRoomConfigCard from "@/components/lis/EnvRoomConfigCard";
+import PrintConfigCard from "@/components/lis/PrintConfigCard";
 import { api } from "@/lib/api";
 import { useEnvRooms } from "@/hooks/useEnvRooms";
 import type { EnvRoom, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
+import type { PrintConfig, PrintConfigInput } from "@/lib/printConfig";
 
 const SettingsPage = () => {
   const queryClient = useQueryClient();
@@ -29,6 +31,26 @@ const SettingsPage = () => {
       const label = rooms.find((r) => r.slug === vars.slug)?.label ?? vars.slug;
       toast.success(`บันทึกการตั้งค่า ${label} แล้ว`);
       queryClient.invalidateQueries({ queryKey: ["env-room-config"] });
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
+    },
+  });
+
+  const { data: printConfigs = [] } = useQuery({
+    queryKey: ["print-config"],
+    queryFn: api.getPrintConfigs,
+  });
+  const { data: printers = [] } = useQuery({
+    queryKey: ["printers"],
+    queryFn: api.getPrinters,
+  });
+  const savePrintMutation = useMutation({
+    mutationFn: ({ slug, input }: { slug: PrintConfig["slug"]; input: PrintConfigInput }) =>
+      api.updatePrintConfig(slug, input),
+    onSuccess: () => {
+      toast.success("บันทึกการตั้งค่าเครื่องพิมพ์แล้ว");
+      queryClient.invalidateQueries({ queryKey: ["print-config"] });
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
@@ -63,6 +85,20 @@ const SettingsPage = () => {
             ))}
           </div>
         )}
+      </div>
+      <div className="space-y-3 mt-8">
+        <h2 className="text-sm font-semibold text-muted-foreground">เครื่องพิมพ์เอกสาร</h2>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {printConfigs.map((cfg) => (
+            <PrintConfigCard
+              key={cfg.slug}
+              config={cfg}
+              printers={printers}
+              saving={savePrintMutation.isPending}
+              onSave={(slug, input) => savePrintMutation.mutate({ slug, input })}
+            />
+          ))}
+        </div>
       </div>
     </AppLayout>
   );

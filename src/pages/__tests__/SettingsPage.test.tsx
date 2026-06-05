@@ -13,6 +13,9 @@ vi.mock("@/lib/api", () => ({
     getEnvRoomConfigs: vi.fn().mockResolvedValue([]),
     getLiveTempHum: vi.fn().mockResolvedValue([]),
     updateEnvRoomConfig: vi.fn(),
+    getPrintConfigs: vi.fn().mockResolvedValue([]),
+    getPrinters: vi.fn().mockResolvedValue([]),
+    updatePrintConfig: vi.fn(),
   },
 }));
 
