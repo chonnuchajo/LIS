@@ -26,7 +26,6 @@ import AccessControl from "./pages/AccessControl";
 import StockDeduction from "./pages/StockDeduction";
 import DailyCheckLayout from "./pages/daily-check/DailyCheckLayout";
 import BalanceRoomPage from "./pages/daily-check/BalanceRoomPage";
-import RoomPlaceholderPage from "./pages/daily-check/RoomPlaceholderPage";
 import RoomEquipmentCheckPage from "./pages/daily-check/RoomEquipmentCheckPage";
 import EnvironmentCheckPage from "./pages/daily-check/EnvironmentCheckPage";
 import DocumentsPage from "./pages/daily-check/DocumentsPage";
