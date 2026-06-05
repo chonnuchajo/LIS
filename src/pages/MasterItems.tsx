@@ -1122,18 +1122,11 @@ export function SimpleMethodPage() {
               <div className="mx-1 h-6 w-px bg-border" aria-hidden />
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-xs text-muted-foreground">เพิ่มทุกสาร:</span>
-                {activeMethods.map((m) => (
-                  <Button
-                    key={m.code}
-                    size="sm"
-                    variant="outline"
-                    className="h-7 rounded-full px-3"
-                    disabled={selectedKeys.size === 0}
-                    onClick={() => applyBulkAdd(m.code)}
-                  >
-                    {m.label}
-                  </Button>
-                ))}
+                <BulkAddMethodPicker
+                  methods={activeMethods}
+                  disabled={selectedKeys.size === 0}
+                  onAdd={applyBulkAdd}
+                />
                 <Button
                   size="sm"
                   variant="ghost"
@@ -1233,6 +1226,53 @@ function MethodSlotPicker({
                 </button>
               );
             })}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Floating-toolbar bulk picker: a single "เพิ่ม method ▾" trigger opening a popover
+// that lists each active method. Clicking a method calls `onAdd(code)` and leaves the
+// popover open so several can be added in a row.
+function BulkAddMethodPicker({
+  methods,
+  disabled,
+  onAdd,
+}: {
+  methods: MethodDoc[];
+  disabled: boolean;
+  onAdd: (code: string) => void;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 gap-1 rounded-full px-3"
+          disabled={disabled}
+        >
+          เพิ่ม method
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="center" className="w-44 p-1.5">
+        {methods.length === 0 ? (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">ยังไม่มี method</div>
+        ) : (
+          <div className="flex flex-col">
+            {methods.map((m) => (
+              <button
+                key={m.code}
+                type="button"
+                className="rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                onClick={() => onAdd(m.code)}
+              >
+                {m.label}
+              </button>
+            ))}
           </div>
         )}
       </PopoverContent>
