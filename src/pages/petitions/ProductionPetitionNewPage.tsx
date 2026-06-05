@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Factory, RotateCcw, Save } from 'lucide-react';
+import QRCode from 'qrcode';
+import { ArrowLeft, ArrowRight, CheckCircle2, Factory, Printer, RotateCcw, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import PageHeader from '@/components/lis/PageHeader';
 import ItemsStep, { type ItemRowValues } from '@/components/petition/wizard/ItemsStep';
 import type { SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
 import LabRequestStep, { type LabRequestRowValues } from '@/components/petition/wizard/LabRequestStep';
+import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
 import {
   isLabBatch,
   makeBlankProductionPlan,
@@ -21,6 +23,7 @@ import type { Petition, ProductionPetition } from '@/types/petition.types';
 
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
 const ICP_LADDA_COMPANY = 'ICP Ladda Co., LTD.';
+const PRODUCTION_RETURN_URL = 'https://app-plant.icpladda.com/production/public/sample_analysis.php?status=&q=';
 
 type StepKey = 'items' | 'plan' | 'lab';
 
@@ -104,6 +107,117 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
     testItems,
     note,
   };
+}
+
+function toBuddhistShort(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String((d.getFullYear() + 543) % 100).padStart(2, '0');
+  return `${dd}/${mm}/${yy}`;
+}
+
+function currentBuddhistYearShort(): string {
+  return String((new Date().getFullYear() + 543) % 100).padStart(2, '0');
+}
+
+function getQrValue(petition: Petition, item: Petition['items'][number]): string {
+  return JSON.stringify({
+    id: petition._id,
+    petitionNo: petition.petitionNo,
+    sampleId: item.sampleId || '',
+    itemSeq: item.seq,
+  });
+}
+
+function PreviewQrCode({ value }: { value: string }) {
+  const qr = QRCode.create(value, { errorCorrectionLevel: 'M' });
+  const size = qr.modules.size;
+  const modules = Array.from(qr.modules.data as Uint8Array);
+
+  return (
+    <svg
+      viewBox={`0 0 ${size} ${size}`}
+      className="h-20 w-20 shrink-0"
+      role="img"
+      aria-label={`QR ${value}`}
+      shapeRendering="crispEdges"
+    >
+      <rect width={size} height={size} fill="#fff" />
+      {modules.map((filled, index) => {
+        if (!filled) return null;
+        const x = index % size;
+        const y = Math.floor(index / size);
+        return <rect key={index} x={x} y={y} width="1" height="1" fill="#000" />;
+      })}
+    </svg>
+  );
+}
+
+function LabelPreview({ petition }: { petition: Petition }) {
+  const yearShort = currentBuddhistYearShort();
+
+  return (
+    <div className="space-y-3">
+      {petition.items.map((item) => {
+        const productLine = [item.sampleName, item.commonName].filter(Boolean).join(' ');
+        return (
+          <div
+            key={item.seq}
+            className="mx-auto w-full max-w-[760px] rounded-md border border-black bg-white p-4 text-black shadow-sm"
+          >
+            <div className="mb-3 flex items-start gap-3">
+              <div className="shrink-0 border border-black bg-white p-1">
+                <PreviewQrCode value={getQrValue(petition, item)} />
+              </div>
+              <div className="flex-1 text-center text-sm font-semibold">
+                ป้ายนำส่งตัวอย่าง บริษัท ไอ ซี พี ลัดดา จำกัด
+              </div>
+              <div className="flex items-end gap-1 whitespace-nowrap text-sm">
+                <span>เลขที่</span>
+                <span className="inline-block min-w-[4rem] border-b border-black px-1 text-center">
+                  {item.sampleId || '\u00a0'}
+                </span>
+                <span>/</span>
+                <span className="inline-block min-w-[2rem] border-b border-black px-1 text-center">
+                  {yearShort}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-sm">
+              <PreviewField label="ชื่อผลิตภัณฑ์ และสารสำคัญ" value={productLine} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <PreviewField label="วัน เดือน ปี ที่ผลิต/นำเข้า" value={toBuddhistShort(item.productionDate)} />
+                <PreviewField label="แบชนัมเบอร์" value={item.batchNo} />
+              </div>
+              <PreviewField label="ผู้ผลิต" value={item.labelManufacturer} />
+              <PreviewField label="ผู้ขาย" value={item.labelSeller} />
+              <div className="grid gap-3 sm:grid-cols-3">
+                <PreviewField label="ปริมาณ" value={item.labelQuantity} />
+                <PreviewField label="สุ่มโดย" value={item.labelSampledBy} />
+                <PreviewField label="ว/ด/ป" value={toBuddhistShort(item.labelSampledDate)} />
+              </div>
+              <PreviewField label="หมายเหตุ" value={item.labelRemark} />
+            </div>
+
+            <div className="mt-3 text-[10px]">F-LAB-01-10 Rev : 01 01/04/67</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PreviewField({ label, value }: { label: string; value?: string }) {
+  return (
+    <div className="flex items-end gap-1">
+      <span className="whitespace-nowrap">{label}</span>
+      <span className="min-h-[1.25rem] flex-1 border-b border-black px-1">{value || ''}</span>
+    </div>
+  );
 }
 
 function makeBlankLabRequest(
@@ -311,6 +425,7 @@ export default function ProductionPetitionNewPage({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
+  const [createdPetition, setCreatedPetition] = useState<Petition | null>(null);
 
   function validateStep(): boolean {
     setStepError(null);
@@ -415,6 +530,11 @@ export default function ProductionPetitionNewPage({
           setError(`สร้างใบคำขอรับบริการไม่สำเร็จ: ${e instanceof Error ? e.message : 'unknown'}`);
         }
       }
+      if (publicMode) {
+        setCreatedPetition(created);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
       navigate(`/petitions/${created._id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'บันทึกคำร้องไม่สำเร็จ';
@@ -424,9 +544,73 @@ export default function ProductionPetitionNewPage({
     }
   }
 
+  function handlePageBack() {
+    if (publicMode) {
+      window.location.href = PRODUCTION_RETURN_URL;
+      return;
+    }
+    navigate('/petitions');
+  }
+
+  function printCreatedLabels() {
+    if (!createdPetition) return;
+    setTimeout(() => window.print(), 50);
+  }
+
+  const successContent = createdPetition ? (
+    <div className="space-y-4">
+      <div className="hidden print:block">
+        <SampleLabelPrintTemplate petition={createdPetition} />
+      </div>
+
+      <div className="print:hidden space-y-4">
+        <PageHeader title="บันทึกคำขอสำเร็จ" onBack={handlePageBack} />
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-green-600" />
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold text-foreground">สร้างคำขอเรียบร้อย</h2>
+                  <p className="text-sm text-muted-foreground">
+                    เลขที่คำขอ: <span className="font-semibold text-foreground">{createdPetition.petitionNo}</span>
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    จำนวนสติกเกอร์: {createdPetition.items.length} รายการ
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button onClick={printCreatedLabels} className="w-full sm:w-auto">
+                  <Printer className="h-4 w-4" />
+                  พิมพ์สติกเกอร์
+                </Button>
+                <Button variant="primary-outline" onClick={handlePageBack} className="w-full sm:w-auto">
+                  กลับ Production System
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="mb-4">
+              <h2 className="text-base font-semibold text-foreground">Preview สติกเกอร์</h2>
+              <p className="text-sm text-muted-foreground">แสดงตัวอย่างบนหน้าเว็บก่อนสั่งพิมพ์จริง</p>
+            </div>
+            <LabelPreview petition={createdPetition} />
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  ) : null;
+
   const content = (
       <div className="space-y-4">
-        <PageHeader title={integrationMode ? 'Production System Request' : 'คำขอแผนกผลิต'} onBack={() => navigate('/petitions')} />
+        <PageHeader title={integrationMode ? 'Production System Request' : 'คำขอแผนกผลิต'} onBack={handlePageBack} />
 
         {integrationMode && (
           <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
@@ -552,7 +736,7 @@ export default function ProductionPetitionNewPage({
   if (publicMode) {
     return (
       <div className="min-h-screen bg-background p-4 sm:p-6">
-        <div className="mx-auto max-w-6xl">{content}</div>
+        <div className="mx-auto max-w-6xl">{successContent ?? content}</div>
       </div>
     );
   }
