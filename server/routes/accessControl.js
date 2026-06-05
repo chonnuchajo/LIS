@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Role = require('../models/Role');
 const AccessGroup = require('../models/AccessGroup');
 const { findOrphanBackfillPaths } = require('../lib/accessGroups');
+const { resolveHrField } = require('../lib/userProfile');
 
 const defaultGroups = [
   { id: 'dashboard', name: 'หน้าหลัก', description: 'ภาพรวมแล็บและงานที่กำลังดำเนินการ', paths: ['/', '/home', '/dashboard/lab'], locked: false, sortOrder: 10 },
@@ -219,7 +220,7 @@ router.post('/users', async (req, res) => {
 router.post('/users/microsoft', async (req, res) => {
   try {
     await ensureDefaults();
-    const { email, name, microsoftId, tenantId } = req.body;
+    const { email, name, microsoftId, tenantId, department, position } = req.body;
     if (!email) return res.status(400).json({ error: 'email is required' });
 
     const normalizedEmail = String(email).toLowerCase();
@@ -231,6 +232,10 @@ router.post('/users/microsoft', async (req, res) => {
       user.authProvider = 'microsoft';
       user.microsoftId = microsoftId || user.microsoftId;
       user.tenantId = tenantId || user.tenantId;
+      // Sync แผนก/ตำแหน่ง from Microsoft Graph, but never wipe an admin-set
+      // value when Graph has nothing for this user.
+      user.department = resolveHrField(department, user.department);
+      user.position = resolveHrField(position, user.position);
       user.lastActive = now;
       await user.save();
       return res.json(formatUser(user, await getRolePermissions(user.role)));
@@ -242,8 +247,8 @@ router.post('/users/microsoft', async (req, res) => {
       email: normalizedEmail,
       name: name || normalizedEmail,
       role,
-      department: 'Unassigned',
-      position: 'Unassigned',
+      department: resolveHrField(department, undefined),
+      position: resolveHrField(position, undefined),
       status: 'active',
       lastActive: now,
       authProvider: 'microsoft',
