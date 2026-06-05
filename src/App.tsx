@@ -29,6 +29,7 @@ import BalanceRoomPage from "./pages/daily-check/BalanceRoomPage";
 import RoomEquipmentCheckPage from "./pages/daily-check/RoomEquipmentCheckPage";
 import EnvironmentCheckPage from "./pages/daily-check/EnvironmentCheckPage";
 import DocumentsPage from "./pages/daily-check/DocumentsPage";
+import DailyCheckRecordsPage from "./pages/daily-check/DailyCheckRecordsPage";
 import NotFound from "./pages/NotFound";
 import ScannerPage from "./pages/ScannerPage";
 import PetitionListPage from "./pages/PetitionListPage";
@@ -87,6 +88,7 @@ const App = () => (
                 <Route path="sample-prep" element={<RoomEquipmentCheckPage roomSlug="sample-prep" />} />
                 <Route path="analysis" element={<RoomEquipmentCheckPage roomSlug="analysis" />} />
                 <Route path="extraction" element={<RoomEquipmentCheckPage roomSlug="extraction" />} />
+                <Route path="records" element={<DailyCheckRecordsPage />} />
                 <Route path="documents" element={<DocumentsPage />} />
               </Route>
               <Route path="/stock" element={<PrivateRoute><Stock /></PrivateRoute>} />

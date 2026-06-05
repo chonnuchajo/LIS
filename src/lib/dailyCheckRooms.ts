@@ -1,4 +1,4 @@
-import { Beaker, FileDown, FlaskConical, Microscope, Scale, Thermometer } from "lucide-react";
+import { Beaker, FileDown, FlaskConical, List, Microscope, Scale, Thermometer } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export interface DailyCheckRoom {
@@ -91,5 +91,6 @@ export interface DailyCheckTab {
 export const DAILY_CHECK_TABS: DailyCheckTab[] = [
   { route: `${DAILY_CHECK_BASE}/environment`, label: "อุณหภูมิ/ความชื้น", icon: Thermometer },
   ...DAILY_CHECK_ROOMS.map((r) => ({ route: r.route, label: r.label, icon: r.icon })),
+  { route: `${DAILY_CHECK_BASE}/records`, label: "รายการบันทึก", icon: List },
   { route: `${DAILY_CHECK_BASE}/documents`, label: "โหลดเอกสาร", icon: FileDown },
 ];
