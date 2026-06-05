@@ -73,7 +73,8 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
     enabled: !!catalog,
   });
 
-  // latest record per instrument for today
+  // latest record per instrument for today.
+  // GET /equipment-checks sorts checkedAt desc (newest-first), so first-wins keeps the latest.
   const latestByInstrument = useMemo(() => {
     const map: Record<string, EquipmentCheckRecord> = {};
     for (const r of todayRecords) {
@@ -412,7 +413,7 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
                             </TableCell>
                             <TableCell className="text-center text-xs whitespace-nowrap">
                               {h.readings.length
-                                ? h.readings.map((r) => `${r.label} ${r.value}${r.unit}`).join(", ")
+                                ? h.readings.map((r) => `${r.label} ${r.value} ${r.unit}`).join(", ")
                                 : "—"}
                             </TableCell>
                             <TableCell className="text-xs">{h.note || "—"}</TableCell>
