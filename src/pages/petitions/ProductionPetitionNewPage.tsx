@@ -11,6 +11,7 @@ import ItemsStep, { type ItemRowValues } from '@/components/petition/wizard/Item
 import type { SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
 import LabRequestStep, { type LabRequestRowValues } from '@/components/petition/wizard/LabRequestStep';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
+import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
 import {
   isLabBatch,
   makeBlankProductionPlan,
@@ -540,6 +541,7 @@ export default function ProductionPetitionNewPage({
   const [error, setError] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
   const [createdPetition, setCreatedPetition] = useState<Petition | null>(null);
+  const [labelPrintOpen, setLabelPrintOpen] = useState(false);
 
   function validateStep(): boolean {
     setStepError(null);
@@ -668,15 +670,11 @@ export default function ProductionPetitionNewPage({
 
   function printCreatedLabels() {
     if (!createdPetition) return;
-    setTimeout(() => window.print(), 50);
+    setLabelPrintOpen(true);
   }
 
   const successContent = createdPetition ? (
     <div className="space-y-4">
-      <div className="hidden print:block">
-        <SampleLabelPrintTemplate petition={createdPetition} />
-      </div>
-
       <div className="print:hidden space-y-4">
         <PageHeader title="บันทึกคำขอสำเร็จ" onBack={handlePageBack} />
 
@@ -719,6 +717,14 @@ export default function ProductionPetitionNewPage({
           </CardContent>
         </Card>
       </div>
+
+      <PrintPreviewDialog
+        open={labelPrintOpen}
+        onOpenChange={setLabelPrintOpen}
+        docType="sample-label"
+      >
+        <SampleLabelPrintTemplate petition={createdPetition} />
+      </PrintPreviewDialog>
     </div>
   ) : null;
 
