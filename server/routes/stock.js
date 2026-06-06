@@ -313,7 +313,7 @@ router.post('/units/:qrId/withdraw', async (req, res) => {
 
     await logTransaction({
       itemType: 'standard',
-      itemId: parent.itemCode,
+      itemId: std ? std._id.toString() : parent.itemCode,
       itemCode: parent.itemCode,
       itemName: parent.itemName,
       action: 'withdraw',
