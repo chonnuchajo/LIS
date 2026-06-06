@@ -756,7 +756,7 @@ const AccessControl = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-5">
-                <div className="grid gap-3 rounded-md border bg-muted/30 p-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_180px_auto]">
+                <div className="grid gap-3 rounded-md border bg-muted/30 p-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_180px_auto]">
                   <Input
                     value={newUser.name}
                     onChange={(event) => setNewUser({ ...newUser, name: event.target.value })}
@@ -766,16 +766,6 @@ const AccessControl = () => {
                     value={newUser.email}
                     onChange={(event) => setNewUser({ ...newUser, email: event.target.value })}
                     placeholder="email@icpladda.com"
-                  />
-                  <Input
-                    value={newUser.department}
-                    onChange={(event) => setNewUser({ ...newUser, department: event.target.value })}
-                    placeholder="Department"
-                  />
-                  <Input
-                    value={newUser.position}
-                    onChange={(event) => setNewUser({ ...newUser, position: event.target.value })}
-                    placeholder="Position"
                   />
                   <div className="flex flex-wrap items-center gap-1 rounded-md border px-2 py-1">
                     {roles.map((role) => {
@@ -838,42 +828,10 @@ const AccessControl = () => {
                             </div>
                           </TableCell>
                           <TableCell className="hidden lg:table-cell min-w-[160px]">
-                            <Input
-                              value={user.department}
-                              onChange={(event) =>
-                                setUsers((current) =>
-                                  current.map((item) =>
-                                    item.id === user.id
-                                      ? { ...item, department: event.target.value }
-                                      : item,
-                                  ),
-                                )
-                              }
-                              onBlur={(event) =>
-                                updateUser(user.id, {
-                                  department: event.target.value.trim() || "Unassigned",
-                                })
-                              }
-                            />
+                            <span className="text-sm text-muted-foreground">{user.department}</span>
                           </TableCell>
                           <TableCell className="hidden lg:table-cell min-w-[160px]">
-                            <Input
-                              value={user.position}
-                              onChange={(event) =>
-                                setUsers((current) =>
-                                  current.map((item) =>
-                                    item.id === user.id
-                                      ? { ...item, position: event.target.value }
-                                      : item,
-                                  ),
-                                )
-                              }
-                              onBlur={(event) =>
-                                updateUser(user.id, {
-                                  position: event.target.value.trim() || "Unassigned",
-                                })
-                              }
-                            />
+                            <span className="text-sm text-muted-foreground">{user.position}</span>
                           </TableCell>
                           <TableCell className="min-w-[160px] sm:min-w-[200px]">
                             <div className="flex flex-wrap items-center gap-1">

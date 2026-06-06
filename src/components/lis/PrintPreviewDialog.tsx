@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Printer } from "lucide-react";
+import { Minus, Plus, Printer } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -25,9 +25,10 @@ interface Props {
 }
 
 /**
- * ย่อเนื้อหา preview ให้พอดีความกว้างที่มีเสมอ (กันเลื่อนซ้ายขวา) — เอกสารบางชนิด
- * กว้างเกินกรอบ dialog (เช่น ใบคำขอหน้า 2 เป็น A4 แนวนอน 297mm). transform scale
- * อยู่ที่ตัวครอบ *นอก* printRef จึงไม่ถูกจับตอน serialize → ของจริงที่ส่งไปพิมพ์ขนาดเท่าเดิม.
+ * ย่อ/ขยายเนื้อหา preview ให้เต็มความกว้างที่มีเสมอ (กันเลื่อนซ้ายขวา + เห็นชัด) — เอกสาร
+ * กว้างเกินกรอบจะถูกย่อ (เช่น ใบคำขอหน้า 2 เป็น A4 แนวนอน 297mm) ส่วนฉลากเล็กจะถูกขยายขึ้น.
+ * transform scale อยู่ที่ตัวครอบ *นอก* printRef จึงไม่ถูกจับตอน serialize → ของจริงที่ส่งไป
+ * พิมพ์ขนาดเท่าเดิม ไม่กระทบขนาดปริ้น.
  */
 // chrome แนวนอนของกรอบขาว (p-2 ซ้าย+ขวา + border ซ้าย+ขวา) — ต้องตรงกับ className ด้านล่าง
 const BOX_CHROME = 18;
@@ -55,7 +56,9 @@ function ScaledPreview({
       // กล่องล้นออกกว้างกว่า dialog → เกิด scroll ซ้าย-ขวา ตอนเอกสาร A4 ย่อเต็มกรอบ
       const avail = outer.clientWidth - BOX_CHROME;
       const natW = content.scrollWidth;
-      setScale(natW > avail ? avail / natW : 1);
+      // เต็มความกว้างเสมอ: กว้างเกิน→ย่อ, เล็กเกิน→ขยาย. scale อยู่นอก printRef ของจริง
+      // ที่ส่งไปพิมพ์จึงขนาดเดิม ไม่กระทบขนาดปริ้น. dialog ถูก cap ความกว้างไว้ scale จึงไม่บานเกิน
+      setScale(natW > 0 ? avail / natW : 1);
       setNaturalWidth(natW);
       setNaturalHeight(content.scrollHeight);
     };
@@ -93,8 +96,9 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
   const [copies, setCopies] = useState(1);
   const [printing, setPrinting] = useState(false);
   const meta = getPrintDocType(docType);
-  // ฉลากกว้างแค่ 100mm — ให้ dialog แคบลงพอดีตัว ไม่ต้องกว้างเท่าเอกสาร A4
-  const widthClass = docType === "sample-label" ? "sm:max-w-md" : "sm:max-w-4xl";
+  // ฉลากกว้างแค่ 100mm — dialog กว้างปานกลาง แล้วให้ ScaledPreview ขยายฉลากเต็มกรอบให้เห็นชัด
+  // (ไม่ต้องกว้างเท่าเอกสาร A4 แต่กว้างพอให้ขยายอ่านง่าย)
+  const widthClass = docType === "sample-label" ? "sm:max-w-2xl" : "sm:max-w-4xl";
 
   const { data: configs } = useQuery({
     queryKey: ["print-config"],
@@ -120,7 +124,7 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`${widthClass} max-h-[90vh] overflow-auto`}>
+      <DialogContent className={`${widthClass} max-h-[90vh] overflow-y-auto overflow-x-hidden`}>
         <DialogHeader>
           <DialogTitle>ตัวอย่างก่อนพิมพ์ — {meta?.label ?? docType}</DialogTitle>
         </DialogHeader>
@@ -137,18 +141,43 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
         )}
 
         <DialogFooter className="items-center gap-3 sm:justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Label htmlFor="print-copies" className="text-sm">จำนวนชุด</Label>
-            <Input
-              id="print-copies"
-              type="number"
-              min={1}
-              max={99}
-              value={copies}
-              onChange={(e) => setCopies(Math.min(99, Math.max(1, parseInt(e.target.value || "1", 10))))}
-              className="w-20"
-            />
-            {configured && <span className="text-sm text-muted-foreground">→ {printerTarget}</span>}
+            <div className="flex items-center">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 rounded-r-none"
+                onClick={() => setCopies((c) => Math.max(1, c - 1))}
+                disabled={copies <= 1}
+                aria-label="ลดจำนวนชุด"
+              >
+                <Minus className="h-4 w-4" />
+              </Button>
+              <Input
+                id="print-copies"
+                type="text"
+                inputMode="numeric"
+                value={copies}
+                onChange={(e) =>
+                  setCopies(Math.min(99, Math.max(1, parseInt(e.target.value.replace(/\D/g, "") || "1", 10))))
+                }
+                className="w-12 rounded-none text-center"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 rounded-l-none"
+                onClick={() => setCopies((c) => Math.min(99, c + 1))}
+                disabled={copies >= 99}
+                aria-label="เพิ่มจำนวนชุด"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+            {configured && <span className="text-sm text-muted-foreground break-all">→ {printerTarget}</span>}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>ปิด</Button>
