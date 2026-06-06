@@ -89,7 +89,10 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
         }
       }
     };
-  }, [open, phase, onScanned]);
+    // onScanned intentionally omitted — captured in closure; matches QrReceiveModal
+    // and avoids camera restarts if a parent passes an unstable handler.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, phase]);
 
   if (!open) return null;
 
@@ -126,7 +129,12 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
           <div className="border-t pt-4 space-y-2">
             <Label>หรือกรอก/วาง qrId เอง</Label>
             <div className="flex gap-2">
-              <Input value={manual} onChange={(e) => setManual(e.target.value)} placeholder="u_xxxxxxxx หรือ URL" />
+              <Input
+                value={manual}
+                onChange={(e) => setManual(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && manual.trim()) submitManual(); }}
+                placeholder="u_xxxxxxxx หรือ URL"
+              />
               <Button onClick={submitManual} disabled={!manual.trim()}>ตกลง</Button>
             </div>
           </div>
