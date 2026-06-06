@@ -255,7 +255,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
         afterQty: size,
         volumeDelta: size,
         volumeUnit: unit,
-        unit: 'ml',
+        unit,
         note,
         ...userMeta(req),
       });
