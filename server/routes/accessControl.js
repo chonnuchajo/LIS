@@ -207,9 +207,9 @@ router.post('/users', async (req, res) => {
     const { name, email, department, position, roleId, roleIds, status } = req.body;
     if (!email) return res.status(400).json({ error: 'email is required' });
 
-    const requested = Array.isArray(roleIds) && roleIds.length > 0
-      ? roleIds
-      : [roleId || 'viewer'];
+    const requested = [...new Set(
+      Array.isArray(roleIds) && roleIds.length > 0 ? roleIds : [roleId || 'viewer'],
+    )];
     const found = await Role.find({ id: { $in: requested } });
     if (found.length !== requested.length) {
       return res.status(400).json({ error: 'role not found' });
@@ -284,9 +284,11 @@ router.patch('/users/:id', async (req, res) => {
       if (req.body[key] !== undefined) patch[key] = req.body[key];
     });
     if (req.body.roleIds !== undefined || req.body.roleId !== undefined) {
-      const requested = Array.isArray(req.body.roleIds) && req.body.roleIds.length > 0
-        ? req.body.roleIds
-        : [req.body.roleId];
+      const requested = [...new Set(
+        Array.isArray(req.body.roleIds) && req.body.roleIds.length > 0
+          ? req.body.roleIds
+          : [req.body.roleId],
+      )];
       const found = await Role.find({ id: { $in: requested } });
       if (found.length !== requested.length) {
         return res.status(400).json({ error: 'role not found' });
