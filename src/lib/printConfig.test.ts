@@ -8,9 +8,9 @@ import {
 } from "./printConfig";
 
 describe("PRINT_DOC_TYPES", () => {
-  it("has the 4 known doc types", () => {
+  it("has the 5 known doc types", () => {
     expect(PRINT_DOC_TYPES.map((d) => d.slug)).toEqual([
-      "sample-label", "coa", "service-request", "production-plan",
+      "sample-label", "coa", "service-request", "production-plan", "stock-label",
     ]);
   });
 });

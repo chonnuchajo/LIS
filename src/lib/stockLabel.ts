@@ -10,7 +10,7 @@ export async function buildStockLabelHtml(
   const qr = await QRCode.toDataURL(scanUrl, { margin: 1, width: 240 });
   const exp = unit.exp ? new Date(unit.exp).toLocaleDateString("th-TH") : "-";
   const kindLabel = unit.kind === "working" ? "WORKING" : "SEALED";
-  const size = `${unit.volume?.initial ?? "-"} ${unit.volume?.unit ?? ""}`;
+  const size = `${unit.volume?.initial ?? "-"}${unit.volume?.unit ? " " + unit.volume.unit : ""}`;
   return `
 <div style="display:flex;gap:8px;align-items:center;font-family:'Kanit',sans-serif;width:152mm;height:101mm;box-sizing:border-box;padding:6mm;">
   <img src="${qr}" alt="qr" style="width:34mm;height:34mm;flex:none;" />
@@ -29,5 +29,6 @@ function escapeHtml(s: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
 }
