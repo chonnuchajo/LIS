@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -22,6 +22,59 @@ interface Props {
   /** CSS เสริมสำหรับ template ที่ไม่ได้ฝัง <style> ไว้ใน children (เช่น COA) */
   css?: string;
   children: React.ReactNode; // template ที่จะ preview + พิมพ์
+}
+
+/**
+ * ย่อเนื้อหา preview ให้พอดีความกว้างที่มีเสมอ (กันเลื่อนซ้ายขวา) — เอกสารบางชนิด
+ * กว้างเกินกรอบ dialog (เช่น ใบคำขอหน้า 2 เป็น A4 แนวนอน 297mm). transform scale
+ * อยู่ที่ตัวครอบ *นอก* printRef จึงไม่ถูกจับตอน serialize → ของจริงที่ส่งไปพิมพ์ขนาดเท่าเดิม.
+ */
+function ScaledPreview({
+  printRef,
+  children,
+}: {
+  printRef: React.RefObject<HTMLDivElement>;
+  children: React.ReactNode;
+}) {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [naturalHeight, setNaturalHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    const outer = outerRef.current;
+    const content = contentRef.current;
+    if (!outer || !content) return;
+    const measure = () => {
+      // scrollWidth/Height = ขนาด layout จริง ไม่ขึ้นกับ transform ที่ใส่ไว้
+      const avail = outer.clientWidth;
+      const natW = content.scrollWidth;
+      setScale(natW > avail ? avail / natW : 1);
+      setNaturalHeight(content.scrollHeight);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(outer);
+    return () => ro.disconnect();
+  }, [children]);
+
+  return (
+    <div ref={outerRef} className="overflow-x-hidden rounded border bg-white p-2">
+      {/* จองความสูงตามขนาดที่ย่อแล้ว เพื่อไม่ให้เหลือที่ว่างด้านล่าง */}
+      <div style={{ height: naturalHeight * scale }}>
+        <div
+          ref={contentRef}
+          style={{
+            width: "max-content",
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
+        >
+          <div ref={printRef}>{children}</div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function PrintPreviewDialog({ open, onOpenChange, docType, css, children }: Props) {
@@ -58,9 +111,7 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
           <DialogTitle>ตัวอย่างก่อนพิมพ์ — {meta?.label ?? docType}</DialogTitle>
         </DialogHeader>
 
-        <div className="rounded border bg-white p-2">
-          <div ref={printRef}>{children}</div>
-        </div>
+        <ScaledPreview printRef={printRef}>{children}</ScaledPreview>
 
         {!configured && (
           <p className="text-sm text-red-600">

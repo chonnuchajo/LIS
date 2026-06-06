@@ -1,4 +1,5 @@
 import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
+import { customerCodeFromDepartment } from '@/lib/customerCode';
 import { isLabBatch } from '@/types/productionPlan.types';
 import type { Petition, PetitionItem } from '@/types/petition.types';
 import type { LabRequest } from '@/types/labRequest.types';
@@ -64,7 +65,7 @@ function findSpecificGravity(petition: Petition, seq: number): string {
   return '';
 }
 
-function PageOne({ lr }: { lr: LabRequest }) {
+function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string }) {
   const sa = lr.serviceAgreement;
   const lar = lr.labAgreementReview;
   const createdDate = splitBuddhist(lr.createdAt);
@@ -89,11 +90,11 @@ function PageOne({ lr }: { lr: LabRequest }) {
         </div>
         <div className="pr-p1-meta-row">
           <b>อ้างอิงใบขอรับบริการเลขที่</b>{' '}
-          <span className="pr-line pr-line-md">{lr.labRequestNo}</span>
+          <span className="pr-line pr-line-md">{submissionNo}</span>
         </div>
         <div className="pr-p1-meta-row">
           <b>รหัสลูกค้า</b>{' '}
-          <span className="pr-line pr-line-sm">{requester?.department || ''}</span>
+          <span className="pr-line pr-line-sm">{customerCodeFromDepartment(requester?.department)}</span>
           <span> / </span>
           <span className="pr-line pr-line-xs">{createdDate.y}</span>
         </div>
@@ -578,11 +579,13 @@ interface Props {
 export default function PetitionPrintTemplate({ labRequest, petition }: Props) {
   const labItems = petition.items.filter((it) => isLabBatch(it.batchNo));
   const itemsToShow = labItems.length > 0 ? labItems : petition.items.filter((it) => it.seq === labRequest.sampleSeq);
+  // เลขที่ใบนำส่งใช้ค่าเดียวทั้งใบ (default = เลขคำขอ) — ดึงจากรายการที่ใบนี้อ้างถึง
+  const submissionNo = itemsToShow[0]?.submissionNo ?? petition.items[0]?.submissionNo ?? '';
   return (
     <>
       <style>{PRINT_CSS}</style>
       <div className="pr-root">
-        <PageOne lr={labRequest} />
+        <PageOne lr={labRequest} submissionNo={submissionNo} />
         <PageTwo lr={labRequest} petition={petition} items={itemsToShow} />
       </div>
     </>
