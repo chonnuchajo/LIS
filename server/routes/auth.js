@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const router = express.Router();
 const User = require('../models/User');
 const Role = require('../models/Role');
+const { primaryRole, normalizeRoles, unionPermissions } = require('../lib/roles');
 
 function b64urlDecode(value) {
   const padded = value + '='.repeat((4 - (value.length % 4)) % 4);
@@ -30,17 +31,25 @@ function verifyHs256Jwt(token, secret, leewaySeconds = 30) {
   return payload;
 }
 
-async function getPermissions(roleId) {
-  const role = await Role.findOne({ id: roleId });
-  return role?.permissions || [];
+async function getPermissions(rolesInput) {
+  const roles = normalizeRoles(
+    Array.isArray(rolesInput) ? { roles: rolesInput } : { role: rolesInput },
+  );
+  if (roles.length === 0) roles.push('viewer');
+  const roleDocs = await Role.find({ id: { $in: roles } }).lean();
+  const permsByRole = Object.fromEntries(roleDocs.map((r) => [r.id, r.permissions || []]));
+  return unionPermissions(roles, permsByRole);
 }
 
 function formatSsoUser(user, permissions = []) {
+  const roles = normalizeRoles(user);
   return {
     id: String(user._id),
     email: user.email,
     name: user.name,
-    role: user.role,
+    role: primaryRole(roles),
+    roleId: primaryRole(roles),
+    roleIds: roles,
     permissions,
     department: user.department,
     position: user.position,
@@ -104,15 +113,17 @@ router.post('/sso', async (req, res) => {
       user.position = user.position || 'Unassigned';
       user.authProvider = 'production';
       user.lastActive = now;
-      if (role && (!user.role || user.role === 'viewer')) user.role = role.id;
+      const currentRoles = normalizeRoles(user);
+      const onlyViewer = currentRoles.length === 0 || (currentRoles.length === 1 && currentRoles[0] === 'viewer');
+      if (role && onlyViewer) user.roles = [role.id];
       await user.save();
-      return res.json(formatSsoUser(user, await getPermissions(user.role)));
+      return res.json(formatSsoUser(user, await getPermissions(normalizeRoles(user))));
     }
 
     user = await User.create({
       email: normalizedEmail,
       name: String(payload.name || '').trim() || normalizedEmail,
-      role: role?.id || 'viewer',
+      roles: [role?.id || 'viewer'],
       department: String(payload.dept || '').trim() || 'Unassigned',
       position: 'Unassigned',
       status: 'active',
@@ -122,7 +133,7 @@ router.post('/sso', async (req, res) => {
       tenantId: 'production',
     });
 
-    res.status(201).json(formatSsoUser(user, await getPermissions(user.role)));
+    res.status(201).json(formatSsoUser(user, await getPermissions(normalizeRoles(user))));
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Email นี้มีในระบบแล้ว' });
     res.status(400).json({ error: err.message });
