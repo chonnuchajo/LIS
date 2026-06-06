@@ -224,7 +224,7 @@ export const api = {
     }),
   updateStockUnit: (
     qrId: string,
-    body: { lotNo?: string; exp?: string | null; volume?: { initial?: number; remaining?: number; unit?: string } },
+    body: { lotNo?: string; exp?: string | null; source?: "primary" | "supply" | ""; volume?: { initial?: number; remaining?: number; unit?: string } },
   ) =>
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`, {
       method: "PATCH",

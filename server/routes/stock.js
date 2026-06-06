@@ -374,9 +374,10 @@ router.patch('/units/:qrId', async (req, res) => {
     if (!unit) return res.status(404).json({ error: 'ไม่พบขวด' });
     if (unit.status === 'discarded') return res.status(400).json({ error: 'ขวดนี้ถูกทิ้งแล้ว แก้ไขไม่ได้' });
 
-    const { lotNo, exp, volume } = req.body || {};
+    const { lotNo, exp, volume, source } = req.body || {};
     if (lotNo !== undefined) unit.lotNo = String(lotNo);
     if (exp !== undefined) unit.exp = exp ? new Date(exp) : null;
+    if (source !== undefined && ['primary', 'supply', ''].includes(source)) unit.source = source;
     if (volume && typeof volume === 'object') {
       if (volume.unit !== undefined && ['ml', 'mg', 'g'].includes(volume.unit)) unit.volume.unit = volume.unit;
       if (volume.initial !== undefined) {

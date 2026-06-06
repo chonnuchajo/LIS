@@ -25,6 +25,7 @@ function toDateInput(v?: string | null): string {
 
 export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
   const [lotNo, setLotNo] = useState(unit.lotNo ?? "");
+  const [source, setSource] = useState<"primary" | "supply" | "">(unit.source ?? "");
   const [exp, setExp] = useState(toDateInput(unit.exp));
   const [initial, setInitial] = useState(String(unit.volume?.initial ?? ""));
   const [remaining, setRemaining] = useState(String(unit.volume?.remaining ?? ""));
@@ -42,6 +43,7 @@ export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
       await api.updateStockUnit(unit.qrId, {
         lotNo,
         exp: exp || null,
+        source,
         volume: { initial: init, remaining: rem },
       });
       toast.success("บันทึกข้อมูลขวดแล้ว");
@@ -66,6 +68,17 @@ export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
             <div>
               <Label>Lot No</Label>
               <Input value={lotNo} onChange={(e) => setLotNo(e.target.value)} placeholder="optional" />
+            </div>
+            <div>
+              <Label>ที่มา</Label>
+              <div className="flex gap-2 mt-1">
+                <Button type="button" variant={source === "primary" ? "default" : "outline"} size="sm"
+                  onClick={() => setSource("primary")}>primary</Button>
+                <Button type="button" variant={source === "supply" ? "default" : "outline"} size="sm"
+                  onClick={() => setSource("supply")}>supply</Button>
+                <Button type="button" variant={source === "" ? "default" : "outline"} size="sm"
+                  onClick={() => setSource("")}>ไม่ระบุ</Button>
+              </div>
             </div>
             <div>
               <Label>EXP (รายขวด)</Label>
