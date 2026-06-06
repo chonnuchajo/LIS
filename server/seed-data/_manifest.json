@@ -39,7 +39,7 @@
     {
       "collection": "petitions",
       "file": "petitions.json",
-      "count": 3
+      "count": 0
     },
     {
       "collection": "simplemethodexclusions",
@@ -50,6 +50,11 @@
       "collection": "stockstandards",
       "file": "stockstandards.json",
       "count": 138
+    },
+    {
+      "collection": "stockunits",
+      "file": "stockunits.json",
+      "count": 2
     },
     {
       "collection": "simplemethods",
@@ -79,7 +84,7 @@
     {
       "collection": "petitionauditlogs",
       "file": "petitionauditlogs.json",
-      "count": 190
+      "count": 193
     },
     {
       "collection": "realtimedensities",
@@ -99,7 +104,7 @@
     {
       "collection": "standardconfigs",
       "file": "standardconfigs.json",
-      "count": 5
+      "count": 2
     },
     {
       "collection": "stocksolvents",
@@ -129,7 +134,7 @@
     {
       "collection": "stocktransactions",
       "file": "stocktransactions.json",
-      "count": 1
+      "count": 4
     },
     {
       "collection": "accessgroups",
