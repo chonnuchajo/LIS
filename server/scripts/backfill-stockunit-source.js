@@ -37,7 +37,11 @@ async function main() {
 
     if (sealed.length === 0) continue;
 
-    const sources = assignSealedSources(sealed.length, std.primary && std.primary.qty);
+    const sources = assignSealedSources(sealed.length, std.primary?.qty ?? 0);
+    const expected = Math.max(0, Math.floor(Number(std.primary?.qty) || 0)) + Math.max(0, Math.floor(Number(std.supplier?.qty) || 0));
+    if (sealed.length !== expected) {
+      console.log(`  WARN ${std.code} ${std.name} — ขวด sealed ที่เจอ (${sealed.length}) ≠ primary.qty+supplier.qty (${expected}); การแบ่ง primary/supply อาจคลาดเคลื่อน ตรวจก่อน --commit`);
+    }
     stdsTouched += 1;
     const p = sources.filter((s) => s === 'primary').length;
     bottlesPrimary += p;
