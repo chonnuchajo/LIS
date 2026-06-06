@@ -23,6 +23,8 @@ test('tierSourceFor maps tier name to source', () => {
   assert.strictEqual(tierSourceFor('primary'), 'primary');
   assert.strictEqual(tierSourceFor('supplier'), 'supply');
   assert.strictEqual(tierSourceFor('working'), '');
+  assert.strictEqual(tierSourceFor(undefined), '');
+  assert.strictEqual(tierSourceFor(null), '');
 });
 
 test('assignSealedSources: first primaryQty are primary, rest supply', () => {
@@ -36,4 +38,9 @@ test('assignSealedSources floors/guards primaryQty', () => {
   assert.deepStrictEqual(assignSealedSources(3, 1.9), ['primary', 'supply', 'supply']);
   assert.deepStrictEqual(assignSealedSources(2, -5), ['supply', 'supply']);
   assert.deepStrictEqual(assignSealedSources(2, NaN), ['supply', 'supply']);
+});
+
+test('assignSealedSources guards sealedCount', () => {
+  assert.deepStrictEqual(assignSealedSources(2.7, 1), ['primary', 'supply']);
+  assert.deepStrictEqual(assignSealedSources(-3, 1), []);
 });
