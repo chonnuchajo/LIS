@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { NAV_ITEMS } from "@/lib/navItems";
 import { userCanAccessPath } from "@/lib/accessControl";
+import { normalizeRoles, unionPermissions } from "@/lib/roles";
 
 type AccessGroup = { id: string; paths?: string[] };
 type AccessControlState = { groups: AccessGroup[]; permissions: Record<string, string[]> };
@@ -32,9 +33,10 @@ export default function HomeGeneric() {
     };
   }, []);
 
+  const roles = normalizeRoles(user);
   const userWithPerms =
-    user?.role && accessControl?.permissions[user.role]
-      ? { ...user, permissions: accessControl.permissions[user.role] }
+    user && roles.length > 0
+      ? { ...user, permissions: unionPermissions(roles, accessControl?.permissions ?? {}) }
       : user;
 
   const accessible = NAV_ITEMS.filter(

@@ -175,8 +175,7 @@ export default function PetitionListPage() {
       .finally(() => setParamsLoaded(true));
   }, [canSeeTestItems]);
 
-  const userRole = user?.role ?? '';
-  const isLabUser = isLabRole(userRole);
+  const isLabUser = normalizeRoles(user).some(isLabRole);
   // For lab users, only parameters readable by lab (lab scope or qc-shared-with-lab)
   // are relevant — both for the displayed parameter list and for deciding which
   // petitions should appear at all.

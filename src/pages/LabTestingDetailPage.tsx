@@ -17,6 +17,7 @@ import PageHeader from '@/components/lis/PageHeader';
 import { usePetition, usePetitionList } from '@/hooks/usePetition';
 import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { normalizeRoles } from '@/lib/roles';
 import { useConfirm } from '@/context/ConfirmDialog';
 import { isFieldAbnormal } from '@/lib/parameterValidation';
 import { cn } from '@/lib/utils';
@@ -585,7 +586,7 @@ export default function LabTestingDetailPage() {
     }
   };
 
-  const isFullAccess = FULL_ACCESS_ROLES.has(user?.role ?? '');
+  const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
   const isAssigned = isFullAccess || petition.assignedTo?.name === user?.name;
   const isLocked = petition.status === 'success' || !isAssigned;
 

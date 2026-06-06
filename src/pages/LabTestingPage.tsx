@@ -26,6 +26,7 @@ import PageToolbar from '@/components/lis/PageToolbar';
 import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
 import { statusBadge } from '@/lib/statusBadge';
 import LabScanAcceptModal from '@/components/petition/LabScanAcceptModal';
+import { normalizeRoles } from '@/lib/roles';
 
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
 
@@ -37,7 +38,7 @@ const isLabReadableItem = (it: PetitionItem, params: ParameterItem[]) =>
 export default function LabTestingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isFullAccess = FULL_ACCESS_ROLES.has(user?.role ?? '');
+  const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
   const [search, setSearch] = useState('');
   const [dept, setDept] = useState<PetitionDept | ''>('');
   const [scanOpen, setScanOpen] = useState(false);

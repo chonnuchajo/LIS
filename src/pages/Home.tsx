@@ -94,7 +94,7 @@ const Home = () => {
     return () => {
       alive = false;
     };
-  }, [user?.role]);
+  }, [user]);
 
   if (!resolved) {
     return <AppLayout><div className="py-10 text-center text-sm text-muted-foreground">กำลังโหลด...</div></AppLayout>;

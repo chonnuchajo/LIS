@@ -8,6 +8,7 @@ import { PETITION_DEPT_LABELS, PETITION_STATUS_CONFIG } from '@/types/petition.t
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
+import { normalizeRoles } from '@/lib/roles';
 
 const READER_ID = 'lab-accept-qr-reader';
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
@@ -51,7 +52,7 @@ interface Props {
 export default function LabScanAcceptModal({ open, onClose, onAccepted }: Props) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isFullAccess = FULL_ACCESS_ROLES.has(user?.role ?? '');
+  const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
 
   const [phase, setPhase] = useState<Phase>('scanning');
   const [petition, setPetition] = useState<Petition | null>(null);
