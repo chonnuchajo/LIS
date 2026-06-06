@@ -106,7 +106,7 @@ export default function PetitionListPage() {
   const visibleStatuses = PETITION_STATUSES;
   const createdNo = (location.state as { createdNo?: string } | null)?.createdNo;
   const canViewAll = user?.role === 'admin';
-  const canCreatePetition = user?.role === 'admin' || user?.role === 'viewer';
+  const canCreatePetition = user?.role === 'admin';
   const canSeeTestItems = !!user?.role && user.role !== 'viewer';
 
   const status = searchParams.get('status') ?? '';

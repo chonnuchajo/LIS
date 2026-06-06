@@ -88,7 +88,7 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
     return null;
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

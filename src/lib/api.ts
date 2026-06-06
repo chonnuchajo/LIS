@@ -104,6 +104,20 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
+  ssoLogin: (token: string) =>
+    request<{
+      id?: string;
+      email: string;
+      name?: string;
+      role?: string;
+      permissions?: string[];
+      department?: string;
+      position?: string;
+      status?: "active" | "inactive";
+    }>("/auth/sso", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
 
   // Samples
   getSamples: () => request<SampleItem[]>("/samples"),
