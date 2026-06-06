@@ -80,6 +80,7 @@ export interface OpenShelfLife {
 }
 
 export type StockUnitKind = "sealed" | "working";
+export type StockUnitSource = "primary" | "supply" | "";
 export type StockUnitStatus = "active" | "empty" | "discarded";
 
 export interface StockUnitVolume {
@@ -94,6 +95,7 @@ export interface StockUnitItem {
   itemCode: string;
   itemName: string;
   kind: StockUnitKind;
+  source?: StockUnitSource;
   parentId?: string | null;
   lotNo?: string;
   exp?: string | null;
