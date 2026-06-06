@@ -332,6 +332,62 @@ router.post('/units/:qrId/withdraw', async (req, res) => {
   }
 });
 
+// ทิ้งขวด: POST /units/:qrId/discard { reason? }
+router.post('/units/:qrId/discard', async (req, res) => {
+  try {
+    const unit = await StockUnit.findOne({ qrId: req.params.qrId });
+    if (!unit) return res.status(404).json({ error: 'ไม่พบขวด' });
+    if (unit.status === 'discarded') return res.status(400).json({ error: 'ขวดนี้ถูกทิ้งแล้ว' });
+
+    unit.status = 'discarded';
+    unit.discardedAt = new Date();
+    unit.discardedBy = personOf(req);
+    unit.discardReason = (req.body && req.body.reason) || '';
+    await unit.save();
+
+    await logTransaction({
+      itemType: 'standard',
+      itemId: unit.itemCode,
+      itemCode: unit.itemCode,
+      itemName: unit.itemName,
+      action: 'discard',
+      unitId: unit._id.toString(),
+      qrId: unit.qrId,
+      note: unit.discardReason,
+      ...userMeta(req),
+    });
+    res.json(unit);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// list units: GET /units?itemCode=&status=&kind=
+router.get('/units', async (req, res) => {
+  try {
+    const { itemCode, status, kind } = req.query;
+    const f = {};
+    if (itemCode) f.itemCode = itemCode;
+    if (status) f.status = status;
+    if (kind) f.kind = kind;
+    const units = await StockUnit.find(f).sort({ createdAt: -1 }).limit(2000);
+    res.json(units);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// get by qrId: GET /units/:qrId  (ปลายทางสแกน)
+router.get('/units/:qrId', async (req, res) => {
+  try {
+    const unit = await StockUnit.findOne({ qrId: req.params.qrId });
+    if (!unit) return res.status(404).json({ error: 'ไม่พบขวด' });
+    res.json(unit);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /* ==================== SOLVENTS ==================== */
 
 router.get('/solvents', async (req, res) => {
