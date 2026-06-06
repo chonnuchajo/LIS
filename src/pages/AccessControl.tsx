@@ -999,7 +999,7 @@ const AccessControl = () => {
                         {(permissions[role.id] ?? []).length} permissions
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {users.filter((user) => user.roleId === role.id).length} users
+                        {users.filter((user) => user.roleIds.includes(role.id)).length} users
                       </span>
                     </CardContent>
                   </Card>
