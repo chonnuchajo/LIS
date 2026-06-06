@@ -9,6 +9,7 @@ import {
 import { isLabBatch } from '@/types/productionPlan.types';
 import { useAuth } from '@/hooks/useAuth';
 import { api, type ParameterItem } from '@/lib/api';
+import { normalizeRoles } from "@/lib/roles";
 import { matchParametersForItem } from '@/lib/petitionTestItems';
 
 interface Props { petition: Petition; }
@@ -32,7 +33,8 @@ function Field({ label, value }: { label: string; value?: React.ReactNode }) {
 
 export default function PetitionView({ petition: p }: Props) {
   const { user } = useAuth();
-  const canSeeTestItems = !!user?.role && user.role !== 'viewer';
+  const roles = normalizeRoles(user);
+  const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const [results, setResults] = useState<QCTestResult[]>([]);
   useEffect(() => {

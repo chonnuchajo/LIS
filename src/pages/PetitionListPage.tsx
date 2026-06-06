@@ -13,8 +13,10 @@ import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
 import { statusBadge } from '@/lib/statusBadge';
 import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
+import { useCanAccessPath } from '@/hooks/useCanAccessPath';
 import { useNotifications } from '@/context/NotificationContext';
 import { api, type ParameterItem } from '@/lib/api';
+import { normalizeRoles } from "@/lib/roles";
 import { matchParametersForItem, parameterNamesForPetition } from '@/lib/petitionTestItems';
 import {
   PETITION_STATUSES,
@@ -83,15 +85,17 @@ function isQcRole(role: string): boolean {
 
 function canSeePetition(
   petition: Petition,
-  user: { email?: string; name?: string; role?: string } | null,
+  user: { email?: string; name?: string; role?: string; roles?: string[] } | null,
 ): boolean {
   if (!user) return false;
-  const role = user.role ?? '';
+  const roles = normalizeRoles(user);
   if (isOwnSubmission(petition, user)) return true;
   if (isAssignedTo(petition, user)) return true;
   if (RECEIVED_STATUSES.has(petition.status)) {
-    if (isLabRole(role)) return petitionHasLabItems(petition);
-    if (isQcRole(role)) return true;
+    if (roles.some(isLabRole)) {
+      if (petitionHasLabItems(petition)) return true;
+    }
+    if (roles.some(isQcRole)) return true;
   }
   return false;
 }
@@ -103,11 +107,13 @@ export default function PetitionListPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
+  const canAccess = useCanAccessPath();
   const visibleStatuses = PETITION_STATUSES;
   const createdNo = (location.state as { createdNo?: string } | null)?.createdNo;
-  const canViewAll = user?.role === 'admin';
-  const canCreatePetition = user?.role === 'admin';
-  const canSeeTestItems = !!user?.role && user.role !== 'viewer';
+  const roles = normalizeRoles(user);
+  const canViewAll = roles.includes('admin');
+  const canCreatePetition = canAccess('/petitions/new');
+  const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
 
   const status = searchParams.get('status') ?? '';
   const search = searchParams.get('search') ?? searchParams.get('q') ?? searchParams.get('requestNo') ?? '';

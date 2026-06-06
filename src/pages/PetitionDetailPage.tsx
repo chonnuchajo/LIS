@@ -34,6 +34,7 @@ import {
 } from '@/types/petition.types';
 import { useAuth } from '@/hooks/useAuth';
 import { useSamples } from '@/context/SampleContext';
+import { normalizeRoles } from "@/lib/roles";
 
 function QcNoteSection({ petition }: { petition: Petition }) {
   const qcNote = (petition.reviewHistory ?? []).find((e) => e.action === 'note') ?? null;
@@ -155,7 +156,7 @@ export default function PetitionDetailPage() {
         (() => {
           const statusCfg =
             PETITION_STATUS_CONFIG[data.status] ?? { label: data.status, variant: 'gray-soft' as const };
-          const isAdmin = user?.role === 'admin';
+          const isAdmin = normalizeRoles(user).includes('admin');
           const isRequester = user?.name === data.submittedBy?.name;
           const canEdit = data.status === 'deliveringQC' && isRequester;
           const canDelete = isAdmin || (data.status === 'deliveringQC' && isRequester);

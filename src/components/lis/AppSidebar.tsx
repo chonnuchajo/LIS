@@ -12,6 +12,7 @@ import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { pathMatches, userCanAccessPath } from "@/lib/accessControl";
 import { api } from "@/lib/api";
+import { normalizeRoles } from "@/lib/roles";
 import { useIsTablet } from "@/hooks/use-mobile";
 
 type RoleOption = {
@@ -171,7 +172,11 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
     return result;
   }, [navGroups]);
 
-  const roleLabel = user?.role ? roleNameById[user.role] ?? user.role : "No role";
+  const roleLabel = (() => {
+    const roles = normalizeRoles(user);
+    if (roles.length === 0) return "No role";
+    return roles.map((r) => roleNameById[r] ?? r).join(", ");
+  })();
 
   // The active nav item is the one whose path is the longest prefix of the
   // current pathname — so /daily-check stays active on /daily-check/balance,
@@ -292,7 +297,9 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
                 {visibleItems.map((item) => {
                   const targetPath =
                     item.path === "/"
-                      ? user?.role === "qc"
+                      ? normalizeRoles(user).some(
+                          (r) => r === "qc" || r.startsWith("qc-") || r.startsWith("qc_"),
+                        )
                         ? "/dashboard/qc"
                         : "/dashboard/lab"
                       : item.path;
