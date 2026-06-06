@@ -63,6 +63,7 @@ router.get('/', async (req, res) => {
       const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
       q.$or = [
         { petitionNo: rx },
+        { prodOrderNos: rx },
         { 'submittedBy.name': rx },
         { 'items.batchNo': rx },
       ];

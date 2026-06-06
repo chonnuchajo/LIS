@@ -9,6 +9,7 @@ const PrintConfigSchema = new mongoose.Schema({
     index: true,
   },
   printerName: { type: String, default: '' }, // '' = ยังไม่ตั้ง → บล็อกการพิมพ์
+  cupsPrinterUrl: { type: String, default: '' },
   copies: { type: Number, default: 1, min: 1, max: 99 },
   paperSize: { type: String, enum: ['A4', 'label-6x4'], default: 'A4' },
 }, { timestamps: true });

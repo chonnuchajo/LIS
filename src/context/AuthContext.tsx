@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "@/lib/msalConfig";
 import { api } from "@/lib/api";
@@ -19,6 +19,7 @@ interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   login: (redirectTo?: string) => Promise<void>;
+  loginWithProductionToken: (token: string) => Promise<AuthUser>;
   logout: () => void;
   devRole?: string;
   devRoles?: { id: string; name: string }[];
@@ -37,6 +38,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { instance, accounts } = useMsal();
   const account = accounts[0] ?? null;
   const [syncedUser, setSyncedUser] = useState<AuthUser | null>(null);
+  const [productionUser, setProductionUser] = useState<AuthUser | null>(() => {
+    const raw = localStorage.getItem("lis_production_sso_user");
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as AuthUser;
+    } catch {
+      localStorage.removeItem("lis_production_sso_user");
+      return null;
+    }
+  });
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | undefined>();
   const [devRole, setDevRole] = useState<string>(
     () => localStorage.getItem("dev_role") ?? DEV_DEFAULT_ROLE
@@ -103,6 +114,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const user: AuthUser | null = DEV_MODE
     ? devUser
+    : productionUser
+    ? productionUser
     : account
     ? {
         id: syncedUser?.id,
@@ -235,7 +248,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  const loginWithProductionToken = useCallback(async (token: string) => {
+    const res = await api.post<AuthUser>("/auth/sso", { token });
+    const nextUser = res.data.data;
+    localStorage.setItem("lis_production_sso_user", JSON.stringify(nextUser));
+    setProductionUser(nextUser);
+    return nextUser;
+  }, []);
+
   const logout = () => {
+    localStorage.removeItem("lis_production_sso_user");
+    setProductionUser(null);
+    if (!account) {
+      window.location.href = window.location.origin + import.meta.env.BASE_URL;
+      return;
+    }
     instance.logoutRedirect({
       postLogoutRedirectUri: window.location.origin + import.meta.env.BASE_URL,
     });
@@ -246,6 +273,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       value={{
         user,
         login,
+        loginWithProductionToken,
         logout,
         devRole: DEV_MODE ? devRole : undefined,
         devRoles: DEV_MODE ? devRoles : undefined,

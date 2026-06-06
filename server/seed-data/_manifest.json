@@ -39,7 +39,7 @@
     {
       "collection": "petitions",
       "file": "petitions.json",
-      "count": 1
+      "count": 3
     },
     {
       "collection": "simplemethodexclusions",
@@ -79,7 +79,7 @@
     {
       "collection": "petitionauditlogs",
       "file": "petitionauditlogs.json",
-      "count": 188
+      "count": 190
     },
     {
       "collection": "realtimedensities",
@@ -94,11 +94,7 @@
     {
       "collection": "equipmentchecks",
       "file": "equipmentchecks.json",
-<<<<<<< HEAD
-      "count": 1
-=======
       "count": 0
->>>>>>> 42fc752a7b4a742e42fad306988938dd54203f42
     },
     {
       "collection": "standardconfigs",
@@ -118,7 +114,7 @@
     {
       "collection": "labrequests",
       "file": "labrequests.json",
-      "count": 15
+      "count": 17
     },
     {
       "collection": "commonnameoverrides",

@@ -3,15 +3,16 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { spawn } = require('child_process');
 const router = express.Router();
 const PrintConfig = require('../models/PrintConfig');
 
 // docType defaults — mirror ของ src/lib/printConfig.ts PRINT_DOC_TYPES
 const DOC_DEFAULTS = [
-  { slug: 'sample-label',    printerName: '', copies: 1, paperSize: 'label-6x4' },
-  { slug: 'coa',             printerName: '', copies: 1, paperSize: 'A4' },
-  { slug: 'service-request', printerName: '', copies: 1, paperSize: 'A4' },
-  { slug: 'production-plan', printerName: '', copies: 1, paperSize: 'A4' },
+  { slug: 'sample-label',    printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'label-6x4' },
+  { slug: 'coa',             printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
+  { slug: 'service-request', printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
+  { slug: 'production-plan', printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
 ];
 const ALLOWED_SLUGS = DOC_DEFAULTS.map((d) => d.slug);
 
@@ -22,19 +23,81 @@ function pick(doc) {
   return {
     slug: doc.slug,
     printerName: doc.printerName || '',
+    cupsPrinterUrl: doc.cupsPrinterUrl || '',
     copies: typeof doc.copies === 'number' ? doc.copies : 1,
     paperSize: doc.paperSize || 'A4',
   };
 }
 
 function validate(body) {
-  const { printerName, copies, paperSize } = body || {};
+  const { printerName, cupsPrinterUrl, copies, paperSize } = body || {};
   if (typeof printerName !== 'string') return 'printerName ต้องเป็นข้อความ';
+  if (cupsPrinterUrl != null && typeof cupsPrinterUrl !== 'string') return 'cupsPrinterUrl ต้องเป็น URL';
+  if (typeof cupsPrinterUrl === 'string' && cupsPrinterUrl.trim()) {
+    let url;
+    try {
+      url = new URL(cupsPrinterUrl.trim());
+    } catch (_) {
+      return 'CUPS URL ไม่ถูกต้อง';
+    }
+    if (!['http:', 'https:', 'ipp:', 'ipps:'].includes(url.protocol)) {
+      return 'CUPS URL ต้องเป็น http, https, ipp หรือ ipps';
+    }
+  }
   if (copies != null && (typeof copies !== 'number' || !Number.isInteger(copies) || copies < 1 || copies > 99)) {
     return 'จำนวนชุดต้องเป็นจำนวนเต็ม 1–99';
   }
   if (paperSize != null && !['A4', 'label-6x4'].includes(paperSize)) return 'paperSize ไม่ถูกต้อง';
   return null;
+}
+
+function cupsTargetFromUrl(cupsPrinterUrl, fallbackPrinterName = '') {
+  const raw = String(cupsPrinterUrl || '').trim();
+  if (!raw) return null;
+  const url = new URL(raw);
+  const pathParts = url.pathname.split('/').filter(Boolean);
+  const queuePrefixIndex = pathParts.findIndex((p) => p === 'printers' || p === 'classes');
+  const queueName = queuePrefixIndex >= 0 ? pathParts[queuePrefixIndex + 1] : '';
+  const destination = decodeURIComponent(queueName || fallbackPrinterName || '').trim();
+  if (!destination) {
+    throw new Error('CUPS URL ต้องระบุ queue เช่น https://192.168.0.237:631/printers/PRINTER_NAME');
+  }
+  const host = url.hostname;
+  const port = url.port || (url.protocol === 'https:' || url.protocol === 'ipps:' ? '631' : '');
+  return {
+    destination,
+    hostPort: port ? `${host}:${port}` : host,
+    encrypted: url.protocol === 'https:' || url.protocol === 'ipps:',
+    display: raw,
+  };
+}
+
+function printViaCups(tmpPdf, cfg, copies) {
+  const target = cupsTargetFromUrl(cfg.cupsPrinterUrl, cfg.printerName);
+  const media = cfg.paperSize === 'label-6x4' ? 'Custom.152x102mm' : 'A4';
+  const args = [
+    ...(target.encrypted ? ['-E'] : []),
+    '-h', target.hostPort,
+    '-d', target.destination,
+    '-n', String(copies),
+    '-o', `media=${media}`,
+    tmpPdf,
+  ];
+
+  return new Promise((resolve, reject) => {
+    const child = spawn('lp', args, { windowsHide: true });
+    let stderr = '';
+    let stdout = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.on('error', (err) => {
+      reject(new Error(`เรียกคำสั่ง lp ไม่สำเร็จ: ${err.message}`));
+    });
+    child.on('close', (code) => {
+      if (code === 0) return resolve({ target: target.display, stdout });
+      reject(new Error((stderr || stdout || `lp exited with code ${code}`).trim()));
+    });
+  });
 }
 
 // GET /api/print/printers — รายชื่อเครื่องที่เห็น
@@ -70,12 +133,13 @@ router.put('/config/:slug', async (req, res) => {
     if (!ALLOWED_SLUGS.includes(slug)) return res.status(400).json({ error: 'slug ไม่ถูกต้อง' });
     const err = validate(req.body || {});
     if (err) return res.status(400).json({ error: err });
-    const { printerName, copies, paperSize } = req.body;
+    const { printerName, cupsPrinterUrl, copies, paperSize } = req.body;
     const doc = await PrintConfig.findOneAndUpdate(
       { slug },
       {
         slug,
         printerName: typeof printerName === 'string' ? printerName : '',
+        cupsPrinterUrl: typeof cupsPrinterUrl === 'string' ? cupsPrinterUrl.trim() : '',
         ...(copies != null ? { copies } : {}),
         ...(paperSize != null ? { paperSize } : {}),
       },
@@ -98,7 +162,7 @@ router.post('/', async (req, res) => {
   try {
     const cfgDoc = await PrintConfig.findOne({ slug: docType }).lean();
     const cfg = cfgDoc ? pick(cfgDoc) : DOC_DEFAULTS.find((d) => d.slug === docType);
-    if (!cfg.printerName) {
+    if (!cfg.printerName && !cfg.cupsPrinterUrl) {
       return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่าเครื่องพิมพ์สำหรับเอกสารนี้ (ตั้งค่าที่หน้าตั้งค่าระบบ)' });
     }
 
@@ -139,10 +203,16 @@ router.post('/', async (req, res) => {
     await browser.close();
     browser = null;
 
-    const { print } = require('pdf-to-printer');
-    await print(tmpPdf, { printer: cfg.printerName, copies });
+    let printerTarget = cfg.printerName;
+    if (cfg.cupsPrinterUrl) {
+      const result = await printViaCups(tmpPdf, cfg, copies);
+      printerTarget = result.target;
+    } else {
+      const { print } = require('pdf-to-printer');
+      await print(tmpPdf, { printer: cfg.printerName, copies });
+    }
 
-    res.json({ ok: true, printer: cfg.printerName, copies });
+    res.json({ ok: true, printer: printerTarget, copies });
   } catch (err) {
     res.status(500).json({ error: `พิมพ์ไม่สำเร็จ: ${err.message}` });
   } finally {

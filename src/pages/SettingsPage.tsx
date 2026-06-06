@@ -98,7 +98,7 @@ const SettingsPage = () => {
 
         <TabsContent value="printers" className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            เลือกเครื่องพิมพ์ปลายทางของเอกสารแต่ละชนิด
+            เลือกเครื่องพิมพ์ปลายทางของเอกสารแต่ละชนิด หรือกำหนด CUPS printer URL จาก https://192.168.0.237:631/
           </p>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {printConfigs.map((cfg) => (

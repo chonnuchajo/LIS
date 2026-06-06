@@ -31,11 +31,33 @@ describe("isPrinterConfigured", () => {
     const cfg: PrintConfig = { slug: "coa", printerName: "HP-A4", copies: 1, paperSize: "A4" };
     expect(isPrinterConfigured(cfg)).toBe(true);
   });
+  it("true when CUPS URL set", () => {
+    const cfg: PrintConfig = {
+      slug: "coa",
+      printerName: "",
+      cupsPrinterUrl: "https://192.168.0.237:631/printers/HP-A4",
+      copies: 1,
+      paperSize: "A4",
+    };
+    expect(isPrinterConfigured(cfg)).toBe(true);
+  });
 });
 
 describe("validatePrintConfig", () => {
   it("passes a valid config", () => {
     expect(validatePrintConfig({ printerName: "HP", copies: 2, paperSize: "A4" })).toBeNull();
+  });
+  it("passes a valid CUPS URL", () => {
+    expect(validatePrintConfig({
+      printerName: "",
+      cupsPrinterUrl: "https://192.168.0.237:631/printers/HP-A4",
+      copies: 1,
+      paperSize: "A4",
+    })).toBeNull();
+  });
+  it("rejects an invalid CUPS URL", () => {
+    expect(validatePrintConfig({ printerName: "", cupsPrinterUrl: "not a url", copies: 1, paperSize: "A4" }))
+      .toMatch(/CUPS URL/);
   });
   it("rejects copies < 1", () => {
     expect(validatePrintConfig({ printerName: "HP", copies: 0, paperSize: "A4" })).toMatch(/จำนวนชุด/);

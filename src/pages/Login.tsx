@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useIsAuthenticated } from "@azure/msal-react";
 import { useAuth } from "@/context/AuthContext";
 import labCover from "@/assets/lab-cover.jpg";
@@ -14,10 +14,26 @@ const MicrosoftIcon = () => (
   </svg>
 );
 
+function toAppRedirectPath(raw: string | null): string {
+  if (!raw) return "/";
+  try {
+    const url = new URL(raw, window.location.origin);
+    const base = (import.meta.env.BASE_URL || "/").replace(/\/+$/, "");
+    if (url.origin !== window.location.origin) return "/";
+    if (base && url.pathname !== base && !url.pathname.startsWith(`${base}/`)) return "/";
+    const path = base ? url.pathname.slice(base.length) || "/" : url.pathname || "/";
+    return `${path}${url.search}${url.hash}`;
+  } catch {
+    return raw.startsWith("/") && !raw.startsWith("//") ? raw : "/";
+  }
+}
+
 const Login = () => {
   const isAuthenticated = useIsAuthenticated();
-  const { login } = useAuth();
+  const { user, login, loginWithProductionToken } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -27,7 +43,33 @@ const Login = () => {
     sessionStorage.getItem("lis_login_redirect") ||
     "/";
 
-  if (isAuthenticated) {
+  const ssoToken = searchParams.get("token");
+  const ssoRedirectTarget = toAppRedirectPath(searchParams.get("ret"));
+
+  useEffect(() => {
+    if (!ssoToken) return;
+    let active = true;
+    setError("");
+    setLoading(true);
+    loginWithProductionToken(ssoToken)
+      .then(() => {
+        if (!active) return;
+        sessionStorage.removeItem("lis_login_redirect");
+        navigate(ssoRedirectTarget, { replace: true });
+      })
+      .catch((e: unknown) => {
+        if (!active) return;
+        setError(e instanceof Error ? e.message : "Production SSO login failed");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [ssoToken, ssoRedirectTarget, loginWithProductionToken, navigate]);
+
+  if (!ssoToken && (isAuthenticated || user)) {
     sessionStorage.removeItem("lis_login_redirect");
     return <Navigate to={redirectTarget} replace />;
   }

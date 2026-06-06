@@ -4,12 +4,14 @@ export type PaperSize = "A4" | "label-6x4";
 export interface PrintConfig {
   slug: PrintDocType;
   printerName: string;
+  cupsPrinterUrl?: string;
   copies: number;
   paperSize: PaperSize;
 }
 
 export interface PrintConfigInput {
   printerName: string;
+  cupsPrinterUrl?: string;
   copies?: number;
   paperSize?: PaperSize;
 }
@@ -32,12 +34,26 @@ export function getPrintDocType(slug: PrintDocType): PrintDocTypeMeta | undefine
 }
 
 export function isPrinterConfigured(cfg: PrintConfig | undefined | null): boolean {
-  return !!cfg && typeof cfg.printerName === "string" && cfg.printerName.trim().length > 0;
+  return !!cfg && (
+    (typeof cfg.printerName === "string" && cfg.printerName.trim().length > 0) ||
+    (typeof cfg.cupsPrinterUrl === "string" && cfg.cupsPrinterUrl.trim().length > 0)
+  );
 }
 
 // mirror ของ validate() ใน server/routes/print.js (copies 1–99)
 export function validatePrintConfig(input: PrintConfigInput): string | null {
   if (typeof input.printerName !== "string") return "printerName ต้องเป็นข้อความ";
+  if (input.cupsPrinterUrl != null && typeof input.cupsPrinterUrl !== "string") return "cupsPrinterUrl ต้องเป็น URL";
+  if (input.cupsPrinterUrl?.trim()) {
+    try {
+      const u = new URL(input.cupsPrinterUrl.trim());
+      if (!["http:", "https:", "ipp:", "ipps:"].includes(u.protocol)) {
+        return "CUPS URL ต้องเป็น http, https, ipp หรือ ipps";
+      }
+    } catch {
+      return "CUPS URL ไม่ถูกต้อง";
+    }
+  }
   if (input.copies != null && (!Number.isInteger(input.copies) || input.copies < 1 || input.copies > 99)) {
     return "จำนวนชุดต้องเป็นจำนวนเต็ม 1–99";
   }

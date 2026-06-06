@@ -90,6 +90,7 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
   });
   const cfg = configs?.find((c) => c.slug === docType);
   const configured = isPrinterConfigured(cfg);
+  const printerTarget = cfg?.cupsPrinterUrl?.trim() || cfg?.printerName;
 
   async function handlePrint() {
     setPrinting(true);
@@ -134,7 +135,7 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
               onChange={(e) => setCopies(Math.min(99, Math.max(1, parseInt(e.target.value || "1", 10))))}
               className="w-20"
             />
-            {configured && <span className="text-sm text-muted-foreground">→ {cfg?.printerName}</span>}
+            {configured && <span className="text-sm text-muted-foreground">→ {printerTarget}</span>}
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>ปิด</Button>

@@ -10,7 +10,7 @@ const UserSchema = new mongoose.Schema({
   position: { type: String, default: 'Unassigned' },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   lastActive: { type: String, default: 'Never' },
-  authProvider: { type: String, enum: ['local', 'microsoft'], default: 'local' },
+  authProvider: { type: String, enum: ['local', 'microsoft', 'production'], default: 'local' },
   microsoftId: String,
   tenantId: String,
 }, { timestamps: true });

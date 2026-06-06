@@ -32,7 +32,7 @@ function QrCodeSvg({ value }: { value: string }) {
   return (
     <svg
       viewBox={`0 0 ${size} ${size}`}
-      className="h-[1.8cm] w-[1.8cm] shrink-0"
+      className="h-[14mm] w-[14mm] shrink-0"
       role="img"
       aria-label={`QR ${value}`}
       shapeRendering="crispEdges"
@@ -60,7 +60,7 @@ function Field({
   return (
     <div className={`flex items-end gap-1 ${className}`}>
       <span className="whitespace-nowrap">{label}</span>
-      <span className="flex-1 border-b border-black px-1 min-h-[1.25rem]">{value || ''}</span>
+      <span className="min-h-[3.5mm] flex-1 border-b border-black px-0.5">{value || ''}</span>
     </div>
   );
 }
@@ -78,11 +78,11 @@ function LabelCard({
   const qrValue = getQrValue(petition, item);
   return (
     <div
-      className="label-card border border-black"
-      style={{ width: '14cm', padding: '0.3cm 0.4cm' }}
+      className="label-card overflow-hidden border border-black text-[9px] leading-tight"
+      style={{ width: '100mm', height: '50mm', padding: '2mm 3mm', boxSizing: 'border-box' }}
     >
-      <div className="flex items-start gap-2 mb-2">
-        <div className="pt-0.5">
+      <div className="mb-1 flex items-start gap-1.5">
+        <div className="shrink-0 pt-0.5">
           <QrCodeSvg value={qrValue} />
         </div>
         <div className="flex-1 text-center font-semibold">
@@ -100,10 +100,10 @@ function LabelCard({
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1">
         <Field label="ชื่อผลิตภัณฑ์ และสารสำคัญ" value={productLine} />
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           <Field label="วัน เดือน ปี ที่ผลิต/นำเข้า" value={toBuddhistShort(item.productionDate)} />
           <Field label="แบชนัมเบอร์" value={item.batchNo} />
         </div>
@@ -111,7 +111,7 @@ function LabelCard({
         <Field label="ผู้ผลิต" value={item.labelManufacturer} />
         <Field label="ผู้ขาย" value={item.labelSeller} />
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-2">
           <Field label="ปริมาณ" value={item.labelQuantity} />
           <Field label="สุ่มโดย" value={item.labelSampledBy} />
           <Field label="ว/ด/ป" value={toBuddhistShort(item.labelSampledDate)} />
@@ -120,7 +120,7 @@ function LabelCard({
         <Field label="หมายเหตุ" value={item.labelRemark} />
       </div>
 
-      <div className="mt-3 text-[10px]">F-LAB-01-10 Rev : 01 01/04/67</div>
+      <div className="mt-1 text-[7px]">F-LAB-01-10 Rev : 01 01/04/67</div>
 
       <div className="sr-only">{petition.petitionNo}</div>
     </div>
@@ -133,17 +133,17 @@ export default function SampleLabelPrintTemplate({ petition }: { petition: Petit
     <>
       <style>{`
         @page {
-          size: 152.4mm 101.6mm;
+          size: 100mm 50mm;
           margin: 0;
         }
         @media print {
-          html, body { margin: 0; padding: 0; width: 152.4mm; height: 101.6mm; }
+          html, body { margin: 0; padding: 0; width: 100mm; height: 50mm; }
           .label-page {
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 152.4mm;
-            height: 101.6mm;
+            width: 100mm;
+            height: 50mm;
             box-sizing: border-box;
             break-after: page;
             page-break-after: always;
@@ -151,7 +151,7 @@ export default function SampleLabelPrintTemplate({ petition }: { petition: Petit
           .label-page:last-child { break-after: auto; page-break-after: auto; }
         }
       `}</style>
-      <div className="text-sm" style={{ fontFamily: 'inherit' }}>
+      <div style={{ fontFamily: 'inherit' }}>
         {petition.items.map((item) => (
           <div key={item.seq} className="label-page">
             <LabelCard petition={petition} item={item} yearShort={yearShort} />

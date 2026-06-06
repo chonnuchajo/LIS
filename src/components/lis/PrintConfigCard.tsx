@@ -18,11 +18,13 @@ interface Props {
 
 export default function PrintConfigCard({ config, printers, saving, onSave }: Props) {
   const [printerName, setPrinterName] = useState(config.printerName);
+  const [cupsPrinterUrl, setCupsPrinterUrl] = useState(config.cupsPrinterUrl ?? "");
   const [copies, setCopies] = useState(config.copies);
   const [paperSize, setPaperSize] = useState(config.paperSize);
 
   useEffect(() => {
     setPrinterName(config.printerName);
+    setCupsPrinterUrl(config.cupsPrinterUrl ?? "");
     setCopies(config.copies);
     setPaperSize(config.paperSize);
   }, [config]);
@@ -30,7 +32,7 @@ export default function PrintConfigCard({ config, printers, saving, onSave }: Pr
   const meta = getPrintDocType(config.slug);
 
   function handleSave() {
-    const input: PrintConfigInput = { printerName, copies, paperSize };
+    const input: PrintConfigInput = { printerName, cupsPrinterUrl, copies, paperSize };
     const err = validatePrintConfig(input);
     if (err) { toast.error(err); return; }
     onSave(config.slug, input);
@@ -42,13 +44,25 @@ export default function PrintConfigCard({ config, printers, saving, onSave }: Pr
         <h3 className="text-sm font-semibold">{meta?.label ?? config.slug}</h3>
 
         <div className="space-y-1">
-          <Label className="text-xs">เครื่องพิมพ์</Label>
+          <Label className="text-xs">เครื่องพิมพ์ local บน server</Label>
           <Select value={printerName || undefined} onValueChange={setPrinterName}>
             <SelectTrigger><SelectValue placeholder="เลือกเครื่องพิมพ์" /></SelectTrigger>
             <SelectContent>
               {printers.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">CUPS printer URL</Label>
+          <Input
+            value={cupsPrinterUrl}
+            onChange={(e) => setCupsPrinterUrl(e.target.value)}
+            placeholder="https://192.168.0.237:631/printers/PRINTER_NAME"
+          />
+          <p className="text-xs text-muted-foreground">
+            ถ้ากรอก URL นี้ ระบบจะส่งพิมพ์ผ่าน CUPS แทนเครื่องพิมพ์ local
+          </p>
         </div>
 
         <div className="flex gap-3">
