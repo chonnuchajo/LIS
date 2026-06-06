@@ -252,7 +252,7 @@ router.post('/users/microsoft', async (req, res) => {
       user.position = resolveHrField(position, user.position);
       user.lastActive = now;
       await user.save();
-      return res.json(formatUser(user, await getRolePermissions(user.role)));
+      return res.json(formatUser(user, await getRolePermissions(normalizeRoles(user))));
     }
 
     const existingUsers = await User.countDocuments();
@@ -270,7 +270,7 @@ router.post('/users/microsoft', async (req, res) => {
       tenantId,
     });
 
-    res.status(201).json(formatUser(user, await getRolePermissions(user.role)));
+    res.status(201).json(formatUser(user, await getRolePermissions(normalizeRoles(user))));
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Email already exists' });
     res.status(400).json({ error: err.message });
