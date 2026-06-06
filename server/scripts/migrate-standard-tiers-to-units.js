@@ -19,6 +19,7 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { StockStandard } = require('../models/Stock');
 const StockUnit = require('../models/StockUnit');
+const { tierSourceFor } = require('../lib/stockSource');
 
 const COMMIT = process.argv.includes('--commit');
 const URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/LIS-DB';
@@ -40,16 +41,17 @@ function parseExp(exp) {
 // แตก tier เดิมเป็นรายขวด
 function tierBottles(std) {
   const out = [];
-  const push = (tier, kind) => {
+  const push = (tier, kind, tierName) => {
     if (!tier) return;
     const count = Math.max(0, Math.floor(Number(tier.qty) || 0));
     const size = Number(tier.sizeMg) || 0;
     const exp = parseExp(tier.exp);
-    for (let i = 0; i < count; i++) out.push({ kind, size, exp });
+    const source = tierSourceFor(tierName);
+    for (let i = 0; i < count; i++) out.push({ kind, size, exp, source });
   };
-  push(std.primary, 'sealed');
-  push(std.supplier, 'sealed');
-  push(std.working, 'working');
+  push(std.primary, 'sealed', 'primary');
+  push(std.supplier, 'sealed', 'supplier');
+  push(std.working, 'working', 'working');
   return out;
 }
 
@@ -86,6 +88,7 @@ async function main() {
           itemCode: std.code,
           itemName: std.name,
           kind: b.kind,
+          source: b.source,
           lotNo: '',
           exp: b.exp,
           volume: { initial: b.size, remaining: b.size, unit: 'mg' },
