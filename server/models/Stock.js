@@ -6,6 +6,11 @@ const TierSchema = new mongoose.Schema({
   exp: { type: String, default: '' },
 }, { _id: false });
 
+const OpenShelfLifeSchema = new mongoose.Schema({
+  value: { type: Number, default: 0 },
+  unit: { type: String, enum: ['day', 'week', 'month'], default: 'day' },
+}, { _id: false });
+
 const StockStandardSchema = new mongoose.Schema({
   code: { type: String, required: true, unique: true, index: true },
   name: { type: String, required: true, index: true },
@@ -22,6 +27,7 @@ const StockStandardSchema = new mongoose.Schema({
   working: { type: TierSchema, default: () => ({}) },
   usagePerUseMg: { type: mongoose.Schema.Types.Mixed, default: null },
   frequency: { type: String, default: '' },
+  openShelfLife: { type: OpenShelfLifeSchema, default: () => ({ value: 0, unit: 'day' }) },
   storageTemp: { type: String, default: '' },
   status: { type: String, default: '' },
   expiryStatus: { type: String, default: '' },
