@@ -146,3 +146,20 @@ describe("userCanAccessPath", () => {
     });
   });
 });
+
+describe("userCanAccessPath with multiple roles", () => {
+  it("admin via roles[] bypasses all checks", () => {
+    const user = { roles: ["lab", "admin"], status: "active" as const, permissions: [] };
+    expect(userCanAccessPath(user, "/anything", groups)).toBe(true);
+  });
+
+  it("treats roles[] of lab the same as legacy role lab", () => {
+    const user = { roles: ["lab"], status: "active" as const, permissions: ["/report"] };
+    expect(userCanAccessPath(user, "/report", groups)).toBe(true);
+  });
+
+  it("denies when neither role nor roles is set", () => {
+    const user = { status: "active" as const, permissions: ["/report"] };
+    expect(userCanAccessPath(user, "/report", groups)).toBe(false);
+  });
+});

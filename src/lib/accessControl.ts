@@ -1,7 +1,9 @@
 import { NAV_ITEMS } from "./navItems";
+import { normalizeRoles } from "./roles";
 
 export interface AccessUser {
   role?: string;
+  roles?: string[];
   status?: "active" | "inactive";
   permissions?: string[];
 }
@@ -79,8 +81,9 @@ export function userCanAccessPath(
   pathname: string,
   groups: { id: string; paths?: string[] }[],
 ) {
-  if (!user || user.status === "inactive" || !user.role) return false;
-  if (user.role === "admin") return true;
+  const roles = normalizeRoles(user);
+  if (!user || user.status === "inactive" || roles.length === 0) return false;
+  if (roles.includes("admin")) return true;
   if (PUBLIC_PATHS.some((path) => pathMatches(path, pathname))) return true;
 
   const permissions = user.permissions ?? [];
