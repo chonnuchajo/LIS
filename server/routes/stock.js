@@ -305,6 +305,7 @@ router.post('/units/:qrId/withdraw', async (req, res) => {
       itemCode: parent.itemCode,
       itemName: parent.itemName,
       kind: 'working',
+      source: parent.source || '',
       parentId: parent._id,
       lotNo: parent.lotNo,
       exp,
