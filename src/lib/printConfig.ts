@@ -1,4 +1,4 @@
-export type PrintDocType = "sample-label" | "coa" | "service-request" | "production-plan";
+export type PrintDocType = "sample-label" | "coa" | "service-request" | "production-plan" | "stock-label";
 export type PaperSize = "A4" | "label-6x4";
 
 export interface PrintConfig {
@@ -27,6 +27,7 @@ export const PRINT_DOC_TYPES: PrintDocTypeMeta[] = [
   { slug: "coa",             label: "ใบรายงานผล (COA)",            defaultPaper: "A4" },
   { slug: "service-request", label: "ใบคำขอ (Petition)",            defaultPaper: "A4" },
   { slug: "production-plan", label: "ใบวางแผนผลิต",                 defaultPaper: "A4" },
+  { slug: "stock-label",     label: "ฉลากขวด Standard (sticker)", defaultPaper: "label-6x4" },
 ];
 
 export function getPrintDocType(slug: PrintDocType): PrintDocTypeMeta | undefined {

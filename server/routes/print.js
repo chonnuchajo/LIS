@@ -13,6 +13,7 @@ const DOC_DEFAULTS = [
   { slug: 'coa',             printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
   { slug: 'service-request', printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
   { slug: 'production-plan', printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
+  { slug: 'stock-label',     printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'label-6x4' },
 ];
 const ALLOWED_SLUGS = DOC_DEFAULTS.map((d) => d.slug);
 
