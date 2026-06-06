@@ -6,6 +6,7 @@ const Role = require('../models/Role');
 const AccessGroup = require('../models/AccessGroup');
 const { findOrphanBackfillPaths } = require('../lib/accessGroups');
 const { resolveHrField } = require('../lib/userProfile');
+const { primaryRole, normalizeRoles, unionPermissions } = require('../lib/roles');
 
 const defaultGroups = [
   { id: 'dashboard', name: 'หน้าหลัก', description: 'ภาพรวมแล็บและงานที่กำลังดำเนินการ', paths: ['/', '/home', '/dashboard/lab'], locked: false, sortOrder: 10 },
@@ -136,17 +137,24 @@ async function ensureDefaults() {
   return groups;
 }
 
-async function getRolePermissions(roleId) {
-  const role = await Role.findOne({ id: roleId || 'viewer' }).lean();
-  return role?.permissions || [];
+async function getRolePermissions(rolesInput) {
+  const roles = normalizeRoles(
+    Array.isArray(rolesInput) ? { roles: rolesInput } : { role: rolesInput },
+  );
+  if (roles.length === 0) roles.push('viewer');
+  const roleDocs = await Role.find({ id: { $in: roles } }).lean();
+  const permsByRole = Object.fromEntries(roleDocs.map((r) => [r.id, r.permissions || []]));
+  return unionPermissions(roles, permsByRole);
 }
 
 function formatUser(user, permissions) {
+  const roles = normalizeRoles(user);
   return {
     id: user._id.toString(),
     name: user.name || '',
     email: user.email,
-    roleId: user.role || 'viewer',
+    roleId: primaryRole(roles),
+    roleIds: roles,
     permissions,
     department: user.department || 'Unassigned',
     position: user.position || 'Unassigned',
@@ -196,21 +204,27 @@ router.get('/', async (req, res) => {
 
 router.post('/users', async (req, res) => {
   try {
-    const { name, email, department, position, roleId, status } = req.body;
+    const { name, email, department, position, roleId, roleIds, status } = req.body;
     if (!email) return res.status(400).json({ error: 'email is required' });
-    const role = await Role.findOne({ id: roleId || 'viewer' });
-    if (!role) return res.status(400).json({ error: 'role not found' });
+
+    const requested = Array.isArray(roleIds) && roleIds.length > 0
+      ? roleIds
+      : [roleId || 'viewer'];
+    const found = await Role.find({ id: { $in: requested } });
+    if (found.length !== requested.length) {
+      return res.status(400).json({ error: 'role not found' });
+    }
 
     const user = await User.create({
       name,
       email,
       department,
       position,
-      role: role.id,
+      roles: requested,
       status: status || 'active',
       lastActive: 'Never',
     });
-    res.status(201).json(formatUser(user));
+    res.status(201).json(formatUser(user, await getRolePermissions(requested)));
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Email already exists' });
     res.status(400).json({ error: err.message });
@@ -269,11 +283,17 @@ router.patch('/users/:id', async (req, res) => {
     ['name', 'email', 'department', 'position', 'status', 'lastActive'].forEach(key => {
       if (req.body[key] !== undefined) patch[key] = req.body[key];
     });
-    if (req.body.roleId !== undefined) {
-      const role = await Role.findOne({ id: req.body.roleId });
-      if (!role) return res.status(400).json({ error: 'role not found' });
-      patch.role = role.id;
+    if (req.body.roleIds !== undefined || req.body.roleId !== undefined) {
+      const requested = Array.isArray(req.body.roleIds) && req.body.roleIds.length > 0
+        ? req.body.roleIds
+        : [req.body.roleId];
+      const found = await Role.find({ id: { $in: requested } });
+      if (found.length !== requested.length) {
+        return res.status(400).json({ error: 'role not found' });
+      }
+      patch.roles = requested;
     }
+    if (patch.roles) patch.role = primaryRole(patch.roles);
 
     const user = await User.findByIdAndUpdate(req.params.id, patch, { new: true });
     if (!user) return res.status(404).json({ error: 'user not found' });
@@ -287,7 +307,9 @@ router.delete('/users/:id', async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: 'user not found' });
-    if (user.role === 'admin') return res.status(400).json({ error: 'admin users cannot be deleted here' });
+    if (normalizeRoles(user).includes('admin')) {
+      return res.status(400).json({ error: 'admin users cannot be deleted here' });
+    }
     await user.deleteOne();
     res.json({ success: true });
   } catch (err) {
@@ -313,7 +335,7 @@ router.delete('/roles/:id', async (req, res) => {
     const role = await Role.findOne({ id: req.params.id });
     if (!role) return res.status(404).json({ error: 'role not found' });
     if (role.locked) return res.status(400).json({ error: 'locked role cannot be deleted' });
-    const users = await User.countDocuments({ role: role.id });
+    const users = await User.countDocuments({ $or: [{ role: role.id }, { roles: role.id }] });
     if (users > 0) return res.status(400).json({ error: 'move users to another role before deleting' });
     await role.deleteOne();
     res.json({ success: true });
