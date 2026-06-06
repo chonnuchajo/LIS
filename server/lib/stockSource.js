@@ -1,0 +1,26 @@
+'use strict';
+
+// แหล่งความจริงเดียวของตรรกะ "ที่มาของขวด" (primary / supply)
+// '' = ไม่ทราบ/ยังไม่ระบุ (เช่น ขวด working tier เก่าที่ migrate มาตรงๆ)
+
+const RECEIVE_SOURCES = ['primary', 'supply'];
+
+function isValidReceiveSource(v) {
+  return RECEIVE_SOURCES.includes(v);
+}
+
+// map ชื่อ tier เดิม (StockStandard) → source ของขวด
+function tierSourceFor(tierName) {
+  if (tierName === 'primary') return 'primary';
+  if (tierName === 'supplier') return 'supply';
+  return ''; // working หรืออื่นๆ = ไม่ทราบ
+}
+
+// ขวด sealed ที่เรียงตามลำดับ insertion เดิม (primary ก่อน แล้ว supplier):
+// ตัวแรก primaryQty ใบ → 'primary', ที่เหลือ → 'supply'
+function assignSealedSources(sealedCount, primaryQty) {
+  const p = Math.max(0, Math.floor(Number(primaryQty) || 0));
+  return Array.from({ length: sealedCount }, (_, i) => (i < p ? 'primary' : 'supply'));
+}
+
+module.exports = { RECEIVE_SOURCES, isValidReceiveSource, tierSourceFor, assignSealedSources };
