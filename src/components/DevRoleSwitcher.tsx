@@ -23,7 +23,7 @@ const clamp = (val: number, min: number, max: number) =>
   Math.min(Math.max(val, min), max);
 
 export const DevRoleSwitcher = () => {
-  const { devRole, devRoles, switchDevRole } = useAuth();
+  const { devRoleIds, devRoles, toggleDevRole } = useAuth();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<Pos | null>(() => loadPos());
   const dragState = useRef<{
@@ -61,7 +61,7 @@ export const DevRoleSwitcher = () => {
     return () => window.removeEventListener("resize", checkBounds);
   }, []);
 
-  if (!DEV_MODE || !switchDevRole || !devRole || !devRoles || devRoles.length === 0) return null;
+  if (!DEV_MODE || !toggleDevRole || !devRoleIds || !devRoles || devRoles.length === 0) return null;
 
   // กัน Radix Popover/Dialog ที่เปิดอยู่บนหน้า dismiss ตัวเองเพราะคิดว่าคลิก outside
   // ทุก ๆ pointerdown ภายใน dev switcher (ทั้งลากและคลิกปุ่ม) ต้องไม่ leak ไปถึง document
@@ -150,20 +150,23 @@ export const DevRoleSwitcher = () => {
       >
         DEV MODE
       </div>
-      <div className="flex gap-1 rounded-md border border-orange-300 bg-white p-1 shadow-md">
-        {devRoles.map((role) => (
-          <button
-            key={role.id}
-            onClick={() => switchDevRole(role.id)}
-            className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-              devRole === role.id
-                ? "bg-orange-500 text-white"
-                : "text-gray-600 hover:bg-orange-100"
-            }`}
-          >
-            {role.name}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-1 rounded-md border border-orange-300 bg-white p-1 shadow-md">
+        {devRoles.map((role) => {
+          const active = devRoleIds.includes(role.id);
+          return (
+            <button
+              key={role.id}
+              onClick={() => toggleDevRole(role.id)}
+              className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+                active
+                  ? "bg-orange-500 text-white"
+                  : "text-gray-600 hover:bg-orange-100"
+              }`}
+            >
+              {role.name}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

@@ -2,28 +2,42 @@ import { describe, it, expect } from "vitest";
 import { synthesizeDevUser, synthesizeDevAssignees } from "./dev";
 
 describe("synthesizeDevUser", () => {
-  it("builds a dev AuthUser shape from a role id and name", () => {
-    const user = synthesizeDevUser({ id: "qc", name: "QC Reviewer" });
+  it("builds a dev AuthUser shape from a single role", () => {
+    const user = synthesizeDevUser([{ id: "qc", name: "QC Reviewer" }]);
 
     expect(user).toEqual({
       id: "dev-qc",
       email: "qc.dev@icpladda.com",
       name: "Dev QC Reviewer",
       role: "qc",
+      roles: ["qc"],
       permissions: [],
-      department: "QC Reviewer",
+      department: "qc",
       position: "QC Reviewer",
       status: "active",
     });
   });
 
   it("uses the role id (not name) in email and id fields so custom role names cannot break the email", () => {
-    const user = synthesizeDevUser({ id: "custom-role", name: "ผู้ตรวจ" });
+    const user = synthesizeDevUser([{ id: "custom-role", name: "ผู้ตรวจ" }]);
 
     expect(user.id).toBe("dev-custom-role");
     expect(user.email).toBe("custom-role.dev@icpladda.com");
     expect(user.role).toBe("custom-role");
     expect(user.name).toBe("Dev ผู้ตรวจ");
+  });
+
+  it("derives the primary (highest-priority) role when given several, and keeps all in roles[]", () => {
+    const user = synthesizeDevUser([
+      { id: "lab", name: "Lab" },
+      { id: "qc", name: "QC" },
+    ]);
+
+    // qc outranks lab → primary is qc
+    expect(user.role).toBe("qc");
+    expect(user.roles).toEqual(["lab", "qc"]);
+    expect(user.id).toBe("dev-qc");
+    expect(user.name).toBe("Dev QC");
   });
 });
 
@@ -51,7 +65,7 @@ describe("synthesizeDevAssignees", () => {
     const analyst = assignees.find((a) => a.position === "Lab Analyst");
 
     expect(analyst?.name).toBe(
-      synthesizeDevUser({ id: "lab-analyst", name: "Lab Analyst" }).name,
+      synthesizeDevUser([{ id: "lab-analyst", name: "Lab Analyst" }]).name,
     );
   });
 
