@@ -345,9 +345,10 @@ router.post('/units/:qrId/discard', async (req, res) => {
     unit.discardReason = (req.body && req.body.reason) || '';
     await unit.save();
 
+    const std = await StockStandard.findOne({ code: unit.itemCode });
     await logTransaction({
       itemType: 'standard',
-      itemId: unit.itemCode,
+      itemId: std ? std._id.toString() : unit.itemCode,
       itemCode: unit.itemCode,
       itemName: unit.itemName,
       action: 'discard',
