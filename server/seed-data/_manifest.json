@@ -39,7 +39,7 @@
     {
       "collection": "petitions",
       "file": "petitions.json",
-      "count": 3
+      "count": 0
     },
     {
       "collection": "simplemethodexclusions",
@@ -79,7 +79,7 @@
     {
       "collection": "petitionauditlogs",
       "file": "petitionauditlogs.json",
-      "count": 190
+      "count": 193
     },
     {
       "collection": "realtimedensities",

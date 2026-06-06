@@ -3,7 +3,6 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { spawn } = require('child_process');
 const router = express.Router();
 const PrintConfig = require('../models/PrintConfig');
 
@@ -62,40 +61,69 @@ function cupsTargetFromUrl(cupsPrinterUrl, fallbackPrinterName = '') {
   if (!destination) {
     throw new Error('CUPS URL ต้องระบุ queue เช่น https://192.168.0.237:631/printers/PRINTER_NAME');
   }
-  const host = url.hostname;
-  const port = url.port || (url.protocol === 'https:' || url.protocol === 'ipps:' ? '631' : '');
+  const printerUriProtocol = url.protocol === 'https:' ? 'ipps:' : url.protocol === 'http:' ? 'ipp:' : url.protocol;
   return {
     destination,
-    hostPort: port ? `${host}:${port}` : host,
-    encrypted: url.protocol === 'https:' || url.protocol === 'ipps:',
+    printerUri: `${printerUriProtocol}//${url.host}${url.pathname}`,
     display: raw,
   };
 }
 
+function isPrivateCupsHost(hostname) {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    /^10\./.test(hostname) ||
+    /^192\.168\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname)
+  );
+}
+
+function cupsRequestOptions(cupsPrinterUrl) {
+  const url = new URL(cupsPrinterUrl);
+  const opts = {
+    protocol: url.protocol,
+    hostname: url.hostname,
+    port: url.port || undefined,
+    path: `${url.pathname}${url.search}`,
+  };
+
+  // The plant CUPS server uses a self-signed certificate on the LAN.
+  // Keep this exception scoped to private/local hosts unless explicitly disabled.
+  if ((url.protocol === 'https:' || url.protocol === 'ipps:') && isPrivateCupsHost(url.hostname)) {
+    opts.rejectUnauthorized = process.env.PRINT_CUPS_REJECT_UNAUTHORIZED === 'true';
+  }
+
+  return opts;
+}
+
 function printViaCups(tmpPdf, cfg, copies) {
   const target = cupsTargetFromUrl(cfg.cupsPrinterUrl, cfg.printerName);
+  const ipp = require('ipp');
+  const printer = ipp.Printer(cupsRequestOptions(cfg.cupsPrinterUrl), { uri: target.printerUri, version: '2.0' });
   const media = cfg.paperSize === 'label-6x4' ? 'Custom.152x102mm' : 'A4';
-  const args = [
-    ...(target.encrypted ? ['-E'] : []),
-    '-h', target.hostPort,
-    '-d', target.destination,
-    '-n', String(copies),
-    '-o', `media=${media}`,
-    tmpPdf,
-  ];
+  const pdf = fs.readFileSync(tmpPdf);
+  const msg = {
+    'operation-attributes-tag': {
+      'requesting-user-name': 'LIS',
+      'job-name': `LIS ${cfg.slug || 'print'} ${new Date().toISOString()}`,
+      'document-format': 'application/pdf',
+    },
+    'job-attributes-tag': {
+      copies,
+      media,
+    },
+    data: pdf,
+  };
 
   return new Promise((resolve, reject) => {
-    const child = spawn('lp', args, { windowsHide: true });
-    let stderr = '';
-    let stdout = '';
-    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', (err) => {
-      reject(new Error(`เรียกคำสั่ง lp ไม่สำเร็จ: ${err.message}`));
-    });
-    child.on('close', (code) => {
-      if (code === 0) return resolve({ target: target.display, stdout });
-      reject(new Error((stderr || stdout || `lp exited with code ${code}`).trim()));
+    printer.execute('Print-Job', msg, (err, res) => {
+      if (err) return reject(err);
+      if (res?.statusCode && !String(res.statusCode).startsWith('successful-')) {
+        return reject(new Error(`CUPS rejected job: ${res.statusCode}`));
+      }
+      resolve({ target: target.display, response: res });
     });
   });
 }
