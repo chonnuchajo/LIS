@@ -29,6 +29,9 @@ interface Props {
  * กว้างเกินกรอบ dialog (เช่น ใบคำขอหน้า 2 เป็น A4 แนวนอน 297mm). transform scale
  * อยู่ที่ตัวครอบ *นอก* printRef จึงไม่ถูกจับตอน serialize → ของจริงที่ส่งไปพิมพ์ขนาดเท่าเดิม.
  */
+// chrome แนวนอนของกรอบขาว (p-2 ซ้าย+ขวา + border ซ้าย+ขวา) — ต้องตรงกับ className ด้านล่าง
+const BOX_CHROME = 18;
+
 function ScaledPreview({
   printRef,
   children,
@@ -40,6 +43,7 @@ function ScaledPreview({
   const contentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [naturalHeight, setNaturalHeight] = useState(0);
+  const [naturalWidth, setNaturalWidth] = useState(0);
 
   useLayoutEffect(() => {
     const outer = outerRef.current;
@@ -47,9 +51,12 @@ function ScaledPreview({
     if (!outer || !content) return;
     const measure = () => {
       // scrollWidth/Height = ขนาด layout จริง ไม่ขึ้นกับ transform ที่ใส่ไว้
-      const avail = outer.clientWidth;
+      // หัก chrome ของกรอบขาว (p-2 = 8px*2 + border 1px*2 = 18px) ออกก่อน ไม่งั้น
+      // กล่องล้นออกกว้างกว่า dialog → เกิด scroll ซ้าย-ขวา ตอนเอกสาร A4 ย่อเต็มกรอบ
+      const avail = outer.clientWidth - BOX_CHROME;
       const natW = content.scrollWidth;
       setScale(natW > avail ? avail / natW : 1);
+      setNaturalWidth(natW);
       setNaturalHeight(content.scrollHeight);
     };
     measure();
@@ -58,19 +65,23 @@ function ScaledPreview({
     return () => ro.disconnect();
   }, [children]);
 
+  // กรอบขาวหดมาพอดีตัวเอกสารที่ย่อแล้ว แล้ว center กลาง dialog — กันที่ว่างโล่ง
+  // ข้างฉลากเล็กๆ (เอกสาร A4 ที่ต้องย่อจะ scale จนเต็มความกว้างพอดีอยู่แล้ว)
   return (
-    <div ref={outerRef} className="overflow-x-hidden rounded border bg-white p-2">
-      {/* จองความสูงตามขนาดที่ย่อแล้ว เพื่อไม่ให้เหลือที่ว่างด้านล่าง */}
-      <div style={{ height: naturalHeight * scale }}>
-        <div
-          ref={contentRef}
-          style={{
-            width: "max-content",
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
-          }}
-        >
-          <div ref={printRef}>{children}</div>
+    <div ref={outerRef} className="flex justify-center">
+      <div className="overflow-hidden rounded border bg-white p-2">
+        {/* จองขนาดตามที่ย่อแล้ว เพื่อให้กรอบ + ที่ว่างด้านล่างพอดี */}
+        <div style={{ width: naturalWidth * scale, height: naturalHeight * scale }}>
+          <div
+            ref={contentRef}
+            style={{
+              width: "max-content",
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
+            }}
+          >
+            <div ref={printRef}>{children}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -82,6 +93,8 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
   const [copies, setCopies] = useState(1);
   const [printing, setPrinting] = useState(false);
   const meta = getPrintDocType(docType);
+  // ฉลากกว้างแค่ 100mm — ให้ dialog แคบลงพอดีตัว ไม่ต้องกว้างเท่าเอกสาร A4
+  const widthClass = docType === "sample-label" ? "sm:max-w-md" : "sm:max-w-4xl";
 
   const { data: configs } = useQuery({
     queryKey: ["print-config"],
@@ -107,7 +120,7 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-auto">
+      <DialogContent className={`${widthClass} max-h-[90vh] overflow-auto`}>
         <DialogHeader>
           <DialogTitle>ตัวอย่างก่อนพิมพ์ — {meta?.label ?? docType}</DialogTitle>
         </DialogHeader>

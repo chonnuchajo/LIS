@@ -10,8 +10,11 @@ const MAX_TIMES = 100000;
 const MIN_TIMES = 1;
 
 // Default rows come from the Method registry (one isDefault row per method, scope:'all').
+// Standard config only applies to machine-based methods (GC/HPLC) — those are the ones
+// that consume a standard. Non-machine methods (Titration/Digest/Reflux) are excluded.
 async function ensureDefaults() {
-  const methods = await Method.find().lean();
+  const methods = await Method.find({ requiresMachine: true }).lean();
+  const machineCodes = methods.map((m) => m.code);
   for (const m of methods) {
     await StandardConfig.updateOne(
       { instrument: m.code, scope: 'all' },
@@ -29,6 +32,8 @@ async function ensureDefaults() {
       { upsert: true },
     );
   }
+  // Drop any rows seeded for non-machine methods by earlier versions.
+  await StandardConfig.deleteMany({ instrument: { $nin: machineCodes } });
 }
 
 function validateTimes(value) {

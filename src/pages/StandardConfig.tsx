@@ -304,7 +304,8 @@ export default function StandardConfig() {
               <div className="space-y-1.5">
                 <Label className="text-sm">เครื่อง *</Label>
                 <div className="flex gap-2 flex-wrap">
-                  {methods.filter((m) => m.active).map((m) => (
+                  {/* Standard config only applies to machine-based methods (GC/HPLC). */}
+                  {methods.filter((m) => m.active && m.requiresMachine).map((m) => (
                     <Button
                       key={m.code}
                       type="button"
