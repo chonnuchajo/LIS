@@ -8,7 +8,7 @@ const PrintConfig = require('../models/PrintConfig');
 
 // docType defaults — mirror ของ src/lib/printConfig.ts PRINT_DOC_TYPES
 const DOC_DEFAULTS = [
-  { slug: 'sample-label',    printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'label-6x4' },
+  { slug: 'sample-label',    printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'label-100x50' },
   { slug: 'coa',             printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
   { slug: 'service-request', printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
   { slug: 'production-plan', printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
@@ -25,7 +25,7 @@ function pick(doc) {
     printerName: doc.printerName || '',
     cupsPrinterUrl: doc.cupsPrinterUrl || '',
     copies: typeof doc.copies === 'number' ? doc.copies : 1,
-    paperSize: doc.paperSize || 'A4',
+    paperSize: doc.slug === 'sample-label' ? 'label-100x50' : (doc.paperSize || 'A4'),
   };
 }
 
@@ -47,8 +47,34 @@ function validate(body) {
   if (copies != null && (typeof copies !== 'number' || !Number.isInteger(copies) || copies < 1 || copies > 99)) {
     return 'จำนวนชุดต้องเป็นจำนวนเต็ม 1–99';
   }
-  if (paperSize != null && !['A4', 'label-6x4'].includes(paperSize)) return 'paperSize ไม่ถูกต้อง';
+  if (paperSize != null && !['A4', 'label-100x50', 'label-6x4'].includes(paperSize)) return 'paperSize ไม่ถูกต้อง';
   return null;
+}
+
+function effectivePaperSize(cfg) {
+  // Sample labels are designed as 100x50mm in the React template. Force legacy
+  // saved configs to the matching media so old DB rows do not print on 6x4.
+  if (cfg.slug === 'sample-label') return 'label-100x50';
+  return cfg.paperSize || 'A4';
+}
+
+function paperSpec(paperSize) {
+  if (paperSize === 'label-100x50') {
+    return {
+      media: 'Custom.50x100mm',
+      pdf: { width: '50mm', height: '100mm' },
+    };
+  }
+  if (paperSize === 'label-6x4') {
+    return {
+      media: 'Custom.152x102mm',
+      pdf: { width: '152.4mm', height: '101.6mm' },
+    };
+  }
+  return {
+    media: 'A4',
+    pdf: { format: 'A4' },
+  };
 }
 
 function cupsTargetFromUrl(cupsPrinterUrl, fallbackPrinterName = '') {
@@ -103,7 +129,7 @@ function printViaCups(tmpPdf, cfg, copies) {
   const target = cupsTargetFromUrl(cfg.cupsPrinterUrl, cfg.printerName);
   const ipp = require('ipp');
   const printer = ipp.Printer(cupsRequestOptions(cfg.cupsPrinterUrl), { uri: target.printerUri, version: '2.0' });
-  const media = cfg.paperSize === 'label-6x4' ? 'Custom.152x102mm' : 'A4';
+  const media = paperSpec(effectivePaperSize(cfg)).media;
   const pdf = fs.readFileSync(tmpPdf);
   const msg = {
     'operation-attributes-tag': {
@@ -170,7 +196,7 @@ router.put('/config/:slug', async (req, res) => {
         printerName: typeof printerName === 'string' ? printerName : '',
         cupsPrinterUrl: typeof cupsPrinterUrl === 'string' ? cupsPrinterUrl.trim() : '',
         ...(copies != null ? { copies } : {}),
-        ...(paperSize != null ? { paperSize } : {}),
+        paperSize: slug === 'sample-label' ? 'label-100x50' : (paperSize ?? 'A4'),
       },
       { new: true, upsert: true },
     ).lean();
@@ -225,9 +251,14 @@ router.post('/', async (req, res) => {
 </head><body>${html}</body></html>`;
     await page.setContent(fullHtml, { waitUntil: 'load', timeout: 15000 });
 
-    const pdfOpts = cfg.paperSize === 'label-6x4'
-      ? { path: tmpPdf, width: '152.4mm', height: '101.6mm', printBackground: true, preferCSSPageSize: true, margin: { top: 0, right: 0, bottom: 0, left: 0 } }
-      : { path: tmpPdf, format: 'A4', printBackground: true, preferCSSPageSize: true, margin: { top: 0, right: 0, bottom: 0, left: 0 } };
+    const spec = paperSpec(effectivePaperSize(cfg)).pdf;
+    const pdfOpts = {
+      path: tmpPdf,
+      ...spec,
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: 0, right: 0, bottom: 0, left: 0 },
+    };
     await page.pdf(pdfOpts);
     await browser.close();
     browser = null;

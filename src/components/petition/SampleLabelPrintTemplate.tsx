@@ -136,22 +136,39 @@ export default function SampleLabelPrintTemplate({ petition }: { petition: Petit
           size: 100mm 50mm;
           margin: 0;
         }
+        html, body {
+          margin: 0;
+          padding: 0;
+        }
+        .sample-label-root {
+          width: 100mm;
+          margin: 0;
+          padding: 0;
+        }
+        .label-page {
+          display: flex;
+          align-items: stretch;
+          justify-content: stretch;
+          width: 100mm;
+          height: 50mm;
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+          overflow: hidden;
+        }
+        .label-card {
+          flex: 0 0 100mm;
+        }
         @media print {
           html, body { margin: 0; padding: 0; width: 100mm; height: 50mm; }
           .label-page {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 100mm;
-            height: 50mm;
-            box-sizing: border-box;
             break-after: page;
             page-break-after: always;
           }
           .label-page:last-child { break-after: auto; page-break-after: auto; }
         }
       `}</style>
-      <div style={{ fontFamily: 'inherit' }}>
+      <div className="sample-label-root" style={{ fontFamily: 'inherit' }}>
         {petition.items.map((item) => (
           <div key={item.seq} className="label-page">
             <LabelCard petition={petition} item={item} yearShort={yearShort} />

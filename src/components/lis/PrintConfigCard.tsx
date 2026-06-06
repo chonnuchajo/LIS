@@ -78,6 +78,7 @@ export default function PrintConfigCard({ config, printers, saving, onSave }: Pr
               <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="A4">A4</SelectItem>
+                <SelectItem value="label-100x50">ฉลาก 100 x 50 mm</SelectItem>
                 <SelectItem value="label-6x4">ฉลาก 6x4 นิ้ว</SelectItem>
               </SelectContent>
             </Select>

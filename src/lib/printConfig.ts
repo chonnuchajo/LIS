@@ -1,5 +1,5 @@
 export type PrintDocType = "sample-label" | "coa" | "service-request" | "production-plan" | "stock-label";
-export type PaperSize = "A4" | "label-6x4";
+export type PaperSize = "A4" | "label-100x50" | "label-6x4";
 
 export interface PrintConfig {
   slug: PrintDocType;
@@ -23,7 +23,7 @@ export interface PrintDocTypeMeta {
 }
 
 export const PRINT_DOC_TYPES: PrintDocTypeMeta[] = [
-  { slug: "sample-label",    label: "ฉลากตัวอย่าง (sticker 6x4)", defaultPaper: "label-6x4" },
+  { slug: "sample-label",    label: "ฉลากตัวอย่าง (sticker 100x50 mm)", defaultPaper: "label-100x50" },
   { slug: "coa",             label: "ใบรายงานผล (COA)",            defaultPaper: "A4" },
   { slug: "service-request", label: "ใบคำขอ (Petition)",            defaultPaper: "A4" },
   { slug: "production-plan", label: "ใบวางแผนผลิต",                 defaultPaper: "A4" },
@@ -58,7 +58,7 @@ export function validatePrintConfig(input: PrintConfigInput): string | null {
   if (input.copies != null && (!Number.isInteger(input.copies) || input.copies < 1 || input.copies > 99)) {
     return "จำนวนชุดต้องเป็นจำนวนเต็ม 1–99";
   }
-  if (input.paperSize != null && !["A4", "label-6x4"].includes(input.paperSize)) {
+  if (input.paperSize != null && !["A4", "label-100x50", "label-6x4"].includes(input.paperSize)) {
     return "paperSize ไม่ถูกต้อง";
   }
   return null;
