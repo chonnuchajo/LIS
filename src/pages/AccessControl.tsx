@@ -38,6 +38,7 @@ type AppUser = {
   name: string;
   email: string;
   roleId: string;
+  roleIds: string[];
   department: string;
   position: string;
   status: UserStatus;
@@ -205,7 +206,7 @@ const AccessControl = () => {
     email: "",
     department: "",
     position: "",
-    roleId: "viewer",
+    roleIds: ["viewer"] as string[],
   });
   const [newRole, setNewRole] = useState({ name: "", description: "" });
   const [newGroup, setNewGroup] = useState<{
@@ -229,7 +230,12 @@ const AccessControl = () => {
     setLoading(true);
     try {
       const res = await api.get<AccessControlState>("/access-control");
-      setUsers(res.data.data.users);
+      setUsers(
+        (res.data.data.users as AppUser[]).map((u) => ({
+          ...u,
+          roleIds: u.roleIds && u.roleIds.length > 0 ? u.roleIds : [u.roleId],
+        })),
+      );
       setRoles(res.data.data.roles);
       setGroups(res.data.data.groups);
       // Default-expand every group so the matrix shows nested pages up front,
@@ -264,7 +270,7 @@ const AccessControl = () => {
       user.email.toLowerCase().includes(query) ||
       user.department.toLowerCase().includes(query) ||
       user.position.toLowerCase().includes(query) ||
-      roleById[user.roleId]?.name.toLowerCase().includes(query)
+      user.roleIds.some((rid) => roleById[rid]?.name.toLowerCase().includes(query))
     );
   });
 
@@ -295,7 +301,9 @@ const AccessControl = () => {
     setUsers((current) => current.map((user) => (user.id === id ? { ...user, ...patch } : user)));
     try {
       const res = await api.patch<AppUser>(`/access-control/users/${id}`, patch);
-      setUsers((current) => current.map((user) => (user.id === id ? res.data.data : user)));
+      const updated = res.data.data;
+      const normalized = { ...updated, roleIds: updated.roleIds && updated.roleIds.length > 0 ? updated.roleIds : [updated.roleId] };
+      setUsers((current) => current.map((user) => (user.id === id ? normalized : user)));
     } catch (err) {
       setUsers(previous);
       toast.error(err instanceof Error ? err.message : "Failed to update user");
@@ -324,8 +332,10 @@ const AccessControl = () => {
         department: newUser.department.trim() || "Unassigned",
         position: newUser.position.trim() || "Unassigned",
       });
-      setUsers((current) => [...current, res.data.data]);
-      setNewUser({ name: "", email: "", department: "", position: "", roleId: "viewer" });
+      const added = res.data.data;
+      const normalizedAdded = { ...added, roleIds: added.roleIds && added.roleIds.length > 0 ? added.roleIds : [added.roleId] };
+      setUsers((current) => [...current, normalizedAdded]);
+      setNewUser({ name: "", email: "", department: "", position: "", roleIds: ["viewer"] });
       toast.success("User added");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to add user");
@@ -767,21 +777,33 @@ const AccessControl = () => {
                     onChange={(event) => setNewUser({ ...newUser, position: event.target.value })}
                     placeholder="Position"
                   />
-                  <Select
-                    value={newUser.roleId}
-                    onValueChange={(value) => setNewUser({ ...newUser, roleId: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roles.map((role) => (
-                        <SelectItem key={role.id} value={role.id}>
+                  <div className="flex flex-wrap items-center gap-1 rounded-md border px-2 py-1">
+                    {roles.map((role) => {
+                      const active = newUser.roleIds.includes(role.id);
+                      return (
+                        <button
+                          key={role.id}
+                          type="button"
+                          onClick={() =>
+                            setNewUser({
+                              ...newUser,
+                              roleIds: active
+                                ? newUser.roleIds.filter((r) => r !== role.id)
+                                : [...newUser.roleIds, role.id],
+                            })
+                          }
+                          className={cn(
+                            "rounded px-2 py-0.5 text-xs font-medium transition-colors",
+                            active
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-muted text-muted-foreground hover:bg-muted/70",
+                          )}
+                        >
                           {role.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        </button>
+                      );
+                    })}
+                  </div>
                   <Button onClick={addUser} className="gap-2">
                     <Plus className="h-4 w-4" />
                     Add
@@ -853,22 +875,33 @@ const AccessControl = () => {
                               }
                             />
                           </TableCell>
-                          <TableCell className="min-w-[140px] sm:min-w-[180px]">
-                            <Select
-                              value={user.roleId}
-                              onValueChange={(value) => updateUser(user.id, { roleId: value })}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {roles.map((role) => (
-                                  <SelectItem key={role.id} value={role.id}>
+                          <TableCell className="min-w-[160px] sm:min-w-[200px]">
+                            <div className="flex flex-wrap items-center gap-1">
+                              {roles.map((role) => {
+                                const active = user.roleIds.includes(role.id);
+                                return (
+                                  <button
+                                    key={role.id}
+                                    type="button"
+                                    onClick={() => {
+                                      const next = active
+                                        ? user.roleIds.filter((r) => r !== role.id)
+                                        : [...user.roleIds, role.id];
+                                      if (next.length === 0) return; // keep at least one role
+                                      updateUser(user.id, { roleIds: next });
+                                    }}
+                                    className={cn(
+                                      "rounded px-2 py-0.5 text-xs font-medium transition-colors",
+                                      active
+                                        ? "bg-primary text-primary-foreground"
+                                        : "bg-muted text-muted-foreground hover:bg-muted/70",
+                                    )}
+                                  >
                                     {role.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                                  </button>
+                                );
+                              })}
+                            </div>
                           </TableCell>
                           <TableCell className="hidden md:table-cell">
                             <Select
