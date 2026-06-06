@@ -134,7 +134,7 @@
     {
       "collection": "stocktransactions",
       "file": "stocktransactions.json",
-      "count": 3
+      "count": 4
     },
     {
       "collection": "accessgroups",
