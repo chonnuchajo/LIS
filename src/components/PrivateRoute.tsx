@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { userCanAccessPath } from "@/lib/accessControl";
 import { api } from "@/lib/api";
 import { DEV_MODE } from "@/config/dev";
+import { normalizeRoles, unionPermissions } from "@/lib/roles";
 
 type AccessGroup = {
   id: string;
@@ -92,7 +93,7 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (!user?.role || user.status === undefined) {
+  if (normalizeRoles(user).length === 0 || user?.status === undefined) {
     return null;
   }
 
@@ -100,9 +101,11 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
     return null;
   }
 
-  const currentUser = user?.role && accessControl?.permissions[user.role]
-    ? { ...user, permissions: accessControl.permissions[user.role] }
-    : user;
+  const roles = normalizeRoles(user);
+  const currentUser =
+    user && roles.length > 0
+      ? { ...user, permissions: unionPermissions(roles, accessControl?.permissions ?? {}) }
+      : user;
   const isRedirectOnlyRoute = location.pathname === "/";
 
   if (!loadFailed && !isRedirectOnlyRoute && !userCanAccessPath(currentUser, location.pathname, accessControl?.groups ?? [])) {

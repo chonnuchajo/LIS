@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { userCanAccessPath } from "@/lib/accessControl";
+import { normalizeRoles, unionPermissions } from "@/lib/roles";
 
 type AccessGroup = { id: string; paths?: string[] };
 type AccessControlState = {
@@ -32,9 +33,11 @@ export function useCanAccessPath() {
 
   return useMemo(() => {
     const groups = accessControl?.groups ?? [];
+    const roles = normalizeRoles(user);
+    const permsByRole = accessControl?.permissions ?? {};
     const effectiveUser =
-      user?.role && accessControl?.permissions?.[user.role]
-        ? { ...user, permissions: accessControl.permissions[user.role] }
+      user && roles.length > 0
+        ? { ...user, permissions: unionPermissions(roles, permsByRole) }
         : user;
     return (path: string) => userCanAccessPath(effectiveUser, path, groups);
   }, [accessControl, user]);

@@ -7,6 +7,7 @@ import HomeViewer from "@/components/home/HomeViewer";
 import HomeGeneric from "@/components/home/HomeGeneric";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import { normalizeRoles, primaryRole, unionPermissions } from "@/lib/roles";
 
 type HomeKind = "admin" | "qc" | "lab" | "viewer" | "generic";
 
@@ -82,8 +83,9 @@ const Home = () => {
         if (!alive) return;
         const data = res.data.data;
         setGroups(data.groups ?? []);
-        if (user?.role && data.permissions?.[user.role]) {
-          setPermOverride(data.permissions[user.role]);
+        const roles = normalizeRoles(user);
+        if (roles.length > 0 && data.permissions) {
+          setPermOverride(unionPermissions(roles, data.permissions));
         }
       })
       .finally(() => {
@@ -99,7 +101,7 @@ const Home = () => {
   }
 
   const perms = permOverride ?? user?.permissions ?? [];
-  const kind = resolveHomeKind(user?.role, perms, groups);
+  const kind = resolveHomeKind(primaryRole(normalizeRoles(user)), perms, groups);
 
   let content: JSX.Element;
   switch (kind) {
