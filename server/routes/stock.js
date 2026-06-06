@@ -217,7 +217,7 @@ router.post('/standards/:id/receive', async (req, res) => {
 
 /* ==================== STANDARD UNITS (per-bottle) ==================== */
 
-// รับเข้าหลายขวด: { lotNo?, sizeMl, unit?, bottles: [{ exp }], note? }
+// รับเข้าหลายขวด: { lotNo?, sizeMl, unit?, source: 'primary'|'supply', bottles: [{ exp }], note? }
 router.post('/standards/:id/units/receive', async (req, res) => {
   try {
     const std = await StockStandard.findById(req.params.id);
