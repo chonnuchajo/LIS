@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/select";
 
 import { api } from "@/lib/api";
-import { expiryStatus, qtyStatus } from "@/lib/stockStatus";
 import { summarizeUnits } from "@/lib/stockUnit";
 import UnitsDrawer from "@/components/lis/stock/UnitsDrawer";
 import ReceiveBottlesDialog from "@/components/lis/stock/ReceiveBottlesDialog";
@@ -33,16 +32,12 @@ import WithdrawDialog from "@/components/lis/stock/WithdrawDialog";
 import DiscardDialog from "@/components/lis/stock/DiscardDialog";
 import type {
   StockStandardItem, StockSolventItem, StockGlasswareItem,
-  StockTransactionItem, StockTier, StockUnitItem,
+  StockTransactionItem, StockUnitItem,
 } from "@/types/stock";
 
 const LOW_STD_QTY = 1;
 const LOW_SOL_QTY = 3;
 const LOW_GLASS_QTY = 5;
-
-// ---------- helpers ----------
-const fmtNum = (v: number | string | null | undefined) =>
-  v === null || v === undefined || v === "" ? "-" : String(v);
 
 type StandardStatusFilter = "all" | "ok" | "out" | "low" | "expired" | "soon";
 const STANDARD_STATUS_OPTIONS: { value: StandardStatusFilter; label: string }[] = [
@@ -53,15 +48,6 @@ const STANDARD_STATUS_OPTIONS: { value: StandardStatusFilter; label: string }[] 
   { value: "expired", label: "หมดอายุ" },
   { value: "soon", label: "ใกล้หมดอายุ" },
 ];
-
-// worst expiry state across a standard's three tiers ("expired" > "soon" > none)
-const worstExpiry = (item: StockStandardItem, now: number) => {
-  const states = [item.primary?.exp, item.supplier?.exp, item.working?.exp]
-    .map(e => expiryStatus(e, now));
-  if (states.includes("expired")) return "expired" as const;
-  if (states.includes("soon")) return "soon" as const;
-  return "ok" as const;
-};
 
 // ============================================================
 // Standards Tab
@@ -283,23 +269,6 @@ function StandardsTab() {
         />
       )}
     </div>
-  );
-}
-
-function TierCell({ tier, className = "" }: { tier: { qty: number; sizeMg: number | string | null; exp: string }; className?: string }) {
-  const eStatus = expiryStatus(tier?.exp);
-  const expClass =
-    eStatus === "expired" ? "text-destructive font-medium"
-    : eStatus === "soon" ? "text-amber-600 font-medium"
-    : "text-muted-foreground";
-  return (
-    <TableCell className={`text-center text-sm ${className}`.trim()}>
-      <div className="font-semibold">{tier?.qty ?? 0}</div>
-      <div className="text-xs text-muted-foreground">{fmtNum(tier?.sizeMg)} mg</div>
-      <div className={`text-xs ${expClass}`}>
-        {tier?.exp || "-"}
-      </div>
-    </TableCell>
   );
 }
 
@@ -830,78 +799,6 @@ function SimpleMoveDialog({
           <div className="space-y-3 py-4">
             <div>
               <Label>จำนวน ({unit})</Label>
-              <Input type="number" min="1" value={qty} onChange={e => setQty(e.target.value)} required />
-            </div>
-            <div>
-              <Label>หมายเหตุ</Label>
-              <Input value={note} onChange={e => setNote(e.target.value)} placeholder="optional" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-            <Button type="submit" disabled={busy}>{busy ? "กำลังบันทึก..." : "ยืนยัน"}</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function StandardMoveDialog({
-  item, mode, onClose, onSaved,
-}: {
-  item: StockStandardItem;
-  mode: "deduct" | "receive";
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [tier, setTier] = useState<StockTier>("primary");
-  const [qty, setQty] = useState("1");
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const n = Number(qty);
-    if (!n || n <= 0) { toast.error("กรุณาระบุจำนวน"); return; }
-    const before = item[tier]?.qty ?? 0;
-    if (mode === "deduct" && n > before) { toast.error("จำนวนไม่พอ"); return; }
-    setBusy(true);
-    try {
-      if (mode === "deduct") await api.deductStandard(item._id, { tier, qty: n, note: note || undefined });
-      else await api.receiveStandard(item._id, { tier, qty: n, note: note || undefined });
-      toast.success(mode === "deduct" ? "ตัด stock สำเร็จ" : "รับเข้าสำเร็จ");
-      onSaved();
-      onClose();
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
-        <form onSubmit={submit}>
-          <DialogHeader>
-            <DialogTitle>{mode === "deduct" ? "ตัด stock Standard" : "รับเข้า Standard"}</DialogTitle>
-            <DialogDescription>{item.code} — {item.name}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 py-4">
-            <div>
-              <Label>เลือก tier</Label>
-              <Select value={tier} onValueChange={(v) => setTier(v as StockTier)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="primary">Primary (คงเหลือ {item.primary?.qty ?? 0})</SelectItem>
-                  <SelectItem value="supplier">Supplier (คงเหลือ {item.supplier?.qty ?? 0})</SelectItem>
-                  <SelectItem value="working">Working (คงเหลือ {item.working?.qty ?? 0})</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>จำนวน (ขวด)</Label>
               <Input type="number" min="1" value={qty} onChange={e => setQty(e.target.value)} required />
             </div>
             <div>
