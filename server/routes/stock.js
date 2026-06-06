@@ -2,6 +2,36 @@ const express = require('express');
 const router = express.Router();
 const { StockStandard, StockSolvent, StockGlassware } = require('../models/Stock');
 const StockTransaction = require('../models/StockTransaction');
+const StockUnit = require('../models/StockUnit');
+const crypto = require('crypto');
+
+async function genUniqueQrId() {
+  for (let i = 0; i < 5; i++) {
+    const id = 'u_' + crypto.randomBytes(6).toString('hex'); // u_ + 12 hex
+    const exists = await StockUnit.exists({ qrId: id });
+    if (!exists) return id;
+  }
+  throw new Error('ไม่สามารถสร้าง qrId ที่ไม่ซ้ำได้');
+}
+
+// mirror ของ addShelfLife/computeWorkingExp ใน src/lib/stockUnit.ts
+function addShelfLife(from, shelf) {
+  const v = Math.max(0, Math.floor(Number(shelf && shelf.value) || 0));
+  const d = new Date(from);
+  if (shelf && shelf.unit === 'week') d.setDate(d.getDate() + v * 7);
+  else if (shelf && shelf.unit === 'month') d.setMonth(d.getMonth() + v);
+  else d.setDate(d.getDate() + v);
+  return d;
+}
+function computeWorkingExp(withdrawnAt, shelf, parentExp) {
+  const candidate = addShelfLife(withdrawnAt, shelf);
+  if (parentExp && candidate.getTime() > new Date(parentExp).getTime()) return new Date(parentExp);
+  return candidate;
+}
+function personOf(req) {
+  const m = userMeta(req);
+  return m.userName ? { email: m.userEmail, name: m.userName } : undefined;
+}
 
 const TIERS = ['primary', 'supplier', 'working'];
 
@@ -179,6 +209,58 @@ router.post('/standards/:id/receive', async (req, res) => {
     });
 
     res.json(item);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+/* ==================== STANDARD UNITS (per-bottle) ==================== */
+
+// รับเข้าหลายขวด: { lotNo?, sizeMl, unit?, bottles: [{ exp }], note? }
+router.post('/standards/:id/units/receive', async (req, res) => {
+  try {
+    const std = await StockStandard.findById(req.params.id);
+    if (!std) return res.status(404).json({ error: 'ไม่พบสาร' });
+
+    const { lotNo = '', sizeMl, unit = 'ml', bottles, note } = req.body || {};
+    const size = Number(sizeMl);
+    if (!Number.isFinite(size) || size <= 0) return res.status(400).json({ error: 'ขนาด/ขวดไม่ถูกต้อง' });
+    if (!Array.isArray(bottles) || bottles.length === 0) return res.status(400).json({ error: 'ต้องระบุอย่างน้อย 1 ขวด' });
+
+    const now = new Date();
+    const created = [];
+    for (const b of bottles) {
+      const qrId = await genUniqueQrId();
+      const u = await StockUnit.create({
+        qrId,
+        itemCode: std.code,
+        itemName: std.name,
+        kind: 'sealed',
+        lotNo,
+        exp: b && b.exp ? new Date(b.exp) : null,
+        volume: { initial: size, remaining: size, unit },
+        status: 'active',
+        receivedDate: now,
+        createdBy: personOf(req),
+      });
+      created.push(u);
+      await logTransaction({
+        itemType: 'standard',
+        itemId: std._id.toString(),
+        itemCode: std.code,
+        itemName: std.name,
+        action: 'receive',
+        unitId: u._id.toString(),
+        qrId,
+        afterQty: size,
+        volumeDelta: size,
+        volumeUnit: unit,
+        unit: 'ml',
+        note,
+        ...userMeta(req),
+      });
+    }
+    res.status(201).json(created);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
