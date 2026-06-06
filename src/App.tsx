@@ -17,6 +17,7 @@ import Login from "./pages/Login";
 import RecordResults from "./pages/RecordResults";
 import Report from "./pages/Report";
 import Stock from "./pages/Stock";
+import StockUnitScanPage from "./pages/StockUnitScanPage";
 import MasterItems, { MachinesPage, SimpleMethodPage } from "./pages/MasterItems";
 import QCApproval from "./pages/QCApproval";
 import AdminData from "./pages/AdminData";
@@ -92,6 +93,7 @@ const App = () => (
                 <Route path="documents" element={<DocumentsPage />} />
               </Route>
               <Route path="/stock" element={<PrivateRoute><Stock /></PrivateRoute>} />
+              <Route path="/stock/scan/:qrId" element={<PrivateRoute><StockUnitScanPage /></PrivateRoute>} />
               <Route path="/master-items" element={<PrivateRoute><MasterItems /></PrivateRoute>} />
               <Route path="/simple-method" element={<PrivateRoute><SimpleMethodPage /></PrivateRoute>} />
               <Route path="/machines" element={<PrivateRoute><MachinesPage /></PrivateRoute>} />

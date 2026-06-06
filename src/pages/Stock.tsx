@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, AlertTriangle, Clock, Plus, Pencil, Trash2, Minus, ArrowDownToLine, History, Search } from "lucide-react";
+import { Package, AlertTriangle, Clock, Plus, Pencil, Trash2, Minus, ArrowDownToLine, History, Search, ScanLine } from "lucide-react";
 import { toast } from "sonner";
 
 import AppLayout from "@/components/lis/AppLayout";
@@ -25,9 +25,15 @@ import {
 
 import { api } from "@/lib/api";
 import { expiryStatus, qtyStatus } from "@/lib/stockStatus";
+import { summarizeUnits } from "@/lib/stockUnit";
+import UnitsDrawer from "@/components/lis/stock/UnitsDrawer";
+import ReceiveBottlesDialog from "@/components/lis/stock/ReceiveBottlesDialog";
+import StockQrScanner from "@/components/lis/StockQrScanner";
+import WithdrawDialog from "@/components/lis/stock/WithdrawDialog";
+import DiscardDialog from "@/components/lis/stock/DiscardDialog";
 import type {
   StockStandardItem, StockSolventItem, StockGlasswareItem,
-  StockTransactionItem, StockTier,
+  StockTransactionItem, StockTier, StockUnitItem,
 } from "@/types/stock";
 
 const LOW_STD_QTY = 1;
@@ -67,12 +73,28 @@ function StandardsTab() {
     queryFn: api.getStandards,
   });
 
+  const { data: allUnits = [] } = useQuery({
+    queryKey: ["stock", "units"],
+    queryFn: () => api.getStockUnits(),
+  });
+  const unitsByCode = useMemo(() => {
+    const m = new Map<string, StockUnitItem[]>();
+    for (const u of allUnits) {
+      const arr = m.get(u.itemCode) ?? [];
+      arr.push(u);
+      m.set(u.itemCode, arr);
+    }
+    return m;
+  }, [allUnits]);
+
+  const [drawer, setDrawer] = useState<StockStandardItem | null>(null);
+  const [receiving, setReceiving] = useState<StockStandardItem | null>(null);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StandardStatusFilter>("all");
   const [editing, setEditing] = useState<StockStandardItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<StockStandardItem | null>(null);
-  const [moving, setMoving] = useState<{ item: StockStandardItem; mode: "deduct" | "receive" } | null>(null);
 
   const now = Date.now();
 
@@ -167,9 +189,8 @@ function StandardsTab() {
                 <TableRow>
                   <TableHead className="w-16">Code</TableHead>
                   <TableHead>ชื่อ</TableHead>
-                  <TableHead className="hidden md:table-cell text-center">Primary<br /><span className="text-xs font-normal text-muted-foreground">qty / size / EXP</span></TableHead>
-                  <TableHead className="hidden lg:table-cell text-center">Supplier<br /><span className="text-xs font-normal text-muted-foreground">qty / size / EXP</span></TableHead>
-                  <TableHead className="hidden lg:table-cell text-center">Working<br /><span className="text-xs font-normal text-muted-foreground">qty / size / EXP</span></TableHead>
+                  <TableHead className="text-center">คงคลัง (ขวด)</TableHead>
+                  <TableHead className="text-center">working (ขวด)</TableHead>
                   <TableHead className="hidden xl:table-cell">ความถี่</TableHead>
                   <TableHead className="hidden xl:table-cell">อุณหภูมิ</TableHead>
                   <TableHead>สถานะ</TableHead>
@@ -178,35 +199,44 @@ function StandardsTab() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">กำลังโหลด...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">กำลังโหลด...</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-6">ไม่มีข้อมูล</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">ไม่มีข้อมูล</TableCell></TableRow>
                 ) : filtered.map(item => {
-                  const total = totalQty(item);
-                  const qStatus = qtyStatus(total, LOW_STD_QTY);
-                  const eStatus = worstExpiry(item, now);
                   return (
                     <TableRow key={item._id}>
                       <TableCell className="font-semibold text-primary">{item.code}</TableCell>
-                      <TableCell className="font-medium">{item.name}</TableCell>
-                      <TierCell tier={item.primary} className="hidden md:table-cell" />
-                      <TierCell tier={item.supplier} className="hidden lg:table-cell" />
-                      <TierCell tier={item.working} className="hidden lg:table-cell" />
+                      <TableCell className="font-medium">
+                        <button type="button" className="hover:underline text-left" onClick={() => setDrawer(item)}>{item.name}</button>
+                      </TableCell>
+                      {(() => {
+                        const sum = summarizeUnits(unitsByCode.get(item.code) ?? []);
+                        return (
+                          <>
+                            <TableCell className="text-center">{sum.sealed}</TableCell>
+                            <TableCell className="text-center">{sum.working}</TableCell>
+                          </>
+                        );
+                      })()}
                       <TableCell className="hidden xl:table-cell text-xs">{item.frequency || "-"}</TableCell>
                       <TableCell className="hidden xl:table-cell text-xs">{item.storageTemp || "-"}</TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {qStatus === "out" && <Badge className="bg-destructive/15 text-destructive text-xs">หมด</Badge>}
-                          {qStatus === "low" && <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมด</Badge>}
-                          {eStatus === "expired" && <Badge className="bg-destructive/15 text-destructive text-xs">หมดอายุ</Badge>}
-                          {eStatus === "soon" && <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมดอายุ</Badge>}
-                          {qStatus === "ok" && eStatus === "ok" && <Badge className="bg-emerald-100 text-emerald-700 text-xs">ปกติ</Badge>}
-                        </div>
+                        {(() => {
+                          const sum = summarizeUnits(unitsByCode.get(item.code) ?? []);
+                          return (
+                            <div className="flex flex-wrap gap-1">
+                              {sum.sealed + sum.working === 0 && <Badge className="bg-destructive/15 text-destructive text-xs">หมด</Badge>}
+                              {sum.expired > 0 && <Badge className="bg-destructive/15 text-destructive text-xs">หมดอายุ {sum.expired}</Badge>}
+                              {sum.expiringSoon > 0 && <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมดอายุ {sum.expiringSoon}</Badge>}
+                              {sum.sealed + sum.working > 0 && sum.expired === 0 && sum.expiringSoon === 0 && <Badge className="bg-emerald-100 text-emerald-700 text-xs">ปกติ</Badge>}
+                            </div>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-1">
-                          <Button size="icon" variant="ghost" title="ตัด stock" onClick={() => setMoving({ item, mode: "deduct" })}><Minus className="w-4 h-4" /></Button>
-                          <Button size="icon" variant="ghost" title="รับเข้า" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
+                          <Button size="icon" variant="ghost" title="รับเข้า (ขวด)" onClick={() => setReceiving(item)}><ArrowDownToLine className="w-4 h-4" /></Button>
+                          <Button size="icon" variant="ghost" title="รายขวด" onClick={() => setDrawer(item)}><Package className="w-4 h-4" /></Button>
                           <Button size="icon" variant="ghost" title="แก้ไข" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
                           <Button size="icon" variant="ghost" title="ลบ" onClick={() => setDeleting(item)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                         </div>
@@ -240,14 +270,12 @@ function StandardsTab() {
           }}
         />
       )}
-      {moving && (
-        <StandardMoveDialog
-          {...moving}
-          onClose={() => setMoving(null)}
-          onSaved={() => {
-            qc.invalidateQueries({ queryKey: ["stock", "standards"] });
-            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
-          }}
+      {drawer && <UnitsDrawer standard={drawer} onClose={() => setDrawer(null)} />}
+      {receiving && (
+        <ReceiveBottlesDialog
+          standard={receiving}
+          onClose={() => setReceiving(null)}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ["stock", "units"] }); }}
         />
       )}
     </div>
@@ -1035,30 +1063,89 @@ function StandardDialog({
 // Page
 // ============================================================
 const StockPage = () => {
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scannedQr, setScannedQr] = useState<string | null>(null);
+  const [scannedUnit, setScannedUnit] = useState<StockUnitItem | null>(null);
+  const [action, setAction] = useState<"withdraw" | "discard" | null>(null);
+  const qc = useQueryClient();
+
+  const onScanned = async (qrId: string) => {
+    setScanOpen(false);
+    setScannedQr(qrId);
+    try {
+      const u = await api.getStockUnit(qrId);
+      setScannedUnit(u);
+    } catch (err) {
+      toast.error((err as Error).message);
+      setScannedQr(null);
+    }
+  };
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["stock", "units"] });
+    qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+  };
+  const closeScanned = () => { setScannedQr(null); setScannedUnit(null); setAction(null); };
+
   return (
     <AppLayout>
-        <PageHeader
-          className="mb-6"
-          title={
-            <span className="inline-flex items-center gap-2">
-              <Package className="w-6 h-6" /> Stock Management
-            </span>
-          }
-          description="จัดการ inventory: Standards, สารเคมี, เครื่องแก้ว — บันทึกข้อมูลใน MongoDB"
-        />
+      <PageHeader
+        className="mb-6"
+        title={<span className="inline-flex items-center gap-2"><Package className="w-6 h-6" /> Stock Management</span>}
+        description="จัดการ inventory: Standards, สารเคมี, เครื่องแก้ว — บันทึกข้อมูลใน MongoDB"
+      />
+      <Tabs defaultValue="standard">
+        <TabsList className="mb-4 flex-wrap h-auto">
+          <TabsTrigger value="standard">Standards</TabsTrigger>
+          <TabsTrigger value="solvent">สารเคมี</TabsTrigger>
+          <TabsTrigger value="glassware">เครื่องแก้ว</TabsTrigger>
+          <TabsTrigger value="history">ประวัติ</TabsTrigger>
+        </TabsList>
+        <TabsContent value="standard"><StandardsTab /></TabsContent>
+        <TabsContent value="solvent"><SolventsTab /></TabsContent>
+        <TabsContent value="glassware"><GlasswareTab /></TabsContent>
+        <TabsContent value="history"><HistoryTab /></TabsContent>
+      </Tabs>
 
-        <Tabs defaultValue="standard">
-          <TabsList className="mb-4 flex-wrap h-auto">
-            <TabsTrigger value="standard">Standards</TabsTrigger>
-            <TabsTrigger value="solvent">สารเคมี</TabsTrigger>
-            <TabsTrigger value="glassware">เครื่องแก้ว</TabsTrigger>
-            <TabsTrigger value="history">ประวัติ</TabsTrigger>
-          </TabsList>
-          <TabsContent value="standard"><StandardsTab /></TabsContent>
-          <TabsContent value="solvent"><SolventsTab /></TabsContent>
-          <TabsContent value="glassware"><GlasswareTab /></TabsContent>
-          <TabsContent value="history"><HistoryTab /></TabsContent>
-        </Tabs>
+      <Button
+        className="fixed bottom-6 right-6 rounded-full shadow-lg h-14 w-14 p-0"
+        title="สแกน QR ขวด" onClick={() => setScanOpen(true)}
+      >
+        <ScanLine className="w-6 h-6" />
+      </Button>
+
+      <StockQrScanner open={scanOpen} onClose={() => setScanOpen(false)} onScanned={onScanned} />
+
+      {scannedQr && scannedUnit && !action && (
+        <Dialog open onOpenChange={(o) => { if (!o) closeScanned(); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>{scannedUnit.itemName}</DialogTitle>
+              <DialogDescription>
+                {scannedUnit.itemCode} · {scannedUnit.kind === "working" ? "working" : "คงคลัง"} · เหลือ {scannedUnit.volume?.remaining} {scannedUnit.volume?.unit}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-2 py-2">
+              {scannedUnit.status === "discarded" ? (
+                <p className="text-destructive font-medium text-center">ขวดนี้ถูกทิ้งแล้ว ใช้งานต่อไม่ได้</p>
+              ) : (
+                <>
+                  {scannedUnit.kind === "sealed" && (
+                    <Button onClick={() => setAction("withdraw")}>แบ่งใช้ → working</Button>
+                  )}
+                  <Button variant="destructive" onClick={() => setAction("discard")}>ทิ้งขวด</Button>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {scannedQr && action === "withdraw" && (
+        <WithdrawDialog qrId={scannedQr} onClose={closeScanned} onSaved={refresh} />
+      )}
+      {scannedQr && action === "discard" && (
+        <DiscardDialog qrId={scannedQr} onClose={closeScanned} onSaved={refresh} />
+      )}
     </AppLayout>
   );
 };
