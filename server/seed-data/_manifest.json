@@ -52,6 +52,11 @@
       "count": 138
     },
     {
+      "collection": "stockunits",
+      "file": "stockunits.json",
+      "count": 2
+    },
+    {
       "collection": "simplemethods",
       "file": "simplemethods.json",
       "count": 1419
@@ -129,7 +134,7 @@
     {
       "collection": "stocktransactions",
       "file": "stocktransactions.json",
-      "count": 1
+      "count": 3
     },
     {
       "collection": "accessgroups",
