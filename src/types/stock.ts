@@ -22,6 +22,7 @@ export interface StockStandardItem {
   working: StandardTier;
   usagePerUseMg: number | string | null;
   frequency: string;
+  openShelfLife?: OpenShelfLife;
   storageTemp: string;
   status: string;
   expiryStatus: string;
@@ -51,7 +52,7 @@ export interface StockGlasswareItem {
 }
 
 export type StockItemType = "standard" | "solvent" | "glassware";
-export type StockAction = "create" | "update" | "delete" | "deduct" | "receive";
+export type StockAction = "create" | "update" | "delete" | "deduct" | "receive" | "withdraw" | "discard";
 
 export interface StockTransactionItem {
   _id: string;
@@ -70,4 +71,40 @@ export interface StockTransactionItem {
   userEmail?: string;
   userName?: string;
   createdAt: string;
+}
+
+export type ShelfUnit = "day" | "week" | "month";
+export interface OpenShelfLife {
+  value: number;
+  unit: ShelfUnit;
+}
+
+export type StockUnitKind = "sealed" | "working";
+export type StockUnitStatus = "active" | "empty" | "discarded";
+
+export interface StockUnitVolume {
+  initial: number;
+  remaining: number;
+  unit: "ml" | "mg" | "g";
+}
+
+export interface StockUnitItem {
+  _id: string;
+  qrId: string;
+  itemCode: string;
+  itemName: string;
+  kind: StockUnitKind;
+  parentId?: string | null;
+  lotNo?: string;
+  exp?: string | null;
+  volume: StockUnitVolume;
+  status: StockUnitStatus;
+  receivedDate?: string | null;
+  withdrawnDate?: string | null;
+  discardedAt?: string | null;
+  discardedBy?: { email?: string; name?: string };
+  discardReason?: string;
+  createdBy?: { email?: string; name?: string };
+  createdAt?: string;
+  updatedAt?: string;
 }

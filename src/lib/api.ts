@@ -6,6 +6,7 @@ import type {
   StockGlasswareItem,
   StockTransactionItem,
   StockTier,
+  StockUnitItem,
 } from "@/types/stock";
 import type { StandardConfigDoc } from "@/lib/standardConfig";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
@@ -191,6 +192,36 @@ export const api = {
       : "";
     return request<StockTransactionItem[]>(`/stock/transactions${qs}`);
   },
+
+  // Stock — Units (per-bottle)
+  getStockUnits: (params?: { itemCode?: string; status?: string; kind?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.itemCode) q.set("itemCode", params.itemCode);
+    if (params?.status) q.set("status", params.status);
+    if (params?.kind) q.set("kind", params.kind);
+    const qs = q.toString() ? `?${q.toString()}` : "";
+    return request<StockUnitItem[]>(`/stock/units${qs}`);
+  },
+  getStockUnit: (qrId: string) =>
+    request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`),
+  receiveStockUnits: (
+    standardId: string,
+    body: { lotNo?: string; sizeMl: number; unit?: string; bottles: { exp?: string }[]; note?: string },
+  ) =>
+    request<StockUnitItem[]>(`/stock/standards/${standardId}/units/receive`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  withdrawStockUnit: (qrId: string, body: { ml: number; note?: string }) =>
+    request<{ parent: StockUnitItem; working: StockUnitItem }>(
+      `/stock/units/${encodeURIComponent(qrId)}/withdraw`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  discardStockUnit: (qrId: string, body: { reason?: string }) =>
+    request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}/discard`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   // Machines (รายการเครื่อง)
   getMachines: () => request<MachineItem[]>("/machines"),
