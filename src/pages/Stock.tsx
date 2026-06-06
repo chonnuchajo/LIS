@@ -98,27 +98,28 @@ function StandardsTab() {
 
   const now = Date.now();
 
-  const totalQty = (s: StockStandardItem) =>
-    (s.primary?.qty ?? 0) + (s.supplier?.qty ?? 0) + (s.working?.qty ?? 0);
+  // per-bottle summary per standard (counts derived from StockUnit, not stale tier qty)
+  const sumOf = (s: StockStandardItem) => summarizeUnits(unitsByCode.get(s.code) ?? [], new Date(now));
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return data.filter(s => {
       if (q && !s.name.toLowerCase().includes(q) && !s.code.toLowerCase().includes(q)) return false;
       if (statusFilter === "all") return true;
-      const qStatus = qtyStatus(totalQty(s), LOW_STD_QTY);
-      const eStatus = worstExpiry(s, now);
-      if (statusFilter === "ok") return qStatus === "ok" && eStatus === "ok";
-      if (statusFilter === "out") return qStatus === "out";
-      if (statusFilter === "low") return qStatus === "low";
-      if (statusFilter === "expired") return eStatus === "expired";
-      if (statusFilter === "soon") return eStatus === "soon";
+      const sum = summarizeUnits(unitsByCode.get(s.code) ?? [], new Date(now));
+      const totalActive = sum.sealed + sum.working;
+      const eOk = sum.expired === 0 && sum.expiringSoon === 0;
+      if (statusFilter === "ok") return totalActive > LOW_STD_QTY && eOk;
+      if (statusFilter === "out") return totalActive === 0;
+      if (statusFilter === "low") return totalActive > 0 && totalActive <= LOW_STD_QTY;
+      if (statusFilter === "expired") return sum.expired > 0;
+      if (statusFilter === "soon") return sum.expiringSoon > 0;
       return true;
     });
-  }, [data, search, statusFilter, now]);
+  }, [data, search, statusFilter, now, unitsByCode]);
 
-  const lowList = data.filter(s => qtyStatus(totalQty(s), LOW_STD_QTY) !== "ok");
-  const expiringList = data.filter(s => worstExpiry(s, now) !== "ok");
+  const lowList = data.filter(s => { const x = sumOf(s); return x.sealed + x.working <= LOW_STD_QTY; });
+  const expiringList = data.filter(s => { const x = sumOf(s); return x.expired > 0 || x.expiringSoon > 0; });
 
   return (
     <div className="space-y-4">
@@ -133,20 +134,23 @@ function StandardsTab() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
               {lowList.slice(0, 8).map(s => {
-                const out = qtyStatus(totalQty(s), LOW_STD_QTY) === "out";
+                const x = sumOf(s);
+                const totalActive = x.sealed + x.working;
+                const out = totalActive === 0;
                 return (
                   <div key={`low-${s._id}`} className="flex items-center gap-2 text-destructive">
                     <Package className="w-3.5 h-3.5" />
-                    <span><strong>{s.name}</strong> {out ? "หมดแล้ว" : `ใกล้หมด เหลือรวม ${totalQty(s)} ขวด`}</span>
+                    <span><strong>{s.name}</strong> {out ? "หมดแล้ว" : `ใกล้หมด เหลือรวม ${totalActive} ขวด`}</span>
                   </div>
                 );
               })}
               {expiringList.slice(0, 8).map(s => {
-                const expired = worstExpiry(s, now) === "expired";
+                const x = sumOf(s);
+                const expired = x.expired > 0;
                 return (
                   <div key={`exp-${s._id}`} className={`flex items-center gap-2 ${expired ? "text-destructive" : "text-amber-600"}`}>
                     <Clock className="w-3.5 h-3.5" />
-                    <span><strong>{s.name}</strong> {expired ? "หมดอายุแล้ว" : "ใกล้หมดอายุ"} ({s.primary?.exp || s.supplier?.exp || s.working?.exp})</span>
+                    <span><strong>{s.name}</strong> {expired ? `หมดอายุ ${x.expired} ขวด` : `ใกล้หมดอายุ ${x.expiringSoon} ขวด`}</span>
                   </div>
                 );
               })}
