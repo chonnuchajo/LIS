@@ -19,6 +19,7 @@ interface Props {
 
 export default function ReceiveBottlesDialog({ standard, onClose, onSaved }: Props) {
   const [lotNo, setLotNo] = useState("");
+  const [source, setSource] = useState<"primary" | "supply">("primary");
   const [sizeMl, setSizeMl] = useState("100");
   const [count, setCount] = useState("1");
   const [sameExp, setSameExp] = useState(true);
@@ -60,7 +61,7 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved }: Pro
     setBusy(true);
     try {
       const created = await api.receiveStockUnits(standard._id, {
-        lotNo, sizeMl: size, unit: "ml", bottles,
+        lotNo, sizeMl: size, unit: "ml", source, bottles,
       });
       toast.success(`รับเข้า ${created.length} ขวดแล้ว`);
       if (printAfter) await printLabels(created);
@@ -82,6 +83,15 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved }: Pro
             <DialogDescription>{standard.code}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-4">
+            <div>
+              <Label>ที่มา</Label>
+              <div className="flex gap-2 mt-1">
+                <Button type="button" variant={source === "primary" ? "default" : "outline"} size="sm"
+                  onClick={() => setSource("primary")}>primary</Button>
+                <Button type="button" variant={source === "supply" ? "default" : "outline"} size="sm"
+                  onClick={() => setSource("supply")}>supply</Button>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Lot No</Label><Input value={lotNo} onChange={(e) => setLotNo(e.target.value)} placeholder="optional" /></div>
               <div><Label>ขนาด/ขวด (ml)</Label><Input type="number" value={sizeMl} onChange={(e) => setSizeMl(e.target.value)} /></div>

@@ -4,6 +4,7 @@ const { StockStandard, StockSolvent, StockGlassware } = require('../models/Stock
 const StockTransaction = require('../models/StockTransaction');
 const StockUnit = require('../models/StockUnit');
 const crypto = require('crypto');
+const { isValidReceiveSource } = require('../lib/stockSource');
 
 async function genUniqueQrId() {
   for (let i = 0; i < 5; i++) {
@@ -222,10 +223,11 @@ router.post('/standards/:id/units/receive', async (req, res) => {
     const std = await StockStandard.findById(req.params.id);
     if (!std) return res.status(404).json({ error: 'ไม่พบสาร' });
 
-    const { lotNo = '', sizeMl, unit = 'ml', bottles, note } = req.body || {};
+    const { lotNo = '', sizeMl, unit = 'ml', bottles, source, note } = req.body || {};
     const size = Number(sizeMl);
     if (!Number.isFinite(size) || size <= 0) return res.status(400).json({ error: 'ขนาด/ขวดไม่ถูกต้อง' });
     if (!Array.isArray(bottles) || bottles.length === 0) return res.status(400).json({ error: 'ต้องระบุอย่างน้อย 1 ขวด' });
+    if (!isValidReceiveSource(source)) return res.status(400).json({ error: 'ต้องเลือกที่มา (primary หรือ supply)' });
 
     const now = new Date();
     const created = [];
@@ -236,6 +238,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
         itemCode: std.code,
         itemName: std.name,
         kind: 'sealed',
+        source,
         lotNo,
         exp: b && b.exp ? new Date(b.exp) : null,
         volume: { initial: size, remaining: size, unit },

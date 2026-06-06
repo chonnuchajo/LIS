@@ -206,7 +206,7 @@ export const api = {
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`),
   receiveStockUnits: (
     standardId: string,
-    body: { lotNo?: string; sizeMl: number; unit?: string; bottles: { exp?: string }[]; note?: string },
+    body: { lotNo?: string; sizeMl: number; unit?: string; source: "primary" | "supply"; bottles: { exp?: string }[]; note?: string },
   ) =>
     request<StockUnitItem[]>(`/stock/standards/${standardId}/units/receive`, {
       method: "POST",
