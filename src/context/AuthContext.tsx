@@ -3,6 +3,7 @@ import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "@/lib/msalConfig";
 import { api } from "@/lib/api";
 import { DEV_MODE, DEV_DEFAULT_ROLE, synthesizeDevUser } from "@/config/dev";
+import { unionPermissions } from "@/lib/roles";
 
 interface AuthUser {
   id?: string;
@@ -10,6 +11,7 @@ interface AuthUser {
   name?: string;
   photoUrl?: string;
   role?: string;
+  roles?: string[];
   permissions?: string[];
   department?: string;
   position?: string;
@@ -21,9 +23,9 @@ interface AuthContextType {
   login: (redirectTo?: string) => Promise<void>;
   loginWithProductionToken: (token: string) => Promise<AuthUser>;
   logout: () => void;
-  devRole?: string;
+  devRoleIds?: string[];
   devRoles?: { id: string; name: string }[];
-  switchDevRole?: (role: string) => void;
+  toggleDevRole?: (role: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -49,15 +51,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   });
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | undefined>();
-  const [devRole, setDevRole] = useState<string>(
-    () => localStorage.getItem("dev_role") ?? DEV_DEFAULT_ROLE
-  );
+  const [devRoleIds, setDevRoleIds] = useState<string[]>(() => {
+    const multi = localStorage.getItem("dev_roles");
+    if (multi) {
+      try {
+        const parsed = JSON.parse(multi);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        /* ignore */
+      }
+    }
+    const single = localStorage.getItem("dev_role");
+    return single ? [single] : [DEV_DEFAULT_ROLE];
+  });
   const [devPermissions, setDevPermissions] = useState<Record<string, string[]>>({});
   const [devRoles, setDevRoles] = useState<{ id: string; name: string }[]>([]);
 
-  const switchDevRole = (role: string) => {
-    localStorage.setItem("dev_role", role);
-    setDevRole(role);
+  const setDevRolesSelection = (ids: string[]) => {
+    const next = ids.length > 0 ? ids : [DEV_DEFAULT_ROLE];
+    localStorage.setItem("dev_roles", JSON.stringify(next));
+    setDevRoleIds(next);
+  };
+
+  // Toggle a single role in/out of the dev selection (used by DevRoleSwitcher).
+  const toggleDevRole = (role: string) => {
+    setDevRolesSelection(
+      devRoleIds.includes(role)
+        ? devRoleIds.filter((r) => r !== role)
+        : [...devRoleIds, role],
+    );
   };
 
   // In DEV_MODE there is no Microsoft sync, so the dev user carries no
@@ -93,21 +115,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (!DEV_MODE) return;
-    if (devRoles.length === 0) return; // not loaded yet — don't kick
-    if (devRoles.some((r) => r.id === devRole)) return; // current role still valid
-    switchDevRole(DEV_DEFAULT_ROLE);
-  }, [devRoles, devRole]);
+    if (devRoles.length === 0) return; // not loaded yet
+    const valid = devRoleIds.filter((id) => devRoles.some((r) => r.id === id));
+    if (valid.length === devRoleIds.length) return; // all still valid
+    setDevRolesSelection(valid.length > 0 ? valid : [DEV_DEFAULT_ROLE]);
+  }, [devRoles, devRoleIds]);
 
   const devUser: AuthUser | null = DEV_MODE
     ? (() => {
-        const role =
-          devRoles.find((r) => r.id === devRole) ??
-          devRoles.find((r) => r.id === DEV_DEFAULT_ROLE);
-        if (!role) return null;
-        const base = synthesizeDevUser(role);
+        const selected = devRoleIds
+          .map((id) => devRoles.find((r) => r.id === id))
+          .filter((r): r is { id: string; name: string } => Boolean(r));
+        const roleObjs = selected.length > 0
+          ? selected
+          : devRoles.filter((r) => r.id === DEV_DEFAULT_ROLE);
+        if (roleObjs.length === 0) return null;
+        const base = synthesizeDevUser(roleObjs);
         return {
           ...base,
-          permissions: devPermissions[role.id] ?? [],
+          permissions: unionPermissions(base.roles, devPermissions),
         };
       })()
     : null;
@@ -123,6 +149,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         name: syncedUser?.name ?? account.name ?? account.username,
         photoUrl: profilePhotoUrl,
         role: syncedUser?.role,
+        roles: syncedUser?.roles,
         permissions: syncedUser?.permissions,
         department: syncedUser?.department,
         position: syncedUser?.position,
@@ -168,6 +195,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email: string;
           name: string;
           roleId: string;
+          roleIds?: string[];
           permissions?: string[];
           department: string;
           position: string;
@@ -186,6 +214,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email: res.data.data.email,
           name: res.data.data.name,
           role: res.data.data.roleId,
+          roles: res.data.data.roleIds ?? [res.data.data.roleId],
           permissions: res.data.data.permissions ?? [],
           department: res.data.data.department,
           position: res.data.data.position,
@@ -275,9 +304,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         loginWithProductionToken,
         logout,
-        devRole: DEV_MODE ? devRole : undefined,
+        devRoleIds: DEV_MODE ? devRoleIds : undefined,
         devRoles: DEV_MODE ? devRoles : undefined,
-        switchDevRole: DEV_MODE ? switchDevRole : undefined,
+        toggleDevRole: DEV_MODE ? toggleDevRole : undefined,
       }}
     >
       {children}

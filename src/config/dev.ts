@@ -1,3 +1,5 @@
+import { primaryRole } from "@/lib/roles";
+
 // Dev mode bypasses Microsoft login and injects a hardcoded user.
 // Vite sets import.meta.env.DEV to false for production builds.
 export const DEV_MODE =
@@ -10,6 +12,7 @@ export type DevAuthUser = {
   email: string;
   name: string;
   role: string;
+  roles: string[];
   permissions: string[];
   department: string;
   position: string;
@@ -26,16 +29,24 @@ const devDepartment = (roleId: string): string => {
   return roleId;
 };
 
-export const synthesizeDevUser = (role: { id: string; name: string }): DevAuthUser => ({
-  id: `dev-${role.id}`,
-  email: `${role.id}.dev@icpladda.com`,
-  name: `Dev ${role.name}`,
-  role: role.id,
-  permissions: [],
-  department: devDepartment(role.id),
-  position: role.name,
-  status: "active",
-});
+export const synthesizeDevUser = (
+  roles: { id: string; name: string }[],
+): DevAuthUser => {
+  const ids = roles.map((r) => r.id);
+  const primaryId = primaryRole(ids);
+  const primary = roles.find((r) => r.id === primaryId) ?? roles[0];
+  return {
+    id: `dev-${primary.id}`,
+    email: `${primary.id}.dev@icpladda.com`,
+    name: `Dev ${primary.name}`,
+    role: primary.id,
+    roles: ids,
+    permissions: [],
+    department: devDepartment(primary.id),
+    position: primary.name,
+    status: "active",
+  };
+};
 
 // Lab roles offered as fake assignees on /petitions/assign in dev mode. The HR
 // API only returns real staff, so dev has no one to assign to — these let you
@@ -62,7 +73,7 @@ export const synthesizeDevAssignees = (): DevAssignee[] =>
   DEV_LAB_ROLES.map((role, index) => ({
     id: -(index + 1),
     employeeId: `DEV-${role.id}`,
-    name: synthesizeDevUser(role).name,
+    name: synthesizeDevUser([role]).name,
     department: "Lab/วิเคราะห์",
     position: role.name,
     empType: "รายเดือน",
