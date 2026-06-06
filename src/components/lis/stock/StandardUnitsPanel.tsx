@@ -68,6 +68,7 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
             <TableRow>
               <TableHead>qrId</TableHead>
               <TableHead>ชนิด</TableHead>
+              <TableHead>ที่มา</TableHead>
               <TableHead>Lot</TableHead>
               <TableHead className="text-right">คงเหลือ</TableHead>
               <TableHead>EXP</TableHead>
@@ -77,9 +78,9 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
             ) : data.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">ยังไม่มีขวด — กดเพิ่มขวด</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">ยังไม่มีขวด — กดเพิ่มขวด</TableCell></TableRow>
             ) : data.map((u) => {
               const st = unitDerivedStatus(u);
               const canWithdraw = u.kind === "sealed" && st === "active";
@@ -88,6 +89,9 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
                 <TableRow key={u._id}>
                   <TableCell className="font-mono text-xs">{u.qrId}</TableCell>
                   <TableCell><Badge variant="outline">{u.kind === "working" ? "working" : "คงคลัง"}</Badge></TableCell>
+                  <TableCell className="text-xs">
+                    {u.source === "primary" ? "primary" : u.source === "supply" ? "supply" : "-"}
+                  </TableCell>
                   <TableCell className="text-xs">{u.lotNo || "-"}</TableCell>
                   <TableCell className="text-right">{u.volume?.remaining ?? "-"} {u.volume?.unit}</TableCell>
                   <TableCell className="text-xs">{u.exp ? new Date(u.exp).toLocaleDateString("th-TH") : "-"}</TableCell>
