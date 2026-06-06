@@ -266,6 +266,72 @@ router.post('/standards/:id/units/receive', async (req, res) => {
   }
 });
 
+// แบ่ง working จากขวด sealed: POST /units/:qrId/withdraw { ml, note? }
+router.post('/units/:qrId/withdraw', async (req, res) => {
+  try {
+    const ml = Number(req.body && req.body.ml);
+    if (!Number.isFinite(ml) || ml <= 0) return res.status(400).json({ error: 'ปริมาณไม่ถูกต้อง' });
+
+    const parent = await StockUnit.findOne({ qrId: req.params.qrId });
+    if (!parent) return res.status(404).json({ error: 'ไม่พบขวด' });
+    if (parent.kind !== 'sealed') return res.status(400).json({ error: 'แบ่งได้เฉพาะขวดคงคลัง (sealed)' });
+    if (parent.status === 'discarded') return res.status(400).json({ error: 'ขวดนี้ถูกทิ้งแล้ว ใช้งานต่อไม่ได้' });
+    if (parent.status === 'empty') return res.status(400).json({ error: 'ขวดนี้หมดแล้ว' });
+    if (parent.exp && new Date(parent.exp).getTime() < Date.now()) return res.status(400).json({ error: 'ขวดนี้หมดอายุแล้ว' });
+
+    // atomic: หัก remaining เฉพาะเมื่อยัง active และเหลือพอ (กัน race 2 คนแบ่งพร้อมกัน)
+    const updatedParent = await StockUnit.findOneAndUpdate(
+      { qrId: req.params.qrId, status: 'active', 'volume.remaining': { $gte: ml } },
+      { $inc: { 'volume.remaining': -ml } },
+      { new: true },
+    );
+    if (!updatedParent) return res.status(400).json({ error: 'ปริมาณคงเหลือไม่พอ' });
+    if (updatedParent.volume.remaining <= 0) {
+      updatedParent.status = 'empty';
+      await updatedParent.save();
+    }
+
+    const std = await StockStandard.findOne({ code: parent.itemCode });
+    const shelf = (std && std.openShelfLife) || { value: 0, unit: 'day' };
+    const now = new Date();
+    const exp = computeWorkingExp(now, shelf, parent.exp || null);
+
+    const qrId = await genUniqueQrId();
+    const working = await StockUnit.create({
+      qrId,
+      itemCode: parent.itemCode,
+      itemName: parent.itemName,
+      kind: 'working',
+      parentId: parent._id,
+      lotNo: parent.lotNo,
+      exp,
+      volume: { initial: ml, remaining: ml, unit: parent.volume.unit },
+      status: 'active',
+      withdrawnDate: now,
+      createdBy: personOf(req),
+    });
+
+    await logTransaction({
+      itemType: 'standard',
+      itemId: parent.itemCode,
+      itemCode: parent.itemCode,
+      itemName: parent.itemName,
+      action: 'withdraw',
+      unitId: working._id.toString(),
+      qrId,
+      volumeDelta: -ml,
+      volumeUnit: parent.volume.unit,
+      unit: parent.volume.unit,
+      note: req.body && req.body.note,
+      ...userMeta(req),
+    });
+
+    res.status(201).json({ parent: updatedParent, working });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 /* ==================== SOLVENTS ==================== */
 
 router.get('/solvents', async (req, res) => {
