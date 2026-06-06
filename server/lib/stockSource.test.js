@@ -2,7 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   RECEIVE_SOURCES,
+  UNIT_SOURCES,
   isValidReceiveSource,
+  isValidUnitSource,
   tierSourceFor,
   assignSealedSources,
 } = require('./stockSource');
@@ -11,12 +13,24 @@ test('RECEIVE_SOURCES = primary, supply', () => {
   assert.deepStrictEqual(RECEIVE_SOURCES, ['primary', 'supply']);
 });
 
+test('UNIT_SOURCES = primary, supply, blank', () => {
+  assert.deepStrictEqual(UNIT_SOURCES, ['primary', 'supply', '']);
+});
+
 test('isValidReceiveSource accepts only primary/supply', () => {
   assert.strictEqual(isValidReceiveSource('primary'), true);
   assert.strictEqual(isValidReceiveSource('supply'), true);
   assert.strictEqual(isValidReceiveSource(''), false);
   assert.strictEqual(isValidReceiveSource('supplier'), false);
   assert.strictEqual(isValidReceiveSource(undefined), false);
+});
+
+test('isValidUnitSource also accepts blank (clear), rejects junk', () => {
+  assert.strictEqual(isValidUnitSource('primary'), true);
+  assert.strictEqual(isValidUnitSource('supply'), true);
+  assert.strictEqual(isValidUnitSource(''), true);
+  assert.strictEqual(isValidUnitSource('supplier'), false);
+  assert.strictEqual(isValidUnitSource(undefined), false);
 });
 
 test('tierSourceFor maps tier name to source', () => {

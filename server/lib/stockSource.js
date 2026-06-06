@@ -4,9 +4,16 @@
 // '' = ไม่ทราบ/ยังไม่ระบุ (เช่น ขวด working tier เก่าที่ migrate มาตรงๆ)
 
 const RECEIVE_SOURCES = Object.freeze(['primary', 'supply']);
+// ค่าที่เก็บได้บนขวด: รวม '' (ไม่ระบุ) — ใช้ตอนแก้ไขรายขวด
+const UNIT_SOURCES = Object.freeze(['primary', 'supply', '']);
 
 function isValidReceiveSource(v) {
   return RECEIVE_SOURCES.includes(v);
+}
+
+// ค่า source ที่ยอมรับให้เซ็ตบนขวด (รวมเคลียร์เป็น '')
+function isValidUnitSource(v) {
+  return UNIT_SOURCES.includes(v);
 }
 
 // map ชื่อ tier เดิม (StockStandard) → source ของขวด
@@ -24,4 +31,4 @@ function assignSealedSources(sealedCount, primaryQty) {
   return Array.from({ length: count }, (_, i) => (i < p ? 'primary' : 'supply'));
 }
 
-module.exports = { RECEIVE_SOURCES, isValidReceiveSource, tierSourceFor, assignSealedSources };
+module.exports = { RECEIVE_SOURCES, UNIT_SOURCES, isValidReceiveSource, isValidUnitSource, tierSourceFor, assignSealedSources };

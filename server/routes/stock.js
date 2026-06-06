@@ -4,7 +4,7 @@ const { StockStandard, StockSolvent, StockGlassware } = require('../models/Stock
 const StockTransaction = require('../models/StockTransaction');
 const StockUnit = require('../models/StockUnit');
 const crypto = require('crypto');
-const { isValidReceiveSource } = require('../lib/stockSource');
+const { isValidReceiveSource, isValidUnitSource } = require('../lib/stockSource');
 
 async function genUniqueQrId() {
   for (let i = 0; i < 5; i++) {
@@ -377,7 +377,7 @@ router.patch('/units/:qrId', async (req, res) => {
     const { lotNo, exp, volume, source } = req.body || {};
     if (lotNo !== undefined) unit.lotNo = String(lotNo);
     if (exp !== undefined) unit.exp = exp ? new Date(exp) : null;
-    if (source !== undefined && ['primary', 'supply', ''].includes(source)) unit.source = source;
+    if (source !== undefined && isValidUnitSource(source)) unit.source = source;
     if (volume && typeof volume === 'object') {
       if (volume.unit !== undefined && ['ml', 'mg', 'g'].includes(volume.unit)) unit.volume.unit = volume.unit;
       if (volume.initial !== undefined) {
