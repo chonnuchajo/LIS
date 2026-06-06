@@ -100,6 +100,15 @@ function canSeePetition(
   return false;
 }
 
+export function canUserCreatePetition(
+  user: { role?: string; roles?: string[] } | null | undefined,
+  canAccessNewPetition: boolean,
+): boolean {
+  if (!canAccessNewPetition) return false;
+  const roles = normalizeRoles(user).map((role) => role.toLowerCase());
+  return roles.length > 0 && roles.some((role) => role !== 'viewer');
+}
+
 const PAGE_SIZE = 20;
 
 export default function PetitionListPage() {
@@ -112,7 +121,7 @@ export default function PetitionListPage() {
   const createdNo = (location.state as { createdNo?: string } | null)?.createdNo;
   const roles = normalizeRoles(user);
   const canViewAll = roles.includes('admin');
-  const canCreatePetition = canAccess('/petitions/new');
+  const canCreatePetition = canUserCreatePetition(user, canAccess('/petitions/new'));
   const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
 
   const status = searchParams.get('status') ?? '';
