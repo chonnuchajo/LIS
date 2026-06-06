@@ -222,6 +222,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  updateStockUnit: (
+    qrId: string,
+    body: { lotNo?: string; exp?: string | null; volume?: { initial?: number; remaining?: number; unit?: string } },
+  ) =>
+    request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
 
   // Machines (รายการเครื่อง)
   getMachines: () => request<MachineItem[]>("/machines"),

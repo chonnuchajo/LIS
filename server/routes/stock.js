@@ -363,6 +363,37 @@ router.post('/units/:qrId/discard', async (req, res) => {
   }
 });
 
+// แก้ข้อมูลรายขวด (เติม EXP/lot/ปริมาณ ให้ขวดที่ย้ายข้อมูลเดิมมา): PATCH /units/:qrId
+router.patch('/units/:qrId', async (req, res) => {
+  try {
+    const unit = await StockUnit.findOne({ qrId: req.params.qrId });
+    if (!unit) return res.status(404).json({ error: 'ไม่พบขวด' });
+    if (unit.status === 'discarded') return res.status(400).json({ error: 'ขวดนี้ถูกทิ้งแล้ว แก้ไขไม่ได้' });
+
+    const { lotNo, exp, volume } = req.body || {};
+    if (lotNo !== undefined) unit.lotNo = String(lotNo);
+    if (exp !== undefined) unit.exp = exp ? new Date(exp) : null;
+    if (volume && typeof volume === 'object') {
+      if (volume.unit !== undefined && ['ml', 'mg', 'g'].includes(volume.unit)) unit.volume.unit = volume.unit;
+      if (volume.initial !== undefined) {
+        const init = Number(volume.initial);
+        if (Number.isFinite(init) && init >= 0) unit.volume.initial = init;
+      }
+      if (volume.remaining !== undefined) {
+        const rem = Number(volume.remaining);
+        if (Number.isFinite(rem) && rem >= 0) unit.volume.remaining = rem;
+      }
+    }
+    // กันสถานะค้าง: ปรับ active/empty ตามคงเหลือ (ไม่ยุ่งกับขวดที่ถูกทิ้ง — กันไว้ด้านบนแล้ว)
+    if (unit.volume.remaining <= 0) unit.status = 'empty';
+    else if (unit.status === 'empty') unit.status = 'active';
+    await unit.save();
+    res.json(unit);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 // list units: GET /units?itemCode=&status=&kind=
 router.get('/units', async (req, res) => {
   try {

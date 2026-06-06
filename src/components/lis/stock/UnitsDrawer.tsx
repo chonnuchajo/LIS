@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Minus, Trash2, Printer, X } from "lucide-react";
+import { Minus, Trash2, Printer, Pencil, X } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { unitDerivedStatus } from "@/lib/stockUnit";
 import type { StockStandardItem, StockUnitItem } from "@/types/stock";
 import WithdrawDialog from "./WithdrawDialog";
 import DiscardDialog from "./DiscardDialog";
+import EditUnitDialog from "./EditUnitDialog";
 
 const STATUS_BADGE: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-700",
@@ -26,6 +27,7 @@ export default function UnitsDrawer({ standard, onClose }: { standard: StockStan
   const qc = useQueryClient();
   const [withdrawQr, setWithdrawQr] = useState<string | null>(null);
   const [discardQr, setDiscardQr] = useState<string | null>(null);
+  const [editUnit, setEditUnit] = useState<StockUnitItem | null>(null);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "units", standard.code],
@@ -91,6 +93,7 @@ export default function UnitsDrawer({ standard, onClose }: { standard: StockStan
                     <TableCell>
                       <div className="flex justify-end gap-1">
                         {canWithdraw && <Button size="icon" variant="ghost" title="แบ่ง working" onClick={() => setWithdrawQr(u.qrId)}><Minus className="w-4 h-4" /></Button>}
+                        {st !== "discarded" && <Button size="icon" variant="ghost" title="แก้ไขข้อมูล" onClick={() => setEditUnit(u)}><Pencil className="w-4 h-4" /></Button>}
                         <Button size="icon" variant="ghost" title="ปริ้นซ้ำ" onClick={() => reprint(u)}><Printer className="w-4 h-4" /></Button>
                         {canDiscard && <Button size="icon" variant="ghost" title="ทิ้ง" onClick={() => setDiscardQr(u.qrId)}><Trash2 className="w-4 h-4 text-destructive" /></Button>}
                       </div>
@@ -105,6 +108,7 @@ export default function UnitsDrawer({ standard, onClose }: { standard: StockStan
 
       {withdrawQr && <WithdrawDialog qrId={withdrawQr} onClose={() => setWithdrawQr(null)} onSaved={refresh} />}
       {discardQr && <DiscardDialog qrId={discardQr} onClose={() => setDiscardQr(null)} onSaved={refresh} />}
+      {editUnit && <EditUnitDialog unit={editUnit} onClose={() => setEditUnit(null)} onSaved={refresh} />}
     </div>
   );
 }
