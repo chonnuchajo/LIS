@@ -26,6 +26,7 @@ import {
 import { api } from "@/lib/api";
 import { summarizeUnits } from "@/lib/stockUnit";
 import UnitsDrawer from "@/components/lis/stock/UnitsDrawer";
+import StandardUnitsPanel from "@/components/lis/stock/StandardUnitsPanel";
 import ReceiveBottlesDialog from "@/components/lis/stock/ReceiveBottlesDialog";
 import StockQrScanner from "@/components/lis/StockQrScanner";
 import WithdrawDialog from "@/components/lis/stock/WithdrawDialog";
@@ -895,6 +896,16 @@ function StandardDialog({
               </div>
             </div>
 
+            {isEdit && item && (
+              <div className="border rounded-md p-3 bg-muted/30">
+                <div className="font-semibold mb-2">รายขวด (per-bottle)</div>
+                <StandardUnitsPanel standard={item} />
+              </div>
+            )}
+
+            <details className="border rounded-md p-3">
+              <summary className="font-semibold cursor-pointer text-muted-foreground">ข้อมูล stock เดิม (tier) — เพื่ออ้างอิง</summary>
+              <div className="mt-3 space-y-4">
             {(["primary", "supplier", "working"] as const).map(tier => (
               <div key={tier} className="border rounded-md p-3">
                 <div className="font-semibold mb-2 capitalize">{tier} stock</div>
@@ -930,6 +941,8 @@ function StandardDialog({
                 )}
               </div>
             ))}
+              </div>
+            </details>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
