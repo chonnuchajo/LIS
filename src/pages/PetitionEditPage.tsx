@@ -109,7 +109,7 @@ export default function PetitionEditPage() {
       lotNo: it.lotNo ?? '',
       productionDate: it.productionDate ?? null,
       packageUnit: it.packageUnit ?? '',
-      submissionNo: data.petitionNo, // เลขที่ใบนำส่ง = เลขคำขอ เสมอ
+      submissionNo: it.submissionNo || data.petitionNo, // ใช้ค่าที่บันทึกไว้ ถ้าว่าง default = เลขคำขอ
       testUnit: it.testUnit ?? '',
       testItems: it.testItems ?? '',
       note: it.note ?? '',

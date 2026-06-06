@@ -177,12 +177,11 @@ export default function ItemsStep({
                   <Label>เลขที่ใบนำส่ง</Label>
                   <Input
                     value={it.submissionNo}
-                    readOnly
-                    disabled
-                    placeholder="ใช้เลขคำขออัตโนมัติเมื่อบันทึก"
-                    className="bg-grey-50 text-grey-500"
+                    onChange={(e) => setItem(idx, { submissionNo: e.target.value })}
+                    disabled={itemsReadOnly}
+                    placeholder="เว้นว่าง = ใช้เลขคำขออัตโนมัติ"
                   />
-                  <p className="mt-1 text-xs text-grey-400">= เลขคำขอ (กำหนดอัตโนมัติ แก้ไขไม่ได้)</p>
+                  <p className="mt-1 text-xs text-grey-400">ปล่อยว่างได้ ระบบจะใช้เลขคำขอให้อัตโนมัติ</p>
                 </div>
                 <div className="sm:col-span-2">
                   <Label>หมายเหตุ</Label>
