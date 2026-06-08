@@ -559,6 +559,7 @@ export type LiveTempHum = {
 export type MachineItem = {
   _id?: string;
   code: string;
+  type?: string;
   registerNo?: string;
   name: string;
   manufacturer?: string;

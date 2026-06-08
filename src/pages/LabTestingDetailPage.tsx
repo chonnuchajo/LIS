@@ -17,6 +17,7 @@ import PageHeader from '@/components/lis/PageHeader';
 import { usePetition, usePetitionList } from '@/hooks/usePetition';
 import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useArrivalFlash } from '@/hooks/useArrivalFlash';
 import { normalizeRoles } from '@/lib/roles';
 import { useConfirm } from '@/context/ConfirmDialog';
 import { isFieldAbnormal } from '@/lib/parameterValidation';
@@ -259,6 +260,7 @@ export default function LabTestingDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const confirm = useConfirm();
+  const flashClass = useArrivalFlash();
 
   const { data: petition, loading: petitionLoading, error: petitionError } = usePetition(id);
   const { data: worklistData } = usePetitionList({
@@ -592,7 +594,7 @@ export default function LabTestingDetailPage() {
 
   return (
     <AppLayout title={petition.petitionNo}>
-      <div className="space-y-6 pb-20">
+      <div className={`space-y-6 pb-20 ${flashClass}`}>
         {/* Header */}
         <PageHeader
           onBack={() => navigate('/lab-testing')}

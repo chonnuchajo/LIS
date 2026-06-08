@@ -23,11 +23,13 @@ import PageHeader from '@/components/lis/PageHeader';
 import PageToolbar from '@/components/lis/PageToolbar';
 import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
 import { statusBadge } from '@/lib/statusBadge';
+import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
 
 const ENTRY_STATUSES = new Set(['pendingReview', 'inProgress']);
 
 export default function QCTestingPage() {
   const navigate = useNavigate();
+  const flashId = useArrivalFlashId();
   const [search, setSearch] = useState('');
   const [dept, setDept] = useState<PetitionDept | ''>('');
   const [scanOpen, setScanOpen] = useState(false);
@@ -190,6 +192,7 @@ export default function QCTestingPage() {
         data={petitions}
         rowKey={(p) => p._id}
         isLoading={loading}
+        rowClassName={(p) => (p._id === flashId ? 'animate-flash-bg' : undefined)}
         onRowClick={(p) => {
           if (ENTRY_STATUSES.has(p.status)) navigate(`/qc-testing/${p._id}`);
         }}

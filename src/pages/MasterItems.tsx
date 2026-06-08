@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
+  Archive,
   ChevronDown,
   Database,
   FlaskConical,
@@ -12,7 +13,6 @@ import {
   Search,
   Trash2,
   Wrench,
-  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -880,7 +880,6 @@ export function SimpleMethodPage() {
   const [savingAll, setSavingAll] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<SimpleMethodFilter>("all");
-  const [editingRow, setEditingRow] = useState<SimpleMethodRow | null>(null);
 
   const {
     data: items = [],
@@ -1098,19 +1097,7 @@ export function SimpleMethodPage() {
           onToggleRow={toggleRowSelected}
           onToggleAll={toggleAllVisibleSelected}
           onExclusionsChanged={() => queryClient.invalidateQueries({ queryKey: ["simple-method-exclusions"] })}
-          onEditCommonName={setEditingRow}
         />
-
-        {editingRow && (
-          <CommonNameOverrideDialog
-            rawCommonNames={editingRow.rawCommonNames}
-            initialCanonical={editingRow.commonName}
-            onClose={() => setEditingRow(null)}
-            onSaved={() => {
-              queryClient.invalidateQueries({ queryKey: ["common-name-overrides"] });
-            }}
-          />
-        )}
 
         <div className="pointer-events-none absolute inset-x-6 bottom-6 z-30 flex justify-center">
           <div className="pointer-events-auto flex flex-wrap items-center gap-3 rounded-full border bg-card px-4 py-2 shadow-lg">
@@ -1298,7 +1285,6 @@ function SimpleMethodTab({
   onToggleRow,
   onToggleAll,
   onExclusionsChanged,
-  onEditCommonName,
 }: {
   rows: SimpleMethodRow[];
   totalRows: number;
@@ -1317,7 +1303,6 @@ function SimpleMethodTab({
   onToggleRow: (key: string, selected: boolean) => void;
   onToggleAll: (selected: boolean) => void;
   onExclusionsChanged: () => void;
-  onEditCommonName: (row: SimpleMethodRow) => void;
 }) {
   const visibleSelectedCount = rows.reduce(
     (acc, row) => acc + (selectedKeys.has(row.key) ? 1 : 0),
@@ -1427,20 +1412,7 @@ function SimpleMethodTab({
                           />
                         </TableCell>
                         <TableCell className="min-w-72 font-medium" onClick={(event) => event.stopPropagation()}>
-                          <div className="flex items-center gap-1.5">
-                            <span className="min-w-0 flex-1 truncate">{displayValue(row.commonName)}</span>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="h-6 w-6 shrink-0 px-0 text-muted-foreground hover:text-foreground"
-                              title="ตั้งชื่อมาตรฐาน"
-                              aria-label={`ตั้งชื่อมาตรฐาน ${row.commonName}`}
-                              onClick={() => onEditCommonName(row)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
+                          <span className="block min-w-0 truncate">{displayValue(row.commonName)}</span>
                         </TableCell>
                         <TableCell onClick={(event) => event.stopPropagation()}>
                           <div
@@ -1992,6 +1964,7 @@ function MasterItemDetailDialog({
 
 const emptyMachineForm: MachineItem = {
   code: "",
+  type: "",
   registerNo: "",
   name: "",
   manufacturer: "",
@@ -2012,8 +1985,8 @@ function MachinesTab() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [editing, setEditing] = useState<MachineItem | null>(null);
   const [creating, setCreating] = useState(false);
-  const [deleting, setDeleting] = useState<MachineItem | null>(null);
-  const [seeding, setSeeding] = useState(false);
+  const [retiring, setRetiring] = useState<MachineItem | null>(null);
+  const [viewing, setViewing] = useState<MachineItem | null>(null);
 
   const {
     data: machines = [],
@@ -2033,6 +2006,12 @@ function MachinesTab() {
     return Array.from(values).sort((a, b) => a.localeCompare(b, ["th", "en"]));
   }, [machines]);
 
+  const typeOptions = useMemo(() => {
+    const values = new Set<string>();
+    machines.forEach((m) => { if (m.type) values.add(m.type); });
+    return Array.from(values).sort((a, b) => a.localeCompare(b, ["th", "en"]));
+  }, [machines]);
+
   const filteredMachines = useMemo(() => {
     const q = search.trim().toLowerCase();
     return machines.filter((m) => {
@@ -2044,25 +2023,12 @@ function MachinesTab() {
     });
   }, [machines, search, locationFilter, statusFilter]);
 
-  const handleSeed = async () => {
-    setSeeding(true);
+  const handleRetire = async () => {
+    if (!retiring?._id) return;
     try {
-      const result = await api.seedMachines();
-      toast.success(`นำเข้าข้อมูลตั้งต้น: เพิ่มใหม่ ${result.inserted} / ทั้งหมด ${result.total}`);
-      queryClient.invalidateQueries({ queryKey: ["machines"] });
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setSeeding(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleting?._id) return;
-    try {
-      await api.deleteMachine(deleting._id);
-      toast.success("ลบเครื่องมือสำเร็จ");
-      setDeleting(null);
+      await api.updateMachine(retiring._id, { status: "retired" });
+      toast.success("ปลดระวางเครื่องมือสำเร็จ");
+      setRetiring(null);
       queryClient.invalidateQueries({ queryKey: ["machines"] });
     } catch (err) {
       toast.error((err as Error).message);
@@ -2117,10 +2083,6 @@ function MachinesTab() {
           <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={isFetching ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
           </Button>
-          <Button variant="outline" onClick={handleSeed} disabled={seeding} title="นำเข้าข้อมูลตั้งต้นจาก machine.xls (เพิ่มเฉพาะรหัสที่ยังไม่มี)">
-            <Download className="h-4 w-4" />
-            {seeding ? "กำลังนำเข้า..." : "นำเข้าข้อมูลตั้งต้น"}
-          </Button>
           <Button onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" />
             เพิ่มเครื่องมือ
@@ -2135,17 +2097,12 @@ function MachinesTab() {
           </div>
         ) : (
           <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-            <Table className="min-w-[900px]">
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>รหัส</TableHead>
-                  <TableHead>ทะเบียน</TableHead>
+                  <TableHead>ประเภท</TableHead>
                   <TableHead>ชื่อเครื่องมือ</TableHead>
-                  <TableHead>ยี่ห้อ / ผู้ผลิต</TableHead>
-                  <TableHead>รุ่น</TableHead>
-                  <TableHead>S/N</TableHead>
-                  <TableHead>วันที่ติดตั้ง</TableHead>
-                  <TableHead>เริ่มใช้งาน</TableHead>
                   <TableHead>สถานที่</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-24 text-right">Actions</TableHead>
@@ -2154,37 +2111,39 @@ function MachinesTab() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">กำลังโหลด...</TableCell>
+                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">กำลังโหลด...</TableCell>
                   </TableRow>
                 ) : filteredMachines.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
-                      ยังไม่มีข้อมูลเครื่องมือ — กด "นำเข้าข้อมูลตั้งต้น" เพื่อโหลดข้อมูลจาก machine.xls
+                    <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                      ยังไม่มีข้อมูลเครื่องมือ — กด "เพิ่มเครื่องมือ" เพื่อเริ่มบันทึก
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredMachines.map((m) => (
-                    <TableRow key={m._id ?? m.code}>
+                    <TableRow
+                      key={m._id ?? m.code}
+                      className="cursor-pointer"
+                      onClick={() => setViewing(m)}
+                      title="คลิกเพื่อดูรายละเอียด"
+                    >
                       <TableCell className="font-semibold text-primary">{m.code}</TableCell>
-                      <TableCell>{displayValue(m.registerNo)}</TableCell>
+                      <TableCell>{displayValue(m.type)}</TableCell>
                       <TableCell className="min-w-52 font-medium">{m.name}</TableCell>
-                      <TableCell>{displayValue(m.manufacturer)}</TableCell>
-                      <TableCell>{displayValue(m.model)}</TableCell>
-                      <TableCell>{displayValue(m.serialNo)}</TableCell>
-                      <TableCell>{displayValue(m.installDate)}</TableCell>
-                      <TableCell>{displayValue(m.startDate)}</TableCell>
                       <TableCell>{displayValue(m.location)}</TableCell>
                       <TableCell>
                         <Badge variant={m.status === "active" ? "default" : "secondary"}>{m.status ?? "active"}</Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex justify-end gap-1">
+                        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                           <Button size="icon" variant="ghost" onClick={() => setEditing(m)} title="แก้ไข">
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button size="icon" variant="ghost" onClick={() => setDeleting(m)} title="ลบ">
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          {m.status !== "retired" && (
+                            <Button size="icon" variant="ghost" onClick={() => setRetiring(m)} title="ปลดระวาง">
+                              <Archive className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -2196,26 +2155,37 @@ function MachinesTab() {
         )}
       </CardContent>
 
+      {viewing && (
+        <MachineDetailDialog
+          item={viewing}
+          onClose={() => setViewing(null)}
+          onEdit={() => { setEditing(viewing); setViewing(null); }}
+          onRetire={() => { setRetiring(viewing); setViewing(null); }}
+        />
+      )}
+
       {(creating || editing) && (
         <MachineDialog
           item={editing}
+          typeOptions={typeOptions}
           onClose={closeDialog}
           onSaved={() => queryClient.invalidateQueries({ queryKey: ["machines"] })}
         />
       )}
 
-      {deleting && (
-        <Dialog open onOpenChange={(open) => { if (!open) setDeleting(null); }}>
+      {retiring && (
+        <Dialog open onOpenChange={(open) => { if (!open) setRetiring(null); }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>ยืนยันลบเครื่องมือ</DialogTitle>
+              <DialogTitle>ยืนยันปลดระวางเครื่องมือ</DialogTitle>
             </DialogHeader>
-            <div className="text-sm text-muted-foreground">
-              {deleting.code} - {deleting.name}
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <div>{retiring.code} - {retiring.name}</div>
+              <div>เครื่องมือจะถูกตั้งสถานะเป็น <span className="font-medium text-foreground">retired</span> (เลิกใช้งาน) ไม่ใช่การลบข้อมูล</div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDeleting(null)}>ยกเลิก</Button>
-              <Button variant="destructive" onClick={handleDelete}>ลบ</Button>
+              <Button variant="outline" onClick={() => setRetiring(null)}>ยกเลิก</Button>
+              <Button variant="destructive" onClick={handleRetire}>ปลดระวาง</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -2224,12 +2194,78 @@ function MachinesTab() {
   );
 }
 
+function MachineDetailDialog({
+  item,
+  onClose,
+  onEdit,
+  onRetire,
+}: {
+  item: MachineItem;
+  onClose: () => void;
+  onEdit: () => void;
+  onRetire: () => void;
+}) {
+  const Row = ({ label, value }: { label: string; value?: string }) => (
+    <div className="space-y-0.5">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-sm font-medium break-words">{displayValue(value)}</div>
+    </div>
+  );
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="text-primary">{item.code}</span>
+            <span className="font-normal text-muted-foreground">{item.name}</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="grid grid-cols-2 gap-4 py-2">
+          <Row label="ประเภท" value={item.type} />
+          <Row label="ทะเบียน" value={item.registerNo} />
+          <Row label="ยี่ห้อ / ผู้ผลิต" value={item.manufacturer} />
+          <Row label="รุ่น" value={item.model} />
+          <Row label="S/N" value={item.serialNo} />
+          <Row label="สถานที่ตั้ง" value={item.location} />
+          <Row label="วันที่ติดตั้ง" value={item.installDate} />
+          <Row label="เริ่มใช้งาน" value={item.startDate} />
+          <Row label="เอกสารวิธีปฏิบัติงาน" value={item.manualDoc} />
+          <Row label="สถานะ" value={item.status} />
+          {item.note ? (
+            <div className="col-span-2">
+              <Row label="หมายเหตุ" value={item.note} />
+            </div>
+          ) : null}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>ปิด</Button>
+          {item.status !== "retired" && (
+            <Button variant="destructive" onClick={onRetire}>
+              <Archive className="h-4 w-4" />
+              ปลดระวาง
+            </Button>
+          )}
+          <Button onClick={onEdit}>
+            <Pencil className="h-4 w-4" />
+            แก้ไข
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function MachineDialog({
   item,
+  typeOptions,
   onClose,
   onSaved,
 }: {
   item: MachineItem | null;
+  typeOptions: string[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -2277,6 +2313,21 @@ function MachineDialog({
             <div className="space-y-1.5">
               <Label htmlFor="m-code">รหัสเครื่องมือ *</Label>
               <Input id="m-code" value={form.code} onChange={(e) => setField("code", e.target.value)} required placeholder="LD-049" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="m-type">ประเภท</Label>
+              <Input
+                id="m-type"
+                list="machine-type-options"
+                value={form.type ?? ""}
+                onChange={(e) => setField("type", e.target.value)}
+                placeholder="เลือกหรือพิมพ์ประเภท"
+              />
+              <datalist id="machine-type-options">
+                {typeOptions.map((t) => (
+                  <option key={t} value={t} />
+                ))}
+              </datalist>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="m-register">หมายเลขทะเบียน</Label>

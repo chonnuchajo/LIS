@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight, Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,8 @@ interface PetitionDashboardTableProps {
   emptyText: string;
   actionPathPrefix?: string;
   viewAllPath?: string;
+  /** ถ้าตั้งค่า: คำร้องที่ยังไม่สแกนรับ (status `sampleSent`) จะเด้งไปหน้า list นี้แทน detail */
+  unreceivedListPath?: string;
   emptyAction?: { label: string; onClick: () => void };
   headerSlot?: ReactNode;
   maxHeight?: string;
@@ -43,13 +45,40 @@ export default function PetitionDashboardTable({
   emptyText,
   actionPathPrefix = "/petitions",
   viewAllPath = "/petitions",
+  unreceivedListPath,
   emptyAction,
   headerSlot,
   maxHeight = "560px",
 }: PetitionDashboardTableProps) {
   const navigate = useNavigate();
 
+  // ซ่อนคอลัมน์ "ผู้ยื่น" เมื่อช่องตารางแคบเกินจะใส่ครบ 5 คอลัมน์ (เลี่ยง scrollbar แนวนอน)
+  // วัดความกว้างจริงของช่องด้วย ResizeObserver — แม่นกว่า breakpoint ตอนถูก right-rail บีบ
+  // ใช้ callback ref เพราะ div ตารางโผล่หลัง data โหลด (ตอน mount ยังเป็น loading) — effect [] จะพลาด node
+  const [compact, setCompact] = useState(false);
+  const roRef = useRef<ResizeObserver | null>(null);
+  const scrollRef = useCallback((el: HTMLDivElement | null) => {
+    roRef.current?.disconnect();
+    roRef.current = null;
+    if (el && typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver((entries) => {
+        setCompact(entries[0].contentRect.width < 600);
+      });
+      ro.observe(el);
+      roRef.current = ro;
+    }
+  }, []);
+
   const showHeader = Boolean(title) || Boolean(headerSlot);
+
+  // ยังไม่สแกนรับ → ไปหน้า list (สแกนรับ); รับแล้ว → เข้า detail พร้อม flash
+  const goToPetition = (petition: Petition) => {
+    if (unreceivedListPath && petition.status === "sampleSent") {
+      navigate(unreceivedListPath, { state: { flashId: petition._id } });
+    } else {
+      navigate(`${actionPathPrefix}/${petition._id}`, { state: { flash: true } });
+    }
+  };
 
   return (
     <Card className="shadow-[0_1px_2px_rgba(15,23,42,0.04),0_2px_8px_-2px_rgba(15,23,42,0.06)]">
@@ -72,12 +101,14 @@ export default function PetitionDashboardTable({
         ) : petitions.length === 0 ? (
           <EmptyState text={emptyText} action={emptyAction} />
         ) : (
-          <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight }}>
-            <Table className="min-w-[600px]">
+          <div ref={scrollRef} className="overflow-x-auto overflow-y-auto" style={{ maxHeight }}>
+            <Table className={compact ? "min-w-0" : "min-w-[600px]"}>
               <TableHeader className="sticky top-0 z-10 bg-card">
                 <TableRow>
                   <TableHead className="text-[11px] uppercase tracking-wide text-muted-foreground">คำร้อง</TableHead>
-                  <TableHead className="text-[11px] uppercase tracking-wide text-muted-foreground">ผู้ยื่น</TableHead>
+                  {!compact && (
+                    <TableHead className="text-[11px] uppercase tracking-wide text-muted-foreground">ผู้ยื่น</TableHead>
+                  )}
                   <TableHead className="text-[11px] uppercase tracking-wide text-muted-foreground">ตัวอย่าง</TableHead>
                   <TableHead className="text-[11px] uppercase tracking-wide text-muted-foreground">สถานะ</TableHead>
                   <TableHead className="w-10" />
@@ -95,11 +126,11 @@ export default function PetitionDashboardTable({
                     <TableRow
                       key={petition._id}
                       tabIndex={0}
-                      onClick={() => navigate(`${actionPathPrefix}/${petition._id}`)}
+                      onClick={() => goToPetition(petition)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          navigate(`${actionPathPrefix}/${petition._id}`);
+                          goToPetition(petition);
                         }
                       }}
                       className={cn(
@@ -116,7 +147,9 @@ export default function PetitionDashboardTable({
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm">{petition.submittedBy?.name ?? "-"}</TableCell>
+                      {!compact && (
+                        <TableCell className="text-sm">{petition.submittedBy?.name ?? "-"}</TableCell>
+                      )}
                       <TableCell>
                         <div className="flex items-center gap-2 min-w-0">
                           <span className="text-sm font-medium tabular-nums shrink-0">{petition.items.length}</span>
