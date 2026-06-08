@@ -43,7 +43,7 @@ const RequesterSchema = new mongoose.Schema(
 
 const LabRequestSchema = new mongoose.Schema(
   {
-    labRequestNo: { type: String, required: true, unique: true, index: true },
+    labRequestNo: { type: String, required: true, index: true },
     petitionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Petition', required: true, index: true },
     petitionNo: { type: String, required: true, index: true },
     batchNo: { type: String, required: true, index: true },
@@ -64,6 +64,8 @@ const LabRequestSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+LabRequestSchema.index({ labRequestNo: 1, deletedAt: 1 }, { unique: true });
 
 LabRequestSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('LabRequest', LabRequestSchema);

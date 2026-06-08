@@ -197,7 +197,7 @@ const DeliveredBySchema = new mongoose.Schema(
 
 const PetitionSchema = new mongoose.Schema(
   {
-    petitionNo: { type: String, required: true, unique: true, index: true },
+    petitionNo: { type: String, required: true, index: true },
     dept: {
       type: String,
       enum: ['production', 'rm', 'fg'],
@@ -253,6 +253,8 @@ const PetitionSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+PetitionSchema.index({ petitionNo: 1, deletedAt: 1 }, { unique: true });
 
 PetitionSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('Petition', PetitionSchema);

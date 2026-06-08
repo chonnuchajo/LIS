@@ -13,7 +13,7 @@ const OpenShelfLifeSchema = new mongoose.Schema({
 }, { _id: false });
 
 const StockStandardSchema = new mongoose.Schema({
-  code: { type: String, required: true, unique: true, index: true },
+  code: { type: String, required: true, index: true },
   name: { type: String, required: true, index: true },
   primary: {
     qty: { type: Number, default: 0 },
@@ -48,6 +48,8 @@ const StockGlasswareSchema = new mongoose.Schema({
   pricePerPiece: { type: Number, default: 0 },
   note: { type: String, default: '' },
 }, { timestamps: true });
+
+StockStandardSchema.index({ code: 1, deletedAt: 1 }, { unique: true });
 
 StockStandardSchema.plugin(softDeletePlugin);
 StockSolventSchema.plugin(softDeletePlugin);

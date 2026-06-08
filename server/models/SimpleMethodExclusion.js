@@ -10,7 +10,7 @@ const SimpleMethodExclusionSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
-SimpleMethodExclusionSchema.index({ pattern: 1, matchType: 1 }, { unique: true });
+SimpleMethodExclusionSchema.index({ pattern: 1, matchType: 1, deletedAt: 1 }, { unique: true });
 
 SimpleMethodExclusionSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('SimpleMethodExclusion', SimpleMethodExclusionSchema);

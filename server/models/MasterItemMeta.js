@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const { softDeletePlugin } = require('../lib/softDelete');
 
 const MasterItemMetaSchema = new mongoose.Schema({
-  itemNo: { type: String, required: true, unique: true, index: true },
+  itemNo: { type: String, required: true, index: true },
   itemCode: { type: String, default: '' },
   itemName: { type: String, default: '' },
   itemType: { type: String, default: '' },
@@ -12,6 +12,8 @@ const MasterItemMetaSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   requiredInspectionQty: { type: Number, default: 0 },
 }, { timestamps: true });
+
+MasterItemMetaSchema.index({ itemNo: 1, deletedAt: 1 }, { unique: true });
 
 MasterItemMetaSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('MasterItemMeta', MasterItemMetaSchema);
