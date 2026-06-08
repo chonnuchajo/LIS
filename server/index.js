@@ -38,6 +38,7 @@ mountApi('/simple-methods', require('./routes/simpleMethods'));
 mountApi('/standard-configs', require('./routes/standardConfigs'));
 mountApi('/simple-method-exclusions', require('./routes/simpleMethodExclusions'));
 mountApi('/common-name-overrides', require('./routes/commonNameOverrides'));
+mountApi('/item-groups', require('./routes/itemGroups'));
 mountApi('/machines', require('./routes/machines'));
 mountApi('/methods', require('./routes/methods'));
 mountApi('/parameters', require('./routes/parameters'));
