@@ -134,7 +134,7 @@ whose unique constraint is already compound, append `deletedAt` to the existing 
 - `MasterItemMeta.itemNo`
 - `CommonNameOverride.rawKey`
 - `SimpleMethodExclusion` — already compound `{pattern, matchType}` → append `deletedAt`
-- `StockStandard.code`, `StockSolvent.code`, `StockGlassware.code`
+- `StockStandard.code` (StockSolvent/StockGlassware have no unique field — nothing to change)
 - `User.email`
 - `Role.id`
 - `AccessGroup.id`
