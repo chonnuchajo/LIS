@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Minus, Trash2, Printer, Pencil, Plus } from "lucide-react";
+import { Minus, Trash2, Printer, Pencil, Plus, ChevronRight, ChevronDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
-import { unitDerivedStatus } from "@/lib/stockUnit";
+import { unitDerivedStatus, buildUnitTree } from "@/lib/stockUnit";
 import type { StockStandardItem, StockUnitItem } from "@/types/stock";
 import WithdrawDialog from "./WithdrawDialog";
 import DiscardDialog from "./DiscardDialog";
@@ -33,14 +33,21 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
   const [discardQr, setDiscardQr] = useState<string | null>(null);
   const [editUnit, setEditUnit] = useState<StockUnitItem | null>(null);
   const [receiving, setReceiving] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = (rootId: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(rootId) ? next.delete(rootId) : next.add(rootId);
+      return next;
+    });
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "units", standard.code],
     queryFn: () => api.getStockUnits({ itemCode: standard.code }),
   });
 
-  // ซ่อนขวดที่ทิ้งแล้ว — แสดงเฉพาะขวดที่ยังมีอยู่จริง และนับเลขลำดับใหม่ตามนั้น
-  const visible = data.filter((u) => unitDerivedStatus(u) !== "discarded");
+  // จัดเป็น tree: ref (sealed) เป็น root, working เป็นลูก 1.1/1.2; ซ่อน discarded ใน helper
+  const rows = buildUnitTree(data);
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["stock", "units", standard.code] });
@@ -82,15 +89,29 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
           <TableBody>
             {isLoading ? (
               <TableRow><TableCell colSpan={8} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
-            ) : visible.length === 0 ? (
+            ) : rows.length === 0 ? (
               <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">ยังไม่มีขวด — กดเพิ่มขวด</TableCell></TableRow>
-            ) : visible.map((u, idx) => {
+            ) : rows.map((row) => {
+              const u = row.unit;
+              if (row.depth === 1 && !expanded.has(row.rootId)) return null;
               const st = unitDerivedStatus(u);
               const canWithdraw = u.kind === "sealed" && st === "active";
               const canDiscard = st !== "discarded";
+              const isChild = row.depth === 1;
               return (
-                <TableRow key={u._id}>
-                  <TableCell className="text-center text-muted-foreground">{idx + 1}</TableCell>
+                <TableRow key={u._id} className={isChild ? "bg-muted/30" : undefined}>
+                  <TableCell className="text-center text-muted-foreground">
+                    <div className={`flex items-center gap-1 ${isChild ? "pl-5" : ""}`}>
+                      {row.depth === 0 && row.hasChildren ? (
+                        <button type="button" onClick={() => toggle(row.rootId)} className="text-muted-foreground hover:text-foreground" title={expanded.has(row.rootId) ? "พับ" : "กาง"}>
+                          {expanded.has(row.rootId) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        </button>
+                      ) : row.depth === 0 ? (
+                        <span className="inline-block w-4" />
+                      ) : null}
+                      <span>{row.label}</span>
+                    </div>
+                  </TableCell>
                   <TableCell><Badge variant="outline">{u.kind === "working" ? "working" : "คงคลัง"}</Badge></TableCell>
                   <TableCell className="text-xs">
                     {u.source === "primary" ? "primary" : u.source === "supply" ? "supply" : "-"}
