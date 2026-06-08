@@ -123,8 +123,10 @@ router.patch('/standards/:id', async (req, res) => {
 
 router.delete('/standards/:id', async (req, res) => {
   try {
-    const item = await StockStandard.findByIdAndDelete(req.params.id);
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    const item = await StockStandard.findById(req.params.id);
     if (!item) return res.status(404).json({ error: 'Not found' });
+    await item.softDelete(actor);
     await logTransaction({
       itemType: 'standard',
       itemId: item._id.toString(),
@@ -479,8 +481,10 @@ router.patch('/solvents/:id', async (req, res) => {
 
 router.delete('/solvents/:id', async (req, res) => {
   try {
-    const item = await StockSolvent.findByIdAndDelete(req.params.id);
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    const item = await StockSolvent.findById(req.params.id);
     if (!item) return res.status(404).json({ error: 'Not found' });
+    await item.softDelete(actor);
     await logTransaction({
       itemType: 'solvent',
       itemId: item._id.toString(),
@@ -607,8 +611,10 @@ router.patch('/glassware/:id', async (req, res) => {
 
 router.delete('/glassware/:id', async (req, res) => {
   try {
-    const item = await StockGlassware.findByIdAndDelete(req.params.id);
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    const item = await StockGlassware.findById(req.params.id);
     if (!item) return res.status(404).json({ error: 'Not found' });
+    await item.softDelete(actor);
     await logTransaction({
       itemType: 'glassware',
       itemId: item._id.toString(),
