@@ -5,6 +5,8 @@ import {
   Archive,
   ChevronDown,
   Database,
+  FileSpreadsheet,
+  FileText,
   FlaskConical,
   PackageSearch,
   Pencil,
@@ -17,6 +19,7 @@ import {
 import { toast } from "sonner";
 
 import AppLayout from "@/components/lis/AppLayout";
+import ItemGroupManagerDialog from "@/components/lis/ItemGroupManagerDialog";
 import PageHeader from "@/components/lis/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,7 +52,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { api, type MachineItem, type ParameterItem } from "@/lib/api";
+import { api, type MachineItem, type ParameterItem, type ItemGroupItem } from "@/lib/api";
+import { resolveItemGroups } from "@/lib/itemGroups";
+import { tradeNameKeys } from "@/lib/masterItemFields";
 import { parseSubstances } from "@/lib/substances";
 import { readSlotMethods, type MethodDoc } from "@/lib/methodRegistry";
 import { buildOverrideMap, normalizeCommonName, normalizeKey } from "@/lib/commonNameOverride";
@@ -313,13 +318,29 @@ function getItemNameForParam(item: MasterItem): string {
   return "";
 }
 
-function getParametersFor(item: MasterItem, parameters: ParameterItem[]): ParameterItem[] {
+function getItemTradeName(item: MasterItem): string {
+  return String(firstValue(item, tradeNameKeys)).trim();
+}
+
+function getParametersFor(
+  item: MasterItem,
+  parameters: ParameterItem[],
+  groups: ItemGroupItem[] = [],
+): ParameterItem[] {
   if (parameters.length === 0) return [];
   const itemName = getItemNameForParam(item);
   const productType = getProductTypeGroup(item);
   const category = getItemCategory(item);
   const commonName = getCommonName(firstValue(item, commonNameKeys))
     || getCommonName(firstValue(item, nameKeys));
+  const groupIds = resolveItemGroups(
+    {
+      itemNo: String(firstValue(item, codeKeys)).trim(),
+      commonName: String(firstValue(item, commonNameKeys)).trim(),
+      tradeName: getItemTradeName(item),
+    },
+    groups,
+  );
 
   return parameters.filter((parameter) => {
     if ((parameter.status ?? "active") !== "active") return false;
@@ -328,12 +349,17 @@ function getParametersFor(item: MasterItem, parameters: ParameterItem[]): Parame
     if (productType && parameter.productTypes?.includes(productType)) return true;
     if (category && parameter.categories?.includes(category)) return true;
     if (commonName && parameter.commonNames?.includes(commonName)) return true;
+    if (groupIds.length > 0 && (parameter.itemGroups ?? []).some((g) => groupIds.includes(g))) return true;
     return false;
   });
 }
 
-function countParametersFor(item: MasterItem, parameters: ParameterItem[]): number {
-  return getParametersFor(item, parameters).length;
+function countParametersFor(
+  item: MasterItem,
+  parameters: ParameterItem[],
+  groups: ItemGroupItem[] = [],
+): number {
+  return getParametersFor(item, parameters, groups).length;
 }
 
 function getItemId(item: MasterItem) {
@@ -482,6 +508,8 @@ export default function MasterItems() {
   const [productTypeFilter, setProductTypeFilter] = useState("all");
   const [editing, setEditing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
   const [viewing, setViewing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
+  const [exporting, setExporting] = useState<null | "xlsx" | "pdf">(null);
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
 
   const {
     data: items = [],
@@ -521,6 +549,14 @@ export default function MasterItems() {
     queryKey: ["common-name-overrides"],
     queryFn: async () => {
       const res = await api.get<CommonNameOverrideRow[]>("/common-name-overrides");
+      return Array.isArray(res.data.data) ? res.data.data : [];
+    },
+  });
+
+  const { data: itemGroups = [] } = useQuery({
+    queryKey: ["item-groups"],
+    queryFn: async () => {
+      const res = await api.get<ItemGroupItem[]>("/item-groups");
       return Array.isArray(res.data.data) ? res.data.data : [];
     },
   });
@@ -591,6 +627,30 @@ export default function MasterItems() {
     return status === true || String(status || "").toLowerCase() === "active";
   }).length;
 
+  const handleExport = async (format: "xlsx" | "pdf") => {
+    if (filteredItems.length === 0) {
+      toast.error("ไม่มีข้อมูลสำหรับ export");
+      return;
+    }
+    setExporting(format);
+    try {
+      const rows = filteredItems.map(({ item }) => item);
+      const blob = await api.exportMasterItems(format, rows, "Master Item");
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `master-item-${new Date().toISOString().slice(0, 10)}.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setExporting(null);
+    }
+  };
+
   return (
     <AppLayout>
         <PageHeader
@@ -602,6 +662,11 @@ export default function MasterItems() {
             </span>
           }
           description="จัดการรายการ item จาก n8n webhook"
+          actions={
+            <Button variant="outline" className="gap-1" onClick={() => setGroupDialogOpen(true)}>
+              <Database className="h-4 w-4" /> จัดกลุ่ม
+            </Button>
+          }
         />
 
         <div className="mb-4 grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -667,6 +732,26 @@ export default function MasterItems() {
                 className="pl-8"
               />
             </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => handleExport("xlsx")}
+                disabled={exporting !== null || filteredItems.length === 0}
+                title="ดาวน์โหลดเป็น Excel (ตามที่กรองอยู่)"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                {exporting === "xlsx" ? "กำลังสร้าง..." : "Excel"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleExport("pdf")}
+                disabled={exporting !== null || filteredItems.length === 0}
+                title="ดาวน์โหลดเป็น PDF (ตามที่กรองอยู่)"
+              >
+                <FileText className="h-4 w-4" />
+                {exporting === "pdf" ? "กำลังสร้าง..." : "PDF"}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {isError ? (
@@ -708,7 +793,7 @@ export default function MasterItems() {
                       </TableRow>
                     ) : (
                       filteredItems.map(({ item, originalItemNo, override, rawCommonName, displayCommonName }, index) => {
-                        const matchedParameters = getParametersFor(item, parameters);
+                        const matchedParameters = getParametersFor(item, parameters, itemGroups);
                         const metaQty = matchedParameters.length;
                         const form = itemToForm(item, metaQty);
                         const rowKey = getItemId(item) || originalItemNo || `row-${index}`;
@@ -820,7 +905,7 @@ export default function MasterItems() {
           <MasterItemDialog
             item={editing.item}
             originalItemNo={editing.originalItemNo}
-            initialMetaQty={countParametersFor(editing.item, parameters)}
+            initialMetaQty={countParametersFor(editing.item, parameters, itemGroups)}
             onClose={() => setEditing(null)}
             onSaved={() => {
               queryClient.invalidateQueries({ queryKey: ["master-items"] });
@@ -833,7 +918,8 @@ export default function MasterItems() {
           <MasterItemDetailDialog
             item={viewing.item}
             originalItemNo={viewing.originalItemNo}
-            parameters={getParametersFor(viewing.item, parameters)}
+            parameters={getParametersFor(viewing.item, parameters, itemGroups)}
+            groups={itemGroups}
             extraColumns={extraColumns}
             onClose={() => setViewing(null)}
             onEdit={() => {
@@ -842,6 +928,8 @@ export default function MasterItems() {
             }}
           />
         )}
+
+        <ItemGroupManagerDialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen} items={items} />
     </AppLayout>
   );
 }
@@ -1819,6 +1907,7 @@ function MasterItemDetailDialog({
   item,
   originalItemNo,
   parameters,
+  groups,
   extraColumns,
   onClose,
   onEdit,
@@ -1826,10 +1915,21 @@ function MasterItemDetailDialog({
   item: MasterItem;
   originalItemNo: string;
   parameters: ParameterItem[];
+  groups: ItemGroupItem[];
   extraColumns: string[];
   onClose: () => void;
   onEdit: () => void;
 }) {
+  const memberGroups = groups.filter((grp) =>
+    resolveItemGroups(
+      {
+        itemNo: String(firstValue(item, codeKeys)).trim(),
+        commonName: String(firstValue(item, commonNameKeys)).trim(),
+        tradeName: getItemTradeName(item),
+      },
+      [grp],
+    ).length > 0,
+  );
   const classification = getClassification(firstValue(item, typeKeys));
   const productType = getProductTypeGroup(item);
   const statusValue = firstValue(item, statusKeys);
@@ -1880,6 +1980,17 @@ function MasterItemDetailDialog({
               <div className="text-sm break-words">{field.value}</div>
             </div>
           ))}
+
+          {memberGroups.length > 0 && (
+            <div className="md:col-span-2 space-y-1">
+              <div className="text-xs font-medium text-muted-foreground">กลุ่มที่สังกัด</div>
+              <div className="flex flex-wrap gap-1">
+                {memberGroups.map((grp) => (
+                  <Badge key={grp._id} variant="secondary">{grp.name}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="md:col-span-2 space-y-2">
             <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
