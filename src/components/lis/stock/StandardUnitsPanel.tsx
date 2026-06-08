@@ -50,7 +50,7 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
 
   const reprint = async (u: StockUnitItem) => {
     try {
-      const html = await buildStockLabelHtml(u, window.location.origin);
+      const html = await buildStockLabelHtml(u);
       await api.printDocument({ docType: "stock-label", html });
       toast.success("ส่งปริ้นแล้ว");
     } catch (err) {

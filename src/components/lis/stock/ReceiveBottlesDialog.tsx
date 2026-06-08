@@ -41,7 +41,7 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved }: Pro
   const printLabels = async (units: StockUnitItem[]) => {
     for (const u of units) {
       try {
-        const html = await buildStockLabelHtml(u, window.location.origin);
+        const html = await buildStockLabelHtml(u);
         await api.printDocument({ docType: "stock-label", html });
       } catch (err) {
         toast.error(`ปริ้นลาเบล ${u.qrId} ไม่สำเร็จ: ${(err as Error).message}`);

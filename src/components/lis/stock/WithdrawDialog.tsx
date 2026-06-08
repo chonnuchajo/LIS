@@ -50,7 +50,7 @@ export default function WithdrawDialog({ qrId, onClose, onSaved }: Props) {
       const { working } = await api.withdrawStockUnit(qrId, { ml: amt, note: note || undefined });
       toast.success(`แบ่ง working ${amt} ml แล้ว`);
       try {
-        const html = await buildStockLabelHtml(working, window.location.origin);
+        const html = await buildStockLabelHtml(working);
         await api.printDocument({ docType: "stock-label", html });
       } catch (err) {
         toast.error(`ปริ้นลาเบล working ไม่สำเร็จ: ${(err as Error).message}`);
