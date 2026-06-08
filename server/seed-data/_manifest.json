@@ -54,7 +54,7 @@
     {
       "collection": "stockunits",
       "file": "stockunits.json",
-      "count": 220
+      "count": 223
     },
     {
       "collection": "simplemethods",
@@ -97,6 +97,11 @@
       "count": 0
     },
     {
+      "collection": "itemgroups",
+      "file": "itemgroups.json",
+      "count": 0
+    },
+    {
       "collection": "equipmentchecks",
       "file": "equipmentchecks.json",
       "count": 0
@@ -134,7 +139,7 @@
     {
       "collection": "stocktransactions",
       "file": "stocktransactions.json",
-      "count": 4
+      "count": 8
     },
     {
       "collection": "accessgroups",
