@@ -31,6 +31,32 @@ export function computeWorkingExp(
   return candidate;
 }
 
+/** เที่ยงคืน (00:00) ของวันถัดจาก from — ใช้เวลาท้องถิ่น */
+export function nextMidnight(from: Date): Date {
+  const d = new Date(from);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 1);
+  return d;
+}
+
+/** EXP ของขวด working ตอนเบิก:
+ *  - ถ้าไม่มีความถี่ (frequency ว่าง/ช่องว่างล้วน) → เที่ยงคืนของวันที่เบิก (ใช้ได้ถึงสิ้นวัน)
+ *  - ถ้ามีความถี่ → วันเบิก + openShelfLife (เหมือน computeWorkingExp เดิม)
+ *  ทั้งสองกรณี cap ไม่ให้เกิน EXP ขวดแม่ */
+export function workingExpForWithdraw(opts: {
+  withdrawnAt: Date;
+  frequency?: string | null;
+  shelf: OpenShelfLife;
+  parentExp: Date | null;
+}): Date {
+  const { withdrawnAt, frequency, shelf, parentExp } = opts;
+  const hasFrequency = !!(frequency && String(frequency).trim());
+  if (hasFrequency) return computeWorkingExp(withdrawnAt, shelf, parentExp);
+  const mid = nextMidnight(withdrawnAt);
+  if (parentExp && mid.getTime() > parentExp.getTime()) return parentExp;
+  return mid;
+}
+
 /** ดึง qrId จากผลสแกน — รองรับ id เปล่า / URL .../stock/scan/<id> / JSON {qrId} */
 export function parseScannedQrId(raw: string): string {
   const text = (raw || "").trim();

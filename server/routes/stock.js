@@ -29,6 +29,21 @@ function computeWorkingExp(withdrawnAt, shelf, parentExp) {
   if (parentExp && candidate.getTime() > new Date(parentExp).getTime()) return new Date(parentExp);
   return candidate;
 }
+function nextMidnight(from) {
+  const d = new Date(from);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 1);
+  return d;
+}
+// ไม่มีความถี่ → working หมดอายุเที่ยงคืนของวันที่เบิก; มีความถี่ → วันเบิก + openShelfLife
+// (mirror ของ workingExpForWithdraw ใน src/lib/stockUnit.ts) — cap ที่ EXP ขวดแม่เสมอ
+function workingExpForWithdraw(withdrawnAt, frequency, shelf, parentExp) {
+  const hasFrequency = !!(frequency && String(frequency).trim());
+  if (hasFrequency) return computeWorkingExp(withdrawnAt, shelf, parentExp);
+  const mid = nextMidnight(withdrawnAt);
+  if (parentExp && mid.getTime() > new Date(parentExp).getTime()) return new Date(parentExp);
+  return mid;
+}
 function personOf(req) {
   const m = userMeta(req);
   return m.userName ? { email: m.userEmail, name: m.userName } : undefined;
@@ -299,7 +314,7 @@ router.post('/units/:qrId/withdraw', async (req, res) => {
     const std = await StockStandard.findOne({ code: parent.itemCode });
     const shelf = (std && std.openShelfLife) || { value: 0, unit: 'day' };
     const now = new Date();
-    const exp = computeWorkingExp(now, shelf, parent.exp || null);
+    const exp = workingExpForWithdraw(now, std && std.frequency, shelf, parent.exp || null);
 
     const qrId = await genUniqueQrId();
     const working = await StockUnit.create({

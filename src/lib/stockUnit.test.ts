@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   addShelfLife,
   computeWorkingExp,
+  nextMidnight,
+  workingExpForWithdraw,
   parseScannedQrId,
   unitDerivedStatus,
   summarizeUnits,
@@ -48,6 +50,55 @@ describe("computeWorkingExp", () => {
   it("no parent exp → just withdraw + shelf", () => {
     const exp = computeWorkingExp(new Date("2026-01-01"), { value: 3, unit: "day" }, null);
     expect(exp).toEqual(new Date("2026-01-04"));
+  });
+});
+
+describe("nextMidnight", () => {
+  it("คืนเที่ยงคืน 00:00 ของวันถัดจากวันที่เบิก", () => {
+    expect(nextMidnight(new Date(2026, 5, 8, 14, 30, 15))).toEqual(new Date(2026, 5, 9, 0, 0, 0, 0));
+  });
+  it("เบิกตอนเที่ยงคืนพอดี → เที่ยงคืนวันถัดไป", () => {
+    expect(nextMidnight(new Date(2026, 5, 8, 0, 0, 0))).toEqual(new Date(2026, 5, 9, 0, 0, 0, 0));
+  });
+});
+
+describe("workingExpForWithdraw", () => {
+  it("ไม่มีความถี่ → เที่ยงคืนของวันที่เบิก", () => {
+    const exp = workingExpForWithdraw({
+      withdrawnAt: new Date(2026, 5, 8, 14, 0),
+      frequency: "",
+      shelf: { value: 0, unit: "day" },
+      parentExp: null,
+    });
+    expect(exp).toEqual(new Date(2026, 5, 9, 0, 0, 0, 0));
+  });
+  it("frequency เป็นช่องว่างล้วน → ถือว่าไม่มีความถี่ → เที่ยงคืน", () => {
+    const exp = workingExpForWithdraw({
+      withdrawnAt: new Date(2026, 5, 8, 9, 0),
+      frequency: "   ",
+      shelf: { value: 0, unit: "day" },
+      parentExp: null,
+    });
+    expect(exp).toEqual(new Date(2026, 5, 9, 0, 0, 0, 0));
+  });
+  it("มีความถี่ → วันเบิก + openShelfLife (เหมือน computeWorkingExp)", () => {
+    const exp = workingExpForWithdraw({
+      withdrawnAt: new Date("2026-01-01"),
+      frequency: "1/1 Week",
+      shelf: { value: 7, unit: "day" },
+      parentExp: null,
+    });
+    expect(exp).toEqual(new Date("2026-01-08"));
+  });
+  it("ไม่มีความถี่ แต่เที่ยงคืนเกิน EXP แม่ → cap ที่ EXP แม่", () => {
+    const parentExp = new Date(2026, 5, 8, 18, 0);
+    const exp = workingExpForWithdraw({
+      withdrawnAt: new Date(2026, 5, 8, 14, 0),
+      frequency: "",
+      shelf: { value: 0, unit: "day" },
+      parentExp,
+    });
+    expect(exp).toEqual(parentExp);
   });
 });
 
