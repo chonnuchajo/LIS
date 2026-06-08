@@ -26,6 +26,7 @@ import { TimerField } from '@/components/lis/TimerField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
 import { matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
+import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -91,6 +92,7 @@ function describeStandard(field: ParameterValueField): string {
 interface TestFieldProps {
   field: ParameterValueField;
   item: PetitionItem;
+  itemGroupIds?: string[];
   value: unknown;
   noteValue: unknown;
   saveInfo?: FieldSaveInfo;
@@ -104,6 +106,7 @@ interface TestFieldProps {
 function TestField({
   field,
   item,
+  itemGroupIds = [],
   value,
   noteValue,
   saveInfo,
@@ -171,7 +174,7 @@ function TestField({
           <SelectContent>
             <SelectItem value="__none__">— เลือก —</SelectItem>
             {(() => {
-              const visible = visibleEnumOptions(field, item);
+              const visible = visibleEnumOptions(field, item, itemGroupIds);
               const savedOutOfScope = strVal && !visible.includes(strVal);
               return (
                 <>
@@ -269,6 +272,9 @@ export default function LabTestingDetailPage() {
   });
 
   const [allParameters, setAllParameters] = useState<ParameterItem[]>([]);
+  const groupMembership = useItemGroupMembership();
+  const idsFor = (it: { sampleId?: string }) =>
+    groupMembership.get(String(it?.sampleId ?? '').trim()) ?? [];
   const [paramsLoaded, setParamsLoaded] = useState(false);
   const [savedResults, setSavedResults] = useState<QCTestResult[]>([]);
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({});
@@ -450,13 +456,13 @@ export default function LabTestingDetailPage() {
   const allLabBatchItems = (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
   const labItems = paramsLoaded
     ? allLabBatchItems.filter(
-        (it) => matchParametersForItem(it, allParameters).length > 0,
+        (it) => matchParametersForItem(it, allParameters, idsFor(it)).length > 0,
       )
     : allLabBatchItems;
 
   // 2-phase support: does any matched parameter use hasPhases?
   const hasAnyPhasedParam = labItems.some((item) =>
-    matchParametersForItem(item, allParameters).some((p) => p.hasPhases),
+    matchParametersForItem(item, allParameters, idsFor(item)).some((p) => p.hasPhases),
   );
   const currentPhase: PetitionPhase = (petition.currentPhase ?? 1) as PetitionPhase;
   // If user hasn't picked a tab, default to current phase
@@ -494,7 +500,7 @@ export default function LabTestingDetailPage() {
   const countAbnormal = (): number => {
     let count = 0;
     labItems.forEach((item) => {
-      const matched = matchParametersForItem(item, allParameters);
+      const matched = matchParametersForItem(item, allParameters, idsFor(item));
       matched.forEach((param) => {
         if (param.scope !== 'lab') return; // skip read-only shared QC params
         const k = resultKey(item.seq, param._id!);
@@ -524,7 +530,7 @@ export default function LabTestingDetailPage() {
     const missing: string[] = [];
     const phaseValues = valuesForPhase(phaseToCheck);
     labItems.forEach((item) => {
-      const matched = matchParametersForItem(item, allParameters);
+      const matched = matchParametersForItem(item, allParameters, idsFor(item));
       matched.forEach((param) => {
         if (param.scope !== 'lab') return; // only validate Lab-owned params
         const k = resultKey(item.seq, param._id!);
@@ -646,7 +652,7 @@ export default function LabTestingDetailPage() {
           (p.items ?? []).some(
             (it) =>
               isLabBatchNo(it.batchNo) &&
-              matchParametersForItem(it, allParameters).length > 0,
+              matchParametersForItem(it, allParameters, idsFor(it)).length > 0,
           )
         ).length > 1 && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 -mt-2">
@@ -656,7 +662,7 @@ export default function LabTestingDetailPage() {
                 (p.items ?? []).some(
                   (it) =>
                     isLabBatchNo(it.batchNo) &&
-                    matchParametersForItem(it, allParameters).length > 0,
+                    matchParametersForItem(it, allParameters, idsFor(it)).length > 0,
                 ),
               )
               .map((p) => {
@@ -699,7 +705,7 @@ export default function LabTestingDetailPage() {
 
         {/* Each Lab item */}
         {labItems.map((item) => {
-          const matchedParams = matchParametersForItem(item, allParameters);
+          const matchedParams = matchParametersForItem(item, allParameters, idsFor(item));
           const labOwnedParams = matchedParams.filter((p) => p.scope === 'lab');
           const sharedQcParams = matchedParams.filter((p) => p.scope === 'qc' && p.shareWithLab);
           const phaseValues = valuesForPhase(effectivePhase);
@@ -782,6 +788,7 @@ export default function LabTestingDetailPage() {
                                   <TestField
                                     field={field}
                                     item={item}
+                                    itemGroupIds={idsFor(item)}
                                     value={phaseValues[k]?.[field.label] ?? ''}
                                     noteValue={phaseValues[k]?.[noteLabel] ?? ''}
                                     saveInfo={phaseSaves[k]?.[field.label]}
@@ -849,6 +856,7 @@ export default function LabTestingDetailPage() {
                                   key={field.label}
                                   field={field}
                                   item={item}
+                                  itemGroupIds={idsFor(item)}
                                   value={phaseValues[k]?.[field.label] ?? ''}
                                   noteValue={phaseValues[k]?.[noteLabel] ?? ''}
                                   saveInfo={phaseSaves[k]?.[field.label]}

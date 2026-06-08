@@ -16,6 +16,7 @@ import { PhotoField } from '@/components/lis/PhotoField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
 import { matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
+import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -77,6 +78,7 @@ function describeStandard(field: ParameterValueField): string {
 interface TestFieldProps {
   field: ParameterValueField;
   item: PetitionItem;
+  itemGroupIds?: string[];
   value: unknown;
   noteValue: unknown;
   saveInfo?: FieldSaveInfo;
@@ -90,6 +92,7 @@ interface TestFieldProps {
 function TestField({
   field,
   item,
+  itemGroupIds = [],
   value,
   noteValue,
   saveInfo,
@@ -154,7 +157,7 @@ function TestField({
             {/* onSelect fires on every selection (even same value) so the latest editor is always recorded */}
             <SelectItem value="__none__" onSelect={() => onChange('')}>— เลือก —</SelectItem>
             {(() => {
-              const visible = visibleEnumOptions(field, item);
+              const visible = visibleEnumOptions(field, item, itemGroupIds);
               const savedOutOfScope = strVal && !visible.includes(strVal);
               return (
                 <>
@@ -276,6 +279,9 @@ export default function QCTestingDetailPage() {
     limit: 20,
   });
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
+  const groupMembership = useItemGroupMembership();
+  const idsFor = (it: { sampleId?: string }) =>
+    groupMembership.get(String(it?.sampleId ?? '').trim()) ?? [];
   const [savedResults, setSavedResults] = useState<QCTestResult[]>([]);
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({});
   const [valuesPhase2, setValuesPhase2] = useState<Record<string, Record<string, unknown>>>({});
@@ -512,7 +518,7 @@ export default function QCTestingDetailPage() {
 
   // 2-phase support
   const hasAnyPhasedParam = items.some((item) =>
-    matchParametersForItem(item, parameters).some((p) => p.hasPhases),
+    matchParametersForItem(item, parameters, idsFor(item)).some((p) => p.hasPhases),
   );
   const currentPhase: PetitionPhase = (petition.currentPhase ?? 1) as PetitionPhase;
   const effectivePhase: PetitionPhase = hasAnyPhasedParam ? selectedPhase : 1;
@@ -546,7 +552,7 @@ export default function QCTestingDetailPage() {
   const countAbnormal = (): number => {
     let count = 0;
     items.forEach((item) => {
-      const matched = matchParametersForItem(item, parameters);
+      const matched = matchParametersForItem(item, parameters, idsFor(item));
       matched.forEach((param) => {
         const k = resultKey(item.seq, param._id!);
         const p1Values = values[k] ?? {};
@@ -572,7 +578,7 @@ export default function QCTestingDetailPage() {
     const missing: string[] = [];
     const phaseValues = valuesForPhase(phaseToCheck);
     items.forEach((item) => {
-      const matched = matchParametersForItem(item, parameters);
+      const matched = matchParametersForItem(item, parameters, idsFor(item));
       matched.forEach((param) => {
         const k = resultKey(item.seq, param._id!);
         const itemValues = phaseValues[k] ?? {};
@@ -776,7 +782,7 @@ export default function QCTestingDetailPage() {
 
       {/* Each item */}
       {items.map((item) => {
-        const matchedParams = matchParametersForItem(item, parameters);
+        const matchedParams = matchParametersForItem(item, parameters, idsFor(item));
         const phaseValues = valuesForPhase(effectivePhase);
         const phaseSaves = savesForPhase(effectivePhase);
         const phaseLocked = effectivePhase === 2 && currentPhase === 1;
@@ -854,6 +860,7 @@ export default function QCTestingDetailPage() {
                               <TestField
                                 field={field}
                                 item={item}
+                                itemGroupIds={idsFor(item)}
                                 value={phaseValues[k]?.[field.label] ?? ''}
                                 noteValue={phaseValues[k]?.[noteLabel] ?? ''}
                                 saveInfo={phaseSaves[k]?.[field.label]}
