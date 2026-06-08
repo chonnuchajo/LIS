@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const MethodSchema = new mongoose.Schema({
   code: { type: String, required: true, unique: true, uppercase: true, trim: true },
@@ -11,4 +12,5 @@ const MethodSchema = new mongoose.Schema({
   builtIn: { type: Boolean, default: false }, // GC/HPLC: cannot delete, cannot change requiresMachine/machinePrefix
 }, { timestamps: true });
 
+MethodSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('Method', MethodSchema);

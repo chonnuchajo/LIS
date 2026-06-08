@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const ServiceAgreementSchema = new mongoose.Schema(
   {
@@ -64,4 +65,5 @@ const LabRequestSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+LabRequestSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('LabRequest', LabRequestSchema);

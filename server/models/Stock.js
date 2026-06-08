@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const TierSchema = new mongoose.Schema({
   qty: { type: Number, default: 0 },
@@ -48,6 +49,9 @@ const StockGlasswareSchema = new mongoose.Schema({
   note: { type: String, default: '' },
 }, { timestamps: true });
 
+StockStandardSchema.plugin(softDeletePlugin);
+StockSolventSchema.plugin(softDeletePlugin);
+StockGlasswareSchema.plugin(softDeletePlugin);
 module.exports = {
   StockStandard: mongoose.model('StockStandard', StockStandardSchema),
   StockSolvent: mongoose.model('StockSolvent', StockSolventSchema),

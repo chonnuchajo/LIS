@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const MasterItemMetaSchema = new mongoose.Schema({
   itemNo: { type: String, required: true, unique: true, index: true },
@@ -12,4 +13,5 @@ const MasterItemMetaSchema = new mongoose.Schema({
   requiredInspectionQty: { type: Number, default: 0 },
 }, { timestamps: true });
 
+MasterItemMetaSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('MasterItemMeta', MasterItemMetaSchema);

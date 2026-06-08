@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const SampleSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
@@ -18,4 +19,5 @@ const SampleSchema = new mongoose.Schema({
   userEmail: String,
 }, { timestamps: true });
 
+SampleSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('Sample', SampleSchema);

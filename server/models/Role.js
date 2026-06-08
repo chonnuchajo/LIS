@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const RoleSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true, lowercase: true },
@@ -8,4 +9,5 @@ const RoleSchema = new mongoose.Schema({
   permissions: { type: [String], default: [] },
 }, { timestamps: true });
 
+RoleSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('Role', RoleSchema);

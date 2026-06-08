@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const PhysicalResultSchema = new mongoose.Schema({
   sampleId: { type: String, required: true, unique: true },
@@ -14,4 +15,5 @@ const PhysicalResultSchema = new mongoose.Schema({
   completedAt: String,
 }, { timestamps: true });
 
+PhysicalResultSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('PhysicalResult', PhysicalResultSchema);

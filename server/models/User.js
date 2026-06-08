@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 const bcrypt = require('bcryptjs');
 const { primaryRole, normalizeRoles } = require('../lib/roles');
 
@@ -38,4 +39,5 @@ UserSchema.methods.comparePassword = function (plain) {
   return bcrypt.compare(plain, this.password);
 };
 
+UserSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('User', UserSchema);

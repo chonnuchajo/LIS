@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const AccessGroupSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true, lowercase: true },
@@ -9,4 +10,5 @@ const AccessGroupSchema = new mongoose.Schema({
   sortOrder: { type: Number, default: 0 },
 }, { timestamps: true });
 
+AccessGroupSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('AccessGroup', AccessGroupSchema);

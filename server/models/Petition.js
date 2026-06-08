@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const PetitionItemSchema = new mongoose.Schema(
   {
@@ -253,4 +254,5 @@ const PetitionSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
+PetitionSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('Petition', PetitionSchema);

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const StandardConfigSchema = new mongoose.Schema(
   {
@@ -23,4 +24,5 @@ StandardConfigSchema.index(
   { unique: true },
 );
 
+StandardConfigSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('StandardConfig', StandardConfigSchema);

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const ApprovalSchema = new mongoose.Schema({
   sampleId: { type: String, required: true, unique: true },
@@ -8,4 +9,5 @@ const ApprovalSchema = new mongoose.Schema({
   qcNote: String,
 }, { timestamps: true });
 
+ApprovalSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('Approval', ApprovalSchema);
