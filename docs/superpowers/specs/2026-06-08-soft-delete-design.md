@@ -101,12 +101,28 @@ Note: `standardConfigs.js:36` does a maintenance `deleteMany` (prune configs who
 instrument no longer exists). Treated as system cleanup → convert to
 `softDeleteMany` for consistency.
 
-### 4. Unique indexes → partial
+### 4. Unique indexes → compound with `deletedAt`
 
 Models that are soft-deletable **and** have a `unique` index need the unique
 constraint scoped to live rows only, so re-creating a value after a soft delete
-doesn't collide with the hidden row. Convert these to
-**partial unique indexes** with `partialFilterExpression: { deletedAt: null }`:
+doesn't collide with the hidden row.
+
+**Approach: compound unique index `{ <key>, deletedAt }`** (not a partial index).
+A partial index with `partialFilterExpression: { deletedAt: null }` has unreliable
+null-vs-missing semantics — existing rows predate the `deletedAt` field (it's
+absent, not literally `null`), and MongoDB's partial-filter equality on `null`
+does not match missing fields the way query filters do. A compound index sidesteps
+this: a missing `deletedAt` is indexed as `null`, identical to a new live row's
+explicit `null`, so the semantics are consistent across legacy and new rows.
+
+Semantics of `{ key, deletedAt }` unique:
+- two live rows with the same key → both index as `(key, null)` → **collision blocked** ✓
+- one live + one soft-deleted with the same key → `(key, null)` vs `(key, <Date>)` → **allowed** (re-create works) ✓
+- two soft-deleted rows with the same key → distinct delete timestamps → allowed ✓
+
+For each model below, drop the inline `unique: true` (keep any non-unique `index`)
+and add `schema.index({ <key>: 1, deletedAt: 1 }, { unique: true })`. For models
+whose unique constraint is already compound, append `deletedAt` to the existing key:
 
 - `Petition.petitionNo`
 - `Sample.id`
@@ -114,10 +130,10 @@ doesn't collide with the hidden row. Convert these to
 - `LabRequest.labRequestNo`
 - `Machine.code`
 - `Method.code`
-- `StandardConfig` (compound unique)
+- `StandardConfig` — already compound `{instrument, scope, commonNameLower}` → append `deletedAt`
 - `MasterItemMeta.itemNo`
 - `CommonNameOverride.rawKey`
-- `SimpleMethodExclusion` (compound `{pattern, matchType}`)
+- `SimpleMethodExclusion` — already compound `{pattern, matchType}` → append `deletedAt`
 - `StockStandard.code`, `StockSolvent.code`, `StockGlassware.code`
 - `User.email`
 - `Role.id`
