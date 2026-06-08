@@ -1,4 +1,5 @@
 import { addDays, addWeeks, addMonths } from "date-fns";
+import type { StockUnitItem } from "@/types/stock";
 
 export type ShelfUnit = "day" | "week" | "month";
 export interface OpenShelfLife {
@@ -91,4 +92,60 @@ export function summarizeUnits(
     if (u.exp && new Date(u.exp).getTime() - now.getTime() <= soonMs) expiringSoon++;
   }
   return { sealed, working, expiringSoon, expired };
+}
+
+export interface UnitTreeRow {
+  unit: StockUnitItem;
+  label: string;
+  depth: number;
+  hasChildren: boolean;
+  rootId: string;
+}
+
+/** จัด StockUnitItem[] เป็น flat render-list แบบ tree:
+ *  - กรอง discarded ออก (ตาม unitDerivedStatus)
+ *  - root = ขวด sealed เรียงตาม input → label "1","2",...
+ *  - child = working ที่ parentId ตรง root → label "<n>.1",".2" เรียงตามเวลาแบ่ง
+ *  - orphan = working ที่พ่อไม่อยู่ในชุดที่เห็น → ยกเป็น root ต่อท้าย
+ *  output เรียงแบบ DFS: root → children ของมัน → root ถัดไป */
+export function buildUnitTree(
+  units: StockUnitItem[],
+  now: Date = new Date(),
+): UnitTreeRow[] {
+  const visible = units.filter((u) => unitDerivedStatus(u, now) !== "discarded");
+  const roots = visible.filter((u) => u.kind === "sealed");
+  const rootIds = new Set(roots.map((u) => u._id));
+
+  const childrenByParent = new Map<string, StockUnitItem[]>();
+  const orphans: StockUnitItem[] = [];
+  for (const u of visible) {
+    if (u.kind !== "working") continue;
+    if (u.parentId && rootIds.has(u.parentId)) {
+      const arr = childrenByParent.get(u.parentId) ?? [];
+      arr.push(u);
+      childrenByParent.set(u.parentId, arr);
+    } else {
+      orphans.push(u);
+    }
+  }
+
+  const timeOf = (u: StockUnitItem) =>
+    new Date(u.withdrawnDate || u.createdAt || 0).getTime();
+  for (const arr of childrenByParent.values()) arr.sort((a, b) => timeOf(a) - timeOf(b));
+
+  const rows: UnitTreeRow[] = [];
+  let n = 0;
+  for (const root of roots) {
+    n += 1;
+    const kids = childrenByParent.get(root._id) ?? [];
+    rows.push({ unit: root, label: String(n), depth: 0, hasChildren: kids.length > 0, rootId: root._id });
+    kids.forEach((kid, i) => {
+      rows.push({ unit: kid, label: `${n}.${i + 1}`, depth: 1, hasChildren: false, rootId: root._id });
+    });
+  }
+  for (const orphan of orphans) {
+    n += 1;
+    rows.push({ unit: orphan, label: String(n), depth: 0, hasChildren: false, rootId: orphan._id });
+  }
+  return rows;
 }
