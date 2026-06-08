@@ -22,6 +22,7 @@ export function computePetitionProgress(
   petition: Petition,
   parameters: ParameterItem[],
   entries: QCProgressEntry[] | undefined,
+  membership?: Map<string, string[]>,
 ): PetitionProgress {
   const filledByKey = new Map<string, Set<string>>();
   for (const e of entries ?? []) {
@@ -32,7 +33,8 @@ export function computePetitionProgress(
   let filled = 0;
 
   for (const item of petition.items ?? []) {
-    const matched = matchParametersForItem(item, parameters);
+    const ids = membership?.get(String(item.sampleId ?? '').trim()) ?? [];
+    const matched = matchParametersForItem(item, parameters, ids);
     for (const param of matched) {
       const fields = (param.valueFields ?? []).filter((f) =>
         isCountableField(f.type),
