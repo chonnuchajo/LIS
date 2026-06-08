@@ -319,7 +319,7 @@ function PreviewQrCode({ value }: { value: string }) {
   return (
     <svg
       viewBox={`0 0 ${size} ${size}`}
-      className="h-20 w-20 shrink-0"
+      className="h-32 w-32 shrink-0"
       role="img"
       aria-label={`QR ${value}`}
       shapeRendering="crispEdges"
@@ -351,34 +351,46 @@ function LabelPreview({ petition }: { petition: Petition }) {
               <div className="shrink-0 border border-black bg-white p-1">
                 <PreviewQrCode value={getQrValue(petition, item)} />
               </div>
-              <div className="flex-1 text-center text-sm font-semibold">
-                ป้ายนำส่งตัวอย่าง บริษัท ไอ ซี พี ลัดดา จำกัด
-              </div>
-              <div className="flex items-end gap-1 whitespace-nowrap text-sm">
-                <span>เลขที่</span>
-                <span className="inline-block min-w-[4rem] border-b border-black px-1 text-center">
-                  {item.sampleId || '\u00a0'}
-                </span>
-                <span>/</span>
-                <span className="inline-block min-w-[2rem] border-b border-black px-1 text-center">
-                  {yearShort}
-                </span>
+              <div className="min-w-0 flex-1 space-y-2">
+                <div>
+                  <div className="text-center text-sm font-semibold">
+                    ป้ายนำส่งตัวอย่าง บริษัท ไอ ซี พี ลัดดา จำกัด
+                  </div>
+                  <div className="mt-1 flex items-end justify-end gap-1 whitespace-nowrap text-sm">
+                    <span>เลขที่</span>
+                    <span className="inline-block min-w-[4rem] border-b border-black px-1 text-center">
+                      {item.sampleId || '\u00a0'}
+                    </span>
+                    <span>/</span>
+                    <span className="inline-block min-w-[2rem] border-b border-black px-1 text-center">
+                      {yearShort}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-sm">
+                  <PreviewField
+                    label="ชื่อผลิตภัณฑ์ และสารสำคัญ"
+                    value={productLine}
+                    valueClassName="whitespace-normal break-words leading-tight"
+                  />
+                </div>
+                <div className="grid gap-2 text-sm sm:grid-cols-[1.25fr_0.75fr]">
+                  <PreviewField label="วัน เดือน ปี ที่ผลิต/นำเข้า" value={toBuddhistShort(item.productionDate)} />
+                  <PreviewField label="แบชนัมเบอร์" value={item.batchNo} />
+                </div>
+                <div className="grid gap-2 text-sm sm:grid-cols-2">
+                  <PreviewField label="ผู้ผลิต" value={item.labelManufacturer} />
+                  <PreviewField label="ผู้ขาย" value={item.labelSeller} />
+                </div>
+                <div className="grid gap-2 text-sm sm:grid-cols-[1.3fr_1fr_1fr]">
+                  <PreviewField label="ปริมาณ" value={item.labelQuantity} />
+                  <PreviewField label="สุ่มโดย" value={item.labelSampledBy} />
+                  <PreviewField label="ว/ด/ป" value={toBuddhistShort(item.labelSampledDate)} />
+                </div>
               </div>
             </div>
 
             <div className="space-y-2 text-sm">
-              <PreviewField label="ชื่อผลิตภัณฑ์ และสารสำคัญ" value={productLine} />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <PreviewField label="วัน เดือน ปี ที่ผลิต/นำเข้า" value={toBuddhistShort(item.productionDate)} />
-                <PreviewField label="แบชนัมเบอร์" value={item.batchNo} />
-              </div>
-              <PreviewField label="ผู้ผลิต" value={item.labelManufacturer} />
-              <PreviewField label="ผู้ขาย" value={item.labelSeller} />
-              <div className="grid gap-3 sm:grid-cols-3">
-                <PreviewField label="ปริมาณ" value={item.labelQuantity} />
-                <PreviewField label="สุ่มโดย" value={item.labelSampledBy} />
-                <PreviewField label="ว/ด/ป" value={toBuddhistShort(item.labelSampledDate)} />
-              </div>
               <PreviewField label="หมายเหตุ" value={item.labelRemark} />
             </div>
 
@@ -390,11 +402,21 @@ function LabelPreview({ petition }: { petition: Petition }) {
   );
 }
 
-function PreviewField({ label, value }: { label: string; value?: string }) {
+function PreviewField({
+  label,
+  value,
+  valueClassName = '',
+}: {
+  label: string;
+  value?: string;
+  valueClassName?: string;
+}) {
   return (
-    <div className="flex items-end gap-1">
+    <div className="flex min-w-0 items-end gap-1">
       <span className="whitespace-nowrap">{label}</span>
-      <span className="min-h-[1.25rem] flex-1 border-b border-black px-1">{value || ''}</span>
+      <span className={`min-h-[1.25rem] min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap border-b border-black px-1 ${valueClassName}`}>
+        {value || ''}
+      </span>
     </div>
   );
 }
