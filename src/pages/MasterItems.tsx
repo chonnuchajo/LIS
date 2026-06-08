@@ -53,8 +53,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { api, type MachineItem, type ParameterItem, type ItemGroupItem } from "@/lib/api";
-import { resolveItemGroups } from "@/lib/itemGroups";
-import { tradeNameKeys } from "@/lib/masterItemFields";
+import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { parseSubstances } from "@/lib/substances";
 import { readSlotMethods, type MethodDoc } from "@/lib/methodRegistry";
 import { buildOverrideMap, normalizeCommonName, normalizeKey } from "@/lib/commonNameOverride";
@@ -318,14 +317,13 @@ function getItemNameForParam(item: MasterItem): string {
   return "";
 }
 
-function getItemTradeName(item: MasterItem): string {
-  return String(firstValue(item, tradeNameKeys)).trim();
-}
-
+// itemGroupIds = group IDs ที่ item นี้สังกัด — resolve มาจาก useItemGroupMembership
+// (catalog ดิบ keyed by raw itemNo) เพื่อให้ตรงกับฝั่ง testing เป๊ะ. ห้าม resolve
+// จาก item ที่ผ่าน applyOverride แล้ว เพราะ override เขียนทับ commonname.
 function getParametersFor(
   item: MasterItem,
   parameters: ParameterItem[],
-  groups: ItemGroupItem[] = [],
+  itemGroupIds: string[] = [],
 ): ParameterItem[] {
   if (parameters.length === 0) return [];
   const itemName = getItemNameForParam(item);
@@ -333,14 +331,6 @@ function getParametersFor(
   const category = getItemCategory(item);
   const commonName = getCommonName(firstValue(item, commonNameKeys))
     || getCommonName(firstValue(item, nameKeys));
-  const groupIds = resolveItemGroups(
-    {
-      itemNo: String(firstValue(item, codeKeys)).trim(),
-      commonName: String(firstValue(item, commonNameKeys)).trim(),
-      tradeName: getItemTradeName(item),
-    },
-    groups,
-  );
 
   return parameters.filter((parameter) => {
     if ((parameter.status ?? "active") !== "active") return false;
@@ -349,7 +339,7 @@ function getParametersFor(
     if (productType && parameter.productTypes?.includes(productType)) return true;
     if (category && parameter.categories?.includes(category)) return true;
     if (commonName && parameter.commonNames?.includes(commonName)) return true;
-    if (groupIds.length > 0 && (parameter.itemGroups ?? []).some((g) => groupIds.includes(g))) return true;
+    if (itemGroupIds.length > 0 && (parameter.itemGroups ?? []).some((g) => itemGroupIds.includes(g))) return true;
     return false;
   });
 }
@@ -357,9 +347,9 @@ function getParametersFor(
 function countParametersFor(
   item: MasterItem,
   parameters: ParameterItem[],
-  groups: ItemGroupItem[] = [],
+  itemGroupIds: string[] = [],
 ): number {
-  return getParametersFor(item, parameters, groups).length;
+  return getParametersFor(item, parameters, itemGroupIds).length;
 }
 
 function getItemId(item: MasterItem) {
@@ -560,6 +550,10 @@ export default function MasterItems() {
       return Array.isArray(res.data.data) ? res.data.data : [];
     },
   });
+
+  // group membership keyed by raw itemNo (single source of truth, ตรงกับ testing flow)
+  const groupMembership = useItemGroupMembership();
+  const groupIdsFor = (itemNo: string) => groupMembership.get(String(itemNo ?? "").trim()) ?? [];
 
   const cnMap = useMemo(() => buildOverrideMap(cnOverrides), [cnOverrides]);
 
@@ -793,7 +787,7 @@ export default function MasterItems() {
                       </TableRow>
                     ) : (
                       filteredItems.map(({ item, originalItemNo, override, rawCommonName, displayCommonName }, index) => {
-                        const matchedParameters = getParametersFor(item, parameters, itemGroups);
+                        const matchedParameters = getParametersFor(item, parameters, groupIdsFor(originalItemNo));
                         const metaQty = matchedParameters.length;
                         const form = itemToForm(item, metaQty);
                         const rowKey = getItemId(item) || originalItemNo || `row-${index}`;
@@ -905,7 +899,7 @@ export default function MasterItems() {
           <MasterItemDialog
             item={editing.item}
             originalItemNo={editing.originalItemNo}
-            initialMetaQty={countParametersFor(editing.item, parameters, itemGroups)}
+            initialMetaQty={countParametersFor(editing.item, parameters, groupIdsFor(editing.originalItemNo))}
             onClose={() => setEditing(null)}
             onSaved={() => {
               queryClient.invalidateQueries({ queryKey: ["master-items"] });
@@ -918,8 +912,9 @@ export default function MasterItems() {
           <MasterItemDetailDialog
             item={viewing.item}
             originalItemNo={viewing.originalItemNo}
-            parameters={getParametersFor(viewing.item, parameters, itemGroups)}
+            parameters={getParametersFor(viewing.item, parameters, groupIdsFor(viewing.originalItemNo))}
             groups={itemGroups}
+            itemGroupIds={groupIdsFor(viewing.originalItemNo)}
             extraColumns={extraColumns}
             onClose={() => setViewing(null)}
             onEdit={() => {
@@ -1908,6 +1903,7 @@ function MasterItemDetailDialog({
   originalItemNo,
   parameters,
   groups,
+  itemGroupIds,
   extraColumns,
   onClose,
   onEdit,
@@ -1916,20 +1912,13 @@ function MasterItemDetailDialog({
   originalItemNo: string;
   parameters: ParameterItem[];
   groups: ItemGroupItem[];
+  itemGroupIds: string[];
   extraColumns: string[];
   onClose: () => void;
   onEdit: () => void;
 }) {
-  const memberGroups = groups.filter((grp) =>
-    resolveItemGroups(
-      {
-        itemNo: String(firstValue(item, codeKeys)).trim(),
-        commonName: String(firstValue(item, commonNameKeys)).trim(),
-        tradeName: getItemTradeName(item),
-      },
-      [grp],
-    ).length > 0,
-  );
+  // membership resolve มาจาก catalog ดิบแล้ว (ส่งเป็น itemGroupIds) — map เป็นชื่อกลุ่มเพื่อแสดง
+  const memberGroups = groups.filter((grp) => itemGroupIds.includes(grp._id));
   const classification = getClassification(firstValue(item, typeKeys));
   const productType = getProductTypeGroup(item);
   const statusValue = firstValue(item, statusKeys);
