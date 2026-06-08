@@ -101,8 +101,10 @@ router.patch('/:id', async (req, res) => {
 // DELETE /api/lab-requests/:id
 router.delete('/:id', async (req, res) => {
   try {
-    const doc = await LabRequest.findByIdAndDelete(req.params.id);
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    const doc = await LabRequest.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบใบคำขอรับบริการ' } });
+    await doc.softDelete(actor);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: { message: err.message } });

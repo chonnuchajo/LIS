@@ -72,7 +72,8 @@ router.delete('/:itemNo', async (req, res) => {
   try {
     const itemNo = String(req.params.itemNo || '').trim();
     if (!itemNo) return res.status(400).json({ message: 'itemNo required' });
-    await MasterItemMeta.deleteOne({ itemNo });
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    await MasterItemMeta.softDeleteMany({ itemNo }, actor);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: err.message });

@@ -42,7 +42,8 @@ router.post('/', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await CommonNameOverride.findByIdAndDelete(req.params.id);
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    await CommonNameOverride.softDeleteMany({ _id: req.params.id }, actor);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ message: err.message });

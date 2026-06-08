@@ -38,7 +38,8 @@ router.post('/', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await SimpleMethodExclusion.findByIdAndDelete(req.params.id);
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    await SimpleMethodExclusion.softDeleteMany({ _id: req.params.id }, actor);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ message: err.message });
