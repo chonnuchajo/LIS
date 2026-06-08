@@ -25,6 +25,8 @@ import {
 
 import { api } from "@/lib/api";
 import { summarizeUnits } from "@/lib/stockUnit";
+import { qtyStatus } from "@/lib/stockStatus";
+import type { QtyStatus } from "@/lib/stockStatus";
 import UnitsDrawer from "@/components/lis/stock/UnitsDrawer";
 import StandardUnitsPanel from "@/components/lis/stock/StandardUnitsPanel";
 import ReceiveBottlesDialog from "@/components/lis/stock/ReceiveBottlesDialog";
@@ -102,7 +104,7 @@ function StandardsTab() {
       if (statusFilter === "expired") return sum.expired > 0;
       if (statusFilter === "soon") return sum.expiringSoon > 0;
       return true;
-    });
+    }).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
   }, [data, search, statusFilter, now, unitsByCode]);
 
   const lowList = data.filter(s => { const x = sumOf(s); return x.sealed + x.working <= LOW_STD_QTY; });
@@ -572,6 +574,208 @@ function GlasswareTab() {
 }
 
 // ============================================================
+// Receive Tab (รับเข้ารวมศูนย์)
+// ============================================================
+type ReceiveCategory = "standard" | "solvent" | "glassware";
+
+const RECEIVE_CATEGORIES: { value: ReceiveCategory; label: string }[] = [
+  { value: "standard", label: "Standards" },
+  { value: "solvent", label: "สารเคมี" },
+  { value: "glassware", label: "เครื่องแก้ว" },
+];
+
+function LevelBadge({ level }: { level: QtyStatus }) {
+  if (level === "out") return <Badge className="bg-destructive/15 text-destructive text-xs">หมด</Badge>;
+  if (level === "low") return <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมด</Badge>;
+  return <Badge className="bg-emerald-100 text-emerald-700 text-xs">ปกติ</Badge>;
+}
+
+interface ReceiveRow {
+  id: string;
+  code: string;
+  name: string;
+  level: QtyStatus;
+  extraBadges: { label: string; tone: "destructive" | "amber" }[];
+  needsRestock: boolean;
+  onReceive: () => void;
+}
+
+function ReceiveTab() {
+  const qc = useQueryClient();
+  const [category, setCategory] = useState<ReceiveCategory>("standard");
+  const [search, setSearch] = useState("");
+  const [lowOnly, setLowOnly] = useState(false);
+
+  const { data: standards = [] } = useQuery({ queryKey: ["stock", "standards"], queryFn: api.getStandards });
+  const { data: solvents = [] } = useQuery({ queryKey: ["stock", "solvents"], queryFn: api.getSolvents });
+  const { data: glassware = [] } = useQuery({ queryKey: ["stock", "glassware"], queryFn: api.getGlassware });
+  const { data: allUnits = [] } = useQuery({ queryKey: ["stock", "units"], queryFn: () => api.getStockUnits() });
+
+  const unitsByCode = useMemo(() => {
+    const m = new Map<string, StockUnitItem[]>();
+    for (const u of allUnits) {
+      const arr = m.get(u.itemCode) ?? [];
+      arr.push(u);
+      m.set(u.itemCode, arr);
+    }
+    return m;
+  }, [allUnits]);
+
+  const [receivingStandard, setReceivingStandard] = useState<StockStandardItem | null>(null);
+  const [movingSolvent, setMovingSolvent] = useState<StockSolventItem | null>(null);
+  const [movingGlass, setMovingGlass] = useState<StockGlasswareItem | null>(null);
+
+  const rows: ReceiveRow[] = useMemo(() => {
+    if (category === "standard") {
+      return standards.map((s) => {
+        const sum = summarizeUnits(unitsByCode.get(s.code) ?? []);
+        const level = qtyStatus(sum.sealed + sum.working, LOW_STD_QTY);
+        const extraBadges: ReceiveRow["extraBadges"] = [];
+        if (sum.expired > 0) extraBadges.push({ label: `หมดอายุ ${sum.expired}`, tone: "destructive" });
+        if (sum.expiringSoon > 0) extraBadges.push({ label: `ใกล้หมดอายุ ${sum.expiringSoon}`, tone: "amber" });
+        return {
+          id: s._id,
+          code: s.code,
+          name: s.name,
+          level,
+          extraBadges,
+          needsRestock: level !== "ok" || sum.expired > 0 || sum.expiringSoon > 0,
+          onReceive: () => setReceivingStandard(s),
+        };
+      });
+    }
+    if (category === "solvent") {
+      return solvents.map((s) => {
+        const level = qtyStatus(s.qty, LOW_SOL_QTY);
+        return { id: s._id, code: "", name: s.name, level, extraBadges: [], needsRestock: level !== "ok", onReceive: () => setMovingSolvent(s) };
+      });
+    }
+    return glassware.map((g) => {
+      const level = qtyStatus(g.qty, LOW_GLASS_QTY);
+      return { id: g._id, code: "", name: g.name, level, extraBadges: [], needsRestock: level !== "ok", onReceive: () => setMovingGlass(g) };
+    });
+  }, [category, standards, solvents, glassware, unitsByCode]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (q && !r.name.toLowerCase().includes(q) && !r.code.toLowerCase().includes(q)) return false;
+      if (lowOnly && !r.needsRestock) return false;
+      return true;
+    });
+  }, [rows, search, lowOnly]);
+
+  const restockCount = rows.filter((r) => r.needsRestock).length;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ArrowDownToLine className="w-5 h-5" /> รับเข้า stock
+          </CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหา code หรือชื่อ" className="pl-8 h-9 w-full sm:w-64" />
+            </div>
+            <Button size="sm" variant={lowOnly ? "default" : "outline"} onClick={() => setLowOnly((v) => !v)}>
+              <AlertTriangle className="w-4 h-4 mr-1" /> เฉพาะใกล้หมด/หมด ({restockCount})
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {RECEIVE_CATEGORIES.map((c) => (
+              <Button key={c.value} size="sm" variant={category === c.value ? "default" : "outline"} onClick={() => setCategory(c.value)}>
+                {c.label}
+              </Button>
+            ))}
+          </div>
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+            <Table className="min-w-[600px]">
+              <TableHeader>
+                <TableRow>
+                  {category === "standard" && <TableHead className="w-16">Code</TableHead>}
+                  <TableHead>ชื่อ</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                  <TableHead className="w-28 text-right">รับเข้า</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={category === "standard" ? 4 : 3} className="text-center text-muted-foreground py-6">ไม่มีข้อมูล</TableCell>
+                  </TableRow>
+                ) : (
+                  filtered.map((r) => (
+                    <TableRow key={r.id}>
+                      {category === "standard" && <TableCell className="font-semibold text-primary">{r.code}</TableCell>}
+                      <TableCell className="font-medium">{r.name}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          <LevelBadge level={r.level} />
+                          {r.extraBadges.map((b, i) => (
+                            <Badge key={i} className={`text-xs ${b.tone === "destructive" ? "bg-destructive/15 text-destructive" : "bg-amber-100 text-amber-700"}`}>{b.label}</Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="ghost" onClick={r.onReceive}>
+                          <ArrowDownToLine className="w-4 h-4 mr-1" /> รับเข้า
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {receivingStandard && (
+        <ReceiveBottlesDialog
+          standard={receivingStandard}
+          onClose={() => setReceivingStandard(null)}
+          onSaved={() => { qc.invalidateQueries({ queryKey: ["stock", "units"] }); }}
+        />
+      )}
+      {movingSolvent && (
+        <SimpleMoveDialog
+          title="รับเข้าสารเคมี"
+          mode="receive"
+          itemName={movingSolvent.name}
+          currentQty={movingSolvent.qty}
+          unit="ขวด"
+          onClose={() => setMovingSolvent(null)}
+          onSubmit={async (qty, note) => {
+            await api.receiveSolvent(movingSolvent._id, { qty, note });
+            qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
+            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+          }}
+        />
+      )}
+      {movingGlass && (
+        <SimpleMoveDialog
+          title="รับเข้าเครื่องแก้ว"
+          mode="receive"
+          itemName={movingGlass.name}
+          currentQty={movingGlass.qty}
+          unit="ชิ้น"
+          onClose={() => setMovingGlass(null)}
+          onSubmit={async (qty, note) => {
+            await api.receiveGlassware(movingGlass._id, { qty, note });
+            qc.invalidateQueries({ queryKey: ["stock", "glassware"] });
+            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // History Tab
 // ============================================================
 function HistoryTab() {
@@ -1013,11 +1217,13 @@ const StockPage = () => {
           <TabsTrigger value="standard">Standards</TabsTrigger>
           <TabsTrigger value="solvent">สารเคมี</TabsTrigger>
           <TabsTrigger value="glassware">เครื่องแก้ว</TabsTrigger>
+          <TabsTrigger value="receive">รับเข้า</TabsTrigger>
           <TabsTrigger value="history">ประวัติ</TabsTrigger>
         </TabsList>
         <TabsContent value="standard"><StandardsTab /></TabsContent>
         <TabsContent value="solvent"><SolventsTab /></TabsContent>
         <TabsContent value="glassware"><GlasswareTab /></TabsContent>
+        <TabsContent value="receive"><ReceiveTab /></TabsContent>
         <TabsContent value="history"><HistoryTab /></TabsContent>
       </Tabs>
 
