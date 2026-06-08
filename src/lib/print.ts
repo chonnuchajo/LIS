@@ -53,9 +53,11 @@ export function openBrowserPrintPreview(
 ) {
   const combinedCss = [collectDocumentCss(), opts?.css].filter(Boolean).join("\n");
   const html = serializeForPrint(el, combinedCss || undefined);
-  const preview = window.open("", "_blank", "noopener,noreferrer");
+  // NOTE: ห้ามใส่ noopener/noreferrer — ถ้าใส่ window.open จะคืนค่า null เสมอ
+  // ทำให้เขียนเนื้อหาลงหน้าต่างไม่ได้ (preview จะว่างเปล่า)
+  const preview = window.open("", "_blank");
   if (!preview) {
-    throw new Error("เปิดหน้าต่าง print preview ไม่สำเร็จ");
+    throw new Error("เปิดหน้าต่าง print preview ไม่สำเร็จ (ป๊อปอัปอาจถูกบล็อก)");
   }
 
   preview.document.open();

@@ -482,7 +482,6 @@ export default function MasterItems() {
   const [productTypeFilter, setProductTypeFilter] = useState("all");
   const [editing, setEditing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
   const [viewing, setViewing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
-  const [editingCommonName, setEditingCommonName] = useState<{ rawCommonName: string; currentCanonical: string } | null>(null);
 
   const {
     data: items = [],
@@ -733,19 +732,6 @@ export default function MasterItems() {
                                 >
                                   {displayValue(displayCommonName)}
                                 </span>
-                                {rawCommonName && (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 w-6 shrink-0 px-0 text-muted-foreground hover:text-foreground"
-                                    title="ตั้งชื่อมาตรฐาน"
-                                    aria-label={`ตั้งชื่อมาตรฐาน ${displayCommonName}`}
-                                    onClick={() => setEditingCommonName({ rawCommonName, currentCanonical: displayCommonName })}
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                  </Button>
-                                )}
                               </div>
                             </TableCell>
                             <TableCell>{displayProductType(getProductTypeGroup(item))}</TableCell>
@@ -853,16 +839,6 @@ export default function MasterItems() {
             onEdit={() => {
               setEditing(viewing);
               setViewing(null);
-            }}
-          />
-        )}
-        {editingCommonName && (
-          <CommonNameOverrideDialog
-            rawCommonNames={[editingCommonName.rawCommonName]}
-            initialCanonical={editingCommonName.currentCanonical}
-            onClose={() => setEditingCommonName(null)}
-            onSaved={() => {
-              queryClient.invalidateQueries({ queryKey: ["common-name-overrides"] });
             }}
           />
         )}
@@ -2271,10 +2247,26 @@ function MachineDialog({
 }) {
   const [form, setForm] = useState<MachineItem>(() => item ? { ...item } : { ...emptyMachineForm });
   const [busy, setBusy] = useState(false);
+  const [addingType, setAddingType] = useState(false);
+  const [newType, setNewType] = useState("");
   const isEdit = !!item?._id;
 
   const setField = <K extends keyof MachineItem>(key: K, value: MachineItem[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  // รวมประเภทที่มีอยู่ + ค่าปัจจุบัน (เผื่อแก้ไขเครื่องที่เป็นประเภทเก่าที่ไม่อยู่ในลิสต์)
+  const typeChoices = useMemo(() => {
+    const set = new Set(typeOptions);
+    if (form.type) set.add(form.type);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, ["th", "en"]));
+  }, [typeOptions, form.type]);
+
+  const confirmNewType = () => {
+    const v = newType.trim();
+    if (v) setField("type", v);
+    setAddingType(false);
+    setNewType("");
   };
 
   const submit = async (event: React.FormEvent) => {
@@ -2316,18 +2308,40 @@ function MachineDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="m-type">ประเภท</Label>
-              <Input
-                id="m-type"
-                list="machine-type-options"
-                value={form.type ?? ""}
-                onChange={(e) => setField("type", e.target.value)}
-                placeholder="เลือกหรือพิมพ์ประเภท"
-              />
-              <datalist id="machine-type-options">
-                {typeOptions.map((t) => (
-                  <option key={t} value={t} />
-                ))}
-              </datalist>
+              {addingType ? (
+                <div className="flex gap-2">
+                  <Input
+                    id="m-type"
+                    autoFocus
+                    value={newType}
+                    onChange={(e) => setNewType(e.target.value)}
+                    placeholder="พิมพ์ชื่อประเภทใหม่"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); confirmNewType(); }
+                    }}
+                  />
+                  <Button type="button" variant="secondary" onClick={confirmNewType}>เพิ่ม</Button>
+                  <Button type="button" variant="ghost" onClick={() => { setAddingType(false); setNewType(""); }}>ยกเลิก</Button>
+                </div>
+              ) : (
+                <Select
+                  value={form.type || ""}
+                  onValueChange={(v) => {
+                    if (v === "__add_new__") { setAddingType(true); setNewType(""); }
+                    else setField("type", v);
+                  }}
+                >
+                  <SelectTrigger id="m-type">
+                    <SelectValue placeholder="เลือกประเภท" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {typeChoices.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                    <SelectItem value="__add_new__" className="text-primary">➕ เพิ่มประเภทใหม่</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="m-register">หมายเลขทะเบียน</Label>
