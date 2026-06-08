@@ -78,42 +78,61 @@ itemInGroup(item, group):
 
 ## 3. การจับคู่ parameter ↔ item (live ตาม group ID)
 
-หัวใจ: matcher ต้องไม่ลาก catalog ของกลุ่มทั้งก้อนเข้าไป — ให้ caller คำนวณว่า item
-สังกัดกลุ่มไหนบ้างมาให้ก่อน
+**ข้อจำกัดสำคัญ:** `PetitionItem` (ที่ใช้ตอน testing) ไม่มี trade name — มีแค่
+`commonName` + `sampleId` (= itemNo) ดังนั้น membership ที่อิง trade name **resolve
+จาก PetitionItem ตรงๆ ไม่ได้** ต้อง resolve จาก catalog ของ master items (มี trade
+name ครบ) keyed by **itemNo** แล้ว index นี้ใช้ร่วมทั้ง 2 ฝั่งให้ผลตรงกัน
 
-เพิ่ม helper กลางใน `src/lib/itemGroups.ts`:
+หัวใจ: matcher ยังคง pure — caller คำนวณ `itemGroupIds` (group ID ที่ item สังกัด)
+มาให้ก่อน แล้วส่งเข้า matcher
+
+helper กลางใน `src/lib/itemGroups.ts`:
 
 ```ts
-export type ItemGroup = { _id, name, commonNames, tradeNames,
-                          includeItemNos, excludeItemNos, status }
+export type ItemGroup = {
+  _id: string; name: string; commonNames: string[]; tradeNames: string[];
+  includeItemNos: string[]; excludeItemNos: string[];
+  status: 'active' | 'inactive';
+};
 
-// คืน group ID ทั้งหมดที่ item นี้สังกัด (เฉพาะ status active)
+// item หนึ่งตัว (full record fields) → คืน group ID ที่สังกัด (เฉพาะ active)
 export function resolveItemGroups(
   args: { itemNo: string; commonName: string; tradeName: string },
   groups: ItemGroup[],
-): string[]
+): string[];
+
+// สร้าง index จาก catalog: itemNo → group ID[] (ใช้ทั้งฝั่ง page และ testing)
+export function buildItemGroupIndex(
+  items: Array<{ itemNo: string; commonName: string; tradeName: string }>,
+  groups: ItemGroup[],
+): Map<string, string[]>;
 ```
 
-จุดแก้ 2 ที่:
+จุดแก้:
 
-1. **`src/lib/petitionTestItems.ts` → `parameterAppliesToItem`**
-   - เพิ่ม optional field `itemGroupIds?: string[]` ใน item descriptor ที่ส่งเข้า
+1. **`src/lib/petitionTestItems.ts`** — เพิ่ม optional arg `itemGroupIds: string[] = []`
+   ใน `parameterAppliesToItem(param, item, itemGroupIds)`,
+   `matchParametersForItem(item, params, itemGroupIds)`,
+   `visibleEnumOptions(field, item, itemGroupIds)`
    - เพิ่มเงื่อนไข OR: `(param.itemGroups ?? []).some(g => itemGroupIds.includes(g))`
-   - ปรับ guard "ไม่มีเงื่อนไขเลย → ไม่ match" ให้นับ `itemGroups` ด้วย
-   - caller (testing/petition flow) คำนวณ `itemGroupIds` ด้วย `resolveItemGroups`
-     แล้วแนบเข้า descriptor; ต้อง query กลุ่มเพิ่ม (React Query key `["item-groups"]`)
+     (และใน optionFilters: `(f.itemGroups ?? []).some(...)`)
+   - ปรับ guard "ทุกมิติว่าง → ไม่ match / แสดงเสมอ" ให้นับ `itemGroups` ด้วย
+   - default `[]` → backward-compatible: call site ที่ยังไม่ส่ง ทำงานเหมือนเดิม
 
-2. **`src/pages/MasterItems.tsx` → `getParametersFor`**
-   - รับ `groups` เพิ่ม, คำนวณ `itemGroupIds` ของ item, เพิ่มเงื่อนไข OR เดียวกัน
-   - `tradeName` อ่านผ่าน `tradeNameKeys` ใหม่ (`['trade_name','tradename','tradeName']`)
+2. **call sites ของ matcher (~6 ไฟล์)** — `useItemGroupMembership()` hook กลาง โหลด
+   master-items + item-groups (React Query, cache อยู่แล้ว) คืน `Map<itemNo, string[]>`
+   แต่ละหน้าเรียก hook แล้วส่ง `membership.get(item.sampleId) ?? []` เข้า matcher
+   - ไฟล์: `LabTestingPage`, `LabTestingDetailPage`, `QCTestingDetailPage`,
+     `PetitionListPage`, `components/petition/PetitionView`, `lib/qcProgress`
+     (qcProgress รับ membership ผ่าน arg เพราะเป็น lib ไม่ใช่ component)
 
-3. **`optionFilters`** (กรอง option ของช่อง enum ตามชนิด item): จุดที่ evaluate
-   optionFilters ปัจจุบัน ให้เพิ่มการเช็ค `filter.itemGroups` แบบเดียวกัน
-   (ค้นหาจุด evaluate ตอนทำ plan — ใช้ที่เดียวกับ commonNames/productTypes ของ filter)
+3. **`src/pages/MasterItems.tsx` → `getParametersFor`** — รับ `itemGroupIds` (คำนวณจาก
+   `resolveItemGroups` บน full record), เพิ่มเงื่อนไข OR เดียวกัน;
+   `tradeName` อ่านผ่าน `tradeNameKeys` ใหม่ (`['trade_name','tradename','tradeName']`)
 
-มี unit test สำหรับ `resolveItemGroups` (include/exclude ชนะ rule, commonname OR
-tradename, เฉพาะ active) และ test เพิ่มใน `petitionTestItems.test.ts` ว่า param ที่อ้าง
-group match item ที่อยู่ในกลุ่ม
+มี unit test: `resolveItemGroups` (include/exclude ชนะ rule, commonname OR tradename,
+เฉพาะ active), `buildItemGroupIndex`, และ case ใน `petitionTestItems.test.ts` ว่า param
+ที่อ้าง group match item เมื่อส่ง itemGroupIds ที่ตรง
 
 ## 4. UI
 
