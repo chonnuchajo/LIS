@@ -8,24 +8,40 @@ const PrintConfig = require('../models/PrintConfig');
 
 // docType defaults — mirror ของ src/lib/printConfig.ts PRINT_DOC_TYPES
 const DOC_DEFAULTS = [
-  { slug: 'sample-label',    printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'label-6x4' },
+  { slug: 'sample-label',    printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'label-100x50' },
   { slug: 'coa',             printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
   { slug: 'service-request', printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
   { slug: 'production-plan', printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
   { slug: 'stock-label',     printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'label-6x4' },
 ];
 const ALLOWED_SLUGS = DOC_DEFAULTS.map((d) => d.slug);
+const LABEL_100X50 = { widthMm: 100, heightMm: 50, dpi: 203 };
+const DEFAULT_CUPS_BASE_URL = (process.env.PRINT_CUPS_BASE_URL || 'https://192.168.0.237:631').replace(/\/+$/, '');
 
 // hosts ที่ Puppeteer ยอมให้โหลด (ฟอนต์ + โลโก้) — request อื่นถูก abort
 const ALLOWED_HOSTS = new Set(['fonts.googleapis.com', 'fonts.gstatic.com', 'i.ibb.co']);
 
+function inferredCupsPrinterUrl(printerName, cupsPrinterUrl = '') {
+  const explicit = String(cupsPrinterUrl || '').trim();
+  if (explicit) return explicit;
+
+  const rawPrinter = String(printerName || '').trim();
+  const match = rawPrinter.match(/^(.*?)\s+on\s+https?$/i);
+  if (!match) return '';
+
+  const queue = match[1].trim();
+  if (!queue) return '';
+  return `${DEFAULT_CUPS_BASE_URL}/printers/${encodeURIComponent(queue)}`;
+}
+
 function pick(doc) {
+  const cupsPrinterUrl = inferredCupsPrinterUrl(doc.printerName, doc.cupsPrinterUrl);
   return {
     slug: doc.slug,
     printerName: doc.printerName || '',
-    cupsPrinterUrl: doc.cupsPrinterUrl || '',
+    cupsPrinterUrl,
     copies: typeof doc.copies === 'number' ? doc.copies : 1,
-    paperSize: doc.paperSize || 'A4',
+    paperSize: doc.slug === 'sample-label' ? 'label-100x50' : (doc.paperSize || 'A4'),
   };
 }
 
@@ -47,8 +63,51 @@ function validate(body) {
   if (copies != null && (typeof copies !== 'number' || !Number.isInteger(copies) || copies < 1 || copies > 99)) {
     return 'จำนวนชุดต้องเป็นจำนวนเต็ม 1–99';
   }
-  if (paperSize != null && !['A4', 'label-6x4'].includes(paperSize)) return 'paperSize ไม่ถูกต้อง';
+  if (paperSize != null && !['A4', 'label-100x50', 'label-6x4'].includes(paperSize)) return 'paperSize ไม่ถูกต้อง';
   return null;
+}
+
+function effectivePaperSize(cfg) {
+  // Sample labels are designed as 100x50mm in the React template. Force legacy
+  // saved configs to the matching media so old DB rows do not print on 6x4.
+  if (cfg.slug === 'sample-label') return 'label-100x50';
+  return cfg.paperSize || 'A4';
+}
+
+function paperSpec(paperSize) {
+  if (paperSize === 'label-100x50') {
+    return {
+      media: 'custom_100x50mm_100x50mm',
+      mediaCol: {
+        'media-size': { 'x-dimension': 10000, 'y-dimension': 5000 },
+        'media-left-margin': 0,
+        'media-right-margin': 0,
+        'media-top-margin': 0,
+        'media-bottom-margin': 0,
+      },
+      // PDF page is already landscape 100x50 and matches the media exactly, so do
+      // NOT request a re-orientation — CUPS would rotate it to 50x100 and scale it
+      // down to fit, leaving the label only partially filled.
+      pdf: { width: '100mm', height: '50mm' },
+    };
+  }
+  if (paperSize === 'label-6x4') {
+    return {
+      media: 'custom_6x4in_6x4in',
+      mediaCol: {
+        'media-size': { 'x-dimension': 15240, 'y-dimension': 10160 },
+        'media-left-margin': 0,
+        'media-right-margin': 0,
+        'media-top-margin': 0,
+        'media-bottom-margin': 0,
+      },
+      pdf: { width: '152.4mm', height: '101.6mm' },
+    };
+  }
+  return {
+    media: 'A4',
+    pdf: { format: 'A4' },
+  };
 }
 
 function cupsTargetFromUrl(cupsPrinterUrl, fallbackPrinterName = '') {
@@ -99,22 +158,76 @@ function cupsRequestOptions(cupsPrinterUrl) {
   return opts;
 }
 
+function mmToDots(mm, dpi) {
+  return Math.round((mm / 25.4) * dpi);
+}
+
+async function renderSampleLabelPngBuffers(page) {
+  const widthDots = mmToDots(LABEL_100X50.widthMm, LABEL_100X50.dpi);
+  const heightDots = mmToDots(LABEL_100X50.heightMm, LABEL_100X50.dpi);
+  const cssWidth = Math.round((LABEL_100X50.widthMm / 25.4) * 96);
+  const cssHeight = Math.round((LABEL_100X50.heightMm / 25.4) * 96);
+  const scale = widthDots / cssWidth;
+
+  await page.setViewport({
+    width: cssWidth + 40,
+    height: cssHeight + 40,
+    deviceScaleFactor: scale,
+  });
+
+  const labels = await page.$$('.label-page');
+  if (labels.length === 0) {
+    throw new Error('ไม่พบ element .label-page สำหรับฉลาก');
+  }
+
+  const buffers = [];
+  for (const label of labels) {
+    const box = await label.boundingBox();
+    if (!box) continue;
+    const png = await page.screenshot({
+      type: 'png',
+      clip: {
+        x: Math.max(0, box.x),
+        y: Math.max(0, box.y),
+        width: box.width,
+        height: box.height,
+      },
+      omitBackground: false,
+    });
+    buffers.push(png);
+  }
+
+  if (buffers.length === 0) {
+    throw new Error('จับภาพฉลากไม่สำเร็จ');
+  }
+  return buffers;
+}
+
 function printViaCups(tmpPdf, cfg, copies) {
   const target = cupsTargetFromUrl(cfg.cupsPrinterUrl, cfg.printerName);
   const ipp = require('ipp');
   const printer = ipp.Printer(cupsRequestOptions(cfg.cupsPrinterUrl), { uri: target.printerUri, version: '2.0' });
-  const media = cfg.paperSize === 'label-6x4' ? 'Custom.152x102mm' : 'A4';
+  const paper = paperSpec(effectivePaperSize(cfg));
   const pdf = fs.readFileSync(tmpPdf);
+  const jobAttributes = {
+    copies,
+  };
+  if (!paper.mediaCol) {
+    jobAttributes.media = paper.media;
+  }
+  if (paper.mediaCol) {
+    jobAttributes['media-col'] = paper.mediaCol;
+  }
+  if (paper.orientation) {
+    jobAttributes['orientation-requested'] = paper.orientation;
+  }
   const msg = {
     'operation-attributes-tag': {
       'requesting-user-name': 'LIS',
       'job-name': `LIS ${cfg.slug || 'print'} ${new Date().toISOString()}`,
       'document-format': 'application/pdf',
     },
-    'job-attributes-tag': {
-      copies,
-      media,
-    },
+    'job-attributes-tag': jobAttributes,
     data: pdf,
   };
 
@@ -127,6 +240,43 @@ function printViaCups(tmpPdf, cfg, copies) {
       resolve({ target: target.display, response: res });
     });
   });
+}
+
+function printBuffersViaCups(buffers, cfg, copies, documentFormat) {
+  const target = cupsTargetFromUrl(cfg.cupsPrinterUrl, cfg.printerName);
+  const ipp = require('ipp');
+  const printer = ipp.Printer(cupsRequestOptions(cfg.cupsPrinterUrl), { uri: target.printerUri, version: '2.0' });
+  const paper = paperSpec(effectivePaperSize(cfg));
+
+  const printOne = (buffer, index) => new Promise((resolve, reject) => {
+    const jobAttributes = { copies };
+    if (!paper.mediaCol) jobAttributes.media = paper.media;
+    if (paper.mediaCol) jobAttributes['media-col'] = paper.mediaCol;
+    if (paper.orientation) jobAttributes['orientation-requested'] = paper.orientation;
+
+    const msg = {
+      'operation-attributes-tag': {
+        'requesting-user-name': 'LIS',
+        'job-name': `LIS ${cfg.slug || 'print'} ${index + 1}/${buffers.length} ${new Date().toISOString()}`,
+        'document-format': documentFormat,
+      },
+      'job-attributes-tag': jobAttributes,
+      data: buffer,
+    };
+
+    printer.execute('Print-Job', msg, (err, res) => {
+      if (err) return reject(err);
+      if (res?.statusCode && !String(res.statusCode).startsWith('successful-')) {
+        return reject(new Error(`CUPS rejected job: ${res.statusCode}`));
+      }
+      resolve();
+    });
+  });
+
+  return buffers.reduce(
+    (p, buffer, index) => p.then(() => printOne(buffer, index)),
+    Promise.resolve(),
+  ).then(() => ({ target: target.display, count: buffers.length }));
 }
 
 // GET /api/print/printers — รายชื่อเครื่องที่เห็น
@@ -170,7 +320,7 @@ router.put('/config/:slug', async (req, res) => {
         printerName: typeof printerName === 'string' ? printerName : '',
         cupsPrinterUrl: typeof cupsPrinterUrl === 'string' ? cupsPrinterUrl.trim() : '',
         ...(copies != null ? { copies } : {}),
-        ...(paperSize != null ? { paperSize } : {}),
+        paperSize: slug === 'sample-label' ? 'label-100x50' : (paperSize ?? 'A4'),
       },
       { new: true, upsert: true },
     ).lean();
@@ -225,20 +375,33 @@ router.post('/', async (req, res) => {
 </head><body>${html}</body></html>`;
     await page.setContent(fullHtml, { waitUntil: 'load', timeout: 15000 });
 
-    const pdfOpts = cfg.paperSize === 'label-6x4'
-      ? { path: tmpPdf, width: '152.4mm', height: '101.6mm', printBackground: true, preferCSSPageSize: true, margin: { top: 0, right: 0, bottom: 0, left: 0 } }
-      : { path: tmpPdf, format: 'A4', printBackground: true, preferCSSPageSize: true, margin: { top: 0, right: 0, bottom: 0, left: 0 } };
-    await page.pdf(pdfOpts);
-    await browser.close();
-    browser = null;
-
     let printerTarget = cfg.printerName;
-    if (cfg.cupsPrinterUrl) {
-      const result = await printViaCups(tmpPdf, cfg, copies);
+    if (cfg.cupsPrinterUrl && docType === 'sample-label') {
+      const pngBuffers = await renderSampleLabelPngBuffers(page);
+      await browser.close();
+      browser = null;
+      const result = await printBuffersViaCups(pngBuffers, cfg, copies, 'image/png');
       printerTarget = result.target;
     } else {
-      const { print } = require('pdf-to-printer');
-      await print(tmpPdf, { printer: cfg.printerName, copies });
+      const spec = paperSpec(effectivePaperSize(cfg)).pdf;
+      const pdfOpts = {
+        path: tmpPdf,
+        ...spec,
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: 0, right: 0, bottom: 0, left: 0 },
+      };
+      await page.pdf(pdfOpts);
+      await browser.close();
+      browser = null;
+
+      if (cfg.cupsPrinterUrl) {
+        const result = await printViaCups(tmpPdf, cfg, copies);
+        printerTarget = result.target;
+      } else {
+        const { print } = require('pdf-to-printer');
+        await print(tmpPdf, { printer: cfg.printerName, copies });
+      }
     }
 
     res.json({ ok: true, printer: printerTarget, copies });

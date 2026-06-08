@@ -2,35 +2,33 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Minus, Plus, Printer } from "lucide-react";
+import { Laptop, Minus, Plus, Printer } from "lucide-react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
-import { printDocument } from "@/lib/print";
+import { openBrowserPrintPreview, printDocument } from "@/lib/print";
 import {
-  getPrintDocType, isPrinterConfigured, type PrintDocType,
+  getPrintDocType,
+  isPrinterConfigured,
+  type PrintDocType,
 } from "@/lib/printConfig";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   docType: PrintDocType;
-  /** CSS เสริมสำหรับ template ที่ไม่ได้ฝัง <style> ไว้ใน children (เช่น COA) */
   css?: string;
-  children: React.ReactNode; // template ที่จะ preview + พิมพ์
+  children: React.ReactNode;
 }
 
-/**
- * ย่อ/ขยายเนื้อหา preview ให้เต็มความกว้างที่มีเสมอ (กันเลื่อนซ้ายขวา + เห็นชัด) — เอกสาร
- * กว้างเกินกรอบจะถูกย่อ (เช่น ใบคำขอหน้า 2 เป็น A4 แนวนอน 297mm) ส่วนฉลากเล็กจะถูกขยายขึ้น.
- * transform scale อยู่ที่ตัวครอบ *นอก* printRef จึงไม่ถูกจับตอน serialize → ของจริงที่ส่งไป
- * พิมพ์ขนาดเท่าเดิม ไม่กระทบขนาดปริ้น.
- */
-// chrome แนวนอนของกรอบขาว (p-2 ซ้าย+ขวา + border ซ้าย+ขวา) — ต้องตรงกับ className ด้านล่าง
 const BOX_CHROME = 18;
 
 function ScaledPreview({
@@ -50,30 +48,24 @@ function ScaledPreview({
     const outer = outerRef.current;
     const content = contentRef.current;
     if (!outer || !content) return;
+
     const measure = () => {
-      // scrollWidth/Height = ขนาด layout จริง ไม่ขึ้นกับ transform ที่ใส่ไว้
-      // หัก chrome ของกรอบขาว (p-2 = 8px*2 + border 1px*2 = 18px) ออกก่อน ไม่งั้น
-      // กล่องล้นออกกว้างกว่า dialog → เกิด scroll ซ้าย-ขวา ตอนเอกสาร A4 ย่อเต็มกรอบ
       const avail = outer.clientWidth - BOX_CHROME;
       const natW = content.scrollWidth;
-      // เต็มความกว้างเสมอ: กว้างเกิน→ย่อ, เล็กเกิน→ขยาย. scale อยู่นอก printRef ของจริง
-      // ที่ส่งไปพิมพ์จึงขนาดเดิม ไม่กระทบขนาดปริ้น. dialog ถูก cap ความกว้างไว้ scale จึงไม่บานเกิน
       setScale(natW > 0 ? avail / natW : 1);
       setNaturalWidth(natW);
       setNaturalHeight(content.scrollHeight);
     };
+
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(outer);
     return () => ro.disconnect();
   }, [children]);
 
-  // กรอบขาวหดมาพอดีตัวเอกสารที่ย่อแล้ว แล้ว center กลาง dialog — กันที่ว่างโล่ง
-  // ข้างฉลากเล็กๆ (เอกสาร A4 ที่ต้องย่อจะ scale จนเต็มความกว้างพอดีอยู่แล้ว)
   return (
     <div ref={outerRef} className="flex justify-center">
       <div className="overflow-hidden rounded border bg-white p-2">
-        {/* จองขนาดตามที่ย่อแล้ว เพื่อให้กรอบ + ที่ว่างด้านล่างพอดี */}
         <div style={{ width: naturalWidth * scale, height: naturalHeight * scale }}>
           <div
             ref={contentRef}
@@ -91,13 +83,17 @@ function ScaledPreview({
   );
 }
 
-export default function PrintPreviewDialog({ open, onOpenChange, docType, css, children }: Props) {
+export default function PrintPreviewDialog({
+  open,
+  onOpenChange,
+  docType,
+  css,
+  children,
+}: Props) {
   const printRef = useRef<HTMLDivElement>(null);
   const [copies, setCopies] = useState(1);
   const [printing, setPrinting] = useState(false);
   const meta = getPrintDocType(docType);
-  // ฉลากกว้างแค่ 100mm — dialog กว้างปานกลาง แล้วให้ ScaledPreview ขยายฉลากเต็มกรอบให้เห็นชัด
-  // (ไม่ต้องกว้างเท่าเอกสาร A4 แต่กว้างพอให้ขยายอ่านง่าย)
   const widthClass = docType === "sample-label" ? "sm:max-w-2xl" : "sm:max-w-4xl";
 
   const { data: configs } = useQuery({
@@ -105,7 +101,8 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
     queryFn: api.getPrintConfigs,
     enabled: open,
   });
-  const cfg = configs?.find((c) => c.slug === docType);
+
+  const cfg = configs?.find((item) => item.slug === docType);
   const configured = isPrinterConfigured(cfg);
   const printerTarget = cfg?.cupsPrinterUrl?.trim() || cfg?.printerName;
 
@@ -122,6 +119,14 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
     }
   }
 
+  function handleBrowserPreview() {
+    try {
+      openBrowserPrintPreview(meta?.label ?? docType, printRef.current, { css });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "เปิด print preview ไม่สำเร็จ");
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={`${widthClass} max-h-[90vh] overflow-y-auto overflow-x-hidden`}>
@@ -133,7 +138,7 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
 
         {!configured && (
           <p className="text-sm text-red-600">
-            ยังไม่ได้ตั้งค่าเครื่องพิมพ์สำหรับเอกสารนี้ —{" "}
+            ยังไม่ได้ตั้งค่าเครื่องพิมพ์สำหรับเอกสารนี้{" "}
             <Link to="/settings" className="underline" onClick={() => onOpenChange(false)}>
               ไปหน้าตั้งค่าระบบ
             </Link>
@@ -142,14 +147,16 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
 
         <DialogFooter className="items-center gap-3 sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <Label htmlFor="print-copies" className="text-sm">จำนวนชุด</Label>
+            <Label htmlFor="print-copies" className="text-sm">
+              จำนวนชุด
+            </Label>
             <div className="flex items-center">
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
                 className="h-9 w-9 rounded-r-none"
-                onClick={() => setCopies((c) => Math.max(1, c - 1))}
+                onClick={() => setCopies((value) => Math.max(1, value - 1))}
                 disabled={copies <= 1}
                 aria-label="ลดจำนวนชุด"
               >
@@ -170,19 +177,27 @@ export default function PrintPreviewDialog({ open, onOpenChange, docType, css, c
                 variant="outline"
                 size="icon"
                 className="h-9 w-9 rounded-l-none"
-                onClick={() => setCopies((c) => Math.min(99, c + 1))}
+                onClick={() => setCopies((value) => Math.min(99, value + 1))}
                 disabled={copies >= 99}
                 aria-label="เพิ่มจำนวนชุด"
               >
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
-            {configured && <span className="text-sm text-muted-foreground break-all">→ {printerTarget}</span>}
+            {configured && <span className="break-all text-sm text-muted-foreground">→ {printerTarget}</span>}
           </div>
+
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>ปิด</Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              ปิด
+            </Button>
+            <Button variant="outline" onClick={handleBrowserPreview} className="gap-2">
+              <Laptop className="h-4 w-4" />
+              Windows Preview
+            </Button>
             <Button onClick={handlePrint} disabled={!configured || printing} className="gap-2">
-              <Printer className="w-4 h-4" /> {printing ? "กำลังพิมพ์…" : "พิมพ์"}
+              <Printer className="h-4 w-4" />
+              {printing ? "กำลังพิมพ์..." : "พิมพ์"}
             </Button>
           </div>
         </DialogFooter>

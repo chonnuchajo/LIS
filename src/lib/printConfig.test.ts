@@ -18,7 +18,7 @@ describe("PRINT_DOC_TYPES", () => {
 describe("getPrintDocType", () => {
   it("returns metadata for a known slug", () => {
     expect(getPrintDocType("coa")?.defaultPaper).toBe("A4");
-    expect(getPrintDocType("sample-label")?.defaultPaper).toBe("label-6x4");
+    expect(getPrintDocType("sample-label")?.defaultPaper).toBe("label-100x50");
   });
 });
 
@@ -46,6 +46,7 @@ describe("isPrinterConfigured", () => {
 describe("validatePrintConfig", () => {
   it("passes a valid config", () => {
     expect(validatePrintConfig({ printerName: "HP", copies: 2, paperSize: "A4" })).toBeNull();
+    expect(validatePrintConfig({ printerName: "Zebra", copies: 1, paperSize: "label-100x50" })).toBeNull();
   });
   it("passes a valid CUPS URL", () => {
     expect(validatePrintConfig({
