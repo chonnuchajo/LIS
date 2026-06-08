@@ -90,6 +90,33 @@ async function axiosStyleRequest<T>(path: string, options?: RequestInit): Promis
   return { data: { data } };
 }
 
+// Fetch a binary file (e.g. export to xlsx/pdf). Tries each API base; on a JSON
+// response treats it as an error body (server reports failures as JSON).
+async function fetchBlob(path: string, options?: RequestInit): Promise<Blob> {
+  let lastError: Error | null = null;
+  for (let i = 0; i < API_BASES.length; i += 1) {
+    const base = API_BASES[i];
+    const res = await fetch(`${base}${path}`, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...options?.headers },
+    });
+    const contentType = res.headers.get("content-type") || "";
+    if (res.ok && !contentType.includes("application/json")) {
+      return res.blob();
+    }
+    if (res.status === 404 && i < API_BASES.length - 1) continue;
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    const message = (body && typeof body === "object")
+      ? String((body as { error?: unknown; message?: unknown }).error
+          || (body as { message?: unknown }).message
+          || "Export failed")
+      : "Export failed";
+    if (res.ok) { lastError = new Error(message); continue; }
+    throw new Error(message);
+  }
+  throw lastError ?? new Error("Export failed");
+}
+
 export const api = {
   get: <T>(path: string) => axiosStyleRequest<T>(path),
   post: <T>(path: string, body?: unknown) =>
@@ -99,6 +126,12 @@ export const api = {
   put: <T>(path: string, body?: unknown) =>
     axiosStyleRequest<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => axiosStyleRequest<T>(path, { method: "DELETE" }),
+  // Export Master Item rows to a downloadable file (xlsx or pdf)
+  exportMasterItems: (format: "xlsx" | "pdf", rows: unknown[], title?: string) =>
+    fetchBlob("/master-items/export", {
+      method: "POST",
+      body: JSON.stringify({ format, rows, title }),
+    }),
   // Auth
   login: (email: string, password: string) =>
     request<{ email: string; name: string; role: string }>("/auth/login", {
@@ -624,6 +657,7 @@ export type ParameterValueField = {
     productTypes?: string[];   // 'water' | 'sand' | 'powder'
     categories?: string[];     // 'RM' | 'FG' (UI parity เท่านั้น — ไม่ enforce ที่ runtime)
     subCategories?: string[];  // prefix code เช่น 'F', 'FC', 'RO' (uppercase)
+    itemGroups?: string[];     // group ID ที่ option นี้จำกัดให้แสดง
   }>;
 };
 
@@ -641,6 +675,7 @@ export type ParameterItem = {
   productTypes?: string[];
   categories?: string[];
   subCategories?: string[];
+  itemGroups?: string[];
   valueFields?: ParameterValueField[];
   sortOrder?: number;
   note?: string;
@@ -648,6 +683,18 @@ export type ParameterItem = {
   hasPhases?: boolean;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type ItemGroupItem = {
+  _id: string;
+  name: string;
+  description?: string;
+  commonNames: string[];
+  tradeNames: string[];
+  includeItemNos: string[];
+  excludeItemNos: string[];
+  status: "active" | "inactive";
+  sortOrder?: number;
 };
 
 // These functions use bare fetch (not fetchApi) because FormData upload
