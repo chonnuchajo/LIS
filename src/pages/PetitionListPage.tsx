@@ -18,6 +18,7 @@ import { useNotifications } from '@/context/NotificationContext';
 import { api, type ParameterItem } from '@/lib/api';
 import { normalizeRoles } from "@/lib/roles";
 import { matchParametersForItem, parameterNamesForPetition } from '@/lib/petitionTestItems';
+import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import {
   PETITION_STATUSES,
   PETITION_DEPT_LABELS,
@@ -47,11 +48,16 @@ const petitionHasLabItems = (petition: Petition) =>
 const petitionHasLabReadableItem = (
   petition: Petition,
   labParams: ParameterItem[],
+  membership?: Map<string, string[]>,
 ) =>
   petition.items.some(
     (item) =>
       isLabBatchNo(item.batchNo) &&
-      matchParametersForItem(item, labParams).length > 0,
+      matchParametersForItem(
+        item,
+        labParams,
+        membership?.get(String(item.sampleId ?? '').trim()) ?? [],
+      ).length > 0,
   );
 
 function isOwnSubmission(
@@ -123,6 +129,7 @@ export default function PetitionListPage() {
   const canViewAll = roles.includes('admin');
   const canCreatePetition = canUserCreatePetition(user, canAccess('/petitions/new'));
   const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
+  const groupMembership = useItemGroupMembership();
 
   const status = searchParams.get('status') ?? '';
   const search = searchParams.get('search') ?? searchParams.get('q') ?? searchParams.get('requestNo') ?? '';
@@ -202,10 +209,10 @@ export default function PetitionListPage() {
     if (!data?.items) return [];
     let items = canViewAll ? data.items : data.items.filter((p) => canSeePetition(p, user));
     if (isLabUser && paramsLoaded) {
-      items = items.filter((p) => petitionHasLabReadableItem(p, displayParameters));
+      items = items.filter((p) => petitionHasLabReadableItem(p, displayParameters, groupMembership));
     }
     return items;
-  }, [data?.items, canViewAll, user, isLabUser, paramsLoaded, displayParameters]);
+  }, [data?.items, canViewAll, user, isLabUser, paramsLoaded, displayParameters, groupMembership]);
 
   const totalCount = canViewAll ? data?.total ?? 0 : ownedItems.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));

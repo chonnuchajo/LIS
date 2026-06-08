@@ -6,6 +6,7 @@ import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
 import { api, type ParameterItem } from '@/lib/api';
 import { matchParametersForItem } from '@/lib/petitionTestItems';
+import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -33,8 +34,12 @@ const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
 
 const ENTRY_STATUSES = new Set(['pendingReview', 'inProgress']);
 const isLabBatchNo = (batchNo?: string | null) => /[16]$/.test(String(batchNo ?? '').trim());
-const isLabReadableItem = (it: PetitionItem, params: ParameterItem[]) =>
-  isLabBatchNo(it.batchNo) && matchParametersForItem(it, params).length > 0;
+const isLabReadableItem = (
+  it: PetitionItem,
+  params: ParameterItem[],
+  itemGroupIds: string[] = [],
+) =>
+  isLabBatchNo(it.batchNo) && matchParametersForItem(it, params, itemGroupIds).length > 0;
 
 export default function LabTestingPage() {
   const navigate = useNavigate();
@@ -46,6 +51,9 @@ export default function LabTestingPage() {
   const [scanOpen, setScanOpen] = useState(false);
   const [labParams, setLabParams] = useState<ParameterItem[]>([]);
   const [paramsLoaded, setParamsLoaded] = useState(false);
+  const groupMembership = useItemGroupMembership();
+  const idsFor = (it: { sampleId?: string }) =>
+    groupMembership.get(String(it?.sampleId ?? '').trim()) ?? [];
 
   useEffect(() => {
     api.getParameters()
@@ -70,7 +78,7 @@ export default function LabTestingPage() {
   const petitions: Petition[] = (data?.items ?? [])
     .filter((p) =>
       paramsLoaded
-        ? (p.items ?? []).some((it) => isLabReadableItem(it, labParams))
+        ? (p.items ?? []).some((it) => isLabReadableItem(it, labParams, idsFor(it)))
         : (p.items ?? []).some((it) => isLabBatchNo(it.batchNo)),
     )
     .filter((p) => isFullAccess || p.assignedTo?.name === user?.name);
@@ -104,7 +112,7 @@ export default function LabTestingPage() {
       className: 'align-top',
       cell: (p) => {
         const labItems = (p.items ?? []).filter((it) =>
-          paramsLoaded ? isLabReadableItem(it, labParams) : isLabBatchNo(it.batchNo),
+          paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it)) : isLabBatchNo(it.batchNo),
         );
         return (
           <>
@@ -131,7 +139,7 @@ export default function LabTestingPage() {
       className: 'max-w-[280px] text-sm text-grey-600 align-top',
       cell: (p) => {
         const labItems = (p.items ?? []).filter((it) =>
-          paramsLoaded ? isLabReadableItem(it, labParams) : isLabBatchNo(it.batchNo),
+          paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it)) : isLabBatchNo(it.batchNo),
         );
         return labItems.length > 0 ? (
           <div className="space-y-1">

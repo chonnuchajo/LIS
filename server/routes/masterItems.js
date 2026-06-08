@@ -1,4 +1,6 @@
 const express = require('express');
+const fs = require('fs');
+const XLSX = require('xlsx');
 
 const router = express.Router();
 
@@ -54,6 +56,126 @@ async function forwardToWebhook(req, res) {
     });
   }
 }
+
+// ---- Export (xlsx / pdf) -------------------------------------------------
+// Client ส่งแถวที่กรองแล้วมา, server แปลงเป็นไฟล์ดาวน์โหลด (reuse xlsx + puppeteer)
+
+function computeColumns(rows) {
+  const seen = [];
+  const set = new Set();
+  for (const row of rows) {
+    if (row && typeof row === 'object') {
+      for (const key of Object.keys(row)) {
+        if (!set.has(key)) { set.add(key); seen.push(key); }
+      }
+    }
+  }
+  return seen;
+}
+
+function cellToString(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
+}
+
+function dateStamp() {
+  return new Date().toISOString().slice(0, 10).replace(/-/g, '');
+}
+
+router.post('/export', async (req, res) => {
+  try {
+    const { format, rows, title } = req.body || {};
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ error: 'ไม่มีข้อมูลสำหรับ export' });
+    }
+    if (format !== 'xlsx' && format !== 'pdf') {
+      return res.status(400).json({ error: 'format ไม่ถูกต้อง (รองรับ xlsx หรือ pdf)' });
+    }
+
+    const columns = computeColumns(rows);
+    const baseName = `master-item-${dateStamp()}`;
+
+    if (format === 'xlsx') {
+      const data = rows.map((row) => {
+        const obj = {};
+        for (const col of columns) obj[col] = cellToString(row && row[col]);
+        return obj;
+      });
+      const ws = XLSX.utils.json_to_sheet(data, { header: columns });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Master Item');
+      const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${baseName}.xlsx"`);
+      return res.send(buf);
+    }
+
+    // format === 'pdf'
+    const chromePath = process.env.PRINT_CHROME_PATH;
+    if (!chromePath || !fs.existsSync(chromePath)) {
+      return res.status(400).json({ error: 'ไม่พบ Chrome สำหรับสร้าง PDF (ตั้งค่า PRINT_CHROME_PATH)' });
+    }
+
+    const headHtml = columns.map((c) => `<th>${escapeHtml(c)}</th>`).join('');
+    const bodyHtml = rows.map((row) => {
+      const tds = columns.map((c) => `<td>${escapeHtml(cellToString(row && row[c]))}</td>`).join('');
+      return `<tr>${tds}</tr>`;
+    }).join('');
+    const docTitle = escapeHtml(title || 'Master Item');
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4 landscape; margin: 8mm; }
+  * { font-family: 'Kanit', sans-serif; }
+  h1 { font-size: 12px; margin: 0 0 4px; }
+  .meta { font-size: 8px; color: #555; margin-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; table-layout: auto; }
+  thead { display: table-header-group; }
+  th, td { border: 1px solid #999; padding: 2px 3px; font-size: 7px; text-align: left; vertical-align: top; word-break: break-word; }
+  th { background: #eee; font-weight: 600; }
+</style></head><body>
+  <h1>${docTitle}</h1>
+  <div class="meta">จำนวน ${rows.length} รายการ</div>
+  <table><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>
+</body></html>`;
+
+    const puppeteer = require('puppeteer-core');
+    let browser;
+    try {
+      browser = await puppeteer.launch({
+        executablePath: chromePath,
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      });
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'load', timeout: 20000 });
+      await page.evaluateHandle('document.fonts.ready').catch(() => {});
+      const pdf = await page.pdf({
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: '8mm', right: '8mm', bottom: '8mm', left: '8mm' },
+      });
+      await browser.close();
+      browser = null;
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${baseName}.pdf"`);
+      // page.pdf() returns a Uint8Array; wrap in Buffer so Express sends raw bytes
+      // (a plain Uint8Array would be JSON-serialized by res.send)
+      return res.send(Buffer.from(pdf));
+    } finally {
+      if (browser) await browser.close().catch(() => {});
+    }
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 router.get('/', forwardToWebhook);
 router.post('/', forwardToWebhook);

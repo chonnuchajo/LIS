@@ -23,13 +23,15 @@ export function getItemSubCategory(item: PetitionItem): string {
 }
 
 // Returns true when the parameter's "ใช้กับ" criteria fit this petition item.
-// applyAll → match unconditionally. Otherwise it's an OR across the four
+// applyAll → match unconditionally. Otherwise it's an OR across the five
 // dimensions we can derive from a PetitionItem (itemName / commonName /
-// productType / subCategory). Categories (RM/FG) aren't carried on the item
-// so we can't enforce them from the petition side — use subCategories instead.
+// productType / subCategory / itemGroups). Categories (RM/FG) aren't carried
+// on the item so we can't enforce them from the petition side — use
+// subCategories instead.
 export function parameterAppliesToItem(
   param: ParameterItem,
   item: PetitionItem,
+  itemGroupIds: string[] = [],
 ): boolean {
   if (param.applyAll) return true;
 
@@ -37,12 +39,14 @@ export function parameterAppliesToItem(
   const commonNames = param.commonNames ?? [];
   const productTypes = param.productTypes ?? [];
   const subCategories = param.subCategories ?? [];
+  const itemGroups = param.itemGroups ?? [];
 
   if (
     itemNames.length === 0 &&
     commonNames.length === 0 &&
     productTypes.length === 0 &&
-    subCategories.length === 0
+    subCategories.length === 0 &&
+    itemGroups.length === 0
   ) {
     return false;
   }
@@ -66,12 +70,15 @@ export function parameterAppliesToItem(
   const subCat = getItemSubCategory(item);
   if (subCat && subCategories.includes(subCat)) return true;
 
+  if (itemGroups.length > 0 && itemGroups.some((g) => itemGroupIds.includes(g))) return true;
+
   return false;
 }
 
 export function matchParametersForItem(
   item: PetitionItem,
   params: ParameterItem[],
+  itemGroupIds: string[] = [],
 ): ParameterItem[] {
   // Lab-scope parameters only apply to items actually sent to lab
   // (lab batch = batchNo ending in 1/6). This gate is independent of the
@@ -85,7 +92,7 @@ export function matchParametersForItem(
   );
 
   if (!item.testItems) {
-    return active.filter((p) => parameterAppliesToItem(p, item));
+    return active.filter((p) => parameterAppliesToItem(p, item, itemGroupIds));
   }
 
   const names = item.testItems
@@ -96,7 +103,7 @@ export function matchParametersForItem(
   return active.filter(
     (p) =>
       names.includes((p.name ?? '').toLowerCase()) &&
-      parameterAppliesToItem(p, item),
+      parameterAppliesToItem(p, item, itemGroupIds),
   );
 }
 
@@ -126,6 +133,7 @@ export function parameterNamesForPetition(
 export function visibleEnumOptions(
   field: ParameterValueField,
   item: PetitionItem,
+  itemGroupIds: string[] = [],
 ): string[] {
   const options = field.options ?? [];
   const filters = field.optionFilters;
@@ -145,11 +153,13 @@ export function visibleEnumOptions(
     const commonNames = f.commonNames ?? [];
     const productTypes = f.productTypes ?? [];
     const subCategories = f.subCategories ?? [];
+    const itemGroups = f.itemGroups ?? [];
     if (
       itemNames.length === 0 &&
       commonNames.length === 0 &&
       productTypes.length === 0 &&
-      subCategories.length === 0
+      subCategories.length === 0 &&
+      itemGroups.length === 0
     ) {
       return true;
     }
@@ -162,6 +172,7 @@ export function visibleEnumOptions(
     }
     if (itemProductType && productTypes.includes(itemProductType)) return true;
     if (itemSubCat && subCategories.includes(itemSubCat)) return true;
+    if (itemGroups.length > 0 && itemGroups.some((gid) => itemGroupIds.includes(gid))) return true;
     return false;
   });
 }

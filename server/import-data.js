@@ -84,12 +84,26 @@ function dbNameFromUri(uri) {
       const name = payload.collection || path.basename(file, '.json');
       const docs = payload.documents || [];
 
+      // Only seed collections that are missing or empty. A collection that
+      // already holds data is left untouched — re-importing into it caused
+      // duplicates (seed docs carry fixed _ids that don't match the _ids the
+      // app generated locally, so by-_id upserts insert a second copy).
+      // Gate on doc count, not mere existence: server boot auto-creates every
+      // collection empty, so an existence check alone would skip everything.
+      const col = db.collection(name);
+      if (existing.has(name)) {
+        const have = await col.countDocuments();
+        if (have > 0) {
+          console.log(`  ⏭ ${name}: already has ${have} doc(s) — skipped`);
+          continue;
+        }
+      }
+
       // create collection + indexes if missing
       if (!existing.has(name)) {
         await db.createCollection(name);
         console.log(`  📦 created collection "${name}"`);
       }
-      const col = db.collection(name);
       for (const ix of payload.indexes || []) {
         const { key, name: ixName, v, ns, background, ...opts } = ix;
         try {

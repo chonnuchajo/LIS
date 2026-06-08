@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { api, type ParameterItem } from '@/lib/api';
 import { normalizeRoles } from "@/lib/roles";
 import { matchParametersForItem } from '@/lib/petitionTestItems';
+import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 
 interface Props { petition: Petition; }
 
@@ -36,6 +37,9 @@ export default function PetitionView({ petition: p }: Props) {
   const roles = normalizeRoles(user);
   const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
+  const groupMembership = useItemGroupMembership();
+  const idsFor = (it: { sampleId?: string }) =>
+    groupMembership.get(String(it?.sampleId ?? '').trim()) ?? [];
   const [results, setResults] = useState<QCTestResult[]>([]);
   useEffect(() => {
     if (!canSeeTestItems) return;
@@ -96,7 +100,7 @@ export default function PetitionView({ petition: p }: Props) {
         <CardContent className="space-y-3">
           {p.items.map((item) => {
             const lab = item.batchNo && isLabBatch(item.batchNo);
-            const matchedParams = canSeeTestItems ? matchParametersForItem(item, parameters) : [];
+            const matchedParams = canSeeTestItems ? matchParametersForItem(item, parameters, idsFor(item)) : [];
             return (
               <div key={item.seq} className="rounded-[10px] border border-black-50 p-4 space-y-3">
                 <div className="flex flex-wrap items-baseline gap-2">

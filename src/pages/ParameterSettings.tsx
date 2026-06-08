@@ -60,6 +60,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import {
   api,
+  type ItemGroupItem,
   type ParameterItem,
   type ParameterScope,
   type ParameterValueField,
@@ -233,6 +234,7 @@ const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
   productTypes: [],
   categories: [],
   subCategories: [],
+  itemGroups: [],
   valueFields: [],
   sortOrder: 0,
   note: "",
@@ -706,6 +708,7 @@ type OptionFilter = {
   productTypes?: string[];
   categories?: string[];
   subCategories?: string[];
+  itemGroups?: string[];
 };
 
 type ValueFieldEditorProps = {
@@ -723,9 +726,12 @@ type ValueFieldEditorProps = {
   productTypeOptions?: string[];
   categoryOptions?: string[];
   subCategoryByParent?: Record<SubCategoryParent, string[]>;
+  groupOptions?: string[];
+  groupIdByName?: Map<string, string>;
+  groupNameById?: Map<string, string>;
 };
 
-function summarizeOptionFilter(f: OptionFilter | undefined): string {
+function summarizeOptionFilter(f: OptionFilter | undefined, groupNameById?: Map<string, string>): string {
   if (!f) return '';
   const parts: string[] = [];
   if ((f.itemNames?.length ?? 0) > 0) {
@@ -743,11 +749,15 @@ function summarizeOptionFilter(f: OptionFilter | undefined): string {
   if ((f.subCategories?.length ?? 0) > 0) {
     parts.push(`sub: ${(f.subCategories ?? []).slice(0, 3).join('/')}`);
   }
+  if ((f.itemGroups?.length ?? 0) > 0) {
+    const names = (f.itemGroups ?? []).map((id) => groupNameById?.get(id)).filter(Boolean) as string[];
+    parts.push(names.length > 0 ? `กลุ่ม: ${names.slice(0, 3).join('/')}` : `กลุ่ม: ${(f.itemGroups ?? []).length}`);
+  }
   return parts.join(' · ');
 }
 
-function OptionFilterBadge({ filter }: { filter?: OptionFilter }) {
-  const label = summarizeOptionFilter(filter);
+function OptionFilterBadge({ filter, groupNameById }: { filter?: OptionFilter; groupNameById?: Map<string, string> }) {
+  const label = summarizeOptionFilter(filter, groupNameById);
   if (!label) return null;
   return (
     <Badge variant="secondary" className="gap-1 text-[10px] bg-emerald-50 text-emerald-700 max-w-[280px] truncate">
@@ -765,6 +775,9 @@ function OptionFilterDialog({
   productTypeOptions,
   categoryOptions,
   subCategoryByParent,
+  groupOptions = [],
+  groupIdByName,
+  groupNameById,
   onSetFilter,
   onClear,
 }: {
@@ -775,6 +788,9 @@ function OptionFilterDialog({
   productTypeOptions: string[];
   categoryOptions: string[];
   subCategoryByParent?: Record<SubCategoryParent, string[]>;
+  groupOptions?: string[];
+  groupIdByName?: Map<string, string>;
+  groupNameById?: Map<string, string>;
   onSetFilter: (next: OptionFilter) => void;
   onClear: () => void;
 }) {
@@ -784,7 +800,8 @@ function OptionFilterDialog({
       (filter?.commonNames?.length ?? 0) +
       (filter?.productTypes?.length ?? 0) +
       (filter?.categories?.length ?? 0) +
-      (filter?.subCategories?.length ?? 0) >
+      (filter?.subCategories?.length ?? 0) +
+      (filter?.itemGroups?.length ?? 0) >
     0;
 
   const activeParents = (filter?.categories ?? []).filter(
@@ -879,6 +896,20 @@ function OptionFilterDialog({
               />
             </div>
           )}
+          <MultiSelectPopover
+            label="กลุ่ม Item"
+            placeholder="เลือกกลุ่ม item ที่จัดเอง"
+            values={(filter?.itemGroups ?? []).map((id) => groupNameById?.get(id) ?? id)}
+            onChange={(names) =>
+              onSetFilter({
+                itemGroups: names
+                  .map((name) => groupIdByName?.get(name))
+                  .filter((id): id is string => !!id),
+              })
+            }
+            options={groupOptions}
+            emptyText="ยังไม่มีกลุ่ม — สร้างที่หน้า Master Item"
+          />
         </div>
         <DialogFooter className="gap-2 pt-2">
           <Button type="button" variant="ghost" onClick={onClear} disabled={!hasAny}>
@@ -908,6 +939,9 @@ function ValueFieldEditor({
   productTypeOptions = [],
   categoryOptions = [],
   subCategoryByParent,
+  groupOptions = [],
+  groupIdByName,
+  groupNameById,
 }: ValueFieldEditorProps) {
   const [optionDraft, setOptionDraft] = useState("");
   const [expanded, setExpanded] = useState(!field.label?.trim());
@@ -961,6 +995,7 @@ function ValueFieldEditor({
     if ((merged.productTypes?.length ?? 0) > 0) nonEmpty.productTypes = merged.productTypes;
     if ((merged.categories?.length ?? 0) > 0) nonEmpty.categories = merged.categories;
     if ((merged.subCategories?.length ?? 0) > 0) nonEmpty.subCategories = merged.subCategories;
+    if ((merged.itemGroups?.length ?? 0) > 0) nonEmpty.itemGroups = merged.itemGroups;
     const hasAny = Object.keys(nonEmpty).length > 0;
     let nextFilters: Record<string, OptionFilter>;
     if (!hasAny) {
@@ -1321,7 +1356,7 @@ function ValueFieldEditor({
                       >
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           <span className="font-medium truncate">{opt}</span>
-                          <OptionFilterBadge filter={field.optionFilters?.[opt]} />
+                          <OptionFilterBadge filter={field.optionFilters?.[opt]} groupNameById={groupNameById} />
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
                           <label className="flex cursor-pointer items-center gap-1 text-emerald-700">
@@ -1348,6 +1383,9 @@ function ValueFieldEditor({
                             productTypeOptions={productTypeOptions}
                             categoryOptions={categoryOptions}
                             subCategoryByParent={subCategoryByParent}
+                            groupOptions={groupOptions}
+                            groupIdByName={groupIdByName}
+                            groupNameById={groupNameById}
                             onSetFilter={(next) => setOptionFilter(opt, next)}
                             onClear={() => clearOptionFilter(opt)}
                           />
@@ -1624,6 +1662,9 @@ type DialogProps = {
   productTypeOptions: string[];
   categoryOptions: string[];
   subCategoryByParent: Record<SubCategoryParent, string[]>;
+  groupOptions: string[];
+  groupIdByName: Map<string, string>;
+  groupNameById: Map<string, string>;
   allParameters: ParameterItem[];
   onClose: () => void;
   onSaved: () => void;
@@ -1638,6 +1679,9 @@ function ParameterDialog({
   productTypeOptions,
   categoryOptions,
   subCategoryByParent,
+  groupOptions,
+  groupIdByName,
+  groupNameById,
   allParameters,
   onClose,
   onSaved,
@@ -1791,6 +1835,7 @@ function ParameterDialog({
       productTypes: form.applyAll ? [] : form.productTypes ?? [],
       categories: form.applyAll ? [] : form.categories ?? [],
       subCategories: form.applyAll ? [] : form.subCategories ?? [],
+      itemGroups: form.applyAll ? [] : form.itemGroups ?? [],
       valueFields: form.valueFields ?? [],
       sortOrder: form.sortOrder ?? 0,
       note: form.note?.trim() || "",
@@ -1956,6 +2001,22 @@ function ParameterDialog({
                 emptyText="ยังไม่มี common name ที่ตรวจจับได้"
               />
               <MultiSelectPopover
+                label="กลุ่ม Item"
+                placeholder="เลือกกลุ่ม item ที่จัดเอง"
+                values={(form.itemGroups ?? []).map((id) => groupNameById.get(id) ?? id)}
+                onChange={(names) =>
+                  set(
+                    "itemGroups",
+                    names
+                      .map((name) => groupIdByName.get(name))
+                      .filter((id): id is string => !!id),
+                  )
+                }
+                options={groupOptions}
+                disabled={form.applyAll}
+                emptyText="ยังไม่มีกลุ่ม — สร้างที่หน้า Master Item"
+              />
+              <MultiSelectPopover
                 label="ประเภท"
                 placeholder="เลือกประเภทสินค้า (น้ำ / ทราย / ผง)"
                 values={form.productTypes ?? []}
@@ -2058,6 +2119,9 @@ function ParameterDialog({
                     productTypeOptions={productTypeOptions}
                     categoryOptions={categoryOptions}
                     subCategoryByParent={subCategoryByParent}
+                    groupOptions={groupOptions}
+                    groupIdByName={groupIdByName}
+                    groupNameById={groupNameById}
                   />
                 ))}
               </div>
@@ -2149,6 +2213,37 @@ export default function ParameterSettings() {
       FG: Array.from(acc.FG).sort((a, b) => a.localeCompare(b)),
     } satisfies Record<SubCategoryParent, string[]>;
   }, [masterItems]);
+
+  const itemGroupsQuery = useQuery({
+    queryKey: ["item-groups"],
+    queryFn: async () => {
+      const res = await api.get<ItemGroupItem[]>("/item-groups");
+      return Array.isArray(res.data.data) ? res.data.data : [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+  const itemGroups = itemGroupsQuery.data ?? [];
+
+  // กลุ่ม Item เก็บเป็น _id แต่ picker (MultiSelectPopover) ทำงานกับ "ชื่อ"
+  // → แปลง id↔name ที่ขอบ picker. แสดงเฉพาะกลุ่ม active ใน options.
+  const groupOptions = useMemo(
+    () =>
+      itemGroups
+        .filter((g) => (g.status ?? "active") === "active")
+        .map((g) => g.name)
+        .sort((a, b) => a.localeCompare(b)),
+    [itemGroups],
+  );
+  const groupIdByName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const g of itemGroups) map.set(g.name, g._id);
+    return map;
+  }, [itemGroups]);
+  const groupNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const g of itemGroups) map.set(g._id, g.name);
+    return map;
+  }, [itemGroups]);
 
   const scopedParameters = useMemo(
     () => parameters.filter((p) => (p.scope ?? "qc") === scopeTab),
@@ -2357,7 +2452,7 @@ export default function ParameterSettings() {
                           ) : null}
                         </TableCell>
                         <TableCell>
-                          <ApplyToBadges item={p} />
+                          <ApplyToBadges item={p} groupNameById={groupNameById} />
                         </TableCell>
                         <TableCell>
                           <ValueFieldBadges fields={p.valueFields ?? []} />
@@ -2410,6 +2505,9 @@ export default function ParameterSettings() {
         productTypeOptions={productTypeOptions}
         categoryOptions={categoryOptions}
         subCategoryByParent={subCategoryByParent}
+        groupOptions={groupOptions}
+        groupIdByName={groupIdByName}
+        groupNameById={groupNameById}
         allParameters={parameters}
         onClose={closeDialog}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["parameters"] })}
@@ -2465,7 +2563,13 @@ function SummaryCard({
   );
 }
 
-function ApplyToBadges({ item }: { item: ParameterItem }) {
+function ApplyToBadges({
+  item,
+  groupNameById,
+}: {
+  item: ParameterItem;
+  groupNameById: Map<string, string>;
+}) {
   if (item.applyAll) {
     return (
       <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
@@ -2498,6 +2602,11 @@ function ApplyToBadges({ item }: { item: ParameterItem }) {
       label: "หมวดย่อย",
       values: item.subCategories ?? [],
       color: "bg-orange-50 text-orange-700",
+    },
+    {
+      label: "กลุ่ม",
+      values: (item.itemGroups ?? []).map((id) => groupNameById.get(id) ?? id),
+      color: "bg-rose-50 text-rose-700",
     },
   ].filter((g) => g.values.length > 0);
 
