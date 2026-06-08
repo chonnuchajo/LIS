@@ -4,7 +4,7 @@
 
 **Goal:** เพิ่มแถบ "รับเข้า" รวมศูนย์ในหน้า Stock Management — เลือกหมวด → เลือกรายการ (มี badge สถานะ + กรองใกล้หมด) → เปิด dialog รับเข้าเดิม
 
-**Architecture:** แถบใหม่เป็น selector ห่อ dialog เดิม (`ReceiveBottlesDialog` / `SimpleMoveDialog`) ไม่แตะ backend/API/logic รับเข้า. logic จัดระดับสถานะ stock ("ปกติ/ใกล้หมด/หมด") แยกเป็น pure helper ใน lib พร้อม unit test
+**Architecture:** แถบใหม่เป็น selector ห่อ dialog เดิม (`ReceiveBottlesDialog` / `SimpleMoveDialog`) ไม่แตะ backend/API/logic รับเข้า. การจัดระดับสถานะ stock ใช้ helper canonical เดิม `qtyStatus` จาก `src/lib/stockStatus.ts` (มี unit test อยู่แล้ว) + `summarizeUnits` จาก `src/lib/stockUnit.ts` — ไม่สร้าง helper ซ้ำ
 
 **Tech Stack:** React 18 + TypeScript, TanStack React Query, shadcn/ui, Vitest, Tailwind (`lis.*`)
 
@@ -12,142 +12,31 @@
 
 ## File Structure
 
-- **Create** `src/lib/stockReceive.ts` — ค่าคงที่ low-stock threshold + pure helper จัดระดับสถานะ (`StockLevel`, `levelFromQty`, `levelFromUnits`)
-- **Create** `src/lib/stockReceive.test.ts` — unit test ของ helper
-- **Modify** `src/pages/Stock.tsx` — ย้าย threshold มา import จาก helper, เพิ่ม component `ReceiveTab` + tab trigger/content
+- **Modify** `src/pages/Stock.tsx` — เพิ่ม component `ReceiveTab` + tab trigger/content; reuse `qtyStatus`/`QtyStatus`, `summarizeUnits`, ค่าคงที่ `LOW_STD_QTY/LOW_SOL_QTY/LOW_GLASS_QTY` ที่ประกาศอยู่แล้วในไฟล์
 
-หมายเหตุ: `summarizeUnits` (`src/lib/stockUnit.ts`) คืน `{ sealed, working, expiringSoon, expired }` — helper ใช้ค่านี้
+helper ที่ reuse:
+- `qtyStatus(total, lowThreshold): "out" | "low" | "ok"` (`src/lib/stockStatus.ts`) — `total<=0`→out, `total<=threshold`→low, else ok. ตรงกับ convention ของ Standards เดิม (`<= LOW_STD_QTY`)
+- `summarizeUnits(units, now?)` (`src/lib/stockUnit.ts`) คืน `{ sealed, working, expiringSoon, expired }`
 
----
-
-### Task 1: Pure helper จัดระดับสถานะ stock + test
-
-**Files:**
-- Create: `src/lib/stockReceive.ts`
-- Test: `src/lib/stockReceive.test.ts`
-
-- [ ] **Step 1: เขียน test ที่จะ fail**
-
-สร้าง `src/lib/stockReceive.test.ts`:
-
-```ts
-import { describe, it, expect } from "vitest";
-import {
-  levelFromQty,
-  levelFromUnits,
-  LOW_STD_QTY,
-  LOW_SOL_QTY,
-  LOW_GLASS_QTY,
-} from "./stockReceive";
-
-describe("levelFromQty", () => {
-  it("คืน out เมื่อ qty <= 0", () => {
-    expect(levelFromQty(0, LOW_SOL_QTY)).toBe("out");
-    expect(levelFromQty(-1, LOW_SOL_QTY)).toBe("out");
-  });
-  it("คืน low เมื่อ 0 < qty < threshold", () => {
-    expect(levelFromQty(1, LOW_SOL_QTY)).toBe("low"); // threshold 3
-    expect(levelFromQty(2, LOW_SOL_QTY)).toBe("low");
-  });
-  it("คืน ok เมื่อ qty >= threshold", () => {
-    expect(levelFromQty(3, LOW_SOL_QTY)).toBe("ok");
-    expect(levelFromQty(10, LOW_GLASS_QTY)).toBe("ok");
-  });
-});
-
-describe("levelFromUnits", () => {
-  it("คืน out เมื่อ sealed+working === 0", () => {
-    expect(levelFromUnits({ sealed: 0, working: 0, expiringSoon: 0, expired: 2 }, LOW_STD_QTY)).toBe("out");
-  });
-  it("คืน low เมื่อ active <= threshold", () => {
-    expect(levelFromUnits({ sealed: 1, working: 0, expiringSoon: 0, expired: 0 }, LOW_STD_QTY)).toBe("low");
-  });
-  it("คืน ok เมื่อ active > threshold", () => {
-    expect(levelFromUnits({ sealed: 2, working: 1, expiringSoon: 0, expired: 0 }, LOW_STD_QTY)).toBe("ok");
-  });
-});
-
-describe("constants", () => {
-  it("คงค่าเดิมตาม Stock.tsx", () => {
-    expect(LOW_STD_QTY).toBe(1);
-    expect(LOW_SOL_QTY).toBe(3);
-    expect(LOW_GLASS_QTY).toBe(5);
-  });
-});
-```
-
-- [ ] **Step 2: รัน test ให้เห็นว่า fail**
-
-Run: `npm run test -- src/lib/stockReceive.test.ts`
-Expected: FAIL — `Failed to resolve import "./stockReceive"` (ไฟล์ยังไม่มี)
-
-- [ ] **Step 3: เขียน implementation ขั้นต่ำ**
-
-สร้าง `src/lib/stockReceive.ts`:
-
-```ts
-import type { UnitsSummary } from "./stockUnit";
-
-/** เกณฑ์ low-stock ต่อหมวด (ค่าเดิมจาก Stock.tsx) */
-export const LOW_STD_QTY = 1;
-export const LOW_SOL_QTY = 3;
-export const LOW_GLASS_QTY = 5;
-
-export type StockLevel = "ok" | "low" | "out";
-
-/** ระดับสถานะจากจำนวนคงเหลือตรง ๆ (สารเคมี/เครื่องแก้ว) */
-export function levelFromQty(qty: number, lowThreshold: number): StockLevel {
-  if (qty <= 0) return "out";
-  if (qty < lowThreshold) return "low";
-  return "ok";
-}
-
-/** ระดับสถานะจากสรุปรายขวด (Standards) — นับ sealed+working ที่ใช้งานได้ */
-export function levelFromUnits(sum: UnitsSummary, lowThreshold: number): StockLevel {
-  const active = sum.sealed + sum.working;
-  if (active === 0) return "out";
-  if (active <= lowThreshold) return "low";
-  return "ok";
-}
-```
-
-- [ ] **Step 4: รัน test ให้ผ่าน**
-
-Run: `npm run test -- src/lib/stockReceive.test.ts`
-Expected: PASS ทุกเคส
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/lib/stockReceive.ts src/lib/stockReceive.test.ts
-git commit -m "feat(stock): add stockReceive level helpers + tests"
-```
+> **หมายเหตุประวัติ:** เดิมแพลนมี Task 1 สร้าง `src/lib/stockReceive.ts` แต่ code review พบว่าซ้ำกับ `qtyStatus` ที่มีอยู่แล้ว จึง revert ทิ้ง (commit `0d3977c`) และใช้ `qtyStatus` แทน เหลือ implementation task เดียว
 
 ---
 
-### Task 2: เพิ่ม ReceiveTab + tab ในหน้า Stock
+### Task 1: เพิ่ม ReceiveTab + tab ในหน้า Stock
 
 **Files:**
 - Modify: `src/pages/Stock.tsx`
 
-- [ ] **Step 1: ย้าย threshold มา import จาก helper**
+- [ ] **Step 1: เพิ่ม import helper**
 
-ใน `src/pages/Stock.tsx` ลบบล็อกประกาศค่าคงที่เดิม (3 บรรทัด):
-
-```ts
-const LOW_STD_QTY = 1;
-const LOW_SOL_QTY = 3;
-const LOW_GLASS_QTY = 5;
-```
-
-แล้วเพิ่ม import (วางใกล้ import lib อื่น เช่นหลังบรรทัด `import { summarizeUnits } from "@/lib/stockUnit";`):
+ใน `src/pages/Stock.tsx` เพิ่ม import (วางใกล้ `import { summarizeUnits } from "@/lib/stockUnit";`):
 
 ```ts
-import { LOW_STD_QTY, LOW_SOL_QTY, LOW_GLASS_QTY, levelFromQty, levelFromUnits } from "@/lib/stockReceive";
-import type { StockLevel } from "@/lib/stockReceive";
+import { qtyStatus } from "@/lib/stockStatus";
+import type { QtyStatus } from "@/lib/stockStatus";
 ```
 
-หมายเหตุ: ค่าคงที่ชื่อเดิมทุกตัว — โค้ดในแท็บ Standards/Solvents/Glassware ที่อ้าง `LOW_*` ยังทำงานเหมือนเดิม
+ค่าคงที่ `LOW_STD_QTY/LOW_SOL_QTY/LOW_GLASS_QTY` ประกาศอยู่ต้นไฟล์แล้ว — ใช้ได้เลย ไม่ต้องย้าย
 
 - [ ] **Step 2: เพิ่ม component `ReceiveTab` + `LevelBadge`**
 
@@ -165,7 +54,7 @@ const RECEIVE_CATEGORIES: { value: ReceiveCategory; label: string }[] = [
   { value: "glassware", label: "เครื่องแก้ว" },
 ];
 
-function LevelBadge({ level }: { level: StockLevel }) {
+function LevelBadge({ level }: { level: QtyStatus }) {
   if (level === "out") return <Badge className="bg-destructive/15 text-destructive text-xs">หมด</Badge>;
   if (level === "low") return <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมด</Badge>;
   return <Badge className="bg-emerald-100 text-emerald-700 text-xs">ปกติ</Badge>;
@@ -175,7 +64,7 @@ interface ReceiveRow {
   id: string;
   code: string;
   name: string;
-  level: StockLevel;
+  level: QtyStatus;
   extraBadges: { label: string; tone: "destructive" | "amber" }[];
   needsRestock: boolean;
   onReceive: () => void;
@@ -210,7 +99,7 @@ function ReceiveTab() {
     if (category === "standard") {
       return standards.map((s) => {
         const sum = summarizeUnits(unitsByCode.get(s.code) ?? []);
-        const level = levelFromUnits(sum, LOW_STD_QTY);
+        const level = qtyStatus(sum.sealed + sum.working, LOW_STD_QTY);
         const extraBadges: ReceiveRow["extraBadges"] = [];
         if (sum.expired > 0) extraBadges.push({ label: `หมดอายุ ${sum.expired}`, tone: "destructive" });
         if (sum.expiringSoon > 0) extraBadges.push({ label: `ใกล้หมดอายุ ${sum.expiringSoon}`, tone: "amber" });
@@ -227,12 +116,12 @@ function ReceiveTab() {
     }
     if (category === "solvent") {
       return solvents.map((s) => {
-        const level = levelFromQty(s.qty, LOW_SOL_QTY);
+        const level = qtyStatus(s.qty, LOW_SOL_QTY);
         return { id: s._id, code: "", name: s.name, level, extraBadges: [], needsRestock: level !== "ok", onReceive: () => setMovingSolvent(s) };
       });
     }
     return glassware.map((g) => {
-      const level = levelFromQty(g.qty, LOW_GLASS_QTY);
+      const level = qtyStatus(g.qty, LOW_GLASS_QTY);
       return { id: g._id, code: "", name: g.name, level, extraBadges: [], needsRestock: level !== "ok", onReceive: () => setMovingGlass(g) };
     });
   }, [category, standards, solvents, glassware, unitsByCode]);
@@ -379,7 +268,7 @@ function ReceiveTab() {
 - [ ] **Step 4: type-check**
 
 Run: `npx tsc -p tsconfig.app.json --noEmit`
-Expected: ไม่มี error ใหม่จาก `Stock.tsx` / `stockReceive.ts` (repo มี latent error ~12 ตัวเดิม — ต้องไม่เพิ่มจากไฟล์ที่แก้)
+Expected: ไม่มี error ใหม่จาก `Stock.tsx` (repo มี latent error ~12 ตัวเดิม — ต้องไม่เพิ่ม)
 
 - [ ] **Step 5: lint**
 
@@ -390,12 +279,12 @@ Expected: ไม่มี error ใหม่จากไฟล์ที่แก
 
 ```bash
 git add src/pages/Stock.tsx
-git commit -m "feat(stock): add centralized receive tab"
+git commit -m "feat(stock): add centralized receive tab" -- src/pages/Stock.tsx
 ```
 
 ---
 
-### Task 3: ตรวจ manual บน localhost
+### Task 2: ตรวจ manual บน localhost
 
 **Files:** (ไม่แก้โค้ด — verification เท่านั้น)
 
@@ -419,12 +308,12 @@ Frontend: `npm run dev` (port 8000) + Backend: `cd server && npm run dev` (port 
 - [ ] **Step 3: รัน test ทั้งชุดกันถดถอย**
 
 Run: `npm run test`
-Expected: ผ่านทั้งหมด (รวม `stockReceive.test.ts` ใหม่)
+Expected: ผ่านทั้งหมด
 
 ---
 
 ## Self-Review Notes
 
-- **Spec coverage:** แถบที่ 5 ก่อนประวัติ (Task 2 Step 3) ✓ · default Standards (Task 2 ReceiveTab) ✓ · selector หมวด+ค้นหา+กรองใกล้หมด (Task 2) ✓ · badge เต็มชุดรวม expired/soon (Task 2 rows) ✓ · reuse ReceiveBottlesDialog/SimpleMoveDialog/API + invalidate ตามเดิม (Task 2 dialogs) ✓ · ไม่แตะ backend ✓ · เกณฑ์ LOW_* คงค่าเดิม (Task 1) ✓
-- **Type consistency:** `StockLevel`, `levelFromQty`, `levelFromUnits`, `UnitsSummary` ชื่อตรงกันทุก task · props ของ `ReceiveBottlesDialog` (`standard/onClose/onSaved`) และ `SimpleMoveDialog` (`title/mode/itemName/currentQty/unit/onClose/onSubmit`) ตรงกับนิยามใน `Stock.tsx`/`ReceiveBottlesDialog.tsx` เดิม
+- **Spec coverage:** แถบที่ 5 ก่อนประวัติ (Task 1 Step 3) ✓ · default Standards (Task 1 ReceiveTab) ✓ · selector หมวด+ค้นหา+กรองใกล้หมด (Task 1) ✓ · badge เต็มชุดรวม expired/soon (Task 1 rows) ✓ · reuse ReceiveBottlesDialog/SimpleMoveDialog/API + invalidate ตามเดิม (Task 1 dialogs) ✓ · ไม่แตะ backend ✓ · จัดระดับใช้ qtyStatus canonical (ไม่สร้าง helper ซ้ำ) ✓
+- **Type consistency:** `QtyStatus` ("out"|"low"|"ok") จาก stockStatus ใช้ตรงกันทั้ง `LevelBadge`/`ReceiveRow.level` · props ของ `ReceiveBottlesDialog` (`standard/onClose/onSaved`) และ `SimpleMoveDialog` (`title/mode/itemName/currentQty/unit/onClose/onSubmit`) ตรงกับนิยามใน `Stock.tsx`/`ReceiveBottlesDialog.tsx` เดิม
 - **Placeholder scan:** ไม่มี TBD/TODO — โค้ดครบทุก step
