@@ -167,17 +167,17 @@ export default function ItemGroupManagerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-6xl w-[94vw] max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>จัดกลุ่ม Item</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-[220px_1fr]">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-[280px_1fr]">
           {/* ซ้าย: รายชื่อกลุ่ม */}
-          <div className="space-y-2 border-r pr-3">
+          <div className="space-y-2 border-r pr-4">
             <Button size="sm" variant="outline" className="w-full gap-1" onClick={newGroup}>
               <Plus className="h-4 w-4" /> กลุ่มใหม่
             </Button>
-            <div className="max-h-[50vh] space-y-1 overflow-auto">
+            <div className="max-h-[72vh] space-y-1 overflow-auto">
               {groups.map((grp) => (
                 <button
                   key={grp._id}
@@ -198,7 +198,7 @@ export default function ItemGroupManagerDialog({
           </div>
 
           {/* ขวา: ฟอร์ม */}
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <Label className="text-xs">ชื่อกลุ่ม</Label>
@@ -217,9 +217,9 @@ export default function ItemGroupManagerDialog({
             </div>
             <div className="space-y-1">
               <Label className="text-xs">คำอธิบาย</Label>
-              <Textarea rows={2} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+              <Textarea rows={3} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <ChipMultiSelect label="commonname" placeholder="เลือก commonname"
                 values={draft.commonNames} options={commonNameOptions}
                 onChange={(v) => setDraft({ ...draft, commonNames: v })} />
@@ -239,7 +239,7 @@ export default function ItemGroupManagerDialog({
                 <span>สมาชิกที่เข้ากลุ่มจริง (live)</span>
                 <Badge variant="secondary">{previewMembers.length}</Badge>
               </div>
-              <div className="max-h-28 overflow-auto text-xs">
+              <div className="max-h-48 overflow-auto text-xs">
                 {previewMembers.slice(0, 100).map((m) => (
                   <span key={m.itemNo} className="mr-1 inline-block">{m.itemNo}</span>
                 ))}
