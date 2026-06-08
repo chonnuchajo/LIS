@@ -167,3 +167,23 @@ describe('visibleEnumOptions', () => {
     expect(visibleEnumOptions(field, makeItem({ commonName: 'EW' }))).not.toContain('ของเหลวใส');
   });
 });
+
+describe('item-group matching', () => {
+  it('matchParametersForItem matches a group-only param when itemGroupIds include it', () => {
+    const param = makeParam({ applyAll: false, itemGroups: ['gA'], scope: 'qc' });
+    const item = makeItem({ commonName: 'ZZ', sampleName: 'No match' });
+    // ไม่ส่ง itemGroupIds → ไม่ match
+    expect(matchParametersForItem(item, [param])).toHaveLength(0);
+    // ส่ง itemGroupIds ที่ตรง → match
+    expect(matchParametersForItem(item, [param], ['gA'])).toHaveLength(1);
+  });
+
+  it('visibleEnumOptions shows an option gated by itemGroups when membership matches', () => {
+    const field = makeEnumField({
+      optionFilters: { 'ของเหลวใส': { itemGroups: ['gA'] } },
+    });
+    const item = makeItem({ commonName: 'ZZ', sampleName: 'No match' });
+    expect(visibleEnumOptions(field, item)).not.toContain('ของเหลวใส');
+    expect(visibleEnumOptions(field, item, ['gA'])).toContain('ของเหลวใส');
+  });
+});
