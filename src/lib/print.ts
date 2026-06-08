@@ -45,3 +45,37 @@ export async function printDocument(
   const html = serializeForPrint(el, combinedCss || undefined);
   return api.printDocument({ docType, html, copies: opts?.copies });
 }
+
+export function openBrowserPrintPreview(
+  title: string,
+  el: HTMLElement | null,
+  opts?: { css?: string },
+) {
+  const combinedCss = [collectDocumentCss(), opts?.css].filter(Boolean).join("\n");
+  const html = serializeForPrint(el, combinedCss || undefined);
+  const preview = window.open("", "_blank", "noopener,noreferrer");
+  if (!preview) {
+    throw new Error("เปิดหน้าต่าง print preview ไม่สำเร็จ");
+  }
+
+  preview.document.open();
+  preview.document.write(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+      html, body { margin: 0; padding: 0; background: #fff; font-family: "Kanit", sans-serif; }
+    </style>
+  </head>
+  <body>${html}</body>
+</html>`);
+  preview.document.close();
+
+  preview.onload = () => {
+    preview.focus();
+    preview.print();
+  };
+}
