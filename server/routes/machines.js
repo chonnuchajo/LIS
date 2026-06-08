@@ -65,7 +65,7 @@ router.post('/seed', async (req, res) => {
     const seed = JSON.parse(fs.readFileSync(SEED_PATH, 'utf-8'));
     const ops = seed.map((m) => ({
       updateOne: {
-        filter: { code: m.code },
+        filter: { code: m.code, deletedAt: null },
         update: { $setOnInsert: m },
         upsert: true,
       },

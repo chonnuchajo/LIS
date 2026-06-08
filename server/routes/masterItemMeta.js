@@ -91,7 +91,7 @@ router.put('/', async (req, res) => {
       .filter((entry) => entry.itemNo)
       .map((entry) => ({
         updateOne: {
-          filter: { itemNo: entry.itemNo },
+          filter: { itemNo: entry.itemNo, deletedAt: null },
           update: { $set: entry.update },
           upsert: true,
         },
