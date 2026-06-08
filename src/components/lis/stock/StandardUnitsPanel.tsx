@@ -103,7 +103,7 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
                   <TableCell className="text-center text-muted-foreground">
                     <div className={`flex items-center gap-1 ${isChild ? "pl-5" : ""}`}>
                       {row.depth === 0 && row.hasChildren ? (
-                        <button type="button" onClick={() => toggle(row.rootId)} className="text-muted-foreground hover:text-foreground" title={expanded.has(row.rootId) ? "พับ" : "กาง"}>
+                        <button type="button" onClick={() => toggle(row.rootId)} className="text-muted-foreground hover:text-foreground" aria-expanded={expanded.has(row.rootId)} aria-label={expanded.has(row.rootId) ? "พับ" : "กาง"} title={expanded.has(row.rootId) ? "พับ" : "กาง"}>
                           {expanded.has(row.rootId) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </button>
                       ) : row.depth === 0 ? (
