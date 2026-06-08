@@ -137,10 +137,19 @@ export default {
             height: "0",
           },
         },
+        "flash-bg": {
+          from: {
+            backgroundColor: "rgb(186 230 253)", // sky-200
+          },
+          to: {
+            backgroundColor: "transparent",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "flash-bg": "flash-bg 3s ease-out",
       },
     },
   },

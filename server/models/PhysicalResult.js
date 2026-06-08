@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const PhysicalResultSchema = new mongoose.Schema({
-  sampleId: { type: String, required: true, unique: true },
+  sampleId: { type: String, required: true },
   density: String,
   densityStatus: { type: String, enum: ['normal', 'abnormal'] },
   dissolutionValue: String,
@@ -14,4 +15,7 @@ const PhysicalResultSchema = new mongoose.Schema({
   completedAt: String,
 }, { timestamps: true });
 
+PhysicalResultSchema.index({ sampleId: 1, deletedAt: 1 }, { unique: true });
+
+PhysicalResultSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('PhysicalResult', PhysicalResultSchema);

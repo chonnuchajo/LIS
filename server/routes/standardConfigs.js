@@ -33,7 +33,7 @@ async function ensureDefaults() {
     );
   }
   // Drop any rows seeded for non-machine methods by earlier versions.
-  await StandardConfig.deleteMany({ instrument: { $nin: machineCodes } });
+  await StandardConfig.softDeleteMany({ instrument: { $nin: machineCodes } }, 'system');
 }
 
 function validateTimes(value) {
@@ -151,7 +151,8 @@ router.delete('/:id', async (req, res) => {
     const doc = await StandardConfig.findById(id).lean();
     if (!doc) return res.status(404).json({ message: 'not found' });
     if (doc.isDefault) return res.status(403).json({ message: 'ลบค่าตั้งต้นไม่ได้' });
-    await StandardConfig.findByIdAndDelete(id);
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    await StandardConfig.softDeleteMany({ _id: id }, actor);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ message: err.message });

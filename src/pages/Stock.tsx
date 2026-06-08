@@ -181,7 +181,6 @@ function StandardsTab() {
                   <TableHead className="w-16">Code</TableHead>
                   <TableHead>ชื่อ</TableHead>
                   <TableHead className="text-center">คงคลัง (ขวด)</TableHead>
-                  <TableHead className="text-center">working (ขวด)</TableHead>
                   <TableHead className="hidden xl:table-cell">ความถี่</TableHead>
                   <TableHead className="hidden xl:table-cell">อุณหภูมิ</TableHead>
                   <TableHead>สถานะ</TableHead>
@@ -190,9 +189,9 @@ function StandardsTab() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">กำลังโหลด...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">กำลังโหลด...</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-6">ไม่มีข้อมูล</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">ไม่มีข้อมูล</TableCell></TableRow>
                 ) : filtered.map(item => {
                   return (
                     <TableRow key={item._id}>
@@ -203,10 +202,12 @@ function StandardsTab() {
                       {(() => {
                         const sum = summarizeUnits(unitsByCode.get(item.code) ?? []);
                         return (
-                          <>
-                            <TableCell className="text-center">{sum.sealed}</TableCell>
-                            <TableCell className="text-center">{sum.working}</TableCell>
-                          </>
+                          <TableCell className="text-center">
+                            <div>{sum.sealed}</div>
+                            {sum.working > 0 && (
+                              <div className="text-xs text-muted-foreground">· {sum.working} working</div>
+                            )}
+                          </TableCell>
                         );
                       })()}
                       <TableCell className="hidden xl:table-cell text-xs">{item.frequency || "-"}</TableCell>

@@ -27,6 +27,7 @@ import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
 import { statusBadge } from '@/lib/statusBadge';
 import LabScanAcceptModal from '@/components/petition/LabScanAcceptModal';
 import { normalizeRoles } from '@/lib/roles';
+import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
 
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
 
@@ -38,6 +39,7 @@ const isLabReadableItem = (it: PetitionItem, params: ParameterItem[]) =>
 export default function LabTestingPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const flashId = useArrivalFlashId();
   const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
   const [search, setSearch] = useState('');
   const [dept, setDept] = useState<PetitionDept | ''>('');
@@ -229,6 +231,7 @@ export default function LabTestingPage() {
           data={petitions}
           rowKey={(p) => p._id}
           isLoading={loading}
+          rowClassName={(p) => (p._id === flashId ? 'animate-flash-bg' : undefined)}
           onRowClick={(p) => {
             if (ENTRY_STATUSES.has(p.status)) navigate(`/lab-testing/${p._id}`);
           }}

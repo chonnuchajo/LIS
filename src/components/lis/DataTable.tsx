@@ -27,6 +27,8 @@ interface DataTableProps<T> {
   isError?: boolean;
   onRetry?: () => void;
   onRowClick?: (row: T) => void;
+  /** Extra className per row — e.g. a one-shot highlight for a just-navigated-to row. */
+  rowClassName?: (row: T) => string | undefined;
   emptyTitle?: string;
   emptyDescription?: ReactNode;
   emptyAction?: ReactNode;
@@ -43,6 +45,7 @@ export function DataTable<T>({
   isError,
   onRetry,
   onRowClick,
+  rowClassName,
   emptyTitle,
   emptyDescription,
   emptyAction,
@@ -82,6 +85,7 @@ export function DataTable<T>({
                 className={cn(
                   "even:bg-muted/30",
                   onRowClick && "cursor-pointer hover:bg-accent",
+                  rowClassName?.(row),
                 )}
               >
                 {columns.map((c) => (

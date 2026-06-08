@@ -50,7 +50,8 @@ router.patch('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    await Sample.findOneAndDelete({ id: req.params.id });
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    await Sample.softDeleteMany({ id: req.params.id }, actor);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

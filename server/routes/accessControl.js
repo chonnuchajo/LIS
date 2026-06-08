@@ -312,7 +312,8 @@ router.delete('/users/:id', async (req, res) => {
     if (normalizeRoles(user).includes('admin')) {
       return res.status(400).json({ error: 'admin users cannot be deleted here' });
     }
-    await user.deleteOne();
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    await user.softDelete(actor);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -339,7 +340,8 @@ router.delete('/roles/:id', async (req, res) => {
     if (role.locked) return res.status(400).json({ error: 'locked role cannot be deleted' });
     const users = await User.countDocuments({ $or: [{ role: role.id }, { roles: role.id }] });
     if (users > 0) return res.status(400).json({ error: 'move users to another role before deleting' });
-    await role.deleteOne();
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    await role.softDelete(actor);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -432,7 +434,8 @@ router.delete('/groups/:id', async (req, res) => {
     const group = await AccessGroup.findOne({ id: req.params.id });
     if (!group) return res.status(404).json({ error: 'group not found' });
     if (group.locked) return res.status(400).json({ error: 'locked group cannot be deleted' });
-    await group.deleteOne();
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    await group.softDelete(actor);
     await Role.updateMany({}, { $pull: { permissions: req.params.id } });
     res.json({ success: true });
   } catch (err) {

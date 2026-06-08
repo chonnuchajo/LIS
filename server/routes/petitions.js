@@ -610,21 +610,23 @@ router.post('/:id/review', async (req, res) => {
 // DELETE /api/petitions/:id
 router.delete('/:id', async (req, res) => {
   try {
-    const doc = await Petition.findByIdAndDelete(req.params.id);
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    const doc = await Petition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
     logAudit(doc, {
       event: 'deleted',
       fromStatus: doc.status,
-      actor: req.query.actor || 'system',
+      actor,
       note: 'ลบคำร้อง',
     });
+    await doc.softDelete(actor);
     const sampleIds = sampleIdsFromPetition(doc);
     if (sampleIds.length > 0) {
       await Promise.all([
-        Sample.deleteMany({ id: { $in: sampleIds } }),
-        PhysicalResult.deleteMany({ sampleId: { $in: sampleIds } }),
-        Approval.deleteMany({ sampleId: { $in: sampleIds } }),
-        RealtimeDensity.deleteMany({ sampleId: { $in: sampleIds } }),
+        Sample.softDeleteMany({ id: { $in: sampleIds } }, actor),
+        PhysicalResult.softDeleteMany({ sampleId: { $in: sampleIds } }, actor),
+        Approval.softDeleteMany({ sampleId: { $in: sampleIds } }, actor),
+        RealtimeDensity.softDeleteMany({ sampleId: { $in: sampleIds } }, actor),
       ]);
     }
     res.json({ success: true });

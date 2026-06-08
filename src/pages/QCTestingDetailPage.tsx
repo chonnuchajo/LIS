@@ -7,6 +7,7 @@ import PageHeader from '@/components/lis/PageHeader';
 import { usePetition, usePetitionList } from '@/hooks/usePetition';
 import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useArrivalFlash } from '@/hooks/useArrivalFlash';
 import { useConfirm } from '@/context/ConfirmDialog';
 import { isFieldAbnormal } from '@/lib/parameterValidation';
 import { cn } from '@/lib/utils';
@@ -266,6 +267,7 @@ export default function QCTestingDetailPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const confirm = useConfirm();
+  const flashClass = useArrivalFlash();
 
   const { data: petition, loading: petitionLoading, error: petitionError } = usePetition(id);
   // Active worklist for tab-strip switcher (other petitions currently in QC)
@@ -664,7 +666,7 @@ export default function QCTestingDetailPage() {
 
   return (
     <AppLayout title={petition.petitionNo}>
-    <div className="space-y-6 pb-20">
+    <div className={`space-y-6 pb-20 ${flashClass}`}>
       {/* Header */}
       <PageHeader
         onBack={() => navigate('/qc-testing')}

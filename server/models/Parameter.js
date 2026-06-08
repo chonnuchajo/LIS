@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const ValueFieldSchema = new mongoose.Schema({
   label: { type: String, required: true, trim: true },
@@ -189,4 +190,5 @@ ParameterSchema.pre('validate', function (next) {
   next();
 });
 
+ParameterSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('Parameter', ParameterSchema);

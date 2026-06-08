@@ -28,7 +28,8 @@ router.post('/', async (req, res) => {
 
 router.delete('/:sampleId', async (req, res) => {
   try {
-    await RealtimeDensity.findOneAndDelete({ sampleId: req.params.sampleId });
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    await RealtimeDensity.softDeleteMany({ sampleId: req.params.sampleId }, actor);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

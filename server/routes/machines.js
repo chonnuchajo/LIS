@@ -47,8 +47,10 @@ router.patch('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   try {
-    const item = await Machine.findByIdAndDelete(req.params.id);
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    const item = await Machine.findById(req.params.id);
     if (!item) return res.status(404).json({ error: 'Not found' });
+    await item.softDelete(actor);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -63,7 +65,7 @@ router.post('/seed', async (req, res) => {
     const seed = JSON.parse(fs.readFileSync(SEED_PATH, 'utf-8'));
     const ops = seed.map((m) => ({
       updateOne: {
-        filter: { code: m.code },
+        filter: { code: m.code, deletedAt: null },
         update: { $setOnInsert: m },
         upsert: true,
       },

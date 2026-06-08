@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const StandardConfigSchema = new mongoose.Schema(
   {
@@ -19,8 +20,9 @@ const StandardConfigSchema = new mongoose.Schema(
 // (commonNameLower null), so they never collide; substance rows are unique per
 // (instrument, commonName).
 StandardConfigSchema.index(
-  { instrument: 1, scope: 1, commonNameLower: 1 },
+  { instrument: 1, scope: 1, commonNameLower: 1, deletedAt: 1 },
   { unique: true },
 );
 
+StandardConfigSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('StandardConfig', StandardConfigSchema);

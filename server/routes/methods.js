@@ -110,7 +110,8 @@ router.delete('/:id', async (req, res) => {
     if (inSimple || inStd) {
       return res.status(409).json({ message: 'วิธีนี้ถูกใช้อยู่ ลบไม่ได้ (ปิดการใช้งานแทน)' });
     }
-    await Method.findByIdAndDelete(id);
+    const actor = req.query.actor || (req.body && req.body.actor) || 'system';
+    await Method.softDeleteMany({ _id: id }, actor);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ message: err.message });

@@ -159,6 +159,17 @@ export default function SampleLabelPrintTemplate({ petition }: { petition: Petit
         .label-card {
           flex: 0 0 100mm;
         }
+        /* เครื่องพิมพ์ฉลากเป็น thermal ขาวดำ (1-bit) — บังคับดำล้วน/ขาวล้วน ไม่งั้น
+           ตัวอักษรจะ inherit สี --foreground (กรมท่าเข้ม 215 25% 20%) ของ theme แล้ว
+           ถูก dither เป็นเฉดเทาเพี้ยน (เส้นกรอบ .border-black ดำอยู่แล้วเลยไม่เพี้ยน) */
+        .label-card, .label-card * {
+          color: #000 !important;
+          border-color: #000 !important;
+          background-color: transparent !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .label-card { background-color: #fff !important; }
         @media print {
           html, body { margin: 0; padding: 0; width: 100mm; height: 50mm; }
           .label-page {

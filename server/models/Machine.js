@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 
 const MachineSchema = new mongoose.Schema({
-  code: { type: String, required: true, unique: true, index: true },
+  code: { type: String, required: true, index: true },
+  type: { type: String, default: '' },
   registerNo: { type: String, default: '' },
   name: { type: String, required: true, index: true },
   manufacturer: { type: String, default: '' },
@@ -15,4 +17,7 @@ const MachineSchema = new mongoose.Schema({
   note: { type: String, default: '' },
 }, { timestamps: true });
 
+MachineSchema.index({ code: 1, deletedAt: 1 }, { unique: true });
+
+MachineSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('Machine', MachineSchema);

@@ -201,6 +201,9 @@ export default function LabDashboard() {
           title={primaryTitle}
           petitions={filteredPrimary}
           loading={petitionLoading}
+          actionPathPrefix="/lab-testing"
+          viewAllPath="/lab-testing"
+          unreceivedListPath="/lab-testing"
           emptyText={
             activeKpi || query
               ? "ไม่พบคำร้องตามเงื่อนไข"
@@ -240,6 +243,8 @@ export default function LabDashboard() {
                 title=""
                 petitions={completedPetitions}
                 loading={petitionLoading}
+                actionPathPrefix="/lab-testing"
+                viewAllPath="/lab-testing"
                 emptyText="ยังไม่มีคำร้องที่ตรวจเสร็จแล้ว"
                 maxHeight="400px"
               />

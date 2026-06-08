@@ -162,6 +162,59 @@ function mmToDots(mm, dpi) {
   return Math.round((mm / 25.4) * dpi);
 }
 
+// CRC32 (PNG polynomial) — needed to author a valid pHYs chunk.
+const PNG_CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function pngCrc32(buf) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < buf.length; i++) c = PNG_CRC_TABLE[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+// Puppeteer screenshots carry NO physical-size metadata, so CUPS has to guess
+// the DPI and the thermal print comes out shrunk/offset. Inject a pHYs chunk
+// (pixels-per-metre) right after IHDR so CUPS prints the raster at exact size.
+function pngWithDpi(buffer, dpi) {
+  const SIG = 8;
+  if (buffer.length < SIG + 25) return buffer;
+  if (buffer.toString('ascii', SIG + 4, SIG + 8) !== 'IHDR') return buffer;
+  const ihdrEnd = SIG + 25; // 8 sig + (4 len + 4 'IHDR' + 13 data + 4 crc)
+  const ppu = Math.round(dpi / 0.0254); // pixels per metre
+  const data = Buffer.alloc(9);
+  data.writeUInt32BE(ppu, 0);
+  data.writeUInt32BE(ppu, 4);
+  data.writeUInt8(1, 8); // unit specifier: 1 = metre
+  const type = Buffer.from('pHYs', 'ascii');
+  const len = Buffer.alloc(4); len.writeUInt32BE(9, 0);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(pngCrc32(Buffer.concat([type, data])), 0);
+  return Buffer.concat([buffer.subarray(0, ihdrEnd), len, type, data, crc, buffer.subarray(ihdrEnd)]);
+}
+
+// Diagnostic dump (opt-in via PRINT_DEBUG=1) — saves the exact artifact sent to
+// the printer plus a metadata sidecar, so a single real print on the prod box
+// gives ground-truth evidence about the CUPS pipeline.
+function printDebugDump(name, ext, buffer, meta) {
+  if (process.env.PRINT_DEBUG !== '1') return;
+  try {
+    const dir = path.join(os.tmpdir(), 'lis-print-debug');
+    fs.mkdirSync(dir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const base = path.join(dir, `${name}-${stamp}`);
+    if (buffer) fs.writeFileSync(`${base}.${ext}`, buffer);
+    if (meta) fs.writeFileSync(`${base}.json`, JSON.stringify(meta, null, 2));
+    console.log(`[print-debug] saved ${base}.${ext}`);
+  } catch (e) {
+    console.warn('[print-debug] dump failed:', e.message);
+  }
+}
+
 async function renderSampleLabelPngBuffers(page) {
   const widthDots = mmToDots(LABEL_100X50.widthMm, LABEL_100X50.dpi);
   const heightDots = mmToDots(LABEL_100X50.heightMm, LABEL_100X50.dpi);
@@ -194,7 +247,7 @@ async function renderSampleLabelPngBuffers(page) {
       },
       omitBackground: false,
     });
-    buffers.push(png);
+    buffers.push(pngWithDpi(png, LABEL_100X50.dpi));
   }
 
   if (buffers.length === 0) {
@@ -221,6 +274,7 @@ function printViaCups(tmpPdf, cfg, copies) {
   if (paper.orientation) {
     jobAttributes['orientation-requested'] = paper.orientation;
   }
+  if (process.env.PRINT_SCALING) jobAttributes['print-scaling'] = process.env.PRINT_SCALING;
   const msg = {
     'operation-attributes-tag': {
       'requesting-user-name': 'LIS',
@@ -248,11 +302,16 @@ function printBuffersViaCups(buffers, cfg, copies, documentFormat) {
   const printer = ipp.Printer(cupsRequestOptions(cfg.cupsPrinterUrl), { uri: target.printerUri, version: '2.0' });
   const paper = paperSpec(effectivePaperSize(cfg));
 
+  const statuses = [];
   const printOne = (buffer, index) => new Promise((resolve, reject) => {
     const jobAttributes = { copies };
     if (!paper.mediaCol) jobAttributes.media = paper.media;
     if (paper.mediaCol) jobAttributes['media-col'] = paper.mediaCol;
     if (paper.orientation) jobAttributes['orientation-requested'] = paper.orientation;
+    // Opt-in: forces CUPS scaling behaviour ('none'|'fill'|'fit'|'auto'). Off by
+    // default because older `ipp` builds may not know this keyword and would
+    // throw at serialize time, breaking every print.
+    if (process.env.PRINT_SCALING) jobAttributes['print-scaling'] = process.env.PRINT_SCALING;
 
     const msg = {
       'operation-attributes-tag': {
@@ -266,6 +325,7 @@ function printBuffersViaCups(buffers, cfg, copies, documentFormat) {
 
     printer.execute('Print-Job', msg, (err, res) => {
       if (err) return reject(err);
+      statuses.push(res?.statusCode);
       if (res?.statusCode && !String(res.statusCode).startsWith('successful-')) {
         return reject(new Error(`CUPS rejected job: ${res.statusCode}`));
       }
@@ -276,7 +336,7 @@ function printBuffersViaCups(buffers, cfg, copies, documentFormat) {
   return buffers.reduce(
     (p, buffer, index) => p.then(() => printOne(buffer, index)),
     Promise.resolve(),
-  ).then(() => ({ target: target.display, count: buffers.length }));
+  ).then(() => ({ target: target.display, count: buffers.length, statuses }));
 }
 
 // GET /api/print/printers — รายชื่อเครื่องที่เห็น
@@ -375,15 +435,22 @@ router.post('/', async (req, res) => {
 </head><body>${html}</body></html>`;
     await page.setContent(fullHtml, { waitUntil: 'load', timeout: 15000 });
 
+    const paperUsed = paperSpec(effectivePaperSize(cfg));
     let printerTarget = cfg.printerName;
     if (cfg.cupsPrinterUrl && docType === 'sample-label') {
       const pngBuffers = await renderSampleLabelPngBuffers(page);
       await browser.close();
       browser = null;
+      pngBuffers.forEach((buf, i) => printDebugDump(`${docType}-${i}`, 'png', buf, {
+        slug: docType, copies, via: 'cups-png', cups: cfg.cupsPrinterUrl,
+        media: paperUsed.media, mediaCol: paperUsed.mediaCol,
+        printScaling: process.env.PRINT_SCALING || '(unset)', pngBytes: buf.length,
+      }));
       const result = await printBuffersViaCups(pngBuffers, cfg, copies, 'image/png');
+      console.log(`[print] ${docType} via cups-png →`, JSON.stringify(result));
       printerTarget = result.target;
     } else {
-      const spec = paperSpec(effectivePaperSize(cfg)).pdf;
+      const spec = paperUsed.pdf;
       const pdfOpts = {
         path: tmpPdf,
         ...spec,
@@ -396,9 +463,18 @@ router.post('/', async (req, res) => {
       browser = null;
 
       if (cfg.cupsPrinterUrl) {
+        printDebugDump(docType, 'pdf', fs.readFileSync(tmpPdf), {
+          slug: docType, copies, via: 'cups-pdf', cups: cfg.cupsPrinterUrl,
+          media: paperUsed.media, mediaCol: paperUsed.mediaCol, pdf: spec,
+          printScaling: process.env.PRINT_SCALING || '(unset)',
+        });
         const result = await printViaCups(tmpPdf, cfg, copies);
+        console.log(`[print] ${docType} via cups-pdf → ${result.target} status=${result.response?.statusCode}`);
         printerTarget = result.target;
       } else {
+        printDebugDump(docType, 'pdf', fs.readFileSync(tmpPdf), {
+          slug: docType, copies, via: 'pdf-to-printer', printer: cfg.printerName, pdf: spec,
+        });
         const { print } = require('pdf-to-printer');
         await print(tmpPdf, { printer: cfg.printerName, copies });
       }

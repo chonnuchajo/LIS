@@ -197,6 +197,7 @@ export default function QCDashboard() {
           }
           viewAllPath="/qc-testing"
           actionPathPrefix="/qc-testing"
+          unreceivedListPath="/qc-testing"
         />
 
         <PendingQcSamplesCard samples={pendingQcSamples} />

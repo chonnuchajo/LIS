@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
+const { softDeletePlugin } = require('../lib/softDelete');
 const bcrypt = require('bcryptjs');
 const { primaryRole, normalizeRoles } = require('../lib/roles');
 
 const UserSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true, lowercase: true },
+  email: { type: String, required: true, lowercase: true },
   name: String,
   password: String,
   role: { type: String, default: 'viewer' },
@@ -38,4 +39,7 @@ UserSchema.methods.comparePassword = function (plain) {
   return bcrypt.compare(plain, this.password);
 };
 
+UserSchema.index({ email: 1, deletedAt: 1 }, { unique: true });
+
+UserSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('User', UserSchema);

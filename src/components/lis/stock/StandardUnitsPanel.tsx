@@ -39,6 +39,9 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
     queryFn: () => api.getStockUnits({ itemCode: standard.code }),
   });
 
+  // ซ่อนขวดที่ทิ้งแล้ว — แสดงเฉพาะขวดที่ยังมีอยู่จริง และนับเลขลำดับใหม่ตามนั้น
+  const visible = data.filter((u) => unitDerivedStatus(u) !== "discarded");
+
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["stock", "units", standard.code] });
     qc.invalidateQueries({ queryKey: ["stock", "units"] });
@@ -66,7 +69,7 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
         <Table className="min-w-[640px]">
           <TableHeader>
             <TableRow>
-              <TableHead>qrId</TableHead>
+              <TableHead className="w-10 text-center">#</TableHead>
               <TableHead>ชนิด</TableHead>
               <TableHead>ที่มา</TableHead>
               <TableHead>Lot</TableHead>
@@ -79,15 +82,15 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
           <TableBody>
             {isLoading ? (
               <TableRow><TableCell colSpan={8} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
-            ) : data.length === 0 ? (
+            ) : visible.length === 0 ? (
               <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">ยังไม่มีขวด — กดเพิ่มขวด</TableCell></TableRow>
-            ) : data.map((u) => {
+            ) : visible.map((u, idx) => {
               const st = unitDerivedStatus(u);
               const canWithdraw = u.kind === "sealed" && st === "active";
               const canDiscard = st !== "discarded";
               return (
                 <TableRow key={u._id}>
-                  <TableCell className="font-mono text-xs">{u.qrId}</TableCell>
+                  <TableCell className="text-center text-muted-foreground">{idx + 1}</TableCell>
                   <TableCell><Badge variant="outline">{u.kind === "working" ? "working" : "คงคลัง"}</Badge></TableCell>
                   <TableCell className="text-xs">
                     {u.source === "primary" ? "primary" : u.source === "supply" ? "supply" : "-"}
