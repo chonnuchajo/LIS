@@ -32,7 +32,7 @@ function QrCodeSvg({ value }: { value: string }) {
   return (
     <svg
       viewBox={`0 0 ${size} ${size}`}
-      className="h-[14mm] w-[14mm] shrink-0"
+      className="h-[24mm] w-[24mm] shrink-0"
       role="img"
       aria-label={`QR ${value}`}
       shapeRendering="crispEdges"
@@ -85,38 +85,40 @@ function LabelCard({
         <div className="shrink-0 pt-0.5">
           <QrCodeSvg value={qrValue} />
         </div>
-        <div className="flex-1 text-center font-semibold">
-          ป้ายนำส่งตัวอย่าง บริษัท ไอ ซี พี ลัดดา จำกัด
-        </div>
-        <div className="flex items-end gap-1 whitespace-nowrap">
-          <span>เลขที่</span>
-          <span className="inline-block border-b border-black px-1 min-w-[2.5rem] text-center">
-            {item.sampleId || '\u00a0'}
-          </span>
-          <span>/</span>
-          <span className="inline-block border-b border-black px-1 min-w-[2rem] text-center">
-            {yearShort}
-          </span>
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex items-start gap-1">
+            <div className="min-w-0 flex-1 text-center font-semibold">
+              ป้ายนำส่งตัวอย่าง บริษัท ไอ ซี พี ลัดดา จำกัด
+            </div>
+            <div className="flex items-end gap-1 whitespace-nowrap">
+              <span>เลขที่</span>
+              <span className="inline-block border-b border-black px-1 min-w-[2.5rem] text-center">
+                {item.sampleId || '\u00a0'}
+              </span>
+              <span>/</span>
+              <span className="inline-block border-b border-black px-1 min-w-[2rem] text-center">
+                {yearShort}
+              </span>
+            </div>
+          </div>
+          <Field label="ชื่อผลิตภัณฑ์ และสารสำคัญ" value={productLine} />
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="วัน เดือน ปี ที่ผลิต/นำเข้า" value={toBuddhistShort(item.productionDate)} />
+            <Field label="แบชนัมเบอร์" value={item.batchNo} />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="ผู้ผลิต" value={item.labelManufacturer} />
+            <Field label="ผู้ขาย" value={item.labelSeller} />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Field label="ปริมาณ" value={item.labelQuantity} />
+            <Field label="สุ่มโดย" value={item.labelSampledBy} />
+            <Field label="ว/ด/ป" value={toBuddhistShort(item.labelSampledDate)} />
+          </div>
         </div>
       </div>
 
       <div className="space-y-1">
-        <Field label="ชื่อผลิตภัณฑ์ และสารสำคัญ" value={productLine} />
-
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="วัน เดือน ปี ที่ผลิต/นำเข้า" value={toBuddhistShort(item.productionDate)} />
-          <Field label="แบชนัมเบอร์" value={item.batchNo} />
-        </div>
-
-        <Field label="ผู้ผลิต" value={item.labelManufacturer} />
-        <Field label="ผู้ขาย" value={item.labelSeller} />
-
-        <div className="grid grid-cols-3 gap-2">
-          <Field label="ปริมาณ" value={item.labelQuantity} />
-          <Field label="สุ่มโดย" value={item.labelSampledBy} />
-          <Field label="ว/ด/ป" value={toBuddhistShort(item.labelSampledDate)} />
-        </div>
-
         <Field label="หมายเหตุ" value={item.labelRemark} />
       </div>
 
