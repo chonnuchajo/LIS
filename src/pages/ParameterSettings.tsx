@@ -731,7 +731,7 @@ type ValueFieldEditorProps = {
   groupNameById?: Map<string, string>;
 };
 
-function summarizeOptionFilter(f: OptionFilter | undefined): string {
+function summarizeOptionFilter(f: OptionFilter | undefined, groupNameById?: Map<string, string>): string {
   if (!f) return '';
   const parts: string[] = [];
   if ((f.itemNames?.length ?? 0) > 0) {
@@ -749,11 +749,15 @@ function summarizeOptionFilter(f: OptionFilter | undefined): string {
   if ((f.subCategories?.length ?? 0) > 0) {
     parts.push(`sub: ${(f.subCategories ?? []).slice(0, 3).join('/')}`);
   }
+  if ((f.itemGroups?.length ?? 0) > 0) {
+    const names = (f.itemGroups ?? []).map((id) => groupNameById?.get(id)).filter(Boolean) as string[];
+    parts.push(names.length > 0 ? `กลุ่ม: ${names.slice(0, 3).join('/')}` : `กลุ่ม: ${(f.itemGroups ?? []).length}`);
+  }
   return parts.join(' · ');
 }
 
-function OptionFilterBadge({ filter }: { filter?: OptionFilter }) {
-  const label = summarizeOptionFilter(filter);
+function OptionFilterBadge({ filter, groupNameById }: { filter?: OptionFilter; groupNameById?: Map<string, string> }) {
+  const label = summarizeOptionFilter(filter, groupNameById);
   if (!label) return null;
   return (
     <Badge variant="secondary" className="gap-1 text-[10px] bg-emerald-50 text-emerald-700 max-w-[280px] truncate">
@@ -1352,7 +1356,7 @@ function ValueFieldEditor({
                       >
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           <span className="font-medium truncate">{opt}</span>
-                          <OptionFilterBadge filter={field.optionFilters?.[opt]} />
+                          <OptionFilterBadge filter={field.optionFilters?.[opt]} groupNameById={groupNameById} />
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
                           <label className="flex cursor-pointer items-center gap-1 text-emerald-700">
