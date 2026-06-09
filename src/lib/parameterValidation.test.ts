@@ -699,3 +699,21 @@ describe("resolveStandard", () => {
     expect(isFieldAbnormal(vf, 9999)).toBe(false);
   });
 });
+
+describe("countAbnormalInResults with conditional standards", () => {
+  it("counts a conditional field as abnormal using sibling value in same result", () => {
+    const param: ParameterItem = {
+      _id: "P1", name: "ทดสอบ", scope: "qc",
+      valueFields: [
+        { label: "ลักษณะ", type: "enum", options: ["ก้อนเล็ก", "ก้อนใหญ่"] },
+        { label: "น้ำหนัก", type: "number", unit: "ก.", conditionalMode: true, conditionalStandards: [
+          { label: "ก้อนใหญ่", conditions: [{ sourceFieldLabel: "ลักษณะ", op: "eq", value: "ก้อนใหญ่" }], operator: "between", value: 23.5, value2: 26 },
+        ] },
+      ],
+    } as ParameterItem;
+    const results = [
+      { parameterId: "P1", petitionId: "X", itemSeq: 1, values: { "ลักษณะ": "ก้อนใหญ่", "น้ำหนัก": 30 } },
+    ] as any;
+    expect(countAbnormalInResults(results, [param])).toBe(1);
+  });
+});

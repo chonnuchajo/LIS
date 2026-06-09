@@ -126,6 +126,14 @@ export function countAbnormalInResults(
   for (const p of parameters) {
     if (p._id) paramById.set(String(p._id), p);
   }
+  // group result.values ตาม item เพื่อใช้ทำ ctx ข้าม parameter
+  const valuesByItem = new Map<string, Record<string, Record<string, unknown>>>();
+  for (const r of results) {
+    const itemKey = `${r.petitionId}__${r.itemSeq}`;
+    let bucket = valuesByItem.get(itemKey);
+    if (!bucket) { bucket = {}; valuesByItem.set(itemKey, bucket); }
+    bucket[String(r.parameterId)] = (r.values ?? {}) as Record<string, unknown>;
+  }
   let count = 0;
   for (const r of results) {
     const param = paramById.get(String(r.parameterId));
@@ -143,6 +151,16 @@ export function countAbnormalInResults(
           );
           if (isSubstanceAbnormal(field, std, vval)) count += 1;
         }
+        continue;
+      }
+      if (field.conditionalMode && isNumeric) {
+        const itemKey = `${r.petitionId}__${r.itemSeq}`;
+        const ctx: ConditionContext = {
+          sameParam: values,
+          otherParams: valuesByItem.get(itemKey) ?? {},
+        };
+        const vf = resolveFieldStandard(field, ctx);
+        if (isFieldAbnormal(vf, values[field.label])) count += 1;
         continue;
       }
       if (isFieldAbnormal(field, values[field.label])) count += 1;
