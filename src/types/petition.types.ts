@@ -239,6 +239,7 @@ export interface SaveQCResultPayload {
   itemSeq: number;
   sampleId?: string;
   sampleName?: string;
+  commonName?: string;
   parameterId: string;
   parameterName?: string;
   fieldLabel: string;

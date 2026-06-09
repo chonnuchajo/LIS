@@ -7,6 +7,7 @@ const qcTestResultSchema = new mongoose.Schema(
     itemSeq:       { type: Number, required: true },
     sampleId:      { type: String },
     sampleName:    { type: String },
+    commonName:    { type: String },
     parameterId:   { type: String, required: true },
     parameterName: { type: String },
     values:        { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -25,5 +26,7 @@ qcTestResultSchema.index(
   { petitionId: 1, itemSeq: 1, parameterId: 1 },
   { unique: true }
 );
+
+qcTestResultSchema.index({ commonName: 1, parameterId: 1, enteredAt: -1 });
 
 module.exports = mongoose.model("QCTestResult", qcTestResultSchema);

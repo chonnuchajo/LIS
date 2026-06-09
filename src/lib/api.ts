@@ -398,6 +398,10 @@ export const api = {
     const qs = new URLSearchParams({ petitionIds: petitionIds.join(",") }).toString();
     return request<Record<string, boolean>>(`/qc-results/abnormal-flags?${qs}`);
   },
+  getLastBatchValues: (commonName: string, parameterId: string, excludePetitionId: string) => {
+    const qs = new URLSearchParams({ commonName, parameterId, excludePetitionId }).toString();
+    return request<{ petitionNo?: string; enteredAt?: string; values?: Record<string, unknown> }>(`/qc-results/last-values?${qs}`);
+  },
   getReturnedFlags: (petitionIds: string[]) => {
     if (petitionIds.length === 0) return Promise.resolve({} as Record<string, boolean>);
     const qs = new URLSearchParams({ petitionIds: petitionIds.join(",") }).toString();

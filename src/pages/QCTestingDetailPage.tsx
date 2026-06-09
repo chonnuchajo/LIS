@@ -474,6 +474,7 @@ export default function QCTestingDetailPage() {
             itemSeq: item.seq,
             sampleId: item.sampleId,
             sampleName: item.sampleName,
+            commonName: item.commonName,
             parameterId: param._id!,
             parameterName: param.name,
             fieldLabel,

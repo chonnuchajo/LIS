@@ -247,6 +247,29 @@ router.get("/abnormal-flags", async (req, res) => {
   }
 });
 
+// GET /api/qc-results/last-values?commonName=&parameterId=&excludePetitionId=
+// คืนผลตรวจล่าสุดก่อนหน้าของ common name + parameter เดียวกัน (ไม่รวม petition ปัจจุบัน)
+router.get("/last-values", async (req, res) => {
+  try {
+    const commonName = String(req.query.commonName || "").trim();
+    const parameterId = String(req.query.parameterId || "").trim();
+    const excludePetitionId = String(req.query.excludePetitionId || "").trim();
+    if (!commonName || !parameterId) return res.json({});
+
+    const filter = { commonName, parameterId };
+    if (excludePetitionId) filter.petitionId = { $ne: excludePetitionId };
+
+    const doc = await QCTestResult.findOne(filter)
+      .sort({ enteredAt: -1, updatedAt: -1 })
+      .lean();
+
+    if (!doc) return res.json({});
+    res.json({ petitionNo: doc.petitionNo, enteredAt: doc.enteredAt, values: doc.values || {} });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/qc-results/:petitionId
 router.get("/:petitionId", async (req, res) => {
   try {
@@ -262,7 +285,7 @@ router.put("/", async (req, res) => {
   try {
     const {
       petitionId, petitionNo,
-      itemSeq, sampleId, sampleName,
+      itemSeq, sampleId, sampleName, commonName,
       parameterId, parameterName,
       fieldLabel, value,
       enteredBy,
@@ -291,7 +314,7 @@ router.put("/", async (req, res) => {
 
     const update = {
       $set: {
-        petitionNo, sampleId, sampleName, parameterName,
+        petitionNo, sampleId, sampleName, commonName, parameterName,
         [`${valuesKey}.${fieldLabel}`]: value,
         updatedBy: enteredBy,
         updatedAt: now,
