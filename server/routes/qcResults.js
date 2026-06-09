@@ -45,6 +45,21 @@ function isFieldAbnormal(field, value) {
   return isEnumAbnormal(field, value) || isNumericAbnormal(field, value);
 }
 
+// mirror of src/lib/substances.ts matchSubstanceKey: first whitespace token, lowercased
+function matchSubstanceKeyJS(name) {
+  const first = String(name || "").trim().split(/\s+/)[0];
+  return first ? first.toLowerCase() : "";
+}
+
+// mirror of src/lib/parameterValidation.ts isSubstanceAbnormal: build a virtual field, reuse isNumericAbnormal
+function isSubstanceAbnormalJS(field, std, value) {
+  if (!std || !std.operator || std.value == null) return false;
+  return isNumericAbnormal(
+    { ...field, standardOperator: std.operator, standardValue: std.value, standardValue2: std.value2 ?? null },
+    value,
+  );
+}
+
 // GET /api/qc-results/testers?petitionIds=id1,id2,...
 // Returns a map of petitionId → unique tester names (from enteredBy/updatedBy)
 router.get("/testers", async (req, res) => {
@@ -146,6 +161,21 @@ router.get("/abnormal-flags", async (req, res) => {
       if (!param?.valueFields?.length) continue;
       const values = d.values || {};
       for (const field of param.valueFields) {
+        const isNumeric = field.type === "number" || field.type === "float";
+        if (field.substanceMode && isNumeric) {
+          const prefix = `${field.label}::`;
+          let flagged = false;
+          for (const [vkey, vval] of Object.entries(values)) {
+            if (!vkey.startsWith(prefix)) continue;
+            const subKey = vkey.slice(prefix.length);
+            const std = (field.substanceStandards || []).find(
+              (s) => matchSubstanceKeyJS(s.substance) === subKey,
+            );
+            if (isSubstanceAbnormalJS(field, std, vval)) { flagged = true; break; }
+          }
+          if (flagged) { map[d.petitionId] = true; break; }
+          continue;
+        }
         if (isFieldAbnormal(field, values[field.label])) {
           map[d.petitionId] = true;
           break;
