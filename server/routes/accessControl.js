@@ -187,6 +187,21 @@ function formatGroup(group) {
   };
 }
 
+// Resolve the HR employee record for an email (live webhook). Returns the fields
+// to apply, or null if no match / HR unreachable. Non-fatal: never throws —
+// logs and returns null so login flows continue.
+async function resolveEmployeeLink(email) {
+  try {
+    const emp = findEmployeeByEmail(await fetchMonthlyEmployees(), email);
+    if (emp) {
+      return { employeeId: emp.employeeId, department: emp.department, position: emp.position };
+    }
+  } catch (e) {
+    console.error('[auto-link] employee sync failed:', e.message);
+  }
+  return null;
+}
+
 router.get('/', async (req, res) => {
   try {
     const groups = await ensureDefaults();
@@ -254,18 +269,15 @@ router.post('/users/microsoft', async (req, res) => {
       user.department = resolveHrField(department, user.department);
       user.position = resolveHrField(position, user.position);
       // Auto-link to an HR employee by email the first time we can. Only fills an
-      // empty employeeId (never overwrites an admin's manual link). Webhook
-      // failure is non-fatal — login must not break if HR is unreachable.
+      // empty employeeId (never overwrites an admin's manual link). HR is the
+      // source of truth for แผนก/ตำแหน่ง once matched; falls back to the existing
+      // (resolveHrField/Graph) values when HR has none.
       if (!user.employeeId) {
-        try {
-          const emp = findEmployeeByEmail(await fetchMonthlyEmployees(), normalizedEmail);
-          if (emp) {
-            user.employeeId = emp.employeeId;
-            user.department = emp.department || user.department;
-            user.position = emp.position || user.position;
-          }
-        } catch (e) {
-          // HR webhook down — skip auto-link this round.
+        const link = await resolveEmployeeLink(normalizedEmail);
+        if (link) {
+          user.employeeId = link.employeeId;
+          user.department = link.department || user.department;
+          user.position = link.position || user.position;
         }
       }
       user.lastActive = now;
@@ -275,30 +287,22 @@ router.post('/users/microsoft', async (req, res) => {
 
     const existingUsers = await User.countDocuments();
     const role = existingUsers === 0 ? 'admin' : 'viewer';
+    // HR is the source of truth for แผนก/ตำแหน่ง when matched; otherwise keep the
+    // resolveHrField/Graph value. Resolved before create so there's a single write.
+    const link = await resolveEmployeeLink(normalizedEmail);
     user = await User.create({
       email: normalizedEmail,
       name: name || normalizedEmail,
       role,
-      department: resolveHrField(department, undefined),
-      position: resolveHrField(position, undefined),
+      department: (link && link.department) || resolveHrField(department, undefined),
+      position: (link && link.position) || resolveHrField(position, undefined),
+      employeeId: (link && link.employeeId) || '',
       status: 'active',
       lastActive: now,
       authProvider: 'microsoft',
       microsoftId,
       tenantId,
     });
-
-    try {
-      const emp = findEmployeeByEmail(await fetchMonthlyEmployees(), normalizedEmail);
-      if (emp) {
-        user.employeeId = emp.employeeId;
-        user.department = emp.department || user.department;
-        user.position = emp.position || user.position;
-        await user.save();
-      }
-    } catch (e) {
-      // HR webhook down — skip auto-link this round.
-    }
 
     res.status(201).json(formatUser(user, await getRolePermissions(normalizeRoles(user))));
   } catch (err) {
