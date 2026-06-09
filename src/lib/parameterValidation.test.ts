@@ -13,9 +13,11 @@ import {
   findSubstanceStandard,
   isSubstanceAbnormal,
   expandFieldForItem,
+  evalCondition,
 } from "./parameterValidation";
 import type { ParameterItem, ParameterValueField } from "./api";
 import type { QCTestResult } from "@/types/petition.types";
+import type { ConditionContext } from "./parameterValidation";
 
 const makeField = (overrides: Partial<ParameterValueField>): ParameterValueField => ({
   label: "test",
@@ -586,9 +588,6 @@ describe("expandFieldForItem", () => {
   });
 });
 
-import { evalCondition } from "./parameterValidation";
-import type { ConditionContext } from "./parameterValidation";
-
 const ctx = (sameParam: Record<string, unknown>, otherParams: Record<string, Record<string, unknown>> = {}): ConditionContext =>
   ({ sameParam, otherParams });
 
@@ -637,5 +636,20 @@ describe("evalCondition", () => {
       { sourceParameterId: "P2", sourceFieldLabel: "สี", op: "eq", value: "แดง" },
       ctx({}, { P2: { "สี": "แดง" } }),
     )).toBe(true);
+  });
+
+  it("ne with missing source value is false by design (rule needs determining field filled)", () => {
+    expect(evalCondition(
+      { sourceFieldLabel: "ลักษณะ", op: "ne", value: "ก้อนใหญ่" },
+      ctx({}),
+    )).toBe(false);
+  });
+
+  it("lt/lte/gt compare numerically", () => {
+    expect(evalCondition({ sourceFieldLabel: "x", op: "lt", value: 10 }, ctx({ x: 9 }))).toBe(true);
+    expect(evalCondition({ sourceFieldLabel: "x", op: "lt", value: 10 }, ctx({ x: 10 }))).toBe(false);
+    expect(evalCondition({ sourceFieldLabel: "x", op: "lte", value: 10 }, ctx({ x: 10 }))).toBe(true);
+    expect(evalCondition({ sourceFieldLabel: "x", op: "gt", value: 10 }, ctx({ x: 11 }))).toBe(true);
+    expect(evalCondition({ sourceFieldLabel: "x", op: "gt", value: 10 }, ctx({ x: 10 }))).toBe(false);
   });
 });

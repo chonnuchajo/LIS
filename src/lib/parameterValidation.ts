@@ -254,6 +254,8 @@ function conditionSourceValue(cond: StandardCondition, ctx: ConditionContext): u
 
 export function evalCondition(cond: StandardCondition, ctx: ConditionContext): boolean {
   const raw = conditionSourceValue(cond, ctx);
+  // เจตนา: source ว่าง/ยังไม่กรอก = condition ไม่ผ่าน (รวม ne ด้วย) — กฎจะ activate
+  // เฉพาะเมื่อ field ตัวกำหนดถูกกรอกจริง (ตาม spec)
   if (raw === null || raw === undefined || raw === "") return false;
   const target = cond.value;
 
@@ -263,7 +265,7 @@ export function evalCondition(cond: StandardCondition, ctx: ConditionContext): b
       const targetNum = typeof target === "number" ? target : Number(target);
       const rawNum = Number(raw);
       const numericPair =
-        target !== "" && !Number.isNaN(targetNum) && raw !== "" && !Number.isNaN(rawNum);
+        target !== "" && !Number.isNaN(targetNum) && !Number.isNaN(rawNum);
       const equal = numericPair ? rawNum === targetNum : String(raw) === String(target);
       return cond.op === "eq" ? equal : !equal;
     }
