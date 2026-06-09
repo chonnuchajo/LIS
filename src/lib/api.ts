@@ -626,6 +626,24 @@ export type SubstanceStandard = {
   value2?: number | null; // ใช้กับ between / tolerance
 };
 
+export type StandardConditionOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "between";
+
+export type StandardCondition = {
+  sourceParameterId?: string | null;  // null/ว่าง = field พี่น้องใน parameter เดียวกัน
+  sourceFieldLabel: string;
+  op: StandardConditionOp;
+  value: string | number;
+  value2?: number | null;             // ใช้กับ between
+};
+
+export type StandardRule = {
+  label?: string;                     // ป้ายชื่อกฎ เช่น "ก้อนใหญ่"
+  conditions: StandardCondition[];    // AND กันทุกตัว; ว่าง = เข้าเสมอ (default row)
+  operator: StandardOperator;
+  value: number | null;
+  value2?: number | null;
+};
+
 export type TimerUnit = "minute" | "hour" | "day" | "month";
 
 export type ParameterFieldPhase = "both" | "before" | "after";
@@ -641,6 +659,12 @@ export type ParameterValueField = {
   // ค่าเดี่ยว standardOperator/standardValue ถูก ignore.
   substanceMode?: boolean;
   substanceStandards?: SubstanceStandard[];
+  // Conditional standards (number/float). เมื่อ conditionalMode = true
+  // standardOperator/standardValue และ substance* ถูก ignore.
+  conditionalMode?: boolean;
+  conditionalStandards?: StandardRule[];
+  // โชว์ค่า field เดียวกันจากผลตรวจครั้งก่อนของ common name เดียวกัน (display-only)
+  showLastBatch?: boolean;
   options?: string[];
   requireNoteOn?: string[];
   expectedValues?: string[];
