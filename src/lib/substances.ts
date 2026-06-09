@@ -41,3 +41,16 @@ export function extractSubstanceName(raw: string): string {
   if (!trimmed) return "";
   return trimmed.split(/\s+/)[0] || "";
 }
+
+// Canonical match key for a substance: first whitespace token, trimmed + lowercased.
+// Used on BOTH sides (config substanceStandards[].substance and test-time
+// parseSubstances() output) so they line up regardless of trailing % / form spec.
+export function matchSubstanceKey(name: string): string {
+  return substanceKey(extractSubstanceName(name));
+}
+
+// Storage key for a per-substance value inside result.values:
+// `${fieldLabel}::${matchSubstanceKey(substance)}`.
+export function substanceFieldKey(label: string, substance: string): string {
+  return `${label}::${matchSubstanceKey(substance)}`;
+}

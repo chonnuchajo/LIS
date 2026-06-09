@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseSubstances, substanceKey, extractSubstanceName } from "./substances";
+import { parseSubstances, substanceKey, extractSubstanceName, matchSubstanceKey, substanceFieldKey } from "./substances";
 
 describe("parseSubstances", () => {
   it("returns single substance unchanged", () => {
@@ -77,5 +77,28 @@ describe("extractSubstanceName", () => {
   });
   it("trims leading whitespace before taking the first token", () => {
     expect(extractSubstanceName("  CHLOROTHALONIL 50%")).toBe("CHLOROTHALONIL");
+  });
+});
+
+describe("matchSubstanceKey", () => {
+  it("reduces a spec string to its first-token lowercase key", () => {
+    expect(matchSubstanceKey("ABAMECTIN 1.8% W/V EC")).toBe("abamectin");
+  });
+  it("trims and lowercases a bare name", () => {
+    expect(matchSubstanceKey("  Imidacloprid ")).toBe("imidacloprid");
+  });
+  it("returns empty string for empty input", () => {
+    expect(matchSubstanceKey("")).toBe("");
+  });
+  it("uses the first token of a merged 'A + B' fragment", () => {
+    expect(matchSubstanceKey("Alpha + Beta")).toBe("alpha");
+  });
+});
+
+describe("substanceFieldKey", () => {
+  it("joins label and substance key with '::'", () => {
+    expect(substanceFieldKey("ปริมาณสารสำคัญ", "ABAMECTIN 1.8% EC")).toBe(
+      "ปริมาณสารสำคัญ::abamectin",
+    );
   });
 });
