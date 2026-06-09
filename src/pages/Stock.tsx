@@ -447,19 +447,20 @@ function GlasswareTab() {
     return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
   }, [data, search]);
 
-  const lowList = data.filter(s => s.qty < LOW_GLASS_QTY);
+  // เครื่องแก้ว: แจ้งเฉพาะตอนหมดจริง (ไม่เตือนตอนใกล้หมด)
+  const outList = data.filter(s => s.qty <= 0);
 
   return (
     <div className="space-y-4">
-      {lowList.length > 0 && (
+      {outList.length > 0 && (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className="w-5 h-5 text-destructive" />
-              <span className="font-semibold text-destructive">เครื่องแก้วใกล้หมด ({lowList.length} รายการ)</span>
+              <span className="font-semibold text-destructive">เครื่องแก้วหมด ({outList.length} รายการ)</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-sm text-destructive">
-              {lowList.map(s => <div key={s._id}>• {s.name} เหลือ {s.qty} ชิ้น</div>)}
+              {outList.map(s => <div key={s._id}>• {s.name} หมดแล้ว</div>)}
             </div>
           </CardContent>
         </Card>

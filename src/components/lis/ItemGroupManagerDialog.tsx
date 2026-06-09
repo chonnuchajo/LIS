@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, X } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,11 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { api, type ItemGroupItem } from "@/lib/api";
 import { resolveItemGroups } from "@/lib/itemGroups";
 import { getItemNo, getRawCommonName, getTradeName } from "@/lib/masterItemFields";
@@ -35,14 +40,16 @@ const emptyDraft: Draft = {
   includeItemNos: [], excludeItemNos: [], status: "active",
 };
 
-// chip multi-select แบบง่าย: เลือกจาก options + ลบทีละตัว
+// chip multi-select แบบค้นหาได้: พิมพ์กรอง + คลิกเลือก/ตัดออก + ลบ chip ทีละตัว
 function ChipMultiSelect({
   label, values, options, onChange, placeholder,
 }: {
   label: string; values: string[]; options: string[];
   onChange: (next: string[]) => void; placeholder: string;
 }) {
-  const available = options.filter((o) => !values.includes(o));
+  const [open, setOpen] = useState(false);
+  const toggle = (o: string) =>
+    onChange(values.includes(o) ? values.filter((x) => x !== o) : [...values, o]);
   return (
     <div className="space-y-1.5">
       <Label className="text-xs">{label}</Label>
@@ -57,14 +64,34 @@ function ChipMultiSelect({
         ))}
         {values.length === 0 && <span className="text-xs text-muted-foreground">— ยังไม่เลือก —</span>}
       </div>
-      <Select value="" onValueChange={(v) => v && onChange([...values, v])}>
-        <SelectTrigger className="h-8"><SelectValue placeholder={placeholder} /></SelectTrigger>
-        <SelectContent>
-          {available.length === 0
-            ? <div className="px-2 py-1.5 text-xs text-muted-foreground">ครบแล้ว</div>
-            : available.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-        </SelectContent>
-      </Select>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm"
+            className="h-8 w-full justify-between font-normal text-muted-foreground">
+            {placeholder}
+            <ChevronsUpDown className="h-4 w-4 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+          <Command>
+            <CommandInput placeholder="ค้นหา..." className="h-9" />
+            <CommandList>
+              <CommandEmpty>ไม่พบ</CommandEmpty>
+              <CommandGroup>
+                {options.map((o) => {
+                  const selected = values.includes(o);
+                  return (
+                    <CommandItem key={o} value={o} onSelect={() => toggle(o)}>
+                      <Check className={cn("mr-2 h-4 w-4", selected ? "opacity-100" : "opacity-0")} />
+                      {o}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
@@ -103,10 +130,6 @@ export default function ItemGroupManagerDialog({
   );
   const tradeNameOptions = useMemo(
     () => Array.from(new Set(catalog.map((c) => c.tradeName).filter(Boolean))).sort(),
-    [catalog],
-  );
-  const itemNoOptions = useMemo(
-    () => Array.from(new Set(catalog.map((c) => c.itemNo).filter(Boolean))).sort(),
     [catalog],
   );
 
@@ -226,12 +249,6 @@ export default function ItemGroupManagerDialog({
               <ChipMultiSelect label="trade name" placeholder="เลือก trade name"
                 values={draft.tradeNames} options={tradeNameOptions}
                 onChange={(v) => setDraft({ ...draft, tradeNames: v })} />
-              <ChipMultiSelect label="เพิ่ม item (itemNo)" placeholder="เลือก item"
-                values={draft.includeItemNos} options={itemNoOptions}
-                onChange={(v) => setDraft({ ...draft, includeItemNos: v })} />
-              <ChipMultiSelect label="ตัด item ออก (itemNo)" placeholder="เลือก item"
-                values={draft.excludeItemNos} options={itemNoOptions}
-                onChange={(v) => setDraft({ ...draft, excludeItemNos: v })} />
             </div>
 
             <div className="rounded border bg-muted/30 p-2">

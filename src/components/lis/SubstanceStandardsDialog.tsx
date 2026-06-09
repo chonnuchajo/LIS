@@ -66,9 +66,11 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
   const { data: masterRows = [] } = useQuery<Record<string, unknown>[]>({
     queryKey: ["master-items"],
     queryFn: async () => {
-      const res = await api.get<unknown>("/master-items");
-      const raw = res as unknown;
-      return (Array.isArray(raw) ? raw : (raw as { data?: unknown[] })?.data ?? []) as Record<string, unknown>[];
+      // api.get wraps the response as { data: { data: rawJson } } — unwrap both
+      // levels. Key is shared with MasterItems/ParameterSettings; a non-array here
+      // would poison the shared cache and crash those pages' .map/.filter.
+      const res = await api.get<Record<string, unknown>[]>("/master-items");
+      return Array.isArray(res.data.data) ? res.data.data : [];
     },
     enabled: open,
   });
@@ -76,24 +78,32 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
   const { data: groups = [] } = useQuery<{ _id: string; name: string; commonNames?: string[] }[]>({
     queryKey: ["item-groups"],
     queryFn: async () => {
-      const res = await api.get<unknown>("/item-groups");
-      const raw = res as unknown;
-      return (Array.isArray(raw) ? raw : (raw as { data?: unknown[] })?.data ?? []) as { _id: string; name: string; commonNames?: string[] }[];
+      // api.get wraps the response as { data: { data: rawJson } } — must unwrap
+      // both levels. This key is shared with ParameterSettings/MasterItems/etc;
+      // returning a non-array here would poison the shared cache for them.
+      const res = await api.get<{ _id: string; name: string; commonNames?: string[] }[]>("/item-groups");
+      return Array.isArray(res.data.data) ? res.data.data : [];
     },
     enabled: open,
   });
 
+  // กัน white-screen: ["master-items"]/["item-groups"] เป็น query key ที่ใช้ร่วม
+  // หลายหน้า ถ้ามี component อื่นเขียน cache เป็น non-array จะ crash ที่ .map/.filter
+  // — coerce เป็น array ก่อนใช้เสมอ
+  const safeRows = Array.isArray(masterRows) ? masterRows : [];
+  const safeGroups = Array.isArray(groups) ? groups : [];
+
   const byCommonName = useMemo(
-    () => buildSubstances(masterRows.map((r) => pickField(r, COMMON_NAME_KEYS)).filter(Boolean)),
-    [masterRows],
+    () => buildSubstances(safeRows.map((r) => pickField(r, COMMON_NAME_KEYS)).filter(Boolean)),
+    [safeRows],
   );
   const byName = useMemo(() => {
     const q = search.trim().toLowerCase();
     const rows = q
-      ? masterRows.filter((r) => pickField(r, ITEM_NAME_KEYS).toLowerCase().includes(q))
-      : masterRows;
+      ? safeRows.filter((r) => pickField(r, ITEM_NAME_KEYS).toLowerCase().includes(q))
+      : safeRows;
     return buildSubstances(rows.map((r) => pickField(r, COMMON_NAME_KEYS)).filter(Boolean));
-  }, [masterRows, search]);
+  }, [safeRows, search]);
 
   const selectedKeys = useMemo(() => new Set(list.map((s) => matchSubstanceKey(s.substance))), [list]);
 
@@ -160,7 +170,7 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
               </TabsContent>
               <TabsContent value="group">
                 <div className="max-h-56 overflow-y-auto rounded border divide-y">
-                  {groups.map((g) => {
+                  {safeGroups.map((g) => {
                     const subs = buildSubstances(g.commonNames ?? []);
                     const allAdded = subs.length > 0 && subs.every((n) => selectedKeys.has(matchSubstanceKey(n)));
                     return (
