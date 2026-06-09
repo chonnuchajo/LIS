@@ -1,4 +1,4 @@
-import type { ParameterItem, ParameterValueField, TimerUnit, SubstanceStandard, StandardCondition } from "./api";
+import type { ParameterItem, ParameterValueField, TimerUnit, SubstanceStandard, StandardCondition, StandardOperator } from "./api";
 import type { QCTestResult } from "@/types/petition.types";
 import { parseSubstances, extractSubstanceName, matchSubstanceKey, substanceFieldKey } from "./substances";
 
