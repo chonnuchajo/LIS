@@ -28,6 +28,18 @@ function pickField(row: Record<string, unknown>, keys: string[]): string {
   return "";
 }
 
+function buildSubstances(commonNames: string[]): string[] {
+  const byKey = new Map<string, string>();
+  for (const cn of commonNames) {
+    for (const raw of parseSubstances(cn)) {
+      const name = extractSubstanceName(raw) || raw;
+      const key = matchSubstanceKey(name);
+      if (key && !byKey.has(key)) byKey.set(key, name);
+    }
+  }
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b, ["th", "en"]));
+}
+
 type Props = {
   open: boolean;
   field: ParameterValueField;
@@ -43,7 +55,11 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
 
   // reseed รายการทุกครั้งที่เปิด dialog (component คงอยู่ในหน้า ไม่ remount)
   useEffect(() => {
-    if (open) setList(field.substanceStandards ?? []);
+    if (open) {
+      setList(field.substanceStandards ?? []);
+      setSearch("");
+      setManual("");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -66,18 +82,6 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
     },
     enabled: open,
   });
-
-  const buildSubstances = (commonNames: string[]): string[] => {
-    const byKey = new Map<string, string>();
-    for (const cn of commonNames) {
-      for (const raw of parseSubstances(cn)) {
-        const name = extractSubstanceName(raw) || raw;
-        const key = matchSubstanceKey(name);
-        if (key && !byKey.has(key)) byKey.set(key, name);
-      }
-    }
-    return [...byKey.values()].sort((a, b) => a.localeCompare(b, ["th", "en"]));
-  };
 
   const byCommonName = useMemo(
     () => buildSubstances(masterRows.map((r) => pickField(r, COMMON_NAME_KEYS)).filter(Boolean)),
@@ -156,17 +160,22 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
               </TabsContent>
               <TabsContent value="group">
                 <div className="max-h-56 overflow-y-auto rounded border divide-y">
-                  {groups.map((g) => (
-                    <button
-                      key={g._id}
-                      type="button"
-                      onClick={() => buildSubstances(g.commonNames ?? []).forEach(addSubstance)}
-                      className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-muted"
-                    >
-                      <span className="truncate">{g.name}</span>
-                      <Plus className="h-4 w-4 text-primary shrink-0" />
-                    </button>
-                  ))}
+                  {groups.map((g) => {
+                    const subs = buildSubstances(g.commonNames ?? []);
+                    const allAdded = subs.length > 0 && subs.every((n) => selectedKeys.has(matchSubstanceKey(n)));
+                    return (
+                      <button
+                        key={g._id}
+                        type="button"
+                        disabled={subs.length === 0 || allAdded}
+                        onClick={() => subs.forEach(addSubstance)}
+                        className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-40"
+                      >
+                        <span className="truncate">{g.name}</span>
+                        {!allAdded && subs.length > 0 && <Plus className="h-4 w-4 text-primary shrink-0" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </TabsContent>
             </Tabs>
@@ -193,7 +202,7 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                 <p className="text-xs text-muted-foreground">ยังไม่ได้เลือกสาร</p>
               ) : (
                 list.map((std, i) => (
-                  <div key={`${std.substance}-${i}`} className="rounded border p-2 space-y-1.5">
+                  <div key={matchSubstanceKey(std.substance)} className="rounded border p-2 space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium truncate">{std.substance}</span>
                       <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeAt(i)}>
@@ -215,7 +224,7 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                       <Input
                         type="number"
                         value={std.value ?? ""}
-                        onChange={(e) => patchAt(i, { value: e.target.value === "" ? null : Number(e.target.value) })}
+                        onChange={(e) => patchAt(i, { value: e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })}
                         placeholder={std.operator === "tolerance" ? "ค่ามาตรฐาน" : std.operator === "between" ? "ตั้งแต่" : "ค่า"}
                         className="h-8 w-24"
                       />
@@ -223,7 +232,7 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                         <Input
                           type="number"
                           value={std.value2 ?? ""}
-                          onChange={(e) => patchAt(i, { value2: e.target.value === "" ? null : Number(e.target.value) })}
+                          onChange={(e) => patchAt(i, { value2: e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })}
                           placeholder={std.operator === "tolerance" ? "± %" : "ถึง"}
                           className="h-8 w-24"
                         />
