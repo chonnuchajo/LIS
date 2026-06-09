@@ -252,6 +252,56 @@ function conditionSourceValue(cond: StandardCondition, ctx: ConditionContext): u
   return ctx.sameParam[cond.sourceFieldLabel];
 }
 
+export type ResolvedStandard = {
+  operator: StandardOperator;
+  value: number | null;
+  value2: number | null;
+  matchedRuleLabel?: string;
+} | null;
+
+export function resolveStandard(
+  field: ParameterValueField,
+  ctx: ConditionContext,
+): ResolvedStandard {
+  if (!field.conditionalMode) {
+    if (!field.standardOperator || field.standardValue == null) return null;
+    return {
+      operator: field.standardOperator,
+      value: field.standardValue,
+      value2: field.standardValue2 ?? null,
+    };
+  }
+  for (const rule of field.conditionalStandards ?? []) {
+    const matched = (rule.conditions ?? []).every((c) => evalCondition(c, ctx));
+    if (matched) {
+      return {
+        operator: rule.operator,
+        value: rule.value,
+        value2: rule.value2 ?? null,
+        matchedRuleLabel: rule.label,
+      };
+    }
+  }
+  return null;
+}
+
+// คืน virtual field ที่ฉีดเกณฑ์ที่ resolve ได้ลงไป (conditionalMode ปิด)
+// เพื่อให้ isFieldAbnormal / describeStandard เดิมทำงานได้ตรงๆ
+export function resolveFieldStandard(
+  field: ParameterValueField,
+  ctx: ConditionContext,
+): ParameterValueField {
+  if (!field.conditionalMode) return field;
+  const r = resolveStandard(field, ctx);
+  return {
+    ...field,
+    conditionalMode: false,
+    standardOperator: r?.operator,
+    standardValue: r?.value ?? null,
+    standardValue2: r?.value2 ?? null,
+  };
+}
+
 export function evalCondition(cond: StandardCondition, ctx: ConditionContext): boolean {
   const raw = conditionSourceValue(cond, ctx);
   // เจตนา: source ว่าง/ยังไม่กรอก = condition ไม่ผ่าน (รวม ne ด้วย) — กฎจะ activate

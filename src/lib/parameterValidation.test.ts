@@ -14,6 +14,8 @@ import {
   isSubstanceAbnormal,
   expandFieldForItem,
   evalCondition,
+  resolveStandard,
+  resolveFieldStandard,
 } from "./parameterValidation";
 import type { ParameterItem, ParameterValueField } from "./api";
 import type { QCTestResult } from "@/types/petition.types";
@@ -651,5 +653,49 @@ describe("evalCondition", () => {
     expect(evalCondition({ sourceFieldLabel: "x", op: "lte", value: 10 }, ctx({ x: 10 }))).toBe(true);
     expect(evalCondition({ sourceFieldLabel: "x", op: "gt", value: 10 }, ctx({ x: 11 }))).toBe(true);
     expect(evalCondition({ sourceFieldLabel: "x", op: "gt", value: 10 }, ctx({ x: 10 }))).toBe(false);
+  });
+});
+
+const condField = (rules): ParameterValueField => ({
+  label: "น้ำหนัก", type: "number", unit: "ก.",
+  conditionalMode: true, conditionalStandards: rules,
+});
+
+describe("resolveStandard", () => {
+  const rules = [
+    { label: "ก้อนใหญ่", conditions: [{ sourceFieldLabel: "ลักษณะ", op: "eq", value: "ก้อนใหญ่" }], operator: "between", value: 23.5, value2: 26 },
+    { label: "ก้อนเล็ก", conditions: [{ sourceFieldLabel: "ลักษณะ", op: "eq", value: "ก้อนเล็ก" }], operator: "between", value: 5.5, value2: 5.6 },
+  ];
+
+  it("returns the first matching rule's standard", () => {
+    const r = resolveStandard(condField(rules), ctx({ "ลักษณะ": "ก้อนใหญ่" }));
+    expect(r).toMatchObject({ operator: "between", value: 23.5, value2: 26, matchedRuleLabel: "ก้อนใหญ่" });
+  });
+
+  it("returns null when no rule matches", () => {
+    expect(resolveStandard(condField(rules), ctx({}))).toBeNull();
+  });
+
+  it("empty-conditions rule acts as default (always matches, placed last)", () => {
+    const withDefault = [...rules, { conditions: [], operator: "between" as const, value: 0, value2: 100 }];
+    const r = resolveStandard(condField(withDefault), ctx({ "ลักษณะ": "อื่นๆ" }));
+    expect(r).toMatchObject({ operator: "between", value: 0, value2: 100 });
+  });
+
+  it("non-conditional field falls back to single standard", () => {
+    const f: ParameterValueField = { label: "x", type: "number", standardOperator: "lt", standardValue: 5 };
+    expect(resolveStandard(f, ctx({}))).toMatchObject({ operator: "lt", value: 5, value2: null });
+  });
+
+  it("resolveFieldStandard injects resolved standard so isFieldAbnormal works", () => {
+    const vf = resolveFieldStandard(condField(rules), ctx({ "ลักษณะ": "ก้อนใหญ่" }));
+    expect(vf.conditionalMode).toBe(false);
+    expect(isFieldAbnormal(vf, 30)).toBe(true);   // 30 อยู่นอก 23.5–26
+    expect(isFieldAbnormal(vf, 24)).toBe(false);
+  });
+
+  it("resolveFieldStandard with no match → no abnormal check", () => {
+    const vf = resolveFieldStandard(condField(rules), ctx({}));
+    expect(isFieldAbnormal(vf, 9999)).toBe(false);
   });
 });
