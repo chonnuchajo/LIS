@@ -281,7 +281,18 @@ router.post('/users/microsoft', async (req, res) => {
         }
       }
       user.lastActive = now;
-      await user.save();
+      try {
+        await user.save();
+      } catch (e) {
+        // An auto-linked employeeId that collides with another user's link must
+        // not break login — drop the link (fixable later via the picker) and retry.
+        if (e.code === 11000 && (e.keyPattern?.employeeId || /employeeId/.test(e.message || ''))) {
+          user.employeeId = '';
+          await user.save();
+        } else {
+          throw e;
+        }
+      }
       return res.json(formatUser(user, await getRolePermissions(normalizeRoles(user))));
     }
 
@@ -290,7 +301,7 @@ router.post('/users/microsoft', async (req, res) => {
     // HR is the source of truth for แผนก/ตำแหน่ง when matched; otherwise keep the
     // resolveHrField/Graph value. Resolved before create so there's a single write.
     const link = await resolveEmployeeLink(normalizedEmail);
-    user = await User.create({
+    const newUserDoc = {
       email: normalizedEmail,
       name: name || normalizedEmail,
       role,
@@ -302,7 +313,17 @@ router.post('/users/microsoft', async (req, res) => {
       authProvider: 'microsoft',
       microsoftId,
       tenantId,
-    });
+    };
+    try {
+      user = await User.create(newUserDoc);
+    } catch (e) {
+      // employeeId collision must not break first login — create without the link.
+      if (e.code === 11000 && (e.keyPattern?.employeeId || /employeeId/.test(e.message || ''))) {
+        user = await User.create({ ...newUserDoc, employeeId: '' });
+      } else {
+        throw e; // genuine email dup → outer catch → 409
+      }
+    }
 
     res.status(201).json(formatUser(user, await getRolePermissions(normalizeRoles(user))));
   } catch (err) {
