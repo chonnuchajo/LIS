@@ -7,6 +7,8 @@ const AccessGroup = require('../models/AccessGroup');
 const { findOrphanBackfillPaths } = require('../lib/accessGroups');
 const { resolveHrField } = require('../lib/userProfile');
 const { primaryRole, normalizeRoles, unionPermissions } = require('../lib/roles');
+const { fetchMonthlyEmployees } = require('../lib/employeeDirectory');
+const { findEmployeeByEmail, findEmployeeById, planEmployeeSync } = require('../lib/employeeLink');
 
 const defaultGroups = [
   { id: 'dashboard', name: 'หน้าหลัก', description: 'ภาพรวมแล็บและงานที่กำลังดำเนินการ', paths: ['/', '/home', '/dashboard/lab'], locked: false, sortOrder: 10 },
@@ -158,6 +160,7 @@ function formatUser(user, permissions) {
     permissions,
     department: user.department || 'Unassigned',
     position: user.position || 'Unassigned',
+    employeeId: user.employeeId || '',
     status: user.status || 'active',
     lastActive: user.lastActive || 'Never',
     authProvider: user.authProvider || 'local',
@@ -250,6 +253,21 @@ router.post('/users/microsoft', async (req, res) => {
       // value when Graph has nothing for this user.
       user.department = resolveHrField(department, user.department);
       user.position = resolveHrField(position, user.position);
+      // Auto-link to an HR employee by email the first time we can. Only fills an
+      // empty employeeId (never overwrites an admin's manual link). Webhook
+      // failure is non-fatal — login must not break if HR is unreachable.
+      if (!user.employeeId) {
+        try {
+          const emp = findEmployeeByEmail(await fetchMonthlyEmployees(), normalizedEmail);
+          if (emp) {
+            user.employeeId = emp.employeeId;
+            user.department = emp.department || user.department;
+            user.position = emp.position || user.position;
+          }
+        } catch (e) {
+          // HR webhook down — skip auto-link this round.
+        }
+      }
       user.lastActive = now;
       await user.save();
       return res.json(formatUser(user, await getRolePermissions(normalizeRoles(user))));
@@ -269,6 +287,18 @@ router.post('/users/microsoft', async (req, res) => {
       microsoftId,
       tenantId,
     });
+
+    try {
+      const emp = findEmployeeByEmail(await fetchMonthlyEmployees(), normalizedEmail);
+      if (emp) {
+        user.employeeId = emp.employeeId;
+        user.department = emp.department || user.department;
+        user.position = emp.position || user.position;
+        await user.save();
+      }
+    } catch (e) {
+      // HR webhook down — skip auto-link this round.
+    }
 
     res.status(201).json(formatUser(user, await getRolePermissions(normalizeRoles(user))));
   } catch (err) {
