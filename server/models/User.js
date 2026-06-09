@@ -11,6 +11,7 @@ const UserSchema = new mongoose.Schema({
   roles: { type: [String], default: [] },
   department: { type: String, default: 'Unassigned' },
   position: { type: String, default: 'Unassigned' },
+  employeeId: { type: String, default: '' },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   lastActive: { type: String, default: 'Never' },
   authProvider: { type: String, enum: ['local', 'microsoft', 'production'], default: 'local' },
@@ -40,6 +41,12 @@ UserSchema.methods.comparePassword = function (plain) {
 };
 
 UserSchema.index({ email: 1, deletedAt: 1 }, { unique: true });
+// One employee record maps to at most one (non-deleted) user. Partial filter so
+// only non-empty employeeIds are constrained — many users may sit unlinked ('').
+UserSchema.index(
+  { employeeId: 1, deletedAt: 1 },
+  { unique: true, partialFilterExpression: { employeeId: { $gt: '' } } },
+);
 
 UserSchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('User', UserSchema);
