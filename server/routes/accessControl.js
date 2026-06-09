@@ -331,11 +331,59 @@ router.patch('/users/:id', async (req, res) => {
     }
     if (patch.roles) patch.role = primaryRole(patch.roles);
 
+    if (req.body.employeeId !== undefined) {
+      const employeeId = String(req.body.employeeId || '').trim();
+      if (employeeId) {
+        // Block linking the same employee to two users (the partial unique index
+        // is the backstop; this gives a friendly 409).
+        const dupe = await User.findOne({ employeeId, _id: { $ne: req.params.id } });
+        if (dupe) {
+          return res.status(409).json({ error: 'employee already linked to another user' });
+        }
+        patch.employeeId = employeeId;
+        // Pull แผนก/ตำแหน่ง from the HR record (source of truth). Webhook down =
+        // link the id only, leave dept/position untouched.
+        try {
+          const emp = findEmployeeById(await fetchMonthlyEmployees(), employeeId);
+          if (emp) {
+            patch.department = emp.department || undefined;
+            patch.position = emp.position || undefined;
+          }
+        } catch (e) {
+          // HR webhook down — link id only.
+        }
+      } else {
+        patch.employeeId = ''; // unlink
+      }
+    }
+
     const user = await User.findByIdAndUpdate(req.params.id, patch, { new: true });
     if (!user) return res.status(404).json({ error: 'user not found' });
     res.json(formatUser(user));
   } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ error: 'employee already linked to another user' });
     res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/users/sync-employees', async (_req, res) => {
+  try {
+    const employees = await fetchMonthlyEmployees();
+    const users = await User.find();
+    const plan = planEmployeeSync(
+      users.map(u => ({ id: u._id.toString(), email: u.email, employeeId: u.employeeId || '' })),
+      employees,
+    );
+    for (const update of plan.updates) {
+      await User.findByIdAndUpdate(update.userId, {
+        employeeId: update.employeeId,
+        department: update.department || undefined,
+        position: update.position || undefined,
+      });
+    }
+    res.json({ linked: plan.linked, alreadyLinked: plan.alreadyLinked, unmatched: plan.unmatched });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
