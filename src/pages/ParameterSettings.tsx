@@ -26,6 +26,8 @@ import { toast } from "sonner";
 
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
+import { SubstanceStandardsDialog } from "@/components/lis/SubstanceStandardsDialog";
+import { describeSubstanceStandard } from "@/lib/standardOperators";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -451,6 +453,19 @@ function OptionRow({
 }
 
 function StandardPreview({ field }: { field: ParameterValueField }) {
+  if (field.substanceMode) {
+    const stds = field.substanceStandards ?? [];
+    if (stds.length === 0) {
+      return <p className="text-xs text-muted-foreground">ยังไม่ได้ตั้งเงื่อนไขสาร</p>;
+    }
+    return (
+      <p className="text-xs text-emerald-700">
+        {stds
+          .map((s) => `${s.substance} ${describeSubstanceStandard(s, field.unit ?? "")}`.trim())
+          .join(" · ")}
+      </p>
+    );
+  }
   const op = field.standardOperator;
   const v1 = field.standardValue;
   const v2 = field.standardValue2;
@@ -945,6 +960,7 @@ function ValueFieldEditor({
 }: ValueFieldEditorProps) {
   const [optionDraft, setOptionDraft] = useState("");
   const [expanded, setExpanded] = useState(!field.label?.trim());
+  const [substanceDialogOpen, setSubstanceDialogOpen] = useState(false);
 
   const addOption = () => {
     const v = optionDraft.trim();
@@ -1205,122 +1221,170 @@ function ValueFieldEditor({
 
           {requiresUnit ? (
             <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
-                <div className="sm:col-span-3 space-y-1.5">
-                  <Label className="text-sm">หน่วย *</Label>
-                  <Input
-                    value={field.unit ?? ""}
-                    onChange={(e) => onChange({ ...field, unit: e.target.value })}
-                    placeholder="เช่น %, mg/L, cP"
-                    className="h-10"
+              {/* toggle แยกรายสาร */}
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox
+                  checked={!!field.substanceMode}
+                  onCheckedChange={(c) =>
+                    onChange({
+                      ...field,
+                      substanceMode: !!c,
+                      substanceStandards: c ? field.substanceStandards ?? [] : field.substanceStandards,
+                      standardOperator: c ? undefined : field.standardOperator,
+                      standardValue: c ? null : field.standardValue,
+                      standardValue2: c ? null : field.standardValue2,
+                    })
+                  }
+                />
+                แยกเงื่อนไขตามสาร
+              </label>
+
+              {field.substanceMode ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
+                    <div className="sm:col-span-3 space-y-1.5">
+                      <Label className="text-sm">หน่วย *</Label>
+                      <Input
+                        value={field.unit ?? ""}
+                        onChange={(e) => onChange({ ...field, unit: e.target.value })}
+                        placeholder="เช่น %, mg/L"
+                        className="h-10"
+                      />
+                    </div>
+                    <div className="sm:col-span-9 flex items-end">
+                      <Button type="button" variant="outline" className="h-10" onClick={() => setSubstanceDialogOpen(true)}>
+                        ตั้งเงื่อนไขรายสาร ({(field.substanceStandards ?? []).length} สาร)
+                      </Button>
+                    </div>
+                  </div>
+                  <StandardPreview field={field} />
+                  <SubstanceStandardsDialog
+                    open={substanceDialogOpen}
+                    field={field}
+                    onClose={() => setSubstanceDialogOpen(false)}
+                    onSave={(next) => onChange({ ...field, substanceStandards: next })}
                   />
                 </div>
-                <div className="sm:col-span-4 space-y-1.5">
-                  <Label className="text-sm">เงื่อนไข</Label>
-                  <Select
-                    value={field.standardOperator ?? "none"}
-                    onValueChange={(v) => {
-                      const op = v === "none" ? undefined : (v as StandardOperator);
-                      onChange({
-                        ...field,
-                        standardOperator: op,
-                        standardValue2:
-                          op === "between" || op === "tolerance" ? field.standardValue2 ?? null : null,
-                      });
-                    }}
-                  >
-                    <SelectTrigger className="h-10">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {OPERATOR_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {field.standardOperator === "between" ? (
-                  <>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
                     <div className="sm:col-span-3 space-y-1.5">
-                      <Label className="text-sm">ตั้งแต่ *</Label>
+                      <Label className="text-sm">หน่วย *</Label>
                       <Input
-                        type="number"
-                        value={field.standardValue ?? ""}
-                        onChange={(e) =>
-                          onChange({
-                            ...field,
-                            standardValue: e.target.value === "" ? null : Number(e.target.value),
-                          })
-                        }
+                        value={field.unit ?? ""}
+                        onChange={(e) => onChange({ ...field, unit: e.target.value })}
+                        placeholder="เช่น %, mg/L, cP"
                         className="h-10"
                       />
                     </div>
-                    <div className="sm:col-span-2 space-y-1.5">
-                      <Label className="text-sm">ถึง *</Label>
-                      <Input
-                        type="number"
-                        value={field.standardValue2 ?? ""}
-                        onChange={(e) =>
+                    <div className="sm:col-span-4 space-y-1.5">
+                      <Label className="text-sm">เงื่อนไข</Label>
+                      <Select
+                        value={field.standardOperator ?? "none"}
+                        onValueChange={(v) => {
+                          const op = v === "none" ? undefined : (v as StandardOperator);
                           onChange({
                             ...field,
-                            standardValue2: e.target.value === "" ? null : Number(e.target.value),
-                          })
-                        }
-                        className="h-10"
-                      />
+                            standardOperator: op,
+                            standardValue2:
+                              op === "between" || op === "tolerance" ? field.standardValue2 ?? null : null,
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="h-10">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {OPERATOR_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  </>
-                ) : field.standardOperator === "tolerance" ? (
-                  <>
-                    <div className="sm:col-span-3 space-y-1.5">
-                      <Label className="text-sm">ค่ามาตรฐาน *</Label>
-                      <Input
-                        type="number"
-                        value={field.standardValue ?? ""}
-                        onChange={(e) =>
-                          onChange({
-                            ...field,
-                            standardValue: e.target.value === "" ? null : Number(e.target.value),
-                          })
-                        }
-                        className="h-10"
-                      />
-                    </div>
-                    <div className="sm:col-span-2 space-y-1.5">
-                      <Label className="text-sm">± (%) *</Label>
-                      <Input
-                        type="number"
-                        value={field.standardValue2 ?? ""}
-                        onChange={(e) =>
-                          onChange({
-                            ...field,
-                            standardValue2: e.target.value === "" ? null : Number(e.target.value),
-                          })
-                        }
-                        className="h-10"
-                      />
-                    </div>
-                  </>
-                ) : field.standardOperator ? (
-                  <div className="sm:col-span-5 space-y-1.5">
-                    <Label className="text-sm">ค่ามาตรฐาน *</Label>
-                    <Input
-                      type="number"
-                      value={field.standardValue ?? ""}
-                      onChange={(e) =>
-                        onChange({
-                          ...field,
-                          standardValue: e.target.value === "" ? null : Number(e.target.value),
-                        })
-                      }
-                      className="h-10"
-                    />
+                    {field.standardOperator === "between" ? (
+                      <>
+                        <div className="sm:col-span-3 space-y-1.5">
+                          <Label className="text-sm">ตั้งแต่ *</Label>
+                          <Input
+                            type="number"
+                            value={field.standardValue ?? ""}
+                            onChange={(e) =>
+                              onChange({
+                                ...field,
+                                standardValue: e.target.value === "" ? null : Number(e.target.value),
+                              })
+                            }
+                            className="h-10"
+                          />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1.5">
+                          <Label className="text-sm">ถึง *</Label>
+                          <Input
+                            type="number"
+                            value={field.standardValue2 ?? ""}
+                            onChange={(e) =>
+                              onChange({
+                                ...field,
+                                standardValue2: e.target.value === "" ? null : Number(e.target.value),
+                              })
+                            }
+                            className="h-10"
+                          />
+                        </div>
+                      </>
+                    ) : field.standardOperator === "tolerance" ? (
+                      <>
+                        <div className="sm:col-span-3 space-y-1.5">
+                          <Label className="text-sm">ค่ามาตรฐาน *</Label>
+                          <Input
+                            type="number"
+                            value={field.standardValue ?? ""}
+                            onChange={(e) =>
+                              onChange({
+                                ...field,
+                                standardValue: e.target.value === "" ? null : Number(e.target.value),
+                              })
+                            }
+                            className="h-10"
+                          />
+                        </div>
+                        <div className="sm:col-span-2 space-y-1.5">
+                          <Label className="text-sm">± (%) *</Label>
+                          <Input
+                            type="number"
+                            value={field.standardValue2 ?? ""}
+                            onChange={(e) =>
+                              onChange({
+                                ...field,
+                                standardValue2: e.target.value === "" ? null : Number(e.target.value),
+                              })
+                            }
+                            className="h-10"
+                          />
+                        </div>
+                      </>
+                    ) : field.standardOperator ? (
+                      <div className="sm:col-span-5 space-y-1.5">
+                        <Label className="text-sm">ค่ามาตรฐาน *</Label>
+                        <Input
+                          type="number"
+                          value={field.standardValue ?? ""}
+                          onChange={(e) =>
+                            onChange({
+                              ...field,
+                              standardValue: e.target.value === "" ? null : Number(e.target.value),
+                            })
+                          }
+                          className="h-10"
+                        />
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-              <StandardPreview field={field} />
+                  <StandardPreview field={field} />
+                </div>
+              )}
             </div>
           ) : null}
 
