@@ -53,18 +53,41 @@ function Field({
   value,
   className = '',
   valueClassName = '',
+  multiline = false,
 }: {
   label: string;
   value?: string;
   className?: string;
   valueClassName?: string;
+  multiline?: boolean;
 }) {
+  const valueBaseClass = multiline
+    ? 'min-h-[3.5mm] min-w-0 flex-1 overflow-visible whitespace-normal break-words border-b border-black px-0.5 font-bold'
+    : 'min-h-[3.5mm] min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap border-b border-black px-0.5 font-bold';
+
   return (
     <div className={`flex min-w-0 items-end gap-1 ${className}`}>
       <span className="whitespace-nowrap">{label}</span>
-      <span className={`min-h-[3.5mm] min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap border-b border-black px-0.5 ${valueClassName}`}>
+      <span className={`${valueBaseClass} ${valueClassName}`}>
         {value || ''}
       </span>
+    </div>
+  );
+}
+
+function StackedField({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="whitespace-nowrap">{label}</div>
+      <div className="min-h-[3.5mm] min-w-0 overflow-visible whitespace-normal break-words border-b border-black px-0.5 font-bold leading-tight">
+        {value || ''}
+      </div>
     </div>
   );
 }
@@ -79,22 +102,31 @@ function LabelCard({
   yearShort: string;
 }) {
   const productLine = [item.sampleName, item.commonName].filter(Boolean).join(' ');
+  const sampledByName = petition.submittedBy?.name || item.labelSampledBy || '';
   const qrValue = getQrValue(petition, item);
   return (
     <div
-      className="label-card overflow-hidden border border-black text-[9px] leading-tight"
-      style={{ width: '100mm', height: '50mm', padding: '2mm 3mm', boxSizing: 'border-box' }}
+      className="label-card overflow-hidden border border-black text-[9.5px] font-semibold leading-[1.15]"
+      style={{
+        width: '100mm',
+        height: '50mm',
+        padding: '2mm 3mm',
+        boxSizing: 'border-box',
+        fontFamily: 'Tahoma, Arial, sans-serif',
+        textRendering: 'geometricPrecision',
+      }}
     >
       <div className="mb-1 flex items-start gap-1.5">
         <div className="shrink-0 pt-0.5">
           <QrCodeSvg value={qrValue} />
         </div>
         <div className="min-w-0 flex-1 space-y-1">
-          <div>
-            <div className="text-center font-semibold">
-              ป้ายนำส่งตัวอย่าง บริษัท ไอ ซี พี ลัดดา จำกัด
+          <div className="relative min-h-[7mm] pr-[25mm]">
+            <div className="text-center text-[11px] font-bold leading-tight">
+              <div>ป้ายนำส่งตัวอย่าง บริษัท ไอ ซี พี</div>
+              <div>ลัดดา จำกัด</div>
             </div>
-            <div className="mt-0.5 flex items-end justify-end gap-1 whitespace-nowrap">
+            <div className="absolute right-0 top-0 flex items-end gap-1 whitespace-nowrap text-[9.5px]">
               <span>เลขที่</span>
               <span className="inline-block border-b border-black px-1 min-w-[2.5rem] text-center">
                 {item.sampleId || '\u00a0'}
@@ -105,22 +137,23 @@ function LabelCard({
               </span>
             </div>
           </div>
-          <Field
-            label="ชื่อผลิตภัณฑ์ และสารสำคัญ"
-            value={productLine}
-            valueClassName="whitespace-normal break-words leading-tight"
-          />
-          <div className="grid grid-cols-[1.25fr_0.75fr] gap-1.5">
+          <StackedField label="ชื่อผลิตภัณฑ์ และสารสำคัญ" value={productLine} />
+          <div>
             <Field label="วัน เดือน ปี ที่ผลิต/นำเข้า" value={toBuddhistShort(item.productionDate)} />
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            <Field label="Lot No." value={item.lotNo} />
             <Field label="แบชนัมเบอร์" value={item.batchNo} />
           </div>
           <div className="grid grid-cols-2 gap-1.5">
             <Field label="ผู้ผลิต" value={item.labelManufacturer} />
             <Field label="ผู้ขาย" value={item.labelSeller} />
           </div>
-          <div className="grid grid-cols-[1.3fr_1fr_1fr] gap-1.5">
+          <div>
             <Field label="ปริมาณ" value={item.labelQuantity} />
-            <Field label="สุ่มโดย" value={item.labelSampledBy} />
+          </div>
+          <div className="grid grid-cols-[1.4fr_1fr] gap-1.5">
+            <Field label="สุ่มโดย" value={sampledByName} />
             <Field label="ว/ด/ป" value={toBuddhistShort(item.labelSampledDate)} />
           </div>
         </div>
@@ -130,7 +163,7 @@ function LabelCard({
         <Field label="หมายเหตุ" value={item.labelRemark} />
       </div>
 
-      <div className="mt-1 text-[7px]">F-LAB-01-10 Rev : 01 01/04/67</div>
+      <div className="mt-1 text-[7.5px] font-semibold">F-LAB-01-10 Rev : 01 01/04/67</div>
 
       <div className="sr-only">{petition.petitionNo}</div>
     </div>
