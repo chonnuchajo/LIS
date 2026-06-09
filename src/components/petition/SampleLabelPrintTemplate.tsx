@@ -117,8 +117,11 @@ function LabelCard({
       }}
     >
       <div className="mb-1 flex items-start gap-1.5">
-        <div className="shrink-0 pt-0.5">
+        <div className="flex shrink-0 flex-col items-center pt-0.5">
           <QrCodeSvg value={qrValue} />
+          <div className="mt-0.5 w-[24mm] break-all text-center text-[7px] font-bold leading-tight">
+            {petition.petitionNo}
+          </div>
         </div>
         <div className="min-w-0 flex-1 space-y-1">
           <div className="relative min-h-[7mm] pr-[25mm]">
