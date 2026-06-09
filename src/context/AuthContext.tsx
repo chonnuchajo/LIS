@@ -15,6 +15,7 @@ interface AuthUser {
   permissions?: string[];
   department?: string;
   position?: string;
+  employeeId?: string;
   status?: "active" | "inactive";
 }
 
@@ -153,6 +154,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         permissions: syncedUser?.permissions,
         department: syncedUser?.department,
         position: syncedUser?.position,
+        employeeId: syncedUser?.employeeId,
         status: syncedUser?.status,
       }
     : null;
@@ -199,6 +201,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           permissions?: string[];
           department: string;
           position: string;
+          employeeId: string;
           status: "active" | "inactive";
         }>("/access-control/users/microsoft", {
           email: account.username,
@@ -218,6 +221,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           permissions: res.data.data.permissions ?? [],
           department: res.data.data.department,
           position: res.data.data.position,
+          employeeId: res.data.data.employeeId,
           status: res.data.data.status,
         });
       } catch (err) {

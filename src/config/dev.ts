@@ -16,6 +16,7 @@ export type DevAuthUser = {
   permissions: string[];
   department: string;
   position: string;
+  employeeId: string;
   status: "active";
 };
 
@@ -44,6 +45,7 @@ export const synthesizeDevUser = (
     permissions: [],
     department: devDepartment(primary.id),
     position: primary.name,
+    employeeId: `DEV-${primary.id}`,
     status: "active",
   };
 };
