@@ -167,7 +167,7 @@ export default function ItemGroupManagerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-6xl sm:w-[94vw] max-h-[94vh] overflow-y-auto top-[3vh] translate-y-0">
+      <DialogContent className="sm:max-w-6xl sm:w-[94vw] max-h-[94vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>จัดกลุ่ม Item</DialogTitle>
         </DialogHeader>
