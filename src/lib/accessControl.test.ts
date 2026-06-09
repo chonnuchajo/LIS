@@ -115,6 +115,11 @@ describe("userCanAccessPath", () => {
       expect(userCanAccessPath(user, "/petitions/assign", navGroups)).toBe(false);
     });
 
+    it("does NOT grant /petitions/assign through the dynamic petition detail route", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/petitions/:id"] };
+      expect(userCanAccessPath(user, "/petitions/assign", navGroups)).toBe(false);
+    });
+
     it("grants the lab testing detail page when /lab-testing is granted", () => {
       const user = { role: "lab", status: "active" as const, permissions: ["/lab-testing"] };
       expect(userCanAccessPath(user, "/lab-testing/abc", navGroups)).toBe(true);

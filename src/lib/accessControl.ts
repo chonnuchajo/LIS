@@ -54,8 +54,11 @@ function isOwnNavPage(pathname: string) {
 // match, or `pathname` is one of grantedPath's implied sub-pages (and isn't a
 // separately-controlled nav page in its own right).
 function grantMatches(grantedPath: string, pathname: string) {
+  const normalizedGrantedPath = normalizePath(grantedPath);
+  const normalizedPathname = normalizePath(pathname);
+  if (normalizedGrantedPath !== normalizedPathname && isOwnNavPage(pathname)) return false;
   if (pathMatches(grantedPath, pathname)) return true;
-  const children = IMPLIED_CHILD_PATHS[normalizePath(grantedPath)];
+  const children = IMPLIED_CHILD_PATHS[normalizedGrantedPath];
   if (!children || isOwnNavPage(pathname)) return false;
   return children.some((child) => pathMatches(child, pathname));
 }
