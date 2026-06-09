@@ -58,6 +58,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted }: Props)
   const [petition, setPetition] = useState<Petition | null>(null);
   const [pendingId, setPendingId] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [manualCode, setManualCode] = useState('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
@@ -66,6 +67,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted }: Props)
       setPetition(null);
       setPendingId('');
       setErrorMsg('');
+      setManualCode('');
     }
   }, [open]);
 
@@ -236,6 +238,37 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted }: Props)
 
           {phase === 'no-camera' && (
             <p className="text-center text-sm text-grey-500">ไม่พบกล้องในอุปกรณ์นี้</p>
+          )}
+
+          {(phase === 'scanning' || phase === 'no-camera') && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const code = manualCode.trim();
+                if (!code) return;
+                setManualCode('');
+                fetchAndCheck(code);
+              }}
+              className="space-y-2"
+            >
+              <div className="flex items-center gap-2 text-xs text-grey-400">
+                <div className="h-px flex-1 bg-grey-200" />
+                <span>หรือ</span>
+                <div className="h-px flex-1 bg-grey-200" />
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={manualCode}
+                  onChange={(e) => setManualCode(e.target.value)}
+                  placeholder="พิมพ์เลขที่คำร้อง เช่น P-2506-0001"
+                  className="flex-1 rounded-lg border border-grey-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
+                />
+                <Button type="submit" variant="primary" disabled={!manualCode.trim()}>
+                  รับงาน
+                </Button>
+              </div>
+            </form>
           )}
 
           {phase === 'confirming' && petition && (
