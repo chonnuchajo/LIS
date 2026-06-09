@@ -90,7 +90,9 @@ describe("matchSubstanceKey", () => {
   it("returns empty string for empty input", () => {
     expect(matchSubstanceKey("")).toBe("");
   });
-  it("uses the first token of a merged 'A + B' fragment", () => {
+  it("keeps the first token when given a parseSubstances-merged 'X + Y' slot", () => {
+    // 3+ substance products: parseSubstances merges down to 2 slots, and a slot
+    // may itself be a "X + Y" string. matchSubstanceKey reduces it to the first token.
     expect(matchSubstanceKey("Alpha + Beta")).toBe("alpha");
   });
 });
@@ -100,5 +102,11 @@ describe("substanceFieldKey", () => {
     expect(substanceFieldKey("ปริมาณสารสำคัญ", "ABAMECTIN 1.8% EC")).toBe(
       "ปริมาณสารสำคัญ::abamectin",
     );
+  });
+  it("produces a 'label::' key when the substance is empty", () => {
+    expect(substanceFieldKey("pH", "")).toBe("pH::");
+  });
+  it("produces a '::key' key when the label is empty", () => {
+    expect(substanceFieldKey("", "ABAMECTIN 1.8% EC")).toBe("::abamectin");
   });
 });
