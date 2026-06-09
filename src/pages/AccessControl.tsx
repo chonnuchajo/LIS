@@ -238,6 +238,8 @@ const AccessControl = () => {
   const [directory, setDirectory] = useState<EmployeeDirectoryEntry[]>([]);
   const [linkingUserId, setLinkingUserId] = useState<string | null>(null);
   const [employeeSearch, setEmployeeSearch] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [linking, setLinking] = useState(false);
 
   const loadAccessControl = async () => {
     setLoading(true);
@@ -293,15 +295,15 @@ const AccessControl = () => {
 
   const filteredDirectory = useMemo(() => {
     const q = employeeSearch.toLowerCase();
-    if (!q) return directory.slice(0, 50);
-    return directory
-      .filter(
-        (e) =>
-          e.name.toLowerCase().includes(q) ||
-          e.employeeId.toLowerCase().includes(q) ||
-          e.department.toLowerCase().includes(q),
-      )
-      .slice(0, 50);
+    const matched = q
+      ? directory.filter(
+          (e) =>
+            e.name.toLowerCase().includes(q) ||
+            e.employeeId.toLowerCase().includes(q) ||
+            e.department.toLowerCase().includes(q),
+        )
+      : directory;
+    return { items: matched.slice(0, 50), total: matched.length };
   }, [directory, employeeSearch]);
 
   const sortedGroups = useMemo(
@@ -351,6 +353,8 @@ const AccessControl = () => {
   };
 
   const linkEmployee = async (userId: string, employeeId: string) => {
+    if (linking) return;
+    setLinking(true);
     try {
       const res = await api.patch<AppUser>(`/access-control/users/${userId}`, { employeeId });
       const updated = res.data.data;
@@ -363,18 +367,20 @@ const AccessControl = () => {
       setLinkingUserId(null);
       setEmployeeSearch("");
     } catch (err) {
-      const status =
-        (err instanceof Object && "response" in err && (err as { response?: { status?: number } }).response?.status) ||
-        (err instanceof Object && "status" in err && (err as { status?: number }).status);
+      const e = err as { response?: { status?: number }; status?: number };
+      const status = e?.response?.status ?? e?.status;
       if (status === 409) {
         toast.error("พนักงานนี้ถูกผูกกับผู้ใช้อื่นแล้ว");
       } else {
         toast.error("ผูกพนักงานไม่สำเร็จ");
       }
+    } finally {
+      setLinking(false);
     }
   };
 
   const syncEmployees = async () => {
+    setSyncing(true);
     try {
       const res = await api.post<{ linked: number; alreadyLinked: number; unmatched: number }>(
         "/access-control/users/sync-employees",
@@ -387,6 +393,8 @@ const AccessControl = () => {
       );
     } catch {
       toast.error("Sync พนักงานไม่สำเร็จ");
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -820,9 +828,10 @@ const AccessControl = () => {
                     variant="outline"
                     size="sm"
                     onClick={syncEmployees}
+                    disabled={syncing}
                     className="gap-2"
                   >
-                    Sync พนักงาน
+                    {syncing ? "กำลัง Sync..." : "Sync พนักงาน"}
                   </Button>
                   <div className="relative w-full lg:w-80">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1402,10 +1411,10 @@ const AccessControl = () => {
                 autoFocus
               />
               <div className="max-h-72 overflow-y-auto space-y-1 rounded-md border p-1">
-                {filteredDirectory.length === 0 ? (
+                {filteredDirectory.items.length === 0 ? (
                   <p className="py-4 text-center text-sm text-muted-foreground">ไม่พบพนักงาน</p>
                 ) : (
-                  filteredDirectory.map((entry) => (
+                  filteredDirectory.items.map((entry) => (
                     <button
                       key={entry.employeeId}
                       type="button"
@@ -1422,6 +1431,11 @@ const AccessControl = () => {
                   ))
                 )}
               </div>
+              {filteredDirectory.total > filteredDirectory.items.length && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  แสดง {filteredDirectory.items.length} จาก {filteredDirectory.total} รายการ — พิมพ์เพื่อค้นหา
+                </p>
+              )}
             </div>
             {linkingUserId && users.find((u) => u.id === linkingUserId)?.employeeId && (
               <DialogFooter>
