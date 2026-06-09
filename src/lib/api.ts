@@ -619,6 +619,13 @@ export type StandardOperator =
   | "between"
   | "tolerance";
 
+export type SubstanceStandard = {
+  substance: string;      // เก็บแบบ extractSubstanceName เช่น "ABAMECTIN"
+  operator: StandardOperator;
+  value: number | null;
+  value2?: number | null; // ใช้กับ between / tolerance
+};
+
 export type TimerUnit = "minute" | "hour" | "day" | "month";
 
 export type ParameterFieldPhase = "both" | "before" | "after";
@@ -630,6 +637,10 @@ export type ParameterValueField = {
   standardValue?: number | null;
   standardOperator?: StandardOperator;
   standardValue2?: number | null;
+  // Per-substance standards (number/float only). เมื่อ substanceMode = true
+  // ค่าเดี่ยว standardOperator/standardValue ถูก ignore.
+  substanceMode?: boolean;
+  substanceStandards?: SubstanceStandard[];
   options?: string[];
   requireNoteOn?: string[];
   expectedValues?: string[];
