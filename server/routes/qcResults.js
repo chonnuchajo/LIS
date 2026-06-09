@@ -60,6 +60,51 @@ function isSubstanceAbnormalJS(field, std, value) {
   );
 }
 
+// mirror of src/lib/parameterValidation.ts evalCondition / resolveStandard — keep in sync
+function conditionSourceValueJS(cond, ctx) {
+  if (cond.sourceParameterId) {
+    return (ctx.otherParams[String(cond.sourceParameterId)] || {})[cond.sourceFieldLabel];
+  }
+  return ctx.sameParam[cond.sourceFieldLabel];
+}
+
+function evalConditionJS(cond, ctx) {
+  const raw = conditionSourceValueJS(cond, ctx);
+  if (raw === null || raw === undefined || raw === "") return false;
+  const target = cond.value;
+  if (cond.op === "eq" || cond.op === "ne") {
+    const tNum = typeof target === "number" ? target : Number(target);
+    const rNum = Number(raw);
+    const numericPair = target !== "" && !Number.isNaN(tNum) && !Number.isNaN(rNum);
+    const equal = numericPair ? rNum === tNum : String(raw) === String(target);
+    return cond.op === "eq" ? equal : !equal;
+  }
+  const n = Number(raw);
+  const t = typeof target === "number" ? target : Number(target);
+  if (Number.isNaN(n) || Number.isNaN(t)) return false;
+  if (cond.op === "gt") return n > t;
+  if (cond.op === "gte") return n >= t;
+  if (cond.op === "lt") return n < t;
+  if (cond.op === "lte") return n <= t;
+  if (cond.op === "between") {
+    const t2 = cond.value2 == null ? NaN : Number(cond.value2);
+    if (Number.isNaN(t2)) return false;
+    return n >= t && n <= t2;
+  }
+  return false;
+}
+
+function resolveFieldStandardJS(field, ctx) {
+  if (!field.conditionalMode) return field;
+  for (const rule of field.conditionalStandards || []) {
+    const matched = (rule.conditions || []).every((c) => evalConditionJS(c, ctx));
+    if (matched) {
+      return { ...field, conditionalMode: false, standardOperator: rule.operator, standardValue: rule.value, standardValue2: rule.value2 == null ? null : rule.value2 };
+    }
+  }
+  return { ...field, conditionalMode: false, standardOperator: undefined, standardValue: null, standardValue2: null };
+}
+
 // GET /api/qc-results/testers?petitionIds=id1,id2,...
 // Returns a map of petitionId → unique tester names (from enteredBy/updatedBy)
 router.get("/testers", async (req, res) => {
@@ -143,7 +188,7 @@ router.get("/abnormal-flags", async (req, res) => {
 
     const docs = await QCTestResult.find(
       { petitionId: { $in: ids } },
-      { petitionId: 1, parameterId: 1, values: 1 }
+      { petitionId: 1, parameterId: 1, itemSeq: 1, values: 1 }
     ).lean();
 
     const paramIds = Array.from(new Set(docs.map((d) => String(d.parameterId))));
@@ -151,6 +196,13 @@ router.get("/abnormal-flags", async (req, res) => {
       ? await Parameter.find({ _id: { $in: paramIds } }, { valueFields: 1 }).lean()
       : [];
     const paramById = new Map(params.map((p) => [String(p._id), p]));
+
+    const valuesByItem = {};   // `${petitionId}__${itemSeq}` -> { [parameterId]: values }
+    for (const d of docs) {
+      const key = `${d.petitionId}__${d.itemSeq}`;
+      if (!valuesByItem[key]) valuesByItem[key] = {};
+      valuesByItem[key][String(d.parameterId)] = d.values || {};
+    }
 
     const map = {};
     for (const id of ids) map[id] = false;
@@ -174,6 +226,12 @@ router.get("/abnormal-flags", async (req, res) => {
             if (isSubstanceAbnormalJS(field, std, vval)) { flagged = true; break; }
           }
           if (flagged) { map[d.petitionId] = true; break; }
+          continue;
+        }
+        if (field.conditionalMode && isNumeric) {
+          const ctx = { sameParam: values, otherParams: valuesByItem[`${d.petitionId}__${d.itemSeq}`] || {} };
+          const vf = resolveFieldStandardJS(field, ctx);
+          if (isFieldAbnormal(vf, values[field.label])) { map[d.petitionId] = true; break; }
           continue;
         }
         if (isFieldAbnormal(field, values[field.label])) {
