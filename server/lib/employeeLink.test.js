@@ -78,6 +78,16 @@ test('planEmployeeSync links empty users, counts already-linked and unmatched', 
   ]);
 });
 
+test('planEmployeeSync matches a mixed-case user email', () => {
+  const users = [{ id: 'u1', email: 'A@X.com', employeeId: '' }];
+  const employees = [{ employeeId: '1', email: 'a@x.com', department: 'Lab', position: 'Analyst' }];
+  const plan = planEmployeeSync(users, employees);
+  assert.strictEqual(plan.linked, 1);
+  assert.deepStrictEqual(plan.updates, [
+    { userId: 'u1', employeeId: '1', department: 'Lab', position: 'Analyst' },
+  ]);
+});
+
 test('MONTHLY_TYPE is the Thai monthly label', () => {
   assert.strictEqual(MONTHLY_TYPE, 'รายเดือน');
 });

@@ -16,6 +16,8 @@ function normalizeEmployee(row) {
   };
 }
 
+// Both finders below expect normalized employee objects (output of `normalizeEmployee`):
+// camelCase fields, with `email` already lowercased.
 function findEmployeeByEmail(employees, email) {
   const key = String(email ?? '').trim().toLowerCase();
   if (!key) return null;
