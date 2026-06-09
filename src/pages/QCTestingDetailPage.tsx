@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FlaskConical, CheckCircle2, Loader2, AlertCircle, AlertTriangle, RotateCcw, Save, Send } from 'lucide-react';
 import { toast } from 'sonner';
@@ -91,6 +92,8 @@ interface TestFieldProps {
   previousValue?: unknown;
   conditionalPending?: boolean;
   resolvedStandardText?: string;
+  lastBatchValue?: unknown;
+  lastBatchLabel?: string;
 }
 
 function TestField({
@@ -107,6 +110,8 @@ function TestField({
   previousValue,
   conditionalPending,
   resolvedStandardText,
+  lastBatchValue,
+  lastBatchLabel,
 }: TestFieldProps) {
   const strVal = value == null ? '' : String(value);
   const strNote = noteValue == null ? '' : String(noteValue);
@@ -216,6 +221,12 @@ function TestField({
       ) : resolvedStandardText ? (
         <p className="text-[11px] text-emerald-600">เกณฑ์: {resolvedStandardText}</p>
       ) : null}
+
+      {field.showLastBatch && lastBatchValue != null && String(lastBatchValue) !== "" && (
+        <p className="text-[11px] text-sky-600">
+          แบชก่อน{lastBatchLabel ? ` (${lastBatchLabel})` : ""}: {String(lastBatchValue)}{field.unit ? ` ${field.unit}` : ""}
+        </p>
+      )}
 
       {/* Conditional note input — appears when enum value requires explanation */}
       {showNote && (
@@ -507,6 +518,54 @@ export default function QCTestingDetailPage() {
     },
     [user, advanceToInProgress],
   );
+
+  // ── Feature B: last-batch reference values (display-only) ──────────────────
+  // Build the unique (commonName, parameterId) pairs that need a prior-batch
+  // lookup: only params that have at least one field with showLastBatch and a
+  // truthy commonName. Deduped on commonName+parameterId since last-values only
+  // depends on those two.
+  const lastBatchPairs = useMemo(() => {
+    if (!petition) return [] as { commonName: string; parameterId: string }[];
+    const seen = new Set<string>();
+    const pairs: { commonName: string; parameterId: string }[] = [];
+    (petition.items ?? []).forEach((item) => {
+      const commonName = item.commonName?.trim();
+      if (!commonName) return;
+      const matched = matchParametersForItem(item, parameters, idsFor(item));
+      matched.forEach((param) => {
+        if (!param._id) return;
+        const hasLastBatchField = (param.valueFields ?? []).some((f) => f.showLastBatch);
+        if (!hasLastBatchField) return;
+        const parameterId = String(param._id);
+        const dedupeKey = `${commonName}__${parameterId}`;
+        if (seen.has(dedupeKey)) return;
+        seen.add(dedupeKey);
+        pairs.push({ commonName, parameterId });
+      });
+    });
+    return pairs;
+    // idsFor is a render-scoped closure over groupMembership; we depend on
+    // groupMembership directly so the pair list recomputes once membership
+    // resolves (listing idsFor would defeat memoization).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [petition, parameters, groupMembership]);
+
+  const lastBatchQueries = useQueries({
+    queries: lastBatchPairs.map((p) => ({
+      queryKey: ['qc-last-values', p.commonName, p.parameterId, id],
+      queryFn: () => api.getLastBatchValues(p.commonName, p.parameterId, id ?? ''),
+      staleTime: 5 * 60 * 1000,
+      enabled: !!p.commonName && !!id,
+    })),
+  });
+
+  const lastBatchByKey = useMemo(() => {
+    const map = new Map<string, { petitionNo?: string; values?: Record<string, unknown> } | undefined>();
+    lastBatchPairs.forEach((p, i) => {
+      map.set(`${p.commonName}__${p.parameterId}`, lastBatchQueries[i]?.data);
+    });
+    return map;
+  }, [lastBatchPairs, lastBatchQueries]);
 
   if (petitionLoading) {
     return (
@@ -854,6 +913,7 @@ export default function QCTestingDetailPage() {
                       return out;
                     })(),
                   };
+                  const lastBatch = lastBatchByKey.get(`${item.commonName}__${String(param._id)}`);
                   return (
                     <div key={param._id} className="space-y-3">
                       <div className="flex items-center gap-2">
@@ -924,6 +984,12 @@ export default function QCTestingDetailPage() {
                                       ? `${describeResolvedStandard(resolved, unit.field.unit ?? '')}${resolved.matchedRuleLabel ? ` (${resolved.matchedRuleLabel})` : ''}`
                                       : undefined
                                   }
+                                  lastBatchValue={
+                                    unit.field.showLastBatch
+                                      ? lastBatch?.values?.[unit.field.label]
+                                      : undefined
+                                  }
+                                  lastBatchLabel={lastBatch?.petitionNo}
                                 />
                                 {beforeRef != null && beforeRef !== '' ? (
                                   <p className="text-[10px] text-grey-400 mt-0.5">
