@@ -1169,6 +1169,93 @@ git commit -m "chore(seed): export after per-substance standards"
 
 ---
 
+## Task 11: Backend abnormal-flags endpoint handles substanceMode
+
+**Files:**
+- Modify: `server/routes/qcResults.js` (the `/abnormal-flags` route, ~line 122-160, and helper area ~line 12-46)
+- Test: manual (backend has no unit-test harness for routes here)
+
+> Gap found in final review: the list/approval **abnormal indicator** comes from `GET /qc-results/abnormal-flags`, which loops `isFieldAbnormal(field, values[field.label])`. For substanceMode fields the values live under composite keys `label::substance`, so per-substance abnormalities never flag on the list pages. Mirror the frontend `countAbnormalInResults` substance branch in JS.
+
+- [ ] **Step 1: Add JS substance helpers** near the existing `isFieldAbnormal` (server/routes/qcResults.js ~line 46):
+
+```js
+// mirror of src/lib/substances.ts matchSubstanceKey: first whitespace token, lowercased
+function matchSubstanceKeyJS(name) {
+  return String(name || "").trim().split(/\s+/)[0]?.toLowerCase() || "";
+}
+
+// mirror of src/lib/parameterValidation.ts isSubstanceAbnormal: build a virtual field, reuse isNumericAbnormal
+function isSubstanceAbnormalJS(field, std, value) {
+  if (!std || !std.operator || std.value == null) return false;
+  return isNumericAbnormal(
+    { ...field, standardOperator: std.operator, standardValue: std.value, standardValue2: std.value2 ?? null },
+    value,
+  );
+}
+```
+
+- [ ] **Step 2: Update the abnormal-flags inner loop** (replace the `for (const field of param.valueFields) { if (isFieldAbnormal(field, values[field.label])) {...} }` body):
+
+```js
+      for (const field of param.valueFields) {
+        const isNumeric = field.type === "number" || field.type === "float";
+        if (field.substanceMode && isNumeric) {
+          const prefix = `${field.label}::`;
+          let flagged = false;
+          for (const [vkey, vval] of Object.entries(values)) {
+            if (!vkey.startsWith(prefix)) continue;
+            const subKey = vkey.slice(prefix.length);
+            const std = (field.substanceStandards || []).find(
+              (s) => matchSubstanceKeyJS(s.substance) === subKey,
+            );
+            if (isSubstanceAbnormalJS(field, std, vval)) { flagged = true; break; }
+          }
+          if (flagged) { map[d.petitionId] = true; break; }
+          continue;
+        }
+        if (isFieldAbnormal(field, values[field.label])) {
+          map[d.petitionId] = true;
+          break;
+        }
+      }
+```
+
+- [ ] **Step 3:** Confirm the route still parses/loads (start `cd server && npm run dev` briefly or `node -e "require('./server/routes/qcResults.js')"` won't work standalone due to deps — instead verify with `node --check server/routes/qcResults.js`).
+
+- [ ] **Step 4: Commit** `git add server/routes/qcResults.js && git commit -m "fix(qc-results): abnormal-flags endpoint counts per-substance values" -- server/routes/qcResults.js`
+
+---
+
+## Task 12: qcProgress counts substanceMode fields per substance
+
+**Files:**
+- Modify: `src/lib/qcProgress.ts` (`computePetitionProgress`, ~line 38-49)
+- Test: `src/lib/qcProgress.test.ts` if it exists; else add a focused test
+
+> Gap found in final review: `computePetitionProgress` does `total += 1` per field and `filledLabels?.has(f.label)`. For substanceMode the stored keys are composite, so the field is never counted as filled and the denominator is wrong (should be N substances). It has `petition.items`, so it can call `expandFieldForItem(field, item.commonName)`.
+
+- [ ] **Step 1:** import `expandFieldForItem` from `@/lib/parameterValidation`.
+
+- [ ] **Step 2:** replace the inner `for (const f of fields) { total += 1; if (filledLabels?.has(f.label)) filled += 1; }` with:
+
+```ts
+      for (const f of fields) {
+        for (const unit of expandFieldForItem(f, item.commonName)) {
+          total += 1;
+          if (filledLabels?.has(unit.key)) filled += 1;
+        }
+      }
+```
+
+(`fields` is already filtered by `isCountableField`; substanceMode fields are number/float so all units are countable.)
+
+- [ ] **Step 3:** if `src/lib/qcProgress.test.ts` exists, add a test: a petition item with commonName "A + B", a substanceMode field, entries.filledLabels=["label::a"] → total counts 2, filled 1. Run `npx vitest run src/lib/qcProgress.test.ts`.
+
+- [ ] **Step 4:** `npx tsc -p tsconfig.app.json`, then commit `git add src/lib/qcProgress.ts (+ test) && git commit -m "fix(qc-progress): count substanceMode fields per substance"`.
+
+---
+
 ## Notes / Out of scope (จาก spec)
 
 - หน้า read-only / print template / report ยังไม่ render composite per-substance values — follow-up แยก
