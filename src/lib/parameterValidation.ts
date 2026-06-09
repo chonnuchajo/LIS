@@ -1,5 +1,6 @@
-import type { ParameterItem, ParameterValueField, TimerUnit } from "./api";
+import type { ParameterItem, ParameterValueField, TimerUnit, SubstanceStandard } from "./api";
 import type { QCTestResult } from "@/types/petition.types";
+import { parseSubstances, extractSubstanceName, matchSubstanceKey, substanceFieldKey } from "./substances";
 
 export function isEnumAbnormal(
   field: ParameterValueField,
@@ -50,6 +51,70 @@ export function isFieldAbnormal(
   value: unknown,
 ): boolean {
   return isEnumAbnormal(field, value) || isNumericAbnormal(field, value);
+}
+
+export function findSubstanceStandard(
+  field: ParameterValueField,
+  substanceName: string,
+): SubstanceStandard | undefined {
+  const key = matchSubstanceKey(substanceName);
+  if (!key) return undefined;
+  return (field.substanceStandards ?? []).find(
+    (s) => matchSubstanceKey(s.substance) === key,
+  );
+}
+
+// เช็คผิดปกติของค่ารายสาร โดยสร้าง virtual field แล้ว reuse isNumericAbnormal เดิม
+export function isSubstanceAbnormal(
+  field: ParameterValueField,
+  std: SubstanceStandard | undefined,
+  value: unknown,
+): boolean {
+  if (!std || !std.operator || std.value == null) return false;
+  return isNumericAbnormal(
+    {
+      ...field,
+      standardOperator: std.operator,
+      standardValue: std.value,
+      standardValue2: std.value2 ?? null,
+    },
+    value,
+  );
+}
+
+export type RenderFieldUnit = {
+  key: string;                 // ใช้เป็นทั้ง React key และ storage key ใน result.values
+  field: ParameterValueField;  // อาจเป็น virtual field (ฉีด standard ของสารแล้ว)
+  substanceName?: string;      // มีค่าเมื่อเป็น unit รายสาร
+};
+
+// แตก field เดียวเป็นหลาย render unit เมื่อ substanceMode เปิด.
+// non-substance → คืน unit เดียวที่อ้าง field เดิม (key = field.label).
+export function expandFieldForItem(
+  field: ParameterValueField,
+  commonName: string | undefined,
+): RenderFieldUnit[] {
+  const isNumeric = field.type === "number" || field.type === "float";
+  if (!field.substanceMode || !isNumeric) {
+    return [{ key: field.label, field }];
+  }
+  const substances = parseSubstances(commonName ?? "");
+  if (substances.length === 0 || (substances.length === 1 && !substances[0])) {
+    return [{ key: field.label, field }];
+  }
+  return substances.map((raw) => {
+    const name = extractSubstanceName(raw) || raw;
+    const std = findSubstanceStandard(field, name);
+    const vfield: ParameterValueField = {
+      ...field,
+      label: `${field.label} — ${name}`,
+      substanceMode: false,
+      standardOperator: std?.operator,
+      standardValue: std?.value ?? null,
+      standardValue2: std?.value2 ?? null,
+    };
+    return { key: substanceFieldKey(field.label, name), field: vfield, substanceName: name };
+  });
 }
 
 export function countAbnormalInResults(

@@ -10,6 +10,9 @@ import {
   partsToSec,
   secToParts,
   formatTimerHuman,
+  findSubstanceStandard,
+  isSubstanceAbnormal,
+  expandFieldForItem,
 } from "./parameterValidation";
 import type { ParameterItem, ParameterValueField } from "./api";
 import type { QCTestResult } from "@/types/petition.types";
@@ -500,5 +503,68 @@ describe("formatTimerHuman", () => {
 
   it("skips zero parts", () => {
     expect(formatTimerHuman(3600 + 45)).toBe("1 ชม 45 วินาที");
+  });
+});
+
+const subField: ParameterValueField = {
+  label: "ปริมาณสารสำคัญ",
+  type: "number",
+  unit: "%",
+  substanceMode: true,
+  substanceStandards: [
+    { substance: "ABAMECTIN", operator: "gte", value: 95, value2: null },
+    { substance: "IMIDACLOPRID", operator: "between", value: 90, value2: 100 },
+  ],
+};
+
+describe("findSubstanceStandard", () => {
+  it("matches by first-token, case-insensitive, ignoring form spec", () => {
+    expect(findSubstanceStandard(subField, "abamectin 1.8% w/v ec")?.value).toBe(95);
+  });
+  it("returns undefined when no substance matches", () => {
+    expect(findSubstanceStandard(subField, "GLYPHOSATE")).toBeUndefined();
+  });
+});
+
+describe("isSubstanceAbnormal", () => {
+  it("flags a value below a gte standard", () => {
+    const std = findSubstanceStandard(subField, "ABAMECTIN");
+    expect(isSubstanceAbnormal(subField, std, 90)).toBe(true);
+    expect(isSubstanceAbnormal(subField, std, 96)).toBe(false);
+  });
+  it("never flags when there is no standard", () => {
+    expect(isSubstanceAbnormal(subField, undefined, 0)).toBe(false);
+  });
+});
+
+describe("expandFieldForItem", () => {
+  it("returns the field unchanged for non-substance fields", () => {
+    const plain: ParameterValueField = { label: "pH", type: "number" };
+    const units = expandFieldForItem(plain, "ABAMECTIN");
+    expect(units).toHaveLength(1);
+    expect(units[0].key).toBe("pH");
+    expect(units[0].field).toBe(plain);
+  });
+
+  it("expands one unit per substance with injected standard + composite key", () => {
+    const units = expandFieldForItem(subField, "ABAMECTIN + IMIDACLOPRID");
+    expect(units).toHaveLength(2);
+    expect(units[0].key).toBe("ปริมาณสารสำคัญ::abamectin");
+    expect(units[0].field.label).toBe("ปริมาณสารสำคัญ — ABAMECTIN");
+    expect(units[0].field.standardOperator).toBe("gte");
+    expect(units[0].field.standardValue).toBe(95);
+    expect(units[0].field.substanceMode).toBe(false);
+  });
+
+  it("expands substances with no standard (no operator → no validation)", () => {
+    const units = expandFieldForItem(subField, "GLYPHOSATE");
+    expect(units).toHaveLength(1);
+    expect(units[0].field.standardOperator).toBeUndefined();
+  });
+
+  it("falls back to a single plain unit when commonName is empty", () => {
+    const units = expandFieldForItem(subField, "");
+    expect(units).toHaveLength(1);
+    expect(units[0].key).toBe("ปริมาณสารสำคัญ");
   });
 });
