@@ -27,7 +27,8 @@ import { toast } from "sonner";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import { SubstanceStandardsDialog } from "@/components/lis/SubstanceStandardsDialog";
-import { describeSubstanceStandard } from "@/lib/standardOperators";
+import { ConditionalStandardsDialog } from "@/components/lis/ConditionalStandardsDialog";
+import { describeRule, describeSubstanceStandard } from "@/lib/standardOperators";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -223,6 +224,9 @@ const emptyValueField = (): ParameterValueField => ({
   refParameterId: null,
   refFieldLabel: null,
   refPhase: 1,
+  conditionalMode: false,
+  conditionalStandards: [],
+  showLastBatch: false,
 });
 
 const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
@@ -466,6 +470,15 @@ function StandardPreview({ field }: { field: ParameterValueField }) {
       </p>
     );
   }
+  if (field.conditionalMode) {
+    const rules = field.conditionalStandards ?? [];
+    if (rules.length === 0) return <p className="text-xs text-muted-foreground">ยังไม่ได้ตั้งกฎ</p>;
+    return (
+      <div className="space-y-0.5">
+        {rules.map((r, i) => <p key={i} className="text-xs text-emerald-700">{describeRule(r, field.unit ?? "")}</p>)}
+      </div>
+    );
+  }
   const op = field.standardOperator;
   const v1 = field.standardValue;
   const v2 = field.standardValue2;
@@ -672,6 +685,10 @@ function summarizeField(field: ParameterValueField): string {
       return "ข้อความ";
     case "number":
     case "float": {
+      if (field.conditionalMode) {
+        const n = (field.conditionalStandards ?? []).length;
+        return n > 0 ? `เงื่อนไขพิเศษ ${n} กฎ` : "เงื่อนไขพิเศษ (ยังไม่ตั้งกฎ)";
+      }
       const unit = field.unit ? ` ${field.unit}` : "";
       const op = field.standardOperator;
       const v1 = field.standardValue;
@@ -736,6 +753,7 @@ type ValueFieldEditorProps = {
   hasPhases?: boolean;
   allParameters?: ParameterItem[];
   currentParameterId?: string;
+  siblingFields?: ParameterValueField[];
   itemNameOptions?: string[];
   commonNameOptions?: string[];
   productTypeOptions?: string[];
@@ -949,6 +967,7 @@ function ValueFieldEditor({
   hasPhases = false,
   allParameters = [],
   currentParameterId,
+  siblingFields = [],
   itemNameOptions = [],
   commonNameOptions = [],
   productTypeOptions = [],
@@ -961,6 +980,7 @@ function ValueFieldEditor({
   const [optionDraft, setOptionDraft] = useState("");
   const [expanded, setExpanded] = useState(!field.label?.trim());
   const [substanceDialogOpen, setSubstanceDialogOpen] = useState(false);
+  const [conditionalDialogOpen, setConditionalDialogOpen] = useState(false);
 
   const addOption = () => {
     const v = optionDraft.trim();
@@ -1128,6 +1148,16 @@ function ValueFieldEditor({
               />
               บังคับกรอก
             </label>
+            {(field.type === "number" || field.type === "float" || field.type === "enum" || field.type === "text") && (
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="โชว์ค่าช่องนี้จากผลตรวจครั้งก่อนของ common name เดียวกัน (เฉยๆ ไม่ตรวจ)">
+                <Checkbox
+                  checked={!!field.showLastBatch}
+                  onCheckedChange={(v) => onChange({ ...field, showLastBatch: v === true })}
+                  className="h-3.5 w-3.5"
+                />
+                โชว์ค่าแบชล่าสุด
+              </label>
+            )}
             {hasPhases ? (
               <>
                 <div className="flex items-center gap-2 text-xs">
@@ -1189,6 +1219,7 @@ function ValueFieldEditor({
                     standardValue: v === "number" || v === "float" ? field.standardValue : null,
                     standardOperator: v === "number" || v === "float" ? field.standardOperator : undefined,
                     standardValue2: v === "number" || v === "float" ? field.standardValue2 ?? null : null,
+                    conditionalMode: v === "number" || v === "float" ? field.conditionalMode : false,
                     timerDurationSec: v === "timer" ? field.timerDurationSec ?? null : null,
                     timerUnit: v === "timer" ? field.timerUnit : undefined,
                     maxPhotos: v === "photo" ? (field.maxPhotos ?? 5) : undefined,
@@ -1221,25 +1252,72 @@ function ValueFieldEditor({
 
           {requiresUnit ? (
             <div className="space-y-3">
-              {/* toggle แยกรายสาร */}
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <Checkbox
-                  checked={!!field.substanceMode}
-                  onCheckedChange={(c) =>
-                    onChange({
-                      ...field,
-                      substanceMode: !!c,
-                      substanceStandards: c ? field.substanceStandards ?? [] : field.substanceStandards,
-                      standardOperator: c ? undefined : field.standardOperator,
-                      standardValue: c ? null : field.standardValue,
-                      standardValue2: c ? null : field.standardValue2,
-                    })
-                  }
-                />
-                แยกเงื่อนไขตามสาร
-              </label>
+              {/* โหมดเกณฑ์ */}
+              {(() => {
+                const mode: "single" | "substance" | "conditional" =
+                  field.conditionalMode ? "conditional" : field.substanceMode ? "substance" : "single";
+                const setMode = (m: "single" | "substance" | "conditional") =>
+                  onChange({
+                    ...field,
+                    substanceMode: m === "substance",
+                    conditionalMode: m === "conditional",
+                    substanceStandards: m === "substance" ? field.substanceStandards ?? [] : field.substanceStandards,
+                    conditionalStandards: m === "conditional" ? field.conditionalStandards ?? [] : field.conditionalStandards,
+                    standardOperator: m === "single" ? field.standardOperator : undefined,
+                    standardValue: m === "single" ? field.standardValue : null,
+                    standardValue2: m === "single" ? field.standardValue2 : null,
+                  });
+                return (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                    <span className="text-muted-foreground">โหมดเกณฑ์:</span>
+                    {([["single", "ค่าเดียว"], ["substance", "แยกตามสาร"], ["conditional", "เงื่อนไขพิเศษ"]] as const).map(([m, lbl]) => (
+                      <label key={m} className="flex cursor-pointer items-center gap-1.5">
+                        <input type="radio" checked={mode === m} onChange={() => setMode(m)} className="h-3.5 w-3.5" />
+                        {lbl}
+                      </label>
+                    ))}
+                  </div>
+                );
+              })()}
 
-              {field.substanceMode ? (
+              {field.conditionalMode ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
+                    <div className="sm:col-span-3 space-y-1.5">
+                      <Label className="text-sm">หน่วย *</Label>
+                      <Input
+                        value={field.unit ?? ""}
+                        onChange={(e) => onChange({ ...field, unit: e.target.value })}
+                        placeholder="เช่น %, ก., cP"
+                        className="h-10"
+                      />
+                    </div>
+                    <div className="sm:col-span-9 flex items-end">
+                      <Button type="button" variant="outline" className="h-10" onClick={() => setConditionalDialogOpen(true)}>
+                        ตั้งกฎ ({(field.conditionalStandards ?? []).length} กฎ)
+                      </Button>
+                    </div>
+                  </div>
+                  {(field.conditionalStandards ?? []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground">ยังไม่ได้ตั้งกฎ</p>
+                  ) : (
+                    <div className="space-y-0.5">
+                      {(field.conditionalStandards ?? []).map((r, i) => (
+                        <p key={i} className="text-xs text-emerald-700">{describeRule(r, field.unit ?? "")}</p>
+                      ))}
+                    </div>
+                  )}
+                  <ConditionalStandardsDialog
+                    open={conditionalDialogOpen}
+                    field={field}
+                    allParameters={allParameters}
+                    currentParameterId={currentParameterId}
+                    siblingFields={siblingFields}
+                    onClose={() => setConditionalDialogOpen(false)}
+                    onSave={(next) => onChange({ ...field, conditionalStandards: next })}
+                  />
+                </div>
+              ) : field.substanceMode ? (
                 <div className="space-y-2">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
                     <div className="sm:col-span-3 space-y-1.5">
@@ -2178,6 +2256,7 @@ function ParameterDialog({
                     hasPhases={!!form.hasPhases}
                     allParameters={allParameters}
                     currentParameterId={item?._id}
+                    siblingFields={(form.valueFields ?? []).filter((_, idx) => idx !== i)}
                     itemNameOptions={itemNameOptions}
                     commonNameOptions={commonNameOptions}
                     productTypeOptions={productTypeOptions}
