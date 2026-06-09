@@ -9,7 +9,9 @@ import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useArrivalFlash } from '@/hooks/useArrivalFlash';
 import { useConfirm } from '@/context/ConfirmDialog';
-import { isFieldAbnormal, expandFieldForItem } from '@/lib/parameterValidation';
+import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard } from '@/lib/parameterValidation';
+import type { ConditionContext } from '@/lib/parameterValidation';
+import { describeResolvedStandard } from '@/lib/standardOperators';
 import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
 import { PhotoField } from '@/components/lis/PhotoField';
@@ -87,6 +89,8 @@ interface TestFieldProps {
   onNoteChange: (val: unknown) => void;
   disabled?: boolean;
   previousValue?: unknown;
+  conditionalPending?: boolean;
+  resolvedStandardText?: string;
 }
 
 function TestField({
@@ -101,6 +105,8 @@ function TestField({
   onNoteChange,
   disabled = false,
   previousValue,
+  conditionalPending,
+  resolvedStandardText,
 }: TestFieldProps) {
   const strVal = value == null ? '' : String(value);
   const strNote = noteValue == null ? '' : String(noteValue);
@@ -203,6 +209,13 @@ function TestField({
           }
         />
       )}
+
+      {/* Live resolved-criterion line for conditionalMode fields */}
+      {conditionalPending ? (
+        <p className="text-[11px] text-amber-600">ยังกำหนดเกณฑ์ไม่ได้ — รอกรอกช่องเงื่อนไข</p>
+      ) : resolvedStandardText ? (
+        <p className="text-[11px] text-emerald-600">เกณฑ์: {resolvedStandardText}</p>
+      ) : null}
 
       {/* Conditional note input — appears when enum value requires explanation */}
       {showNote && (
@@ -826,6 +839,20 @@ export default function QCTestingDetailPage() {
                   const k = resultKey(item.seq, param._id!);
                   const fields = visibleFields(param, effectivePhase);
                   if (fields.length === 0) return null;
+                  // Build the condition context for resolving conditionalMode standards:
+                  // sameParam = this parameter's live values; otherParams = each OTHER
+                  // matched parameter's live values for the same item, keyed by parameterId.
+                  const condCtx: ConditionContext = {
+                    sameParam: phaseValues[k] ?? {},
+                    otherParams: (() => {
+                      const out: Record<string, Record<string, unknown>> = {};
+                      matchedParams.forEach((p) => {
+                        if (!p._id || p._id === param._id) return;
+                        out[String(p._id)] = phaseValues[resultKey(item.seq, p._id)] ?? {};
+                      });
+                      return out;
+                    })(),
+                  };
                   return (
                     <div key={param._id} className="space-y-3">
                       <div className="flex items-center gap-2">
@@ -857,6 +884,15 @@ export default function QCTestingDetailPage() {
                           const units = expandFieldForItem(field, item.commonName);
                           return units.map((unit) => {
                             const noteLabel = noteLabelFor(unit.key);
+                            // Resolve conditional standards from sibling/other-param values.
+                            // For non-conditional fields effectiveField === unit.field and
+                            // both new props are falsy, so behavior is unchanged.
+                            const effectiveField = unit.field.conditionalMode
+                              ? resolveFieldStandard(unit.field, condCtx)
+                              : unit.field;
+                            const resolved = unit.field.conditionalMode
+                              ? resolveStandard(unit.field, condCtx)
+                              : null;
                             const beforeRef =
                               param.hasPhases &&
                               effectivePhase === 2 &&
@@ -866,7 +902,7 @@ export default function QCTestingDetailPage() {
                             return (
                               <div key={unit.key}>
                                 <TestField
-                                  field={unit.field}
+                                  field={effectiveField}
                                   item={item}
                                   itemGroupIds={idsFor(item)}
                                   value={phaseValues[k]?.[unit.key] ?? ''}
@@ -881,6 +917,12 @@ export default function QCTestingDetailPage() {
                                     handleFieldChange(petition, item, param, noteLabel, val, effectivePhase)
                                   }
                                   previousValue={getPreviousValue(previousLookup, item, param._id!, unit.key)}
+                                  conditionalPending={!!unit.field.conditionalMode && !resolved}
+                                  resolvedStandardText={
+                                    resolved
+                                      ? `${describeResolvedStandard(resolved, unit.field.unit ?? '')}${resolved.matchedRuleLabel ? ` (${resolved.matchedRuleLabel})` : ''}`
+                                      : undefined
+                                  }
                                 />
                                 {beforeRef != null && beforeRef !== '' ? (
                                   <p className="text-[10px] text-grey-400 mt-0.5">
