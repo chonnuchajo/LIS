@@ -42,7 +42,10 @@ continuous-mode สำหรับการพิมพ์
 ### การเปลี่ยนแปลงต่อ modal
 
 1. เพิ่ม state: `const [manualCode, setManualCode] = useState('')`
-2. ใต้ element กล้อง (ภายใน block ที่แสดงตอน `phase === 'scanning'`) เพิ่ม UI:
+2. เพิ่ม UI ช่องกรอก โดยให้โชว์ทั้งตอน `phase === 'scanning'` **และ** `phase === 'no-camera'`
+   (เคส "ไม่มีกล้อง" คือเหตุผลหลักที่ต้องมีช่องกรอก ห้ามซ่อน) — แยกเงื่อนไขเป็น
+   `const showManual = phase === 'scanning' || phase === 'no-camera'` แล้ว render ช่องกรอก
+   ใต้ element กล้อง/ข้อความ "ไม่พบกล้อง":
    - ตัวคั่น "— หรือ —"
    - `<form onSubmit=...>` ประกอบด้วย `<input>` + ปุ่ม submit
      - placeholder: `พิมพ์เลขที่คำร้อง เช่น P-2506-0001` (format จริง `P-YYMM-####`)
