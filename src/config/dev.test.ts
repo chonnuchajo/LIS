@@ -15,6 +15,7 @@ describe("synthesizeDevUser", () => {
       department: "qc",
       position: "QC Reviewer",
       status: "active",
+      employeeId: "DEV-qc",
     });
   });
 
