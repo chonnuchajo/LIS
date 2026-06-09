@@ -267,6 +267,23 @@ describe("countAbnormalInResults", () => {
     const results = [result("p3", { x: "y" })];
     expect(countAbnormalInResults(results, [bare])).toBe(0);
   });
+
+  it("counts per-substance abnormals via composite keys", () => {
+    const p = {
+      _id: "ps",
+      name: "active",
+      valueFields: [subField],
+    } as unknown as ParameterItem;
+    const r = {
+      parameterId: "ps",
+      itemSeq: 1,
+      values: {
+        "ปริมาณสารสำคัญ::abamectin": 90,      // < 95 → abnormal
+        "ปริมาณสารสำคัญ::imidacloprid": 95,   // within 90-100 → normal
+      },
+    } as unknown as QCTestResult;
+    expect(countAbnormalInResults([r], [p])).toBe(1);
+  });
 });
 
 describe("isFieldAbnormal", () => {

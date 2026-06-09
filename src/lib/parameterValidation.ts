@@ -132,6 +132,19 @@ export function countAbnormalInResults(
     if (!param?.valueFields?.length) continue;
     const values = (r.values ?? {}) as Record<string, unknown>;
     for (const field of param.valueFields) {
+      const isNumeric = field.type === "number" || field.type === "float";
+      if (field.substanceMode && isNumeric) {
+        const prefix = `${field.label}::`;
+        for (const [vkey, vval] of Object.entries(values)) {
+          if (!vkey.startsWith(prefix)) continue;
+          const subKey = vkey.slice(prefix.length);
+          const std = (field.substanceStandards ?? []).find(
+            (s) => matchSubstanceKey(s.substance) === subKey,
+          );
+          if (isSubstanceAbnormal(field, std, vval)) count += 1;
+        }
+        continue;
+      }
       if (isFieldAbnormal(field, values[field.label])) count += 1;
     }
   }
