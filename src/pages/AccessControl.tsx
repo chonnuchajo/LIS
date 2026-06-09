@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -41,8 +42,17 @@ type AppUser = {
   roleIds: string[];
   department: string;
   position: string;
+  employeeId: string;
   status: UserStatus;
   lastActive: string;
+};
+
+type EmployeeDirectoryEntry = {
+  employeeId: string;
+  name: string;
+  department: string;
+  position: string;
+  email: string;
 };
 
 type Role = {
@@ -225,6 +235,9 @@ const AccessControl = () => {
   const [navDrag, setNavDrag] = useState<{ groupId: string; path: string } | null>(null);
   const [navDragOverPath, setNavDragOverPath] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [directory, setDirectory] = useState<EmployeeDirectoryEntry[]>([]);
+  const [linkingUserId, setLinkingUserId] = useState<string | null>(null);
+  const [employeeSearch, setEmployeeSearch] = useState("");
 
   const loadAccessControl = async () => {
     setLoading(true);
@@ -233,6 +246,7 @@ const AccessControl = () => {
       setUsers(
         (res.data.data.users as AppUser[]).map((u) => ({
           ...u,
+          employeeId: u.employeeId ?? "",
           roleIds: u.roleIds && u.roleIds.length > 0 ? u.roleIds : [u.roleId],
         })),
       );
@@ -251,6 +265,9 @@ const AccessControl = () => {
 
   useEffect(() => {
     loadAccessControl();
+    api.get<EmployeeDirectoryEntry[]>("/employees/directory")
+      .then((res) => setDirectory(res.data.data))
+      .catch(() => setDirectory([]));
   }, []);
 
   const roleById = useMemo(
@@ -273,6 +290,19 @@ const AccessControl = () => {
       user.roleIds.some((rid) => roleById[rid]?.name.toLowerCase().includes(query))
     );
   });
+
+  const filteredDirectory = useMemo(() => {
+    const q = employeeSearch.toLowerCase();
+    if (!q) return directory.slice(0, 50);
+    return directory
+      .filter(
+        (e) =>
+          e.name.toLowerCase().includes(q) ||
+          e.employeeId.toLowerCase().includes(q) ||
+          e.department.toLowerCase().includes(q),
+      )
+      .slice(0, 50);
+  }, [directory, employeeSearch]);
 
   const sortedGroups = useMemo(
     () =>
@@ -317,6 +347,46 @@ const AccessControl = () => {
       toast.success("User removed");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to remove user");
+    }
+  };
+
+  const linkEmployee = async (userId: string, employeeId: string) => {
+    try {
+      const res = await api.patch<AppUser>(`/access-control/users/${userId}`, { employeeId });
+      const updated = res.data.data;
+      const normalized = {
+        ...updated,
+        employeeId: updated.employeeId ?? "",
+        roleIds: updated.roleIds && updated.roleIds.length > 0 ? updated.roleIds : [updated.roleId],
+      };
+      setUsers((current) => current.map((u) => (u.id === userId ? normalized : u)));
+      setLinkingUserId(null);
+      setEmployeeSearch("");
+    } catch (err) {
+      const status =
+        (err instanceof Object && "response" in err && (err as { response?: { status?: number } }).response?.status) ||
+        (err instanceof Object && "status" in err && (err as { status?: number }).status);
+      if (status === 409) {
+        toast.error("พนักงานนี้ถูกผูกกับผู้ใช้อื่นแล้ว");
+      } else {
+        toast.error("ผูกพนักงานไม่สำเร็จ");
+      }
+    }
+  };
+
+  const syncEmployees = async () => {
+    try {
+      const res = await api.post<{ linked: number; alreadyLinked: number; unmatched: number }>(
+        "/access-control/users/sync-employees",
+        {},
+      );
+      const { linked, alreadyLinked, unmatched } = res.data.data;
+      await loadAccessControl();
+      toast.success(
+        `Sync พนักงานเสร็จ: ผูกใหม่ ${linked}, ผูกอยู่แล้ว ${alreadyLinked}, ไม่พบ ${unmatched}`,
+      );
+    } catch {
+      toast.error("Sync พนักงานไม่สำเร็จ");
     }
   };
 
@@ -745,14 +815,24 @@ const AccessControl = () => {
             <Card>
               <CardHeader className="flex flex-col gap-4 pb-3 lg:flex-row lg:items-center lg:justify-between">
                 <CardTitle className="text-base">User Management</CardTitle>
-                <div className="relative w-full lg:w-80">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search users, email, role..."
-                    className="pl-9"
-                  />
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={syncEmployees}
+                    className="gap-2"
+                  >
+                    Sync พนักงาน
+                  </Button>
+                  <div className="relative w-full lg:w-80">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search users, email, role..."
+                      className="pl-9"
+                    />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -824,6 +904,27 @@ const AccessControl = () => {
                               <div>
                                 <p className="font-medium">{user.name}</p>
                                 <p className="text-xs text-muted-foreground">{user.email}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  {user.employeeId ? (
+                                    <span className="text-xs text-muted-foreground">
+                                      รหัสพนักงาน: {user.employeeId}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground/60">
+                                      ยังไม่ผูกพนักงาน
+                                    </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setLinkingUserId(user.id);
+                                      setEmployeeSearch("");
+                                    }}
+                                    className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground hover:bg-accent transition-colors"
+                                  >
+                                    {user.employeeId ? "เปลี่ยน" : "ผูก"}
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </TableCell>
@@ -1275,6 +1376,66 @@ const AccessControl = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Employee link picker dialog */}
+        <Dialog
+          open={linkingUserId !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setLinkingUserId(null);
+              setEmployeeSearch("");
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>
+                ผูกพนักงาน —{" "}
+                {users.find((u) => u.id === linkingUserId)?.name ?? ""}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Input
+                value={employeeSearch}
+                onChange={(e) => setEmployeeSearch(e.target.value)}
+                placeholder="ค้นหาชื่อ, รหัสพนักงาน, แผนก..."
+                autoFocus
+              />
+              <div className="max-h-72 overflow-y-auto space-y-1 rounded-md border p-1">
+                {filteredDirectory.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">ไม่พบพนักงาน</p>
+                ) : (
+                  filteredDirectory.map((entry) => (
+                    <button
+                      key={entry.employeeId}
+                      type="button"
+                      onClick={() => {
+                        if (linkingUserId) linkEmployee(linkingUserId, entry.employeeId);
+                      }}
+                      className="w-full rounded px-3 py-2 text-left text-sm hover:bg-accent transition-colors"
+                    >
+                      <span className="font-medium">{entry.name}</span>
+                      <span className="text-muted-foreground">
+                        {" "}({entry.employeeId}) · {entry.department} · {entry.position}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+            {linkingUserId && users.find((u) => u.id === linkingUserId)?.employeeId && (
+              <DialogFooter>
+                <Button
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => linkEmployee(linkingUserId, "")}
+                >
+                  ยกเลิกการผูก
+                </Button>
+              </DialogFooter>
+            )}
+          </DialogContent>
+        </Dialog>
     </AppLayout>
   );
 };
