@@ -585,3 +585,57 @@ describe("expandFieldForItem", () => {
     expect(units[0].key).toBe("ปริมาณสารสำคัญ");
   });
 });
+
+import { evalCondition } from "./parameterValidation";
+import type { ConditionContext } from "./parameterValidation";
+
+const ctx = (sameParam: Record<string, unknown>, otherParams: Record<string, Record<string, unknown>> = {}): ConditionContext =>
+  ({ sameParam, otherParams });
+
+describe("evalCondition", () => {
+  it("eq matches enum string from sibling field", () => {
+    expect(evalCondition(
+      { sourceFieldLabel: "ลักษณะ", op: "eq", value: "ก้อนใหญ่" },
+      ctx({ "ลักษณะ": "ก้อนใหญ่" }),
+    )).toBe(true);
+  });
+
+  it("eq fails when sibling value missing", () => {
+    expect(evalCondition(
+      { sourceFieldLabel: "ลักษณะ", op: "eq", value: "ก้อนใหญ่" },
+      ctx({}),
+    )).toBe(false);
+  });
+
+  it("ne is the inverse of eq", () => {
+    expect(evalCondition(
+      { sourceFieldLabel: "ลักษณะ", op: "ne", value: "ก้อนเล็ก" },
+      ctx({ "ลักษณะ": "ก้อนใหญ่" }),
+    )).toBe(true);
+  });
+
+  it("numeric gte compares as numbers", () => {
+    expect(evalCondition(
+      { sourceFieldLabel: "ขนาด", op: "gte", value: 10 },
+      ctx({ "ขนาด": "12" }),
+    )).toBe(true);
+    expect(evalCondition(
+      { sourceFieldLabel: "ขนาด", op: "gte", value: 10 },
+      ctx({ "ขนาด": "9" }),
+    )).toBe(false);
+  });
+
+  it("between is inclusive", () => {
+    const c = { sourceFieldLabel: "x", op: "between" as const, value: 5, value2: 10 };
+    expect(evalCondition(c, ctx({ x: 5 }))).toBe(true);
+    expect(evalCondition(c, ctx({ x: 10 }))).toBe(true);
+    expect(evalCondition(c, ctx({ x: 11 }))).toBe(false);
+  });
+
+  it("reads from another parameter via sourceParameterId", () => {
+    expect(evalCondition(
+      { sourceParameterId: "P2", sourceFieldLabel: "สี", op: "eq", value: "แดง" },
+      ctx({}, { P2: { "สี": "แดง" } }),
+    )).toBe(true);
+  });
+});

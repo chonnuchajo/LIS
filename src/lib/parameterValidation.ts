@@ -1,4 +1,4 @@
-import type { ParameterItem, ParameterValueField, TimerUnit, SubstanceStandard } from "./api";
+import type { ParameterItem, ParameterValueField, TimerUnit, SubstanceStandard, StandardCondition } from "./api";
 import type { QCTestResult } from "@/types/petition.types";
 import { parseSubstances, extractSubstanceName, matchSubstanceKey, substanceFieldKey } from "./substances";
 
@@ -238,4 +238,52 @@ export function formatTimerHuman(sec: number): string {
   if (minutes) parts.push(`${minutes} นาที`);
   if (seconds) parts.push(`${seconds} วินาที`);
   return parts.join(" ");
+}
+
+export type ConditionContext = {
+  sameParam: Record<string, unknown>;
+  otherParams: Record<string, Record<string, unknown>>;
+};
+
+function conditionSourceValue(cond: StandardCondition, ctx: ConditionContext): unknown {
+  if (cond.sourceParameterId) {
+    return ctx.otherParams[cond.sourceParameterId]?.[cond.sourceFieldLabel];
+  }
+  return ctx.sameParam[cond.sourceFieldLabel];
+}
+
+export function evalCondition(cond: StandardCondition, ctx: ConditionContext): boolean {
+  const raw = conditionSourceValue(cond, ctx);
+  if (raw === null || raw === undefined || raw === "") return false;
+  const target = cond.value;
+
+  switch (cond.op) {
+    case "eq":
+    case "ne": {
+      const targetNum = typeof target === "number" ? target : Number(target);
+      const rawNum = Number(raw);
+      const numericPair =
+        target !== "" && !Number.isNaN(targetNum) && raw !== "" && !Number.isNaN(rawNum);
+      const equal = numericPair ? rawNum === targetNum : String(raw) === String(target);
+      return cond.op === "eq" ? equal : !equal;
+    }
+    case "gt":
+    case "gte":
+    case "lt":
+    case "lte":
+    case "between": {
+      const n = Number(raw);
+      const t = typeof target === "number" ? target : Number(target);
+      if (Number.isNaN(n) || Number.isNaN(t)) return false;
+      if (cond.op === "gt") return n > t;
+      if (cond.op === "gte") return n >= t;
+      if (cond.op === "lt") return n < t;
+      if (cond.op === "lte") return n <= t;
+      const t2 = cond.value2 == null ? NaN : Number(cond.value2);
+      if (Number.isNaN(t2)) return false;
+      return n >= t && n <= t2;
+    }
+    default:
+      return false;
+  }
 }
