@@ -20,7 +20,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useArrivalFlash } from '@/hooks/useArrivalFlash';
 import { normalizeRoles } from '@/lib/roles';
 import { useConfirm } from '@/context/ConfirmDialog';
-import { isFieldAbnormal } from '@/lib/parameterValidation';
+import { isFieldAbnormal, expandFieldForItem } from '@/lib/parameterValidation';
 import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
@@ -508,7 +508,9 @@ export default function LabTestingDetailPage() {
         const p1Values = values[k] ?? {};
         (param.valueFields ?? []).forEach((field) => {
           if ((field.phase ?? 'both') === 'after') return;
-          if (isFieldAbnormal(field, p1Values[field.label])) count += 1;
+          expandFieldForItem(field, item.commonName).forEach((unit) => {
+            if (isFieldAbnormal(unit.field, p1Values[unit.key])) count += 1;
+          });
         });
         // Check Phase 2 values for both/after fields if phased
         if (param.hasPhases) {
@@ -516,7 +518,9 @@ export default function LabTestingDetailPage() {
           (param.valueFields ?? []).forEach((field) => {
             const ph = field.phase ?? 'both';
             if (ph === 'before') return;
-            if (isFieldAbnormal(field, p2Values[field.label])) count += 1;
+            expandFieldForItem(field, item.commonName).forEach((unit) => {
+              if (isFieldAbnormal(unit.field, p2Values[unit.key])) count += 1;
+            });
           });
         }
       });
@@ -537,20 +541,22 @@ export default function LabTestingDetailPage() {
         const itemValues = phaseValues[k] ?? {};
         visibleFields(param, phaseToCheck).forEach((field) => {
           if (field.type === 'reference') return; // reference fields are auto-resolved
-          const val = itemValues[field.label];
-          if (field.required && (val == null || String(val).trim() === '')) {
-            missing.push(`รายการ ${item.seq} › ${param.name} › ${field.label}`);
-            return;
-          }
-          if (
-            field.type === 'enum' &&
-            (field.requireNoteOn ?? []).includes(String(val ?? ''))
-          ) {
-            const noteVal = itemValues[noteLabelFor(field.label)];
-            if (!noteVal || String(noteVal).trim() === '') {
-              missing.push(`รายการ ${item.seq} › ${param.name} › ${field.label} (คำอธิบาย)`);
+          expandFieldForItem(field, item.commonName).forEach((unit) => {
+            const val = itemValues[unit.key];
+            if (unit.field.required && (val == null || String(val).trim() === '')) {
+              missing.push(`รายการ ${item.seq} › ${param.name} › ${unit.field.label}`);
+              return;
             }
-          }
+            if (
+              unit.field.type === 'enum' &&
+              (unit.field.requireNoteOn ?? []).includes(String(val ?? ''))
+            ) {
+              const noteVal = itemValues[noteLabelFor(unit.key)];
+              if (!noteVal || String(noteVal).trim() === '') {
+                missing.push(`รายการ ${item.seq} › ${param.name} › ${unit.field.label} (คำอธิบาย)`);
+              }
+            }
+          });
         });
       });
     });
@@ -776,38 +782,43 @@ export default function LabTestingDetailPage() {
                                   />
                                 );
                               }
-                              const noteLabel = noteLabelFor(field.label);
-                              const beforeRef =
-                                param.hasPhases &&
-                                effectivePhase === 2 &&
-                                (field.phase ?? 'both') === 'both'
-                                  ? (values[k]?.[field.label] ?? '')
-                                  : null;
-                              return (
-                                <div key={field.label}>
-                                  <TestField
-                                    field={field}
-                                    item={item}
-                                    itemGroupIds={idsFor(item)}
-                                    value={phaseValues[k]?.[field.label] ?? ''}
-                                    noteValue={phaseValues[k]?.[noteLabel] ?? ''}
-                                    saveInfo={phaseSaves[k]?.[field.label]}
-                                    noteSaveInfo={phaseSaves[k]?.[noteLabel]}
-                                    disabled={isLocked || phaseLocked}
-                                    onChange={(val) =>
-                                      handleFieldChange(petition, item, param, field.label, val, effectivePhase)
-                                    }
-                                    onNoteChange={(val) =>
-                                      handleFieldChange(petition, item, param, noteLabel, val, effectivePhase)
-                                    }
-                                  />
-                                  {beforeRef != null && beforeRef !== '' ? (
-                                    <p className="text-[10px] text-grey-400 mt-0.5">
-                                      ก่อน: <span className="font-mono">{String(beforeRef)}</span>
-                                    </p>
-                                  ) : null}
-                                </div>
-                              );
+                              // expandFieldForItem may return multiple units per field
+                              // (substance mode); React flattens the resulting array-of-arrays.
+                              const units = expandFieldForItem(field, item.commonName);
+                              return units.map((unit) => {
+                                const noteLabel = noteLabelFor(unit.key);
+                                const beforeRef =
+                                  param.hasPhases &&
+                                  effectivePhase === 2 &&
+                                  (field.phase ?? 'both') === 'both'
+                                    ? (values[k]?.[unit.key] ?? '')
+                                    : null;
+                                return (
+                                  <div key={unit.key}>
+                                    <TestField
+                                      field={unit.field}
+                                      item={item}
+                                      itemGroupIds={idsFor(item)}
+                                      value={phaseValues[k]?.[unit.key] ?? ''}
+                                      noteValue={phaseValues[k]?.[noteLabel] ?? ''}
+                                      saveInfo={phaseSaves[k]?.[unit.key]}
+                                      noteSaveInfo={phaseSaves[k]?.[noteLabel]}
+                                      disabled={isLocked || phaseLocked}
+                                      onChange={(val) =>
+                                        handleFieldChange(petition, item, param, unit.key, val, effectivePhase)
+                                      }
+                                      onNoteChange={(val) =>
+                                        handleFieldChange(petition, item, param, noteLabel, val, effectivePhase)
+                                      }
+                                    />
+                                    {beforeRef != null && beforeRef !== '' ? (
+                                      <p className="text-[10px] text-grey-400 mt-0.5">
+                                        ก่อน: <span className="font-mono">{String(beforeRef)}</span>
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                );
+                              });
                             })}
                           </div>
                         </div>
@@ -850,22 +861,27 @@ export default function LabTestingDetailPage() {
                                   />
                                 );
                               }
-                              const noteLabel = noteLabelFor(field.label);
-                              return (
-                                <TestField
-                                  key={field.label}
-                                  field={field}
-                                  item={item}
-                                  itemGroupIds={idsFor(item)}
-                                  value={phaseValues[k]?.[field.label] ?? ''}
-                                  noteValue={phaseValues[k]?.[noteLabel] ?? ''}
-                                  saveInfo={phaseSaves[k]?.[field.label]}
-                                  noteSaveInfo={phaseSaves[k]?.[noteLabel]}
-                                  readOnly
-                                  onChange={() => {}}
-                                  onNoteChange={() => {}}
-                                />
-                              );
+                              // expandFieldForItem may return multiple units per field
+                              // (substance mode); React flattens the resulting array-of-arrays.
+                              const units = expandFieldForItem(field, item.commonName);
+                              return units.map((unit) => {
+                                const noteLabel = noteLabelFor(unit.key);
+                                return (
+                                  <TestField
+                                    key={unit.key}
+                                    field={unit.field}
+                                    item={item}
+                                    itemGroupIds={idsFor(item)}
+                                    value={phaseValues[k]?.[unit.key] ?? ''}
+                                    noteValue={phaseValues[k]?.[noteLabel] ?? ''}
+                                    saveInfo={phaseSaves[k]?.[unit.key]}
+                                    noteSaveInfo={phaseSaves[k]?.[noteLabel]}
+                                    readOnly
+                                    onChange={() => {}}
+                                    onNoteChange={() => {}}
+                                  />
+                                );
+                              });
                             })}
                           </div>
                         </div>
