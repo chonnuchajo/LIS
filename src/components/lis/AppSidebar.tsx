@@ -12,7 +12,7 @@ import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { pathMatches, userCanAccessPath } from "@/lib/accessControl";
 import { api } from "@/lib/api";
-import { normalizeRoles } from "@/lib/roles";
+import { normalizeRoles, unionPermissions } from "@/lib/roles";
 import { useIsTablet } from "@/hooks/use-mobile";
 
 type RoleOption = {
@@ -30,6 +30,7 @@ type NavGroup = {
 type AccessControlState = {
   roles: RoleOption[];
   groups: NavGroup[];
+  permissions?: Record<string, string[]>;
 };
 
 const STORAGE_KEY = "lis.sidebar.collapsed";
@@ -67,6 +68,16 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
     [accessControl],
   );
   const navGroups = accessControl?.groups?.length ? accessControl.groups : EMPTY_GROUPS;
+  const effectiveUser = useMemo(
+    () =>
+      user
+        ? {
+            ...user,
+            permissions: unionPermissions(normalizeRoles(user), accessControl?.permissions ?? {}),
+          }
+        : user,
+    [user, accessControl?.permissions],
+  );
 
   const [storedCollapsed, setStoredCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -259,7 +270,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
             const q = menuQuery.trim().toLowerCase();
             const visibleItems = section.items.filter(
               (item) =>
-                userCanAccessPath(user, item.path, navGroups) &&
+                userCanAccessPath(effectiveUser, item.path, navGroups) &&
                 (q === "" || item.label.toLowerCase().includes(q)),
             );
             if (visibleItems.length === 0) return null;
@@ -342,7 +353,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
               (s) =>
                 s.items.filter(
                   (item) =>
-                    userCanAccessPath(user, item.path, navGroups) &&
+                    userCanAccessPath(effectiveUser, item.path, navGroups) &&
                     item.label.toLowerCase().includes(menuQuery.trim().toLowerCase()),
                 ).length === 0,
             ) && (
