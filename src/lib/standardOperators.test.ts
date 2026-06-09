@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { OPERATOR_OPTIONS, describeSubstanceStandard } from "./standardOperators";
+import { OPERATOR_OPTIONS, describeSubstanceStandard, describeRule, describeResolvedStandard } from "./standardOperators";
 
 describe("OPERATOR_OPTIONS", () => {
   it("includes a 'none' entry plus all 7 operators", () => {
@@ -31,5 +31,25 @@ describe("describeSubstanceStandard", () => {
     expect(
       describeSubstanceStandard({ substance: "X", operator: "gte", value: null, value2: null }, "%"),
     ).toBe("");
+  });
+});
+
+describe("describeResolvedStandard", () => {
+  it("formats a between standard with unit", () => {
+    expect(describeResolvedStandard({ operator: "between", value: 23.5, value2: 26 }, "ก.")).toBe("23.5 - 26ก.");
+  });
+  it("returns empty for null", () => {
+    expect(describeResolvedStandard(null, "ก.")).toBe("");
+  });
+});
+
+describe("describeRule", () => {
+  it("summarizes label + standard", () => {
+    const s = describeRule(
+      { label: "ก้อนใหญ่", conditions: [{ sourceFieldLabel: "ลักษณะ", op: "eq", value: "ก้อนใหญ่" }], operator: "between", value: 23.5, value2: 26 },
+      "ก.",
+    );
+    expect(s).toContain("ก้อนใหญ่");
+    expect(s).toContain("23.5 - 26");
   });
 });

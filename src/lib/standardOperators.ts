@@ -1,4 +1,5 @@
-import type { StandardOperator, SubstanceStandard } from "./api";
+import type { StandardOperator, SubstanceStandard, StandardRule, StandardConditionOp } from "./api";
+import type { ResolvedStandard } from "./parameterValidation";
 
 export const OPERATOR_OPTIONS: { value: StandardOperator | "none"; label: string }[] = [
   { value: "none", label: "— ไม่ตรวจ —" },
@@ -10,6 +11,40 @@ export const OPERATOR_OPTIONS: { value: StandardOperator | "none"; label: string
   { value: "between", label: "อยู่ในช่วง (between)" },
   { value: "tolerance", label: "ค่ามาตรฐาน ± %" },
 ];
+
+export function describeResolvedStandard(r: ResolvedStandard, unit: string): string {
+  if (!r || r.value == null) return "";
+  const u = unit || "";
+  switch (r.operator) {
+    case "lt": return `< ${r.value}${u}`;
+    case "lte": return `≤ ${r.value}${u}`;
+    case "eq": return `= ${r.value}${u}`;
+    case "gte": return `≥ ${r.value}${u}`;
+    case "gt": return `> ${r.value}${u}`;
+    case "between": return r.value2 == null ? "" : `${r.value} - ${r.value2}${u}`;
+    case "tolerance": return r.value2 == null ? "" : `${r.value} ± ${r.value2}%${u}`;
+    default: return "";
+  }
+}
+
+const COND_OP_LABEL: Record<StandardConditionOp, string> = {
+  eq: "=", ne: "≠", gt: ">", gte: "≥", lt: "<", lte: "≤", between: "ช่วง",
+};
+
+export function describeRule(rule: StandardRule, unit: string): string {
+  const std = describeResolvedStandard(
+    { operator: rule.operator, value: rule.value, value2: rule.value2 ?? null },
+    unit,
+  );
+  const label = rule.label?.trim() ? `${rule.label}: ` : "";
+  if (rule.conditions.length === 0) {
+    return `${label}default → ${std}`;
+  }
+  const conds = rule.conditions
+    .map((c) => `${c.sourceFieldLabel} ${COND_OP_LABEL[c.op]} ${c.value}${c.op === "between" && c.value2 != null ? `–${c.value2}` : ""}`)
+    .join(" และ ");
+  return `${label}ถ้า ${conds} → ${std}`;
+}
 
 // สรุปเกณฑ์ของ SubstanceStandard เป็นข้อความสั้น เช่น "≥ 95%"
 export function describeSubstanceStandard(std: SubstanceStandard, unit: string): string {
