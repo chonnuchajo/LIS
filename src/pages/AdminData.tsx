@@ -26,6 +26,9 @@ const EVENT_VARIANT: Record<PetitionAuditEvent, "gray-soft" | "primary-soft" | "
   reviewed: "green-soft",
   updated: "gray-soft",
   deleted: "red-soft",
+  received: "primary-soft",
+  resultEntered: "green-soft",
+  resultUpdated: "yellow-soft",
 };
 
 function statusLabel(status?: string) {
