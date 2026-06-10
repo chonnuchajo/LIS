@@ -1,11 +1,22 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const {
+  isLabBatch,
   hasFilledValue,
   qcParamAppliesToItem,
   computeQcHeuristic,
   enteredParamNames,
 } = require('./petitionStatusLog');
+
+test('isLabBatch: last char 1 or 6 → true; else false; null-safe', () => {
+  assert.strictEqual(isLabBatch('AB1'), true);
+  assert.strictEqual(isLabBatch('AB6'), true);
+  assert.strictEqual(isLabBatch('AB2'), false);
+  assert.strictEqual(isLabBatch('  AB1  '), true);
+  assert.strictEqual(isLabBatch(''), false);
+  assert.strictEqual(isLabBatch(null), false);
+  assert.strictEqual(isLabBatch(undefined), false);
+});
 
 test('hasFilledValue: empty/blank → false, value → true', () => {
   assert.strictEqual(hasFilledValue({}), false);

@@ -39,7 +39,7 @@ function qcParamAppliesToItem(param, item) {
 
 // { filled, total, percent } at the (item × QC-param) granularity.
 function computeQcHeuristic(petition, qcResults, parameters) {
-  const items = petition.items ?? [];
+  const items = (petition ?? {}).items ?? [];
   const qcParams = (parameters ?? []).filter(
     (p) => p.status === 'active' && (p.scope ?? 'qc') !== 'lab',
   );
