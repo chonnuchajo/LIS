@@ -394,11 +394,12 @@ router.patch('/:id/receive', async (req, res) => {
     }
     const doc = await Petition.findOneAndUpdate(q, update, { new: true });
     logAudit(doc, {
-      event: 'statusChanged',
+      event: 'received',
       fromStatus: before.status,
       toStatus: doc.status,
       actor,
-      note: side === 'lab' ? 'สแกนรับงาน Lab' : 'สแกนรับงาน QC',
+      note: side === 'lab' ? 'Lab รับตัวอย่าง' : 'QC รับตัวอย่าง',
+      metadata: { side },
     });
     res.json(doc);
   } catch (err) {
