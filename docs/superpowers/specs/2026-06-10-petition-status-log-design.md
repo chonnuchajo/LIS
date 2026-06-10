@@ -93,7 +93,7 @@ Inputs: `petition.status`, `sampleSentAt`, `labReceivedAt`, `qcReceivedAt`, `ass
 | 2 | `status === 'rejected'` | `ส่งกลับให้แก้ไข` | — |
 | 3 | `status === 'success'` | `เสร็จสิ้น — รอหัวหน้า QC ยืนยัน` | qc |
 | 4 | testing & `0 < filled < total` (partial) | `QC กำลังตรวจ — {entered param names} ({percent}%)` | qc |
-| 5 | has lab item & `labDone === false` | `รอผลตรวจจาก Lab` | lab |
+| 5 | **testing** & has lab item & `labDone === false` | `รอผลตรวจจาก Lab` | lab |
 | 6 | testing & `total > 0` & `filled >= total` (100%) | `รอ QC ยืนยันผล` | qc |
 | 7 | both sides received | `Lab & QC รับแล้ว` | — |
 | 8 | one side received | `{ฝั่งที่รับ} รับแล้ว · {อีกฝั่ง} รอรับ` | — |
@@ -101,6 +101,8 @@ Inputs: `petition.status`, `sampleSentAt`, `labReceivedAt`, `qcReceivedAt`, `ass
 | 10 | else (`deliveringQC`) | `กำลังนำส่ง QC` | — |
 
 Ordering rationale: **active QC entry (rule 4) shows before lab-waiting**, so a petition mid-entry reads `QC กำลังตรวจ` rather than masking it. Once QC has nothing left to enter, **lab must finish (rule 5) before the final per-sample QC confirm (rule 6)** — matching "Lab เสร็จก่อน → ค่อยรอ QC ยืนยัน". Concretely: QC 100% + lab pending → rule 5 (`รอผลตรวจจาก Lab`); QC 100% + lab done → rule 6 (`รอ QC ยืนยันผล`).
+
+Rule 5 is **gated by `testing` (`status === 'inProgress'`)**: `labDone` is false for any petition whose lab samples have no completed `PhysicalResult` yet — including freshly-sent/received petitions — so without the gate, a `sampleSent`/`pendingReview` petition with a lab item would wrongly show `รอผลตรวจจาก Lab` before it was even received, masking the receipt labels (rules 7–9). The lab-waiting state only makes sense during testing.
 
 Notes:
 - "testing" = `status === 'inProgress'` (assigned and/or first result in).
