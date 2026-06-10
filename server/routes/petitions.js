@@ -242,8 +242,8 @@ router.get('/:id/audit-logs', async (req, res) => {
   }
 });
 
-// GET /api/petitions/:id/status-log → derived human-readable status + timeline
-router.get('/:id/status-log', async (req, res) => {
+// GET /api/petitions/status-log/:id → derived human-readable status + timeline
+router.get('/status-log/:id', async (req, res) => {
   try {
     const id = req.params.id;
     const petition = mongoose.Types.ObjectId.isValid(id)

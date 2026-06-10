@@ -38,7 +38,7 @@ All pure (no DB access) so they are unit-testable. The route loads the inputs an
 
 ### Endpoint
 
-`GET /api/petitions/:id/status-log` — mounted twice (`/api` + `/LIS/api`) automatically via `mountApi()` like every other route. `:id` resolves by `_id` (when a valid ObjectId) else by `petitionNo`, matching the existing `GET /:id` pattern.
+`GET /api/petitions/status-log/:id` — mounted twice (`/api` + `/LIS/api`) automatically via `mountApi()` like every other route. `:id` resolves by `_id` (when a valid ObjectId) else by `petitionNo`, matching the existing `GET /:id` pattern. The path is **literal-first** (`status-log` segment before `:id`), like the other collection routes `/audit-logs`, `/scan/:code`, so it can never be shadowed by the generic `/:id`.
 
 Route handler:
 1. Load petition (404 if missing).
@@ -47,7 +47,7 @@ Route handler:
 4. Compute `labDone` (see Rule 5 predicate): load `PhysicalResult.find({ sampleId: { $in: labSampleIds } })` for the petition's lab sampleIds.
 5. `res.json(buildStatusLog(petition, auditLogs, qcResults, parameters, labDone))`.
 
-**Ordering note:** this route must be declared alongside the other specific `GET /:id/...` routes (e.g. `/:id/audit-logs`) — i.e. *before* the generic `GET /:id` — so Express does not swallow `status-log` as an `:id`.
+**Ordering note:** declared among the other literal-first routes (e.g. `/audit-logs`, `/scan/:code`), *before* the generic `GET /:id`. Because `status-log` is a fixed first segment, it is structurally unambiguous against `/:id` regardless of order — but keep it before `/:id` for consistency with the file.
 
 ### Response shape
 
