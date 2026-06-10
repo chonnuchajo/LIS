@@ -40,19 +40,24 @@ export default function DashboardLayoutConfigCard({ roles }: Props) {
   const { data: configs = [] } = useQuery({
     queryKey: ["dashboard-layout", dashboard],
     queryFn: () => api.getDashboardLayouts(dashboard),
+    staleTime: 60_000,
   });
 
   // The layout currently being edited (local, unsaved).
   const [draft, setDraft] = useState<DashboardLayout>(() => defaultLayout("lab"));
 
-  // Load draft from stored config (or catalog default) whenever dashboard/role/data changes.
+  // Reload the draft only when the selection changes or the selected role's stored
+  // config actually changes by content — keying on `storedKey` (not the `configs`
+  // array identity) keeps unsaved edits from being wiped by an incidental refetch.
+  const stored = configs.find((c) => c.roleId === roleId) ?? null;
+  const storedKey = JSON.stringify(stored);
   useEffect(() => {
-    const stored = configs.find((c) => c.roleId === roleId);
     setDraft({
-      sections: resolveSections(dashboard, stored ?? null),
-      kpis: resolveKpis(stored ?? null),
+      sections: resolveSections(dashboard, stored),
+      kpis: resolveKpis(stored),
     });
-  }, [dashboard, roleId, configs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashboard, roleId, storedKey]);
 
   const catalog = useMemo(() => sectionCatalog(dashboard), [dashboard]);
   const labelOf = (id: SectionId) => catalog.find((c) => c.id === id)?.label ?? id;

@@ -80,8 +80,10 @@ const SettingsPage = () => {
     docNumberConfigs.map((c: DocumentNumberConfig) => [c.docType, c])
   );
 
+  // Distinct key (not the shared ["access-control"] used by useCanAccessPath) so this
+  // read can't overwrite the app-wide access-control cache with a narrower shape.
   const { data: accessMatrix } = useQuery({
-    queryKey: ["access-control"],
+    queryKey: ["access-control-roles"],
     queryFn: async () => {
       const res = await api.get<{ roles?: { id: string; name: string }[] }>("/access-control");
       return res.data.data;
