@@ -4,16 +4,10 @@ const mongoose = require('mongoose');
 const LabRequest = require('../models/LabRequest');
 const Petition = require('../models/Petition');
 
-async function nextLabRequestNo() {
-  const now = new Date();
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const prefix = `L-${yy}${mm}-`;
-  const last = await LabRequest.findOne({ labRequestNo: new RegExp(`^${prefix}`) })
-    .sort({ labRequestNo: -1 })
-    .lean();
-  const nextSeq = last ? Number(last.labRequestNo.slice(prefix.length)) + 1 : 1;
-  return `${prefix}${String(nextSeq).padStart(4, '0')}`;
+// Generate next lab-request number from DocumentNumberConfig (default: L-YYMM-####).
+const { nextDocumentNumber } = require('../lib/documentNumber');
+function nextLabRequestNo() {
+  return nextDocumentNumber('labRequest', LabRequest, 'labRequestNo');
 }
 
 function badRequest(res, message) {

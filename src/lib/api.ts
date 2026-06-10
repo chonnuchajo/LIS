@@ -11,6 +11,7 @@ import type {
 import type { StandardConfigDoc } from "@/lib/standardConfig";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import type { PrintConfig, PrintConfigInput, PrintDocType } from "@/lib/printConfig";
+import type { DocumentNumberConfig, DocumentNumberConfigInput, DocNumberType } from "@/lib/documentNumberConfig";
 import type { MethodDoc, MethodInput } from './methodRegistry';
 
 // Development: BASE_URL = "/" → "/api"
@@ -350,6 +351,15 @@ export const api = {
     request<{ data: EnvRoomConfig[] }>("/env-room-config").then((r) => r.data),
   updateEnvRoomConfig: (slug: EnvRoomConfig["slug"], input: EnvRoomConfigInput) =>
     request<{ data: EnvRoomConfig }>(`/env-room-config/${slug}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }).then((r) => r.data),
+
+  // ── Document number config (petition / sampleReceipt / labRequest formats) ──
+  getDocumentNumberConfigs: () =>
+    request<{ data: DocumentNumberConfig[] }>("/document-number-config").then((r) => r.data),
+  updateDocumentNumberConfig: (docType: DocNumberType, input: DocumentNumberConfigInput) =>
+    request<{ data: DocumentNumberConfig }>(`/document-number-config/${docType}`, {
       method: "PUT",
       body: JSON.stringify(input),
     }).then((r) => r.data),

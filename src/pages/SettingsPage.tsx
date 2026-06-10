@@ -6,11 +6,13 @@ import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import EnvRoomConfigCard from "@/components/lis/EnvRoomConfigCard";
 import PrintConfigCard from "@/components/lis/PrintConfigCard";
+import DocumentNumberConfigCard from "@/components/lis/DocumentNumberConfigCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { useEnvRooms } from "@/hooks/useEnvRooms";
 import type { EnvRoom, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import type { PrintConfig, PrintConfigInput } from "@/lib/printConfig";
+import { DOC_NUMBER_TYPES, type DocumentNumberConfig, type DocumentNumberConfigInput, type DocNumberType } from "@/lib/documentNumberConfig";
 
 const SettingsPage = () => {
   const queryClient = useQueryClient();
@@ -58,6 +60,25 @@ const SettingsPage = () => {
     },
   });
 
+  const { data: docNumberConfigs = [] } = useQuery({
+    queryKey: ["document-number-config"],
+    queryFn: api.getDocumentNumberConfigs,
+  });
+  const saveDocNumberMutation = useMutation({
+    mutationFn: ({ docType, input }: { docType: DocNumberType; input: DocumentNumberConfigInput }) =>
+      api.updateDocumentNumberConfig(docType, input),
+    onSuccess: () => {
+      toast.success("บันทึกรูปแบบเลขที่เอกสารแล้ว");
+      queryClient.invalidateQueries({ queryKey: ["document-number-config"] });
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
+    },
+  });
+  const docConfigByType = new Map<DocNumberType, DocumentNumberConfig>(
+    docNumberConfigs.map((c: DocumentNumberConfig) => [c.docType, c])
+  );
+
   return (
     <AppLayout title="ตั้งค่าระบบ">
       <PageHeader
@@ -73,6 +94,7 @@ const SettingsPage = () => {
         <TabsList>
           <TabsTrigger value="environment">ห้องตรวจสภาพแวดล้อม</TabsTrigger>
           <TabsTrigger value="printers">เครื่องพิมพ์เอกสาร</TabsTrigger>
+          <TabsTrigger value="doc-numbers">รหัสเอกสาร</TabsTrigger>
         </TabsList>
 
         <TabsContent value="environment" className="space-y-3">
@@ -110,6 +132,27 @@ const SettingsPage = () => {
                 onSave={(slug, input) => savePrintMutation.mutate({ slug, input })}
               />
             ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="doc-numbers" className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            กำหนดรูปแบบเลขที่เอกสารที่ระบบออกอัตโนมัติ — เปลี่ยนแล้วมีผลกับเลขที่ออกใหม่เท่านั้น เอกสารเดิมไม่เปลี่ยน
+          </p>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {DOC_NUMBER_TYPES.map((meta) => {
+              const cfg = docConfigByType.get(meta.docType);
+              if (!cfg) return null;
+              return (
+                <DocumentNumberConfigCard
+                  key={meta.docType}
+                  meta={meta}
+                  config={cfg}
+                  saving={saveDocNumberMutation.isPending}
+                  onSave={(docType, input) => saveDocNumberMutation.mutate({ docType, input })}
+                />
+              );
+            })}
           </div>
         </TabsContent>
       </Tabs>
