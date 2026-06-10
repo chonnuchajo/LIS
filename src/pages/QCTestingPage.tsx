@@ -23,6 +23,7 @@ import PageHeader from '@/components/lis/PageHeader';
 import PageToolbar from '@/components/lis/PageToolbar';
 import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
 import { statusBadge } from '@/lib/statusBadge';
+import { qcReceivedAt, qcReceivedBy } from '@/lib/receiveStatus';
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
 
 
@@ -47,7 +48,7 @@ export default function QCTestingPage() {
   const [abnormalMap, setAbnormalMap] = useState<Record<string, boolean>>({});
   const [returnedMap, setReturnedMap] = useState<Record<string, boolean>>({});
   const flaggablePetitionIds = petitions
-    .filter((p) => !!p.qcReceivedAt)
+    .filter((p) => !!qcReceivedAt(p))
     .map((p) => p._id);
   const flaggableKey = flaggablePetitionIds.join(',');
   useEffect(() => {
@@ -88,8 +89,8 @@ export default function QCTestingPage() {
               โดย {p.submittedBy?.name ?? '-'} จาก {PETITION_DEPT_LABELS[p.dept]}
             </div>
             <div className="text-xs text-grey-500 mt-0.5">{items.length} รายการ</div>
-            {p.qcReceivedBy && (
-              <div className="text-xs text-grey-400 mt-0.5">รับโดย {p.qcReceivedBy}</div>
+            {qcReceivedBy(p) && (
+              <div className="text-xs text-grey-400 mt-0.5">รับโดย {qcReceivedBy(p)}</div>
             )}
           </>
         );
@@ -128,7 +129,7 @@ export default function QCTestingPage() {
         return (
           <div className="flex flex-col items-start gap-1">
             <Badge variant={b.variant}>{b.label}</Badge>
-            {p.qcReceivedAt ? (
+            {qcReceivedAt(p) ? (
               <Badge variant="green-soft" className="font-normal">รับ QC แล้ว</Badge>
             ) : (
               <Badge variant="gray-soft" className="font-normal">ยังไม่รับ QC</Badge>
@@ -142,7 +143,7 @@ export default function QCTestingPage() {
       header: 'การดำเนินการ',
       className: 'text-right align-top',
       cell: (p) =>
-        p.qcReceivedAt ? (
+        qcReceivedAt(p) ? (
           <Button
             size="sm"
             onClick={(e) => {
@@ -205,7 +206,7 @@ export default function QCTestingPage() {
         isLoading={loading}
         rowClassName={(p) => (p._id === flashId ? 'animate-flash-bg' : undefined)}
         onRowClick={(p) => {
-          if (p.qcReceivedAt) navigate(`/qc-testing/${p._id}`);
+          if (qcReceivedAt(p)) navigate(`/qc-testing/${p._id}`);
         }}
         emptyTitle="ไม่มีคำร้องที่รอตรวจ"
       />

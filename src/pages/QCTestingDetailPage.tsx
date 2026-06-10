@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/select';
 import { RevisionRequestDialog } from '@/components/petition/RevisionRequestDialog';
 import { buildPreviousValueLookup, getPreviousValue, type PreviousValueLookup } from '@/lib/revisionHelpers';
+import { qcReceivedBy } from '@/lib/receiveStatus';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -1044,8 +1045,8 @@ export default function QCTestingDetailPage() {
             <CheckCircle2 className="h-6 w-6 text-green-500" />
             <p className="text-sm font-semibold text-green-700">บันทึกผลแล้ว — รออนุมัติ</p>
             <p className="text-xs text-grey-500">
-              {petition.qcReceivedBy ?? petition.receivedBy
-                ? `ผู้รับงาน: ${petition.qcReceivedBy ?? petition.receivedBy}`
+              {qcReceivedBy(petition)
+                ? `ผู้รับงาน: ${qcReceivedBy(petition)}`
                 : 'ไม่ระบุผู้รับงาน'}
             </p>
             {abnormalCount > 0 && (
