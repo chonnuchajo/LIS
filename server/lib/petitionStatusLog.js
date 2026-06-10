@@ -161,6 +161,15 @@ function buildTimeline(auditLogs, petition) {
   return out;
 }
 
+// Top-level: assemble { current, timeline } from route-loaded inputs.
+function buildStatusLog(petition, auditLogs, qcResults, parameters, labDone) {
+  const qc = computeQcHeuristic(petition, qcResults, parameters);
+  const paramNames = enteredParamNames(qcResults);
+  const current = buildCurrent(petition, qc, paramNames, !!labDone);
+  const timeline = buildTimeline(auditLogs, petition);
+  return { current, timeline };
+}
+
 module.exports = {
   isLabBatch,
   hasFilledValue,
@@ -170,4 +179,5 @@ module.exports = {
   buildCurrent,
   timelineLabel,
   buildTimeline,
+  buildStatusLog,
 };

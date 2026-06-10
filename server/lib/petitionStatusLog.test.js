@@ -252,3 +252,24 @@ test('timelineLabel: resultEntered with no param name', () => {
 test('timelineLabel: unknown event → null (skipped)', () => {
   assert.strictEqual(timelineLabel({ event: 'deleted' }, {}), null);
 });
+
+// ─── Task 4: buildStatusLog ──────────────────────────────────────────────────
+const { buildStatusLog } = require('./petitionStatusLog');
+
+test('buildStatusLog: combines current + timeline', () => {
+  const petition = {
+    status: 'inProgress',
+    items: [{ seq: 1, commonName: 'NaOH' }],
+    assignedTo: { name: 'ก' },
+  };
+  const auditLogs = [{ event: 'created', createdAt: '1', actor: 'u' }];
+  const parameters = [
+    { _id: 'p1', name: 'pH', status: 'active', scope: 'qc', commonNames: ['NaOH'] },
+    { _id: 'p2', name: 'ความชื้น', status: 'active', scope: 'qc', commonNames: ['NaOH'] },
+  ];
+  const qcResults = [{ itemSeq: 1, parameterId: 'p1', parameterName: 'pH', values: { v: '7' }, enteredAt: '1' }];
+  const out = buildStatusLog(petition, auditLogs, qcResults, parameters, true);
+  assert.strictEqual(out.current.label, 'QC กำลังตรวจ — pH (50%)');
+  assert.strictEqual(out.current.percent, 50);
+  assert.deepStrictEqual(out.timeline.map((t) => t.label), ['ยื่นคำขอ']);
+});
