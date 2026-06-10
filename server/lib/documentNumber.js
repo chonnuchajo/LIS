@@ -47,11 +47,18 @@ function validateDocNumberConfig(input) {
   const hasPrefix = input.prefix.trim().length > 0;
   const hasYear = input.yearFormat !== 'none';
   if (!hasPrefix && !hasYear) return 'ต้องมี prefix หรือปี อย่างน้อย 1 อย่าง (กันเลขเดินผิด)';
+  if (input.yearFormat === 'none' && input.includeMonth) {
+    return 'ถ้าใส่เดือน ต้องเลือกปีด้วย (กันเลขชนข้ามปี)';
+  }
   return null;
 }
 
 // docType: 'petition'|'sampleReceipt'|'labRequest'; Model: the Mongoose model;
 // numField: the document's number field name (e.g. 'petitionNo').
+// ASSUMES the running sequence stays within seqPadding digits (seq < 10^seqPadding).
+// The last-number lookup relies on lexicographic string sort, so an overflow past
+// the padding width (e.g. 9999 -> 10000 at padding 4) would mis-order and could
+// reissue a number. Padding is admin-configurable (1-10); pick a width with headroom.
 async function nextDocumentNumber(docType, Model, numField) {
   const DocumentNumberConfig = require('../models/DocumentNumberConfig');
   const saved = await DocumentNumberConfig.findOne({ docType }).lean();

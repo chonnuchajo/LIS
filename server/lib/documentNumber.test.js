@@ -65,3 +65,7 @@ test('validate: rejects bad yearFormat', () => {
 test('validate: rejects separator longer than 3', () => {
   assert.match(validateDocNumberConfig({ prefix: 'P', yearFormat: 'yy', includeMonth: true, separator: '----', seqPadding: 4 }), /ตัวคั่น/);
 });
+
+test('validate: rejects month-only (no year + includeMonth)', () => {
+  assert.match(validateDocNumberConfig({ prefix: 'P', yearFormat: 'none', includeMonth: true, separator: '-', seqPadding: 4 }), /ใส่เดือน ต้องเลือกปีด้วย/);
+});
