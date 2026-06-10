@@ -265,6 +265,9 @@ export default function LabDashboard() {
   };
 
   const ordered = layout.sections.filter((s) => s.enabled);
+  // Preserve each section's original bottom spacing so the default layout matches
+  // today exactly: header/kpi sat at mb-6, the table grid + completed at mb-4.
+  const blockMargin = (id: SectionId) => (id === "header" || id === "kpi" ? "mb-6" : "mb-4");
 
   return (
     <AppLayout>
@@ -288,7 +291,7 @@ export default function LabDashboard() {
           );
         }
         return (
-          <div key={s.id} className="mb-4">
+          <div key={s.id} className={blockMargin(s.id)}>
             {sectionNodes[s.id]}
           </div>
         );
