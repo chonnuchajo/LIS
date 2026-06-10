@@ -508,6 +508,10 @@ describe("validateDocNumberConfig", () => {
     expect(validateDocNumberConfig({ prefix: "P", yearFormat: "yy", includeMonth: true, separator: "-", seqPadding: 0 }))
       .toMatch(/จำนวนหลัก/);
   });
+  it("rejects month-only (no year + includeMonth)", () => {
+    expect(validateDocNumberConfig({ prefix: "P", yearFormat: "none", includeMonth: true, separator: "-", seqPadding: 4 }))
+      .toMatch(/ใส่เดือน ต้องเลือกปีด้วย/);
+  });
 });
 
 describe("DOC_NUMBER_TYPES", () => {
@@ -600,6 +604,7 @@ export function validateDocNumberConfig(input: DocumentNumberConfigInput): strin
   const hasPrefix = input.prefix.trim().length > 0;
   const hasYear = input.yearFormat !== "none";
   if (!hasPrefix && !hasYear) return "ต้องมี prefix หรือปี อย่างน้อย 1 อย่าง (กันเลขเดินผิด)";
+  if (input.yearFormat === "none" && input.includeMonth) return "ถ้าใส่เดือน ต้องเลือกปีด้วย (กันเลขชนข้ามปี)";
   return null;
 }
 ```
