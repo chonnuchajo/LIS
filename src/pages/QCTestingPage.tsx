@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FlaskConical, Keyboard, QrCode, AlertTriangle, RotateCcw } from 'lucide-react';
+import { FlaskConical, QrCode, AlertTriangle, RotateCcw } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 import { usePetitionList } from '@/hooks/usePetition';
 import { api } from '@/lib/api';
@@ -33,7 +33,6 @@ export default function QCTestingPage() {
   const [search, setSearch] = useState('');
   const [dept, setDept] = useState<PetitionDept | ''>('');
   const [scanOpen, setScanOpen] = useState(false);
-  const [manualOpen, setManualOpen] = useState(false);
 
   const { data, loading, refresh } = usePetitionList({
     status: 'sampleSent,pendingReview,inProgress',
@@ -160,16 +159,10 @@ export default function QCTestingPage() {
         }
         description={`${data?.total ?? 0} รายการ`}
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Button variant="primary-outline" className="gap-2" onClick={() => setManualOpen(true)}>
-              <Keyboard className="h-4 w-4" />
-              กรอกเลขรับตัวอย่าง
-            </Button>
-            <Button variant="primary" className="gap-2" onClick={() => setScanOpen(true)}>
-              <QrCode className="h-4 w-4" />
-              สแกน QR รับตัวอย่าง
-            </Button>
-          </div>
+          <Button variant="primary" className="gap-2" onClick={() => setScanOpen(true)}>
+            <QrCode className="h-4 w-4" />
+            รับตัวอย่าง
+          </Button>
         }
       />
 
@@ -209,12 +202,6 @@ export default function QCTestingPage() {
     <QrReceiveModal
       open={scanOpen}
       onClose={() => setScanOpen(false)}
-      onReceived={refresh}
-    />
-    <QrReceiveModal
-      manualOnly
-      open={manualOpen}
-      onClose={() => setManualOpen(false)}
       onReceived={refresh}
     />
     </AppLayout>
