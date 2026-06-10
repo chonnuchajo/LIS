@@ -187,3 +187,13 @@ test('current rule10: deliveringQC', () => {
     { label: 'กำลังนำส่ง QC' },
   );
 });
+
+test('current: sampleSent + lab item + lab not done → still ส่งตัวอย่างแล้ว (rule 5 gated by testing)', () => {
+  const p = { status: 'sampleSent', items: [{ batchNo: 'B-1' }] };
+  assert.deepStrictEqual(buildCurrent(p, QC0, [], false), { label: 'ส่งตัวอย่างแล้ว — รอรับ' });
+});
+
+test('current: pendingReview + QC received + lab item + lab not done → QC รับแล้ว · Lab รอรับ (not รอผลตรวจจาก Lab)', () => {
+  const p = { status: 'pendingReview', items: [{ batchNo: 'B-1' }], qcReceivedAt: '2026-06-10' };
+  assert.deepStrictEqual(buildCurrent(p, QC0, [], false), { label: 'QC รับแล้ว · Lab รอรับ' });
+});

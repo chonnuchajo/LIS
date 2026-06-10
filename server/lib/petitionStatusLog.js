@@ -96,8 +96,8 @@ function buildCurrent(petition, qc, paramNames, labDone) {
     const names = (paramNames ?? []).length ? ` — ${paramNames.join(', ')}` : '';
     return { label: `QC กำลังตรวจ${names} (${qc.percent}%)`, side: 'qc', percent: qc.percent };
   }
-  // rule 5 — lab must finish before final QC confirm
-  if (hasLabItem && !labDone) {
+  // rule 5 — lab must finish before final QC confirm (only meaningful during testing)
+  if (testing && hasLabItem && !labDone) {
     return { label: 'รอผลตรวจจาก Lab', side: 'lab' };
   }
   // rule 6 — QC done (and lab done / none) → final per-sample QC confirm
