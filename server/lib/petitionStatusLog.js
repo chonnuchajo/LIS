@@ -79,10 +79,49 @@ function enteredParamNames(qcResults) {
   return names;
 }
 
+// Current detailed status. First matching rule wins (see spec table).
+// qc = output of computeQcHeuristic; paramNames = enteredParamNames(...);
+// labDone = every lab sampleId has a completed PhysicalResult (route-computed).
+function buildCurrent(petition, qc, paramNames, labDone) {
+  const status = petition.status;
+  const testing = status === 'inProgress';
+  const hasLabItem = (petition.items ?? []).some((it) => isLabBatch(it.batchNo ?? ''));
+
+  if (status === 'approved') return { label: 'หัวหน้า QC อนุมัติ — ปิดงาน' };
+  if (status === 'rejected') return { label: 'ส่งกลับให้แก้ไข' };
+  if (status === 'success') return { label: 'เสร็จสิ้น — รอหัวหน้า QC ยืนยัน', side: 'qc' };
+
+  // rule 4 — active QC entry (partial); shown before lab-waiting so progress isn't masked
+  if (testing && qc.filled > 0 && qc.filled < qc.total) {
+    const names = (paramNames ?? []).length ? ` — ${paramNames.join(', ')}` : '';
+    return { label: `QC กำลังตรวจ${names} (${qc.percent}%)`, side: 'qc', percent: qc.percent };
+  }
+  // rule 5 — lab must finish before final QC confirm
+  if (hasLabItem && !labDone) {
+    return { label: 'รอผลตรวจจาก Lab', side: 'lab' };
+  }
+  // rule 6 — QC done (and lab done / none) → final per-sample QC confirm
+  if (testing && qc.total > 0 && qc.filled >= qc.total) {
+    return { label: 'รอ QC ยืนยันผล', side: 'qc' };
+  }
+
+  const labReceived = !!petition.labReceivedAt;
+  const qcReceived = !!petition.qcReceivedAt;
+  if (labReceived && qcReceived) return { label: 'Lab & QC รับแล้ว' };
+  if (labReceived || qcReceived) {
+    const who = qcReceived ? 'QC' : 'Lab';
+    const other = qcReceived ? 'Lab' : 'QC';
+    return { label: `${who} รับแล้ว · ${other} รอรับ` };
+  }
+  if (status === 'sampleSent') return { label: 'ส่งตัวอย่างแล้ว — รอรับ' };
+  return { label: 'กำลังนำส่ง QC' };
+}
+
 module.exports = {
   isLabBatch,
   hasFilledValue,
   qcParamAppliesToItem,
   computeQcHeuristic,
   enteredParamNames,
+  buildCurrent,
 };
