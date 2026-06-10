@@ -50,6 +50,7 @@ mountApi('/temphum', require('./routes/temphum'));
 mountApi('/env-checks', require('./routes/envChecks'));
 mountApi('/env-room-config', require('./routes/envRoomConfig'));
 mountApi('/document-number-config', require('./routes/documentNumberConfigs'));
+mountApi('/dashboard-layout', require('./routes/dashboardLayout'));
 mountApi('/print', require('./routes/print'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
