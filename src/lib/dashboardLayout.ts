@@ -63,7 +63,7 @@ export function defaultLayout(dashboard: DashboardId): DashboardLayout {
   };
 }
 
-type PartialLayout = Partial<Pick<DashboardLayout, "sections" | "kpis">> | null | undefined;
+type PartialLayout = { sections?: SectionConfig[]; kpis?: Partial<KpiFlags> } | null | undefined;
 
 // Normalize a (possibly partial / out-of-order) stored config into a full,
 // ordered, header-first list with contiguous order indices.
