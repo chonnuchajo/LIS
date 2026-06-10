@@ -69,7 +69,7 @@
     {
       "collection": "dashboardlayoutconfigs",
       "file": "dashboardlayoutconfigs.json",
-      "count": 0
+      "count": 1
     },
     {
       "collection": "users",
