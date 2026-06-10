@@ -37,7 +37,21 @@ function qcParamAppliesToItem(param, item) {
   return false;
 }
 
-// { filled, total, percent } at the (item × QC-param) granularity.
+// Countable value-fields of a parameter (mirrors the frontend `isCountableField`:
+// everything except photo). substanceMode fields are NOT unit-expanded here — that
+// is the documented heuristic approximation vs the QC page's per-substance bar.
+function countableFields(param) {
+  return (param.valueFields ?? []).filter((f) => f && f.type !== 'photo');
+}
+
+// Number of non-empty entries in a QCTestResult.values object.
+function countFilledFields(values) {
+  if (!values || typeof values !== 'object') return 0;
+  return Object.values(values).filter((v) => v != null && String(v).trim() !== '').length;
+}
+
+// { filled, total, percent } at FIELD granularity — total counts every countable
+// value-field of every matched QC param (so entering one field of many is < 100%).
 function computeQcHeuristic(petition, qcResults, parameters) {
   const items = (petition ?? {}).items ?? [];
   const qcParams = (parameters ?? []).filter(
@@ -47,42 +61,45 @@ function computeQcHeuristic(petition, qcResults, parameters) {
   let total = 0;
   for (const item of items) {
     for (const p of qcParams) {
-      if (qcParamAppliesToItem(p, item)) total += 1;
+      if (qcParamAppliesToItem(p, item)) total += countableFields(p).length;
     }
   }
 
-  const filledKeys = new Set();
-  for (const r of qcResults ?? []) {
-    if (hasFilledValue(r.values)) filledKeys.add(`${r.itemSeq}__${r.parameterId}`);
-  }
-  let filled = filledKeys.size;
+  let filled = 0;
+  for (const r of qcResults ?? []) filled += countFilledFields(r.values);
   if (total > 0 && filled > total) filled = total; // cap so percent never exceeds 100
   const percent = total > 0 ? Math.round((filled / total) * 100) : 0;
   return { filled, total, percent };
 }
 
-// Distinct QC parameter names that have >=1 filled value, ordered by first enteredAt.
-function enteredParamNames(qcResults) {
+// Distinct "param › field" labels for each filled field, ordered by the result's
+// enteredAt then key order. e.g. กายภาพ with values { สี: 'แดง' } → "กายภาพ › สี".
+function enteredFieldLabels(qcResults) {
   const rows = (qcResults ?? [])
     .filter((r) => hasFilledValue(r.values))
     .slice()
     .sort((a, b) => new Date(a.enteredAt ?? 0) - new Date(b.enteredAt ?? 0));
   const seen = new Set();
-  const names = [];
+  const labels = [];
   for (const r of rows) {
-    const name = String(r.parameterName ?? r.parameterId ?? '').trim();
-    if (name && !seen.has(name)) {
-      seen.add(name);
-      names.push(name);
+    const param = String(r.parameterName ?? r.parameterId ?? '').trim();
+    for (const [key, val] of Object.entries(r.values ?? {})) {
+      if (val == null || String(val).trim() === '') continue;
+      const field = String(key).replace('::', ' — '); // substance keys are label::สาร
+      const label = param ? `${param} › ${field}` : field;
+      if (!seen.has(label)) {
+        seen.add(label);
+        labels.push(label);
+      }
     }
   }
-  return names;
+  return labels;
 }
 
 // Current detailed status. First matching rule wins (see spec table).
-// qc = output of computeQcHeuristic; paramNames = enteredParamNames(...);
+// qc = output of computeQcHeuristic; fieldLabels = enteredFieldLabels(...) ("param › field");
 // labDone = every lab sampleId has a completed PhysicalResult (route-computed).
-function buildCurrent(petition, qc, paramNames, labDone) {
+function buildCurrent(petition, qc, fieldLabels, labDone) {
   const status = petition.status;
 
   // --- terminal / pre-receive states: single label, no tracks ---
@@ -109,15 +126,15 @@ function buildCurrent(petition, qc, paramNames, labDone) {
     qc.filled > 0;
 
   const qcTrack = buildQcTrack({
-    qcReceived, isAssignee: assigneeSide === 'qc', assignee, started, qc, paramNames,
+    qcReceived, isAssignee: assigneeSide === 'qc', assignee, started, qc, fieldLabels,
   });
   const labTrack = hasLabItem
     ? buildLabTrack({ labReceived, isAssignee: assigneeSide === 'lab', assignee, started, labDone })
     : null;
 
   const tracks = {};
-  if (qcTrack) tracks.qc = qcTrack;
-  if (labTrack) tracks.lab = labTrack;
+  if (qcTrack) tracks.qc = { side: 'qc', ...qcTrack };
+  if (labTrack) tracks.lab = { side: 'lab', ...labTrack };
   const label = [qcTrack?.label, labTrack?.label].filter(Boolean).join(' | ');
   return { label, tracks };
 }
@@ -134,11 +151,11 @@ function assigneeSideOf(assignee) {
 
 // QC side of `current`. Returns { label, percent? }. `isAssignee` = the single
 // petition assignee belongs to QC (only then does the assign/accept line show here).
-function buildQcTrack({ qcReceived, isAssignee, assignee, started, qc, paramNames }) {
+function buildQcTrack({ qcReceived, isAssignee, assignee, started, qc, fieldLabels }) {
   if (!qcReceived) return { label: 'QC รอรับ' };
   if (qc.total > 0 && qc.filled >= qc.total) return { label: 'QC ตรวจครบ — รอยืนยัน' };
   if (qc.filled > 0) {
-    const names = (paramNames ?? []).length ? ` — ${paramNames.join(', ')}` : '';
+    const names = (fieldLabels ?? []).length ? ` — ${fieldLabels.join(', ')}` : '';
     return { label: `QC กำลังตรวจ${names} (${qc.percent}%)`, percent: qc.percent };
   }
   if (isAssignee) {
@@ -209,8 +226,8 @@ function buildTimeline(auditLogs, petition) {
 // Top-level: assemble { current, timeline } from route-loaded inputs.
 function buildStatusLog(petition, auditLogs, qcResults, parameters, labDone) {
   const qc = computeQcHeuristic(petition, qcResults, parameters);
-  const paramNames = enteredParamNames(qcResults);
-  const current = buildCurrent(petition, qc, paramNames, !!labDone);
+  const fieldLabels = enteredFieldLabels(qcResults);
+  const current = buildCurrent(petition, qc, fieldLabels, !!labDone);
   const timeline = buildTimeline(auditLogs, petition);
   return { current, timeline };
 }
@@ -219,8 +236,10 @@ module.exports = {
   isLabBatch,
   hasFilledValue,
   qcParamAppliesToItem,
+  countableFields,
+  countFilledFields,
   computeQcHeuristic,
-  enteredParamNames,
+  enteredFieldLabels,
   buildCurrent,
   timelineLabel,
   buildTimeline,
