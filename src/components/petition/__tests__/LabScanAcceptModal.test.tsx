@@ -71,3 +71,30 @@ describe('LabScanAcceptModal manual entry', () => {
     expect(await screen.findByText('P-2506-0001')).toBeInTheDocument();
   });
 });
+
+describe('LabScanAcceptModal manualOnly mode', () => {
+  function renderManual() {
+    return render(
+      <MemoryRouter>
+        <LabScanAcceptModal open manualOnly onClose={() => {}} onAccepted={() => {}} />
+      </MemoryRouter>,
+    );
+  }
+
+  it('โชว์หัวข้อ "กรอกเลขรับงาน" + ช่องกรอกทันที ไม่ต้องรอกล้อง', async () => {
+    renderManual();
+    expect(screen.getByText('กรอกเลขรับงาน Lab')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/พิมพ์เลขที่คำร้อง/)).toBeInTheDocument();
+    // โหมดนี้ไม่เปิดกล้อง → ไม่มีข้อความ "ไม่พบกล้อง"
+    expect(screen.queryByText(/ไม่พบกล้อง/)).not.toBeInTheDocument();
+  });
+
+  it('submit เลขคำร้อง → เข้า confirm เหมือนโหมดสแกน', async () => {
+    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { data: labPetition } });
+    renderManual();
+    const input = screen.getByPlaceholderText(/พิมพ์เลขที่คำร้อง/);
+    fireEvent.change(input, { target: { value: 'P-2506-0001' } });
+    fireEvent.click(screen.getByRole('button', { name: 'รับงาน' }));
+    expect(await screen.findByText('P-2506-0001')).toBeInTheDocument();
+  });
+});

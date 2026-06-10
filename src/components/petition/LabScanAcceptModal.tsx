@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
-import { AlertCircle, CheckCircle2, QrCode, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Keyboard, QrCode, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Petition } from '@/types/petition.types';
 import { PETITION_DEPT_LABELS, PETITION_STATUS_CONFIG } from '@/types/petition.types';
@@ -47,9 +47,11 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onAccepted: () => void;
+  /** โหมดกรอกเลขคำร้องอย่างเดียว (ไม่เปิดกล้อง) — ใช้กับปุ่ม "กรอกเลขรับงาน" */
+  manualOnly?: boolean;
 }
 
-export default function LabScanAcceptModal({ open, onClose, onAccepted }: Props) {
+export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOnly = false }: Props) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
@@ -72,7 +74,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted }: Props)
   }, [open]);
 
   useEffect(() => {
-    if (!open || phase !== 'scanning') return;
+    if (!open || phase !== 'scanning' || manualOnly) return;
     let active = true;
 
     (async () => {
@@ -122,7 +124,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted }: Props)
         } catch { /* ignore */ }
       }
     };
-  }, [open, phase]);
+  }, [open, phase, manualOnly]);
 
   async function fetchAndCheck(rawCode: string) {
     const code = extractScannedCode(rawCode);
@@ -212,8 +214,14 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted }: Props)
       <div className="bg-white rounded-xl w-full max-w-md max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <div className="flex items-center gap-2">
-            <QrCode className="h-5 w-5 text-sky-500" />
-            <h2 className="text-base font-bold">สแกน QR รับงาน Lab</h2>
+            {manualOnly ? (
+              <Keyboard className="h-5 w-5 text-sky-500" />
+            ) : (
+              <QrCode className="h-5 w-5 text-sky-500" />
+            )}
+            <h2 className="text-base font-bold">
+              {manualOnly ? 'กรอกเลขรับงาน Lab' : 'สแกน QR รับงาน Lab'}
+            </h2>
           </div>
           <button onClick={onClose} className="text-grey-400 hover:text-grey-700">
             <X className="h-4 w-4" />
@@ -221,8 +229,8 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted }: Props)
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Camera reader — keep mounted during scanning */}
-          <div className={phase === 'scanning' ? 'block' : 'hidden'}>
+          {/* Camera reader — keep mounted during scanning (ไม่ใช้ในโหมด manualOnly) */}
+          <div className={phase === 'scanning' && !manualOnly ? 'block' : 'hidden'}>
             <div id={READER_ID} className="w-full rounded-lg overflow-hidden border" />
             <p className="mt-2 text-center text-sm text-grey-500">
               เล็งกล้องไปที่ QR Code บนใบคำร้องเพื่อรับงาน
@@ -251,17 +259,20 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted }: Props)
               }}
               className="space-y-2"
             >
-              <div className="flex items-center gap-2 text-xs text-grey-400">
-                <div className="h-px flex-1 bg-grey-200" />
-                <span>หรือ</span>
-                <div className="h-px flex-1 bg-grey-200" />
-              </div>
+              {!manualOnly && (
+                <div className="flex items-center gap-2 text-xs text-grey-400">
+                  <div className="h-px flex-1 bg-grey-200" />
+                  <span>หรือ</span>
+                  <div className="h-px flex-1 bg-grey-200" />
+                </div>
+              )}
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={manualCode}
                   onChange={(e) => setManualCode(e.target.value)}
                   placeholder="พิมพ์เลขที่คำร้อง เช่น P-2506-0001"
+                  autoFocus={manualOnly}
                   className="flex-1 rounded-lg border border-grey-200 px-3 py-2 text-sm outline-none focus:border-sky-400"
                 />
                 <Button type="submit" variant="primary" disabled={!manualCode.trim()}>
@@ -288,7 +299,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted }: Props)
               </div>
               <div className="flex gap-2 pt-2">
                 <Button variant="ghost" className="flex-1" onClick={rescan}>
-                  สแกนใหม่
+                  {manualOnly ? 'กรอกใหม่' : 'สแกนใหม่'}
                 </Button>
                 <Button variant="primary" className="flex-1" onClick={confirmAccept}>
                   รับงาน
@@ -314,7 +325,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted }: Props)
                   ปิด
                 </Button>
                 <Button variant="primary" className="flex-1" onClick={rescan}>
-                  สแกนใหม่
+                  {manualOnly ? 'กรอกใหม่' : 'สแกนใหม่'}
                 </Button>
               </div>
             </div>
