@@ -67,6 +67,11 @@
       "count": 0
     },
     {
+      "collection": "dashboardlayoutconfigs",
+      "file": "dashboardlayoutconfigs.json",
+      "count": 0
+    },
+    {
       "collection": "users",
       "file": "users.json",
       "count": 0
@@ -140,6 +145,11 @@
       "collection": "stocktransactions",
       "file": "stocktransactions.json",
       "count": 8
+    },
+    {
+      "collection": "documentnumberconfigs",
+      "file": "documentnumberconfigs.json",
+      "count": 0
     },
     {
       "collection": "accessgroups",

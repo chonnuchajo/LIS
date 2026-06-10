@@ -1,0 +1,1 @@
+{"collection":"dashboardlayoutconfigs","indexes":[{"v":{"$numberInt":"2"},"key":{"dashboard":{"$numberInt":"1"}},"name":"dashboard_1","background":true},{"v":{"$numberInt":"2"},"key":{"dashboard":{"$numberInt":"1"},"roleId":{"$numberInt":"1"}},"name":"dashboard_1_roleId_1","background":true,"unique":true}],"count":{"$numberInt":"0"},"documents":[]}
