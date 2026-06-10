@@ -11,7 +11,12 @@ const PetitionAuditLogSchema = new mongoose.Schema(
     petitionNo: { type: String, required: true, index: true },
     event: {
       type: String,
-      enum: ['created', 'statusChanged', 'assigned', 'reviewed', 'updated', 'deleted'],
+      enum: [
+        'created', 'statusChanged', 'assigned', 'reviewed', 'updated', 'deleted',
+        'received',        // Lab/QC สแกนรับตัวอย่าง
+        'resultEntered',   // QC ใส่ค่าพารามิเตอร์ครั้งแรก
+        'resultUpdated',   // QC แก้ค่าพารามิเตอร์
+      ],
       required: true,
     },
     fromStatus: { type: String },
