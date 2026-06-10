@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { normalizeRoles } from '@/lib/roles';
+import { isAssignedTo } from '@/lib/assignment';
 
 const READER_ID = 'lab-accept-qr-reader';
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
@@ -148,7 +149,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
         setPhase('error');
         return;
       }
-      if (!isFullAccess && found.assignedTo.name !== user?.name) {
+      if (!isFullAccess && !isAssignedTo(found.assignedTo, user)) {
         setErrorMsg(`คุณไม่ได้ถูก assign งานนี้ (มอบหมายให้: ${found.assignedTo.name})`);
         setPhase('error');
         return;
