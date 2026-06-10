@@ -83,31 +83,72 @@ Route handler:
 
 Unknown/unmapped events are skipped (timeline shows milestones only, not every audit row).
 
-## Current-status derivation (first matching rule wins)
+## Current-status derivation — dual-track (`{ label, tracks }`)
 
-Inputs: `petition.status`, `sampleSentAt`, `labReceivedAt`, `qcReceivedAt`, `assignedTo`, the QC heuristic `{ filled, total, percent }`, and whether the petition has any **lab item** (a `petition.items` entry whose `batchNo` ends in 1 or 6 — the existing `isLabBatch` rule; replicate the digit check server-side).
+`current` is **two parallel tracks** (QC and Lab), each advancing independently once the sample is received. Shape:
 
-| order | condition | `label` | `side` |
-|---|---|---|---|
-| 1 | `status === 'approved'` | `หัวหน้า QC อนุมัติ — ปิดงาน` | — |
-| 2 | `status === 'rejected'` | `ส่งกลับให้แก้ไข` | — |
-| 3 | `status === 'success'` | `เสร็จสิ้น — รอหัวหน้า QC ยืนยัน` | qc |
-| 4 | testing & `0 < filled < total` (partial) | `QC กำลังตรวจ — {entered param names} ({percent}%)` | qc |
-| 5 | **testing** & has lab item & `labDone === false` | `รอผลตรวจจาก Lab` | lab |
-| 6 | testing & `total > 0` & `filled >= total` (100%) | `รอ QC ยืนยันผล` | qc |
-| 7 | both sides received | `Lab & QC รับแล้ว` | — |
-| 8 | one side received | `{ฝั่งที่รับ} รับแล้ว · {อีกฝั่ง} รอรับ` | — |
-| 9 | `status === 'sampleSent'` | `ส่งตัวอย่างแล้ว — รอรับ` | — |
-| 10 | else (`deliveringQC`) | `กำลังนำส่ง QC` | — |
+```jsonc
+current: {
+  label: "QC สมชาย รับงานแล้ว · กำลังตรวจ | Lab รับแล้ว · มอบหมายโดย แอดมิน · รอเจ้าหน้าที่รับงาน",
+  tracks: {
+    qc:  { label: "QC สมชาย รับงานแล้ว · กำลังตรวจ", percent: null },
+    lab: { label: "Lab รับแล้ว · มอบหมายโดย แอดมิน · รอเจ้าหน้าที่รับงาน" }
+  }
+}
+```
 
-Ordering rationale: **active QC entry (rule 4) shows before lab-waiting**, so a petition mid-entry reads `QC กำลังตรวจ` rather than masking it. Once QC has nothing left to enter, **lab must finish (rule 5) before the final per-sample QC confirm (rule 6)** — matching "Lab เสร็จก่อน → ค่อยรอ QC ยืนยัน". Concretely: QC 100% + lab pending → rule 5 (`รอผลตรวจจาก Lab`); QC 100% + lab done → rule 6 (`รอ QC ยืนยันผล`).
+- `label` = the present tracks' labels joined by `" | "`.
+- `tracks.qc` / `tracks.lab` each = `{ label, percent? }`. `percent` is set only while QC is actively entering values.
+- A track is **omitted** when it doesn't apply: `tracks.lab` only exists when the petition has a lab item AND lab is not yet done; once `labDone`, the lab track drops and `current` is driven by QC alone ("Lab เสร็จ → update จาก QC").
 
-Rule 5 is **gated by `testing` (`status === 'inProgress'`)**: `labDone` is false for any petition whose lab samples have no completed `PhysicalResult` yet — including freshly-sent/received petitions — so without the gate, a `sampleSent`/`pendingReview` petition with a lab item would wrongly show `รอผลตรวจจาก Lab` before it was even received, masking the receipt labels (rules 7–9). The lab-waiting state only makes sense during testing.
+### Terminal / pre-receive states (single label, no `tracks`)
 
-Notes:
-- "testing" = `status === 'inProgress'` (assigned and/or first result in).
-- Rule 5 predicate (decided): the petition has ≥ 1 lab item **and** not every lab sampleId has a completed `PhysicalResult`. Concretely: derive lab sampleIds via the existing `sampleIdsFromPetition` rule restricted to items whose `batchNo` ends in 1/6; `labDone` = every such sampleId has a `PhysicalResult` with `status === 'completed'`. Rule 5 fires when a lab item exists and `labDone` is false. The route therefore also loads `PhysicalResult.find({ sampleId: { $in: labSampleIds } })` and passes a `labDone` boolean into `buildStatusLog` (keeps the pure function DB-free).
-- Rule 6 param names: distinct parameter names that have at least one filled value, ordered by first `enteredAt`.
+Checked first; these short-circuit the dual-track build:
+
+| condition | `label` | `side` |
+|---|---|---|
+| `status === 'approved'` | `หัวหน้า QC อนุมัติ — ปิดงาน` | — |
+| `status === 'rejected'` | `ส่งกลับให้แก้ไข` | — |
+| `status === 'success'` | `เสร็จสิ้น — รอหัวหน้า QC ยืนยัน` | qc |
+| neither side received & `status === 'sampleSent'` | `ส่งตัวอย่างแล้ว — รอรับ` | — |
+| neither side received (else) | `กำลังนำส่ง QC` | — |
+
+### Per-track derivation (first match wins, per side)
+
+Shared signals: `qcReceived`/`labReceived` (`= !!qcReceivedAt`/`!!labReceivedAt`); `assignee = petition.assignedTo` (single assignee — the model has no per-side assignment); `assignedBy = assignee.assignedBy`; `started = reviewHistory has an entry with action 'startTesting' OR firstResultAt set OR qc.filled > 0`; the QC heuristic `{ filled, total, percent }` + `paramNames`; `labDone`.
+
+**QC track:**
+
+| condition | `label` |
+|---|---|
+| `!qcReceived` | `QC รอรับ` |
+| received, no `assignee` | `QC รับแล้ว` |
+| assigned, `!started` | `QC รับแล้ว · มอบหมายโดย {assignedBy} · รอเจ้าหน้าที่รับงาน` |
+| started, `0 < filled < total` | `QC กำลังตรวจ — {paramNames} ({percent}%)` (sets `percent`) |
+| started, `total > 0 && filled >= total` | `QC ตรวจครบ — รอยืนยัน` |
+| started, else (accepted, nothing entered yet) | `QC {assignee.name} รับงานแล้ว · กำลังตรวจ` |
+
+**Lab track** (only built when the petition has a lab item; `null`/omitted when `labDone`):
+
+| condition | `label` |
+|---|---|
+| `labDone` | *(track omitted)* |
+| `!labReceived` | `Lab รอรับ` |
+| received, no `assignee` | `Lab รับแล้ว` |
+| assigned, `!started` | `Lab รับแล้ว · มอบหมายโดย {assignedBy} · รอเจ้าหน้าที่รับงาน` |
+| started, else | `Lab {assignee.name} รับงานแล้ว · กำลังตรวจ` |
+
+### Why this subsumes the old single-label rules
+
+- "รอผลตรวจจาก Lab" → now expressed as `QC ตรวจครบ — รอยืนยัน | Lab … กำลังตรวจ` (QC done, lab still running).
+- "รอ QC ยืนยันผล" → `labDone` drops the lab track, leaving `QC ตรวจครบ — รอยืนยัน` alone, the final state before `success`.
+- One-side-received → e.g. `QC รับแล้ว | Lab รอรับ`.
+
+### Known approximations (data-model limits, documented intentionally)
+
+- **Single `assignedTo`**: the petition has one assignee, not one per side. Both tracks reference the same `assignee`/`assignedBy`. There is no per-side assignment in the schema.
+- **Shared `started` signal**: `startTesting` (reviewHistory) / `firstResultAt` / QC `filled` are per-petition, so both tracks flip from "รอเจ้าหน้าที่รับงาน" → "รับงานแล้ว" together. `QrStartTestingModal` is currently a placeholder, so in practice `started` is driven by `firstResultAt` / QC `filled` until that accept-flow is built.
+- **labDone predicate** (unchanged): the petition has ≥ 1 lab item AND not every lab sampleId has a completed `PhysicalResult`. Lab sampleIds derived via `sampleIdsFromPetition` restricted to `batchNo` ending 1/6; `labDone` = every such sampleId has a `PhysicalResult` with `status === 'completed'`. Route loads `PhysicalResult.find({ sampleId: { $in: labSampleIds } })` and passes `labDone` into `buildStatusLog` (keeps the pure function DB-free).
 
 ## QC heuristic (`computeQcHeuristic`)
 

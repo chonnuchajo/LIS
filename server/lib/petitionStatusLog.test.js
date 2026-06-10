@@ -95,107 +95,156 @@ test('enteredParamNames: distinct, ordered by enteredAt, blanks ignored', () => 
   assert.deepStrictEqual(enteredParamNames(qcResults), ['pH', 'ความชื้น']);
 });
 
-// ─── Task 2: buildCurrent ────────────────────────────────────────────────────
+// ─── Task 2: buildCurrent (dual-track) ───────────────────────────────────────
 const { buildCurrent } = require('./petitionStatusLog');
 
 const QC0 = { filled: 0, total: 0, percent: 0 };
+const ASSIGNEE = { name: 'สมชาย', assignedBy: 'แอดมิน' };
 
-test('current rule1: approved', () => {
+// terminal / pre-receive — single label, no tracks
+test('current: approved', () => {
   assert.deepStrictEqual(
     buildCurrent({ status: 'approved', items: [] }, QC0, [], true),
     { label: 'หัวหน้า QC อนุมัติ — ปิดงาน' },
   );
 });
 
-test('current rule2: rejected', () => {
+test('current: rejected', () => {
   assert.deepStrictEqual(
     buildCurrent({ status: 'rejected', items: [] }, QC0, [], true),
     { label: 'ส่งกลับให้แก้ไข' },
   );
 });
 
-test('current rule3: success', () => {
+test('current: success', () => {
   assert.deepStrictEqual(
     buildCurrent({ status: 'success', items: [] }, QC0, [], true),
     { label: 'เสร็จสิ้น — รอหัวหน้า QC ยืนยัน', side: 'qc' },
   );
 });
 
-test('current rule4: QC partial shows names + percent', () => {
-  const p = { status: 'inProgress', items: [] };
+test('current: sampleSent, neither received → single label', () => {
   assert.deepStrictEqual(
-    buildCurrent(p, { filled: 1, total: 2, percent: 45 }, ['pH', 'ความชื้น'], true),
-    { label: 'QC กำลังตรวจ — pH, ความชื้น (45%)', side: 'qc', percent: 45 },
-  );
-});
-
-test('current rule4 beats rule5: QC partial + lab pending → still shows QC progress', () => {
-  const p = { status: 'inProgress', items: [{ batchNo: 'B-1' }] };
-  const r = buildCurrent(p, { filled: 1, total: 2, percent: 45 }, ['pH'], false);
-  assert.strictEqual(r.label, 'QC กำลังตรวจ — pH (45%)');
-});
-
-test('current rule5: QC 100% but lab pending → wait Lab', () => {
-  const p = { status: 'inProgress', items: [{ batchNo: 'B-1' }] };
-  assert.deepStrictEqual(
-    buildCurrent(p, { filled: 2, total: 2, percent: 100 }, ['pH'], false),
-    { label: 'รอผลตรวจจาก Lab', side: 'lab' },
-  );
-});
-
-test('current rule6: QC 100% and lab done → wait QC confirm', () => {
-  const p = { status: 'inProgress', items: [{ batchNo: 'B-1' }] };
-  assert.deepStrictEqual(
-    buildCurrent(p, { filled: 2, total: 2, percent: 100 }, ['pH'], true),
-    { label: 'รอ QC ยืนยันผล', side: 'qc' },
-  );
-});
-
-test('current rule6: no lab item, QC 100% → wait QC confirm', () => {
-  const p = { status: 'inProgress', items: [{ batchNo: 'B-2' }] };
-  assert.deepStrictEqual(
-    buildCurrent(p, { filled: 1, total: 1, percent: 100 }, ['pH'], true),
-    { label: 'รอ QC ยืนยันผล', side: 'qc' },
-  );
-});
-
-test('current rule7: both received', () => {
-  const p = { status: 'pendingReview', items: [], labReceivedAt: '2026-06-10', qcReceivedAt: '2026-06-10' };
-  assert.deepStrictEqual(buildCurrent(p, QC0, [], true), { label: 'Lab & QC รับแล้ว' });
-});
-
-test('current rule8: only QC received', () => {
-  const p = { status: 'pendingReview', items: [], qcReceivedAt: '2026-06-10' };
-  assert.deepStrictEqual(buildCurrent(p, QC0, [], true), { label: 'QC รับแล้ว · Lab รอรับ' });
-});
-
-test('current rule8: only Lab received', () => {
-  const p = { status: 'pendingReview', items: [], labReceivedAt: '2026-06-10' };
-  assert.deepStrictEqual(buildCurrent(p, QC0, [], true), { label: 'Lab รับแล้ว · QC รอรับ' });
-});
-
-test('current rule9: sampleSent', () => {
-  assert.deepStrictEqual(
-    buildCurrent({ status: 'sampleSent', items: [] }, QC0, [], true),
+    buildCurrent({ status: 'sampleSent', items: [{ batchNo: 'B-1' }] }, QC0, [], false),
     { label: 'ส่งตัวอย่างแล้ว — รอรับ' },
   );
 });
 
-test('current rule10: deliveringQC', () => {
+test('current: deliveringQC, neither received → single label', () => {
   assert.deepStrictEqual(
     buildCurrent({ status: 'deliveringQC', items: [] }, QC0, [], true),
     { label: 'กำลังนำส่ง QC' },
   );
 });
 
-test('current: sampleSent + lab item + lab not done → still ส่งตัวอย่างแล้ว (rule 5 gated by testing)', () => {
-  const p = { status: 'sampleSent', items: [{ batchNo: 'B-1' }] };
-  assert.deepStrictEqual(buildCurrent(p, QC0, [], false), { label: 'ส่งตัวอย่างแล้ว — รอรับ' });
+// dual-track — one side received
+test('current: only QC received, no lab item → QC track only', () => {
+  const p = { status: 'pendingReview', items: [{ batchNo: 'B-2' }], qcReceivedAt: 'T' };
+  assert.deepStrictEqual(buildCurrent(p, QC0, [], true), {
+    label: 'QC รับแล้ว',
+    tracks: { qc: { label: 'QC รับแล้ว' } },
+  });
 });
 
-test('current: pendingReview + QC received + lab item + lab not done → QC รับแล้ว · Lab รอรับ (not รอผลตรวจจาก Lab)', () => {
-  const p = { status: 'pendingReview', items: [{ batchNo: 'B-1' }], qcReceivedAt: '2026-06-10' };
-  assert.deepStrictEqual(buildCurrent(p, QC0, [], false), { label: 'QC รับแล้ว · Lab รอรับ' });
+test('current: only QC received, has lab item → QC รับแล้ว | Lab รอรับ', () => {
+  const p = { status: 'pendingReview', items: [{ batchNo: 'B-1' }], qcReceivedAt: 'T' };
+  assert.deepStrictEqual(buildCurrent(p, QC0, [], false), {
+    label: 'QC รับแล้ว | Lab รอรับ',
+    tracks: { qc: { label: 'QC รับแล้ว' }, lab: { label: 'Lab รอรับ' } },
+  });
+});
+
+test('current: only Lab received, has lab item → QC รอรับ | Lab รับแล้ว', () => {
+  const p = { status: 'pendingReview', items: [{ batchNo: 'B-1' }], labReceivedAt: 'T' };
+  assert.deepStrictEqual(buildCurrent(p, QC0, [], false), {
+    label: 'QC รอรับ | Lab รับแล้ว',
+    tracks: { qc: { label: 'QC รอรับ' }, lab: { label: 'Lab รับแล้ว' } },
+  });
+});
+
+// dual-track — both received, assigned, not yet accepted
+test('current: both received + assigned + not started → assign·รอรับงาน both sides', () => {
+  const p = {
+    status: 'pendingReview', items: [{ batchNo: 'B-1' }],
+    qcReceivedAt: 'T', labReceivedAt: 'T', assignedTo: ASSIGNEE, reviewHistory: [],
+  };
+  assert.deepStrictEqual(buildCurrent(p, QC0, [], false), {
+    label: 'QC รับแล้ว · มอบหมายโดย แอดมิน · รอเจ้าหน้าที่รับงาน | Lab รับแล้ว · มอบหมายโดย แอดมิน · รอเจ้าหน้าที่รับงาน',
+    tracks: {
+      qc: { label: 'QC รับแล้ว · มอบหมายโดย แอดมิน · รอเจ้าหน้าที่รับงาน' },
+      lab: { label: 'Lab รับแล้ว · มอบหมายโดย แอดมิน · รอเจ้าหน้าที่รับงาน' },
+    },
+  });
+});
+
+// dual-track — started (accepted via startTesting), nothing entered yet
+test('current: both received + assigned + startTesting → รับงานแล้ว กำลังตรวจ both sides', () => {
+  const p = {
+    status: 'inProgress', items: [{ batchNo: 'B-1' }],
+    qcReceivedAt: 'T', labReceivedAt: 'T', assignedTo: ASSIGNEE,
+    reviewHistory: [{ action: 'startTesting' }],
+  };
+  assert.deepStrictEqual(buildCurrent(p, QC0, [], false), {
+    label: 'QC สมชาย รับงานแล้ว · กำลังตรวจ | Lab สมชาย รับงานแล้ว · กำลังตรวจ',
+    tracks: {
+      qc: { label: 'QC สมชาย รับงานแล้ว · กำลังตรวจ' },
+      lab: { label: 'Lab สมชาย รับงานแล้ว · กำลังตรวจ' },
+    },
+  });
+});
+
+// dual-track — QC actively entering values (started implied by filled>0)
+test('current: QC entering values + lab running → QC % | Lab กำลังตรวจ', () => {
+  const p = {
+    status: 'inProgress', items: [{ batchNo: 'B-1' }],
+    qcReceivedAt: 'T', labReceivedAt: 'T', assignedTo: ASSIGNEE, reviewHistory: [],
+  };
+  assert.deepStrictEqual(buildCurrent(p, { filled: 1, total: 2, percent: 45 }, ['pH', 'ความชื้น'], false), {
+    label: 'QC กำลังตรวจ — pH, ความชื้น (45%) | Lab สมชาย รับงานแล้ว · กำลังตรวจ',
+    tracks: {
+      qc: { label: 'QC กำลังตรวจ — pH, ความชื้น (45%)', percent: 45 },
+      lab: { label: 'Lab สมชาย รับงานแล้ว · กำลังตรวจ' },
+    },
+  });
+});
+
+// dual-track — QC done, lab still running → "รอผลตรวจจาก Lab" expressed as combined
+test('current: QC 100% + lab not done → QC ตรวจครบ | Lab กำลังตรวจ', () => {
+  const p = {
+    status: 'inProgress', items: [{ batchNo: 'B-1' }],
+    qcReceivedAt: 'T', labReceivedAt: 'T', assignedTo: ASSIGNEE, reviewHistory: [],
+  };
+  assert.deepStrictEqual(buildCurrent(p, { filled: 2, total: 2, percent: 100 }, ['pH'], false), {
+    label: 'QC ตรวจครบ — รอยืนยัน | Lab สมชาย รับงานแล้ว · กำลังตรวจ',
+    tracks: {
+      qc: { label: 'QC ตรวจครบ — รอยืนยัน' },
+      lab: { label: 'Lab สมชาย รับงานแล้ว · กำลังตรวจ' },
+    },
+  });
+});
+
+// dual-track — lab done drops the lab track → QC drives alone
+test('current: QC 100% + lab done → QC ตรวจครบ only (lab track dropped)', () => {
+  const p = {
+    status: 'inProgress', items: [{ batchNo: 'B-1' }],
+    qcReceivedAt: 'T', labReceivedAt: 'T', assignedTo: ASSIGNEE, reviewHistory: [],
+  };
+  assert.deepStrictEqual(buildCurrent(p, { filled: 2, total: 2, percent: 100 }, ['pH'], true), {
+    label: 'QC ตรวจครบ — รอยืนยัน',
+    tracks: { qc: { label: 'QC ตรวจครบ — รอยืนยัน' } },
+  });
+});
+
+// no lab item → only QC track ever
+test('current: no lab item, QC entering → QC track only', () => {
+  const p = {
+    status: 'inProgress', items: [{ batchNo: 'B-2' }],
+    qcReceivedAt: 'T', assignedTo: ASSIGNEE, reviewHistory: [],
+  };
+  assert.deepStrictEqual(buildCurrent(p, { filled: 1, total: 2, percent: 50 }, ['pH'], true), {
+    label: 'QC กำลังตรวจ — pH (50%)',
+    tracks: { qc: { label: 'QC กำลังตรวจ — pH (50%)', percent: 50 } },
+  });
 });
 
 // ─── Task 3: buildTimeline / timelineLabel ───────────────────────────────────
@@ -256,11 +305,13 @@ test('timelineLabel: unknown event → null (skipped)', () => {
 // ─── Task 4: buildStatusLog ──────────────────────────────────────────────────
 const { buildStatusLog } = require('./petitionStatusLog');
 
-test('buildStatusLog: combines current + timeline', () => {
+test('buildStatusLog: combines dual-track current + timeline', () => {
   const petition = {
     status: 'inProgress',
-    items: [{ seq: 1, commonName: 'NaOH' }],
-    assignedTo: { name: 'ก' },
+    items: [{ seq: 1, commonName: 'NaOH', batchNo: 'B-2' }], // non-lab batch → no lab track
+    qcReceivedAt: 'T',
+    assignedTo: { name: 'ก', assignedBy: 'แอดมิน' },
+    reviewHistory: [],
   };
   const auditLogs = [{ event: 'created', createdAt: '1', actor: 'u' }];
   const parameters = [
@@ -270,6 +321,7 @@ test('buildStatusLog: combines current + timeline', () => {
   const qcResults = [{ itemSeq: 1, parameterId: 'p1', parameterName: 'pH', values: { v: '7' }, enteredAt: '1' }];
   const out = buildStatusLog(petition, auditLogs, qcResults, parameters, true);
   assert.strictEqual(out.current.label, 'QC กำลังตรวจ — pH (50%)');
-  assert.strictEqual(out.current.percent, 50);
+  assert.strictEqual(out.current.tracks.qc.percent, 50);
+  assert.strictEqual(out.current.tracks.lab, undefined);
   assert.deepStrictEqual(out.timeline.map((t) => t.label), ['ยื่นคำขอ']);
 });

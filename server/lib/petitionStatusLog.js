@@ -84,37 +84,63 @@ function enteredParamNames(qcResults) {
 // labDone = every lab sampleId has a completed PhysicalResult (route-computed).
 function buildCurrent(petition, qc, paramNames, labDone) {
   const status = petition.status;
-  const testing = status === 'inProgress';
-  const hasLabItem = (petition.items ?? []).some((it) => isLabBatch(it.batchNo ?? ''));
 
+  // --- terminal / pre-receive states: single label, no tracks ---
   if (status === 'approved') return { label: 'หัวหน้า QC อนุมัติ — ปิดงาน' };
   if (status === 'rejected') return { label: 'ส่งกลับให้แก้ไข' };
   if (status === 'success') return { label: 'เสร็จสิ้น — รอหัวหน้า QC ยืนยัน', side: 'qc' };
 
-  // rule 4 — active QC entry (partial); shown before lab-waiting so progress isn't masked
-  if (testing && qc.filled > 0 && qc.filled < qc.total) {
-    const names = (paramNames ?? []).length ? ` — ${paramNames.join(', ')}` : '';
-    return { label: `QC กำลังตรวจ${names} (${qc.percent}%)`, side: 'qc', percent: qc.percent };
-  }
-  // rule 5 — lab must finish before final QC confirm (only meaningful during testing)
-  if (testing && hasLabItem && !labDone) {
-    return { label: 'รอผลตรวจจาก Lab', side: 'lab' };
-  }
-  // rule 6 — QC done (and lab done / none) → final per-sample QC confirm
-  if (testing && qc.total > 0 && qc.filled >= qc.total) {
-    return { label: 'รอ QC ยืนยันผล', side: 'qc' };
+  const qcReceived = !!petition.qcReceivedAt;
+  const labReceived = !!petition.labReceivedAt;
+  if (!qcReceived && !labReceived) {
+    if (status === 'sampleSent') return { label: 'ส่งตัวอย่างแล้ว — รอรับ' };
+    return { label: 'กำลังนำส่ง QC' };
   }
 
-  const labReceived = !!petition.labReceivedAt;
-  const qcReceived = !!petition.qcReceivedAt;
-  if (labReceived && qcReceived) return { label: 'Lab & QC รับแล้ว' };
-  if (labReceived || qcReceived) {
-    const who = qcReceived ? 'QC' : 'Lab';
-    const other = qcReceived ? 'Lab' : 'QC';
-    return { label: `${who} รับแล้ว · ${other} รอรับ` };
+  // --- dual-track: QC and Lab advance independently ---
+  const hasLabItem = (petition.items ?? []).some((it) => isLabBatch(it.batchNo ?? ''));
+  const assignee = petition.assignedTo;
+  const assignedBy = assignee?.assignedBy || '-';
+  // "รับงาน" (job accepted) signal — single, per-petition (model has no per-side accept):
+  // explicit startTesting review, OR first result recorded, OR QC already has values.
+  const started =
+    (petition.reviewHistory ?? []).some((r) => r.action === 'startTesting') ||
+    !!petition.firstResultAt ||
+    qc.filled > 0;
+
+  const qcTrack = buildQcTrack({ qcReceived, assignee, assignedBy, started, qc, paramNames });
+  const labTrack = hasLabItem
+    ? buildLabTrack({ labReceived, assignee, assignedBy, started, labDone })
+    : null;
+
+  const tracks = {};
+  if (qcTrack) tracks.qc = qcTrack;
+  if (labTrack) tracks.lab = labTrack;
+  const label = [qcTrack?.label, labTrack?.label].filter(Boolean).join(' | ');
+  return { label, tracks };
+}
+
+// QC side of `current`. Returns { label, percent? }.
+function buildQcTrack({ qcReceived, assignee, assignedBy, started, qc, paramNames }) {
+  if (!qcReceived) return { label: 'QC รอรับ' };
+  if (!assignee) return { label: 'QC รับแล้ว' };
+  if (!started) return { label: `QC รับแล้ว · มอบหมายโดย ${assignedBy} · รอเจ้าหน้าที่รับงาน` };
+  // started:
+  if (qc.total > 0 && qc.filled >= qc.total) return { label: 'QC ตรวจครบ — รอยืนยัน' };
+  if (qc.filled > 0) {
+    const names = (paramNames ?? []).length ? ` — ${paramNames.join(', ')}` : '';
+    return { label: `QC กำลังตรวจ${names} (${qc.percent}%)`, percent: qc.percent };
   }
-  if (status === 'sampleSent') return { label: 'ส่งตัวอย่างแล้ว — รอรับ' };
-  return { label: 'กำลังนำส่ง QC' };
+  return { label: `QC ${assignee.name} รับงานแล้ว · กำลังตรวจ` };
+}
+
+// Lab side of `current`. Returns { label } or null (omitted when lab is done).
+function buildLabTrack({ labReceived, assignee, assignedBy, started, labDone }) {
+  if (labDone) return null; // lab finished → drop track, QC drives from here
+  if (!labReceived) return { label: 'Lab รอรับ' };
+  if (!assignee) return { label: 'Lab รับแล้ว' };
+  if (!started) return { label: `Lab รับแล้ว · มอบหมายโดย ${assignedBy} · รอเจ้าหน้าที่รับงาน` };
+  return { label: `Lab ${assignee.name} รับงานแล้ว · กำลังตรวจ` };
 }
 
 // Maps one audit-log row to a Thai milestone label, or null to skip it.
