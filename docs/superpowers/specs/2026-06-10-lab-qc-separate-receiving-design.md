@@ -1,7 +1,7 @@
 # Lab/QC แยกการรับงาน + บันทึก "รับงานโดย"
 
 วันที่: 2026-06-10
-สถานะ: design (รอ implement)
+สถานะ: implemented (develop) — Model+Endpoint+Types+Modals+List/Detail pages เสร็จ; ไม่มี backfill (ตามขอบเขต)
 
 ## ปัญหา
 

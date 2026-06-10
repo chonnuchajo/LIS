@@ -25,7 +25,6 @@ import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
 import { statusBadge } from '@/lib/statusBadge';
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
 
-const ENTRY_STATUSES = new Set(['pendingReview', 'inProgress']);
 
 export default function QCTestingPage() {
   const navigate = useNavigate();
@@ -48,7 +47,7 @@ export default function QCTestingPage() {
   const [abnormalMap, setAbnormalMap] = useState<Record<string, boolean>>({});
   const [returnedMap, setReturnedMap] = useState<Record<string, boolean>>({});
   const flaggablePetitionIds = petitions
-    .filter((p) => p.status === 'pendingReview' || p.status === 'inProgress')
+    .filter((p) => !!p.qcReceivedAt)
     .map((p) => p._id);
   const flaggableKey = flaggablePetitionIds.join(',');
   useEffect(() => {
@@ -89,6 +88,9 @@ export default function QCTestingPage() {
               โดย {p.submittedBy?.name ?? '-'} จาก {PETITION_DEPT_LABELS[p.dept]}
             </div>
             <div className="text-xs text-grey-500 mt-0.5">{items.length} รายการ</div>
+            {p.qcReceivedBy && (
+              <div className="text-xs text-grey-400 mt-0.5">รับโดย {p.qcReceivedBy}</div>
+            )}
           </>
         );
       },
@@ -131,7 +133,7 @@ export default function QCTestingPage() {
       header: 'การดำเนินการ',
       className: 'text-right align-top',
       cell: (p) =>
-        ENTRY_STATUSES.has(p.status) ? (
+        p.qcReceivedAt ? (
           <Button
             size="sm"
             onClick={(e) => {
@@ -194,7 +196,7 @@ export default function QCTestingPage() {
         isLoading={loading}
         rowClassName={(p) => (p._id === flashId ? 'animate-flash-bg' : undefined)}
         onRowClick={(p) => {
-          if (ENTRY_STATUSES.has(p.status)) navigate(`/qc-testing/${p._id}`);
+          if (p.qcReceivedAt) navigate(`/qc-testing/${p._id}`);
         }}
         emptyTitle="ไม่มีคำร้องที่รอตรวจ"
       />

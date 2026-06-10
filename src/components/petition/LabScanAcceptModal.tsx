@@ -162,8 +162,8 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
         return;
       }
 
-      // Already received — navigate directly
-      if (found.status === 'pendingReview' || found.status === 'inProgress') {
+      // Already received by Lab — navigate directly (status อาจ pendingReview จากฝั่ง QC รับก่อน)
+      if (found.labReceivedAt) {
         onAccepted();
         navigate(`/lab-testing/${found._id}`);
         return;
@@ -186,6 +186,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
     try {
       const received = await api.patch<Petition>(`/petitions/${id}/receive`, {
         actor: user?.name || user?.email,
+        side: 'lab',
       });
       const updated = received.data.data;
       setPetition(updated);

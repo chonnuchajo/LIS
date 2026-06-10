@@ -383,22 +383,33 @@ router.patch('/:id/receive', async (req, res) => {
     const q = mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { petitionNo: id };
     const before = await Petition.findOne(q).lean();
     if (!before) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
-    if (before.status !== 'sampleSent') {
+    // บล็อกเฉพาะสถานะที่ปิดงานแล้ว — ฝั่งที่สอง (Lab/QC) ยังรับได้แม้ status เป็น pendingReview/inProgress
+    if (['success', 'approved', 'rejected'].includes(before.status)) {
       return badRequest(res, `ไม่สามารถรับได้: สถานะปัจจุบันคือ ${before.status}`);
     }
     const actor = req.body?.actor || 'system';
+    const side = req.body?.side === 'lab' ? 'lab' : 'qc';
+    const now = new Date();
     const update = {
-      status: 'pendingReview',
-      receivedAt: new Date(),
-      receivedBy: actor,
+      [`${side}ReceivedBy`]: actor,
+      [`${side}ReceivedAt`]: now,
     };
+    // ฝั่งแรกที่รับ: flip status จาก sampleSent → pendingReview
+    if (before.status === 'sampleSent') {
+      update.status = 'pendingReview';
+    }
+    // legacy receivedBy/At = ฝั่งแรกที่รับ (ไม่ทับถ้ามีแล้ว) เพื่อให้ print/HomeQC ทำงานต่อ
+    if (!before.receivedAt) {
+      update.receivedBy = actor;
+      update.receivedAt = now;
+    }
     const doc = await Petition.findOneAndUpdate(q, update, { new: true });
     logAudit(doc, {
       event: 'statusChanged',
       fromStatus: before.status,
       toStatus: doc.status,
       actor,
-      note: 'สแกนรับตัวอย่าง',
+      note: side === 'lab' ? 'สแกนรับงาน Lab' : 'สแกนรับงาน QC',
     });
     res.json(doc);
   } catch (err) {

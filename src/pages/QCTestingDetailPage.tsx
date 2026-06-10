@@ -1044,8 +1044,8 @@ export default function QCTestingDetailPage() {
             <CheckCircle2 className="h-6 w-6 text-green-500" />
             <p className="text-sm font-semibold text-green-700">บันทึกผลแล้ว — รออนุมัติ</p>
             <p className="text-xs text-grey-500">
-              {petition.receivedBy
-                ? `ผู้รับงาน: ${petition.receivedBy}`
+              {petition.qcReceivedBy ?? petition.receivedBy
+                ? `ผู้รับงาน: ${petition.qcReceivedBy ?? petition.receivedBy}`
                 : 'ไม่ระบุผู้รับงาน'}
             </p>
             {abnormalCount > 0 && (

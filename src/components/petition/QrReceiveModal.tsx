@@ -48,7 +48,7 @@ async function fetchPetitionByScannedCode(code: string): Promise<Petition> {
 }
 
 async function receivePetition(id: string, actor?: string): Promise<Petition> {
-  const res = await api.patch<Petition>(`/petitions/${id}/receive`, { actor });
+  const res = await api.patch<Petition>(`/petitions/${id}/receive`, { actor, side: 'qc' });
   return res.data.data;
 }
 
@@ -167,9 +167,15 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
       }
       setPetition(found);
       setPendingId(found._id);
-      // Only allow receive if status is sampleSent
-      if (found.status !== 'sampleSent') {
-        setErrorMsg(`คำร้องนี้สถานะ "${PETITION_STATUS_CONFIG[found.status]?.label ?? found.status}" — ไม่สามารถรับตัวอย่างซ้ำได้`);
+      // QC รับไปแล้ว → กันรับซ้ำ (status อาจ pendingReview จากฝั่ง Lab รับก่อน จึงเช็คที่ qcReceivedAt)
+      if (found.qcReceivedAt) {
+        setErrorMsg(`คำร้องนี้รับฝั่ง QC ไปแล้ว — ไม่สามารถรับซ้ำได้`);
+        setPhase('error');
+        return;
+      }
+      // ปิดงานแล้ว → รับไม่ได้
+      if (['success', 'approved', 'rejected'].includes(found.status)) {
+        setErrorMsg(`คำร้องนี้สถานะ "${PETITION_STATUS_CONFIG[found.status]?.label ?? found.status}" — ไม่สามารถรับตัวอย่างได้`);
         setPhase('error');
         return;
       }

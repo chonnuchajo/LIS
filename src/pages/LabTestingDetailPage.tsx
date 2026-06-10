@@ -633,6 +633,7 @@ export default function LabTestingDetailPage() {
           actions={
             <span className="text-sm text-grey-500">
               ผู้นำส่ง: {petition.submittedBy?.name ?? '-'}
+              {petition.labReceivedBy && ` · ผู้รับงาน: ${petition.labReceivedBy}`}
             </span>
           }
         />
