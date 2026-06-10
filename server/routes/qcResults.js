@@ -1,8 +1,11 @@
 const express = require("express");
 const router = express.Router();
+const mongoose = require('mongoose');
 const QCTestResult = require("../models/QCTestResult");
 const Parameter = require("../models/Parameter");
 const { scheduleOrUnlockPhase2 } = require("../lib/phaseAdvance");
+const PetitionAuditLog = require('../models/PetitionAuditLog');
+const { qcResultAuditEvent, qcResultNote } = require('../lib/auditEvents');
 
 // Mirrors src/lib/parameterValidation.ts — keep in sync if rules change.
 function isEnumAbnormal(field, value) {
@@ -311,6 +314,7 @@ router.put("/", async (req, res) => {
 
     const existing = await QCTestResult.findOne(filter);
     const isNew = !existing;
+    const existingFieldValue = existing?.[valuesKey]?.[fieldLabel];
 
     const update = {
       $set: {
@@ -330,6 +334,26 @@ router.put("/", async (req, res) => {
       upsert: true,
       new: true,
     });
+
+    // ลง audit log ระดับพารามิเตอร์ (fire-and-forget — ไม่ให้กระทบการบันทึกค่า)
+    const auditEvent = qcResultAuditEvent({ isNew, existingFieldValue });
+    if (auditEvent) {
+      const petitionObjId = mongoose.Types.ObjectId.isValid(petitionId)
+        ? new mongoose.Types.ObjectId(petitionId)
+        : undefined;
+      if (petitionObjId) {
+        PetitionAuditLog.create({
+          petitionId: petitionObjId,
+          petitionNo,
+          event: auditEvent,
+          actor: enteredBy?.name || enteredBy?.email || 'system',
+          note: qcResultNote(auditEvent, { parameterName, parameterId, sampleName }),
+          metadata: { itemSeq, sampleName, commonName, parameterId, parameterName, fieldLabel, phase: phaseNum },
+        }).catch((err) => {
+          console.error('[audit-log] qc-result write failed:', err.message);
+        });
+      }
+    }
 
     // If this field has triggersPhase2 and was filled in Phase 1, schedule advance
     if (phaseNum === 1 && fieldDef?.triggersPhase2 && paramForCheck) {
