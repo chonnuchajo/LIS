@@ -100,7 +100,7 @@ function buildCurrent(petition, qc, paramNames, labDone) {
   // --- dual-track: QC and Lab advance independently ---
   const hasLabItem = (petition.items ?? []).some((it) => isLabBatch(it.batchNo ?? ''));
   const assignee = petition.assignedTo;
-  const assignedBy = assignee?.assignedBy || '-';
+  const assigneeSide = assigneeSideOf(assignee); // 'lab' | 'qc' | null — assignment belongs to ONE side
   // "รับงาน" (job accepted) signal — single, per-petition (model has no per-side accept):
   // explicit startTesting review, OR first result recorded, OR QC already has values.
   const started =
@@ -108,9 +108,11 @@ function buildCurrent(petition, qc, paramNames, labDone) {
     !!petition.firstResultAt ||
     qc.filled > 0;
 
-  const qcTrack = buildQcTrack({ qcReceived, assignee, assignedBy, started, qc, paramNames });
+  const qcTrack = buildQcTrack({
+    qcReceived, isAssignee: assigneeSide === 'qc', assignee, started, qc, paramNames,
+  });
   const labTrack = hasLabItem
-    ? buildLabTrack({ labReceived, assignee, assignedBy, started, labDone })
+    ? buildLabTrack({ labReceived, isAssignee: assigneeSide === 'lab', assignee, started, labDone })
     : null;
 
   const tracks = {};
@@ -120,27 +122,44 @@ function buildCurrent(petition, qc, paramNames, labDone) {
   return { label, tracks };
 }
 
-// QC side of `current`. Returns { label, percent? }.
-function buildQcTrack({ qcReceived, assignee, assignedBy, started, qc, paramNames }) {
+// Which side a (single) assignee belongs to, from HR department/position — the
+// petition has one assignedTo with no explicit side, so the assignment line shows
+// only on this track. Lab if dept/position mentions "lab"/"วิเคราะห์"; else QC.
+function assigneeSideOf(assignee) {
+  if (!assignee) return null;
+  const hay = `${assignee.department || ''} ${assignee.position || ''}`.toLowerCase();
+  if (hay.includes('lab') || hay.includes('วิเคราะห์')) return 'lab';
+  return 'qc';
+}
+
+// QC side of `current`. Returns { label, percent? }. `isAssignee` = the single
+// petition assignee belongs to QC (only then does the assign/accept line show here).
+function buildQcTrack({ qcReceived, isAssignee, assignee, started, qc, paramNames }) {
   if (!qcReceived) return { label: 'QC รอรับ' };
-  if (!assignee) return { label: 'QC รับแล้ว' };
-  if (!started) return { label: `QC รับแล้ว · มอบหมายโดย ${assignedBy} · รอเจ้าหน้าที่รับงาน` };
-  // started:
   if (qc.total > 0 && qc.filled >= qc.total) return { label: 'QC ตรวจครบ — รอยืนยัน' };
   if (qc.filled > 0) {
     const names = (paramNames ?? []).length ? ` — ${paramNames.join(', ')}` : '';
     return { label: `QC กำลังตรวจ${names} (${qc.percent}%)`, percent: qc.percent };
   }
-  return { label: `QC ${assignee.name} รับงานแล้ว · กำลังตรวจ` };
+  if (isAssignee) {
+    return started
+      ? { label: `QC ${assignee.name} รับงานแล้ว · กำลังตรวจ` }
+      : { label: 'QC มอบหมายงานแล้ว รอเจ้าหน้าที่รับงาน' };
+  }
+  return { label: 'QC รับแล้ว' };
 }
 
 // Lab side of `current`. Returns { label } or null (omitted when lab is done).
-function buildLabTrack({ labReceived, assignee, assignedBy, started, labDone }) {
+// `isAssignee` = the single petition assignee belongs to Lab.
+function buildLabTrack({ labReceived, isAssignee, assignee, started, labDone }) {
   if (labDone) return null; // lab finished → drop track, QC drives from here
   if (!labReceived) return { label: 'Lab รอรับ' };
-  if (!assignee) return { label: 'Lab รับแล้ว' };
-  if (!started) return { label: `Lab รับแล้ว · มอบหมายโดย ${assignedBy} · รอเจ้าหน้าที่รับงาน` };
-  return { label: `Lab ${assignee.name} รับงานแล้ว · กำลังตรวจ` };
+  if (isAssignee) {
+    return started
+      ? { label: `Lab ${assignee.name} รับงานแล้ว · กำลังตรวจ` }
+      : { label: 'Lab มอบหมายงานแล้ว รอเจ้าหน้าที่รับงาน' };
+  }
+  return { label: 'Lab รับแล้ว' };
 }
 
 // Maps one audit-log row to a Thai milestone label, or null to skip it.
