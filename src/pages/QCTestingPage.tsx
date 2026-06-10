@@ -89,9 +89,6 @@ export default function QCTestingPage() {
               โดย {p.submittedBy?.name ?? '-'} จาก {PETITION_DEPT_LABELS[p.dept]}
             </div>
             <div className="text-xs text-grey-500 mt-0.5">{items.length} รายการ</div>
-            {qcReceivedBy(p) && (
-              <div className="text-xs text-grey-400 mt-0.5">รับโดย {qcReceivedBy(p)}</div>
-            )}
           </>
         );
       },
@@ -130,7 +127,9 @@ export default function QCTestingPage() {
           <div className="flex flex-col items-start gap-1">
             <Badge variant={b.variant}>{b.label}</Badge>
             {qcReceivedAt(p) ? (
-              <Badge variant="green-soft" className="font-normal">รับ QC แล้ว</Badge>
+              <Badge variant="green-soft" className="font-normal">
+                รับโดย {qcReceivedBy(p) ?? '-'}
+              </Badge>
             ) : (
               <Badge variant="gray-soft" className="font-normal">ยังไม่รับ QC</Badge>
             )}
