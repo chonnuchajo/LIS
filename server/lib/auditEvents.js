@@ -1,18 +1,17 @@
-// ตัดสินใจว่า QC field-write หนึ่งครั้งควร log audit event อะไร (หรือไม่ log)
-// - isNew: QCTestResult doc ของพารามิเตอร์นี้เพิ่งถูกสร้าง (field แรกของพารามิเตอร์)
+// ตัดสินใจว่า QC field-write หนึ่งครั้งควร log audit event อะไร (log ทุก field)
 // - existingFieldValue: ค่าเดิมของ fieldLabel นี้ "ก่อน" เขียน (undefined ถ้า field/doc ยังไม่มี)
-// คืน 'resultEntered' | 'resultUpdated' | null
-function qcResultAuditEvent({ isNew, existingFieldValue }) {
-  if (isNew) return 'resultEntered';
+// คืน 'resultUpdated' ถ้า field นี้เคยมีค่าอยู่แล้ว, ไม่งั้น 'resultEntered'
+function qcResultAuditEvent({ existingFieldValue }) {
   if (existingFieldValue != null && existingFieldValue !== '') return 'resultUpdated';
-  return null; // เติม field ว่างในพารามิเตอร์เดิม → ไม่ log (ครอบด้วย resultEntered แรกแล้ว)
+  return 'resultEntered';
 }
 
-// สร้างข้อความ note ระดับพารามิเตอร์ (ไม่ใส่ตัวเลขค่าตาม design)
-function qcResultNote(event, { parameterName, parameterId, sampleName } = {}) {
+// สร้างข้อความ note ระดับ field (โชว์ ชื่อพารามิเตอร์ › ชื่อ field, ไม่ใส่ตัวเลขค่าตาม design)
+function qcResultNote(event, { parameterName, parameterId, fieldLabel, sampleName } = {}) {
   const name = parameterName || parameterId || '';
   const verb = event === 'resultEntered' ? 'QC ใส่ค่า' : 'QC แก้ค่า';
-  return `${verb} ${name}${sampleName ? ` (${sampleName})` : ''}`.trim();
+  const target = fieldLabel ? `${name} › ${fieldLabel}` : name;
+  return `${verb} ${target}${sampleName ? ` (${sampleName})` : ''}`.trim();
 }
 
 module.exports = { qcResultAuditEvent, qcResultNote };

@@ -22,8 +22,9 @@
 ## Non-Goals
 
 - ไม่เพิ่ม status field ใหม่ใน Petition (`pendingReview` มีอยู่แล้ว, label "รับตัวอย่างแล้ว")
-- ไม่ log รายค่าย่อย (per-field) — สรุประดับพารามิเตอร์
-- ไม่โชว์ตัวเลขค่าใน timeline — โชว์แค่ชื่อพารามิเตอร์
+- ไม่โชว์ตัวเลขค่าใน timeline — โชว์ชื่อพารามิเตอร์ › ชื่อ field (ไม่โชว์ค่า)
+
+> **อัปเดต 2026-06-10:** เดิมตั้งใจ log สรุประดับพารามิเตอร์ (เติม field ว่าง = ไม่ log) ภายหลังเปลี่ยนเป็น **log ทุก field** ตามที่ผู้ใช้ขอ — ทุกครั้งที่บันทึกค่า field ลง log (entered ถ้า field เคยว่าง, updated ถ้าเคยมีค่า) และ note โชว์ชื่อ field ด้วย
 - ไม่ migrate log เดิม (เพิ่ม enum แบบ additive)
 - ไม่เพิ่ม field ใน Petition / QCTestResult (ใช้ `enteredAt`/`updatedAt`/`labReceivedAt`/`qcReceivedAt` เดิม)
 - ไม่มี API endpoint ใหม่ (reuse `GET /petitions/:id/audit-logs` + `GET /petitions/audit-logs` + hooks เดิม)
@@ -84,9 +85,10 @@ logAudit(doc, {
 
 | สถานการณ์ | เงื่อนไข | event |
 |---|---|---|
-| สร้าง QCTestResult ของพารามิเตอร์ครั้งแรก | `isNew === true` | `resultEntered` |
-| แก้ field ที่ **เคยมีค่าอยู่แล้ว** | `!isNew && existing[valuesKey]?.[fieldLabel] != null && existing[valuesKey][fieldLabel] !== ''` | `resultUpdated` |
-| เติม field ว่างเพิ่มในพารามิเตอร์เดิม | `!isNew && field เดิมว่าง` | **ไม่ log** (กันรก — ครอบด้วย resultEntered แรกแล้ว) |
+| บันทึก field ที่ **เคยว่าง** (รวม field แรกของพารามิเตอร์ใหม่ และ field ที่ 2,3 ที่เพิ่งเติม) | `existingFieldValue == null \|\| existingFieldValue === ''` | `resultEntered` |
+| แก้ field ที่ **เคยมีค่าอยู่แล้ว** | `existingFieldValue != null && existingFieldValue !== ''` | `resultUpdated` |
+
+> log **ทุก field** ที่บันทึก ไม่มีกรณีเงียบ — `existingFieldValue = existing?.[valuesKey]?.[fieldLabel]` อ่านก่อน findOneAndUpdate
 
 > `valuesKey` = `'valuesPhase2'` ถ้า phase 2, ไม่งั้น `'values'` (ตรงกับ logic save เดิม)
 
@@ -161,5 +163,5 @@ logAudit({
 
 ## Open Questions (resolved)
 
-- เติม field ว่างเพิ่ม = **ไม่ log** (ครอบด้วย resultEntered แรก) ✓
-- timeline **ไม่โชว์ตัวเลขค่า** โชว์แค่ชื่อพารามิเตอร์ ✓
+- log **ทุก field** (เติม field ว่าง = log `resultEntered` ด้วย) ✓ — เปลี่ยนจาก "ไม่ log" เดิม
+- timeline **ไม่โชว์ตัวเลขค่า** โชว์ชื่อพารามิเตอร์ › ชื่อ field ✓

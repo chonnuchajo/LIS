@@ -335,24 +335,22 @@ router.put("/", async (req, res) => {
       new: true,
     });
 
-    // ลง audit log ระดับพารามิเตอร์ (fire-and-forget — ไม่ให้กระทบการบันทึกค่า)
-    const auditEvent = qcResultAuditEvent({ isNew, existingFieldValue });
-    if (auditEvent) {
-      const petitionObjId = mongoose.Types.ObjectId.isValid(petitionId)
-        ? new mongoose.Types.ObjectId(petitionId)
-        : undefined;
-      if (petitionObjId) {
-        PetitionAuditLog.create({
-          petitionId: petitionObjId,
-          petitionNo,
-          event: auditEvent,
-          actor: enteredBy?.name || enteredBy?.email || 'system',
-          note: qcResultNote(auditEvent, { parameterName, parameterId, sampleName }),
-          metadata: { itemSeq, sampleName, commonName, parameterId, parameterName, fieldLabel, phase: phaseNum },
-        }).catch((err) => {
-          console.error('[audit-log] qc-result write failed:', err.message);
-        });
-      }
+    // ลง audit log ระดับ field ทุกครั้งที่บันทึก (fire-and-forget — ไม่ให้กระทบการบันทึกค่า)
+    const auditEvent = qcResultAuditEvent({ existingFieldValue });
+    const petitionObjId = mongoose.Types.ObjectId.isValid(petitionId)
+      ? new mongoose.Types.ObjectId(petitionId)
+      : undefined;
+    if (petitionObjId) {
+      PetitionAuditLog.create({
+        petitionId: petitionObjId,
+        petitionNo,
+        event: auditEvent,
+        actor: enteredBy?.name || enteredBy?.email || 'system',
+        note: qcResultNote(auditEvent, { parameterName, parameterId, fieldLabel, sampleName }),
+        metadata: { itemSeq, sampleName, commonName, parameterId, parameterName, fieldLabel, phase: phaseNum },
+      }).catch((err) => {
+        console.error('[audit-log] qc-result write failed:', err.message);
+      });
     }
 
     // If this field has triggersPhase2 and was filled in Phase 1, schedule advance
