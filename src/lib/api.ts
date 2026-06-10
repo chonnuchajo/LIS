@@ -12,6 +12,7 @@ import type { StandardConfigDoc } from "@/lib/standardConfig";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import type { PrintConfig, PrintConfigInput, PrintDocType } from "@/lib/printConfig";
 import type { DocumentNumberConfig, DocumentNumberConfigInput, DocNumberType } from "@/lib/documentNumberConfig";
+import type { DashboardId, StoredLayout, DashboardLayout } from "@/lib/dashboardLayout";
 import type { MethodDoc, MethodInput } from './methodRegistry';
 
 // Development: BASE_URL = "/" → "/api"
@@ -360,6 +361,15 @@ export const api = {
     request<{ data: DocumentNumberConfig[] }>("/document-number-config").then((r) => r.data),
   updateDocumentNumberConfig: (docType: DocNumberType, input: DocumentNumberConfigInput) =>
     request<{ data: DocumentNumberConfig }>(`/document-number-config/${docType}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }).then((r) => r.data),
+
+  // ── Dashboard layout config (per-role section/KPI layout for Lab & QC) ──
+  getDashboardLayouts: (dashboard: DashboardId) =>
+    request<{ data: StoredLayout[] }>(`/dashboard-layout?dashboard=${dashboard}`).then((r) => r.data),
+  updateDashboardLayout: (dashboard: DashboardId, roleId: string, input: DashboardLayout) =>
+    request<{ data: StoredLayout }>(`/dashboard-layout/${dashboard}/${encodeURIComponent(roleId)}`, {
       method: "PUT",
       body: JSON.stringify(input),
     }).then((r) => r.data),
