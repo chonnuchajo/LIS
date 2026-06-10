@@ -137,7 +137,10 @@ export type PetitionAuditEvent =
   | 'assigned'
   | 'reviewed'
   | 'updated'
-  | 'deleted';
+  | 'deleted'
+  | 'received'
+  | 'resultEntered'
+  | 'resultUpdated';
 
 export interface PetitionAuditLogEntry {
   _id: string;
@@ -159,6 +162,9 @@ export const PETITION_AUDIT_EVENT_LABELS: Record<PetitionAuditEvent, string> = {
   reviewed: 'พิจารณา',
   updated: 'แก้ไขข้อมูล',
   deleted: 'ลบคำร้อง',
+  received: 'รับตัวอย่าง',
+  resultEntered: 'ใส่ค่า QC',
+  resultUpdated: 'แก้ค่า QC',
 };
 
 // ===== Phase 2 tracking (for parameters with hasPhases=true) =====
