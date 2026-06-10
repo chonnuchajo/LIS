@@ -33,7 +33,6 @@ import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
 
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
 
-const ENTRY_STATUSES = new Set(['pendingReview', 'inProgress']);
 const isLabBatchNo = (batchNo?: string | null) => /[16]$/.test(String(batchNo ?? '').trim());
 const isLabReadableItem = (
   it: PetitionItem,
@@ -87,7 +86,7 @@ export default function LabTestingPage() {
   const [abnormalMap, setAbnormalMap] = useState<Record<string, boolean>>({});
   const [returnedMap, setReturnedMap] = useState<Record<string, boolean>>({});
   const flaggablePetitionIds = petitions
-    .filter((p) => p.status === 'pendingReview' || p.status === 'inProgress')
+    .filter((p) => !!p.labReceivedAt)
     .map((p) => p._id);
   const flaggableKey = flaggablePetitionIds.join(',');
   useEffect(() => {
@@ -130,6 +129,9 @@ export default function LabTestingPage() {
               โดย {p.submittedBy?.name ?? '-'} จาก {PETITION_DEPT_LABELS[p.dept]}
             </div>
             <div className="text-xs text-grey-500 mt-0.5">{labItems.length} รายการ Lab</div>
+            {p.labReceivedBy && (
+              <div className="text-xs text-grey-400 mt-0.5">รับโดย {p.labReceivedBy}</div>
+            )}
           </>
         );
       },
@@ -174,7 +176,7 @@ export default function LabTestingPage() {
       header: 'การดำเนินการ',
       className: 'text-right align-top',
       cell: (p) =>
-        ENTRY_STATUSES.has(p.status) ? (
+        p.labReceivedAt ? (
           <Button
             size="sm"
             onClick={(e) => {
@@ -242,7 +244,7 @@ export default function LabTestingPage() {
           isLoading={loading}
           rowClassName={(p) => (p._id === flashId ? 'animate-flash-bg' : undefined)}
           onRowClick={(p) => {
-            if (ENTRY_STATUSES.has(p.status)) navigate(`/lab-testing/${p._id}`);
+            if (p.labReceivedAt) navigate(`/lab-testing/${p._id}`);
           }}
           emptyTitle="ไม่มีคำร้อง Lab ที่รอตรวจ"
         />
