@@ -22,7 +22,20 @@ export default function DashboardLayoutPreview({ dashboard, layout }: Props) {
   const rows: JSX.Element[] = [];
   for (let i = 0; i < ordered.length; i += 1) {
     const s = ordered[i];
-    if (s.id === "rightRail") continue; // rendered alongside primaryTable below
+    if (s.id === "rightRail") {
+      // Side column when immediately after primaryTable (rendered in that row);
+      // otherwise a full-width block at its own order position.
+      if (ordered[i - 1]?.id === "primaryTable") continue;
+      rows.push(
+        <div
+          key="rightRail"
+          className="rounded-md border border-dashed border-slate-300 bg-slate-100 px-3 py-3 text-center text-xs text-slate-500"
+        >
+          {labelOf("rightRail")}
+        </div>,
+      );
+      continue;
+    }
 
     if (s.id === "primaryTable") {
       const next = ordered[i + 1];
@@ -74,21 +87,6 @@ export default function DashboardLayoutPreview({ dashboard, layout }: Props) {
         {labelOf(s.id)}
       </div>,
     );
-  }
-
-  // A rightRail enabled but NOT adjacent to primaryTable renders as its own block.
-  const rail = ordered.find((s) => s.id === "rightRail");
-  const railIndex = ordered.findIndex((s) => s.id === "rightRail");
-  const primaryIndex = ordered.findIndex((s) => s.id === "primaryTable");
-  if (rail && railIndex !== primaryIndex + 1) {
-    rows.splice(railIndex, 0, (
-      <div
-        key="rightRail-block"
-        className="rounded-md border border-dashed border-slate-300 bg-slate-100 px-3 py-3 text-center text-xs text-slate-500"
-      >
-        {labelOf("rightRail")}
-      </div>
-    ));
   }
 
   return <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3">{rows}</div>;

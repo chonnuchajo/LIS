@@ -261,7 +261,16 @@ export default function QCDashboard() {
   return (
     <AppLayout>
       {ordered.map((s, i) => {
-        if (s.id === "rightRail") return null; // rendered with primaryTable when adjacent
+        if (s.id === "rightRail") {
+          // Side column when immediately after primaryTable (rendered in that row);
+          // otherwise a full-width block at its own order position.
+          if (ordered[i - 1]?.id === "primaryTable") return null;
+          return (
+            <div key="rightRail" className="mb-4">
+              {sectionNodes.rightRail}
+            </div>
+          );
+        }
         if (s.id === "primaryTable") {
           const next = ordered[i + 1];
           const railAdjacent = next?.id === "rightRail";
@@ -285,15 +294,6 @@ export default function QCDashboard() {
           </div>
         );
       })}
-      {/* rightRail enabled but NOT adjacent to primaryTable → its own block */}
-      {(() => {
-        const railIdx = ordered.findIndex((s) => s.id === "rightRail");
-        const primaryIdx = ordered.findIndex((s) => s.id === "primaryTable");
-        if (railIdx !== -1 && railIdx !== primaryIdx + 1) {
-          return <div className="mb-4">{sectionNodes.rightRail}</div>;
-        }
-        return null;
-      })()}
     </AppLayout>
   );
 }
