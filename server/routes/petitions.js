@@ -295,17 +295,6 @@ router.post('/', async (req, res) => {
       const batch = String(item.batchNo || '').trim();
       if (!batch) return badRequest(res, `ตัวอย่าง "${item.sampleName || item.seq}": กรุณากรอกเลขแบช`);
     }
-    if (body.dept === 'production') {
-      if (!Array.isArray(body.productionPlans) || body.productionPlans.length === 0) {
-        return badRequest(res, 'แผนกผลิตต้องมีใบวางแผนอย่างน้อย 1 รายการ');
-      }
-      const itemBatches = new Set(body.items.map((it) => String(it.batchNo).trim()));
-      for (const plan of body.productionPlans) {
-        if (!plan.batchNo || !itemBatches.has(String(plan.batchNo).trim())) {
-          return badRequest(res, `ใบวางแผนอ้างถึง batchNo ที่ไม่อยู่ในรายการตัวอย่าง: ${plan.batchNo}`);
-        }
-      }
-    }
     let revisionOf = null;
     if (body.revisionOf) {
       if (!mongoose.Types.ObjectId.isValid(body.revisionOf)) {

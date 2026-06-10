@@ -226,7 +226,6 @@ export default function PetitionDetailPage() {
                           พิมพ์ใบคำขอรับบริการ
                         </Button>
                       )}
-                      {/* ปุ่มพิมพ์ใบวางแผน-ควบคุมการผลิต ซ่อน — ฟอร์มเลิกใช้แล้ว รอลบ (ดู docs/handoff/production-plan-form.md) */}
                       {canEdit && (
                         <Button
                           variant="primary-outline"

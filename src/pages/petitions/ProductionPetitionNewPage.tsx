@@ -12,26 +12,19 @@ import type { SubmitterValues } from '@/components/petition/wizard/SubmitterPick
 import LabRequestStep, { type LabRequestRowValues } from '@/components/petition/wizard/LabRequestStep';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
 import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
-import {
-  isLabBatch,
-  makeBlankProductionPlan,
-  type ProductionPlan,
-} from '@/types/productionPlan.types';
 import { createPetition, createLabRequest } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
-import type { Petition, ProductionPetition } from '@/types/petition.types';
+import { isLabBatch, type Petition } from '@/types/petition.types';
 
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
 const ICP_LADDA_COMPANY = 'ICP Ladda Co., LTD.';
 const PRODUCTION_RETURN_URL = 'https://app-plant.icpladda.com/production/public/sample_analysis.php';
 
-type StepKey = 'items' | 'plan' | 'lab';
+type StepKey = 'items' | 'lab';
 
 const STEPS: { key: StepKey; label: string }[] = [
   { key: 'items', label: '1. ผู้นำส่ง + รายการตัวอย่าง' },
-  // 'plan' (ใบวางแผน-ควบคุมการผลิต) ซ่อนจาก wizard — เลิกใช้แล้ว รอลบ (ดู docs/handoff/production-plan-form.md)
-  // ยังคง state `plan` + auto-sync ไว้เพื่อส่ง productionPlans เงียบๆ ให้ backend validation ผ่าน
   { key: 'lab', label: '2. ใบคำขอรับบริการ' },
 ];
 
@@ -553,8 +546,6 @@ export default function ProductionPetitionNewPage({
     initialQueryItems.length ? initialQueryItems : [makeBlankItem(1)],
   );
 
-  const [plan, setPlanState] = useState<ProductionPlan | null>(null);
-
   // Pre-fill from a rejected predecessor when ?revisionOf=<id> is present
   useEffect(() => {
     if (!revisionOfId) return;
@@ -593,10 +584,6 @@ export default function ProductionPetitionNewPage({
             note: it.note ?? '',
           })),
         );
-        if (source.dept === 'production') {
-          const plans = (source as ProductionPetition).productionPlans ?? [];
-          if (plans.length > 0) setPlanState(plans[0]);
-        }
       })
       .catch(() => {
         if (alive) {
@@ -614,24 +601,9 @@ export default function ProductionPetitionNewPage({
 
   const [labRequest, setLabRequest] = useState<LabRequestRowValues | null>(null);
 
-  // sync plan + labRequest with items
+  // sync labRequest with items
   useEffect(() => {
     const validItems = items.filter((it) => it.batchNo);
-    const batchNos = validItems.map((it) => it.batchNo);
-    if (batchNos.length > 0) {
-      setPlanState((prev) => {
-        const first = validItems[0];
-        if (!prev) {
-          return {
-            ...makeBlankProductionPlan(batchNos[0], batchNos),
-            commonName: first.commonName || '',
-            productionDate: first.productionDate ?? '',
-            quantity: first.packageUnit ?? '',
-          };
-        }
-        return { ...prev, batchNo: batchNos[0], batchNos };
-      });
-    }
     const labItems = validItems.filter((it) => isLabBatch(it.batchNo));
     if (labItems.length > 0) {
       setLabRequest((prev) => {
@@ -715,7 +687,7 @@ export default function ProductionPetitionNewPage({
 
   function goNext() {
     if (!validateStep()) return;
-    // ใบวางแผนถูกซ่อน — items เป็น step ก่อน lab; ถ้าไม่มี batch ส่ง lab ให้บันทึกเลย
+    // items เป็น step ก่อน lab; ถ้าไม่มี batch ส่ง lab ให้บันทึกเลย
     if (currentStep === 'items' && labBatches.length === 0) {
       void handleSubmit();
       return;
@@ -747,7 +719,6 @@ export default function ProductionPetitionNewPage({
           name: deliverer.name,
         },
         items: items.map((it, idx) => ({ ...it, seq: idx + 1 })),
-        productionPlans: plan ? [plan] : [],
         labRequests: [],
         prodOrderNos,
         cause: '',

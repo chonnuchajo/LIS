@@ -43,86 +43,6 @@ export const delivererSchema = z.object({
   name: z.string().min(1, 'กรุณาเลือกผู้นำส่ง').transform(trim),
 });
 
-// ===== Production plan =====
-const machineCheckSchema = z.object({
-  name: z.string(),
-  ok: z.boolean().optional(),
-  dateOk: z.string().optional(),
-});
-
-const physicalCheckSchema = z.object({
-  name: z.string(),
-  result1: z.string().optional(),
-  pass1: z.boolean().optional(),
-  inspector1: z.string().optional(),
-  result2: z.string().optional(),
-  pass2: z.boolean().optional(),
-});
-
-const weighingRowSchema = z.object({
-  seq: z.number().int().positive(),
-  rawMaterial: z.string().optional(),
-  amounts: z.array(z.number().nullable()).default([]),
-});
-
-const productionStepSchema = z.object({
-  description: z.string().optional(),
-  startDate: z.string().optional(),
-  startTime: z.string().optional(),
-  endDate: z.string().optional(),
-  endTime: z.string().optional(),
-});
-
-const downtimeSchema = z.object({
-  fromTime: z.string().optional(),
-  toTime: z.string().optional(),
-  reason: z.string().optional(),
-});
-
-export const productionPlanSchema = z.object({
-  batchNo: z.string().min(1),
-  batchNos: z.array(z.string()).optional(),
-  planDate: z.string().optional().default(''),
-  productionDate: z.string().optional().default(''),
-  commonName: z.string().optional().default(''),
-  quantity: z.string().optional().default(''),
-  staffNames: z.string().optional().default(''),
-  machineChecks: z.array(machineCheckSchema).default([]),
-  machineInspectedBy: z.string().optional().default(''),
-  machineInspectedAt: z.string().optional().default(''),
-  machineDefectNote: z.string().optional().default(''),
-  cleaning: z.object({
-    continuous: z.boolean().default(false),
-    solvent: z.number().optional(),
-    water: z.number().optional(),
-    kaolin: z.number().optional(),
-    sand: z.number().optional(),
-    inspectedBy: z.string().optional(),
-    inspectedAt: z.string().optional(),
-  }),
-  actualStart: z.object({ date: z.string().optional(), time: z.string().optional() }).optional(),
-  actualEnd: z.object({ date: z.string().optional(), time: z.string().optional() }).optional(),
-  actualQty: z.string().optional().default(''),
-  downtimes: z.array(downtimeSchema).default([]),
-  physicalChecks: z.array(physicalCheckSchema).default([]),
-  sendToLab: z.boolean().optional(),
-  followUpFail1: z.string().optional().default(''),
-  followUpFail2: z.string().optional().default(''),
-  weighingRef: z.object({ docNo: z.string().optional(), docDate: z.string().optional() }).optional(),
-  weighingRows: z.array(weighingRowSchema).default([]),
-  weigher: z.string().optional().default(''),
-  weigherTime: z.string().optional().default(''),
-  weighSupervisor: z.string().optional().default(''),
-  weighSupervisorTime: z.string().optional().default(''),
-  mixer: z.string().optional().default(''),
-  mixerTime: z.string().optional().default(''),
-  mixSupervisor: z.string().optional().default(''),
-  mixSupervisorTime: z.string().optional().default(''),
-  steps: z.array(productionStepSchema).default([]),
-  approver: z.string().optional().default(''),
-  approvedAt: z.string().optional().default(''),
-});
-
 // ===== Lab request =====
 const labRequestRequesterSchema = z.object({
   fullName: z.string().min(1, 'กรุณากรอกชื่อ-นามสกุล').transform(trim),
@@ -162,7 +82,6 @@ export const productionPetitionFormSchema = z.object({
   submittedBy: submitterSchema,
   deliveredBy: delivererSchema,
   items: z.array(petitionItemSchema).min(1, 'ต้องมีตัวอย่างอย่างน้อย 1 รายการ'),
-  productionPlans: z.array(productionPlanSchema).min(1, 'ต้องมีใบวางแผนอย่างน้อย 1 รายการ'),
   labRequests: z.array(labRequestFormSchema).default([]),
   cause: z.string().optional().default(''),
 });
@@ -187,5 +106,4 @@ export type ProductionPetitionFormValues = z.infer<typeof productionPetitionForm
 export type RmPetitionFormValues = z.infer<typeof rmPetitionFormSchema>;
 export type FgPetitionFormValues = z.infer<typeof fgPetitionFormSchema>;
 export type LabRequestFormValues = z.infer<typeof labRequestFormSchema>;
-export type ProductionPlanFormValues = z.infer<typeof productionPlanSchema>;
 export type SubmitterFormValues = z.infer<typeof submitterSchema>;

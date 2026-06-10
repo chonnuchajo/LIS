@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const PrintConfigSchema = new mongoose.Schema({
   slug: {
     type: String,
-    enum: ['sample-label', 'coa', 'service-request', 'production-plan', 'stock-label'],
+    enum: ['sample-label', 'coa', 'service-request', 'stock-label'],
     required: true,
     unique: true,
     index: true,

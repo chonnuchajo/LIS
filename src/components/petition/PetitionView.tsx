@@ -3,10 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   PETITION_DEPT_LABELS,
+  isLabBatch,
   type Petition,
   type QCTestResult,
 } from '@/types/petition.types';
-import { isLabBatch } from '@/types/productionPlan.types';
 import { useAuth } from '@/hooks/useAuth';
 import { api, type ParameterItem } from '@/lib/api';
 import { normalizeRoles } from "@/lib/roles";

@@ -8,7 +8,6 @@ import PageHeader from '@/components/lis/PageHeader';
 import ItemsStep, { type ItemRowValues } from '@/components/petition/wizard/ItemsStep';
 import type { SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
 import LabRequestStep, { type LabRequestRowValues } from '@/components/petition/wizard/LabRequestStep';
-import { isLabBatch, type ProductionPlan } from '@/types/productionPlan.types';
 import {
   usePetition,
   useLabRequestsByPetition,
@@ -16,15 +15,13 @@ import {
   updateLabRequest,
   createLabRequest,
 } from '@/hooks/usePetition';
-import type { ProductionPetition } from '@/types/petition.types';
+import { isLabBatch } from '@/types/petition.types';
 import type { LabRequest } from '@/types/labRequest.types';
 
-type StepKey = 'items' | 'plan' | 'lab';
+type StepKey = 'items' | 'lab';
 
 const PRODUCTION_STEPS: { key: StepKey; label: string }[] = [
   { key: 'items', label: '1. ผู้นำส่ง + รายการตัวอย่าง' },
-  // 'plan' (ใบวางแผน-ควบคุมการผลิต) ซ่อนจาก wizard — เลิกใช้แล้ว รอลบ (ดู docs/handoff/production-plan-form.md)
-  // ยังคงโหลด/บันทึก productionPlans เดิมไว้เงียบๆ ให้ backend validation ผ่าน
   { key: 'lab', label: '2. ใบคำขอรับบริการ' },
 ];
 
@@ -83,7 +80,6 @@ export default function PetitionEditPage() {
   const [submitter, setSubmitter] = useState<SubmitterValues>({ employeeId: '', name: '' });
   const [deliverer, setDeliverer] = useState<SubmitterValues>({ employeeId: '', name: '' });
   const [items, setItems] = useState<ItemRowValues[]>([]);
-  const [plan, setPlanState] = useState<ProductionPlan | null>(null);
   const [labRequest, setLabRequest] = useState<LabRequestRowValues | null>(null);
   const [existingLabReqId, setExistingLabReqId] = useState<string | null>(null);
 
@@ -115,10 +111,6 @@ export default function PetitionEditPage() {
       note: it.note ?? '',
     }));
     setItems(mappedItems);
-    if (data.dept === 'production') {
-      const prod = data as ProductionPetition;
-      setPlanState(prod.productionPlans[0] ?? null);
-    }
     const labItems = mappedItems.filter((it) => it.batchNo && isLabBatch(it.batchNo));
     if (existingLabRequests.length > 0) {
       const lr = existingLabRequests[0];
@@ -217,7 +209,7 @@ export default function PetitionEditPage() {
 
   function goNext() {
     if (!validateStep()) return;
-    // ใบวางแผนถูกซ่อน — items เป็น step ก่อน lab; ถ้าไม่มี batch ส่ง lab ให้บันทึกเลย
+    // items เป็น step ก่อน lab; ถ้าไม่มี batch ส่ง lab ให้บันทึกเลย
     if (currentStep === 'items' && labBatches.length === 0) {
       void handleSave();
       return;
@@ -257,7 +249,6 @@ export default function PetitionEditPage() {
             submittedBy,
             deliveredBy,
             items: mappedItems,
-            productionPlans: plan ? [plan] : [],
             labRequests: [],
             cause: data.cause ?? '',
           },
