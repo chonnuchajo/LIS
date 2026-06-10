@@ -194,7 +194,26 @@ async function resolveEmployeeLink(email) {
   try {
     const emp = findEmployeeByEmail(await fetchMonthlyEmployees(), email);
     if (emp) {
-      return { employeeId: emp.employeeId, department: emp.department, position: emp.position };
+      return { employeeId: emp.employeeId, name: emp.name, department: emp.department, position: emp.position };
+    }
+  } catch (e) {
+    console.error('[auto-link] employee sync failed:', e.message);
+  }
+  return null;
+}
+
+// Resolve the HR record to apply for a user, preferring the already-linked
+// employeeId (source of truth once linked) and falling back to an email match
+// (first-time auto-link). One webhook fetch; non-fatal — returns null on miss/HR
+// down so login flows continue. Once linked, HR owns the display name too.
+async function resolveEmployeeForUser(employeeId, email) {
+  try {
+    const employees = await fetchMonthlyEmployees();
+    const emp =
+      (employeeId && findEmployeeById(employees, employeeId)) ||
+      findEmployeeByEmail(employees, email);
+    if (emp) {
+      return { employeeId: emp.employeeId, name: emp.name, department: emp.department, position: emp.position };
     }
   } catch (e) {
     console.error('[auto-link] employee sync failed:', e.message);
@@ -260,7 +279,6 @@ router.post('/users/microsoft', async (req, res) => {
     let user = await User.findOne({ email: normalizedEmail });
 
     if (user) {
-      user.name = name || user.name || normalizedEmail;
       user.authProvider = 'microsoft';
       user.microsoftId = microsoftId || user.microsoftId;
       user.tenantId = tenantId || user.tenantId;
@@ -268,17 +286,18 @@ router.post('/users/microsoft', async (req, res) => {
       // value when Graph has nothing for this user.
       user.department = resolveHrField(department, user.department);
       user.position = resolveHrField(position, user.position);
-      // Auto-link to an HR employee by email the first time we can. Only fills an
-      // empty employeeId (never overwrites an admin's manual link). HR is the
-      // source of truth for แผนก/ตำแหน่ง once matched; falls back to the existing
-      // (resolveHrField/Graph) values when HR has none.
-      if (!user.employeeId) {
-        const link = await resolveEmployeeLink(normalizedEmail);
-        if (link) {
-          user.employeeId = link.employeeId;
-          user.department = link.department || user.department;
-          user.position = link.position || user.position;
-        }
+      // Resolve the HR record (by existing link first, else auto-link by email).
+      // Auto-link only fills an empty employeeId — never overwrites a manual link.
+      const emp = await resolveEmployeeForUser(user.employeeId, normalizedEmail);
+      if (emp && !user.employeeId) user.employeeId = emp.employeeId;
+      if (emp && user.employeeId === emp.employeeId) {
+        // Linked to an HR employee → HR is the source of truth for the display
+        // name (refreshed every login) and แผนก/ตำแหน่ง, not Microsoft.
+        user.name = emp.name || name || user.name || normalizedEmail;
+        user.department = emp.department || user.department;
+        user.position = emp.position || user.position;
+      } else {
+        user.name = name || user.name || normalizedEmail;
       }
       user.lastActive = now;
       try {
@@ -303,7 +322,8 @@ router.post('/users/microsoft', async (req, res) => {
     const link = await resolveEmployeeLink(normalizedEmail);
     const newUserDoc = {
       email: normalizedEmail,
-      name: name || normalizedEmail,
+      // HR is the source of truth for the display name once linked.
+      name: (link && link.name) || name || normalizedEmail,
       role,
       department: (link && link.department) || resolveHrField(department, undefined),
       position: (link && link.position) || resolveHrField(position, undefined),
@@ -367,6 +387,9 @@ router.patch('/users/:id', async (req, res) => {
         try {
           const emp = findEmployeeById(await fetchMonthlyEmployees(), employeeId);
           if (emp) {
+            // Linked → HR owns the display name + แผนก/ตำแหน่ง (overrides any
+            // name sent in the same request body).
+            patch.name = emp.name || patch.name;
             patch.department = emp.department || undefined;
             patch.position = emp.position || undefined;
           }
@@ -398,6 +421,7 @@ router.post('/users/sync-employees', async (_req, res) => {
     for (const update of plan.updates) {
       await User.findByIdAndUpdate(update.userId, {
         employeeId: update.employeeId,
+        name: update.name || undefined,
         department: update.department || undefined,
         position: update.position || undefined,
       });

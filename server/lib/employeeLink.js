@@ -51,6 +51,8 @@ function planEmployeeSync(users, employees) {
     updates.push({
       userId: user.id,
       employeeId: emp.employeeId,
+      // HR is the source of truth for the display name once linked.
+      name: emp.name,
       department: emp.department,
       position: emp.position,
     });

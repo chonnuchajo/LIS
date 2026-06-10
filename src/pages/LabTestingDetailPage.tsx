@@ -19,6 +19,7 @@ import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useArrivalFlash } from '@/hooks/useArrivalFlash';
 import { normalizeRoles } from '@/lib/roles';
+import { isAssignedTo } from '@/lib/assignment';
 import { useConfirm } from '@/context/ConfirmDialog';
 import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard } from '@/lib/parameterValidation';
 import type { ConditionContext } from '@/lib/parameterValidation';
@@ -614,7 +615,7 @@ export default function LabTestingDetailPage() {
   };
 
   const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
-  const isAssigned = isFullAccess || petition.assignedTo?.name === user?.name;
+  const isAssigned = isFullAccess || isAssignedTo(petition.assignedTo, user);
   const isLocked = petition.status === 'success' || !isAssigned;
 
   return (

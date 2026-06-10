@@ -299,11 +299,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!id) throw new Error("ไม่พบบัญชีผู้ใช้");
       const res = await api.patch<AuthUser>(`/access-control/users/${id}`, { employeeId });
       const updated = res.data.data;
-      // HR is the source of truth for แผนก/ตำแหน่ง once linked — mirror what the
-      // backend persisted (it pulls dept/position from the employee record).
+      // HR is the source of truth for ชื่อ/แผนก/ตำแหน่ง once linked — mirror what
+      // the backend persisted (it pulls name + dept/position from the employee
+      // record), so the display name flips to HR's without a re-login.
       if (productionUser) {
         const next = {
           ...productionUser,
+          name: updated.name,
           employeeId: updated.employeeId,
           department: updated.department,
           position: updated.position,
@@ -315,6 +317,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           prev
             ? {
                 ...prev,
+                name: updated.name,
                 employeeId: updated.employeeId,
                 department: updated.department,
                 position: updated.position,

@@ -28,6 +28,7 @@ import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
 import { statusBadge } from '@/lib/statusBadge';
 import LabScanAcceptModal from '@/components/petition/LabScanAcceptModal';
 import { normalizeRoles } from '@/lib/roles';
+import { isAssignedTo } from '@/lib/assignment';
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
 
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
@@ -81,7 +82,7 @@ export default function LabTestingPage() {
         ? (p.items ?? []).some((it) => isLabReadableItem(it, labParams, idsFor(it)))
         : (p.items ?? []).some((it) => isLabBatchNo(it.batchNo)),
     )
-    .filter((p) => isFullAccess || p.assignedTo?.name === user?.name);
+    .filter((p) => isFullAccess || isAssignedTo(p.assignedTo, user));
 
   const [abnormalMap, setAbnormalMap] = useState<Record<string, boolean>>({});
   const [returnedMap, setReturnedMap] = useState<Record<string, boolean>>({});
