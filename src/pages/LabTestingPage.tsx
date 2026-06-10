@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FlaskConical, AlertTriangle, Keyboard, QrCode, RotateCcw } from 'lucide-react';
+import { FlaskConical, AlertTriangle, QrCode, RotateCcw } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
@@ -50,7 +50,6 @@ export default function LabTestingPage() {
   const [search, setSearch] = useState('');
   const [dept, setDept] = useState<PetitionDept | ''>('');
   const [scanOpen, setScanOpen] = useState(false);
-  const [manualOpen, setManualOpen] = useState(false);
   const [labParams, setLabParams] = useState<ParameterItem[]>([]);
   const [paramsLoaded, setParamsLoaded] = useState(false);
   const groupMembership = useItemGroupMembership();
@@ -198,12 +197,6 @@ export default function LabTestingPage() {
         onClose={() => setScanOpen(false)}
         onAccepted={() => { setScanOpen(false); refresh(); }}
       />
-      <LabScanAcceptModal
-        manualOnly
-        open={manualOpen}
-        onClose={() => setManualOpen(false)}
-        onAccepted={() => { setManualOpen(false); refresh(); }}
-      />
       <div className="space-y-6">
         <PageHeader
           title={
@@ -214,16 +207,10 @@ export default function LabTestingPage() {
           }
           description={`${petitions.length} รายการ`}
           actions={
-            <div className="flex flex-wrap gap-2">
-              <Button variant="primary-outline" className="gap-2" onClick={() => setManualOpen(true)}>
-                <Keyboard className="h-4 w-4" />
-                กรอกเลขรับงาน
-              </Button>
-              <Button variant="primary" className="gap-2" onClick={() => setScanOpen(true)}>
-                <QrCode className="h-4 w-4" />
-                สแกน QR รับงาน
-              </Button>
-            </div>
+            <Button variant="primary" className="gap-2" onClick={() => setScanOpen(true)}>
+              <QrCode className="h-4 w-4" />
+              รับตัวอย่าง
+            </Button>
           }
         />
 

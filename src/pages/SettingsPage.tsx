@@ -7,6 +7,7 @@ import PageHeader from "@/components/lis/PageHeader";
 import EnvRoomConfigCard from "@/components/lis/EnvRoomConfigCard";
 import PrintConfigCard from "@/components/lis/PrintConfigCard";
 import DocumentNumberConfigCard from "@/components/lis/DocumentNumberConfigCard";
+import DashboardLayoutConfigCard from "@/components/lis/DashboardLayoutConfigCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { useEnvRooms } from "@/hooks/useEnvRooms";
@@ -79,6 +80,17 @@ const SettingsPage = () => {
     docNumberConfigs.map((c: DocumentNumberConfig) => [c.docType, c])
   );
 
+  // Distinct key (not the shared ["access-control"] used by useCanAccessPath) so this
+  // read can't overwrite the app-wide access-control cache with a narrower shape.
+  const { data: accessMatrix } = useQuery({
+    queryKey: ["access-control-roles"],
+    queryFn: async () => {
+      const res = await api.get<{ roles?: { id: string; name: string }[] }>("/access-control");
+      return res.data.data;
+    },
+  });
+  const roleOptions = (accessMatrix?.roles ?? []).map((r) => ({ id: r.id, name: r.name }));
+
   return (
     <AppLayout title="ตั้งค่าระบบ">
       <PageHeader
@@ -95,6 +107,7 @@ const SettingsPage = () => {
           <TabsTrigger value="environment">ห้องตรวจสภาพแวดล้อม</TabsTrigger>
           <TabsTrigger value="printers">เครื่องพิมพ์เอกสาร</TabsTrigger>
           <TabsTrigger value="doc-numbers">รหัสเอกสาร</TabsTrigger>
+          <TabsTrigger value="dashboard">แดชบอร์ด</TabsTrigger>
         </TabsList>
 
         <TabsContent value="environment" className="space-y-3">
@@ -154,6 +167,13 @@ const SettingsPage = () => {
               );
             })}
           </div>
+        </TabsContent>
+
+        <TabsContent value="dashboard" className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            เลือกว่าจะแสดงส่วนไหน เรียงลำดับอย่างไร และ KPI ใบไหน — แยกตาม role (ค่ามาตรฐานใช้เมื่อ role นั้นยังไม่ตั้งค่า)
+          </p>
+          <DashboardLayoutConfigCard roles={roleOptions} />
         </TabsContent>
       </Tabs>
     </AppLayout>

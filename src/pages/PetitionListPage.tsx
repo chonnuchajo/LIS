@@ -17,6 +17,7 @@ import { useCanAccessPath } from '@/hooks/useCanAccessPath';
 import { useNotifications } from '@/context/NotificationContext';
 import { api, type ParameterItem } from '@/lib/api';
 import { normalizeRoles } from "@/lib/roles";
+import { isAssignedTo } from '@/lib/assignment';
 import { matchParametersForItem, parameterNamesForPetition } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import {
@@ -71,16 +72,6 @@ function isOwnSubmission(
   return false;
 }
 
-function isAssignedTo(
-  petition: Petition,
-  user: { name?: string } | null,
-): boolean {
-  if (!user) return false;
-  const userName = norm(user.name);
-  const assigneeName = norm(petition.assignedTo?.name);
-  return !!userName && !!assigneeName && userName === assigneeName;
-}
-
 function isLabRole(role: string): boolean {
   return role === 'lab' || role.startsWith('lab-') || role.startsWith('lab_');
 }
@@ -91,12 +82,12 @@ function isQcRole(role: string): boolean {
 
 function canSeePetition(
   petition: Petition,
-  user: { email?: string; name?: string; role?: string; roles?: string[] } | null,
+  user: { email?: string; name?: string; employeeId?: string; role?: string; roles?: string[] } | null,
 ): boolean {
   if (!user) return false;
   const roles = normalizeRoles(user);
   if (isOwnSubmission(petition, user)) return true;
-  if (isAssignedTo(petition, user)) return true;
+  if (isAssignedTo(petition.assignedTo, user)) return true;
   if (RECEIVED_STATUSES.has(petition.status)) {
     if (roles.some(isLabRole)) {
       if (petitionHasLabItems(petition)) return true;
