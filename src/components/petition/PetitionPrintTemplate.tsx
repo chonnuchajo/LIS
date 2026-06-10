@@ -1,6 +1,6 @@
 import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
 import { customerCodeFromDepartment } from '@/lib/customerCode';
-import { isLabBatch } from '@/types/productionPlan.types';
+import { isLabBatch } from '@/types/petition.types';
 import type { Petition, PetitionItem } from '@/types/petition.types';
 import type { LabRequest } from '@/types/labRequest.types';
 

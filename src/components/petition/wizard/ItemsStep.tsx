@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { isLabBatch } from '@/types/productionPlan.types';
+import { isLabBatch } from '@/types/petition.types';
 import SubmitterPicker, { type SubmitterValues } from './SubmitterPicker';
 
 export interface ItemRowValues {

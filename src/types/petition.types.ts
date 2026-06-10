@@ -1,5 +1,3 @@
-import type { ProductionPlan } from './productionPlan.types';
-
 // ===== Petition status =====
 export type PetitionStatus =
   | 'deliveringQC'
@@ -49,6 +47,12 @@ export const PETITION_DEPT_LABELS: Record<PetitionDept, string> = {
   rm: 'แผนก RM (วัตถุดิบ)',
   fg: 'แผนก FG (สินค้าสำเร็จรูป)',
 };
+
+// batch ที่ลงท้าย '1' หรือ '6' = lab batch (ต้องยื่นใบคำขอรับบริการ)
+export function isLabBatch(batchNo: string): boolean {
+  const last = batchNo.trim().slice(-1);
+  return last === '1' || last === '6';
+}
 
 // ===== Items =====
 export type ItemCondition = 'normal' | 'defective';
@@ -133,7 +137,10 @@ export type PetitionAuditEvent =
   | 'assigned'
   | 'reviewed'
   | 'updated'
-  | 'deleted';
+  | 'deleted'
+  | 'received'
+  | 'resultEntered'
+  | 'resultUpdated';
 
 export interface PetitionAuditLogEntry {
   _id: string;
@@ -155,6 +162,9 @@ export const PETITION_AUDIT_EVENT_LABELS: Record<PetitionAuditEvent, string> = {
   reviewed: 'พิจารณา',
   updated: 'แก้ไขข้อมูล',
   deleted: 'ลบคำร้อง',
+  received: 'รับตัวอย่าง',
+  resultEntered: 'ใส่ค่า QC',
+  resultUpdated: 'แก้ค่า QC',
 };
 
 // ===== Phase 2 tracking (for parameters with hasPhases=true) =====
@@ -205,7 +215,6 @@ interface PetitionBase {
 
 export interface ProductionPetition extends PetitionBase {
   dept: 'production';
-  productionPlans: ProductionPlan[];
 }
 
 export interface RmPetition extends PetitionBase {

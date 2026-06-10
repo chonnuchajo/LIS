@@ -8,6 +8,9 @@ const Approval = require('../models/Approval');
 const RealtimeDensity = require('../models/RealtimeDensity');
 const PetitionAuditLog = require('../models/PetitionAuditLog');
 const { maybeAdvancePhase } = require('../lib/phaseAdvance');
+const QCTestResult = require('../models/QCTestResult');
+const Parameter = require('../models/Parameter');
+const { buildStatusLog, isLabBatch } = require('../lib/petitionStatusLog');
 
 function sampleIdsFromPetition(petition) {
   if (!petition || !Array.isArray(petition.items)) return [];
@@ -239,6 +242,41 @@ router.get('/:id/audit-logs', async (req, res) => {
   }
 });
 
+// GET /api/petitions/:id/status-log → derived human-readable status + timeline
+router.get('/:id/status-log', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const petition = mongoose.Types.ObjectId.isValid(id)
+      ? await Petition.findById(id).lean()
+      : await Petition.findOne({ petitionNo: id }).lean();
+    if (!petition) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+
+    const [auditLogs, qcResults, parameters] = await Promise.all([
+      PetitionAuditLog.find({ petitionId: petition._id }).sort({ createdAt: 1 }).lean(),
+      // QCTestResult.petitionId is stored as a String of _id (not ObjectId) — keep the cast
+      QCTestResult.find({ petitionId: String(petition._id) }).lean(),
+      Parameter.find({ status: 'active' }).lean(),
+    ]);
+
+    // labDone: every lab sampleId has a completed PhysicalResult
+    const labSampleIds = (petition.items || [])
+      .filter((it) => isLabBatch(it.batchNo || ''))
+      .map((it) => it.sampleId || `${petition.petitionNo}-${it.seq}`)
+      .filter(Boolean);
+    let labDone = true;
+    if (labSampleIds.length > 0) {
+      const physResults = await PhysicalResult.find({ sampleId: { $in: labSampleIds } }).lean();
+      labDone = labSampleIds.every(
+        (sid) => physResults.find((p) => p.sampleId === sid)?.status === 'completed',
+      );
+    }
+
+    res.json(buildStatusLog(petition, auditLogs, qcResults, parameters, labDone));
+  } catch (err) {
+    res.status(400).json({ error: { message: err.message } });
+  }
+});
+
 // GET /api/petitions/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -294,17 +332,6 @@ router.post('/', async (req, res) => {
     for (const item of body.items) {
       const batch = String(item.batchNo || '').trim();
       if (!batch) return badRequest(res, `ตัวอย่าง "${item.sampleName || item.seq}": กรุณากรอกเลขแบช`);
-    }
-    if (body.dept === 'production') {
-      if (!Array.isArray(body.productionPlans) || body.productionPlans.length === 0) {
-        return badRequest(res, 'แผนกผลิตต้องมีใบวางแผนอย่างน้อย 1 รายการ');
-      }
-      const itemBatches = new Set(body.items.map((it) => String(it.batchNo).trim()));
-      for (const plan of body.productionPlans) {
-        if (!plan.batchNo || !itemBatches.has(String(plan.batchNo).trim())) {
-          return badRequest(res, `ใบวางแผนอ้างถึง batchNo ที่ไม่อยู่ในรายการตัวอย่าง: ${plan.batchNo}`);
-        }
-      }
     }
     let revisionOf = null;
     if (body.revisionOf) {
@@ -405,11 +432,12 @@ router.patch('/:id/receive', async (req, res) => {
     }
     const doc = await Petition.findOneAndUpdate(q, update, { new: true });
     logAudit(doc, {
-      event: 'statusChanged',
+      event: 'received',
       fromStatus: before.status,
       toStatus: doc.status,
       actor,
-      note: side === 'lab' ? 'สแกนรับงาน Lab' : 'สแกนรับงาน QC',
+      note: side === 'lab' ? 'Lab รับตัวอย่าง' : 'QC รับตัวอย่าง',
+      metadata: { side },
     });
     res.json(doc);
   } catch (err) {

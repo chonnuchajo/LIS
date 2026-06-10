@@ -172,7 +172,7 @@ interface PetitionAuditLogListResponse {
   limit: number;
 }
 
-export function usePetitionAuditLogList(params: PetitionAuditLogListParams) {
+export function usePetitionAuditLogList(params: PetitionAuditLogListParams, pollMs = 10000) {
   const [data, setData] = useState<PetitionAuditLogListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -210,6 +210,25 @@ export function usePetitionAuditLogList(params: PetitionAuditLogListParams) {
       alive = false;
     };
   }, [queryString, reloadKey]);
+
+  // polling เบื้องหลัง — fetch เงียบตาม filter/หน้าปัจจุบัน, ข้าม error, หยุดเมื่อสลับแท็บ
+  useEffect(() => {
+    if (!pollMs) return;
+    let alive = true;
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      apiFetch<PetitionAuditLogListResponse>(`/petitions/audit-logs?${queryString}`)
+        .then((res) => {
+          if (alive) setData(res);
+        })
+        .catch(() => {});
+    };
+    const handle = setInterval(tick, pollMs);
+    return () => {
+      alive = false;
+      clearInterval(handle);
+    };
+  }, [queryString, pollMs]);
 
   return { data, loading, error, refresh };
 }
@@ -316,7 +335,8 @@ export function useLabRequestsByPetition(petitionId: string | undefined) {
 }
 
 // ===== Audit log =====
-export function usePetitionAuditLog(id: string | undefined) {
+// pollMs > 0 = auto-refresh timeline แบบเงียบ (ดูเหมือน realtime); 0 = ปิด polling
+export function usePetitionAuditLog(id: string | undefined, pollMs = 5000) {
   const [data, setData] = useState<PetitionAuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -324,6 +344,7 @@ export function usePetitionAuditLog(id: string | undefined) {
 
   const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
 
+  // โหลดครั้งแรก / เมื่อ id หรือ refresh เปลี่ยน — โชว์ spinner
   useEffect(() => {
     if (!id) {
       setLoading(false);
@@ -346,6 +367,25 @@ export function usePetitionAuditLog(id: string | undefined) {
       alive = false;
     };
   }, [id, reloadKey]);
+
+  // polling เบื้องหลัง — fetch เงียบ ไม่ toggle loading, ข้าม error, หยุดเมื่อสลับแท็บ
+  useEffect(() => {
+    if (!id || !pollMs) return;
+    let alive = true;
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      apiFetch<{ items: PetitionAuditLogEntry[] }>(`/petitions/${id}/audit-logs`)
+        .then((res) => {
+          if (alive) setData(res.items ?? []);
+        })
+        .catch(() => {});
+    };
+    const handle = setInterval(tick, pollMs);
+    return () => {
+      alive = false;
+      clearInterval(handle);
+    };
+  }, [id, pollMs]);
 
   return { data, loading, error, refresh };
 }

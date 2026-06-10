@@ -1,7 +1,7 @@
 import type { ParameterItem, ParameterValueField } from '@/lib/api';
 import type { PetitionItem, Petition } from '@/types/petition.types';
+import { isLabBatch } from '@/types/petition.types';
 import { getClassification, getCommonName } from '@/lib/productClassification';
-import { isLabBatch } from '@/types/productionPlan.types';
 
 function extractItemNoPrefix(itemNo: string | undefined | null): string {
   const cleaned = String(itemNo ?? '').trim();
