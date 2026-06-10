@@ -20,6 +20,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useArrivalFlash } from '@/hooks/useArrivalFlash';
 import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
+import { labReceivedBy } from '@/lib/receiveStatus';
 import { useConfirm } from '@/context/ConfirmDialog';
 import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard } from '@/lib/parameterValidation';
 import type { ConditionContext } from '@/lib/parameterValidation';
@@ -633,7 +634,7 @@ export default function LabTestingDetailPage() {
           actions={
             <span className="text-sm text-grey-500">
               ผู้นำส่ง: {petition.submittedBy?.name ?? '-'}
-              {petition.labReceivedBy && ` · ผู้รับงาน: ${petition.labReceivedBy}`}
+              {labReceivedBy(petition) && ` · ผู้รับงาน: ${labReceivedBy(petition)}`}
             </span>
           }
         />

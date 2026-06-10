@@ -26,6 +26,7 @@ import PageHeader from '@/components/lis/PageHeader';
 import PageToolbar from '@/components/lis/PageToolbar';
 import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
 import { statusBadge } from '@/lib/statusBadge';
+import { labReceivedAt, labReceivedBy } from '@/lib/receiveStatus';
 import LabScanAcceptModal from '@/components/petition/LabScanAcceptModal';
 import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
@@ -86,7 +87,7 @@ export default function LabTestingPage() {
   const [abnormalMap, setAbnormalMap] = useState<Record<string, boolean>>({});
   const [returnedMap, setReturnedMap] = useState<Record<string, boolean>>({});
   const flaggablePetitionIds = petitions
-    .filter((p) => !!p.labReceivedAt)
+    .filter((p) => !!labReceivedAt(p))
     .map((p) => p._id);
   const flaggableKey = flaggablePetitionIds.join(',');
   useEffect(() => {
@@ -129,8 +130,8 @@ export default function LabTestingPage() {
               โดย {p.submittedBy?.name ?? '-'} จาก {PETITION_DEPT_LABELS[p.dept]}
             </div>
             <div className="text-xs text-grey-500 mt-0.5">{labItems.length} รายการ Lab</div>
-            {p.labReceivedBy && (
-              <div className="text-xs text-grey-400 mt-0.5">รับโดย {p.labReceivedBy}</div>
+            {labReceivedBy(p) && (
+              <div className="text-xs text-grey-400 mt-0.5">รับโดย {labReceivedBy(p)}</div>
             )}
           </>
         );
@@ -176,7 +177,7 @@ export default function LabTestingPage() {
       header: 'การดำเนินการ',
       className: 'text-right align-top',
       cell: (p) =>
-        p.labReceivedAt ? (
+        labReceivedAt(p) ? (
           <Button
             size="sm"
             onClick={(e) => {
@@ -244,7 +245,7 @@ export default function LabTestingPage() {
           isLoading={loading}
           rowClassName={(p) => (p._id === flashId ? 'animate-flash-bg' : undefined)}
           onRowClick={(p) => {
-            if (p.labReceivedAt) navigate(`/lab-testing/${p._id}`);
+            if (labReceivedAt(p)) navigate(`/lab-testing/${p._id}`);
           }}
           emptyTitle="ไม่มีคำร้อง Lab ที่รอตรวจ"
         />
