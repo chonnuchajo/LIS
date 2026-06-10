@@ -70,3 +70,29 @@ describe('QrReceiveModal manual entry', () => {
     expect(await screen.findByText('P-2506-0002')).toBeInTheDocument();
   });
 });
+
+describe('QrReceiveModal manualOnly mode', () => {
+  function renderManual() {
+    return render(
+      <MemoryRouter>
+        <QrReceiveModal open manualOnly onClose={() => {}} onReceived={() => {}} />
+      </MemoryRouter>,
+    );
+  }
+
+  it('โชว์หัวข้อ "กรอกเลขรับตัวอย่าง" + ช่องกรอกทันที ไม่ต้องรอกล้อง', async () => {
+    renderManual();
+    expect(screen.getByText('กรอกเลขรับตัวอย่าง')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/พิมพ์เลขที่คำร้อง/)).toBeInTheDocument();
+    expect(screen.queryByText(/ไม่พบกล้อง/)).not.toBeInTheDocument();
+  });
+
+  it('submit เลขคำร้อง → เข้า confirm เหมือนโหมดสแกน', async () => {
+    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { data: qcPetition } });
+    renderManual();
+    const input = screen.getByPlaceholderText(/พิมพ์เลขที่คำร้อง/);
+    fireEvent.change(input, { target: { value: 'P-2506-0002' } });
+    fireEvent.click(screen.getByRole('button', { name: 'รับตัวอย่าง' }));
+    expect(await screen.findByText('P-2506-0002')).toBeInTheDocument();
+  });
+});

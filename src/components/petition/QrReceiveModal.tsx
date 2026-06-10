@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
-import { AlertCircle, CheckCircle2, QrCode, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Keyboard, QrCode, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Petition } from '@/types/petition.types';
 import { PETITION_DEPT_LABELS, PETITION_STATUS_CONFIG } from '@/types/petition.types';
@@ -56,9 +56,11 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onReceived: () => void;
+  /** โหมดกรอกเลขคำร้องอย่างเดียว (ไม่เปิดกล้อง) — ใช้กับปุ่ม "กรอกเลขรับตัวอย่าง" */
+  manualOnly?: boolean;
 }
 
-export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
+export default function QrReceiveModal({ open, onClose, onReceived, manualOnly = false }: Props) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [phase, setPhase] = useState<Phase>('scanning');
@@ -95,9 +97,9 @@ export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
     };
   }, []);
 
-  // Start camera when in scanning phase
+  // Start camera when in scanning phase (ไม่เปิดกล้องในโหมด manualOnly)
   useEffect(() => {
-    if (!open || phase !== 'scanning') return;
+    if (!open || phase !== 'scanning' || manualOnly) return;
     let active = true;
 
     (async () => {
@@ -147,7 +149,7 @@ export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
         } catch { /* ignore */ }
       }
     };
-  }, [open, phase]);
+  }, [open, phase, manualOnly]);
 
   async function fetchAndConfirm(rawCode: string) {
     const code = extractScannedCode(rawCode);
@@ -235,12 +237,18 @@ export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
       <div className="bg-white rounded-xl w-full max-w-md max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <div className="flex items-center gap-2">
-            <QrCode className="h-5 w-5 text-primary-500" />
-            <h2 className="text-base font-bold">สแกน QR รับตัวอย่าง</h2>
+            {manualOnly ? (
+              <Keyboard className="h-5 w-5 text-primary-500" />
+            ) : (
+              <QrCode className="h-5 w-5 text-primary-500" />
+            )}
+            <h2 className="text-base font-bold">
+              {manualOnly ? 'กรอกเลขรับตัวอย่าง' : 'สแกน QR รับตัวอย่าง'}
+            </h2>
           </div>
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-2 text-xs text-grey-600 cursor-pointer">
-              <span>สแกนต่อเนื่อง</span>
+              <span>{manualOnly ? 'รับต่อเนื่อง' : 'สแกนต่อเนื่อง'}</span>
               <Switch checked={continuousMode} onCheckedChange={setContinuousMode} />
             </label>
             <button onClick={onClose} className="text-grey-400 hover:text-grey-700">
@@ -257,8 +265,8 @@ export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
         )}
 
         <div className="p-5 space-y-4">
-          {/* Camera reader element — must stay mounted while scanning */}
-          <div className={phase === 'scanning' ? 'block' : 'hidden'}>
+          {/* Camera reader element — must stay mounted while scanning (ไม่ใช้ในโหมด manualOnly) */}
+          <div className={phase === 'scanning' && !manualOnly ? 'block' : 'hidden'}>
             <div id={READER_ID} className="w-full rounded-lg overflow-hidden border" />
             <p className="mt-2 text-center text-sm text-grey-500">
               เล็งกล้องไปที่ QR Code บนใบคำร้องเพื่อรับตัวอย่าง
@@ -287,17 +295,20 @@ export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
               }}
               className="space-y-2"
             >
-              <div className="flex items-center gap-2 text-xs text-grey-400">
-                <div className="h-px flex-1 bg-grey-200" />
-                <span>หรือ</span>
-                <div className="h-px flex-1 bg-grey-200" />
-              </div>
+              {!manualOnly && (
+                <div className="flex items-center gap-2 text-xs text-grey-400">
+                  <div className="h-px flex-1 bg-grey-200" />
+                  <span>หรือ</span>
+                  <div className="h-px flex-1 bg-grey-200" />
+                </div>
+              )}
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={manualCode}
                   onChange={(e) => setManualCode(e.target.value)}
                   placeholder="พิมพ์เลขที่คำร้อง เช่น P-2506-0001"
+                  autoFocus={manualOnly}
                   className="flex-1 rounded-lg border border-grey-200 px-3 py-2 text-sm outline-none focus:border-primary-400"
                 />
                 <Button type="submit" variant="primary" disabled={!manualCode.trim()}>
@@ -320,7 +331,7 @@ export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
               </div>
               <div className="flex gap-2 pt-2">
                 <Button variant="ghost" className="flex-1" onClick={rescan}>
-                  สแกนใหม่
+                  {manualOnly ? 'กรอกใหม่' : 'สแกนใหม่'}
                 </Button>
                 <Button variant="primary" className="flex-1" onClick={confirmReceive}>
                   ยืนยันรับตัวอย่าง
@@ -338,7 +349,7 @@ export default function QrReceiveModal({ open, onClose, onReceived }: Props) {
               </p>
               <div className="flex gap-2 pt-1">
                 <Button variant="ghost" className="flex-1" onClick={rescan}>
-                  สแกนต่อ
+                  {manualOnly ? 'รับต่อ' : 'สแกนต่อ'}
                 </Button>
                 <Button variant="primary" className="flex-1" onClick={onClose}>
                   เสร็จสิ้น
