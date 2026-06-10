@@ -117,6 +117,50 @@ function buildCurrent(petition, qc, paramNames, labDone) {
   return { label: 'กำลังนำส่ง QC' };
 }
 
+// Maps one audit-log row to a Thai milestone label, or null to skip it.
+function timelineLabel(log, petition) {
+  const md = log.metadata || {};
+  switch (log.event) {
+    case 'created':
+      return 'ยื่นคำขอ';
+    case 'received':
+      return md.side === 'lab' ? 'Lab รับตัวอย่าง' : 'QC รับตัวอย่าง';
+    case 'assigned':
+      return petition?.assignedTo?.name
+        ? `มอบหมายให้ ${petition.assignedTo.name}`
+        : (log.note || 'มอบหมาย');
+    case 'resultEntered': {
+      const p = md.parameterName || md.parameterId || '';
+      return p ? `QC บันทึกผล — ${p}` : 'QC บันทึกผล';
+    }
+    case 'resultUpdated': {
+      const p = md.parameterName || md.parameterId || '';
+      return p ? `QC แก้ไขผล — ${p}` : 'QC แก้ไขผล';
+    }
+    case 'statusChanged':
+      if (log.toStatus === 'sampleSent') return 'ส่งตัวอย่าง';
+      if (log.toStatus === 'success') return 'เสร็จสิ้น — รอหัวหน้า QC ยืนยัน';
+      if (log.toStatus === 'approved') return 'หัวหน้า QC อนุมัติ — ปิดงาน';
+      if (log.toStatus === 'rejected') return 'ส่งกลับให้แก้ไข';
+      return null; // other status transitions are not milestones
+    default:
+      return null; // reviewed / updated / deleted → skipped
+  }
+}
+
+// Builds the milestone timeline from audit logs (assumed already ascending by createdAt).
+function buildTimeline(auditLogs, petition) {
+  const out = [];
+  for (const log of auditLogs ?? []) {
+    const label = timelineLabel(log, petition);
+    if (!label) continue;
+    const entry = { label, at: log.createdAt, actor: log.actor };
+    if (log.event === 'received' && log.metadata?.side) entry.side = log.metadata.side;
+    out.push(entry);
+  }
+  return out;
+}
+
 module.exports = {
   isLabBatch,
   hasFilledValue,
@@ -124,4 +168,6 @@ module.exports = {
   computeQcHeuristic,
   enteredParamNames,
   buildCurrent,
+  timelineLabel,
+  buildTimeline,
 };
