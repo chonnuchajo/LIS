@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { usePetitionList } from "@/hooks/usePetition";
+import { useDashboardLayout } from "@/hooks/useDashboardLayout";
+import type { SectionId } from "@/lib/dashboardLayout";
 import type { Petition, PetitionStatus } from "@/types/petition.types";
 import { toast } from "sonner";
 
@@ -125,10 +127,12 @@ export default function LabDashboard() {
     }
   })();
 
-  return (
-    <AppLayout>
-      {/* === Header === */}
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+  const layout = useDashboardLayout("lab");
+  const kpiOn = layout.kpis;
+
+  const sectionNodes: Partial<Record<SectionId, JSX.Element>> = {
+    header: (
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <FlaskConical className="h-5 w-5" />
@@ -157,64 +161,69 @@ export default function LabDashboard() {
           </Button>
         </div>
       </div>
-
-      {/* === KPI Strip === */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <StatCard
-          icon={ClipboardList}
-          value={labTotal}
-          label="งานทั้งหมดใน Lab"
-          variant="neutral"
-          sublabel={`รวมงานเสร็จแล้ว ${completedPetitions.length}`}
-          active={activeKpi === "all"}
-          onClick={() => toggleKpi("all")}
-        />
-        <StatCard
-          icon={Hourglass}
-          value={waitingReceivePetitions.length}
-          label="รอรับเข้าระบบ"
-          variant="amber"
-          active={activeKpi === "waiting"}
-          onClick={() => toggleKpi("waiting")}
-        />
-        <StatCard
-          icon={Activity}
-          value={inProgressPetitions.length}
-          label="กำลังดำเนินการ"
-          variant="blue"
-          active={activeKpi === "inProgress"}
-          onClick={() => toggleKpi("inProgress")}
-        />
-        <StatCard
-          icon={CheckCircle2}
-          value={completedPetitions.length}
-          label="ตรวจเสร็จแล้ว"
-          variant="green"
-          active={activeKpi === "completed"}
-          onClick={() => toggleKpi("completed")}
-        />
+    ),
+    kpi: (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {kpiOn.all && (
+          <StatCard
+            icon={ClipboardList}
+            value={labTotal}
+            label="งานทั้งหมดใน Lab"
+            variant="neutral"
+            sublabel={`รวมงานเสร็จแล้ว ${completedPetitions.length}`}
+            active={activeKpi === "all"}
+            onClick={() => toggleKpi("all")}
+          />
+        )}
+        {kpiOn.waiting && (
+          <StatCard
+            icon={Hourglass}
+            value={waitingReceivePetitions.length}
+            label="รอรับเข้าระบบ"
+            variant="amber"
+            active={activeKpi === "waiting"}
+            onClick={() => toggleKpi("waiting")}
+          />
+        )}
+        {kpiOn.inProgress && (
+          <StatCard
+            icon={Activity}
+            value={inProgressPetitions.length}
+            label="กำลังดำเนินการ"
+            variant="blue"
+            active={activeKpi === "inProgress"}
+            onClick={() => toggleKpi("inProgress")}
+          />
+        )}
+        {kpiOn.completed && (
+          <StatCard
+            icon={CheckCircle2}
+            value={completedPetitions.length}
+            label="ตรวจเสร็จแล้ว"
+            variant="green"
+            active={activeKpi === "completed"}
+            onClick={() => toggleKpi("completed")}
+          />
+        )}
       </div>
-
-      {/* === Main grid: primary table + right rail === */}
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4 mb-4">
-        <PetitionDashboardTable
-          title={primaryTitle}
-          petitions={filteredPrimary}
-          loading={petitionLoading}
-          actionPathPrefix="/lab-testing"
-          viewAllPath="/lab-testing"
-          unreceivedListPath="/lab-testing"
-          emptyText={
-            activeKpi || query
-              ? "ไม่พบคำร้องตามเงื่อนไข"
-              : "ยังไม่มีคำร้องที่รอ Lab ดำเนินการ"
-          }
-        />
-
-        <WaitingSamplesCard petitions={waitingReceivePetitions} />
-      </div>
-
-      {/* === Completed collapsible === */}
+    ),
+    primaryTable: (
+      <PetitionDashboardTable
+        title={primaryTitle}
+        petitions={filteredPrimary}
+        loading={petitionLoading}
+        actionPathPrefix="/lab-testing"
+        viewAllPath="/lab-testing"
+        unreceivedListPath="/lab-testing"
+        emptyText={
+          activeKpi || query
+            ? "ไม่พบคำร้องตามเงื่อนไข"
+            : "ยังไม่มีคำร้องที่รอ Lab ดำเนินการ"
+        }
+      />
+    ),
+    rightRail: <WaitingSamplesCard petitions={waitingReceivePetitions} />,
+    completed: (
       <Collapsible open={completedOpen} onOpenChange={setCompletedOpen}>
         <div className="rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.04),0_2px_8px_-2px_rgba(15,23,42,0.06)]">
           <CollapsibleTrigger asChild>
@@ -252,6 +261,47 @@ export default function LabDashboard() {
           </CollapsibleContent>
         </div>
       </Collapsible>
+    ),
+  };
+
+  const ordered = layout.sections.filter((s) => s.enabled);
+
+  return (
+    <AppLayout>
+      {ordered.map((s, i) => {
+        if (s.id === "rightRail") return null; // rendered with primaryTable when adjacent
+        if (s.id === "primaryTable") {
+          const next = ordered[i + 1];
+          const railAdjacent = next?.id === "rightRail";
+          return (
+            <div
+              key="primaryTable"
+              className={
+                railAdjacent
+                  ? "grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4 mb-4"
+                  : "mb-4"
+              }
+            >
+              {sectionNodes.primaryTable}
+              {railAdjacent ? sectionNodes.rightRail : null}
+            </div>
+          );
+        }
+        return (
+          <div key={s.id} className="mb-4">
+            {sectionNodes[s.id]}
+          </div>
+        );
+      })}
+      {/* rightRail enabled but NOT adjacent to primaryTable → its own block */}
+      {(() => {
+        const railIdx = ordered.findIndex((s) => s.id === "rightRail");
+        const primaryIdx = ordered.findIndex((s) => s.id === "primaryTable");
+        if (railIdx !== -1 && railIdx !== primaryIdx + 1) {
+          return <div className="mb-4">{sectionNodes.rightRail}</div>;
+        }
+        return null;
+      })()}
     </AppLayout>
   );
 }
