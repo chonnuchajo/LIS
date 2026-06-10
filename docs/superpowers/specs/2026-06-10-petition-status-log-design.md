@@ -92,13 +92,15 @@ Inputs: `petition.status`, `sampleSentAt`, `labReceivedAt`, `qcReceivedAt`, `ass
 | 1 | `status === 'approved'` | `หัวหน้า QC อนุมัติ — ปิดงาน` | — |
 | 2 | `status === 'rejected'` | `ส่งกลับให้แก้ไข` | — |
 | 3 | `status === 'success'` | `เสร็จสิ้น — รอหัวหน้า QC ยืนยัน` | qc |
-| 4 | testing & `total > 0` & `filled >= total` (100%) | `รอ QC ยืนยันผล` | qc |
-| 5 | has lab item & lab results not yet in | `รอผลตรวจจาก Lab` | lab |
-| 6 | testing & `filled > 0` (partial) | `QC กำลังตรวจ — {entered param names} ({percent}%)` | qc |
+| 4 | testing & `0 < filled < total` (partial) | `QC กำลังตรวจ — {entered param names} ({percent}%)` | qc |
+| 5 | has lab item & `labDone === false` | `รอผลตรวจจาก Lab` | lab |
+| 6 | testing & `total > 0` & `filled >= total` (100%) | `รอ QC ยืนยันผล` | qc |
 | 7 | both sides received | `Lab & QC รับแล้ว` | — |
 | 8 | one side received | `{ฝั่งที่รับ} รับแล้ว · {อีกฝั่ง} รอรับ` | — |
 | 9 | `status === 'sampleSent'` | `ส่งตัวอย่างแล้ว — รอรับ` | — |
 | 10 | else (`deliveringQC`) | `กำลังนำส่ง QC` | — |
+
+Ordering rationale: **active QC entry (rule 4) shows before lab-waiting**, so a petition mid-entry reads `QC กำลังตรวจ` rather than masking it. Once QC has nothing left to enter, **lab must finish (rule 5) before the final per-sample QC confirm (rule 6)** — matching "Lab เสร็จก่อน → ค่อยรอ QC ยืนยัน". Concretely: QC 100% + lab pending → rule 5 (`รอผลตรวจจาก Lab`); QC 100% + lab done → rule 6 (`รอ QC ยืนยันผล`).
 
 Notes:
 - "testing" = `status === 'inProgress'` (assigned and/or first result in).
@@ -120,7 +122,7 @@ Notes:
 
 ## Testing
 
-`server/lib/petitionStatusLog.test.js` (Vitest, matching existing `*.test.js` co-located pattern):
+`server/lib/petitionStatusLog.test.js` — uses Node's built-in `node:test` + `node:assert` (CommonJS `require`), matching every existing `server/lib/*.test.js`. Run with `node --test lib/petitionStatusLog.test.js` from `server/`. (The root Vitest config only includes `src/**`, so server libs are tested with the Node runner, not Vitest.)
 
 - Each `current` rule 1–10 returns the expected label/side given a crafted petition + inputs.
 - `computeQcHeuristic`: filled/total/percent for applyAll, commonName match, testItems match, no-match (total 0 → 0%), partial, 100%, over-count cap.
