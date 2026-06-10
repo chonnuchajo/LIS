@@ -67,24 +67,24 @@ test('planEmployeeSync links empty users, counts already-linked and unmatched', 
     { id: 'u3', email: 'none@x.com', employeeId: '' },
   ];
   const employees = [
-    { employeeId: '1', email: 'a@x.com', department: 'Lab', position: 'Analyst' },
+    { employeeId: '1', email: 'a@x.com', name: 'นายเอ', department: 'Lab', position: 'Analyst' },
   ];
   const plan = planEmployeeSync(users, employees);
   assert.strictEqual(plan.linked, 1);
   assert.strictEqual(plan.alreadyLinked, 1);
   assert.strictEqual(plan.unmatched, 1);
   assert.deepStrictEqual(plan.updates, [
-    { userId: 'u1', employeeId: '1', department: 'Lab', position: 'Analyst' },
+    { userId: 'u1', employeeId: '1', name: 'นายเอ', department: 'Lab', position: 'Analyst' },
   ]);
 });
 
 test('planEmployeeSync matches a mixed-case user email', () => {
   const users = [{ id: 'u1', email: 'A@X.com', employeeId: '' }];
-  const employees = [{ employeeId: '1', email: 'a@x.com', department: 'Lab', position: 'Analyst' }];
+  const employees = [{ employeeId: '1', email: 'a@x.com', name: 'นายเอ', department: 'Lab', position: 'Analyst' }];
   const plan = planEmployeeSync(users, employees);
   assert.strictEqual(plan.linked, 1);
   assert.deepStrictEqual(plan.updates, [
-    { userId: 'u1', employeeId: '1', department: 'Lab', position: 'Analyst' },
+    { userId: 'u1', employeeId: '1', name: 'นายเอ', department: 'Lab', position: 'Analyst' },
   ]);
 });
 

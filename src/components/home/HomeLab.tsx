@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { isAssignedTo } from "@/lib/assignment";
 import { useAuth } from "@/context/AuthContext";
 import { useSamples } from "@/context/SampleContext";
 import { usePetitionList } from "@/hooks/usePetition";
@@ -73,9 +74,7 @@ export default function HomeLab() {
   const labPetitions = useMemo(() => allPetitions.filter(hasLabItem), [allPetitions]);
   const mine = useMemo(() => {
     if (!user) return labPetitions;
-    const assigned = labPetitions.filter(
-      (p) => p.assignedTo && (p.assignedTo.employeeId === user.id || p.assignedTo.name === user.name),
-    );
+    const assigned = labPetitions.filter((p) => isAssignedTo(p.assignedTo, user));
     return assigned.length > 0 ? assigned : labPetitions;
   }, [labPetitions, user]);
 
