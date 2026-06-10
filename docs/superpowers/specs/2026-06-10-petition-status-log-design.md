@@ -88,11 +88,12 @@ Unknown/unmapped events are skipped (timeline shows milestones only, not every a
 `current` is **two parallel tracks** (QC and Lab), each advancing independently once the sample is received. Shape:
 
 ```jsonc
+// example: both sides received, the single assignee is a Lab analyst
 current: {
-  label: "QC สมชาย รับงานแล้ว · กำลังตรวจ | Lab รับแล้ว · มอบหมายโดย แอดมิน · รอเจ้าหน้าที่รับงาน",
+  label: "QC รับแล้ว | Lab มอบหมายงานแล้ว รอเจ้าหน้าที่รับงาน",
   tracks: {
-    qc:  { label: "QC สมชาย รับงานแล้ว · กำลังตรวจ", percent: null },
-    lab: { label: "Lab รับแล้ว · มอบหมายโดย แอดมิน · รอเจ้าหน้าที่รับงาน" }
+    qc:  { label: "QC รับแล้ว" },
+    lab: { label: "Lab มอบหมายงานแล้ว รอเจ้าหน้าที่รับงาน" }
   }
 }
 ```
@@ -115,28 +116,30 @@ Checked first; these short-circuit the dual-track build:
 
 ### Per-track derivation (first match wins, per side)
 
-Shared signals: `qcReceived`/`labReceived` (`= !!qcReceivedAt`/`!!labReceivedAt`); `assignee = petition.assignedTo` (single assignee — the model has no per-side assignment); `assignedBy = assignee.assignedBy`; `started = reviewHistory has an entry with action 'startTesting' OR firstResultAt set OR qc.filled > 0`; the QC heuristic `{ filled, total, percent }` + `paramNames`; `labDone`.
+Shared signals: `qcReceived`/`labReceived` (`= !!qcReceivedAt`/`!!labReceivedAt`); `assignee = petition.assignedTo` (single assignee); `assigneeSide = assigneeSideOf(assignee)` — `'lab'` if `assignee.department`/`position` mentions `lab`/`วิเคราะห์`, else `'qc'`, `null` when unassigned; `started = reviewHistory has an entry with action 'startTesting' OR firstResultAt set OR qc.filled > 0`; the QC heuristic `{ filled, total, percent }` + `paramNames`; `labDone`. **The assign/accept line appears only on the assignee's own side** (`isAssignee = assigneeSide === thisSide`); the other side just shows its receive state.
 
-**QC track:**
+**QC track** (`isAssignee = assigneeSide === 'qc'`):
 
 | condition | `label` |
 |---|---|
 | `!qcReceived` | `QC รอรับ` |
-| received, no `assignee` | `QC รับแล้ว` |
-| assigned, `!started` | `QC รับแล้ว · มอบหมายโดย {assignedBy} · รอเจ้าหน้าที่รับงาน` |
-| started, `0 < filled < total` | `QC กำลังตรวจ — {paramNames} ({percent}%)` (sets `percent`) |
-| started, `total > 0 && filled >= total` | `QC ตรวจครบ — รอยืนยัน` |
-| started, else (accepted, nothing entered yet) | `QC {assignee.name} รับงานแล้ว · กำลังตรวจ` |
+| `total > 0 && filled >= total` | `QC ตรวจครบ — รอยืนยัน` |
+| `0 < filled` (entering) | `QC กำลังตรวจ — {paramNames} ({percent}%)` (sets `percent`) |
+| `isAssignee && !started` | `QC มอบหมายงานแล้ว รอเจ้าหน้าที่รับงาน` |
+| `isAssignee && started` | `QC {assignee.name} รับงานแล้ว · กำลังตรวจ` |
+| else (received, not this side's assignment, nothing entered) | `QC รับแล้ว` |
 
-**Lab track** (only built when the petition has a lab item; `null`/omitted when `labDone`):
+QC progress (the `filled`-based rows) is shown regardless of `assigneeSide`, since QC values are entered independently of who the single `assignedTo` is.
+
+**Lab track** (`isAssignee = assigneeSide === 'lab'`; only built when the petition has a lab item; `null`/omitted when `labDone`):
 
 | condition | `label` |
 |---|---|
 | `labDone` | *(track omitted)* |
 | `!labReceived` | `Lab รอรับ` |
-| received, no `assignee` | `Lab รับแล้ว` |
-| assigned, `!started` | `Lab รับแล้ว · มอบหมายโดย {assignedBy} · รอเจ้าหน้าที่รับงาน` |
-| started, else | `Lab {assignee.name} รับงานแล้ว · กำลังตรวจ` |
+| `isAssignee && !started` | `Lab มอบหมายงานแล้ว รอเจ้าหน้าที่รับงาน` |
+| `isAssignee && started` | `Lab {assignee.name} รับงานแล้ว · กำลังตรวจ` |
+| else (received, not this side's assignment) | `Lab รับแล้ว` |
 
 ### Why this subsumes the old single-label rules
 
@@ -146,8 +149,8 @@ Shared signals: `qcReceived`/`labReceived` (`= !!qcReceivedAt`/`!!labReceivedAt`
 
 ### Known approximations (data-model limits, documented intentionally)
 
-- **Single `assignedTo`**: the petition has one assignee, not one per side. Both tracks reference the same `assignee`/`assignedBy`. There is no per-side assignment in the schema.
-- **Shared `started` signal**: `startTesting` (reviewHistory) / `firstResultAt` / QC `filled` are per-petition, so both tracks flip from "รอเจ้าหน้าที่รับงาน" → "รับงานแล้ว" together. `QrStartTestingModal` is currently a placeholder, so in practice `started` is driven by `firstResultAt` / QC `filled` until that accept-flow is built.
+- **Single `assignedTo` → side inferred from HR fields**: the petition has one assignee, not one per side. The assign/accept line therefore shows on only one track, chosen by `assigneeSideOf` (department/position contains `lab`/`วิเคราะห์` → Lab, else QC). The other side shows plain `รับแล้ว`. This is a heuristic — a Lab analyst whose HR department doesn't mention "lab"/"วิเคราะห์" would be misattributed to QC.
+- **Shared `started` signal**: `startTesting` (reviewHistory) / `firstResultAt` / QC `filled` are per-petition, so the assignee side flips "รอเจ้าหน้าที่รับงาน" → "รับงานแล้ว" off this single signal. `QrStartTestingModal` is currently a placeholder, so in practice `started` is driven by `firstResultAt` / QC `filled` until that accept-flow is built.
 - **labDone predicate** (unchanged): the petition has ≥ 1 lab item AND not every lab sampleId has a completed `PhysicalResult`. Lab sampleIds derived via `sampleIdsFromPetition` restricted to `batchNo` ending 1/6; `labDone` = every such sampleId has a `PhysicalResult` with `status === 'completed'`. Route loads `PhysicalResult.find({ sampleId: { $in: labSampleIds } })` and passes `labDone` into `buildStatusLog` (keeps the pure function DB-free).
 
 ## QC heuristic (`computeQcHeuristic`)
