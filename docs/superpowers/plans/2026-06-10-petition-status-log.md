@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a derived, human-readable `status_log` (`{ current, timeline }`) to the petitions API via a new `GET /api/petitions/:id/status-log` endpoint — no DB schema change.
+**Goal:** Add a derived, human-readable `status_log` (`{ current, timeline }`) to the petitions API via a new `GET /api/petitions/status-log/:id` endpoint — no DB schema change.
 
 **Architecture:** A pure-function module `server/lib/petitionStatusLog.js` computes the current status label and a timeline from data the route loads (`Petition`, `PetitionAuditLog`, `QCTestResult`, `Parameter`, `PhysicalResult`). The route is thin: load inputs, call `buildStatusLog`, return JSON. QC progress % is a lightweight server heuristic (item × QC-param granularity), intentionally approximate vs. the frontend field/unit bar.
 
@@ -16,7 +16,7 @@
 
 - **Create** `server/lib/petitionStatusLog.js` — pure functions: `isLabBatch`, `hasFilledValue`, `qcParamAppliesToItem`, `computeQcHeuristic`, `enteredParamNames`, `buildCurrent`, `timelineLabel`, `buildTimeline`, `buildStatusLog`. No DB access.
 - **Create** `server/lib/petitionStatusLog.test.js` — `node:test` unit tests for all of the above.
-- **Modify** `server/routes/petitions.js` — add requires + `GET /:id/status-log` route, declared **before** the generic `GET /:id` (so Express does not match `status-log` as an `:id`).
+- **Modify** `server/routes/petitions.js` — add requires + `GET /status-log/:id` route, declared **before** the generic `GET /:id` (so Express does not match `status-log` as an `:id`).
 
 Each task appends to the same module file; tests grow alongside.
 
@@ -613,8 +613,8 @@ const { buildStatusLog, isLabBatch } = require('../lib/petitionStatusLog');
 Then add this route **immediately after** the existing `GET /:id/audit-logs` handler and **before** `GET /:id` (i.e. right after the block ending near line 240):
 
 ```js
-// GET /api/petitions/:id/status-log → derived human-readable status + timeline
-router.get('/:id/status-log', async (req, res) => {
+// GET /api/petitions/status-log/:id → derived human-readable status + timeline
+router.get('/status-log/:id', async (req, res) => {
   try {
     const id = req.params.id;
     const petition = mongoose.Types.ObjectId.isValid(id)
@@ -657,7 +657,7 @@ Expected: prints `petitions route OK` with no error.
 
 Start the backend (`cd server && npm run dev`), then with a real petition id or petitionNo:
 
-Run: `curl -s http://localhost:3001/api/petitions/<petitionNoOrId>/status-log`
+Run: `curl -s http://localhost:3001/api/petitions/status-log/<petitionNoOrId>`
 Expected: JSON `{ "current": { "label": ... }, "timeline": [ ... ] }`. A bad id returns `404 {"error":{"message":"ไม่พบคำร้อง"}}`.
 
 (If no backend/DB is available in this environment, note that Step 6 covers wiring correctness and the lib tests cover all logic; mark Step 7 as deferred to manual verification rather than blocking.)
@@ -666,7 +666,7 @@ Expected: JSON `{ "current": { "label": ... }, "timeline": [ ... ] }`. A bad id 
 
 ```bash
 git add server/lib/petitionStatusLog.js server/lib/petitionStatusLog.test.js server/routes/petitions.js
-git commit -m "feat(petition): GET /:id/status-log derived status_log endpoint"
+git commit -m "feat(petition): GET /status-log/:id derived status_log endpoint"
 ```
 
 ---
@@ -674,7 +674,7 @@ git commit -m "feat(petition): GET /:id/status-log derived status_log endpoint"
 ## Self-Review Notes
 
 - **Spec coverage:** Architecture/endpoint → Task 4 Step 5. Timeline table → Task 3. Current 10-rule table → Task 2. QC heuristic → Task 1. labDone (Rule 5 predicate) → Task 4 route. Testing section → tests in every task.
-- **Route ordering:** `GET /:id/status-log` is declared before generic `GET /:id` (Task 4 Step 5) — required so Express does not treat `status-log` as `:id`.
+- **Route ordering:** `GET /status-log/:id` is declared before generic `GET /:id` (Task 4 Step 5) — required so Express does not treat `status-log` as `:id`.
 - **Type consistency:** `buildStatusLog(petition, auditLogs, qcResults, parameters, labDone)` and `computeQcHeuristic(petition, qcResults, parameters)` signatures match between spec, lib, and route call sites. `QCTestResult.petitionId` is a String of the petition `_id` (confirmed in model + qc-results audit path) → queried with `String(petition._id)`.
 - **No frontend in scope** (API only), per spec "Out of scope".
 ```
