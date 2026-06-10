@@ -24,6 +24,10 @@ interface AuthContextType {
   login: (redirectTo?: string) => Promise<void>;
   loginWithProductionToken: (token: string) => Promise<AuthUser>;
   logout: () => void;
+  // Self-service link of the current user to an HR employee record. Used by the
+  // EmployeeLinkGate when auto-link by email found no match. Updates local auth
+  // state on success so the gate closes without a re-login.
+  linkSelfEmployee: (employeeId: string) => Promise<void>;
   devRoleIds?: string[];
   devRoles?: { id: string; name: string }[];
   toggleDevRole?: (role: string) => void;
@@ -289,6 +293,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return nextUser;
   }, []);
 
+  const linkSelfEmployee = useCallback(
+    async (employeeId: string) => {
+      const id = productionUser?.id ?? syncedUser?.id;
+      if (!id) throw new Error("ไม่พบบัญชีผู้ใช้");
+      const res = await api.patch<AuthUser>(`/access-control/users/${id}`, { employeeId });
+      const updated = res.data.data;
+      // HR is the source of truth for แผนก/ตำแหน่ง once linked — mirror what the
+      // backend persisted (it pulls dept/position from the employee record).
+      if (productionUser) {
+        const next = {
+          ...productionUser,
+          employeeId: updated.employeeId,
+          department: updated.department,
+          position: updated.position,
+        };
+        localStorage.setItem("lis_production_sso_user", JSON.stringify(next));
+        setProductionUser(next);
+      } else {
+        setSyncedUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                employeeId: updated.employeeId,
+                department: updated.department,
+                position: updated.position,
+              }
+            : prev,
+        );
+      }
+    },
+    [productionUser, syncedUser?.id],
+  );
+
   const logout = () => {
     localStorage.removeItem("lis_production_sso_user");
     setProductionUser(null);
@@ -308,6 +345,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         loginWithProductionToken,
         logout,
+        linkSelfEmployee,
         devRoleIds: DEV_MODE ? devRoleIds : undefined,
         devRoles: DEV_MODE ? devRoles : undefined,
         toggleDevRole: DEV_MODE ? toggleDevRole : undefined,

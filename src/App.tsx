@@ -46,6 +46,7 @@ import LabTestingPage from "./pages/LabTestingPage";
 import LabTestingDetailPage from "./pages/LabTestingDetailPage";
 import StandardConfig from "./pages/StandardConfig";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
+import EmployeeLinkGate from "@/components/lis/EmployeeLinkGate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,6 +67,7 @@ const App = () => (
       
         <AuthProvider>
           <DevRoleSwitcher />
+          <EmployeeLinkGate />
           <NotificationProvider>
             <DailyCheckReminderWatcher />
             <SampleProvider>
