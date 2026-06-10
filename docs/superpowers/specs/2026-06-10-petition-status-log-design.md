@@ -92,14 +92,14 @@ Unknown/unmapped events are skipped (timeline shows milestones only, not every a
 current: {
   label: "QC รับแล้ว | Lab มอบหมายงานแล้ว รอเจ้าหน้าที่รับงาน",
   tracks: {
-    qc:  { label: "QC รับแล้ว" },
-    lab: { label: "Lab มอบหมายงานแล้ว รอเจ้าหน้าที่รับงาน" }
+    qc:  { side: "qc", label: "QC รับแล้ว" },
+    lab: { side: "lab", label: "Lab มอบหมายงานแล้ว รอเจ้าหน้าที่รับงาน" }
   }
 }
 ```
 
 - `label` = the present tracks' labels joined by `" | "`.
-- `tracks.qc` / `tracks.lab` each = `{ label, percent? }`. `percent` is set only while QC is actively entering values.
+- `tracks.qc` / `tracks.lab` each = `{ side, label, percent? }` (`side` is `'qc'`/`'lab'`). `percent` is set only while QC is actively entering values.
 - A track is **omitted** when it doesn't apply: `tracks.lab` only exists when the petition has a lab item AND lab is not yet done; once `labDone`, the lab track drops and `current` is driven by QC alone ("Lab เสร็จ → update จาก QC").
 
 ### Terminal / pre-receive states (single label, no `tracks`)
@@ -124,7 +124,7 @@ Shared signals: `qcReceived`/`labReceived` (`= !!qcReceivedAt`/`!!labReceivedAt`
 |---|---|
 | `!qcReceived` | `QC รอรับ` |
 | `total > 0 && filled >= total` | `QC ตรวจครบ — รอยืนยัน` |
-| `0 < filled` (entering) | `QC กำลังตรวจ — {paramNames} ({percent}%)` (sets `percent`) |
+| `0 < filled` (entering) | `QC กำลังตรวจ — {entered "param › field" labels} ({percent}%)` (sets `percent`) |
 | `isAssignee && !started` | `QC มอบหมายงานแล้ว รอเจ้าหน้าที่รับงาน` |
 | `isAssignee && started` | `QC {assignee.name} รับงานแล้ว · กำลังตรวจ` |
 | else (received, not this side's assignment, nothing entered) | `QC รับแล้ว` |
@@ -153,16 +153,18 @@ QC progress (the `filled`-based rows) is shown regardless of `assigneeSide`, sin
 - **Shared `started` signal**: `startTesting` (reviewHistory) / `firstResultAt` / QC `filled` are per-petition, so the assignee side flips "รอเจ้าหน้าที่รับงาน" → "รับงานแล้ว" off this single signal. `QrStartTestingModal` is currently a placeholder, so in practice `started` is driven by `firstResultAt` / QC `filled` until that accept-flow is built.
 - **labDone predicate** (unchanged): the petition has ≥ 1 lab item AND not every lab sampleId has a completed `PhysicalResult`. Lab sampleIds derived via `sampleIdsFromPetition` restricted to `batchNo` ending 1/6; `labDone` = every such sampleId has a `PhysicalResult` with `status === 'completed'`. Route loads `PhysicalResult.find({ sampleId: { $in: labSampleIds } })` and passes `labDone` into `buildStatusLog` (keeps the pure function DB-free).
 
-## QC heuristic (`computeQcHeuristic`)
+## QC heuristic (`computeQcHeuristic`) — FIELD granularity
 
-- **filled** = count of distinct `(itemSeq, parameterId)` in `qcResults` where `values` has ≥ 1 non-empty entry.
-- **total** = for each `petition.items[i]` × each active QC parameter `p` (`p.status === 'active'`, `(p.scope ?? 'qc') !== 'lab'`), count `p` when it applies to the item under the **lightweight** predicate:
-  - `p.applyAll`, **or**
-  - `p.commonNames` contains `item.commonName` (case-insensitive, trimmed), **or**
-  - `p.itemNames` contains `item.sampleName` (trimmed), **or**
-  - `item.testItems` (comma-split, lowercased) contains `p.name`.
-  - Deliberately **omits** productType/subCategory/itemGroup/simple-method dimensions — that is the approximation.
+Counts individual **value-fields**, not whole parameters, so entering one field of a
+multi-field parameter is *not* 100%.
+
+- **total** = for each `petition.items[i]` × each active QC parameter `p` (`p.status === 'active'`, `(p.scope ?? 'qc') !== 'lab'`) that applies to the item under the **lightweight** predicate below, add the count of `p`'s **countable value-fields** (`countableFields` = `valueFields` with `type !== 'photo'`, mirroring the frontend `isCountableField`).
+  - applies-to predicate: `p.applyAll`, **or** `p.commonNames` contains `item.commonName` (case-insensitive, trimmed), **or** `p.itemNames` contains `item.sampleName` (trimmed), **or** `item.testItems` (comma-split, lowercased) contains `p.name`.
+  - Deliberately **omits** productType/subCategory/itemGroup/simple-method dimensions, and does **not** unit-expand substance-mode fields (the QC page counts per-substance units) — those are the documented approximations.
+- **filled** = total non-empty entries across all `qcResults[].values` (`countFilledFields`), capped at `total`.
 - **percent** = `total > 0 ? round(filled / total * 100) : 0`.
+
+**`enteredFieldLabels`** returns the distinct `"{paramName} › {fieldKey}"` labels of filled fields (ordered by the result's `enteredAt` then key order; substance keys `label::สาร` render as `label — สาร`). These are what the `QC กำลังตรวจ — …` label lists, so the user sees *which field* is being filled (e.g. `กายภาพ › สี`).
 
 `filled` is capped at `total` for display so percent never exceeds 100 even if the heuristic denominator under-counts.
 
