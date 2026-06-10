@@ -125,7 +125,16 @@ export default function QCTestingPage() {
       className: 'align-top',
       cell: (p) => {
         const b = statusBadge(p.status);
-        return <Badge variant={b.variant}>{b.label}</Badge>;
+        return (
+          <div className="flex flex-col items-start gap-1">
+            <Badge variant={b.variant}>{b.label}</Badge>
+            {p.qcReceivedAt ? (
+              <Badge variant="green-soft" className="font-normal">รับ QC แล้ว</Badge>
+            ) : (
+              <Badge variant="gray-soft" className="font-normal">ยังไม่รับ QC</Badge>
+            )}
+          </div>
+        );
       },
     },
     {
