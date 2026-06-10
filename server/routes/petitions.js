@@ -27,17 +27,10 @@ function logAudit(petition, payload) {
   });
 }
 
-// Generate next petition number: P-YYMM-#### (resets monthly)
-async function nextPetitionNo() {
-  const now = new Date();
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const prefix = `P-${yy}${mm}-`;
-  const last = await Petition.findOne({ petitionNo: new RegExp(`^${prefix}`) })
-    .sort({ petitionNo: -1 })
-    .lean();
-  const nextSeq = last ? Number(last.petitionNo.slice(prefix.length)) + 1 : 1;
-  return `${prefix}${String(nextSeq).padStart(4, '0')}`;
+// Generate next petition number from DocumentNumberConfig (default: P-YYMM-####).
+const { nextDocumentNumber } = require('../lib/documentNumber');
+function nextPetitionNo() {
+  return nextDocumentNumber('petition', Petition, 'petitionNo');
 }
 
 function badRequest(res, message) {

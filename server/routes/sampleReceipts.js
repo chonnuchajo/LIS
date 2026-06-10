@@ -3,15 +3,10 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const SampleReceipt = require('../models/SampleReceipt');
 
-// Generate next run number: RCV-YYYY-#### (resets yearly)
-async function nextRunNo() {
-  const year = new Date().getFullYear();
-  const prefix = `RCV-${year}-`;
-  const last = await SampleReceipt.findOne({ runNo: new RegExp(`^${prefix}`) })
-    .sort({ runNo: -1 })
-    .lean();
-  const nextSeq = last ? Number(last.runNo.slice(prefix.length)) + 1 : 1;
-  return `${prefix}${String(nextSeq).padStart(4, '0')}`;
+// Generate next run number from DocumentNumberConfig (default: RCV-YYYY-####).
+const { nextDocumentNumber } = require('../lib/documentNumber');
+function nextRunNo() {
+  return nextDocumentNumber('sampleReceipt', SampleReceipt, 'runNo');
 }
 
 // GET /api/sample-receipts?from=&to=&receiver=
