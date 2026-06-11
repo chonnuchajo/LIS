@@ -31,6 +31,8 @@ import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
 import { matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
+import { useCanAccessPath } from '@/hooks/useCanAccessPath';
+import { RevisionRequestDialog } from '@/components/petition/RevisionRequestDialog';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -298,6 +300,10 @@ export default function LabTestingDetailPage() {
   const [saveStatesPhase2, setSaveStatesPhase2] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [wasReturned, setWasReturned] = useState(false);
+  const [labRejectOpen, setLabRejectOpen] = useState(false);
+  const [redoExplanation, setRedoExplanation] = useState('');
+  const canAccessPath = useCanAccessPath();
+  const canApproveLab = canAccessPath('/lab-approval');
   const [selectedPhase, setSelectedPhase] = useState<PetitionPhase>(1);
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -596,6 +602,10 @@ export default function LabTestingDetailPage() {
       });
       return;
     }
+    if (petition.labReturnNote && !redoExplanation.trim()) {
+      toast.error('กรุณาอธิบายว่าทำใหม่อย่างไร', { description: 'คำร้องนี้เคยถูกส่งกลับให้แก้ไข' });
+      return;
+    }
     // ปิด track แล้วหน้าจะ lock แก้ไม่ได้ → confirm ทุกครั้ง (รวมเตือนค่าผิดปกติใน dialog เดียว)
     const ok = await confirm({
       title: 'ยืนยันบันทึกผล',
@@ -607,15 +617,46 @@ export default function LabTestingDetailPage() {
     if (!ok) return;
     setSubmitting(true);
     try {
-      const updated = await api.completePetitionTrack(petition._id, 'lab', user?.name ?? 'system');
+      const updated = await api.completePetitionTrack(
+        petition._id, 'lab', user?.name ?? 'system', redoExplanation.trim() || undefined,
+      );
       toast.success(
         updated.status === 'success'
           ? 'บันทึกผล Lab เรียบร้อย — ส่งให้หัวหน้า QC ยืนยัน'
-          : 'บันทึกผล Lab เรียบร้อย — รอ QC ตรวจให้ครบ',
+          : 'บันทึกผล Lab เรียบร้อย — รอหัวหน้า Lab อนุมัติ',
       );
       navigate('/lab-testing');
     } catch {
       toast.error('บันทึกผลไม่สำเร็จ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleLabApprove = async () => {
+    if (!(await confirm({ title: 'อนุมัติผล Lab', description: 'อนุมัติผลการทดสอบ Lab นี้?' }))) return;
+    setSubmitting(true);
+    try {
+      await api.labApprovePetition(petition._id, user?.name ?? 'system');
+      toast.success('อนุมัติผล Lab เรียบร้อย');
+      navigate('/lab-approval');
+    } catch {
+      toast.error('อนุมัติไม่สำเร็จ');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleLabReject = async (note: string) => {
+    setSubmitting(true);
+    try {
+      await api.labRejectPetition(petition._id, user?.name ?? 'system', note);
+      toast.success('ส่งกลับให้แก้ไขแล้ว');
+      setLabRejectOpen(false);
+      navigate('/lab-approval');
+    } catch {
+      toast.error('ส่งกลับไม่สำเร็จ');
+      throw new Error('reject failed');
     } finally {
       setSubmitting(false);
     }
@@ -974,8 +1015,25 @@ export default function LabTestingDetailPage() {
           );
         })}
 
-        {/* Action buttons */}
-        {labItems.length > 0 && petition.status !== 'success' && (
+        {/* banner เหตุผลส่งกลับ + ช่องอธิบายทำใหม่ (เฉพาะตอนยังกรอก/แก้อยู่) */}
+        {!petition.labCompletedAt && petition.labReturnNote && (
+          <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 space-y-2">
+            <p className="text-sm font-semibold text-orange-700 flex items-center gap-1">
+              <RotateCcw className="h-4 w-4" /> ถูกส่งกลับให้แก้ไข
+            </p>
+            <p className="text-sm text-orange-800">{petition.labReturnNote}</p>
+            <label className="block text-xs font-medium text-gray-600 mt-2">อธิบายว่าทำใหม่อย่างไร (จำเป็น)</label>
+            <textarea
+              value={redoExplanation}
+              onChange={(e) => setRedoExplanation(e.target.value)}
+              className="w-full rounded-md border px-3 py-2 text-sm min-h-[80px] focus:outline-none focus:ring-1 focus:ring-orange-400"
+              placeholder="เช่น คาลิเบรตเครื่องใหม่แล้วทดสอบซ้ำ"
+            />
+          </div>
+        )}
+
+        {/* Action buttons — เฉพาะตอนผู้ทดสอบยังไม่ยืนยัน */}
+        {labItems.length > 0 && !petition.labCompletedAt && (
           <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             <Button
               variant={isComplete ? 'primary' : 'outline'}
@@ -983,30 +1041,54 @@ export default function LabTestingDetailPage() {
               disabled={submitting}
               className="gap-2"
             >
-              {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : isComplete ? (
-                <Send className="h-4 w-4" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isComplete ? <Send className="h-4 w-4" /> : <Save className="h-4 w-4" />}
               {isComplete ? 'บันทึก' : 'บันทึกแบบร่าง'}
             </Button>
           </div>
         )}
 
-        {petition.status === 'success' && (
-          <div className="rounded-lg border border-green-200 bg-green-50 p-4 flex flex-col items-center gap-2">
-            <CheckCircle2 className="h-6 w-6 text-green-500" />
-            <p className="text-sm font-semibold text-green-700">บันทึกผลแล้ว</p>
-            {abnormalCount > 0 && (
-              <p className="text-xs text-red-600 flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                คำร้องนี้มีค่าผิดปกติ — ตรวจสอบก่อนอนุมัติ
-              </p>
+        {/* รอหัวหน้า Lab อนุมัติ */}
+        {labItems.length > 0 && petition.labCompletedAt && !petition.labApprovedAt && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex flex-col items-center gap-3">
+            <div className="flex flex-col items-center gap-1">
+              <CheckCircle2 className="h-6 w-6 text-amber-500" />
+              <p className="text-sm font-semibold text-amber-700">บันทึกผลแล้ว — รอหัวหน้า Lab อนุมัติ</p>
+              {abnormalCount > 0 && (
+                <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                  <AlertTriangle className="h-3.5 w-3.5" />คำร้องนี้มีค่าผิดปกติ {abnormalCount} รายการ
+                </p>
+              )}
+            </div>
+            {canApproveLab && (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setLabRejectOpen(true)} disabled={submitting} className="gap-2">
+                  <RotateCcw className="h-4 w-4" /> ส่งกลับให้แก้
+                </Button>
+                <Button variant="primary" size="sm" onClick={handleLabApprove} disabled={submitting} className="gap-2">
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  อนุมัติผล Lab
+                </Button>
+              </div>
             )}
           </div>
         )}
+
+        {/* Lab อนุมัติแล้ว */}
+        {petition.labApprovedAt && (
+          <div className="rounded-lg border border-green-200 bg-green-50 p-4 flex flex-col items-center gap-2">
+            <CheckCircle2 className="h-6 w-6 text-green-500" />
+            <p className="text-sm font-semibold text-green-700">Lab อนุมัติแล้ว</p>
+            {petition.labApprovedBy && <p className="text-xs text-gray-500">โดย {petition.labApprovedBy}</p>}
+          </div>
+        )}
+
+        <RevisionRequestDialog
+          open={labRejectOpen}
+          onOpenChange={setLabRejectOpen}
+          petitionNo={petition.petitionNo}
+          submitterName={petition.submittedBy?.name ?? 'ผู้ทดสอบ Lab'}
+          onConfirm={handleLabReject}
+        />
       </div>
     </AppLayout>
   );
