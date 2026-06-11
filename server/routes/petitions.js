@@ -645,6 +645,7 @@ router.patch('/:id', async (req, res) => {
     delete updates.petitionNo;
     delete updates._id;
     delete updates.revisionOf;     // revisionOf is set on create only
+    delete updates.target;          // routing hint for reject only
     delete updates.approvedAt;     // server-managed
     delete updates.rejectedAt;     // server-managed
 
@@ -686,30 +687,48 @@ router.patch('/:id', async (req, res) => {
       return res.json(before);
     }
 
-    // Reject transition: success → rejected
+    // Reject transition: success → (requester | lab | qc)
     if (updates.status === 'rejected') {
       if (before.status !== 'success') {
         return res.status(409).json({ error: { message: 'ส่งกลับให้แก้ไขได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
       }
       const note = String(updates.revisionNote || '').trim();
-      if (!note) {
-        return badRequest(res, 'กรุณาระบุข้อความที่ต้องการให้แก้ไข');
+      if (!note) return badRequest(res, 'กรุณาระบุข้อความที่ต้องการให้แก้ไข');
+      const target = ['requester', 'lab', 'qc'].includes(req.body.target) ? req.body.target : 'requester';
+
+      if (target === 'requester') {
+        before.status = 'rejected';
+        before.rejectedAt = new Date();
+        before.reviewHistory.push({ action: 'reject', reviewedBy: actor || 'system', reviewedAt: new Date(), note });
+        await before.save();
+        logAudit(before, {
+          event: 'statusChanged', fromStatus: 'success', toStatus: 'rejected',
+          actor: actor || 'system', note: `ส่งกลับให้แก้ไข: ${note}`, metadata: { returnTo: 'requester' },
+        });
+        return res.json(before);
       }
-      before.status = 'rejected';
-      before.rejectedAt = new Date();
-      before.reviewHistory.push({
-        action: 'reject',
-        reviewedBy: actor || 'system',
-        reviewedAt: new Date(),
-        note,
-      });
+
+      // target lab/qc — เด้ง track กลับเป็น inProgress (ไม่ปิดงานทั้งใบ)
+      before.status = 'inProgress';
+      before.completedAt = null;
+      if (target === 'lab') {
+        before.labCompletedAt = null;
+        before.labCompletedBy = undefined;
+        before.labApprovedAt = null;
+        before.labApprovedBy = undefined;
+        before.labReturnNote = note;
+      } else {
+        before.qcCompletedAt = null;
+        before.qcCompletedBy = undefined;
+        before.qcReturnNote = note;
+      }
+      before.reviewHistory.push({ action: 'reject', reviewedBy: actor || 'system', reviewedAt: new Date(), note });
       await before.save();
       logAudit(before, {
-        event: 'statusChanged',
-        fromStatus: 'success',
-        toStatus: 'rejected',
+        event: 'statusChanged', fromStatus: 'success', toStatus: 'inProgress',
         actor: actor || 'system',
-        note: `ส่งกลับให้แก้ไข: ${note}`,
+        note: `หัวหน้า QC ส่งกลับ${target === 'lab' ? 'ฝั่ง Lab' : 'ฝั่ง QC'}: ${note}`,
+        metadata: { returnTo: target },
       });
       return res.json(before);
     }
