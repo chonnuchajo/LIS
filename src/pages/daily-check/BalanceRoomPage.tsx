@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getDailyCheckTrend, type DailyCheckTrend } from '@/lib/aiApi';
 import { Scale, CheckCircle2, Clock, RotateCcw, List, ClipboardList, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,6 +59,13 @@ const BalanceRoomPage = () => {
   const todayLabel = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
 
   const [drafts, setDrafts] = useState<Record<string, ScaleDraft>>({});
+  const [consecutiveAlert, setConsecutiveAlert] = useState<DailyCheckTrend | null>(null);
+
+  useEffect(() => {
+    const sid = SCALES[0]?.id ?? '01';
+    if (!sid) return;
+    getDailyCheckTrend({ type: 'consecutive', scaleId: sid, days: 7 }).then(setConsecutiveAlert);
+  }, []);
 
   // Filters
   const [filterDate, setFilterDate] = useState<string>(todayStr());
@@ -193,6 +201,13 @@ const BalanceRoomPage = () => {
           </Badge>
         </div>
       </div>
+
+      {consecutiveAlert?.alert && consecutiveAlert.message && (
+        <div className="flex items-center gap-2 rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800 mb-4">
+          <span>🚨</span>
+          <span>{consecutiveAlert.message}</span>
+        </div>
+      )}
 
       <Tabs defaultValue="check" className="space-y-4">
         <TabsList>

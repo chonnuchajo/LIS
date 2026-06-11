@@ -81,6 +81,19 @@ const EnvironmentCheckPage = () => {
     return map;
   }, [liveReadings]);
 
+  const sensorAgeMinutes = useMemo(() => {
+    if (liveReadings.length === 0) return null;
+    // Find the most stale reading across all boards
+    let maxAge = 0;
+    for (const r of liveReadings) {
+      if (!r.receivedAt) continue;
+      const diff = Date.now() - new Date(r.receivedAt).getTime();
+      const age = Math.floor(diff / 60000);
+      if (age > maxAge) maxAge = age;
+    }
+    return maxAge > 0 ? maxAge : null;
+  }, [liveReadings]);
+
   const latestByRoom = useMemo(() => {
     const map: Record<string, EnvCheckRecord> = {};
     for (const r of todayRecords) if (!map[r.room]) map[r.room] = r;
@@ -194,6 +207,13 @@ const EnvironmentCheckPage = () => {
           </Badge>
         </div>
       </div>
+
+      {sensorAgeMinutes != null && sensorAgeMinutes > 10 && (
+        <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700 mb-3">
+          <span>🔴</span>
+          <span>ข้อมูล sensor เก่า {sensorAgeMinutes} นาที — กรุณาตรวจสอบ Node-RED</span>
+        </div>
+      )}
 
       <Tabs defaultValue="check" className="space-y-4">
         <TabsList>

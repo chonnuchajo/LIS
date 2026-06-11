@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FlaskConical, CheckCircle2, Loader2, AlertCircle, AlertTriangle, RotateCcw, Save, Send } from 'lucide-react';
+import { FlaskConical, CheckCircle2, Loader2, AlertCircle, AlertTriangle, RotateCcw, Save, Send, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import PageHeader from '@/components/lis/PageHeader';
@@ -41,6 +41,8 @@ import {
 import { RevisionRequestDialog } from '@/components/petition/RevisionRequestDialog';
 import { buildPreviousValueLookup, getPreviousValue, type PreviousValueLookup } from '@/lib/revisionHelpers';
 import { qcReceivedBy } from '@/lib/receiveStatus';
+import { AiOutlierBadge } from '@/components/lis/AiOutlierBadge';
+import { checkOutlier, getOllamaStatus, streamAnalyzeQC, type OutlierCheckResult } from '@/lib/aiApi';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -95,6 +97,7 @@ interface TestFieldProps {
   resolvedStandardText?: string;
   lastBatchValue?: unknown;
   lastBatchLabel?: string;
+  outlierResult?: OutlierCheckResult | null;
 }
 
 function TestField({
@@ -113,6 +116,7 @@ function TestField({
   resolvedStandardText,
   lastBatchValue,
   lastBatchLabel,
+  outlierResult,
 }: TestFieldProps) {
   const strVal = value == null ? '' : String(value);
   const strNote = noteValue == null ? '' : String(noteValue);
@@ -228,6 +232,7 @@ function TestField({
           แบชก่อน{lastBatchLabel ? ` (${lastBatchLabel})` : ""}: {String(lastBatchValue)}{field.unit ? ` ${field.unit}` : ""}
         </p>
       )}
+      <AiOutlierBadge result={outlierResult} />
 
       {/* Conditional note input — appears when enum value requires explanation */}
       {showNote && (
@@ -319,12 +324,21 @@ export default function QCTestingDetailPage() {
   const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
   const [previousLookup, setPreviousLookup] = useState<PreviousValueLookup>(new Map());
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [outlierResults, setOutlierResults] = useState<Record<string, OutlierCheckResult>>({});
+  const [copyPasteWarnings, setCopyPasteWarnings] = useState<Record<string, boolean>>({});
+  const [ollamaAvailable, setOllamaAvailable] = useState(false);
+  const [analyzeLoading, setAnalyzeLoading] = useState(false);
+  const [analyzeText, setAnalyzeText] = useState('');
 
   // Load parameters and existing results (QC scope only)
   useEffect(() => {
     api.getParameters()
       .then((all) => setParameters(all.filter((p) => (p.scope ?? 'qc') === 'qc')))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    getOllamaStatus().then((s) => setOllamaAvailable(s.available));
   }, []);
 
   // Auto-advance status pendingReview → inProgress when QC enters the first value
@@ -520,6 +534,24 @@ export default function QCTestingDetailPage() {
     [user, advanceToInProgress],
   );
 
+  const handleOutlierCheck = useCallback(
+    async (
+      commonName: string,
+      parameterId: string,
+      fieldLabel: string,
+      value: unknown,
+      fieldType: string,
+    ) => {
+      if (fieldType !== 'number' && fieldType !== 'float') return;
+      const num = Number(value);
+      if (isNaN(num) || value === '' || value == null) return;
+      const result = await checkOutlier({ commonName, parameterId, fieldLabel, value: num });
+      const key = `${parameterId}__${fieldLabel}`;
+      setOutlierResults((prev) => ({ ...prev, [key]: result }));
+    },
+    [],
+  );
+
   // ── Feature B: last-batch reference values (display-only) ──────────────────
   // Build the unique (commonName, parameterId) pairs that need a prior-batch
   // lookup: only params that have at least one field with showLastBatch and a
@@ -567,6 +599,37 @@ export default function QCTestingDetailPage() {
     });
     return map;
   }, [lastBatchPairs, lastBatchQueries]);
+
+  // Detect copy-paste: warn when all numeric field values match the last batch exactly
+  useEffect(() => {
+    const warnings: Record<string, boolean> = {};
+    // values keys look like `${itemSeq}__${parameterId}`
+    Object.entries(values).forEach(([rKey, fieldValues]) => {
+      const matchingEntry = [...lastBatchByKey.entries()].find(([lbKey]) => {
+        // lbKey = `${commonName}__${parameterId}`
+        // rKey = `${itemSeq}__${parameterId}` — extract parameterId (last segment)
+        const parts = rKey.split('__');
+        const paramId = parts[parts.length - 1];
+        return lbKey.endsWith(`__${paramId}`);
+      });
+      if (!matchingEntry) return;
+      const lastBatchValues = matchingEntry[1]?.values ?? {};
+
+      // Get all numeric fields that have values
+      const numericPairs = Object.entries(fieldValues as Record<string, unknown>).filter(([, v]) => {
+        const n = Number(v);
+        return v !== '' && v != null && !isNaN(n);
+      });
+      if (numericPairs.length < 2) return; // need at least 2 fields to flag
+
+      const allMatch = numericPairs.every(([label, val]) => {
+        const lastVal = lastBatchValues[label];
+        return lastVal != null && String(lastVal) === String(val);
+      });
+      if (allMatch) warnings[rKey] = true;
+    });
+    setCopyPasteWarnings(warnings);
+  }, [values, lastBatchByKey]);
 
   if (petitionLoading) {
     return (
@@ -868,6 +931,42 @@ export default function QCTestingDetailPage() {
         />
       )}
 
+      {ollamaAvailable && (
+        <div className="mb-4 space-y-2">
+          <button
+            type="button"
+            disabled={analyzeLoading}
+            onClick={async () => {
+              setAnalyzeLoading(true);
+              setAnalyzeText('');
+              try {
+                await streamAnalyzeQC(id!, (chunk) => {
+                  setAnalyzeText((prev) => prev + chunk);
+                });
+              } catch {
+                setAnalyzeText('(เกิดข้อผิดพลาด — กรุณาลองใหม่)');
+              } finally {
+                setAnalyzeLoading(false);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md bg-violet-50 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50"
+          >
+            {analyzeLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            วิเคราะห์ผล (AI)
+          </button>
+
+          {analyzeText && (
+            <div className="rounded-md border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900 whitespace-pre-wrap">
+              {analyzeText}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Each item */}
       {items.map((item) => {
         const matchedParams = matchParametersForItem(item, parameters, idsFor(item));
@@ -938,6 +1037,12 @@ export default function QCTestingDetailPage() {
                           <span className="text-xs text-grey-400">{param.note}</span>
                         )}
                       </div>
+                      {copyPasteWarnings[k] && (
+                        <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-700 mb-2">
+                          <span>🔔</span>
+                          <span>ค่าทุกตัวเหมือน batch ก่อนหน้า — กรุณาตรวจสอบว่าไม่ได้ copy ค่าเดิม</span>
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-2">
                         {fields.map((field) => {
                           if (field.type === 'reference') {
@@ -980,9 +1085,16 @@ export default function QCTestingDetailPage() {
                                   saveInfo={phaseSaves[k]?.[unit.key]}
                                   noteSaveInfo={phaseSaves[k]?.[noteLabel]}
                                   disabled={isLocked || phaseLocked}
-                                  onChange={(val) =>
-                                    handleFieldChange(petition, item, param, unit.key, val, effectivePhase)
-                                  }
+                                  onChange={(val) => {
+                                    handleFieldChange(petition, item, param, unit.key, val, effectivePhase);
+                                    handleOutlierCheck(
+                                      item.commonName ?? '',
+                                      String(param._id),
+                                      unit.field.label,
+                                      val,
+                                      unit.field.type,
+                                    );
+                                  }}
                                   onNoteChange={(val) =>
                                     handleFieldChange(petition, item, param, noteLabel, val, effectivePhase)
                                   }
@@ -999,6 +1111,7 @@ export default function QCTestingDetailPage() {
                                       : undefined
                                   }
                                   lastBatchLabel={lastBatch?.petitionNo}
+                                  outlierResult={outlierResults[`${String(param._id)}__${unit.field.label}`]}
                                 />
                                 {beforeRef != null && beforeRef !== '' ? (
                                   <p className="text-[10px] text-grey-400 mt-0.5">

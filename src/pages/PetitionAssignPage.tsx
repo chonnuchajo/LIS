@@ -24,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useAuth } from '@/hooks/useAuth';
 import { usePetitionList } from '@/hooks/usePetition';
 import { api, type MachineItem } from '@/lib/api';
+import { getMachineSuggestions, type MachineSuggestion } from '@/lib/aiApi';
 import { DEV_MODE, synthesizeDevAssignees } from '@/config/dev';
 import { parseSubstances } from '@/lib/substances';
 import { readSlotMethods, machineMatchesMethod, type MethodDoc } from '@/lib/methodRegistry';
@@ -193,6 +194,7 @@ export default function PetitionAssignPage() {
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<TabKey>('normal');
+  const [machineSuggestions, setMachineSuggestions] = useState<Record<string, MachineSuggestion[]>>({});
 
   function startEditing(petitionId: string) {
     setEditingIds((prev) => new Set(prev).add(petitionId));
@@ -353,6 +355,22 @@ export default function PetitionAssignPage() {
     });
     return out;
   }, [pendingData?.items, inProgressData?.items, commonNameToSlots]);
+
+  useEffect(() => {
+    const seen = new Set<string>();
+    [...(pendingData?.items ?? []), ...(inProgressData?.items ?? [])].forEach((petition) => {
+      const groups = groupsByPetition.get(petition._id) ?? [];
+      groups.forEach((g) => {
+        if (seen.has(g.groupKey)) return;
+        seen.add(g.groupKey);
+        getMachineSuggestions(g.commonName, petition.dept).then((suggestions) => {
+          if (suggestions.length > 0) {
+            setMachineSuggestions((prev) => ({ ...prev, [g.groupKey]: suggestions }));
+          }
+        });
+      });
+    });
+  }, [pendingData, inProgressData, groupsByPetition]);
 
   // Machine-backed method codes required by a slot (bench/non-machine methods excluded).
   const machineMethodsOfSlot = useMemo(
@@ -662,6 +680,7 @@ export default function PetitionAssignPage() {
                 assignPetition={assignPetition}
                 onPetitionClick={(id) => navigate(`/petitions/${id}`)}
                 emptyText="ไม่พบคำร้องที่ต้อง assign"
+                machineSuggestions={machineSuggestions}
               />
             </TabsContent>
 
@@ -702,6 +721,7 @@ export default function PetitionAssignPage() {
                 onPetitionClick={(id) => navigate(`/petitions/${id}`)}
                 emptyText="ยังไม่มีคำร้อง Phase 2 ที่รอเลือก"
                 showPhase2Badge
+                machineSuggestions={machineSuggestions}
               />
             </TabsContent>
           </Tabs>
@@ -897,6 +917,7 @@ interface AssignTableProps {
   onPetitionClick: (id: string) => void;
   emptyText: string;
   showPhase2Badge?: boolean;
+  machineSuggestions: Record<string, MachineSuggestion[]>;
 }
 
 function AssignTable({
@@ -920,6 +941,7 @@ function AssignTable({
   onPetitionClick,
   emptyText,
   showPhase2Badge,
+  machineSuggestions,
 }: AssignTableProps) {
   return (
     <div className="rounded-[10px] border border-black-50 bg-white overflow-x-auto">
@@ -1127,8 +1149,22 @@ function AssignTable({
                         return (
                           <div
                             key={group.groupKey}
-                            className="flex min-h-[60px] items-center py-1.5 first:pt-0 last:pb-0"
+                            className="flex min-h-[60px] flex-col justify-center py-1.5 first:pt-0 last:pb-0"
                           >
+                            {(machineSuggestions[group.groupKey] ?? []).length > 0 && (
+                              <div className="flex flex-wrap items-center gap-1 mb-1">
+                                <span className="text-[11px] text-grey-400">AI แนะนำ:</span>
+                                {machineSuggestions[group.groupKey].map((s) => (
+                                  <span
+                                    key={s.machineCode}
+                                    className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 border border-blue-200"
+                                    title={`ใช้ ${s.usageCount} ครั้งใน 10 batches ล่าสุด`}
+                                  >
+                                    {s.machineCode} ({s.usageCount}/10)
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                             <div className="flex flex-wrap items-center gap-1.5">
                               {group.slots.map((slot, idx) => (
                                 <div key={`${slot.name}-${idx}`} className="flex items-center gap-1.5">

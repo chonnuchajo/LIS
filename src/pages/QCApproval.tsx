@@ -1,17 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, AlertTriangle, RotateCcw } from "lucide-react";
+import { ShieldCheck, AlertTriangle, RotateCcw, Sparkles, Loader2 } from "lucide-react";
 import { usePetitionList } from "@/hooks/usePetition";
 import { PETITION_DEPT_LABELS, type Petition } from "@/types/petition.types";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import { statusBadge } from "@/lib/statusBadge";
+import { getOllamaStatus, streamDraftNote } from "@/lib/aiApi";
 
 const API_BASE = import.meta.env.BASE_URL + "api";
+
+function priorityScore(
+  petition: Petition,
+  abnormalMap: Record<string, boolean>,
+  returnedMap: Record<string, boolean>,
+): number {
+  const deptScore = petition.dept === 'rm' ? 5 : petition.dept === 'fg' ? 3 : 1;
+  const isOverdue = petition.completedAt
+    ? Date.now() - new Date(petition.completedAt).getTime() > 24 * 60 * 60 * 1000
+    : false;
+  return (
+    (abnormalMap[petition._id] ? 30 : 0) +
+    (isOverdue ? 20 : 0) +
+    (returnedMap[petition._id] ? 10 : 0) +
+    deptScore
+  );
+}
 
 const QCApproval = () => {
   const navigate = useNavigate();
@@ -24,6 +42,21 @@ const QCApproval = () => {
   const [testersMap, setTestersMap] = useState<Record<string, string[]>>({});
   const [abnormalMap, setAbnormalMap] = useState<Record<string, boolean>>({});
   const [returnedMap, setReturnedMap] = useState<Record<string, boolean>>({});
+  const [ollamaAvailable, setOllamaAvailable] = useState(false);
+  const [draftingId, setDraftingId] = useState<string | null>(null);
+  const [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
+
+  const sortedPetitions = useMemo(
+    () =>
+      [...successPetitions].sort(
+        (a, b) => priorityScore(b, abnormalMap, returnedMap) - priorityScore(a, abnormalMap, returnedMap),
+      ),
+    [successPetitions, abnormalMap, returnedMap],
+  );
+
+  useEffect(() => {
+    getOllamaStatus().then((s) => setOllamaAvailable(s.available));
+  }, []);
 
   useEffect(() => {
     if (successPetitions.length === 0) {
@@ -70,14 +103,33 @@ const QCApproval = () => {
       header: "เลขที่คำร้อง",
       className: "font-semibold text-primary",
       cell: (p) => (
-        <div className="flex items-center gap-1.5">
-          <span>{p.petitionNo}</span>
-          {returnedMap[p._id] && (
-            <RotateCcw className="h-4 w-4 text-orange-500 shrink-0" aria-label="ส่งกลับมาบันทึกผลใหม่" />
-          )}
-          {abnormalMap[p._id] && (
-            <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" aria-label="พบค่าผิดปกติในผลทดสอบ" />
-          )}
+        <div>
+          <div className="flex items-center gap-1.5">
+            <span>{p.petitionNo}</span>
+            {returnedMap[p._id] && (
+              <RotateCcw className="h-4 w-4 text-orange-500 shrink-0" aria-label="ส่งกลับมาบันทึกผลใหม่" />
+            )}
+            {abnormalMap[p._id] && (
+              <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" aria-label="พบค่าผิดปกติในผลทดสอบ" />
+            )}
+          </div>
+          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+            {abnormalMap[p._id] && (
+              <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                ผิดปกติ
+              </span>
+            )}
+            {p.completedAt && Date.now() - new Date(p.completedAt).getTime() > 24 * 60 * 60 * 1000 && (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                ⏰ เกิน 24h
+              </span>
+            )}
+            {returnedMap[p._id] && (
+              <span className="inline-flex items-center rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700">
+                🔄 Revision
+              </span>
+            )}
+          </div>
         </div>
       ),
     },
@@ -118,15 +170,58 @@ const QCApproval = () => {
       header: "การดำเนินการ",
       className: "text-right",
       cell: (p) => (
-        <Button
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/qc-testing/${p._id}`);
-          }}
-        >
-          ตรวจสอบ
-        </Button>
+        <div className="flex flex-col items-end gap-2">
+          <Button
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/qc-testing/${p._id}`);
+            }}
+          >
+            ตรวจสอบ
+          </Button>
+
+          {ollamaAvailable && (
+            <div className="mt-1 space-y-2 w-full" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                disabled={draftingId === p._id}
+                onClick={async () => {
+                  setDraftingId(p._id);
+                  setDraftNotes((prev) => ({ ...prev, [p._id]: '' }));
+                  try {
+                    await streamDraftNote(p._id, (chunk) => {
+                      setDraftNotes((prev) => ({ ...prev, [p._id]: (prev[p._id] ?? '') + chunk }));
+                    });
+                  } catch {
+                    setDraftNotes((prev) => ({ ...prev, [p._id]: '(เกิดข้อผิดพลาด — กรุณาลองใหม่)' }));
+                  } finally {
+                    setDraftingId(null);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md bg-violet-50 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50"
+              >
+                {draftingId === p._id ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5" />
+                )}
+                Draft หมายเหตุ (AI)
+              </button>
+
+              {draftNotes[p._id] && (
+                <textarea
+                  value={draftNotes[p._id]}
+                  onChange={(e) =>
+                    setDraftNotes((prev) => ({ ...prev, [p._id]: e.target.value }))
+                  }
+                  className="w-full rounded-md border border-violet-200 bg-white px-3 py-2 text-sm min-h-[100px] focus:outline-none focus:ring-1 focus:ring-violet-400"
+                  placeholder="AI กำลังสร้าง draft..."
+                />
+              )}
+            </div>
+          )}
+        </div>
       ),
     },
   ];
@@ -141,12 +236,12 @@ const QCApproval = () => {
               QC Approval
             </span>
           }
-          description={`ตรวจสอบและอนุมัติผลการทดสอบจาก QC · ${successPetitions.length} รายการรออนุมัติ`}
+          description={`ตรวจสอบและอนุมัติผลการทดสอบจาก QC · ${sortedPetitions.length} รายการรออนุมัติ`}
         />
 
         <DataTable
           columns={columns}
-          data={successPetitions}
+          data={sortedPetitions}
           rowKey={(p) => p._id}
           isLoading={petitionLoading}
           onRowClick={(p) => navigate(`/qc-testing/${p._id}`)}
