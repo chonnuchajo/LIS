@@ -127,6 +127,7 @@ function buildCurrent(petition, qc, fieldLabels, labDone) {
 
   const qcTrack = buildQcTrack({
     qcReceived, isAssignee: assigneeSide === 'qc', assignee, started, qc, fieldLabels,
+    qcCompleted: !!petition.qcCompletedAt,
   });
   const labTrack = hasLabItem
     ? buildLabTrack({ labReceived, isAssignee: assigneeSide === 'lab', assignee, started, labDone })
@@ -151,12 +152,19 @@ function assigneeSideOf(assignee) {
 
 // QC side of `current`. Returns { label, percent? }. `isAssignee` = the single
 // petition assignee belongs to QC (only then does the assign/accept line show here).
-function buildQcTrack({ qcReceived, isAssignee, assignee, started, qc, fieldLabels }) {
+// "ตรวจครบ" is driven by the authoritative qcCompletedAt flag (set when QC presses
+// บันทึกผล via POST /complete), NOT by the qc.filled>=qc.total heuristic: `filled`
+// counts per-substance keys + stray result rows that `total` does not, so the
+// heuristic can reach 100% while required cells are still empty (P-2606-0013).
+function buildQcTrack({ qcReceived, isAssignee, assignee, started, qc, fieldLabels, qcCompleted }) {
   if (!qcReceived) return { label: 'QC รอรับ' };
-  if (qc.total > 0 && qc.filled >= qc.total) return { label: 'QC ตรวจครบ — รอยืนยัน' };
+  if (qcCompleted) return { label: 'QC ตรวจครบ — รอยืนยัน' };
   if (qc.filled > 0) {
+    // Heuristic percent is approximate and can hit 100 before QC confirms — cap at
+    // 99 so the in-progress bar never reads fully done ahead of the qcCompletedAt flag.
+    const percent = Math.min(qc.percent, 99);
     const names = (fieldLabels ?? []).length ? ` — ${fieldLabels.join(', ')}` : '';
-    return { label: `QC กำลังตรวจ${names} (${qc.percent}%)`, percent: qc.percent };
+    return { label: `QC กำลังตรวจ${names} (${percent}%)`, percent };
   }
   if (isAssignee) {
     return started
