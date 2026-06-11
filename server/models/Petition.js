@@ -35,7 +35,7 @@ const ReviewEntrySchema = new mongoose.Schema(
   {
     action: {
       type: String,
-      enum: ['note', 'approve', 'reject', 'startTesting'],
+      enum: ['note', 'approve', 'reject', 'startTesting', 'lab-approve', 'lab-reject'],
       required: true,
     },
     reviewedBy: { type: String, required: true },
@@ -118,6 +118,15 @@ const PetitionSchema = new mongoose.Schema(
     labCompletedBy: String,
     qcCompletedAt: Date,
     qcCompletedBy: String,
+    // Lab supervisor approval (ด่านหลังผู้ทดสอบ Lab บันทึกผล — success เกิดหลังขั้นนี้)
+    labApprovedAt: Date,
+    labApprovedBy: String,
+    // เหตุผลล่าสุดที่ track ถูกส่งกลับ (เคลียร์เมื่อผู้ทดสอบ re-confirm)
+    labReturnNote: String,
+    qcReturnNote: String,
+    // ผู้ทดสอบอธิบาย "ทำใหม่ยังไง" ตอน re-confirm หลังโดนส่งกลับ
+    labRedoExplanation: String,
+    qcRedoExplanation: String,
     firstResultAt: Date,
     completedAt: Date,
     submittedBy: { type: SubmittedBySchema, required: true },
