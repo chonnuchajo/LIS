@@ -708,11 +708,12 @@ export default function QCTestingDetailPage() {
     }
     setSubmitting(true);
     try {
-      await api.patch(`/petitions/${petition._id}`, {
-        status: 'success',
-        actor: user?.name ?? 'system',
-      });
-      toast.success('บันทึกผลเรียบร้อย');
+      const updated = await api.completePetitionTrack(petition._id, 'qc', user?.name ?? 'system');
+      toast.success(
+        updated.status === 'success'
+          ? 'บันทึกผล QC เรียบร้อย — ส่งให้หัวหน้า QC ยืนยัน'
+          : 'บันทึกผล QC เรียบร้อย — รอ Lab ตรวจให้ครบ',
+      );
       navigate('/qc-testing');
     } catch {
       toast.error('บันทึกผลไม่สำเร็จ');
@@ -748,7 +749,9 @@ export default function QCTestingDetailPage() {
     }
   };
 
-  const isLocked = petition.status === 'success';
+  // Locked once QC has submitted its results (read-only while waiting for Lab /
+  // หัวหน้า QC), or after the petition is fully complete.
+  const isLocked = petition.status === 'success' || !!petition.qcCompletedAt;
 
   return (
     <AppLayout title={petition.petitionNo}>

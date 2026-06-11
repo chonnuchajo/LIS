@@ -112,6 +112,12 @@ const PetitionSchema = new mongoose.Schema(
     labReceivedBy: String,
     qcReceivedAt: Date,
     qcReceivedBy: String,
+    // Per-track completion ("บันทึกผล" pressed). Petition → success only when every
+    // required track is done (QC always; Lab when there is a lab-batch item).
+    labCompletedAt: Date,
+    labCompletedBy: String,
+    qcCompletedAt: Date,
+    qcCompletedBy: String,
     firstResultAt: Date,
     completedAt: Date,
     submittedBy: { type: SubmittedBySchema, required: true },

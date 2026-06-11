@@ -199,6 +199,10 @@ interface PetitionBase {
   labReceivedBy?: string;
   qcReceivedAt?: string | null;
   qcReceivedBy?: string;
+  labCompletedAt?: string | null;
+  labCompletedBy?: string;
+  qcCompletedAt?: string | null;
+  qcCompletedBy?: string;
   firstResultAt?: string | null;
   completedAt?: string | null;
   // 2-phase testing

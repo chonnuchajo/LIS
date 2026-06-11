@@ -223,6 +223,18 @@ function buildTimeline(auditLogs, petition) {
   return out;
 }
 
+// Success gate — true when every REQUIRED track has recorded completion.
+// QC is required on EVERY petition; Lab is required only when the petition has a
+// lab-batch item. A petition may transition to `success` only when this holds —
+// so a single track finishing (Lab OR QC) never completes the petition alone.
+function isPetitionComplete(petition) {
+  const items = (petition ?? {}).items ?? [];
+  const hasLabItem = items.some((it) => isLabBatch(it.batchNo ?? ''));
+  const qcDone = !!(petition ?? {}).qcCompletedAt;
+  const labDone = !hasLabItem || !!(petition ?? {}).labCompletedAt;
+  return qcDone && labDone;
+}
+
 // Top-level: assemble { current, timeline } from route-loaded inputs.
 function buildStatusLog(petition, auditLogs, qcResults, parameters, labDone) {
   const qc = computeQcHeuristic(petition, qcResults, parameters);
@@ -244,4 +256,5 @@ module.exports = {
   timelineLabel,
   buildTimeline,
   buildStatusLog,
+  isPetitionComplete,
 };
