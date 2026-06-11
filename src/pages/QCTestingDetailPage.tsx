@@ -322,6 +322,7 @@ export default function QCTestingDetailPage() {
   const [wasReturned, setWasReturned] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<PetitionPhase>(1);
   const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState<'requester' | 'lab' | 'qc'>('requester');
   const [previousLookup, setPreviousLookup] = useState<PreviousValueLookup>(new Map());
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [outlierResults, setOutlierResults] = useState<Record<string, OutlierCheckResult>>({});
@@ -805,15 +806,19 @@ export default function QCTestingDetailPage() {
   };
 
   const handleReject = async (note: string) => {
+    setSubmitting(true);
     try {
-      await api.rejectPetition(petition._id, user?.name ?? 'system', note);
+      await api.rejectPetition(petition._id, user?.name ?? 'system', note, rejectTarget);
       toast.success('ส่งกลับให้แก้ไขเรียบร้อย', {
         description: `ส่งให้ ${petition.submittedBy?.name ?? 'ผู้ยื่น'}`,
       });
+      setRevisionDialogOpen(false);
       navigate('/qc-approval');
     } catch {
       toast.error('ส่งกลับไม่สำเร็จ');
       throw new Error('reject failed');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -974,10 +979,15 @@ export default function QCTestingDetailPage() {
         const phaseSaves = savesForPhase(effectivePhase);
         const phaseLocked = effectivePhase === 2 && currentPhase === 1;
         return (
-          <Card key={item.seq} className="overflow-hidden">
-            <CardHeader className="bg-grey-50 pb-3">
+          <Card key={item.seq} className={`overflow-hidden${/[16]$/.test(String(item.batchNo ?? '').trim()) ? ' border-blue-300' : ''}`}>
+            <CardHeader className={`pb-3 ${/[16]$/.test(String(item.batchNo ?? '').trim()) ? 'bg-blue-50' : 'bg-grey-50'}`}>
               <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                 <span>รายการที่ {item.seq}: {item.sampleName || '-'}</span>
+                {/[16]$/.test(String(item.batchNo ?? '').trim()) && (
+                  <Badge variant="blue-soft" className="font-normal text-xs">
+                    ผล Lab
+                  </Badge>
+                )}
                 {item.batchNo && (
                   <Badge variant="gray-soft" className="font-normal">
                     Batch: {item.batchNo}
@@ -1170,17 +1180,35 @@ export default function QCTestingDetailPage() {
               </p>
             )}
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRevisionDialogOpen(true)}
-              disabled={submitting}
-              className="gap-2"
-            >
-              <RotateCcw className="h-4 w-4" />
-              ส่งให้แก้ไข
-            </Button>
+          {(petition.labRedoExplanation || petition.qcRedoExplanation) && (
+            <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm w-full">
+              <p className="font-semibold text-violet-700 mb-1">คำอธิบายการทำใหม่</p>
+              {petition.labRedoExplanation && <p className="text-violet-800">Lab: {petition.labRedoExplanation}</p>}
+              {petition.qcRedoExplanation && <p className="text-violet-800">QC: {petition.qcRedoExplanation}</p>}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-gray-500">ส่งกลับไปยัง:</span>
+                {([['requester', 'ผู้ส่งคำขอ'], ['lab', 'Lab'], ['qc', 'QC']] as const).map(([val, label]) => (
+                  <label key={val} className="flex items-center gap-1 cursor-pointer">
+                    <input type="radio" name="rejectTarget" checked={rejectTarget === val} onChange={() => setRejectTarget(val)} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setRevisionDialogOpen(true)}
+                disabled={submitting}
+                className="gap-2"
+              >
+                <RotateCcw className="h-4 w-4" />
+                ส่งให้แก้ไข
+              </Button>
+            </div>
             <Button
               variant="primary"
               size="sm"
