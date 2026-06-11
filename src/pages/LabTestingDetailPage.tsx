@@ -602,11 +602,12 @@ export default function LabTestingDetailPage() {
     }
     setSubmitting(true);
     try {
-      await api.patch(`/petitions/${petition._id}`, {
-        status: 'success',
-        actor: user?.name ?? 'system',
-      });
-      toast.success('บันทึกผลเรียบร้อย');
+      const updated = await api.completePetitionTrack(petition._id, 'lab', user?.name ?? 'system');
+      toast.success(
+        updated.status === 'success'
+          ? 'บันทึกผล Lab เรียบร้อย — ส่งให้หัวหน้า QC ยืนยัน'
+          : 'บันทึกผล Lab เรียบร้อย — รอ QC ตรวจให้ครบ',
+      );
       navigate('/lab-testing');
     } catch {
       toast.error('บันทึกผลไม่สำเร็จ');
@@ -617,7 +618,7 @@ export default function LabTestingDetailPage() {
 
   const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
   const isAssigned = isFullAccess || isAssignedTo(petition.assignedTo, user);
-  const isLocked = petition.status === 'success' || !isAssigned;
+  const isLocked = petition.status === 'success' || !!petition.labCompletedAt || !isAssigned;
 
   return (
     <AppLayout title={petition.petitionNo}>

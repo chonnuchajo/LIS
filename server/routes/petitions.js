@@ -10,7 +10,7 @@ const PetitionAuditLog = require('../models/PetitionAuditLog');
 const { maybeAdvancePhase } = require('../lib/phaseAdvance');
 const QCTestResult = require('../models/QCTestResult');
 const Parameter = require('../models/Parameter');
-const { buildStatusLog, isLabBatch } = require('../lib/petitionStatusLog');
+const { buildStatusLog, isLabBatch, isPetitionComplete } = require('../lib/petitionStatusLog');
 
 function sampleIdsFromPetition(petition) {
   if (!petition || !Array.isArray(petition.items)) return [];
@@ -258,20 +258,80 @@ router.get('/status-log/:id', async (req, res) => {
       Parameter.find({ status: 'active' }).lean(),
     ]);
 
-    // labDone: every lab sampleId has a completed PhysicalResult
+    // labDone: Lab track finished — explicit completion flag, or (legacy) every lab
+    // sampleId has a completed PhysicalResult.
     const labSampleIds = (petition.items || [])
       .filter((it) => isLabBatch(it.batchNo || ''))
       .map((it) => it.sampleId || `${petition.petitionNo}-${it.seq}`)
       .filter(Boolean);
     let labDone = true;
     if (labSampleIds.length > 0) {
-      const physResults = await PhysicalResult.find({ sampleId: { $in: labSampleIds } }).lean();
-      labDone = labSampleIds.every(
-        (sid) => physResults.find((p) => p.sampleId === sid)?.status === 'completed',
-      );
+      if (petition.labCompletedAt) {
+        labDone = true;
+      } else {
+        const physResults = await PhysicalResult.find({ sampleId: { $in: labSampleIds } }).lean();
+        labDone = labSampleIds.every(
+          (sid) => physResults.find((p) => p.sampleId === sid)?.status === 'completed',
+        );
+      }
     }
 
     res.json(buildStatusLog(petition, auditLogs, qcResults, parameters, labDone));
+  } catch (err) {
+    res.status(400).json({ error: { message: err.message } });
+  }
+});
+
+// POST /api/petitions/:id/complete  → one track records "บันทึกผล" (Lab or QC).
+// Petition flips to `success` ONLY when every required track is complete
+// (QC always; Lab when the petition has a lab-batch item). Until then it stays
+// inProgress, waiting for the other side.
+router.post('/:id/complete', async (req, res) => {
+  try {
+    const side = String(req.body?.side || '').trim();
+    const actor = req.body?.actor || 'system';
+    if (!['lab', 'qc'].includes(side)) return badRequest(res, 'side ต้องเป็น "lab" หรือ "qc"');
+
+    const doc = await Petition.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if (doc.status === 'approved' || doc.status === 'rejected') {
+      return res.status(409).json({ error: { message: 'คำร้องนี้ปิดแล้ว ไม่สามารถบันทึกผลได้' } });
+    }
+
+    const now = new Date();
+    if (side === 'qc') {
+      doc.qcCompletedAt = now;
+      doc.qcCompletedBy = actor;
+    } else {
+      doc.labCompletedAt = now;
+      doc.labCompletedBy = actor;
+    }
+
+    const prevStatus = doc.status;
+    const sideLabel = side === 'qc' ? 'QC' : 'Lab';
+    if (isPetitionComplete(doc)) {
+      if (doc.status !== 'success') doc.status = 'success';
+      if (!doc.completedAt) doc.completedAt = now;
+      await doc.save();
+      logAudit(doc, {
+        event: 'statusChanged',
+        fromStatus: prevStatus,
+        toStatus: 'success',
+        actor,
+        note: `${sideLabel} บันทึกผลเสร็จ — ครบทุกส่วน รอหัวหน้า QC ยืนยัน`,
+        metadata: { side },
+      });
+    } else {
+      await doc.save();
+      logAudit(doc, {
+        event: 'updated',
+        toStatus: doc.status,
+        actor,
+        note: `${sideLabel} บันทึกผลเสร็จ — รออีกฝั่งตรวจให้ครบ`,
+        metadata: { side },
+      });
+    }
+    res.json(doc);
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
   }
@@ -516,6 +576,13 @@ router.patch('/:id', async (req, res) => {
     // Terminal-state guard
     if ((before.status === 'approved' || before.status === 'rejected') && updates.status && updates.status !== before.status) {
       return res.status(409).json({ error: { message: 'คำร้องนี้ปิดแล้ว ไม่สามารถเปลี่ยนสถานะได้' } });
+    }
+
+    // `success` is gated: it must be reached via POST /:id/complete (which checks
+    // that every required track — QC always, Lab for lab batches — has finished),
+    // never forced straight through a generic update.
+    if (updates.status === 'success' && before.status !== 'success') {
+      return res.status(409).json({ error: { message: 'ต้องบันทึกผลผ่านแต่ละส่วน (Lab/QC) — สถานะ "เสร็จสิ้น" ตั้งตรงไม่ได้' } });
     }
 
     // Approve transition: success → approved

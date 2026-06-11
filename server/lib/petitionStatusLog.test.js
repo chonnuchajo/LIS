@@ -386,3 +386,43 @@ test('buildStatusLog: combines dual-track current + timeline', () => {
   assert.strictEqual(out.current.tracks.lab, undefined);
   assert.deepStrictEqual(out.timeline.map((t) => t.label), ['ยื่นคำขอ']);
 });
+
+// ─── isPetitionComplete (success gate) ───────────────────────────────────────
+const { isPetitionComplete } = require('./petitionStatusLog');
+
+test('isPetitionComplete: no lab item — QC done alone → complete', () => {
+  assert.strictEqual(
+    isPetitionComplete({ items: [{ batchNo: 'B-2' }], qcCompletedAt: 'T' }),
+    true,
+  );
+});
+
+test('isPetitionComplete: no lab item — QC not done → incomplete', () => {
+  assert.strictEqual(isPetitionComplete({ items: [{ batchNo: 'B-2' }] }), false);
+});
+
+test('isPetitionComplete: lab item — QC done but lab not → incomplete (wait for lab)', () => {
+  assert.strictEqual(
+    isPetitionComplete({ items: [{ batchNo: 'B-1' }], qcCompletedAt: 'T' }),
+    false,
+  );
+});
+
+test('isPetitionComplete: lab item — lab done but QC not → incomplete (QC always required)', () => {
+  assert.strictEqual(
+    isPetitionComplete({ items: [{ batchNo: 'B-1' }], labCompletedAt: 'T' }),
+    false,
+  );
+});
+
+test('isPetitionComplete: lab item — both done → complete', () => {
+  assert.strictEqual(
+    isPetitionComplete({ items: [{ batchNo: 'B-1' }], qcCompletedAt: 'T', labCompletedAt: 'T' }),
+    true,
+  );
+});
+
+test('isPetitionComplete: null-safe', () => {
+  assert.strictEqual(isPetitionComplete(null), false);
+  assert.strictEqual(isPetitionComplete({}), false);
+});

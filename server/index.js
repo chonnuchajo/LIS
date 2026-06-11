@@ -53,6 +53,7 @@ mountApi('/document-number-config', require('./routes/documentNumberConfigs'));
 mountApi('/dashboard-layout', require('./routes/dashboardLayout'));
 mountApi('/print', require('./routes/print'));
 mountApi('/ai', require('./routes/ai'));
+mountApi('/dev', require('./routes/dev')); // dev-only helpers (gated by ALLOW_DEV_STATUS)
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
 app.get('/LIS/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));

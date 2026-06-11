@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import PetitionView from '@/components/petition/PetitionView';
+import { DevStatusStepper } from '@/components/petition/DevStatusStepper';
 import PetitionPrintTemplate from '@/components/petition/PetitionPrintTemplate';
 import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
@@ -108,7 +109,7 @@ export default function PetitionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { data, loading, error } = usePetition(id);
+  const { data, loading, error, refresh } = usePetition(id);
   const { user } = useAuth();
   const { refetch: refetchSamples } = useSamples();
   const { data: labRequests } = useLabRequestsByPetition(data?._id);
@@ -290,6 +291,8 @@ export default function PetitionDetailPage() {
                     })}
                   </span>
                 </div>
+
+                <DevStatusStepper petitionId={data._id} status={data.status} onChanged={refresh} />
 
                 <PetitionView petition={data} />
 
