@@ -27,6 +27,32 @@ describe('zScore', () => {
     expect(result.mean).toBeCloseTo(4, 5);
     expect(result.stdev).toBeGreaterThan(0);
   });
+
+  test('filters NaN and returns valid result if enough values remain', () => {
+    const result = zScore([1, 2, NaN, 4, 5], 3);
+    expect(result).not.toBeNull();
+    expect(result.zScore).toBeDefined();
+    expect(Number.isFinite(result.zScore)).toBe(true);
+  });
+
+  test('filters Infinity and returns valid result if enough values remain', () => {
+    const result = zScore([1, 2, Infinity, 4, 5], 3);
+    expect(result).not.toBeNull();
+    expect(result.zScore).toBeDefined();
+    expect(Number.isFinite(result.zScore)).toBe(true);
+  });
+
+  test('returns null when targetValue is NaN', () => {
+    expect(zScore([1, 2, 3, 4, 5], NaN)).toBeNull();
+  });
+
+  test('returns null when targetValue is Infinity', () => {
+    expect(zScore([1, 2, 3, 4, 5], Infinity)).toBeNull();
+  });
+
+  test('returns null when filtering NaN/Infinity leaves fewer than 3 values', () => {
+    expect(zScore([1, 2, NaN, Infinity], 2)).toBeNull();
+  });
 });
 
 describe('linearRegression', () => {
@@ -53,6 +79,14 @@ describe('linearRegression', () => {
     ]);
     expect(Math.abs(result.slope)).toBeLessThan(0.001);
   });
+
+  test('returns null when all x values are the same (degenerate)', () => {
+    expect(linearRegression([
+      { x: 1, y: 1 },
+      { x: 1, y: 2 },
+      { x: 1, y: 3 },
+    ])).toBeNull();
+  });
 });
 
 describe('consecutiveStreak', () => {
@@ -73,5 +107,14 @@ describe('consecutiveStreak', () => {
   test('returns 0 when first record does not match', () => {
     const records = [{ status: 'pass' }, { status: 'fail' }];
     expect(consecutiveStreak(records, r => r.status === 'fail')).toBe(0);
+  });
+
+  test('returns total count when all records match', () => {
+    const records = [
+      { status: 'fail' },
+      { status: 'fail' },
+      { status: 'fail' },
+    ];
+    expect(consecutiveStreak(records, r => r.status === 'fail')).toBe(3);
   });
 });

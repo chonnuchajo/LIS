@@ -5,9 +5,17 @@
  */
 function zScore(values, targetValue) {
   if (!Array.isArray(values) || values.length < 3) return null;
-  const n = values.length;
-  const mean = values.reduce((a, b) => a + b, 0) / n;
-  const variance = values.reduce((sum, v) => sum + (v - mean) ** 2, 0) / n;
+
+  // Sanitize: filter out NaN/Infinity from input array
+  const sanitized = values.filter(v => Number.isFinite(v));
+  if (sanitized.length < 3) return null;
+
+  // Reject if targetValue is NaN or Infinity
+  if (!Number.isFinite(targetValue)) return null;
+
+  const n = sanitized.length;
+  const mean = sanitized.reduce((a, b) => a + b, 0) / n;
+  const variance = sanitized.reduce((sum, v) => sum + (v - mean) ** 2, 0) / n;
   const stdev = Math.sqrt(variance);
   if (stdev === 0) return null;
   const z = (targetValue - mean) / stdev;
