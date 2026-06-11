@@ -433,6 +433,13 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ actor }),
     }),
+  // One track (Lab or QC) records "บันทึกผล". Backend flips the petition to
+  // success only when every required track is done; otherwise it stays inProgress.
+  completePetitionTrack: (petitionId: string, side: "lab" | "qc", actor: string) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/complete`, {
+      method: "POST",
+      body: JSON.stringify({ side, actor }),
+    }),
   approvePetition: (petitionId: string, actor: string) =>
     request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`, {
       method: "PATCH",
@@ -443,15 +450,27 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status: "rejected", actor, revisionNote }),
     }),
-  // Dev-only: ดัน status ไปสเตปถัดไปแบบ forward (ใช้ generic update path)
-  devSetPetitionStatus: (
-    petitionId: string,
-    status: import("@/types/petition.types").PetitionStatus,
-    actor: string,
-  ) =>
-    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`, {
+  // Petition transitions (ใช้โดย scan/assign flow จริง และ dev status stepper)
+  deliverPetition: (petitionId: string, actor: string) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/deliver`, {
       method: "PATCH",
-      body: JSON.stringify({ status, actor }),
+      body: JSON.stringify({ actor }),
+    }),
+  receivePetition: (petitionId: string, actor: string, side: "lab" | "qc") =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/receive`, {
+      method: "PATCH",
+      body: JSON.stringify({ actor, side }),
+    }),
+  // Dev-only: assign แบบ placeholder (ไม่มีเครื่อง) เพื่อ flip pendingReview → inProgress
+  devAssignPetition: (petitionId: string, actor: string) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/assign`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        employeeId: "__dev__",
+        name: "Dev Tester",
+        assignedBy: actor,
+        machines: [],
+      }),
     }),
   getPetition: (petitionId: string) =>
     request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`),
