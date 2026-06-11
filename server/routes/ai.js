@@ -4,7 +4,7 @@ const QCTestResult = require('../models/QCTestResult');
 const { zScore, linearRegression, consecutiveStreak } = require('../lib/smartRules');
 const Petition = require('../models/Petition');
 const DailyCheck = require('../models/DailyCheck');
-const { isOllamaAvailable } = require('../lib/ollamaClient');
+const { isOllamaAvailable, generateStream } = require('../lib/ollamaClient');
 
 // POST /api/ai/outlier-check
 // Body: { commonName, parameterId, fieldLabel, value }
@@ -151,6 +151,121 @@ router.get('/daily-check-trends', async (req, res) => {
 router.get('/ollama-status', async (req, res) => {
   const available = await isOllamaAvailable();
   res.json({ available });
+});
+
+// POST /api/ai/draft-note
+// Body: { petitionId }
+// Streams plain-text Thai approval note
+router.post('/draft-note', async (req, res) => {
+  try {
+    const { petitionId } = req.body;
+    if (!petitionId) return res.status(400).json({ error: 'petitionId required' });
+
+    if (!(await isOllamaAvailable())) {
+      return res.status(503).json({ error: 'Ollama ไม่พร้อมใช้งาน' });
+    }
+
+    const petition = await Petition.findById(petitionId).lean();
+    if (!petition) return res.status(404).json({ error: 'Petition not found' });
+
+    const results = await QCTestResult.find({ petitionId: String(petitionId) }).lean();
+
+    const itemSummaries = (petition.items || []).map((item) => {
+      const itemResults = results.filter((r) => r.itemSeq === item.seq);
+      const resultLines = itemResults.map((r) => {
+        const vals = Object.entries(r.values || {})
+          .filter(([, v]) => v !== null && v !== undefined && v !== '')
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(', ');
+        return vals ? `  ${r.parameterName || r.parameterId}: ${vals}` : null;
+      }).filter(Boolean);
+      return `- ${item.sampleName} (${item.commonName || ''}) Batch: ${item.batchNo}\n${resultLines.join('\n') || '  (ไม่มีผลทดสอบ)'}`;
+    }).join('\n');
+
+    const prompt = `คุณเป็นเจ้าหน้าที่ QC ของบริษัทเคมีภัณฑ์ไทย กรุณาเขียนหมายเหตุการอนุมัติ (approval note) สำหรับคำร้องต่อไปนี้ เป็นภาษาไทย กระชับ 3-5 ประโยค
+
+คำร้องเลขที่: ${petition.petitionNo}
+แผนก: ${petition.dept}
+วันที่รับ: ${petition.receivedAt ? new Date(petition.receivedAt).toLocaleDateString('th-TH') : '-'}
+
+รายการตัวอย่างและผลทดสอบ:
+${itemSummaries || '(ไม่มีรายการ)'}
+
+กรุณาสรุปผลการทดสอบ ระบุว่าผ่านหรือไม่ผ่าน และข้อสังเกตสำคัญ (ถ้ามี)`;
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    await generateStream(prompt, (chunk) => res.write(chunk));
+    res.end();
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/ai/weekly-summary
+// Body: { fromDate: "YYYY-MM-DD", toDate: "YYYY-MM-DD" }
+// Streams plain-text Thai weekly summary
+router.post('/weekly-summary', async (req, res) => {
+  try {
+    const { fromDate, toDate } = req.body;
+    if (!fromDate || !toDate) return res.status(400).json({ error: 'fromDate and toDate required' });
+
+    if (!(await isOllamaAvailable())) {
+      return res.status(503).json({ error: 'Ollama ไม่พร้อมใช้งาน' });
+    }
+
+    const dateFilter = { date: { $gte: String(fromDate), $lte: String(toDate) } };
+    const dailyChecks = await DailyCheck.find(dateFilter).lean();
+
+    // Try to load EnvCheck if model exists
+    let envChecks = [];
+    try {
+      const EnvCheck = require('../models/EnvCheck');
+      envChecks = await EnvCheck.find(dateFilter).lean();
+    } catch {
+      // EnvCheck model not available — skip
+    }
+
+    const scaleStats = {};
+    dailyChecks.forEach((r) => {
+      if (!scaleStats[r.scaleId]) scaleStats[r.scaleId] = { pass: 0, fail: 0 };
+      scaleStats[r.scaleId][r.status]++;
+    });
+    const scaleLines = Object.entries(scaleStats)
+      .map(([id, s]) => `- เครื่องชั่ง ${id}: ผ่าน ${s.pass} วัน, ไม่ผ่าน ${s.fail} วัน`)
+      .join('\n') || '(ไม่มีข้อมูล)';
+
+    const envStats = {};
+    envChecks.forEach((r) => {
+      const roomKey = r.room || 'unknown';
+      if (!envStats[roomKey]) envStats[roomKey] = { pass: 0, fail: 0 };
+      envStats[roomKey][(r.status === 'pass' ? 'pass' : 'fail')]++;
+    });
+    const envLines = Object.entries(envStats)
+      .map(([room, s]) => `- ${room}: ผ่าน ${s.pass} วัน, ไม่ผ่าน ${s.fail} วัน`)
+      .join('\n') || '(ไม่มีข้อมูล)';
+
+    const prompt = `คุณเป็นเจ้าหน้าที่ QC กรุณาสรุปผล daily check ประจำสัปดาห์ ${fromDate} ถึง ${toDate} เป็นภาษาไทย 4-6 ประโยค
+
+ผลการสอบเทียบเครื่องชั่ง:
+${scaleLines}
+
+ผลการตรวจสอบสภาพแวดล้อม:
+${envLines}
+
+กรุณาสรุปภาพรวม ชี้จุดที่ต้องให้ความสนใจ และข้อเสนอแนะ (ถ้ามี)`;
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    await generateStream(prompt, (chunk) => res.write(chunk));
+    res.end();
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
