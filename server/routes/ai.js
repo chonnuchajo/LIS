@@ -4,6 +4,7 @@ const QCTestResult = require('../models/QCTestResult');
 const { zScore, linearRegression, consecutiveStreak } = require('../lib/smartRules');
 const Petition = require('../models/Petition');
 const DailyCheck = require('../models/DailyCheck');
+const { isOllamaAvailable } = require('../lib/ollamaClient');
 
 // POST /api/ai/outlier-check
 // Body: { commonName, parameterId, fieldLabel, value }
@@ -144,6 +145,12 @@ router.get('/daily-check-trends', async (req, res) => {
   } catch {
     res.json({ alert: false });
   }
+});
+
+// GET /api/ai/ollama-status
+router.get('/ollama-status', async (req, res) => {
+  const available = await isOllamaAvailable();
+  res.json({ available });
 });
 
 module.exports = router;
