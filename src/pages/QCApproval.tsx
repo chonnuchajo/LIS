@@ -193,6 +193,8 @@ const QCApproval = () => {
                     await streamDraftNote(p._id, (chunk) => {
                       setDraftNotes((prev) => ({ ...prev, [p._id]: (prev[p._id] ?? '') + chunk }));
                     });
+                  } catch {
+                    setDraftNotes((prev) => ({ ...prev, [p._id]: '(เกิดข้อผิดพลาด — กรุณาลองใหม่)' }));
                   } finally {
                     setDraftingId(null);
                   }
