@@ -20,7 +20,8 @@
       "Bash(findstr \"LISTENING\")",
       "Bash(python -c \"import pandas; print\\('pandas ok'\\)\")",
       "Bash(python -c \"import odf; print\\('odf ok'\\)\")",
-      "mcp__plugin_playwright_playwright__browser_resize"
+      "mcp__plugin_playwright_playwright__browser_resize",
+      "Bash(npm ls *)"
     ]
   }
 }

@@ -39,7 +39,7 @@
     {
       "collection": "petitions",
       "file": "petitions.json",
-      "count": 4
+      "count": 6
     },
     {
       "collection": "simplemethodexclusions",
@@ -67,6 +67,11 @@
       "count": 0
     },
     {
+      "collection": "dashboardlayoutconfigs",
+      "file": "dashboardlayoutconfigs.json",
+      "count": 1
+    },
+    {
       "collection": "users",
       "file": "users.json",
       "count": 0
@@ -84,7 +89,7 @@
     {
       "collection": "petitionauditlogs",
       "file": "petitionauditlogs.json",
-      "count": 210
+      "count": 224
     },
     {
       "collection": "realtimedensities",
@@ -124,7 +129,7 @@
     {
       "collection": "labrequests",
       "file": "labrequests.json",
-      "count": 21
+      "count": 23
     },
     {
       "collection": "commonnameoverrides",
@@ -140,6 +145,11 @@
       "collection": "stocktransactions",
       "file": "stocktransactions.json",
       "count": 8
+    },
+    {
+      "collection": "documentnumberconfigs",
+      "file": "documentnumberconfigs.json",
+      "count": 0
     },
     {
       "collection": "accessgroups",
