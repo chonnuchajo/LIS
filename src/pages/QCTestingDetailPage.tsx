@@ -41,6 +41,8 @@ import {
 import { RevisionRequestDialog } from '@/components/petition/RevisionRequestDialog';
 import { buildPreviousValueLookup, getPreviousValue, type PreviousValueLookup } from '@/lib/revisionHelpers';
 import { qcReceivedBy } from '@/lib/receiveStatus';
+import { AiOutlierBadge } from '@/components/lis/AiOutlierBadge';
+import { checkOutlier, type OutlierCheckResult } from '@/lib/aiApi';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -95,6 +97,7 @@ interface TestFieldProps {
   resolvedStandardText?: string;
   lastBatchValue?: unknown;
   lastBatchLabel?: string;
+  outlierResult?: OutlierCheckResult | null;
 }
 
 function TestField({
@@ -113,6 +116,7 @@ function TestField({
   resolvedStandardText,
   lastBatchValue,
   lastBatchLabel,
+  outlierResult,
 }: TestFieldProps) {
   const strVal = value == null ? '' : String(value);
   const strNote = noteValue == null ? '' : String(noteValue);
@@ -228,6 +232,7 @@ function TestField({
           แบชก่อน{lastBatchLabel ? ` (${lastBatchLabel})` : ""}: {String(lastBatchValue)}{field.unit ? ` ${field.unit}` : ""}
         </p>
       )}
+      <AiOutlierBadge result={outlierResult} />
 
       {/* Conditional note input — appears when enum value requires explanation */}
       {showNote && (
@@ -319,6 +324,7 @@ export default function QCTestingDetailPage() {
   const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
   const [previousLookup, setPreviousLookup] = useState<PreviousValueLookup>(new Map());
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [outlierResults, setOutlierResults] = useState<Record<string, OutlierCheckResult>>({});
 
   // Load parameters and existing results (QC scope only)
   useEffect(() => {
@@ -518,6 +524,24 @@ export default function QCTestingDetailPage() {
       }, 800);
     },
     [user, advanceToInProgress],
+  );
+
+  const handleOutlierCheck = useCallback(
+    async (
+      commonName: string,
+      parameterId: string,
+      fieldLabel: string,
+      value: unknown,
+      fieldType: string,
+    ) => {
+      if (fieldType !== 'number' && fieldType !== 'float') return;
+      const num = Number(value);
+      if (isNaN(num) || value === '' || value == null) return;
+      const result = await checkOutlier({ commonName, parameterId, fieldLabel, value: num });
+      const key = `${parameterId}__${fieldLabel}`;
+      setOutlierResults((prev) => ({ ...prev, [key]: result }));
+    },
+    [],
   );
 
   // ── Feature B: last-batch reference values (display-only) ──────────────────
@@ -972,9 +996,16 @@ export default function QCTestingDetailPage() {
                                   saveInfo={phaseSaves[k]?.[unit.key]}
                                   noteSaveInfo={phaseSaves[k]?.[noteLabel]}
                                   disabled={isLocked || phaseLocked}
-                                  onChange={(val) =>
-                                    handleFieldChange(petition, item, param, unit.key, val, effectivePhase)
-                                  }
+                                  onChange={(val) => {
+                                    handleFieldChange(petition, item, param, unit.key, val, effectivePhase);
+                                    handleOutlierCheck(
+                                      item.commonName ?? '',
+                                      String(param._id),
+                                      unit.field.label,
+                                      val,
+                                      unit.field.type,
+                                    );
+                                  }}
                                   onNoteChange={(val) =>
                                     handleFieldChange(petition, item, param, noteLabel, val, effectivePhase)
                                   }
@@ -991,6 +1022,7 @@ export default function QCTestingDetailPage() {
                                       : undefined
                                   }
                                   lastBatchLabel={lastBatch?.petitionNo}
+                                  outlierResult={outlierResults[`${String(param._id)}__${unit.field.label}`]}
                                 />
                                 {beforeRef != null && beforeRef !== '' ? (
                                   <p className="text-[10px] text-grey-400 mt-0.5">
