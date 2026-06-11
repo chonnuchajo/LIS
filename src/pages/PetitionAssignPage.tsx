@@ -915,6 +915,7 @@ interface AssignTableProps {
   onPetitionClick: (id: string) => void;
   emptyText: string;
   showPhase2Badge?: boolean;
+  machineSuggestions: Record<string, MachineSuggestion[]>;
 }
 
 function AssignTable({
