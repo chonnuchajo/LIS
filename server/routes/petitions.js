@@ -299,12 +299,21 @@ router.post('/:id/complete', async (req, res) => {
     }
 
     const now = new Date();
+    const redoExplanation = String(req.body?.redoExplanation || '').trim();
     if (side === 'qc') {
+      if (doc.qcReturnNote && !redoExplanation) {
+        return badRequest(res, 'กรุณาอธิบายว่าทำใหม่อย่างไร (ถูกส่งกลับให้แก้)');
+      }
       doc.qcCompletedAt = now;
       doc.qcCompletedBy = actor;
+      if (doc.qcReturnNote) { doc.qcRedoExplanation = redoExplanation; doc.qcReturnNote = undefined; }
     } else {
+      if (doc.labReturnNote && !redoExplanation) {
+        return badRequest(res, 'กรุณาอธิบายว่าทำใหม่อย่างไร (ถูกส่งกลับให้แก้)');
+      }
       doc.labCompletedAt = now;
       doc.labCompletedBy = actor;
+      if (doc.labReturnNote) { doc.labRedoExplanation = redoExplanation; doc.labReturnNote = undefined; }
     }
 
     const prevStatus = doc.status;
