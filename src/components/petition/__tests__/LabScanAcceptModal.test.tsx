@@ -23,6 +23,7 @@ vi.mock('@/lib/api', () => ({
 }));
 
 import { api } from '@/lib/api';
+import { Html5Qrcode } from 'html5-qrcode';
 
 const labPetition = {
   _id: 'pet1',
@@ -69,6 +70,20 @@ describe('LabScanAcceptModal manual entry', () => {
       ),
     );
     expect(await screen.findByText('P-2506-0001')).toBeInTheDocument();
+  });
+});
+
+describe('LabScanAcceptModal camera failure fallback', () => {
+  it('เปิดกล้องไม่ได้ (getCameras throw) → ยังมีช่องกรอกเลขให้รับงานต่อได้', async () => {
+    (Html5Qrcode as unknown as { getCameras: ReturnType<typeof vi.fn> }).getCameras =
+      vi.fn().mockRejectedValue(new Error('enumerate failed'));
+    renderModal();
+
+    // ต้อง fallback ไปกรอกเอง ไม่ใช่ค้างที่หน้า error
+    expect(
+      await screen.findByPlaceholderText(/พิมพ์เลขที่คำร้อง/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/ไม่สามารถเปิดกล้องได้/)).not.toBeInTheDocument();
   });
 });
 
