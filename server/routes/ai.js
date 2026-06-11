@@ -147,8 +147,8 @@ router.get('/daily-check-trends', async (req, res) => {
   }
 });
 
-// GET /api/ai/ollama-status
-router.get('/ollama-status', async (req, res) => {
+// GET /api/ai/ai-status
+router.get('/ai-status', async (req, res) => {
   res.json({ available: isOpenAIConfigured() });
 });
 

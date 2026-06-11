@@ -10,7 +10,7 @@ import { api } from "@/lib/api";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import { statusBadge } from "@/lib/statusBadge";
-import { getOllamaStatus, streamDraftNote } from "@/lib/aiApi";
+import { getAiStatus, streamDraftNote } from "@/lib/aiApi";
 
 const API_BASE = import.meta.env.BASE_URL + "api";
 
@@ -55,7 +55,7 @@ const QCApproval = () => {
   );
 
   useEffect(() => {
-    getOllamaStatus().then((s) => setOllamaAvailable(s.available));
+    getAiStatus().then((s) => setOllamaAvailable(s.available));
   }, []);
 
   useEffect(() => {
