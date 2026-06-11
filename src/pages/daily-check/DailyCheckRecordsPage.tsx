@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { List, Filter } from "lucide-react";
+import { List, Filter, Sparkles, Loader2 } from "lucide-react";
+import { getOllamaStatus, streamWeeklySummary } from '@/lib/aiApi';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,13 @@ const DailyCheckRecordsPage = () => {
   const [filterInstrument, setFilterInstrument] = useState<string>("all");
   const [filterDate, setFilterDate] = useState<string>(todayStr());
   const [filterStatus, setFilterStatus] = useState<"all" | "normal" | "abnormal">("all");
+  const [ollamaAvailable, setOllamaAvailable] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryText, setSummaryText] = useState('');
+
+  useEffect(() => {
+    getOllamaStatus().then((s) => setOllamaAvailable(s.available));
+  }, []);
 
   // ยิง 1 query ต่อห้อง (ทั้ง 3 ห้องเสมอ) ตามวันที่ที่เลือก — รวม client-side
   const results = useQueries({
@@ -76,6 +84,46 @@ const DailyCheckRecordsPage = () => {
         <h2 className="text-lg font-semibold text-foreground">รายการบันทึกการเช็กเครื่องมือ</h2>
         <p className="text-sm text-muted-foreground">รวมทุกห้อง — เลือกดูตามห้อง / เครื่อง / วันที่ / สถานะ</p>
       </div>
+
+      {ollamaAvailable && (
+        <div className="space-y-2 mb-4">
+          <button
+            type="button"
+            disabled={summaryLoading}
+            onClick={async () => {
+              const toDate = new Date().toISOString().slice(0, 10);
+              const from = new Date();
+              from.setDate(from.getDate() - 6);
+              const fromDate = from.toISOString().slice(0, 10);
+              setSummaryLoading(true);
+              setSummaryText('');
+              try {
+                await streamWeeklySummary(fromDate, toDate, (chunk) => {
+                  setSummaryText((prev) => prev + chunk);
+                });
+              } catch {
+                setSummaryText('(เกิดข้อผิดพลาด — กรุณาลองใหม่)');
+              } finally {
+                setSummaryLoading(false);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md bg-violet-50 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50"
+          >
+            {summaryLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            สรุปรายสัปดาห์ (AI)
+          </button>
+
+          {summaryText && (
+            <div className="rounded-md border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900 whitespace-pre-wrap">
+              {summaryText}
+            </div>
+          )}
+        </div>
+      )}
 
       <Card>
         <CardHeader className="space-y-3">
