@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FlaskConical, CheckCircle2, Loader2, AlertCircle, AlertTriangle, RotateCcw, Save, Send } from 'lucide-react';
+import { FlaskConical, CheckCircle2, Loader2, AlertCircle, AlertTriangle, RotateCcw, Save, Send, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import PageHeader from '@/components/lis/PageHeader';
@@ -42,7 +42,7 @@ import { RevisionRequestDialog } from '@/components/petition/RevisionRequestDial
 import { buildPreviousValueLookup, getPreviousValue, type PreviousValueLookup } from '@/lib/revisionHelpers';
 import { qcReceivedBy } from '@/lib/receiveStatus';
 import { AiOutlierBadge } from '@/components/lis/AiOutlierBadge';
-import { checkOutlier, type OutlierCheckResult } from '@/lib/aiApi';
+import { checkOutlier, getOllamaStatus, streamAnalyzeQC, type OutlierCheckResult } from '@/lib/aiApi';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -326,12 +326,19 @@ export default function QCTestingDetailPage() {
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [outlierResults, setOutlierResults] = useState<Record<string, OutlierCheckResult>>({});
   const [copyPasteWarnings, setCopyPasteWarnings] = useState<Record<string, boolean>>({});
+  const [ollamaAvailable, setOllamaAvailable] = useState(false);
+  const [analyzeLoading, setAnalyzeLoading] = useState(false);
+  const [analyzeText, setAnalyzeText] = useState('');
 
   // Load parameters and existing results (QC scope only)
   useEffect(() => {
     api.getParameters()
       .then((all) => setParameters(all.filter((p) => (p.scope ?? 'qc') === 'qc')))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    getOllamaStatus().then((s) => setOllamaAvailable(s.available));
   }, []);
 
   // Auto-advance status pendingReview → inProgress when QC enters the first value
@@ -917,6 +924,42 @@ export default function QCTestingDetailPage() {
           phase2UnlockedAt={petition.phase2UnlockedAt}
           triggeredByName={petition.phase2TriggeredBy?.parameterName}
         />
+      )}
+
+      {ollamaAvailable && (
+        <div className="mb-4 space-y-2">
+          <button
+            type="button"
+            disabled={analyzeLoading}
+            onClick={async () => {
+              setAnalyzeLoading(true);
+              setAnalyzeText('');
+              try {
+                await streamAnalyzeQC(id!, (chunk) => {
+                  setAnalyzeText((prev) => prev + chunk);
+                });
+              } catch {
+                setAnalyzeText('(เกิดข้อผิดพลาด — กรุณาลองใหม่)');
+              } finally {
+                setAnalyzeLoading(false);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-md bg-violet-50 px-3 py-1.5 text-sm text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50"
+          >
+            {analyzeLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            วิเคราะห์ผล (AI)
+          </button>
+
+          {analyzeText && (
+            <div className="rounded-md border border-violet-200 bg-violet-50 p-3 text-sm text-violet-900 whitespace-pre-wrap">
+              {analyzeText}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Each item */}

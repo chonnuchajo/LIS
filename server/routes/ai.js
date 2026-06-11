@@ -268,4 +268,55 @@ ${envLines}
   }
 });
 
+// POST /api/ai/analyze-qc
+// Body: { petitionId }
+// Streams Thai analysis of all entered QC values for a petition
+router.post('/analyze-qc', async (req, res) => {
+  try {
+    const { petitionId } = req.body;
+    if (!petitionId) return res.status(400).json({ error: 'petitionId required' });
+
+    if (!(await isOllamaAvailable())) {
+      return res.status(503).json({ error: 'Ollama ไม่พร้อมใช้งาน' });
+    }
+
+    const petition = await Petition.findById(petitionId).lean();
+    if (!petition) return res.status(404).json({ error: 'Petition not found' });
+
+    const results = await QCTestResult.find({ petitionId: String(petitionId) }).lean();
+
+    const itemLines = (petition.items || []).map((item) => {
+      const itemResults = results.filter((r) => r.itemSeq === item.seq);
+      const valueLines = itemResults.flatMap((r) => {
+        const entries = Object.entries(r.values || {})
+          .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+          .map(([k, v]) => `    ${k}: ${v}`);
+        if (entries.length === 0) return [];
+        return [`  [${r.parameterName || r.parameterId}]`, ...entries];
+      });
+      const filled = valueLines.length > 0 ? valueLines.join('\n') : '  (ยังไม่มีผลทดสอบ)';
+      return `รายการ ${item.seq}: ${item.sampleName} (${item.commonName || ''}) Batch: ${item.batchNo}\n${filled}`;
+    }).join('\n\n');
+
+    const prompt = `คุณเป็นเจ้าหน้าที่ QC ของบริษัทเคมีภัณฑ์ไทย กรุณาวิเคราะห์ผลการทดสอบ QC ต่อไปนี้เป็นภาษาไทย 4-6 ประโยค
+
+คำร้องเลขที่: ${petition.petitionNo}
+แผนก: ${petition.dept}
+
+ผลการทดสอบที่บันทึกไว้:
+${itemLines || '(ยังไม่มีข้อมูล)'}
+
+กรุณาสรุปผลการทดสอบที่บันทึกแล้ว ระบุรายการที่ยังไม่สมบูรณ์ และให้ข้อสังเกตเบื้องต้น (ถ้ามี)`;
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    await generateStream(prompt, (chunk) => res.write(chunk));
+    res.end();
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
