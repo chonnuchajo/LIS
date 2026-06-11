@@ -129,9 +129,11 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
         if (!active) { scanner.stop().catch(() => {}); return; }
         scannerRef.current = scanner;
       } catch {
+        // เปิดกล้องไม่ได้ (PC ไม่มีกล้อง / permission โดน block / enumerate ล้ม)
+        // → fallback ไปกรอกเลขเอง แทนที่จะค้างหน้า error ทางตัน
         if (active) {
-          setPhase('error');
-          setErrorMsg('ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการเข้าถึงกล้อง');
+          setErrorMsg('เปิดกล้องไม่ได้ — กรอกเลขคำร้องเองได้เลย');
+          setPhase('no-camera');
         }
       }
     })();
@@ -287,7 +289,7 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
           )}
 
           {phase === 'no-camera' && (
-            <p className="text-center text-sm text-grey-500">ไม่พบกล้องในอุปกรณ์นี้</p>
+            <p className="text-center text-sm text-grey-500">{errorMsg || 'ไม่พบกล้องในอุปกรณ์นี้'}</p>
           )}
 
           {(phase === 'scanning' || phase === 'no-camera') && (

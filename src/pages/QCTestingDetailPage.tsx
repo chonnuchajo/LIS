@@ -747,6 +747,9 @@ export default function QCTestingDetailPage() {
     return missing;
   };
 
+  // required ครบทุกช่องของ phase ปัจจุบัน → ปุ่มเปลี่ยนจาก "บันทึกแบบร่าง" เป็น "บันทึก" (ปิด track)
+  const isComplete = validate(effectivePhase).length === 0;
+
   const handleSaveDraft = () => {
     toast.success('บันทึกแบบร่างเรียบร้อย', {
       description: 'ค่าที่กรอกถูกบันทึกอัตโนมัติแล้ว',
@@ -762,13 +765,15 @@ export default function QCTestingDetailPage() {
       });
       return;
     }
-    if (abnormalCount > 0) {
-      const ok = await confirm({
-        title: 'พบค่าผิดปกติ',
-        description: `พบค่าผิดปกติ ${abnormalCount} รายการ ยืนยันบันทึกผล?`,
-      });
-      if (!ok) return;
-    }
+    // ปิด track แล้วหน้าจะ lock แก้ไม่ได้ → confirm ทุกครั้ง (รวมเตือนค่าผิดปกติใน dialog เดียว)
+    const ok = await confirm({
+      title: 'ยืนยันบันทึกผล',
+      description:
+        abnormalCount > 0
+          ? `พบค่าผิดปกติ ${abnormalCount} รายการ — หลังบันทึกแล้วจะแก้ไขไม่ได้ ยืนยันบันทึกผล?`
+          : 'หลังบันทึกแล้วจะแก้ไขไม่ได้ ยืนยันบันทึกผล?',
+    });
+    if (!ok) return;
     setSubmitting(true);
     try {
       const updated = await api.completePetitionTrack(petition._id, 'qc', user?.name ?? 'system');
@@ -1131,26 +1136,19 @@ export default function QCTestingDetailPage() {
       {items.length > 0 && petition.status !== 'success' && (
         <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <Button
-            variant="outline"
-            onClick={handleSaveDraft}
-            disabled={submitting}
-            className="gap-2"
-          >
-            <Save className="h-4 w-4" />
-            บันทึกแบบร่าง
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleSubmitResult}
+            variant={isComplete ? 'primary' : 'outline'}
+            onClick={isComplete ? handleSubmitResult : handleSaveDraft}
             disabled={submitting}
             className="gap-2"
           >
             {submitting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
+            ) : isComplete ? (
               <Send className="h-4 w-4" />
+            ) : (
+              <Save className="h-4 w-4" />
             )}
-            บันทึกผล
+            {isComplete ? 'บันทึก' : 'บันทึกแบบร่าง'}
           </Button>
         </div>
       )}

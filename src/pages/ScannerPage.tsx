@@ -62,6 +62,7 @@ export default function ScannerPage() {
   const [petition, setPetition] = useState<Petition | null>(null);
   const [pendingId, setPendingId] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [manualCode, setManualCode] = useState('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
@@ -98,9 +99,11 @@ export default function ScannerPage() {
         if (!active) { scanner.stop().catch(() => {}); return; }
         scannerRef.current = scanner;
       } catch {
+        // เปิดกล้องไม่ได้ (PC ไม่มีกล้อง / permission โดน block / enumerate ล้ม)
+        // → fallback ไปกรอกเลขเอง แทนที่จะค้างหน้า error ทางตัน
         if (active) {
-          setPhase('error');
-          setErrorMsg('ไม่สามารถเปิดกล้องหลังได้ กรุณาอนุญาตการเข้าถึงกล้อง');
+          setErrorMsg('เปิดกล้องไม่ได้ — กรอกเลขคำร้องเองได้เลย');
+          setPhase('no-camera');
         }
       }
     })();
@@ -160,6 +163,7 @@ export default function ScannerPage() {
     setPetition(null);
     setPendingId('');
     setErrorMsg('');
+    setManualCode('');
     setPhase('idle');
   }
 
@@ -204,7 +208,7 @@ export default function ScannerPage() {
 
         {(phase === 'idle' || phase === 'no-camera') && (
           <>
-            {phase !== 'no-camera' && (
+            {phase === 'idle' && (
               <Button
                 variant="primary"
                 className="w-full flex items-center gap-2 justify-center"
@@ -216,8 +220,40 @@ export default function ScannerPage() {
             )}
 
             {phase === 'no-camera' && (
-              <p className="text-center text-xs text-grey-400">ไม่พบกล้องในอุปกรณ์นี้</p>
+              <p className="text-center text-xs text-grey-400">
+                {errorMsg || 'ไม่พบกล้องในอุปกรณ์นี้'}
+              </p>
             )}
+
+            {/* กรอกเลขคำร้องเอง — ใช้เมื่อไม่มีกล้อง/ไม่อยากสแกน */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const code = manualCode.trim();
+                if (!code) return;
+                setManualCode('');
+                fetchAndConfirm(code);
+              }}
+              className="space-y-2"
+            >
+              <div className="flex items-center gap-2 text-xs text-grey-400">
+                <div className="h-px flex-1 bg-grey-200" />
+                <span>หรือ</span>
+                <div className="h-px flex-1 bg-grey-200" />
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={manualCode}
+                  onChange={(e) => setManualCode(e.target.value)}
+                  placeholder="พิมพ์เลขที่คำร้อง เช่น P-2506-0001"
+                  className="flex-1 rounded-lg border border-grey-200 px-3 py-2 text-sm outline-none focus:border-primary-400"
+                />
+                <Button type="submit" variant="primary" disabled={!manualCode.trim()}>
+                  ค้นหา
+                </Button>
+              </div>
+            </form>
           </>
         )}
 
