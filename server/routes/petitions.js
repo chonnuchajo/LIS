@@ -64,6 +64,11 @@ router.get('/', async (req, res) => {
         { 'items.batchNo': rx },
       ];
     }
+    if (req.query.awaitingLabApproval === 'true') {
+      q.labCompletedAt = { $ne: null };
+      q.labApprovedAt = null;
+      q.status = 'inProgress';
+    }
 
     const [docs, total] = await Promise.all([
       Petition.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
@@ -299,12 +304,21 @@ router.post('/:id/complete', async (req, res) => {
     }
 
     const now = new Date();
+    const redoExplanation = String(req.body?.redoExplanation || '').trim();
     if (side === 'qc') {
+      if (doc.qcReturnNote && !redoExplanation) {
+        return badRequest(res, 'กรุณาอธิบายว่าทำใหม่อย่างไร (ถูกส่งกลับให้แก้)');
+      }
       doc.qcCompletedAt = now;
       doc.qcCompletedBy = actor;
+      if (doc.qcReturnNote) { doc.qcRedoExplanation = redoExplanation; doc.qcReturnNote = undefined; }
     } else {
+      if (doc.labReturnNote && !redoExplanation) {
+        return badRequest(res, 'กรุณาอธิบายว่าทำใหม่อย่างไร (ถูกส่งกลับให้แก้)');
+      }
       doc.labCompletedAt = now;
       doc.labCompletedBy = actor;
+      if (doc.labReturnNote) { doc.labRedoExplanation = redoExplanation; doc.labReturnNote = undefined; }
     }
 
     const prevStatus = doc.status;
@@ -331,6 +345,75 @@ router.post('/:id/complete', async (req, res) => {
         metadata: { side },
       });
     }
+    res.json(doc);
+  } catch (err) {
+    res.status(400).json({ error: { message: err.message } });
+  }
+});
+
+// POST /api/petitions/:id/lab-approve  → หัวหน้า Lab อนุมัติผล Lab. success เกิดเมื่อครบทุก track.
+router.post('/:id/lab-approve', async (req, res) => {
+  try {
+    const actor = req.body?.actor || 'system';
+    const doc = await Petition.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if (['success', 'approved', 'rejected'].includes(doc.status)) {
+      return res.status(409).json({ error: { message: 'คำร้องนี้ผ่านขั้น Lab อนุมัติแล้ว' } });
+    }
+    if (!doc.labCompletedAt) return badRequest(res, 'ผู้ทดสอบ Lab ยังไม่ได้บันทึกผล');
+    if (doc.labApprovedAt) return badRequest(res, 'Lab อนุมัติไปแล้ว');
+
+    const now = new Date();
+    doc.labApprovedAt = now;
+    doc.labApprovedBy = actor;
+    doc.reviewHistory.push({ action: 'lab-approve', reviewedBy: actor, reviewedAt: now });
+
+    const prevStatus = doc.status;
+    if (isPetitionComplete(doc)) {
+      if (doc.status !== 'success') doc.status = 'success';
+      if (!doc.completedAt) doc.completedAt = now;
+      await doc.save();
+      logAudit(doc, {
+        event: 'statusChanged', fromStatus: prevStatus, toStatus: 'success', actor,
+        note: 'หัวหน้า Lab อนุมัติ — ครบทุกส่วน รอหัวหน้า QC อนุมัติ', metadata: { side: 'lab' },
+      });
+    } else {
+      await doc.save();
+      logAudit(doc, {
+        event: 'updated', toStatus: doc.status, actor,
+        note: 'หัวหน้า Lab อนุมัติ — รอ QC ตรวจให้ครบ', metadata: { side: 'lab' },
+      });
+    }
+    res.json(doc);
+  } catch (err) {
+    res.status(400).json({ error: { message: err.message } });
+  }
+});
+
+// POST /api/petitions/:id/lab-reject  → หัวหน้า Lab ส่งผล Lab กลับให้ผู้ทดสอบแก้ (ไม่ใช่ reject ทั้งใบ).
+router.post('/:id/lab-reject', async (req, res) => {
+  try {
+    const actor = req.body?.actor || 'system';
+    const note = String(req.body?.note || '').trim();
+    if (!note) return badRequest(res, 'กรุณาระบุเหตุผลที่ส่งกลับ');
+    const doc = await Petition.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if (['approved', 'rejected'].includes(doc.status)) {
+      return res.status(409).json({ error: { message: 'คำร้องนี้ปิดแล้ว' } });
+    }
+    if (!doc.labCompletedAt) return badRequest(res, 'ยังไม่มีผล Lab ให้ส่งกลับ');
+
+    doc.labCompletedAt = null;
+    doc.labCompletedBy = undefined;
+    doc.labApprovedAt = null;
+    doc.labApprovedBy = undefined;
+    doc.labReturnNote = note;
+    doc.reviewHistory.push({ action: 'lab-reject', reviewedBy: actor, reviewedAt: new Date(), note });
+    await doc.save();
+    logAudit(doc, {
+      event: 'updated', toStatus: doc.status, actor,
+      note: `หัวหน้า Lab ส่งกลับให้แก้: ${note}`, metadata: { side: 'lab', returnTo: 'lab' },
+    });
     res.json(doc);
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
@@ -567,6 +650,7 @@ router.patch('/:id', async (req, res) => {
     delete updates.petitionNo;
     delete updates._id;
     delete updates.revisionOf;     // revisionOf is set on create only
+    delete updates.target;          // routing hint for reject only
     delete updates.approvedAt;     // server-managed
     delete updates.rejectedAt;     // server-managed
 
@@ -608,30 +692,48 @@ router.patch('/:id', async (req, res) => {
       return res.json(before);
     }
 
-    // Reject transition: success → rejected
+    // Reject transition: success → (requester | lab | qc)
     if (updates.status === 'rejected') {
       if (before.status !== 'success') {
         return res.status(409).json({ error: { message: 'ส่งกลับให้แก้ไขได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
       }
       const note = String(updates.revisionNote || '').trim();
-      if (!note) {
-        return badRequest(res, 'กรุณาระบุข้อความที่ต้องการให้แก้ไข');
+      if (!note) return badRequest(res, 'กรุณาระบุข้อความที่ต้องการให้แก้ไข');
+      const target = ['requester', 'lab', 'qc'].includes(req.body.target) ? req.body.target : 'requester';
+
+      if (target === 'requester') {
+        before.status = 'rejected';
+        before.rejectedAt = new Date();
+        before.reviewHistory.push({ action: 'reject', reviewedBy: actor || 'system', reviewedAt: new Date(), note });
+        await before.save();
+        logAudit(before, {
+          event: 'statusChanged', fromStatus: 'success', toStatus: 'rejected',
+          actor: actor || 'system', note: `ส่งกลับให้แก้ไข: ${note}`, metadata: { returnTo: 'requester' },
+        });
+        return res.json(before);
       }
-      before.status = 'rejected';
-      before.rejectedAt = new Date();
-      before.reviewHistory.push({
-        action: 'reject',
-        reviewedBy: actor || 'system',
-        reviewedAt: new Date(),
-        note,
-      });
+
+      // target lab/qc — เด้ง track กลับเป็น inProgress (ไม่ปิดงานทั้งใบ)
+      before.status = 'inProgress';
+      before.completedAt = null;
+      if (target === 'lab') {
+        before.labCompletedAt = null;
+        before.labCompletedBy = undefined;
+        before.labApprovedAt = null;
+        before.labApprovedBy = undefined;
+        before.labReturnNote = note;
+      } else {
+        before.qcCompletedAt = null;
+        before.qcCompletedBy = undefined;
+        before.qcReturnNote = note;
+      }
+      before.reviewHistory.push({ action: 'reject', reviewedBy: actor || 'system', reviewedAt: new Date(), note });
       await before.save();
       logAudit(before, {
-        event: 'statusChanged',
-        fromStatus: 'success',
-        toStatus: 'rejected',
+        event: 'statusChanged', fromStatus: 'success', toStatus: 'inProgress',
         actor: actor || 'system',
-        note: `ส่งกลับให้แก้ไข: ${note}`,
+        note: `หัวหน้า QC ส่งกลับ${target === 'lab' ? 'ฝั่ง Lab' : 'ฝั่ง QC'}: ${note}`,
+        metadata: { returnTo: target },
       });
       return res.json(before);
     }

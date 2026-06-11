@@ -435,20 +435,40 @@ export const api = {
     }),
   // One track (Lab or QC) records "บันทึกผล". Backend flips the petition to
   // success only when every required track is done; otherwise it stays inProgress.
-  completePetitionTrack: (petitionId: string, side: "lab" | "qc", actor: string) =>
+  completePetitionTrack: (
+    petitionId: string,
+    side: "lab" | "qc",
+    actor: string,
+    redoExplanation?: string,
+  ) =>
     request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/complete`, {
       method: "POST",
-      body: JSON.stringify({ side, actor }),
+      body: JSON.stringify({ side, actor, redoExplanation }),
+    }),
+  labApprovePetition: (petitionId: string, actor: string) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/lab-approve`, {
+      method: "POST",
+      body: JSON.stringify({ actor }),
+    }),
+  labRejectPetition: (petitionId: string, actor: string, note: string) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/lab-reject`, {
+      method: "POST",
+      body: JSON.stringify({ actor, note }),
     }),
   approvePetition: (petitionId: string, actor: string) =>
     request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`, {
       method: "PATCH",
       body: JSON.stringify({ status: "approved", actor }),
     }),
-  rejectPetition: (petitionId: string, actor: string, revisionNote: string) =>
+  rejectPetition: (
+    petitionId: string,
+    actor: string,
+    revisionNote: string,
+    target: "requester" | "lab" | "qc" = "requester",
+  ) =>
     request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`, {
       method: "PATCH",
-      body: JSON.stringify({ status: "rejected", actor, revisionNote }),
+      body: JSON.stringify({ status: "rejected", actor, revisionNote, target }),
     }),
   // Dev-only: raw-set petition.status via the gated backend dev endpoint
   // (bypasses business guards; companion fields are NOT touched).

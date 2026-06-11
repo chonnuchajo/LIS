@@ -20,6 +20,7 @@ import Stock from "./pages/Stock";
 import StockUnitScanPage from "./pages/StockUnitScanPage";
 import MasterItems, { MachinesPage, SimpleMethodPage } from "./pages/MasterItems";
 import QCApproval from "./pages/QCApproval";
+import LabApproval from "./pages/LabApproval";
 import AdminData from "./pages/AdminData";
 import SettingsPage from "./pages/SettingsPage";
 import ParameterSettings from "./pages/ParameterSettings";
@@ -83,6 +84,7 @@ const App = () => (
               <Route path="/stock-deduction" element={<PrivateRoute><StockDeduction /></PrivateRoute>} />
               <Route path="/record-results" element={<PrivateRoute><RecordResults /></PrivateRoute>} />
               <Route path="/qc-approval" element={<PrivateRoute><QCApproval /></PrivateRoute>} />
+              <Route path="/lab-approval" element={<PrivateRoute><LabApproval /></PrivateRoute>} />
               <Route path="/report" element={<PrivateRoute><Report /></PrivateRoute>} />
               <Route path="/daily-check" element={<PrivateRoute><DailyCheckLayout /></PrivateRoute>}>
                 <Route index element={<Navigate to="/daily-check/environment" replace />} />

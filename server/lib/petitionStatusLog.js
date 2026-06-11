@@ -239,7 +239,7 @@ function isPetitionComplete(petition) {
   const items = (petition ?? {}).items ?? [];
   const hasLabItem = items.some((it) => isLabBatch(it.batchNo ?? ''));
   const qcDone = !!(petition ?? {}).qcCompletedAt;
-  const labDone = !hasLabItem || !!(petition ?? {}).labCompletedAt;
+  const labDone = !hasLabItem || !!(petition ?? {}).labApprovedAt;
   return qcDone && labDone;
 }
 

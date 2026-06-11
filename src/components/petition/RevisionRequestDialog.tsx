@@ -16,6 +16,10 @@ interface RevisionRequestDialogProps {
   petitionNo: string;
   submitterName: string;
   onConfirm: (note: string) => Promise<void> | void;
+  /** ผู้รับปลายทาง (default = submitterName ผู้ยื่น) */
+  recipientLabel?: string;
+  /** ข้อความเตือน (default = ปิดคำร้อง สร้างใหม่). ส่งกลับ Lab/QC ให้ใช้ข้อความที่ไม่ปิดคำร้อง */
+  warning?: string;
 }
 
 export function RevisionRequestDialog({
@@ -24,6 +28,8 @@ export function RevisionRequestDialog({
   petitionNo,
   submitterName,
   onConfirm,
+  recipientLabel,
+  warning,
 }: RevisionRequestDialogProps) {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -54,7 +60,7 @@ export function RevisionRequestDialog({
             ส่งคำร้อง {petitionNo} ให้แก้ไข
           </DialogTitle>
           <DialogDescription>
-            ส่งกลับให้: <span className="font-semibold text-foreground">{submitterName}</span>
+            ส่งกลับให้: <span className="font-semibold text-foreground">{recipientLabel ?? submitterName}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -72,7 +78,7 @@ export function RevisionRequestDialog({
         </div>
 
         <div className="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-800">
-          ⚠ คำร้องนี้จะถูกปิด ผู้ยื่นจะต้องสร้างคำร้องใหม่จากคำร้องนี้เพื่อแก้ไข
+          ⚠ {warning ?? 'คำร้องนี้จะถูกปิด ผู้ยื่นจะต้องสร้างคำร้องใหม่จากคำร้องนี้เพื่อแก้ไข'}
         </div>
 
         <DialogFooter>
