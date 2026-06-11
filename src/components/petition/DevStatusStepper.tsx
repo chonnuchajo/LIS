@@ -3,11 +3,7 @@ import { ArrowRight } from 'lucide-react';
 import { DEV_MODE } from '@/config/dev';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
-import {
-  devTransitionPlan,
-  nextPetitionStatuses,
-  type DevTransition,
-} from '@/lib/petitionStatusFlow';
+import { nextPetitionStatuses } from '@/lib/petitionStatusFlow';
 import {
   PETITION_STATUS_CONFIG,
   type PetitionStatus,
@@ -32,31 +28,12 @@ export const DevStatusStepper = ({ petitionId, status, onChanged }: DevStatusSte
   const actor = user?.name || user?.email || '__dev__';
   const nexts = nextPetitionStatuses(status);
 
-  // เรียก endpoint จริงของแต่ละสเตป (ไม่ set status ดิบ) → ได้ข้อมูลรอง + audit event ครบ
-  const runStep = async (t: DevTransition) => {
-    switch (t.kind) {
-      case 'deliver':
-        return api.deliverPetition(petitionId, actor);
-      case 'receive':
-        return api.receivePetition(petitionId, actor, t.side);
-      case 'assign':
-        return api.devAssignPetition(petitionId, actor);
-      case 'complete':
-        return api.completePetitionTrack(petitionId, t.side, actor);
-      case 'approve':
-        return api.approvePetition(petitionId, actor);
-      case 'reject':
-        return api.rejectPetition(petitionId, actor, '[dev] ทดสอบ reject');
-    }
-  };
-
+  // raw-set status ฝั่ง backend (dev endpoint) — ไม่แตะข้อมูลรอง
   const advance = async (to: PetitionStatus) => {
     setBusy(true);
     setError(null);
     try {
-      for (const step of devTransitionPlan(to)) {
-        await runStep(step);
-      }
+      await api.devSetPetitionStatus(petitionId, to, actor);
       onChanged();
     } catch (e) {
       setError((e as Error).message);

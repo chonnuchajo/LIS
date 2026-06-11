@@ -450,27 +450,16 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status: "rejected", actor, revisionNote }),
     }),
-  // Petition transitions (ใช้โดย scan/assign flow จริง และ dev status stepper)
-  deliverPetition: (petitionId: string, actor: string) =>
-    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/deliver`, {
+  // Dev-only: raw-set petition.status via the gated backend dev endpoint
+  // (bypasses business guards; companion fields are NOT touched).
+  devSetPetitionStatus: (
+    petitionId: string,
+    status: import("@/types/petition.types").PetitionStatus,
+    actor: string,
+  ) =>
+    request<import("@/types/petition.types").Petition>(`/dev/petition-status/${petitionId}`, {
       method: "PATCH",
-      body: JSON.stringify({ actor }),
-    }),
-  receivePetition: (petitionId: string, actor: string, side: "lab" | "qc") =>
-    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/receive`, {
-      method: "PATCH",
-      body: JSON.stringify({ actor, side }),
-    }),
-  // Dev-only: assign แบบ placeholder (ไม่มีเครื่อง) เพื่อ flip pendingReview → inProgress
-  devAssignPetition: (petitionId: string, actor: string) =>
-    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/assign`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        employeeId: "__dev__",
-        name: "Dev Tester",
-        assignedBy: actor,
-        machines: [],
-      }),
+      body: JSON.stringify({ status, actor }),
     }),
   getPetition: (petitionId: string) =>
     request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`),
