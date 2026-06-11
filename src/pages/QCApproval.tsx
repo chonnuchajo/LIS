@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,23 @@ import { statusBadge } from "@/lib/statusBadge";
 
 const API_BASE = import.meta.env.BASE_URL + "api";
 
+function priorityScore(
+  petition: Petition,
+  abnormalMap: Record<string, boolean>,
+  returnedMap: Record<string, boolean>,
+): number {
+  const deptScore = petition.dept === 'rm' ? 5 : petition.dept === 'fg' ? 3 : 1;
+  const isOverdue = petition.completedAt
+    ? Date.now() - new Date(petition.completedAt).getTime() > 24 * 60 * 60 * 1000
+    : false;
+  return (
+    (abnormalMap[petition._id] ? 30 : 0) +
+    (isOverdue ? 20 : 0) +
+    (returnedMap[petition._id] ? 10 : 0) +
+    deptScore
+  );
+}
+
 const QCApproval = () => {
   const navigate = useNavigate();
   const { data: petitionData, loading: petitionLoading } = usePetitionList({
@@ -24,6 +41,14 @@ const QCApproval = () => {
   const [testersMap, setTestersMap] = useState<Record<string, string[]>>({});
   const [abnormalMap, setAbnormalMap] = useState<Record<string, boolean>>({});
   const [returnedMap, setReturnedMap] = useState<Record<string, boolean>>({});
+
+  const sortedPetitions = useMemo(
+    () =>
+      [...successPetitions].sort(
+        (a, b) => priorityScore(b, abnormalMap, returnedMap) - priorityScore(a, abnormalMap, returnedMap),
+      ),
+    [successPetitions, abnormalMap, returnedMap],
+  );
 
   useEffect(() => {
     if (successPetitions.length === 0) {
@@ -70,14 +95,33 @@ const QCApproval = () => {
       header: "เลขที่คำร้อง",
       className: "font-semibold text-primary",
       cell: (p) => (
-        <div className="flex items-center gap-1.5">
-          <span>{p.petitionNo}</span>
-          {returnedMap[p._id] && (
-            <RotateCcw className="h-4 w-4 text-orange-500 shrink-0" aria-label="ส่งกลับมาบันทึกผลใหม่" />
-          )}
-          {abnormalMap[p._id] && (
-            <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" aria-label="พบค่าผิดปกติในผลทดสอบ" />
-          )}
+        <div>
+          <div className="flex items-center gap-1.5">
+            <span>{p.petitionNo}</span>
+            {returnedMap[p._id] && (
+              <RotateCcw className="h-4 w-4 text-orange-500 shrink-0" aria-label="ส่งกลับมาบันทึกผลใหม่" />
+            )}
+            {abnormalMap[p._id] && (
+              <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" aria-label="พบค่าผิดปกติในผลทดสอบ" />
+            )}
+          </div>
+          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+            {abnormalMap[p._id] && (
+              <span className="inline-flex items-center rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                ผิดปกติ
+              </span>
+            )}
+            {p.completedAt && Date.now() - new Date(p.completedAt).getTime() > 24 * 60 * 60 * 1000 && (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                ⏰ เกิน 24h
+              </span>
+            )}
+            {returnedMap[p._id] && (
+              <span className="inline-flex items-center rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700">
+                🔄 Revision
+              </span>
+            )}
+          </div>
         </div>
       ),
     },
@@ -141,12 +185,12 @@ const QCApproval = () => {
               QC Approval
             </span>
           }
-          description={`ตรวจสอบและอนุมัติผลการทดสอบจาก QC · ${successPetitions.length} รายการรออนุมัติ`}
+          description={`ตรวจสอบและอนุมัติผลการทดสอบจาก QC · ${sortedPetitions.length} รายการรออนุมัติ`}
         />
 
         <DataTable
           columns={columns}
-          data={successPetitions}
+          data={sortedPetitions}
           rowKey={(p) => p._id}
           isLoading={petitionLoading}
           onRowClick={(p) => navigate(`/qc-testing/${p._id}`)}
