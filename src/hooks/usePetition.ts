@@ -38,6 +38,9 @@ export function usePetition(id: string | undefined) {
   const [data, setData] = useState<Petition | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
 
   useEffect(() => {
     if (!id) {
@@ -61,9 +64,9 @@ export function usePetition(id: string | undefined) {
     return () => {
       alive = false;
     };
-  }, [id]);
+  }, [id, reloadKey]);
 
-  return { data, loading, error };
+  return { data, loading, error, refresh };
 }
 
 // ===== Petition list =====

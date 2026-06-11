@@ -443,6 +443,16 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status: "rejected", actor, revisionNote }),
     }),
+  // Dev-only: ดัน status ไปสเตปถัดไปแบบ forward (ใช้ generic update path)
+  devSetPetitionStatus: (
+    petitionId: string,
+    status: import("@/types/petition.types").PetitionStatus,
+    actor: string,
+  ) =>
+    request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, actor }),
+    }),
   getPetition: (petitionId: string) =>
     request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`),
   findRejectedByBatch: (batchNo: string, employeeId: string) => {
