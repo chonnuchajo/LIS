@@ -24,6 +24,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useAuth } from '@/hooks/useAuth';
 import { usePetitionList } from '@/hooks/usePetition';
 import { api, type MachineItem } from '@/lib/api';
+import { getMachineSuggestions, type MachineSuggestion } from '@/lib/aiApi';
 import { DEV_MODE, synthesizeDevAssignees } from '@/config/dev';
 import { parseSubstances } from '@/lib/substances';
 import { readSlotMethods, machineMatchesMethod, type MethodDoc } from '@/lib/methodRegistry';
@@ -193,6 +194,7 @@ export default function PetitionAssignPage() {
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<TabKey>('normal');
+  const [machineSuggestions, setMachineSuggestions] = useState<Record<string, MachineSuggestion[]>>({});
 
   function startEditing(petitionId: string) {
     setEditingIds((prev) => new Set(prev).add(petitionId));
@@ -353,6 +355,22 @@ export default function PetitionAssignPage() {
     });
     return out;
   }, [pendingData?.items, inProgressData?.items, commonNameToSlots]);
+
+  useEffect(() => {
+    const seen = new Set<string>();
+    [...(pendingData?.items ?? []), ...(inProgressData?.items ?? [])].forEach((petition) => {
+      const groups = groupsByPetition.get(petition._id) ?? [];
+      groups.forEach((g) => {
+        if (seen.has(g.groupKey)) return;
+        seen.add(g.groupKey);
+        getMachineSuggestions(g.commonName, petition.dept).then((suggestions) => {
+          if (suggestions.length > 0) {
+            setMachineSuggestions((prev) => ({ ...prev, [g.groupKey]: suggestions }));
+          }
+        });
+      });
+    });
+  }, [pendingData, inProgressData, groupsByPetition]);
 
   // Machine-backed method codes required by a slot (bench/non-machine methods excluded).
   const machineMethodsOfSlot = useMemo(
