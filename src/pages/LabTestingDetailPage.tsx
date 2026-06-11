@@ -1087,6 +1087,8 @@ export default function LabTestingDetailPage() {
           onOpenChange={setLabRejectOpen}
           petitionNo={petition.petitionNo}
           submitterName={petition.submittedBy?.name ?? 'ผู้ทดสอบ Lab'}
+          recipientLabel="ผู้ทดสอบ Lab"
+          warning="คำร้องจะถูกส่งกลับให้ผู้ทดสอบ Lab แก้ไข/ทดสอบใหม่ (ไม่ปิดคำร้อง)"
           onConfirm={handleLabReject}
         />
       </div>

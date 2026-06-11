@@ -1245,6 +1245,16 @@ export default function QCTestingDetailPage() {
         onOpenChange={setRevisionDialogOpen}
         petitionNo={petition.petitionNo}
         submitterName={petition.submittedBy?.name ?? 'ผู้ยื่น'}
+        recipientLabel={
+          rejectTarget === 'lab' ? 'ผู้ทดสอบ Lab'
+            : rejectTarget === 'qc' ? 'ผู้ทดสอบ QC'
+            : (petition.submittedBy?.name ?? 'ผู้ยื่น')
+        }
+        warning={
+          rejectTarget === 'lab' ? 'คำร้องจะถูกส่งกลับให้ผู้ทดสอบ Lab แก้ไข/ทดสอบใหม่ (ไม่ปิดคำร้อง)'
+            : rejectTarget === 'qc' ? 'คำร้องจะถูกส่งกลับให้ผู้ทดสอบ QC แก้ไข/ทดสอบใหม่ (ไม่ปิดคำร้อง)'
+            : undefined
+        }
         onConfirm={handleReject}
       />
     </div>
