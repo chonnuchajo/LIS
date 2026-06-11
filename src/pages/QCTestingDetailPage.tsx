@@ -325,6 +325,7 @@ export default function QCTestingDetailPage() {
   const [previousLookup, setPreviousLookup] = useState<PreviousValueLookup>(new Map());
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [outlierResults, setOutlierResults] = useState<Record<string, OutlierCheckResult>>({});
+  const [copyPasteWarnings, setCopyPasteWarnings] = useState<Record<string, boolean>>({});
 
   // Load parameters and existing results (QC scope only)
   useEffect(() => {
@@ -591,6 +592,37 @@ export default function QCTestingDetailPage() {
     });
     return map;
   }, [lastBatchPairs, lastBatchQueries]);
+
+  // Detect copy-paste: warn when all numeric field values match the last batch exactly
+  useEffect(() => {
+    const warnings: Record<string, boolean> = {};
+    // values keys look like `${itemSeq}__${parameterId}`
+    Object.entries(values).forEach(([rKey, fieldValues]) => {
+      const matchingEntry = [...lastBatchByKey.entries()].find(([lbKey]) => {
+        // lbKey = `${commonName}__${parameterId}`
+        // rKey = `${itemSeq}__${parameterId}` — extract parameterId (last segment)
+        const parts = rKey.split('__');
+        const paramId = parts[parts.length - 1];
+        return lbKey.endsWith(`__${paramId}`);
+      });
+      if (!matchingEntry) return;
+      const lastBatchValues = matchingEntry[1]?.values ?? {};
+
+      // Get all numeric fields that have values
+      const numericPairs = Object.entries(fieldValues as Record<string, unknown>).filter(([, v]) => {
+        const n = Number(v);
+        return v !== '' && v != null && !isNaN(n);
+      });
+      if (numericPairs.length < 2) return; // need at least 2 fields to flag
+
+      const allMatch = numericPairs.every(([label, val]) => {
+        const lastVal = lastBatchValues[label];
+        return lastVal != null && String(lastVal) === String(val);
+      });
+      if (allMatch) warnings[rKey] = true;
+    });
+    setCopyPasteWarnings(warnings);
+  }, [values, lastBatchByKey]);
 
   if (petitionLoading) {
     return (
@@ -954,6 +986,12 @@ export default function QCTestingDetailPage() {
                           <span className="text-xs text-grey-400">{param.note}</span>
                         )}
                       </div>
+                      {copyPasteWarnings[k] && (
+                        <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-700 mb-2">
+                          <span>🔔</span>
+                          <span>ค่าทุกตัวเหมือน batch ก่อนหน้า — กรุณาตรวจสอบว่าไม่ได้ copy ค่าเดิม</span>
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-2">
                         {fields.map((field) => {
                           if (field.type === 'reference') {
