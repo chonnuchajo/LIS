@@ -64,6 +64,11 @@ router.get('/', async (req, res) => {
         { 'items.batchNo': rx },
       ];
     }
+    if (req.query.awaitingLabApproval === 'true') {
+      q.labCompletedAt = { $ne: null };
+      q.labApprovedAt = null;
+      q.status = 'inProgress';
+    }
 
     const [docs, total] = await Promise.all([
       Petition.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
