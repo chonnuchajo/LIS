@@ -42,7 +42,7 @@ import { RevisionRequestDialog } from '@/components/petition/RevisionRequestDial
 import { buildPreviousValueLookup, getPreviousValue, type PreviousValueLookup } from '@/lib/revisionHelpers';
 import { qcReceivedBy } from '@/lib/receiveStatus';
 import { AiOutlierBadge } from '@/components/lis/AiOutlierBadge';
-import { checkOutlier, getOllamaStatus, streamAnalyzeQC, type OutlierCheckResult } from '@/lib/aiApi';
+import { checkOutlier, getAiStatus, streamAnalyzeQC, type OutlierCheckResult } from '@/lib/aiApi';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -339,7 +339,7 @@ export default function QCTestingDetailPage() {
   }, []);
 
   useEffect(() => {
-    getOllamaStatus().then((s) => setOllamaAvailable(s.available));
+    getAiStatus().then((s) => setOllamaAvailable(s.available));
   }, []);
 
   // Auto-advance status pendingReview → inProgress when QC enters the first value

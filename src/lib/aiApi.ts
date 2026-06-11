@@ -88,9 +88,9 @@ export interface OllamaStatus {
   available: boolean;
 }
 
-export async function getOllamaStatus(): Promise<OllamaStatus> {
+export async function getAiStatus(): Promise<OllamaStatus> {
   try {
-    const res = await fetch(`${AI_BASE}/ollama-status`, {
+    const res = await fetch(`${AI_BASE}/ai-status`, {
       signal: AbortSignal.timeout(2000),
     });
     if (!res.ok) return { available: false };

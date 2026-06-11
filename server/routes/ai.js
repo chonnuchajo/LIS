@@ -4,7 +4,7 @@ const QCTestResult = require('../models/QCTestResult');
 const { zScore, linearRegression, consecutiveStreak } = require('../lib/smartRules');
 const Petition = require('../models/Petition');
 const DailyCheck = require('../models/DailyCheck');
-const { isOllamaAvailable, generateStream } = require('../lib/ollamaClient');
+const { isOpenAIConfigured, generateStream } = require('../lib/openaiClient');
 
 // POST /api/ai/outlier-check
 // Body: { commonName, parameterId, fieldLabel, value }
@@ -147,10 +147,9 @@ router.get('/daily-check-trends', async (req, res) => {
   }
 });
 
-// GET /api/ai/ollama-status
-router.get('/ollama-status', async (req, res) => {
-  const available = await isOllamaAvailable();
-  res.json({ available });
+// GET /api/ai/ai-status
+router.get('/ai-status', async (req, res) => {
+  res.json({ available: isOpenAIConfigured() });
 });
 
 // POST /api/ai/draft-note
@@ -161,8 +160,8 @@ router.post('/draft-note', async (req, res) => {
     const { petitionId } = req.body;
     if (!petitionId) return res.status(400).json({ error: 'petitionId required' });
 
-    if (!(await isOllamaAvailable())) {
-      return res.status(503).json({ error: 'Ollama ไม่พร้อมใช้งาน' });
+    if (!isOpenAIConfigured()) {
+      return res.status(503).json({ error: 'OpenAI API key ไม่ได้ตั้งค่า' });
     }
 
     const petition = await Petition.findById(petitionId).lean();
@@ -170,21 +169,21 @@ router.post('/draft-note', async (req, res) => {
 
     const results = await QCTestResult.find({ petitionId: String(petitionId) }).lean();
 
-    const itemSummaries = (petition.items || []).map((item) => {
+    const itemSummaries = (petition.items || []).map((item, idx) => {
+      const label = `ตัวอย่างที่ ${idx + 1}`;
       const itemResults = results.filter((r) => r.itemSeq === item.seq);
       const resultLines = itemResults.map((r) => {
         const vals = Object.entries(r.values || {})
           .filter(([, v]) => v !== null && v !== undefined && v !== '')
           .map(([k, v]) => `${k}: ${v}`)
           .join(', ');
-        return vals ? `  ${r.parameterName || r.parameterId}: ${vals}` : null;
+        return vals ? `  ${r.parameterName || 'พารามิเตอร์'}: ${vals}` : null;
       }).filter(Boolean);
-      return `- ${item.sampleName} (${item.commonName || ''}) Batch: ${item.batchNo}\n${resultLines.join('\n') || '  (ไม่มีผลทดสอบ)'}`;
+      return `- ${label}\n${resultLines.join('\n') || '  (ไม่มีผลทดสอบ)'}`;
     }).join('\n');
 
-    const prompt = `คุณเป็นเจ้าหน้าที่ QC ของบริษัทเคมีภัณฑ์ไทย กรุณาเขียนหมายเหตุการอนุมัติ (approval note) สำหรับคำร้องต่อไปนี้ เป็นภาษาไทย กระชับ 3-5 ประโยค
+    const prompt = `คุณเป็นเจ้าหน้าที่ QC ของบริษัทเคมีภัณฑ์ไทย กรุณาเขียนหมายเหตุการอนุมัติ (approval note) เป็นภาษาไทย กระชับ 3-5 ประโยค
 
-คำร้องเลขที่: ${petition.petitionNo}
 แผนก: ${petition.dept}
 วันที่รับ: ${petition.receivedAt ? new Date(petition.receivedAt).toLocaleDateString('th-TH') : '-'}
 
@@ -212,8 +211,8 @@ router.post('/weekly-summary', async (req, res) => {
     const { fromDate, toDate } = req.body;
     if (!fromDate || !toDate) return res.status(400).json({ error: 'fromDate and toDate required' });
 
-    if (!(await isOllamaAvailable())) {
-      return res.status(503).json({ error: 'Ollama ไม่พร้อมใช้งาน' });
+    if (!isOpenAIConfigured()) {
+      return res.status(503).json({ error: 'OpenAI API key ไม่ได้ตั้งค่า' });
     }
 
     const dateFilter = { date: { $gte: String(fromDate), $lte: String(toDate) } };
@@ -276,8 +275,8 @@ router.post('/analyze-qc', async (req, res) => {
     const { petitionId } = req.body;
     if (!petitionId) return res.status(400).json({ error: 'petitionId required' });
 
-    if (!(await isOllamaAvailable())) {
-      return res.status(503).json({ error: 'Ollama ไม่พร้อมใช้งาน' });
+    if (!isOpenAIConfigured()) {
+      return res.status(503).json({ error: 'OpenAI API key ไม่ได้ตั้งค่า' });
     }
 
     const petition = await Petition.findById(petitionId).lean();
@@ -285,22 +284,22 @@ router.post('/analyze-qc', async (req, res) => {
 
     const results = await QCTestResult.find({ petitionId: String(petitionId) }).lean();
 
-    const itemLines = (petition.items || []).map((item) => {
+    const itemLines = (petition.items || []).map((item, idx) => {
+      const label = `ตัวอย่างที่ ${idx + 1}`;
       const itemResults = results.filter((r) => r.itemSeq === item.seq);
       const valueLines = itemResults.flatMap((r) => {
         const entries = Object.entries(r.values || {})
           .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
           .map(([k, v]) => `    ${k}: ${v}`);
         if (entries.length === 0) return [];
-        return [`  [${r.parameterName || r.parameterId}]`, ...entries];
+        return [`  [${r.parameterName || 'พารามิเตอร์'}]`, ...entries];
       });
       const filled = valueLines.length > 0 ? valueLines.join('\n') : '  (ยังไม่มีผลทดสอบ)';
-      return `รายการ ${item.seq}: ${item.sampleName} (${item.commonName || ''}) Batch: ${item.batchNo}\n${filled}`;
+      return `${label}:\n${filled}`;
     }).join('\n\n');
 
     const prompt = `คุณเป็นเจ้าหน้าที่ QC ของบริษัทเคมีภัณฑ์ไทย กรุณาวิเคราะห์ผลการทดสอบ QC ต่อไปนี้เป็นภาษาไทย 4-6 ประโยค
 
-คำร้องเลขที่: ${petition.petitionNo}
 แผนก: ${petition.dept}
 
 ผลการทดสอบที่บันทึกไว้:

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { List, Filter, Sparkles, Loader2 } from "lucide-react";
-import { getOllamaStatus, streamWeeklySummary } from '@/lib/aiApi';
+import { getAiStatus, streamWeeklySummary } from '@/lib/aiApi';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -38,7 +38,7 @@ const DailyCheckRecordsPage = () => {
   const [summaryText, setSummaryText] = useState('');
 
   useEffect(() => {
-    getOllamaStatus().then((s) => setOllamaAvailable(s.available));
+    getAiStatus().then((s) => setOllamaAvailable(s.available));
   }, []);
 
   // ยิง 1 query ต่อห้อง (ทั้ง 3 ห้องเสมอ) ตามวันที่ที่เลือก — รวม client-side
