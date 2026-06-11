@@ -9,7 +9,8 @@
     "seed": "node seed-access-control.js",
     "sync": "node sync-to-remote.js",
     "seed:export": "node export-data.js",
-    "seed:import": "node import-data.js"
+    "seed:import": "node import-data.js",
+    "test": "jest"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -24,6 +25,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "jest": "^30.4.2",
     "nodemon": "^3.1.10"
   }
 }
