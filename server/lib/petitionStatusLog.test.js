@@ -433,10 +433,17 @@ test('isPetitionComplete: lab item — lab done but QC not → incomplete (QC al
   );
 });
 
-test('isPetitionComplete: lab item — both done → complete', () => {
+test('isPetitionComplete: lab item — qc done + lab APPROVED → complete', () => {
+  assert.strictEqual(
+    isPetitionComplete({ items: [{ batchNo: 'B-1' }], qcCompletedAt: 'T', labApprovedAt: 'T' }),
+    true,
+  );
+});
+
+test('isPetitionComplete: lab item — qc done + lab COMPLETED but NOT approved → incomplete', () => {
   assert.strictEqual(
     isPetitionComplete({ items: [{ batchNo: 'B-1' }], qcCompletedAt: 'T', labCompletedAt: 'T' }),
-    true,
+    false,
   );
 });
 
