@@ -680,6 +680,7 @@ export default function PetitionAssignPage() {
                 assignPetition={assignPetition}
                 onPetitionClick={(id) => navigate(`/petitions/${id}`)}
                 emptyText="ไม่พบคำร้องที่ต้อง assign"
+                machineSuggestions={machineSuggestions}
               />
             </TabsContent>
 
@@ -720,6 +721,7 @@ export default function PetitionAssignPage() {
                 onPetitionClick={(id) => navigate(`/petitions/${id}`)}
                 emptyText="ยังไม่มีคำร้อง Phase 2 ที่รอเลือก"
                 showPhase2Badge
+                machineSuggestions={machineSuggestions}
               />
             </TabsContent>
           </Tabs>
@@ -939,6 +941,7 @@ function AssignTable({
   onPetitionClick,
   emptyText,
   showPhase2Badge,
+  machineSuggestions,
 }: AssignTableProps) {
   return (
     <div className="rounded-[10px] border border-black-50 bg-white overflow-x-auto">
