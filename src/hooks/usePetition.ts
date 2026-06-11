@@ -76,6 +76,7 @@ interface PetitionListParams {
   status?: string;
   search?: string;
   dept?: PetitionDept;
+  awaitingLabApproval?: boolean;
 }
 interface PetitionListResponse {
   items: Petition[];
@@ -108,6 +109,7 @@ export function usePetitionList(params: PetitionListParams, options: PetitionLis
     if (params.status) sp.set('status', params.status);
     if (params.search) sp.set('search', params.search);
     if (params.dept) sp.set('dept', params.dept);
+    if (params.awaitingLabApproval) sp.set('awaitingLabApproval', 'true');
     return sp.toString();
   })();
 

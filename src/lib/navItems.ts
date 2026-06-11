@@ -36,6 +36,7 @@ export const NAV_ITEMS: NavItem[] = [
   { icon: Scale, label: "Daily Check", path: "/daily-check" },
   { icon: FileBarChart, label: "รายงานสรุป", path: "/report" },
   { icon: ShieldCheck, label: "อนุมัติผล QC", path: "/qc-approval" },
+  { icon: ShieldCheck, label: "อนุมัติผล Lab", path: "/lab-approval" },
   { icon: FlaskConical, label: "การทดสอบ QC", path: "/qc-testing" },
   { icon: FlaskConical, label: "การทดสอบ Lab", path: "/lab-testing" },
   { icon: UserCheck, label: "Assign คำร้อง", path: "/petitions/assign" },
