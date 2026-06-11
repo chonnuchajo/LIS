@@ -337,6 +337,75 @@ router.post('/:id/complete', async (req, res) => {
   }
 });
 
+// POST /api/petitions/:id/lab-approve  → หัวหน้า Lab อนุมัติผล Lab. success เกิดเมื่อครบทุก track.
+router.post('/:id/lab-approve', async (req, res) => {
+  try {
+    const actor = req.body?.actor || 'system';
+    const doc = await Petition.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if (['success', 'approved', 'rejected'].includes(doc.status)) {
+      return res.status(409).json({ error: { message: 'คำร้องนี้ผ่านขั้น Lab อนุมัติแล้ว' } });
+    }
+    if (!doc.labCompletedAt) return badRequest(res, 'ผู้ทดสอบ Lab ยังไม่ได้บันทึกผล');
+    if (doc.labApprovedAt) return badRequest(res, 'Lab อนุมัติไปแล้ว');
+
+    const now = new Date();
+    doc.labApprovedAt = now;
+    doc.labApprovedBy = actor;
+    doc.reviewHistory.push({ action: 'lab-approve', reviewedBy: actor, reviewedAt: now });
+
+    const prevStatus = doc.status;
+    if (isPetitionComplete(doc)) {
+      if (doc.status !== 'success') doc.status = 'success';
+      if (!doc.completedAt) doc.completedAt = now;
+      await doc.save();
+      logAudit(doc, {
+        event: 'statusChanged', fromStatus: prevStatus, toStatus: 'success', actor,
+        note: 'หัวหน้า Lab อนุมัติ — ครบทุกส่วน รอหัวหน้า QC อนุมัติ', metadata: { side: 'lab' },
+      });
+    } else {
+      await doc.save();
+      logAudit(doc, {
+        event: 'updated', toStatus: doc.status, actor,
+        note: 'หัวหน้า Lab อนุมัติ — รอ QC ตรวจให้ครบ', metadata: { side: 'lab' },
+      });
+    }
+    res.json(doc);
+  } catch (err) {
+    res.status(400).json({ error: { message: err.message } });
+  }
+});
+
+// POST /api/petitions/:id/lab-reject  → หัวหน้า Lab ส่งผล Lab กลับให้ผู้ทดสอบแก้ (ไม่ใช่ reject ทั้งใบ).
+router.post('/:id/lab-reject', async (req, res) => {
+  try {
+    const actor = req.body?.actor || 'system';
+    const note = String(req.body?.note || '').trim();
+    if (!note) return badRequest(res, 'กรุณาระบุเหตุผลที่ส่งกลับ');
+    const doc = await Petition.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+    if (['approved', 'rejected'].includes(doc.status)) {
+      return res.status(409).json({ error: { message: 'คำร้องนี้ปิดแล้ว' } });
+    }
+    if (!doc.labCompletedAt) return badRequest(res, 'ยังไม่มีผล Lab ให้ส่งกลับ');
+
+    doc.labCompletedAt = null;
+    doc.labCompletedBy = undefined;
+    doc.labApprovedAt = null;
+    doc.labApprovedBy = undefined;
+    doc.labReturnNote = note;
+    doc.reviewHistory.push({ action: 'lab-reject', reviewedBy: actor, reviewedAt: new Date(), note });
+    await doc.save();
+    logAudit(doc, {
+      event: 'updated', toStatus: doc.status, actor,
+      note: `หัวหน้า Lab ส่งกลับให้แก้: ${note}`, metadata: { side: 'lab', returnTo: 'lab' },
+    });
+    res.json(doc);
+  } catch (err) {
+    res.status(400).json({ error: { message: err.message } });
+  }
+});
+
 // GET /api/petitions/:id
 router.get('/:id', async (req, res) => {
   try {
