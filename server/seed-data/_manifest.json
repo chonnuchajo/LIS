@@ -14,7 +14,7 @@
     {
       "collection": "temphums",
       "file": "temphums.json",
-      "count": 0
+      "count": 5
     },
     {
       "collection": "parameters",
@@ -34,12 +34,12 @@
     {
       "collection": "qctestresults",
       "file": "qctestresults.json",
-      "count": 14
+      "count": 17
     },
     {
       "collection": "petitions",
       "file": "petitions.json",
-      "count": 6
+      "count": 8
     },
     {
       "collection": "simplemethodexclusions",
@@ -74,7 +74,7 @@
     {
       "collection": "users",
       "file": "users.json",
-      "count": 0
+      "count": 4
     },
     {
       "collection": "approvals",
@@ -89,7 +89,7 @@
     {
       "collection": "petitionauditlogs",
       "file": "petitionauditlogs.json",
-      "count": 232
+      "count": 256
     },
     {
       "collection": "realtimedensities",
@@ -104,7 +104,7 @@
     {
       "collection": "itemgroups",
       "file": "itemgroups.json",
-      "count": 0
+      "count": 2
     },
     {
       "collection": "equipmentchecks",
@@ -124,12 +124,12 @@
     {
       "collection": "printconfigs",
       "file": "printconfigs.json",
-      "count": 0
+      "count": 1
     },
     {
       "collection": "labrequests",
       "file": "labrequests.json",
-      "count": 23
+      "count": 25
     },
     {
       "collection": "instrumentsources",
@@ -175,6 +175,11 @@
       "collection": "physicalresults",
       "file": "physicalresults.json",
       "count": 0
+    },
+    {
+      "collection": "Result-Density",
+      "file": "Result-Density.json",
+      "count": 230
     },
     {
       "collection": "methods",
