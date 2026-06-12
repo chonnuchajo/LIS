@@ -122,7 +122,8 @@ const PathPicker = ({
     if (checked) {
       if (!value.includes(item.path)) onChange([...value, item.path]);
     } else {
-      onChange(value.filter((p) => p !== item.path));
+      const childTabPaths = restrictedTabsFor(item.path).map((t) => tabPath(t.parent, t.key));
+      onChange(value.filter((p) => p !== item.path && !childTabPaths.includes(p)));
     }
   };
 
@@ -197,11 +198,11 @@ const PathPicker = ({
                 </label>
                 {checked &&
                   restrictedTabsFor(item.path).map((tab) => {
-                    const tp = tabPath(tab.parent, tab.key);
-                    const tabChecked = value.includes(tp);
+                    const tabVirtualPath = tabPath(tab.parent, tab.key);
+                    const tabChecked = value.includes(tabVirtualPath);
                     return (
                       <label
-                        key={tp}
+                        key={tabVirtualPath}
                         className="ml-6 flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-accent"
                       >
                         <Checkbox
@@ -210,14 +211,14 @@ const PathPicker = ({
                           onCheckedChange={(c) =>
                             onChange(
                               c === true
-                                ? [...value, tp]
-                                : value.filter((p) => p !== tp),
+                                ? [...value, tabVirtualPath]
+                                : value.filter((p) => p !== tabVirtualPath),
                             )
                           }
                         />
                         <span className="truncate text-xs text-muted-foreground">↳ {tab.label}</span>
                         <span className="ml-auto truncate font-mono text-[10px] text-muted-foreground">
-                          {tp}
+                          {tabVirtualPath}
                         </span>
                       </label>
                     );

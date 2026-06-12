@@ -608,7 +608,20 @@ export default function QCTestingDetailPage() {
       });
       if (allMatch) warnings[rKey] = true;
     });
-    setCopyPasteWarnings(warnings);
+    // Bail when the warning set is unchanged. `lastBatchByKey` is a fresh ref on
+    // every render (its useMemo depends on the useQueries result array, which is
+    // never referentially stable), so this effect re-runs each render — committing
+    // a brand-new `warnings` object every time would set state → re-render → loop
+    // ("Maximum update depth exceeded"). Returning the previous object when the
+    // content matches keeps the reference stable and breaks the cycle.
+    setCopyPasteWarnings((prev) => {
+      const nextKeys = Object.keys(warnings);
+      const prevKeys = Object.keys(prev);
+      if (nextKeys.length === prevKeys.length && nextKeys.every((k) => prev[k] === warnings[k])) {
+        return prev;
+      }
+      return warnings;
+    });
   }, [values, lastBatchByKey]);
 
   if (petitionLoading) {
