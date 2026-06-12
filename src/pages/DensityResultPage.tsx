@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '@/lib/api';
 import { Gauge, RefreshCw, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
+import AppLayout from '@/components/lis/AppLayout';
 
 const LIMIT = 100;
 
@@ -69,6 +70,7 @@ export default function DensityResultPage() {
   const hasActiveFilter = appliedSearch || appliedProduct || appliedDate;
 
   return (
+    <AppLayout>
     <div className="p-6">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
@@ -213,5 +215,6 @@ export default function DensityResultPage() {
         </table>
       </div>
     </div>
+    </AppLayout>
   );
 }
