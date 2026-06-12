@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -9,45 +10,60 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { ConfirmProvider } from "@/context/ConfirmDialog";
 import DailyCheckReminderWatcher from "@/components/lis/DailyCheckReminderWatcher";
 import PrivateRoute from "@/components/PrivateRoute";
-import Home from "./pages/Home";
-import LabDashboard from "./pages/LabDashboard";
-import QCDashboard from "./pages/QCDashboard";
-import QueueDisplay from "./pages/QueueDisplay";
-import Login from "./pages/Login";
-import AnalysisResults from "./pages/AnalysisResults";
-import Report from "./pages/Report";
-import Stock from "./pages/Stock";
-import StockUnitScanPage from "./pages/StockUnitScanPage";
-import MasterItems, { MachinesPage, SimpleMethodPage } from "./pages/MasterItems";
-import QCApproval from "./pages/QCApproval";
-import LabApproval from "./pages/LabApproval";
-import AdminData from "./pages/AdminData";
-import SettingsPage from "./pages/SettingsPage";
-import ParameterSettings from "./pages/ParameterSettings";
-import AccessControl from "./pages/AccessControl";
-import StockDeduction from "./pages/StockDeduction";
-import DailyCheckLayout from "./pages/daily-check/DailyCheckLayout";
-import BalanceRoomPage from "./pages/daily-check/BalanceRoomPage";
-import RoomEquipmentCheckPage from "./pages/daily-check/RoomEquipmentCheckPage";
-import EnvironmentCheckPage from "./pages/daily-check/EnvironmentCheckPage";
-import DocumentsPage from "./pages/daily-check/DocumentsPage";
-import DailyCheckRecordsPage from "./pages/daily-check/DailyCheckRecordsPage";
-import NotFound from "./pages/NotFound";
-import ScannerPage from "./pages/ScannerPage";
-import PetitionListPage from "./pages/PetitionListPage";
-import PetitionNewPage from "./pages/PetitionNewPage";
-import ProductionIntegrationPetitionNewPage from "./pages/petitions/ProductionIntegrationPetitionNewPage";
-import PetitionDetailPage from "./pages/PetitionDetailPage";
-import PetitionEditPage from "./pages/PetitionEditPage";
-import PetitionAssignPage from "./pages/PetitionAssignPage";
-import PetitionAuditLogPage from "./pages/PetitionAuditLogPage";
-import QCTestingPage from "./pages/QCTestingPage";
-import QCTestingDetailPage from "./pages/QCTestingDetailPage";
-import LabTestingPage from "./pages/LabTestingPage";
-import LabTestingDetailPage from "./pages/LabTestingDetailPage";
-import StandardConfig from "./pages/StandardConfig";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
 import EmployeeLinkGate from "@/components/lis/EmployeeLinkGate";
+
+// Route-level code splitting: each page is its own chunk, loaded on demand.
+// Keeps the initial bundle to the app shell + only the landing route.
+const Home = lazy(() => import("./pages/Home"));
+const LabDashboard = lazy(() => import("./pages/LabDashboard"));
+const QCDashboard = lazy(() => import("./pages/QCDashboard"));
+const QueueDisplay = lazy(() => import("./pages/QueueDisplay"));
+const Login = lazy(() => import("./pages/Login"));
+const AnalysisResults = lazy(() => import("./pages/AnalysisResults"));
+const Report = lazy(() => import("./pages/Report"));
+const Stock = lazy(() => import("./pages/Stock"));
+const StockUnitScanPage = lazy(() => import("./pages/StockUnitScanPage"));
+const MasterItems = lazy(() => import("./pages/MasterItems"));
+const SimpleMethodPage = lazy(() =>
+  import("./pages/MasterItems").then((m) => ({ default: m.SimpleMethodPage })),
+);
+const MachinesPage = lazy(() =>
+  import("./pages/MasterItems").then((m) => ({ default: m.MachinesPage })),
+);
+const QCApproval = lazy(() => import("./pages/QCApproval"));
+const LabApproval = lazy(() => import("./pages/LabApproval"));
+const AdminData = lazy(() => import("./pages/AdminData"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const ParameterSettings = lazy(() => import("./pages/ParameterSettings"));
+const AccessControl = lazy(() => import("./pages/AccessControl"));
+const StockDeduction = lazy(() => import("./pages/StockDeduction"));
+const DailyCheckLayout = lazy(() => import("./pages/daily-check/DailyCheckLayout"));
+const BalanceRoomPage = lazy(() => import("./pages/daily-check/BalanceRoomPage"));
+const RoomEquipmentCheckPage = lazy(() => import("./pages/daily-check/RoomEquipmentCheckPage"));
+const EnvironmentCheckPage = lazy(() => import("./pages/daily-check/EnvironmentCheckPage"));
+const DocumentsPage = lazy(() => import("./pages/daily-check/DocumentsPage"));
+const DailyCheckRecordsPage = lazy(() => import("./pages/daily-check/DailyCheckRecordsPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const ScannerPage = lazy(() => import("./pages/ScannerPage"));
+const PetitionListPage = lazy(() => import("./pages/PetitionListPage"));
+const PetitionNewPage = lazy(() => import("./pages/PetitionNewPage"));
+const ProductionIntegrationPetitionNewPage = lazy(() => import("./pages/petitions/ProductionIntegrationPetitionNewPage"));
+const PetitionDetailPage = lazy(() => import("./pages/PetitionDetailPage"));
+const PetitionEditPage = lazy(() => import("./pages/PetitionEditPage"));
+const PetitionAssignPage = lazy(() => import("./pages/PetitionAssignPage"));
+const PetitionAuditLogPage = lazy(() => import("./pages/PetitionAuditLogPage"));
+const QCTestingPage = lazy(() => import("./pages/QCTestingPage"));
+const QCTestingDetailPage = lazy(() => import("./pages/QCTestingDetailPage"));
+const LabTestingPage = lazy(() => import("./pages/LabTestingPage"));
+const LabTestingDetailPage = lazy(() => import("./pages/LabTestingDetailPage"));
+const StandardConfig = lazy(() => import("./pages/StandardConfig"));
+
+const RouteFallback = () => (
+  <div className="flex min-h-screen items-center justify-center">
+    <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
+  </div>
+);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,6 +91,7 @@ const App = () => (
           <NotificationProvider>
             <DailyCheckReminderWatcher />
             <SampleProvider>
+              <Suspense fallback={<RouteFallback />}>
               <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/scanner" element={<ScannerPage />} />
@@ -124,6 +141,7 @@ const App = () => (
               <Route path="/lab-testing/:id" element={<PrivateRoute><LabTestingDetailPage /></PrivateRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+              </Suspense>
             </SampleProvider>
           </NotificationProvider>
         </AuthProvider>
