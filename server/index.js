@@ -26,6 +26,7 @@ mountApi('/auth', require('./routes/auth'));
 mountApi('/physical-results', require('./routes/physicalResults'));
 mountApi('/approvals', require('./routes/approvals'));
 mountApi('/densities', require('./routes/densities'));
+mountApi('/result-densities', require('./routes/result-densities'));
 mountApi('/instrument-readings', require('./routes/instrument-readings'));
 mountApi('/stock', require('./routes/stock'));
 mountApi('/access-control', require('./routes/accessControl'));

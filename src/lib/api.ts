@@ -183,6 +183,12 @@ export const api = {
   deleteDensity: (sampleId: string) =>
     request<{ success: boolean }>(`/densities/${encodeURIComponent(sampleId)}`, { method: 'DELETE' }),
 
+  // Result Density (DMA 501 — reads from Result-Density collection)
+  getResultDensities: (params?: { page?: number; limit?: number }) => {
+    const qs = params ? `?page=${params.page ?? 1}&limit=${params.limit ?? 100}` : '';
+    return request<{ docs: Record<string, unknown>[]; total: number; page: number; limit: number }>(`/result-densities${qs}`);
+  },
+
   // Instrument readings (pull values live from lab instruments) ----------------
   // Config CRUD (managed in Settings)
   getInstrumentSources: () => request<InstrumentSource[]>("/instrument-readings/sources"),
