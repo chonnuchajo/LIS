@@ -455,16 +455,21 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ actor, note }),
     }),
-  approvePetition: (petitionId: string, actor: string) =>
+  approvePetition: (
+    petitionId: string,
+    actor: string,
+    conclusion: "pass" | "accepted-oos" = "pass",
+    conclusionNote?: string,
+  ) =>
     request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`, {
       method: "PATCH",
-      body: JSON.stringify({ status: "approved", actor }),
+      body: JSON.stringify({ status: "approved", actor, conclusion, conclusionNote }),
     }),
   rejectPetition: (
     petitionId: string,
     actor: string,
     revisionNote: string,
-    target: "requester" | "lab" | "qc" = "requester",
+    target: "requester" | "lab" | "qc" | "both" = "requester",
   ) =>
     request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}`, {
       method: "PATCH",
