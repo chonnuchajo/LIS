@@ -26,6 +26,35 @@ export async function buildStockLabelHtml(unit: StockUnitItem): Promise<string> 
 </div>`.trim();
 }
 
+/** สติกเกอร์สารเคมี — solvent ไม่ได้ track รายขวด จึงไม่มี StockUnit/qrId จริง
+ *  QR encode idForQr (= _id ของสารเคมี) เป็นตัวบอกว่าเป็นสารตัวไหน
+ *  scanner ในแอปยัง resolve ไม่ได้ (ไม่มี StockUnit) — เป็นสติกเกอร์ระบุตัวเท่านั้น */
+export async function buildSolventLabelHtml(payload: {
+  name: string;
+  idForQr: string;
+  lotNo?: string;
+  exp?: string | null;
+  sizeLabel?: string;
+}): Promise<string> {
+  const qr = await QRCode.toDataURL(payload.idForQr, {
+    margin: 3,
+    width: 512,
+    errorCorrectionLevel: "M",
+  });
+  const exp = payload.exp ? new Date(payload.exp).toLocaleDateString("th-TH") : "-";
+  const size = payload.sizeLabel || "-";
+  return `
+<div style="display:flex;gap:8px;align-items:center;font-family:'Kanit',sans-serif;width:152mm;height:101mm;box-sizing:border-box;padding:6mm;color:#000;">
+  <img src="${qr}" alt="qr" style="width:56mm;height:56mm;flex:none;" />
+  <div style="font-size:12pt;line-height:1.4;min-width:0;color:#000;">
+    <div style="font-weight:700;font-size:15pt;">${escapeHtml(payload.name || "")}</div>
+    <div>สารเคมี · ขนาด: ${escapeHtml(size)}</div>
+    <div>Lot: ${escapeHtml(payload.lotNo || "-")}</div>
+    <div>EXP: <b>${escapeHtml(exp)}</b></div>
+  </div>
+</div>`.trim();
+}
+
 function escapeHtml(s: string): string {
   return String(s)
     .replace(/&/g, "&amp;")
