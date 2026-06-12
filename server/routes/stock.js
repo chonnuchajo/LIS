@@ -76,7 +76,7 @@ function stripMeta(body) {
 
 router.get('/standards', async (req, res) => {
   try {
-    res.json(await StockStandard.find().sort({ code: 1 }));
+    res.json(await StockStandard.find().sort({ code: 1 }).collation({ locale: 'en', numericOrdering: true }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

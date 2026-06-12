@@ -4,38 +4,15 @@ import { InteractionStatus } from "@azure/msal-browser";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { userCanAccessPath } from "@/lib/accessControl";
-import { api } from "@/lib/api";
 import { DEV_MODE } from "@/config/dev";
 import { normalizeRoles, unionPermissions } from "@/lib/roles";
+import {
+  loadAccessControl,
+  invalidateAccessControl,
+  type AccessControlPayload,
+} from "@/lib/accessControlSource";
 
-type AccessGroup = {
-  id: string;
-  paths?: string[];
-};
-
-type AccessControlState = {
-  groups: AccessGroup[];
-  permissions: Record<string, string[]>;
-};
-
-let accessControlCache: AccessControlState | null = null;
-let accessControlRequest: Promise<AccessControlState> | null = null;
-
-function loadAccessControl() {
-  if (accessControlCache) return Promise.resolve(accessControlCache);
-  if (!accessControlRequest) {
-    accessControlRequest = api
-      .get<AccessControlState>("/access-control")
-      .then((res) => {
-        accessControlCache = res.data.data;
-        return accessControlCache;
-      })
-      .finally(() => {
-        accessControlRequest = null;
-      });
-  }
-  return accessControlRequest;
-}
+type AccessControlState = AccessControlPayload;
 
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useIsAuthenticated();
@@ -49,7 +26,7 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const refreshMapping = () => {
-      accessControlCache = null;
+      invalidateAccessControl();
       setMappingVersion((current) => current + 1);
     };
     window.addEventListener("lis-access-groups-changed", refreshMapping);
