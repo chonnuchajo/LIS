@@ -10,6 +10,7 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { ConfirmProvider } from "@/context/ConfirmDialog";
 import DailyCheckReminderWatcher from "@/components/lis/DailyCheckReminderWatcher";
 import PrivateRoute from "@/components/PrivateRoute";
+import RoutePointerLockGuard from "@/components/RoutePointerLockGuard";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
 import EmployeeLinkGate from "@/components/lis/EmployeeLinkGate";
 
@@ -86,7 +87,7 @@ const App = () => (
         basename={import.meta.env.BASE_URL}
         future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
       >
-      
+        <RoutePointerLockGuard />
         <AuthProvider>
           <DevRoleSwitcher />
           <EmployeeLinkGate />

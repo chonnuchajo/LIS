@@ -8,6 +8,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { releaseBodyPointerLock } from '@/context/ConfirmDialog';
 import { Loader2, RotateCcw } from 'lucide-react';
 
 interface RevisionRequestDialogProps {
@@ -42,6 +43,9 @@ export function RevisionRequestDialog({
       await onConfirm(trimmed);
       setNote('');
       onOpenChange(false);
+      // onConfirm usually navigates immediately; clear the Radix body lock now
+      // so the next page isn't born unclickable (see RoutePointerLockGuard).
+      releaseBodyPointerLock();
     } catch {
       // keep dialog open on error
     } finally {
