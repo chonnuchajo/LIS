@@ -65,7 +65,7 @@ export function buildBottles(row: CartRow): { exp?: string }[] {
   if (row.sameExp) {
     return Array.from({ length: n }, () => ({ exp: row.commonExp || undefined }));
   }
-  return row.perExp.slice(0, n).map((e) => ({ exp: e || undefined }));
+  return Array.from({ length: n }, (_, i) => ({ exp: row.perExp[i] || undefined }));
 }
 
 export function composeSolventNote(row: CartRow): string {

@@ -52,6 +52,11 @@ describe("receiveCart.helpers", () => {
     expect(buildBottles(r)).toEqual([{ exp: "2027-01-01" }, { exp: "2027-02-02" }]);
   });
 
+  it("buildBottles: per-bottle exp สั้นกว่า count → เติม undefined ให้ครบ", () => {
+    const r = { ...makeEmptyRow(), count: "3", sameExp: false, perExp: ["2027-01-01"] };
+    expect(buildBottles(r)).toEqual([{ exp: "2027-01-01" }, { exp: undefined }, { exp: undefined }]);
+  });
+
   it("composeSolventNote: รวม lot/exp/ขนาด/note ด้วย ·", () => {
     const r = { ...makeEmptyRow(), lotNo: "L1", exp: "2027-01-01", sizeLabel: "2.5 L", note: "ใหม่" };
     expect(composeSolventNote(r)).toBe("lot L1 · exp 2027-01-01 · ขนาด 2.5 L · ใหม่");
