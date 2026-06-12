@@ -36,6 +36,17 @@ export default defineConfig(({ mode }) => ({
         main: path.resolve(__dirname, "index.html"),
         auth: path.resolve(__dirname, "auth.html"),
       },
+      output: {
+        // Split heavy vendor libs into their own cacheable chunks so they
+        // are not duplicated across route chunks and only fetched when used.
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-query": ["@tanstack/react-query"],
+          "vendor-charts": ["recharts"],
+          "vendor-qr": ["html5-qrcode", "qrcode", "react-barcode"],
+          "vendor-msal": ["@azure/msal-browser", "@azure/msal-react"],
+        },
+      },
     },
   },
 
