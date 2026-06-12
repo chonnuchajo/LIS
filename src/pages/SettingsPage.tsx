@@ -17,6 +17,8 @@ import type { PrintConfig, PrintConfigInput } from "@/lib/printConfig";
 import { DOC_NUMBER_TYPES, type DocumentNumberConfig, type DocumentNumberConfigInput, type DocNumberType } from "@/lib/documentNumberConfig";
 import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
 
+const TAB_KEYS = ["environment", "printers", "doc-numbers", "instruments", "dashboard"];
+
 const SettingsPage = () => {
   const queryClient = useQueryClient();
   const { rooms, isLoading } = useEnvRooms();
@@ -93,7 +95,6 @@ const SettingsPage = () => {
   });
   const roleOptions = (accessMatrix?.roles ?? []).map((r) => ({ id: r.id, name: r.name }));
 
-  const TAB_KEYS = ["environment", "printers", "doc-numbers", "instruments", "dashboard"];
   const { isVisible, defaultKey } = useAccessibleTabs("/settings", TAB_KEYS);
   const [activeTab, setActiveTab] = useState<string | undefined>(defaultKey);
   // If the chosen tab becomes hidden (or default resolves late), snap to a visible one.
