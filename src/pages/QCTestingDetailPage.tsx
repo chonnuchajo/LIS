@@ -775,8 +775,8 @@ export default function QCTestingDetailPage() {
     }
   };
 
-  // Locked once QC has submitted its results (read-only while waiting for Lab /
-  // หัวหน้า QC), or after the petition is fully complete.
+  // Locked once QC has submitted its results — read-only while waiting for Lab
+  // to finish (status==='success' petitions redirect to the approval page above).
   const isLocked = !!petition.qcCompletedAt;
 
   return (
@@ -1132,7 +1132,6 @@ export default function QCTestingDetailPage() {
           </p>
         </div>
       )}
-
     </div>
     </AppLayout>
   );
