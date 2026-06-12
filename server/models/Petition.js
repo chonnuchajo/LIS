@@ -129,6 +129,16 @@ const PetitionSchema = new mongoose.Schema(
     qcRedoExplanation: String,
     firstResultAt: Date,
     completedAt: Date,
+    // ผลสรุปสุดท้ายจากหัวหน้า QC (ไว้แสดงในหน้าผลวิเคราะห์)
+    //  pass                  = ผลปกติ-ถูกต้อง อนุมัติ
+    //  accepted-oos          = ยอมรับผลไม่ปกติเป็นผลจริง (ต้องมีเหตุผล)
+    //  returned-to-requester = ส่งคืนผู้ส่งให้แก้ product (ปิดงาน)
+    conclusion: {
+      type: String,
+      enum: ['pass', 'accepted-oos', 'returned-to-requester'],
+      default: null,
+    },
+    conclusionNote: String,
     submittedBy: { type: SubmittedBySchema, required: true },
     deliveredBy: { type: DeliveredBySchema },
     items: { type: [PetitionItemSchema], default: [] },
