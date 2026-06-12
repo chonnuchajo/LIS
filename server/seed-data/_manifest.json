@@ -54,7 +54,7 @@
     {
       "collection": "stockunits",
       "file": "stockunits.json",
-      "count": 223
+      "count": 225
     },
     {
       "collection": "simplemethods",
@@ -89,7 +89,7 @@
     {
       "collection": "petitionauditlogs",
       "file": "petitionauditlogs.json",
-      "count": 230
+      "count": 231
     },
     {
       "collection": "realtimedensities",
@@ -132,6 +132,11 @@
       "count": 23
     },
     {
+      "collection": "instrumentsources",
+      "file": "instrumentsources.json",
+      "count": 0
+    },
+    {
       "collection": "commonnameoverrides",
       "file": "commonnameoverrides.json",
       "count": 19
@@ -144,7 +149,7 @@
     {
       "collection": "stocktransactions",
       "file": "stocktransactions.json",
-      "count": 8
+      "count": 12
     },
     {
       "collection": "documentnumberconfigs",

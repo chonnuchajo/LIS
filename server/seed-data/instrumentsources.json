@@ -1,0 +1,1 @@
+{"collection":"instrumentsources","indexes":[{"v":{"$numberInt":"2"},"key":{"deletedAt":{"$numberInt":"1"}},"name":"deletedAt_1","background":true},{"v":{"$numberInt":"2"},"key":{"key":{"$numberInt":"1"},"deletedAt":{"$numberInt":"1"}},"name":"key_1_deletedAt_1","background":true,"unique":true}],"count":{"$numberInt":"0"},"documents":[]}
