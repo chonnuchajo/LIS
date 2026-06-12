@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { NAV_ITEMS, PAGE_ITEMS, type NavItem } from "@/lib/navItems";
+import { restrictedTabsFor, tabPath } from "@/lib/tabItems";
 import {
   ChevronDown,
   ChevronRight,
@@ -181,21 +182,47 @@ const PathPicker = ({
               );
             }
             return (
-              <label
-                key={item.path}
-                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-accent"
-              >
-                <Checkbox
-                  checked={checked}
-                  disabled={disabled}
-                  onCheckedChange={(c) => toggle(item, c === true)}
-                />
-                <item.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="truncate text-sm">{item.label}</span>
-                <span className="ml-auto truncate font-mono text-[10px] text-muted-foreground">
-                  {item.path}
-                </span>
-              </label>
+              <div key={item.path}>
+                <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-accent">
+                  <Checkbox
+                    checked={checked}
+                    disabled={disabled}
+                    onCheckedChange={(c) => toggle(item, c === true)}
+                  />
+                  <item.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate text-sm">{item.label}</span>
+                  <span className="ml-auto truncate font-mono text-[10px] text-muted-foreground">
+                    {item.path}
+                  </span>
+                </label>
+                {checked &&
+                  restrictedTabsFor(item.path).map((tab) => {
+                    const tp = tabPath(tab.parent, tab.key);
+                    const tabChecked = value.includes(tp);
+                    return (
+                      <label
+                        key={tp}
+                        className="ml-6 flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-accent"
+                      >
+                        <Checkbox
+                          checked={tabChecked}
+                          disabled={disabled}
+                          onCheckedChange={(c) =>
+                            onChange(
+                              c === true
+                                ? [...value, tp]
+                                : value.filter((p) => p !== tp),
+                            )
+                          }
+                        />
+                        <span className="truncate text-xs text-muted-foreground">↳ {tab.label}</span>
+                        <span className="ml-auto truncate font-mono text-[10px] text-muted-foreground">
+                          {tp}
+                        </span>
+                      </label>
+                    );
+                  })}
+              </div>
             );
           })}
         </div>
