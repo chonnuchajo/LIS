@@ -27,6 +27,21 @@ type ConfirmFn = (options?: ConfirmOptions) => Promise<boolean>;
 const ConfirmContext = React.createContext<ConfirmFn | null>(null);
 
 /**
+ * Radix locks the page while a modal is open by setting
+ * `document.body.style.pointerEvents = "none"`, and only restores it once the
+ * close animation finishes. If the caller does `await confirm()` then
+ * `navigate()` straight away, the next page mounts inside that window with the
+ * whole body — sidebar nav included — still unclickable (sometimes permanently,
+ * Radix issues #1241 / #2122). Clearing it the instant we close removes that
+ * dead window. No-op when nothing is stuck.
+ */
+export function releaseBodyPointerLock() {
+  if (typeof document !== "undefined" && document.body.style.pointerEvents === "none") {
+    document.body.style.pointerEvents = "";
+  }
+}
+
+/**
  * Global confirm dialog แบบ promise — แทน window.confirm ด้วย popup กลางจอ
  * ที่หน้าตาเหมือนกันทั้งแอป เรียกใช้ผ่าน useConfirm():
  *
@@ -48,9 +63,18 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
 
   const settle = React.useCallback((value: boolean) => {
     setOpen(false);
+    // Unlock the body now, synchronously, so a navigate() fired right after the
+    // returned promise resolves doesn't land on a still-locked page.
+    releaseBodyPointerLock();
     resolverRef.current?.(value);
     resolverRef.current = null;
   }, []);
+
+  // Belt-and-suspenders: whenever the dialog is closed, make sure Radix didn't
+  // leave the body lock behind (covers Esc / click-outside paths too).
+  React.useEffect(() => {
+    if (!open) releaseBodyPointerLock();
+  }, [open]);
 
   const {
     title = "ยืนยันการทำรายการ",
