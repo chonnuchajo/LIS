@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { FlaskConical, CheckCircle2, Loader2, AlertCircle, AlertTriangle, RotateCcw, Save, Send, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
@@ -38,9 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { RevisionRequestDialog } from '@/components/petition/RevisionRequestDialog';
 import { buildPreviousValueLookup, getPreviousValue, type PreviousValueLookup } from '@/lib/revisionHelpers';
-import { qcReceivedBy } from '@/lib/receiveStatus';
 import { AiOutlierBadge } from '@/components/lis/AiOutlierBadge';
 import { checkOutlier, getAiStatus, streamAnalyzeQC, type OutlierCheckResult } from '@/lib/aiApi';
 
@@ -304,10 +302,6 @@ export default function QCTestingDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [wasReturned, setWasReturned] = useState(false);
   const [selectedPhase, setSelectedPhase] = useState<PetitionPhase>(1);
-  const [retestTarget, setRetestTarget] = useState<'lab' | 'qc' | 'both'>('lab');
-  const [retestDialogOpen, setRetestDialogOpen] = useState(false);
-  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
-  const [acceptReasonDialogOpen, setAcceptReasonDialogOpen] = useState(false);
   const [previousLookup, setPreviousLookup] = useState<PreviousValueLookup>(new Map());
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [outlierResults, setOutlierResults] = useState<Record<string, OutlierCheckResult>>({});
@@ -322,18 +316,6 @@ export default function QCTestingDetailPage() {
       .then((all) => setParameters(all.filter((p) => (p.scope ?? 'qc') === 'qc')))
       .catch(() => {});
   }, []);
-
-  // ผลผิดปกติระดับคำร้อง (รวมทั้ง Lab + QC) — ใช้ตัดสินปุ่มด่านหัวหน้า QC.
-  // local abnormalCount นับเฉพาะ param scope=qc ที่หน้านี้โหลด จึงไม่ครอบฝั่ง Lab;
-  // backend /qc-results/abnormal-flags สแกน QCTestResult ทุก scope (Lab เซฟลงที่เดียวกัน).
-  const petitionId = petition?._id;
-  const [petitionHasAbnormal, setPetitionHasAbnormal] = useState(false);
-  useEffect(() => {
-    if (!petitionId) { setPetitionHasAbnormal(false); return; }
-    api.getAbnormalFlags([petitionId])
-      .then((m) => setPetitionHasAbnormal(!!m[petitionId]))
-      .catch(() => {});
-  }, [petitionId]);
 
   useEffect(() => {
     getAiStatus().then((s) => setOllamaAvailable(s.available));
@@ -649,6 +631,11 @@ export default function QCTestingDetailPage() {
     );
   }
 
+  // คำร้องที่บันทึกผลแล้ว (รออนุมัติ) ย้ายไปหน้าอนุมัติเฉพาะ — กันคนหลงเข้าฟอร์มที่ถูก lock
+  if (petition.status === "success") {
+    return <Navigate to={`/qc-approval/${petition._id}`} replace />;
+  }
+
   const items = petition.items ?? [];
 
   // 2-phase support
@@ -788,65 +775,9 @@ export default function QCTestingDetailPage() {
     }
   };
 
-  const doApprove = async (conclusion: 'pass' | 'accepted-oos', note?: string) => {
-    setSubmitting(true);
-    try {
-      await api.approvePetition(petition._id, user?.name ?? 'system', conclusion, note);
-      toast.success(conclusion === 'accepted-oos' ? 'ยอมรับผลเรียบร้อย' : 'อนุมัติเรียบร้อย');
-      navigate('/qc-approval');
-    } catch {
-      toast.error('ดำเนินการไม่สำเร็จ');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleApprovePass = async () => {
-    if (!(await confirm({ title: 'ผลถูกต้อง', description: 'ยืนยันว่าผลถูกต้องและอนุมัติคำร้องนี้?' }))) return;
-    await doApprove('pass');
-  };
-
-  const handleAcceptOos = async (note: string) => {
-    setAcceptReasonDialogOpen(false);
-    await doApprove('accepted-oos', note);
-  };
-
-  const handleRetest = async (note: string) => {
-    setSubmitting(true);
-    try {
-      await api.rejectPetition(petition._id, user?.name ?? 'system', note, retestTarget);
-      const label = retestTarget === 'lab' ? 'Lab' : retestTarget === 'qc' ? 'QC' : 'Lab และ QC';
-      toast.success(`ส่งกลับให้ ${label} ทดสอบใหม่เรียบร้อย`);
-      setRetestDialogOpen(false);
-      navigate('/qc-approval');
-    } catch {
-      toast.error('ส่งกลับไม่สำเร็จ');
-      throw new Error('retest failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleReturnToRequester = async (note: string) => {
-    setSubmitting(true);
-    try {
-      await api.rejectPetition(petition._id, user?.name ?? 'system', note, 'requester');
-      toast.success('ส่งคืนผู้ส่งให้แก้ product เรียบร้อย', {
-        description: `ส่งให้ ${petition.submittedBy?.name ?? 'ผู้ยื่น'}`,
-      });
-      setReturnDialogOpen(false);
-      navigate('/qc-approval');
-    } catch {
-      toast.error('ส่งคืนไม่สำเร็จ');
-      throw new Error('return failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   // Locked once QC has submitted its results (read-only while waiting for Lab /
   // หัวหน้า QC), or after the petition is fully complete.
-  const isLocked = petition.status === 'success' || !!petition.qcCompletedAt;
+  const isLocked = !!petition.qcCompletedAt;
 
   return (
     <AppLayout title={petition.petitionNo}>
@@ -1165,7 +1096,7 @@ export default function QCTestingDetailPage() {
       })}
 
       {/* Action buttons */}
-      {items.length > 0 && petition.status !== 'success' && (
+      {items.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <Button
             variant={isComplete ? 'primary' : 'outline'}
@@ -1182,74 +1113,6 @@ export default function QCTestingDetailPage() {
             )}
             {isComplete ? 'บันทึก' : 'บันทึกแบบร่าง'}
           </Button>
-        </div>
-      )}
-
-      {petition.status === 'success' && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 flex flex-col items-center gap-3">
-          <div className="flex flex-col items-center gap-1">
-            <CheckCircle2 className="h-6 w-6 text-green-500" />
-            <p className="text-sm font-semibold text-green-700">บันทึกผลแล้ว — รอหัวหน้า QC ตัดสิน</p>
-            <p className="text-xs text-grey-500">
-              {qcReceivedBy(petition)
-                ? `ผู้รับงาน: ${qcReceivedBy(petition)}`
-                : 'ไม่ระบุผู้รับงาน'}
-            </p>
-            {petitionHasAbnormal ? (
-              <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                คำร้องนี้มีค่าผิดปกติ{abnormalCount > 0 ? ` ${abnormalCount} รายการ` : ''}
-              </p>
-            ) : (
-              <p className="text-xs text-green-600 mt-1">ผลปกติทุกรายการ</p>
-            )}
-          </div>
-          {(petition.labRedoExplanation || petition.qcRedoExplanation) && (
-            <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm w-full">
-              <p className="font-semibold text-violet-700 mb-1">คำอธิบายการทำใหม่</p>
-              {petition.labRedoExplanation && <p className="text-violet-800">Lab: {petition.labRedoExplanation}</p>}
-              {petition.qcRedoExplanation && <p className="text-violet-800">QC: {petition.qcRedoExplanation}</p>}
-            </div>
-          )}
-
-          {/* เลือกปลายทางทดสอบใหม่ (ใช้ทั้งกรณีปกติ "ผลไม่ถูกต้อง" และไม่ปกติ "ทดสอบใหม่") */}
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-gray-500">ถ้าให้ทดสอบใหม่ ส่งกลับไปยัง:</span>
-            {([['lab', 'Lab'], ['qc', 'QC'], ['both', 'ทั้งคู่']] as const).map(([val, label]) => (
-              <label key={val} className="flex items-center gap-1 cursor-pointer">
-                <input type="radio" name="retestTarget" checked={retestTarget === val} onChange={() => setRetestTarget(val)} />
-                {label}
-              </label>
-            ))}
-          </div>
-
-          {!petitionHasAbnormal ? (
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button variant="primary" size="sm" onClick={handleApprovePass} disabled={submitting} className="gap-2">
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                ผลถูกต้อง
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setRetestDialogOpen(true)} disabled={submitting} className="gap-2">
-                <RotateCcw className="h-4 w-4" />
-                ผลไม่ถูกต้อง
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button variant="primary" size="sm" onClick={() => setAcceptReasonDialogOpen(true)} disabled={submitting} className="gap-2">
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                ยอมรับผล
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setReturnDialogOpen(true)} disabled={submitting} className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50">
-                <RotateCcw className="h-4 w-4" />
-                ส่งคืนผู้ส่งแก้ product
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setRetestDialogOpen(true)} disabled={submitting} className="gap-2">
-                <RotateCcw className="h-4 w-4" />
-                ทดสอบใหม่
-              </Button>
-            </div>
-          )}
         </div>
       )}
 
@@ -1270,38 +1133,6 @@ export default function QCTestingDetailPage() {
         </div>
       )}
 
-      {/* ทดสอบใหม่ (Lab/QC/ทั้งคู่) */}
-      <RevisionRequestDialog
-        open={retestDialogOpen}
-        onOpenChange={setRetestDialogOpen}
-        petitionNo={petition.petitionNo}
-        submitterName={petition.submittedBy?.name ?? 'ผู้ยื่น'}
-        recipientLabel={retestTarget === 'lab' ? 'ผู้ทดสอบ Lab' : retestTarget === 'qc' ? 'ผู้ทดสอบ QC' : 'ผู้ทดสอบ Lab และ QC'}
-        warning={`คำร้องจะถูกส่งกลับให้${retestTarget === 'both' ? 'ทั้ง Lab และ QC' : retestTarget === 'lab' ? 'Lab' : 'QC'}ทดสอบใหม่ (ไม่ปิดคำร้อง ไม่เกี่ยวกับผู้ส่ง)`}
-        onConfirm={handleRetest}
-      />
-
-      {/* ส่งคืนผู้ส่งแก้ product */}
-      <RevisionRequestDialog
-        open={returnDialogOpen}
-        onOpenChange={setReturnDialogOpen}
-        petitionNo={petition.petitionNo}
-        submitterName={petition.submittedBy?.name ?? 'ผู้ยื่น'}
-        recipientLabel={petition.submittedBy?.name ?? 'ผู้ยื่น'}
-        warning="คำร้องจะถูกปิดและส่งคืนผู้ส่งให้แก้ไข product ตามคำแนะนำ"
-        onConfirm={handleReturnToRequester}
-      />
-
-      {/* ยอมรับผลไม่ปกติ (ต้องมีเหตุผล) */}
-      <RevisionRequestDialog
-        open={acceptReasonDialogOpen}
-        onOpenChange={setAcceptReasonDialogOpen}
-        petitionNo={petition.petitionNo}
-        submitterName={petition.submittedBy?.name ?? 'ผู้ยื่น'}
-        recipientLabel="ยอมรับผลไม่ปกติ"
-        warning="คำร้องจะถูกอนุมัติโดยบันทึกผลไม่ปกติเป็นผลจริง — โปรดระบุเหตุผล"
-        onConfirm={handleAcceptOos}
-      />
     </div>
     </AppLayout>
   );

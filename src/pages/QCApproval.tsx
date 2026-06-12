@@ -175,7 +175,7 @@ const QCApproval = () => {
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/qc-testing/${p._id}`);
+              navigate(`/qc-approval/${p._id}`);
             }}
           >
             ตรวจสอบ
@@ -244,7 +244,7 @@ const QCApproval = () => {
           data={sortedPetitions}
           rowKey={(p) => p._id}
           isLoading={petitionLoading}
-          onRowClick={(p) => navigate(`/qc-testing/${p._id}`)}
+          onRowClick={(p) => navigate(`/qc-approval/${p._id}`)}
           emptyTitle="ไม่มีคำร้องที่รออนุมัติ"
           tableClassName="min-w-[700px]"
         />

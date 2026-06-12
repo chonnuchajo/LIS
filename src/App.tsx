@@ -32,6 +32,7 @@ const MachinesPage = lazy(() =>
   import("./pages/MasterItems").then((m) => ({ default: m.MachinesPage })),
 );
 const QCApproval = lazy(() => import("./pages/QCApproval"));
+const QCApprovalReviewPage = lazy(() => import("./pages/QCApprovalReviewPage"));
 const LabApproval = lazy(() => import("./pages/LabApproval"));
 const AdminData = lazy(() => import("./pages/AdminData"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
@@ -104,6 +105,7 @@ const App = () => (
               <Route path="/stock-deduction" element={<PrivateRoute><StockDeduction /></PrivateRoute>} />
               <Route path="/record-results" element={<PrivateRoute><AnalysisResults /></PrivateRoute>} />
               <Route path="/qc-approval" element={<PrivateRoute><QCApproval /></PrivateRoute>} />
+              <Route path="/qc-approval/:id" element={<PrivateRoute><QCApprovalReviewPage /></PrivateRoute>} />
               <Route path="/lab-approval" element={<PrivateRoute><LabApproval /></PrivateRoute>} />
               <Route path="/report" element={<PrivateRoute><Report /></PrivateRoute>} />
               <Route path="/daily-check" element={<PrivateRoute><DailyCheckLayout /></PrivateRoute>}>
