@@ -99,25 +99,15 @@ export default function ReceiveCart() {
       let failCount = 0;
 
       for (const row of rows) {
+        let created: StockUnitItem[] = [];
         try {
           if (row.category === "standard") {
-            const created = await api.receiveStockUnits(row.itemId, {
+            created = await api.receiveStockUnits(row.itemId, {
               lotNo: row.lotNo, sizeMl: Number(row.sizeMl), unit: "ml",
               source: row.source, bottles: buildBottles(row),
             });
-            if (printAfter) {
-              for (const u of created as StockUnitItem[]) labels.push(await buildStockLabelHtml(u));
-            }
           } else if (row.category === "solvent") {
-            const n = Number(row.qty);
-            await api.receiveSolvent(row.itemId, { qty: n, note: composeSolventNote(row) });
-            if (printAfter) {
-              const html = await buildSolventLabelHtml({
-                name: row.itemName, idForQr: row.itemId, lotNo: row.lotNo,
-                exp: row.exp || null, sizeLabel: row.sizeLabel,
-              });
-              for (let i = 0; i < n; i++) labels.push(html);
-            }
+            await api.receiveSolvent(row.itemId, { qty: Number(row.qty), note: composeSolventNote(row) });
           } else if (row.category === "glassware") {
             await api.receiveGlassware(row.itemId, { qty: Number(row.qty), note: row.note });
           }
@@ -126,6 +116,24 @@ export default function ReceiveCart() {
         } catch (err) {
           failCount += 1;
           toast.error(`${row.itemName || "รายการ"}: ${(err as Error).message}`);
+          continue;
+        }
+        // receive สำเร็จแล้ว — สร้างลาเบลแบบ best-effort ห้ามให้ล้มเหลวมีผลต่อสถานะ receive
+        if (printAfter) {
+          try {
+            if (row.category === "standard") {
+              for (const u of created) labels.push(await buildStockLabelHtml(u));
+            } else if (row.category === "solvent") {
+              const n = Math.max(1, Number(row.qty));
+              const html = await buildSolventLabelHtml({
+                name: row.itemName, idForQr: row.itemId, lotNo: row.lotNo,
+                exp: row.exp || null, sizeLabel: row.sizeLabel,
+              });
+              for (let i = 0; i < n; i++) labels.push(html);
+            }
+          } catch (err) {
+            toast.error(`สร้างลาเบลไม่สำเร็จ: ${(err as Error).message}`);
+          }
         }
       }
 
