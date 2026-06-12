@@ -92,62 +92,65 @@ export default function ReceiveCart() {
       if (err) { toast.error(`แถวที่ ${i + 1}: ${err}`); return; }
     }
     setBusy(true);
-    const labels: string[] = [];
-    const okIds = new Set<string>();
-    let okCount = 0;
-    let failCount = 0;
+    try {
+      const labels: string[] = [];
+      const okIds = new Set<string>();
+      let okCount = 0;
+      let failCount = 0;
 
-    for (const row of rows) {
-      try {
-        if (row.category === "standard") {
-          const created = await api.receiveStockUnits(row.itemId, {
-            lotNo: row.lotNo, sizeMl: Number(row.sizeMl), unit: "ml",
-            source: row.source, bottles: buildBottles(row),
-          });
-          if (printAfter) {
-            for (const u of created as StockUnitItem[]) labels.push(await buildStockLabelHtml(u));
-          }
-        } else if (row.category === "solvent") {
-          const n = Number(row.qty);
-          await api.receiveSolvent(row.itemId, { qty: n, note: composeSolventNote(row) });
-          if (printAfter) {
-            const html = await buildSolventLabelHtml({
-              name: row.itemName, idForQr: row.itemId, lotNo: row.lotNo,
-              exp: row.exp || null, sizeLabel: row.sizeLabel,
+      for (const row of rows) {
+        try {
+          if (row.category === "standard") {
+            const created = await api.receiveStockUnits(row.itemId, {
+              lotNo: row.lotNo, sizeMl: Number(row.sizeMl), unit: "ml",
+              source: row.source, bottles: buildBottles(row),
             });
-            for (let i = 0; i < n; i++) labels.push(html);
+            if (printAfter) {
+              for (const u of created as StockUnitItem[]) labels.push(await buildStockLabelHtml(u));
+            }
+          } else if (row.category === "solvent") {
+            const n = Number(row.qty);
+            await api.receiveSolvent(row.itemId, { qty: n, note: composeSolventNote(row) });
+            if (printAfter) {
+              const html = await buildSolventLabelHtml({
+                name: row.itemName, idForQr: row.itemId, lotNo: row.lotNo,
+                exp: row.exp || null, sizeLabel: row.sizeLabel,
+              });
+              for (let i = 0; i < n; i++) labels.push(html);
+            }
+          } else if (row.category === "glassware") {
+            await api.receiveGlassware(row.itemId, { qty: Number(row.qty), note: row.note });
           }
-        } else if (row.category === "glassware") {
-          await api.receiveGlassware(row.itemId, { qty: Number(row.qty), note: row.note });
+          okIds.add(row.id);
+          okCount += 1;
+        } catch (err) {
+          failCount += 1;
+          toast.error(`${row.itemName || "รายการ"}: ${(err as Error).message}`);
         }
-        okIds.add(row.id);
-        okCount += 1;
-      } catch (err) {
-        failCount += 1;
-        toast.error(`${row.itemName || "รายการ"}: ${(err as Error).message}`);
       }
-    }
 
-    // ปริ้นท้ายสุด — print fail ไม่ถือว่า receive ล้ม
-    for (const html of labels) {
-      try {
-        await api.printDocument({ docType: "stock-label", html });
-      } catch (err) {
-        toast.error(`ปริ้นลาเบลไม่สำเร็จ: ${(err as Error).message}`);
+      // ปริ้นท้ายสุด — print fail ไม่ถือว่า receive ล้ม
+      for (const html of labels) {
+        try {
+          await api.printDocument({ docType: "stock-label", html });
+        } catch (err) {
+          toast.error(`ปริ้นลาเบลไม่สำเร็จ: ${(err as Error).message}`);
+        }
       }
-    }
 
-    if (okCount > 0) toast.success(`รับเข้าสำเร็จ ${okCount} รายการ${failCount ? ` · ล้มเหลว ${failCount}` : ""}`);
-    // ลบแถวที่สำเร็จ เก็บแถว fail ไว้ retry
-    setRows((prev) => {
-      const left = prev.filter((r) => !okIds.has(r.id));
-      return left.length ? left : [makeEmptyRow()];
-    });
-    qc.invalidateQueries({ queryKey: ["stock", "units"] });
-    qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
-    qc.invalidateQueries({ queryKey: ["stock", "glassware"] });
-    qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
-    setBusy(false);
+      if (okCount > 0) toast.success(`รับเข้าสำเร็จ ${okCount} รายการ${failCount ? ` · ล้มเหลว ${failCount}` : ""}`);
+      // ลบแถวที่สำเร็จ เก็บแถว fail ไว้ retry
+      setRows((prev) => {
+        const left = prev.filter((r) => !okIds.has(r.id));
+        return left.length ? left : [makeEmptyRow()];
+      });
+      qc.invalidateQueries({ queryKey: ["stock", "units"] });
+      qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
+      qc.invalidateQueries({ queryKey: ["stock", "glassware"] });
+      qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const validCount = rows.filter((r) => r.itemId && !validateRow(r)).length;
