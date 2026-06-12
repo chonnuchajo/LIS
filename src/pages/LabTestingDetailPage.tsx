@@ -32,8 +32,6 @@ import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
 import { matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
-import { useCanAccessPath } from '@/hooks/useCanAccessPath';
-import { RevisionRequestDialog } from '@/components/petition/RevisionRequestDialog';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -355,10 +353,7 @@ export default function LabTestingDetailPage() {
   const [saveStatesPhase2, setSaveStatesPhase2] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [wasReturned, setWasReturned] = useState(false);
-  const [labRejectOpen, setLabRejectOpen] = useState(false);
   const [redoExplanation, setRedoExplanation] = useState('');
-  const canAccessPath = useCanAccessPath();
-  const canApproveLab = canAccessPath('/lab-approval');
   const [selectedPhase, setSelectedPhase] = useState<PetitionPhase>(1);
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -690,35 +685,6 @@ export default function LabTestingDetailPage() {
       navigate('/lab-testing');
     } catch {
       toast.error('บันทึกผลไม่สำเร็จ');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleLabApprove = async () => {
-    if (!(await confirm({ title: 'อนุมัติผล Lab', description: 'อนุมัติผลการทดสอบ Lab นี้?' }))) return;
-    setSubmitting(true);
-    try {
-      await api.labApprovePetition(petition._id, user?.name ?? 'system');
-      toast.success('อนุมัติผล Lab เรียบร้อย');
-      navigate('/lab-approval');
-    } catch {
-      toast.error('อนุมัติไม่สำเร็จ');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleLabReject = async (note: string) => {
-    setSubmitting(true);
-    try {
-      await api.labRejectPetition(petition._id, user?.name ?? 'system', note);
-      toast.success('ส่งกลับให้แก้ไขแล้ว');
-      setLabRejectOpen(false);
-      navigate('/lab-approval');
-    } catch {
-      toast.error('ส่งกลับไม่สำเร็จ');
-      throw new Error('reject failed');
     } finally {
       setSubmitting(false);
     }
@@ -1146,17 +1112,6 @@ export default function LabTestingDetailPage() {
                 </p>
               )}
             </div>
-            {canApproveLab && (
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setLabRejectOpen(true)} disabled={submitting} className="gap-2">
-                  <RotateCcw className="h-4 w-4" /> ส่งกลับให้แก้
-                </Button>
-                <Button variant="primary" size="sm" onClick={handleLabApprove} disabled={submitting} className="gap-2">
-                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  อนุมัติผล Lab
-                </Button>
-              </div>
-            )}
           </div>
         )}
 
@@ -1169,15 +1124,6 @@ export default function LabTestingDetailPage() {
           </div>
         )}
 
-        <RevisionRequestDialog
-          open={labRejectOpen}
-          onOpenChange={setLabRejectOpen}
-          petitionNo={petition.petitionNo}
-          submitterName={petition.submittedBy?.name ?? 'ผู้ทดสอบ Lab'}
-          recipientLabel="ผู้ทดสอบ Lab"
-          warning="คำร้องจะถูกส่งกลับให้ผู้ทดสอบ Lab แก้ไข/ทดสอบใหม่ (ไม่ปิดคำร้อง)"
-          onConfirm={handleLabReject}
-        />
       </div>
     </AppLayout>
   );
