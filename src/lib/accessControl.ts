@@ -1,5 +1,6 @@
 import { NAV_ITEMS } from "./navItems";
 import { normalizeRoles } from "./roles";
+import { RESTRICTED_TAB_PATHS } from "./tabItems";
 
 export interface AccessUser {
   role?: string;
@@ -97,6 +98,10 @@ export function userCanAccessPath(
       continue;
     }
     if (entry === "others") {
+      // Restricted tabs are never granted by the catch-all "others" — they must be
+      // assigned explicitly, even if no group happens to claim them.
+      const isRestrictedTabPath = RESTRICTED_TAB_PATHS.some((p) => pathMatches(p, pathname));
+      if (isRestrictedTabPath) continue;
       const coveredByOtherGroup = groups
         .filter((group) => group.id !== "others")
         .some((group) => (group.paths ?? []).some((path) => grantMatches(path, pathname)));

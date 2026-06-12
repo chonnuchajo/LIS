@@ -150,6 +150,26 @@ describe("userCanAccessPath", () => {
       expect(userCanAccessPath(user, "/daily-check/balance", navGroups)).toBe(false);
     });
   });
+
+  it("grants a restricted tab when its exact virtual path is in permissions", () => {
+    const user = { role: "lab", status: "active" as const, permissions: ["/settings/dashboard"] };
+    expect(userCanAccessPath(user, "/settings/dashboard", groups)).toBe(true);
+  });
+
+  it("does not grant a restricted tab from the parent page permission alone", () => {
+    const user = { role: "lab", status: "active" as const, permissions: ["/settings"] };
+    expect(userCanAccessPath(user, "/settings/dashboard", groups)).toBe(false);
+  });
+
+  it("does not let 'others' grant a restricted tab", () => {
+    const user = { role: "lab", status: "active" as const, permissions: ["others"] };
+    expect(userCanAccessPath(user, "/settings/dashboard", groups)).toBe(false);
+  });
+
+  it("still lets 'others' grant a non-restricted in-page path", () => {
+    const user = { role: "lab", status: "active" as const, permissions: ["others"] };
+    expect(userCanAccessPath(user, "/settings/printers", groups)).toBe(true);
+  });
 });
 
 describe("userCanAccessPath with multiple roles", () => {
