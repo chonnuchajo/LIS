@@ -180,6 +180,8 @@ export const api = {
   getDensities: () => request<RealtimeDensity[]>("/densities"),
   pushDensity: (data: RealtimeDensity) =>
     request<RealtimeDensity>("/densities", { method: "POST", body: JSON.stringify(data) }),
+  deleteDensity: (sampleId: string) =>
+    request<{ success: boolean }>(`/densities/${encodeURIComponent(sampleId)}`, { method: 'DELETE' }),
 
   // Instrument readings (pull values live from lab instruments) ----------------
   // Config CRUD (managed in Settings)
