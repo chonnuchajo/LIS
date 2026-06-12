@@ -15,7 +15,8 @@ import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import PageHeader from '@/components/lis/PageHeader';
 import { usePetition, usePetitionList } from '@/hooks/usePetition';
-import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
+import { api, type ParameterItem, type ParameterValueField, type InstrumentSource, type InstrumentReading, type ValueProvenance } from '@/lib/api';
+import InstrumentFetchButton from '@/components/lis/InstrumentFetchButton';
 import { useAuth } from '@/hooks/useAuth';
 import { useArrivalFlash } from '@/hooks/useArrivalFlash';
 import { normalizeRoles } from '@/lib/roles';
@@ -77,6 +78,20 @@ function resultKey(itemSeq: number, parameterId: string) {
 }
 
 const noteLabelFor = (mainLabel: string) => `${mainLabel}__note`;
+// Provenance for an instrument-pulled value is stored as a sibling field (same
+// QCResult map) so it persists with no schema change — mirrors noteLabelFor.
+const sourceLabelFor = (mainLabel: string) => `${mainLabel}__source`;
+
+// Parse the JSON provenance blob stored in a __source sibling field.
+function parseProvenance(raw: unknown): ValueProvenance | undefined {
+  if (!raw || typeof raw !== 'string') return undefined;
+  try {
+    const p = JSON.parse(raw);
+    return p && typeof p === 'object' && p.source ? (p as ValueProvenance) : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function describeStandard(field: ParameterValueField): string {
   const op = field.standardOperator;
@@ -109,6 +124,11 @@ interface TestFieldProps {
   readOnly?: boolean;
   conditionalPending?: boolean;
   resolvedStandardText?: string;
+  // Instrument pull: present only when this field's label matches a configured
+  // & enabled InstrumentSource. onPull receives the live reading.
+  instrumentSource?: InstrumentSource;
+  provenance?: ValueProvenance;
+  onPull?: (reading: InstrumentReading) => void;
 }
 
 function TestField({
@@ -125,6 +145,9 @@ function TestField({
   readOnly = false,
   conditionalPending,
   resolvedStandardText,
+  instrumentSource,
+  provenance,
+  onPull,
 }: TestFieldProps) {
   const strVal = value == null ? '' : String(value);
   const strNote = noteValue == null ? '' : String(noteValue);
@@ -204,25 +227,49 @@ function TestField({
       ) : field.type === 'photo' ? (
         <div className="text-xs text-grey-400 italic py-1">แนบรูปภาพ (ยังไม่รองรับในเวอร์ชันนี้)</div>
       ) : (
-        <Input
-          type={field.type === 'number' || field.type === 'float' ? 'number' : 'text'}
-          step={field.type === 'float' ? 'any' : undefined}
-          value={strVal}
-          onChange={(e) => !readOnly && onChange(e.target.value)}
-          disabled={effectivelyDisabled}
-          className={cn(
-            'h-8 text-sm',
-            isAbnormal && 'border-red-400 ring-1 ring-red-200',
-            readOnly && 'bg-grey-50 cursor-default',
+        <div className="flex items-center gap-2">
+          <Input
+            type={field.type === 'number' || field.type === 'float' ? 'number' : 'text'}
+            step={field.type === 'float' ? 'any' : undefined}
+            value={strVal}
+            onChange={(e) => !readOnly && onChange(e.target.value)}
+            disabled={effectivelyDisabled}
+            className={cn(
+              'h-8 text-sm',
+              isAbnormal && 'border-red-400 ring-1 ring-red-200',
+              readOnly && 'bg-grey-50 cursor-default',
+            )}
+            placeholder={
+              field.standardOperator
+                ? `มาตรฐาน: ${describeStandard(field)}`
+                : field.standardValue != null
+                  ? `มาตรฐาน: ${field.standardValue}`
+                  : undefined
+            }
+          />
+          {instrumentSource && onPull && !readOnly && (
+            <InstrumentFetchButton
+              paramKey={instrumentSource.key}
+              instrumentName={instrumentSource.instrumentName}
+              onPulled={onPull}
+              disabled={effectivelyDisabled}
+            />
           )}
-          placeholder={
-            field.standardOperator
-              ? `มาตรฐาน: ${describeStandard(field)}`
-              : field.standardValue != null
-                ? `มาตรฐาน: ${field.standardValue}`
-                : undefined
-          }
-        />
+        </div>
+      )}
+
+      {/* Provenance badge: shows where an instrument-pulled value came from. */}
+      {provenance && (
+        <p className="text-[11px] text-indigo-600">
+          {provenance.source === 'instrument-edited' ? '✎ แก้ด้วยมือ' : '📡 จากเครื่อง'}
+          {provenance.instrument ? ` • ${provenance.instrument}` : ''}
+          {provenance.fetchedAt
+            ? ` • ${new Date(provenance.fetchedAt).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}`
+            : ''}
+          {provenance.source === 'instrument-edited' && provenance.rawValue != null
+            ? ` (เครื่อง: ${provenance.rawValue})`
+            : ''}
+        </p>
       )}
 
       {/* Live resolved-criterion line for conditionalMode fields */}
@@ -289,6 +336,14 @@ export default function LabTestingDetailPage() {
   });
 
   const [allParameters, setAllParameters] = useState<ParameterItem[]>([]);
+  // Instrument sources (config) → lookup by key for the "ดึงค่า" pull button.
+  // Loaded once via useEffect, mirroring the getParameters pattern below.
+  const [instrumentSources, setInstrumentSources] = useState<InstrumentSource[]>([]);
+  const sourceFor = useCallback(
+    (fieldLabel: string): InstrumentSource | undefined =>
+      instrumentSources.find((s) => s.enabled !== false && s.key === fieldLabel),
+    [instrumentSources],
+  );
   const groupMembership = useItemGroupMembership();
   const idsFor = (it: { sampleId?: string }) =>
     groupMembership.get(String(it?.sampleId ?? '').trim()) ?? [];
@@ -318,6 +373,13 @@ export default function LabTestingDetailPage() {
       })
       .catch(() => {})
       .finally(() => setParamsLoaded(true));
+  }, []);
+
+  // Load instrument sources once (for the live-pull button).
+  useEffect(() => {
+    api.getInstrumentSources()
+      .then((rows) => setInstrumentSources(rows ?? []))
+      .catch(() => {});
   }, []);
 
   // Auto-advance status pendingReview → inProgress when Lab enters the first value
@@ -879,6 +941,10 @@ export default function LabTestingDetailPage() {
                                   (field.phase ?? 'both') === 'both'
                                     ? (values[k]?.[unit.key] ?? '')
                                     : null;
+                                // Instrument live-pull: match by field label.
+                                const srcField = sourceFor(unit.field.label);
+                                const sourceLabel = sourceLabelFor(unit.key);
+                                const provenance = parseProvenance(phaseValues[k]?.[sourceLabel]);
                                 return (
                                   <div key={unit.key}>
                                     <TestField
@@ -890,9 +956,30 @@ export default function LabTestingDetailPage() {
                                       saveInfo={phaseSaves[k]?.[unit.key]}
                                       noteSaveInfo={phaseSaves[k]?.[noteLabel]}
                                       disabled={isLocked || phaseLocked}
-                                      onChange={(val) =>
-                                        handleFieldChange(petition, item, param, unit.key, val, effectivePhase)
-                                      }
+                                      instrumentSource={srcField}
+                                      provenance={provenance}
+                                      onPull={(reading) => {
+                                        handleFieldChange(petition, item, param, unit.key, String(reading.value ?? ''), effectivePhase);
+                                        const prov: ValueProvenance = {
+                                          source: 'instrument',
+                                          instrument: reading.instrument,
+                                          rawValue: reading.value,
+                                          fetchedAt: reading.readingAt ?? new Date().toISOString(),
+                                          fetchedBy: user?.name ?? 'Unknown',
+                                        };
+                                        handleFieldChange(petition, item, param, sourceLabel, JSON.stringify(prov), effectivePhase);
+                                      }}
+                                      onChange={(val) => {
+                                        handleFieldChange(petition, item, param, unit.key, val, effectivePhase);
+                                        // Manual edit after a pull → mark provenance as edited (once).
+                                        if (provenance && provenance.source === 'instrument' && String(val) !== String(provenance.rawValue ?? '')) {
+                                          handleFieldChange(
+                                            petition, item, param, sourceLabel,
+                                            JSON.stringify({ ...provenance, source: 'instrument-edited' }),
+                                            effectivePhase,
+                                          );
+                                        }
+                                      }}
                                       onNoteChange={(val) =>
                                         handleFieldChange(petition, item, param, noteLabel, val, effectivePhase)
                                       }

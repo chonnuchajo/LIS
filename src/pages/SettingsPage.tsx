@@ -8,6 +8,7 @@ import EnvRoomConfigCard from "@/components/lis/EnvRoomConfigCard";
 import PrintConfigCard from "@/components/lis/PrintConfigCard";
 import DocumentNumberConfigCard from "@/components/lis/DocumentNumberConfigCard";
 import DashboardLayoutConfigCard from "@/components/lis/DashboardLayoutConfigCard";
+import InstrumentSourceManager from "@/components/lis/InstrumentSourceManager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { useEnvRooms } from "@/hooks/useEnvRooms";
@@ -107,6 +108,7 @@ const SettingsPage = () => {
           <TabsTrigger value="environment">ห้องตรวจสภาพแวดล้อม</TabsTrigger>
           <TabsTrigger value="printers">เครื่องพิมพ์เอกสาร</TabsTrigger>
           <TabsTrigger value="doc-numbers">รหัสเอกสาร</TabsTrigger>
+          <TabsTrigger value="instruments">เครื่องมือ/API</TabsTrigger>
           <TabsTrigger value="dashboard">แดชบอร์ด</TabsTrigger>
         </TabsList>
 
@@ -167,6 +169,10 @@ const SettingsPage = () => {
               );
             })}
           </div>
+        </TabsContent>
+
+        <TabsContent value="instruments" className="space-y-3">
+          <InstrumentSourceManager />
         </TabsContent>
 
         <TabsContent value="dashboard" className="space-y-3">

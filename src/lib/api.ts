@@ -181,6 +181,19 @@ export const api = {
   pushDensity: (data: RealtimeDensity) =>
     request<RealtimeDensity>("/densities", { method: "POST", body: JSON.stringify(data) }),
 
+  // Instrument readings (pull values live from lab instruments) ----------------
+  // Config CRUD (managed in Settings)
+  getInstrumentSources: () => request<InstrumentSource[]>("/instrument-readings/sources"),
+  createInstrumentSource: (data: Partial<InstrumentSource>) =>
+    request<InstrumentSource>("/instrument-readings/sources", { method: "POST", body: JSON.stringify(data) }),
+  updateInstrumentSource: (id: string, data: Partial<InstrumentSource>) =>
+    request<InstrumentSource>(`/instrument-readings/sources/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteInstrumentSource: (id: string) =>
+    request<{ success: true }>(`/instrument-readings/sources/${id}`, { method: "DELETE" }),
+  // Live pull: fetch the latest reading for a configured param key.
+  fetchInstrumentReading: (key: string) =>
+    request<InstrumentReading>(`/instrument-readings/${encodeURIComponent(key)}/latest`),
+
   // Stock — Standards
   getStandards: () => request<StockStandardItem[]>("/stock/standards"),
   createStandard: (data: Partial<StockStandardItem>) =>
@@ -654,6 +667,46 @@ export type LiveTempHum = {
   temp?: number;
   hum?: number;
   receivedAt?: string; // ISO
+};
+
+// Config mapping a result param key → a lab instrument's API endpoint.
+export type InstrumentSource = {
+  _id?: string;
+  key: string;            // ties to a result field key e.g. "density"
+  label?: string;
+  instrumentName?: string;
+  fetchUrl?: string;
+  method?: string;
+  authHeader?: string;
+  responsePath?: string;  // dotted path to the value in the JSON reply
+  readingAtPath?: string; // optional dotted path to the device timestamp
+  unit?: string;
+  decimals?: number | null;
+  timeoutMs?: number;
+  enabled?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+// Result of a live pull. ok:false carries a Thai error for display.
+export type InstrumentReading = {
+  ok: boolean;
+  key: string;
+  value?: number;
+  unit?: string;
+  instrument?: string;
+  readingAt?: string; // ISO
+  raw?: unknown;
+  error?: string;
+};
+
+// Provenance stored alongside a pulled field value (as a sibling key).
+export type ValueProvenance = {
+  source: "instrument" | "instrument-edited";
+  instrument?: string;
+  rawValue?: number;
+  fetchedAt?: string;
+  fetchedBy?: string;
 };
 
 export type MachineItem = {
