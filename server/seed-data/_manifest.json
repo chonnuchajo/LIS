@@ -2,49 +2,29 @@
   "database": "LIS-DB",
   "exportedCollections": [
     {
-      "collection": "standardoverrides",
-      "file": "standardoverrides.json",
-      "count": 0
-    },
-    {
-      "collection": "envchecks",
-      "file": "envchecks.json",
-      "count": 0
-    },
-    {
-      "collection": "temphums",
-      "file": "temphums.json",
-      "count": 0
-    },
-    {
-      "collection": "parameters",
-      "file": "parameters.json",
+      "collection": "stocksolvents",
+      "file": "stocksolvents.json",
       "count": 6
     },
     {
-      "collection": "machines",
-      "file": "machines.json",
-      "count": 48
-    },
-    {
-      "collection": "roles",
-      "file": "roles.json",
-      "count": 8
+      "collection": "physicalresults",
+      "file": "physicalresults.json",
+      "count": 0
     },
     {
       "collection": "qctestresults",
       "file": "qctestresults.json",
-      "count": 14
+      "count": 30
     },
     {
-      "collection": "petitions",
-      "file": "petitions.json",
-      "count": 6
+      "collection": "stockglasswares",
+      "file": "stockglasswares.json",
+      "count": 50
     },
     {
-      "collection": "simplemethodexclusions",
-      "file": "simplemethodexclusions.json",
-      "count": 1
+      "collection": "documentnumberconfigs",
+      "file": "documentnumberconfigs.json",
+      "count": 0
     },
     {
       "collection": "stockstandards",
@@ -52,19 +32,19 @@
       "count": 138
     },
     {
-      "collection": "stockunits",
-      "file": "stockunits.json",
-      "count": 223
-    },
-    {
-      "collection": "simplemethods",
-      "file": "simplemethods.json",
-      "count": 1419
-    },
-    {
-      "collection": "masteritemmetas",
-      "file": "masteritemmetas.json",
+      "collection": "realtimedensities",
+      "file": "realtimedensities.json",
       "count": 0
+    },
+    {
+      "collection": "dailychecks",
+      "file": "dailychecks.json",
+      "count": 0
+    },
+    {
+      "collection": "parameters",
+      "file": "parameters.json",
+      "count": 14
     },
     {
       "collection": "dashboardlayoutconfigs",
@@ -72,9 +52,94 @@
       "count": 1
     },
     {
+      "collection": "envchecks",
+      "file": "envchecks.json",
+      "count": 0
+    },
+    {
+      "collection": "Result-Density",
+      "file": "Result-Density.json",
+      "count": 230
+    },
+    {
+      "collection": "temphums",
+      "file": "temphums.json",
+      "count": 5
+    },
+    {
+      "collection": "methods",
+      "file": "methods.json",
+      "count": 5
+    },
+    {
+      "collection": "equipmentchecks",
+      "file": "equipmentchecks.json",
+      "count": 0
+    },
+    {
+      "collection": "commonnameoverrides",
+      "file": "commonnameoverrides.json",
+      "count": 19
+    },
+    {
+      "collection": "stockunits",
+      "file": "stockunits.json",
+      "count": 225
+    },
+    {
+      "collection": "petitions",
+      "file": "petitions.json",
+      "count": 18
+    },
+    {
+      "collection": "simplemethodexclusions",
+      "file": "simplemethodexclusions.json",
+      "count": 210
+    },
+    {
+      "collection": "petitionauditlogs",
+      "file": "petitionauditlogs.json",
+      "count": 301
+    },
+    {
+      "collection": "standardconfigs",
+      "file": "standardconfigs.json",
+      "count": 2
+    },
+    {
+      "collection": "accessgroups",
+      "file": "accessgroups.json",
+      "count": 10
+    },
+    {
+      "collection": "printconfigs",
+      "file": "printconfigs.json",
+      "count": 1
+    },
+    {
+      "collection": "itemgroups",
+      "file": "itemgroups.json",
+      "count": 2
+    },
+    {
+      "collection": "standardoverrides",
+      "file": "standardoverrides.json",
+      "count": 0
+    },
+    {
+      "collection": "simplemethods",
+      "file": "simplemethods.json",
+      "count": 1442
+    },
+    {
       "collection": "users",
       "file": "users.json",
-      "count": 0
+      "count": 4
+    },
+    {
+      "collection": "roles",
+      "file": "roles.json",
+      "count": 9
     },
     {
       "collection": "approvals",
@@ -87,74 +152,14 @@
       "count": 3
     },
     {
-      "collection": "petitionauditlogs",
-      "file": "petitionauditlogs.json",
-      "count": 230
-    },
-    {
-      "collection": "realtimedensities",
-      "file": "realtimedensities.json",
-      "count": 0
-    },
-    {
       "collection": "samplereceipts",
       "file": "samplereceipts.json",
       "count": 0
     },
     {
-      "collection": "itemgroups",
-      "file": "itemgroups.json",
-      "count": 0
-    },
-    {
-      "collection": "equipmentchecks",
-      "file": "equipmentchecks.json",
-      "count": 0
-    },
-    {
-      "collection": "standardconfigs",
-      "file": "standardconfigs.json",
-      "count": 2
-    },
-    {
-      "collection": "stocksolvents",
-      "file": "stocksolvents.json",
-      "count": 5
-    },
-    {
-      "collection": "printconfigs",
-      "file": "printconfigs.json",
-      "count": 0
-    },
-    {
       "collection": "labrequests",
       "file": "labrequests.json",
-      "count": 23
-    },
-    {
-      "collection": "commonnameoverrides",
-      "file": "commonnameoverrides.json",
-      "count": 19
-    },
-    {
-      "collection": "stockglasswares",
-      "file": "stockglasswares.json",
-      "count": 50
-    },
-    {
-      "collection": "stocktransactions",
-      "file": "stocktransactions.json",
-      "count": 8
-    },
-    {
-      "collection": "documentnumberconfigs",
-      "file": "documentnumberconfigs.json",
-      "count": 0
-    },
-    {
-      "collection": "accessgroups",
-      "file": "accessgroups.json",
-      "count": 10
+      "count": 21
     },
     {
       "collection": "samples",
@@ -162,19 +167,19 @@
       "count": 0
     },
     {
-      "collection": "dailychecks",
-      "file": "dailychecks.json",
-      "count": 0
+      "collection": "machines",
+      "file": "machines.json",
+      "count": 48
     },
     {
-      "collection": "physicalresults",
-      "file": "physicalresults.json",
-      "count": 0
+      "collection": "stocktransactions",
+      "file": "stocktransactions.json",
+      "count": 12
     },
     {
-      "collection": "methods",
-      "file": "methods.json",
-      "count": 5
+      "collection": "masteritemmetas",
+      "file": "masteritemmetas.json",
+      "count": 0
     }
   ]
 }
