@@ -1,4 +1,4 @@
-import type { ParameterItem, ParameterValueField } from "@/lib/api";
+import type { ParameterItem } from "@/lib/api";
 import type { Petition, QCTestResult } from "@/types/petition.types";
 import { matchParametersForItem } from "@/lib/petitionTestItems";
 import {
@@ -8,7 +8,7 @@ import {
   resolveStandard,
   type ConditionContext,
 } from "@/lib/parameterValidation";
-import { describeResolvedStandard } from "@/lib/standardOperators";
+import { describeResolvedStandard, describeStandard } from "@/lib/standardOperators";
 
 export interface ApprovalFieldRow {
   key: string;
@@ -40,23 +40,6 @@ export interface ApprovalItemGroup {
 
 const resultKey = (itemSeq: number, parameterId: string) => `${itemSeq}__${parameterId}`;
 const noteLabelFor = (unitKey: string) => `${unitKey}__note`;
-
-function describeStandard(field: ParameterValueField): string {
-  const op = field.standardOperator;
-  const v1 = field.standardValue;
-  const v2 = field.standardValue2;
-  const unit = field.unit ? ` ${field.unit}` : "";
-  switch (op) {
-    case "lt": return `< ${v1}${unit}`;
-    case "lte": return `≤ ${v1}${unit}`;
-    case "eq": return `= ${v1}${unit}`;
-    case "gte": return `≥ ${v1}${unit}`;
-    case "gt": return `> ${v1}${unit}`;
-    case "between": return `${v1} - ${v2}${unit}`;
-    case "tolerance": return `${v1} ± ${v2}%${unit}`;
-    default: return "";
-  }
-}
 
 const asStr = (v: unknown) => (v == null ? "" : String(v));
 
@@ -106,6 +89,7 @@ export function buildApprovalGroups(
           const fPhase = field.phase ?? "both";
           if (phase === 1 && fPhase === "after") return;
           if (phase === 2 && fPhase === "before") return;
+          // reference fields are auto-resolved from substance standards elsewhere and intentionally omitted from approval rows
           if (field.type === "reference") return;
           expandFieldForItem(field, item.commonName).forEach((unit) => {
             const raw = phaseVals[k]?.[unit.key];

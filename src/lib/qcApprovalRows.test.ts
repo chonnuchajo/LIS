@@ -56,4 +56,136 @@ describe("buildApprovalGroups", () => {
     expect(groups[0].unmatched).toBe(true);
     expect(groups[0].params).toHaveLength(0);
   });
+
+  // Fix 2 — phase-2 test
+  it("phase-2: สร้าง row phase:2 จาก valuesPhase2 และไม่สับสนกับ phase 1", () => {
+    const phasedParam = param({
+      hasPhases: true,
+      valueFields: [
+        // "before" field — ปรากฏเฉพาะ phase 1
+        { label: "ก่อน", type: "number", standardOperator: "gte", standardValue: 5, unit: "mL", phase: "before" },
+        // "after" field — ปรากฏเฉพาะ phase 2
+        { label: "หลัง", type: "number", standardOperator: "lte", standardValue: 30, unit: "mL", phase: "after" },
+      ],
+    });
+
+    const qcResult: QCTestResult = {
+      itemSeq: 1,
+      parameterId: "p1",
+      parameterName: "ทดสอบ",
+      values: { ก่อน: 10 },
+      valuesPhase2: { หลัง: 25 },
+    } as unknown as QCTestResult;
+
+    const groups = buildApprovalGroups(petition(), [phasedParam], [qcResult], new Map());
+    const rows = groups[0].params[0].rows;
+
+    // must have exactly 2 rows: one per phase
+    expect(rows).toHaveLength(2);
+
+    const phase1Row = rows.find((r) => r.phase === 1);
+    const phase2Row = rows.find((r) => r.phase === 2);
+
+    // phase-1 row: "before" field with phase-1 value
+    expect(phase1Row).toBeDefined();
+    expect(phase1Row!.label).toBe("ก่อน");
+    expect(phase1Row!.value).toBe("10");
+    expect(phase1Row!.standardText).toBe("≥ 5 mL");
+    expect(phase1Row!.abnormal).toBe(false);
+
+    // phase-2 row: "after" field with valuesPhase2 value
+    expect(phase2Row).toBeDefined();
+    expect(phase2Row!.label).toBe("หลัง");
+    expect(phase2Row!.value).toBe("25");
+    expect(phase2Row!.standardText).toBe("≤ 30 mL");
+    expect(phase2Row!.abnormal).toBe(false);
+
+    // "after" field must NOT appear in phase-1 rows
+    const phase1Labels = rows.filter((r) => r.phase === 1).map((r) => r.label);
+    expect(phase1Labels).not.toContain("หลัง");
+
+    // "before" field must NOT appear in phase-2 rows
+    const phase2Labels = rows.filter((r) => r.phase === 2).map((r) => r.label);
+    expect(phase2Labels).not.toContain("ก่อน");
+  });
+
+  // Fix 2 — conditionalMode test
+  it("conditionalMode: standardText และ abnormal สะท้อนเกณฑ์ที่ resolve จาก conditionalStandards", () => {
+    // param มี field "ปริมาณ" ที่ conditionalMode=true
+    // กฎ: ถ้า field "ประเภท" (ใน param เดียวกัน) = "A" → ≥ 90; กฎ default (conditions=[]) → ≥ 50
+    const conditionalParam = param({
+      valueFields: [
+        {
+          label: "ประเภท",
+          type: "text",
+        },
+        {
+          label: "ปริมาณ",
+          type: "number",
+          conditionalMode: true,
+          conditionalStandards: [
+            {
+              label: "type-A",
+              conditions: [
+                { sourceFieldLabel: "ประเภท", op: "eq", value: "A" },
+              ],
+              operator: "gte",
+              value: 90,
+              value2: null,
+            },
+            {
+              label: "default",
+              conditions: [],   // empty = matches always (default row)
+              operator: "gte",
+              value: 50,
+              value2: null,
+            },
+          ],
+        },
+      ],
+    });
+
+    // QC result: ประเภท = "A", ปริมาณ = 85 → abnormal under ≥ 90 rule
+    const qcResult: QCTestResult = {
+      itemSeq: 1,
+      parameterId: "p1",
+      parameterName: "conditionalTest",
+      values: { ประเภท: "A", ปริมาณ: 85 },
+    } as unknown as QCTestResult;
+
+    const groups = buildApprovalGroups(petition(), [conditionalParam], [qcResult], new Map());
+    const rows = groups[0].params[0].rows;
+
+    const quantityRow = rows.find((r) => r.label === "ปริมาณ");
+    expect(quantityRow).toBeDefined();
+    // should resolve to the type-A rule (≥ 90)
+    expect(quantityRow!.standardText).toBe("≥ 90");
+    // 85 < 90 → abnormal
+    expect(quantityRow!.abnormal).toBe(true);
+
+    // Now test with a value that passes type-A rule
+    const qcResultPass: QCTestResult = {
+      itemSeq: 1,
+      parameterId: "p1",
+      parameterName: "conditionalTest",
+      values: { ประเภท: "A", ปริมาณ: 95 },
+    } as unknown as QCTestResult;
+
+    const groupsPass = buildApprovalGroups(petition(), [conditionalParam], [qcResultPass], new Map());
+    const quantityRowPass = groupsPass[0].params[0].rows.find((r) => r.label === "ปริมาณ");
+    expect(quantityRowPass!.abnormal).toBe(false);
+
+    // Now test default rule: ประเภท = "B" → ≥ 50, ปริมาณ = 40 → abnormal
+    const qcResultDefault: QCTestResult = {
+      itemSeq: 1,
+      parameterId: "p1",
+      parameterName: "conditionalTest",
+      values: { ประเภท: "B", ปริมาณ: 40 },
+    } as unknown as QCTestResult;
+
+    const groupsDefault = buildApprovalGroups(petition(), [conditionalParam], [qcResultDefault], new Map());
+    const quantityRowDefault = groupsDefault[0].params[0].rows.find((r) => r.label === "ปริมาณ");
+    expect(quantityRowDefault!.standardText).toBe("≥ 50");
+    expect(quantityRowDefault!.abnormal).toBe(true);
+  });
 });

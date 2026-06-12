@@ -1,5 +1,22 @@
-import type { StandardOperator, SubstanceStandard, StandardRule, StandardConditionOp } from "./api";
+import type { StandardOperator, SubstanceStandard, StandardRule, StandardConditionOp, ParameterValueField } from "./api";
 import type { ResolvedStandard } from "./parameterValidation";
+
+export function describeStandard(field: ParameterValueField): string {
+  const op = field.standardOperator;
+  const v1 = field.standardValue;
+  const v2 = field.standardValue2;
+  const unit = field.unit ? ` ${field.unit}` : "";
+  switch (op) {
+    case "lt": return `< ${v1}${unit}`;
+    case "lte": return `≤ ${v1}${unit}`;
+    case "eq": return `= ${v1}${unit}`;
+    case "gte": return `≥ ${v1}${unit}`;
+    case "gt": return `> ${v1}${unit}`;
+    case "between": return `${v1} - ${v2}${unit}`;
+    case "tolerance": return `${v1} ± ${v2}%${unit}`;
+    default: return "";
+  }
+}
 
 export const OPERATOR_OPTIONS: { value: StandardOperator | "none"; label: string }[] = [
   { value: "none", label: "— ไม่ตรวจ —" },
