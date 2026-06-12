@@ -1,1 +1,1 @@
-{"collection":"documentnumberconfigs","indexes":[{"v":{"$numberInt":"2"},"key":{"docType":{"$numberInt":"1"}},"name":"docType_1","unique":true}],"count":{"$numberInt":"0"},"documents":[]}
+{"collection":"documentnumberconfigs","indexes":[{"v":{"$numberInt":"2"},"key":{"docType":{"$numberInt":"1"}},"name":"docType_1","background":true,"unique":true}],"count":{"$numberInt":"0"},"documents":[]}
