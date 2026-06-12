@@ -64,7 +64,10 @@ const App = () => (
       <ConfirmProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <BrowserRouter
+        basename={import.meta.env.BASE_URL}
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
       
         <AuthProvider>
           <DevRoleSwitcher />

@@ -23,7 +23,7 @@ export function useArrivalFlash() {
   }, [flashing]);
 
   return cn(
-    "transition-colors duration-[3000ms] ease-out rounded-lg",
+    "transition-colors [transition-duration:3000ms] ease-out rounded-lg",
     flashing ? "bg-sky-100" : "bg-transparent",
   );
 }
