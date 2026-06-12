@@ -34,7 +34,7 @@
     {
       "collection": "qctestresults",
       "file": "qctestresults.json",
-      "count": 17
+      "count": 18
     },
     {
       "collection": "petitions",
@@ -89,7 +89,7 @@
     {
       "collection": "petitionauditlogs",
       "file": "petitionauditlogs.json",
-      "count": 256
+      "count": 262
     },
     {
       "collection": "realtimedensities",
