@@ -211,6 +211,8 @@ interface PetitionBase {
   qcRedoExplanation?: string;
   firstResultAt?: string | null;
   completedAt?: string | null;
+  conclusion?: "pass" | "accepted-oos" | "returned-to-requester" | null;
+  conclusionNote?: string;
   // 2-phase testing
   currentPhase?: PetitionPhase;
   phase2UnlockedAt?: string | null;
