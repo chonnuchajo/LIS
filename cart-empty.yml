@@ -1,0 +1,199 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e5]:
+    - generic "ลากเพื่อย้ายตำแหน่ง" [ref=e6]: DEV MODE
+    - generic [ref=e7]:
+      - button "Administrator" [ref=e8] [cursor=pointer]
+      - button "Lab Analyst" [ref=e9] [cursor=pointer]
+      - button "Lab Head" [ref=e10] [cursor=pointer]
+      - button "Lab Inventory" [ref=e11] [cursor=pointer]
+      - button "QC Head" [ref=e12] [cursor=pointer]
+      - button "QC Reviewer" [ref=e13] [cursor=pointer]
+      - button "QC Staff" [ref=e14] [cursor=pointer]
+      - button "Viewer" [ref=e15] [cursor=pointer]
+  - generic [ref=e16]:
+    - complementary [ref=e18]:
+      - button "ซ่อนเมนู" [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+      - generic [ref=e22]:
+        - img "ICP Logo" [ref=e23]
+        - generic [ref=e24]:
+          - heading "LIS" [level=1] [ref=e25]
+          - paragraph [ref=e26]:
+            - text: LAB INFORMATION
+            - text: SYSTEM
+      - navigation [ref=e27]:
+        - generic [ref=e29]:
+          - img [ref=e30]
+          - textbox "ค้นหาเมนู..." [ref=e33]
+        - generic [ref=e34]:
+          - button "หน้าหลัก" [expanded] [ref=e35] [cursor=pointer]:
+            - generic [ref=e36]: หน้าหลัก
+            - img [ref=e37]
+          - generic [ref=e39]:
+            - button "หน้าแรก" [ref=e40] [cursor=pointer]:
+              - img [ref=e41]
+              - generic [ref=e44]: หน้าแรก
+            - button "Lab Dashboard" [ref=e45] [cursor=pointer]:
+              - img [ref=e46]
+              - generic [ref=e51]: Lab Dashboard
+            - button "QC Dashboard" [ref=e52] [cursor=pointer]:
+              - img [ref=e53]
+              - generic [ref=e58]: QC Dashboard
+            - button "รายการคำร้อง" [ref=e59] [cursor=pointer]:
+              - img [ref=e60]
+              - generic [ref=e63]: รายการคำร้อง
+        - generic [ref=e64]:
+          - button "LAB" [expanded] [ref=e65] [cursor=pointer]:
+            - generic [ref=e66]: LAB
+            - img [ref=e67]
+          - generic [ref=e69]:
+            - button "การทดสอบ Lab" [ref=e70] [cursor=pointer]:
+              - img [ref=e71]
+              - generic [ref=e73]: การทดสอบ Lab
+            - button "Assign คำร้อง" [ref=e74] [cursor=pointer]:
+              - img [ref=e75]
+              - generic [ref=e79]: Assign คำร้อง
+            - button "Daily Check" [ref=e80] [cursor=pointer]:
+              - img [ref=e81]
+              - generic [ref=e85]: Daily Check
+            - button "การบันทึก Standard" [ref=e86] [cursor=pointer]:
+              - img [ref=e87]
+              - generic [ref=e90]: การบันทึก Standard
+        - generic [ref=e91]:
+          - button "QC" [expanded] [ref=e92] [cursor=pointer]:
+            - generic [ref=e93]: QC
+            - img [ref=e94]
+          - generic [ref=e96]:
+            - button "การทดสอบ QC" [ref=e97] [cursor=pointer]:
+              - img [ref=e98]
+              - generic [ref=e100]: การทดสอบ QC
+            - button "อนุมัติผล QC" [ref=e101] [cursor=pointer]:
+              - img [ref=e102]
+              - generic [ref=e105]: อนุมัติผล QC
+        - generic [ref=e106]:
+          - button "ผลวิเคราะห์" [expanded] [ref=e107] [cursor=pointer]:
+            - generic [ref=e108]: ผลวิเคราะห์
+            - img [ref=e109]
+          - button "ผลวิเคราะห์" [ref=e112] [cursor=pointer]:
+            - img [ref=e113]
+            - generic [ref=e116]: ผลวิเคราะห์
+        - generic [ref=e117]:
+          - button "CONFIG DATA" [expanded] [ref=e118] [cursor=pointer]:
+            - generic [ref=e119]: CONFIG DATA
+            - img [ref=e120]
+          - generic [ref=e122]:
+            - button "Simple Method" [ref=e123] [cursor=pointer]:
+              - img [ref=e124]
+              - generic [ref=e126]: Simple Method
+            - button "รายการเครื่อง" [ref=e127] [cursor=pointer]:
+              - img [ref=e128]
+              - generic [ref=e130]: รายการเครื่อง
+            - button "พารามิเตอร์ตรวจสอบ" [ref=e131] [cursor=pointer]:
+              - img [ref=e132]
+              - generic [ref=e133]: พารามิเตอร์ตรวจสอบ
+            - button "Master Item" [ref=e134] [cursor=pointer]:
+              - img [ref=e135]
+              - generic [ref=e139]: Master Item
+        - generic [ref=e140]:
+          - button "INVENTORY" [expanded] [ref=e141] [cursor=pointer]:
+            - generic [ref=e142]: INVENTORY
+            - img [ref=e143]
+          - button "Stock Management" [ref=e146] [cursor=pointer]:
+            - img [ref=e147]
+            - generic [ref=e151]: Stock Management
+        - generic [ref=e152]:
+          - button "รายงาน" [expanded] [ref=e153] [cursor=pointer]:
+            - generic [ref=e154]: รายงาน
+            - img [ref=e155]
+          - button "รายงานสรุป" [ref=e158] [cursor=pointer]:
+            - img [ref=e159]
+            - generic [ref=e162]: รายงานสรุป
+        - generic [ref=e163]:
+          - button "ข้อมูลแอดมิน" [expanded] [ref=e164] [cursor=pointer]:
+            - generic [ref=e165]: ข้อมูลแอดมิน
+            - img [ref=e166]
+          - button "Admin Data" [ref=e169] [cursor=pointer]:
+            - img [ref=e170]
+            - generic [ref=e174]: Admin Data
+        - generic [ref=e175]:
+          - button "สิทธิ์การเข้าถึง" [expanded] [ref=e176] [cursor=pointer]:
+            - generic [ref=e177]: สิทธิ์การเข้าถึง
+            - img [ref=e178]
+          - button "Access Control" [ref=e181] [cursor=pointer]:
+            - img [ref=e182]
+            - generic [ref=e186]: Access Control
+        - generic [ref=e187]:
+          - button "อื่นๆ" [expanded] [ref=e188] [cursor=pointer]:
+            - generic [ref=e189]: อื่นๆ
+            - img [ref=e190]
+          - generic [ref=e192]:
+            - button "อนุมัติผล Lab" [ref=e193] [cursor=pointer]:
+              - img [ref=e194]
+              - generic [ref=e197]: อนุมัติผล Lab
+            - button "Standard Config" [ref=e198] [cursor=pointer]:
+              - img [ref=e199]
+              - generic [ref=e201]: Standard Config
+            - button "ตั้งค่าระบบ" [ref=e202] [cursor=pointer]:
+              - img [ref=e203]
+              - generic [ref=e206]: ตั้งค่าระบบ
+      - generic [ref=e207]:
+        - generic [ref=e208]:
+          - img [ref=e210]
+          - generic [ref=e213]:
+            - paragraph [ref=e214]: Dev Administrator
+            - paragraph [ref=e215]: admin.dev@icpladda.com
+            - paragraph [ref=e216]: "Role: Administrator"
+            - paragraph [ref=e217]: IT · Administrator
+        - button "ออกจากระบบ" [ref=e218] [cursor=pointer]:
+          - img [ref=e219]
+          - text: ออกจากระบบ
+    - generic [ref=e222]:
+      - banner [ref=e223]:
+        - button "การแจ้งเตือน" [ref=e224] [cursor=pointer]:
+          - img [ref=e225]
+          - generic [ref=e228]: "1"
+      - main [ref=e229]:
+        - generic [ref=e232]:
+          - heading "Stock Management" [level=1] [ref=e233]:
+            - generic [ref=e234]:
+              - img [ref=e235]
+              - text: Stock Management
+          - paragraph [ref=e239]: "จัดการ inventory: Standards, สารเคมี, เครื่องแก้ว — บันทึกข้อมูลใน MongoDB"
+        - generic [ref=e240]:
+          - tablist [ref=e241]:
+            - tab "Standards" [ref=e242] [cursor=pointer]
+            - tab "สารเคมี" [ref=e243] [cursor=pointer]
+            - tab "เครื่องแก้ว" [ref=e244] [cursor=pointer]
+            - tab "รับเข้า" [active] [selected] [ref=e245] [cursor=pointer]
+            - tab "ประวัติ" [ref=e246] [cursor=pointer]
+          - tabpanel "รับเข้า" [ref=e2448]:
+            - generic [ref=e2450]:
+              - generic [ref=e2451]:
+                - heading "รับเข้า stock (หลายรายการ)" [level=3] [ref=e2452]:
+                  - img [ref=e2453]
+                  - text: รับเข้า stock (หลายรายการ)
+                - button "เพิ่มแถว" [ref=e2455] [cursor=pointer]:
+                  - img
+                  - text: เพิ่มแถว
+              - generic [ref=e2456]:
+                - generic [ref=e2458]:
+                  - generic [ref=e2459]: "1."
+                  - combobox [ref=e2460] [cursor=pointer]:
+                    - generic [ref=e2461]: เลือกของ...
+                    - img
+                  - button [ref=e2462] [cursor=pointer]:
+                    - img
+                - generic [ref=e2463]:
+                  - generic [ref=e2464]:
+                    - checkbox "ปริ้นลาเบลหลังรับเข้า (standard + สารเคมี)" [checked] [ref=e2465] [cursor=pointer]:
+                      - generic:
+                        - img
+                    - generic [ref=e2466] [cursor=pointer]: ปริ้นลาเบลหลังรับเข้า (standard + สารเคมี)
+                  - button "รับเข้าทั้งหมด (0 รายการ)" [disabled]:
+                    - img
+                    - text: รับเข้าทั้งหมด (0 รายการ)
+        - button "สแกน QR ขวด" [ref=e2447] [cursor=pointer]:
+          - img
