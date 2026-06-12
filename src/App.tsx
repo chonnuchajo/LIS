@@ -14,7 +14,7 @@ import LabDashboard from "./pages/LabDashboard";
 import QCDashboard from "./pages/QCDashboard";
 import QueueDisplay from "./pages/QueueDisplay";
 import Login from "./pages/Login";
-import RecordResults from "./pages/RecordResults";
+import AnalysisResults from "./pages/AnalysisResults";
 import Report from "./pages/Report";
 import Stock from "./pages/Stock";
 import StockUnitScanPage from "./pages/StockUnitScanPage";
@@ -85,7 +85,7 @@ const App = () => (
               <Route path="/queue/qc" element={<QueueDisplay mode="qc" />} />
               <Route path="/home" element={<PrivateRoute><Home /></PrivateRoute>} />
               <Route path="/stock-deduction" element={<PrivateRoute><StockDeduction /></PrivateRoute>} />
-              <Route path="/record-results" element={<PrivateRoute><RecordResults /></PrivateRoute>} />
+              <Route path="/record-results" element={<PrivateRoute><AnalysisResults /></PrivateRoute>} />
               <Route path="/qc-approval" element={<PrivateRoute><QCApproval /></PrivateRoute>} />
               <Route path="/lab-approval" element={<PrivateRoute><LabApproval /></PrivateRoute>} />
               <Route path="/report" element={<PrivateRoute><Report /></PrivateRoute>} />
