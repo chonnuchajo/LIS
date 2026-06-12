@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FlaskConical, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { FlaskConical, Loader2, AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePetition } from "@/hooks/usePetition";
 import { api, type ParameterItem } from "@/lib/api";
@@ -15,10 +16,22 @@ import {
   type QCTestResult,
 } from "@/types/petition.types";
 import { buildApprovalGroups } from "@/lib/qcApprovalRows";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { useConfirm } from "@/context/ConfirmDialog";
+import { RevisionRequestDialog } from "@/components/petition/RevisionRequestDialog";
 
 export default function QCApprovalReviewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+
+  const { user } = useAuth();
+  const confirm = useConfirm();
+  const [submitting, setSubmitting] = useState(false);
+  const [retestTarget, setRetestTarget] = useState<"lab" | "qc" | "both">("lab");
+  const [retestDialogOpen, setRetestDialogOpen] = useState(false);
+  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+  const [acceptReasonDialogOpen, setAcceptReasonDialogOpen] = useState(false);
 
   const { data: petition, loading, error } = usePetition(id);
   const groupMembership = useItemGroupMembership();
@@ -43,6 +56,63 @@ export default function QCApprovalReviewPage() {
       .then((m) => setPetitionHasAbnormal(!!m[id]))
       .catch(() => {});
   }, [id]);
+
+  const doApprove = useCallback(async (conclusion: "pass" | "accepted-oos", note?: string) => {
+    if (!petition) return;
+    setSubmitting(true);
+    try {
+      await api.approvePetition(petition._id, user?.name ?? "system", conclusion, note);
+      toast.success(conclusion === "accepted-oos" ? "ยอมรับผลเรียบร้อย" : "อนุมัติเรียบร้อย");
+      navigate("/qc-approval");
+    } catch {
+      toast.error("ดำเนินการไม่สำเร็จ");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [petition, user, navigate]);
+
+  const handleApprovePass = useCallback(async () => {
+    if (!(await confirm({ title: "ผลถูกต้อง", description: "ยืนยันว่าผลถูกต้องและอนุมัติคำร้องนี้?" }))) return;
+    await doApprove("pass");
+  }, [confirm, doApprove]);
+
+  const handleAcceptOos = useCallback(async (note: string) => {
+    setAcceptReasonDialogOpen(false);
+    await doApprove("accepted-oos", note);
+  }, [doApprove]);
+
+  const handleRetest = useCallback(async (note: string) => {
+    if (!petition) return;
+    setSubmitting(true);
+    try {
+      await api.rejectPetition(petition._id, user?.name ?? "system", note, retestTarget);
+      const label = retestTarget === "lab" ? "Lab" : retestTarget === "qc" ? "QC" : "Lab และ QC";
+      toast.success(`ส่งกลับให้ ${label} ทดสอบใหม่เรียบร้อย`);
+      setRetestDialogOpen(false);
+      navigate("/qc-approval");
+    } catch {
+      toast.error("ส่งกลับไม่สำเร็จ");
+      throw new Error("retest failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [petition, user, retestTarget, navigate]);
+
+  const handleReturnToRequester = useCallback(async (note: string) => {
+    if (!petition) return;
+    setSubmitting(true);
+    try {
+      await api.rejectPetition(petition._id, user?.name ?? "system", note, "requester");
+      toast.success("ส่งคืนผู้ส่งให้แก้ product เรียบร้อย", { description: `ส่งให้ ${petition.submittedBy?.name ?? "ผู้ยื่น"}` });
+      setReturnDialogOpen(false);
+      navigate("/qc-approval");
+    } catch {
+      toast.error("ส่งคืนไม่สำเร็จ");
+      throw new Error("return failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [petition, user, navigate]);
 
   if (loading) {
     return (
@@ -162,6 +232,73 @@ export default function QCApprovalReviewPage() {
             </CardContent>
           </Card>
         ))}
+
+        {/* แผงตัดสิน — fixed bottom */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-gray-500">ถ้าให้ทดสอบใหม่ ส่งกลับไปยัง:</span>
+              {([["lab", "Lab"], ["qc", "QC"], ["both", "ทั้งคู่"]] as const).map(([val, label]) => (
+                <label key={val} className="flex items-center gap-1 cursor-pointer">
+                  <input type="radio" name="retestTarget" checked={retestTarget === val} onChange={() => setRetestTarget(val)} />
+                  {label}
+                </label>
+              ))}
+            </div>
+            {!petitionHasAbnormal ? (
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <Button variant="primary" size="sm" onClick={handleApprovePass} disabled={submitting} className="gap-2">
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  ผลถูกต้อง
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setRetestDialogOpen(true)} disabled={submitting} className="gap-2">
+                  <RotateCcw className="h-4 w-4" /> ผลไม่ถูกต้อง
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <Button variant="primary" size="sm" onClick={() => setAcceptReasonDialogOpen(true)} disabled={submitting} className="gap-2">
+                  {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  ยอมรับผล
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setReturnDialogOpen(true)} disabled={submitting} className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50">
+                  <RotateCcw className="h-4 w-4" /> ส่งคืนผู้ส่งแก้ product
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setRetestDialogOpen(true)} disabled={submitting} className="gap-2">
+                  <RotateCcw className="h-4 w-4" /> ทดสอบใหม่
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <RevisionRequestDialog
+          open={retestDialogOpen}
+          onOpenChange={setRetestDialogOpen}
+          petitionNo={petition.petitionNo}
+          submitterName={petition.submittedBy?.name ?? "ผู้ยื่น"}
+          recipientLabel={retestTarget === "lab" ? "ผู้ทดสอบ Lab" : retestTarget === "qc" ? "ผู้ทดสอบ QC" : "ผู้ทดสอบ Lab และ QC"}
+          warning={`คำร้องจะถูกส่งกลับให้${retestTarget === "both" ? "ทั้ง Lab และ QC" : retestTarget === "lab" ? "Lab" : "QC"}ทดสอบใหม่ (ไม่ปิดคำร้อง ไม่เกี่ยวกับผู้ส่ง)`}
+          onConfirm={handleRetest}
+        />
+        <RevisionRequestDialog
+          open={returnDialogOpen}
+          onOpenChange={setReturnDialogOpen}
+          petitionNo={petition.petitionNo}
+          submitterName={petition.submittedBy?.name ?? "ผู้ยื่น"}
+          recipientLabel={petition.submittedBy?.name ?? "ผู้ยื่น"}
+          warning="คำร้องจะถูกปิดและส่งคืนผู้ส่งให้แก้ไข product ตามคำแนะนำ"
+          onConfirm={handleReturnToRequester}
+        />
+        <RevisionRequestDialog
+          open={acceptReasonDialogOpen}
+          onOpenChange={setAcceptReasonDialogOpen}
+          petitionNo={petition.petitionNo}
+          submitterName={petition.submittedBy?.name ?? "ผู้ยื่น"}
+          recipientLabel="ยอมรับผลไม่ปกติ"
+          warning="คำร้องจะถูกอนุมัติโดยบันทึกผลไม่ปกติเป็นผลจริง — โปรดระบุเหตุผล"
+          onConfirm={handleAcceptOos}
+        />
       </div>
     </AppLayout>
   );
