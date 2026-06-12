@@ -35,6 +35,7 @@ export default function LabApprovalReviewPage() {
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const [results, setResults] = useState<QCTestResult[]>([]);
   const [petitionHasAbnormal, setPetitionHasAbnormal] = useState(false);
+  const [abnormalLoaded, setAbnormalLoaded] = useState(false);
 
   useEffect(() => {
     api.getParameters()
@@ -52,11 +53,13 @@ export default function LabApprovalReviewPage() {
   }, [id]);
 
   useEffect(() => {
-    if (!id) { setPetitionHasAbnormal(false); return; }
+    if (!id) { setPetitionHasAbnormal(false); setAbnormalLoaded(false); return; }
+    setAbnormalLoaded(false);
     let alive = true;
     api.getAbnormalFlags([id])
       .then((m) => { if (alive) setPetitionHasAbnormal(!!m[id]); })
-      .catch(() => { if (alive) setPetitionHasAbnormal(false); });
+      .catch(() => { if (alive) setPetitionHasAbnormal(false); })
+      .finally(() => { if (alive) setAbnormalLoaded(true); });
     return () => { alive = false; };
   }, [id]);
 
@@ -210,7 +213,7 @@ export default function LabApprovalReviewPage() {
         ))}
 
         {/* แผงตัดสิน — fixed bottom (เฉพาะผู้มีสิทธิ์อนุมัติ Lab) */}
-        {canApproveLab && (
+        {canApproveLab && abnormalLoaded && (
           <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
             <div className="flex flex-wrap items-center justify-end gap-3">
               <Button variant="primary" size="sm" onClick={handleApprove} disabled={submitting} className="gap-2">
