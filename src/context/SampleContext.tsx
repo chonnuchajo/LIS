@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import type { SampleItem } from "@/components/lis/SampleColumn";
 import { api } from "@/lib/api";
 
@@ -69,6 +69,7 @@ interface SampleContextType {
   markAsSending: (items: SentItem[]) => void;
   confirmSentByScan: (sampleId: string) => void;
   refetch: () => void;
+  ensureLoaded: () => void;
 }
 
 const SampleContext = createContext<SampleContextType | null>(null);
@@ -76,6 +77,13 @@ const SampleContext = createContext<SampleContextType | null>(null);
 export const useSamples = () => {
   const ctx = useContext(SampleContext);
   if (!ctx) throw new Error("useSamples must be inside SampleProvider");
+  // Lazy-load on first consumer mount. The provider wraps every route, but only
+  // a few pages read this legacy sample data — pages that never call useSamples
+  // (e.g. QC testing) no longer pay for the samples/approvals/physical/density
+  // fetch on load.
+  useEffect(() => {
+    ctx.ensureLoaded();
+  }, [ctx]);
   return ctx;
 };
 
@@ -114,7 +122,12 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  useEffect(() => {
+  // Fetch lazily: the first consumer that mounts (via useSamples) triggers the
+  // load exactly once, instead of every app navigation paying for it on mount.
+  const loadStartedRef = useRef(false);
+  const ensureLoaded = useCallback(() => {
+    if (loadStartedRef.current) return;
+    loadStartedRef.current = true;
     fetchAll();
   }, [fetchAll]);
 
@@ -248,6 +261,7 @@ export const SampleProvider = ({ children }: { children: ReactNode }) => {
       markAsSending,
       confirmSentByScan,
       refetch: fetchAll,
+      ensureLoaded,
     }}>
       {children}
     </SampleContext.Provider>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, ArrowDownToLine, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Trash2, ArrowDownToLine, Check, ChevronsUpDown, ChevronRight, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -270,15 +270,35 @@ function ItemPicker({
   onPick: (opt: PickOption) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  // ค่าเริ่มต้น: ทุกหมวดหุบไว้
+  const [expanded, setExpanded] = useState<Record<CartCategory, boolean>>({
+    standard: false, solvent: false, glassware: false,
+  });
   const selected = options.find((o) => o.id === value);
+
+  // เปิด/ปิด popover แต่ละครั้งให้รีเซ็ตกลับเป็นหุบ + ล้างคำค้น
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) {
+      setQuery("");
+      setExpanded({ standard: false, solvent: false, glassware: false });
+    }
+  }
+
+  const q = query.trim().toLowerCase();
+  const searching = q.length > 0;
+  const match = (o: PickOption) => !searching || o.label.toLowerCase().includes(q);
+
   const groups: { cat: CartCategory; items: PickOption[] }[] = [
-    { cat: "standard", items: options.filter((o) => o.category === "standard") },
-    { cat: "solvent", items: options.filter((o) => o.category === "solvent") },
-    { cat: "glassware", items: options.filter((o) => o.category === "glassware") },
+    { cat: "standard", items: options.filter((o) => o.category === "standard" && match(o)) },
+    { cat: "solvent", items: options.filter((o) => o.category === "solvent" && match(o)) },
+    { cat: "glassware", items: options.filter((o) => o.category === "glassware" && match(o)) },
   ];
+  const anyVisible = groups.some((g) => g.items.length > 0);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" className="w-64 justify-between font-normal">
           <span className="truncate">{selected ? selected.label : "เลือกของ..."}</span>
@@ -286,24 +306,37 @@ function ItemPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
-        <Command>
-          <CommandInput placeholder="ค้นหา code หรือชื่อ" />
+        <Command shouldFilter={false}>
+          <CommandInput placeholder="ค้นหา code หรือชื่อ" value={query} onValueChange={setQuery} />
           <CommandList>
-            <CommandEmpty>ไม่พบรายการ</CommandEmpty>
-            {groups.map((g) => g.items.length > 0 && (
-              <CommandGroup key={g.cat} heading={CATEGORY_LABEL[g.cat]}>
-                {g.items.map((o) => (
-                  <CommandItem
-                    key={`${o.category}-${o.id}`}
-                    value={o.label}
-                    onSelect={() => { onPick(o); setOpen(false); }}
+            {!anyVisible && <CommandEmpty>ไม่พบรายการ</CommandEmpty>}
+            {groups.map((g) => {
+              if (g.items.length === 0) return null;
+              const isOpen = searching || expanded[g.cat];
+              return (
+                <CommandGroup key={g.cat} className="p-0">
+                  <button
+                    type="button"
+                    onClick={() => setExpanded((p) => ({ ...p, [g.cat]: !p[g.cat] }))}
+                    className="flex w-full items-center gap-1 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent/50"
                   >
-                    <Check className={cn("mr-2 h-4 w-4", value === o.id ? "opacity-100" : "opacity-0")} />
-                    {o.label}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ))}
+                    {isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                    <span>{CATEGORY_LABEL[g.cat]}</span>
+                    <span className="ml-auto tabular-nums">{g.items.length}</span>
+                  </button>
+                  {isOpen && g.items.map((o) => (
+                    <CommandItem
+                      key={`${o.category}-${o.id}`}
+                      value={o.label}
+                      onSelect={() => { onPick(o); handleOpenChange(false); }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", value === o.id ? "opacity-100" : "opacity-0")} />
+                      {o.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              );
+            })}
           </CommandList>
         </Command>
       </PopoverContent>

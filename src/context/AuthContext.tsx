@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "@/lib/msalConfig";
 import { api } from "@/lib/api";
+import { loadAccessControl } from "@/lib/accessControlSource";
 import { DEV_MODE, DEV_DEFAULT_ROLE, synthesizeDevUser } from "@/config/dev";
 import { unionPermissions } from "@/lib/roles";
 
@@ -94,27 +95,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!DEV_MODE) return;
 
     let active = true;
-    const loadMatrix = () => {
-      api
-        .get<{
-          permissions?: Record<string, string[]>;
-          roles?: { id: string; name: string }[];
-        }>("/access-control")
-        .then((res) => {
+    const loadMatrix = (force = false) => {
+      loadAccessControl(force)
+        .then((data) => {
           if (!active) return;
-          setDevPermissions(res.data.data.permissions ?? {});
-          setDevRoles(res.data.data.roles ?? []);
+          setDevPermissions(data.permissions ?? {});
+          setDevRoles(data.roles ?? []);
         })
         .catch((err) => {
           console.error("Failed to load access matrix for dev role", err);
         });
     };
 
+    const refresh = () => loadMatrix(true);
     loadMatrix();
-    window.addEventListener("lis-access-groups-changed", loadMatrix);
+    window.addEventListener("lis-access-groups-changed", refresh);
     return () => {
       active = false;
-      window.removeEventListener("lis-access-groups-changed", loadMatrix);
+      window.removeEventListener("lis-access-groups-changed", refresh);
     };
   }, []);
 

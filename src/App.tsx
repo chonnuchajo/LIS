@@ -34,6 +34,7 @@ const MachinesPage = lazy(() =>
 const QCApproval = lazy(() => import("./pages/QCApproval"));
 const QCApprovalReviewPage = lazy(() => import("./pages/QCApprovalReviewPage"));
 const LabApproval = lazy(() => import("./pages/LabApproval"));
+const LabApprovalReviewPage = lazy(() => import("./pages/LabApprovalReviewPage"));
 const AdminData = lazy(() => import("./pages/AdminData"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const ParameterSettings = lazy(() => import("./pages/ParameterSettings"));
@@ -108,6 +109,7 @@ const App = () => (
               <Route path="/qc-approval" element={<PrivateRoute><QCApproval /></PrivateRoute>} />
               <Route path="/qc-approval/:id" element={<PrivateRoute><QCApprovalReviewPage /></PrivateRoute>} />
               <Route path="/lab-approval" element={<PrivateRoute><LabApproval /></PrivateRoute>} />
+              <Route path="/lab-approval/:id" element={<PrivateRoute><LabApprovalReviewPage /></PrivateRoute>} />
               <Route path="/report" element={<PrivateRoute><Report /></PrivateRoute>} />
               <Route path="/daily-check" element={<PrivateRoute><DailyCheckLayout /></PrivateRoute>}>
                 <Route index element={<Navigate to="/daily-check/environment" replace />} />

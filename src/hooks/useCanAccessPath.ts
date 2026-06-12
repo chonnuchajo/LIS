@@ -1,15 +1,9 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/context/AuthContext";
-import { api } from "@/lib/api";
 import { userCanAccessPath } from "@/lib/accessControl";
 import { normalizeRoles, unionPermissions } from "@/lib/roles";
-
-type AccessGroup = { id: string; paths?: string[] };
-type AccessControlState = {
-  groups: AccessGroup[];
-  permissions: Record<string, string[]>;
-};
+import { loadAccessControl } from "@/lib/accessControlSource";
 
 const ACCESS_CONTROL_QUERY_KEY = ["access-control"];
 
@@ -24,10 +18,7 @@ export function useCanAccessPath() {
 
   const { data: accessControl } = useQuery({
     queryKey: ACCESS_CONTROL_QUERY_KEY,
-    queryFn: async () => {
-      const res = await api.get<AccessControlState>("/access-control");
-      return res.data.data;
-    },
+    queryFn: () => loadAccessControl(),
     staleTime: 5 * 60 * 1000,
   });
 

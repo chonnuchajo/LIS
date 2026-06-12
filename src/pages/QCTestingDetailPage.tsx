@@ -1095,8 +1095,25 @@ export default function QCTestingDetailPage() {
         );
       })}
 
-      {/* Action buttons */}
-      {items.length > 0 && (
+      {/* Read-only banner — QC track submitted, page locked while Lab finishes.
+          status==='success' redirects to qc-approval above, so this is the
+          waiting-for-Lab state. Hides the action footer so the locked page is a
+          clean read-only view (back/nav stay usable) instead of a dead end. */}
+      {isLocked && petition.status !== 'approved' && petition.status !== 'rejected' && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 flex flex-col items-center gap-2">
+          <CheckCircle2 className="h-6 w-6 text-blue-500" />
+          <p className="text-sm font-semibold text-blue-700">
+            บันทึกผล QC แล้ว — รอ Lab ตรวจให้ครบ
+          </p>
+          <p className="text-xs text-blue-600">
+            ฟอร์มนี้ถูกล็อกเป็นแบบอ่านอย่างเดียว แก้ไขไม่ได้ — กด “ย้อนกลับ” เพื่อออก
+          </p>
+        </div>
+      )}
+
+      {/* Action buttons — hidden once locked (qcCompletedAt set) so the read-only
+          page can't re-fire the submit→confirm→navigate cycle. */}
+      {items.length > 0 && !isLocked && (
         <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <Button
             variant={isComplete ? 'primary' : 'outline'}

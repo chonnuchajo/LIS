@@ -177,6 +177,71 @@ router.post('/export', async (req, res) => {
   }
 });
 
+// ---- Slim list (group-membership only) -----------------------------------
+// The full master-item payload from the ERP webhook is ~940 KB and is fetched
+// on every page that needs item↔group membership (QC testing/approval/assign,
+// config pages) via useItemGroupMembership. That hook only reads 3 fields per
+// item, so this endpoint returns just those and caches the ERP round-trip for
+// a few minutes (the catalog changes rarely). Cuts ~940 KB → ~50 KB and skips
+// the upstream fetch on repeat loads.
+//
+// Key lists MUST stay in sync with src/lib/masterItemFields.ts.
+const SLIM_KEYS = {
+  itemNo: ['item_no', 'itemCode', 'item_code', 'code', 'Code', 'ITEM_CODE'],
+  commonName: ['common_name', 'commonname', 'commonName', 'item_name2', 'itemType'],
+  tradeName: ['trade_name', 'tradename', 'tradeName'],
+};
+
+function firstValue(item, keys) {
+  for (const key of keys) {
+    const v = item[key];
+    if (v !== undefined && v !== null && v !== '') return String(v).trim();
+  }
+  return '';
+}
+
+function normalizeItems(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === 'object') {
+    const found = [payload.data, payload.items, payload.result, payload.rows].find(Array.isArray);
+    if (Array.isArray(found)) return found;
+  }
+  return [];
+}
+
+let slimCache = null;
+let slimCacheAt = 0;
+const SLIM_TTL_MS = 5 * 60 * 1000;
+
+router.get('/slim', async (req, res) => {
+  try {
+    const now = Date.now();
+    if (slimCache && now - slimCacheAt < SLIM_TTL_MS) {
+      return res.json({ data: slimCache, cached: true });
+    }
+    const response = await fetch(new URL(WEBHOOK_URL), { headers: { Accept: 'application/json' } });
+    if (!response.ok) {
+      // Serve stale cache rather than failing the page if the ERP hiccups.
+      if (slimCache) return res.json({ data: slimCache, cached: true, stale: true });
+      return res.status(response.status).json({ message: 'Master item webhook request failed' });
+    }
+    const payload = await response.json().catch(() => null);
+    const slim = normalizeItems(payload)
+      .map((it) => ({
+        itemNo: firstValue(it, SLIM_KEYS.itemNo),
+        commonName: firstValue(it, SLIM_KEYS.commonName),
+        tradeName: firstValue(it, SLIM_KEYS.tradeName),
+      }))
+      .filter((r) => r.itemNo);
+    slimCache = slim;
+    slimCacheAt = now;
+    return res.json({ data: slim });
+  } catch (err) {
+    if (slimCache) return res.json({ data: slimCache, cached: true, stale: true });
+    return res.status(502).json({ message: 'Cannot connect to master item webhook', error: err.message });
+  }
+});
+
 router.get('/', forwardToWebhook);
 router.post('/', forwardToWebhook);
 router.put('/', forwardToWebhook);

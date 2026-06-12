@@ -28,7 +28,10 @@ export default function QCApprovalReviewPage() {
   const { user } = useAuth();
   const confirm = useConfirm();
   const [submitting, setSubmitting] = useState(false);
-  const [retestTarget, setRetestTarget] = useState<"lab" | "qc" | "both">("lab");
+  const [retestLab, setRetestLab] = useState(true);
+  const [retestQc, setRetestQc] = useState(false);
+  const retestTarget: "lab" | "qc" | "both" | null =
+    retestLab && retestQc ? "both" : retestLab ? "lab" : retestQc ? "qc" : null;
   const [retestDialogOpen, setRetestDialogOpen] = useState(false);
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [acceptReasonDialogOpen, setAcceptReasonDialogOpen] = useState(false);
@@ -87,7 +90,7 @@ export default function QCApprovalReviewPage() {
   }, [doApprove]);
 
   const handleRetest = useCallback(async (note: string) => {
-    if (!petition) return;
+    if (!petition || !retestTarget) return;
     setSubmitting(true);
     try {
       await api.rejectPetition(petition._id, user?.name ?? "system", note, retestTarget);
@@ -243,12 +246,15 @@ export default function QCApprovalReviewPage() {
           <div className="flex flex-col items-end gap-2">
             <div className="flex items-center gap-2 text-xs">
               <span className="text-gray-500">ถ้าให้ทดสอบใหม่ ส่งกลับไปยัง:</span>
-              {([["lab", "Lab"], ["qc", "QC"], ["both", "ทั้งคู่"]] as const).map(([val, label]) => (
-                <label key={val} className="flex items-center gap-1 cursor-pointer">
-                  <input type="radio" name="retestTarget" checked={retestTarget === val} onChange={() => setRetestTarget(val)} />
-                  {label}
-                </label>
-              ))}
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input type="checkbox" checked={retestLab} onChange={(e) => setRetestLab(e.target.checked)} />
+                Lab
+              </label>
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input type="checkbox" checked={retestQc} onChange={(e) => setRetestQc(e.target.checked)} />
+                QC
+              </label>
+              {!retestTarget && <span className="text-red-500">(เลือกอย่างน้อย 1)</span>}
             </div>
             {!petitionHasAbnormal ? (
               <div className="flex flex-wrap items-center justify-end gap-3">
@@ -256,7 +262,7 @@ export default function QCApprovalReviewPage() {
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                   ผลถูกต้อง
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setRetestDialogOpen(true)} disabled={submitting} className="gap-2">
+                <Button variant="outline" size="sm" onClick={() => setRetestDialogOpen(true)} disabled={submitting || !retestTarget} className="gap-2">
                   <RotateCcw className="h-4 w-4" /> ผลไม่ถูกต้อง
                 </Button>
               </div>
@@ -269,7 +275,7 @@ export default function QCApprovalReviewPage() {
                 <Button variant="outline" size="sm" onClick={() => setReturnDialogOpen(true)} disabled={submitting} className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50">
                   <RotateCcw className="h-4 w-4" /> ส่งคืนผู้ส่งแก้ product
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setRetestDialogOpen(true)} disabled={submitting} className="gap-2">
+                <Button variant="outline" size="sm" onClick={() => setRetestDialogOpen(true)} disabled={submitting || !retestTarget} className="gap-2">
                   <RotateCcw className="h-4 w-4" /> ทดสอบใหม่
                 </Button>
               </div>

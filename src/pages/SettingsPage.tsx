@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import { useEnvRooms } from "@/hooks/useEnvRooms";
 import type { EnvRoom, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import type { PrintConfig, PrintConfigInput } from "@/lib/printConfig";
 import { DOC_NUMBER_TYPES, type DocumentNumberConfig, type DocumentNumberConfigInput, type DocNumberType } from "@/lib/documentNumberConfig";
+import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
 
 const SettingsPage = () => {
   const queryClient = useQueryClient();
@@ -92,6 +93,12 @@ const SettingsPage = () => {
   });
   const roleOptions = (accessMatrix?.roles ?? []).map((r) => ({ id: r.id, name: r.name }));
 
+  const TAB_KEYS = ["environment", "printers", "doc-numbers", "instruments", "dashboard"];
+  const { isVisible, defaultKey } = useAccessibleTabs("/settings", TAB_KEYS);
+  const [activeTab, setActiveTab] = useState<string | undefined>(defaultKey);
+  // If the chosen tab becomes hidden (or default resolves late), snap to a visible one.
+  const currentTab = activeTab && isVisible(activeTab) ? activeTab : defaultKey;
+
   return (
     <AppLayout title="ตั้งค่าระบบ">
       <PageHeader
@@ -103,13 +110,23 @@ const SettingsPage = () => {
         }
         description="จัดการการตั้งค่าระบบ — แยกตามหมวดในแต่ละแท็บ"
       />
-      <Tabs defaultValue="environment">
+      <Tabs value={currentTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="environment">ห้องตรวจสภาพแวดล้อม</TabsTrigger>
-          <TabsTrigger value="printers">เครื่องพิมพ์เอกสาร</TabsTrigger>
-          <TabsTrigger value="doc-numbers">รหัสเอกสาร</TabsTrigger>
-          <TabsTrigger value="instruments">เครื่องมือ/API</TabsTrigger>
-          <TabsTrigger value="dashboard">แดชบอร์ด</TabsTrigger>
+          {isVisible("environment") && (
+            <TabsTrigger value="environment">ห้องตรวจสภาพแวดล้อม</TabsTrigger>
+          )}
+          {isVisible("printers") && (
+            <TabsTrigger value="printers">เครื่องพิมพ์เอกสาร</TabsTrigger>
+          )}
+          {isVisible("doc-numbers") && (
+            <TabsTrigger value="doc-numbers">รหัสเอกสาร</TabsTrigger>
+          )}
+          {isVisible("instruments") && (
+            <TabsTrigger value="instruments">เครื่องมือ/API</TabsTrigger>
+          )}
+          {isVisible("dashboard") && (
+            <TabsTrigger value="dashboard">แดชบอร์ด</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="environment" className="space-y-3">
@@ -175,12 +192,14 @@ const SettingsPage = () => {
           <InstrumentSourceManager />
         </TabsContent>
 
-        <TabsContent value="dashboard" className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            เลือกว่าจะแสดงส่วนไหน เรียงลำดับอย่างไร และ KPI ใบไหน — แยกตาม role (ค่ามาตรฐานใช้เมื่อ role นั้นยังไม่ตั้งค่า)
-          </p>
-          <DashboardLayoutConfigCard roles={roleOptions} />
-        </TabsContent>
+        {isVisible("dashboard") && (
+          <TabsContent value="dashboard" className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              เลือกว่าจะแสดงส่วนไหน เรียงลำดับอย่างไร และ KPI ใบไหน — แยกตาม role (ค่ามาตรฐานใช้เมื่อ role นั้นยังไม่ตั้งค่า)
+            </p>
+            <DashboardLayoutConfigCard roles={roleOptions} />
+          </TabsContent>
+        )}
       </Tabs>
     </AppLayout>
   );
