@@ -669,12 +669,21 @@ router.patch('/:id', async (req, res) => {
       return res.status(409).json({ error: { message: 'ต้องบันทึกผลผ่านแต่ละส่วน (Lab/QC) — สถานะ "เสร็จสิ้น" ตั้งตรงไม่ได้' } });
     }
 
-    // Approve transition: success → approved
+    // Approve transition: success → approved (conclusion = pass | accepted-oos)
     if (updates.status === 'approved') {
       if (before.status !== 'success') {
         return res.status(409).json({ error: { message: 'อนุมัติได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
       }
+      const conclusion = ['pass', 'accepted-oos'].includes(req.body.conclusion)
+        ? req.body.conclusion
+        : 'pass';
+      if (conclusion === 'accepted-oos') {
+        const reason = String(req.body.conclusionNote || '').trim();
+        if (!reason) return badRequest(res, 'กรุณาระบุเหตุผลที่ยอมรับผลไม่ปกติ');
+        before.conclusionNote = reason;
+      }
       before.status = 'approved';
+      before.conclusion = conclusion;
       before.approvedAt = new Date();
       before.reviewHistory.push({
         action: 'approve',
@@ -687,52 +696,57 @@ router.patch('/:id', async (req, res) => {
         fromStatus: 'success',
         toStatus: 'approved',
         actor: actor || 'system',
-        note: 'อนุมัติคำร้อง',
+        note: conclusion === 'accepted-oos' ? 'ยอมรับผลไม่ปกติ' : 'อนุมัติคำร้อง (ผลถูกต้อง)',
+        metadata: { conclusion },
       });
       return res.json(before);
     }
 
-    // Reject transition: success → (requester | lab | qc)
+    // Reject transition: success → (requester=ปิดงาน | lab|qc|both=ส่งกลับทดสอบใหม่)
     if (updates.status === 'rejected') {
       if (before.status !== 'success') {
         return res.status(409).json({ error: { message: 'ส่งกลับให้แก้ไขได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
       }
       const note = String(updates.revisionNote || '').trim();
       if (!note) return badRequest(res, 'กรุณาระบุข้อความที่ต้องการให้แก้ไข');
-      const target = ['requester', 'lab', 'qc'].includes(req.body.target) ? req.body.target : 'requester';
+      const target = ['requester', 'lab', 'qc', 'both'].includes(req.body.target) ? req.body.target : 'requester';
 
       if (target === 'requester') {
         before.status = 'rejected';
         before.rejectedAt = new Date();
+        before.conclusion = 'returned-to-requester';
+        before.conclusionNote = note;
         before.reviewHistory.push({ action: 'reject', reviewedBy: actor || 'system', reviewedAt: new Date(), note });
         await before.save();
         logAudit(before, {
           event: 'statusChanged', fromStatus: 'success', toStatus: 'rejected',
-          actor: actor || 'system', note: `ส่งกลับให้แก้ไข: ${note}`, metadata: { returnTo: 'requester' },
+          actor: actor || 'system', note: `ส่งคืนผู้ส่งแก้ product: ${note}`, metadata: { returnTo: 'requester', conclusion: 'returned-to-requester' },
         });
         return res.json(before);
       }
 
-      // target lab/qc — เด้ง track กลับเป็น inProgress (ไม่ปิดงานทั้งใบ)
+      // target lab/qc/both — เด้ง track กลับเป็น inProgress (ไม่ปิดงาน ไม่ตั้ง conclusion)
       before.status = 'inProgress';
       before.completedAt = null;
-      if (target === 'lab') {
+      if (target === 'lab' || target === 'both') {
         before.labCompletedAt = null;
         before.labCompletedBy = undefined;
         before.labApprovedAt = null;
         before.labApprovedBy = undefined;
         before.labReturnNote = note;
-      } else {
+      }
+      if (target === 'qc' || target === 'both') {
         before.qcCompletedAt = null;
         before.qcCompletedBy = undefined;
         before.qcReturnNote = note;
       }
       before.reviewHistory.push({ action: 'reject', reviewedBy: actor || 'system', reviewedAt: new Date(), note });
+      const targetLabel = target === 'lab' ? 'ฝั่ง Lab' : target === 'qc' ? 'ฝั่ง QC' : 'ทั้ง Lab และ QC';
       await before.save();
       logAudit(before, {
         event: 'statusChanged', fromStatus: 'success', toStatus: 'inProgress',
         actor: actor || 'system',
-        note: `หัวหน้า QC ส่งกลับ${target === 'lab' ? 'ฝั่ง Lab' : 'ฝั่ง QC'}: ${note}`,
+        note: `หัวหน้า QC ส่งกลับ${targetLabel}ทดสอบใหม่: ${note}`,
         metadata: { returnTo: target },
       });
       return res.json(before);
