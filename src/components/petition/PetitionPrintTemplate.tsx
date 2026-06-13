@@ -243,17 +243,17 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
                       <CB checked={isStandardMethod && lar?.personnel === 'able'} /> 1.1 ทำได้เนื่องจาก
                     </div>
                     <div className="pr-ind3">
-                      <RD /> ได้รับการฝึกอบรมแล้ว
+                      <RD checked={lar?.personnelAbleReasons?.includes('trained')} /> ได้รับการฝึกอบรมแล้ว
                     </div>
                     <div className="pr-ind3">
-                      <RD /> ได้รับการมอบหมายให้ทดลอง
+                      <RD checked={lar?.personnelAbleReasons?.includes('assigned')} /> ได้รับการมอบหมายให้ทดลอง
                     </div>
                     <div className="pr-ind">
                       <CB checked={isStandardMethod && lar?.personnel === 'unable'} /> 1.2 ไม่สามารถทำได้เนื่องจาก
                     </div>
-                    <div className="pr-ind3"><RD /> ยังไม่เคยทำการทดลอง</div>
-                    <div className="pr-ind3"><RD /> ยังไม่ได้รับการฝึกอบรม</div>
-                    <div className="pr-ind3"><RD /> ยังไม่ได้รับการมอบหมายให้ทำงานทดลอง</div>
+                    <div className="pr-ind3"><RD checked={lar?.personnelUnableReasons?.includes('neverDone')} /> ยังไม่เคยทำการทดลอง</div>
+                    <div className="pr-ind3"><RD checked={lar?.personnelUnableReasons?.includes('notTrained')} /> ยังไม่ได้รับการฝึกอบรม</div>
+                    <div className="pr-ind3"><RD checked={lar?.personnelUnableReasons?.includes('notAssigned')} /> ยังไม่ได้รับการมอบหมายให้ทำงานทดลอง</div>
 
                     <div className="pr-q"><b>2. ปริมาณงาน</b></div>
                     <div className="pr-ind">
@@ -263,14 +263,14 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
                       <CB checked={isStandardMethod && lar?.workload === 'slower'} /> 2.2 สามารถรับงานได้แต่อาจช้ากว่าปกติ ซึ่งลูกค้ายินยอม
                     </div>
                     <div className="pr-ind">
-                      <CB /> 2.3 ไม่สามารถรับงานได้ เพราะมีงานสะสมมาก
+                      <CB checked={isStandardMethod && lar?.workload === 'cannot'} /> 2.3 ไม่สามารถรับงานได้ เพราะมีงานสะสมมาก
                     </div>
 
                     <div className="pr-q"><b>3. การใช้บริการผู้รับเหมาช่วงการทดสอบ (Sub contractor)</b></div>
-                    <div className="pr-ind"><CB /> 3.1 ไม่ใช้ผู้รับเหมาช่วง</div>
+                    <div className="pr-ind"><CB checked={isStandardMethod && lar?.subcontractor === 'none'} /> 3.1 ไม่ใช้ผู้รับเหมาช่วง</div>
                     <div className="pr-ind">
-                      <CB /> 3.2 การทดสอบนี้ใช้บริการทดสอบโดยผู้รับเหมาช่วง บริษัท/หน่วยงาน{' '}
-                      <Line width="5cm" />
+                      <CB checked={isStandardMethod && lar?.subcontractor === 'used'} /> 3.2 การทดสอบนี้ใช้บริการทดสอบโดยผู้รับเหมาช่วง บริษัท/หน่วยงาน{' '}
+                      <Line width="5cm" value={lar?.subcontractor === 'used' ? (lar?.subcontractorName ?? '') : ''} />
                     </div>
                     <div className="pr-ind3 pr-note">
                       (เนื่องจากห้องปฏิบัติการทดสอบไม่สามารถทดสอบได้ ซึ่งลูกค้ารับทราบ และยินยอมแล้ว)
@@ -301,18 +301,18 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
                       </span>
                     </div>
                     <div className="pr-ind">
-                      2. เครื่องมือทดสอบ (เครื่องมือ <Line width="4cm" /> )
+                      2. เครื่องมือทดสอบ (เครื่องมือ <Line width="4cm" value={lar?.equipmentName ?? ''} /> )
                     </div>
                     <div className="pr-ind2">
-                      <CB /> 2.1 มีความพร้อม เนื่องจาก&nbsp;<RD /> มีเครื่องมือ&nbsp;<RD /> สอบเทียบแล้ว
+                      <CB checked={lar?.equipment === 'ready'} /> 2.1 มีความพร้อม เนื่องจาก&nbsp;<RD checked={lar?.equipmentReadyReasons?.includes('hasInstrument')} /> มีเครื่องมือ&nbsp;<RD checked={lar?.equipmentReadyReasons?.includes('calibrated')} /> สอบเทียบแล้ว
                     </div>
                     <div className="pr-ind2">
-                      <CB /> 2.2 ไม่มีความพร้อม เนื่องจาก
+                      <CB checked={lar?.equipment === 'notReady'} /> 2.2 ไม่มีความพร้อม เนื่องจาก
                     </div>
-                    <div className="pr-ind3"><RD /> ไม่มีเครื่องมือ</div>
-                    <div className="pr-ind3"><RD /> ยังไม่มีการสอบเทียบ</div>
-                    <div className="pr-ind3"><RD /> เครื่องมือไม่ครอบคลุมช่วงทดสอบที่ต้องการ</div>
-                    <div className="pr-ind3"><RD /> เครื่องมือเสีย</div>
+                    <div className="pr-ind3"><RD checked={lar?.equipmentNotReadyReasons?.includes('noInstrument')} /> ไม่มีเครื่องมือ</div>
+                    <div className="pr-ind3"><RD checked={lar?.equipmentNotReadyReasons?.includes('notCalibrated')} /> ยังไม่มีการสอบเทียบ</div>
+                    <div className="pr-ind3"><RD checked={lar?.equipmentNotReadyReasons?.includes('outOfRange')} /> เครื่องมือไม่ครอบคลุมช่วงทดสอบที่ต้องการ</div>
+                    <div className="pr-ind3"><RD checked={lar?.equipmentNotReadyReasons?.includes('broken')} /> เครื่องมือเสีย</div>
                     <div className="pr-ind">
                       3. บุคลากร และปริมาณงาน ทบทวน ตามวิธีทดสอบของ ไอ ซี พี ลัดดา จำกัด (ข้อ 1 และ 2)
                     </div>
@@ -324,7 +324,7 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
                         <CB checked={isCustomMethod && lar?.acceptable === false} /> ไม่พร้อมรับงาน&nbsp;เนื่องจาก
                       </span>
                       <span className="pr-line-fill">
-                        {isCustomMethod && lar?.acceptable === false ? lar?.remark : ' '}
+                        {isCustomMethod && lar?.acceptable === false ? lar?.notAcceptableReason : ' '}
                       </span>
                     </div>
                   </div>
