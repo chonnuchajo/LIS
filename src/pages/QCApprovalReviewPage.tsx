@@ -28,7 +28,7 @@ export default function QCApprovalReviewPage() {
   const { user } = useAuth();
   const confirm = useConfirm();
   const [submitting, setSubmitting] = useState(false);
-  const [retestLab, setRetestLab] = useState(true);
+  const [retestLab, setRetestLab] = useState(false);
   const [retestQc, setRetestQc] = useState(false);
   const retestTarget: "lab" | "qc" | "both" | null =
     retestLab && retestQc ? "both" : retestLab ? "lab" : retestQc ? "qc" : null;
@@ -44,8 +44,11 @@ export default function QCApprovalReviewPage() {
   const [abnormalLoaded, setAbnormalLoaded] = useState(false);
 
   useEffect(() => {
+    // โหลดทุก scope (Lab + QC) — หัวหน้า QC ต้องเห็นผลครบทั้งสองฝั่ง.
+    // buildApprovalGroups (ผ่าน matchParametersForItem) กรอง lab param ให้เฉพาะ
+    // lab item + ตัด inactive ให้เองอยู่แล้ว จึงส่ง param ดิบเข้าไปได้.
     api.getParameters()
-      .then((all) => setParameters(all.filter((p) => (p.scope ?? "qc") === "qc")))
+      .then(setParameters)
       .catch(() => {});
   }, []);
 
@@ -198,9 +201,21 @@ export default function QCApprovalReviewPage() {
               ) : (
                 g.params.map((param) => (
                   <div key={param.parameterId} className="space-y-2">
-                    <h3 className="text-sm font-semibold text-grey-800 border-b pb-1">{param.parameterName}</h3>
+                    <h3 className="text-sm font-semibold text-grey-800 border-b pb-1 flex items-center gap-2 flex-wrap">
+                      <span>{param.parameterName}</span>
+                      {param.scope === "lab" && (
+                        <Badge variant="primary-soft" className="font-normal text-[10px]">ผล Lab</Badge>
+                      )}
+                    </h3>
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
+                      <table className="w-full text-sm table-fixed">
+                        <colgroup>
+                          <col style={{ width: "24%" }} />
+                          <col style={{ width: "16%" }} />
+                          <col style={{ width: "26%" }} />
+                          <col style={{ width: "14%" }} />
+                          <col style={{ width: "20%" }} />
+                        </colgroup>
                         <thead className="text-left text-xs text-grey-500">
                           <tr>
                             <th className="py-1 pr-3 font-medium">ช่อง</th>
@@ -212,13 +227,13 @@ export default function QCApprovalReviewPage() {
                         </thead>
                         <tbody>
                           {param.rows.map((row) => (
-                            <tr key={row.key} className={cn("border-t", row.abnormal && "bg-red-50")}>
-                              <td className="py-1.5 pr-3">
+                            <tr key={row.key} className={cn("border-t align-top", row.abnormal && "bg-red-50")}>
+                              <td className="py-1.5 pr-3 break-words">
                                 {row.label}{row.unit ? <span className="text-grey-400"> ({row.unit})</span> : null}
                                 {param.hasPhases && <span className="ml-1 text-[10px] text-amber-600">P{row.phase}</span>}
                               </td>
-                              <td className="py-1.5 pr-3 font-mono font-semibold">{row.value || "-"}</td>
-                              <td className="py-1.5 pr-3 text-grey-500">{row.standardText || "-"}</td>
+                              <td className="py-1.5 pr-3 font-mono font-semibold break-words">{row.value || "-"}</td>
+                              <td className="py-1.5 pr-3 text-grey-500 break-words">{row.standardText || "-"}</td>
                               <td className="py-1.5 pr-3">
                                 {row.abnormal ? (
                                   <span className="inline-flex items-center gap-1 text-red-600">
@@ -228,7 +243,7 @@ export default function QCApprovalReviewPage() {
                                   <span className="text-green-600">ปกติ</span>
                                 )}
                               </td>
-                              <td className="py-1.5 text-grey-600">{row.note || "-"}</td>
+                              <td className="py-1.5 text-grey-600 break-words">{row.note || "-"}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -254,7 +269,6 @@ export default function QCApprovalReviewPage() {
                 <input type="checkbox" checked={retestQc} onChange={(e) => setRetestQc(e.target.checked)} />
                 QC
               </label>
-              {!retestTarget && <span className="text-red-500">(เลือกอย่างน้อย 1)</span>}
             </div>
             {!petitionHasAbnormal ? (
               <div className="flex flex-wrap items-center justify-end gap-3">

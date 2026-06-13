@@ -24,6 +24,7 @@ export interface ApprovalFieldRow {
 export interface ApprovalParamGroup {
   parameterId: string;
   parameterName: string;
+  scope: "lab" | "qc";
   hasPhases: boolean;
   rows: ApprovalFieldRow[];
 }
@@ -122,6 +123,7 @@ export function buildApprovalGroups(
       return {
         parameterId: String(param._id),
         parameterName: param.name,
+        scope: (param.scope ?? "qc") === "lab" ? "lab" : "qc",
         hasPhases: !!param.hasPhases,
         rows,
       };

@@ -240,7 +240,7 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
 
                     <div className="pr-q"><b>1. บุคลากร</b></div>
                     <div className="pr-ind">
-                      <CB checked={isStandardMethod && lar?.capabilityOk === true} /> 1.1 ทำได้เนื่องจาก
+                      <CB checked={isStandardMethod && lar?.personnel === 'able'} /> 1.1 ทำได้เนื่องจาก
                     </div>
                     <div className="pr-ind3">
                       <RD /> ได้รับการฝึกอบรมแล้ว
@@ -249,7 +249,7 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
                       <RD /> ได้รับการมอบหมายให้ทดลอง
                     </div>
                     <div className="pr-ind">
-                      <CB checked={isStandardMethod && lar?.capabilityOk === false} /> 1.2 ไม่สามารถทำได้เนื่องจาก
+                      <CB checked={isStandardMethod && lar?.personnel === 'unable'} /> 1.2 ไม่สามารถทำได้เนื่องจาก
                     </div>
                     <div className="pr-ind3"><RD /> ยังไม่เคยทำการทดลอง</div>
                     <div className="pr-ind3"><RD /> ยังไม่ได้รับการฝึกอบรม</div>

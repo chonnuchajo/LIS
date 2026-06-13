@@ -13,13 +13,35 @@ export interface ServiceAgreement {
   requireUncertainty: boolean;
 }
 
+export type PersonnelCapability = 'able' | 'unable';
+export type PersonnelAbleReason = 'trained' | 'assigned';
+export type PersonnelUnableReason = 'neverDone' | 'notTrained' | 'notAssigned';
+export type Workload = 'normal' | 'slower' | 'cannot';
+export type SubcontractorChoice = 'none' | 'used';
+export type EquipmentReadiness = 'ready' | 'notReady';
+export type EquipmentReadyReason = 'hasInstrument' | 'calibrated';
+export type EquipmentNotReadyReason = 'noInstrument' | 'notCalibrated' | 'outOfRange' | 'broken';
+
 export interface LabAgreementReview {
   reviewedAt: string;
   reviewedBy: string;
-  capabilityOk: boolean;
-  methodOk: boolean;
-  scheduleOk: boolean;
-  acceptable: boolean;
+  // กรณีวิธีปกติ (standard)
+  personnel?: PersonnelCapability;
+  personnelAbleReasons?: PersonnelAbleReason[];
+  personnelUnableReasons?: PersonnelUnableReason[];
+  workload?: Workload;
+  subcontractor?: SubcontractorChoice;
+  subcontractorName?: string;
+  // กรณีวิธีเฉพาะตามเอกสารลูกค้า (custom)
+  methodSuitable?: boolean;
+  methodSuitableReason?: string;
+  equipmentName?: string;
+  equipment?: EquipmentReadiness;
+  equipmentReadyReasons?: EquipmentReadyReason[];
+  equipmentNotReadyReasons?: EquipmentNotReadyReason[];
+  // สรุป (ทั้งสองกรณี)
+  acceptable?: boolean;
+  notAcceptableReason?: string;
   remark?: string;
 }
 

@@ -171,7 +171,14 @@ export default function LabApprovalReviewPage() {
                   <div key={param.parameterId} className="space-y-2">
                     <h3 className="text-sm font-semibold text-grey-800 border-b pb-1">{param.parameterName}</h3>
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
+                      <table className="w-full text-sm table-fixed">
+                        <colgroup>
+                          <col style={{ width: "24%" }} />
+                          <col style={{ width: "16%" }} />
+                          <col style={{ width: "26%" }} />
+                          <col style={{ width: "14%" }} />
+                          <col style={{ width: "20%" }} />
+                        </colgroup>
                         <thead className="text-left text-xs text-grey-500">
                           <tr>
                             <th className="py-1 pr-3 font-medium">ช่อง</th>
@@ -183,13 +190,13 @@ export default function LabApprovalReviewPage() {
                         </thead>
                         <tbody>
                           {param.rows.map((row) => (
-                            <tr key={row.key} className={cn("border-t", row.abnormal && "bg-red-50")}>
-                              <td className="py-1.5 pr-3">
+                            <tr key={row.key} className={cn("border-t align-top", row.abnormal && "bg-red-50")}>
+                              <td className="py-1.5 pr-3 break-words">
                                 {row.label}{row.unit ? <span className="text-grey-400"> ({row.unit})</span> : null}
                                 {param.hasPhases && <span className="ml-1 text-[10px] text-amber-600">P{row.phase}</span>}
                               </td>
-                              <td className="py-1.5 pr-3 font-mono font-semibold">{row.value || "-"}</td>
-                              <td className="py-1.5 pr-3 text-grey-500">{row.standardText || "-"}</td>
+                              <td className="py-1.5 pr-3 font-mono font-semibold break-words">{row.value || "-"}</td>
+                              <td className="py-1.5 pr-3 text-grey-500 break-words">{row.standardText || "-"}</td>
                               <td className="py-1.5 pr-3">
                                 {row.abnormal ? (
                                   <span className="inline-flex items-center gap-1 text-red-600">
@@ -199,7 +206,7 @@ export default function LabApprovalReviewPage() {
                                   <span className="text-green-600">ปกติ</span>
                                 )}
                               </td>
-                              <td className="py-1.5 text-grey-600">{row.note || "-"}</td>
+                              <td className="py-1.5 text-grey-600 break-words">{row.note || "-"}</td>
                             </tr>
                           ))}
                         </tbody>
