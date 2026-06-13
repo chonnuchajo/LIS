@@ -454,6 +454,26 @@ router.put("/entries", async (req, res) => {
       update.$set.enteredAt = now;
     }
     const doc = await QCTestResult.findOneAndUpdate(filter, update, { upsert: true, new: true });
+
+    // audit (fire-and-forget) — entries array was replaced (add/remove/edit of multiEntry rows).
+    // entry removal deletes recorded data, so it must be audited. event is enum-constrained
+    // (see PetitionAuditLog) — reuse 'resultUpdated' and put the detail in the note.
+    const petitionObjId = mongoose.Types.ObjectId.isValid(petitionId)
+      ? new mongoose.Types.ObjectId(petitionId)
+      : undefined;
+    if (petitionObjId) {
+      PetitionAuditLog.create({
+        petitionId: petitionObjId,
+        petitionNo,
+        event: 'resultUpdated',
+        actor: enteredBy?.name || enteredBy?.email || 'system',
+        note: `QC ปรับรายการหลายค่า ${parameterName || parameterId}: ${entries.length} รายการ${sampleName ? ` (${sampleName})` : ''}`,
+        metadata: { itemSeq, sampleName, commonName, parameterId, parameterName, entryCount: entries.length },
+      }).catch((err) => {
+        console.error('[audit-log] qc-result entries write failed:', err.message);
+      });
+    }
+
     res.json(doc);
   } catch (err) {
     res.status(500).json({ error: err.message });

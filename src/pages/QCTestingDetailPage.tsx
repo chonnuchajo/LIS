@@ -1171,6 +1171,11 @@ export default function QCTestingDetailPage() {
                     // Field-level `multiple` — repeatable list of inputs sharing the
                     // same markup. The field value is the WHOLE array.
                     if (unit.field.multiple) {
+                      // Repeatable (multiple) fields render bare value rows: per-row save
+                      // stamps, outlier checks, last-batch hint and before/after reference
+                      // (resolvedStandardText / lastBatchValue / beforeRef computed above for
+                      // the scalar path) are intentionally omitted here — each row is a plain
+                      // value sharing the field's standard/abnormal rule.
                       const arr = readMultiple(srcValues, unit.key);
                       const rows = [...arr, '']; // trailing empty row to add the next value
                       const writeRow = (i: number, rowVal: unknown) => {
