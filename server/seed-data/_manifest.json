@@ -34,12 +34,12 @@
     {
       "collection": "qctestresults",
       "file": "qctestresults.json",
-      "count": 18
+      "count": 21
     },
     {
       "collection": "petitions",
       "file": "petitions.json",
-      "count": 8
+      "count": 10
     },
     {
       "collection": "simplemethodexclusions",
@@ -89,7 +89,7 @@
     {
       "collection": "petitionauditlogs",
       "file": "petitionauditlogs.json",
-      "count": 269
+      "count": 292
     },
     {
       "collection": "realtimedensities",
@@ -129,7 +129,7 @@
     {
       "collection": "labrequests",
       "file": "labrequests.json",
-      "count": 25
+      "count": 27
     },
     {
       "collection": "instrumentsources",
