@@ -36,6 +36,9 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { useSamples } from '@/context/SampleContext';
 import { normalizeRoles } from "@/lib/roles";
+import { api } from '@/lib/api';
+import type { QCTestResult } from '@/types/petition.types';
+import { findSgParameter, type SgParameter } from '@/lib/formSpecificGravity';
 
 function QcNoteSection({ petition }: { petition: Petition }) {
   const qcNote = (petition.reviewHistory ?? []).find((e) => e.action === 'note') ?? null;
@@ -118,6 +121,28 @@ export default function PetitionDetailPage() {
   const autoPrintDone = useRef(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [labelPrintOpen, setLabelPrintOpen] = useState(false);
+  // ค่า ถ.พ. บนใบคำขอรับบริการ ดึงจากผล QC + พารามิเตอร์ ถพ. — โหลดแบบ lazy ตอนเปิดพิมพ์
+  const [qcResults, setQcResults] = useState<QCTestResult[]>([]);
+  const [sgParam, setSgParam] = useState<SgParameter | null>(null);
+
+  useEffect(() => {
+    if (!printOpen || !data?._id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [results, params] = await Promise.all([
+          api.getQCResults(data._id),
+          api.getParameters(),
+        ]);
+        if (cancelled) return;
+        setQcResults(results ?? []);
+        setSgParam(findSgParameter(params));
+      } catch {
+        /* คอลัมน์ ค่า ถ.พ. ปล่อยว่างถ้าโหลดไม่สำเร็จ */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [printOpen, data?._id]);
 
   useEffect(() => {
     const state = location.state as { autoPrint?: boolean } | null;
@@ -311,7 +336,7 @@ export default function PetitionDetailPage() {
 
               {hasLabRequests && (
                 <PrintPreviewDialog open={printOpen} onOpenChange={setPrintOpen} docType="service-request">
-                  <PetitionPrintTemplate labRequest={labRequests![0]} petition={data} />
+                  <PetitionPrintTemplate labRequest={labRequests![0]} petition={data} qcResults={qcResults} sgParam={sgParam} />
                 </PrintPreviewDialog>
               )}
               {data && (

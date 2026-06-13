@@ -1,8 +1,9 @@
 import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
 import { customerCodeFromDepartment } from '@/lib/customerCode';
 import { isLabBatch } from '@/types/petition.types';
-import type { Petition, PetitionItem } from '@/types/petition.types';
+import type { Petition, PetitionItem, QCTestResult } from '@/types/petition.types';
 import type { LabRequest } from '@/types/labRequest.types';
+import { resolveSpecificGravity, type SgParameter } from '@/lib/formSpecificGravity';
 
 function buddhistShort(iso?: string | null): string {
   if (!iso) return '';
@@ -54,15 +55,6 @@ function invoiceAddress(lr: LabRequest): string {
 function toArray<T extends string>(v: T | T[] | null | undefined): T[] {
   if (!v) return [];
   return Array.isArray(v) ? v : [v];
-}
-
-function findSpecificGravity(petition: Petition, seq: number): string {
-  const history = petition.reviewHistory ?? [];
-  for (let i = history.length - 1; i >= 0; i -= 1) {
-    const sg = history[i].specificGravities?.find((g) => g.seq === seq);
-    if (sg?.value) return sg.value;
-  }
-  return '';
 }
 
 function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string }) {
@@ -356,7 +348,7 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
   );
 }
 
-function PageTwo({ lr, petition, items }: { lr: LabRequest; petition: Petition; items: PetitionItem[] }) {
+function PageTwo({ lr, petition, items, qcResults, sgParam }: { lr: LabRequest; petition: Petition; items: PetitionItem[]; qcResults: QCTestResult[]; sgParam: SgParameter | null }) {
   const receivedDateTime = petition.receivedAt ? new Date(petition.receivedAt) : null;
   const receivedTime = receivedDateTime
     ? `${String(receivedDateTime.getHours()).padStart(2, '0')}.${String(receivedDateTime.getMinutes()).padStart(2, '0')} น.`
@@ -519,7 +511,7 @@ function PageTwo({ lr, petition, items }: { lr: LabRequest; petition: Petition; 
                 <td>{item.batchNo}</td>
                 <td className="pr-center">{buddhistShort(item.productionDate)}</td>
                 <td>{item.submissionNo ?? ''}</td>
-                <td className="pr-center">{findSpecificGravity(petition, item.seq)}</td>
+                <td className="pr-center">{resolveSpecificGravity(qcResults, item.seq, sgParam)}</td>
                 <td>{item.packageUnit ?? ''}</td>
                 <td>{item.testUnit ?? ''}</td>
                 <td>{item.testItems ?? ''}</td>
@@ -589,9 +581,11 @@ function PageTwo({ lr, petition, items }: { lr: LabRequest; petition: Petition; 
 interface Props {
   labRequest: LabRequest;
   petition: Petition;
+  qcResults?: QCTestResult[];
+  sgParam?: SgParameter | null;
 }
 
-export default function PetitionPrintTemplate({ labRequest, petition }: Props) {
+export default function PetitionPrintTemplate({ labRequest, petition, qcResults = [], sgParam = null }: Props) {
   const labItems = petition.items.filter((it) => isLabBatch(it.batchNo));
   const itemsToShow = labItems.length > 0 ? labItems : petition.items.filter((it) => it.seq === labRequest.sampleSeq);
   // เลขที่ใบนำส่งใช้ค่าเดียวทั้งใบ (default = เลขคำขอ) — ดึงจากรายการที่ใบนี้อ้างถึง
@@ -601,7 +595,7 @@ export default function PetitionPrintTemplate({ labRequest, petition }: Props) {
       <style>{PRINT_CSS}</style>
       <div className="pr-root">
         <PageOne lr={labRequest} submissionNo={submissionNo} />
-        <PageTwo lr={labRequest} petition={petition} items={itemsToShow} />
+        <PageTwo lr={labRequest} petition={petition} items={itemsToShow} qcResults={qcResults} sgParam={sgParam} />
       </div>
     </>
   );
