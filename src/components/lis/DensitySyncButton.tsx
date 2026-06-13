@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Radio, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ interface DensitySyncButtonProps {
 export default function DensitySyncButton({
   batchNo, hasHandTyped, onRows, disabled = false,
 }: DensitySyncButtonProps) {
+  const qc = useQueryClient();
   const [active, setActive] = useState(false);
   const appliedRef = useRef(false);
 
@@ -58,6 +59,7 @@ export default function DensitySyncButton({
     if (!batchNo) return;
     if (hasHandTyped && !window.confirm('มีค่าที่กรอกเอง จะเขียนทับด้วยค่าจากเครื่อง?')) return;
     appliedRef.current = false;
+    qc.removeQueries({ queryKey: ['density-by-batch', batchNo] });
     setActive(true);
   };
 
