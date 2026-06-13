@@ -473,41 +473,42 @@ function PageTwo({ lr, petition, items }: { lr: LabRequest; petition: Petition; 
         <table className="pr-p2-items">
           <colgroup>
             <col style={{ width: '3%' }} />
-            <col style={{ width: '13%' }} />
+            <col style={{ width: '16%' }} />
             <col style={{ width: '8%' }} />
             <col style={{ width: '6.5%' }} />
             <col style={{ width: '7.5%' }} />
             <col style={{ width: '5%' }} />
             <col style={{ width: '6.5%' }} />
             <col style={{ width: '6.5%' }} />
-            <col style={{ width: '9%' }} />
+            <col style={{ width: '12%' }} />
             <col style={{ width: '7.5%' }} />
             <col style={{ width: '6.5%' }} />
-            <col style={{ width: '6.5%' }} />
-            <col style={{ width: '4.5%' }} />
-            <col style={{ width: '4.5%' }} />
-            <col style={{ width: '5.5%' }} />
+            <col style={{ width: '3.25%' }} />
+            <col style={{ width: '3.25%' }} />
+            <col style={{ width: '8.5%' }} />
           </colgroup>
           <thead>
             <tr>
-              <th rowSpan={2}>ลำดับ</th>
-              <th rowSpan={2}>ชื่อตัวอย่าง</th>
-              <th rowSpan={2}>เลขแบช</th>
-              <th rowSpan={2}>วันผลิต/ นำเข้า</th>
-              <th rowSpan={2}>เลขที่ใบนำส่งตัวอย่าง</th>
-              <th rowSpan={2}>ค่า ถ.พ.</th>
-              <th rowSpan={2}>จำนวนหน่วยบรรจุ</th>
-              <th rowSpan={2}>หน่วยทดสอบ</th>
-              <th rowSpan={2}>รายการทดสอบ</th>
-              <th rowSpan={2}>หมายเหตุ</th>
-              <th colSpan={5} className="pr-officer-head">สำหรับเจ้าหน้าที่</th>
+              <th rowSpan={3}>ลำดับ</th>
+              <th rowSpan={3}>ชื่อตัวอย่าง</th>
+              <th rowSpan={3}>เลขแบช</th>
+              <th rowSpan={3}>วันผลิต/ นำเข้า</th>
+              <th rowSpan={3}>เลขที่ใบนำส่งตัวอย่าง</th>
+              <th rowSpan={3}>ค่า ถ.พ.</th>
+              <th rowSpan={3}>จำนวนหน่วยบรรจุ</th>
+              <th rowSpan={3}>หน่วยทดสอบ</th>
+              <th rowSpan={3}>รายการทดสอบ</th>
+              <th rowSpan={3}>หมายเหตุ</th>
+              <th colSpan={4} className="pr-officer-head">สำหรับเจ้าหน้าที่</th>
             </tr>
             <tr>
-              <th>เลขที่ตัวอย่าง</th>
-              <th>สภาพตัวอย่าง</th>
-              <th>ราคา</th>
-              <th>Vat 7%</th>
-              <th>ราคารวม</th>
+              <th rowSpan={2}>เลขที่ตัวอย่าง</th>
+              <th colSpan={2}>สภาพตัวอย่าง</th>
+              <th rowSpan={2}>ราคา</th>
+            </tr>
+            <tr>
+              <th>ปกติ</th>
+              <th>ไม่ปกติ</th>
             </tr>
           </thead>
           <tbody>
@@ -524,17 +525,31 @@ function PageTwo({ lr, petition, items }: { lr: LabRequest; petition: Petition; 
                 <td>{item.testItems ?? ''}</td>
                 <td>{item.note ?? ''}</td>
                 <td>{item.sampleId ?? ''}</td>
-                <td className="pr-center">
-                  {item.condition === 'normal' ? 'ปกติ' : item.condition === 'defective' ? 'ไม่ปกติ' : ''}
-                </td>
-                <td />
-                <td />
+                <td className="pr-center">{item.condition === 'normal' ? '✓' : ''}</td>
+                <td className="pr-center">{item.condition === 'defective' ? '✓' : ''}</td>
                 <td />
               </tr>
             )) : (
-              <tr><td colSpan={15} className="pr-center">ไม่พบรายการตัวอย่างที่อ้างอิง</td></tr>
+              <tr><td colSpan={14} className="pr-center">ไม่พบรายการตัวอย่างที่อ้างอิง</td></tr>
             )}
           </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={10} className="pr-officer-filler" />
+              <td colSpan={3} className="pr-center pr-officer-sum">ราคา</td>
+              <td />
+            </tr>
+            <tr>
+              <td colSpan={10} className="pr-officer-filler" />
+              <td colSpan={3} className="pr-center pr-officer-sum">Vat 7 %</td>
+              <td />
+            </tr>
+            <tr>
+              <td colSpan={10} className="pr-officer-filler" />
+              <td colSpan={3} className="pr-center pr-officer-sum">ราคารวม</td>
+              <td />
+            </tr>
+          </tfoot>
         </table>
 
         <div className="pr-p2-middle">
@@ -806,6 +821,8 @@ const PRINT_CSS = `
 }
 .pr-p2-items thead th { text-align: center; font-weight: bold; font-size: 9.5pt; }
 .pr-officer-head { background: #f1f1f1; }
+.pr-p2-items tfoot .pr-officer-filler { border: none; background: transparent; }
+.pr-p2-items tfoot .pr-officer-sum { font-weight: bold; }
 
 .pr-p2-middle {
   margin-top: auto;
