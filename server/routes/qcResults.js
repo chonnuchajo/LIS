@@ -427,4 +427,37 @@ router.put("/", async (req, res) => {
   }
 });
 
+// PUT /api/qc-results/entries — replace the whole entries array (multiEntry add/remove)
+router.put("/entries", async (req, res) => {
+  try {
+    const {
+      petitionId, petitionNo, itemSeq, sampleId, sampleName, commonName,
+      parameterId, parameterName, entries, enteredBy,
+    } = req.body;
+    if (!petitionId || itemSeq == null || !parameterId || !Array.isArray(entries)) {
+      return res.status(400).json({ error: "petitionId, itemSeq, parameterId, entries[] required" });
+    }
+    if (entries.length > 1001) {
+      return res.status(400).json({ error: "entries เกินจำนวนที่อนุญาต" });
+    }
+    const filter = { petitionId, itemSeq, parameterId };
+    const now = new Date();
+    const existing = await QCTestResult.findOne(filter);
+    const update = {
+      $set: {
+        petitionNo, sampleId, sampleName, commonName, parameterName,
+        entries, updatedBy: enteredBy, updatedAt: now,
+      },
+    };
+    if (!existing || !existing.enteredBy) {
+      update.$set.enteredBy = enteredBy;
+      update.$set.enteredAt = now;
+    }
+    const doc = await QCTestResult.findOneAndUpdate(filter, update, { upsert: true, new: true });
+    res.json(doc);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

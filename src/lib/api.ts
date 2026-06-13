@@ -421,6 +421,15 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  saveQCEntries: (data: {
+    petitionId: string; petitionNo?: string; itemSeq: number; sampleId?: string;
+    sampleName?: string; commonName?: string; parameterId: string; parameterName?: string;
+    entries: Record<string, unknown>[]; enteredBy: { name: string; email: string };
+  }) =>
+    request<import("@/types/petition.types").QCTestResult>("/qc-results/entries", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   getQCProgress: (petitionIds: string[]) => {
     if (petitionIds.length === 0) return Promise.resolve({} as QCProgressMap);
     const qs = new URLSearchParams({ petitionIds: petitionIds.join(",") }).toString();

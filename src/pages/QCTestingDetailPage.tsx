@@ -10,7 +10,7 @@ import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useArrivalFlash } from '@/hooks/useArrivalFlash';
 import { useConfirm } from '@/context/ConfirmDialog';
-import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard } from '@/lib/parameterValidation';
+import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues } from '@/lib/parameterValidation';
 import type { ConditionContext } from '@/lib/parameterValidation';
 import { describeResolvedStandard, describeStandard } from '@/lib/standardOperators';
 import { cn } from '@/lib/utils';
@@ -296,6 +296,8 @@ export default function QCTestingDetailPage() {
   const [savedResults, setSavedResults] = useState<QCTestResult[]>([]);
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({});
   const [valuesPhase2, setValuesPhase2] = useState<Record<string, Record<string, unknown>>>({});
+  // Local mirror of QCTestResult.entries for multiEntry params, keyed by resultKey.
+  const [entriesByKey, setEntriesByKey] = useState<Record<string, Record<string, unknown>[]>>({});
   // key: resultKey(itemSeq, parameterId) → { fieldLabel → FieldSaveInfo }
   const [saveStates, setSaveStates] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
   const [saveStatesPhase2, setSaveStatesPhase2] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
@@ -416,18 +418,21 @@ export default function QCTestingDetailPage() {
     setSelectedPhase((petition.currentPhase ?? 1) as PetitionPhase);
   }, [petition?._id, petition?.currentPhase]);
 
-  useEffect(() => {
-    if (!id) return;
-    api.getQCResults(id).then((results) => {
+  const loadResults = useCallback((petitionId: string) => {
+    return api.getQCResults(petitionId).then((results) => {
       setSavedResults(results);
       const v: Record<string, Record<string, unknown>> = {};
       const v2: Record<string, Record<string, unknown>> = {};
+      const en: Record<string, Record<string, unknown>[]> = {};
       const s: Record<string, Record<string, FieldSaveInfo>> = {};
       const s2: Record<string, Record<string, FieldSaveInfo>> = {};
       results.forEach((r) => {
         const k = resultKey(r.itemSeq, r.parameterId);
         v[k] = { ...(r.values as Record<string, unknown>) };
         v2[k] = { ...((r.valuesPhase2 ?? {}) as Record<string, unknown>) };
+        if (Array.isArray(r.entries)) {
+          en[k] = (r.entries as Record<string, unknown>[]).map((e) => ({ ...(e ?? {}) }));
+        }
         s[k] = {};
         s2[k] = {};
         const stamp: FieldSaveInfo = {
@@ -440,10 +445,16 @@ export default function QCTestingDetailPage() {
       });
       setValues(v);
       setValuesPhase2(v2);
+      setEntriesByKey(en);
       setSaveStates(s);
       setSaveStatesPhase2(s2);
     }).catch(() => {});
-  }, [id]);
+  }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    loadResults(id);
+  }, [id, loadResults]);
 
   const handleFieldChange = useCallback(
     (
@@ -512,6 +523,87 @@ export default function QCTestingDetailPage() {
       }, 800);
     },
     [user, advanceToInProgress],
+  );
+
+  // multiEntry write: field write into entry `entryIndex` of a multiEntry param.
+  // Optimistically mirrors entriesByKey and persists via saveQCResult({ entryIndex }).
+  const handleEntryFieldChange = useCallback(
+    (
+      petition: Petition,
+      item: PetitionItem,
+      param: ParameterItem,
+      entryIndex: number,
+      fieldLabel: string,
+      newVal: unknown,
+    ) => {
+      const k = resultKey(item.seq, param._id!);
+      advanceToInProgress();
+
+      setEntriesByKey((prev) => {
+        const list = (prev[k] ?? []).map((e) => ({ ...(e ?? {}) }));
+        while (list.length <= entryIndex) list.push({});
+        list[entryIndex] = { ...list[entryIndex], [fieldLabel]: newVal };
+        return { ...prev, [k]: list };
+      });
+
+      const debounceKey = `${k}__entry${entryIndex}__${fieldLabel}`;
+      clearTimeout(debounceRefs.current[debounceKey]);
+      debounceRefs.current[debounceKey] = setTimeout(async () => {
+        try {
+          await api.saveQCResult({
+            petitionId: petition._id!,
+            petitionNo: petition.petitionNo,
+            itemSeq: item.seq,
+            sampleId: item.sampleId,
+            sampleName: item.sampleName,
+            commonName: item.commonName,
+            parameterId: param._id!,
+            parameterName: param.name,
+            fieldLabel,
+            value: newVal,
+            entryIndex,
+            enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
+          });
+          if (id) await loadResults(id);
+        } catch {
+          toast.error('บันทึกค่าไม่สำเร็จ');
+        }
+      }, 800);
+    },
+    [user, advanceToInProgress, id, loadResults],
+  );
+
+  // multiEntry remove: trim entry `entryIndex` then persist the whole array.
+  const handleRemoveEntry = useCallback(
+    async (
+      petition: Petition,
+      item: PetitionItem,
+      param: ParameterItem,
+      entryIndex: number,
+    ) => {
+      const k = resultKey(item.seq, param._id!);
+      const current = getEntryValues({ entries: entriesByKey[k] }, param);
+      const trimmed = current.filter((_, i) => i !== entryIndex);
+      setEntriesByKey((prev) => ({ ...prev, [k]: trimmed.map((e) => ({ ...(e ?? {}) })) }));
+      try {
+        await api.saveQCEntries({
+          petitionId: petition._id!,
+          petitionNo: petition.petitionNo,
+          itemSeq: item.seq,
+          sampleId: item.sampleId,
+          sampleName: item.sampleName,
+          commonName: item.commonName,
+          parameterId: param._id!,
+          parameterName: param.name,
+          entries: trimmed,
+          enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
+        });
+        if (id) await loadResults(id);
+      } catch {
+        toast.error('ลบรายการไม่สำเร็จ');
+      }
+    },
+    [user, entriesByKey, id, loadResults],
   );
 
   const handleOutlierCheck = useCallback(
@@ -671,6 +763,12 @@ export default function QCTestingDetailPage() {
   const valuesForPhase = (phase: PetitionPhase) => (phase === 2 ? valuesPhase2 : values);
   const savesForPhase = (phase: PetitionPhase) => (phase === 2 ? saveStatesPhase2 : saveStates);
 
+  // current array value for a `multiple` field (always returns an array for editing)
+  const readMultiple = (values: Record<string, unknown> | undefined, label: string): unknown[] => {
+    const v = values?.[label];
+    return Array.isArray(v) ? v : (v == null || v === '' ? [] : [v]);
+  };
+
   const resolveReference = (itemSeq: number, field: ParameterValueField) => {
     if (!field.refParameterId || !field.refFieldLabel) {
       return { value: '' as unknown, sourceName: undefined as string | undefined };
@@ -684,28 +782,47 @@ export default function QCTestingDetailPage() {
     return { value, sourceName };
   };
 
+  // Count abnormal values across one value-object's render units.
+  // Handles field-level `multiple` (each array element counts individually).
+  const countAbnormalInValues = (
+    fieldsToScan: ParameterValueField[],
+    item: PetitionItem,
+    src: Record<string, unknown>,
+  ): number => {
+    let count = 0;
+    fieldsToScan.forEach((field) => {
+      expandFieldForItem(field, item.commonName).forEach((unit) => {
+        if (unit.field.multiple) {
+          readMultiple(src, unit.key).forEach((v) => {
+            if (isFieldAbnormal(unit.field, v)) count += 1;
+          });
+        } else if (isFieldAbnormal(unit.field, src[unit.key])) {
+          count += 1;
+        }
+      });
+    });
+    return count;
+  };
+
   const countAbnormal = (): number => {
     let count = 0;
     items.forEach((item) => {
       const matched = matchParametersForItem(item, parameters, idsFor(item));
       matched.forEach((param) => {
         const k = resultKey(item.seq, param._id!);
-        const p1Values = values[k] ?? {};
-        (param.valueFields ?? []).forEach((field) => {
-          if ((field.phase ?? 'both') === 'after') return;
-          expandFieldForItem(field, item.commonName).forEach((unit) => {
-            if (isFieldAbnormal(unit.field, p1Values[unit.key])) count += 1;
+        const p1Fields = (param.valueFields ?? []).filter((f) => (f.phase ?? 'both') !== 'after');
+        // multiEntry: scan every entry; otherwise the flat phase-1 dict.
+        if (param.multiEntry) {
+          getEntryValues({ entries: entriesByKey[k] }, param).forEach((entryValues) => {
+            count += countAbnormalInValues(p1Fields, item, entryValues);
           });
-        });
+        } else {
+          count += countAbnormalInValues(p1Fields, item, values[k] ?? {});
+        }
         if (param.hasPhases) {
           const p2Values = valuesPhase2[k] ?? {};
-          (param.valueFields ?? []).forEach((field) => {
-            const ph = field.phase ?? 'both';
-            if (ph === 'before') return;
-            expandFieldForItem(field, item.commonName).forEach((unit) => {
-              if (isFieldAbnormal(unit.field, p2Values[unit.key])) count += 1;
-            });
-          });
+          const p2Fields = (param.valueFields ?? []).filter((f) => (f.phase ?? 'both') !== 'before');
+          count += countAbnormalInValues(p2Fields, item, p2Values);
         }
       });
     });
@@ -720,24 +837,45 @@ export default function QCTestingDetailPage() {
       const matched = matchParametersForItem(item, parameters, idsFor(item));
       matched.forEach((param) => {
         const k = resultKey(item.seq, param._id!);
-        const itemValues = phaseValues[k] ?? {};
+        // multiEntry params validate each existing entry; otherwise the flat dict.
+        // (For multiEntry we only consider phase 1 — multiEntry + phases don't combine.)
+        const valueObjs: { values: Record<string, unknown>; suffix: string }[] =
+          param.multiEntry
+            ? getEntryValues({ entries: entriesByKey[k] }, param).map((e, i) => ({
+                values: e,
+                suffix: ` (รายการที่ ${i + 1})`,
+              }))
+            : [{ values: phaseValues[k] ?? {}, suffix: '' }];
         visibleFields(param, phaseToCheck).forEach((field) => {
           if (field.type === 'reference') return; // reference fields are auto-resolved
           expandFieldForItem(field, item.commonName).forEach((unit) => {
-            const val = itemValues[unit.key];
-            if (unit.field.required && (val == null || String(val).trim() === '')) {
-              missing.push(`รายการ ${item.seq} › ${param.name} › ${unit.field.label}`);
-              return;
-            }
-            if (
-              unit.field.type === 'enum' &&
-              (unit.field.requireNoteOn ?? []).includes(String(val ?? ''))
-            ) {
-              const noteVal = itemValues[noteLabelFor(unit.key)];
-              if (!noteVal || String(noteVal).trim() === '') {
-                missing.push(`รายการ ${item.seq} › ${param.name} › ${unit.field.label} (คำอธิบาย)`);
+            valueObjs.forEach(({ values: itemValues, suffix }) => {
+              const val = itemValues[unit.key];
+              // field-level `multiple` — required means at least one non-empty element
+              if (unit.field.multiple) {
+                if (unit.field.required) {
+                  const arr = readMultiple(itemValues, unit.key);
+                  const hasOne = arr.some((v) => v != null && String(v).trim() !== '');
+                  if (!hasOne) {
+                    missing.push(`รายการ ${item.seq} › ${param.name} › ${unit.field.label}${suffix}`);
+                  }
+                }
+                return;
               }
-            }
+              if (unit.field.required && (val == null || String(val).trim() === '')) {
+                missing.push(`รายการ ${item.seq} › ${param.name} › ${unit.field.label}${suffix}`);
+                return;
+              }
+              if (
+                unit.field.type === 'enum' &&
+                (unit.field.requireNoteOn ?? []).includes(String(val ?? ''))
+              ) {
+                const noteVal = itemValues[noteLabelFor(unit.key)];
+                if (!noteVal || String(noteVal).trim() === '') {
+                  missing.push(`รายการ ${item.seq} › ${param.name} › ${unit.field.label} (คำอธิบาย)${suffix}`);
+                }
+              }
+            });
           });
         });
       });
@@ -998,6 +1136,156 @@ export default function QCTestingDetailPage() {
                     })(),
                   };
                   const lastBatch = lastBatchByKey.get(`${item.commonName}__${String(param._id)}`);
+                  const fieldDisabled = isLocked || phaseLocked;
+
+                  // Render a single render-unit (one field, or one substance slice).
+                  // `srcValues` is the value-object to read/display from; `onUnitChange`
+                  // and `onUnitNoteChange` persist a write. For multiEntry params these
+                  // target an entry value-object; otherwise the flat phase dict.
+                  const renderUnit = (
+                    unit: { key: string; field: ParameterValueField },
+                    srcValues: Record<string, unknown>,
+                    onUnitChange: (label: string, val: unknown) => void,
+                    saveInfoSrc: Record<string, FieldSaveInfo> | undefined,
+                  ) => {
+                    const noteLabel = noteLabelFor(unit.key);
+                    const effectiveField = unit.field.conditionalMode
+                      ? resolveFieldStandard(unit.field, condCtx)
+                      : unit.field;
+                    const resolved = unit.field.conditionalMode
+                      ? resolveStandard(unit.field, condCtx)
+                      : null;
+                    const beforeRef =
+                      param.hasPhases &&
+                      effectivePhase === 2 &&
+                      (unit.field.phase ?? 'both') === 'both'
+                        ? (values[k]?.[unit.key] ?? '')
+                        : null;
+                    const resolvedStandardText = resolved
+                      ? `${describeResolvedStandard(resolved, unit.field.unit ?? '')}${resolved.matchedRuleLabel ? ` (${resolved.matchedRuleLabel})` : ''}`
+                      : undefined;
+                    const lastBatchValue = unit.field.showLastBatch
+                      ? lastBatch?.values?.[unit.field.label]
+                      : undefined;
+
+                    // Field-level `multiple` — repeatable list of inputs sharing the
+                    // same markup. The field value is the WHOLE array.
+                    if (unit.field.multiple) {
+                      const arr = readMultiple(srcValues, unit.key);
+                      const rows = [...arr, '']; // trailing empty row to add the next value
+                      const writeRow = (i: number, rowVal: unknown) => {
+                        const next = [...readMultiple(srcValues, unit.key)];
+                        while (next.length <= i) next.push('');
+                        next[i] = rowVal;
+                        onUnitChange(unit.key, next);
+                      };
+                      const removeRow = (i: number) => {
+                        const next = readMultiple(srcValues, unit.key).filter((_, idx) => idx !== i);
+                        onUnitChange(unit.key, next);
+                      };
+                      return (
+                        <div key={unit.key} className="space-y-2 rounded-md border border-grey-200 p-2">
+                          <p className="text-sm font-medium text-grey-700">
+                            {unit.field.label}
+                            {unit.field.unit && <span className="text-grey-400 font-normal ml-1">({unit.field.unit})</span>}
+                          </p>
+                          {rows.map((rowVal, i) => {
+                            const isExisting = i < arr.length;
+                            return (
+                              <div key={i} className="flex items-end gap-2">
+                                <div className="flex-1">
+                                  <TestField
+                                    field={{ ...effectiveField, label: `ค่าที่ ${i + 1}`, multiple: false, required: false }}
+                                    item={item}
+                                    itemGroupIds={idsFor(item)}
+                                    value={rowVal ?? ''}
+                                    noteValue={''}
+                                    disabled={fieldDisabled}
+                                    onChange={(val) => writeRow(i, val)}
+                                    onNoteChange={() => {}}
+                                  />
+                                </div>
+                                {isExisting && !fieldDisabled && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-500 hover:text-red-600"
+                                    onClick={() => removeRow(i)}
+                                  >
+                                    ลบ
+                                  </Button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={unit.key}>
+                        <TestField
+                          field={effectiveField}
+                          item={item}
+                          itemGroupIds={idsFor(item)}
+                          value={srcValues[unit.key] ?? ''}
+                          noteValue={srcValues[noteLabel] ?? ''}
+                          saveInfo={saveInfoSrc?.[unit.key]}
+                          noteSaveInfo={saveInfoSrc?.[noteLabel]}
+                          disabled={fieldDisabled}
+                          onChange={(val) => {
+                            onUnitChange(unit.key, val);
+                            handleOutlierCheck(
+                              item.commonName ?? '',
+                              String(param._id),
+                              unit.field.label,
+                              val,
+                              unit.field.type,
+                            );
+                          }}
+                          onNoteChange={(val) => onUnitChange(noteLabel, val)}
+                          previousValue={getPreviousValue(previousLookup, item, param._id!, unit.key)}
+                          conditionalPending={!!unit.field.conditionalMode && !resolved}
+                          resolvedStandardText={resolvedStandardText}
+                          lastBatchValue={lastBatchValue}
+                          lastBatchLabel={lastBatch?.petitionNo}
+                          outlierResult={outlierResults[`${String(param._id)}__${unit.field.label}`]}
+                        />
+                        {beforeRef != null && beforeRef !== '' ? (
+                          <p className="text-[10px] text-grey-400 mt-0.5">
+                            ก่อน: <span className="font-mono">{String(beforeRef)}</span>
+                          </p>
+                        ) : null}
+                      </div>
+                    );
+                  };
+
+                  // Render the field-grid for one value-object (one entry or the flat dict).
+                  const renderGrid = (
+                    srcValues: Record<string, unknown>,
+                    onUnitChange: (label: string, val: unknown) => void,
+                    saveInfoSrc: Record<string, FieldSaveInfo> | undefined,
+                  ) => (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-2">
+                      {fields.map((field) => {
+                        if (field.type === 'reference') {
+                          const { value: refValue, sourceName } = resolveReference(item.seq, field);
+                          return (
+                            <ReferenceFieldDisplay
+                              key={field.label}
+                              field={field}
+                              resolvedValue={refValue}
+                              sourceName={sourceName}
+                            />
+                          );
+                        }
+                        const units = expandFieldForItem(field, item.commonName);
+                        return units.map((unit) => renderUnit(unit, srcValues, onUnitChange, saveInfoSrc));
+                      })}
+                    </div>
+                  );
+
                   return (
                     <div key={param._id} className="space-y-3">
                       <div className="flex items-center gap-2">
@@ -1019,86 +1307,57 @@ export default function QCTestingDetailPage() {
                           <span>ค่าทุกตัวเหมือน batch ก่อนหน้า — กรุณาตรวจสอบว่าไม่ได้ copy ค่าเดิม</span>
                         </div>
                       )}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-2">
-                        {fields.map((field) => {
-                          if (field.type === 'reference') {
-                            const { value: refValue, sourceName } = resolveReference(item.seq, field);
-                            return (
-                              <ReferenceFieldDisplay
-                                key={field.label}
-                                field={field}
-                                resolvedValue={refValue}
-                                sourceName={sourceName}
-                              />
-                            );
-                          }
-                          const units = expandFieldForItem(field, item.commonName);
-                          return units.map((unit) => {
-                            const noteLabel = noteLabelFor(unit.key);
-                            // Resolve conditional standards from sibling/other-param values.
-                            // For non-conditional fields effectiveField === unit.field and
-                            // both new props are falsy, so behavior is unchanged.
-                            const effectiveField = unit.field.conditionalMode
-                              ? resolveFieldStandard(unit.field, condCtx)
-                              : unit.field;
-                            const resolved = unit.field.conditionalMode
-                              ? resolveStandard(unit.field, condCtx)
-                              : null;
-                            const beforeRef =
-                              param.hasPhases &&
-                              effectivePhase === 2 &&
-                              (field.phase ?? 'both') === 'both'
-                                ? (values[k]?.[unit.key] ?? '')
-                                : null;
-                            return (
-                              <div key={unit.key}>
-                                <TestField
-                                  field={effectiveField}
-                                  item={item}
-                                  itemGroupIds={idsFor(item)}
-                                  value={phaseValues[k]?.[unit.key] ?? ''}
-                                  noteValue={phaseValues[k]?.[noteLabel] ?? ''}
-                                  saveInfo={phaseSaves[k]?.[unit.key]}
-                                  noteSaveInfo={phaseSaves[k]?.[noteLabel]}
-                                  disabled={isLocked || phaseLocked}
-                                  onChange={(val) => {
-                                    handleFieldChange(petition, item, param, unit.key, val, effectivePhase);
-                                    handleOutlierCheck(
-                                      item.commonName ?? '',
-                                      String(param._id),
-                                      unit.field.label,
-                                      val,
-                                      unit.field.type,
-                                    );
-                                  }}
-                                  onNoteChange={(val) =>
-                                    handleFieldChange(petition, item, param, noteLabel, val, effectivePhase)
-                                  }
-                                  previousValue={getPreviousValue(previousLookup, item, param._id!, unit.key)}
-                                  conditionalPending={!!unit.field.conditionalMode && !resolved}
-                                  resolvedStandardText={
-                                    resolved
-                                      ? `${describeResolvedStandard(resolved, unit.field.unit ?? '')}${resolved.matchedRuleLabel ? ` (${resolved.matchedRuleLabel})` : ''}`
-                                      : undefined
-                                  }
-                                  lastBatchValue={
-                                    unit.field.showLastBatch
-                                      ? lastBatch?.values?.[unit.field.label]
-                                      : undefined
-                                  }
-                                  lastBatchLabel={lastBatch?.petitionNo}
-                                  outlierResult={outlierResults[`${String(param._id)}__${unit.field.label}`]}
-                                />
-                                {beforeRef != null && beforeRef !== '' ? (
-                                  <p className="text-[10px] text-grey-400 mt-0.5">
-                                    ก่อน: <span className="font-mono">{String(beforeRef)}</span>
-                                  </p>
-                                ) : null}
-                              </div>
-                            );
-                          });
-                        })}
-                      </div>
+                      {param.multiEntry ? (
+                        (() => {
+                          // Per-entry rendering. Entries come from the saved result's
+                          // entries[]; render those PLUS a trailing empty entry to add.
+                          const entryRows = getEntryValues({ entries: entriesByKey[k] }, param);
+                          const cards = [...entryRows, {} as Record<string, unknown>];
+                          return (
+                            <div className="space-y-4">
+                              {cards.map((entryValues, ei) => {
+                                const isExisting = ei < entryRows.length;
+                                return (
+                                  <div key={ei} className="rounded-lg border border-grey-200 p-3 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-semibold text-grey-600 flex-1">
+                                        รายการที่ {ei + 1}
+                                      </span>
+                                      {isExisting && !fieldDisabled && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="text-red-500 hover:text-red-600"
+                                          onClick={() => handleRemoveEntry(petition, item, param, ei)}
+                                        >
+                                          ลบรายการ
+                                        </Button>
+                                      )}
+                                    </div>
+                                    {renderGrid(
+                                      entryValues,
+                                      (label, val) => handleEntryFieldChange(petition, item, param, ei, label, val),
+                                      undefined,
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              {!fieldDisabled && (
+                                <p className="text-xs text-grey-400 pl-1">
+                                  กรอกข้อมูลในการ์ด “รายการที่ {entryRows.length + 1}” เพื่อเพิ่มรายการใหม่
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        renderGrid(
+                          phaseValues[k] ?? {},
+                          (label, val) => handleFieldChange(petition, item, param, label, val, effectivePhase),
+                          phaseSaves[k],
+                        )
+                      )}
                     </div>
                   );
                 })
