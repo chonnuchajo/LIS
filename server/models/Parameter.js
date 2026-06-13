@@ -166,9 +166,27 @@ ParameterSchema.pre('validate', function (next) {
         return next(new Error(`ช่อง "${f.label}": field แบบ reference ใช้เป็น trigger ไม่ได้`));
       }
     }
+    if (f.multiple) {
+      if (!['text', 'number', 'float', 'enum'].includes(f.type)) {
+        return next(new Error(`ช่อง "${f.label}": กรอกหลายค่าได้เฉพาะชนิด text/number/float/enum`));
+      }
+      if (f.substanceMode) {
+        return next(new Error(`ช่อง "${f.label}": ใช้ "กรอกหลายค่า" ร่วมกับโหมดรายสารไม่ได้`));
+      }
+      if (f.type === 'reference') {
+        return next(new Error(`ช่อง "${f.label}": field แบบ reference กรอกหลายค่าไม่ได้`));
+      }
+      if (f.triggersPhase2) {
+        return next(new Error(`ช่อง "${f.label}": ตัว trigger Phase 2 กรอกหลายค่าไม่ได้`));
+      }
+    }
     if (f.min != null && f.max != null && f.min > f.max) {
       return next(new Error(`min > max ในช่อง "${f.label}"`));
     }
+  }
+
+  if (this.multiEntry && this.hasPhases) {
+    return next(new Error('Parameter แบบ "กรอกหลายรายการ" ใช้ร่วมกับโหมด 2 phase ไม่ได้'));
   }
 
   // Phase validation
