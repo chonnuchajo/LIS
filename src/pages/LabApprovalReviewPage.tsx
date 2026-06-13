@@ -322,6 +322,7 @@ export default function LabApprovalReviewPage() {
           onOpenChange={handleReviewDialogChange}
           initial={currentReview}
           onSave={handleSaveReview}
+          testMethod={labRequests?.[0]?.serviceAgreement?.testMethod}
         />
       </div>
     </AppLayout>

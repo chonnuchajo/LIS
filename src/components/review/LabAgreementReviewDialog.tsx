@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Loader2, Save } from 'lucide-react';
 import { releaseBodyPointerLock } from '@/context/ConfirmDialog';
-import type { LabAgreementReview } from '@/types/labRequest.types';
+import type { LabAgreementReview, TestMethod } from '@/types/labRequest.types';
 import {
   PERSONNEL_ABLE_REASON_LABELS, PERSONNEL_UNABLE_REASON_LABELS,
   WORKLOAD_LABELS, EQUIP_READY_REASON_LABELS, EQUIP_NOT_READY_REASON_LABELS,
@@ -22,6 +22,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   initial?: LabAgreementReview | null;
   onSave: (draft: Draft) => Promise<void>;
+  testMethod?: TestMethod | null;
 }
 
 function toggle<T>(arr: T[] | undefined, v: T, on: boolean): T[] {
@@ -47,9 +48,11 @@ const CheckRow = ({ checked, onChange, children }:
   </label>
 );
 
-export default function LabAgreementReviewDialog({ open, onOpenChange, initial, onSave }: Props) {
+export default function LabAgreementReviewDialog({ open, onOpenChange, initial, onSave, testMethod }: Props) {
   const [d, setD] = useState<Draft>({});
   const [saving, setSaving] = useState(false);
+  // วิธีเฉพาะตามเอกสารลูกค้า (2.2) ครอบ 'custom' และ 'previous'; อย่างอื่น (รวม undefined) = วิธีปกติ (2.1)
+  const isCustom = testMethod === 'custom' || testMethod === 'previous';
 
   useEffect(() => {
     if (open) {
@@ -80,7 +83,8 @@ export default function LabAgreementReviewDialog({ open, onOpenChange, initial, 
         </DialogHeader>
 
         <div className="space-y-6 py-2">
-          {/* กรณีวิธีปกติ */}
+          {/* กรณีวิธีปกติ — โชว์เมื่อวิธี standard (ไม่ใช่ custom/previous) */}
+          {!isCustom && (
           <section className="space-y-2">
             <h3 className="font-semibold underline text-sm">กรณีลูกค้าระบุวิธีทดสอบตามปกติ</h3>
 
@@ -132,7 +136,10 @@ export default function LabAgreementReviewDialog({ open, onOpenChange, initial, 
             )}
           </section>
 
-          {/* กรณีวิธีเฉพาะ */}
+          )}
+
+          {/* กรณีวิธีเฉพาะ — โชว์เมื่อวิธี custom/previous */}
+          {isCustom && (
           <section className="space-y-2">
             <h3 className="font-semibold underline text-sm">กรณีลูกค้าระบุวิธีการทดสอบตามเอกสารของลูกค้า</h3>
 
@@ -179,7 +186,9 @@ export default function LabAgreementReviewDialog({ open, onOpenChange, initial, 
             )}
           </section>
 
-          {/* สรุป */}
+          )}
+
+          {/* สรุป — โชว์เสมอ ใช้ร่วมทั้งสองวิธี */}
           <section className="space-y-2 border-t pt-3">
             <p className="font-semibold text-sm">สรุปความพร้อมของงานบริการ</p>
             <RadioRow checked={d.acceptable === true} onSelect={() => set({ acceptable: true })}>
