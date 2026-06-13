@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { FlaskConical, Loader2, AlertTriangle, CheckCircle2, RotateCcw, ClipboardCheck } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
@@ -15,7 +15,7 @@ import { PETITION_DEPT_LABELS, type QCTestResult } from "@/types/petition.types"
 import { buildApprovalGroups } from "@/lib/qcApprovalRows";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { useConfirm } from "@/context/ConfirmDialog";
+import { useConfirm, releaseBodyPointerLock } from "@/context/ConfirmDialog";
 import { useCanAccessPath } from "@/hooks/useCanAccessPath";
 import { RevisionRequestDialog } from "@/components/petition/RevisionRequestDialog";
 import LabAgreementReviewDialog from "@/components/review/LabAgreementReviewDialog";
@@ -32,6 +32,8 @@ export default function LabApprovalReviewPage() {
   const canApproveLab = canAccessPath("/lab-approval");
   const [submitting, setSubmitting] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [pendingApprove, setPendingApprove] = useState(false);
+  const approveAfterSaveRef = useRef(false);
 
   const { data: petition, loading, error } = usePetition(id);
   const groupMembership = useItemGroupMembership();
@@ -70,8 +72,10 @@ export default function LabApprovalReviewPage() {
     return () => { alive = false; };
   }, [id]);
 
-  const handleApprove = useCallback(async () => {
+  const runApprove = useCallback(async () => {
     if (!petition) return;
+    // review dialog just closed; clear any lingering Radix body lock before stacking confirm
+    releaseBodyPointerLock();
     if (!(await confirm({ title: "อนุมัติผล Lab", description: "อนุมัติผลการทดสอบ Lab นี้?" }))) return;
     setSubmitting(true);
     try {
@@ -107,11 +111,24 @@ export default function LabApprovalReviewPage() {
       await saveLabAgreementReview(petition._id, draft, user?.name ?? "system");
       toast.success("บันทึกการทบทวนข้อตกลงเรียบร้อย");
       refreshLabRequests();
+      // if this dialog was opened by the Approve button, remember to approve after it closes
+      approveAfterSaveRef.current = pendingApprove;
     } catch {
       toast.error("บันทึกไม่สำเร็จ");
       throw new Error("save review failed");
     }
-  }, [petition, user, refreshLabRequests]);
+  }, [petition, user, refreshLabRequests, pendingApprove]);
+
+  const handleReviewDialogChange = useCallback((open: boolean) => {
+    setReviewDialogOpen(open);
+    if (open) return;
+    // dialog is closing — clear the "opened via Approve" flag either way
+    setPendingApprove(false);
+    if (approveAfterSaveRef.current) {
+      approveAfterSaveRef.current = false;
+      runApprove();
+    }
+  }, [runApprove]);
 
   if (loading) {
     return (
@@ -182,7 +199,11 @@ export default function LabApprovalReviewPage() {
                   การทบทวนข้อตกลงการบริการทดสอบ — สำหรับหัวหน้าห้องปฏิบัติการ
                 </span>
                 {canApproveLab && (
-                  <Button variant="outline" size="sm" onClick={() => setReviewDialogOpen(true)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setPendingApprove(false); setReviewDialogOpen(true); }}
+                  >
                     {isReviewFilled(currentReview) ? "แก้ไขการทบทวน" : "กรอกการทบทวน"}
                   </Button>
                 )}
@@ -267,7 +288,13 @@ export default function LabApprovalReviewPage() {
         {canApproveLab && abnormalLoaded && (
           <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
             <div className="flex flex-wrap items-center justify-end gap-3">
-              <Button variant="primary" size="sm" onClick={handleApprove} disabled={submitting} className="gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => { setPendingApprove(true); setReviewDialogOpen(true); }}
+                disabled={submitting}
+                className="gap-2"
+              >
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                 อนุมัติผล Lab
               </Button>
@@ -289,7 +316,7 @@ export default function LabApprovalReviewPage() {
         />
         <LabAgreementReviewDialog
           open={reviewDialogOpen}
-          onOpenChange={setReviewDialogOpen}
+          onOpenChange={handleReviewDialogChange}
           initial={currentReview}
           onSave={handleSaveReview}
         />
