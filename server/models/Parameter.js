@@ -24,6 +24,9 @@ const ValueFieldSchema = new mongoose.Schema({
     default: null,
   },
   required: { type: Boolean, default: false },
+  // Field-level repeat — when true this single field is filled multiple times;
+  // its stored value becomes an array. Only valid for text/number/float/enum.
+  multiple: { type: Boolean, default: false },
   maxPhotos: { type: Number, default: 5, min: 1, max: 20 },
   maxFiles: { type: Number, default: 5, min: 1, max: 20 },
   allowedFileTypes: { type: [String], default: ['pdf'] },
@@ -74,6 +77,9 @@ const ParameterSchema = new mongoose.Schema({
   note: { type: String, default: '' },
   // 2-phase testing flag — when true this parameter is split into Phase 1 (ก่อน) / Phase 2 (หลัง)
   hasPhases: { type: Boolean, default: false, index: true },
+  // Parameter-level repeat — when true the whole valueFields set repeats as
+  // independent rows stored in QCTestResult.entries. Mutually exclusive with hasPhases.
+  multiEntry: { type: Boolean, default: false, index: true },
 }, { timestamps: true });
 
 ParameterSchema.pre('validate', function (next) {
