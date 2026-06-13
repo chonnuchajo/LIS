@@ -32,7 +32,7 @@ export default function LabApprovalReviewPage() {
   const canApproveLab = canAccessPath("/lab-approval");
   const [submitting, setSubmitting] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
-  const [pendingApprove, setPendingApprove] = useState(false);
+  const pendingApproveRef = useRef(false); // review dialog opened via the Approve button (vs the standalone edit button)
   const approveAfterSaveRef = useRef(false);
 
   const { data: petition, loading, error } = usePetition(id);
@@ -74,7 +74,8 @@ export default function LabApprovalReviewPage() {
 
   const runApprove = useCallback(async () => {
     if (!petition) return;
-    // review dialog just closed; clear any lingering Radix body lock before stacking confirm
+    // review dialog just closed; clear any lingering Radix body lock before stacking confirm.
+    // belt-and-suspenders: the dialog's own close() already released it, this covers any other path.
     releaseBodyPointerLock();
     if (!(await confirm({ title: "อนุมัติผล Lab", description: "อนุมัติผลการทดสอบ Lab นี้?" }))) return;
     setSubmitting(true);
@@ -112,18 +113,20 @@ export default function LabApprovalReviewPage() {
       toast.success("บันทึกการทบทวนข้อตกลงเรียบร้อย");
       refreshLabRequests();
       // if this dialog was opened by the Approve button, remember to approve after it closes
-      approveAfterSaveRef.current = pendingApprove;
+      approveAfterSaveRef.current = pendingApproveRef.current;
     } catch {
       toast.error("บันทึกไม่สำเร็จ");
       throw new Error("save review failed");
     }
-  }, [petition, user, refreshLabRequests, pendingApprove]);
+  }, [petition, user, refreshLabRequests]);
 
   const handleReviewDialogChange = useCallback((open: boolean) => {
     setReviewDialogOpen(open);
     if (open) return;
     // dialog is closing — clear the "opened via Approve" flag either way
-    setPendingApprove(false);
+    pendingApproveRef.current = false;
+    // approveAfterSaveRef is set true only on a successful save in the approve flow,
+    // and cleared here before runApprove() so a second onOpenChange(false) can't double-fire it
     if (approveAfterSaveRef.current) {
       approveAfterSaveRef.current = false;
       runApprove();
@@ -202,7 +205,7 @@ export default function LabApprovalReviewPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => { setPendingApprove(false); setReviewDialogOpen(true); }}
+                    onClick={() => { pendingApproveRef.current = false; setReviewDialogOpen(true); }}
                   >
                     {isReviewFilled(currentReview) ? "แก้ไขการทบทวน" : "กรอกการทบทวน"}
                   </Button>
@@ -291,7 +294,7 @@ export default function LabApprovalReviewPage() {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => { setPendingApprove(true); setReviewDialogOpen(true); }}
+                onClick={() => { pendingApproveRef.current = true; setReviewDialogOpen(true); }}
                 disabled={submitting}
                 className="gap-2"
               >
