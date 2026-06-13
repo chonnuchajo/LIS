@@ -18,3 +18,33 @@ RewriteRule ^(?:index\.html)?$ /LIS/app.html [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule . /LIS/app.html [L]
+
+# --- Performance ---------------------------------------------------------
+# All directives below use only the FileInfo override (same as RewriteRule,
+# which already works here) and are wrapped in <IfModule> so a missing module
+# is ignored instead of 500-ing the whole dir (cf. the DirectoryIndex hazard).
+
+# Gzip text assets: ~1.5MB of raw JS/CSS → ~400KB on the wire.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml \
+    application/javascript application/x-javascript application/json \
+    application/xml application/rss+xml image/svg+xml \
+    font/ttf font/otf font/woff font/woff2 application/font-woff
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Vite content-hashes every build asset → safe to cache forever, so a refresh
+  # never re-fetches them.
+  <FilesMatch "\.(?:js|css|woff2?|ttf|otf|eot)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  # Images may not be hashed (public/) → moderate cache, not immutable.
+  <FilesMatch "\.(?:png|jpe?g|gif|webp|svg|ico)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+  # HTML entry points reference hashed assets → never cache, so new deploys
+  # take effect immediately.
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>

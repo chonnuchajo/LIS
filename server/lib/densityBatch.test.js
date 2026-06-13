@@ -13,6 +13,18 @@ test('extractDensityBatch: trailing segment after last dash', () => {
   assert.equal(extractDensityBatch(undefined), null);
 });
 
+test('extractDensityBatch: strips (paren), trailing -N and position suffixes', () => {
+  assert.equal(extractDensityBatch('26S-ANF18+PPN36-008(B)'), '008');    // (B) layer suffix
+  assert.equal(extractDensityBatch('26S-ANF18+PPN36-006(B)-2'), '006');  // (B)-2 re-sample suffix
+  assert.equal(extractDensityBatch('26S-OMT50-288 TOP'), '288');         // space position suffix
+});
+
+test('batchMatches: matches across (paren)/suffix sample names', () => {
+  assert.equal(batchMatches('008', '26S-ANF18+PPN36-008(B)'), true);
+  assert.equal(batchMatches('006', '26S-ANF18+PPN36-006(B)-2'), true);
+  assert.equal(batchMatches('288', '26S-OMT50-288 TOP'), true);
+});
+
 test('batchMatches: exact and numeric-equal', () => {
   assert.equal(batchMatches('009', '26S-FPN5-GMP-009'), true);
   assert.equal(batchMatches('9', '26S-FPN5-GMP-009'), true);   // 009 == 9

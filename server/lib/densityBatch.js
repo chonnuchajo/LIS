@@ -1,11 +1,12 @@
 // Pure helpers for matching a petition batch number to a Result-Density row's
 // "Sample name". The trailing batch number is the segment after the last "-",
-// taken from the first whitespace-delimited token (so " TOP"/" bottom" suffixes
-// are ignored).
+// taken from the core token up to the first whitespace or "(" — so position
+// suffixes (" TOP"/" bottom"), layer markers ("(B)") and re-sample suffixes
+// ("(B)-2") are all ignored (e.g. "26S-ANF18+PPN36-006(B)-2" -> "006").
 
 function extractDensityBatch(sampleName) {
   if (sampleName == null) return null;
-  const token = String(sampleName).trim().split(/\s+/)[0] || '';
+  const token = String(sampleName).trim().split(/[\s(]/)[0] || '';
   if (!token) return null;
   if (token.includes('-')) {
     const seg = token.slice(token.lastIndexOf('-') + 1);
