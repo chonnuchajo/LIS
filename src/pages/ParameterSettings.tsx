@@ -1148,6 +1148,21 @@ function ValueFieldEditor({
               />
               บังคับกรอก
             </label>
+            <label
+              className="flex items-center gap-1.5 text-xs text-muted-foreground"
+              title="ให้ช่องนี้กรอกได้หลายค่า (เก็บทุกค่า)"
+            >
+              <Checkbox
+                checked={!!field.multiple}
+                onCheckedChange={(v) => onChange({ ...field, multiple: v === true })}
+                disabled={
+                  !(field.type === "text" || field.type === "number" || field.type === "float" || field.type === "enum") ||
+                  !!field.substanceMode
+                }
+                className="h-3.5 w-3.5"
+              />
+              ช่องนี้กรอกได้หลายค่า
+            </label>
             {(field.type === "number" || field.type === "float" || field.type === "enum" || field.type === "text") && (
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="โชว์ค่าช่องนี้จากผลตรวจครั้งก่อนของ common name เดียวกัน (เฉยๆ ไม่ตรวจ)">
                 <Checkbox
@@ -2087,6 +2102,7 @@ function ParameterDialog({
               <Checkbox
                 checked={!!form.hasPhases}
                 onCheckedChange={(v) => set("hasPhases", v === true)}
+                disabled={!!form.multiEntry}
                 className="mt-0.5"
               />
               <div className="space-y-0.5">
@@ -2095,6 +2111,22 @@ function ParameterDialog({
                 </span>
                 <p className="text-xs text-muted-foreground">
                   เปิดเมื่อ parameter ต้องวัด 2 รอบ (เช่น stability test "อบ 14 วัน") — ตั้ง field ที่เป็นตัว trigger ในรายการช่องด้านล่าง
+                </p>
+              </div>
+            </label>
+            <label className="mt-3 flex cursor-pointer items-start gap-3">
+              <Checkbox
+                checked={!!form.multiEntry}
+                onCheckedChange={(v) => set("multiEntry", v === true)}
+                disabled={!!form.hasPhases}
+                className="mt-0.5"
+              />
+              <div className="space-y-0.5">
+                <span className="text-sm font-medium">
+                  กรอกได้หลายรายการ (เก็บทุกค่า)
+                </span>
+                <p className="text-xs text-muted-foreground">
+                  เปิดเมื่อ parameter นี้ต้องกรอกได้หลายรายการ และเก็บทุกค่า (ใช้ร่วมกับโหมด 2 phase ไม่ได้)
                 </p>
               </div>
             </label>
