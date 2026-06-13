@@ -73,6 +73,11 @@ Set via the existing ParameterSettings UI, then `npm run seed:export` + commit. 
 4. **Field mapping per entry:** `ค่าถพ.` ← `Density [g/cm³]`, `อุณหภูมิ` ← `T (block) [°C]`.
 5. **`T (set)`:** display-only comparison against the `อุณหภูมิ` field's standard; persisted only
    inside per-entry provenance, never as a value/standard.
+6. **Read-only fields (added 2026-06-13):** on the QC form, BOTH `ค่าถพ.` and `อุณหภูมิ` for this
+   parameter are **non-editable** — they carry instrument values only and the sole way to populate
+   them is the sync button. The per-entry inputs render disabled, and the manual "+ เพิ่มรายการ"
+   add-entry button is hidden for this parameter (the entry count comes from the sync). The
+   hand-typed overwrite confirm therefore only ever fires for legacy pre-feature data.
 
 ## Architecture
 

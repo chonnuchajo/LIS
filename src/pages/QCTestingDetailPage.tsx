@@ -1221,6 +1221,14 @@ export default function QCTestingDetailPage() {
                       ? lastBatch?.values?.[unit.field.label]
                       : undefined;
 
+                    // Specific-gravity (ค่า ถพ.) value + temperature are filled only by the
+                    // density sync (instrument readings), never typed by hand — render them
+                    // read-only so the only way to populate them is the "ดึงค่า ถพ." button.
+                    const isSgMachineField =
+                      (param.valueFields ?? []).some((f) => f.label === SG_VALUE_LABEL) &&
+                      (unit.field.label === SG_VALUE_LABEL || unit.field.label === SG_TEMP_LABEL);
+                    const unitDisabled = fieldDisabled || isSgMachineField;
+
                     // Field-level `multiple` — repeatable list of inputs sharing the
                     // same markup. The field value is the WHOLE array.
                     if (unit.field.multiple) {
@@ -1258,7 +1266,7 @@ export default function QCTestingDetailPage() {
                                     itemGroupIds={idsFor(item)}
                                     value={rowVal ?? ''}
                                     noteValue={''}
-                                    disabled={fieldDisabled}
+                                    disabled={unitDisabled}
                                     onChange={(val) => writeRow(i, val)}
                                     onNoteChange={() => {}}
                                   />
@@ -1291,7 +1299,7 @@ export default function QCTestingDetailPage() {
                           noteValue={srcValues[noteLabel] ?? ''}
                           saveInfo={saveInfoSrc?.[unit.key]}
                           noteSaveInfo={saveInfoSrc?.[noteLabel]}
-                          disabled={fieldDisabled}
+                          disabled={unitDisabled}
                           onChange={(val) => {
                             onUnitChange(unit.key, val);
                             handleOutlierCheck(
@@ -1446,7 +1454,7 @@ export default function QCTestingDetailPage() {
                                   </div>
                                 );
                               })}
-                              {!fieldDisabled && (
+                              {!fieldDisabled && !isSgParam && (
                                 <Button
                                   type="button"
                                   variant="outline"
