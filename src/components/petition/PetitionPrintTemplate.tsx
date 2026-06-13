@@ -257,10 +257,10 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
 
                     <div className="pr-q"><b>2. ปริมาณงาน</b></div>
                     <div className="pr-ind">
-                      <CB checked={isStandardMethod && lar?.scheduleOk === true} /> 2.1 ยังมีความสามารถรับงานได้ตามปกติ
+                      <CB checked={isStandardMethod && lar?.workload === 'normal'} /> 2.1 ยังมีความสามารถรับงานได้ตามปกติ
                     </div>
                     <div className="pr-ind">
-                      <CB checked={isStandardMethod && lar?.scheduleOk === false} /> 2.2 สามารถรับงานได้แต่อาจช้ากว่าปกติ ซึ่งลูกค้ายินยอม
+                      <CB checked={isStandardMethod && lar?.workload === 'slower'} /> 2.2 สามารถรับงานได้แต่อาจช้ากว่าปกติ ซึ่งลูกค้ายินยอม
                     </div>
                     <div className="pr-ind">
                       <CB /> 2.3 ไม่สามารถรับงานได้ เพราะมีงานสะสมมาก
@@ -283,7 +283,7 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
                         <CB checked={isStandardMethod && lar?.acceptable === false} /> ไม่พร้อมรับงาน&nbsp;เนื่องจาก
                       </span>
                       <span className="pr-line-fill">
-                        {isStandardMethod && lar?.acceptable === false ? lar?.remark : ' '}
+                        {isStandardMethod && lar?.acceptable === false ? lar?.notAcceptableReason : ' '}
                       </span>
                     </div>
 
@@ -293,11 +293,11 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
                     <div className="pr-q"><b>พิจารณาแล้วว่า</b></div>
                     <div className="pr-ind pr-fill-row">
                       <span>
-                        1.&nbsp;<CB checked={isCustomMethod && lar?.methodOk === true} /> เหมาะสม&nbsp;&nbsp;
-                        <CB checked={isCustomMethod && lar?.methodOk === false} /> ไม่เหมาะสม&nbsp;เนื่องจาก
+                        1.&nbsp;<CB checked={isCustomMethod && lar?.methodSuitable === true} /> เหมาะสม&nbsp;&nbsp;
+                        <CB checked={isCustomMethod && lar?.methodSuitable === false} /> ไม่เหมาะสม&nbsp;เนื่องจาก
                       </span>
                       <span className="pr-line-fill">
-                        {isCustomMethod && lar?.methodOk === false ? lar?.remark : ' '}
+                        {isCustomMethod && lar?.methodSuitable === false ? lar?.methodSuitableReason : ' '}
                       </span>
                     </div>
                     <div className="pr-ind">
