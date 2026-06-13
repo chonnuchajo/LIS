@@ -473,7 +473,7 @@ function PageTwo({ lr, petition, items }: { lr: LabRequest; petition: Petition; 
         <table className="pr-p2-items">
           <colgroup>
             <col style={{ width: '3%' }} />
-            <col style={{ width: '16%' }} />
+            <col style={{ width: '18%' }} />
             <col style={{ width: '8%' }} />
             <col style={{ width: '6.5%' }} />
             <col style={{ width: '7.5%' }} />
@@ -482,7 +482,7 @@ function PageTwo({ lr, petition, items }: { lr: LabRequest; petition: Petition; 
             <col style={{ width: '6.5%' }} />
             <col style={{ width: '12%' }} />
             <col style={{ width: '7.5%' }} />
-            <col style={{ width: '6.5%' }} />
+            <col style={{ width: '4.5%' }} />
             <col style={{ width: '3.25%' }} />
             <col style={{ width: '3.25%' }} />
             <col style={{ width: '8.5%' }} />
@@ -502,7 +502,7 @@ function PageTwo({ lr, petition, items }: { lr: LabRequest; petition: Petition; 
               <th colSpan={4} className="pr-officer-head">สำหรับเจ้าหน้าที่</th>
             </tr>
             <tr>
-              <th rowSpan={2}>เลขที่ตัวอย่าง</th>
+              <th rowSpan={2}>เลขที่<br />ตัวอย่าง</th>
               <th colSpan={2}>สภาพตัวอย่าง</th>
               <th rowSpan={2}>ราคา</th>
             </tr>
@@ -535,18 +535,18 @@ function PageTwo({ lr, petition, items }: { lr: LabRequest; petition: Petition; 
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan={10} className="pr-officer-filler" />
-              <td colSpan={3} className="pr-center pr-officer-sum">ราคา</td>
+              <td colSpan={11} className="pr-officer-filler" />
+              <td colSpan={2} className="pr-center pr-officer-sum">ราคา</td>
               <td />
             </tr>
             <tr>
-              <td colSpan={10} className="pr-officer-filler" />
-              <td colSpan={3} className="pr-center pr-officer-sum">Vat 7 %</td>
+              <td colSpan={11} className="pr-officer-filler" />
+              <td colSpan={2} className="pr-center pr-officer-sum">Vat 7 %</td>
               <td />
             </tr>
             <tr>
-              <td colSpan={10} className="pr-officer-filler" />
-              <td colSpan={3} className="pr-center pr-officer-sum">ราคารวม</td>
+              <td colSpan={11} className="pr-officer-filler" />
+              <td colSpan={2} className="pr-center pr-officer-sum">ราคารวม</td>
               <td />
             </tr>
           </tfoot>
@@ -819,7 +819,8 @@ const PRINT_CSS = `
   border: 0.5pt solid #000; padding: 2pt 3pt; vertical-align: top;
   word-break: break-word; overflow-wrap: anywhere; line-height: 1.2;
 }
-.pr-p2-items thead th { text-align: center; font-weight: bold; font-size: 9.5pt; }
+.pr-p2-items thead th { text-align: center; vertical-align: middle; font-weight: bold; font-size: 9.5pt; }
+.pr-p2-items tbody td { text-align: center; vertical-align: middle; }
 .pr-officer-head { background: #f1f1f1; }
 .pr-p2-items tfoot .pr-officer-filler { border: none; background: transparent; }
 .pr-p2-items tfoot .pr-officer-sum { font-weight: bold; }
