@@ -245,6 +245,7 @@ const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
   sortOrder: 0,
   note: "",
   hasPhases: false,
+  multiEntry: false,
 });
 
 const SCOPE_LABEL: Record<ParameterScope, string> = {
@@ -1997,6 +1998,7 @@ function ParameterDialog({
       sortOrder: form.sortOrder ?? 0,
       note: form.note?.trim() || "",
       hasPhases: !!form.hasPhases,
+      multiEntry: !!form.multiEntry,
     };
     try {
       if (isEdit && item?._id) {
