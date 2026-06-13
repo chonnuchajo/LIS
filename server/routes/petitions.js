@@ -10,6 +10,7 @@ const PetitionAuditLog = require('../models/PetitionAuditLog');
 const { maybeAdvancePhase } = require('../lib/phaseAdvance');
 const QCTestResult = require('../models/QCTestResult');
 const Parameter = require('../models/Parameter');
+const LabRequest = require('../models/LabRequest');
 const { buildStatusLog, isLabBatch, isPetitionComplete } = require('../lib/petitionStatusLog');
 
 function sampleIdsFromPetition(petition) {
@@ -415,6 +416,31 @@ router.post('/:id/lab-reject', async (req, res) => {
       note: `หัวหน้า Lab ส่งกลับให้แก้: ${note}`, metadata: { side: 'lab', returnTo: 'lab' },
     });
     res.json(doc);
+  } catch (err) {
+    res.status(400).json({ error: { message: err.message } });
+  }
+});
+
+// POST /api/petitions/:id/lab-agreement-review
+// บันทึก "สำหรับหัวหน้าห้องปฏิบัติการ" ครั้งเดียว → เขียนลงทุก LabRequest ของคำร้อง (fan-out)
+router.post('/:id/lab-agreement-review', async (req, res) => {
+  try {
+    const actor = req.body?.actor || 'system';
+    const review = { ...(req.body?.review || {}) };
+    delete review.reviewedAt;
+    delete review.reviewedBy;
+    review.reviewedBy = actor;
+    review.reviewedAt = new Date();
+
+    const petition = await Petition.findById(req.params.id).lean();
+    if (!petition) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
+
+    const result = await LabRequest.updateMany(
+      { petitionId: petition._id },
+      { $set: { labAgreementReview: review } },
+    );
+    const updated = result.modifiedCount ?? result.nModified ?? 0;
+    res.json({ updated, review });
   } catch (err) {
     res.status(400).json({ error: { message: err.message } });
   }
