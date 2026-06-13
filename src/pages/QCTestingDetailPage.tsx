@@ -186,6 +186,12 @@ function TestField({
           max={field.type !== 'text' ? (field as any).max : undefined}
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
+          // เลื่อนเมาส์ (wheel) ห้ามเปลี่ยนค่าตัวเลข — พิมพ์อย่างเดียว: blur ทิ้งโฟกัสตอน scroll
+          onWheel={(e) => {
+            if (field.type === 'number' || field.type === 'float') {
+              (e.currentTarget as HTMLInputElement).blur();
+            }
+          }}
           disabled={disabled}
           className={cn(
             'h-8 text-sm',

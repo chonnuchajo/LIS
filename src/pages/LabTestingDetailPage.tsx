@@ -232,6 +232,12 @@ function TestField({
             step={field.type === 'float' ? 'any' : undefined}
             value={strVal}
             onChange={(e) => !readOnly && onChange(e.target.value)}
+            // เลื่อนเมาส์ (wheel) ห้ามเปลี่ยนค่าตัวเลข — พิมพ์อย่างเดียว: blur ทิ้งโฟกัสตอน scroll
+            onWheel={(e) => {
+              if (field.type === 'number' || field.type === 'float') {
+                (e.currentTarget as HTMLInputElement).blur();
+              }
+            }}
             disabled={effectivelyDisabled}
             className={cn(
               'h-8 text-sm',
