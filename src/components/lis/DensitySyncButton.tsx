@@ -55,12 +55,19 @@ export default function DensitySyncButton({
     }
   }, [active, isError, error]);
 
-  const start = () => {
+  const start = async () => {
     if (!batchNo) return;
     if (hasHandTyped && !window.confirm('มีค่าที่กรอกเอง จะเขียนทับด้วยค่าจากเครื่อง?')) return;
     appliedRef.current = false;
     qc.removeQueries({ queryKey: ['density-by-batch', batchNo] });
     setActive(true);
+    // Nudge the plant to push fresh DMA 501 readings; best-effort — if it fails we
+    // still poll, since matching rows from an earlier sync may already be present.
+    try {
+      await api.triggerDensitySync();
+    } catch {
+      toast.warning('สั่งเครื่องส่งค่าไม่สำเร็จ — กำลังตรวจค่าที่มีอยู่');
+    }
   };
 
   if (active && !docs.length) {
