@@ -10,7 +10,7 @@ import type {
   FgPetitionFormValues,
   LabRequestFormValues,
 } from '@/lib/validations';
-import type { LabRequest } from '@/types/labRequest.types';
+import type { LabRequest, LabAgreementReview } from '@/types/labRequest.types';
 
 const BASE = import.meta.env.BASE_URL + 'api';
 
@@ -296,6 +296,20 @@ export async function updateLabRequest(
 
 export async function deleteLabRequest(id: string): Promise<void> {
   await apiFetch<{ success: true }>(`/lab-requests/${id}`, { method: 'DELETE' });
+}
+
+export async function saveLabAgreementReview(
+  petitionId: string,
+  review: Omit<LabAgreementReview, 'reviewedAt' | 'reviewedBy'>,
+  actor: string,
+): Promise<{ updated: number; review: LabAgreementReview }> {
+  return apiFetch<{ updated: number; review: LabAgreementReview }>(
+    `/petitions/${petitionId}/lab-agreement-review`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ review, actor }),
+    },
+  );
 }
 
 interface LabRequestListResponse {
