@@ -75,6 +75,17 @@
     @apply bg-background text-foreground;
     font-family: 'Kanit', sans-serif;
   }
+
+  /* ซ่อนปุ่มลูกศร (spinner) ของ input[type=number] ทั้งโปรแกรม — กรอกด้วยการพิมพ์เท่านั้น */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
 }
 
 @layer utilities {
