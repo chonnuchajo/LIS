@@ -173,9 +173,6 @@ ParameterSchema.pre('validate', function (next) {
       if (f.substanceMode) {
         return next(new Error(`ช่อง "${f.label}": ใช้ "กรอกหลายค่า" ร่วมกับโหมดรายสารไม่ได้`));
       }
-      if (f.type === 'reference') {
-        return next(new Error(`ช่อง "${f.label}": field แบบ reference กรอกหลายค่าไม่ได้`));
-      }
       if (f.triggersPhase2) {
         return next(new Error(`ช่อง "${f.label}": ตัว trigger Phase 2 กรอกหลายค่าไม่ได้`));
       }
