@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FlaskConical, Loader2, AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
+import { FlaskConical, Loader2, AlertTriangle, CheckCircle2, RotateCcw, ClipboardCheck } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { usePetition } from "@/hooks/usePetition";
+import { usePetition, useLabRequestsByPetition, saveLabAgreementReview } from "@/hooks/usePetition";
 import { api, type ParameterItem } from "@/lib/api";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { labReceivedBy } from "@/lib/receiveStatus";
@@ -18,6 +18,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useConfirm } from "@/context/ConfirmDialog";
 import { useCanAccessPath } from "@/hooks/useCanAccessPath";
 import { RevisionRequestDialog } from "@/components/petition/RevisionRequestDialog";
+import LabAgreementReviewDialog from "@/components/review/LabAgreementReviewDialog";
+import LabAgreementReviewView from "@/components/review/LabAgreementReviewView";
+import { isReviewFilled } from "@/lib/labAgreementReview";
 
 export default function LabApprovalReviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +39,10 @@ export default function LabApprovalReviewPage() {
   const [results, setResults] = useState<QCTestResult[]>([]);
   const [petitionHasAbnormal, setPetitionHasAbnormal] = useState(false);
   const [abnormalLoaded, setAbnormalLoaded] = useState(false);
+
+  const { data: labRequests, refresh: refreshLabRequests } = useLabRequestsByPetition(id);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const currentReview = labRequests?.[0]?.labAgreementReview ?? null;
 
   useEffect(() => {
     api.getParameters()
@@ -93,6 +100,18 @@ export default function LabApprovalReviewPage() {
       setSubmitting(false);
     }
   }, [petition, user, navigate]);
+
+  const handleSaveReview = useCallback(async (draft) => {
+    if (!petition) return;
+    try {
+      await saveLabAgreementReview(petition._id, draft, user?.name ?? "system");
+      toast.success("บันทึกการทบทวนข้อตกลงเรียบร้อย");
+      refreshLabRequests();
+    } catch {
+      toast.error("บันทึกไม่สำเร็จ");
+      throw new Error("save review failed");
+    }
+  }, [petition, user, refreshLabRequests]);
 
   if (loading) {
     return (
@@ -152,6 +171,31 @@ export default function LabApprovalReviewPage() {
             <p className="font-semibold text-violet-700 mb-1">คำอธิบายการทำใหม่</p>
             <p className="text-violet-800">Lab: {petition.labRedoExplanation}</p>
           </div>
+        )}
+
+        {(labRequests?.length ?? 0) > 0 && (
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-3 bg-grey-50">
+              <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-2">
+                  <ClipboardCheck className="h-4 w-4 text-sky-500" />
+                  การทบทวนข้อตกลงการบริการทดสอบ — สำหรับหัวหน้าห้องปฏิบัติการ
+                </span>
+                {canApproveLab && (
+                  <Button variant="outline" size="sm" onClick={() => setReviewDialogOpen(true)}>
+                    {isReviewFilled(currentReview) ? "แก้ไขการทบทวน" : "กรอกการทบทวน"}
+                  </Button>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {isReviewFilled(currentReview) ? (
+                <LabAgreementReviewView data={currentReview!} />
+              ) : (
+                <p className="text-sm text-grey-400 italic">ยังไม่กรอกการทบทวน</p>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {groups.map((g) => (
@@ -242,6 +286,12 @@ export default function LabApprovalReviewPage() {
           recipientLabel="ผู้ทดสอบ Lab"
           warning="คำร้องจะถูกส่งกลับให้ผู้ทดสอบ Lab แก้ไข/ทดสอบใหม่ (ไม่ปิดคำร้อง)"
           onConfirm={handleReject}
+        />
+        <LabAgreementReviewDialog
+          open={reviewDialogOpen}
+          onOpenChange={setReviewDialogOpen}
+          initial={currentReview}
+          onSave={handleSaveReview}
         />
       </div>
     </AppLayout>
