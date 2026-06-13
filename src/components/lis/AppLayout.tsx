@@ -59,7 +59,13 @@ const AppLayout = ({
               <Menu className="h-5 w-5" />
             </button>
           </SheetTrigger>
-          <SheetContent side="left" className="p-0 w-[280px] max-w-[85vw]">
+          <SheetContent
+            side="left"
+            className="p-0 w-[280px] max-w-[85vw]"
+            // Don't auto-focus the menu search input on open — on mobile that
+            // pops up the on-screen keyboard. Let the user tap it themselves.
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
             <SheetTitle className="sr-only">เมนูหลัก</SheetTitle>
             <AppSidebar variant="drawer" onNavigate={() => setDrawerOpen(false)} />
           </SheetContent>
