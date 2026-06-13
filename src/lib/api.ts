@@ -200,6 +200,10 @@ export const api = {
     request<{ batch: string; docs: Record<string, unknown>[] }>(
       `/result-densities/by-batch/${encodeURIComponent(batch)}`,
     ),
+  // Fire the n8n webhook that makes the plant push fresh DMA 501 readings into
+  // Result-Density. Returns once n8n has accepted the trigger (async on their side).
+  triggerDensitySync: () =>
+    request<{ triggered: boolean }>('/result-densities/sync', { method: 'POST' }),
 
   // Instrument readings (pull values live from lab instruments) ----------------
   // Config CRUD (managed in Settings)

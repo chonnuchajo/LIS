@@ -2,6 +2,20 @@ const express = require('express');
 const router = express.Router();
 const ResultDensity = require('../models/ResultDensity');
 const { batchMatches } = require('../lib/densityBatch');
+const { triggerDensitySync } = require('../lib/densitySyncTrigger');
+
+// POST /api/result-densities/sync — fire the n8n webhook that pulls fresh DMA 501
+// readings into Result-Density. n8n answers async ("Workflow was started") and
+// upserts the rows; the client polls by-batch afterwards until they appear.
+router.post('/sync', async (req, res) => {
+  try {
+    await triggerDensitySync();
+    res.json({ triggered: true });
+  } catch (err) {
+    const code = /not configured/.test(err.message) ? 503 : 502;
+    res.status(code).json({ error: err.message });
+  }
+});
 
 // GET /api/result-densities/products — distinct product names for filter dropdown
 router.get('/products', async (req, res) => {
