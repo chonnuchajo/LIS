@@ -783,6 +783,8 @@ export type ParameterValueField = {
   // standardOperator/standardValue และ substance* ถูก ignore.
   conditionalMode?: boolean;
   conditionalStandards?: StandardRule[];
+  // Field-level repeat — value stored as an array. text/number/float/enum only.
+  multiple?: boolean;
   // โชว์ค่า field เดียวกันจากผลตรวจครั้งก่อนของ common name เดียวกัน (display-only)
   showLastBatch?: boolean;
   options?: string[];
@@ -836,6 +838,8 @@ export type ParameterItem = {
   note?: string;
   // 2-phase testing toggle — when true, this parameter is split into ก่อน/หลัง
   hasPhases?: boolean;
+  // Parameter-level repeat — whole field set repeats into QCTestResult.entries.
+  multiEntry?: boolean;
   createdAt?: string;
   updatedAt?: string;
 };

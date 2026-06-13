@@ -16,6 +16,8 @@ import {
   evalCondition,
   resolveStandard,
   resolveFieldStandard,
+  getEntryValues,
+  fieldValueList,
 } from "./parameterValidation";
 import type { ParameterItem, ParameterValueField } from "./api";
 import type { QCTestResult } from "@/types/petition.types";
@@ -715,5 +717,53 @@ describe("countAbnormalInResults with conditional standards", () => {
       { parameterId: "P1", petitionId: "X", itemSeq: 1, values: { "ลักษณะ": "ก้อนใหญ่", "น้ำหนัก": 30 } },
     ] as any;
     expect(countAbnormalInResults(results, [param])).toBe(1);
+  });
+});
+
+const meNumField = { label: "pH", type: "number" as const, unit: "x", standardOperator: "lte" as const, standardValue: 7 };
+
+describe("getEntryValues", () => {
+  it("non-multiEntry → single entry from values", () => {
+    const r = { values: { pH: 5 } } as any;
+    expect(getEntryValues(r, { valueFields: [meNumField] } as any)).toEqual([{ pH: 5 }]);
+  });
+  it("multiEntry → entries array", () => {
+    const r = { values: {}, entries: [{ pH: 5 }, { pH: 6 }] } as any;
+    expect(getEntryValues(r, { multiEntry: true, valueFields: [meNumField] } as any)).toEqual([{ pH: 5 }, { pH: 6 }]);
+  });
+  it("multiEntry but empty entries → [{}]", () => {
+    const r = { values: {} } as any;
+    expect(getEntryValues(r, { multiEntry: true, valueFields: [meNumField] } as any)).toEqual([{}]);
+  });
+});
+
+describe("fieldValueList", () => {
+  it("non-multiple → wraps scalar", () => {
+    expect(fieldValueList({ pH: 5 }, meNumField as any)).toEqual([5]);
+  });
+  it("multiple → returns array as-is", () => {
+    expect(fieldValueList({ pH: [5, 6] }, { ...meNumField, multiple: true } as any)).toEqual([5, 6]);
+  });
+  it("multiple but missing → []", () => {
+    expect(fieldValueList({}, { ...meNumField, multiple: true } as any)).toEqual([]);
+  });
+});
+
+describe("countAbnormalInResults strictest (multi-entry)", () => {
+  const baseParam = { _id: "p1", valueFields: [meNumField] } as any;
+  const mk = (values: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+    ([{ petitionId: "x", itemSeq: 1, parameterId: "p1", values, ...extra }] as any);
+
+  it("one bad value among a multiple field → counts abnormal", () => {
+    const p = { ...baseParam, valueFields: [{ ...meNumField, multiple: true }] };
+    expect(countAbnormalInResults(mk({ pH: [5, 9] }), [p])).toBe(1);
+  });
+  it("all good multiple values → 0", () => {
+    const p = { ...baseParam, valueFields: [{ ...meNumField, multiple: true }] };
+    expect(countAbnormalInResults(mk({ pH: [5, 6] }), [p])).toBe(0);
+  });
+  it("multiEntry: one bad entry → counts abnormal", () => {
+    const p = { ...baseParam, multiEntry: true };
+    expect(countAbnormalInResults(mk({}, { entries: [{ pH: 5 }, { pH: 9 }] }), [p])).toBe(1);
   });
 });

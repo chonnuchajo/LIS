@@ -53,6 +53,32 @@ export function isFieldAbnormal(
   return isEnumAbnormal(field, value) || isNumericAbnormal(field, value);
 }
 
+// Normalize a result into a list of per-entry value-objects.
+// Non-multiEntry parameters yield a single entry from `values`; multiEntry yields `entries`.
+export function getEntryValues(
+  result: { values?: Record<string, unknown>; entries?: Record<string, unknown>[] },
+  param: { multiEntry?: boolean },
+): Record<string, unknown>[] {
+  if (param.multiEntry) {
+    const e = result.entries;
+    return Array.isArray(e) && e.length ? e : [{}];
+  }
+  return [result.values ?? {}];
+}
+
+// Normalize a field's stored value into a list. `multiple` fields hold an array;
+// normal fields are wrapped into a single-element list.
+export function fieldValueList(
+  values: Record<string, unknown>,
+  field: ParameterValueField,
+): unknown[] {
+  if (field.multiple) {
+    const v = values[field.label];
+    return Array.isArray(v) ? v : [];
+  }
+  return [values[field.label]];
+}
+
 export function findSubstanceStandard(
   field: ParameterValueField,
   substanceName: string,
@@ -126,44 +152,42 @@ export function countAbnormalInResults(
   for (const p of parameters) {
     if (p._id) paramById.set(String(p._id), p);
   }
-  // group result.values ตาม item เพื่อใช้ทำ ctx ข้าม parameter
+  // group entry values per item for cross-parameter conditional ctx (uses entry 0)
   const valuesByItem = new Map<string, Record<string, Record<string, unknown>>>();
   for (const r of results) {
+    const param = paramById.get(String(r.parameterId));
     const itemKey = `${r.petitionId}__${r.itemSeq}`;
     let bucket = valuesByItem.get(itemKey);
     if (!bucket) { bucket = {}; valuesByItem.set(itemKey, bucket); }
-    bucket[String(r.parameterId)] = (r.values ?? {}) as Record<string, unknown>;
+    bucket[String(r.parameterId)] = getEntryValues(r, param ?? {})[0] ?? {};
   }
   let count = 0;
   for (const r of results) {
     const param = paramById.get(String(r.parameterId));
     if (!param?.valueFields?.length) continue;
-    const values = (r.values ?? {}) as Record<string, unknown>;
-    for (const field of param.valueFields) {
-      const isNumeric = field.type === "number" || field.type === "float";
-      if (field.substanceMode && isNumeric) {
-        const prefix = `${field.label}::`;
-        for (const [vkey, vval] of Object.entries(values)) {
-          if (!vkey.startsWith(prefix)) continue;
-          const subKey = vkey.slice(prefix.length);
-          const std = (field.substanceStandards ?? []).find(
-            (s) => matchSubstanceKey(s.substance) === subKey,
-          );
-          if (isSubstanceAbnormal(field, std, vval)) count += 1;
+    const itemKey = `${r.petitionId}__${r.itemSeq}`;
+    for (const values of getEntryValues(r, param)) {
+      for (const field of param.valueFields) {
+        const isNumeric = field.type === "number" || field.type === "float";
+        if (field.substanceMode && isNumeric) {
+          const prefix = `${field.label}::`;
+          for (const [vkey, vval] of Object.entries(values)) {
+            if (!vkey.startsWith(prefix)) continue;
+            const subKey = vkey.slice(prefix.length);
+            const std = (field.substanceStandards ?? []).find(
+              (s) => matchSubstanceKey(s.substance) === subKey,
+            );
+            if (isSubstanceAbnormal(field, std, vval)) count += 1;
+          }
+          continue;
         }
-        continue;
+        const vf = field.conditionalMode && isNumeric
+          ? resolveFieldStandard(field, { sameParam: values, otherParams: valuesByItem.get(itemKey) ?? {} })
+          : field;
+        for (const v of fieldValueList(values, field)) {
+          if (isFieldAbnormal(vf, v)) count += 1;
+        }
       }
-      if (field.conditionalMode && isNumeric) {
-        const itemKey = `${r.petitionId}__${r.itemSeq}`;
-        const ctx: ConditionContext = {
-          sameParam: values,
-          otherParams: valuesByItem.get(itemKey) ?? {},
-        };
-        const vf = resolveFieldStandard(field, ctx);
-        if (isFieldAbnormal(vf, values[field.label])) count += 1;
-        continue;
-      }
-      if (isFieldAbnormal(field, values[field.label])) count += 1;
     }
   }
   return count;
