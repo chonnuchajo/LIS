@@ -252,6 +252,8 @@ export interface QCTestResult {
   values: Record<string, unknown>;
   // Phase 2 ("ค่าหลัง") values — only populated for parameters with hasPhases=true
   valuesPhase2?: Record<string, unknown>;
+  // For multiEntry parameters — array of per-entry value-objects.
+  entries?: Record<string, unknown>[];
   enteredBy?: { name: string; email: string };
   enteredAt?: string;
   updatedBy?: { name: string; email: string };
@@ -269,6 +271,8 @@ export interface SaveQCResultPayload {
   parameterName?: string;
   fieldLabel: string;
   value: unknown;
+  // For multiEntry parameters — which entry row this field write targets.
+  entryIndex?: number;
   enteredBy: { name: string; email: string };
   // 1 = Phase 1 (default, ค่าก่อน), 2 = Phase 2 (ค่าหลัง)
   phase?: PetitionPhase;

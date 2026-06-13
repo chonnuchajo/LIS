@@ -324,7 +324,7 @@ router.put("/", async (req, res) => {
       petitionId, petitionNo,
       itemSeq, sampleId, sampleName, commonName,
       parameterId, parameterName,
-      fieldLabel, value,
+      fieldLabel, value, entryIndex,
       enteredBy,
       phase, // 1 = Phase 1 (default), 2 = Phase 2 (after)
     } = req.body;
@@ -348,20 +348,33 @@ router.put("/", async (req, res) => {
 
     const existing = await QCTestResult.findOne(filter);
     const isNew = !existing;
-    const existingFieldValue = existing?.[valuesKey]?.[fieldLabel];
 
-    const update = {
-      $set: {
-        petitionNo, sampleId, sampleName, commonName, parameterName,
-        [`${valuesKey}.${fieldLabel}`]: value,
-        updatedBy: enteredBy,
-        updatedAt: now,
-      },
+    const baseSet = {
+      petitionNo, sampleId, sampleName, commonName, parameterName,
+      updatedBy: enteredBy,
+      updatedAt: now,
     };
+    if (isNew || !existing?.enteredBy) {
+      baseSet.enteredBy = enteredBy;
+      baseSet.enteredAt = now;
+    }
 
-    if (isNew || !existing.enteredBy) {
-      update.$set.enteredBy = enteredBy;
-      update.$set.enteredAt = now;
+    let existingFieldValue;
+    const update = { $set: baseSet };
+
+    if (phaseNum === 1 && Number.isInteger(entryIndex) && entryIndex >= 0) {
+      // multiEntry write: read-modify-write the entries array (avoids dot-path
+      // numeric-index creating an object instead of an array)
+      const entries = Array.isArray(existing?.entries)
+        ? existing.entries.map((e) => ({ ...(e || {}) }))
+        : [];
+      while (entries.length <= entryIndex) entries.push({});
+      existingFieldValue = entries[entryIndex][fieldLabel];
+      entries[entryIndex][fieldLabel] = value;
+      update.$set.entries = entries;
+    } else {
+      existingFieldValue = existing?.[valuesKey]?.[fieldLabel];
+      update.$set[`${valuesKey}.${fieldLabel}`] = value;
     }
 
     const doc = await QCTestResult.findOneAndUpdate(filter, update, {
@@ -381,7 +394,7 @@ router.put("/", async (req, res) => {
         event: auditEvent,
         actor: enteredBy?.name || enteredBy?.email || 'system',
         note: qcResultNote(auditEvent, { parameterName, parameterId, fieldLabel, sampleName }),
-        metadata: { itemSeq, sampleName, commonName, parameterId, parameterName, fieldLabel, phase: phaseNum },
+        metadata: { itemSeq, sampleName, commonName, parameterId, parameterName, fieldLabel, phase: phaseNum, entryIndex },
       }).catch((err) => {
         console.error('[audit-log] qc-result write failed:', err.message);
       });
