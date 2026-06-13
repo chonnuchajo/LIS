@@ -3,6 +3,8 @@ import type { Petition, QCTestResult } from "@/types/petition.types";
 import { matchParametersForItem } from "@/lib/petitionTestItems";
 import {
   expandFieldForItem,
+  fieldValueList,
+  getEntryValues,
   isFieldAbnormal,
   resolveFieldStandard,
   resolveStandard,
@@ -54,10 +56,14 @@ export function buildApprovalGroups(
   results: QCTestResult[],
   groupMembership: Map<string, string[]>,
 ): ApprovalItemGroup[] {
+  // Cross-parameter conditional context uses each result's primary (entry-0) values.
   const v1: Record<string, Record<string, unknown>> = {};
   const v2: Record<string, Record<string, unknown>> = {};
+  // Full result by key — lets us iterate multiEntry `entries` for the current param.
+  const resultByKey: Record<string, QCTestResult> = {};
   results.forEach((r) => {
     const k = resultKey(r.itemSeq, r.parameterId);
+    resultByKey[k] = r;
     v1[k] = { ...((r.values ?? {}) as Record<string, unknown>) };
     v2[k] = { ...((r.valuesPhase2 ?? {}) as Record<string, unknown>) };
   });
@@ -86,32 +92,51 @@ export function buildApprovalGroups(
       const pushFields = (phase: 1 | 2) => {
         const phaseVals = phase === 2 ? v2 : v1;
         const ctx = buildCtx(phaseVals);
-        (param.valueFields ?? []).forEach((field) => {
-          const fPhase = field.phase ?? "both";
-          if (phase === 1 && fPhase === "after") return;
-          if (phase === 2 && fPhase === "before") return;
-          // reference fields are auto-resolved from substance standards elsewhere and intentionally omitted from approval rows
-          if (field.type === "reference") return;
-          expandFieldForItem(field, item.commonName).forEach((unit) => {
-            const raw = phaseVals[k]?.[unit.key];
-            const effectiveField = unit.field.conditionalMode
-              ? resolveFieldStandard(unit.field, ctx)
-              : unit.field;
-            const resolved = unit.field.conditionalMode
-              ? resolveStandard(unit.field, ctx)
-              : null;
-            const standardText = resolved
-              ? describeResolvedStandard(resolved, unit.field.unit ?? "")
-              : describeStandard(effectiveField);
-            rows.push({
-              key: `${k}__${unit.key}__p${phase}`,
-              label: unit.field.label,
-              unit: unit.field.unit,
-              value: asStr(raw),
-              standardText,
-              abnormal: isFieldAbnormal(effectiveField, raw),
-              note: asStr(phaseVals[k]?.[noteLabelFor(unit.key)]),
-              phase,
+        // multiEntry parameters repeat their whole field set per entry; normal
+        // parameters collapse to a single entry equal to the phase value-object.
+        // Phase-2 has no separate entries store; multiEntry repeats live in phase-1 `entries`.
+        const phaseResult = phase === 2
+          ? { values: v2[k] ?? {}, entries: undefined }
+          : { values: v1[k] ?? {}, entries: resultByKey[k]?.entries };
+        const entryList = getEntryValues(phaseResult, param);
+        entryList.forEach((entryValues, ei) => {
+          const entryLabel = param.multiEntry ? `รายการที่ ${ei + 1}` : "";
+          (param.valueFields ?? []).forEach((field) => {
+            const fPhase = field.phase ?? "both";
+            if (phase === 1 && fPhase === "after") return;
+            if (phase === 2 && fPhase === "before") return;
+            // reference fields are auto-resolved from substance standards elsewhere and intentionally omitted from approval rows
+            if (field.type === "reference") return;
+            expandFieldForItem(field, item.commonName).forEach((unit) => {
+              const effectiveField = unit.field.conditionalMode
+                ? resolveFieldStandard(unit.field, ctx)
+                : unit.field;
+              const resolved = unit.field.conditionalMode
+                ? resolveStandard(unit.field, ctx)
+                : null;
+              const standardText = resolved
+                ? describeResolvedStandard(resolved, unit.field.unit ?? "")
+                : describeStandard(effectiveField);
+              const note = asStr(entryValues[noteLabelFor(unit.key)]);
+              // Substance units store a per-substance scalar under unit.key; plain
+              // units (incl. `multiple`) read their value list via fieldValueList.
+              const valueList = unit.substanceName !== undefined
+                ? [entryValues[unit.key]]
+                : fieldValueList(entryValues, unit.field);
+              valueList.forEach((raw, vi) => {
+                const valueLabel = unit.field.multiple ? `ค่าที่ ${vi + 1}` : "";
+                const labelParts = [unit.field.label, valueLabel, entryLabel].filter(Boolean);
+                rows.push({
+                  key: `${k}__${unit.key}__p${phase}__e${ei}__v${vi}`,
+                  label: labelParts.join(" · "),
+                  unit: unit.field.unit,
+                  value: asStr(raw),
+                  standardText,
+                  abnormal: isFieldAbnormal(effectiveField, raw),
+                  note,
+                  phase,
+                });
+              });
             });
           });
         });
