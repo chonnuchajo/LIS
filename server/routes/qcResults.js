@@ -333,6 +333,11 @@ router.put("/", async (req, res) => {
       return res.status(400).json({ error: "petitionId, itemSeq, parameterId, fieldLabel are required" });
     }
 
+    // sanity ceiling — entries are "unlimited" in practice but guard against runaway padding
+    if (entryIndex != null && (!Number.isInteger(entryIndex) || entryIndex < 0 || entryIndex > 1000)) {
+      return res.status(400).json({ error: "entryIndex อยู่นอกช่วงที่อนุญาต (0–1000)" });
+    }
+
     // Reject saves for reference fields — their value is computed, not entered
     const paramForCheck = await Parameter.findById(parameterId).lean();
     const fieldDef = paramForCheck?.valueFields?.find((f) => f.label === fieldLabel);
