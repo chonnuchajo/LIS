@@ -57,6 +57,31 @@ describe("buildApprovalGroups", () => {
     expect(groups[0].params).toHaveLength(0);
   });
 
+  it("รวม lab param เข้ากลุ่มของ lab item พร้อมติด scope=lab (qc param ยัง scope=qc)", () => {
+    const qcParam = param({ _id: "q1", name: "qc-density" });
+    const labParam = param({ _id: "l1", name: "lab-assay", scope: "lab" });
+    // item batch "B1" ลงท้าย 1 = lab batch → lab param ต้อง match; testItems ครอบทั้งสองชื่อ
+    const labPetition = {
+      ...petition(),
+      items: [{ seq: 1, sampleName: "ตัวอย่าง A", commonName: "density", sampleId: "S1", batchNo: "B1", testItems: "qc-density, lab-assay" }],
+    } as unknown as Petition;
+    const groups = buildApprovalGroups(labPetition, [qcParam, labParam], [], new Map());
+    const byId = Object.fromEntries(groups[0].params.map((p) => [p.parameterId, p]));
+    expect(byId.q1.scope).toBe("qc");
+    expect(byId.l1.scope).toBe("lab");
+  });
+
+  it("ไม่ดึง lab param ลง item ที่ไม่ใช่ lab batch", () => {
+    const labParam = param({ _id: "l1", name: "lab-assay", scope: "lab" });
+    // batch "B2" ลงท้าย 2 ≠ lab batch → lab param ต้องไม่ถูกดึงเข้า
+    const nonLabPetition = {
+      ...petition(),
+      items: [{ seq: 1, sampleName: "ตัวอย่าง B", commonName: "density", sampleId: "S2", batchNo: "B2", testItems: "lab-assay" }],
+    } as unknown as Petition;
+    const groups = buildApprovalGroups(nonLabPetition, [labParam], [], new Map());
+    expect(groups[0].params.find((p) => p.parameterId === "l1")).toBeUndefined();
+  });
+
   // Fix 2 — phase-2 test
   it("phase-2: สร้าง row phase:2 จาก valuesPhase2 และไม่สับสนกับ phase 1", () => {
     const phasedParam = param({
