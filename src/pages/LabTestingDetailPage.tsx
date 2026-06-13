@@ -24,6 +24,7 @@ import { isAssignedTo } from '@/lib/assignment';
 import { labReceivedBy } from '@/lib/receiveStatus';
 import { useConfirm } from '@/context/ConfirmDialog';
 import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues } from '@/lib/parameterValidation';
+import { SG_FIELD_LABEL, FORM_ENTRY_INDEX_KEY } from '@/lib/formSpecificGravity';
 import type { ConditionContext } from '@/lib/parameterValidation';
 import { describeResolvedStandard } from '@/lib/standardOperators';
 import { cn } from '@/lib/utils';
@@ -351,6 +352,9 @@ export default function LabTestingDetailPage() {
   const [valuesPhase2, setValuesPhase2] = useState<Record<string, Record<string, unknown>>>({});
   // Local mirror of QCTestResult.entries for multiEntry params, keyed by resultKey.
   const [entriesByKey, setEntriesByKey] = useState<Record<string, Record<string, unknown>[]>>({});
+  // How many entry cards to show per multiEntry resultKey (user-driven via "เพิ่มรายการ").
+  // Effective count = max(this, savedEntries.length, 1) — never hides saved data, always ≥1 empty form.
+  const [entryRowCounts, setEntryRowCounts] = useState<Record<string, number>>({});
   const [saveStates, setSaveStates] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
   const [saveStatesPhase2, setSaveStatesPhase2] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -1181,28 +1185,36 @@ export default function LabTestingDetailPage() {
                             );
 
                             if (param.multiEntry) {
-                              // Per-entry rendering: saved entries[] PLUS a trailing empty
-                              // entry to add the next one. Entry writes route through
-                              // handleEntryFieldChange (no instrument-pull/provenance).
-                              const entryRows = getEntryValues({ entries: entriesByKey[k] }, param);
-                              const cards = [...entryRows, {} as Record<string, unknown>];
+                              // Per-entry rendering. Saved entries come from entries[]; the
+                              // number of cards shown is user-driven (เพิ่มรายการ), never auto.
+                              // Entry writes route through handleEntryFieldChange (no instrument-pull).
+                              const savedRows = entriesByKey[k] ?? [];
+                              const savedCount = savedRows.length;
+                              const shown = Math.max(entryRowCounts[k] ?? 0, savedCount, 1);
+                              const removeRow = (ei: number) => {
+                                if (ei < savedCount) handleRemoveEntry(petition, item, param, ei);
+                                setEntryRowCounts((c) =>
+                                  c[k] == null ? c : { ...c, [k]: Math.max(c[k] - 1, 1) },
+                                );
+                              };
                               return (
                                 <div className="space-y-4">
-                                  {cards.map((entryValues, ei) => {
-                                    const isExisting = ei < entryRows.length;
+                                  {Array.from({ length: shown }, (_, ei) => {
+                                    const entryValues = savedRows[ei] ?? {};
+                                    const canRemove = !fieldDisabled && (shown > 1 || ei < savedCount);
                                     return (
                                       <div key={ei} className="rounded-lg border border-grey-200 p-3 space-y-2">
                                         <div className="flex items-center gap-2">
                                           <span className="text-xs font-semibold text-grey-600 flex-1">
                                             รายการที่ {ei + 1}
                                           </span>
-                                          {isExisting && !fieldDisabled && (
+                                          {canRemove && (
                                             <Button
                                               type="button"
                                               variant="ghost"
                                               size="sm"
                                               className="text-red-500 hover:text-red-600"
-                                              onClick={() => handleRemoveEntry(petition, item, param, ei)}
+                                              onClick={() => removeRow(ei)}
                                             >
                                               ลบรายการ
                                             </Button>
@@ -1218,9 +1230,14 @@ export default function LabTestingDetailPage() {
                                     );
                                   })}
                                   {!fieldDisabled && (
-                                    <p className="text-xs text-grey-400 pl-1">
-                                      กรอกข้อมูลในการ์ด “รายการที่ {entryRows.length + 1}” เพื่อเพิ่มรายการใหม่
-                                    </p>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => setEntryRowCounts((c) => ({ ...c, [k]: shown + 1 }))}
+                                    >
+                                      + เพิ่มรายการ
+                                    </Button>
                                   )}
                                 </div>
                               );
@@ -1371,11 +1388,57 @@ export default function LabTestingDetailPage() {
                               if (entryRows.length === 0) {
                                 return <p className="text-xs text-grey-400 italic pl-2">— QC ยังไม่กรอกรายการ —</p>;
                               }
+                              // ถ้าเป็นพารามิเตอร์ ค่า ถพ. และมีหลายค่า → ให้ Lab เลือกค่าที่จะลงในใบคำขอรับบริการ
+                              const isSgParam = (param.valueFields ?? []).some((f) => f.label === SG_FIELD_LABEL);
+                              const showFormPicker = isSgParam && entryRows.length > 1;
+                              const rawChosen = Number(values[k]?.[FORM_ENTRY_INDEX_KEY] ?? 0);
+                              const chosenIdx =
+                                Number.isFinite(rawChosen) && rawChosen >= 0 && rawChosen < entryRows.length
+                                  ? rawChosen
+                                  : 0;
                               return (
                                 <div className="space-y-4">
+                                  {showFormPicker && (
+                                    <div className="flex items-center gap-2 rounded-md bg-white border border-indigo-200 px-3 py-2">
+                                      <span className="text-xs font-semibold text-grey-700">ค่าที่ใช้ในใบคำขอรับบริการ:</span>
+                                      <Select
+                                        value={String(chosenIdx)}
+                                        onValueChange={(v) =>
+                                          handleFieldChange(petition, item, param, FORM_ENTRY_INDEX_KEY, Number(v), 1)
+                                        }
+                                        disabled={isLocked}
+                                      >
+                                        <SelectTrigger className="h-8 w-40 text-sm">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {entryRows.map((ev, ei) => (
+                                            <SelectItem key={ei} value={String(ei)}>
+                                              รายการที่ {ei + 1}
+                                              {ev?.[SG_FIELD_LABEL] != null && ev[SG_FIELD_LABEL] !== ''
+                                                ? ` (${ev[SG_FIELD_LABEL]})`
+                                                : ''}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  )}
                                   {entryRows.map((entryValues, ei) => (
-                                    <div key={ei} className="rounded-lg border border-grey-200 p-3 space-y-2">
-                                      <span className="text-xs font-semibold text-grey-600">รายการที่ {ei + 1}</span>
+                                    <div
+                                      key={ei}
+                                      className={`rounded-lg border p-3 space-y-2 ${
+                                        showFormPicker && ei === chosenIdx
+                                          ? 'border-indigo-400 bg-indigo-50/60'
+                                          : 'border-grey-200'
+                                      }`}
+                                    >
+                                      <span className="text-xs font-semibold text-grey-600">
+                                        รายการที่ {ei + 1}
+                                        {showFormPicker && ei === chosenIdx && (
+                                          <span className="ml-1 text-indigo-700">← ใช้บนฟอร์ม</span>
+                                        )}
+                                      </span>
                                       {renderReadGrid(entryValues, undefined)}
                                     </div>
                                   ))}

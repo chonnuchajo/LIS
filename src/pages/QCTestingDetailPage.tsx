@@ -298,6 +298,9 @@ export default function QCTestingDetailPage() {
   const [valuesPhase2, setValuesPhase2] = useState<Record<string, Record<string, unknown>>>({});
   // Local mirror of QCTestResult.entries for multiEntry params, keyed by resultKey.
   const [entriesByKey, setEntriesByKey] = useState<Record<string, Record<string, unknown>[]>>({});
+  // How many entry cards to show per multiEntry resultKey (user-driven via "เพิ่มรายการ").
+  // Effective count = max(this, savedEntries.length, 1) — never hides saved data, always ≥1 empty form.
+  const [entryRowCounts, setEntryRowCounts] = useState<Record<string, number>>({});
   // key: resultKey(itemSeq, parameterId) → { fieldLabel → FieldSaveInfo }
   const [saveStates, setSaveStates] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
   const [saveStatesPhase2, setSaveStatesPhase2] = useState<Record<string, Record<string, FieldSaveInfo>>>({});
@@ -1314,27 +1317,36 @@ export default function QCTestingDetailPage() {
                       )}
                       {param.multiEntry ? (
                         (() => {
-                          // Per-entry rendering. Entries come from the saved result's
-                          // entries[]; render those PLUS a trailing empty entry to add.
-                          const entryRows = getEntryValues({ entries: entriesByKey[k] }, param);
-                          const cards = [...entryRows, {} as Record<string, unknown>];
+                          // Per-entry rendering. Saved entries come from entries[]; the
+                          // number of cards shown is user-driven (เพิ่มรายการ), never auto.
+                          const savedRows = entriesByKey[k] ?? [];
+                          const savedCount = savedRows.length;
+                          const shown = Math.max(entryRowCounts[k] ?? 0, savedCount, 1);
+                          const removeRow = (ei: number) => {
+                            if (ei < savedCount) handleRemoveEntry(petition, item, param, ei);
+                            setEntryRowCounts((c) =>
+                              c[k] == null ? c : { ...c, [k]: Math.max(c[k] - 1, 1) },
+                            );
+                          };
                           return (
                             <div className="space-y-4">
-                              {cards.map((entryValues, ei) => {
-                                const isExisting = ei < entryRows.length;
+                              {Array.from({ length: shown }, (_, ei) => {
+                                const entryValues = savedRows[ei] ?? {};
+                                // allow remove when there's more than one card, or this card holds saved data
+                                const canRemove = !fieldDisabled && (shown > 1 || ei < savedCount);
                                 return (
                                   <div key={ei} className="rounded-lg border border-grey-200 p-3 space-y-2">
                                     <div className="flex items-center gap-2">
                                       <span className="text-xs font-semibold text-grey-600 flex-1">
                                         รายการที่ {ei + 1}
                                       </span>
-                                      {isExisting && !fieldDisabled && (
+                                      {canRemove && (
                                         <Button
                                           type="button"
                                           variant="ghost"
                                           size="sm"
                                           className="text-red-500 hover:text-red-600"
-                                          onClick={() => handleRemoveEntry(petition, item, param, ei)}
+                                          onClick={() => removeRow(ei)}
                                         >
                                           ลบรายการ
                                         </Button>
@@ -1349,9 +1361,14 @@ export default function QCTestingDetailPage() {
                                 );
                               })}
                               {!fieldDisabled && (
-                                <p className="text-xs text-grey-400 pl-1">
-                                  กรอกข้อมูลในการ์ด “รายการที่ {entryRows.length + 1}” เพื่อเพิ่มรายการใหม่
-                                </p>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setEntryRowCounts((c) => ({ ...c, [k]: shown + 1 }))}
+                                >
+                                  + เพิ่มรายการ
+                                </Button>
                               )}
                             </div>
                           );
