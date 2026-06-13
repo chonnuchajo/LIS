@@ -180,6 +180,21 @@ export const api = {
   getDensities: () => request<RealtimeDensity[]>("/densities"),
   pushDensity: (data: RealtimeDensity) =>
     request<RealtimeDensity>("/densities", { method: "POST", body: JSON.stringify(data) }),
+  deleteDensity: (sampleId: string) =>
+    request<{ success: boolean }>(`/densities/${encodeURIComponent(sampleId)}`, { method: 'DELETE' }),
+
+  // Result Density (DMA 501 — reads from Result-Density collection)
+  getResultDensities: (params?: { page?: number; limit?: number; search?: string; product?: string; date?: string }) => {
+    const p = new URLSearchParams();
+    if (params?.page) p.set('page', String(params.page));
+    if (params?.limit) p.set('limit', String(params.limit));
+    if (params?.search) p.set('search', params.search);
+    if (params?.product) p.set('product', params.product);
+    if (params?.date) p.set('date', params.date);
+    const qs = p.toString() ? `?${p.toString()}` : '';
+    return request<{ docs: Record<string, unknown>[]; total: number; page: number; limit: number }>(`/result-densities${qs}`);
+  },
+  getResultDensityProducts: () => request<string[]>('/result-densities/products'),
 
   // Instrument readings (pull values live from lab instruments) ----------------
   // Config CRUD (managed in Settings)

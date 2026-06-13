@@ -61,6 +61,7 @@ const QCTestingDetailPage = lazy(() => import("./pages/QCTestingDetailPage"));
 const LabTestingPage = lazy(() => import("./pages/LabTestingPage"));
 const LabTestingDetailPage = lazy(() => import("./pages/LabTestingDetailPage"));
 const StandardConfig = lazy(() => import("./pages/StandardConfig"));
+const DensityResultPage = lazy(() => import('./pages/DensityResultPage'));
 
 const RouteFallback = () => (
   <div className="flex min-h-screen items-center justify-center">
@@ -144,6 +145,7 @@ const App = () => (
               <Route path="/qc-testing/:id" element={<PrivateRoute><QCTestingDetailPage /></PrivateRoute>} />
               <Route path="/lab-testing" element={<PrivateRoute><LabTestingPage /></PrivateRoute>} />
               <Route path="/lab-testing/:id" element={<PrivateRoute><LabTestingDetailPage /></PrivateRoute>} />
+              <Route path="/density-results" element={<PrivateRoute><DensityResultPage /></PrivateRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
               </Suspense>

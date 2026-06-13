@@ -1,1 +1,1 @@
-{"collection":"standardoverrides","indexes":[{"v":{"$numberInt":"2"},"key":{"matchType":{"$numberInt":"1"},"matchValueLower":{"$numberInt":"1"}},"name":"matchType_1_matchValueLower_1","unique":true}],"count":{"$numberInt":"0"},"documents":[]}
+{"collection":"standardoverrides","indexes":[{"v":{"$numberInt":"2"},"key":{"matchType":{"$numberInt":"1"},"matchValueLower":{"$numberInt":"1"}},"name":"matchType_1_matchValueLower_1","background":true,"unique":true}],"count":{"$numberInt":"0"},"documents":[]}
