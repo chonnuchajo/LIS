@@ -195,6 +195,11 @@ export const api = {
     return request<{ docs: Record<string, unknown>[]; total: number; page: number; limit: number }>(`/result-densities${qs}`);
   },
   getResultDensityProducts: () => request<string[]>('/result-densities/products'),
+  // All DMA 501 readings whose Sample name trailing batch matches `batch`.
+  getResultDensitiesByBatch: (batch: string) =>
+    request<{ batch: string; docs: Record<string, unknown>[] }>(
+      `/result-densities/by-batch/${encodeURIComponent(batch)}`,
+    ),
 
   // Instrument readings (pull values live from lab instruments) ----------------
   // Config CRUD (managed in Settings)

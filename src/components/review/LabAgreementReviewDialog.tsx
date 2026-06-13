@@ -17,6 +17,15 @@ import {
 
 type Draft = Omit<LabAgreementReview, 'reviewedAt' | 'reviewedBy'>;
 
+// ค่าตั้งต้นเมื่อหัวหน้า Lab เปิดฟอร์มใหม่ (ยังไม่เคยบันทึก) — กรณีวิธีปกติ
+const DEFAULT_DRAFT: Draft = {
+  personnel: 'able',
+  personnelAbleReasons: ['trained'],
+  workload: 'normal',
+  subcontractor: 'none',
+  acceptable: true,
+};
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -56,8 +65,13 @@ export default function LabAgreementReviewDialog({ open, onOpenChange, initial, 
 
   useEffect(() => {
     if (open) {
-      const { reviewedAt: _a, reviewedBy: _b, ...rest } = initial ?? {};
-      setD(rest);
+      if (initial) {
+        const { reviewedAt: _a, reviewedBy: _b, ...rest } = initial;
+        setD(rest);
+      } else {
+        // ฟอร์มใหม่ — เติมค่าตั้งต้นให้หัวหน้า Lab
+        setD({ ...DEFAULT_DRAFT });
+      }
     }
   }, [open, initial]);
 

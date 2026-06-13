@@ -42,8 +42,9 @@ const AppLayout = ({
         className,
       )}
     >
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex print:hidden">
+      {/* Desktop sidebar — pinned to the viewport so it doesn't scroll away with
+          the page; only its own nav list scrolls (see AppSidebar's <nav>). */}
+      <div className="hidden md:flex print:hidden sticky top-0 h-screen self-start">
         <AppSidebar variant="desktop" />
       </div>
 

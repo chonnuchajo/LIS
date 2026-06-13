@@ -41,6 +41,14 @@ import {
 import { buildPreviousValueLookup, getPreviousValue, type PreviousValueLookup } from '@/lib/revisionHelpers';
 import { AiOutlierBadge } from '@/components/lis/AiOutlierBadge';
 import { checkOutlier, getAiStatus, streamAnalyzeQC, type OutlierCheckResult } from '@/lib/aiApi';
+import DensitySyncButton from '@/components/lis/DensitySyncButton';
+import {
+  SG_VALUE_LABEL,
+  SG_TEMP_LABEL,
+  hasHandTypedEntries,
+  densityRowToEntry,
+  formatTSetComparison,
+} from '@/lib/densitySync';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -613,6 +621,42 @@ export default function QCTestingDetailPage() {
       }
     },
     [user, entriesByKey, id, loadResults],
+  );
+
+  // Density sync: replace the SG param's entries with one entry per matched
+  // Result-Density row (Density + T block; T set lives in provenance only).
+  const applyDensityRows = useCallback(
+    async (
+      petition: Petition,
+      item: PetitionItem,
+      param: ParameterItem,
+      docs: Record<string, unknown>[],
+    ) => {
+      const k = resultKey(item.seq, param._id!);
+      const fetchedAt = new Date().toISOString();
+      const rows = docs.map((d) => densityRowToEntry(d, fetchedAt));
+      setEntriesByKey((prev) => ({ ...prev, [k]: rows.map((e) => ({ ...e })) }));
+      setEntryRowCounts((c) => ({ ...c, [k]: Math.max(rows.length, 1) }));
+      advanceToInProgress();
+      try {
+        await api.saveQCEntries({
+          petitionId: petition._id!,
+          petitionNo: petition.petitionNo,
+          itemSeq: item.seq,
+          sampleId: item.sampleId,
+          sampleName: item.sampleName,
+          commonName: item.commonName,
+          parameterId: param._id!,
+          parameterName: param.name,
+          entries: rows,
+          enteredBy: { name: user?.name ?? 'Unknown', email: user?.email ?? '' },
+        });
+        if (id) await loadResults(id);
+      } catch {
+        toast.error('บันทึกค่าไม่สำเร็จ');
+      }
+    },
+    [user, advanceToInProgress, id, loadResults],
   );
 
   const handleOutlierCheck = useCallback(
@@ -1326,6 +1370,12 @@ export default function QCTestingDetailPage() {
                           // Per-entry rendering. Saved entries come from entries[]; the
                           // number of cards shown is user-driven (เพิ่มรายการ), never auto.
                           const savedRows = entriesByKey[k] ?? [];
+                          const isSgParam = (param.valueFields ?? []).some(
+                            (f) => f.label === SG_VALUE_LABEL,
+                          );
+                          const sgTempField = (param.valueFields ?? []).find(
+                            (f) => f.label === SG_TEMP_LABEL,
+                          );
                           const savedCount = savedRows.length;
                           const shown = Math.max(entryRowCounts[k] ?? 0, savedCount, 1);
                           const removeRow = (ei: number) => {
@@ -1336,6 +1386,15 @@ export default function QCTestingDetailPage() {
                           };
                           return (
                             <div className="space-y-4">
+                              {isSgParam && !fieldDisabled && (
+                                <div className="flex justify-end">
+                                  <DensitySyncButton
+                                    batchNo={item.batchNo?.trim() ?? ''}
+                                    hasHandTyped={hasHandTypedEntries(savedRows)}
+                                    onRows={(docs) => applyDensityRows(petition, item, param, docs)}
+                                  />
+                                </div>
+                              )}
                               {Array.from({ length: shown }, (_, ei) => {
                                 const entryValues = savedRows[ei] ?? {};
                                 // allow remove when there's more than one card, or this card holds saved data
@@ -1363,6 +1422,27 @@ export default function QCTestingDetailPage() {
                                       (label, val) => handleEntryFieldChange(petition, item, param, ei, label, val),
                                       undefined,
                                     )}
+                                    {isSgParam && (() => {
+                                      const src = entryValues['อุณหภูมิ__source'] as
+                                        | { tSet?: unknown }
+                                        | undefined;
+                                      const cmp = formatTSetComparison(
+                                        src?.tSet,
+                                        sgTempField?.standardValue,
+                                      );
+                                      if (!cmp) return null;
+                                      return (
+                                        <p
+                                          className={`text-[11px] ${
+                                            cmp.status === 'differ'
+                                              ? 'text-amber-600'
+                                              : 'text-emerald-600'
+                                          }`}
+                                        >
+                                          {cmp.text}
+                                        </p>
+                                      );
+                                    })()}
                                   </div>
                                 );
                               })}

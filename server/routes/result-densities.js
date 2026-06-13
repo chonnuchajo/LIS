@@ -1,12 +1,28 @@
 const express = require('express');
 const router = express.Router();
 const ResultDensity = require('../models/ResultDensity');
+const { batchMatches } = require('../lib/densityBatch');
 
 // GET /api/result-densities/products — distinct product names for filter dropdown
 router.get('/products', async (req, res) => {
   try {
     const products = await ResultDensity.distinct('Product name');
     res.json(products.filter(Boolean).sort());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/result-densities/by-batch/:batch — rows whose Sample name trailing
+// batch number matches :batch. Matching is done in JS via batchMatches so the
+// rule is identical to the unit-tested helper (009 == 9, suffix-tolerant).
+router.get('/by-batch/:batch', async (req, res) => {
+  try {
+    const batch = String(req.params.batch || '').trim();
+    if (!batch) return res.json({ batch, docs: [] });
+    const all = await ResultDensity.find({}).sort({ _id: 1 }).lean();
+    const docs = all.filter((d) => batchMatches(batch, d['Sample name']));
+    res.json({ batch, docs });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

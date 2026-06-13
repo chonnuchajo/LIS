@@ -210,7 +210,10 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
           isDrawer
             ? "w-full h-full"
             : cn(
-                "min-h-screen transition-[width] duration-200 ease-out",
+                // h-screen (not min-h-screen) keeps the rail exactly viewport-tall
+                // so its <nav> scrolls internally instead of the whole rail growing
+                // and scrolling away with the page.
+                "h-screen transition-[width] duration-200 ease-out",
                 collapsed ? "w-16" : "w-72",
               ),
         )}
@@ -251,7 +254,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
         </div>
 
         {/* Nav */}
-        <nav className={cn("flex-1 py-3 overflow-y-auto scrollbar-hide", collapsed ? "px-2" : "px-3")}>
+        <nav className={cn("flex-1 py-3 overflow-y-auto overscroll-contain scrollbar-hide", collapsed ? "px-2" : "px-3")}>
           {!collapsed && (
             <div className="px-1 pb-2">
               <div className="relative">
