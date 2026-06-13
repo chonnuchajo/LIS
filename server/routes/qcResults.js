@@ -48,6 +48,23 @@ function isFieldAbnormal(field, value) {
   return isEnumAbnormal(field, value) || isNumericAbnormal(field, value);
 }
 
+// mirror of src/lib/parameterValidation.ts getEntryValues / fieldValueList — keep in sync
+function getEntryValuesJS(result, param) {
+  if (param && param.multiEntry) {
+    const e = result.entries;
+    return Array.isArray(e) && e.length ? e : [{}];
+  }
+  return [result.values || {}];
+}
+
+function fieldValueListJS(values, field) {
+  if (field.multiple) {
+    const v = values[field.label];
+    return Array.isArray(v) ? v : [];
+  }
+  return [values[field.label]];
+}
+
 // mirror of src/lib/substances.ts matchSubstanceKey: first whitespace token, lowercased
 function matchSubstanceKeyJS(name) {
   const first = String(name || "").trim().split(/\s+/)[0];
@@ -156,21 +173,36 @@ router.get("/progress", async (req, res) => {
 
     const docs = await QCTestResult.find(
       { petitionId: { $in: ids } },
-      { petitionId: 1, itemSeq: 1, parameterId: 1, values: 1 }
+      { petitionId: 1, itemSeq: 1, parameterId: 1, values: 1, entries: 1 }
     ).lean();
+
+    const paramIds = Array.from(new Set(docs.map((d) => String(d.parameterId))));
+    const params = paramIds.length
+      ? await Parameter.find({ _id: { $in: paramIds } }, { valueFields: 1, multiEntry: 1 }).lean()
+      : [];
+    const paramById = new Map(params.map((p) => [String(p._id), p]));
 
     const map = {};
     for (const id of ids) map[id] = [];
     for (const d of docs) {
-      const filledLabels = Object.entries(d.values || {})
-        .filter(([, v]) => v != null && String(v).trim() !== "")
-        .map(([k]) => k);
+      const param = paramById.get(String(d.parameterId)) || {};
+      const labels = new Set();
+      for (const values of getEntryValuesJS(d, param)) {
+        for (const [k, v] of Object.entries(values)) {
+          // a field counts as filled if any entry/element carries a non-empty value
+          if (Array.isArray(v)) {
+            if (v.some((x) => x != null && String(x).trim() !== "")) labels.add(k);
+          } else if (v != null && String(v).trim() !== "") {
+            labels.add(k);
+          }
+        }
+      }
       const bucket = map[d.petitionId];
       if (bucket) {
         bucket.push({
           itemSeq: d.itemSeq,
           parameterId: String(d.parameterId),
-          filledLabels,
+          filledLabels: Array.from(labels),
         });
       }
     }
@@ -191,12 +223,12 @@ router.get("/abnormal-flags", async (req, res) => {
 
     const docs = await QCTestResult.find(
       { petitionId: { $in: ids } },
-      { petitionId: 1, parameterId: 1, itemSeq: 1, values: 1 }
+      { petitionId: 1, parameterId: 1, itemSeq: 1, values: 1, entries: 1 }
     ).lean();
 
     const paramIds = Array.from(new Set(docs.map((d) => String(d.parameterId))));
     const params = paramIds.length
-      ? await Parameter.find({ _id: { $in: paramIds } }, { valueFields: 1 }).lean()
+      ? await Parameter.find({ _id: { $in: paramIds } }, { valueFields: 1, multiEntry: 1 }).lean()
       : [];
     const paramById = new Map(params.map((p) => [String(p._id), p]));
 
@@ -204,7 +236,8 @@ router.get("/abnormal-flags", async (req, res) => {
     for (const d of docs) {
       const key = `${d.petitionId}__${d.itemSeq}`;
       if (!valuesByItem[key]) valuesByItem[key] = {};
-      valuesByItem[key][String(d.parameterId)] = d.values || {};
+      const param = paramById.get(String(d.parameterId));
+      valuesByItem[key][String(d.parameterId)] = getEntryValuesJS(d, param || {})[0] || {};
     }
 
     const map = {};
@@ -214,34 +247,35 @@ router.get("/abnormal-flags", async (req, res) => {
       if (map[d.petitionId]) continue;
       const param = paramById.get(String(d.parameterId));
       if (!param?.valueFields?.length) continue;
-      const values = d.values || {};
-      for (const field of param.valueFields) {
-        const isNumeric = field.type === "number" || field.type === "float";
-        if (field.substanceMode && isNumeric) {
-          const prefix = `${field.label}::`;
-          let flagged = false;
-          for (const [vkey, vval] of Object.entries(values)) {
-            if (!vkey.startsWith(prefix)) continue;
-            const subKey = vkey.slice(prefix.length);
-            const std = (field.substanceStandards || []).find(
-              (s) => matchSubstanceKeyJS(s.substance) === subKey,
-            );
-            if (isSubstanceAbnormalJS(field, std, vval)) { flagged = true; break; }
+      const ctxBucket = valuesByItem[`${d.petitionId}__${d.itemSeq}`] || {};
+      let flagged = false;
+      for (const values of getEntryValuesJS(d, param)) {
+        for (const field of param.valueFields) {
+          const isNumeric = field.type === "number" || field.type === "float";
+          if (field.substanceMode && isNumeric) {
+            const prefix = `${field.label}::`;
+            for (const [vkey, vval] of Object.entries(values)) {
+              if (!vkey.startsWith(prefix)) continue;
+              const subKey = vkey.slice(prefix.length);
+              const std = (field.substanceStandards || []).find(
+                (s) => matchSubstanceKeyJS(s.substance) === subKey,
+              );
+              if (isSubstanceAbnormalJS(field, std, vval)) { flagged = true; break; }
+            }
+            if (flagged) break;
+            continue;
           }
-          if (flagged) { map[d.petitionId] = true; break; }
-          continue;
+          const vf = field.conditionalMode && isNumeric
+            ? resolveFieldStandardJS(field, { sameParam: values, otherParams: ctxBucket })
+            : field;
+          for (const v of fieldValueListJS(values, field)) {
+            if (isFieldAbnormal(vf, v)) { flagged = true; break; }
+          }
+          if (flagged) break;
         }
-        if (field.conditionalMode && isNumeric) {
-          const ctx = { sameParam: values, otherParams: valuesByItem[`${d.petitionId}__${d.itemSeq}`] || {} };
-          const vf = resolveFieldStandardJS(field, ctx);
-          if (isFieldAbnormal(vf, values[field.label])) { map[d.petitionId] = true; break; }
-          continue;
-        }
-        if (isFieldAbnormal(field, values[field.label])) {
-          map[d.petitionId] = true;
-          break;
-        }
+        if (flagged) break;
       }
+      if (flagged) map[d.petitionId] = true;
     }
 
     res.json(map);
