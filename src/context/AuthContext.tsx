@@ -22,7 +22,11 @@ interface AuthUser {
 
 interface AuthContextType {
   user: AuthUser | null;
-  login: (redirectTo?: string) => Promise<void>;
+  login: (redirectTo?: string, loginHint?: string) => Promise<void>;
+  // Seamless SSO when another system forwards ?login_hint=<email>: try a silent
+  // sign-in against any existing Microsoft session first, falling back to a full
+  // redirect (still pre-filled with the hint) if silent auth isn't possible.
+  loginWithHint: (loginHint: string, redirectTo?: string) => Promise<void>;
   loginWithProductionToken: (token: string) => Promise<AuthUser>;
   logout: () => void;
   // Self-service link of the current user to an HR employee record. Used by the
@@ -272,16 +276,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [account, instance]);
 
-  const login = async (redirectTo?: string) => {
+  const login = async (redirectTo?: string, loginHint?: string) => {
     const target = redirectTo || `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (target && target !== "/login") {
       sessionStorage.setItem("lis_login_redirect", target);
     }
     await instance.loginRedirect({
       ...loginRequest,
+      ...(loginHint ? { loginHint } : {}),
       redirectStartPage: window.location.href,
     });
   };
+
+  const loginWithHint = useCallback(
+    async (loginHint: string, redirectTo?: string) => {
+      if (redirectTo && redirectTo !== "/login") {
+        sessionStorage.setItem("lis_login_redirect", redirectTo);
+      }
+      try {
+        // Silent SSO: reuses an existing Microsoft browser session for this
+        // tenant so the user lands logged in with no UI. Throws if there's no
+        // usable session (e.g. first visit, different account) — then redirect.
+        const result = await instance.ssoSilent({ ...loginRequest, loginHint });
+        if (result.account) instance.setActiveAccount(result.account);
+      } catch {
+        await instance.loginRedirect({
+          ...loginRequest,
+          loginHint,
+          redirectStartPage: window.location.href,
+        });
+      }
+    },
+    [instance],
+  );
 
   const loginWithProductionToken = useCallback(async (token: string) => {
     const res = await api.post<AuthUser>("/auth/sso", { token });
@@ -344,6 +371,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       value={{
         user,
         login,
+        loginWithHint,
         loginWithProductionToken,
         logout,
         linkSelfEmployee,
