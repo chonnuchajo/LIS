@@ -30,7 +30,7 @@ function toAppRedirectPath(raw: string | null): string {
 
 const Login = () => {
   const isAuthenticated = useIsAuthenticated();
-  const { user, login, loginWithProductionToken } = useAuth();
+  const { user, login, loginWithHint, loginWithProductionToken } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -44,7 +44,32 @@ const Login = () => {
     "/";
 
   const ssoToken = searchParams.get("token");
+  const loginHint = searchParams.get("login_hint");
   const ssoRedirectTarget = toAppRedirectPath(searchParams.get("ret"));
+
+  // Seamless SSO from another system: it forwards ?login_hint=<email>. Try a
+  // silent Microsoft sign-in, falling back to a pre-filled redirect. Skipped
+  // when a production JWT (token) is present or the user is already signed in.
+  useEffect(() => {
+    if (!loginHint || ssoToken || isAuthenticated || user) return;
+    let active = true;
+    setError("");
+    setLoading(true);
+    loginWithHint(loginHint, ssoRedirectTarget)
+      .catch((e: unknown) => {
+        if (!active) return;
+        const msg = e instanceof Error ? e.message : "Microsoft login failed";
+        if (!msg.includes("user_cancelled") && !msg.includes("popup_window_error")) {
+          setError(msg);
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [loginHint, ssoToken, isAuthenticated, user, ssoRedirectTarget, loginWithHint]);
 
   useEffect(() => {
     if (!ssoToken) return;
