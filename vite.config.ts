@@ -42,7 +42,6 @@ export default defineConfig(({ mode }) => ({
         manualChunks: {
           "vendor-react": ["react", "react-dom", "react-router-dom"],
           "vendor-query": ["@tanstack/react-query"],
-          "vendor-charts": ["recharts"],
           "vendor-qr": ["html5-qrcode", "qrcode", "react-barcode"],
           "vendor-msal": ["@azure/msal-browser", "@azure/msal-react"],
         },

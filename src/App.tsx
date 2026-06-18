@@ -74,6 +74,11 @@ const queryClient = new QueryClient({
     queries: {
       refetchInterval: 10000,
       refetchIntervalInBackground: false,
+      // Reuse cached data across remounts/route changes within this window so
+      // navigating back to a page doesn't refire a fetch the 10s poll just ran.
+      staleTime: 10000,
+      gcTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
     },
   },
 });

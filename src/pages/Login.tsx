@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate, useSearchParams } from "react-route
 import { useIsAuthenticated } from "@azure/msal-react";
 import { useAuth } from "@/context/AuthContext";
 import labCover from "@/assets/lab-cover.jpg";
+import labCoverWebp from "@/assets/lab-cover.webp";
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
 
 const MicrosoftIcon = () => (
@@ -93,13 +94,18 @@ const Login = () => {
     <div className="flex min-h-screen">
       {/* Left - Cover Image */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        <img
-          src={labCover}
-          alt="ห้องปฏิบัติการเคมี"
-          className="absolute inset-0 w-full h-full object-cover"
-          width={960}
-          height={1080}
-        />
+        <picture>
+          <source srcSet={labCoverWebp} type="image/webp" />
+          <img
+            src={labCover}
+            alt="ห้องปฏิบัติการเคมี"
+            className="absolute inset-0 w-full h-full object-cover"
+            width={960}
+            height={1080}
+            fetchPriority="high"
+            decoding="async"
+          />
+        </picture>
         <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-primary/40 to-transparent" />
         <div className="relative z-10 flex flex-col justify-end p-12 text-primary-foreground">
           <div className="flex items-center gap-3 mb-6">
