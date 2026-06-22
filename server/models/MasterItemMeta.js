@@ -11,6 +11,17 @@ const MasterItemMetaSchema = new mongoose.Schema({
   status: { type: String, default: '' },
   description: { type: String, default: '' },
   requiredInspectionQty: { type: Number, default: 0 },
+  kgPerCarton: { type: Number, default: null },
+  grossKgPerUnit: { type: Number, default: null },
+  declaredKgPerUnit: { type: Number, default: null },
+  weightDiff: { type: Number, default: null },
+  packLevel: { type: Number, default: null },
+  packSource: { type: String, default: '' },
+  cartonUnit: { type: String, default: '' },
+  unitsPerCarton: { type: Number, default: null },
+  packUnit: { type: String, default: '' },
+  measureSize: { type: Number, default: null },
+  measureUnit: { type: String, default: '' },
 }, { timestamps: true });
 
 MasterItemMetaSchema.index({ itemNo: 1, deletedAt: 1 }, { unique: true });

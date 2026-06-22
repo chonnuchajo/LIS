@@ -126,6 +126,17 @@ type MasterItemForm = {
   status: string;
   description: string;
   requiredInspectionQty: string;
+  kgPerCarton: string;
+  grossKgPerUnit: string;
+  declaredKgPerUnit: string;
+  weightDiff: string;
+  packLevel: string;
+  packSource: string;
+  cartonUnit: string;
+  unitsPerCarton: string;
+  packUnit: string;
+  measureSize: string;
+  measureUnit: string;
 };
 
 const emptyForm: MasterItemForm = {
@@ -137,6 +148,17 @@ const emptyForm: MasterItemForm = {
   status: "active",
   description: "",
   requiredInspectionQty: "0",
+  kgPerCarton: "",
+  grossKgPerUnit: "",
+  declaredKgPerUnit: "",
+  weightDiff: "",
+  packLevel: "",
+  packSource: "",
+  cartonUnit: "",
+  unitsPerCarton: "",
+  packUnit: "",
+  measureSize: "",
+  measureUnit: "",
 };
 
 type MasterItemOverride = {
@@ -149,6 +171,17 @@ type MasterItemOverride = {
   status: string;
   description: string;
   requiredInspectionQty: number;
+  kgPerCarton?: number | null;
+  grossKgPerUnit?: number | null;
+  declaredKgPerUnit?: number | null;
+  weightDiff?: number | null;
+  packLevel?: number | null;
+  packSource?: string;
+  cartonUnit?: string;
+  unitsPerCarton?: number | null;
+  packUnit?: string;
+  measureSize?: number | null;
+  measureUnit?: string;
 };
 
 type MasterItemOverrideMap = Record<string, MasterItemOverride>;
@@ -163,6 +196,19 @@ const categoryKeys = ["inventory_posting_group", "category", "type", "group", "i
 const unitKeys = ["base_unit_of_mea", "unit", "uom", "UOM", "unitName"];
 const statusKeys = ["status", "active", "isActive"];
 const descriptionKeys = ["item_name2", "item_name3", "description", "detail", "remark", "note"];
+const weightKeys = ["kgPerCarton", "kg_per_carton", "gross_kg_per_carton"];
+const packKeys = [
+  "grossKgPerUnit",
+  "declaredKgPerUnit",
+  "weightDiff",
+  "packLevel",
+  "packSource",
+  "cartonUnit",
+  "unitsPerCarton",
+  "packUnit",
+  "measureSize",
+  "measureUnit",
+];
 const commonNameKeys = ["common_name", "commonname", "commonName", "item_name2", "itemType"];
 const methodInstrumentKeys = [
   "simple_method",
@@ -208,6 +254,14 @@ function applyOverride(item: MasterItem, override?: MasterItemOverride): MasterI
       });
     }
   });
+  if (override.kgPerCarton !== undefined && override.kgPerCarton !== null) {
+    merged.kgPerCarton = override.kgPerCarton;
+    merged.kg_per_carton = override.kgPerCarton;
+  }
+  packKeys.forEach((key) => {
+    const value = override[key as keyof MasterItemOverride];
+    if (value !== undefined && value !== null && value !== "") merged[key] = value;
+  });
   return merged;
 }
 
@@ -231,6 +285,16 @@ function firstValue(item: MasterItem, keys: string[]) {
     if (value !== undefined && value !== null && value !== "") return value;
   }
   return "";
+}
+
+function formNumber(value: string): number | null {
+  if (value.trim() === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formString(value: unknown): string {
+  return value === undefined || value === null ? "" : String(value);
 }
 
 // Escape regex-special chars so a method label/code can be matched literally.
@@ -448,6 +512,17 @@ function itemToForm(item: MasterItem, metaQty = 0): MasterItemForm {
         : String(statusValue || "active"),
     description: String(firstValue(item, descriptionKeys)),
     requiredInspectionQty: String(metaQty || 0),
+    kgPerCarton: formString(firstValue(item, weightKeys)),
+    grossKgPerUnit: formString(firstValue(item, ["grossKgPerUnit"])),
+    declaredKgPerUnit: formString(firstValue(item, ["declaredKgPerUnit"])),
+    weightDiff: formString(firstValue(item, ["weightDiff"])),
+    packLevel: formString(firstValue(item, ["packLevel"])),
+    packSource: formString(firstValue(item, ["packSource"])),
+    cartonUnit: formString(firstValue(item, ["cartonUnit"])),
+    unitsPerCarton: formString(firstValue(item, ["unitsPerCarton"])),
+    packUnit: formString(firstValue(item, ["packUnit"])),
+    measureSize: formString(firstValue(item, ["measureSize"])),
+    measureUnit: formString(firstValue(item, ["measureUnit"])),
   };
 }
 
@@ -499,6 +574,7 @@ export default function MasterItems() {
   const [editing, setEditing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
   const [viewing, setViewing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "pdf">(null);
+  const [syncingWeights, setSyncingWeights] = useState(false);
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
 
   const {
@@ -602,6 +678,8 @@ export default function MasterItems() {
       ...unitKeys,
       ...statusKeys,
       ...descriptionKeys,
+      ...weightKeys,
+      ...packKeys,
       ...methodInstrumentKeys,
       ...hiddenTableKeys,
     ]);
@@ -642,6 +720,20 @@ export default function MasterItems() {
       toast.error((err as Error).message);
     } finally {
       setExporting(null);
+    }
+  };
+
+  const handleSyncWeights = async () => {
+    setSyncingWeights(true);
+    try {
+      const res = await api.post<{ total?: number }>("/master-item-meta/sync-weight");
+      toast.success(`sync weight ${res.data.data.total ?? 0} items`);
+      queryClient.invalidateQueries({ queryKey: ["master-item-meta"] });
+      queryClient.invalidateQueries({ queryKey: ["master-items"] });
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSyncingWeights(false);
     }
   };
 
@@ -729,6 +821,15 @@ export default function MasterItems() {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
+                onClick={handleSyncWeights}
+                disabled={syncingWeights}
+                title="Sync Kg/Carton from n8n"
+              >
+                <RefreshCw className={syncingWeights ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+                Kg/Carton
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => handleExport("xlsx")}
                 disabled={exporting !== null || filteredItems.length === 0}
                 title="ดาวน์โหลดเป็น Excel (ตามที่กรองอยู่)"
@@ -764,6 +865,9 @@ export default function MasterItems() {
                       <TableHead>ประเภทสินค้า</TableHead>
                       <TableHead>หมวดหมู่</TableHead>
                       <TableHead>Unit</TableHead>
+                      <TableHead className="text-right">Kg/Carton</TableHead>
+                      <TableHead className="text-right">Kg/Unit</TableHead>
+                      <TableHead>Pack</TableHead>
                       <TableHead className="text-center">พารามิเตอร์</TableHead>
                       <TableHead>Status</TableHead>
                       {extraColumns.map((key) => (
@@ -775,13 +879,13 @@ export default function MasterItems() {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={9 + extraColumns.length} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={12 + extraColumns.length} className="py-8 text-center text-muted-foreground">
                           กำลังโหลด...
                         </TableCell>
                       </TableRow>
                     ) : filteredItems.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9 + extraColumns.length} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={12 + extraColumns.length} className="py-8 text-center text-muted-foreground">
                           ไม่มีข้อมูล
                         </TableCell>
                       </TableRow>
@@ -816,6 +920,9 @@ export default function MasterItems() {
                             <TableCell>{displayProductType(getProductTypeGroup(item))}</TableCell>
                             <TableCell>{displayValue(getItemCategory(item))}</TableCell>
                             <TableCell>{displayValue(firstValue(item, unitKeys))}</TableCell>
+                            <TableCell className="text-right tabular-nums">{displayValue(firstValue(item, weightKeys))}</TableCell>
+                            <TableCell className="text-right tabular-nums">{displayValue(firstValue(item, ["grossKgPerUnit"]))}</TableCell>
+                            <TableCell>{displayValue(firstValue(item, ["packLevel", "packSource"]))}</TableCell>
                             <TableCell className="text-center">
                               <HoverCard openDelay={120} closeDelay={80}>
                                 <HoverCardTrigger asChild>
@@ -1754,6 +1861,19 @@ function MasterItemDialog({
 
     const itemTypeCode = getClassification(form.itemType)?.code ?? form.itemType.trim();
     const qtyValue = Math.max(0, Math.floor(Number(form.requiredInspectionQty) || 0));
+    const numberFields = {
+      kgPerCarton: formNumber(form.kgPerCarton),
+      grossKgPerUnit: formNumber(form.grossKgPerUnit),
+      declaredKgPerUnit: formNumber(form.declaredKgPerUnit),
+      weightDiff: formNumber(form.weightDiff),
+      packLevel: formNumber(form.packLevel),
+      unitsPerCarton: formNumber(form.unitsPerCarton),
+      measureSize: formNumber(form.measureSize),
+    };
+    if (Object.entries(numberFields).some(([key, value]) => value === null && form[key as keyof MasterItemForm].trim() !== "")) {
+      toast.error("Pack/weight number is invalid");
+      return;
+    }
     const overrideKey = (isEdit && originalItemNo ? originalItemNo : form.itemCode.trim());
     const overridePayload = {
       itemCode: form.itemCode.trim(),
@@ -1764,6 +1884,11 @@ function MasterItemDialog({
       status: form.status,
       description: form.description.trim(),
       requiredInspectionQty: qtyValue,
+      ...numberFields,
+      packSource: form.packSource.trim(),
+      cartonUnit: form.cartonUnit.trim(),
+      packUnit: form.packUnit.trim(),
+      measureUnit: form.measureUnit.trim(),
     };
 
     setBusy(true);
@@ -1867,6 +1992,51 @@ function MasterItemDialog({
               </p>
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="kgPerCarton">Kg/Carton</Label>
+              <Input
+                id="kgPerCarton"
+                type="number"
+                min="0"
+                step="0.000001"
+                value={form.kgPerCarton}
+                onChange={(event) => setField("kgPerCarton", event.target.value)}
+              />
+            </div>
+            {([
+              ["grossKgPerUnit", "Gross Kg/Unit"],
+              ["declaredKgPerUnit", "Declared Kg/Unit"],
+              ["weightDiff", "Weight Diff"],
+              ["packLevel", "Pack Level"],
+              ["unitsPerCarton", "Units/Carton"],
+              ["measureSize", "Measure Size"],
+            ] as const).map(([key, label]) => (
+              <div key={key} className="space-y-1.5">
+                <Label htmlFor={key}>{label}</Label>
+                <Input
+                  id={key}
+                  type="number"
+                  step="0.000001"
+                  value={form[key]}
+                  onChange={(event) => setField(key, event.target.value)}
+                />
+              </div>
+            ))}
+            {([
+              ["cartonUnit", "Carton Unit"],
+              ["packUnit", "Pack Unit"],
+              ["measureUnit", "Measure Unit"],
+              ["packSource", "Pack Source"],
+            ] as const).map(([key, label]) => (
+              <div key={key} className="space-y-1.5">
+                <Label htmlFor={key}>{label}</Label>
+                <Input
+                  id={key}
+                  value={form[key]}
+                  onChange={(event) => setField(key, event.target.value)}
+                />
+              </div>
+            ))}
+            <div className="space-y-1.5">
               <Label>Status</Label>
               <Select value={form.status} onValueChange={(value) => setField("status", value)}>
                 <SelectTrigger>
@@ -1934,6 +2104,15 @@ function MasterItemDetailDialog({
     { label: "ประเภทสินค้า", value: displayProductType(productType) },
     { label: "หมวดหมู่", value: displayValue(getItemCategory(item)) },
     { label: "Unit", value: displayValue(firstValue(item, unitKeys)) },
+    { label: "Kg/Carton", value: displayValue(firstValue(item, weightKeys)) },
+    { label: "Gross Kg/Unit", value: displayValue(firstValue(item, ["grossKgPerUnit"])) },
+    { label: "Declared Kg/Unit", value: displayValue(firstValue(item, ["declaredKgPerUnit"])) },
+    { label: "Weight Diff", value: displayValue(firstValue(item, ["weightDiff"])) },
+    { label: "Pack Level", value: displayValue(firstValue(item, ["packLevel"])) },
+    { label: "Units/Carton", value: displayValue(firstValue(item, ["unitsPerCarton"])) },
+    { label: "Pack Unit", value: displayValue(firstValue(item, ["packUnit"])) },
+    { label: "Measure", value: displayValue([firstValue(item, ["measureSize"]), firstValue(item, ["measureUnit"])].filter(Boolean).join(" ")) },
+    { label: "Pack Source", value: displayValue(firstValue(item, ["packSource"])) },
     {
       label: "Status",
       value: (

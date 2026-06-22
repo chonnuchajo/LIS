@@ -3,6 +3,9 @@ const MasterItemMeta = require('../models/MasterItemMeta');
 
 const router = express.Router();
 
+const DEFAULT_WEIGHT_WEBHOOK_URL = 'https://n8n-plant.icpladda.com/webhook/api/weight';
+const WEIGHT_WEBHOOK_URL = process.env.WEIGHT_WEBHOOK_URL || DEFAULT_WEIGHT_WEBHOOK_URL;
+
 const OVERRIDE_FIELDS = [
   'itemCode',
   'itemName',
@@ -13,10 +16,33 @@ const OVERRIDE_FIELDS = [
   'description',
 ];
 
+const PACK_NUMBER_FIELDS = [
+  'kgPerCarton',
+  'grossKgPerUnit',
+  'declaredKgPerUnit',
+  'weightDiff',
+  'packLevel',
+  'unitsPerCarton',
+  'measureSize',
+];
+
+const PACK_STRING_FIELDS = [
+  'packSource',
+  'cartonUnit',
+  'packUnit',
+  'measureUnit',
+];
+
 function normalizeQty(value) {
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0) return 0;
   return Math.floor(n);
+}
+
+function normalizeKg(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function toPlain(doc) {
@@ -25,6 +51,12 @@ function toPlain(doc) {
     requiredInspectionQty: doc.requiredInspectionQty || 0,
   };
   OVERRIDE_FIELDS.forEach((key) => {
+    out[key] = doc[key] || '';
+  });
+  PACK_NUMBER_FIELDS.forEach((key) => {
+    out[key] = doc[key] ?? null;
+  });
+  PACK_STRING_FIELDS.forEach((key) => {
     out[key] = doc[key] || '';
   });
   return out;
@@ -40,7 +72,46 @@ function buildUpdate(body) {
   if (body && Object.prototype.hasOwnProperty.call(body, 'requiredInspectionQty')) {
     update.requiredInspectionQty = normalizeQty(body.requiredInspectionQty);
   }
+  PACK_NUMBER_FIELDS.forEach((key) => {
+    if (body && Object.prototype.hasOwnProperty.call(body, key)) update[key] = normalizeKg(body[key]);
+  });
+  PACK_STRING_FIELDS.forEach((key) => {
+    if (body && Object.prototype.hasOwnProperty.call(body, key)) update[key] = String(body[key] ?? '').trim();
+  });
   return update;
+}
+
+function normalizeItems(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === 'object') {
+    const found = [payload.data, payload.items, payload.result, payload.rows].find(Array.isArray);
+    if (Array.isArray(found)) return found;
+  }
+  return [];
+}
+
+function firstValue(item, keys) {
+  for (const key of keys) {
+    const value = item && item[key];
+    if (value !== undefined && value !== null && value !== '') return value;
+  }
+  return '';
+}
+
+function weightUpdate(row) {
+  return {
+    kgPerCarton: normalizeKg(firstValue(row, ['kg_per_carton', 'gross_kg_per_carton'])),
+    grossKgPerUnit: normalizeKg(row.gross_kg_per_unit),
+    declaredKgPerUnit: normalizeKg(row.declared_kg_per_unit),
+    weightDiff: normalizeKg(row.weight_diff),
+    packLevel: normalizeKg(row.pack_level),
+    packSource: String(row.pack_source ?? '').trim(),
+    cartonUnit: String(row.carton_unit ?? '').trim(),
+    unitsPerCarton: normalizeKg(row.units_per_carton),
+    packUnit: String(row.pack_unit ?? '').trim(),
+    measureSize: normalizeKg(row.measure_size),
+    measureUnit: String(row.measure_unit ?? '').trim(),
+  };
 }
 
 router.get('/', async (_req, res) => {
@@ -105,6 +176,44 @@ router.put('/', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/sync-weight', async (_req, res) => {
+  try {
+    const response = await fetch(WEIGHT_WEBHOOK_URL, { headers: { Accept: 'application/json' } });
+    if (!response.ok) {
+      return res.status(response.status).json({ message: 'Weight webhook request failed' });
+    }
+
+    const rows = normalizeItems(await response.json().catch(() => null));
+    const updates = new Map();
+    for (const row of rows) {
+      const itemNo = String(firstValue(row, ['item_no', 'itemCode', 'item_code', 'code'])).trim();
+      const update = weightUpdate(row);
+      if (itemNo && update.kgPerCarton !== null) updates.set(itemNo, update);
+    }
+
+    if (updates.size === 0) return res.json({ matched: 0, upserted: 0, modified: 0, total: 0 });
+
+    const result = await MasterItemMeta.bulkWrite(
+      Array.from(updates, ([itemNo, update]) => ({
+        updateOne: {
+          filter: { itemNo, deletedAt: null },
+          update: { $set: update },
+          upsert: true,
+        },
+      })),
+    );
+
+    res.json({
+      matched: result.matchedCount || 0,
+      upserted: (result.upsertedIds && Object.keys(result.upsertedIds).length) || 0,
+      modified: result.modifiedCount || 0,
+      total: updates.size,
+    });
+  } catch (err) {
+    res.status(502).json({ message: 'Cannot sync weight data', error: err.message });
   }
 });
 
