@@ -35,6 +35,7 @@ mountApi('/lab-requests', require('./routes/labRequests'));
 mountApi('/sample-receipts', require('./routes/sampleReceipts'));
 mountApi('/employees', require('./routes/employees'));
 mountApi('/master-items', require('./routes/masterItems'));
+mountApi('/master-item', require('./routes/masterItems'));
 mountApi('/master-item-meta', require('./routes/masterItemMeta'));
 mountApi('/simple-methods', require('./routes/simpleMethods'));
 mountApi('/standard-configs', require('./routes/standardConfigs'));

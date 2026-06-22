@@ -1,11 +1,149 @@
 const express = require('express');
 const fs = require('fs');
 const XLSX = require('xlsx');
+const MasterItemMeta = require('../models/MasterItemMeta');
 
 const router = express.Router();
 
 const DEFAULT_WEBHOOK_URL = 'https://n8n-plant.icpladda.com/webhook/API/Item-production';
 const WEBHOOK_URL = process.env.MASTER_ITEMS_WEBHOOK_URL || DEFAULT_WEBHOOK_URL;
+const MASTER_ITEM_KEYS = ['item_no', 'itemCode', 'item_code', 'code', 'Code', 'ITEM_CODE'];
+const NAME_KEYS = ['item_name1', 'itemName', 'item_name', 'name', 'Name', 'ITEM_NAME', 'description'];
+const COMMON_NAME_KEYS = ['common_name', 'commonname', 'commonName', 'item_name2', 'itemType'];
+const PACK_SIZE_KEYS = ['packSize', 'pack_size', 'desc2', 'description2', 'item_name3'];
+const CATEGORY_KEYS = ['inventory_posting_group', 'category', 'type', 'group', 'itemGroup', 'item_group'];
+const UNIT_KEYS = ['base_unit_of_mea', 'unit', 'uom', 'UOM', 'unitName'];
+const META_STRING_FIELDS = ['itemCode', 'itemName', 'itemType', 'category', 'unit', 'status', 'description'];
+const META_KEYS = [
+  'kgPerCarton',
+  'grossKgPerUnit',
+  'declaredKgPerUnit',
+  'weightDiff',
+  'packLevel',
+  'packSource',
+  'cartonUnit',
+  'unitsPerCarton',
+  'packUnit',
+  'measureSize',
+  'measureUnit',
+];
+
+const CLASSIFICATION_TYPES = [
+  { code: 'ULV', group: 'water' },
+  { code: 'EC', group: 'water' },
+  { code: 'EW', group: 'water' },
+  { code: 'SC', group: 'water' },
+  { code: 'SL', group: 'water' },
+  { code: 'ME', group: 'water' },
+  { code: 'ZC', group: 'water' },
+  { code: 'W/V', group: 'water' },
+  { code: 'W/W', group: 'sand' },
+  { code: 'WP', group: 'powder' },
+  { code: 'WDG', group: 'powder' },
+  { code: 'WG', group: 'powder' },
+  { code: 'GR', group: 'sand' },
+  { code: 'ST', group: 'sand' },
+  { code: 'GB', group: 'sand' },
+  { code: 'SP', group: 'powder' },
+  { code: 'DS', group: 'powder' },
+  { code: 'DP', group: 'powder' },
+];
+
+function normalizeItems(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && typeof payload === 'object') {
+    const found = [payload.data, payload.items, payload.result, payload.rows].find(Array.isArray);
+    if (Array.isArray(found)) return found;
+  }
+  return [];
+}
+
+function firstValue(item, keys) {
+  for (const key of keys) {
+    const v = item && item[key];
+    if (v !== undefined && v !== null && v !== '') return String(v).trim();
+  }
+  return '';
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getClassification(value) {
+  const text = String(value ?? '').trim().toUpperCase();
+  return CLASSIFICATION_TYPES
+    .slice()
+    .sort((a, b) => b.code.length - a.code.length)
+    .find((item) => new RegExp(`(^|[^A-Z0-9])${escapeRegExp(item.code)}([^A-Z0-9]|$)`).test(text));
+}
+
+function addItemTypeAliases(item) {
+  const source = [
+    firstValue(item, COMMON_NAME_KEYS),
+    firstValue(item, ['item_name2', 'item_name3', 'description']),
+    firstValue(item, NAME_KEYS),
+  ].filter(Boolean).join(' ');
+  const classification = getClassification(source);
+
+  return {
+    ...item,
+    itemCode: item.itemCode || firstValue(item, MASTER_ITEM_KEYS),
+    itemName: item.itemName || firstValue(item, NAME_KEYS),
+    packSize: item.packSize || firstValue(item, PACK_SIZE_KEYS),
+    itemType: item.itemType || classification?.code || firstValue(item, COMMON_NAME_KEYS),
+    category: item.category || firstValue(item, CATEGORY_KEYS),
+    unit: item.unit || firstValue(item, UNIT_KEYS),
+    productType: item.productType || classification?.group || '',
+  };
+}
+
+async function fetchMasterItems() {
+  const response = await fetch(new URL(WEBHOOK_URL), { headers: { Accept: 'application/json' } });
+  const contentType = response.headers.get('content-type') || '';
+  const payload = contentType.includes('application/json')
+    ? await response.json().catch(() => null)
+    : await response.text();
+
+  if (!response.ok) {
+    const err = new Error('Master item webhook request failed');
+    err.status = response.status;
+    err.payload = payload;
+    throw err;
+  }
+
+  return normalizeItems(payload);
+}
+
+function applyMeta(item, meta) {
+  if (!meta) return item;
+  const out = { ...item };
+  for (const key of META_STRING_FIELDS) {
+    if (meta[key] !== undefined && meta[key] !== null && meta[key] !== '') out[key] = meta[key];
+  }
+  for (const key of META_KEYS) {
+    if (meta[key] !== undefined && meta[key] !== null && meta[key] !== '') out[key] = meta[key];
+  }
+  if (meta.kgPerCarton !== undefined && meta.kgPerCarton !== null) out.kg_per_carton = meta.kgPerCarton;
+  return out;
+}
+
+async function getMergedMasterItems(req, res) {
+  try {
+    const items = await fetchMasterItems();
+    const metas = await MasterItemMeta.find().lean();
+    const metaByItemNo = new Map(metas.map((m) => [String(m.itemNo || '').trim().toUpperCase(), m]));
+    return res.json(items.map((item) => {
+      const itemNo = firstValue(item, MASTER_ITEM_KEYS).toUpperCase();
+      return addItemTypeAliases(applyMeta(item, metaByItemNo.get(itemNo)));
+    }));
+  } catch (err) {
+    return res.status(err.status || 502).json({
+      message: err.message || 'Cannot connect to master item webhook',
+      error: err.payload || err.message,
+    });
+  }
+}
 
 async function forwardToWebhook(req, res) {
   try {
@@ -192,23 +330,6 @@ const SLIM_KEYS = {
   tradeName: ['trade_name', 'tradename', 'tradeName'],
 };
 
-function firstValue(item, keys) {
-  for (const key of keys) {
-    const v = item[key];
-    if (v !== undefined && v !== null && v !== '') return String(v).trim();
-  }
-  return '';
-}
-
-function normalizeItems(payload) {
-  if (Array.isArray(payload)) return payload;
-  if (payload && typeof payload === 'object') {
-    const found = [payload.data, payload.items, payload.result, payload.rows].find(Array.isArray);
-    if (Array.isArray(found)) return found;
-  }
-  return [];
-}
-
 let slimCache = null;
 let slimCacheAt = 0;
 const SLIM_TTL_MS = 5 * 60 * 1000;
@@ -242,7 +363,7 @@ router.get('/slim', async (req, res) => {
   }
 });
 
-router.get('/', forwardToWebhook);
+router.get('/', getMergedMasterItems);
 router.post('/', forwardToWebhook);
 router.put('/', forwardToWebhook);
 router.patch('/', forwardToWebhook);

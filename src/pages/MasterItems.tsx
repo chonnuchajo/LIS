@@ -62,7 +62,6 @@ import {
   classificationTypes,
   getClassification,
   getCommonName,
-  productTypeLabels,
 } from "@/lib/productClassification";
 
 type MasterItem = Record<string, unknown>;
@@ -196,6 +195,7 @@ const categoryKeys = ["inventory_posting_group", "category", "type", "group", "i
 const unitKeys = ["base_unit_of_mea", "unit", "uom", "UOM", "unitName"];
 const statusKeys = ["status", "active", "isActive"];
 const descriptionKeys = ["item_name2", "item_name3", "description", "detail", "remark", "note"];
+const packSizeKeys = ["packSize", "pack_size", "desc2", "description2", "item_name3"];
 const weightKeys = ["kgPerCarton", "kg_per_carton", "gross_kg_per_carton"];
 const packKeys = [
   "grossKgPerUnit",
@@ -231,6 +231,8 @@ const hiddenTableKeys = [
   "sales_unit_mea",
   "purch_unit_mea",
   "unit_cost",
+  "requiredInspectionQty",
+  "gross_kg_per_unit",
 ];
 
 const OVERRIDE_FIELD_MAP: Array<{ key: keyof MasterItemOverride; targets: string[] }> = [
@@ -348,12 +350,6 @@ function displayValue(value: unknown) {
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
-}
-
-function displayProductType(value: unknown) {
-  const rawValue = String(value ?? "").trim();
-  if (!rawValue) return "-";
-  return productTypeLabels[rawValue] ?? rawValue;
 }
 
 function getItemCategory(item: MasterItem) {
@@ -570,7 +566,6 @@ export default function MasterItems() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [productTypeFilter, setProductTypeFilter] = useState("all");
   const [editing, setEditing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
   const [viewing, setViewing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "pdf">(null);
@@ -654,10 +649,9 @@ export default function MasterItems() {
     return enrichedItems.filter(({ item }) => {
       const matchesSearch = !q || JSON.stringify(item).toLowerCase().includes(q);
       const matchesCategory = categoryFilter === "all" || getItemCategory(item) === categoryFilter;
-      const matchesProductType = productTypeFilter === "all" || getProductTypeGroup(item) === productTypeFilter;
-      return matchesSearch && matchesCategory && matchesProductType;
+      return matchesSearch && matchesCategory;
     });
-  }, [categoryFilter, enrichedItems, productTypeFilter, search]);
+  }, [categoryFilter, enrichedItems, search]);
 
   const categoryOptions = useMemo(() => {
     const values = new Set<string>();
@@ -678,8 +672,10 @@ export default function MasterItems() {
       ...unitKeys,
       ...statusKeys,
       ...descriptionKeys,
+      ...packSizeKeys,
       ...weightKeys,
       ...packKeys,
+      "productType",
       ...methodInstrumentKeys,
       ...hiddenTableKeys,
     ]);
@@ -796,19 +792,6 @@ export default function MasterItems() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={productTypeFilter} onValueChange={setProductTypeFilter}>
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="ประเภทสินค้า" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">ทุกประเภทสินค้า</SelectItem>
-                {Object.entries(productTypeLabels).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <div className="relative w-full sm:w-80">
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -862,9 +845,9 @@ export default function MasterItems() {
                       <TableHead>Code</TableHead>
                       <TableHead>ชื่อ Item</TableHead>
                       <TableHead>commonname</TableHead>
-                      <TableHead>ประเภทสินค้า</TableHead>
                       <TableHead>หมวดหมู่</TableHead>
                       <TableHead>Unit</TableHead>
+                      <TableHead>Pack Size</TableHead>
                       <TableHead className="text-right">Kg/Carton</TableHead>
                       <TableHead className="text-right">Kg/Unit</TableHead>
                       <TableHead>Pack</TableHead>
@@ -917,9 +900,9 @@ export default function MasterItems() {
                                 </span>
                               </div>
                             </TableCell>
-                            <TableCell>{displayProductType(getProductTypeGroup(item))}</TableCell>
                             <TableCell>{displayValue(getItemCategory(item))}</TableCell>
                             <TableCell>{displayValue(firstValue(item, unitKeys))}</TableCell>
+                            <TableCell>{displayValue(firstValue(item, packSizeKeys))}</TableCell>
                             <TableCell className="text-right tabular-nums">{displayValue(firstValue(item, weightKeys))}</TableCell>
                             <TableCell className="text-right tabular-nums">{displayValue(firstValue(item, ["grossKgPerUnit"]))}</TableCell>
                             <TableCell>{displayValue(firstValue(item, ["packLevel", "packSource"]))}</TableCell>
@@ -2090,7 +2073,6 @@ function MasterItemDetailDialog({
   // membership resolve มาจาก catalog ดิบแล้ว (ส่งเป็น itemGroupIds) — map เป็นชื่อกลุ่มเพื่อแสดง
   const memberGroups = groups.filter((grp) => itemGroupIds.includes(grp._id));
   const classification = getClassification(firstValue(item, typeKeys));
-  const productType = getProductTypeGroup(item);
   const statusValue = firstValue(item, statusKeys);
   const statusLabel = statusValue === false || String(statusValue || "").toLowerCase() === "inactive"
     ? "inactive"
@@ -2101,9 +2083,9 @@ function MasterItemDetailDialog({
     { label: "ชื่อ Item", value: displayValue(firstValue(item, nameKeys)) },
     { label: "commonname", value: displayValue(firstValue(item, commonNameKeys)) },
     { label: "ประเภท", value: classification ? `${classification.code} - ${classification.label}` : displayValue(firstValue(item, typeKeys)) },
-    { label: "ประเภทสินค้า", value: displayProductType(productType) },
     { label: "หมวดหมู่", value: displayValue(getItemCategory(item)) },
     { label: "Unit", value: displayValue(firstValue(item, unitKeys)) },
+    { label: "Pack Size", value: displayValue(firstValue(item, packSizeKeys)) },
     { label: "Kg/Carton", value: displayValue(firstValue(item, weightKeys)) },
     { label: "Gross Kg/Unit", value: displayValue(firstValue(item, ["grossKgPerUnit"])) },
     { label: "Declared Kg/Unit", value: displayValue(firstValue(item, ["declaredKgPerUnit"])) },
