@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Search,
   SlidersHorizontal,
+  Sparkles,
   Timer as TimerIcon,
   Trash2,
   Type as TypeIcon,
@@ -77,6 +78,7 @@ import {
   getCommonName,
   productTypeLabels,
 } from "@/lib/productClassification";
+import { generateParameter } from "@/lib/aiApi";
 import {
   partsToSec,
   secToParts,
@@ -1847,6 +1849,42 @@ function ParameterDialog({
   const isEdit = !!item?._id;
   const [form, setForm] = useState<ParameterItem>(emptyForm(defaultScope));
   const [busy, setBusy] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+
+  const runAi = async () => {
+    const desc = aiPrompt.trim();
+    if (!desc) {
+      toast.error("กรุณาพิมพ์ข้อกำหนดของงานวิเคราะห์ก่อน");
+      return;
+    }
+    const scope = form.scope ?? defaultScope;
+    setAiBusy(true);
+    try {
+      const { parameter, valid, error } = await generateParameter(desc, scope);
+      const gen = parameter as Partial<ParameterItem>;
+      // normalize each field with full defaults so the field editor never hits undefined
+      const valueFields = (gen.valueFields ?? []).map((f) => ({
+        ...emptyValueField(),
+        ...f,
+      }));
+      setForm({
+        ...emptyForm(scope),
+        ...gen,
+        scope,
+        valueFields,
+      });
+      if (valid) {
+        toast.success("สร้างพารามิเตอร์ด้วย AI แล้ว — ตรวจสอบและกดบันทึก");
+      } else {
+        toast.warning(`สร้างแล้วแต่ยังไม่ผ่านการตรวจ: ${error || ""} — โปรดแก้ไขก่อนบันทึก`);
+      }
+    } catch (err) {
+      toast.error((err as Error).message || "สร้างด้วย AI ไม่สำเร็จ");
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -2027,6 +2065,36 @@ function ParameterDialog({
         </DialogHeader>
 
         <form onSubmit={submit} className="space-y-6">
+          {!isEdit && (
+            <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-4 space-y-2">
+              <Label className="flex items-center gap-1.5 text-sm font-medium text-violet-900">
+                <Sparkles className="h-4 w-4" />
+                สร้างด้วย AI — พิมพ์ข้อกำหนดงานวิเคราะห์
+              </Label>
+              <Textarea
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder='เช่น "วัด pH ต้องอยู่ระหว่าง 6.5–7.5, ความหนืดหน่วย cP เป็นทศนิยม, ลักษณะภายนอกเลือกใส/ขุ่น/ตกตะกอน โดยปกติคือใส และถ่ายรูป 1 รูป"'
+                rows={3}
+                disabled={aiBusy}
+                className="text-sm"
+              />
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-violet-700/80">
+                  AI จะร่างช่องกรอกให้อัตโนมัติ — ตรวจสอบและแก้ไขได้ก่อนบันทึก
+                </p>
+                <Button
+                  type="button"
+                  onClick={runAi}
+                  disabled={aiBusy || !aiPrompt.trim()}
+                  className="gap-1.5 bg-violet-600 hover:bg-violet-700"
+                >
+                  {aiBusy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  {aiBusy ? "กำลังสร้าง..." : "สร้างด้วย AI"}
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-12">
             <div className="sm:col-span-5 space-y-1.5">
               <Label className="text-sm font-medium">ชื่อพารามิเตอร์ *</Label>

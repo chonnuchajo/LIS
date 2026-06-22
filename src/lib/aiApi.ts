@@ -100,6 +100,30 @@ export async function getAiStatus(): Promise<OllamaStatus> {
   }
 }
 
+export interface GenerateParameterResult {
+  parameter: Record<string, unknown>;
+  valid: boolean;
+  error?: string;
+}
+
+// Generate a Parameter draft from a natural-language description.
+// Throws on HTTP error so the caller can surface a toast.
+export async function generateParameter(
+  description: string,
+  scope: 'lab' | 'qc',
+): Promise<GenerateParameterResult> {
+  const res = await fetch(`${AI_BASE}/generate-parameter`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ description, scope }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error || `generate-parameter failed: ${res.status}`);
+  }
+  return (await res.json()) as GenerateParameterResult;
+}
+
 export async function streamDraftNote(
   petitionId: string,
   onChunk: (text: string) => void,

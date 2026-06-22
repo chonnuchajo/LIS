@@ -4,7 +4,8 @@ const QCTestResult = require('../models/QCTestResult');
 const { zScore, linearRegression, consecutiveStreak } = require('../lib/smartRules');
 const Petition = require('../models/Petition');
 const DailyCheck = require('../models/DailyCheck');
-const { isOpenAIConfigured, generateStream } = require('../lib/openaiClient');
+const { isOpenAIConfigured, generateStream, generateJSON } = require('../lib/openaiClient');
+const Parameter = require('../models/Parameter');
 
 // POST /api/ai/outlier-check
 // Body: { commonName, parameterId, fieldLabel, value }
@@ -315,6 +316,106 @@ ${itemLines || '(ยังไม่มีข้อมูล)'}
     res.end();
   } catch (err) {
     if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/ai/generate-parameter
+// Body: { description, scope? }
+// Returns: { parameter, valid, error? } — generated Parameter draft (NOT saved).
+const PARAMETER_SCHEMA_GUIDE = `คุณคือผู้ช่วยกำหนด "Parameter" (นิยามช่องกรอกผลงานวิเคราะห์ lab/QC) ของระบบ LIS เคมีภัณฑ์ไทย
+แปลงคำอธิบายงานวิเคราะห์ของผู้ใช้ให้เป็น Parameter JSON ที่ valid ตาม schema และกฎด้านล่าง
+
+โครงสร้าง Parameter (คืนเป็น JSON object เดียว):
+{
+  "name": "string (จำเป็น)",
+  "applyAll": false,
+  "commonNames": [], "itemNames": [], "productTypes": [], "categories": [], "subCategories": [], "itemGroups": [],
+  "valueFields": [ /* ช่องกรอก */ ],
+  "note": "",
+  "hasPhases": false,
+  "multiEntry": false
+}
+- productTypes รับเฉพาะ "water" | "sand" | "powder"; categories รับเฉพาะ "RM" | "FG"; commonNames/subCategories เป็นตัวพิมพ์ใหญ่
+- อย่าตั้ง applyAll=true เว้นแต่ผู้ใช้บอกชัดว่าใช้กับทุก item
+
+แต่ละ valueField:
+{
+  "label": "string (จำเป็น, ห้ามซ้ำในชุดเดียว)",
+  "type": "text|number|float|enum|photo|file|timer",
+  "unit": "",            // จำเป็นเมื่อ type=number/float
+  "min": null, "max": null,
+  "options": [],         // จำเป็นเมื่อ type=enum (>=1)
+  "required": false,
+  "standardOperator": null,  // lt|lte|eq|gte|gt|between|tolerance (เฉพาะ number/float)
+  "standardValue": null,     // จำเป็นเมื่อมี standardOperator
+  "standardValue2": null,    // จำเป็นเมื่อ between (ค่าสิ้นสุด) / tolerance (%>0)
+  "expectedValues": [],      // ค่าที่ปกติ (subset ของ options) สำหรับ enum
+  "requireNoteOn": [],       // subset ของ options
+  "timerDurationSec": null, "timerUnit": null,  // timer ต้องมีทั้งคู่, วินาที>0, unit=minute|hour|day|month
+  "maxPhotos": 5, "maxFiles": 5, "allowedFileTypes": ["pdf"]
+}
+
+กฎที่ห้ามละเมิด:
+1. number/float ต้องมี unit ที่ไม่ว่าง
+2. enum ต้องมี options อย่างน้อย 1
+3. ตั้ง standardOperator ต้องมี standardValue; between ต้องมี standardValue2 และ standardValue<=standardValue2; tolerance ต้องมี standardValue2>0
+4. expectedValues/requireNoteOn ทุกค่าต้องอยู่ใน options
+5. timer ต้องมี timerUnit และ timerDurationSec>0
+6. min/max ถ้ามีทั้งคู่ ต้อง min<=max
+7. ห้ามใช้ type "reference" หรือ "timer" trigger phase ในโหมดอัตโนมัตินี้ เว้นแต่ผู้ใช้ขอชัดเจน
+
+ข้อพึงปฏิบัติ:
+- สร้าง valueField ให้ครบทุกสิ่งที่ผู้ใช้กล่าวถึง: ปริมาณที่วัด, ตัวเลือก (ใช้ type "enum" + options), การถ่ายรูป (type "photo"), การแนบไฟล์ (type "file")
+- ปริมาณที่ไม่มีหน่วยจริง (เช่น pH, ความถ่วงจำเพาะ, อัตราส่วน) ให้ใส่ unit เป็น "-" (ห้ามเว้นว่าง เพราะ number/float ต้องมี unit)
+- ถ้าโจทย์บอก "ค่าปกติ" ของตัวเลือก ให้ใส่ค่านั้นใน expectedValues (ต้องเป็น subset ของ options)
+- label ตั้งเป็นภาษาไทยให้ตรงกับสิ่งที่ผู้ใช้พูด (เช่น "ลักษณะภายนอก" ไม่ใช่ "appearance")
+ตอบเป็น JSON object เท่านั้น ห้ามมีข้อความอื่น`;
+
+router.post('/generate-parameter', async (req, res) => {
+  try {
+    const { description, scope } = req.body || {};
+    if (!description || !String(description).trim()) {
+      return res.status(400).json({ error: 'description required' });
+    }
+    if (!isOpenAIConfigured()) {
+      return res.status(503).json({ error: 'OpenAI API key ไม่ได้ตั้งค่า' });
+    }
+
+    const prompt = `งานวิเคราะห์ที่ต้องการ (scope=${scope === 'lab' ? 'lab' : 'qc'}):\n${String(description).trim()}\n\nสร้าง Parameter JSON ตามกฎ`;
+    const generated = await generateJSON(prompt, { system: PARAMETER_SCHEMA_GUIDE });
+
+    // shape into a Parameter doc; scope from request, not the model
+    const parameter = {
+      name: typeof generated.name === 'string' ? generated.name.trim() : '',
+      scope: scope === 'lab' ? 'lab' : 'qc',
+      applyAll: !!generated.applyAll,
+      commonNames: Array.isArray(generated.commonNames) ? generated.commonNames : [],
+      itemNames: Array.isArray(generated.itemNames) ? generated.itemNames : [],
+      productTypes: Array.isArray(generated.productTypes) ? generated.productTypes : [],
+      categories: Array.isArray(generated.categories) ? generated.categories : [],
+      subCategories: Array.isArray(generated.subCategories) ? generated.subCategories : [],
+      itemGroups: Array.isArray(generated.itemGroups) ? generated.itemGroups : [],
+      valueFields: Array.isArray(generated.valueFields) ? generated.valueFields : [],
+      note: typeof generated.note === 'string' ? generated.note : '',
+      hasPhases: !!generated.hasPhases,
+      multiEntry: !!generated.multiEntry,
+    };
+
+    // Soft-validate against the real model (does NOT save). Surface Thai errors.
+    let valid = true;
+    let error;
+    try {
+      await new Parameter(parameter).validate();
+    } catch (e) {
+      valid = false;
+      error = e?.errors
+        ? Object.values(e.errors).map((x) => x.message).join('; ')
+        : e.message;
+    }
+
+    res.json({ parameter, valid, error });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'generate failed' });
   }
 });
 
