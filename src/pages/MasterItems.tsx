@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -566,6 +566,8 @@ export default function MasterItems() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [pageSize, setPageSize] = useState("50");
+  const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
   const [viewing, setViewing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "pdf">(null);
@@ -652,6 +654,18 @@ export default function MasterItems() {
       return matchesSearch && matchesCategory;
     });
   }, [categoryFilter, enrichedItems, search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, categoryFilter, pageSize]);
+
+  const pageSizeNumber = Number(pageSize) || 50;
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSizeNumber));
+  const currentPage = Math.min(page, totalPages);
+  const pagedItems = useMemo(() => {
+    const start = (currentPage - 1) * pageSizeNumber;
+    return filteredItems.slice(start, start + pageSizeNumber);
+  }, [currentPage, filteredItems, pageSizeNumber]);
 
   const categoryOptions = useMemo(() => {
     const values = new Set<string>();
@@ -801,6 +815,16 @@ export default function MasterItems() {
                 className="pl-8"
               />
             </div>
+            <Select value={pageSize} onValueChange={setPageSize}>
+              <SelectTrigger className="w-full sm:w-28">
+                <SelectValue placeholder="Rows" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="50">50 รายการ</SelectItem>
+                <SelectItem value="100">100 รายการ</SelectItem>
+                <SelectItem value="200">200 รายการ</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -838,6 +862,7 @@ export default function MasterItems() {
                 {(error as Error).message}
               </div>
             ) : (
+              <>
               <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
                 <Table className="min-w-[900px]">
                   <TableHeader>
@@ -873,7 +898,7 @@ export default function MasterItems() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredItems.map(({ item, originalItemNo, override, rawCommonName, displayCommonName }, index) => {
+                      pagedItems.map(({ item, originalItemNo, override, rawCommonName, displayCommonName }, index) => {
                         const matchedParameters = getParametersFor(item, parameters, groupIdsFor(originalItemNo));
                         const metaQty = matchedParameters.length;
                         const form = itemToForm(item, metaQty);
@@ -981,6 +1006,32 @@ export default function MasterItems() {
                   </TableBody>
                 </Table>
               </div>
+              <div className="mt-3 flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-muted-foreground">
+                  แสดง {filteredItems.length === 0 ? 0 : ((currentPage - 1) * pageSizeNumber) + 1}-
+                  {Math.min(currentPage * pageSizeNumber, filteredItems.length)} จาก {filteredItems.length} รายการ
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">หน้า {currentPage}/{totalPages}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((value) => Math.max(1, value - 1))}
+                    disabled={currentPage <= 1}
+                  >
+                    ก่อนหน้า
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                    disabled={currentPage >= totalPages}
+                  >
+                    ถัดไป
+                  </Button>
+                </div>
+              </div>
+              </>
             )}
           </CardContent>
         </Card>

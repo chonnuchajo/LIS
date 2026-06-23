@@ -7,6 +7,8 @@ const router = express.Router();
 
 const DEFAULT_WEBHOOK_URL = 'https://n8n-plant.icpladda.com/webhook/API/Item-production';
 const WEBHOOK_URL = process.env.MASTER_ITEMS_WEBHOOK_URL || DEFAULT_WEBHOOK_URL;
+const DEFAULT_LDI_WEBHOOK_URL = 'https://n8n-plant.icpladda.com/webhook/api/item-product-ldi';
+const LDI_WEBHOOK_URL = process.env.MASTER_ITEMS_LDI_WEBHOOK_URL || DEFAULT_LDI_WEBHOOK_URL;
 const MASTER_ITEM_KEYS = ['item_no', 'itemCode', 'item_code', 'code', 'Code', 'ITEM_CODE'];
 const NAME_KEYS = ['item_name1', 'itemName', 'item_name', 'name', 'Name', 'ITEM_NAME', 'description'];
 const COMMON_NAME_KEYS = ['common_name', 'commonname', 'commonName', 'item_name2', 'itemType'];
@@ -98,21 +100,43 @@ function addItemTypeAliases(item) {
   };
 }
 
-async function fetchMasterItems() {
-  const response = await fetch(new URL(WEBHOOK_URL), { headers: { Accept: 'application/json' } });
+async function fetchJsonItems(url, errorMessage) {
+  const response = await fetch(new URL(url), { headers: { Accept: 'application/json' } });
   const contentType = response.headers.get('content-type') || '';
   const payload = contentType.includes('application/json')
     ? await response.json().catch(() => null)
     : await response.text();
 
   if (!response.ok) {
-    const err = new Error('Master item webhook request failed');
+    const err = new Error(errorMessage);
     err.status = response.status;
     err.payload = payload;
     throw err;
   }
 
   return normalizeItems(payload);
+}
+
+function mergeSources(...groups) {
+  const seen = new Set();
+  const merged = [];
+  for (const items of groups) {
+    for (const item of items) {
+      const itemNo = firstValue(item, MASTER_ITEM_KEYS).toUpperCase();
+      if (!itemNo || seen.has(itemNo)) continue;
+      seen.add(itemNo);
+      merged.push(item);
+    }
+  }
+  return merged;
+}
+
+async function fetchMasterItems() {
+  const [mainItems, ldiItems] = await Promise.all([
+    fetchJsonItems(WEBHOOK_URL, 'Master item webhook request failed'),
+    fetchJsonItems(LDI_WEBHOOK_URL, 'LDI master item webhook request failed'),
+  ]);
+  return mergeSources(mainItems, ldiItems);
 }
 
 function applyMeta(item, meta) {
@@ -128,15 +152,44 @@ function applyMeta(item, meta) {
   return out;
 }
 
+function buildMetaOnlyItem(meta) {
+  const itemNo = String(meta.itemNo || meta.itemCode || '').trim();
+  return {
+    item_no: itemNo,
+    item_name1: meta.itemName || '',
+    common_name: meta.itemType || '',
+    desc2: meta.description || '',
+    itemCode: meta.itemCode || itemNo,
+    itemName: meta.itemName || '',
+    itemType: meta.itemType || '',
+    category: meta.category || '',
+    unit: meta.unit || '',
+    status: meta.status || 'active',
+    description: meta.description || '',
+    // ponytail: marker for UI/debug; remove if nobody reads it.
+    source: 'meta',
+  };
+}
+
 async function getMergedMasterItems(req, res) {
   try {
     const items = await fetchMasterItems();
     const metas = await MasterItemMeta.find().lean();
     const metaByItemNo = new Map(metas.map((m) => [String(m.itemNo || '').trim().toUpperCase(), m]));
-    return res.json(items.map((item) => {
+    const seen = new Set();
+    const merged = items.map((item) => {
       const itemNo = firstValue(item, MASTER_ITEM_KEYS).toUpperCase();
+      if (itemNo) seen.add(itemNo);
       return addItemTypeAliases(applyMeta(item, metaByItemNo.get(itemNo)));
-    }));
+    });
+
+    for (const meta of metas) {
+      const itemNo = String(meta.itemNo || '').trim().toUpperCase();
+      if (!itemNo || seen.has(itemNo)) continue;
+      merged.push(addItemTypeAliases(applyMeta(buildMetaOnlyItem(meta), meta)));
+    }
+
+    return res.json(merged);
   } catch (err) {
     return res.status(err.status || 502).json({
       message: err.message || 'Cannot connect to master item webhook',
@@ -340,14 +393,8 @@ router.get('/slim', async (req, res) => {
     if (slimCache && now - slimCacheAt < SLIM_TTL_MS) {
       return res.json({ data: slimCache, cached: true });
     }
-    const response = await fetch(new URL(WEBHOOK_URL), { headers: { Accept: 'application/json' } });
-    if (!response.ok) {
-      // Serve stale cache rather than failing the page if the ERP hiccups.
-      if (slimCache) return res.json({ data: slimCache, cached: true, stale: true });
-      return res.status(response.status).json({ message: 'Master item webhook request failed' });
-    }
-    const payload = await response.json().catch(() => null);
-    const slim = normalizeItems(payload)
+    const items = await fetchMasterItems();
+    const slim = items
       .map((it) => ({
         itemNo: firstValue(it, SLIM_KEYS.itemNo),
         commonName: firstValue(it, SLIM_KEYS.commonName),

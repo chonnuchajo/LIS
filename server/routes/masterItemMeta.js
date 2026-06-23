@@ -99,7 +99,12 @@ function firstValue(item, keys) {
 }
 
 function weightUpdate(row) {
+  const itemCode = String(firstValue(row, ['item_no', 'itemCode', 'item_code', 'code'])).trim();
   return {
+    itemCode,
+    itemName: String(firstValue(row, ['ชื่อการค้า', 'trade_name', 'tradename', 'tradeName', 'item_name1', 'itemName'])).trim(),
+    itemType: String(firstValue(row, ['ชื่อสามัญ', 'common_name', 'commonname', 'commonName', 'item_name2', 'itemType'])).trim(),
+    description: String(firstValue(row, ['ขนาด', 'size', 'desc2', 'description2', 'item_name3'])).trim(),
     kgPerCarton: normalizeKg(firstValue(row, ['kg_per_carton', 'gross_kg_per_carton'])),
     grossKgPerUnit: normalizeKg(row.gross_kg_per_unit),
     declaredKgPerUnit: normalizeKg(row.declared_kg_per_unit),
