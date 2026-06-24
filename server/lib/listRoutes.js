@@ -44,6 +44,8 @@ function collect(stack, prefix, out) {
 }
 
 function extractRoutes(app) {
+  // Express 4: routes live on app._router (renamed to app.router in v5).
+  // Guarded so a future upgrade fails soft (empty list) rather than throwing.
   const stack = app && app._router && app._router.stack;
   if (!stack) return [];
   const out = [];
