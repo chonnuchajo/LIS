@@ -29,9 +29,13 @@ function methodsOf(route) {
 function collect(stack, prefix, out) {
   for (const layer of stack || []) {
     if (layer.route) {
-      const full = joinPaths(prefix, layer.route.path);
-      for (const method of methodsOf(layer.route)) {
-        out.push({ method, path: full });
+      const routePath = layer.route.path;
+      const paths = Array.isArray(routePath) ? routePath : [routePath];
+      for (const p of paths) {
+        const full = joinPaths(prefix, p);
+        for (const method of methodsOf(layer.route)) {
+          out.push({ method, path: full });
+        }
       }
     } else if (layer.name === 'router' && layer.handle && layer.handle.stack) {
       collect(layer.handle.stack, joinPaths(prefix, extractMountPath(layer)), out);
