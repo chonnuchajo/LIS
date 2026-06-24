@@ -16,11 +16,16 @@ import type { EnvRoom, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import type { PrintConfig, PrintConfigInput } from "@/lib/printConfig";
 import { DOC_NUMBER_TYPES, type DocumentNumberConfig, type DocumentNumberConfigInput, type DocNumberType } from "@/lib/documentNumberConfig";
 import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
+import ApiRoutesCard from "@/components/lis/ApiRoutesCard";
+import { useAuth } from "@/hooks/useAuth";
+import { normalizeRoles } from "@/lib/roles";
 
 const TAB_KEYS = ["environment", "printers", "doc-numbers", "instruments", "dashboard"];
 
 const SettingsPage = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isAdmin = normalizeRoles(user).includes("admin");
   const { rooms, isLoading } = useEnvRooms();
 
   const { data: liveReadings = [] } = useQuery({
@@ -128,6 +133,9 @@ const SettingsPage = () => {
           {isVisible("dashboard") && (
             <TabsTrigger value="dashboard">แดชบอร์ด</TabsTrigger>
           )}
+          {isAdmin && (
+            <TabsTrigger value="api">API</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="environment" className="space-y-3">
@@ -199,6 +207,11 @@ const SettingsPage = () => {
               เลือกว่าจะแสดงส่วนไหน เรียงลำดับอย่างไร และ KPI ใบไหน — แยกตาม role (ค่ามาตรฐานใช้เมื่อ role นั้นยังไม่ตั้งค่า)
             </p>
             <DashboardLayoutConfigCard roles={roleOptions} />
+          </TabsContent>
+        )}
+        {isAdmin && (
+          <TabsContent value="api" className="space-y-3">
+            <ApiRoutesCard />
           </TabsContent>
         )}
       </Tabs>
