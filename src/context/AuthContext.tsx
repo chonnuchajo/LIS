@@ -195,43 +195,59 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
+    const syncUser = async (extra: { department?: string; position?: string }) => {
+      const res = await api.post<{
+        id: string;
+        email: string;
+        name: string;
+        roleId: string;
+        roleIds?: string[];
+        permissions?: string[];
+        department: string;
+        position: string;
+        employeeId: string;
+        status: "active" | "inactive";
+      }>("/access-control/users/microsoft", {
+        email: account.username,
+        name: account.name ?? account.username,
+        microsoftId: claims?.oid ?? account.localAccountId,
+        tenantId: claims?.tid,
+        ...extra,
+      });
+      if (!active) return;
+      setSyncedUser({
+        id: res.data.data.id,
+        email: res.data.data.email,
+        name: res.data.data.name,
+        role: res.data.data.roleId,
+        roles: res.data.data.roleIds ?? [res.data.data.roleId],
+        permissions: res.data.data.permissions ?? [],
+        department: res.data.data.department,
+        position: res.data.data.position,
+        employeeId: res.data.data.employeeId,
+        status: res.data.data.status,
+      });
+    };
+
     (async () => {
-      const { department, position } = await fetchGraphProfile();
+      // Sync immediately so roles/permissions/status — which gate the whole app
+      // shell via PrivateRoute — arrive without waiting on a Microsoft Graph
+      // round-trip (acquireTokenSilent + Graph fetch sat on the LCP critical
+      // path). แผนก/ตำแหน่ง is best-effort enrichment: the backend keeps the
+      // existing/HR value when omitted (resolveHrField), and the first response
+      // already carries the stored/HR dept, so we fetch Graph in parallel and
+      // re-sync only when it actually returns something new.
       try {
-        const res = await api.post<{
-          id: string;
-          email: string;
-          name: string;
-          roleId: string;
-          roleIds?: string[];
-          permissions?: string[];
-          department: string;
-          position: string;
-          employeeId: string;
-          status: "active" | "inactive";
-        }>("/access-control/users/microsoft", {
-          email: account.username,
-          name: account.name ?? account.username,
-          microsoftId: claims?.oid ?? account.localAccountId,
-          tenantId: claims?.tid,
-          department,
-          position,
-        });
-        if (!active) return;
-        setSyncedUser({
-          id: res.data.data.id,
-          email: res.data.data.email,
-          name: res.data.data.name,
-          role: res.data.data.roleId,
-          roles: res.data.data.roleIds ?? [res.data.data.roleId],
-          permissions: res.data.data.permissions ?? [],
-          department: res.data.data.department,
-          position: res.data.data.position,
-          employeeId: res.data.data.employeeId,
-          status: res.data.data.status,
-        });
+        await syncUser({});
       } catch (err) {
         console.error("Failed to sync Microsoft user", err);
+      }
+      const { department, position } = await fetchGraphProfile();
+      if (!active || (!department && !position)) return;
+      try {
+        await syncUser({ department, position });
+      } catch {
+        /* dept/position enrichment is best-effort */
       }
     })();
 
