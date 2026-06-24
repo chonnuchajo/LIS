@@ -15,6 +15,8 @@ import type { DocumentNumberConfig, DocumentNumberConfigInput, DocNumberType } f
 import type { DashboardId, StoredLayout, DashboardLayout } from "@/lib/dashboardLayout";
 import type { MethodDoc, MethodInput } from './methodRegistry';
 
+export type ApiRouteInfo = { method: string; path: string };
+
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
 function normalizeBaseUrl(value: string | undefined) {
@@ -392,6 +394,10 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(input),
     }).then((r) => r.data),
+
+  // ── API route introspection ──
+  getApiRoutes: () =>
+    request<{ data: ApiRouteInfo[] }>("/_routes").then((r) => r.data),
 
   // ── Document number config (petition / sampleReceipt / labRequest formats) ──
   getDocumentNumberConfigs: () =>
