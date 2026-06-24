@@ -55,3 +55,31 @@ test('extractRoutes: collects, drops /LIS duplicates, dedupes, sorts', () => {
 test('extractRoutes: empty when no router', () => {
   assert.deepEqual(extractRoutes({}), []);
 });
+
+test('extractRoutes: expands array route.path without throwing', () => {
+  // Regression: layer.route.path can be an array (e.g. Express SPA fallback
+  // app.get(['/LIS/*'], ...) used to crash with "right.startsWith is not a function").
+  const app = {
+    _router: {
+      stack: [
+        // array path with two real API entries — both must appear in result
+        { route: { path: ['/api/multi-a', '/api/multi-b'], methods: { get: true } } },
+        // array path that should be filtered out (no /api/ prefix)
+        { route: { path: ['/LIS/*'], methods: { get: true } } },
+      ],
+    },
+  };
+  const routes = extractRoutes(app);
+  assert.ok(
+    routes.some((r) => r.method === 'GET' && r.path === '/api/multi-a'),
+    'should include /api/multi-a',
+  );
+  assert.ok(
+    routes.some((r) => r.method === 'GET' && r.path === '/api/multi-b'),
+    'should include /api/multi-b',
+  );
+  assert.ok(
+    !routes.some((r) => r.path === '/LIS/*'),
+    'should not include /LIS/* (filtered by /api/ rule)',
+  );
+});
