@@ -226,6 +226,12 @@ function buildTimeline(auditLogs, petition) {
     if (!label) continue;
     const entry = { label, at: log.createdAt, actor: log.actor };
     if (log.event === 'received' && log.metadata?.side) entry.side = log.metadata.side;
+    if (log.event === 'assigned') {
+      // assignment belongs to ONE side — derive from the assignee snapshot logged
+      // at assign time (falls back to the petition's current assignee on old logs).
+      const side = assigneeSideOf(log.metadata?.assignee || petition?.assignedTo);
+      if (side) entry.side = side;
+    }
     out.push(entry);
   }
   return out;

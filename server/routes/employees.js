@@ -1,5 +1,7 @@
 const express = require('express');
 const { fetchMonthlyEmployees } = require('../lib/employeeDirectory');
+const { LAB_ANALYST_ROLE_RX, userToAssignee, mergeAssignees } = require('../lib/assignees');
+const User = require('../models/User');
 
 const router = express.Router();
 
@@ -34,14 +36,26 @@ function byDeptThenName(a, b) {
   );
 }
 
-// Lab analysts only — drives the /petitions/assign picker. Unchanged behavior.
+// Drives the /petitions/assign picker. Two sources, unioned: HR monthly staff in
+// the Lab/วิเคราะห์ department, plus any LIS user holding a lab-analyst role —
+// so a lab-analyst can be assigned (and then see their lab-testing queue) even
+// when their HR department isn't Lab/วิเคราะห์. Role users need an employeeId
+// (the picker keys options by it, and isAssignedTo matches on it).
 router.get('/assignees', async (_req, res) => {
   try {
-    const employees = await fetchMonthlyEmployees();
-    const result = employees
+    const [employees, roleUsers] = await Promise.all([
+      fetchMonthlyEmployees(),
+      User.find({
+        status: 'active',
+        employeeId: { $gt: '' },
+        $or: [{ roles: LAB_ANALYST_ROLE_RX }, { role: LAB_ANALYST_ROLE_RX }],
+      }).lean(),
+    ]);
+    const deptAssignees = employees
       .filter((e) => ALLOWED_DEPARTMENTS.includes(e.department))
-      .map(toAssignee)
-      .sort(byDeptThenName);
+      .map(toAssignee);
+    const roleAssignees = roleUsers.map(userToAssignee);
+    const result = mergeAssignees(deptAssignees, roleAssignees).sort(byDeptThenName);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: { message: err.message } });

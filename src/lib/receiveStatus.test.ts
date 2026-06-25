@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isLegacyReceived, labReceivedAt, labReceivedBy, qcReceivedAt, qcReceivedBy } from './receiveStatus';
+import { isLegacyReceived, labReceivedAt, labReceivedBy, qcReceivedAt, qcReceivedBy, labTrackStatusBadge } from './receiveStatus';
 
 const T1 = '2026-06-08T01:00:00.000Z';
 const T2 = '2026-06-10T02:00:00.000Z';
@@ -40,5 +40,27 @@ describe('receiveStatus', () => {
     expect(labReceivedBy(p)).toBe('Lab Tech');
     expect(qcReceivedBy(p)).toBe('QC Tech');
     expect(qcReceivedAt(p)).toBe(T2);
+  });
+});
+
+describe('labTrackStatusBadge', () => {
+  it('QC received + testing but Lab not received yet → "รอรับ" (Lab track, not QC status)', () => {
+    const p = { status: 'inProgress' as const, qcReceivedAt: T1, qcReceivedBy: 'QC Tech' };
+    expect(labTrackStatusBadge(p).label).toBe('รอรับ');
+  });
+
+  it('still waiting to receive when global status already sampleSent', () => {
+    const p = { status: 'sampleSent' as const };
+    expect(labTrackStatusBadge(p).label).toBe('รอรับ');
+  });
+
+  it('Lab received → falls back to the petition status badge', () => {
+    const p = { status: 'inProgress' as const, labReceivedAt: T1, labReceivedBy: 'Lab Tech' };
+    expect(labTrackStatusBadge(p).label).toBe('QC กำลังตรวจ');
+  });
+
+  it('legacy received (receivedAt only) counts as Lab received → petition status badge', () => {
+    const p = { status: 'inProgress' as const, receivedAt: T1, receivedBy: 'Dev Administrator' };
+    expect(labTrackStatusBadge(p).label).toBe('QC กำลังตรวจ');
   });
 });

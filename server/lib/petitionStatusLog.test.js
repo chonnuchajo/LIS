@@ -363,6 +363,23 @@ test('timeline: received carries side; entries carry at + actor', () => {
   ]);
 });
 
+test('timeline: assigned carries side derived from the assignee snapshot (lab)', () => {
+  const logs = [{ event: 'assigned', metadata: { assignee: LAB_ASSIGNEE }, createdAt: 'T', actor: 'm1' }];
+  assert.deepStrictEqual(buildTimeline(logs, { assignedTo: LAB_ASSIGNEE }), [
+    { label: 'มอบหมายให้ อนล', at: 'T', actor: 'm1', side: 'lab' },
+  ]);
+});
+
+test('timeline: assigned side falls back to petition.assignedTo when metadata lacks assignee', () => {
+  const logs = [{ event: 'assigned', createdAt: 'T', actor: 'm1' }];
+  assert.strictEqual(buildTimeline(logs, { assignedTo: LAB_ASSIGNEE })[0].side, 'lab');
+});
+
+test('timeline: assigned to a QC-side assignee carries side qc', () => {
+  const logs = [{ event: 'assigned', metadata: { assignee: ASSIGNEE }, createdAt: 'T', actor: 'm1' }];
+  assert.strictEqual(buildTimeline(logs, { assignedTo: ASSIGNEE })[0].side, 'qc');
+});
+
 test('timelineLabel: rejected status change', () => {
   assert.strictEqual(timelineLabel({ event: 'statusChanged', toStatus: 'rejected' }, {}), 'ส่งกลับให้แก้ไข');
 });
