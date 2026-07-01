@@ -1893,7 +1893,15 @@ function MasterItemDialog({
   const isEdit = !!item;
 
   const setField = (key: keyof MasterItemForm, value: string) => {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "kgPerCarton" || key === "packUnit") {
+        const kg = formNumber(next.kgPerCarton);
+        const packUnit = formNumber(next.packUnit);
+        next.grossKgPerUnit = kg === null || packUnit === null || packUnit <= 0 ? "" : String(kg / packUnit);
+      }
+      return next;
+    });
   };
 
   const setClassification = (value: string) => {
@@ -2070,6 +2078,7 @@ function MasterItemDialog({
                   step="0.000001"
                   value={form[key]}
                   onChange={(event) => setField(key, event.target.value)}
+                  disabled={key === "grossKgPerUnit"}
                 />
               </div>
             ))}
