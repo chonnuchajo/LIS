@@ -712,7 +712,7 @@ interface SingleMachinePickerProps {
   machines: MachineItem[];
   selectedId: string | null;
   onSelect: (machineKey: string) => void;
-  slotLabel: string;        // e.g. "เครื่องที่ 1"
+  slotLabel: string;        // caption line, e.g. "ใช้ร่วม 2 สาร"; "" for a single substance
   substanceName: string;    // e.g. "PROPANIL 36%"
   methodLabel: string;      // required method label/code, e.g. "GC", "HPLC"
   readOnly?: boolean;       // locked view — show selection without the picker
@@ -764,7 +764,7 @@ function SingleMachinePicker({
             {methodLabel}
           </Badge>
         </div>
-        <div className="text-[9px] text-grey-400">{slotLabel}</div>
+        {slotLabel && <div className="text-[9px] text-grey-400">{slotLabel}</div>}
         <div className="mt-0.5 flex items-center gap-1">
           <Cog className="h-3 w-3 shrink-0 text-grey-400" />
           <span
@@ -798,7 +798,7 @@ function SingleMachinePicker({
               {methodLabel}
             </Badge>
           </div>
-          <div className="text-[9px] text-grey-400">{slotLabel}</div>
+          {slotLabel && <div className="text-[9px] text-grey-400">{slotLabel}</div>}
           <div className="mt-0.5 flex items-center gap-1">
             <Cog className="h-3 w-3 shrink-0 text-grey-400" />
             <span
