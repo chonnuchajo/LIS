@@ -53,7 +53,7 @@ function renderAt(path: string) {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("DailyCheckLayout", () => {
-  it("renders the env + four-room + documents tab strip", () => {
+  it("renders the env + four-room + records tab strip", () => {
     renderAt("/daily-check/analysis");
     const tablist = screen.getByRole("tablist", { name: "ห้องปฏิบัติการ" });
     const tabs = within(tablist).getAllByRole("tab");
@@ -64,7 +64,6 @@ describe("DailyCheckLayout", () => {
       "ห้องวิเคราะห์",
       "ห้องสกัด",
       "รายการบันทึก",
-      "โหลดเอกสาร",
     ]);
   });
 

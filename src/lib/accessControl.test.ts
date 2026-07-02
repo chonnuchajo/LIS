@@ -150,6 +150,7 @@ describe("userCanAccessPath", () => {
       expect(userCanAccessPath(user, "/daily-check/sample-prep", navGroups)).toBe(true);
       expect(userCanAccessPath(user, "/daily-check/analysis", navGroups)).toBe(true);
       expect(userCanAccessPath(user, "/daily-check/extraction", navGroups)).toBe(true);
+      expect(userCanAccessPath(user, "/daily-check/records", navGroups)).toBe(true);
     });
 
     it("denies room sub-pages when /daily-check is not granted", () => {

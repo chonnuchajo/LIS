@@ -32,7 +32,7 @@ const IMPLIED_CHILD_PATHS: Record<string, string[]> = {
     "/daily-check/sample-prep",
     "/daily-check/analysis",
     "/daily-check/extraction",
-    "/daily-check/documents",
+    "/daily-check/records",
   ],
 };
 
