@@ -143,9 +143,15 @@ ParameterSchema.pre('validate', function (next) {
       for (const key of Array.from(f.optionOutputs.keys())) {
         if (!opts.has(key)) f.optionOutputs.delete(key);
       }
-      for (const [key, val] of f.optionOutputs.entries()) {
-        if (val && val.kind === 'text' && (!val.text || !String(val.text).trim())) {
-          return next(new Error(`ช่อง "${f.label}" ตัวเลือก "${key}": ต้องระบุข้อความเมื่อเลือก output แบบ "ข้อความ"`));
+      // An all-orphan (now empty) map must collapse to undefined so the
+      // present/absent discriminator stays honest (empty map = "no normal", not legacy).
+      if (f.optionOutputs.size === 0) {
+        f.optionOutputs = undefined;
+      } else {
+        for (const [key, val] of f.optionOutputs.entries()) {
+          if (val && val.kind === 'text' && (!val.text || !String(val.text).trim())) {
+            return next(new Error(`ช่อง "${f.label}" ตัวเลือก "${key}": ต้องระบุข้อความเมื่อเลือก output แบบ "ข้อความ"`));
+          }
         }
       }
     }

@@ -31,3 +31,11 @@ test('rejects an invalid kind', async () => {
   const doc = build({ 'ใส': { kind: 'bogus' } });
   await assert.rejects(() => doc.validate());
 });
+
+test('collapses an all-orphan optionOutputs map to undefined (legacy fallback)', async () => {
+  const doc = build({ 'ghost': { kind: 'abnormal' } }, ['ใส', 'ขุ่น']);
+  await doc.validate();
+  assert.ok(!doc.valueFields[0].optionOutputs || doc.valueFields[0].optionOutputs.size === 0
+    ? doc.valueFields[0].optionOutputs == null
+    : false, 'all-orphan map should collapse to undefined');
+});

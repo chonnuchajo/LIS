@@ -23,3 +23,16 @@ test('legacy expectedValues still works when optionOutputs absent', () => {
   assert.strictEqual(isEnumAbnormal(field, 'แย่'), true);
   assert.strictEqual(isEnumAbnormal(field, ''), false);
 });
+
+test('optionOutputs as a Map exercises the .get branch', () => {
+  const field = {
+    type: 'enum',
+    optionOutputs: new Map([
+      ['ใส', { kind: 'normal' }],
+      ['ขุ่น', { kind: 'abnormal' }],
+    ]),
+  };
+  assert.strictEqual(isEnumAbnormal(field, 'ขุ่น'), true);
+  assert.strictEqual(isEnumAbnormal(field, 'ใส'), false);
+  assert.strictEqual(isEnumAbnormal(field, 'unknown'), false);
+});
