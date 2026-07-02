@@ -18,8 +18,11 @@ import {
   resolveFieldStandard,
   getEntryValues,
   fieldValueList,
+  optionOutputText,
+  enumNormalValues,
+  seedOptionOutputsFromLegacy,
 } from "./parameterValidation";
-import type { ParameterItem, ParameterValueField } from "./api";
+import type { ParameterItem, ParameterValueField, OptionOutput } from "./api";
 import type { QCTestResult } from "@/types/petition.types";
 import type { ConditionContext } from "./parameterValidation";
 
@@ -79,6 +82,85 @@ describe("isEnumAbnormal", () => {
     const field = makeField({ options: ["1", "2"], expectedValues: ["1"] });
     expect(isEnumAbnormal(field, 1)).toBe(false);
     expect(isEnumAbnormal(field, 2)).toBe(true);
+  });
+});
+
+describe("isEnumAbnormal with optionOutputs", () => {
+  it("flags only options whose kind is 'abnormal'", () => {
+    const field = makeField({
+      options: ["ใส", "ขุ่น", "ตะกอน"],
+      optionOutputs: {
+        "ใส": { kind: "normal" },
+        "ขุ่น": { kind: "abnormal" },
+        "ตะกอน": { kind: "text", text: "เฝ้าระวัง" },
+      },
+    });
+    expect(isEnumAbnormal(field, "ใส")).toBe(false);
+    expect(isEnumAbnormal(field, "ขุ่น")).toBe(true);
+    expect(isEnumAbnormal(field, "ตะกอน")).toBe(false);
+  });
+
+  it("takes precedence over expectedValues when both present", () => {
+    const field = makeField({
+      options: ["a", "b"],
+      expectedValues: ["a"], // legacy would mark b abnormal
+      optionOutputs: { "a": { kind: "normal" }, "b": { kind: "text", text: "-" } },
+    });
+    expect(isEnumAbnormal(field, "b")).toBe(false);
+  });
+
+  it("returns false for a value not present in the map", () => {
+    const field = makeField({
+      options: ["a"],
+      optionOutputs: { "a": { kind: "abnormal" } },
+    });
+    expect(isEnumAbnormal(field, "unknown")).toBe(false);
+    expect(isEnumAbnormal(field, "")).toBe(false);
+    expect(isEnumAbnormal(field, null)).toBe(false);
+  });
+});
+
+describe("optionOutputText", () => {
+  const field = makeField({
+    options: ["ใส", "ตะกอน"],
+    optionOutputs: { "ใส": { kind: "normal" }, "ตะกอน": { kind: "text", text: "เฝ้าระวัง" } },
+  });
+  it("returns the custom text for a text-kind option", () => {
+    expect(optionOutputText(field, "ตะกอน")).toBe("เฝ้าระวัง");
+  });
+  it("returns null for non-text kinds and empty/legacy fields", () => {
+    expect(optionOutputText(field, "ใส")).toBeNull();
+    expect(optionOutputText(field, "")).toBeNull();
+    expect(optionOutputText(makeField({ optionOutputs: undefined }), "ใส")).toBeNull();
+  });
+});
+
+describe("enumNormalValues", () => {
+  it("returns options whose kind is normal when optionOutputs present", () => {
+    const field = makeField({
+      options: ["a", "b", "c"],
+      optionOutputs: { "a": { kind: "normal" }, "b": { kind: "abnormal" }, "c": { kind: "normal" } },
+    });
+    expect(enumNormalValues(field).sort()).toEqual(["a", "c"]);
+  });
+  it("falls back to expectedValues for legacy fields", () => {
+    expect(enumNormalValues(makeField({ expectedValues: ["a"] }))).toEqual(["a"]);
+  });
+});
+
+describe("seedOptionOutputsFromLegacy", () => {
+  it("maps expected->normal and the rest->abnormal when expectedValues is non-empty", () => {
+    expect(seedOptionOutputsFromLegacy(["a", "b", "c"], ["a"])).toEqual({
+      a: { kind: "normal" },
+      b: { kind: "abnormal" },
+      c: { kind: "abnormal" },
+    });
+  });
+  it("maps everything to text=label when expectedValues is empty (no legacy detection)", () => {
+    expect(seedOptionOutputsFromLegacy(["a", "b"], [])).toEqual({
+      a: { kind: "text", text: "a" },
+      b: { kind: "text", text: "b" },
+    });
   });
 });
 

@@ -1,4 +1,4 @@
-import type { ParameterItem, ParameterValueField, TimerUnit, SubstanceStandard, StandardCondition, StandardOperator } from "./api";
+import type { ParameterItem, ParameterValueField, TimerUnit, SubstanceStandard, StandardCondition, StandardOperator, OptionOutput } from "./api";
 import type { QCTestResult } from "@/types/petition.types";
 import { parseSubstances, extractSubstanceName, matchSubstanceKey, substanceFieldKey } from "./substances";
 
@@ -7,12 +7,56 @@ export function isEnumAbnormal(
   value: unknown,
 ): boolean {
   if (field.type !== "enum") return false;
-  const expected = field.expectedValues ?? [];
-  if (expected.length === 0) return false;
   if (value === null || value === undefined) return false;
   const str = String(value);
   if (str === "") return false;
+  if (field.optionOutputs) {
+    return field.optionOutputs[str]?.kind === "abnormal";
+  }
+  const expected = field.expectedValues ?? [];
+  if (expected.length === 0) return false;
   return !expected.includes(str);
+}
+
+// Custom text to display when a `text`-kind option is selected (else null).
+export function optionOutputText(
+  field: ParameterValueField,
+  value: unknown,
+): string | null {
+  if (field.type !== "enum" || !field.optionOutputs) return null;
+  if (value === null || value === undefined) return null;
+  const str = String(value);
+  if (str === "") return null;
+  const entry = field.optionOutputs[str];
+  return entry?.kind === "text" ? (entry.text ?? "") : null;
+}
+
+// The set of "normal/expected" option labels — from optionOutputs when present, else legacy expectedValues.
+export function enumNormalValues(field: ParameterValueField): string[] {
+  if (field.optionOutputs) {
+    return Object.entries(field.optionOutputs)
+      .filter(([, o]) => o?.kind === "normal")
+      .map(([k]) => k);
+  }
+  return field.expectedValues ?? [];
+}
+
+// Build a full optionOutputs map from a legacy enum field, preserving its abnormal behavior:
+// empty expectedValues meant "no detection" → all neutral (text=label); otherwise expected→normal, rest→abnormal.
+export function seedOptionOutputsFromLegacy(
+  options: string[] | undefined,
+  expectedValues: string[] | undefined,
+): Record<string, OptionOutput> {
+  const opts = options ?? [];
+  const expected = expectedValues ?? [];
+  const out: Record<string, OptionOutput> = {};
+  if (expected.length === 0) {
+    for (const opt of opts) out[opt] = { kind: "text", text: opt };
+    return out;
+  }
+  const set = new Set(expected);
+  for (const opt of opts) out[opt] = set.has(opt) ? { kind: "normal" } : { kind: "abnormal" };
+  return out;
 }
 
 export function isNumericAbnormal(

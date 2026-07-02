@@ -808,6 +808,9 @@ export type TimerUnit = "minute" | "hour" | "day" | "month";
 
 export type ParameterFieldPhase = "both" | "before" | "after";
 
+export type OptionOutputKind = "normal" | "abnormal" | "text";
+export type OptionOutput = { kind: OptionOutputKind; text?: string };
+
 export type ParameterValueField = {
   label: string;
   type: ParameterValueFieldType;
@@ -830,6 +833,9 @@ export type ParameterValueField = {
   options?: string[];
   requireNoteOn?: string[];
   expectedValues?: string[];
+  // Per-option result classification (enum). Presence = new model; absence = legacy expectedValues.
+  // { kind:'normal' } → pass; { kind:'abnormal' } → flagged; { kind:'text', text } → neutral, shows `text`.
+  optionOutputs?: Record<string, OptionOutput>;
   timerDurationSec?: number | null;
   timerUnit?: TimerUnit;
   required?: boolean;
