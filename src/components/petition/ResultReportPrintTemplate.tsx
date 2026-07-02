@@ -29,6 +29,15 @@ function valueText(value: unknown): string {
   return String(value);
 }
 
+function refSourceText(value: unknown): string {
+  if (!value || typeof value !== 'object') return '-';
+  const src = value as { source?: unknown; instrument?: unknown; sampleName?: unknown; fetchedAt?: unknown };
+  return [
+    src.instrument ? String(src.instrument) : src.source ? String(src.source) : '',
+    src.sampleName ? String(src.sampleName) : '',
+  ].filter(Boolean).join(' / ') || '-';
+}
+
 function labRequestFor(item: PetitionItem, labRequests: LabRequest[]): LabRequest | undefined {
   return labRequests.find((lr) => lr.sampleSeq === item.seq)
     ?? labRequests.find((lr) => lr.batchNo === item.batchNo)
@@ -45,12 +54,19 @@ function rowsFor(item: PetitionItem, results: QCTestResult[]) {
         : [];
       return [...values, ...phase2].flatMap((row, index) =>
         Object.entries(row)
-          .filter(([key]) => !key.startsWith('__') && !key.endsWith('__provenance'))
+          .filter(([key]) =>
+            !key.startsWith('__') &&
+            !key.endsWith('__note') &&
+            !key.endsWith('__source') &&
+            !key.endsWith('__provenance')
+          )
           .map(([field, value]) => ({
             key: `${result.parameterId}-${index}-${field}`,
-            parameter: result.parameterName || field,
-            field,
+            testItem: result.parameterName && result.parameterName !== field
+              ? `${result.parameterName} - ${field}`
+              : (result.parameterName || field),
             value: valueText(value),
+            refSource: refSourceText(row[`${field}__source`]),
           })),
       );
     });
@@ -146,16 +162,16 @@ export default function ResultReportPrintTemplate({
                   <thead>
                     <tr>
                       <th>รายการทดสอบ</th>
-                      <th>หัวข้อ</th>
                       <th>ผลการทดสอบ</th>
+                      <th>Ref. source</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.length ? rows.map((row) => (
                       <tr key={row.key}>
-                        <td>{row.parameter}</td>
-                        <td>{row.field}</td>
+                        <td>{row.testItem}</td>
                         <td>{row.value}</td>
+                        <td>{row.refSource}</td>
                       </tr>
                     )) : (
                       <tr>

@@ -343,14 +343,16 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                         <FileText className="h-4 w-4" />
                         Pre Report
                       </Button>
-                      <Button
-                        variant="primary-outline"
-                        size="sm"
-                        onClick={() => setFinalReportOpen(true)}
-                      >
-                        <FileCheck2 className="h-4 w-4" />
-                        Final Report
-                      </Button>
+                      {data.status === 'approved' && (
+                        <Button
+                          variant="primary-outline"
+                          size="sm"
+                          onClick={() => setFinalReportOpen(true)}
+                        >
+                          <FileCheck2 className="h-4 w-4" />
+                          Final Report
+                        </Button>
+                      )}
                       {!isResultMode && canEdit && (
                         <Button
                           variant="primary-outline"

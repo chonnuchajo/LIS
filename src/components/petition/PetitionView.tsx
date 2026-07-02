@@ -12,7 +12,15 @@ import { api, type ParameterItem } from '@/lib/api';
 import { normalizeRoles } from "@/lib/roles";
 import { matchParametersForItem } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
-import { getEntryValues } from '@/lib/parameterValidation';
+import {
+  expandFieldForItem,
+  fieldValueList,
+  getEntryValues,
+  isFieldAbnormal,
+  resolveFieldStandard,
+  resolveStandard,
+} from '@/lib/parameterValidation';
+import { describeResolvedStandard, describeStandard } from '@/lib/standardOperators';
 
 interface Props { petition: Petition; }
 
@@ -56,6 +64,56 @@ export default function PetitionView({ petition: p }: Props) {
     for (const r of results) map.set(`${r.itemSeq}__${r.parameterId}`, r);
     return map;
   }, [results]);
+  const paramById = useMemo(() => {
+    const map = new Map<string, ParameterItem>();
+    for (const p of parameters) if (p._id) map.set(String(p._id), p);
+    return map;
+  }, [parameters]);
+
+  const resultRowsFor = (
+    item: Petition['items'][number],
+    param: ParameterItem,
+    result: QCTestResult | undefined,
+  ) => {
+    if (!result) return [];
+    const otherParams: Record<string, Record<string, unknown>> = {};
+    for (const r of results) {
+      if (r.itemSeq !== item.seq) continue;
+      otherParams[String(r.parameterId)] = getEntryValues(r, paramById.get(String(r.parameterId)) ?? {})[0] ?? {};
+    }
+    return getEntryValues(result, param).flatMap((values, rowIndex) =>
+      (param.valueFields ?? []).flatMap((field) =>
+        expandFieldForItem(field, item.commonName).flatMap((unit) => {
+          const isNumeric = unit.field.type === 'number' || unit.field.type === 'float';
+          const ctx = { sameParam: values, otherParams };
+          const effectiveField = unit.field.conditionalMode && isNumeric
+            ? resolveFieldStandard(unit.field, ctx)
+            : unit.field;
+          const resolved = unit.field.conditionalMode && isNumeric
+            ? resolveStandard(unit.field, ctx)
+            : null;
+          const standard = resolved
+            ? describeResolvedStandard(resolved, unit.field.unit ?? '')
+            : unit.field.type === 'enum'
+              ? (unit.field.expectedValues ?? []).join(', ')
+              : describeStandard(effectiveField);
+          return fieldValueList(values, unit.field)
+            .map((value, valueIndex) => ({ value, valueIndex }))
+            .filter(({ value }) => value != null && String(value).trim() !== '')
+            .map(({ value, valueIndex }) => ({
+              key: `${param._id}-${rowIndex}-${unit.key}-${valueIndex}`,
+              label: param.multiEntry && getEntryValues(result, param).length > 1
+                ? `รายการ ${rowIndex + 1} - ${unit.field.label}`
+                : unit.field.label,
+              value,
+              standard,
+              hasStandard: standard.trim() !== '',
+              abnormal: isFieldAbnormal(effectiveField, value),
+            }));
+        }),
+      ),
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -132,20 +190,7 @@ export default function PetitionView({ petition: p }: Props) {
                             const result = param._id
                               ? resultsByKey.get(`${item.seq}__${param._id}`)
                               : undefined;
-                            const valueRows = result ? getEntryValues(result, param) : [];
-                            const entries = valueRows.flatMap((values, rowIndex) =>
-                              Object.entries(values ?? {})
-                                .filter(([key, val]) =>
-                                  !key.endsWith('__note') &&
-                                  !key.endsWith('__source') &&
-                                  val != null &&
-                                  String(val).trim() !== '',
-                                )
-                                .map(([key, val]) => [
-                                  param.multiEntry && valueRows.length > 1 ? `รายการ ${rowIndex + 1} - ${key}` : key,
-                                  val,
-                                ] as const),
-                            );
+                            const entries = resultRowsFor(item, param, result);
                             return (
                               <div
                                 key={param._id ?? param.name}
@@ -171,13 +216,29 @@ export default function PetitionView({ petition: p }: Props) {
                                   )}
                                 </div>
                                 {entries.length > 0 && (
-                                  <div className="mt-1.5 grid gap-1 text-xs text-grey-700 md:grid-cols-2">
-                                    {entries.map(([fieldLabel, val]) => (
-                                      <div key={fieldLabel} className="flex gap-1.5">
-                                        <span className="text-grey-500">{fieldLabel}:</span>
-                                        <span className="text-black-500 font-medium">
-                                          {formatResultValue(val)}
-                                        </span>
+                                  <div className="mt-1.5 grid gap-1.5 text-xs text-grey-700 md:grid-cols-2">
+                                    {entries.map((entry) => (
+                                      <div key={entry.key} className="rounded-md border border-grey-100 bg-white px-2 py-1.5">
+                                        <div className="flex flex-wrap items-center justify-between gap-1.5">
+                                          <span className="text-grey-500">{entry.label}</span>
+                                          <Badge variant={!entry.hasStandard ? 'gray-soft' : entry.abnormal ? 'red-soft' : 'green-soft'}>
+                                            {!entry.hasStandard ? 'ไม่มีเกณฑ์' : entry.abnormal ? 'ไม่ผ่านเกณฑ์' : 'ผ่านเกณฑ์'}
+                                          </Badge>
+                                        </div>
+                                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                                          <span>
+                                            ผล:{' '}
+                                            <span className="text-black-500 font-medium">
+                                              {formatResultValue(entry.value)}
+                                            </span>
+                                          </span>
+                                          <span>
+                                            เกณฑ์:{' '}
+                                            <span className="text-black-500 font-medium">
+                                              {entry.standard || '-'}
+                                            </span>
+                                          </span>
+                                        </div>
                                       </div>
                                     ))}
                                   </div>
