@@ -584,6 +584,7 @@ export default function MasterItems() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [groupFilter, setGroupFilter] = useState("all");
   const [pageSize, setPageSize] = useState("50");
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
@@ -646,6 +647,21 @@ export default function MasterItems() {
   const groupMembership = useItemGroupMembership();
   const groupIdsFor = (itemNo: string) => groupMembership.get(String(itemNo ?? "").trim()) ?? [];
 
+  // id → ชื่อกลุ่ม สำหรับ resolve badge ในตาราง (unknown id ถูกข้ามเวลา render)
+  const groupNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    itemGroups.forEach((grp) => { if (grp._id) map.set(grp._id, grp.name); });
+    return map;
+  }, [itemGroups]);
+
+  // กลุ่มเรียงตาม sortOrder แล้ว name สำหรับ dropdown ตัวกรอง
+  const sortedGroups = useMemo(
+    () => [...itemGroups].sort(
+      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name, ["th", "en"]),
+    ),
+    [itemGroups],
+  );
+
   const cnMap = useMemo(() => buildOverrideMap(cnOverrides), [cnOverrides]);
 
   const enrichedItems = useMemo(
@@ -666,16 +682,20 @@ export default function MasterItems() {
 
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return enrichedItems.filter(({ item }) => {
+    return enrichedItems.filter(({ item, originalItemNo }) => {
       const matchesSearch = !q || JSON.stringify(item).toLowerCase().includes(q);
       const matchesCategory = categoryFilter === "all" || getItemCategory(item) === categoryFilter;
-      return matchesSearch && matchesCategory;
+      const groupIds = groupMembership.get(originalItemNo) ?? [];
+      const matchesGroup =
+        groupFilter === "all" ||
+        (groupFilter === "__none__" ? groupIds.length === 0 : groupIds.includes(groupFilter));
+      return matchesSearch && matchesCategory && matchesGroup;
     });
-  }, [categoryFilter, enrichedItems, search]);
+  }, [categoryFilter, enrichedItems, search, groupFilter, groupMembership]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, categoryFilter, pageSize]);
+  }, [search, categoryFilter, groupFilter, pageSize]);
 
   const pageSizeNumber = Number(pageSize) || 50;
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSizeNumber));
@@ -824,6 +844,20 @@ export default function MasterItems() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={groupFilter} onValueChange={setGroupFilter}>
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue placeholder="กลุ่ม" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทุกกลุ่ม</SelectItem>
+                {sortedGroups.map((grp) => (
+                  <SelectItem key={grp._id} value={grp._id}>
+                    {grp.name}
+                  </SelectItem>
+                ))}
+                <SelectItem value="__none__">ไม่อยู่ในกลุ่มใด</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="relative w-full sm:w-80">
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -921,6 +955,9 @@ export default function MasterItems() {
                         const metaQty = matchedParameters.length;
                         const form = itemToForm(item, metaQty);
                         const rowKey = getItemId(item) || originalItemNo || `row-${index}`;
+                        const memberGroups = groupIdsFor(originalItemNo)
+                          .map((id) => ({ id, name: groupNameById.get(id) }))
+                          .filter((g): g is { id: string; name: string } => Boolean(g.name));
                         return (
                           <TableRow
                             key={rowKey}
@@ -931,7 +968,20 @@ export default function MasterItems() {
                               {displayValue(firstValue(item, codeKeys))}
                             </TableCell>
                             <TableCell className="min-w-56 font-medium">
-                              {displayValue(firstValue(item, nameKeys))}
+                              <div>{displayValue(firstValue(item, nameKeys))}</div>
+                              {memberGroups.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {memberGroups.map((grp) => (
+                                    <Badge
+                                      key={grp.id}
+                                      variant="secondary"
+                                      className="px-1.5 py-0 text-[10px] font-normal"
+                                    >
+                                      {grp.name}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
                             </TableCell>
                             <TableCell onClick={(event) => event.stopPropagation()}>
                               <div className="flex items-center gap-1.5">
