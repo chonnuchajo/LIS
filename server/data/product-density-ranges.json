@@ -926,5 +926,373 @@
     "sgMin": null,
     "sgMax": null,
     "note": ""
+  },
+  {
+    "commonName": "SUPER FIFTY",
+    "thaiName": "ซุปเปอร์ฟิฟตี้",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "SUPER SEAWEED 12% W/V SL",
+    "thaiName": "ซุปเปอร์ซีวีด 12% เอสแอล",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ"
+  },
+  {
+    "commonName": "SUPER SEAWEED 15% W/V SL",
+    "thaiName": "ซุปเปอร์ซีวีด 15% เอสแอล",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ"
+  },
+  {
+    "commonName": "SIMINO",
+    "thaiName": "ซิมิโน",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "SEAFOW",
+    "thaiName": "ซีโฟว์",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "SODIUM HUMATE 12% W/V AC",
+    "thaiName": "โซเดียมฮิวเมท 12% AC",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CLEANING SOLUTION (VEGETABLE & FRUIT WASH)",
+    "thaiName": "น้ำยาทำความสะอาด (น้ำยาล้างผักและผลไม้)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ"
+  },
+  {
+    "commonName": "WATER CONDITIONER (SUPER BUFFER)",
+    "thaiName": "สารปรับสภาพน้ำ (ซุปเปอร์บัฟเฟอร์)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "BINGO WHITE (CALCIUM-BORON)",
+    "thaiName": "บิงโกไวท์ (แคลเซียมโบรอน)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ"
+  },
+  {
+    "commonName": "PROTEIN HYDROLYSATE 40%",
+    "thaiName": "โปรตีนไฮโดรไลเซส 40%",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "BIOZIN",
+    "thaiName": "ไบโอซิน",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "BOMB'S BOOSTER",
+    "thaiName": "บอมส์ บูสเตอร์",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "FULVICA 6%",
+    "thaiName": "ฟลูวิก้า 6%",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ"
+  },
+  {
+    "commonName": "FULVICA 3%",
+    "thaiName": "ฟลูวิก้า 3%",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ"
+  },
+  {
+    "commonName": "AQUA BUFFER (WATER SYSTEM)",
+    "thaiName": "สารที่ใช้ในระบบน้ำ (อะควาบัพเฟอร์)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ"
+  },
+  {
+    "commonName": "AMINO ACID 20%",
+    "thaiName": "อะมิโนแอซิด 20%",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "AMINO ACID 40% (BIOLIFE40, IMPORTED)",
+    "thaiName": "อะมิโนแอซิด 40% (Biolife40) (นำเข้า)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "HONEY GEL",
+    "thaiName": "ฮันนี่เจล",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "HUMATE 120",
+    "thaiName": "ฮิวเมท 120",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CARBOR",
+    "thaiName": "Carbor",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A11 (ZINC 13%)",
+    "thaiName": "code A11 (ซิงค์ 13% )",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A14 (INTER BORON 500)",
+    "thaiName": "code A14 (อินเตอร์โบรอน 500)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A16 (LD MANGANESE 1)",
+    "thaiName": "code A16 (แอลดี แมงกานีส 1)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A17 (LD MANGANESE 2)",
+    "thaiName": "code A 17 (แอลดี แมงกานีส 2) ",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A18 (LD MAGNESIUM)",
+    "thaiName": "code A 18 (แอลดี แมกนีเซียม)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A20 (PASMAG, GOODMAG)",
+    "thaiName": "code A20 (พาซแมก, กู๊ดแม็ก)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A21 (PASMANG)",
+    "thaiName": "code A21 (พาซแมง)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A22 (EXTRA BOR)",
+    "thaiName": "code A22 (เอ็กซ์ตร้าบอร์)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A24 (EDEN I-ZINC)",
+    "thaiName": "code A24 (อีเดนไอซิงค์)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A26 (LD FERROUS)",
+    "thaiName": "code A26 (แอลดี เฟอร์รัส)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A27 (DIATA 17)",
+    "thaiName": "code A27 ( ไดอาต้า 17 )",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A31 (DYNA PLUS, WEBSIDE, SARA PLUS)",
+    "thaiName": "code A31 (ไดน่าพลัส,เว็ปไซด์,ซาร่าพลัส)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A40 (LD CALBOR NO.4)",
+    "thaiName": "code A40 (แอลดี แคลบอร์ No.4)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A41 (LD CALBOR NO.5)",
+    "thaiName": "code A41 (แอลดี แคลบอร์ No.5)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A41 (BINGO WHITE)",
+    "thaiName": "code A41 - บิงโกไวท์",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A42 (LD BORON 400)",
+    "thaiName": "code A42 (แอลดี โบรอน 400)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A54 (STAR VEER)",
+    "thaiName": "code A54 (สตาร์เวียร์)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A55 (INTER MIX)",
+    "thaiName": "code A55 (อินเตอร์ มิกซ์)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A60 (LD ZINC-MAG)",
+    "thaiName": "code A60 (แอลดี ซิงค์แมก)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A63 (ZINC-AMINO)",
+    "thaiName": "code A63 (ซิงค์อะมิโน)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A69 (0-25-20)",
+    "thaiName": "code A 69 (0-25-20)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A70 (ZINC GOLD)",
+    "thaiName": "code A70 (Zine Gold)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A71 (CALCIUM-BORON GLYCINE)",
+    "thaiName": "code A 71 (แคลเซียมโบรอนไกลซีน)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "CODE A73 (0-25-16)",
+    "thaiName": "code A 73 (0-25-16)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันของเหลว"
+  },
+  {
+    "commonName": "NAA 4.5%",
+    "thaiName": "NAA 4.5%",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "WATER CONDITIONER (PRIMIX)",
+    "thaiName": "สารปรับสภาพน้ำ (PRIMIX)",
+    "category": "fertilizer",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
   }
 ]
