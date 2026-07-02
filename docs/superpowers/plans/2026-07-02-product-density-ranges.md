@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- `commonName`: canonical English, **UPPERCASE**, **unique** (case-insensitive) across the whole file, contains **no Thai characters**. Form: `<ACTIVE(S)> <conc>% [W/V] <FORMCODE> [(QUALIFIERS)]`; multiple actives joined with ` + ` in written order; add `W/V` for liquid concentrations.
+- `commonName`: canonical English, **UPPERCASE**, **unique** (case-insensitive) across the whole file, contains **no Thai characters**. Form: `<ACTIVE(S)> <conc>% [W/V] <FORMCODE> [(QUALIFIERS)]`; multiple actives joined with ` + ` in written order. Add `W/V` **only** for %-w/v liquid forms (EC/SC/SL/EW/ME). **Omit** `W/V` for `ZC`, for non-% strengths (e.g. `IU/MG`), and for `TECH`/solvents — matching the system's existing canonical (e.g. `THIAMETHOXAM 14.1% + LAMBDA-CYHALOTHRIN 10.6% ZC`).
 - `thaiName`: original Thai copied **verbatim** from the source list.
 - `sgMin` / `sgMax`: **always `null`** in this phase (user fills later).
 - `category`: one of `insecticide` | `herbicide` | `fertilizer` | `solvent` | `imported`.
@@ -187,7 +187,7 @@ git commit -m "feat(density): add product-density-ranges validator + tests" -- s
 | ไดฟีโนโคนาโซล 25% อีซี (นำเข้า) | DIFENOCONAZOLE 25% W/V EC (IMPORTED) | insecticide | |
 | ไดฟีโนโคนาโซล 15%+โพรพิโคนาโซล 15% อีซี | DIFENOCONAZOLE 15% + PROPICONAZOLE 15% W/V EC | insecticide | |
 | ไทอะมีทอกแซม 14.1% + แลมป์ด้า-ไซฮาโลทริน 10.6% ZC | THIAMETHOXAM 14.1% + LAMBDA-CYHALOTHRIN 10.6% ZC | insecticide | |
-| บาซิลลัส 16000 IU/mg เอสซี (นำเข้า) | BACILLUS THURINGIENSIS 16000 IU/MG W/V SC (IMPORTED) | insecticide | |
+| บาซิลลัส 16000 IU/mg เอสซี (นำเข้า) | BACILLUS THURINGIENSIS 16000 IU/MG SC (IMPORTED) | insecticide | non-% strength → no W/V |
 | บูโพฟีซิน 40% SC | BUPROFEZIN 40% W/V SC | insecticide | |
 | ไบเฟนทริน 2.5% อีซี (อย.) | BIFENTHRIN 2.5% W/V EC (FDA) | insecticide | |
 | ไบเฟนทริน 10% อีซี (ปศุสัตว์) | BIFENTHRIN 10% W/V EC (LIVESTOCK) | insecticide | |
