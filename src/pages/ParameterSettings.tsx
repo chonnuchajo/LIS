@@ -65,6 +65,8 @@ import { cn } from "@/lib/utils";
 import {
   api,
   type ItemGroupItem,
+  type OptionOutput,
+  type OptionOutputKind,
   type ParameterItem,
   type ParameterScope,
   type ParameterValueField,
@@ -83,6 +85,7 @@ import {
   partsToSec,
   secToParts,
   formatTimerHuman,
+  seedOptionOutputsFromLegacy,
   type TimerParts,
 } from "@/lib/parameterValidation";
 
@@ -711,9 +714,17 @@ function summarizeField(field: ParameterValueField): string {
     case "enum": {
       const opts = field.options ?? [];
       if (opts.length === 0) return "ยังไม่มีตัวเลือก";
-      const expected = field.expectedValues ?? [];
       const head = opts.slice(0, 3).join("/");
       const more = opts.length > 3 ? `+${opts.length - 3}` : "";
+      const outputs = field.optionOutputs;
+      if (outputs) {
+        const vals = Object.values(outputs);
+        const n = vals.filter((o) => o.kind === "normal").length;
+        const a = vals.filter((o) => o.kind === "abnormal").length;
+        const t = vals.filter((o) => o.kind === "text").length;
+        return `${head}${more} · ปกติ ${n}/ไม่ปกติ ${a}/ข้อความ ${t}`;
+      }
+      const expected = field.expectedValues ?? [];
       const exp = expected.length > 0 ? ` · ปกติ: ${expected.join(",")}` : "";
       return `${head}${more}${exp}`;
     }
@@ -987,24 +998,28 @@ function ValueFieldEditor({
 
   const addOption = () => {
     const v = optionDraft.trim();
-    if (!v) return;
-    if ((field.options ?? []).includes(v)) {
-      setOptionDraft("");
-      return;
-    }
-    onChange({ ...field, options: [...(field.options ?? []), v] });
+    if (!v || (field.options ?? []).includes(v)) return;
+    const base = seedOutputs();
+    onChange({
+      ...field,
+      options: [...(field.options ?? []), v],
+      optionOutputs: { ...base, [v]: { kind: "text", text: v } },
+    });
     setOptionDraft("");
   };
 
   const removeOption = (opt: string) => {
     const nextFilters = { ...(field.optionFilters ?? {}) };
     delete nextFilters[opt];
+    const nextOutputs = field.optionOutputs ? { ...field.optionOutputs } : undefined;
+    if (nextOutputs) delete nextOutputs[opt];
     onChange({
       ...field,
       options: (field.options ?? []).filter((o) => o !== opt),
       requireNoteOn: (field.requireNoteOn ?? []).filter((o) => o !== opt),
       expectedValues: (field.expectedValues ?? []).filter((o) => o !== opt),
       optionFilters: Object.keys(nextFilters).length > 0 ? nextFilters : undefined,
+      optionOutputs: nextOutputs && Object.keys(nextOutputs).length > 0 ? nextOutputs : undefined,
     });
   };
 
@@ -1016,12 +1031,19 @@ function ValueFieldEditor({
     onChange({ ...field, requireNoteOn: next });
   };
 
-  const toggleExpected = (opt: string) => {
-    const current = field.expectedValues ?? [];
-    const next = current.includes(opt)
-      ? current.filter((o) => o !== opt)
-      : [...current, opt];
-    onChange({ ...field, expectedValues: next });
+  const seedOutputs = (): Record<string, OptionOutput> =>
+    field.optionOutputs ?? seedOptionOutputsFromLegacy(field.options ?? [], field.expectedValues ?? []);
+
+  const setOptionOutput = (opt: string, kind: OptionOutputKind) => {
+    const base = seedOutputs();
+    const next: OptionOutput =
+      kind === "text" ? { kind, text: base[opt]?.text ?? opt } : { kind };
+    onChange({ ...field, optionOutputs: { ...base, [opt]: next } });
+  };
+
+  const setOptionText = (opt: string, text: string) => {
+    const base = seedOutputs();
+    onChange({ ...field, optionOutputs: { ...base, [opt]: { kind: "text", text } } });
   };
 
   const setOptionFilter = (opt: string, next: OptionFilter) => {
@@ -1234,6 +1256,7 @@ function ValueFieldEditor({
                     options: v === "enum" ? field.options ?? [] : [],
                     requireNoteOn: v === "enum" ? field.requireNoteOn ?? [] : [],
                     expectedValues: v === "enum" ? field.expectedValues ?? [] : [],
+                    optionOutputs: v === "enum" ? field.optionOutputs : undefined,
                     standardValue: v === "number" || v === "float" ? field.standardValue : null,
                     standardOperator: v === "number" || v === "float" ? field.standardOperator : undefined,
                     standardValue2: v === "number" || v === "float" ? field.standardValue2 ?? null : null,
@@ -1508,56 +1531,84 @@ function ValueFieldEditor({
                 <div className="mt-2 space-y-1">
                   {(field.options ?? []).map((opt) => {
                     const needsNote = (field.requireNoteOn ?? []).includes(opt);
-                    const isExpected = (field.expectedValues ?? []).includes(opt);
+                    const outputs =
+                      field.optionOutputs ??
+                      seedOptionOutputsFromLegacy(field.options ?? [], field.expectedValues ?? []);
+                    const kind: OptionOutputKind = outputs[opt]?.kind ?? "text";
+                    const customText = outputs[opt]?.text ?? opt;
+                    const KINDS: readonly [OptionOutputKind, string, string][] = [
+                      ["normal", "ปกติ", "text-emerald-700"],
+                      ["abnormal", "ไม่ปกติ", "text-red-600"],
+                      ["text", "ข้อความ", "text-sky-700"],
+                    ];
                     return (
                       <div
                         key={opt}
-                        className="flex items-center justify-between gap-2 rounded border bg-background px-2 py-1 text-xs"
+                        className="rounded border bg-background px-2 py-1 text-xs space-y-1"
                       >
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                          <span className="font-medium truncate">{opt}</span>
-                          <OptionFilterBadge filter={field.optionFilters?.[opt]} groupNameById={groupNameById} />
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <span className="font-medium truncate">{opt}</span>
+                            <OptionFilterBadge filter={field.optionFilters?.[opt]} groupNameById={groupNameById} />
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-0.5">
+                              {KINDS.map(([k, lbl, color]) => (
+                                <button
+                                  key={k}
+                                  type="button"
+                                  onClick={() => setOptionOutput(opt, k)}
+                                  className={cn(
+                                    "rounded px-1.5 py-0.5 border text-[11px]",
+                                    kind === k
+                                      ? `${color} border-current bg-muted font-medium`
+                                      : "text-muted-foreground border-transparent hover:bg-muted",
+                                  )}
+                                >
+                                  {lbl}
+                                </button>
+                              ))}
+                            </div>
+                            <label className="flex cursor-pointer items-center gap-1 text-muted-foreground">
+                              <Checkbox
+                                checked={needsNote}
+                                onCheckedChange={() => toggleRequireNote(opt)}
+                                className="h-3.5 w-3.5"
+                              />
+                              ต้องการคำอธิบาย
+                            </label>
+                            <OptionFilterDialog
+                              opt={opt}
+                              filter={field.optionFilters?.[opt]}
+                              itemNameOptions={itemNameOptions}
+                              commonNameOptions={commonNameOptions}
+                              productTypeOptions={productTypeOptions}
+                              categoryOptions={categoryOptions}
+                              subCategoryByParent={subCategoryByParent}
+                              groupOptions={groupOptions}
+                              groupIdByName={groupIdByName}
+                              groupNameById={groupNameById}
+                              onSetFilter={(next) => setOptionFilter(opt, next)}
+                              onClear={() => clearOptionFilter(opt)}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeOption(opt)}
+                              className="rounded p-0.5 text-destructive hover:bg-destructive/10"
+                              title="ลบตัวเลือก"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <label className="flex cursor-pointer items-center gap-1 text-emerald-700">
-                            <Checkbox
-                              checked={isExpected}
-                              onCheckedChange={() => toggleExpected(opt)}
-                              className="h-3.5 w-3.5"
-                            />
-                            ปกติ
-                          </label>
-                          <label className="flex cursor-pointer items-center gap-1 text-muted-foreground">
-                            <Checkbox
-                              checked={needsNote}
-                              onCheckedChange={() => toggleRequireNote(opt)}
-                              className="h-3.5 w-3.5"
-                            />
-                            ต้องการคำอธิบาย
-                          </label>
-                          <OptionFilterDialog
-                            opt={opt}
-                            filter={field.optionFilters?.[opt]}
-                            itemNameOptions={itemNameOptions}
-                            commonNameOptions={commonNameOptions}
-                            productTypeOptions={productTypeOptions}
-                            categoryOptions={categoryOptions}
-                            subCategoryByParent={subCategoryByParent}
-                            groupOptions={groupOptions}
-                            groupIdByName={groupIdByName}
-                            groupNameById={groupNameById}
-                            onSetFilter={(next) => setOptionFilter(opt, next)}
-                            onClear={() => clearOptionFilter(opt)}
+                        {kind === "text" && (
+                          <Input
+                            value={customText}
+                            onChange={(e) => setOptionText(opt, e.target.value)}
+                            placeholder="ข้อความที่จะแสดงเมื่อเลือกตัวเลือกนี้"
+                            className="h-8 text-xs"
                           />
-                          <button
-                            type="button"
-                            onClick={() => removeOption(opt)}
-                            className="rounded p-0.5 text-destructive hover:bg-destructive/10"
-                            title="ลบตัวเลือก"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1568,25 +1619,22 @@ function ValueFieldEditor({
                 </p>
               )}
               {(field.options ?? []).length > 0 ? (() => {
-                const expected = field.expectedValues ?? [];
-                const opts = field.options ?? [];
-                if (expected.length === 0) {
+                const outputs =
+                  field.optionOutputs ??
+                  seedOptionOutputsFromLegacy(field.options ?? [], field.expectedValues ?? []);
+                const abn = Object.entries(outputs)
+                  .filter(([, o]) => o.kind === "abnormal")
+                  .map(([k]) => k);
+                if (abn.length === 0) {
                   return (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      ยังไม่ได้กำหนดค่าที่คาดหวัง — จะไม่ตรวจค่าผิดปกติ
-                    </p>
-                  );
-                }
-                if (expected.length === opts.length) {
-                  return (
-                    <p className="mt-1 text-xs text-amber-700">
-                      ทุกค่าถูกตั้งเป็นปกติ — จะไม่มี abnormal
+                      ยังไม่มีตัวเลือกที่ตั้งเป็น "ไม่ปกติ" — จะไม่มี abnormal
                     </p>
                   );
                 }
                 return (
-                  <p className="mt-1 text-xs text-emerald-700">
-                    ค่าที่คาดหวัง: {expected.join(", ")} — ค่าอื่นจะถูกมาร์คผิดปกติ
+                  <p className="mt-1 text-xs text-red-600">
+                    ไม่ปกติ: {abn.join(", ")} — ตัวเลือกเหล่านี้จะถูกมาร์คผิดปกติ
                   </p>
                 );
               })() : null}
