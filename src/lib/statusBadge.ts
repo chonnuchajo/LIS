@@ -39,6 +39,12 @@ export function petitionStatusBadge(petition: Petition): StatusBadge {
   if (["success", "approved", "rejected"].includes(petition.status)) {
     return statusBadge(petition.status);
   }
+  // ทั้ง QC และ Lab บันทึกผลครบแล้ว เหลือเพียงหัวหน้า Lab อนุมัติ — ต้องมาก่อน
+  // สาขา qcCompletedAt ด้านล่าง ไม่งั้นจะถูกกลืนเป็น "รอส่วนอื่น" ทั้งที่ Lab ตรวจครบแล้ว
+  // (เช่น P-2606-0018: qcCompletedAt + labCompletedAt แต่ยังไม่ labApprovedAt)
+  if (petition.qcCompletedAt && petition.labCompletedAt && !petition.labApprovedAt) {
+    return toneBadge("warning", "ตรวจครบแล้ว · รอหัวหน้า Lab อนุมัติ");
+  }
   if (petition.qcCompletedAt) return toneBadge("warning", "QC ตรวจครบ · รอส่วนอื่น");
   if (petition.labApprovedAt) return toneBadge("warning", "Lab อนุมัติแล้ว · รอ QC");
   if (petition.labCompletedAt) return toneBadge("warning", "Lab ตรวจครบ · รออนุมัติ");

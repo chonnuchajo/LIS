@@ -41,6 +41,16 @@ cd server && npm run seed    # seed access-control data
 - **Data scripts**: `server/seed-access-control.js`, `export-data.js`, `import-data.js`, `sync-to-remote.js`; one-off migrations live in `server/scripts/` (e.g. `map-instruments-*.js` for GC/HPLC simple-method mapping).
 - **Seed-data backup (DB is recoverable from git)**: `npm run seed:export` dumps every collection (dynamic `listCollections()`, so new models need no wiring) to `server/seed-data/*.json` as EJSON; `npm run seed:import` rebuilds a DB non-destructively from them. `scripts/auto-sync.ps1` runs `export-data.js` on the prod box each sync cycle, so live data (UI-entered rows **and** any new collection) is committed/pushed automatically — a DB wipe is restorable with `seed:import`. When adding a model or doing a manual data/config change off-cycle, run `npm run seed:export` and commit so `seed-data/` stays current.
 
+### LINE integration
+
+LINE Messaging API — **group notifications** on petition events + a **status-query bot**. All server-side under `server/` (frontend untouched).
+
+- **Config** (`server/.env`): `LINE_CHANNEL_ACCESS_TOKEN` (push/reply) + `LINE_CHANNEL_SECRET` (webhook signature). If the token is unset the whole feature is a **safe no-op** — the client logs a warning and skips, so dev boxes without LINE creds run normally.
+- **Client** `server/lib/line.js`: `pushToGroup` / `reply` / `verifySignature` (HMAC-SHA256 over the RAW body — `index.js` captures `req.rawBody` via the `express.json({ verify })` hook; re-serialized JSON won't match). No new npm deps (Node global `fetch` + `crypto`).
+- **Routing/formatting** `server/lib/lineNotify.js` (pure, unit-tested): `describeEvent(petition, auditPayload)` → `{ audiences, text }`; `notifyPetitionEvent` resolves audiences → enabled `LineGroup` docs and pushes. Fire-and-forget — hooked into `logAudit()` in `routes/petitions.js` (and the head-QC success path in `routes/approvals.js`), so **every petition audit event** can fan out. Audiences: `qc`, `lab`, `production`, `rm`, `fg`, `all`; lab-batch petitions notify both QC+Lab, assignment routes to the assignee's side.
+- **Webhook + admin** `server/routes/line.js`, mounted at `/api/line` & `/LIS/api/line`. `POST /line/webhook` verifies the signature then handles events. Bot commands (in-chat): type a petition no (`P-2606-0018`) → status reply; `/ผูก <audience>` binds the chat to an audience (self-service — no UI needed); `/ยกเลิก` unbinds; `/id`, `/help`. Admin/setup: `GET /line/health`, `GET|POST /line/groups`, `DELETE /line/groups/:groupId`, `POST /line/test`. Group registry = `LineGroup` model (auto-exported by `seed:export`).
+- **LINE Developers setup**: create a Messaging API channel → set Webhook URL to `https://<host>/LIS/api/line/webhook`, enable "Use webhook", disable auto-reply → paste token+secret into `.env` → add the bot to each department group → type `/ผูก qc` (or `lab`, etc.) in that group.
+
 ### Authentication
 
 Two auth modes; the switch is `DEV_MODE` in `src/config/dev.ts`:

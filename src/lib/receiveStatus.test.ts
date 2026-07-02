@@ -54,13 +54,18 @@ describe('labTrackStatusBadge', () => {
     expect(labTrackStatusBadge(p).label).toBe('รอรับ');
   });
 
-  it('Lab received → falls back to the petition status badge', () => {
+  it('Lab received + global inProgress → Lab track in progress, not QC status', () => {
     const p = { status: 'inProgress' as const, labReceivedAt: T1, labReceivedBy: 'Lab Tech' };
-    expect(labTrackStatusBadge(p).label).toBe('QC กำลังตรวจ');
+    expect(labTrackStatusBadge(p).label).toBe('Lab กำลังตรวจ');
   });
 
-  it('legacy received (receivedAt only) counts as Lab received → petition status badge', () => {
+  it('legacy received (receivedAt only) counts as Lab received → Lab track in progress', () => {
     const p = { status: 'inProgress' as const, receivedAt: T1, receivedBy: 'Dev Administrator' };
-    expect(labTrackStatusBadge(p).label).toBe('QC กำลังตรวจ');
+    expect(labTrackStatusBadge(p).label).toBe('Lab กำลังตรวจ');
+  });
+
+  it('Lab completed shows Lab completion while petition waits for other gates', () => {
+    const p = { status: 'inProgress' as const, labReceivedAt: T1, labCompletedAt: T2 };
+    expect(labTrackStatusBadge(p).label).toBe('Lab ตรวจครบ · รออนุมัติ');
   });
 });

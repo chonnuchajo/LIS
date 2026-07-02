@@ -35,4 +35,16 @@ describe("petitionStatusBadge", () => {
     expect(b.label).toBe("QC ตรวจครบ · รอส่วนอื่น");
     expect(b.variant).toBe("yellow-soft");
   });
+
+  it("shows both-done pending Lab approval when QC + Lab tested but Lab not yet approved", () => {
+    // P-2606-0018: qcCompletedAt + labCompletedAt but no labApprovedAt.
+    // Must NOT read "QC ตรวจครบ · รอส่วนอื่น" — Lab is already done testing.
+    const b = petitionStatusBadge({
+      status: "inProgress",
+      qcCompletedAt: "2026-07-02",
+      labCompletedAt: "2026-07-02",
+    } as Petition);
+    expect(b.label).toBe("ตรวจครบแล้ว · รอหัวหน้า Lab อนุมัติ");
+    expect(b.variant).toBe("yellow-soft");
+  });
 });

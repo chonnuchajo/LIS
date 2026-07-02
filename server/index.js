@@ -9,7 +9,12 @@ const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/LIS-DB';
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+// Capture the raw request bytes so routes/line.js can verify the LINE webhook
+// signature (HMAC over the exact body LINE sent — re-serialized JSON won't match).
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+}));
 
 // Serve uploaded QC photos as static assets
 app.use('/LIS/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -56,6 +61,7 @@ mountApi('/document-number-config', require('./routes/documentNumberConfigs'));
 mountApi('/dashboard-layout', require('./routes/dashboardLayout'));
 mountApi('/print', require('./routes/print'));
 mountApi('/ai', require('./routes/ai'));
+mountApi('/line', require('./routes/line')); // LINE webhook + group registry
 mountApi('/dev', require('./routes/dev')); // dev-only helpers (gated by ALLOW_DEV_STATUS)
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
