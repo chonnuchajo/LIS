@@ -1,0 +1,570 @@
+[
+  {
+    "commonName": "CHLORFENAPYR 10% W/V SC",
+    "thaiName": "คลอฟีนาเพอร์ 10% เอสซี",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "GIBBERELLIC ACID 5% W/V SL",
+    "thaiName": "จิบเบอเรลลิก แอซิด 5% เอสแอล",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "SOLVESSO-100",
+    "thaiName": "โซลเวสโซ่-100",
+    "category": "solvent",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "SOLVESSO-150",
+    "thaiName": "โซลเวสโซ่-150",
+    "category": "solvent",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CYPERMETHRIN 10% W/V EC (FDA)",
+    "thaiName": "ไซเปอร์เมทธิน 10% อีซี (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CYPERMETHRIN 10% W/V EC (BIO, FDA)",
+    "thaiName": "ไซเปอร์เมทธิน 10% อีซี ไบโอ (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CYPERMETHRIN 10% W/V EC (LIVESTOCK)",
+    "thaiName": "ไซเปอร์เมทธิน 10% อีซี ปศุสัตว์",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CYPERMETHRIN 25% W/V EC (LIVESTOCK)",
+    "thaiName": "ไซเปอร์เมทธิน 25% อีซี (ปศุสัตว์)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CYPERMETHRIN 25% W/V EC (FDA)",
+    "thaiName": "ไซเปอร์เมทธิน 25% อีซี (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CYPERMETHRIN 25% W/V EC (BIO, FDA)",
+    "thaiName": "ไซเปอร์เมทธิน 25% อีซี ไบโอ (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CYPERMETHRIN 25% W/V EC (LIVESTOCK, BIO)",
+    "thaiName": "ไซเปอร์เมทธิน 25% อีซี ปศุสัตว์ (ไบโอ)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CYPERMETHRIN 25% W/V EC (WATER-BASED)",
+    "thaiName": "ไซเปอร์เมทธิน 25% อีซี สูตรน้ำ",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CYPERMETHRIN 35% W/V EC",
+    "thaiName": "ไซเปอร์เมทธิน 35% อีซี",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CYPERMETHRIN 35% W/V EC (LIVESTOCK)",
+    "thaiName": "ไซเปอร์เมทธิน 35% อีซี (ปศุสัตว์)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "XYLENE",
+    "thaiName": "ไซลีน",
+    "category": "solvent",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "DELTAMETHRIN 0.5% W/V EC (FDA)",
+    "thaiName": "เดลทราเมทริน 0.5% อีซี (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "DELTAMETHRIN 1% W/V EC (FDA)",
+    "thaiName": "เดลทราเมทริน 1% อีซี (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "DELTAMETHRIN 1.5% W/V EC (FDA)",
+    "thaiName": "เดลทราเมทริน 1.5% อีซี (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "DELTAMETHRIN 1.5% W/V EC (BIO, FDA)",
+    "thaiName": "เดลทราเมทริน 1.5% อีซี ไบโอ (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "DELTAMETHRIN 2% W/V EC (FDA)",
+    "thaiName": "เดลทราเมทริน 2% อีซี (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "DELTAMETHRIN 2.5% W/V EC (FDA)",
+    "thaiName": "เดลทราเมทริน 2.5% อีซี (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "DIFENOCONAZOLE 12.5% + AZOXYSTROBIN 20% W/V SC",
+    "thaiName": "ไดฟีโนโคนาโซล 12.5%+อะซอกซีสโตรบิน 20% เอสซี",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "DIETHYLENE GLYCOL",
+    "thaiName": "ไดเอชเทอลีน ไกลคอล",
+    "category": "solvent",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "DIFENOCONAZOLE 25% W/V EC (IMPORTED)",
+    "thaiName": "ไดฟีโนโคนาโซล 25% อีซี (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "DIFENOCONAZOLE 15% + PROPICONAZOLE 15% W/V EC",
+    "thaiName": "ไดฟีโนโคนาโซล 15%+โพรพิโคนาโซล 15% อีซี",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "THIAMETHOXAM 14.1% + LAMBDA-CYHALOTHRIN 10.6% ZC",
+    "thaiName": "ไทอะมีทอกแซม 14.1% + แลมป์ด้า-ไซฮาโลทริน 10.6% ZC",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "BACILLUS THURINGIENSIS 16000 IU/MG SC (IMPORTED)",
+    "thaiName": "บาซิลลัส 16000 IU/mg เอสซี (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "non-% strength → no W/V"
+  },
+  {
+    "commonName": "BUPROFEZIN 40% W/V SC",
+    "thaiName": "บูโพฟีซิน 40% SC",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "BIFENTHRIN 2.5% W/V EC (FDA)",
+    "thaiName": "ไบเฟนทริน 2.5% อีซี (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "BIFENTHRIN 10% W/V EC (LIVESTOCK)",
+    "thaiName": "ไบเฟนทริน 10% อีซี (ปศุสัตว์)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "BIFENTHRIN 10% W/V EC (FDA)",
+    "thaiName": "ไบเฟนทริน 10% อีซี (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PROFENOFOS 50% W/V EC",
+    "thaiName": "โปรฟีโนฟอส 50% อีซี",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PROFENOFOS 50% W/V EC (IMPORTED)",
+    "thaiName": "โปรฟีโนฟอส 50% อีซี (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PIRIMIPHOS-METHYL 50% W/V EC (IMPORTED)",
+    "thaiName": "พิริมิฟอส-เมทิล 50% อีซี (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PROCHLORAZ 45% W/V EC",
+    "thaiName": "โพรคลอราซ 45% อีซี",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PROCHLORAZ 45% W/V EW (IMPORTED)",
+    "thaiName": "โพรคลอราซ 45% อีดับเบิ้ลยู (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PROPAMOCARB 72.2% W/V SL (IMPORTED)",
+    "thaiName": "โพรพาโมคาร์บ 72.2% เอสแอล (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PROPICONAZOLE 25% W/V EC (IMPORTED)",
+    "thaiName": "โพรพิโคนาซอล 25% อีซี (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PROPICONAZOLE 9% + PROCHLORAZ 40% W/V EC",
+    "thaiName": "โพรพิโคนาซอล 9%+โพรคลอราซ 40% อีซี",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PERMETHRIN 10% W/V EC (FDA)",
+    "thaiName": "เพอร์เมทริน 10% อีซี (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "FIPRONIL 2.5% W/V EC",
+    "thaiName": "ฟิโปรนิล 2.5% อีซี",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "FIPRONIL 5% W/V SC (FDA)",
+    "thaiName": "ฟิโปรนิล  5% เอสซี (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "FIPRONIL 5% W/V SC",
+    "thaiName": "ฟิโปรนิล  5% เอสซี",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "FIPRONIL 5% W/V SC (IMPORTED)",
+    "thaiName": "ฟิโปรนิล  5% เอสซี (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "FENOBUCARB 50% W/V EC (BPMC)",
+    "thaiName": "ฟีโนบูคาร์บ 50% อีซี (บีพีเอ็มซี)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "METHANOL",
+    "thaiName": "เมทานอล",
+    "category": "solvent",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "METHYL ESTER",
+    "thaiName": "เมทิล เอสเทอร์",
+    "category": "solvent",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "LUFENURON 5% W/V EC (IMPORTED)",
+    "thaiName": "ลูฟีนูรอน 5% อีซี (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "LAMBDA-CYHALOTHRIN 1% + PIPERONYL BUTOXIDE 5% + TETRAMETHRIN 4% W/V EC (IMPORTED)",
+    "thaiName": "แลมด้า1%+ไบเพอร์โรนิล5%+เตตระเมทริน4% อีซี (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "3 actives"
+  },
+  {
+    "commonName": "SPIRODICLOFEN 24% W/V SC",
+    "thaiName": "สไปโรดิโคลเฟน 24% เอสซี",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ACETONE",
+    "thaiName": "อะซีโตน",
+    "category": "solvent",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ACETAMIPRID 2.85% W/V EC (IMPORTED)",
+    "thaiName": "อะเซทามิปริด 2.85% อีซี (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ABAMECTIN 1.8% W/V EC (HEAVY)",
+    "thaiName": "อะบาเมคติน 1.8% อีซี (หนัก)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ABAMECTIN 1.8% W/V EC (LIGHT)",
+    "thaiName": "อะบาเมคติน 1.8% อีซี (เบา)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ABAMECTIN 1.8% W/V EC (SELF-MIXED)",
+    "thaiName": "อะบาเมคติน 1.8% อีซี (ผสมเอง)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ABAMECTIN 1.8% W/V EC (50 CP)",
+    "thaiName": "อะบาเมคติน 1.8% อีซี (50 ซีพี)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ABAMECTIN 1.8% W/V EC (IMPORTED)",
+    "thaiName": "อะบาเมคติน 1.8 % อีซี (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ABAMECTIN 1.8% W/V EC (BROWN, NON-STICKY, IMPORTED)",
+    "thaiName": "อะบาแม็คติน 1.8% อีซี (สูตรสีน้ำตาล ไม่เหนียว, นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ABAMECTIN 1.8% W/V EC (YELLOW, NON-STICKY, IMPORTED)",
+    "thaiName": "อะบาแม็คติน 1.8% อีซี (สูตรสีเหลือง ไม่เหนียว, นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "AMITRAZ 20% W/V EC (IMPORTED)",
+    "thaiName": "อามีทราซ 20% อีซี (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "IMIDACLOPRID 10% W/V SL (IMPORTED)",
+    "thaiName": "อิมิดาคลอปริด 10% เอสแอล (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "IMIDACLOPRID 10% W/V SL (FDA)",
+    "thaiName": "อิมิดาคลอปริด 10% เอสแอล (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "IMIDACLOPRID 10% W/V SL (FDA, NMP)",
+    "thaiName": "อิมิดาคลอปริด 10% เอสแอล อย. (ใช้ NMP)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "IMIDACLOPRID 10% W/V SL (FDA, DMF, DMSO)",
+    "thaiName": "อิมิดาคลอปริด 10% เอสแอล อย. (ใช้ DMF, DMSO)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "INDOXACARB 15% W/V SC (IMPORTED)",
+    "thaiName": "อินด็อกซาคาร์บ 15% SC (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ETHEPHON 48% W/V SL",
+    "thaiName": "อีเทฟอน 48% เอสแอล",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ETHEPHON 48% W/V SL (IMPORTED)",
+    "thaiName": "อีเทฟอน 48% เอสแอล (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ETOFENPROX 5% W/V EC (FDA)",
+    "thaiName": "อีโทเฟนฟร็อกซ์ 5% อีซี (อย.)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "EMAMECTIN BENZOATE 2.0% W/V ME (IMPORTED)",
+    "thaiName": "อีมาเม็คติน 2.0% เอ็มอี (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "OMETHOATE 50% W/V SL",
+    "thaiName": "โอเมทโธเอท 50% เอสแอล",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "HEXACONAZOLE 5% W/V SC (IMPORTED)",
+    "thaiName": "เฮ็กซาโคนาโซล 5% เอสซี (นำเข้า)",
+    "category": "insecticide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  }
+]
