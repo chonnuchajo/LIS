@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 const { softDeletePlugin } = require('../lib/softDelete');
 
+const OptionOutputSchema = new mongoose.Schema({
+  kind: { type: String, enum: ['normal', 'abnormal', 'text'], required: true },
+  text: { type: String, default: '' },
+}, { _id: false });
+
 const ValueFieldSchema = new mongoose.Schema({
   label: { type: String, required: true, trim: true },
   type: { type: String, enum: ['text', 'number', 'float', 'enum', 'photo', 'file', 'timer', 'reference'], required: true },
@@ -58,6 +63,9 @@ const ValueFieldSchema = new mongoose.Schema({
     }, { _id: false }),
     default: undefined,
   },
+  // Per-option result classification for enum fields.
+  // Absent = legacy (expectedValues). Present = { option: {kind, text?} }.
+  optionOutputs: { type: Map, of: OptionOutputSchema, default: undefined },
 }, { _id: false });
 
 const ParameterSchema = new mongoose.Schema({
@@ -127,6 +135,18 @@ ParameterSchema.pre('validate', function (next) {
       const invalid = f.expectedValues.filter((v) => !opts.includes(v));
       if (invalid.length > 0) {
         return next(new Error(`expectedValues ต้องอยู่ใน options ของช่อง "${f.label}" (ค่าที่ไม่ตรง: ${invalid.join(', ')})`));
+      }
+    }
+    if (f.type === 'enum' && f.optionOutputs) {
+      const opts = new Set(f.options || []);
+      // Drop orphan keys (option ถูกลบไปแล้ว แต่ output ยังค้าง)
+      for (const key of Array.from(f.optionOutputs.keys())) {
+        if (!opts.has(key)) f.optionOutputs.delete(key);
+      }
+      for (const [key, val] of f.optionOutputs.entries()) {
+        if (val && val.kind === 'text' && (!val.text || !String(val.text).trim())) {
+          return next(new Error(`ช่อง "${f.label}" ตัวเลือก "${key}": ต้องระบุข้อความเมื่อเลือก output แบบ "ข้อความ"`));
+        }
       }
     }
     if (['number', 'float'].includes(f.type) && f.standardOperator) {
