@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- `commonName`: canonical English, **UPPERCASE**, **unique** (case-insensitive) across the whole file, contains **no Thai characters**. Form: `<ACTIVE(S)> <conc>% [W/V] <FORMCODE> [(QUALIFIERS)]`; multiple actives joined with ` + ` in written order. Add `W/V` **only** for %-w/v liquid forms (EC/SC/SL/EW/ME). **Omit** `W/V` for `ZC`, for non-% strengths (e.g. `IU/MG`), and for `TECH`/solvents — matching the system's existing canonical (e.g. `THIAMETHOXAM 14.1% + LAMBDA-CYHALOTHRIN 10.6% ZC`).
+- `commonName`: canonical English, **UPPERCASE**, **unique** (case-insensitive) across the whole file, contains **no Thai characters**. Form: `<ACTIVE(S)> <conc>% [W/V] <FORMCODE> [(QUALIFIERS)]`; multiple actives joined with ` + ` in written order. Add `W/V` **only** for %-w/v liquid forms (EC/SC/SL/EW/ME/AC). **Omit** `W/V` for `ZC`, for non-% strengths (e.g. `IU/MG`), and for `TECH`/solvents — matching the system's existing canonical (e.g. `THIAMETHOXAM 14.1% + LAMBDA-CYHALOTHRIN 10.6% ZC`).
 - `thaiName`: original Thai copied **verbatim** from the source list.
 - `sgMin` / `sgMax`: **always `null`** in this phase (user fills later).
 - `category`: one of `insecticide` | `herbicide` | `fertilizer` | `solvent` | `imported`.
