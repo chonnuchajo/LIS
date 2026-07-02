@@ -25,8 +25,7 @@ import {
 import PageHeader from '@/components/lis/PageHeader';
 import PageToolbar from '@/components/lis/PageToolbar';
 import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
-import { statusBadge } from '@/lib/statusBadge';
-import { labReceivedAt, labReceivedBy } from '@/lib/receiveStatus';
+import { labReceivedAt, labReceivedBy, labTrackStatusBadge } from '@/lib/receiveStatus';
 import LabScanAcceptModal from '@/components/petition/LabScanAcceptModal';
 import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
@@ -168,7 +167,7 @@ export default function LabTestingPage() {
       header: 'สถานะ',
       className: 'align-top',
       cell: (p) => {
-        const b = statusBadge(p.status);
+        const b = labTrackStatusBadge(p);
         return <Badge variant={b.variant}>{b.label}</Badge>;
       },
     },

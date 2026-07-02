@@ -563,7 +563,7 @@ export default function PetitionAssignPage() {
         <div className="space-y-5">
           <PageHeader
             title="Assign คำร้องให้เจ้าหน้าที่"
-            description="เลือกเจ้าหน้าที่แผนก Lab/วิเคราะห์ เฉพาะประเภทพนักงานรายเดือน"
+            description="เลือกเจ้าหน้าที่แผนก Lab/วิเคราะห์ (พนักงานรายเดือน) หรือผู้ใช้ที่มีสิทธิ์ lab analyze"
             actions={
               <Button
                 variant="primary-outline"

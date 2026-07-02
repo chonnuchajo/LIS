@@ -1,4 +1,5 @@
-import type { Petition } from '@/types/petition.types';
+import type { Petition, PetitionStatus } from '@/types/petition.types';
+import { statusBadge, toneBadge, type StatusBadge } from './statusBadge';
 
 /**
  * Per-side receive status (Lab / QC), with legacy backward-compat.
@@ -34,4 +35,16 @@ export function qcReceivedAt(p: ReceiveFields): string | null | undefined {
 
 export function qcReceivedBy(p: ReceiveFields): string | undefined {
   return p.qcReceivedBy ?? (isLegacyReceived(p) ? p.receivedBy : undefined);
+}
+
+/**
+ * สถานะที่โชว์ในลิสต์ "การทดสอบ Lab" — อิง track ของ Lab เอง ไม่ใช่ status รวม.
+ *
+ * petition.status เป็นตัวเดียวใช้ร่วมทั้ง Lab/QC พอ QC รับ+assign จะกลายเป็น
+ * `inProgress` ("QC กำลังตรวจ") ทั้งที่ Lab ยังไม่ได้รับตัวอย่าง ถ้าโชว์ตรงๆ
+ * ฝั่ง Lab จะเห็น "QC กำลังตรวจ" ผิด — ก่อน Lab รับให้โชว์ "รอรับ" เสมอ
+ */
+export function labTrackStatusBadge(p: ReceiveFields & { status: PetitionStatus }): StatusBadge {
+  if (!labReceivedAt(p)) return toneBadge('warning', 'รอรับ');
+  return statusBadge(p.status);
 }
