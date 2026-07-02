@@ -10,7 +10,7 @@ import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useArrivalFlash } from '@/hooks/useArrivalFlash';
 import { useConfirm } from '@/context/ConfirmDialog';
-import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues } from '@/lib/parameterValidation';
+import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues, optionOutputText, enumNormalValues } from '@/lib/parameterValidation';
 import type { ConditionContext } from '@/lib/parameterValidation';
 import { describeResolvedStandard, describeStandard } from '@/lib/standardOperators';
 import { cn } from '@/lib/utils';
@@ -112,6 +112,7 @@ function TestField({
   const requireNoteOn = field.requireNoteOn ?? [];
   const showNote = field.type === 'enum' && requireNoteOn.includes(strVal);
   const isAbnormal = isFieldAbnormal(field, value);
+  const customText = optionOutputText(field, value);
 
   return (
     <div className="space-y-1">
@@ -126,7 +127,7 @@ function TestField({
             className="inline-flex items-center"
             title={
               field.type === 'enum'
-                ? `ค่าผิดปกติ — คาดหวัง: ${(field.expectedValues ?? []).join(', ')}`
+                ? `ค่าผิดปกติ — คาดหวัง: ${enumNormalValues(field).join(', ')}`
                 : `ค่าผิดปกติ — คาดหวัง: ${describeStandard(field)}`
             }
           >
@@ -213,6 +214,10 @@ function TestField({
                 : undefined
           }
         />
+      )}
+
+      {customText && (
+        <p className="text-[11px] text-grey-600">ℹ️ {customText}</p>
       )}
 
       {/* Live resolved-criterion line for conditionalMode fields */}

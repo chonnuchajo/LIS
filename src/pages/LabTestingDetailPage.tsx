@@ -23,7 +23,7 @@ import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
 import { labReceivedBy } from '@/lib/receiveStatus';
 import { useConfirm } from '@/context/ConfirmDialog';
-import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues } from '@/lib/parameterValidation';
+import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues, optionOutputText, enumNormalValues } from '@/lib/parameterValidation';
 import { SG_FIELD_LABEL, FORM_ENTRY_INDEX_KEY } from '@/lib/formSpecificGravity';
 import type { ConditionContext } from '@/lib/parameterValidation';
 import { describeResolvedStandard } from '@/lib/standardOperators';
@@ -153,6 +153,7 @@ function TestField({
   const requireNoteOn = field.requireNoteOn ?? [];
   const showNote = field.type === 'enum' && requireNoteOn.includes(strVal);
   const isAbnormal = isFieldAbnormal(field, value);
+  const customText = optionOutputText(field, value);
   const effectivelyDisabled = disabled || readOnly;
 
   return (
@@ -168,7 +169,7 @@ function TestField({
             className="inline-flex items-center"
             title={
               field.type === 'enum'
-                ? `ค่าผิดปกติ — คาดหวัง: ${(field.expectedValues ?? []).join(', ')}`
+                ? `ค่าผิดปกติ — คาดหวัง: ${enumNormalValues(field).join(', ')}`
                 : `ค่าผิดปกติ — คาดหวัง: ${describeStandard(field)}`
             }
           >
@@ -261,6 +262,10 @@ function TestField({
             />
           )}
         </div>
+      )}
+
+      {customText && (
+        <p className="text-[11px] text-grey-600">ℹ️ {customText}</p>
       )}
 
       {/* Provenance badge: shows where an instrument-pulled value came from. */}
