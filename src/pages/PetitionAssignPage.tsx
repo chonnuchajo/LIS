@@ -28,6 +28,7 @@ import { getMachineSuggestions, type MachineSuggestion } from '@/lib/aiApi';
 import { DEV_MODE, synthesizeDevAssignees } from '@/config/dev';
 import { parseSubstances } from '@/lib/substances';
 import { readSlotMethods, machineMatchesMethod, type MethodDoc } from '@/lib/methodRegistry';
+import { groupMachineMethods } from '@/lib/assignMachineGrouping';
 import {
   PETITION_STATUS_CONFIG,
   type Petition,
@@ -71,11 +72,6 @@ function pickField(item: MasterItemRaw, keys: string[]): string {
 
 function groupKeyOf(sampleName: string, commonName: string): string {
   return `${(sampleName || '').trim().toLowerCase()}||${(commonName || '').trim().toLowerCase()}`;
-}
-
-// Stable key for a machine selection: (substance index, machine-backed method code).
-function slotMethodKey(slotIndex: number, code: string): string {
-  return `${slotIndex}::${code}`;
 }
 
 // Sample-number label for a substance group, e.g. items with seq 1 and 2 → "1+2".
@@ -184,9 +180,9 @@ export default function PetitionAssignPage() {
   const [machinesLoading, setMachinesLoading] = useState(true);
   const [machinesError, setMachinesError] = useState<string | null>(null);
   const [selectedByPetition, setSelectedByPetition] = useState<Record<string, string>>({});
-  // machinesByPetition[petitionId][groupKey][`${slotIndex}::${methodCode}`] = machineId.
-  // Keyed per (group, substance index, machine-backed method code) so a single
-  // substance can require — and select — more than one machine.
+  // machinesByPetition[petitionId][groupKey][methodCode] = machineId.
+  // Keyed per (group, machine-backed method code): substances in a group that
+  // share an instrument type share one machine (one picker per type).
   const [machinesByPetition, setMachinesByPetition] =
     useState<Record<string, Record<string, Record<string, string>>>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -372,45 +368,32 @@ export default function PetitionAssignPage() {
     });
   }, [pendingData, inProgressData, groupsByPetition]);
 
-  // Machine-backed method codes required by a slot (bench/non-machine methods excluded).
-  const machineMethodsOfSlot = useMemo(
-    () => (slot: SubstanceSlot): string[] =>
-      slot.methods.filter((code) => methodByCode.get(code)?.requiresMachine),
-    [methodByCode],
-  );
-
-  // Baseline (slotIndex::code)→machineId mapping for a group, derived from saved
-  // assignedMachines: each saved machine is first-fit matched to a required
-  // machine-backed method that it satisfies.
-  // NOTE: assignedMachines carries no (slotIndex, methodCode) tag, so reload re-binds
-  // machines to methods by first-fit. Safe while each substance has ≤1 machine-backed
-  // method (GC/HPLC are mutually exclusive). If a substance ever needs 2 machine-backed
-  // methods, persist the slot/code tag (in toAssignedMachine) to disambiguate.
+  // Baseline (methodCode → machineId) mapping for a group, derived from saved
+  // assignedMachines: each saved machine is first-fit matched to a distinct
+  // machine-backed method it satisfies. assignedMachines carries no method tag,
+  // so reload re-binds by first-fit — safe because GC/HPLC prefixes are mutually
+  // exclusive and each group now holds at most one machine per method type.
   function baselineSlotsForGroup(petition: Petition, group: SubstanceGroup): Record<string, string> {
     const saved = (petition.assignedMachines ?? []).filter(
       (m) => groupKeyOf(m.sampleName ?? '', m.commonName ?? '') === group.groupKey,
     );
     const result: Record<string, string> = {};
     const used = new Set<string>();
-    group.slots.forEach((slot, i) => {
-      machineMethodsOfSlot(slot).forEach((code) => {
-        const method = methodByCode.get(code);
-        if (!method) return;
-        const match = saved.find((m) => {
-          if (used.has(m.machineId)) return false;
-          const machine = machineById.get(m.machineId);
-          return !!machine && machineMatchesMethod(machine.name, method, registryMethods);
-        });
-        if (match) {
-          result[slotMethodKey(i, code)] = match.machineId;
-          used.add(match.machineId);
-        }
+    groupMachineMethods(group.slots, methodByCode).forEach((gm) => {
+      const match = saved.find((m) => {
+        if (used.has(m.machineId)) return false;
+        const machine = machineById.get(m.machineId);
+        return !!machine && machineMatchesMethod(machine.name, gm.method, registryMethods);
       });
+      if (match) {
+        result[gm.code] = match.machineId;
+        used.add(match.machineId);
+      }
     });
     return result;
   }
 
-  // Selected machine ids per (slotIndex::methodCode) for a group.
+  // Selected machine ids per methodCode for a group.
   function getSelectedSlotMachines(petition: Petition, group: SubstanceGroup): Record<string, string> {
     const perGroup = machinesByPetition[petition._id];
     if (perGroup && perGroup[group.groupKey] !== undefined) {
@@ -419,12 +402,11 @@ export default function PetitionAssignPage() {
     return baselineSlotsForGroup(petition, group);
   }
 
-  // Single-select per (substance, machine-backed method): picking a machine sets that
-  // requirement; picking the already-selected machine clears it.
-  function setMachineForSlot(
+  // Single-select per (group, machine-backed method): picking a machine sets that
+  // type's requirement; picking the already-selected machine clears it.
+  function setMachineForMethod(
     petitionId: string,
     groupKey: string,
-    slotIndex: number,
     methodCode: string,
     machineKey: string,
   ) {
@@ -437,34 +419,29 @@ export default function PetitionAssignPage() {
         baselineMap[groupKey] = petition && group ? baselineSlotsForGroup(petition, group) : {};
       }
       const current = { ...baselineMap[groupKey] };
-      const k = slotMethodKey(slotIndex, methodCode);
-      if (current[k] === machineKey) delete current[k];
-      else current[k] = machineKey;
+      if (current[methodCode] === machineKey) delete current[methodCode];
+      else current[methodCode] = machineKey;
       baselineMap[groupKey] = current;
       return { ...prev, [petitionId]: baselineMap };
     });
   }
 
-  // A substance slot is satisfied iff it has ≥1 configured method, EVERY method
-  // code resolves to a known, active registry method, AND every machine-backed
-  // method in it has a selected machine. Bench (non-machine) methods are
-  // satisfied with no selection. Empty-method slots, or slots containing any
-  // unknown/inactive method code, are never satisfied (Assign stays blocked).
-  function isSlotSatisfied(slot: SubstanceSlot, sel: Record<string, string>, slotIndex: number): boolean {
-    if (slot.methods.length === 0) return false;
-    const allKnown = slot.methods.every((code) => {
-      const method = methodByCode.get(code);
-      return !!method && method.active !== false;
-    });
-    if (!allKnown) return false;
-    return machineMethodsOfSlot(slot).every((code) => !!sel[slotMethodKey(slotIndex, code)]);
-  }
-
-  // A group is assignable iff it has substances and every slot is satisfied.
+  // A group is assignable iff it has substances, every slot has ≥1 configured
+  // method that resolves to a known + active registry method, AND every distinct
+  // machine-backed method type has a selected machine. Bench methods need no
+  // selection; empty/unknown/inactive method codes keep Assign blocked.
   function isGroupSatisfied(petition: Petition, group: SubstanceGroup): boolean {
     if (group.slots.length === 0) return false;
+    const allSlotsConfigured = group.slots.every((slot) => {
+      if (slot.methods.length === 0) return false;
+      return slot.methods.every((code) => {
+        const method = methodByCode.get(code);
+        return !!method && method.active !== false;
+      });
+    });
+    if (!allSlotsConfigured) return false;
     const sel = getSelectedSlotMachines(petition, group);
-    return group.slots.every((slot, i) => isSlotSatisfied(slot, sel, i));
+    return groupMachineMethods(group.slots, methodByCode).every((gm) => !!sel[gm.code]);
   }
 
   function refreshPetitions() {
@@ -672,7 +649,7 @@ export default function PetitionAssignPage() {
                 selectedByPetition={selectedByPetition}
                 setSelectedByPetition={setSelectedByPetition}
                 getSelectedSlotMachines={getSelectedSlotMachines}
-                onSelectMachine={setMachineForSlot}
+                onSelectMachine={setMachineForMethod}
                 savingId={savingId}
                 editingIds={editingIds}
                 onEdit={startEditing}
@@ -712,7 +689,7 @@ export default function PetitionAssignPage() {
                 selectedByPetition={selectedByPetition}
                 setSelectedByPetition={setSelectedByPetition}
                 getSelectedSlotMachines={getSelectedSlotMachines}
-                onSelectMachine={setMachineForSlot}
+                onSelectMachine={setMachineForMethod}
                 savingId={savingId}
                 editingIds={editingIds}
                 onEdit={startEditing}
@@ -905,7 +882,6 @@ interface AssignTableProps {
   onSelectMachine: (
     petitionId: string,
     groupKey: string,
-    slotIndex: number,
     methodCode: string,
     machineKey: string,
   ) => void;
@@ -1146,6 +1122,26 @@ function AssignTable({
                     <div className="divide-y divide-grey-100">
                       {petitionGroups.map((group) => {
                         const slotMachines = getSelectedSlotMachines(petition, group);
+                        const machineMethods = groupMachineMethods(group.slots, methodByCode);
+                        // per-substance non-machine signals (machine-backed methods
+                        // are rendered once, consolidated, as pickers above)
+                        const notSet: string[] = [];
+                        const benchNotes: { key: string; label: string; substance: string }[] = [];
+                        const unknownCodes: { key: string; code: string }[] = [];
+                        group.slots.forEach((slot, sIdx) => {
+                          if (slot.methods.length === 0) {
+                            notSet.push(slot.name || `เครื่องที่ ${sIdx + 1}`);
+                            return;
+                          }
+                          slot.methods.forEach((code) => {
+                            const method = methodByCode.get(code);
+                            if (!method) {
+                              unknownCodes.push({ key: `${sIdx}-${code}`, code });
+                            } else if (!method.requiresMachine) {
+                              benchNotes.push({ key: `${sIdx}-${code}`, label: method.label, substance: slot.name });
+                            }
+                          });
+                        });
                         return (
                           <div
                             key={group.groupKey}
@@ -1166,83 +1162,61 @@ function AssignTable({
                               </div>
                             )}
                             <div className="flex flex-wrap items-center gap-1.5">
-                              {group.slots.map((slot, idx) => (
-                                <div key={`${slot.name}-${idx}`} className="flex items-center gap-1.5">
-                                  {idx > 0 && (
-                                    <span className="text-grey-400 font-medium">+</span>
-                                  )}
-                                  {slot.methods.length === 0 ? (
-                                    <div
-                                      title={slot.name}
-                                      className="w-[170px] shrink-0 rounded-md border border-amber-200 bg-amber-50/50 px-2 py-1.5 text-[10px] text-amber-700"
-                                    >
-                                      <div className="font-medium truncate">
-                                        {slot.name || `เครื่องที่ ${idx + 1}`}
+                              {machineMethods.map((gm) => {
+                                const filteredMachines = machines.filter((m) =>
+                                  machineMatchesMethod(m.name, gm.method, registryMethods),
+                                );
+                                return (
+                                  <div key={gm.code}>
+                                    <SingleMachinePicker
+                                      slotLabel={
+                                        gm.substanceNames.length > 1
+                                          ? `ใช้ร่วม ${gm.substanceNames.length} สาร`
+                                          : ''
+                                      }
+                                      substanceName={gm.substanceNames.join(', ')}
+                                      methodLabel={gm.method.label}
+                                      readOnly={locked}
+                                      machines={filteredMachines}
+                                      selectedId={slotMachines[gm.code] || null}
+                                      onSelect={(machineKey: string) =>
+                                        onSelectMachine(petition._id, group.groupKey, gm.code, machineKey)
+                                      }
+                                    />
+                                    {filteredMachines.length === 0 && (
+                                      <div className="mt-0.5 text-[11px] text-red-500">
+                                        ไม่พบเครื่องสำหรับ {gm.method.label}
                                       </div>
-                                      ยังไม่ได้ตั้ง method ในซิมเปิลเมธอด
-                                    </div>
-                                  ) : (
-                                    <div className="flex flex-wrap items-center gap-1.5">
-                                      {slot.methods.map((code) => {
-                                        const method = methodByCode.get(code);
-                                        // unknown code → treat as a configured-but-unresolvable method
-                                        if (!method) {
-                                          return (
-                                            <Badge
-                                              key={code}
-                                              variant="red-soft"
-                                              className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium"
-                                            >
-                                              method ไม่รู้จัก: {code}
-                                            </Badge>
-                                          );
-                                        }
-                                        if (!method.requiresMachine) {
-                                          // bench method — auto-satisfied, no machine needed
-                                          return (
-                                            <Badge
-                                              key={code}
-                                              variant="gray-soft"
-                                              className="shrink-0 px-1.5 py-1 text-[10px] font-medium"
-                                              title={slot.name}
-                                            >
-                                              ทำที่โต๊ะ — {method.label}
-                                            </Badge>
-                                          );
-                                        }
-                                        const filteredMachines = machines.filter((m) =>
-                                          machineMatchesMethod(m.name, method, registryMethods),
-                                        );
-                                        return (
-                                          <div key={code}>
-                                            <SingleMachinePicker
-                                              slotLabel={`เครื่องที่ ${idx + 1}`}
-                                              substanceName={slot.name}
-                                              methodLabel={method.label}
-                                              readOnly={locked}
-                                              machines={filteredMachines}
-                                              selectedId={slotMachines[slotMethodKey(idx, code)] || null}
-                                              onSelect={(machineKey: string) =>
-                                                onSelectMachine(
-                                                  petition._id,
-                                                  group.groupKey,
-                                                  idx,
-                                                  code,
-                                                  machineKey,
-                                                )
-                                              }
-                                            />
-                                            {filteredMachines.length === 0 && (
-                                              <div className="mt-0.5 text-[11px] text-red-500">
-                                                ไม่พบเครื่องสำหรับ {method.label}
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              {notSet.length > 0 && (
+                                <div className="w-[170px] shrink-0 rounded-md border border-amber-200 bg-amber-50/50 px-2 py-1.5 text-[10px] text-amber-700">
+                                  <div className="font-medium truncate" title={notSet.join(', ')}>
+                                    {notSet.join(', ')}
+                                  </div>
+                                  ยังไม่ได้ตั้ง method ในซิมเปิลเมธอด
                                 </div>
+                              )}
+                              {benchNotes.map((b) => (
+                                <Badge
+                                  key={b.key}
+                                  variant="gray-soft"
+                                  className="shrink-0 px-1.5 py-1 text-[10px] font-medium"
+                                  title={b.substance}
+                                >
+                                  ทำที่โต๊ะ — {b.label}
+                                </Badge>
+                              ))}
+                              {unknownCodes.map((u) => (
+                                <Badge
+                                  key={u.key}
+                                  variant="red-soft"
+                                  className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium"
+                                >
+                                  method ไม่รู้จัก: {u.code}
+                                </Badge>
                               ))}
                               {group.slots.length === 0 && (
                                 <span className="text-xs text-grey-500">ไม่มีสาร</span>
