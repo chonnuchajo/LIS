@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { PETITION_DEPT_LABELS, PETITION_STATUS_CONFIG, type Petition, type StatusBadgeVariant } from "@/types/petition.types";
+import { petitionStatusBadge } from "@/lib/statusBadge";
+import { PETITION_DEPT_LABELS, type Petition, type StatusBadgeVariant } from "@/types/petition.types";
 
 const STATUS_BAR_CLASS: Record<StatusBadgeVariant, string> = {
   "primary": "bg-primary-500",
@@ -116,8 +117,7 @@ export default function PetitionDashboardTable({
               </TableHeader>
               <TableBody>
                 {petitions.map((petition) => {
-                  const statusCfg =
-                    PETITION_STATUS_CONFIG[petition.status] ?? { label: petition.status, variant: "gray-soft" as const };
+                  const statusCfg = petitionStatusBadge(petition);
                   const barClass = STATUS_BAR_CLASS[statusCfg.variant] ?? "bg-grey-300";
                   const firstItem = petition.items[0];
                   const extraCount = Math.max(0, petition.items.length - 1);

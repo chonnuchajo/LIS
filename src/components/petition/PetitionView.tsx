@@ -21,6 +21,7 @@ import {
   resolveStandard,
 } from '@/lib/parameterValidation';
 import { describeResolvedStandard, describeStandard } from '@/lib/standardOperators';
+import { SG_FIELD_LABEL } from '@/lib/formSpecificGravity';
 
 interface Props { petition: Petition; }
 
@@ -76,12 +77,14 @@ export default function PetitionView({ petition: p }: Props) {
     result: QCTestResult | undefined,
   ) => {
     if (!result) return [];
+    const valueRows = getEntryValues(result, param);
+    const isSgParam = (param.valueFields ?? []).some((field) => field.label === SG_FIELD_LABEL);
     const otherParams: Record<string, Record<string, unknown>> = {};
     for (const r of results) {
       if (r.itemSeq !== item.seq) continue;
       otherParams[String(r.parameterId)] = getEntryValues(r, paramById.get(String(r.parameterId)) ?? {})[0] ?? {};
     }
-    return getEntryValues(result, param).flatMap((values, rowIndex) =>
+    return valueRows.flatMap((values, rowIndex) =>
       (param.valueFields ?? []).flatMap((field) =>
         expandFieldForItem(field, item.commonName).flatMap((unit) => {
           const isNumeric = unit.field.type === 'number' || unit.field.type === 'float';
@@ -102,12 +105,13 @@ export default function PetitionView({ petition: p }: Props) {
             .filter(({ value }) => value != null && String(value).trim() !== '')
             .map(({ value, valueIndex }) => ({
               key: `${param._id}-${rowIndex}-${unit.key}-${valueIndex}`,
-              label: param.multiEntry && getEntryValues(result, param).length > 1
+              label: param.multiEntry && valueRows.length > 1
                 ? `รายการ ${rowIndex + 1} - ${unit.field.label}`
                 : unit.field.label,
               value,
               standard,
               hasStandard: standard.trim() !== '',
+              hideStandard: isSgParam,
               abnormal: isFieldAbnormal(effectiveField, value),
             }));
         }),
@@ -221,8 +225,8 @@ export default function PetitionView({ petition: p }: Props) {
                                       <div key={entry.key} className="rounded-md border border-grey-100 bg-white px-2 py-1.5">
                                         <div className="flex flex-wrap items-center justify-between gap-1.5">
                                           <span className="text-grey-500">{entry.label}</span>
-                                          <Badge variant={!entry.hasStandard ? 'gray-soft' : entry.abnormal ? 'red-soft' : 'green-soft'}>
-                                            {!entry.hasStandard ? 'ไม่มีเกณฑ์' : entry.abnormal ? 'ไม่ผ่านเกณฑ์' : 'ผ่านเกณฑ์'}
+                                          <Badge variant={!entry.hasStandard && !entry.hideStandard ? 'gray-soft' : entry.abnormal ? 'red-soft' : 'green-soft'}>
+                                            {!entry.hasStandard && !entry.hideStandard ? 'ไม่มีเกณฑ์' : entry.abnormal ? 'ไม่ผ่านเกณฑ์' : 'ผ่านเกณฑ์'}
                                           </Badge>
                                         </div>
                                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
@@ -232,12 +236,14 @@ export default function PetitionView({ petition: p }: Props) {
                                               {formatResultValue(entry.value)}
                                             </span>
                                           </span>
-                                          <span>
-                                            เกณฑ์:{' '}
-                                            <span className="text-black-500 font-medium">
-                                              {entry.standard || '-'}
+                                          {!entry.hideStandard && (
+                                            <span>
+                                              เกณฑ์:{' '}
+                                              <span className="text-black-500 font-medium">
+                                                {entry.standard || '-'}
+                                              </span>
                                             </span>
-                                          </span>
+                                          )}
                                         </div>
                                       </div>
                                     ))}

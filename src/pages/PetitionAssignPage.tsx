@@ -24,12 +24,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useAuth } from '@/hooks/useAuth';
 import { usePetitionList } from '@/hooks/usePetition';
 import { api, type MachineItem } from '@/lib/api';
+import { petitionStatusBadge } from '@/lib/statusBadge';
 import { getMachineSuggestions, type MachineSuggestion } from '@/lib/aiApi';
 import { DEV_MODE, synthesizeDevAssignees } from '@/config/dev';
 import { parseSubstances } from '@/lib/substances';
 import { readSlotMethods, machineMatchesMethod, type MethodDoc } from '@/lib/methodRegistry';
 import {
-  PETITION_STATUS_CONFIG,
   type Petition,
   type PetitionAssignee,
   type PetitionAssignedMachine,
@@ -106,6 +106,10 @@ interface EmployeeAssignee {
 
 function employeeLabel(employee: EmployeeAssignee) {
   return `${employee.name} (${employee.employeeId})`;
+}
+
+function machineLabel(machine: MachineItem) {
+  return machine.code ? `${machine.code} - ${machine.name}` : machine.name;
 }
 
 function toAssignedMachine(
@@ -795,7 +799,7 @@ function SingleMachinePicker({
               selected ? 'font-medium text-black-500' : 'text-grey-400'
             }`}
           >
-            {selected ? selected.name : 'ไม่ได้เลือก'}
+            {selected ? machineLabel(selected) : 'ไม่ได้เลือก'}
           </span>
         </div>
       </div>
@@ -829,7 +833,7 @@ function SingleMachinePicker({
                 selected ? 'font-medium text-black-500' : 'text-grey-400'
               }`}
             >
-              {selected ? selected.name : 'เลือกเครื่อง'}
+              {selected ? machineLabel(selected) : 'เลือกเครื่อง'}
             </span>
           </div>
         </button>
@@ -872,7 +876,7 @@ function SingleMachinePicker({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-medium text-black-500">
-                      {machine.name}
+                      {machineLabel(machine)}
                     </span>
                     {machine.location && (
                       <span className="block truncate text-[11px] text-grey-500">
@@ -973,8 +977,7 @@ function AssignTable({
             </TableRow>
           )}
           {!loading && petitions.map((petition) => {
-            const statusCfg =
-              PETITION_STATUS_CONFIG[petition.status] ?? { label: petition.status, variant: 'gray-soft' as const };
+            const statusCfg = petitionStatusBadge(petition);
             const selectedEmployeeId =
               selectedByPetition[petition._id] ?? petition.assignedTo?.employeeId ?? '';
             const petitionGroups = groupsByPetition.get(petition._id) ?? [];

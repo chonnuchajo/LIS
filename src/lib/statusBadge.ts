@@ -1,5 +1,5 @@
 import type { BadgeProps } from "@/components/ui/badge";
-import { PETITION_STATUS_CONFIG } from "@/types/petition.types";
+import { PETITION_STATUS_CONFIG, type Petition } from "@/types/petition.types";
 
 export type BadgeVariant = NonNullable<BadgeProps["variant"]>;
 
@@ -33,4 +33,14 @@ export function statusBadge(status: string, labelOverride?: string): StatusBadge
     label: labelOverride ?? cfg?.label ?? status,
     variant: cfg?.variant ?? "gray-soft",
   };
+}
+
+export function petitionStatusBadge(petition: Petition): StatusBadge {
+  if (["success", "approved", "rejected"].includes(petition.status)) {
+    return statusBadge(petition.status);
+  }
+  if (petition.qcCompletedAt) return toneBadge("warning", "QC ตรวจครบ · รอส่วนอื่น");
+  if (petition.labApprovedAt) return toneBadge("warning", "Lab อนุมัติแล้ว · รอ QC");
+  if (petition.labCompletedAt) return toneBadge("warning", "Lab ตรวจครบ · รออนุมัติ");
+  return statusBadge(petition.status);
 }

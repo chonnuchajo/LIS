@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { statusBadge, toneBadge } from "./statusBadge";
+import { petitionStatusBadge, statusBadge, toneBadge } from "./statusBadge";
+import type { Petition } from "@/types/petition.types";
 
 describe("statusBadge", () => {
   it("returns label + variant for a known petition status", () => {
@@ -25,5 +26,13 @@ describe("toneBadge", () => {
   it("maps a semantic tone to a soft Badge variant", () => {
     expect(toneBadge("danger", "ผิดพลาด")).toEqual({ label: "ผิดพลาด", variant: "red-soft" });
     expect(toneBadge("info", "ข้อมูล").variant).toBe("blue-soft");
+  });
+});
+
+describe("petitionStatusBadge", () => {
+  it("shows QC completed instead of raw inProgress", () => {
+    const b = petitionStatusBadge({ status: "inProgress", qcCompletedAt: "2026-07-02" } as Petition);
+    expect(b.label).toBe("QC ตรวจครบ · รอส่วนอื่น");
+    expect(b.variant).toBe("yellow-soft");
   });
 });

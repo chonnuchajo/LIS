@@ -1,1 +1,0 @@
-import{P as r}from"./petition.types-CQphHsuN.js";const n={neutral:"gray-soft",info:"blue-soft",success:"green-soft",warning:"yellow-soft",danger:"red-soft"};function s(a,e){return{label:e,variant:n[a]}}function l(a,e){const t=r[a];return{label:(t==null?void 0:t.label)??a,variant:(t==null?void 0:t.variant)??"gray-soft"}}export{l as s,s as t};
