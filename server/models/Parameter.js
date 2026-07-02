@@ -43,7 +43,7 @@ const ValueFieldSchema = new mongoose.Schema({
   standardValue: { type: Number, default: null },
   standardOperator: {
     type: String,
-    enum: ['lt', 'lte', 'eq', 'gte', 'gt', 'between', 'tolerance', null],
+    enum: OP_ENUM,
     default: null,
   },
   standardValue2: { type: Number, default: null },
