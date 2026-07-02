@@ -51,14 +51,12 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
   const unit = field.unit ? ` ${field.unit}` : "";
   const [list, setList] = useState<SubstanceStandard[]>(field.substanceStandards ?? []);
   const [search, setSearch] = useState("");
-  const [manual, setManual] = useState("");
 
   // reseed รายการทุกครั้งที่เปิด dialog (component คงอยู่ในหน้า ไม่ remount)
   useEffect(() => {
     if (open) {
       setList(field.substanceStandards ?? []);
       setSearch("");
-      setManual("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -189,20 +187,6 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                 </div>
               </TabsContent>
             </Tabs>
-            <div className="mt-2 flex gap-2">
-              <Input
-                value={manual}
-                onChange={(e) => setManual(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") { e.preventDefault(); addSubstance(manual); setManual(""); }
-                }}
-                placeholder="พิมพ์ชื่อสารเพิ่มเอง แล้ว Enter"
-                className="h-9"
-              />
-              <Button type="button" variant="outline" className="h-9" onClick={() => { addSubstance(manual); setManual(""); }}>
-                เพิ่ม
-              </Button>
-            </div>
           </div>
 
           <div>
