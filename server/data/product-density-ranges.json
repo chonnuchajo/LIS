@@ -1294,5 +1294,45 @@
     "sgMin": null,
     "sgMax": null,
     "note": ""
+  },
+  {
+    "commonName": "2,4-D DIMETHYLAMMONIUM 84% W/V SL (IMPORTED)",
+    "thaiName": "2,4-D ไดเมทิล แอมโมเนียม 84% SL (นำเข้า)",
+    "category": "imported",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "FENOXAPROP-P-ETHYL 6.9% W/V EW (IMPORTED)",
+    "thaiName": "ฟิโนซาพรอป-พี-เอทิล 6.9% EW (นำเข้า)",
+    "category": "imported",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ADJUVANT (WHITE OIL)",
+    "thaiName": "สารเสริมประสิทธิภาพ (Adjuvent) (ไวท์ออย)",
+    "category": "imported",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ"
+  },
+  {
+    "commonName": "IMIDACLOPRID 5% W/V EC (IMPORTED)",
+    "thaiName": "อิมิดาคลอปริด 5% EC (นำเข้า)",
+    "category": "imported",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "AMITRAZ 20% W/V EC",
+    "thaiName": "อามีทราช 20% EC",
+    "category": "imported",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
   }
 ]
