@@ -566,5 +566,365 @@
     "sgMin": null,
     "sgMax": null,
     "note": ""
+  },
+  {
+    "commonName": "2,4-D DIMETHYLAMMONIUM 84% W/V SL",
+    "thaiName": "2,4-ดี ไดเมทิล แอมโมเนียม 84% เอสแอล",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "2,4-D-TRIISOPROPANOLAMINE SALT 45.2% + PICLORAM 11.6% W/V SL",
+    "thaiName": "2,4-ดี ไตรไอโซโพรพาโนลามีน ซอลท์45.2%+                      พิโคแรม11.6%SL",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "GLUFOSINATE-AMMONIUM 15% W/V SL (IMPORTED)",
+    "thaiName": "กลูโฟซิเนต-แอมโมเนียม 15% เอสแอล (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "GLUFOSINATE-AMMONIUM 15% W/V SL (PREMIUM)",
+    "thaiName": "กลูโฟซิเนต-แอมโมเนียม 15% เอสแอล (Premium)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "GLUFOSINATE-AMMONIUM 15% W/V SL (LOW-PRICE)",
+    "thaiName": "กลูโฟซิเนต-แอมโมเนียม 15% เอสแอล (Low-price)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "GLYPHOSATE 48% W/V SL (IMPORTED, AM)",
+    "thaiName": "ไกลโฟเสท 48% เอสแอล (นำเข้า)  (เอเอ็ม)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "GLYPHOSATE 48% W/V SL (IMPORTED, IPA)",
+    "thaiName": "ไกลโฟเสท 48% เอสแอล (นำเข้า)  (IPA)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "GLYPHOSATE 48% W/V SL",
+    "thaiName": "ไกลโฟเสท 48% เอสแอล",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "GLYPHOSATE 48% W/V SL (SPECIAL)",
+    "thaiName": "ไกลโฟเสท 48% เอสแอล พิเศษ",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "GLYPHOSATE 77% TECH",
+    "thaiName": "ไกลโฟเสท 77% เทค",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "technical"
+  },
+  {
+    "commonName": "CHLOROTHALONIL 50% W/V SC (IMPORTED)",
+    "thaiName": "คลอโลทาโลนิล 50% เอสซี (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "KRESOXIM-METHYL 50% W/V SC",
+    "thaiName": "ครีซอกซิม เมทิล 50% เอสซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "QUIZALOFOP-P-ETHYL 5% W/V EC (IMPORTED)",
+    "thaiName": "ควิซาโลฟอบ-พี-เอทิล 5% EC (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CARBENDAZIM 50% W/V SC",
+    "thaiName": "คาร์เบนดาซิม 50% เอสซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CARBENDAZIM 50% W/V SC (IMPORTED)",
+    "thaiName": "คาร์เบนดาซิม 50% เอสซี (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CLOMAZONE 48% W/V EC",
+    "thaiName": "โคลมาโซน  48% อีซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CLOMAZONE 48% W/V EC (IMPORTED)",
+    "thaiName": "โคลมาโซน  48% อีซี (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "CLOMAZONE 12% + PROPANIL 27% W/V EC",
+    "thaiName": "โคลมาโซน 12% + โพรพานิล 27% EC",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "SUNMORIN (STICKER)",
+    "thaiName": "ซันโมริน-ยาจับใบ",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "ยืนยันชื่อ"
+  },
+  {
+    "commonName": "CYHALOFOP-BUTYL 10% W/V EC (IMPORTED)",
+    "thaiName": "ไซฮาโลฟอบ-บิวทิล 10% อีซี (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "FLUAZIFOP-P-BUTYL 15% W/V EC (IMPORTED)",
+    "thaiName": "ฟลูอะซิฟอบ-พี-บิวทิล 15% อีซี (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "FOMESAFEN 25% W/V SL (IMPORTED)",
+    "thaiName": "โฟมีซาเฟน 25% เอสแอล (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "DIURON 80% W/V SC",
+    "thaiName": "ไดยูรอน 80% เอสซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "DIQUAT DIBROMIDE 37.3% W/V SL",
+    "thaiName": "ไดควอต ไดโบรไมด์ 37.3% SL",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "TRICLOPYR BUTOXYETHYL ESTER 66.8% W/V EC",
+    "thaiName": "ไตรโคลเพอร์ บิวท็อกซี่เอทิล เอสเทอร์ 66.8% CE",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": "source wrote \"CE\"→EC"
+  },
+  {
+    "commonName": "TEBUCONAZOLE 43% W/V SC (IMPORTED)",
+    "thaiName": "ทีบูโคนาโซล 43% เอสซี (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "BUTACHLOR 60% W/V EC",
+    "thaiName": "บิวตาคลอร์ 60% อีซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "BUTACHLOR 60% W/V EC (IMPORTED, NO SAFENER)",
+    "thaiName": "บิวตาคลอร์ 60% อีซี (นำเข้า) (No SFN)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "BUTACHLOR 60% W/V EC (+ SAFENER)",
+    "thaiName": "บิวตาคลอร์ 60%  อีซี+เซฟเฟอร์เนอร์ (SFN)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "BUTACHLOR 60% W/V EC (+ FENCLORIM)",
+    "thaiName": "บิวตาคลอร์ 60% อีซี + เฟนโคริม",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "BUTACHLOR 60% W/V EW (IMPORTED)",
+    "thaiName": "บิวตาคลอร์ 60% อีดับเบิลยู (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "BUTACHLOR 35% + PROPANIL 35% W/V EC",
+    "thaiName": "บิวตาคลอร์ 35% +โพรพานิล 35% อีซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "BISPYRIBAC-SODIUM 10% W/V SC",
+    "thaiName": "บีสไพรีแบค - โซเดียม 10% เอสซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PENDIMETHALIN 33% W/V EC (IMPORTED)",
+    "thaiName": "เพนดิเมทาลิน 33% อีซี (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PRETILACHLOR 30% W/V EC (IMPORTED)",
+    "thaiName": "เพรตติลาคลอร์ 30% EC (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PACLOBUTRAZOL 10% W/V SC",
+    "thaiName": "แพคโคบิวทราโซล 10% เอสซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PACLOBUTRAZOL 25% W/V SC",
+    "thaiName": "แพคโคบิวทราโซล 25% เอสซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "PROPANIL 36% W/V EC",
+    "thaiName": "โพรพานิล 36% อีซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "METOLACHLOR 72% W/V EC (IMPORTED)",
+    "thaiName": "เมโทลาคลอร์ 72% อีซี (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "OXADIAZON 25% W/V EC",
+    "thaiName": "ออกซาไดอะซอน 25% อีซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ACETOCHLOR 50% W/V EC",
+    "thaiName": "อะเซโตคลอร์ 50% อีซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ANILOFOS 30% W/V EC",
+    "thaiName": "อะนิโลฟอส 30% อีซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "ANILOFOS 18% + PROPANIL 36% W/V EC",
+    "thaiName": "อะนิโลฟอส 18% +  โพรพานิล 36% อีซี",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "AMETRYN 50% W/V SC (IMPORTED)",
+    "thaiName": "อะมีทรีน 50% เอสซี (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
+  },
+  {
+    "commonName": "HALOXYFOP-P-METHYL 10.8% W/V EC (IMPORTED)",
+    "thaiName": "ฮาลอกซิฟอบ-พี-เมทิล 10.8% อีซี (นำเข้า)",
+    "category": "herbicide",
+    "sgMin": null,
+    "sgMax": null,
+    "note": ""
   }
 ]
