@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { List, Filter, Sparkles, Loader2 } from "lucide-react";
+import { List, Filter, Sparkles, Loader2, FileDown } from "lucide-react";
 import { getAiStatus, streamWeeklySummary } from '@/lib/aiApi';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,23 +10,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api, type EquipmentCheckRecord } from "@/lib/api";
 import { EQUIPMENT_ROOM_SLUGS, getRoomCatalog } from "@/lib/roomEquipment";
-import { getRoomBySlug } from "@/lib/dailyCheckRooms";
 import { filterEquipmentRecords } from "@/lib/equipmentRecords";
+import { fmtDate, fmtTime, roomLabel } from "@/lib/dailyCheckFormat";
+import { useAuth } from "@/context/AuthContext";
+import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
+import EquipmentCheckReport, { EQUIPMENT_REPORT_CSS } from "@/components/lis/EquipmentCheckReport";
 
 const todayStr = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
-
-const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-
-const fmtDate = (s: string) => {
-  const [y, m, d] = s.split("-");
-  return `${d}/${m}/${y}`;
-};
-
-const roomLabel = (slug: string) => getRoomBySlug(slug)?.label ?? slug;
 
 const DailyCheckRecordsPage = () => {
   const [filterRoom, setFilterRoom] = useState<string>("all");
@@ -36,6 +29,9 @@ const DailyCheckRecordsPage = () => {
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryText, setSummaryText] = useState('');
+  const { user } = useAuth();
+  const [printOpen, setPrintOpen] = useState(false);
+  const [printedAt, setPrintedAt] = useState("");
 
   useEffect(() => {
     getAiStatus().then((s) => setOllamaAvailable(s.available));
@@ -186,6 +182,18 @@ const DailyCheckRecordsPage = () => {
             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={resetFilters}>
               รีเซ็ตตัวกรอง
             </Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              disabled={isLoading || rows.length === 0}
+              onClick={() => {
+                setPrintedAt(new Date().toISOString());
+                setPrintOpen(true);
+              }}
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              โหลดเอกสาร
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -240,6 +248,20 @@ const DailyCheckRecordsPage = () => {
           )}
         </CardContent>
       </Card>
+
+      <PrintPreviewDialog
+        open={printOpen}
+        onOpenChange={setPrintOpen}
+        docType="daily-check-report"
+        css={EQUIPMENT_REPORT_CSS}
+      >
+        <EquipmentCheckReport
+          rows={rows}
+          filters={{ date: filterDate, room: filterRoom, instrument: filterInstrument, status: filterStatus }}
+          printedBy={user?.name ?? user?.email ?? ""}
+          printedAt={printedAt || new Date().toISOString()}
+        />
+      </PrintPreviewDialog>
     </>
   );
 };
