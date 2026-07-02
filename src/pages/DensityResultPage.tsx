@@ -23,18 +23,21 @@ export default function DensityResultPage() {
   const [search, setSearch] = useState('');
   const [product, setProduct] = useState('');
   const [date, setDate] = useState('');
+  const [status, setStatus] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [appliedProduct, setAppliedProduct] = useState('');
   const [appliedDate, setAppliedDate] = useState('');
+  const [appliedStatus, setAppliedStatus] = useState('');
 
   const { data, isFetching } = useQuery({
-    queryKey: ['result-densities', page, appliedSearch, appliedProduct, appliedDate],
+    queryKey: ['result-densities', page, appliedSearch, appliedProduct, appliedDate, appliedStatus],
     queryFn: () => api.getResultDensities({
       page,
       limit: LIMIT,
       search: appliedSearch || undefined,
       product: appliedProduct || undefined,
       date: appliedDate || undefined,
+      status: appliedStatus || undefined,
     }),
     refetchInterval: 30_000,
     placeholderData: (prev) => prev,
@@ -55,19 +58,22 @@ export default function DensityResultPage() {
     setAppliedSearch(search);
     setAppliedProduct(product);
     setAppliedDate(date);
+    setAppliedStatus(status);
   }
 
   function clearFilters() {
     setSearch('');
     setProduct('');
     setDate('');
+    setStatus('');
     setPage(1);
     setAppliedSearch('');
     setAppliedProduct('');
     setAppliedDate('');
+    setAppliedStatus('');
   }
 
-  const hasActiveFilter = appliedSearch || appliedProduct || appliedDate;
+  const hasActiveFilter = appliedSearch || appliedProduct || appliedDate || appliedStatus;
 
   return (
     <AppLayout>
@@ -147,6 +153,20 @@ export default function DensityResultPage() {
             onChange={(e) => setDate(e.target.value)}
             className="rounded-md border border-gray-200 py-1.5 px-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
           />
+        </div>
+
+        {/* Status filter */}
+        <div className="flex min-w-[140px] flex-col gap-1">
+          <label className="text-xs text-gray-500">Status</label>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            className="rounded-md border border-gray-200 py-1.5 px-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+          >
+            <option value="">All</option>
+            <option value="Valid">Valid</option>
+            <option value="Error">Error</option>
+          </select>
         </div>
 
         {/* Buttons */}

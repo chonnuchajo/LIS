@@ -186,13 +186,14 @@ export const api = {
     request<{ success: boolean }>(`/densities/${encodeURIComponent(sampleId)}`, { method: 'DELETE' }),
 
   // Result Density (DMA 501 — reads from Result-Density collection)
-  getResultDensities: (params?: { page?: number; limit?: number; search?: string; product?: string; date?: string }) => {
+  getResultDensities: (params?: { page?: number; limit?: number; search?: string; product?: string; date?: string; status?: string }) => {
     const p = new URLSearchParams();
     if (params?.page) p.set('page', String(params.page));
     if (params?.limit) p.set('limit', String(params.limit));
     if (params?.search) p.set('search', params.search);
     if (params?.product) p.set('product', params.product);
     if (params?.date) p.set('date', params.date);
+    if (params?.status) p.set('status', params.status);
     const qs = p.toString() ? `?${p.toString()}` : '';
     return request<{ docs: Record<string, unknown>[]; total: number; page: number; limit: number }>(`/result-densities${qs}`);
   },

@@ -42,7 +42,7 @@ router.get('/by-batch/:batch', async (req, res) => {
   }
 });
 
-// GET /api/result-densities?page=1&limit=100&search=&product=&date=YYYY-MM-DD
+// GET /api/result-densities?page=1&limit=100&search=&product=&date=YYYY-MM-DD&status=Valid
 router.get('/', async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 100, 500);
@@ -51,6 +51,7 @@ router.get('/', async (req, res) => {
     const search = (req.query.search || '').trim();
     const product = (req.query.product || '').trim();
     const date = (req.query.date || '').trim(); // "YYYY-MM-DD"
+    const status = (req.query.status || '').trim();
 
     const filter = {};
 
@@ -61,6 +62,10 @@ router.get('/', async (req, res) => {
 
     if (product) {
       filter['Product name'] = product;
+    }
+
+    if (status) {
+      filter['Measurement status'] = new RegExp(`^${status.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
     }
 
     if (date) {
