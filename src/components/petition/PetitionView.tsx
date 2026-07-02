@@ -12,6 +12,7 @@ import { api, type ParameterItem } from '@/lib/api';
 import { normalizeRoles } from "@/lib/roles";
 import { matchParametersForItem } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
+import { getEntryValues } from '@/lib/parameterValidation';
 
 interface Props { petition: Petition; }
 
@@ -131,11 +132,20 @@ export default function PetitionView({ petition: p }: Props) {
                             const result = param._id
                               ? resultsByKey.get(`${item.seq}__${param._id}`)
                               : undefined;
-                            const entries = result
-                              ? Object.entries(result.values ?? {}).filter(
-                                  ([key]) => !key.endsWith('__note'),
+                            const valueRows = result ? getEntryValues(result, param) : [];
+                            const entries = valueRows.flatMap((values, rowIndex) =>
+                              Object.entries(values ?? {})
+                                .filter(([key, val]) =>
+                                  !key.endsWith('__note') &&
+                                  !key.endsWith('__source') &&
+                                  val != null &&
+                                  String(val).trim() !== '',
                                 )
-                              : [];
+                                .map(([key, val]) => [
+                                  param.multiEntry && valueRows.length > 1 ? `รายการ ${rowIndex + 1} - ${key}` : key,
+                                  val,
+                                ] as const),
+                            );
                             return (
                               <div
                                 key={param._id ?? param.name}
