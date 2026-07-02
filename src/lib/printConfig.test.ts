@@ -8,10 +8,13 @@ import {
 } from "./printConfig";
 
 describe("PRINT_DOC_TYPES", () => {
-  it("has the 4 known doc types", () => {
+  it("has the known doc types incl. daily-check-report", () => {
     expect(PRINT_DOC_TYPES.map((d) => d.slug)).toEqual([
-      "sample-label", "coa", "service-request", "stock-label",
+      "sample-label", "coa", "service-request", "stock-label", "daily-check-report",
     ]);
+  });
+  it("daily-check-report defaults to A4", () => {
+    expect(getPrintDocType("daily-check-report")?.defaultPaper).toBe("A4");
   });
 });
 

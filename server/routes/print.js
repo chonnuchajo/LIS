@@ -12,6 +12,7 @@ const DOC_DEFAULTS = [
   { slug: 'coa',             printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
   { slug: 'service-request', printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
   { slug: 'stock-label',     printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'label-6x4' },
+  { slug: 'daily-check-report', printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
 ];
 const ALLOWED_SLUGS = DOC_DEFAULTS.map((d) => d.slug);
 const LABEL_100X50 = { widthMm: 100, heightMm: 50, dpi: 203 };
