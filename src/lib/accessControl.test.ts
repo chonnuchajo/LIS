@@ -90,6 +90,7 @@ describe("userCanAccessPath", () => {
     // Granting a parent nav page should ride along to its detail/sub pages.
     const navGroups = [
       { id: "petitions", paths: ["/petitions"] },
+      { id: "results", paths: ["/record-results"] },
       { id: "lab", paths: ["/petitions/assign", "/lab-testing"] },
       { id: "others", paths: [] },
     ];
@@ -123,6 +124,12 @@ describe("userCanAccessPath", () => {
     it("grants the lab testing detail page when /lab-testing is granted", () => {
       const user = { role: "lab", status: "active" as const, permissions: ["/lab-testing"] };
       expect(userCanAccessPath(user, "/lab-testing/abc", navGroups)).toBe(true);
+    });
+
+    it("grants result detail from /record-results without granting petition detail", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/record-results"] };
+      expect(userCanAccessPath(user, "/record-results/abc", navGroups)).toBe(true);
+      expect(userCanAccessPath(user, "/petitions/abc", navGroups)).toBe(false);
     });
 
     it("'others' does not grant a sub-page already covered by its parent's group", () => {

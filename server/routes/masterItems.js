@@ -30,6 +30,25 @@ const META_KEYS = [
   'measureUnit',
 ];
 
+// Snake_case aliases mirroring the ERP weight-feed vocabulary (see masterItemMeta.js
+// `weightUpdate`). Consumers of GET /master-items — e.g. the PDO load planner — read
+// these snake_case keys, so every meta field with a snake_case source name is re-exposed
+// under it, not just kg_per_carton. Without this the per-sub-unit weight never reaches
+// the consumer and it falls back to unitsPerCarton, mis-computing น้ำหนักบรรทุก.
+const META_SNAKE_ALIASES = {
+  kgPerCarton: 'kg_per_carton',
+  grossKgPerUnit: 'gross_kg_per_unit',
+  declaredKgPerUnit: 'declared_kg_per_unit',
+  weightDiff: 'weight_diff',
+  packLevel: 'pack_level',
+  packSource: 'pack_source',
+  cartonUnit: 'carton_unit',
+  unitsPerCarton: 'units_per_carton',
+  packUnit: 'pack_unit',
+  measureSize: 'measure_size',
+  measureUnit: 'measure_unit',
+};
+
 const CLASSIFICATION_TYPES = [
   { code: 'ULV', group: 'water' },
   { code: 'EC', group: 'water' },
@@ -148,7 +167,9 @@ function applyMeta(item, meta) {
   for (const key of META_KEYS) {
     if (meta[key] !== undefined && meta[key] !== null && meta[key] !== '') out[key] = meta[key];
   }
-  if (meta.kgPerCarton !== undefined && meta.kgPerCarton !== null) out.kg_per_carton = meta.kgPerCarton;
+  for (const [camel, snake] of Object.entries(META_SNAKE_ALIASES)) {
+    if (meta[camel] !== undefined && meta[camel] !== null && meta[camel] !== '') out[snake] = meta[camel];
+  }
   return out;
 }
 

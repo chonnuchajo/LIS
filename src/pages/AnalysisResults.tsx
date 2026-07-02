@@ -88,7 +88,7 @@ export default function AnalysisResults() {
                 return (
                   <tr
                     key={p._id}
-                    onClick={() => navigate(`/petitions/${p._id}`)}
+                    onClick={() => navigate(`/record-results/${p._id}`)}
                     className="cursor-pointer border-t hover:bg-gray-50"
                   >
                     <td className="px-3 py-2 font-medium">{p.petitionNo}</td>
