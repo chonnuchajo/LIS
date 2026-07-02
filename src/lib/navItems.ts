@@ -58,6 +58,7 @@ export const PAGE_ITEMS: NavItem[] = [
   { icon: FileText, label: "New Petition", path: "/petitions/new" },
   { icon: FileText, label: "Petition Detail", path: "/petitions/:id" },
   { icon: Pencil, label: "Edit Petition", path: "/petitions/:id/edit" },
+  { icon: ClipboardList, label: "Analysis Result Detail", path: "/record-results/:id" },
   { icon: ScanLine, label: "Scanner", path: "/scanner" },
   { icon: FlaskConical, label: "QC Testing Detail", path: "/qc-testing/:id" },
   { icon: FlaskConical, label: "Lab Testing Detail", path: "/lab-testing/:id" },

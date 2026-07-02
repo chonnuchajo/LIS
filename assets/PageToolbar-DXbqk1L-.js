@@ -1,6 +1,0 @@
-import{c as o,e as m,I as h}from"./main-DXoxOErc.js";import{j as e}from"./vendor-query-CHuXHqWO.js";import{S as d}from"./AppLayout-Bj5_itRc.js";/**
- * @license lucide-react v0.462.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */const x=o("Keyboard",[["path",{d:"M10 8h.01",key:"1r9ogq"}],["path",{d:"M12 12h.01",key:"1mp3jc"}],["path",{d:"M14 8h.01",key:"1primd"}],["path",{d:"M16 12h.01",key:"1l6xoz"}],["path",{d:"M18 8h.01",key:"emo2bl"}],["path",{d:"M6 8h.01",key:"x9i8wu"}],["path",{d:"M7 16h10",key:"wp8him"}],["path",{d:"M8 12h.01",key:"czm47f"}],["rect",{width:"20",height:"16",x:"2",y:"4",rx:"2",key:"18n3k1"}]]);function i({search:a,filters:t,right:s,className:l}){return e.jsxs("div",{className:m("flex flex-col gap-2 sm:flex-row sm:items-center",l),children:[a&&e.jsxs("div",{className:"relative w-full sm:max-w-xs",children:[e.jsx(d,{className:"absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"}),e.jsx(h,{value:a.value,onChange:r=>a.onChange(r.target.value),placeholder:a.placeholder??"ค้นหา...",className:"pl-9"})]}),t&&e.jsx("div",{className:"flex flex-wrap items-center gap-2",children:t}),s&&e.jsx("div",{className:"flex items-center gap-2 sm:ml-auto",children:s})]})}export{x as K,i as P};

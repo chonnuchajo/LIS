@@ -112,6 +112,7 @@ const App = () => (
               <Route path="/home" element={<PrivateRoute><Home /></PrivateRoute>} />
               <Route path="/stock-deduction" element={<PrivateRoute><StockDeduction /></PrivateRoute>} />
               <Route path="/record-results" element={<PrivateRoute><AnalysisResults /></PrivateRoute>} />
+              <Route path="/record-results/:id" element={<PrivateRoute><PetitionDetailPage mode="result" /></PrivateRoute>} />
               <Route path="/qc-approval" element={<PrivateRoute><QCApproval /></PrivateRoute>} />
               <Route path="/qc-approval/:id" element={<PrivateRoute><QCApprovalReviewPage /></PrivateRoute>} />
               <Route path="/lab-approval" element={<PrivateRoute><LabApproval /></PrivateRoute>} />

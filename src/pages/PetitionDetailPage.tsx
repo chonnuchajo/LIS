@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { FileText, Pencil, Printer, RotateCcw, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FileCheck2, FileText, Pencil, Printer, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 import PageHeader from '@/components/lis/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import {
 import PetitionView from '@/components/petition/PetitionView';
 import { DevStatusStepper } from '@/components/petition/DevStatusStepper';
 import PetitionPrintTemplate from '@/components/petition/PetitionPrintTemplate';
+import ResultReportPrintTemplate from '@/components/petition/ResultReportPrintTemplate';
 import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
 import ReviewHistory from '@/components/review/ReviewHistory';
@@ -35,10 +36,13 @@ import {
 } from '@/types/petition.types';
 import { useAuth } from '@/hooks/useAuth';
 import { useSamples } from '@/context/SampleContext';
+import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import { normalizeRoles } from "@/lib/roles";
-import { api } from '@/lib/api';
+import { api, type ParameterItem } from '@/lib/api';
 import type { QCTestResult } from '@/types/petition.types';
 import { findSgParameter, type SgParameter } from '@/lib/formSpecificGravity';
+import { buildApprovalGroups } from '@/lib/qcApprovalRows';
+import { buildLaLisAssistant, type LaLisIssue } from '@/lib/laLisAssistant';
 
 function QcNoteSection({ petition }: { petition: Petition }) {
   const qcNote = (petition.reviewHistory ?? []).find((e) => e.action === 'note') ?? null;
@@ -108,25 +112,93 @@ function DecisionSection({ history }: { history: ReviewEntry[] }) {
   );
 }
 
-export default function PetitionDetailPage() {
+function IssueList({ items }: { items: LaLisIssue[] }) {
+  return (
+    <div className="space-y-1.5">
+      {items.map((item, index) => (
+        <div key={`${item.text}-${index}`} className="flex gap-2 text-sm">
+          {item.level === 'danger' ? (
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+          ) : item.level === 'warn' ? (
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+          ) : (
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+          )}
+          <span className={item.level === 'danger' ? 'text-red-700' : item.level === 'warn' ? 'text-amber-700' : 'text-grey-600'}>
+            {item.text}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LaLisAssistantPanel({
+  summary,
+}: {
+  summary: ReturnType<typeof buildLaLisAssistant>;
+}) {
+  return (
+    <Card className="border-primary-100 bg-primary-50/40">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+          <Sparkles className="h-4 w-4 text-primary-500" />
+          La-LIS Assistant
+          <Badge variant={summary.abnormalCount ? 'red-soft' : 'green-soft'}>
+            OOS {summary.abnormalCount}
+          </Badge>
+          <Badge variant={summary.missingResultCount ? 'yellow-soft' : 'green-soft'}>
+            Missing {summary.missingResultCount}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 lg:grid-cols-3">
+        <div>
+          <p className="mb-2 text-sm font-semibold text-black-700">Report Completeness</p>
+          <IssueList items={summary.readiness} />
+        </div>
+        <div>
+          <p className="mb-2 text-sm font-semibold text-black-700">OOS / Deviation</p>
+          <IssueList items={summary.oos} />
+        </div>
+        <div>
+          <p className="mb-2 text-sm font-semibold text-black-700">COA Draft Assistant</p>
+          <p className="rounded-md border border-primary-100 bg-white/70 p-3 text-sm text-grey-700">
+            {summary.draft}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type PetitionDetailPageProps = {
+  mode?: 'petition' | 'result';
+};
+
+export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetailPageProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { data, loading, error, refresh } = usePetition(id);
   const { user } = useAuth();
   const { refetch: refetchSamples } = useSamples();
+  const groupMembership = useItemGroupMembership();
   const { data: labRequests } = useLabRequestsByPetition(data?._id);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const autoPrintDone = useRef(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [labelPrintOpen, setLabelPrintOpen] = useState(false);
+  const [preReportOpen, setPreReportOpen] = useState(false);
+  const [finalReportOpen, setFinalReportOpen] = useState(false);
   // ค่า ถ.พ. บนใบคำขอรับบริการ ดึงจากผล QC + พารามิเตอร์ ถพ. — โหลดแบบ lazy ตอนเปิดพิมพ์
+  const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const [qcResults, setQcResults] = useState<QCTestResult[]>([]);
   const [sgParam, setSgParam] = useState<SgParameter | null>(null);
 
   useEffect(() => {
-    if (!printOpen || !data?._id) return;
+    if (!data?._id) return;
     let cancelled = false;
     (async () => {
       try {
@@ -136,13 +208,23 @@ export default function PetitionDetailPage() {
         ]);
         if (cancelled) return;
         setQcResults(results ?? []);
+        setParameters(params ?? []);
         setSgParam(findSgParameter(params));
       } catch {
         /* คอลัมน์ ค่า ถ.พ. ปล่อยว่างถ้าโหลดไม่สำเร็จ */
       }
     })();
     return () => { cancelled = true; };
-  }, [printOpen, data?._id]);
+  }, [data?._id]);
+
+  const assistantGroups = useMemo(
+    () => data ? buildApprovalGroups(data, parameters, qcResults, groupMembership) : [],
+    [data, parameters, qcResults, groupMembership],
+  );
+  const laLisSummary = useMemo(
+    () => data ? buildLaLisAssistant(data, labRequests, assistantGroups) : null,
+    [data, labRequests, assistantGroups],
+  );
 
   useEffect(() => {
     const state = location.state as { autoPrint?: boolean } | null;
@@ -187,6 +269,7 @@ export default function PetitionDetailPage() {
           const canEdit = data.status === 'deliveringQC' && isRequester;
           const canDelete = isAdmin || (data.status === 'deliveringQC' && isRequester);
           const hasLabRequests = (labRequests?.length ?? 0) > 0;
+          const isResultMode = mode === 'result';
 
           return (
             <div className="space-y-6">
@@ -234,15 +317,15 @@ export default function PetitionDetailPage() {
                   );
                 })()}
                 <PageHeader
-                  onBack={() => navigate('/petitions')}
-                  title={data.petitionNo}
+                  onBack={() => navigate(isResultMode ? '/record-results' : '/petitions')}
+                  title={isResultMode ? `ผลวิเคราะห์ ${data.petitionNo}` : data.petitionNo}
                   actions={
                     <>
-                      <Button variant="primary-outline" size="sm" onClick={() => setLabelPrintOpen(true)}>
+                      {isResultMode ? null : <Button variant="primary-outline" size="sm" onClick={() => setLabelPrintOpen(true)}>
                         <Printer className="h-4 w-4" />
                         พิมพ์ฉลาก
-                      </Button>
-                      {hasLabRequests && (
+                      </Button>}
+                      {!isResultMode && hasLabRequests && (
                         <Button
                           variant="primary-outline"
                           size="sm"
@@ -252,7 +335,23 @@ export default function PetitionDetailPage() {
                           พิมพ์ใบคำขอรับบริการ
                         </Button>
                       )}
-                      {canEdit && (
+                      <Button
+                        variant="primary-outline"
+                        size="sm"
+                        onClick={() => setPreReportOpen(true)}
+                      >
+                        <FileText className="h-4 w-4" />
+                        Pre Report
+                      </Button>
+                      <Button
+                        variant="primary-outline"
+                        size="sm"
+                        onClick={() => setFinalReportOpen(true)}
+                      >
+                        <FileCheck2 className="h-4 w-4" />
+                        Final Report
+                      </Button>
+                      {!isResultMode && canEdit && (
                         <Button
                           variant="primary-outline"
                           size="sm"
@@ -262,7 +361,7 @@ export default function PetitionDetailPage() {
                           แก้ไข
                         </Button>
                       )}
-                      {canDelete && (
+                      {!isResultMode && canDelete && (
                         <Button
                           variant="danger-outline"
                           size="sm"
@@ -319,6 +418,8 @@ export default function PetitionDetailPage() {
 
                 <DevStatusStepper petitionId={data._id} status={data.status} onChanged={refresh} />
 
+                {laLisSummary && <LaLisAssistantPanel summary={laLisSummary} />}
+
                 <PetitionView petition={data} />
 
                 {(data.reviewHistory?.length ?? 0) > 0 && (
@@ -344,6 +445,12 @@ export default function PetitionDetailPage() {
                   <SampleLabelPrintTemplate petition={data} />
                 </PrintPreviewDialog>
               )}
+              <PrintPreviewDialog open={preReportOpen} onOpenChange={setPreReportOpen} docType="coa">
+                <ResultReportPrintTemplate kind="pre" petition={data} labRequests={labRequests ?? []} qcResults={qcResults} />
+              </PrintPreviewDialog>
+              <PrintPreviewDialog open={finalReportOpen} onOpenChange={setFinalReportOpen} docType="coa">
+                <ResultReportPrintTemplate kind="final" petition={data} labRequests={labRequests ?? []} qcResults={qcResults} />
+              </PrintPreviewDialog>
             </div>
           );
         })()
