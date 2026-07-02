@@ -6,6 +6,31 @@ const OptionOutputSchema = new mongoose.Schema({
   text: { type: String, default: '' },
 }, { _id: false });
 
+const OP_ENUM = ['lt', 'lte', 'eq', 'gte', 'gt', 'between', 'tolerance', null];
+
+const SubstanceStandardSchema = new mongoose.Schema({
+  substance: { type: String, required: true, trim: true },
+  operator: { type: String, enum: OP_ENUM, default: null },
+  value: { type: Number, default: null },
+  value2: { type: Number, default: null },
+}, { _id: false });
+
+const StandardConditionSchema = new mongoose.Schema({
+  sourceParameterId: { type: String, default: null },
+  sourceFieldLabel: { type: String, required: true },
+  op: { type: String, enum: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'between'], required: true },
+  value: { type: mongoose.Schema.Types.Mixed },
+  value2: { type: Number, default: null },
+}, { _id: false });
+
+const StandardRuleSchema = new mongoose.Schema({
+  label: { type: String, default: '' },
+  conditions: { type: [StandardConditionSchema], default: [] },
+  operator: { type: String, enum: OP_ENUM, default: null },
+  value: { type: Number, default: null },
+  value2: { type: Number, default: null },
+}, { _id: false });
+
 const ValueFieldSchema = new mongoose.Schema({
   label: { type: String, required: true, trim: true },
   type: { type: String, enum: ['text', 'number', 'float', 'enum', 'photo', 'file', 'timer', 'reference'], required: true },
@@ -66,6 +91,12 @@ const ValueFieldSchema = new mongoose.Schema({
   // Per-option result classification for enum fields.
   // Absent = legacy (expectedValues). Present = { option: {kind, text?} }.
   optionOutputs: { type: Map, of: OptionOutputSchema, default: undefined },
+  // Per-substance standards (number/float). substanceMode=true → single standardOperator/Value ignored.
+  substanceMode: { type: Boolean, default: false },
+  substanceStandards: { type: [SubstanceStandardSchema], default: [] },
+  // Conditional standards (number/float). conditionalMode=true → single standard* and substance* ignored.
+  conditionalMode: { type: Boolean, default: false },
+  conditionalStandards: { type: [StandardRuleSchema], default: [] },
 }, { _id: false });
 
 const ParameterSchema = new mongoose.Schema({
@@ -191,6 +222,9 @@ ParameterSchema.pre('validate', function (next) {
       if (f.triggersPhase2) {
         return next(new Error(`ช่อง "${f.label}": field แบบ reference ใช้เป็น trigger ไม่ได้`));
       }
+    }
+    if (f.substanceMode && f.conditionalMode) {
+      return next(new Error(`ช่อง "${f.label}": ใช้โหมด "แยกตามสาร" และ "เงื่อนไขพิเศษ" พร้อมกันไม่ได้`));
     }
     if (f.multiple) {
       if (!['text', 'number', 'float', 'enum'].includes(f.type)) {

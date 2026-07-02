@@ -39,3 +39,65 @@ test('collapses an all-orphan optionOutputs map to undefined (legacy fallback)',
     ? doc.valueFields[0].optionOutputs == null
     : false, 'all-orphan map should collapse to undefined');
 });
+
+test('persists substanceMode + substanceStandards (not stripped by strict mode)', () => {
+  const doc = new Parameter({
+    name: 'ทดสอบสาร',
+    valueFields: [{
+      label: 'AI content', type: 'number', unit: 'g/L',
+      substanceMode: true,
+      substanceStandards: [{ substance: 'ABAMECTIN', operator: 'gte', value: 1.8, value2: null }],
+    }],
+  });
+  const f = doc.valueFields[0];
+  assert.strictEqual(f.substanceMode, true);
+  assert.strictEqual(f.substanceStandards.length, 1);
+  assert.strictEqual(f.substanceStandards[0].substance, 'ABAMECTIN');
+  assert.strictEqual(f.substanceStandards[0].operator, 'gte');
+  assert.strictEqual(f.substanceStandards[0].value, 1.8);
+});
+
+test('persists conditionalMode + conditionalStandards incl nested conditions (string & numeric values)', () => {
+  const doc = new Parameter({
+    name: 'ทดสอบเงื่อนไข',
+    valueFields: [{
+      label: 'ความหนืด', type: 'number', unit: 'cP',
+      conditionalMode: true,
+      conditionalStandards: [{
+        label: 'ก้อนใหญ่',
+        conditions: [
+          { sourceParameterId: null, sourceFieldLabel: 'ชนิดสินค้า', op: 'eq', value: 'powder' },
+          { sourceParameterId: null, sourceFieldLabel: 'น้ำหนัก', op: 'gte', value: 5, value2: null },
+        ],
+        operator: 'between', value: 10, value2: 20,
+      }],
+    }],
+  });
+  const f = doc.valueFields[0];
+  assert.strictEqual(f.conditionalMode, true);
+  assert.strictEqual(f.conditionalStandards.length, 1);
+  const rule = f.conditionalStandards[0];
+  assert.strictEqual(rule.label, 'ก้อนใหญ่');
+  assert.strictEqual(rule.operator, 'between');
+  assert.strictEqual(rule.value, 10);
+  assert.strictEqual(rule.value2, 20);
+  assert.strictEqual(rule.conditions.length, 2);
+  assert.strictEqual(rule.conditions[0].value, 'powder'); // string preserved (Mixed)
+  assert.strictEqual(rule.conditions[1].value, 5);        // number preserved (Mixed)
+});
+
+test('rejects a field with both substanceMode and conditionalMode', async () => {
+  const doc = new Parameter({
+    name: 'ทดสอบขัดกัน',
+    valueFields: [{ label: 'x', type: 'number', unit: 'g', substanceMode: true, conditionalMode: true }],
+  });
+  await assert.rejects(() => doc.validate());
+});
+
+test('rejects multiple + substanceMode', async () => {
+  const doc = new Parameter({
+    name: 'ทดสอบ multiple',
+    valueFields: [{ label: 'x', type: 'number', unit: 'g', multiple: true, substanceMode: true }],
+  });
+  await assert.rejects(() => doc.validate(), /กรอกหลายค่า/);
+});
