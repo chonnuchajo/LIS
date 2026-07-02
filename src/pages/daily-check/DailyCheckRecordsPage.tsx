@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { api, type EquipmentCheckRecord } from "@/lib/api";
 import { EQUIPMENT_ROOM_SLUGS, getRoomCatalog } from "@/lib/roomEquipment";
 import { filterEquipmentRecords } from "@/lib/equipmentRecords";
-import { fmtDate, fmtTime, roomLabel } from "@/lib/dailyCheckFormat";
+import { fmtDate, fmtTime, roomLabel, formatReadings } from "@/lib/dailyCheckFormat";
 import { useAuth } from "@/context/AuthContext";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
 import EquipmentCheckReport, { EQUIPMENT_REPORT_CSS } from "@/components/lis/EquipmentCheckReport";
@@ -233,9 +233,7 @@ const DailyCheckRecordsPage = () => {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center text-xs whitespace-nowrap">
-                          {h.readings.length
-                            ? h.readings.map((r) => `${r.label} ${r.value} ${r.unit}`).join(", ")
-                            : "—"}
+                          {formatReadings(h.readings)}
                         </TableCell>
                         <TableCell className="text-xs">{h.note || "—"}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{h.recorder}</TableCell>

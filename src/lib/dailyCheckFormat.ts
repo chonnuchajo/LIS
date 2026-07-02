@@ -1,3 +1,4 @@
+import type { EquipmentReading } from "@/lib/api";
 import { getRoomBySlug } from "@/lib/dailyCheckRooms";
 import { getRoomCatalog } from "@/lib/roomEquipment";
 
@@ -25,3 +26,6 @@ export const instrumentFilterLabel = (room: string, instrumentId: string) => {
 };
 
 export const dateFilterLabel = (date: string) => (date ? fmtDate(date) : "ทุกวัน");
+
+export const formatReadings = (readings: EquipmentReading[]) =>
+  readings.length ? readings.map((x) => `${x.label} ${x.value} ${x.unit}`).join(", ") : "—";

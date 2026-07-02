@@ -8,6 +8,7 @@ import {
   statusFilterLabel,
   instrumentFilterLabel,
   dateFilterLabel,
+  formatReadings,
 } from "@/lib/dailyCheckFormat";
 
 export interface EquipmentCheckReportFilters {
@@ -33,11 +34,6 @@ body{font-family:'Kanit',sans-serif;margin:0;color:#000;font-size:12px;}
 .eqr thead th{background:#f3f4f6;font-weight:600;}
 .eqr .sig-line{border-bottom:1px dotted #000;display:inline-block;min-width:200px;}
 `;
-
-const renderReadings = (r: EquipmentCheckRecord) =>
-  r.readings.length
-    ? r.readings.map((x) => `${x.label} ${x.value} ${x.unit}`).join(", ")
-    : "—";
 
 export default function EquipmentCheckReport({
   rows,
@@ -68,30 +64,30 @@ export default function EquipmentCheckReport({
       </div>
 
       {/* Table */}
-      <table>
+      <table className="border-collapse w-full">
         <thead>
           <tr>
-            <th>วันที่</th>
-            <th>เวลา</th>
-            <th>ห้อง</th>
-            <th>เครื่อง</th>
-            <th className="text-center">สถานะ</th>
-            <th className="text-center">ค่าที่วัด</th>
-            <th>หมายเหตุ</th>
-            <th>ผู้บันทึก</th>
+            <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold">วันที่</th>
+            <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold">เวลา</th>
+            <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold">ห้อง</th>
+            <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold">เครื่อง</th>
+            <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold text-center">สถานะ</th>
+            <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold text-center">ค่าที่วัด</th>
+            <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold">หมายเหตุ</th>
+            <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold">ผู้บันทึก</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((h) => (
             <tr key={h._id}>
-              <td className="whitespace-nowrap">{fmtDate(h.date)}</td>
-              <td className="whitespace-nowrap">{fmtTime(h.checkedAt)}</td>
-              <td className="whitespace-nowrap">{roomLabel(h.roomSlug)}</td>
-              <td className="whitespace-nowrap">{h.instrumentName} ({h.instrumentId})</td>
-              <td className="text-center whitespace-nowrap">{h.status === "normal" ? "ปกติ" : "ผิดปกติ"}</td>
-              <td className="text-center">{renderReadings(h)}</td>
-              <td>{h.note || "—"}</td>
-              <td className="whitespace-nowrap">{h.recorder}</td>
+              <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{fmtDate(h.date)}</td>
+              <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{fmtTime(h.checkedAt)}</td>
+              <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{roomLabel(h.roomSlug)}</td>
+              <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{h.instrumentName} ({h.instrumentId})</td>
+              <td className="border border-black px-2 py-1 align-top text-center whitespace-nowrap">{h.status === "normal" ? "ปกติ" : "ผิดปกติ"}</td>
+              <td className="border border-black px-2 py-1 align-top text-center">{formatReadings(h.readings)}</td>
+              <td className="border border-black px-2 py-1 align-top">{h.note || "—"}</td>
+              <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{h.recorder}</td>
             </tr>
           ))}
         </tbody>
@@ -103,8 +99,8 @@ export default function EquipmentCheckReport({
       {/* Signatures + print meta */}
       <div className="mt-10 flex justify-between text-[12px]">
         <div className="text-center">
-          <div>ผู้บันทึก <span className="sig-line"></span></div>
-          <div className="mt-6">ผู้ตรวจสอบ <span className="sig-line"></span></div>
+          <div>ผู้บันทึก <span className="sig-line inline-block border-b border-dotted border-black min-w-[200px]"></span></div>
+          <div className="mt-6">ผู้ตรวจสอบ <span className="sig-line inline-block border-b border-dotted border-black min-w-[200px]"></span></div>
         </div>
         <div className="self-end text-right text-[11px] text-gray-600">
           <div>พิมพ์เมื่อ: {printedAtLabel}</div>
