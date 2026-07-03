@@ -1,4 +1,4 @@
-sconst express = require('express');
+const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const Petition = require('../models/Petition');
