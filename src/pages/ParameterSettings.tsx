@@ -1975,7 +1975,8 @@ function ParameterDialog({
         (form.itemNames?.length ?? 0) +
         (form.productTypes?.length ?? 0) +
         (form.categories?.length ?? 0) +
-        (form.subCategories?.length ?? 0);
+        (form.subCategories?.length ?? 0) +
+        (form.itemGroups?.length ?? 0);
       if (total === 0) {
         return "กรุณาเลือก 'ใช้กับ' อย่างน้อย 1 รายการ หรือเลือก 'ใช้กับทั้งหมด'";
       }
