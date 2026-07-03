@@ -15,6 +15,7 @@ import type { DocumentNumberConfig, DocumentNumberConfigInput, DocNumberType } f
 import type { LineGroup, LineGroupInput, LineHealth } from "@/lib/lineConfig";
 import type { DashboardId, StoredLayout, DashboardLayout } from "@/lib/dashboardLayout";
 import type { MethodDoc, MethodInput } from './methodRegistry';
+import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
 
 export type ApiRouteInfo = { method: string; path: string };
 
@@ -283,6 +284,34 @@ export const api = {
     request<StockSolventItem>(`/stock/solvents/${id}/deduct`, { method: "POST", body: JSON.stringify(body) }),
   receiveSolvent: (id: string, body: { qty: number; note?: string }) =>
     request<StockSolventItem>(`/stock/solvents/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
+
+  // Chemical requisition — เบิกสารเคมี (solvent) → เครื่อง (daily-check/analysis)
+  getChemicalRequisitions: (params: { room: string; date?: string }) => {
+    const qs =
+      "?" +
+      new URLSearchParams(
+        Object.entries(params)
+          .filter(([, v]) => v != null && v !== "")
+          .map(([k, v]) => [k, String(v)]),
+      ).toString();
+    return request<{ data: ChemicalRequisition[] }>(`/chemical-requisitions${qs}`).then((r) => r.data);
+  },
+  createChemicalRequisition: (body: {
+    roomSlug: string;
+    date: string;
+    instrumentId: string;
+    instrumentName: string;
+    solventId: string;
+    qty: number;
+    note?: string;
+    requestedBy: { email: string; name: string };
+  }) =>
+    request<{ requisition: ChemicalRequisition; solvent: StockSolventItem }>(
+      "/chemical-requisitions",
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  deleteChemicalRequisition: (id: string) =>
+    request<{ ok: true }>(`/chemical-requisitions/${id}`, { method: "DELETE" }),
 
   // Stock — Glassware
   getGlassware: () => request<StockGlasswareItem[]>("/stock/glassware"),
