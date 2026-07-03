@@ -45,3 +45,59 @@ test('isConfigured reflects the access token env', () => {
   assert.strictEqual(line.isConfigured(), true);
   delete process.env.LINE_CHANNEL_ACCESS_TOKEN;
 });
+
+test('isForwarding reflects LINE_FORWARD_WEBHOOK_URL', () => {
+  delete process.env.LINE_FORWARD_WEBHOOK_URL;
+  assert.strictEqual(line.isForwarding(), false);
+  process.env.LINE_FORWARD_WEBHOOK_URL = 'https://example.com/hook';
+  assert.strictEqual(line.isForwarding(), true);
+  assert.strictEqual(line.forwardUrl(), 'https://example.com/hook');
+  delete process.env.LINE_FORWARD_WEBHOOK_URL;
+});
+
+test('forwardWebhook: relays raw body + signature to the forward URL', async () => {
+  process.env.LINE_FORWARD_WEBHOOK_URL = 'https://n8n.example/webhook/line';
+  const seen = [];
+  const realFetch = global.fetch;
+  global.fetch = async (url, opts) => {
+    seen.push({ url: String(url), opts });
+    return { ok: true, status: 200, text: async () => '' };
+  };
+  try {
+    const body = Buffer.from(JSON.stringify({ events: [{ type: 'join' }] }), 'utf8');
+    const res = await line.forwardWebhook(body, 'sig-123');
+    assert.strictEqual(res.ok, true);
+    assert.strictEqual(seen.length, 1);
+    assert.strictEqual(seen[0].url, 'https://n8n.example/webhook/line');
+    assert.strictEqual(seen[0].opts.headers['X-Line-Signature'], 'sig-123');
+    assert.strictEqual(seen[0].opts.body.toString('utf8'), body.toString('utf8'));
+  } finally {
+    global.fetch = realFetch;
+    delete process.env.LINE_FORWARD_WEBHOOK_URL;
+  }
+});
+
+test('verifyIngestKey: matches only the configured secret (timing-safe)', () => {
+  delete process.env.LINE_INGEST_SECRET;
+  assert.strictEqual(line.verifyIngestKey('anything'), false); // no secret set
+  process.env.LINE_INGEST_SECRET = 'super-secret-key';
+  assert.strictEqual(line.verifyIngestKey('super-secret-key'), true);
+  assert.strictEqual(line.verifyIngestKey('wrong'), false);
+  assert.strictEqual(line.verifyIngestKey(''), false);
+  assert.strictEqual(line.verifyIngestKey(undefined), false);
+  delete process.env.LINE_INGEST_SECRET;
+});
+
+test('forwardWebhook: no URL configured → skipped, no fetch', async () => {
+  delete process.env.LINE_FORWARD_WEBHOOK_URL;
+  let called = false;
+  const realFetch = global.fetch;
+  global.fetch = async () => { called = true; return { ok: true, status: 200, text: async () => '' }; };
+  try {
+    const res = await line.forwardWebhook(Buffer.from('{}'), 'sig');
+    assert.strictEqual(res.skipped, true);
+    assert.strictEqual(called, false);
+  } finally {
+    global.fetch = realFetch;
+  }
+});

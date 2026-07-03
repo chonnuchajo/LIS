@@ -22,6 +22,30 @@ function channelSecret() {
 function isConfigured() {
   return accessToken().length > 0;
 }
+// Optional: forward every inbound webhook payload to another handler (e.g. an n8n
+// workflow) so existing integrations keep working while LIS is the primary webhook.
+function forwardUrl() {
+  return String(process.env.LINE_FORWARD_WEBHOOK_URL || '').trim();
+}
+function isForwarding() {
+  return forwardUrl().length > 0;
+}
+
+// Shared secret for the /line/ingest endpoint — used when an upstream handler (n8n)
+// is the LINE webhook target and relays events to LIS. n8n may re-serialize the JSON
+// (breaking the byte-exact LINE signature), so ingest authenticates with this static
+// key instead of X-Line-Signature.
+function ingestSecret() {
+  return String(process.env.LINE_INGEST_SECRET || '').trim();
+}
+function verifyIngestKey(key) {
+  const secret = ingestSecret();
+  if (!secret || !key) return false;
+  const a = Buffer.from(secret);
+  const b = Buffer.from(String(key));
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
 
 // Verify the X-Line-Signature header: base64( HMAC-SHA256(channelSecret, rawBody) ).
 // rawBody MUST be the exact bytes LINE sent (see req.rawBody capture in index.js) —
@@ -89,12 +113,44 @@ async function reply(replyToken, messages) {
   return callLineApi('/message/reply', { replyToken, messages: msgs });
 }
 
+// Relay the exact inbound webhook (raw body + original X-Line-Signature) to the
+// configured forward URL, so a downstream handler (n8n) can verify it with the same
+// channel secret and see an identical payload. Fire-and-forget — never throws.
+async function forwardWebhook(rawBody, signature) {
+  const url = forwardUrl();
+  if (!url) return { ok: false, skipped: true };
+  try {
+    const body = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody ?? ''), 'utf8');
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(signature ? { 'X-Line-Signature': signature } : {}),
+      },
+      body,
+    });
+    if (!resp.ok) {
+      console.error(`[line] forward → ${url} failed ${resp.status}`);
+      return { ok: false, status: resp.status };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error(`[line] forward → ${url} error: ${err.message}`);
+    return { ok: false, error: err.message };
+  }
+}
+
 module.exports = {
   LINE_API,
   isConfigured,
+  isForwarding,
+  forwardUrl,
+  ingestSecret,
+  verifyIngestKey,
   channelSecret,
   verifySignature,
   toMessages,
   pushToGroup,
   reply,
+  forwardWebhook,
 };

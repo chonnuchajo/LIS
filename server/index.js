@@ -48,6 +48,7 @@ mountApi('/simple-method-exclusions', require('./routes/simpleMethodExclusions')
 mountApi('/common-name-overrides', require('./routes/commonNameOverrides'));
 mountApi('/item-groups', require('./routes/itemGroups'));
 mountApi('/machines', require('./routes/machines'));
+mountApi('/virtual-lab', require('./routes/virtualLab'));
 mountApi('/methods', require('./routes/methods'));
 mountApi('/parameters', require('./routes/parameters'));
 mountApi('/qc-results', require('./routes/qcResults'));

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { petitionStatusBadge, statusBadge, toneBadge } from "./statusBadge";
+import { petitionExceptionScore, petitionStatusBadge, petitionStatusSteps, statusBadge, toneBadge } from "./statusBadge";
 import type { Petition } from "@/types/petition.types";
 
 describe("statusBadge", () => {
@@ -46,5 +46,27 @@ describe("petitionStatusBadge", () => {
     } as Petition);
     expect(b.label).toBe("ตรวจครบแล้ว · รอหัวหน้า Lab อนุมัติ");
     expect(b.variant).toBe("yellow-soft");
+  });
+});
+
+describe("petitionStatusSteps", () => {
+  it("marks the next open gate as current", () => {
+    const steps = petitionStatusSteps({
+      status: "inProgress",
+      qcReceivedAt: "2026-07-02",
+      assignedTo: { employeeId: "1", name: "A" },
+      qcCompletedAt: "2026-07-02",
+      items: [{ seq: 1, sampleName: "S", batchNo: "B-1" }],
+    } as Petition);
+    expect(steps.find((s) => s.current)?.key).toBe("lab");
+  });
+
+  it("prioritizes stuck work above normal in-progress work", () => {
+    const stuck = petitionExceptionScore({
+      status: "inProgress",
+      labCompletedAt: "2026-07-02",
+    } as Petition);
+    const normal = petitionExceptionScore({ status: "inProgress" } as Petition);
+    expect(stuck).toBeGreaterThan(normal);
   });
 });

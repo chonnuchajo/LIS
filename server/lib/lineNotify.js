@@ -66,8 +66,9 @@ function audiencesForEvent(petition, payload) {
     case 'statusChanged':
       switch (payload?.toStatus) {
         case 'sampleSent': return bothSides;
-        case 'success':    return bothSides;
-        case 'approved':   return ['qc'];
+        // ผลออก/ปิดงาน → แจ้งฝ่ายตรวจ + แจ้งกลับแผนกผู้ยื่นคำขอ (petition.dept ตรงกับ audience key)
+        case 'success':    return [...bothSides, petition?.dept].filter(Boolean);
+        case 'approved':   return ['qc', petition?.dept].filter(Boolean);
         case 'rejected':   return bothSides;
         default:           return [];
       }

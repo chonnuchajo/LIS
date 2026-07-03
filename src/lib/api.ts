@@ -12,6 +12,7 @@ import type { StandardConfigDoc } from "@/lib/standardConfig";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import type { PrintConfig, PrintConfigInput, PrintDocType } from "@/lib/printConfig";
 import type { DocumentNumberConfig, DocumentNumberConfigInput, DocNumberType } from "@/lib/documentNumberConfig";
+import type { LineGroup, LineGroupInput, LineHealth } from "@/lib/lineConfig";
 import type { DashboardId, StoredLayout, DashboardLayout } from "@/lib/dashboardLayout";
 import type { MethodDoc, MethodInput } from './methodRegistry';
 
@@ -317,6 +318,35 @@ export const api = {
   seedMachines: () =>
     request<{ inserted: number; matched: number; total: number }>("/machines/seed", { method: "POST" }),
 
+  // Virtual Lab
+  getVirtualLabRooms: () =>
+    request<{ data: VirtualLabRoom[] }>("/virtual-lab/rooms").then((r) => r.data),
+  createVirtualLabRoom: (name: string) =>
+    request<{ data: VirtualLabRoom }>("/virtual-lab/rooms", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }).then((r) => r.data),
+  addVirtualLabInstrument: (roomId: string, machineId: string) =>
+    request<{ data: VirtualLabRoom }>(`/virtual-lab/rooms/${roomId}/instruments`, {
+      method: "POST",
+      body: JSON.stringify({ machineId }),
+    }).then((r) => r.data),
+  updateVirtualLabInstrument: (
+    roomId: string,
+    instrumentId: string,
+    data: Partial<Pick<VirtualLabInstrument, "x" | "y" | "status" | "note">> & { actor?: string },
+  ) =>
+    request<{ data: VirtualLabRoom }>(`/virtual-lab/rooms/${roomId}/instruments/${instrumentId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }).then((r) => r.data),
+  deleteVirtualLabInstrument: (roomId: string, instrumentId: string) =>
+    request<{ data: VirtualLabRoom }>(`/virtual-lab/rooms/${roomId}/instruments/${instrumentId}`, {
+      method: "DELETE",
+    }).then((r) => r.data),
+  getVirtualLabLogs: (roomId: string) =>
+    request<{ data: VirtualLabLog[] }>(`/virtual-lab/rooms/${roomId}/logs`).then((r) => r.data),
+
   // Daily Check (Calibrate เครื่องชั่งประจำวัน)
   getDailyChecks: (params?: {
     date?: string;          // YYYY-MM-DD หรือ "all"
@@ -417,6 +447,23 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(input),
     }).then((r) => r.data),
+
+  // ── LINE integration (group registry + test push) ──
+  getLineHealth: () => request<LineHealth>("/line/health"),
+  getLineGroups: () =>
+    request<{ data: LineGroup[] }>("/line/groups").then((r) => r.data),
+  createLineGroup: (input: LineGroupInput) =>
+    request<{ data: LineGroup }>("/line/groups", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }).then((r) => r.data),
+  deleteLineGroup: (groupId: string) =>
+    request<{ deleted: number }>(`/line/groups/${encodeURIComponent(groupId)}`, { method: "DELETE" }),
+  testLinePush: (audience: string, message?: string) =>
+    request<{ sent: number }>("/line/test", {
+      method: "POST",
+      body: JSON.stringify({ audience, message }),
+    }),
 
   // Print
   getPrinters: () => request<{ data: string[] }>("/print/printers").then((r) => r.data),
@@ -766,6 +813,39 @@ export type MachineItem = {
   note?: string;
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type VirtualLabStatus = "idle" | "running" | "error" | "maintenance" | "offline";
+
+export type VirtualLabInstrument = {
+  _id: string;
+  machine: MachineItem;
+  x: number;
+  y: number;
+  status: VirtualLabStatus;
+  note?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+};
+
+export type VirtualLabRoom = {
+  _id: string;
+  name: string;
+  instruments: VirtualLabInstrument[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type VirtualLabLog = {
+  _id: string;
+  room: string;
+  virtualInstrumentId: string;
+  machine: MachineItem;
+  oldStatus?: string;
+  newStatus: VirtualLabStatus;
+  note?: string;
+  actor?: string;
+  createdAt?: string;
 };
 
 export type ParameterValueFieldType = "text" | "number" | "float" | "enum" | "photo" | "file" | "timer" | "reference";

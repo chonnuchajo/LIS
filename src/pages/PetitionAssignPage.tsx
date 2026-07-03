@@ -5,6 +5,7 @@ import { ClipboardCheck, Cog, FlaskConical, Hourglass, Pencil, RefreshCw, Search
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import PageHeader from '@/components/lis/PageHeader';
+import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1102,6 +1103,7 @@ function AssignTable({
                     {showPhase2Badge && (
                       <Badge variant="yellow-soft" className="font-normal">Phase 2</Badge>
                     )}
+                    <PetitionStatusTimeline petition={petition} compact />
                   </div>
                 </TableCell>
                 <TableCell className="min-w-[280px] align-top">

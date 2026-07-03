@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import PageHeader from '@/components/lis/PageHeader';
 import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
+import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
 import { petitionStatusBadge } from '@/lib/statusBadge';
 import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
@@ -266,7 +267,12 @@ export default function PetitionListPage() {
       header: 'สถานะ',
       cell: (p) => {
         const b = petitionStatusBadge(p);
-        return <Badge variant={b.variant}>{b.label}</Badge>;
+        return (
+          <div className="space-y-1">
+            <Badge variant={b.variant}>{b.label}</Badge>
+            <PetitionStatusTimeline petition={p} compact />
+          </div>
+        );
       },
     },
     {

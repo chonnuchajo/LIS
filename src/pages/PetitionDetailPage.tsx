@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, FileCheck2, FileText, Pencil, Printer, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 import PageHeader from '@/components/lis/PageHeader';
+import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -416,6 +417,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                     })}
                   </span>
                 </div>
+                <PetitionStatusTimeline petition={data} />
 
                 <DevStatusStepper petitionId={data._id} status={data.status} onChanged={refresh} />
 

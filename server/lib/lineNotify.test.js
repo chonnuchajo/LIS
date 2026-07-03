@@ -50,6 +50,17 @@ test('audiencesForEvent: success without lab item → qc only', () => {
   );
 });
 
+test('audiencesForEvent: success notifies the requester dept too', () => {
+  assert.deepStrictEqual(
+    audiencesForEvent({ dept: 'rm', items: [labItem] }, { event: 'statusChanged', toStatus: 'success' }),
+    ['qc', 'lab', 'rm'],
+  );
+  assert.deepStrictEqual(
+    audiencesForEvent({ dept: 'fg', items: [qcOnlyItem] }, { event: 'statusChanged', toStatus: 'approved' }),
+    ['qc', 'fg'],
+  );
+});
+
 test('audiencesForEvent: assigned routes to the assignee side', () => {
   assert.deepStrictEqual(
     audiencesForEvent(

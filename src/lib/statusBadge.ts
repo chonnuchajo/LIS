@@ -4,6 +4,7 @@ import { PETITION_STATUS_CONFIG, type Petition } from "@/types/petition.types";
 export type BadgeVariant = NonNullable<BadgeProps["variant"]>;
 
 export type StatusBadge = { label: string; variant: BadgeVariant };
+export type PetitionStatusStep = { key: string; label: string; done: boolean; current?: boolean };
 
 /** Generic semantic tone → Badge soft variant, for statuses that are not petition statuses. */
 const TONE_VARIANT = {
@@ -49,4 +50,49 @@ export function petitionStatusBadge(petition: Petition): StatusBadge {
   if (petition.labApprovedAt) return toneBadge("warning", "Lab อนุมัติแล้ว · รอ QC");
   if (petition.labCompletedAt) return toneBadge("warning", "Lab ตรวจครบ · รออนุมัติ");
   return statusBadge(petition.status);
+}
+
+function hasLabTrack(petition: Petition): boolean {
+  return Boolean(
+    petition.labReceivedAt ||
+      petition.labCompletedAt ||
+      petition.labApprovedAt ||
+      petition.items?.some((item) => /[16]$/.test(String(item.batchNo ?? "").trim())),
+  );
+}
+
+export function petitionStatusSteps(petition: Petition): PetitionStatusStep[] {
+  const closed = ["success", "approved", "rejected"].includes(petition.status);
+  const hasLab = hasLabTrack(petition);
+  const qcDone = !!petition.qcCompletedAt || closed;
+  const labDone = !hasLab || !!petition.labCompletedAt || closed;
+  const labApproved = !hasLab || !!petition.labApprovedAt || closed;
+  const steps: PetitionStatusStep[] = [
+    { key: "received", label: "รับตัวอย่าง", done: !!(petition.qcReceivedAt || petition.labReceivedAt || petition.receivedAt) || closed },
+    { key: "assigned", label: "Assign", done: !!petition.assignedTo || closed },
+    { key: "qc", label: "QC", done: qcDone },
+  ];
+  if (hasLab) {
+    steps.push(
+      { key: "lab", label: "Lab", done: labDone },
+      { key: "lab-approval", label: "อนุมัติ Lab", done: labApproved },
+    );
+  }
+  steps.push({ key: "qc-approval", label: "อนุมัติ QC", done: petition.status === "approved" });
+
+  const firstOpen = steps.find((step) => !step.done);
+  return steps.map((step) => ({ ...step, current: step === firstOpen }));
+}
+
+export function petitionExceptionScore(petition: Petition): number {
+  if (["approved", "rejected"].includes(petition.status)) return 0;
+  let score = 0;
+  if (petition.qcCompletedAt && !petition.labCompletedAt && hasLabTrack(petition)) score += 40;
+  if (petition.labCompletedAt && !petition.labApprovedAt) score += 35;
+  if (petition.labApprovedAt && !petition.qcCompletedAt) score += 30;
+  if (petition.status === "success") score += 25;
+  if (petition.qcReturnNote || petition.labReturnNote) score += 20;
+  const waitFrom = petition.completedAt || petition.labCompletedAt || petition.qcCompletedAt || petition.updatedAt;
+  if (waitFrom && Date.now() - new Date(waitFrom).getTime() > 24 * 60 * 60 * 1000) score += 10;
+  return score;
 }
