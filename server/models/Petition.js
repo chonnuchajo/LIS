@@ -68,6 +68,9 @@ const PetitionAssignedMachineSchema = new mongoose.Schema(
     // one substance group; each group is assigned its own machine(s).
     sampleName: String,
     commonName: String,
+    standardTimeId: String,
+    estimatedMinutes: Number,
+    estimatedSource: String,
   },
   { _id: false },
 );

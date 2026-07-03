@@ -128,6 +128,9 @@ export interface PetitionAssignedMachine {
   // group (items sharing sampleName + commonName) gets its own machine assignment.
   sampleName?: string;
   commonName?: string;
+  standardTimeId?: string;
+  estimatedMinutes?: number;
+  estimatedSource?: string;
 }
 
 // ===== Audit log =====

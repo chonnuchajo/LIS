@@ -109,6 +109,14 @@ function machineLabel(machine: MachineItem) {
   return machine.code ? `${machine.code} - ${machine.name}` : machine.name;
 }
 
+function estimateLabel(minutes?: number) {
+  if (minutes == null) return '';
+  const rounded = Math.round(minutes);
+  const h = Math.floor(rounded / 60);
+  const m = rounded % 60;
+  return h ? `${h} ชม. ${m} นาที` : `${m} นาที`;
+}
+
 function toAssignedMachine(
   machine: MachineItem,
   group: SubstanceGroup,
@@ -720,6 +728,8 @@ interface SingleMachinePickerProps {
   slotLabel: string;        // caption line, e.g. "ใช้ร่วม 2 สาร"; "" for a single substance
   substanceName: string;    // e.g. "PROPANIL 36%"
   methodLabel: string;      // required method label/code, e.g. "GC", "HPLC"
+  estimateText?: string;
+  estimateSource?: string;
   readOnly?: boolean;       // locked view — show selection without the picker
 }
 
@@ -732,6 +742,8 @@ function SingleMachinePicker({
   slotLabel,
   substanceName,
   methodLabel,
+  estimateText,
+  estimateSource,
   readOnly = false,
 }: SingleMachinePickerProps) {
   const [open, setOpen] = useState(false);
@@ -780,6 +792,11 @@ function SingleMachinePicker({
             {selected ? machineLabel(selected) : 'ไม่ได้เลือก'}
           </span>
         </div>
+        {estimateText && (
+          <div className="mt-0.5 truncate text-[10px] text-blue-600" title={estimateSource}>
+            เวลา {estimateText}
+          </div>
+        )}
       </div>
     );
   }
@@ -1171,6 +1188,12 @@ function AssignTable({
                                 const filteredMachines = machines.filter((m) =>
                                   machineMatchesMethod(m.name, gm.method, registryMethods),
                                 );
+                                const selectedMachineId = slotMachines[gm.code] || null;
+                                const assignedEstimate = (petition.assignedMachines ?? []).find((m) =>
+                                  groupKeyOf(m.sampleName ?? '', m.commonName ?? '') === group.groupKey &&
+                                  m.machineId === selectedMachineId &&
+                                  m.estimatedMinutes != null
+                                );
                                 return (
                                   <div key={gm.code}>
                                     <SingleMachinePicker
@@ -1183,7 +1206,9 @@ function AssignTable({
                                       methodLabel={gm.method.label}
                                       readOnly={locked}
                                       machines={filteredMachines}
-                                      selectedId={slotMachines[gm.code] || null}
+                                      selectedId={selectedMachineId}
+                                      estimateText={estimateLabel(assignedEstimate?.estimatedMinutes)}
+                                      estimateSource={assignedEstimate?.estimatedSource}
                                       onSelect={(machineKey: string) =>
                                         onSelectMachine(petition._id, group.groupKey, gm.code, machineKey)
                                       }

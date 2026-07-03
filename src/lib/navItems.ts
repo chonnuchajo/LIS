@@ -1,5 +1,6 @@
 import {
   ClipboardList,
+  Clock,
   Database,
   FileBarChart,
   FileText,
@@ -37,6 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { icon: ClipboardList, label: "การบันทึก Standard", path: "/stock-deduction" },
   { icon: Scale, label: "Daily Check", path: "/daily-check" },
   { icon: Network, label: "Virtual Lab", path: "/virtual-lab" },
+  { icon: Clock, label: "Standard Time", path: "/standard-time" },
   { icon: FileBarChart, label: "รายงานสรุป", path: "/report" },
   { icon: ShieldCheck, label: "อนุมัติผล QC", path: "/qc-approval" },
   { icon: ShieldCheck, label: "อนุมัติผล Lab", path: "/lab-approval" },

@@ -11,6 +11,7 @@ const { maybeAdvancePhase } = require('../lib/phaseAdvance');
 const QCTestResult = require('../models/QCTestResult');
 const Parameter = require('../models/Parameter');
 const LabRequest = require('../models/LabRequest');
+const StandardTime = require('../models/StandardTime');
 const { buildStatusLog, isLabBatch, isPetitionComplete } = require('../lib/petitionStatusLog');
 const { notifyPetitionEvent } = require('../lib/lineNotify');
 
@@ -42,6 +43,28 @@ function nextPetitionNo() {
 
 function badRequest(res, message) {
   return res.status(400).json({ error: { message } });
+}
+
+function normalizeText(value) {
+  return String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+function machineTypeOf(machine) {
+  const text = `${machine?.code || ''} ${machine?.name || ''}`.toUpperCase();
+  if (text.includes('HPLC')) return 'HPLC';
+  if (text.includes('GC')) return 'GC';
+  return '';
+}
+
+async function matchStandardTime(machine) {
+  const commonName = normalizeText(machine.commonName);
+  const machineType = machineTypeOf(machine);
+  if (!commonName || !machineType) return null;
+  return StandardTime.findOne({
+    machineType,
+    normalizedAnalysisName: commonName,
+    hasData: true,
+  }).sort({ standardTimeMin: 1 }).lean();
 }
 
 // GET /api/petitions?page=1&limit=20&status=&search=
@@ -641,7 +664,7 @@ router.patch('/:id/assign', async (req, res) => {
     };
 
     if (Array.isArray(machines)) {
-      doc.assignedMachines = machines
+      const cleaned = machines
         .filter((m) => m && m.machineId && m.code && m.name)
         .map((m) => ({
           machineId: String(m.machineId).trim(),
@@ -651,6 +674,14 @@ router.patch('/:id/assign', async (req, res) => {
           sampleName: m.sampleName ? String(m.sampleName).trim() : undefined,
           commonName: m.commonName ? String(m.commonName).trim() : undefined,
         }));
+      for (const machine of cleaned) {
+        const standard = await matchStandardTime(machine);
+        if (!standard) continue;
+        machine.standardTimeId = String(standard._id);
+        machine.estimatedMinutes = standard.standardTimeMin;
+        machine.estimatedSource = `${standard.instrument} / ${standard.analysisName}`;
+      }
+      doc.assignedMachines = cleaned;
     }
 
     if (doc.status === 'pendingReview') doc.status = 'inProgress';
