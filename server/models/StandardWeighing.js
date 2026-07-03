@@ -12,9 +12,9 @@ const StandardWeighingSchema = new mongoose.Schema(
     petitionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Petition', required: true, index: true },
     petitionNo: { type: String, default: '' },
     sampleId: { type: String, default: '' },
-    commonName: { type: String, required: true },
-    substance: { type: String, required: true },
-    instrument: { type: String, required: true }, // 'GC' | 'HPLC'
+    commonName: { type: String, required: true, trim: true },
+    substance: { type: String, required: true, trim: true },
+    instrument: { type: String, required: true, enum: ['GC', 'HPLC'], uppercase: true, trim: true }, // 'GC' | 'HPLC'
     times: { type: Number, default: null },        // snapshot at save time
     mode: { type: String, enum: ['fresh', 'working'], default: 'fresh' },
     masses: { type: [Number], default: [] },       // mg per weigh (mode='fresh')
