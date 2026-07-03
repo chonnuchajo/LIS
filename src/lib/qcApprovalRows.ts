@@ -6,6 +6,7 @@ import {
   fieldValueList,
   getEntryValues,
   isFieldAbnormal,
+  resolveConditionalOutput,
   resolveFieldStandard,
   resolveStandard,
   type ConditionContext,
@@ -114,6 +115,10 @@ export function buildApprovalGroups(
               const resolved = unit.field.conditionalMode
                 ? resolveStandard(unit.field, ctx)
                 : null;
+              const isOutputMode = unit.field.conditionalMode && unit.field.conditionalResult === "output";
+              const outputRes = isOutputMode
+                ? resolveConditionalOutput(unit.field, { sameParam: entryValues, otherParams: ctx.otherParams })
+                : null;
               const standardText = resolved
                 ? describeResolvedStandard(resolved, unit.field.unit ?? "")
                 : describeStandard(effectiveField);
@@ -131,8 +136,8 @@ export function buildApprovalGroups(
                   label: labelParts.join(" · "),
                   unit: unit.field.unit,
                   value: asStr(raw),
-                  standardText,
-                  abnormal: isFieldAbnormal(effectiveField, raw),
+                  standardText: isOutputMode ? (outputRes?.text || (outputRes?.kind === "abnormal" ? "ตกเกณฑ์" : "")) : standardText,
+                  abnormal: isOutputMode ? outputRes?.kind === "abnormal" : isFieldAbnormal(effectiveField, raw),
                   note,
                   phase,
                 });
