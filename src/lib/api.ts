@@ -576,10 +576,11 @@ export const api = {
     side: "lab" | "qc",
     actor: string,
     redoExplanation?: string,
+    requiredStandardKeys?: Array<{ commonName: string; substance: string; instrument: "GC" | "HPLC"; times: number | null }>,
   ) =>
     request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/complete`, {
       method: "POST",
-      body: JSON.stringify({ side, actor, redoExplanation }),
+      body: JSON.stringify({ side, actor, redoExplanation, requiredStandardKeys }),
     }),
   labApprovePetition: (petitionId: string, actor: string) =>
     request<import("@/types/petition.types").Petition>(`/petitions/${petitionId}/lab-approve`, {

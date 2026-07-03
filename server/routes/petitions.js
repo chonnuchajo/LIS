@@ -13,6 +13,7 @@ const Parameter = require('../models/Parameter');
 const LabRequest = require('../models/LabRequest');
 const { buildStatusLog, isLabBatch, isPetitionComplete } = require('../lib/petitionStatusLog');
 const { notifyPetitionEvent } = require('../lib/lineNotify');
+const { settleLabStandards } = require('../lib/standardWeighingSettle');
 
 function sampleIdsFromPetition(petition) {
   if (!petition || !Array.isArray(petition.items)) return [];
@@ -319,6 +320,13 @@ router.post('/:id/complete', async (req, res) => {
     } else {
       if (doc.labReturnNote && !redoExplanation) {
         return badRequest(res, 'กรุณาอธิบายว่าทำใหม่อย่างไร (ถูกส่งกลับให้แก้)');
+      }
+      // Gate + auto-deduct standard weighings before marking Lab complete.
+      // Throws (→ 400) if any required weighing is incomplete or stock is short.
+      try {
+        await settleLabStandards(doc, req.body?.requiredStandardKeys, req);
+      } catch (e) {
+        return res.status(400).json({ error: { message: e.message, details: e.details || [] } });
       }
       doc.labCompletedAt = now;
       doc.labCompletedBy = actor;
