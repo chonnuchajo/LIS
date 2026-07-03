@@ -1173,7 +1173,7 @@ export default function LabTestingDetailPage() {
                                       }
                                     }}
                                     onNoteChange={(val) => onUnitChange(noteLabel, val)}
-                                    conditionalPending={!!unit.field.conditionalMode && !resolved}
+                                    conditionalPending={isOutputMode ? false : (!!unit.field.conditionalMode && !resolved)}
                                     resolvedStandardText={isOutputMode ? undefined : resolvedStandardText}
                                     outputResult={outputResult}
                                   />
@@ -1383,7 +1383,7 @@ export default function LabTestingDetailPage() {
                                   readOnly
                                   onChange={() => {}}
                                   onNoteChange={() => {}}
-                                  conditionalPending={!!unit.field.conditionalMode && !resolved}
+                                  conditionalPending={isOutputMode ? false : (!!unit.field.conditionalMode && !resolved)}
                                   resolvedStandardText={isOutputMode ? undefined : resolvedStandardText}
                                   outputResult={outputResult}
                                 />

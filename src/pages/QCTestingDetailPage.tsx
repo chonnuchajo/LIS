@@ -1333,7 +1333,7 @@ export default function QCTestingDetailPage() {
                           }}
                           onNoteChange={(val) => onUnitChange(noteLabel, val)}
                           previousValue={getPreviousValue(previousLookup, item, param._id!, unit.key)}
-                          conditionalPending={!!unit.field.conditionalMode && !resolved}
+                          conditionalPending={isOutputMode ? false : (!!unit.field.conditionalMode && !resolved)}
                           resolvedStandardText={isOutputMode ? undefined : resolvedStandardText}
                           lastBatchValue={lastBatchValue}
                           lastBatchLabel={lastBatch?.petitionNo}
