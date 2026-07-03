@@ -101,3 +101,54 @@ test('rejects multiple + substanceMode', async () => {
   });
   await assert.rejects(() => doc.validate(), /กรอกหลายค่า/);
 });
+
+test('persists conditionalResult=output with outputText/outputKind', async () => {
+  const doc = new Parameter({
+    name: 'ทดสอบ output',
+    valueFields: [{
+      label: 'ขนาดก้อน', type: 'number', unit: 'mm',
+      conditionalMode: true, conditionalResult: 'output',
+      conditionalStandards: [
+        { label: 'เล็ก', conditions: [{ sourceFieldLabel: 'ขนาดก้อน', op: 'between', value: 5.5, value2: 6.5 }], outputText: 'ก้อนเล็ก', outputKind: 'normal' },
+        { label: 'ใหญ่', conditions: [{ sourceFieldLabel: 'ขนาดก้อน', op: 'between', value: 23.5, value2: 26 }], outputText: 'ก้อนใหญ่', outputKind: 'abnormal' },
+      ],
+    }],
+  });
+  await doc.validate();
+  assert.strictEqual(doc.valueFields[0].conditionalResult, 'output');
+  assert.strictEqual(doc.valueFields[0].conditionalStandards[0].outputText, 'ก้อนเล็ก');
+  assert.strictEqual(doc.valueFields[0].conditionalStandards[1].outputKind, 'abnormal');
+});
+
+test('defaults conditionalResult to standard', async () => {
+  const doc = new Parameter({
+    name: 'ทดสอบ default',
+    valueFields: [{ label: 'ค่า', type: 'number', unit: '%', conditionalMode: true, conditionalStandards: [] }],
+  });
+  await doc.validate();
+  assert.strictEqual(doc.valueFields[0].conditionalResult, 'standard');
+});
+
+test('rejects output rule with no text and no label', async () => {
+  const doc = new Parameter({
+    name: 'ทดสอบ blank',
+    valueFields: [{
+      label: 'ค่า', type: 'number', unit: '%',
+      conditionalMode: true, conditionalResult: 'output',
+      conditionalStandards: [{ label: '', conditions: [], outputText: '', outputKind: 'normal' }],
+    }],
+  });
+  await assert.rejects(() => doc.validate(), /ข้อความผลลัพธ์/);
+});
+
+test('rejects output mode combined with multiple', async () => {
+  const doc = new Parameter({
+    name: 'ทดสอบ multiple',
+    valueFields: [{
+      label: 'ค่า', type: 'number', unit: '%', multiple: true,
+      conditionalMode: true, conditionalResult: 'output',
+      conditionalStandards: [{ label: 'ok', conditions: [], outputText: 'ok', outputKind: 'normal' }],
+    }],
+  });
+  await assert.rejects(() => doc.validate(), /กรอกหลายค่า/);
+});

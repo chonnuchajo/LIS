@@ -882,6 +882,8 @@ export type StandardRule = {
   operator: StandardOperator;
   value: number | null;
   value2?: number | null;
+  outputText?: string;                 // ข้อความผลลัพธ์ (โหมด output); ว่าง = fallback ไป label
+  outputKind?: "normal" | "abnormal";  // default 'normal'
 };
 
 export type TimerUnit = "minute" | "hour" | "day" | "month";
@@ -906,6 +908,8 @@ export type ParameterValueField = {
   // standardOperator/standardValue และ substance* ถูก ignore.
   conditionalMode?: boolean;
   conditionalStandards?: StandardRule[];
+  // ชนิดผลของกฎ conditional: 'standard' (เกณฑ์ตัวเลข เดิม) | 'output' (ข้อความ+สถานะ). default 'standard'
+  conditionalResult?: "standard" | "output";
   // Field-level repeat — value stored as an array. text/number/float/enum only.
   multiple?: boolean;
   // โชว์ค่า field เดียวกันจากผลตรวจครั้งก่อนของ common name เดียวกัน (display-only)

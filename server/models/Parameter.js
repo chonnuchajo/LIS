@@ -29,6 +29,8 @@ const StandardRuleSchema = new mongoose.Schema({
   operator: { type: String, enum: OP_ENUM, default: null },
   value: { type: Number, default: null },
   value2: { type: Number, default: null },
+  outputText: { type: String, default: '' },
+  outputKind: { type: String, enum: ['normal', 'abnormal'], default: 'normal' },
 }, { _id: false });
 
 const ValueFieldSchema = new mongoose.Schema({
@@ -97,6 +99,7 @@ const ValueFieldSchema = new mongoose.Schema({
   // Conditional standards (number/float). conditionalMode=true → single standard* and substance* ignored.
   conditionalMode: { type: Boolean, default: false },
   conditionalStandards: { type: [StandardRuleSchema], default: [] },
+  conditionalResult: { type: String, enum: ['standard', 'output'], default: 'standard' },
 }, { _id: false });
 
 const ParameterSchema = new mongoose.Schema({
@@ -225,6 +228,17 @@ ParameterSchema.pre('validate', function (next) {
     }
     if (f.substanceMode && f.conditionalMode) {
       return next(new Error(`ช่อง "${f.label}": ใช้โหมด "แยกตามสาร" และ "เงื่อนไขพิเศษ" พร้อมกันไม่ได้`));
+    }
+    if (f.conditionalMode && f.conditionalResult === 'output') {
+      if (f.multiple) {
+        return next(new Error(`ช่อง "${f.label}": โหมดข้อความผลลัพธ์ใช้ร่วมกับ "กรอกหลายค่า" ไม่ได้`));
+      }
+      for (const rule of f.conditionalStandards || []) {
+        const hasText = (rule.outputText && String(rule.outputText).trim()) || (rule.label && String(rule.label).trim());
+        if (!hasText) {
+          return next(new Error(`ช่อง "${f.label}": ต้องระบุข้อความผลลัพธ์ของกฎ (โหมดข้อความ)`));
+        }
+      }
     }
     if (f.multiple) {
       if (!['text', 'number', 'float', 'enum'].includes(f.type)) {
