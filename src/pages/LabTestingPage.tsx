@@ -25,6 +25,7 @@ import {
 import PageHeader from '@/components/lis/PageHeader';
 import PageToolbar from '@/components/lis/PageToolbar';
 import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
+import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
 import { labReceivedAt, labReceivedBy, labTrackStatusBadge } from '@/lib/receiveStatus';
 import LabScanAcceptModal from '@/components/petition/LabScanAcceptModal';
 import { normalizeRoles } from '@/lib/roles';
@@ -168,7 +169,12 @@ export default function LabTestingPage() {
       className: 'align-top',
       cell: (p) => {
         const b = labTrackStatusBadge(p);
-        return <Badge variant={b.variant}>{b.label}</Badge>;
+        return (
+          <div className="space-y-1">
+            <Badge variant={b.variant}>{b.label}</Badge>
+            <PetitionStatusTimeline petition={p} compact />
+          </div>
+        );
       },
     },
     {

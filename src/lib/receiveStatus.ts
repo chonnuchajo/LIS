@@ -18,7 +18,14 @@ export function isLegacyReceived(p: Pick<Petition, 'labReceivedAt' | 'qcReceived
 
 type ReceiveFields = Pick<
   Petition,
-  'labReceivedAt' | 'labReceivedBy' | 'qcReceivedAt' | 'qcReceivedBy' | 'receivedAt' | 'receivedBy'
+  | 'labReceivedAt'
+  | 'labReceivedBy'
+  | 'labCompletedAt'
+  | 'labApprovedAt'
+  | 'qcReceivedAt'
+  | 'qcReceivedBy'
+  | 'receivedAt'
+  | 'receivedBy'
 >;
 
 export function labReceivedAt(p: ReceiveFields): string | null | undefined {
@@ -46,5 +53,9 @@ export function qcReceivedBy(p: ReceiveFields): string | undefined {
  */
 export function labTrackStatusBadge(p: ReceiveFields & { status: PetitionStatus }): StatusBadge {
   if (!labReceivedAt(p)) return toneBadge('warning', 'รอรับ');
+  if (['success', 'approved', 'rejected'].includes(p.status)) return statusBadge(p.status);
+  if (p.labApprovedAt) return toneBadge('warning', 'Lab อนุมัติแล้ว · รอ QC');
+  if (p.labCompletedAt) return toneBadge('warning', 'Lab ตรวจครบ · รออนุมัติ');
+  if (p.status === 'inProgress') return toneBadge('info', 'Lab กำลังตรวจ');
   return statusBadge(p.status);
 }

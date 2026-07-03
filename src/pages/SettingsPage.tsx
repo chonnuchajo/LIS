@@ -9,6 +9,7 @@ import PrintConfigCard from "@/components/lis/PrintConfigCard";
 import DocumentNumberConfigCard from "@/components/lis/DocumentNumberConfigCard";
 import DashboardLayoutConfigCard from "@/components/lis/DashboardLayoutConfigCard";
 import InstrumentSourceManager from "@/components/lis/InstrumentSourceManager";
+import LineConfigCard from "@/components/lis/LineConfigCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { useEnvRooms } from "@/hooks/useEnvRooms";
@@ -134,6 +135,9 @@ const SettingsPage = () => {
             <TabsTrigger value="dashboard">แดชบอร์ด</TabsTrigger>
           )}
           {isAdmin && (
+            <TabsTrigger value="line">LINE</TabsTrigger>
+          )}
+          {isAdmin && (
             <TabsTrigger value="api">API</TabsTrigger>
           )}
         </TabsList>
@@ -207,6 +211,16 @@ const SettingsPage = () => {
               เลือกว่าจะแสดงส่วนไหน เรียงลำดับอย่างไร และ KPI ใบไหน — แยกตาม role (ค่ามาตรฐานใช้เมื่อ role นั้นยังไม่ตั้งค่า)
             </p>
             <DashboardLayoutConfigCard roles={roleOptions} />
+          </TabsContent>
+        )}
+        {isAdmin && (
+          <TabsContent value="line" className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              ผูกกลุ่ม LINE ให้รับแจ้งเตือนคำขออัตโนมัติ และให้บอทตอบสถานะเมื่อพิมพ์เลขคำขอในแชต
+            </p>
+            <div className="max-w-2xl">
+              <LineConfigCard />
+            </div>
           </TabsContent>
         )}
         {isAdmin && (

@@ -12,6 +12,7 @@ const QCTestResult = require('../models/QCTestResult');
 const Parameter = require('../models/Parameter');
 const LabRequest = require('../models/LabRequest');
 const { buildStatusLog, isLabBatch, isPetitionComplete } = require('../lib/petitionStatusLog');
+const { notifyPetitionEvent } = require('../lib/lineNotify');
 
 function sampleIdsFromPetition(petition) {
   if (!petition || !Array.isArray(petition.items)) return [];
@@ -29,6 +30,8 @@ function logAudit(petition, payload) {
   }).catch((err) => {
     console.error('[audit-log] failed to write:', err.message);
   });
+  // Fan out to LINE groups (fire-and-forget; no-op unless configured + groups bound).
+  notifyPetitionEvent(petition, payload);
 }
 
 // Generate next petition number from DocumentNumberConfig (default: P-YYMM-####).

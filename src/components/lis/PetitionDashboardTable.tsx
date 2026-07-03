@@ -7,7 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { PETITION_DEPT_LABELS, PETITION_STATUS_CONFIG, type Petition, type StatusBadgeVariant } from "@/types/petition.types";
+import { petitionExceptionScore, petitionStatusBadge } from "@/lib/statusBadge";
+import PetitionStatusTimeline from "@/components/lis/PetitionStatusTimeline";
+import { PETITION_DEPT_LABELS, type Petition, type StatusBadgeVariant } from "@/types/petition.types";
 
 const STATUS_BAR_CLASS: Record<StatusBadgeVariant, string> = {
   "primary": "bg-primary-500",
@@ -70,6 +72,7 @@ export default function PetitionDashboardTable({
   }, []);
 
   const showHeader = Boolean(title) || Boolean(headerSlot);
+  const displayPetitions = [...petitions].sort((a, b) => petitionExceptionScore(b) - petitionExceptionScore(a));
 
   // ยังไม่สแกนรับ → ไปหน้า list (สแกนรับ); รับแล้ว → เข้า detail พร้อม flash
   const goToPetition = (petition: Petition) => {
@@ -115,9 +118,8 @@ export default function PetitionDashboardTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {petitions.map((petition) => {
-                  const statusCfg =
-                    PETITION_STATUS_CONFIG[petition.status] ?? { label: petition.status, variant: "gray-soft" as const };
+                {displayPetitions.map((petition) => {
+                  const statusCfg = petitionStatusBadge(petition);
                   const barClass = STATUS_BAR_CLASS[statusCfg.variant] ?? "bg-grey-300";
                   const firstItem = petition.items[0];
                   const extraCount = Math.max(0, petition.items.length - 1);
@@ -162,7 +164,10 @@ export default function PetitionDashboardTable({
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
+                        <div className="space-y-1">
+                          <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
+                          <PetitionStatusTimeline petition={petition} compact />
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />

@@ -22,7 +22,8 @@ import {
 import PageHeader from '@/components/lis/PageHeader';
 import PageToolbar from '@/components/lis/PageToolbar';
 import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
-import { statusBadge } from '@/lib/statusBadge';
+import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
+import { petitionStatusBadge } from '@/lib/statusBadge';
 import { qcReceivedAt, qcReceivedBy } from '@/lib/receiveStatus';
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
 
@@ -122,10 +123,11 @@ export default function QCTestingPage() {
       header: 'สถานะ',
       className: 'align-top',
       cell: (p) => {
-        const b = statusBadge(p.status);
+        const b = petitionStatusBadge(p);
         return (
           <div className="flex flex-col items-start gap-1">
             <Badge variant={b.variant}>{b.label}</Badge>
+            <PetitionStatusTimeline petition={p} compact />
             {qcReceivedAt(p) ? (
               <Badge variant="green-soft" className="font-normal">
                 รับโดย {qcReceivedBy(p) ?? '-'}

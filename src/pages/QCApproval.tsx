@@ -9,7 +9,7 @@ import { PETITION_DEPT_LABELS, type Petition } from "@/types/petition.types";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
-import { statusBadge } from "@/lib/statusBadge";
+import { petitionStatusBadge } from "@/lib/statusBadge";
 import { getAiStatus, streamDraftNote } from "@/lib/aiApi";
 
 const API_BASE = import.meta.env.BASE_URL + "api";
@@ -161,7 +161,7 @@ const QCApproval = () => {
       key: "status",
       header: "สถานะ",
       cell: (p) => {
-        const b = statusBadge(p.status);
+        const b = petitionStatusBadge(p);
         return <Badge variant={b.variant}>{b.label}</Badge>;
       },
     },

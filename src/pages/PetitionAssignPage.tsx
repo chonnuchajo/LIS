@@ -5,6 +5,7 @@ import { ClipboardCheck, Cog, FlaskConical, Hourglass, Pencil, RefreshCw, Search
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import PageHeader from '@/components/lis/PageHeader';
+import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,13 +25,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useAuth } from '@/hooks/useAuth';
 import { usePetitionList } from '@/hooks/usePetition';
 import { api, type MachineItem } from '@/lib/api';
+import { petitionStatusBadge } from '@/lib/statusBadge';
 import { getMachineSuggestions, type MachineSuggestion } from '@/lib/aiApi';
 import { DEV_MODE, synthesizeDevAssignees } from '@/config/dev';
 import { parseSubstances } from '@/lib/substances';
 import { readSlotMethods, machineMatchesMethod, type MethodDoc } from '@/lib/methodRegistry';
 import { groupMachineMethods } from '@/lib/assignMachineGrouping';
 import {
-  PETITION_STATUS_CONFIG,
   type Petition,
   type PetitionAssignee,
   type PetitionAssignedMachine,
@@ -102,6 +103,10 @@ interface EmployeeAssignee {
 
 function employeeLabel(employee: EmployeeAssignee) {
   return `${employee.name} (${employee.employeeId})`;
+}
+
+function machineLabel(machine: MachineItem) {
+  return machine.code ? `${machine.code} - ${machine.name}` : machine.name;
 }
 
 function toAssignedMachine(
@@ -772,7 +777,7 @@ function SingleMachinePicker({
               selected ? 'font-medium text-black-500' : 'text-grey-400'
             }`}
           >
-            {selected ? selected.name : 'ไม่ได้เลือก'}
+            {selected ? machineLabel(selected) : 'ไม่ได้เลือก'}
           </span>
         </div>
       </div>
@@ -806,7 +811,7 @@ function SingleMachinePicker({
                 selected ? 'font-medium text-black-500' : 'text-grey-400'
               }`}
             >
-              {selected ? selected.name : 'เลือกเครื่อง'}
+              {selected ? machineLabel(selected) : 'เลือกเครื่อง'}
             </span>
           </div>
         </button>
@@ -849,7 +854,7 @@ function SingleMachinePicker({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-medium text-black-500">
-                      {machine.name}
+                      {machineLabel(machine)}
                     </span>
                     {machine.location && (
                       <span className="block truncate text-[11px] text-grey-500">
@@ -949,8 +954,7 @@ function AssignTable({
             </TableRow>
           )}
           {!loading && petitions.map((petition) => {
-            const statusCfg =
-              PETITION_STATUS_CONFIG[petition.status] ?? { label: petition.status, variant: 'gray-soft' as const };
+            const statusCfg = petitionStatusBadge(petition);
             const selectedEmployeeId =
               selectedByPetition[petition._id] ?? petition.assignedTo?.employeeId ?? '';
             const petitionGroups = groupsByPetition.get(petition._id) ?? [];
@@ -1075,6 +1079,7 @@ function AssignTable({
                     {showPhase2Badge && (
                       <Badge variant="yellow-soft" className="font-normal">Phase 2</Badge>
                     )}
+                    <PetitionStatusTimeline petition={petition} compact />
                   </div>
                 </TableCell>
                 <TableCell className="min-w-[280px] align-top">

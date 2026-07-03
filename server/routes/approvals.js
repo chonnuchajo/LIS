@@ -3,6 +3,7 @@ const router = express.Router();
 const Approval = require('../models/Approval');
 const Petition = require('../models/Petition');
 const PetitionAuditLog = require('../models/PetitionAuditLog');
+const { notifyPetitionEvent } = require('../lib/lineNotify');
 
 router.get('/', async (req, res) => {
   try {
@@ -63,15 +64,19 @@ router.post('/:sampleId/qc', async (req, res) => {
           petition.status = 'success';
           if (!petition.completedAt) petition.completedAt = new Date();
           await petition.save();
-          PetitionAuditLog.create({
-            petitionId: petition._id,
-            petitionNo: petition.petitionNo,
+          const auditPayload = {
             event: 'statusChanged',
             fromStatus: prevStatus,
             toStatus: petition.status,
             actor: actor || 'system',
             note: 'QC อนุมัติครบทุกตัวอย่าง',
+          };
+          PetitionAuditLog.create({
+            petitionId: petition._id,
+            petitionNo: petition.petitionNo,
+            ...auditPayload,
           }).catch((err) => console.error('[audit-log] failed:', err.message));
+          notifyPetitionEvent(petition, auditPayload);
         }
       }
     }

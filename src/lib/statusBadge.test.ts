@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { statusBadge, toneBadge } from "./statusBadge";
+import { petitionExceptionScore, petitionStatusBadge, petitionStatusSteps, statusBadge, toneBadge } from "./statusBadge";
+import type { Petition } from "@/types/petition.types";
 
 describe("statusBadge", () => {
   it("returns label + variant for a known petition status", () => {
@@ -25,5 +26,47 @@ describe("toneBadge", () => {
   it("maps a semantic tone to a soft Badge variant", () => {
     expect(toneBadge("danger", "ผิดพลาด")).toEqual({ label: "ผิดพลาด", variant: "red-soft" });
     expect(toneBadge("info", "ข้อมูล").variant).toBe("blue-soft");
+  });
+});
+
+describe("petitionStatusBadge", () => {
+  it("shows QC completed instead of raw inProgress", () => {
+    const b = petitionStatusBadge({ status: "inProgress", qcCompletedAt: "2026-07-02" } as Petition);
+    expect(b.label).toBe("QC ตรวจครบ · รอส่วนอื่น");
+    expect(b.variant).toBe("yellow-soft");
+  });
+
+  it("shows both-done pending Lab approval when QC + Lab tested but Lab not yet approved", () => {
+    // P-2606-0018: qcCompletedAt + labCompletedAt but no labApprovedAt.
+    // Must NOT read "QC ตรวจครบ · รอส่วนอื่น" — Lab is already done testing.
+    const b = petitionStatusBadge({
+      status: "inProgress",
+      qcCompletedAt: "2026-07-02",
+      labCompletedAt: "2026-07-02",
+    } as Petition);
+    expect(b.label).toBe("ตรวจครบแล้ว · รอหัวหน้า Lab อนุมัติ");
+    expect(b.variant).toBe("yellow-soft");
+  });
+});
+
+describe("petitionStatusSteps", () => {
+  it("marks the next open gate as current", () => {
+    const steps = petitionStatusSteps({
+      status: "inProgress",
+      qcReceivedAt: "2026-07-02",
+      assignedTo: { employeeId: "1", name: "A" },
+      qcCompletedAt: "2026-07-02",
+      items: [{ seq: 1, sampleName: "S", batchNo: "B-1" }],
+    } as Petition);
+    expect(steps.find((s) => s.current)?.key).toBe("lab");
+  });
+
+  it("prioritizes stuck work above normal in-progress work", () => {
+    const stuck = petitionExceptionScore({
+      status: "inProgress",
+      labCompletedAt: "2026-07-02",
+    } as Petition);
+    const normal = petitionExceptionScore({ status: "inProgress" } as Petition);
+    expect(stuck).toBeGreaterThan(normal);
   });
 });

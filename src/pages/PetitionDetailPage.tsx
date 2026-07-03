@@ -3,9 +3,11 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, FileCheck2, FileText, Pencil, Printer, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 import PageHeader from '@/components/lis/PageHeader';
+import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { petitionStatusBadge } from '@/lib/statusBadge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,7 +32,6 @@ import {
 } from '@/hooks/usePetition';
 import {
   PETITION_DEPT_LABELS,
-  PETITION_STATUS_CONFIG,
   type Petition,
   type ReviewEntry,
 } from '@/types/petition.types';
@@ -262,8 +263,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
         </div>
       ) : (
         (() => {
-          const statusCfg =
-            PETITION_STATUS_CONFIG[data.status] ?? { label: data.status, variant: 'gray-soft' as const };
+          const statusCfg = petitionStatusBadge(data);
           const isAdmin = normalizeRoles(user).includes('admin');
           const isRequester = user?.name === data.submittedBy?.name;
           const canEdit = data.status === 'deliveringQC' && isRequester;
@@ -343,14 +343,16 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                         <FileText className="h-4 w-4" />
                         Pre Report
                       </Button>
-                      <Button
-                        variant="primary-outline"
-                        size="sm"
-                        onClick={() => setFinalReportOpen(true)}
-                      >
-                        <FileCheck2 className="h-4 w-4" />
-                        Final Report
-                      </Button>
+                      {data.status === 'approved' && (
+                        <Button
+                          variant="primary-outline"
+                          size="sm"
+                          onClick={() => setFinalReportOpen(true)}
+                        >
+                          <FileCheck2 className="h-4 w-4" />
+                          Final Report
+                        </Button>
+                      )}
                       {!isResultMode && canEdit && (
                         <Button
                           variant="primary-outline"
@@ -415,6 +417,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                     })}
                   </span>
                 </div>
+                <PetitionStatusTimeline petition={data} />
 
                 <DevStatusStepper petitionId={data._id} status={data.status} onChanged={refresh} />
 

@@ -85,4 +85,35 @@ async function generateJSON(prompt, options = {}) {
   return JSON.parse(content);
 }
 
-module.exports = { isOpenAIConfigured, generateStream, generateJSON, OPENAI_MODEL };
+// Non-streaming plain-text completion. Returns the assistant message text (or '').
+// Used where the caller needs the full answer in one shot (e.g. a LINE reply).
+async function generateText(prompt, options = {}) {
+  if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: options.model || OPENAI_MODEL,
+      messages: [
+        ...(options.system ? [{ role: 'system', content: options.system }] : []),
+        { role: 'user', content: prompt },
+      ],
+      temperature: options.temperature ?? 0.4,
+      max_tokens: options.maxTokens ?? 500,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(`OpenAI request failed: ${response.status} ${errText}`);
+  }
+
+  const json = await response.json();
+  return json.choices?.[0]?.message?.content ?? '';
+}
+
+module.exports = { isOpenAIConfigured, generateStream, generateJSON, generateText, OPENAI_MODEL };
