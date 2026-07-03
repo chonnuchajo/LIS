@@ -1,75 +1,72 @@
 import { describe, it, expect } from "vitest";
 import {
   PRINT_DOC_TYPES,
+  PRINTER_KINDS,
   getPrintDocType,
-  isPrinterConfigured,
-  validatePrintConfig,
-  type PrintConfig,
+  docTypeToKind,
+  defaultPrinterFor,
+  validatePrinterUrl,
+  type PrinterConfig,
 } from "./printConfig";
 
 describe("PRINT_DOC_TYPES", () => {
-  it("has the known doc types incl. daily-check-report", () => {
+  it("lists the five doc types with paper defaults", () => {
     expect(PRINT_DOC_TYPES.map((d) => d.slug)).toEqual([
       "sample-label", "coa", "service-request", "stock-label", "daily-check-report",
     ]);
-  });
-  it("daily-check-report defaults to A4", () => {
     expect(getPrintDocType("daily-check-report")?.defaultPaper).toBe("A4");
-  });
-});
-
-describe("getPrintDocType", () => {
-  it("returns metadata for a known slug", () => {
-    expect(getPrintDocType("coa")?.defaultPaper).toBe("A4");
     expect(getPrintDocType("sample-label")?.defaultPaper).toBe("label-100x50");
   });
 });
 
-describe("isPrinterConfigured", () => {
-  it("false when printerName empty or missing", () => {
-    expect(isPrinterConfigured(undefined)).toBe(false);
-    expect(isPrinterConfigured({ slug: "coa", printerName: "", copies: 1, paperSize: "A4" })).toBe(false);
-  });
-  it("true when printerName set", () => {
-    const cfg: PrintConfig = { slug: "coa", printerName: "HP-A4", copies: 1, paperSize: "A4" };
-    expect(isPrinterConfigured(cfg)).toBe(true);
-  });
-  it("true when CUPS URL set", () => {
-    const cfg: PrintConfig = {
-      slug: "coa",
-      printerName: "",
-      cupsPrinterUrl: "https://192.168.0.237:631/printers/HP-A4",
-      copies: 1,
-      paperSize: "A4",
-    };
-    expect(isPrinterConfigured(cfg)).toBe(true);
+describe("PRINTER_KINDS", () => {
+  it("has A4 and Sticker", () => {
+    expect(PRINTER_KINDS.map((k) => k.kind)).toEqual(["a4", "sticker"]);
   });
 });
 
-describe("validatePrintConfig", () => {
-  it("passes a valid config", () => {
-    expect(validatePrintConfig({ printerName: "HP", copies: 2, paperSize: "A4" })).toBeNull();
-    expect(validatePrintConfig({ printerName: "Zebra", copies: 1, paperSize: "label-100x50" })).toBeNull();
+describe("docTypeToKind", () => {
+  it("routes labels to sticker and docs to a4", () => {
+    expect(docTypeToKind("sample-label")).toBe("sticker");
+    expect(docTypeToKind("stock-label")).toBe("sticker");
+    expect(docTypeToKind("coa")).toBe("a4");
+    expect(docTypeToKind("service-request")).toBe("a4");
+    expect(docTypeToKind("daily-check-report")).toBe("a4");
   });
+});
+
+describe("defaultPrinterFor", () => {
+  const list: PrinterConfig[] = [
+    { id: "1", kind: "a4", label: "", cupsPrinterUrl: "u1", isDefault: false },
+    { id: "2", kind: "a4", label: "", cupsPrinterUrl: "u2", isDefault: true },
+    { id: "3", kind: "sticker", label: "", cupsPrinterUrl: "u3", isDefault: false },
+  ];
+  it("returns the flagged default of the kind", () => {
+    expect(defaultPrinterFor(list, "a4")?.id).toBe("2");
+  });
+  it("falls back to the first of the kind", () => {
+    expect(defaultPrinterFor(list, "sticker")?.id).toBe("3");
+  });
+  it("undefined when none / empty", () => {
+    expect(defaultPrinterFor([], "a4")).toBeUndefined();
+    expect(defaultPrinterFor(undefined, "a4")).toBeUndefined();
+  });
+});
+
+describe("validatePrinterUrl", () => {
   it("passes a valid CUPS URL", () => {
-    expect(validatePrintConfig({
-      printerName: "",
-      cupsPrinterUrl: "https://192.168.0.237:631/printers/HP-A4",
-      copies: 1,
-      paperSize: "A4",
-    })).toBeNull();
+    expect(validatePrinterUrl("https://192.168.0.237:631/printers/HP-A4")).toBeNull();
   });
-  it("rejects an invalid CUPS URL", () => {
-    expect(validatePrintConfig({ printerName: "", cupsPrinterUrl: "not a url", copies: 1, paperSize: "A4" }))
-      .toMatch(/CUPS URL/);
+  it("rejects empty", () => {
+    expect(validatePrinterUrl("")).toMatch(/CUPS printer URL/);
   });
-  it("rejects copies < 1", () => {
-    expect(validatePrintConfig({ printerName: "HP", copies: 0, paperSize: "A4" })).toMatch(/จำนวนชุด/);
+  it("rejects a non-url", () => {
+    expect(validatePrinterUrl("not a url")).toMatch(/ไม่ถูกต้อง/);
   });
-  it("rejects copies > 99", () => {
-    expect(validatePrintConfig({ printerName: "HP", copies: 100, paperSize: "A4" })).toMatch(/จำนวนชุด/);
+  it("rejects wrong protocol", () => {
+    expect(validatePrinterUrl("ftp://host/printers/x")).toMatch(/http/);
   });
-  it("rejects bad paperSize", () => {
-    expect(validatePrintConfig({ printerName: "HP", copies: 1, paperSize: "A3" as never })).toMatch(/paperSize/);
+  it("rejects a url with no queue", () => {
+    expect(validatePrinterUrl("https://192.168.0.237:631/")).toMatch(/queue/);
   });
 });
