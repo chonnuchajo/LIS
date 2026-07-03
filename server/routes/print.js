@@ -4,75 +4,20 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const router = express.Router();
-const PrintConfig = require('../models/PrintConfig');
+const PrinterConfig = require('../models/PrinterConfig');
+const {
+  PRINT_DOC_TYPES,
+  kindForDocType,
+  paperSizeForSlug,
+  validatePrinterInput,
+  pickDefault,
+} = require('../lib/printerRouting');
 
-// docType defaults — mirror ของ src/lib/printConfig.ts PRINT_DOC_TYPES
-const DOC_DEFAULTS = [
-  { slug: 'sample-label',    printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'label-100x50' },
-  { slug: 'coa',             printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
-  { slug: 'service-request', printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
-  { slug: 'stock-label',     printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'label-6x4' },
-  { slug: 'daily-check-report', printerName: '', cupsPrinterUrl: '', copies: 1, paperSize: 'A4' },
-];
-const ALLOWED_SLUGS = DOC_DEFAULTS.map((d) => d.slug);
+const ALLOWED_SLUGS = PRINT_DOC_TYPES;
 const LABEL_100X50 = { widthMm: 100, heightMm: 50, dpi: 203 };
-const DEFAULT_CUPS_BASE_URL = (process.env.PRINT_CUPS_BASE_URL || 'https://192.168.0.237:631').replace(/\/+$/, '');
 
 // hosts ที่ Puppeteer ยอมให้โหลด (ฟอนต์ + โลโก้) — request อื่นถูก abort
 const ALLOWED_HOSTS = new Set(['fonts.googleapis.com', 'fonts.gstatic.com', 'i.ibb.co']);
-
-function inferredCupsPrinterUrl(printerName, cupsPrinterUrl = '') {
-  const explicit = String(cupsPrinterUrl || '').trim();
-  if (explicit) return explicit;
-
-  const rawPrinter = String(printerName || '').trim();
-  const match = rawPrinter.match(/^(.*?)\s+on\s+https?$/i);
-  if (!match) return '';
-
-  const queue = match[1].trim();
-  if (!queue) return '';
-  return `${DEFAULT_CUPS_BASE_URL}/printers/${encodeURIComponent(queue)}`;
-}
-
-function pick(doc) {
-  const cupsPrinterUrl = inferredCupsPrinterUrl(doc.printerName, doc.cupsPrinterUrl);
-  return {
-    slug: doc.slug,
-    printerName: doc.printerName || '',
-    cupsPrinterUrl,
-    copies: typeof doc.copies === 'number' ? doc.copies : 1,
-    paperSize: doc.slug === 'sample-label' ? 'label-100x50' : (doc.paperSize || 'A4'),
-  };
-}
-
-function validate(body) {
-  const { printerName, cupsPrinterUrl, copies, paperSize } = body || {};
-  if (typeof printerName !== 'string') return 'printerName ต้องเป็นข้อความ';
-  if (cupsPrinterUrl != null && typeof cupsPrinterUrl !== 'string') return 'cupsPrinterUrl ต้องเป็น URL';
-  if (typeof cupsPrinterUrl === 'string' && cupsPrinterUrl.trim()) {
-    let url;
-    try {
-      url = new URL(cupsPrinterUrl.trim());
-    } catch (_) {
-      return 'CUPS URL ไม่ถูกต้อง';
-    }
-    if (!['http:', 'https:', 'ipp:', 'ipps:'].includes(url.protocol)) {
-      return 'CUPS URL ต้องเป็น http, https, ipp หรือ ipps';
-    }
-  }
-  if (copies != null && (typeof copies !== 'number' || !Number.isInteger(copies) || copies < 1 || copies > 99)) {
-    return 'จำนวนชุดต้องเป็นจำนวนเต็ม 1–99';
-  }
-  if (paperSize != null && !['A4', 'label-100x50', 'label-6x4'].includes(paperSize)) return 'paperSize ไม่ถูกต้อง';
-  return null;
-}
-
-function effectivePaperSize(cfg) {
-  // Sample labels are designed as 100x50mm in the React template. Force legacy
-  // saved configs to the matching media so old DB rows do not print on 6x4.
-  if (cfg.slug === 'sample-label') return 'label-100x50';
-  return cfg.paperSize || 'A4';
-}
 
 function paperSpec(paperSize) {
   if (paperSize === 'label-100x50') {
@@ -110,14 +55,14 @@ function paperSpec(paperSize) {
   };
 }
 
-function cupsTargetFromUrl(cupsPrinterUrl, fallbackPrinterName = '') {
+function cupsTargetFromUrl(cupsPrinterUrl) {
   const raw = String(cupsPrinterUrl || '').trim();
   if (!raw) return null;
   const url = new URL(raw);
   const pathParts = url.pathname.split('/').filter(Boolean);
   const queuePrefixIndex = pathParts.findIndex((p) => p === 'printers' || p === 'classes');
   const queueName = queuePrefixIndex >= 0 ? pathParts[queuePrefixIndex + 1] : '';
-  const destination = decodeURIComponent(queueName || fallbackPrinterName || '').trim();
+  const destination = decodeURIComponent(queueName || '').trim();
   if (!destination) {
     throw new Error('CUPS URL ต้องระบุ queue เช่น https://192.168.0.237:631/printers/PRINTER_NAME');
   }
@@ -257,10 +202,10 @@ async function renderSampleLabelPngBuffers(page) {
 }
 
 function printViaCups(tmpPdf, cfg, copies) {
-  const target = cupsTargetFromUrl(cfg.cupsPrinterUrl, cfg.printerName);
+  const target = cupsTargetFromUrl(cfg.cupsPrinterUrl);
   const ipp = require('ipp');
   const printer = ipp.Printer(cupsRequestOptions(cfg.cupsPrinterUrl), { uri: target.printerUri, version: '2.0' });
-  const paper = paperSpec(effectivePaperSize(cfg));
+  const paper = paperSpec(paperSizeForSlug(cfg.slug));
   const pdf = fs.readFileSync(tmpPdf);
   const jobAttributes = {
     copies,
@@ -297,10 +242,10 @@ function printViaCups(tmpPdf, cfg, copies) {
 }
 
 function printBuffersViaCups(buffers, cfg, copies, documentFormat) {
-  const target = cupsTargetFromUrl(cfg.cupsPrinterUrl, cfg.printerName);
+  const target = cupsTargetFromUrl(cfg.cupsPrinterUrl);
   const ipp = require('ipp');
   const printer = ipp.Printer(cupsRequestOptions(cfg.cupsPrinterUrl), { uri: target.printerUri, version: '2.0' });
-  const paper = paperSpec(effectivePaperSize(cfg));
+  const paper = paperSpec(paperSizeForSlug(cfg.slug));
 
   const statuses = [];
   const printOne = (buffer, index) => new Promise((resolve, reject) => {
@@ -339,58 +284,106 @@ function printBuffersViaCups(buffers, cfg, copies, documentFormat) {
   ).then(() => ({ target: target.display, count: buffers.length, statuses }));
 }
 
-// GET /api/print/printers — รายชื่อเครื่องที่เห็น
-router.get('/printers', async (req, res) => {
+// ---- Printer registry CRUD ----
+
+function pickConfig(doc) {
+  return {
+    id: String(doc._id),
+    kind: doc.kind,
+    label: doc.label || '',
+    cupsPrinterUrl: doc.cupsPrinterUrl || '',
+    isDefault: !!doc.isDefault,
+  };
+}
+
+// GET /api/print/printers-config — list all printer destinations
+router.get('/printers-config', async (req, res) => {
   try {
-    const { getPrinters } = require('pdf-to-printer');
-    const printers = await getPrinters();
-    res.json({ data: printers.map((p) => p.name) });
+    const docs = await PrinterConfig.find().sort({ kind: 1, createdAt: 1 }).lean();
+    res.json({ data: docs.map(pickConfig) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET /api/print/config — คืน config ทั้ง 4 docType (DB หรือ default)
-router.get('/config', async (req, res) => {
+// POST /api/print/printers-config — add a printer (first of a kind becomes default)
+router.post('/printers-config', async (req, res) => {
   try {
-    const docs = await PrintConfig.find().lean();
-    const bySlug = new Map(docs.map((d) => [d.slug, d]));
-    const data = DOC_DEFAULTS.map((def) => {
-      const d = bySlug.get(def.slug);
-      return d ? pick(d) : { ...def };
-    });
-    res.json({ data });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// PUT /api/print/config/:slug — upsert
-router.put('/config/:slug', async (req, res) => {
-  try {
-    const { slug } = req.params;
-    if (!ALLOWED_SLUGS.includes(slug)) return res.status(400).json({ error: 'slug ไม่ถูกต้อง' });
-    const err = validate(req.body || {});
+    const body = req.body || {};
+    const err = validatePrinterInput(body, { requireUrl: true });
     if (err) return res.status(400).json({ error: err });
-    const { printerName, cupsPrinterUrl, copies, paperSize } = req.body;
-    const doc = await PrintConfig.findOneAndUpdate(
-      { slug },
-      {
-        slug,
-        printerName: typeof printerName === 'string' ? printerName : '',
-        cupsPrinterUrl: typeof cupsPrinterUrl === 'string' ? cupsPrinterUrl.trim() : '',
-        ...(copies != null ? { copies } : {}),
-        paperSize: slug === 'sample-label' ? 'label-100x50' : (paperSize ?? 'A4'),
-      },
-      { new: true, upsert: true },
-    ).lean();
-    res.json({ data: pick(doc) });
+    const existing = await PrinterConfig.countDocuments({ kind: body.kind });
+    const doc = await PrinterConfig.create({
+      kind: body.kind,
+      label: typeof body.label === 'string' ? body.label.trim() : '',
+      cupsPrinterUrl: body.cupsPrinterUrl.trim(),
+      isDefault: existing === 0,
+    });
+    res.status(201).json({ data: pickConfig(doc.toObject()) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/print — { docType, html, copies? } → PDF → ส่งเข้าเครื่อง
+// PUT /api/print/printers-config/:id — edit label / url (kind is fixed)
+router.put('/printers-config/:id', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const current = await PrinterConfig.findById(req.params.id).lean();
+    if (!current) return res.status(404).json({ error: 'ไม่พบเครื่องพิมพ์' });
+    const merged = {
+      kind: current.kind,
+      cupsPrinterUrl: typeof body.cupsPrinterUrl === 'string' ? body.cupsPrinterUrl : current.cupsPrinterUrl,
+    };
+    const err = validatePrinterInput(merged, { requireUrl: true });
+    if (err) return res.status(400).json({ error: err });
+    const doc = await PrinterConfig.findByIdAndUpdate(
+      req.params.id,
+      {
+        ...(typeof body.label === 'string' ? { label: body.label.trim() } : {}),
+        ...(typeof body.cupsPrinterUrl === 'string' ? { cupsPrinterUrl: body.cupsPrinterUrl.trim() } : {}),
+      },
+      { new: true },
+    ).lean();
+    res.json({ data: pickConfig(doc) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/print/printers-config/:id/default — set default for its kind
+router.put('/printers-config/:id/default', async (req, res) => {
+  try {
+    const target = await PrinterConfig.findById(req.params.id);
+    if (!target) return res.status(404).json({ error: 'ไม่พบเครื่องพิมพ์' });
+    await PrinterConfig.updateMany({ kind: target.kind }, { $set: { isDefault: false } });
+    target.isDefault = true;
+    await target.save();
+    res.json({ data: pickConfig(target.toObject()) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/print/printers-config/:id — remove; promote a sibling if it was default
+router.delete('/printers-config/:id', async (req, res) => {
+  try {
+    const target = await PrinterConfig.findById(req.params.id);
+    if (!target) return res.status(404).json({ error: 'ไม่พบเครื่องพิมพ์' });
+    const wasDefault = target.isDefault;
+    const kind = target.kind;
+    await target.softDelete('system');
+    if (wasDefault) {
+      const next = await PrinterConfig.findOne({ kind }).sort({ createdAt: 1 });
+      if (next) { next.isDefault = true; await next.save(); }
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/print — { docType, html, copies? } → PDF/PNG → CUPS
 router.post('/', async (req, res) => {
   const { docType, html, copies: copiesOverride } = req.body || {};
   if (!ALLOWED_SLUGS.includes(docType)) return res.status(400).json({ error: 'docType ไม่ถูกต้อง' });
@@ -399,18 +392,20 @@ router.post('/', async (req, res) => {
   let browser;
   let tmpPdf;
   try {
-    const cfgDoc = await PrintConfig.findOne({ slug: docType }).lean();
-    const cfg = cfgDoc ? pick(cfgDoc) : DOC_DEFAULTS.find((d) => d.slug === docType);
-    if (!cfg.printerName && !cfg.cupsPrinterUrl) {
+    const kind = kindForDocType(docType);
+    const printers = await PrinterConfig.find({ kind }).lean();
+    const chosen = pickDefault(printers, kind);
+    if (!chosen || !chosen.cupsPrinterUrl) {
       return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่าเครื่องพิมพ์สำหรับเอกสารนี้ (ตั้งค่าที่หน้าตั้งค่าระบบ)' });
     }
+    const cfg = { slug: docType, cupsPrinterUrl: chosen.cupsPrinterUrl };
 
     const chromePath = process.env.PRINT_CHROME_PATH;
     if (!chromePath || !fs.existsSync(chromePath)) {
       return res.status(500).json({ error: 'ไม่พบ Chrome สำหรับสร้าง PDF (ตั้งค่า PRINT_CHROME_PATH)' });
     }
 
-    const copies = (Number.isInteger(copiesOverride) && copiesOverride >= 1 && copiesOverride <= 99) ? copiesOverride : cfg.copies;
+    const copies = (Number.isInteger(copiesOverride) && copiesOverride >= 1 && copiesOverride <= 99) ? copiesOverride : 1;
     tmpPdf = path.join(os.tmpdir(), `lis-print-${crypto.randomUUID()}.pdf`);
     const puppeteer = require('puppeteer-core');
     browser = await puppeteer.launch({
@@ -435,9 +430,9 @@ router.post('/', async (req, res) => {
 </head><body>${html}</body></html>`;
     await page.setContent(fullHtml, { waitUntil: 'load', timeout: 15000 });
 
-    const paperUsed = paperSpec(effectivePaperSize(cfg));
-    let printerTarget = cfg.printerName;
-    if (cfg.cupsPrinterUrl && docType === 'sample-label') {
+    const paperUsed = paperSpec(paperSizeForSlug(docType));
+    let printerTarget = cfg.cupsPrinterUrl;
+    if (docType === 'sample-label') {
       const pngBuffers = await renderSampleLabelPngBuffers(page);
       await browser.close();
       browser = null;
@@ -462,22 +457,14 @@ router.post('/', async (req, res) => {
       await browser.close();
       browser = null;
 
-      if (cfg.cupsPrinterUrl) {
-        printDebugDump(docType, 'pdf', fs.readFileSync(tmpPdf), {
-          slug: docType, copies, via: 'cups-pdf', cups: cfg.cupsPrinterUrl,
-          media: paperUsed.media, mediaCol: paperUsed.mediaCol, pdf: spec,
-          printScaling: process.env.PRINT_SCALING || '(unset)',
-        });
-        const result = await printViaCups(tmpPdf, cfg, copies);
-        console.log(`[print] ${docType} via cups-pdf → ${result.target} status=${result.response?.statusCode}`);
-        printerTarget = result.target;
-      } else {
-        printDebugDump(docType, 'pdf', fs.readFileSync(tmpPdf), {
-          slug: docType, copies, via: 'pdf-to-printer', printer: cfg.printerName, pdf: spec,
-        });
-        const { print } = require('pdf-to-printer');
-        await print(tmpPdf, { printer: cfg.printerName, copies });
-      }
+      printDebugDump(docType, 'pdf', fs.readFileSync(tmpPdf), {
+        slug: docType, copies, via: 'cups-pdf', cups: cfg.cupsPrinterUrl,
+        media: paperUsed.media, mediaCol: paperUsed.mediaCol, pdf: spec,
+        printScaling: process.env.PRINT_SCALING || '(unset)',
+      });
+      const result = await printViaCups(tmpPdf, cfg, copies);
+      console.log(`[print] ${docType} via cups-pdf → ${result.target} status=${result.response?.statusCode}`);
+      printerTarget = result.target;
     }
 
     res.json({ ok: true, printer: printerTarget, copies });
