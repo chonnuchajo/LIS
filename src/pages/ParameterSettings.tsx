@@ -29,7 +29,7 @@ import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import { SubstanceStandardsDialog } from "@/components/lis/SubstanceStandardsDialog";
 import { ConditionalStandardsDialog } from "@/components/lis/ConditionalStandardsDialog";
-import { describeRule, describeSubstanceStandard } from "@/lib/standardOperators";
+import { describeRule, describeSubstanceStandard, describeOutputRule } from "@/lib/standardOperators";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -481,7 +481,11 @@ function StandardPreview({ field }: { field: ParameterValueField }) {
     if (rules.length === 0) return <p className="text-xs text-muted-foreground">ยังไม่ได้ตั้งกฎ</p>;
     return (
       <div className="space-y-0.5">
-        {rules.map((r, i) => <p key={i} className="text-xs text-emerald-700">{describeRule(r, field.unit ?? "")}</p>)}
+        {rules.map((r, i) => (
+          <p key={i} className="text-xs text-emerald-700">
+            {(field.conditionalResult ?? "standard") === "output" ? describeOutputRule(r) : describeRule(r, field.unit ?? "")}
+          </p>
+        ))}
       </div>
     );
   }
@@ -1307,6 +1311,7 @@ function ValueFieldEditor({
                     standardOperator: m === "single" ? field.standardOperator : undefined,
                     standardValue: m === "single" ? field.standardValue : null,
                     standardValue2: m === "single" ? field.standardValue2 : null,
+                    conditionalResult: m === "conditional" ? (field.conditionalResult ?? "standard") : "standard",
                   });
                 return (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
@@ -1323,6 +1328,20 @@ function ValueFieldEditor({
 
               {field.conditionalMode ? (
                 <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                    <span className="text-muted-foreground">ผลของกฎ:</span>
+                    {([["standard", "เกณฑ์ตัวเลข"], ["output", "ข้อความ + สถานะ"]] as const).map(([r, lbl]) => (
+                      <label key={r} className="flex cursor-pointer items-center gap-1.5">
+                        <input
+                          type="radio"
+                          checked={(field.conditionalResult ?? "standard") === r}
+                          onChange={() => onChange({ ...field, conditionalResult: r })}
+                          className="h-3.5 w-3.5"
+                        />
+                        {lbl}
+                      </label>
+                    ))}
+                  </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
                     <div className="sm:col-span-3 space-y-1.5">
                       <Label className="text-sm">หน่วย *</Label>
@@ -1344,7 +1363,9 @@ function ValueFieldEditor({
                   ) : (
                     <div className="space-y-0.5">
                       {(field.conditionalStandards ?? []).map((r, i) => (
-                        <p key={i} className="text-xs text-emerald-700">{describeRule(r, field.unit ?? "")}</p>
+                        <p key={i} className="text-xs text-emerald-700">
+                          {(field.conditionalResult ?? "standard") === "output" ? describeOutputRule(r) : describeRule(r, field.unit ?? "")}
+                        </p>
                       ))}
                     </div>
                   )}
@@ -1354,6 +1375,7 @@ function ValueFieldEditor({
                     allParameters={allParameters}
                     currentParameterId={currentParameterId}
                     siblingFields={siblingFields}
+                    resultMode={field.conditionalResult ?? "standard"}
                     onClose={() => setConditionalDialogOpen(false)}
                     onSave={(next) => onChange({ ...field, conditionalStandards: next })}
                   />
