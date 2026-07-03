@@ -92,13 +92,13 @@ async function deductMgFromUnit(qrId, mg, meta = {}) {
   if (!unit) throw new Error('ไม่พบขวด (QR)');
   const plan = planDeductMg(unit, amount);
   if (!plan.ok) throw new Error(plan.reason);
-  const before = Number(unit.volume.remaining) || 0;
   const updated = await StockUnit.findOneAndUpdate(
     { qrId, status: 'active', 'volume.remaining': { $gte: amount } },
     { $inc: { 'volume.remaining': -amount } },
     { new: true },
   );
   if (!updated) throw new Error('ปริมาณคงเหลือไม่พอ');
+  const before = updated.volume.remaining + amount; // pre-decrement value, atomically consistent
   if (updated.volume.remaining <= 0) { updated.status = 'empty'; await updated.save(); }
   const std = await StockStandard.findOne({ code: updated.itemCode });
   await logTransaction({
