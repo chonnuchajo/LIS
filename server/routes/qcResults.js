@@ -85,6 +85,22 @@ function resolveFieldStandardJS(field, ctx) {
   return { ...field, conditionalMode: false, standardOperator: undefined, standardValue: null, standardValue2: null };
 }
 
+// mirror of src/lib/parameterValidation.ts resolveConditionalOutput — keep in sync
+function resolveConditionalOutputJS(field, ctx) {
+  if (!field.conditionalMode || field.conditionalResult !== "output") return null;
+  const selfVal = ctx.sameParam[field.label];
+  if (selfVal === null || selfVal === undefined || selfVal === "") return null;
+  for (const rule of field.conditionalStandards || []) {
+    if ((rule.conditions || []).every((c) => evalConditionJS(c, ctx))) {
+      return {
+        text: (rule.outputText && String(rule.outputText).trim()) || rule.label || "",
+        kind: rule.outputKind || "normal",
+      };
+    }
+  }
+  return { text: "", kind: "abnormal" };
+}
+
 // GET /api/qc-results/testers?petitionIds=id1,id2,...
 // Returns a map of petitionId → unique tester names (from enteredBy/updatedBy)
 router.get("/testers", async (req, res) => {
@@ -223,6 +239,11 @@ router.get("/abnormal-flags", async (req, res) => {
               if (isSubstanceAbnormalJS(field, std, vval)) { flagged = true; break; }
             }
             if (flagged) break;
+            continue;
+          }
+          if (field.conditionalMode && field.conditionalResult === "output" && isNumeric) {
+            const out = resolveConditionalOutputJS(field, { sameParam: values, otherParams: ctxBucket });
+            if (out && out.kind === "abnormal") { flagged = true; break; }
             continue;
           }
           const vf = field.conditionalMode && isNumeric
