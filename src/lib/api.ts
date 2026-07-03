@@ -122,6 +122,41 @@ async function fetchBlob(path: string, options?: RequestInit): Promise<Blob> {
   throw lastError ?? new Error("Export failed");
 }
 
+export type StandardWeighingDoc = {
+  _id: string;
+  petitionId: string;
+  petitionNo: string;
+  sampleId: string;
+  commonName: string;
+  substance: string;
+  instrument: "GC" | "HPLC";
+  times: number | null;
+  mode: "fresh" | "working";
+  masses: number[];
+  totalMg: number;
+  bottleQrId: string;
+  workingQrId: string;
+  deductedAt: string | null;
+  note: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type SaveStandardWeighingInput = {
+  petitionId: string;
+  petitionNo: string;
+  sampleId: string;
+  commonName: string;
+  substance: string;
+  instrument: "GC" | "HPLC";
+  times: number | null;
+  mode: "fresh" | "working";
+  masses: number[];
+  bottleQrId?: string;
+  workingQrId?: string;
+  note?: string;
+};
+
 export const api = {
   get: <T>(path: string) => axiosStyleRequest<T>(path),
   post: <T>(path: string, body?: unknown) =>
@@ -618,6 +653,12 @@ export const api = {
     request<{ ok: true }>(`/standard-configs/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
+
+  // Standard Weighing (lab-testing)
+  getStandardWeighings: (petitionId: string) =>
+    request<StandardWeighingDoc[]>(`/standard-weighings?petitionId=${encodeURIComponent(petitionId)}`),
+  saveStandardWeighing: (body: SaveStandardWeighingInput) =>
+    request<StandardWeighingDoc>("/standard-weighings", { method: "PUT", body: JSON.stringify(body) }),
 };
 
 export type QCProgressEntry = {
