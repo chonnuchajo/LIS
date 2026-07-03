@@ -10,8 +10,8 @@ import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useArrivalFlash } from '@/hooks/useArrivalFlash';
 import { useConfirm } from '@/context/ConfirmDialog';
-import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues, optionOutputText, enumNormalValues } from '@/lib/parameterValidation';
-import type { ConditionContext } from '@/lib/parameterValidation';
+import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues, optionOutputText, enumNormalValues, resolveConditionalOutput, isConditionalOutputAbnormal } from '@/lib/parameterValidation';
+import type { ConditionContext, ResolvedOutput } from '@/lib/parameterValidation';
 import { describeResolvedStandard, describeStandard } from '@/lib/standardOperators';
 import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
@@ -87,6 +87,7 @@ interface TestFieldProps {
   lastBatchValue?: unknown;
   lastBatchLabel?: string;
   outlierResult?: OutlierCheckResult | null;
+  outputResult?: ResolvedOutput | null;
 }
 
 function TestField({
@@ -106,12 +107,13 @@ function TestField({
   lastBatchValue,
   lastBatchLabel,
   outlierResult,
+  outputResult,
 }: TestFieldProps) {
   const strVal = value == null ? '' : String(value);
   const strNote = noteValue == null ? '' : String(noteValue);
   const requireNoteOn = field.requireNoteOn ?? [];
   const showNote = field.type === 'enum' && requireNoteOn.includes(strVal);
-  const isAbnormal = isFieldAbnormal(field, value);
+  const isAbnormal = outputResult ? outputResult.kind === 'abnormal' : isFieldAbnormal(field, value);
   const customText = optionOutputText(field, value);
 
   return (
@@ -128,7 +130,9 @@ function TestField({
             title={
               field.type === 'enum'
                 ? `ค่าผิดปกติ — คาดหวัง: ${enumNormalValues(field).join(', ')}`
-                : `ค่าผิดปกติ — คาดหวัง: ${describeStandard(field)}`
+                : outputResult
+                  ? 'ค่าผิดปกติ — ไม่เข้าเกณฑ์ที่กำหนด'
+                  : `ค่าผิดปกติ — คาดหวัง: ${describeStandard(field)}`
             }
           >
             <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
@@ -218,6 +222,12 @@ function TestField({
 
       {customText && (
         <p className="text-[11px] text-grey-600">ℹ️ {customText}</p>
+      )}
+
+      {outputResult && outputResult.text && (
+        <p className={cn('text-[11px]', outputResult.kind === 'abnormal' ? 'text-red-600' : 'text-emerald-700')}>
+          ผลลัพธ์: {outputResult.text}
+        </p>
       )}
 
       {/* Live resolved-criterion line for conditionalMode fields */}
@@ -850,6 +860,10 @@ export default function QCTestingDetailPage() {
     let count = 0;
     fieldsToScan.forEach((field) => {
       expandFieldForItem(field, item.commonName).forEach((unit) => {
+        if (unit.field.conditionalMode && unit.field.conditionalResult === 'output') {
+          if (isConditionalOutputAbnormal(unit.field, { sameParam: src, otherParams: {} })) count += 1;
+          return;
+        }
         if (unit.field.multiple) {
           readMultiple(src, unit.key).forEach((v) => {
             if (isFieldAbnormal(unit.field, v)) count += 1;
@@ -1213,6 +1227,8 @@ export default function QCTestingDetailPage() {
                     const resolved = unit.field.conditionalMode
                       ? resolveStandard(unit.field, condCtx)
                       : null;
+                    const isOutputMode = unit.field.conditionalMode && unit.field.conditionalResult === 'output';
+                    const outputResult = isOutputMode ? resolveConditionalOutput(unit.field, condCtx) : null;
                     const beforeRef =
                       param.hasPhases &&
                       effectivePhase === 2 &&
@@ -1318,10 +1334,11 @@ export default function QCTestingDetailPage() {
                           onNoteChange={(val) => onUnitChange(noteLabel, val)}
                           previousValue={getPreviousValue(previousLookup, item, param._id!, unit.key)}
                           conditionalPending={!!unit.field.conditionalMode && !resolved}
-                          resolvedStandardText={resolvedStandardText}
+                          resolvedStandardText={isOutputMode ? undefined : resolvedStandardText}
                           lastBatchValue={lastBatchValue}
                           lastBatchLabel={lastBatch?.petitionNo}
                           outlierResult={outlierResults[`${String(param._id)}__${unit.field.label}`]}
+                          outputResult={outputResult}
                         />
                         {beforeRef != null && beforeRef !== '' ? (
                           <p className="text-[10px] text-grey-400 mt-0.5">

@@ -23,9 +23,9 @@ import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
 import { labReceivedBy } from '@/lib/receiveStatus';
 import { useConfirm } from '@/context/ConfirmDialog';
-import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues, optionOutputText, enumNormalValues } from '@/lib/parameterValidation';
+import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues, optionOutputText, enumNormalValues, resolveConditionalOutput, isConditionalOutputAbnormal } from '@/lib/parameterValidation';
 import { SG_FIELD_LABEL, FORM_ENTRY_INDEX_KEY } from '@/lib/formSpecificGravity';
-import type { ConditionContext } from '@/lib/parameterValidation';
+import type { ConditionContext, ResolvedOutput } from '@/lib/parameterValidation';
 import { describeResolvedStandard } from '@/lib/standardOperators';
 import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
@@ -128,6 +128,7 @@ interface TestFieldProps {
   instrumentSource?: InstrumentSource;
   provenance?: ValueProvenance;
   onPull?: (reading: InstrumentReading) => void;
+  outputResult?: ResolvedOutput | null;
 }
 
 function TestField({
@@ -147,12 +148,13 @@ function TestField({
   instrumentSource,
   provenance,
   onPull,
+  outputResult,
 }: TestFieldProps) {
   const strVal = value == null ? '' : String(value);
   const strNote = noteValue == null ? '' : String(noteValue);
   const requireNoteOn = field.requireNoteOn ?? [];
   const showNote = field.type === 'enum' && requireNoteOn.includes(strVal);
-  const isAbnormal = isFieldAbnormal(field, value);
+  const isAbnormal = outputResult ? outputResult.kind === 'abnormal' : isFieldAbnormal(field, value);
   const customText = optionOutputText(field, value);
   const effectivelyDisabled = disabled || readOnly;
 
@@ -170,7 +172,9 @@ function TestField({
             title={
               field.type === 'enum'
                 ? `ค่าผิดปกติ — คาดหวัง: ${enumNormalValues(field).join(', ')}`
-                : `ค่าผิดปกติ — คาดหวัง: ${describeStandard(field)}`
+                : outputResult
+                  ? 'ค่าผิดปกติ — ไม่เข้าเกณฑ์ที่กำหนด'
+                  : `ค่าผิดปกติ — คาดหวัง: ${describeStandard(field)}`
             }
           >
             <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
@@ -266,6 +270,12 @@ function TestField({
 
       {customText && (
         <p className="text-[11px] text-grey-600">ℹ️ {customText}</p>
+      )}
+
+      {outputResult && outputResult.text && (
+        <p className={cn('text-[11px]', outputResult.kind === 'abnormal' ? 'text-red-600' : 'text-emerald-700')}>
+          ผลลัพธ์: {outputResult.text}
+        </p>
       )}
 
       {/* Provenance badge: shows where an instrument-pulled value came from. */}
@@ -696,6 +706,10 @@ export default function LabTestingDetailPage() {
     let count = 0;
     fieldsToScan.forEach((field) => {
       expandFieldForItem(field, item.commonName).forEach((unit) => {
+        if (unit.field.conditionalMode && unit.field.conditionalResult === 'output') {
+          if (isConditionalOutputAbnormal(unit.field, { sameParam: src, otherParams: {} })) count += 1;
+          return;
+        }
         if (unit.field.multiple) {
           readMultiple(src, unit.key).forEach((v) => {
             if (isFieldAbnormal(unit.field, v)) count += 1;
@@ -1049,6 +1063,8 @@ export default function LabTestingDetailPage() {
                               const resolvedStandardText = resolved
                                 ? `${describeResolvedStandard(resolved, unit.field.unit ?? '')}${resolved.matchedRuleLabel ? ` (${resolved.matchedRuleLabel})` : ''}`
                                 : undefined;
+                              const isOutputMode = unit.field.conditionalMode && unit.field.conditionalResult === 'output';
+                              const outputResult = isOutputMode ? resolveConditionalOutput(unit.field, condCtx) : null;
 
                               // Field-level `multiple` — repeatable list of bare value rows.
                               // Each row shares the field's standard/abnormal rule; per-row
@@ -1158,7 +1174,8 @@ export default function LabTestingDetailPage() {
                                     }}
                                     onNoteChange={(val) => onUnitChange(noteLabel, val)}
                                     conditionalPending={!!unit.field.conditionalMode && !resolved}
-                                    resolvedStandardText={resolvedStandardText}
+                                    resolvedStandardText={isOutputMode ? undefined : resolvedStandardText}
+                                    outputResult={outputResult}
                                   />
                                   {beforeRef != null && beforeRef !== '' ? (
                                     <p className="text-[10px] text-grey-400 mt-0.5">
@@ -1321,6 +1338,8 @@ export default function LabTestingDetailPage() {
                               const resolvedStandardText = resolved
                                 ? `${describeResolvedStandard(resolved, unit.field.unit ?? '')}${resolved.matchedRuleLabel ? ` (${resolved.matchedRuleLabel})` : ''}`
                                 : undefined;
+                              const isOutputMode = unit.field.conditionalMode && unit.field.conditionalResult === 'output';
+                              const outputResult = isOutputMode ? resolveConditionalOutput(unit.field, condCtx) : null;
 
                               if (unit.field.multiple) {
                                 const arr = readMultiple(srcValues, unit.key);
@@ -1365,7 +1384,8 @@ export default function LabTestingDetailPage() {
                                   onChange={() => {}}
                                   onNoteChange={() => {}}
                                   conditionalPending={!!unit.field.conditionalMode && !resolved}
-                                  resolvedStandardText={resolvedStandardText}
+                                  resolvedStandardText={isOutputMode ? undefined : resolvedStandardText}
+                                  outputResult={outputResult}
                                 />
                               );
                             };
