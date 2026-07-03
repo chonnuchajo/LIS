@@ -10,7 +10,7 @@ import StockQrScanner from "@/components/lis/StockQrScanner";
 import { api, type StandardWeighingDoc } from "@/lib/api";
 import type { StandardConfigDoc } from "@/lib/standardConfig";
 import type { Petition } from "@/types/petition.types";
-import { buildWeighTasks, type WeighTask } from "@/lib/standardWeighing";
+import { buildWeighTasks, draftReady, type WeighTask } from "@/lib/standardWeighing";
 
 export type RequiredKey = { commonName: string; substance: string; instrument: "GC" | "HPLC"; times: number | null };
 
@@ -36,49 +36,83 @@ const emptyDraft = (times: number): Draft => ({
   bottleQrId: "", bottleLabel: "", bottleRemaining: 0, workingQrId: "", deductedAt: null,
 });
 
-function draftReady(t: WeighTask, d: Draft): boolean {
-  if (t.times == null) return false;
-  if (d.deductedAt) return true;
-  if (d.mode === "working") return !!d.workingQrId;
-  const nums = d.masses.map(Number).filter((n) => n > 0);
-  if (nums.length !== t.times || !d.bottleQrId) return false;
-  return nums.reduce((s, n) => s + n, 0) <= d.bottleRemaining;
-}
-
 export default function StandardWeighingSection({ petition, configs, readOnly, onValidityChange }: Props) {
   const tasks = useMemo(() => buildWeighTasks(petition, configs), [petition, configs]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [scanFor, setScanFor] = useState<string | null>(null); // task.key being scanned
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const remainingFetched = useRef<Set<string>>(new Set());
 
   const { data: saved = [] } = useQuery<StandardWeighingDoc[]>({
     queryKey: ["standard-weighings", petition._id],
     queryFn: () => api.getStandardWeighings(petition._id),
     enabled: !!petition._id,
+    refetchInterval: false,
+    staleTime: 30000,
   });
 
-  // Seed drafts from tasks, then overlay any saved rows.
+  // Seed drafts from tasks, then overlay any saved rows. A task that already has a
+  // local draft keeps it untouched (in-flight edits survive a background refetch) —
+  // except its read-only deductedAt, which always tracks the server (a lock should
+  // still show up even mid-edit).
   useEffect(() => {
     setDrafts((prev) => {
       const next: Record<string, Draft> = {};
       for (const t of tasks) {
         const row = saved.find((r) => r.commonName === t.commonName && r.substance === t.substance && r.instrument === t.instrument);
-        if (prev[t.key] && !row) { next[t.key] = prev[t.key]; continue; }
+        if (prev[t.key]) {
+          next[t.key] = row ? { ...prev[t.key], deductedAt: row.deductedAt } : prev[t.key];
+          continue;
+        }
         const base = emptyDraft(t.times ?? 1);
         next[t.key] = row
           ? {
               mode: row.mode,
               masses: (row.masses.length ? row.masses.map(String) : base.masses).slice(0, Math.max(1, t.times ?? 1)),
-              bottleQrId: row.bottleQrId, bottleLabel: prev[t.key]?.bottleLabel ?? (row.bottleQrId ? `ขวด ${row.bottleQrId}` : ""),
-              bottleRemaining: prev[t.key]?.bottleRemaining ?? Number.MAX_SAFE_INTEGER,
+              bottleQrId: row.bottleQrId, bottleLabel: row.bottleQrId ? `ขวด ${row.bottleQrId}` : "",
+              bottleRemaining: Number.MAX_SAFE_INTEGER,
               workingQrId: row.workingQrId, deductedAt: row.deductedAt,
             }
           : base;
       }
       return next;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, saved]);
+
+  // After a reload, a "fresh" draft with a saved bottleQrId but unknown remaining
+  // (sentinel MAX_SAFE_INTEGER) has its over-limit check vacuously pass. Fetch the
+  // real remaining/label once per qrId so the client-side gate is meaningful again.
+  useEffect(() => {
+    Object.values(drafts).forEach((d) => {
+      if (
+        d.mode !== "fresh" ||
+        !d.bottleQrId ||
+        d.deductedAt ||
+        d.bottleRemaining !== Number.MAX_SAFE_INTEGER ||
+        remainingFetched.current.has(d.bottleQrId)
+      ) {
+        return;
+      }
+      remainingFetched.current.add(d.bottleQrId);
+      api.getStockUnit(d.bottleQrId).then((unit) => {
+        setDrafts((prev) => {
+          const next: Record<string, Draft> = {};
+          for (const [key, draft] of Object.entries(prev)) {
+            next[key] = draft.bottleQrId === d.bottleQrId
+              ? {
+                  ...draft,
+                  bottleRemaining: Number(unit.volume?.remaining) || 0,
+                  bottleLabel: `${unit.itemName}${unit.lotNo ? ` · lot ${unit.lotNo}` : ""} · เหลือ ${unit.volume?.remaining ?? 0} mg`,
+                }
+              : draft;
+          }
+          return next;
+        });
+      }).catch(() => {
+        // Ignore — sentinel stays MAX_SAFE_INTEGER, and the server still blocks the deduction on submit.
+      });
+    });
+  }, [drafts]);
 
   // Report readiness + required keys upward whenever drafts/tasks change.
   useEffect(() => {
@@ -87,6 +121,14 @@ export default function StandardWeighingSection({ petition, configs, readOnly, o
     onValidityChange(ready, requiredKeys);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, drafts]);
+
+  // Clear any pending debounced saves on unmount so they don't fire against a stale petition.
+  useEffect(() => {
+    const timers = saveTimers.current;
+    return () => {
+      Object.values(timers).forEach(clearTimeout);
+    };
+  }, []);
 
   const persist = (t: WeighTask, d: Draft) => {
     clearTimeout(saveTimers.current[t.key]);
@@ -183,7 +225,7 @@ export default function StandardWeighingSection({ petition, configs, readOnly, o
                     <div className="flex flex-wrap gap-2">
                       {Array.from({ length: Math.max(1, t.times) }).map((_, i) => (
                         <Input key={i} type="number" inputMode="decimal" step="0.0001" min={0} disabled={readOnly}
-                          className="w-24" placeholder={`ครั้งที่ ${i + 1} (mg)`}
+                          className="w-24" placeholder={`ครั้งที่ ${i + 1} (mg)`} aria-label={`ครั้งที่ ${i + 1} (mg)`}
                           value={d.masses[i] ?? ""}
                           onChange={(e) => {
                             const masses = [...d.masses]; masses[i] = e.target.value; update(t, { masses });

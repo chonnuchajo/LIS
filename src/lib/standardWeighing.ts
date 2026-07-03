@@ -37,6 +37,26 @@ export function resolveTimes(
   return def ? def.times : null;
 }
 
+/** Minimal shape of a per-task weighing draft, enough to evaluate readiness. */
+export type WeighDraftState = {
+  mode: "fresh" | "working";
+  masses: string[];       // raw string inputs
+  bottleQrId: string;
+  bottleRemaining: number;
+  workingQrId: string;
+  deductedAt: string | null;
+};
+
+/** Is this task's draft complete enough to allow moving on (assign/submit)? */
+export function draftReady(task: WeighTask, d: WeighDraftState): boolean {
+  if (task.times == null) return false;
+  if (d.deductedAt) return true;
+  if (d.mode === "working") return !!d.workingQrId;
+  const nums = d.masses.map(Number).filter((n) => n > 0);
+  if (nums.length !== task.times || !d.bottleQrId) return false;
+  return nums.reduce((s, n) => s + n, 0) <= d.bottleRemaining;
+}
+
 /**
  * One task per (substance token × distinct GC/HPLC instrument assigned to its group).
  * Groups are keyed by sampleName+commonName; the instrument comes from the machines

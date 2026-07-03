@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyInstrument, resolveTimes, buildWeighTasks } from "./standardWeighing";
+import { classifyInstrument, resolveTimes, buildWeighTasks, draftReady, type WeighDraftState, type WeighTask } from "./standardWeighing";
 import type { StandardConfigDoc } from "./standardConfig";
 
 const cfg = (p: Partial<StandardConfigDoc>): StandardConfigDoc => ({
@@ -62,5 +62,45 @@ describe("buildWeighTasks", () => {
       items: [{ seq: 1, sampleName: "S", commonName: "Water", batchNo: "B", sampleId: "P-3-1" }],
       assignedMachines: [] };
     expect(buildWeighTasks(p3, [GC_DEFAULT, HPLC_DEFAULT])).toEqual([]);
+  });
+});
+
+describe("draftReady", () => {
+  const task: WeighTask = { key: "k", sampleId: "s", commonName: "Abamectin", substance: "Abamectin", instrument: "GC", times: 3 };
+
+  const draft = (p: Partial<WeighDraftState>): WeighDraftState => ({
+    mode: "fresh", masses: [], bottleQrId: "", bottleRemaining: 0, workingQrId: "", deductedAt: null, ...p,
+  });
+
+  it("returns false when times is not configured, regardless of other fields", () => {
+    expect(draftReady({ ...task, times: null }, draft({ deductedAt: "2026-01-01" }))).toBe(false);
+  });
+
+  it("returns true once deductedAt is set (already locked/completed)", () => {
+    expect(draftReady(task, draft({ deductedAt: "2026-01-01" }))).toBe(true);
+  });
+
+  it("working mode is ready once a workingQrId is scanned", () => {
+    expect(draftReady(task, draft({ mode: "working", workingQrId: "WQ-1" }))).toBe(true);
+  });
+
+  it("working mode is not ready without a workingQrId", () => {
+    expect(draftReady(task, draft({ mode: "working", workingQrId: "" }))).toBe(false);
+  });
+
+  it("fresh mode is ready with exactly N positive masses + bottle + sum <= remaining", () => {
+    expect(draftReady(task, draft({ mode: "fresh", masses: ["10", "20", "30"], bottleQrId: "B-1", bottleRemaining: 100 }))).toBe(true);
+  });
+
+  it("fresh mode is not ready with the wrong mass count", () => {
+    expect(draftReady(task, draft({ mode: "fresh", masses: ["10", "20"], bottleQrId: "B-1", bottleRemaining: 100 }))).toBe(false);
+  });
+
+  it("fresh mode is not ready without a bottle scanned", () => {
+    expect(draftReady(task, draft({ mode: "fresh", masses: ["10", "20", "30"], bottleQrId: "", bottleRemaining: 100 }))).toBe(false);
+  });
+
+  it("fresh mode is not ready when the mass total exceeds bottle remaining", () => {
+    expect(draftReady(task, draft({ mode: "fresh", masses: ["40", "40", "40"], bottleQrId: "B-1", bottleRemaining: 100 }))).toBe(false);
   });
 });
