@@ -4,7 +4,7 @@ import type {
   ParameterItem, ParameterValueField, StandardRule, StandardCondition,
   StandardConditionOp, StandardOperator,
 } from "@/lib/api";
-import { OPERATOR_OPTIONS, describeRule } from "@/lib/standardOperators";
+import { OPERATOR_OPTIONS, describeRule, describeOutputRule } from "@/lib/standardOperators";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -32,12 +32,13 @@ type Props = {
   allParameters: ParameterItem[];
   currentParameterId?: string;
   siblingFields: ParameterValueField[];   // field อื่นใน parameter เดียวกัน (ตัดตัวเอง)
+  resultMode: "standard" | "output";
   onClose: () => void;
   onSave: (next: StandardRule[]) => void;
 };
 
 export function ConditionalStandardsDialog({
-  open, field, allParameters, currentParameterId, siblingFields, onClose, onSave,
+  open, field, allParameters, currentParameterId, siblingFields, resultMode, onClose, onSave,
 }: Props) {
   const unit = field.unit ?? "";
   const [rules, setRules] = useState<StandardRule[]>(field.conditionalStandards ?? []);
@@ -49,6 +50,7 @@ export function ConditionalStandardsDialog({
 
   // ตัวเลือก field ต้นทาง: พี่น้อง (paramId=null) + field ของ parameter อื่น
   const sources: SourceOption[] = [
+    { paramId: null, label: field.label, display: `${field.label} (ช่องนี้)`, field },
     ...siblingFields.map((f) => ({ paramId: null, label: f.label, display: `${f.label} (พารามฯ นี้)`, field: f })),
     ...allParameters
       .filter((p) => String(p._id) !== String(currentParameterId))
@@ -71,11 +73,13 @@ export function ConditionalStandardsDialog({
       return next;
     });
   const removeRule = (i: number) => setRules((prev) => prev.filter((_, idx) => idx !== i));
+  const defaultCondOp = resultMode === "output" ? "between" : "eq";
   const addRule = (withCondition: boolean) =>
     setRules((prev) => [...prev, {
       label: "",
-      conditions: withCondition ? [{ sourceFieldLabel: siblingFields[0]?.label ?? "", op: "eq", value: "" }] : [],
+      conditions: withCondition ? [{ sourceFieldLabel: sources[0]?.label ?? "", op: defaultCondOp, value: "" }] : [],
       operator: "between", value: null, value2: null,
+      ...(resultMode === "output" ? { outputText: "", outputKind: "normal" as const } : {}),
     }]);
 
   const patchCond = (ri: number, ci: number, patch: Partial<StandardCondition>) =>
@@ -84,7 +88,7 @@ export function ConditionalStandardsDialog({
     }));
   const addCond = (ri: number) =>
     setRules((prev) => prev.map((r, idx) => idx !== ri ? r : {
-      ...r, conditions: [...r.conditions, { sourceFieldLabel: siblingFields[0]?.label ?? "", op: "eq", value: "" }],
+      ...r, conditions: [...r.conditions, { sourceFieldLabel: sources[0]?.label ?? "", op: defaultCondOp, value: "" }],
     }));
   const removeCond = (ri: number, ci: number) =>
     setRules((prev) => prev.map((r, idx) => idx !== ri ? r : {
@@ -195,37 +199,58 @@ export function ConditionalStandardsDialog({
                 </Button>
               </div>
 
-              {/* resulting standard */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">→ เกณฑ์:</span>
-                <Select value={rule.operator} onValueChange={(v) => patchRule(ri, { operator: v as StandardOperator })}>
-                  <SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {OPERATOR_OPTIONS.filter((o) => o.value !== "none").map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  value={rule.value ?? ""}
-                  onChange={(e) => patchRule(ri, { value: e.target.value === "" ? null : Number(e.target.value) })}
-                  placeholder={rule.operator === "tolerance" ? "ค่ามาตรฐาน" : rule.operator === "between" ? "ตั้งแต่" : "ค่า"}
-                  className="h-8 w-28"
-                />
-                {needsValue2(rule.operator) && (
+              {/* resulting standard OR text output */}
+              {resultMode === "output" ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">→ ผลลัพธ์:</span>
+                  <Input
+                    value={rule.outputText ?? ""}
+                    onChange={(e) => patchRule(ri, { outputText: e.target.value })}
+                    placeholder="ข้อความ เช่น ก้อนเล็ก"
+                    className="h-8 w-44"
+                  />
+                  <Select value={rule.outputKind ?? "normal"} onValueChange={(v) => patchRule(ri, { outputKind: v as "normal" | "abnormal" })}>
+                    <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="normal">ปกติ</SelectItem>
+                      <SelectItem value="abnormal">ผิดปกติ</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">→ เกณฑ์:</span>
+                  <Select value={rule.operator} onValueChange={(v) => patchRule(ri, { operator: v as StandardOperator })}>
+                    <SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {OPERATOR_OPTIONS.filter((o) => o.value !== "none").map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <Input
                     type="number"
-                    value={rule.value2 ?? ""}
-                    onChange={(e) => patchRule(ri, { value2: e.target.value === "" ? null : Number(e.target.value) })}
-                    placeholder={rule.operator === "tolerance" ? "± %" : "ถึง"}
-                    className="h-8 w-24"
+                    value={rule.value ?? ""}
+                    onChange={(e) => patchRule(ri, { value: e.target.value === "" ? null : Number(e.target.value) })}
+                    placeholder={rule.operator === "tolerance" ? "ค่ามาตรฐาน" : rule.operator === "between" ? "ตั้งแต่" : "ค่า"}
+                    className="h-8 w-28"
                   />
-                )}
-                {unit && <span className="text-xs text-muted-foreground">{unit}</span>}
-              </div>
+                  {needsValue2(rule.operator) && (
+                    <Input
+                      type="number"
+                      value={rule.value2 ?? ""}
+                      onChange={(e) => patchRule(ri, { value2: e.target.value === "" ? null : Number(e.target.value) })}
+                      placeholder={rule.operator === "tolerance" ? "± %" : "ถึง"}
+                      className="h-8 w-24"
+                    />
+                  )}
+                  {unit && <span className="text-xs text-muted-foreground">{unit}</span>}
+                </div>
+              )}
 
-              <p className="text-xs text-emerald-700">{describeRule(rule, unit)}</p>
+              <p className="text-xs text-emerald-700">
+                {resultMode === "output" ? describeOutputRule(rule) : describeRule(rule, unit)}
+              </p>
             </div>
           ))}
         </div>
