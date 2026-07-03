@@ -72,6 +72,94 @@ function stripMeta(body) {
   return rest;
 }
 
+// Pure: can this unit give up `mg`? (no DB) — shared by the endpoint and the
+// lab-completion settle validator so both agree on the rules.
+function planDeductMg(unit, mg) {
+  const amount = Number(mg);
+  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, reason: 'จำนวน mg ไม่ถูกต้อง' };
+  if (!unit || unit.status !== 'active') return { ok: false, reason: 'ขวดนี้ใช้งานต่อไม่ได้' };
+  if (unit.exp && new Date(unit.exp).getTime() < Date.now()) return { ok: false, reason: 'ขวดนี้หมดอายุแล้ว' };
+  const remaining = Number(unit.volume && unit.volume.remaining) || 0;
+  if (remaining < amount) return { ok: false, reason: 'ปริมาณคงเหลือไม่พอ' };
+  return { ok: true, after: remaining - amount };
+}
+
+// Atomic: หัก mg จาก volume.remaining ของขวด (กัน race ด้วย $gte). โยน Error ถ้าไม่ผ่าน.
+async function deductMgFromUnit(qrId, mg, meta = {}) {
+  const amount = Number(mg);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('จำนวน mg ไม่ถูกต้อง');
+  const unit = await StockUnit.findOne({ qrId });
+  if (!unit) throw new Error('ไม่พบขวด (QR)');
+  const plan = planDeductMg(unit, amount);
+  if (!plan.ok) throw new Error(plan.reason);
+  const before = Number(unit.volume.remaining) || 0;
+  const updated = await StockUnit.findOneAndUpdate(
+    { qrId, status: 'active', 'volume.remaining': { $gte: amount } },
+    { $inc: { 'volume.remaining': -amount } },
+    { new: true },
+  );
+  if (!updated) throw new Error('ปริมาณคงเหลือไม่พอ');
+  if (updated.volume.remaining <= 0) { updated.status = 'empty'; await updated.save(); }
+  const std = await StockStandard.findOne({ code: updated.itemCode });
+  await logTransaction({
+    itemType: 'standard',
+    itemId: std ? std._id.toString() : updated.itemCode,
+    itemCode: updated.itemCode,
+    itemName: updated.itemName,
+    action: 'deduct',
+    unitId: updated._id.toString(),
+    qrId,
+    volumeDelta: -amount,
+    volumeUnit: 'mg',
+    unit: 'mg',
+    beforeQty: before,
+    afterQty: updated.volume.remaining,
+    sampleId: meta.sampleId,
+    note: meta.note,
+    userEmail: meta.userEmail,
+    userName: meta.userName,
+  });
+  return { unit: updated, before, after: updated.volume.remaining };
+}
+
+// สร้าง working unit จากขวดแม่ (exp ตาม frequency). volume mg = 0 (v1: ใช้แค่ exp ตัดสินว่ายัง valid).
+async function createWorkingFromParent(parentUnit, meta, req) {
+  const std = await StockStandard.findOne({ code: parentUnit.itemCode });
+  const shelf = (std && std.openShelfLife) || { value: 0, unit: 'day' };
+  const now = new Date();
+  const exp = workingExpForWithdraw(now, std && std.frequency, shelf, parentUnit.exp || null);
+  const qrId = await genUniqueQrId();
+  const working = await StockUnit.create({
+    qrId,
+    itemCode: parentUnit.itemCode,
+    itemName: parentUnit.itemName,
+    kind: 'working',
+    source: parentUnit.source || '',
+    parentId: parentUnit._id,
+    lotNo: parentUnit.lotNo,
+    exp,
+    volume: { initial: 0, remaining: 0, unit: 'mg' },
+    status: 'active',
+    withdrawnDate: now,
+    createdBy: req ? personOf(req) : undefined,
+  });
+  await logTransaction({
+    itemType: 'standard',
+    itemId: std ? std._id.toString() : parentUnit.itemCode,
+    itemCode: parentUnit.itemCode,
+    itemName: parentUnit.itemName,
+    action: 'withdraw',
+    unitId: working._id.toString(),
+    qrId,
+    volumeUnit: 'mg',
+    unit: 'mg',
+    note: (meta && meta.note) || 'auto working (ชั่ง standard)',
+    userEmail: meta && meta.userEmail,
+    userName: meta && meta.userName,
+  });
+  return working;
+}
+
 /* ==================== STANDARDS ==================== */
 
 router.get('/standards', async (req, res) => {
@@ -191,6 +279,18 @@ router.post('/standards/:id/deduct', async (req, res) => {
     });
 
     res.json(item);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// หัก mg จากขวดตรงๆ: { mg, sampleId?, petitionNo?, note? }
+router.post('/units/:qrId/deduct-mg', async (req, res) => {
+  try {
+    const { mg, sampleId, petitionNo, note } = req.body || {};
+    const meta = { sampleId, note: [petitionNo, note].filter(Boolean).join(' · '), ...userMeta(req) };
+    const result = await deductMgFromUnit(req.params.qrId, mg, meta);
+    res.json(result.unit);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -721,3 +821,6 @@ router.get('/transactions', async (req, res) => {
 });
 
 module.exports = router;
+router.planDeductMg = planDeductMg;
+router.deductMgFromUnit = deductMgFromUnit;
+router.createWorkingFromParent = createWorkingFromParent;
