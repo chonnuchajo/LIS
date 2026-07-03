@@ -21,7 +21,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useArrivalFlash } from '@/hooks/useArrivalFlash';
 import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
-import { labReceivedBy } from '@/lib/receiveStatus';
+import { labReceivedAt, labReceivedBy } from '@/lib/receiveStatus';
 import { useConfirm } from '@/context/ConfirmDialog';
 import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues, optionOutputText, enumNormalValues, resolveConditionalOutput, isConditionalOutputAbnormal } from '@/lib/parameterValidation';
 import { SG_FIELD_LABEL, FORM_ENTRY_INDEX_KEY } from '@/lib/formSpecificGravity';
@@ -31,8 +31,10 @@ import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
+import StandardWeighingSection, { type RequiredKey } from '@/components/lis/StandardWeighingSection';
 import { matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
+import type { StandardConfigDoc } from '@/lib/standardConfig';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -382,6 +384,9 @@ export default function LabTestingDetailPage() {
   const [wasReturned, setWasReturned] = useState(false);
   const [redoExplanation, setRedoExplanation] = useState('');
   const [selectedPhase, setSelectedPhase] = useState<PetitionPhase>(1);
+  const [standardConfigs, setStandardConfigs] = useState<StandardConfigDoc[]>([]);
+  const [standardWeighReady, setStandardWeighReady] = useState(true);
+  const [requiredStandardKeys, setRequiredStandardKeys] = useState<RequiredKey[]>([]);
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Load all parameters, filter for Lab scope + shared QC params
@@ -401,6 +406,12 @@ export default function LabTestingDetailPage() {
   useEffect(() => {
     api.getInstrumentSources()
       .then((rows) => setInstrumentSources(rows ?? []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    api.getStandardConfigs()
+      .then((rows) => setStandardConfigs(rows ?? []))
       .catch(() => {});
   }, []);
 
@@ -823,6 +834,10 @@ export default function LabTestingDetailPage() {
       });
       return;
     }
+    if (!standardWeighReady) {
+      toast.error('กรอกข้อมูลชั่ง Standard ให้ครบก่อนบันทึกผล');
+      return;
+    }
     if (petition.labReturnNote && !redoExplanation.trim()) {
       toast.error('กรุณาอธิบายว่าทำใหม่อย่างไร', { description: 'คำร้องนี้เคยถูกส่งกลับให้แก้ไข' });
       return;
@@ -839,7 +854,11 @@ export default function LabTestingDetailPage() {
     setSubmitting(true);
     try {
       const updated = await api.completePetitionTrack(
-        petition._id, 'lab', user?.name ?? 'system', redoExplanation.trim() || undefined,
+        petition._id,
+        'lab',
+        user?.name ?? 'system',
+        redoExplanation.trim() || undefined,
+        requiredStandardKeys,
       );
       toast.success(
         updated.status === 'success'
@@ -847,8 +866,9 @@ export default function LabTestingDetailPage() {
           : 'บันทึกผล Lab เรียบร้อย — รอหัวหน้า Lab อนุมัติ',
       );
       navigate('/lab-testing');
-    } catch {
-      toast.error('บันทึกผลไม่สำเร็จ');
+    } catch (e) {
+      const msg = (e as { message?: string })?.message;
+      toast.error(msg && !/^Failed/.test(msg) ? msg : 'บันทึกผลไม่สำเร็จ');
     } finally {
       setSubmitting(false);
     }
@@ -857,6 +877,13 @@ export default function LabTestingDetailPage() {
   const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
   const isAssigned = isFullAccess || isAssignedTo(petition.assignedTo, user);
   const isLocked = petition.status === 'success' || !!petition.labCompletedAt || !isAssigned;
+  const switchablePetitions = (worklistData?.items ?? []).filter((p) =>
+    !!labReceivedAt(p) && (p.items ?? []).some(
+      (it) =>
+        isLabBatchNo(it.batchNo) &&
+        matchParametersForItem(it, allParameters, idsFor(it)).length > 0,
+    ),
+  );
 
   return (
     <AppLayout title={petition.petitionNo}>
@@ -909,25 +936,11 @@ export default function LabTestingDetailPage() {
         )}
 
         {/* Worklist tab strip */}
-        {worklistData && worklistData.items.filter((p) =>
-          (p.items ?? []).some(
-            (it) =>
-              isLabBatchNo(it.batchNo) &&
-              matchParametersForItem(it, allParameters, idsFor(it)).length > 0,
-          )
-        ).length > 1 && (
+        {switchablePetitions.length > 1 && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 -mt-2">
             <span className="text-xs text-grey-500 shrink-0 mr-1">สลับไป:</span>
-            {worklistData.items
-              .filter((p) =>
-                (p.items ?? []).some(
-                  (it) =>
-                    isLabBatchNo(it.batchNo) &&
-                    matchParametersForItem(it, allParameters, idsFor(it)).length > 0,
-                ),
-              )
-              .map((p) => {
-                const isActive = p._id === petition._id;
+            {switchablePetitions.map((p) => {
+              const isActive = p._id === petition._id;
                 return (
                   <button
                     key={p._id}
@@ -944,8 +957,8 @@ export default function LabTestingDetailPage() {
                     <span className={cn('h-2 w-2 rounded-full', p.status === 'inProgress' ? 'bg-amber-400' : 'bg-blue-400')} />
                     <span className="font-semibold">{p.petitionNo}</span>
                   </button>
-                );
-              })}
+              );
+            })}
           </div>
         )}
 
@@ -961,6 +974,18 @@ export default function LabTestingDetailPage() {
             phase2DueAt={petition.phase2DueAt}
             phase2UnlockedAt={petition.phase2UnlockedAt}
             triggeredByName={petition.phase2TriggeredBy?.parameterName}
+          />
+        )}
+
+        {labItems.length > 0 && (
+          <StandardWeighingSection
+            petition={petition}
+            configs={standardConfigs}
+            readOnly={isLocked}
+            onValidityChange={(ready, keys) => {
+              setStandardWeighReady(ready);
+              setRequiredStandardKeys(keys);
+            }}
           />
         )}
 
@@ -1512,7 +1537,7 @@ export default function LabTestingDetailPage() {
             <Button
               variant={isComplete ? 'primary' : 'outline'}
               onClick={isComplete ? handleSubmitResult : handleSaveDraft}
-              disabled={submitting}
+              disabled={submitting || (isComplete && !standardWeighReady)}
               className="gap-2"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isComplete ? <Send className="h-4 w-4" /> : <Save className="h-4 w-4" />}
