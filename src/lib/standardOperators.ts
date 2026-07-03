@@ -63,6 +63,18 @@ export function describeRule(rule: StandardRule, unit: string): string {
   return `${label}ถ้า ${conds} → ${std}`;
 }
 
+export function describeOutputRule(rule: StandardRule): string {
+  const label = rule.label?.trim() ? `${rule.label}: ` : "";
+  const text = (rule.outputText && rule.outputText.trim()) || rule.label || "(ไม่ระบุข้อความ)";
+  const kind = rule.outputKind === "abnormal" ? "ผิดปกติ" : "ปกติ";
+  const out = `→ "${text}" (${kind})`;
+  if (rule.conditions.length === 0) return `${label}default ${out}`;
+  const conds = rule.conditions
+    .map((c) => `${c.sourceFieldLabel} ${COND_OP_LABEL[c.op]} ${c.value}${c.op === "between" && c.value2 != null ? `–${c.value2}` : ""}`)
+    .join(" และ ");
+  return `${label}ถ้า ${conds} ${out}`;
+}
+
 // สรุปเกณฑ์ของ SubstanceStandard เป็นข้อความสั้น เช่น "≥ 95%"
 export function describeSubstanceStandard(std: SubstanceStandard, unit: string): string {
   const u = unit ? unit : "";

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { OPERATOR_OPTIONS, describeSubstanceStandard, describeRule, describeResolvedStandard } from "./standardOperators";
+import { OPERATOR_OPTIONS, describeSubstanceStandard, describeRule, describeResolvedStandard, describeOutputRule } from "./standardOperators";
+import type { StandardRule } from "./api";
 
 describe("OPERATOR_OPTIONS", () => {
   it("includes a 'none' entry plus all 7 operators", () => {
@@ -51,5 +52,24 @@ describe("describeRule", () => {
     );
     expect(s).toContain("ก้อนใหญ่");
     expect(s).toContain("23.5 - 26");
+  });
+});
+
+const rule = (over: Partial<StandardRule>): StandardRule => ({
+  label: "", conditions: [], operator: "between", value: null, value2: null, ...over,
+});
+
+describe("describeOutputRule", () => {
+  it("describes a conditional output rule", () => {
+    const r = rule({
+      label: "เล็ก",
+      conditions: [{ sourceFieldLabel: "ขนาดก้อน", op: "between", value: 5.5, value2: 6.5 }],
+      outputText: "ก้อนเล็ก", outputKind: "normal",
+    });
+    expect(describeOutputRule(r)).toBe('เล็ก: ถ้า ขนาดก้อน ช่วง 5.5–6.5 → "ก้อนเล็ก" (ปกติ)');
+  });
+  it("describes a default (no-condition) abnormal row and falls back to label text", () => {
+    const r = rule({ label: "อื่นๆ", conditions: [], outputText: "", outputKind: "abnormal" });
+    expect(describeOutputRule(r)).toBe('อื่นๆ: default → "อื่นๆ" (ผิดปกติ)');
   });
 });
