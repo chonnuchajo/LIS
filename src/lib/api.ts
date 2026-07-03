@@ -10,7 +10,7 @@ import type {
 } from "@/types/stock";
 import type { StandardConfigDoc } from "@/lib/standardConfig";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
-import type { PrintConfig, PrintConfigInput, PrintDocType } from "@/lib/printConfig";
+import type { PrintDocType, PrinterConfig, PrinterConfigInput } from "@/lib/printConfig";
 import type { DocumentNumberConfig, DocumentNumberConfigInput, DocNumberType } from "@/lib/documentNumberConfig";
 import type { LineGroup, LineGroupInput, LineHealth } from "@/lib/lineConfig";
 import type { DashboardId, StoredLayout, DashboardLayout } from "@/lib/dashboardLayout";
@@ -502,14 +502,24 @@ export const api = {
     }),
 
   // Print
-  getPrinters: () => request<{ data: string[] }>("/print/printers").then((r) => r.data),
-  getPrintConfigs: () =>
-    request<{ data: PrintConfig[] }>("/print/config").then((r) => r.data),
-  updatePrintConfig: (slug: PrintDocType, input: PrintConfigInput) =>
-    request<{ data: PrintConfig }>(`/print/config/${slug}`, {
+  getPrinterConfigs: () =>
+    request<{ data: PrinterConfig[] }>("/print/printers-config").then((r) => r.data),
+  createPrinterConfig: (input: PrinterConfigInput) =>
+    request<{ data: PrinterConfig }>("/print/printers-config", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }).then((r) => r.data),
+  updatePrinterConfig: (id: string, input: { label?: string; cupsPrinterUrl?: string }) =>
+    request<{ data: PrinterConfig }>(`/print/printers-config/${id}`, {
       method: "PUT",
       body: JSON.stringify(input),
     }).then((r) => r.data),
+  setDefaultPrinterConfig: (id: string) =>
+    request<{ data: PrinterConfig }>(`/print/printers-config/${id}/default`, {
+      method: "PUT",
+    }).then((r) => r.data),
+  deletePrinterConfig: (id: string) =>
+    request<{ ok: boolean }>(`/print/printers-config/${id}`, { method: "DELETE" }),
   printDocument: (payload: { docType: PrintDocType; html: string; copies?: number }) =>
     request<{ ok: boolean; printer: string; copies: number }>("/print", {
       method: "POST",
