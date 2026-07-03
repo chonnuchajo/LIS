@@ -436,6 +436,22 @@ export const api = {
     request<{ data: VirtualLabLog[] }>(`/virtual-lab/rooms/${roomId}/logs`).then((r) => r.data),
 
   // Daily Check (Calibrate เครื่องชั่งประจำวัน)
+  getStandardTimes: (params?: { page?: number; limit?: number; search?: string; instrument?: string; machineType?: string; hasData?: boolean }) => {
+    const qs = params
+      ? "?" + new URLSearchParams(
+          Object.entries(params).filter(([, v]) => v != null && v !== "").map(([k, v]) => [k, String(v)]),
+        ).toString()
+      : "";
+    return request<{ items: StandardTimeItem[]; total: number; page: number; limit: number }>(`/standard-times${qs}`);
+  },
+  getStandardTimeSummary: () =>
+    request<{ byInstrument: StandardTimeSummary[] }>("/standard-times/summary"),
+  updateStandardTime: (id: string, data: Partial<StandardTimeItem>) =>
+    request<StandardTimeItem>(`/standard-times/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
   getDailyChecks: (params?: {
     date?: string;          // YYYY-MM-DD หรือ "all"
     from?: string;
@@ -977,6 +993,35 @@ export type VirtualLabLog = {
   note?: string;
   actor?: string;
   createdAt?: string;
+};
+
+export type StandardTimeItem = {
+  _id: string;
+  instrument: string;
+  machineType?: string;
+  analysisName: string;
+  columnDimension?: string;
+  mobilePhaseTopUpMin?: number | null;
+  samplePrepPerBatchMin?: number | null;
+  standardPrepMin?: number | null;
+  instrumentSetupMin?: number | null;
+  standardCycleMin?: number | null;
+  totalInjectionsPerBatch?: number | null;
+  machineRunTotalMin?: number | null;
+  dataProcessingMin?: number | null;
+  recordResultMin?: number | null;
+  reportingMin?: number | null;
+  standardTimeMin?: number | null;
+  standardTimeText?: string;
+  hasData?: boolean;
+  note?: string;
+};
+
+export type StandardTimeSummary = {
+  _id: string;
+  total: number;
+  withData: number;
+  avgStandardTimeMin?: number | null;
 };
 
 export type ParameterValueFieldType = "text" | "number" | "float" | "enum" | "photo" | "file" | "timer" | "reference";

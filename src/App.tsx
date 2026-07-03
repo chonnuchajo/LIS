@@ -47,6 +47,7 @@ const RoomEquipmentCheckPage = lazy(() => import("./pages/daily-check/RoomEquipm
 const EnvironmentCheckPage = lazy(() => import("./pages/daily-check/EnvironmentCheckPage"));
 const DailyCheckRecordsPage = lazy(() => import("./pages/daily-check/DailyCheckRecordsPage"));
 const VirtualLabPage = lazy(() => import("./pages/VirtualLabPage"));
+const StandardTimePage = lazy(() => import("./pages/StandardTimePage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ScannerPage = lazy(() => import("./pages/ScannerPage"));
 const PetitionListPage = lazy(() => import("./pages/PetitionListPage"));
@@ -129,6 +130,7 @@ const App = () => (
                 <Route path="documents" element={<Navigate to="/daily-check/records" replace />} />
               </Route>
               <Route path="/virtual-lab" element={<PrivateRoute><VirtualLabPage /></PrivateRoute>} />
+              <Route path="/standard-time" element={<PrivateRoute><StandardTimePage /></PrivateRoute>} />
               <Route path="/stock" element={<PrivateRoute><Stock /></PrivateRoute>} />
               <Route path="/stock/scan/:qrId" element={<PrivateRoute><StockUnitScanPage /></PrivateRoute>} />
               <Route path="/master-items" element={<PrivateRoute><MasterItems /></PrivateRoute>} />
