@@ -15,18 +15,18 @@ function validateWeighings(required, rows, unitByQr) {
   const rowByKey = new Map(rows.map((r) => [keyOf(r), r]));
   for (const req of required) {
     const label = `${req.substance} (${req.instrument})`;
-    if (req.times == null) { errors.push(`ยังไม่ตั้งค่าจำนวนครั้ง (Standard Config) สำหรับ ${label}`); continue; }
     const row = rowByKey.get(keyOf(req));
+    if (row && row.deductedAt) continue; // already settled — never re-block, never re-deduct
+    if (req.times == null) { errors.push(`ยังไม่ตั้งค่าจำนวนครั้ง (Standard Config) สำหรับ ${label}`); continue; }
     if (!row) { errors.push(`ยังไม่ได้บันทึกการชั่ง standard: ${label}`); continue; }
     if (row.mode === 'working') {
       if (!row.workingQrId) errors.push(`เลือก working solution ก่อน: ${label}`);
       continue;
     }
-    // fresh
+    // fresh, not yet deducted
     const masses = Array.isArray(row.masses) ? row.masses.filter((n) => Number(n) > 0) : [];
     if (masses.length !== Number(req.times)) { errors.push(`กรอกน้ำหนักให้ครบ ${req.times} ครั้ง: ${label}`); continue; }
     if (!row.bottleQrId) { errors.push(`สแกน QR ขวดก่อน: ${label}`); continue; }
-    if (row.deductedAt) continue; // idempotent — already deducted
     const unit = unitByQr[row.bottleQrId];
     const totalMg = masses.reduce((s, n) => s + Number(n), 0);
     const p = stockRouter.planDeductMg(unit, totalMg);
@@ -36,7 +36,7 @@ function validateWeighings(required, rows, unitByQr) {
   return { errors, plan };
 }
 
-/** Orchestrator: validate → deduct atomically → create working → stamp deductedAt. Throws on any error. */
+/** Orchestrator: validate → deduct → stamp deductedAt → create working → stamp workingQrId. Throws on any error. */
 async function settleLabStandards(petition, requiredKeys, req) {
   const required = Array.isArray(requiredKeys) ? requiredKeys : [];
   if (required.length === 0) return; // nothing to weigh for this petition
@@ -56,11 +56,15 @@ async function settleLabStandards(petition, requiredKeys, req) {
     const { unit } = await stockRouter.deductMgFromUnit(step.bottleQrId, step.totalMg, {
       sampleId: step.sampleId, note: `ชั่ง standard · ${petition.petitionNo}`, ...meta,
     });
-    const working = await stockRouter.createWorkingFromParent(unit, { note: `${petition.petitionNo}`, ...meta }, req);
+    // Stamp deductedAt right after the irreversible deduction, BEFORE creating the working
+    // unit. If working-unit creation then fails, a retry sees the row as already deducted and
+    // will NOT deduct again (a missing workingQrId is a recoverable state, not a double-charge).
     await StandardWeighing.updateOne(
       { _id: step.rowId },
-      { $set: { deductedAt: new Date(), deductedBy: { email: meta.userEmail, name: meta.userName }, workingQrId: working.qrId } },
+      { $set: { deductedAt: new Date(), deductedBy: { email: meta.userEmail, name: meta.userName } } },
     );
+    const working = await stockRouter.createWorkingFromParent(unit, { note: `${petition.petitionNo}`, ...meta }, req);
+    await StandardWeighing.updateOne({ _id: step.rowId }, { $set: { workingQrId: working.qrId } });
   }
 }
 
