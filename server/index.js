@@ -56,6 +56,7 @@ mountApi('/qc-results', require('./routes/qcResults'));
 mountApi('/uploads', require('./routes/uploads'));
 mountApi('/daily-checks', require('./routes/dailyChecks'));
 mountApi('/equipment-checks', require('./routes/equipment-checks'));
+mountApi('/chemical-requisitions', require('./routes/chemical-requisitions')); // เบิกสารเคมี (solvent) → เครื่อง
 mountApi('/temphum', require('./routes/temphum'));
 mountApi('/env-checks', require('./routes/envChecks'));
 mountApi('/env-room-config', require('./routes/envRoomConfig'));
