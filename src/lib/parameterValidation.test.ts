@@ -21,6 +21,8 @@ import {
   optionOutputText,
   enumNormalValues,
   seedOptionOutputsFromLegacy,
+  resolveConditionalOutput,
+  isConditionalOutputAbnormal,
 } from "./parameterValidation";
 import type { ParameterItem, ParameterValueField, OptionOutput } from "./api";
 import type { QCTestResult } from "@/types/petition.types";
@@ -847,5 +849,37 @@ describe("countAbnormalInResults strictest (multi-entry)", () => {
   it("multiEntry: one bad entry → counts abnormal", () => {
     const p = { ...baseParam, multiEntry: true };
     expect(countAbnormalInResults(mk({}, { entries: [{ pH: 5 }, { pH: 9 }] }), [p])).toBe(1);
+  });
+});
+
+const outField: ParameterValueField = {
+  label: "ขนาดก้อน", type: "number", unit: "mm",
+  conditionalMode: true, conditionalResult: "output",
+  conditionalStandards: [
+    { label: "เล็ก", conditions: [{ sourceFieldLabel: "ขนาดก้อน", op: "between", value: 5.5, value2: 6.5 }], outputText: "ก้อนเล็ก", outputKind: "normal", operator: "between", value: null, value2: null },
+    { label: "ใหญ่", conditions: [{ sourceFieldLabel: "ขนาดก้อน", op: "between", value: 23.5, value2: 26 }], outputText: "", outputKind: "abnormal", operator: "between", value: null, value2: null },
+  ],
+};
+const ctxWith = (v: unknown) => ({ sameParam: { "ขนาดก้อน": v }, otherParams: {} });
+
+describe("resolveConditionalOutput", () => {
+  it("first-match returns rule text+kind", () => {
+    expect(resolveConditionalOutput(outField, ctxWith(6))).toEqual({ text: "ก้อนเล็ก", kind: "normal", matchedRuleLabel: "เล็ก" });
+  });
+  it("falls back to label when outputText blank", () => {
+    expect(resolveConditionalOutput(outField, ctxWith(24))).toEqual({ text: "ใหญ่", kind: "abnormal", matchedRuleLabel: "ใหญ่" });
+  });
+  it("no-match (in a gap) → abnormal, empty text", () => {
+    expect(resolveConditionalOutput(outField, ctxWith(10))).toEqual({ text: "", kind: "abnormal" });
+  });
+  it("blank self value → null (not flagged yet)", () => {
+    expect(resolveConditionalOutput(outField, ctxWith(""))).toBeNull();
+  });
+  it("returns null when not output mode", () => {
+    expect(resolveConditionalOutput({ ...outField, conditionalResult: "standard" }, ctxWith(6))).toBeNull();
+  });
+  it("isConditionalOutputAbnormal true on no-match", () => {
+    expect(isConditionalOutputAbnormal(outField, ctxWith(10))).toBe(true);
+    expect(isConditionalOutputAbnormal(outField, ctxWith(6))).toBe(false);
   });
 });

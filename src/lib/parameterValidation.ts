@@ -225,6 +225,10 @@ export function countAbnormalInResults(
           }
           continue;
         }
+        if (field.conditionalMode && field.conditionalResult === "output" && isNumeric) {
+          if (isConditionalOutputAbnormal(field, { sameParam: values, otherParams: valuesByItem.get(itemKey) ?? {} })) count += 1;
+          continue;
+        }
         const vf = field.conditionalMode && isNumeric
           ? resolveFieldStandard(field, { sameParam: values, otherParams: valuesByItem.get(itemKey) ?? {} })
           : field;
@@ -386,6 +390,40 @@ export function resolveFieldStandard(
     standardValue: r?.value ?? null,
     standardValue2: r?.value2 ?? null,
   };
+}
+
+export type ResolvedOutput = {
+  text: string;
+  kind: "normal" | "abnormal";
+  matchedRuleLabel?: string;
+};
+
+// โหมด output ของ conditionalMode: ไล่กฎบนลงล่าง เจอกฎแรกที่เข้า → { ข้อความ, สถานะ }.
+// ค่า self ยังว่าง → null (ไม่ flag). กรอกแล้วไม่เข้ากฎไหน → abnormal.
+export function resolveConditionalOutput(
+  field: ParameterValueField,
+  ctx: ConditionContext,
+): ResolvedOutput | null {
+  if (!field.conditionalMode || field.conditionalResult !== "output") return null;
+  const selfVal = ctx.sameParam[field.label];
+  if (selfVal === null || selfVal === undefined || selfVal === "") return null;
+  for (const rule of field.conditionalStandards ?? []) {
+    if ((rule.conditions ?? []).every((c) => evalCondition(c, ctx))) {
+      return {
+        text: (rule.outputText && rule.outputText.trim()) || rule.label || "",
+        kind: rule.outputKind ?? "normal",
+        matchedRuleLabel: rule.label || undefined,
+      };
+    }
+  }
+  return { text: "", kind: "abnormal" };
+}
+
+export function isConditionalOutputAbnormal(
+  field: ParameterValueField,
+  ctx: ConditionContext,
+): boolean {
+  return resolveConditionalOutput(field, ctx)?.kind === "abnormal";
 }
 
 export function evalCondition(cond: StandardCondition, ctx: ConditionContext): boolean {
