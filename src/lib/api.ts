@@ -137,6 +137,7 @@ export type StandardWeighingDoc = {
   bottleQrId: string;
   workingQrId: string;
   deductedAt: string | null;
+  deductedBy?: { email: string; name: string };
   note: string;
   createdAt?: string;
   updatedAt?: string;
