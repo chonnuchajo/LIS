@@ -1,26 +1,37 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ClipboardCheck, Cog, FlaskConical, Hourglass, Pencil, RefreshCw, Search, UserCheck, X } from 'lucide-react';
+import {
+  ArrowRight,
+  ClipboardCheck,
+  Cog,
+  FlaskConical,
+  GripVertical,
+  Hourglass,
+  Inbox,
+  RefreshCw,
+  Search,
+  UserCheck,
+  Users,
+  X,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import PageHeader from '@/components/lis/PageHeader';
-import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { NativeSelect } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/hooks/useAuth';
 import { usePetitionList } from '@/hooks/usePetition';
@@ -31,6 +42,7 @@ import { DEV_MODE, synthesizeDevAssignees } from '@/config/dev';
 import { parseSubstances } from '@/lib/substances';
 import { readSlotMethods, machineMatchesMethod, type MethodDoc } from '@/lib/methodRegistry';
 import { groupMachineMethods } from '@/lib/assignMachineGrouping';
+import { cn } from '@/lib/utils';
 import {
   type Petition,
   type PetitionAssignee,
@@ -109,14 +121,6 @@ function machineLabel(machine: MachineItem) {
   return machine.code ? `${machine.code} - ${machine.name}` : machine.name;
 }
 
-function estimateLabel(minutes?: number) {
-  if (minutes == null) return '';
-  const rounded = Math.round(minutes);
-  const h = Math.floor(rounded / 60);
-  const m = rounded % 60;
-  return h ? `${h} ชม. ${m} นาที` : `${m} นาที`;
-}
-
 function toAssignedMachine(
   machine: MachineItem,
   group: SubstanceGroup,
@@ -165,6 +169,20 @@ function buildSubstanceGroups(
   return Array.from(groups.values());
 }
 
+// A group cannot be assigned when it has no substances, or any slot has no
+// configured method / an unknown / inactive method code.
+function groupHasUnassignable(group: SubstanceGroup, methodByCode: Map<string, MethodDoc>): boolean {
+  if (group.slots.length === 0) return true;
+  return group.slots.some(
+    (s) =>
+      s.methods.length === 0 ||
+      s.methods.some((code) => {
+        const method = methodByCode.get(code);
+        return !method || method.active === false;
+      }),
+  );
+}
+
 export default function PetitionAssignPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -192,29 +210,17 @@ export default function PetitionAssignPage() {
   const [machines, setMachines] = useState<MachineItem[]>([]);
   const [machinesLoading, setMachinesLoading] = useState(true);
   const [machinesError, setMachinesError] = useState<string | null>(null);
-  const [selectedByPetition, setSelectedByPetition] = useState<Record<string, string>>({});
   // machinesByPetition[petitionId][groupKey][methodCode] = machineId.
   // Keyed per (group, machine-backed method code): substances in a group that
   // share an instrument type share one machine (one picker per type).
   const [machinesByPetition, setMachinesByPetition] =
     useState<Record<string, Record<string, Record<string, string>>>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
-  // petitions currently in edit mode (already assigned but reopened for changes)
-  const [editingIds, setEditingIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<TabKey>('normal');
   const [machineSuggestions, setMachineSuggestions] = useState<Record<string, MachineSuggestion[]>>({});
-
-  function startEditing(petitionId: string) {
-    setEditingIds((prev) => new Set(prev).add(petitionId));
-  }
-  function stopEditing(petitionId: string) {
-    setEditingIds((prev) => {
-      const next = new Set(prev);
-      next.delete(petitionId);
-      return next;
-    });
-  }
+  // A petition dragged onto a staff card → open the machine-picking dialog.
+  const [dropTarget, setDropTarget] = useState<{ petitionId: string; employeeId: string } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -492,12 +498,12 @@ export default function PetitionAssignPage() {
     );
   }, [activeTab, normalPetitions, phase2Petitions, search]);
 
-  async function assignPetition(petition: Petition) {
-    const employeeId = selectedByPetition[petition._id] || petition.assignedTo?.employeeId || '';
+  async function assignPetition(petition: Petition, employeeIdOverride?: string): Promise<boolean> {
+    const employeeId = employeeIdOverride || petition.assignedTo?.employeeId || '';
     const employee = employeeById.get(employeeId);
     if (!employee) {
       toast.error('กรุณาเลือกเจ้าหน้าที่');
-      return;
+      return false;
     }
 
     const groups = groupsByPetition.get(petition._id) ?? buildSubstanceGroups(petition, commonNameToSlots);
@@ -507,7 +513,7 @@ export default function PetitionAssignPage() {
     const incomplete = groups.some((group) => !isGroupSatisfied(petition, group));
     if (incomplete) {
       toast.error('กรุณาเลือกเครื่องให้ครบทุกสารก่อน assign');
-      return;
+      return false;
     }
 
     const machinesPayload: PetitionAssignedMachine[] = [];
@@ -539,21 +545,35 @@ export default function PetitionAssignPage() {
         ? ` (เครื่อง: ${machinesPayload.map((m) => m.code).join(', ')})`
         : '';
       toast.success(`Assign ${petition.petitionNo} ให้ ${employee.name}${machineSummary} แล้ว`);
-      stopEditing(petition._id);
       refreshPetitions();
+      return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'บันทึก assignment ไม่สำเร็จ');
+      return false;
     } finally {
       setSavingId(null);
     }
   }
+
+  const dropPetition = dropTarget
+    ? allPetitions.find((p) => p._id === dropTarget.petitionId) ?? null
+    : null;
+  const dropEmployee = dropTarget ? employeeById.get(dropTarget.employeeId) ?? null : null;
+
+  async function confirmDropAssign() {
+    if (!dropTarget || !dropPetition) return;
+    const ok = await assignPetition(dropPetition, dropTarget.employeeId);
+    if (ok) setDropTarget(null);
+  }
+
+  const boardLoading = loading || employeesLoading || machinesLoading;
 
   return (
     <AppLayout>
         <div className="space-y-5">
           <PageHeader
             title="Assign คำร้องให้เจ้าหน้าที่"
-            description="เลือกเจ้าหน้าที่แผนก Lab/วิเคราะห์ (พนักงานรายเดือน) หรือผู้ใช้ที่มีสิทธิ์ lab analyze"
+            description="ลากคำร้องจากกอง “งานรอมอบหมาย” ไปวางบนการ์ดเจ้าหน้าที่ เพื่อเลือกเครื่องและ assign"
             actions={
               <Button
                 variant="primary-outline"
@@ -638,86 +658,596 @@ export default function PetitionAssignPage() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="normal" className="mt-3 space-y-3">
-              <div className="rounded-[10px] border border-black-50 bg-white p-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-500" />
-                  <Input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="ค้นหาเลขที่คำร้อง / ผู้ยื่น / แผนก / เจ้าหน้าที่..."
-                    className="pl-9"
-                  />
-                </div>
+            <div className="mt-3 rounded-[10px] border border-black-50 bg-white p-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-500" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="ค้นหาเลขที่คำร้อง / ผู้ยื่น / แผนก / เจ้าหน้าที่..."
+                  className="pl-9"
+                />
               </div>
-              <AssignTable
+            </div>
+
+            <TabsContent value="normal" className="mt-3">
+              <AssignBoard
                 petitions={visiblePetitions}
-                loading={loading || employeesLoading || machinesLoading}
+                loading={boardLoading}
                 employees={employees}
-                machines={machines}
-                registryMethods={registryMethods}
-                methodByCode={methodByCode}
-                isGroupSatisfied={isGroupSatisfied}
                 groupsByPetition={groupsByPetition}
-                selectedByPetition={selectedByPetition}
-                setSelectedByPetition={setSelectedByPetition}
-                getSelectedSlotMachines={getSelectedSlotMachines}
-                onSelectMachine={setMachineForMethod}
-                savingId={savingId}
-                editingIds={editingIds}
-                onEdit={startEditing}
-                onCancelEdit={stopEditing}
-                assignPetition={assignPetition}
+                methodByCode={methodByCode}
+                machineById={machineById}
+                onDropPetition={(petitionId, employeeId) => setDropTarget({ petitionId, employeeId })}
                 onPetitionClick={(id) => navigate(`/petitions/${id}`)}
-                emptyText="ไม่พบคำร้องที่ต้อง assign"
-                machineSuggestions={machineSuggestions}
+                emptyPoolText="ไม่มีคำร้องที่รอ assign"
               />
             </TabsContent>
 
             <TabsContent value="phase2" className="mt-3 space-y-3">
               <div className="rounded-[10px] border border-amber-200 bg-amber-50/40 p-3 text-xs text-amber-800">
                 <Hourglass className="inline h-3.5 w-3.5 mr-1" />
-                คำร้องที่ผ่าน Phase 1 แล้ว และ trigger (เช่น timer อบ) ครบกำหนด — ให้เจ้าหน้าที่เลือกรับเพื่อทำ Phase 2 ต่อ
+                คำร้องที่ผ่าน Phase 1 แล้ว และ trigger (เช่น timer อบ) ครบกำหนด — ลากไปวางบนเจ้าหน้าที่เพื่อทำ Phase 2 ต่อ
               </div>
-              <div className="rounded-[10px] border border-black-50 bg-white p-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-500" />
-                  <Input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="ค้นหาเลขที่คำร้อง / ผู้ยื่น / แผนก / เจ้าหน้าที่..."
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-              <AssignTable
+              <AssignBoard
                 petitions={visiblePetitions}
-                loading={loading || employeesLoading || machinesLoading}
+                loading={boardLoading}
                 employees={employees}
-                machines={machines}
-                registryMethods={registryMethods}
-                methodByCode={methodByCode}
-                isGroupSatisfied={isGroupSatisfied}
                 groupsByPetition={groupsByPetition}
-                selectedByPetition={selectedByPetition}
-                setSelectedByPetition={setSelectedByPetition}
-                getSelectedSlotMachines={getSelectedSlotMachines}
-                onSelectMachine={setMachineForMethod}
-                savingId={savingId}
-                editingIds={editingIds}
-                onEdit={startEditing}
-                onCancelEdit={stopEditing}
-                assignPetition={assignPetition}
+                methodByCode={methodByCode}
+                machineById={machineById}
+                onDropPetition={(petitionId, employeeId) => setDropTarget({ petitionId, employeeId })}
                 onPetitionClick={(id) => navigate(`/petitions/${id}`)}
-                emptyText="ยังไม่มีคำร้อง Phase 2 ที่รอเลือก"
+                emptyPoolText="ยังไม่มีคำร้อง Phase 2 ที่รอเลือก"
                 showPhase2Badge
-                machineSuggestions={machineSuggestions}
               />
             </TabsContent>
           </Tabs>
-
         </div>
+
+        <MachineAssignDialog
+          petition={dropPetition}
+          employee={dropEmployee}
+          groups={dropPetition ? groupsByPetition.get(dropPetition._id) ?? [] : []}
+          machines={machines}
+          registryMethods={registryMethods}
+          methodByCode={methodByCode}
+          getSelectedSlotMachines={getSelectedSlotMachines}
+          onSelectMachine={setMachineForMethod}
+          isGroupSatisfied={isGroupSatisfied}
+          machineSuggestions={machineSuggestions}
+          saving={!!dropPetition && savingId === dropPetition._id}
+          onConfirm={confirmDropAssign}
+          onClose={() => setDropTarget(null)}
+        />
     </AppLayout>
+  );
+}
+
+// ————————————————————————————————————————————————————————————————
+// Board
+// ————————————————————————————————————————————————————————————————
+
+interface AssignBoardProps {
+  petitions: Petition[];
+  loading: boolean;
+  employees: EmployeeAssignee[];
+  groupsByPetition: Map<string, SubstanceGroup[]>;
+  methodByCode: Map<string, MethodDoc>;
+  machineById: Map<string, MachineItem>;
+  onDropPetition: (petitionId: string, employeeId: string) => void;
+  onPetitionClick: (id: string) => void;
+  emptyPoolText: string;
+  showPhase2Badge?: boolean;
+}
+
+interface BoardColumn {
+  employeeId: string;
+  name: string;
+  department: string;
+}
+
+function AssignBoard({
+  petitions,
+  loading,
+  employees,
+  groupsByPetition,
+  methodByCode,
+  machineById,
+  onDropPetition,
+  onPetitionClick,
+  emptyPoolText,
+  showPhase2Badge,
+}: AssignBoardProps) {
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [overEmployee, setOverEmployee] = useState<string | null>(null);
+
+  const unassigned = useMemo(() => petitions.filter((p) => !p.assignedTo), [petitions]);
+
+  // employeeId → assigned petitions
+  const assignedByEmployee = useMemo(() => {
+    const map = new Map<string, Petition[]>();
+    petitions.forEach((p) => {
+      const id = p.assignedTo?.employeeId;
+      if (!id) return;
+      const list = map.get(id) ?? [];
+      list.push(p);
+      map.set(id, list);
+    });
+    return map;
+  }, [petitions]);
+
+  // Columns = every assignable employee, plus any employee that already has an
+  // assignment here but is missing from the current staff list (kept visible).
+  const columns = useMemo<BoardColumn[]>(() => {
+    const known = new Set(employees.map((e) => e.employeeId));
+    const cols: BoardColumn[] = employees.map((e) => ({
+      employeeId: e.employeeId,
+      name: e.name,
+      department: e.department,
+    }));
+    assignedByEmployee.forEach((list, id) => {
+      if (known.has(id)) return;
+      const info = list[0].assignedTo;
+      cols.push({ employeeId: id, name: info?.name ?? id, department: info?.department ?? '' });
+    });
+    return cols;
+  }, [employees, assignedByEmployee]);
+
+  function handleDrop(employeeId: string) {
+    if (draggingId) onDropPetition(draggingId, employeeId);
+    setDraggingId(null);
+    setOverEmployee(null);
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-[10px] border border-black-50 bg-white py-12 text-center text-grey-500">
+        กำลังโหลดข้อมูล...
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)] items-start">
+      {/* Unassigned pool */}
+      <div className="rounded-[10px] border border-black-50 bg-grey-50/40 p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <Inbox className="h-4 w-4 text-grey-500" />
+          <span className="text-sm font-semibold text-black-500">งานรอมอบหมาย</span>
+          <Badge variant="gray-soft" className="ml-auto font-normal">
+            {unassigned.length}
+          </Badge>
+        </div>
+        <div className="max-h-[72vh] space-y-2 overflow-y-auto pr-0.5">
+          {unassigned.length === 0 ? (
+            <div className="rounded-md border border-dashed border-grey-200 py-8 text-center text-xs text-grey-400">
+              {emptyPoolText}
+            </div>
+          ) : (
+            unassigned.map((petition) => (
+              <PetitionCard
+                key={petition._id}
+                petition={petition}
+                groups={groupsByPetition.get(petition._id) ?? []}
+                methodByCode={methodByCode}
+                dragging={draggingId === petition._id}
+                onDragStart={() => setDraggingId(petition._id)}
+                onDragEnd={() => setDraggingId(null)}
+                onClick={() => onPetitionClick(petition._id)}
+                showPhase2Badge={showPhase2Badge}
+              />
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Staff cards (drop zones) */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+        {columns.length === 0 ? (
+          <div className="rounded-[10px] border border-dashed border-grey-200 py-10 text-center text-sm text-grey-400 sm:col-span-2 2xl:col-span-3">
+            ไม่มีเจ้าหน้าที่ให้มอบหมาย
+          </div>
+        ) : (
+          columns.map((col) => {
+            const assigned = assignedByEmployee.get(col.employeeId) ?? [];
+            const isOver = overEmployee === col.employeeId;
+            return (
+              <div
+                key={col.employeeId}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (overEmployee !== col.employeeId) setOverEmployee(col.employeeId);
+                }}
+                onDragLeave={(e) => {
+                  // only clear when the pointer actually leaves the card
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    setOverEmployee((cur) => (cur === col.employeeId ? null : cur));
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleDrop(col.employeeId);
+                }}
+                className={cn(
+                  'flex flex-col rounded-[10px] border bg-white p-3 transition-colors',
+                  isOver ? 'border-primary-400 bg-primary-50/40 ring-2 ring-primary-200' : 'border-black-50',
+                )}
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-500">
+                    <Users className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-black-500">{col.name}</div>
+                    {col.department && (
+                      <div className="truncate text-[11px] text-grey-500">{col.department}</div>
+                    )}
+                  </div>
+                  <Badge variant="gray-soft" className="ml-auto font-normal">
+                    {assigned.length}
+                  </Badge>
+                </div>
+
+                <div className="min-h-[64px] space-y-2">
+                  {assigned.length === 0 ? (
+                    <div
+                      className={cn(
+                        'flex h-16 items-center justify-center rounded-md border border-dashed text-xs',
+                        isOver ? 'border-primary-300 text-primary-500' : 'border-grey-200 text-grey-400',
+                      )}
+                    >
+                      ลากงานมาวางที่นี่
+                    </div>
+                  ) : (
+                    assigned.map((petition) => (
+                      <PetitionCard
+                        key={petition._id}
+                        petition={petition}
+                        groups={groupsByPetition.get(petition._id) ?? []}
+                        methodByCode={methodByCode}
+                        machineById={machineById}
+                        dragging={draggingId === petition._id}
+                        onDragStart={() => setDraggingId(petition._id)}
+                        onDragEnd={() => setDraggingId(null)}
+                        onClick={() => onPetitionClick(petition._id)}
+                        showPhase2Badge={showPhase2Badge}
+                        assigned
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface PetitionCardProps {
+  petition: Petition;
+  groups: SubstanceGroup[];
+  methodByCode: Map<string, MethodDoc>;
+  machineById?: Map<string, MachineItem>;
+  dragging: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onClick: () => void;
+  showPhase2Badge?: boolean;
+  assigned?: boolean;
+}
+
+function PetitionCard({
+  petition,
+  groups,
+  methodByCode,
+  dragging,
+  onDragStart,
+  onDragEnd,
+  onClick,
+  showPhase2Badge,
+  assigned,
+}: PetitionCardProps) {
+  const statusCfg = petitionStatusBadge(petition);
+  const machineCodes = (petition.assignedMachines ?? [])
+    .map((m) => m.code)
+    .filter(Boolean) as string[];
+  const blocked = groups.length === 0 || groups.some((g) => groupHasUnassignable(g, methodByCode));
+
+  return (
+    <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', petition._id);
+        onDragStart();
+      }}
+      onDragEnd={onDragEnd}
+      className={cn(
+        'group cursor-grab rounded-lg border border-grey-200 bg-white p-2.5 shadow-sm transition active:cursor-grabbing hover:border-primary-200 hover:shadow',
+        dragging && 'opacity-40',
+      )}
+    >
+      <div className="flex items-start gap-1.5">
+        <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-grey-300 group-hover:text-grey-400" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              className="truncate font-semibold text-primary-500 hover:underline"
+              onClick={onClick}
+              draggable={false}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              {petition.petitionNo}
+            </button>
+            <Badge variant={statusCfg.variant} className="ml-auto shrink-0">
+              {statusCfg.label}
+            </Badge>
+          </div>
+          <div className="mt-0.5 truncate text-[11px] text-grey-500">
+            {petition.submittedBy?.name ?? '-'} · {petition.dept}
+          </div>
+        </div>
+      </div>
+
+      {groups.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1 pl-[22px]">
+          {groups.map((group) => (
+            <span
+              key={group.groupKey}
+              className="inline-flex max-w-full items-center gap-1 rounded bg-grey-50 px-1.5 py-0.5 text-[10px] text-black-500"
+              title={group.commonName || group.sampleName}
+            >
+              <span className="truncate">
+                {group.commonName || group.sampleName || '(ไม่มีชื่อ)'}
+              </span>
+              {sampleSeqLabel(group) && (
+                <span className="text-grey-400">#{sampleSeqLabel(group)}</span>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-1 pl-[22px]">
+        {showPhase2Badge && (
+          <Badge variant="yellow-soft" className="font-normal">
+            Phase 2
+          </Badge>
+        )}
+        {assigned && machineCodes.length > 0 && (
+          <span className="inline-flex items-center gap-1 text-[10px] text-grey-500">
+            <Cog className="h-3 w-3 text-grey-400" />
+            {machineCodes.join(', ')}
+          </span>
+        )}
+        {blocked && (
+          <Badge variant="red-soft" className="font-normal">
+            ยังตั้ง method ไม่ครบ
+          </Badge>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ————————————————————————————————————————————————————————————————
+// Machine-picking dialog (opened on drop)
+// ————————————————————————————————————————————————————————————————
+
+interface MachineAssignDialogProps {
+  petition: Petition | null;
+  employee: EmployeeAssignee | null;
+  groups: SubstanceGroup[];
+  machines: MachineItem[];
+  registryMethods: MethodDoc[];
+  methodByCode: Map<string, MethodDoc>;
+  getSelectedSlotMachines: (petition: Petition, group: SubstanceGroup) => Record<string, string>;
+  onSelectMachine: (petitionId: string, groupKey: string, methodCode: string, machineKey: string) => void;
+  isGroupSatisfied: (petition: Petition, group: SubstanceGroup) => boolean;
+  machineSuggestions: Record<string, MachineSuggestion[]>;
+  saving: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
+function MachineAssignDialog({
+  petition,
+  employee,
+  groups,
+  machines,
+  registryMethods,
+  methodByCode,
+  getSelectedSlotMachines,
+  onSelectMachine,
+  isGroupSatisfied,
+  machineSuggestions,
+  saving,
+  onConfirm,
+  onClose,
+}: MachineAssignDialogProps) {
+  const open = !!petition && !!employee;
+
+  const hasUnassignableGroup =
+    !!petition && (groups.length === 0 || groups.some((g) => groupHasUnassignable(g, methodByCode)));
+  const allSatisfied = !!petition && groups.length > 0 && groups.every((g) => isGroupSatisfied(petition, g));
+  const isReassign = !!petition?.assignedTo;
+
+  const disabledReason = hasUnassignableGroup
+    ? 'ยังไม่ได้กำหนด method ของสารใน simple method — assign ไม่ได้'
+    : !allSatisfied
+      ? 'เลือกเครื่องให้ครบทุกสารก่อน'
+      : null;
+  const confirmDisabled = saving || hasUnassignableGroup || !allSatisfied;
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-2xl">
+        {petition && employee && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex flex-wrap items-center gap-2">
+                <span className="text-primary-500">{petition.petitionNo}</span>
+                <ArrowRight className="h-4 w-4 text-grey-400" />
+                <span className="inline-flex items-center gap-1.5">
+                  <UserCheck className="h-4 w-4 text-green-500" />
+                  {employee.name}
+                </span>
+              </DialogTitle>
+              <DialogDescription>
+                {employeeLabel(employee)} · {employee.department} — เลือกเครื่องให้ครบทุกสารก่อนยืนยัน
+                {isReassign && ' (กำลังเปลี่ยนผู้รับผิดชอบ/เครื่อง)'}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="max-h-[60vh] space-y-3 overflow-y-auto">
+              {groups.length === 0 ? (
+                <div className="rounded-md border border-grey-200 py-6 text-center text-sm text-grey-500">
+                  ไม่มีตัวอย่างให้ assign
+                </div>
+              ) : (
+                groups.map((group) => {
+                  const slotMachines = getSelectedSlotMachines(petition, group);
+                  const machineMethods = groupMachineMethods(group.slots, methodByCode);
+                  const notSet: string[] = [];
+                  const benchNotes: { key: string; label: string; substance: string }[] = [];
+                  const unknownCodes: { key: string; code: string }[] = [];
+                  group.slots.forEach((slot, sIdx) => {
+                    if (slot.methods.length === 0) {
+                      notSet.push(slot.name || `เครื่องที่ ${sIdx + 1}`);
+                      return;
+                    }
+                    slot.methods.forEach((code) => {
+                      const method = methodByCode.get(code);
+                      if (!method) {
+                        unknownCodes.push({ key: `${sIdx}-${code}`, code });
+                      } else if (!method.requiresMachine) {
+                        benchNotes.push({ key: `${sIdx}-${code}`, label: method.label, substance: slot.name });
+                      }
+                    });
+                  });
+                  const seqLabel = sampleSeqLabel(group);
+                  return (
+                    <div key={group.groupKey} className="rounded-lg border border-grey-100 p-3">
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="font-medium text-black-500">
+                          {group.commonName || group.sampleName || '(ไม่มีชื่อ)'}
+                        </span>
+                        {seqLabel && (
+                          <span className="text-xs text-grey-400">ตัวอย่าง #{seqLabel}</span>
+                        )}
+                      </div>
+
+                      {(machineSuggestions[group.groupKey] ?? []).length > 0 && (
+                        <div className="mb-2 flex flex-wrap items-center gap-1">
+                          <span className="text-[11px] text-grey-400">AI แนะนำ:</span>
+                          {machineSuggestions[group.groupKey].map((s) => (
+                            <span
+                              key={s.machineCode}
+                              className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600"
+                              title={`ใช้ ${s.usageCount} ครั้งใน 10 batches ล่าสุด`}
+                            >
+                              {s.machineCode} ({s.usageCount}/10)
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-start gap-1.5">
+                        {machineMethods.map((gm) => {
+                          const filteredMachines = machines.filter((m) =>
+                            machineMatchesMethod(m.name, gm.method, registryMethods),
+                          );
+                          return (
+                            <div key={gm.code}>
+                              <SingleMachinePicker
+                                slotLabel={
+                                  gm.substanceNames.length > 1
+                                    ? `ใช้ร่วม ${gm.substanceNames.length} สาร`
+                                    : ''
+                                }
+                                substanceName={gm.substanceNames.join(', ')}
+                                methodLabel={gm.method.label}
+                                machines={filteredMachines}
+                                selectedId={slotMachines[gm.code] || null}
+                                onSelect={(machineKey: string) =>
+                                  onSelectMachine(petition._id, group.groupKey, gm.code, machineKey)
+                                }
+                              />
+                              {filteredMachines.length === 0 && (
+                                <div className="mt-0.5 text-[11px] text-red-500">
+                                  ไม่พบเครื่องสำหรับ {gm.method.label}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {notSet.length > 0 && (
+                          <div className="w-[170px] shrink-0 rounded-md border border-amber-200 bg-amber-50/50 px-2 py-1.5 text-[10px] text-amber-700">
+                            <div className="truncate font-medium" title={notSet.join(', ')}>
+                              {notSet.join(', ')}
+                            </div>
+                            ยังไม่ได้ตั้ง method ในซิมเปิลเมธอด
+                          </div>
+                        )}
+                        {benchNotes.map((b) => (
+                          <Badge
+                            key={b.key}
+                            variant="gray-soft"
+                            className="shrink-0 px-1.5 py-1 text-[10px] font-medium"
+                            title={b.substance}
+                          >
+                            ทำที่โต๊ะ — {b.label}
+                          </Badge>
+                        ))}
+                        {unknownCodes.map((u) => (
+                          <Badge
+                            key={u.key}
+                            variant="red-soft"
+                            className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium"
+                          >
+                            method ไม่รู้จัก: {u.code}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="ghost" onClick={onClose}>
+                <X className="h-4 w-4" />
+                ยกเลิก
+              </Button>
+              {disabledReason ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-block">
+                      <Button variant="primary" disabled>
+                        <ClipboardCheck className="h-4 w-4" />
+                        {isReassign ? 'บันทึก' : 'Assign'}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{disabledReason}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <Button variant="primary" disabled={confirmDisabled} onClick={onConfirm}>
+                  <ClipboardCheck className="h-4 w-4" />
+                  {saving ? 'กำลังบันทึก...' : isReassign ? 'บันทึก' : 'Assign'}
+                </Button>
+              )}
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -728,8 +1258,6 @@ interface SingleMachinePickerProps {
   slotLabel: string;        // caption line, e.g. "ใช้ร่วม 2 สาร"; "" for a single substance
   substanceName: string;    // e.g. "PROPANIL 36%"
   methodLabel: string;      // required method label/code, e.g. "GC", "HPLC"
-  estimateText?: string;
-  estimateSource?: string;
   readOnly?: boolean;       // locked view — show selection without the picker
 }
 
@@ -742,8 +1270,6 @@ function SingleMachinePicker({
   slotLabel,
   substanceName,
   methodLabel,
-  estimateText,
-  estimateSource,
   readOnly = false,
 }: SingleMachinePickerProps) {
   const [open, setOpen] = useState(false);
@@ -792,11 +1318,6 @@ function SingleMachinePicker({
             {selected ? machineLabel(selected) : 'ไม่ได้เลือก'}
           </span>
         </div>
-        {estimateText && (
-          <div className="mt-0.5 truncate text-[10px] text-blue-600" title={estimateSource}>
-            เวลา {estimateText}
-          </div>
-        )}
       </div>
     );
   }
@@ -886,438 +1407,5 @@ function SingleMachinePicker({
         </div>
       </PopoverContent>
     </Popover>
-  );
-}
-
-interface AssignTableProps {
-  petitions: Petition[];
-  loading: boolean;
-  employees: EmployeeAssignee[];
-  machines: MachineItem[];
-  registryMethods: MethodDoc[];
-  methodByCode: Map<string, MethodDoc>;
-  isGroupSatisfied: (petition: Petition, group: SubstanceGroup) => boolean;
-  groupsByPetition: Map<string, SubstanceGroup[]>;
-  selectedByPetition: Record<string, string>;
-  setSelectedByPetition: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  getSelectedSlotMachines: (petition: Petition, group: SubstanceGroup) => Record<string, string>;
-  onSelectMachine: (
-    petitionId: string,
-    groupKey: string,
-    methodCode: string,
-    machineKey: string,
-  ) => void;
-  savingId: string | null;
-  editingIds: Set<string>;
-  onEdit: (petitionId: string) => void;
-  onCancelEdit: (petitionId: string) => void;
-  assignPetition: (petition: Petition) => Promise<void>;
-  onPetitionClick: (id: string) => void;
-  emptyText: string;
-  showPhase2Badge?: boolean;
-  machineSuggestions: Record<string, MachineSuggestion[]>;
-}
-
-function AssignTable({
-  petitions,
-  loading,
-  employees,
-  machines,
-  registryMethods,
-  methodByCode,
-  isGroupSatisfied,
-  groupsByPetition,
-  selectedByPetition,
-  setSelectedByPetition,
-  getSelectedSlotMachines,
-  onSelectMachine,
-  savingId,
-  editingIds,
-  onEdit,
-  onCancelEdit,
-  assignPetition,
-  onPetitionClick,
-  emptyText,
-  showPhase2Badge,
-  machineSuggestions,
-}: AssignTableProps) {
-  return (
-    <div className="rounded-[10px] border border-black-50 bg-white overflow-x-auto">
-      <Table className="min-w-[1200px]">
-        <TableHeader>
-          <TableRow>
-            <TableHead>เลขที่คำร้อง</TableHead>
-            <TableHead>ชื่อสาร</TableHead>
-            <TableHead>ตัวอย่าง</TableHead>
-            <TableHead>สถานะ</TableHead>
-            <TableHead>เจ้าหน้าที่</TableHead>
-            <TableHead>เครื่อง</TableHead>
-            <TableHead className="text-right">บันทึก</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {loading && (
-            <TableRow>
-              <TableCell colSpan={7} className="py-8 text-center text-grey-500">
-                กำลังโหลดข้อมูล...
-              </TableCell>
-            </TableRow>
-          )}
-          {!loading && petitions.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={7} className="py-8 text-center text-grey-500">
-                {emptyText}
-              </TableCell>
-            </TableRow>
-          )}
-          {!loading && petitions.map((petition) => {
-            const statusCfg = petitionStatusBadge(petition);
-            const selectedEmployeeId =
-              selectedByPetition[petition._id] ?? petition.assignedTo?.employeeId ?? '';
-            const petitionGroups = groupsByPetition.get(petition._id) ?? [];
-            // a substance with no configured method (empty methods), or one whose
-            // method code is unknown/inactive in the registry, blocks Assign
-            const hasUnassignableGroup = petitionGroups.some((g) =>
-              g.slots.length === 0 ||
-              g.slots.some(
-                (s) =>
-                  s.methods.length === 0 ||
-                  s.methods.some((code) => {
-                    const method = methodByCode.get(code);
-                    return !method || method.active === false;
-                  }),
-              ),
-            );
-            // every machine-backed method on every substance must have a machine picked
-            const allMachinesSelected = petitionGroups.every((g) => isGroupSatisfied(petition, g));
-            const assignDisabledReason = hasUnassignableGroup
-              ? 'ยังไม่ได้กำหนด method ของสารใน simple method — assign ไม่ได้'
-              : !selectedEmployeeId
-                ? 'เลือกเจ้าหน้าที่ก่อน'
-                : !allMachinesSelected
-                  ? 'เลือกเครื่องให้ครบทุกสารก่อน'
-                  : null;
-            const assignDisabled =
-              !selectedEmployeeId ||
-              savingId === petition._id ||
-              hasUnassignableGroup ||
-              !allMachinesSelected;
-            // already-assigned petitions are read-only until the user clicks "แก้ไข"
-            const isAssigned = !!petition.assignedTo;
-            const locked = isAssigned && !editingIds.has(petition._id);
-
-            return (
-              <TableRow key={petition._id}>
-                <TableCell className="align-top">
-                  <button
-                    type="button"
-                    className="font-semibold text-primary-500 hover:underline"
-                    onClick={() => onPetitionClick(petition._id)}
-                  >
-                    {petition.petitionNo}
-                  </button>
-                  <div className="mt-0.5 text-xs text-grey-500">
-                    ผู้ยื่น: {petition.submittedBy?.name ?? '-'}
-                    <span className="text-grey-400"> · {petition.dept}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="align-top">
-                  {petitionGroups.length === 0 ? (
-                    <span className="text-xs text-grey-500">-</span>
-                  ) : (
-                    <div className="divide-y divide-grey-100">
-                      {petitionGroups.map((group) => (
-                        <div
-                          key={group.groupKey}
-                          className="min-h-[60px] py-1.5 first:pt-0 last:pb-0"
-                        >
-                          <div className="font-medium text-black-500 max-w-[200px] truncate">
-                            {group.commonName || group.sampleName || '(ไม่มีชื่อ)'}
-                          </div>
-                          {group.slots.length > 1 && (
-                            <div className="mt-0.5 space-y-0.5">
-                              {group.slots.map((slot, idx) => (
-                                <div
-                                  key={`${slot.name}-${idx}`}
-                                  className="flex items-center gap-1 text-[11px] text-grey-500"
-                                >
-                                  <span className="truncate max-w-[150px]">• {slot.name}</span>
-                                  {slot.methods.length === 0 ? (
-                                    <Badge variant="red-soft" className="px-1 py-0 text-[9px] font-medium">
-                                      ไม่ได้ตั้ง
-                                    </Badge>
-                                  ) : (
-                                    slot.methods.map((code) => {
-                                      const m = methodByCode.get(code);
-                                      return (
-                                        <Badge
-                                          key={code}
-                                          variant={m && !m.requiresMachine ? 'gray-soft' : 'blue-soft'}
-                                          className="px-1 py-0 text-[9px] font-medium"
-                                        >
-                                          {m?.label || code}
-                                        </Badge>
-                                      );
-                                    })
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell className="align-top">
-                  {petitionGroups.length === 0 ? (
-                    <span className="text-xs text-grey-500">-</span>
-                  ) : (
-                    <div className="divide-y divide-grey-100">
-                      {petitionGroups.map((group) => {
-                        const seqLabel = sampleSeqLabel(group);
-                        return (
-                          <div
-                            key={group.groupKey}
-                            className="flex min-h-[60px] items-center py-1.5 first:pt-0 last:pb-0"
-                          >
-                            <span className="font-medium tabular-nums text-black-500">
-                              {seqLabel || '-'}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell className="align-top">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
-                    {showPhase2Badge && (
-                      <Badge variant="yellow-soft" className="font-normal">Phase 2</Badge>
-                    )}
-                    <PetitionStatusTimeline petition={petition} compact />
-                  </div>
-                </TableCell>
-                <TableCell className="min-w-[280px] align-top">
-                  {locked ? (
-                    <div className="flex items-center gap-1.5 text-sm font-medium text-black-500">
-                      <UserCheck className="h-4 w-4 text-green-500" />
-                      {petition.assignedTo?.name ?? '-'}
-                      {petition.assignedTo?.department && (
-                        <span className="text-xs font-normal text-grey-500">
-                          · {petition.assignedTo.department}
-                        </span>
-                      )}
-                    </div>
-                  ) : (
-                    <>
-                      <NativeSelect
-                        value={selectedEmployeeId}
-                        onChange={(event) =>
-                          setSelectedByPetition((prev) => ({
-                            ...prev,
-                            [petition._id]: event.target.value,
-                          }))
-                        }
-                      >
-                        <option value="">เลือกเจ้าหน้าที่</option>
-                        {employees.map((employee) => (
-                          <option key={employee.employeeId} value={employee.employeeId}>
-                            {employeeLabel(employee)} - {employee.department}
-                          </option>
-                        ))}
-                      </NativeSelect>
-                      {petition.assignedTo && (
-                        <div className="mt-1 flex items-center gap-1 text-xs text-grey-500">
-                          <UserCheck className="h-3.5 w-3.5" />
-                          ปัจจุบัน: {petition.assignedTo.name}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </TableCell>
-                <TableCell className="min-w-[420px] align-top">
-                  {petitionGroups.length === 0 ? (
-                    <div className="text-xs text-grey-500">ไม่มีตัวอย่างให้ assign</div>
-                  ) : (
-                    <div className="divide-y divide-grey-100">
-                      {petitionGroups.map((group) => {
-                        const slotMachines = getSelectedSlotMachines(petition, group);
-                        const machineMethods = groupMachineMethods(group.slots, methodByCode);
-                        // per-substance non-machine signals (machine-backed methods
-                        // are rendered once, consolidated, as pickers above)
-                        const notSet: string[] = [];
-                        const benchNotes: { key: string; label: string; substance: string }[] = [];
-                        const unknownCodes: { key: string; code: string }[] = [];
-                        group.slots.forEach((slot, sIdx) => {
-                          if (slot.methods.length === 0) {
-                            notSet.push(slot.name || `เครื่องที่ ${sIdx + 1}`);
-                            return;
-                          }
-                          slot.methods.forEach((code) => {
-                            const method = methodByCode.get(code);
-                            if (!method) {
-                              unknownCodes.push({ key: `${sIdx}-${code}`, code });
-                            } else if (!method.requiresMachine) {
-                              benchNotes.push({ key: `${sIdx}-${code}`, label: method.label, substance: slot.name });
-                            }
-                          });
-                        });
-                        return (
-                          <div
-                            key={group.groupKey}
-                            className="flex min-h-[60px] flex-col justify-center py-1.5 first:pt-0 last:pb-0"
-                          >
-                            {(machineSuggestions[group.groupKey] ?? []).length > 0 && (
-                              <div className="flex flex-wrap items-center gap-1 mb-1">
-                                <span className="text-[11px] text-grey-400">AI แนะนำ:</span>
-                                {machineSuggestions[group.groupKey].map((s) => (
-                                  <span
-                                    key={s.machineCode}
-                                    className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600 border border-blue-200"
-                                    title={`ใช้ ${s.usageCount} ครั้งใน 10 batches ล่าสุด`}
-                                  >
-                                    {s.machineCode} ({s.usageCount}/10)
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {machineMethods.map((gm) => {
-                                const filteredMachines = machines.filter((m) =>
-                                  machineMatchesMethod(m.name, gm.method, registryMethods),
-                                );
-                                const selectedMachineId = slotMachines[gm.code] || null;
-                                const assignedEstimate = (petition.assignedMachines ?? []).find((m) =>
-                                  groupKeyOf(m.sampleName ?? '', m.commonName ?? '') === group.groupKey &&
-                                  m.machineId === selectedMachineId &&
-                                  m.estimatedMinutes != null
-                                );
-                                return (
-                                  <div key={gm.code}>
-                                    <SingleMachinePicker
-                                      slotLabel={
-                                        gm.substanceNames.length > 1
-                                          ? `ใช้ร่วม ${gm.substanceNames.length} สาร`
-                                          : ''
-                                      }
-                                      substanceName={gm.substanceNames.join(', ')}
-                                      methodLabel={gm.method.label}
-                                      readOnly={locked}
-                                      machines={filteredMachines}
-                                      selectedId={selectedMachineId}
-                                      estimateText={estimateLabel(assignedEstimate?.estimatedMinutes)}
-                                      estimateSource={assignedEstimate?.estimatedSource}
-                                      onSelect={(machineKey: string) =>
-                                        onSelectMachine(petition._id, group.groupKey, gm.code, machineKey)
-                                      }
-                                    />
-                                    {filteredMachines.length === 0 && (
-                                      <div className="mt-0.5 text-[11px] text-red-500">
-                                        ไม่พบเครื่องสำหรับ {gm.method.label}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                              {notSet.length > 0 && (
-                                <div className="w-[170px] shrink-0 rounded-md border border-amber-200 bg-amber-50/50 px-2 py-1.5 text-[10px] text-amber-700">
-                                  <div className="font-medium truncate" title={notSet.join(', ')}>
-                                    {notSet.join(', ')}
-                                  </div>
-                                  ยังไม่ได้ตั้ง method ในซิมเปิลเมธอด
-                                </div>
-                              )}
-                              {benchNotes.map((b) => (
-                                <Badge
-                                  key={b.key}
-                                  variant="gray-soft"
-                                  className="shrink-0 px-1.5 py-1 text-[10px] font-medium"
-                                  title={b.substance}
-                                >
-                                  ทำที่โต๊ะ — {b.label}
-                                </Badge>
-                              ))}
-                              {unknownCodes.map((u) => (
-                                <Badge
-                                  key={u.key}
-                                  variant="red-soft"
-                                  className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium"
-                                >
-                                  method ไม่รู้จัก: {u.code}
-                                </Badge>
-                              ))}
-                              {group.slots.length === 0 && (
-                                <span className="text-xs text-grey-500">ไม่มีสาร</span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell className="text-right align-top">
-                  {locked ? (
-                    <Button
-                      size="sm"
-                      variant="primary-outline"
-                      onClick={() => onEdit(petition._id)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                      แก้ไข
-                    </Button>
-                  ) : (
-                    (() => {
-                      const saveBtn = (
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          disabled={assignDisabled}
-                          onClick={() => assignPetition(petition)}
-                        >
-                          <ClipboardCheck className="h-4 w-4" />
-                          {savingId === petition._id
-                            ? 'กำลังบันทึก...'
-                            : isAssigned
-                              ? 'บันทึก'
-                              : 'Assign'}
-                        </Button>
-                      );
-                      const wrapped = assignDisabledReason ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-block">{saveBtn}</span>
-                          </TooltipTrigger>
-                          <TooltipContent>{assignDisabledReason}</TooltipContent>
-                        </Tooltip>
-                      ) : (
-                        saveBtn
-                      );
-                      return (
-                        <div className="flex items-center justify-end gap-1.5">
-                          {isAssigned && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => onCancelEdit(petition._id)}
-                            >
-                              <X className="h-4 w-4" />
-                              ยกเลิก
-                            </Button>
-                          )}
-                          {wrapped}
-                        </div>
-                      );
-                    })()
-                  )}
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
   );
 }

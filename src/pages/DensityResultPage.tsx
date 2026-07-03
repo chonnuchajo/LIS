@@ -61,6 +61,12 @@ export default function DensityResultPage() {
     setAppliedStatus(status);
   }
 
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setPage(1);
+    setAppliedSearch(value);
+  }
+
   function clearFilters() {
     setSearch('');
     setProduct('');
@@ -121,7 +127,7 @@ export default function DensityResultPage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
               placeholder="พิมพ์แล้วกด Enter..."
               className="w-full rounded-md border border-gray-200 py-1.5 pl-8 pr-3 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"

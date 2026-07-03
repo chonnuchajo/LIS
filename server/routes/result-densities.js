@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const ResultDensity = require('../models/ResultDensity');
 const { batchMatches } = require('../lib/densityBatch');
+const { sortLatestDensities } = require('../lib/resultDensitySort');
 const { triggerDensitySync } = require('../lib/densitySyncTrigger');
 
 // POST /api/result-densities/sync — fire the n8n webhook that pulls fresh DMA 501
@@ -75,10 +76,9 @@ router.get('/', async (req, res) => {
       filter['Date & time'] = { $regex: `^${formatted.replace(/\//g, '\\/')}` };
     }
 
-    const [docs, total] = await Promise.all([
-      ResultDensity.find(filter).sort({ _id: -1 }).skip(skip).limit(limit).lean(),
-      ResultDensity.countDocuments(filter),
-    ]);
+    const allDocs = sortLatestDensities(await ResultDensity.find(filter).lean());
+    const total = allDocs.length;
+    const docs = allDocs.slice(skip, skip + limit);
 
     res.json({ docs, total, page, limit });
   } catch (err) {

@@ -14,6 +14,7 @@ const LabRequest = require('../models/LabRequest');
 const StandardTime = require('../models/StandardTime');
 const { buildStatusLog, isLabBatch, isPetitionComplete } = require('../lib/petitionStatusLog');
 const { notifyPetitionEvent } = require('../lib/lineNotify');
+const { normalizeAnalysisName, canonicalAnalysisName } = require('../lib/analysisName');
 
 function sampleIdsFromPetition(petition) {
   if (!petition || !Array.isArray(petition.items)) return [];
@@ -45,10 +46,6 @@ function badRequest(res, message) {
   return res.status(400).json({ error: { message } });
 }
 
-function normalizeText(value) {
-  return String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
-}
-
 function machineTypeOf(machine) {
   const text = `${machine?.code || ''} ${machine?.name || ''}`.toUpperCase();
   if (text.includes('HPLC')) return 'HPLC';
@@ -57,14 +54,22 @@ function machineTypeOf(machine) {
 }
 
 async function matchStandardTime(machine) {
-  const commonName = normalizeText(machine.commonName);
+  const commonName = normalizeAnalysisName(machine.commonName);
   const machineType = machineTypeOf(machine);
   if (!commonName || !machineType) return null;
-  return StandardTime.findOne({
+  const exact = await StandardTime.findOne({
     machineType,
     normalizedAnalysisName: commonName,
     hasData: true,
   }).sort({ standardTimeMin: 1 }).lean();
+  if (exact) return exact;
+
+  const key = canonicalAnalysisName(commonName);
+  const candidates = await StandardTime.find({ machineType, hasData: true })
+    .select('_id instrument analysisName standardTimeMin')
+    .sort({ standardTimeMin: 1 })
+    .lean();
+  return candidates.find((row) => canonicalAnalysisName(row.analysisName) === key) || null;
 }
 
 // GET /api/petitions?page=1&limit=20&status=&search=
