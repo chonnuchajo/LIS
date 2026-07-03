@@ -16,8 +16,9 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { openBrowserPrintPreview, printDocument } from "@/lib/print";
 import {
+  defaultPrinterFor,
+  docTypeToKind,
   getPrintDocType,
-  isPrinterConfigured,
   type PrintDocType,
 } from "@/lib/printConfig";
 
@@ -97,14 +98,14 @@ export default function PrintPreviewDialog({
   const widthClass = docType === "sample-label" ? "sm:max-w-2xl" : "sm:max-w-4xl";
 
   const { data: configs } = useQuery({
-    queryKey: ["print-config"],
-    queryFn: api.getPrintConfigs,
+    queryKey: ["printer-configs"],
+    queryFn: api.getPrinterConfigs,
     enabled: open,
   });
 
-  const cfg = configs?.find((item) => item.slug === docType);
-  const configured = isPrinterConfigured(cfg);
-  const printerTarget = cfg?.cupsPrinterUrl?.trim() || cfg?.printerName;
+  const cfg = defaultPrinterFor(configs, docTypeToKind(docType));
+  const configured = Boolean(cfg?.cupsPrinterUrl?.trim());
+  const printerTarget = cfg?.label?.trim() || cfg?.cupsPrinterUrl?.trim();
 
   async function handlePrint() {
     setPrinting(true);

@@ -1,24 +1,23 @@
 import { useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 import { toast } from "sonner";
+import ApiRoutesCard from "@/components/lis/ApiRoutesCard";
 import AppLayout from "@/components/lis/AppLayout";
-import PageHeader from "@/components/lis/PageHeader";
-import EnvRoomConfigCard from "@/components/lis/EnvRoomConfigCard";
-import PrintConfigCard from "@/components/lis/PrintConfigCard";
-import DocumentNumberConfigCard from "@/components/lis/DocumentNumberConfigCard";
 import DashboardLayoutConfigCard from "@/components/lis/DashboardLayoutConfigCard";
+import DocumentNumberConfigCard from "@/components/lis/DocumentNumberConfigCard";
+import EnvRoomConfigCard from "@/components/lis/EnvRoomConfigCard";
 import InstrumentSourceManager from "@/components/lis/InstrumentSourceManager";
 import LineConfigCard from "@/components/lis/LineConfigCard";
+import PageHeader from "@/components/lis/PageHeader";
+import PrinterRegistryCard from "@/components/lis/PrinterRegistryCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { api } from "@/lib/api";
-import { useEnvRooms } from "@/hooks/useEnvRooms";
-import type { EnvRoom, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
-import type { PrintConfig, PrintConfigInput } from "@/lib/printConfig";
-import { DOC_NUMBER_TYPES, type DocumentNumberConfig, type DocumentNumberConfigInput, type DocNumberType } from "@/lib/documentNumberConfig";
 import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
-import ApiRoutesCard from "@/components/lis/ApiRoutesCard";
 import { useAuth } from "@/hooks/useAuth";
+import { useEnvRooms } from "@/hooks/useEnvRooms";
+import { api } from "@/lib/api";
+import type { EnvRoom, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
+import { DOC_NUMBER_TYPES, type DocumentNumberConfig, type DocumentNumberConfigInput, type DocNumberType } from "@/lib/documentNumberConfig";
 import { normalizeRoles } from "@/lib/roles";
 
 const TAB_KEYS = ["environment", "printers", "doc-numbers", "instruments", "dashboard"];
@@ -51,23 +50,49 @@ const SettingsPage = () => {
     },
   });
 
-  const { data: printConfigs = [] } = useQuery({
-    queryKey: ["print-config"],
-    queryFn: api.getPrintConfigs,
+  const { data: printerConfigs = [] } = useQuery({
+    queryKey: ["printer-configs"],
+    queryFn: api.getPrinterConfigs,
   });
-  const { data: printers = [] } = useQuery({
-    queryKey: ["printers"],
-    queryFn: api.getPrinters,
-  });
-  const savePrintMutation = useMutation({
-    mutationFn: ({ slug, input }: { slug: PrintConfig["slug"]; input: PrintConfigInput }) =>
-      api.updatePrintConfig(slug, input),
+  const createPrinterMutation = useMutation({
+    mutationFn: api.createPrinterConfig,
     onSuccess: () => {
       toast.success("บันทึกการตั้งค่าเครื่องพิมพ์แล้ว");
-      queryClient.invalidateQueries({ queryKey: ["print-config"] });
+      queryClient.invalidateQueries({ queryKey: ["printer-configs"] });
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
+    },
+  });
+  const updatePrinterMutation = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: { label?: string; cupsPrinterUrl?: string } }) =>
+      api.updatePrinterConfig(id, input),
+    onSuccess: () => {
+      toast.success("บันทึกการตั้งค่าเครื่องพิมพ์แล้ว");
+      queryClient.invalidateQueries({ queryKey: ["printer-configs"] });
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
+    },
+  });
+  const deletePrinterMutation = useMutation({
+    mutationFn: api.deletePrinterConfig,
+    onSuccess: () => {
+      toast.success("ลบเครื่องพิมพ์แล้ว");
+      queryClient.invalidateQueries({ queryKey: ["printer-configs"] });
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "ลบเครื่องพิมพ์ไม่สำเร็จ");
+    },
+  });
+  const setDefaultPrinterMutation = useMutation({
+    mutationFn: api.setDefaultPrinterConfig,
+    onSuccess: () => {
+      toast.success("อัปเดตเครื่องพิมพ์ค่าเริ่มต้นแล้ว");
+      queryClient.invalidateQueries({ queryKey: ["printer-configs"] });
+    },
+    onError: (err: unknown) => {
+      toast.error(err instanceof Error ? err.message : "อัปเดตค่าเริ่มต้นไม่สำเร็จ");
     },
   });
 
@@ -87,11 +112,9 @@ const SettingsPage = () => {
     },
   });
   const docConfigByType = new Map<DocNumberType, DocumentNumberConfig>(
-    docNumberConfigs.map((c: DocumentNumberConfig) => [c.docType, c])
+    docNumberConfigs.map((config: DocumentNumberConfig) => [config.docType, config]),
   );
 
-  // Distinct key (not the shared ["access-control"] used by useCanAccessPath) so this
-  // read can't overwrite the app-wide access-control cache with a narrower shape.
   const { data: accessMatrix } = useQuery({
     queryKey: ["access-control-roles"],
     queryFn: async () => {
@@ -103,19 +126,24 @@ const SettingsPage = () => {
 
   const { isVisible, defaultKey } = useAccessibleTabs("/settings", TAB_KEYS);
   const [activeTab, setActiveTab] = useState<string | undefined>(defaultKey);
-  // If the chosen tab becomes hidden (or default resolves late), snap to a visible one.
   const currentTab = activeTab && isVisible(activeTab) ? activeTab : defaultKey;
+
+  const printerSaving =
+    createPrinterMutation.isPending ||
+    updatePrinterMutation.isPending ||
+    deletePrinterMutation.isPending ||
+    setDefaultPrinterMutation.isPending;
 
   return (
     <AppLayout title="ตั้งค่าระบบ">
       <PageHeader
         title={
           <span className="inline-flex items-center gap-2">
-            <Settings className="w-6 h-6" />
+            <Settings className="h-6 w-6" />
             ตั้งค่าระบบ
           </span>
         }
-        description="จัดการการตั้งค่าระบบ — แยกตามหมวดในแต่ละแท็บ"
+        description="จัดการการตั้งค่าระบบ แยกตามหมวดในแต่ละแท็บ"
       />
       <Tabs value={currentTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -134,12 +162,8 @@ const SettingsPage = () => {
           {isVisible("dashboard") && (
             <TabsTrigger value="dashboard">แดชบอร์ด</TabsTrigger>
           )}
-          {isAdmin && (
-            <TabsTrigger value="line">LINE</TabsTrigger>
-          )}
-          {isAdmin && (
-            <TabsTrigger value="api">API</TabsTrigger>
-          )}
+          {isAdmin && <TabsTrigger value="line">LINE</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="api">API</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="environment" className="space-y-3">
@@ -147,7 +171,7 @@ const SettingsPage = () => {
             เลือก board และเกณฑ์ temp/humidity ของแต่ละห้อง
           </p>
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">กำลังโหลด…</p>
+            <p className="text-sm text-muted-foreground">กำลังโหลด...</p>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {rooms.map((room) => (
@@ -165,24 +189,21 @@ const SettingsPage = () => {
 
         <TabsContent value="printers" className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            เลือกเครื่องพิมพ์ปลายทางของเอกสารแต่ละชนิด หรือกำหนด CUPS printer URL จาก https://192.168.0.237:631/
+            จัดการปลายทางเครื่องพิมพ์แยกตามชนิด A4 และ Sticker โดยใช้ CUPS printer URL จาก https://192.168.0.237:631/
           </p>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {printConfigs.map((cfg) => (
-              <PrintConfigCard
-                key={cfg.slug}
-                config={cfg}
-                printers={printers}
-                saving={savePrintMutation.isPending}
-                onSave={(slug, input) => savePrintMutation.mutate({ slug, input })}
-              />
-            ))}
-          </div>
+          <PrinterRegistryCard
+            configs={printerConfigs}
+            saving={printerSaving}
+            onCreate={createPrinterMutation.mutateAsync}
+            onUpdate={(id, input) => updatePrinterMutation.mutateAsync({ id, input })}
+            onDelete={deletePrinterMutation.mutateAsync}
+            onSetDefault={setDefaultPrinterMutation.mutateAsync}
+          />
         </TabsContent>
 
         <TabsContent value="doc-numbers" className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            กำหนดรูปแบบเลขที่เอกสารที่ระบบออกอัตโนมัติ — เปลี่ยนแล้วมีผลกับเลขที่ออกใหม่เท่านั้น เอกสารเดิมไม่เปลี่ยน
+            กำหนดรูปแบบเลขที่เอกสารที่ระบบออกอัตโนมัติ เปลี่ยนแล้วมีผลกับเลขที่ออกใหม่เท่านั้น เอกสารเดิมไม่เปลี่ยน
           </p>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {DOC_NUMBER_TYPES.map((meta) => {
@@ -208,11 +229,12 @@ const SettingsPage = () => {
         {isVisible("dashboard") && (
           <TabsContent value="dashboard" className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              เลือกว่าจะแสดงส่วนไหน เรียงลำดับอย่างไร และ KPI ใบไหน — แยกตาม role (ค่ามาตรฐานใช้เมื่อ role นั้นยังไม่ตั้งค่า)
+              เลือกว่าจะแสดงส่วนไหน เรียงลำดับอย่างไร และ KPI ใบไหน แยกตาม role
             </p>
             <DashboardLayoutConfigCard roles={roleOptions} />
           </TabsContent>
         )}
+
         {isAdmin && (
           <TabsContent value="line" className="space-y-3">
             <p className="text-sm text-muted-foreground">
@@ -223,6 +245,7 @@ const SettingsPage = () => {
             </div>
           </TabsContent>
         )}
+
         {isAdmin && (
           <TabsContent value="api" className="space-y-3">
             <ApiRoutesCard />

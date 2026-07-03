@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, AlertTriangle, Clock, Plus, Pencil, Trash2, Minus, ArrowDownToLine, History, Search, ScanLine } from "lucide-react";
+import { Package, AlertTriangle, Clock, Plus, Pencil, ArrowDownToLine, History, Search, ScanLine } from "lucide-react";
 import { toast } from "sonner";
 
 import AppLayout from "@/components/lis/AppLayout";
@@ -15,10 +15,6 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -82,7 +78,6 @@ function StandardsTab() {
   const [statusFilter, setStatusFilter] = useState<StandardStatusFilter>("all");
   const [editing, setEditing] = useState<StockStandardItem | null>(null);
   const [creating, setCreating] = useState(false);
-  const [deleting, setDeleting] = useState<StockStandardItem | null>(null);
 
   const now = Date.now();
 
@@ -231,7 +226,6 @@ function StandardsTab() {
                           <Button size="icon" variant="ghost" title="รับเข้า (ขวด)" onClick={() => setReceiving(item)}><ArrowDownToLine className="w-4 h-4" /></Button>
                           <Button size="icon" variant="ghost" title="รายขวด" onClick={() => setDrawer(item)}><Package className="w-4 h-4" /></Button>
                           <Button size="icon" variant="ghost" title="แก้ไข" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
-                          <Button size="icon" variant="ghost" title="ลบ" onClick={() => setDeleting(item)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -248,19 +242,6 @@ function StandardsTab() {
           item={editing}
           onClose={() => { setCreating(false); setEditing(null); }}
           onSaved={() => { qc.invalidateQueries({ queryKey: ["stock", "standards"] }); }}
-        />
-      )}
-      {deleting && (
-        <DeleteDialog
-          name={`${deleting.code} ${deleting.name}`}
-          onCancel={() => setDeleting(null)}
-          onConfirm={async () => {
-            await api.deleteStandard(deleting._id);
-            toast.success("ลบรายการแล้ว");
-            qc.invalidateQueries({ queryKey: ["stock", "standards"] });
-            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
-            setDeleting(null);
-          }}
         />
       )}
       {drawer && <UnitsDrawer standard={drawer} onClose={() => setDrawer(null)} />}
@@ -288,7 +269,6 @@ function SolventsTab() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<StockSolventItem | null>(null);
   const [creating, setCreating] = useState(false);
-  const [deleting, setDeleting] = useState<StockSolventItem | null>(null);
   const [moving, setMoving] = useState<{ item: StockSolventItem; mode: "deduct" | "receive" } | null>(null);
 
   const filtered = useMemo(() => {
@@ -358,10 +338,8 @@ function SolventsTab() {
                   <TableCell className="text-xs text-muted-foreground">{item.note}</TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "deduct" })}><Minus className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => setDeleting(item)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -389,19 +367,6 @@ function SolventsTab() {
             else await api.createSolvent(payload);
             qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
             qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
-          }}
-        />
-      )}
-      {deleting && (
-        <DeleteDialog
-          name={deleting.name}
-          onCancel={() => setDeleting(null)}
-          onConfirm={async () => {
-            await api.deleteSolvent(deleting._id);
-            toast.success("ลบรายการแล้ว");
-            qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
-            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
-            setDeleting(null);
           }}
         />
       )}
@@ -438,7 +403,6 @@ function GlasswareTab() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<StockGlasswareItem | null>(null);
   const [creating, setCreating] = useState(false);
-  const [deleting, setDeleting] = useState<StockGlasswareItem | null>(null);
   const [moving, setMoving] = useState<{ item: StockGlasswareItem; mode: "deduct" | "receive" } | null>(null);
 
   const filtered = useMemo(() => {
@@ -507,10 +471,8 @@ function GlasswareTab() {
                   <TableCell className="text-xs text-muted-foreground">{item.note}</TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "deduct" })}><Minus className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => setDeleting(item)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -537,19 +499,6 @@ function GlasswareTab() {
             else await api.createGlassware(payload);
             qc.invalidateQueries({ queryKey: ["stock", "glassware"] });
             qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
-          }}
-        />
-      )}
-      {deleting && (
-        <DeleteDialog
-          name={deleting.name}
-          onCancel={() => setDeleting(null)}
-          onConfirm={async () => {
-            await api.deleteGlassware(deleting._id);
-            toast.success("ลบรายการแล้ว");
-            qc.invalidateQueries({ queryKey: ["stock", "glassware"] });
-            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
-            setDeleting(null);
           }}
         />
       )}
@@ -676,23 +625,6 @@ function ActionBadge({ action }: { action: string }) {
 // ============================================================
 // Reusable dialogs
 // ============================================================
-function DeleteDialog({ name, onCancel, onConfirm }: { name: string; onCancel: () => void; onConfirm: () => void | Promise<void> }) {
-  return (
-    <AlertDialog open onOpenChange={open => { if (!open) onCancel(); }}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>ยืนยันลบรายการ?</AlertDialogTitle>
-          <AlertDialogDescription>กำลังจะลบ "{name}" — การลบไม่สามารถย้อนกลับได้</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={onCancel}>ยกเลิก</AlertDialogCancel>
-          <AlertDialogAction onClick={() => onConfirm()} className="bg-destructive hover:bg-destructive/90">ลบ</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
 interface SimpleField {
   key: string;
   label: string;

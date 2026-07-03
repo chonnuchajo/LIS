@@ -13,10 +13,26 @@ vi.mock("@/lib/api", () => ({
     getEnvRoomConfigs: vi.fn().mockResolvedValue([]),
     getLiveTempHum: vi.fn().mockResolvedValue([]),
     updateEnvRoomConfig: vi.fn(),
-    getPrintConfigs: vi.fn().mockResolvedValue([]),
-    getPrinters: vi.fn().mockResolvedValue([]),
-    updatePrintConfig: vi.fn(),
+    getPrinterConfigs: vi.fn().mockResolvedValue([]),
+    createPrinterConfig: vi.fn(),
+    updatePrinterConfig: vi.fn(),
+    deletePrinterConfig: vi.fn(),
+    setDefaultPrinterConfig: vi.fn(),
+    getDocumentNumberConfigs: vi.fn().mockResolvedValue([]),
+    updateDocumentNumberConfig: vi.fn(),
+    get: vi.fn().mockResolvedValue({ data: { data: { roles: [] } } }),
   },
+}));
+
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({ user: { role: "admin", roles: ["admin"] } }),
+}));
+
+vi.mock("@/hooks/useAccessibleTabs", () => ({
+  useAccessibleTabs: () => ({
+    isVisible: () => true,
+    defaultKey: "environment",
+  }),
 }));
 
 function renderPage() {

@@ -105,6 +105,9 @@ const PetitionSchema = new mongoose.Schema(
       default: 'deliveringQC',
       index: true,
     },
+    // ลำดับความสำคัญของคำขอ (0 = ปกติ, ยิ่งมากยิ่งด่วน). ตอนนี้เก็บฝั่ง backend อย่างเดียว —
+    // ยังไม่มี UI/route ให้แก้ค่านี้ ทุกคำขอจึงเป็น 0 จนกว่าจะเปิดใช้งานภายหลัง.
+    priority: { type: Number, default: 0 },
     sampleSentAt: Date,
     receivedAt: Date,
     receivedBy: String,

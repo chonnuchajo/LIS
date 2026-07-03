@@ -16,6 +16,23 @@ export interface PrinterConfigInput {
   cupsPrinterUrl: string;
 }
 
+// Legacy per-document config shape kept temporarily so screens can keep using
+// the old contract while the UI migrates to the printer registry.
+export interface PrintConfig {
+  slug: PrintDocType;
+  printerName: string;
+  cupsPrinterUrl: string;
+  copies: number;
+  paperSize: PaperSize;
+}
+
+export interface PrintConfigInput {
+  printerName?: string;
+  cupsPrinterUrl?: string;
+  copies?: number;
+  paperSize?: PaperSize;
+}
+
 export interface PrinterKindMeta {
   kind: PrinterKind;
   label: string;
@@ -67,6 +84,11 @@ export function defaultPrinterFor(
   return ofKind.find((c) => c.isDefault) ?? ofKind[0];
 }
 
+export function isPrinterConfigured(config?: PrintConfig | null): boolean {
+  if (!config) return false;
+  return Boolean(config.cupsPrinterUrl?.trim() || config.printerName?.trim());
+}
+
 // mirror ของ validatePrinterInput ใน server/lib/printerRouting.js
 export function validatePrinterUrl(url: string): string | null {
   const raw = (url ?? "").trim();
@@ -86,4 +108,14 @@ export function validatePrinterUrl(url: string): string | null {
     return "CUPS URL ต้องระบุ queue เช่น https://192.168.0.237:631/printers/PRINTER_NAME";
   }
   return null;
+}
+
+export function validatePrintConfig(input: PrintConfigInput): string | null {
+  const printerName = (input.printerName ?? "").trim();
+  const cupsPrinterUrl = (input.cupsPrinterUrl ?? "").trim();
+  if (!printerName && !cupsPrinterUrl) {
+    return "ต้องระบุ CUPS printer URL";
+  }
+  if (!cupsPrinterUrl) return null;
+  return validatePrinterUrl(cupsPrinterUrl);
 }

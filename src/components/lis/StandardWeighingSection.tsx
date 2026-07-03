@@ -51,6 +51,10 @@ export default function StandardWeighingSection({ petition, configs, readOnly, o
     staleTime: 30000,
   });
 
+  useEffect(() => {
+    remainingFetched.current.clear();
+  }, [petition._id]);
+
   // Seed drafts from tasks, then overlay any saved rows. A task that already has a
   // local draft keeps it untouched (in-flight edits survive a background refetch) —
   // except its read-only deductedAt, which always tracks the server (a lock should
@@ -109,7 +113,7 @@ export default function StandardWeighingSection({ petition, configs, readOnly, o
           return next;
         });
       }).catch(() => {
-        // Ignore — sentinel stays MAX_SAFE_INTEGER, and the server still blocks the deduction on submit.
+        remainingFetched.current.delete(d.bottleQrId);
       });
     });
   }, [drafts]);

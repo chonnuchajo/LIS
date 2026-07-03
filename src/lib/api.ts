@@ -10,7 +10,16 @@ import type {
 } from "@/types/stock";
 import type { StandardConfigDoc } from "@/lib/standardConfig";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
-import type { PrintDocType, PrinterConfig, PrinterConfigInput } from "@/lib/printConfig";
+import {
+  defaultPrinterFor,
+  docTypeToKind,
+  getPrintDocType,
+  type PrintConfig,
+  type PrintConfigInput,
+  type PrintDocType,
+  type PrinterConfig,
+  type PrinterConfigInput,
+} from "@/lib/printConfig";
 import type { DocumentNumberConfig, DocumentNumberConfigInput, DocNumberType } from "@/lib/documentNumberConfig";
 import type { LineGroup, LineGroupInput, LineHealth } from "@/lib/lineConfig";
 import type { DashboardId, StoredLayout, DashboardLayout } from "@/lib/dashboardLayout";
@@ -88,6 +97,20 @@ async function fetchApi(path: string, options?: RequestInit): Promise<unknown> {
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return fetchApi(path, options) as Promise<T>;
+}
+
+function toLegacyPrintConfig(
+  docType: PrintDocType,
+  printers: PrinterConfig[] | undefined | null,
+): PrintConfig {
+  const chosen = defaultPrinterFor(printers, docTypeToKind(docType));
+  return {
+    slug: docType,
+    printerName: chosen?.label ?? "",
+    cupsPrinterUrl: chosen?.cupsPrinterUrl ?? "",
+    copies: 1,
+    paperSize: getPrintDocType(docType)?.defaultPaper ?? "A4",
+  };
 }
 
 // Generic axios-style methods for pages that use api.get/api.patch pattern
@@ -533,6 +556,13 @@ export const api = {
   // Print
   getPrinterConfigs: () =>
     request<{ data: PrinterConfig[] }>("/print/printers-config").then((r) => r.data),
+  getPrintConfigs: () =>
+    request<{ data: PrinterConfig[] }>("/print/printers-config").then((r) =>
+      (["sample-label", "coa", "service-request", "stock-label", "daily-check-report"] as PrintDocType[]).map((docType) =>
+        toLegacyPrintConfig(docType, r.data),
+      ),
+    ),
+  getPrinters: () => Promise.resolve([] as string[]),
   createPrinterConfig: (input: PrinterConfigInput) =>
     request<{ data: PrinterConfig }>("/print/printers-config", {
       method: "POST",
@@ -549,6 +579,25 @@ export const api = {
     }).then((r) => r.data),
   deletePrinterConfig: (id: string) =>
     request<{ ok: boolean }>(`/print/printers-config/${id}`, { method: "DELETE" }),
+  updatePrintConfig: async (slug: PrintConfig["slug"], input: PrintConfigInput) => {
+    const kind = docTypeToKind(slug);
+    const configs = await request<{ data: PrinterConfig[] }>("/print/printers-config").then((r) => r.data);
+    const current = defaultPrinterFor(configs, kind);
+    const body = {
+      label: input.printerName?.trim() || current?.label || "",
+      cupsPrinterUrl: input.cupsPrinterUrl?.trim() || current?.cupsPrinterUrl || "",
+    };
+    const updated = current
+      ? await request<{ data: PrinterConfig }>(`/print/printers-config/${current.id}`, {
+          method: "PUT",
+          body: JSON.stringify(body),
+        }).then((r) => r.data)
+      : await request<{ data: PrinterConfig }>("/print/printers-config", {
+          method: "POST",
+          body: JSON.stringify({ kind, ...body }),
+        }).then((r) => r.data);
+    return toLegacyPrintConfig(slug, [updated]);
+  },
   printDocument: (payload: { docType: PrintDocType; html: string; copies?: number }) =>
     request<{ ok: boolean; printer: string; copies: number }>("/print", {
       method: "POST",
