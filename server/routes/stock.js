@@ -6,6 +6,7 @@ const StockUnit = require('../models/StockUnit');
 const crypto = require('crypto');
 const { isValidReceiveSource, isValidUnitSource } = require('../lib/stockSource');
 const { computeWorkingLifecycle } = require('../lib/workingLifecycle');
+const { resolveCascadeRootId, selectDiscardTargets } = require('../lib/stockUnitDiscard');
 
 async function genUniqueQrId() {
   for (let i = 0; i < 5; i++) {
@@ -432,31 +433,48 @@ router.post('/units/:qrId/withdraw', async (req, res) => {
 });
 
 // ทิ้งขวด: POST /units/:qrId/discard { reason? }
+// ทิ้งขวด: POST /units/:qrId/discard { reason?, cascade? }
+// cascade=true → ทิ้งทั้งขวด (ขวดแม่ + working ลูกทุกตัวที่ยังไม่ถูกทิ้ง)
 router.post('/units/:qrId/discard', async (req, res) => {
   try {
     const unit = await StockUnit.findOne({ qrId: req.params.qrId });
     if (!unit) return res.status(404).json({ error: 'ไม่พบขวด' });
-    if (unit.status === 'discarded') return res.status(400).json({ error: 'ขวดนี้ถูกทิ้งแล้ว' });
+    const cascade = !!(req.body && req.body.cascade);
+    const reason = (req.body && req.body.reason) || '';
 
-    unit.status = 'discarded';
-    unit.discardedAt = new Date();
-    unit.discardedBy = personOf(req);
-    unit.discardReason = (req.body && req.body.reason) || '';
-    await unit.save();
+    let targets;
+    if (cascade) {
+      const rootId = resolveCascadeRootId(unit);
+      const root = await StockUnit.findById(rootId);
+      const children = await StockUnit.find({ parentId: rootId });
+      targets = selectDiscardTargets({ root, children });
+    } else {
+      if (unit.status === 'discarded') return res.status(400).json({ error: 'ขวดนี้ถูกทิ้งแล้ว' });
+      targets = [unit];
+    }
 
-    const std = await StockStandard.findOne({ code: unit.itemCode });
-    await logTransaction({
-      itemType: 'standard',
-      itemId: std ? std._id.toString() : unit.itemCode,
-      itemCode: unit.itemCode,
-      itemName: unit.itemName,
-      action: 'discard',
-      unitId: unit._id.toString(),
-      qrId: unit.qrId,
-      note: unit.discardReason,
-      ...userMeta(req),
-    });
-    res.json(unit);
+    const discarded = [];
+    for (const t of targets) {
+      t.status = 'discarded';
+      t.discardedAt = new Date();
+      t.discardedBy = personOf(req);
+      t.discardReason = reason;
+      await t.save();
+      const std = await StockStandard.findOne({ code: t.itemCode });
+      await logTransaction({
+        itemType: 'standard',
+        itemId: std ? std._id.toString() : t.itemCode,
+        itemCode: t.itemCode,
+        itemName: t.itemName,
+        action: 'discard',
+        unitId: t._id.toString(),
+        qrId: t.qrId,
+        note: reason,
+        ...userMeta(req),
+      });
+      discarded.push(t.qrId);
+    }
+    res.json({ discarded, count: discarded.length });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
