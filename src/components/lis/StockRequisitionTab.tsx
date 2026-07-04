@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FlaskConical, Package, Plus } from "lucide-react";
 
 import ChemicalRequisitionDialog from "@/components/lis/daily-check/ChemicalRequisitionDialog";
@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { api } from "@/lib/api";
 import { todayStr } from "@/lib/chemicalRequisition";
-import type { StockTransactionItem } from "@/types/stock";
 
 interface Props {
   roomSlug: string;
@@ -22,6 +21,7 @@ const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
 
 export default function StockRequisitionTab({ roomSlug, instruments }: Props) {
+  const queryClient = useQueryClient();
   const [chooser, setChooser] = useState(false);
   const [which, setWhich] = useState<"chemical" | "standard" | null>(null);
   const [perfDropQr, setPerfDropQr] = useState("");
@@ -90,7 +90,11 @@ export default function StockRequisitionTab({ roomSlug, instruments }: Props) {
           roomSlug={roomSlug}
           instruments={instruments}
           onClose={() => setWhich(null)}
-          onSaved={() => { /* panel query invalidate เองผ่าน dialog */ }}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ["chemical-requisitions"] });
+            queryClient.invalidateQueries({ queryKey: ["stock", "solvents"] });
+            queryClient.invalidateQueries({ queryKey: ["stock", "transactions"] });
+          }}
         />
       )}
       {which === "standard" && (
