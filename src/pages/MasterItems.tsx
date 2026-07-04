@@ -9,7 +9,6 @@ import {
   FileSpreadsheet,
   FileText,
   FlaskConical,
-  MoreHorizontal,
   MoreVertical,
   Package,
   Pencil,
@@ -856,8 +855,9 @@ export default function MasterItems() {
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" aria-label="เพิ่มเติม">
-                    <MoreHorizontal className="h-4 w-4" />
+                  <Button variant="outline" className="gap-1.5">
+                    <FileSpreadsheet className="h-4 w-4" /> Export / Sync
+                    <ChevronDown className="h-4 w-4 opacity-70" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
