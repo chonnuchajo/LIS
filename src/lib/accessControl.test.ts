@@ -159,23 +159,22 @@ describe("userCanAccessPath", () => {
     });
   });
 
-  it("grants a restricted tab when its exact virtual path is in permissions", () => {
-    const user = { role: "lab", status: "active" as const, permissions: ["/settings/dashboard"] };
+  it("a deny: token is inert and never grants a route", () => {
+    const user = { role: "lab", status: "active" as const, permissions: ["deny:/report/oee"] };
+    expect(userCanAccessPath(user, "/report/oee", groups)).toBe(false);
+    expect(userCanAccessPath(user, "/report", groups)).toBe(false);
+  });
+
+  it("granting a page does not auto-grant its in-page tab paths", () => {
+    const user = { role: "lab", status: "active" as const, permissions: ["/report"] };
+    expect(userCanAccessPath(user, "/report", groups)).toBe(true);
+    // tab visibility is handled by the deny model in useAccessibleTabs, not here
+    expect(userCanAccessPath(user, "/report/oee", groups)).toBe(false);
+  });
+
+  it("'others' now grants an uncovered in-page path (no restricted-tab exception)", () => {
+    const user = { role: "lab", status: "active" as const, permissions: ["others"] };
     expect(userCanAccessPath(user, "/settings/dashboard", groups)).toBe(true);
-  });
-
-  it("does not grant a restricted tab from the parent page permission alone", () => {
-    const user = { role: "lab", status: "active" as const, permissions: ["/settings"] };
-    expect(userCanAccessPath(user, "/settings/dashboard", groups)).toBe(false);
-  });
-
-  it("does not let 'others' grant a restricted tab", () => {
-    const user = { role: "lab", status: "active" as const, permissions: ["others"] };
-    expect(userCanAccessPath(user, "/settings/dashboard", groups)).toBe(false);
-  });
-
-  it("still lets 'others' grant a non-restricted in-page path", () => {
-    const user = { role: "lab", status: "active" as const, permissions: ["others"] };
     expect(userCanAccessPath(user, "/settings/printers", groups)).toBe(true);
   });
 });
