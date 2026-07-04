@@ -20,6 +20,7 @@ const StockUnitSchema = new mongoose.Schema({
   parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockUnit', default: null },
   lotNo: { type: String, default: '' },
   exp: { type: Date, default: null },
+  frequencyDue: { type: Date, default: null },
   volume: { type: VolumeSchema, default: () => ({}) },
   status: { type: String, enum: ['active', 'empty', 'discarded'], default: 'active', index: true },
   receivedDate: { type: Date, default: null },

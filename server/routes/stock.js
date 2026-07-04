@@ -5,6 +5,7 @@ const StockTransaction = require('../models/StockTransaction');
 const StockUnit = require('../models/StockUnit');
 const crypto = require('crypto');
 const { isValidReceiveSource, isValidUnitSource } = require('../lib/stockSource');
+const { computeWorkingLifecycle } = require('../lib/workingLifecycle');
 
 async function genUniqueQrId() {
   for (let i = 0; i < 5; i++) {
@@ -15,35 +16,6 @@ async function genUniqueQrId() {
   throw new Error('ไม่สามารถสร้าง qrId ที่ไม่ซ้ำได้');
 }
 
-// mirror ของ addShelfLife/computeWorkingExp ใน src/lib/stockUnit.ts
-function addShelfLife(from, shelf) {
-  const v = Math.max(0, Math.floor(Number(shelf && shelf.value) || 0));
-  const d = new Date(from);
-  if (shelf && shelf.unit === 'week') d.setDate(d.getDate() + v * 7);
-  else if (shelf && shelf.unit === 'month') d.setMonth(d.getMonth() + v);
-  else d.setDate(d.getDate() + v);
-  return d;
-}
-function computeWorkingExp(withdrawnAt, shelf, parentExp) {
-  const candidate = addShelfLife(withdrawnAt, shelf);
-  if (parentExp && candidate.getTime() > new Date(parentExp).getTime()) return new Date(parentExp);
-  return candidate;
-}
-function nextMidnight(from) {
-  const d = new Date(from);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + 1);
-  return d;
-}
-// ไม่มีความถี่ → working หมดอายุเที่ยงคืนของวันที่เบิก; มีความถี่ → วันเบิก + openShelfLife
-// (mirror ของ workingExpForWithdraw ใน src/lib/stockUnit.ts) — cap ที่ EXP ขวดแม่เสมอ
-function workingExpForWithdraw(withdrawnAt, frequency, shelf, parentExp) {
-  const hasFrequency = !!(frequency && String(frequency).trim());
-  if (hasFrequency) return computeWorkingExp(withdrawnAt, shelf, parentExp);
-  const mid = nextMidnight(withdrawnAt);
-  if (parentExp && mid.getTime() > new Date(parentExp).getTime()) return new Date(parentExp);
-  return mid;
-}
 function personOf(req) {
   const m = userMeta(req);
   return m.userName ? { email: m.userEmail, name: m.userName } : undefined;
@@ -127,7 +99,9 @@ async function createWorkingFromParent(parentUnit, meta, req) {
   const std = await StockStandard.findOne({ code: parentUnit.itemCode });
   const shelf = (std && std.openShelfLife) || { value: 0, unit: 'day' };
   const now = new Date();
-  const exp = workingExpForWithdraw(now, std && std.frequency, shelf, parentUnit.exp || null);
+  const { exp, frequencyDue } = computeWorkingLifecycle({
+    withdrawnAt: now, frequency: std && std.frequency, shelf, parentExp: parentUnit.exp || null,
+  });
   const qrId = await genUniqueQrId();
   const working = await StockUnit.create({
     qrId,
@@ -138,6 +112,7 @@ async function createWorkingFromParent(parentUnit, meta, req) {
     parentId: parentUnit._id,
     lotNo: parentUnit.lotNo,
     exp,
+    frequencyDue,
     volume: { initial: 0, remaining: 0, unit: 'mg' },
     status: 'active',
     withdrawnDate: now,
@@ -414,7 +389,9 @@ router.post('/units/:qrId/withdraw', async (req, res) => {
     const std = await StockStandard.findOne({ code: parent.itemCode });
     const shelf = (std && std.openShelfLife) || { value: 0, unit: 'day' };
     const now = new Date();
-    const exp = workingExpForWithdraw(now, std && std.frequency, shelf, parent.exp || null);
+    const { exp, frequencyDue } = computeWorkingLifecycle({
+      withdrawnAt: now, frequency: std && std.frequency, shelf, parentExp: parent.exp || null,
+    });
 
     const qrId = await genUniqueQrId();
     const working = await StockUnit.create({
@@ -426,6 +403,7 @@ router.post('/units/:qrId/withdraw', async (req, res) => {
       parentId: parent._id,
       lotNo: parent.lotNo,
       exp,
+      frequencyDue,
       volume: { initial: ml, remaining: ml, unit: parent.volume.unit },
       status: 'active',
       withdrawnDate: now,
