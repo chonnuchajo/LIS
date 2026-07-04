@@ -201,6 +201,18 @@ describe("computeWorkingLifecycle", () => {
     });
     expect(r.exp).toEqual(new Date("2026-06-30"));
   });
+  it("caps exp at parentExp when shelf pushes past it", () => {
+    const r = computeWorkingLifecycle({
+      withdrawnAt: new Date("2026-01-01"), frequency: "", shelf: { value: 300, unit: "day" }, parentExp: new Date("2026-02-01"),
+    });
+    expect(r.exp).toEqual(new Date("2026-02-01"));
+  });
+  it("caps frequencyDue at parentExp when interval pushes past it", () => {
+    const r = computeWorkingLifecycle({
+      withdrawnAt: new Date("2026-01-01"), frequency: "1/6 month", shelf: { value: 5, unit: "day" }, parentExp: new Date("2026-02-01"),
+    });
+    expect(r.frequencyDue).toEqual(new Date("2026-02-01"));
+  });
 });
 
 describe("workingUsability", () => {
@@ -235,5 +247,12 @@ describe("pickFefoSealed", () => {
   });
   it("returns null when no active sealed", () => {
     expect(pickFefoSealed([mk({ _id: "w1", kind: "working" })], new Date("2026-01-01"))).toBeNull();
+  });
+  it("ignores an expired sealed bottle even if its exp is earliest", () => {
+    const units = [
+      mk({ _id: "s1", kind: "sealed", exp: "2026-06-01" }),
+      mk({ _id: "sx", kind: "sealed", exp: "2025-01-01" }), // expired relative to `now` below
+    ];
+    expect(pickFefoSealed(units, new Date("2026-01-01"))?._id).toBe("s1");
   });
 });
