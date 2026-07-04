@@ -4,24 +4,15 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  FlaskConical,
-  Plus,
   RotateCcw,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import ChemicalRequisitionDialog from "@/components/lis/daily-check/ChemicalRequisitionDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
-import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
-import {
-  groupRequisitionsByInstrument,
-  todayStr as reqTodayStr,
-} from "@/lib/chemicalRequisition";
 import { getRoomBySlug } from "@/lib/dailyCheckRooms";
 import { api, type EquipmentCheckRecord, type EquipmentReading } from "@/lib/api";
 import { getRoomCatalog } from "@/lib/roomEquipment";
@@ -60,9 +51,6 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
   const room = getRoomBySlug(roomSlug);
   const catalog = getRoomCatalog(roomSlug);
   const [drafts, setDrafts] = useState<Record<string, CheckDraft>>({});
-  const [reqDialog, setReqDialog] = useState<{ open: boolean; presetInstrumentId?: string }>({
-    open: false,
-  });
 
   const { data: todayRecords = [] } = useQuery({
     queryKey: ["equipment-checks", "today", roomSlug, todayStr()],
@@ -93,37 +81,6 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
     },
     onError: (err: Error) => toast.error(err.message || "บันทึกไม่สำเร็จ"),
   });
-
-  const isAnalysis = roomSlug === ANALYSIS_ROOM_SLUG;
-
-  const { data: requisitions = [] } = useQuery({
-    queryKey: ["chemical-requisitions", roomSlug, reqTodayStr()],
-    queryFn: () => api.getChemicalRequisitions({ room: roomSlug, date: reqTodayStr() }),
-    enabled: isAnalysis,
-    refetchOnWindowFocus: true,
-  });
-
-  const reqByInstrument = useMemo(
-    () => groupRequisitionsByInstrument(requisitions),
-    [requisitions],
-  );
-
-  const deleteReqMutation = useMutation({
-    mutationFn: (id: string) => api.deleteChemicalRequisition(id),
-    onSuccess: () => {
-      toast.success("ยกเลิกการเบิกแล้ว (คืนสต็อก)");
-      queryClient.invalidateQueries({ queryKey: ["chemical-requisitions"] });
-      queryClient.invalidateQueries({ queryKey: ["stock", "solvents"] });
-      queryClient.invalidateQueries({ queryKey: ["stock", "transactions"] });
-    },
-    onError: (err: Error) => toast.error(err.message || "ยกเลิกไม่สำเร็จ"),
-  });
-
-  const onReqSaved = () => {
-    queryClient.invalidateQueries({ queryKey: ["chemical-requisitions"] });
-    queryClient.invalidateQueries({ queryKey: ["stock", "solvents"] });
-    queryClient.invalidateQueries({ queryKey: ["stock", "transactions"] });
-  };
 
   if (!room || !catalog) {
     return (
@@ -218,57 +175,6 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
           </Badge>
         </div>
       </div>
-
-      {isAnalysis && (
-        <Card className="mb-6 border-primary/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FlaskConical className="h-4 w-4 text-primary" />
-              เบิกสารเคมีวันนี้
-            </CardTitle>
-            <Button size="sm" onClick={() => setReqDialog({ open: true })}>
-              <Plus className="mr-1 h-4 w-4" />
-              เบิกสารเคมี
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {requisitions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">ยังไม่มีการเบิกวันนี้</p>
-            ) : (
-              <ul className="divide-y">
-                {requisitions.map((req) => (
-                  <li key={req._id} className="flex items-center gap-2 py-1.5 text-sm">
-                    <span className="w-12 text-xs tabular-nums text-muted-foreground">
-                      {req.createdAt ? fmtTime(req.createdAt) : ""}
-                    </span>
-                    <span className="font-medium">{req.solventName}</span>
-                    <span className="text-muted-foreground">x {req.qty} ขวด</span>
-                    <span className="text-muted-foreground">to {req.instrumentName}</span>
-                    {req.requestedBy?.name && (
-                      <span className="text-xs text-muted-foreground">
-                        by {req.requestedBy.name}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      className="ml-auto text-muted-foreground hover:text-destructive"
-                      title="ยกเลิกการเบิก (คืนสต็อก)"
-                      disabled={deleteReqMutation.isPending}
-                      onClick={() => {
-                        if (window.confirm(`ยกเลิกการเบิก ${req.solventName} x ${req.qty} ขวด และคืนสต็อก?`)) {
-                          deleteReqMutation.mutate(req._id);
-                        }
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       <div className="space-y-6">
         {groups.map((group) => {
@@ -407,37 +313,6 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
                           <Input value={user?.name ?? ""} readOnly disabled className="h-8 bg-muted/40 text-xs" />
                         </div>
 
-                        {isAnalysis && (
-                          <div className="border-t pt-3">
-                            <div className="mb-1.5 flex items-center justify-between">
-                              <span className="text-xs font-medium text-muted-foreground">
-                                สารเคมีที่เบิกวันนี้
-                              </span>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 gap-1 text-xs"
-                                onClick={() => setReqDialog({ open: true, presetInstrumentId: instrument.id })}
-                              >
-                                <Plus className="h-3.5 w-3.5" />
-                                เบิกให้เครื่องนี้
-                              </Button>
-                            </div>
-                            {(reqByInstrument[instrument.id] ?? []).length === 0 ? (
-                              <p className="text-xs text-muted-foreground/70">-</p>
-                            ) : (
-                              <ul className="space-y-0.5">
-                                {(reqByInstrument[instrument.id] ?? []).map((req) => (
-                                  <li key={req._id} className="text-xs text-muted-foreground">
-                                    {req.solventName} x {req.qty} ขวด
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        )}
-
                         {showResult ? (
                           <Button
                             variant="outline"
@@ -467,19 +342,6 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
           );
         })}
       </div>
-
-      {reqDialog.open && (
-        <ChemicalRequisitionDialog
-          roomSlug={roomSlug}
-          instruments={instruments.map((instrument) => ({
-            id: instrument.id,
-            name: instrument.name,
-          }))}
-          presetInstrumentId={reqDialog.presetInstrumentId}
-          onClose={() => setReqDialog({ open: false })}
-          onSaved={onReqSaved}
-        />
-      )}
     </>
   );
 };
