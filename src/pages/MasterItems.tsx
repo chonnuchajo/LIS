@@ -3,12 +3,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
   Archive,
+  Boxes,
   ChevronDown,
-  Database,
+  Eye,
   FileSpreadsheet,
   FileText,
   FlaskConical,
-  PackageSearch,
+  MoreHorizontal,
+  MoreVertical,
+  Package,
   Pencil,
   Plus,
   RefreshCw,
@@ -34,7 +37,21 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -54,6 +71,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { api, type MachineItem, type ParameterItem, type ItemGroupItem } from "@/lib/api";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
+import { cn } from "@/lib/utils";
 import { parseSubstances } from "@/lib/substances";
 import { readSlotMethods, type MethodDoc } from "@/lib/methodRegistry";
 import { buildOverrideMap, normalizeCommonName, normalizeKey } from "@/lib/commonNameOverride";
@@ -370,6 +388,39 @@ function displayValue(value: unknown) {
   return String(value);
 }
 
+// Pack/weight keys carry both a camelCase (override layer) and a snake_case (ERP
+// feed) spelling; read either so the value shows regardless of source.
+const unitsPerCartonKeys = ["unitsPerCarton", "units_per_carton"];
+const measureSizeKeys = ["measureSize", "measure_size"];
+const measureUnitKeys = ["measureUnit", "measure_unit"];
+const grossKgPerUnitKeys = ["grossKgPerUnit", "gross_kg_per_unit"];
+const packLevelKeys = ["packLevel", "pack_level"];
+const packSourceKeys = ["packSource", "pack_source"];
+const cartonUnitKeys = ["cartonUnit", "carton_unit"];
+
+// "12 × 1 L" — units per carton × per-unit measure, kept to one line for the
+// table cell. Falls back to the raw ERP pack-size string, then "-".
+function formatPackSize(item: MasterItem): string {
+  const units = String(firstValue(item, unitsPerCartonKeys)).trim();
+  const size = String(firstValue(item, measureSizeKeys)).trim();
+  const unit = String(firstValue(item, measureUnitKeys)).trim();
+  const measure = [size, unit].filter(Boolean).join(" ");
+  if (units && measure) return `${units} × ${measure}`;
+  if (measure) return measure;
+  const raw = String(firstValue(item, packSizeKeys)).trim();
+  return raw || "-";
+}
+
+// A missing status means active — ERP rows have no status field until an
+// override sets one. Only an explicit inactive/false marks it inactive.
+function isItemActive(item: MasterItem): boolean {
+  const status = firstValue(item, statusKeys);
+  if (status === "" || status === true) return true;
+  if (status === false) return false;
+  const s = String(status).toLowerCase();
+  return s !== "inactive" && s !== "false" && s !== "0";
+}
+
 function getItemCategory(item: MasterItem) {
   return String(firstValue(item, categoryKeys)).trim();
 }
@@ -585,9 +636,11 @@ export default function MasterItems() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [pageSize, setPageSize] = useState("50");
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
+  const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<{ item: MasterItem; originalItemNo: string; override?: MasterItemOverride } | null>(null);
   const [exporting, setExporting] = useState<null | "xlsx" | "pdf">(null);
   const [syncingWeights, setSyncingWeights] = useState(false);
@@ -682,20 +735,26 @@ export default function MasterItems() {
 
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return enrichedItems.filter(({ item, originalItemNo }) => {
-      const matchesSearch = !q || JSON.stringify(item).toLowerCase().includes(q);
+    return enrichedItems.filter(({ item, originalItemNo, rawCommonName, displayCommonName }) => {
+      const matchesSearch =
+        !q ||
+        String(firstValue(item, codeKeys)).toLowerCase().includes(q) ||
+        String(firstValue(item, nameKeys)).toLowerCase().includes(q) ||
+        String(displayCommonName || rawCommonName || "").toLowerCase().includes(q);
       const matchesCategory = categoryFilter === "all" || getItemCategory(item) === categoryFilter;
       const groupIds = groupMembership.get(originalItemNo) ?? [];
       const matchesGroup =
         groupFilter === "all" ||
         (groupFilter === "__none__" ? groupIds.length === 0 : groupIds.includes(groupFilter));
-      return matchesSearch && matchesCategory && matchesGroup;
+      const matchesStatus =
+        statusFilter === "all" || isItemActive(item) === (statusFilter === "active");
+      return matchesSearch && matchesCategory && matchesGroup && matchesStatus;
     });
-  }, [categoryFilter, enrichedItems, search, groupFilter, groupMembership]);
+  }, [categoryFilter, enrichedItems, search, groupFilter, statusFilter, groupMembership]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, categoryFilter, groupFilter, pageSize]);
+  }, [search, categoryFilter, groupFilter, statusFilter, pageSize]);
 
   const pageSizeNumber = Number(pageSize) || 50;
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSizeNumber));
@@ -741,12 +800,6 @@ export default function MasterItems() {
     return keys;
   }, [items]);
 
-  const activeCount = enrichedItems.filter(({ item }) => {
-    const status = firstValue(item, statusKeys);
-    if (status === "") return true;
-    return status === true || String(status || "").toLowerCase() === "active";
-  }).length;
-
   const handleExport = async (format: "xlsx" | "pdf") => {
     if (filteredItems.length === 0) {
       toast.error("ไม่มีข้อมูลสำหรับ export");
@@ -786,298 +839,221 @@ export default function MasterItems() {
   };
 
   return (
-    <AppLayout>
+    <AppLayout mainClassName="bg-muted/40 p-4 sm:p-6 overflow-auto">
         <PageHeader
           className="mb-6"
           title={
             <span className="inline-flex items-center gap-2">
-              <Database className="h-6 w-6" />
-              Master Item
+              <Package className="h-6 w-6" />
+              รายการสินค้า
             </span>
           }
-          description="จัดการรายการ item จาก n8n webhook"
+          description={`ทั้งหมด ${items.length.toLocaleString()} รายการ`}
           actions={
-            <Button variant="outline" className="gap-1" onClick={() => setGroupDialogOpen(true)}>
-              <Database className="h-4 w-4" /> จัดกลุ่ม
-            </Button>
+            <>
+              <Button variant="outline" className="gap-1.5" onClick={() => setGroupDialogOpen(true)}>
+                <Boxes className="h-4 w-4" /> จัดกลุ่ม
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label="เพิ่มเติม">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuLabel>ส่งออก (ตามที่กรอง)</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    disabled={exporting !== null || filteredItems.length === 0}
+                    onClick={() => handleExport("xlsx")}
+                  >
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    {exporting === "xlsx" ? "กำลังสร้าง Excel..." : "Excel"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={exporting !== null || filteredItems.length === 0}
+                    onClick={() => handleExport("pdf")}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    {exporting === "pdf" ? "กำลังสร้าง PDF..." : "PDF"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem disabled={syncingWeights} onClick={handleSyncWeights}>
+                    <RefreshCw className={cn("mr-2 h-4 w-4", syncingWeights && "animate-spin")} />
+                    Sync Kg/ลัง
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button className="gap-1.5" onClick={() => setCreating(true)}>
+                <Plus className="h-4 w-4" /> เพิ่มสินค้า
+              </Button>
+            </>
           }
         />
 
-        <div className="mb-4 grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">ทั้งหมด</div>
-              <div className="mt-1 text-2xl font-semibold">{items.length}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">Active</div>
-              <div className="mt-1 text-2xl font-semibold">{activeCount}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="text-sm text-muted-foreground">แสดงผล</div>
-              <div className="mt-1 text-2xl font-semibold">{filteredItems.length}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader className="flex flex-col gap-3 space-y-0 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <PackageSearch className="h-5 w-5" />
-              รายการ Item
-              <Badge variant="outline">{filteredItems.length}</Badge>
-            </CardTitle>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="หมวดหมู่" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">ทุกหมวดหมู่</SelectItem>
-                {categoryOptions.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {value}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={groupFilter} onValueChange={setGroupFilter}>
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue placeholder="กลุ่ม" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">ทุกกลุ่ม</SelectItem>
-                {sortedGroups.map((grp) => (
-                  <SelectItem key={grp._id} value={grp._id}>
-                    {grp.name}
-                  </SelectItem>
-                ))}
-                <SelectItem value="__none__">ไม่อยู่ในกลุ่มใด</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="relative w-full sm:w-80">
-              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Card className="overflow-hidden">
+          <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center">
+            <div className="relative flex-1 lg:max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="ค้นหา item"
-                className="pl-8"
+                placeholder="ค้นหารหัสสินค้า ชื่อสินค้า หรือชื่อสามัญ"
+                className="h-11 pl-9"
               />
             </div>
-            <Select value={pageSize} onValueChange={setPageSize}>
-              <SelectTrigger className="w-full sm:w-28">
-                <SelectValue placeholder="Rows" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="50">50 รายการ</SelectItem>
-                <SelectItem value="100">100 รายการ</SelectItem>
-                <SelectItem value="200">200 รายการ</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={handleSyncWeights}
-                disabled={syncingWeights}
-                title="Sync Kg/Carton from n8n"
-              >
-                <RefreshCw className={syncingWeights ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-                Kg/Carton
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleExport("xlsx")}
-                disabled={exporting !== null || filteredItems.length === 0}
-                title="ดาวน์โหลดเป็น Excel (ตามที่กรองอยู่)"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                {exporting === "xlsx" ? "กำลังสร้าง..." : "Excel"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => handleExport("pdf")}
-                disabled={exporting !== null || filteredItems.length === 0}
-                title="ดาวน์โหลดเป็น PDF (ตามที่กรองอยู่)"
-              >
-                <FileText className="h-4 w-4" />
-                {exporting === "pdf" ? "กำลังสร้าง..." : "PDF"}
-              </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="หมวดหมู่" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">ทุกหมวดหมู่</SelectItem>
+                  {categoryOptions.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {value}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-36">
+                  <SelectValue placeholder="สถานะ" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">ทุกสถานะ</SelectItem>
+                  <SelectItem value="active">ใช้งาน</SelectItem>
+                  <SelectItem value="inactive">ปิดใช้งาน</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={groupFilter} onValueChange={setGroupFilter}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="กลุ่ม" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">ทุกกลุ่ม</SelectItem>
+                  {sortedGroups.map((grp) => (
+                    <SelectItem key={grp._id} value={grp._id}>
+                      {grp.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="__none__">ไม่อยู่ในกลุ่มใด</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={pageSize} onValueChange={setPageSize}>
+                <SelectTrigger className="w-full sm:w-32">
+                  <SelectValue placeholder="ต่อหน้า" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="25">25 / หน้า</SelectItem>
+                  <SelectItem value="50">50 / หน้า</SelectItem>
+                  <SelectItem value="100">100 / หน้า</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </CardHeader>
-          <CardContent>
-            {isError ? (
-              <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-                <AlertCircle className="h-4 w-4" />
-                {(error as Error).message}
-              </div>
-            ) : (
-              <>
-              <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-                <Table className="min-w-[900px]">
-                  <TableHeader>
+          </div>
+
+          {isError ? (
+            <div className="m-4 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              {(error as Error).message}
+            </div>
+          ) : (
+            <>
+              <Table className="min-w-[760px]" containerClassName="max-h-[calc(100vh-340px)]">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="sticky top-0 z-10 bg-muted">รหัสสินค้า</TableHead>
+                    <TableHead className="sticky top-0 z-10 bg-muted">รายละเอียดสินค้า</TableHead>
+                    <TableHead className="sticky top-0 z-10 bg-muted">ขนาดบรรจุ</TableHead>
+                    <TableHead className="sticky top-0 z-10 bg-muted text-right">จำนวนต่อลัง</TableHead>
+                    <TableHead className="sticky top-0 z-10 bg-muted text-right">น้ำหนักต่อลัง (kg)</TableHead>
+                    <TableHead className="sticky top-0 z-10 w-16 bg-muted text-right">จัดการ</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
                     <TableRow>
-                      <TableHead>Code</TableHead>
-                      <TableHead>ชื่อ Item</TableHead>
-                      <TableHead>commonname</TableHead>
-                      <TableHead>หมวดหมู่</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Pack Size</TableHead>
-                      <TableHead className="text-right">Kg/Carton</TableHead>
-                      <TableHead className="text-right">Kg/Unit</TableHead>
-                      <TableHead>Pack</TableHead>
-                      <TableHead className="text-center">พารามิเตอร์</TableHead>
-                      <TableHead>Status</TableHead>
-                      {extraColumns.map((key) => (
-                        <TableHead key={key}>{key}</TableHead>
-                      ))}
-                      <TableHead className="w-28 text-right">Actions</TableHead>
+                      <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                        กำลังโหลด...
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
-                      <TableRow>
-                        <TableCell colSpan={12 + extraColumns.length} className="py-8 text-center text-muted-foreground">
-                          กำลังโหลด...
-                        </TableCell>
-                      </TableRow>
-                    ) : filteredItems.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={12 + extraColumns.length} className="py-8 text-center text-muted-foreground">
-                          ไม่มีข้อมูล
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      pagedItems.map(({ item, originalItemNo, override, rawCommonName, displayCommonName }, index) => {
-                        const matchedParameters = getParametersFor(item, parameters, groupIdsFor(originalItemNo));
-                        const metaQty = matchedParameters.length;
-                        const form = itemToForm(item, metaQty);
-                        const rowKey = getItemId(item) || originalItemNo || `row-${index}`;
-                        const memberGroups = groupIdsFor(originalItemNo)
-                          .map((id) => ({ id, name: groupNameById.get(id) }))
-                          .filter((g): g is { id: string; name: string } => Boolean(g.name));
-                        return (
-                          <TableRow
-                            key={rowKey}
-                            className="cursor-pointer hover:bg-muted/50"
-                            onClick={() => setViewing({ item, originalItemNo, override })}
-                          >
-                            <TableCell className="font-semibold text-primary">
-                              {displayValue(firstValue(item, codeKeys))}
-                            </TableCell>
-                            <TableCell className="min-w-56 font-medium">
-                              <div>{displayValue(firstValue(item, nameKeys))}</div>
-                              {memberGroups.length > 0 && (
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  {memberGroups.map((grp) => (
-                                    <Badge
-                                      key={grp.id}
-                                      variant="secondary"
-                                      className="px-1.5 py-0 text-[10px] font-normal"
-                                    >
-                                      {grp.name}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              )}
-                            </TableCell>
-                            <TableCell onClick={(event) => event.stopPropagation()}>
+                  ) : filteredItems.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                        ไม่พบสินค้าที่ตรงกับเงื่อนไข
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    pagedItems.map(({ item, originalItemNo, override, rawCommonName, displayCommonName }, index) => {
+                      const rowKey = getItemId(item) || originalItemNo || `row-${index}`;
+                      const active = isItemActive(item);
+                      return (
+                        <TableRow
+                          key={rowKey}
+                          className="h-14 cursor-pointer"
+                          onClick={() => setViewing({ item, originalItemNo, override })}
+                        >
+                          <TableCell className="font-semibold text-primary">
+                            {displayValue(firstValue(item, codeKeys))}
+                          </TableCell>
+                          <TableCell>
+                            <div className="max-w-[380px]">
+                              <div className="truncate font-semibold text-foreground">
+                                {displayValue(firstValue(item, nameKeys))}
+                              </div>
                               <div className="flex items-center gap-1.5">
                                 <span
-                                  className="min-w-0 flex-1 truncate"
+                                  className="truncate text-sm text-muted-foreground"
                                   title={displayCommonName !== rawCommonName ? `จากระบบ: ${rawCommonName}` : undefined}
                                 >
                                   {displayValue(displayCommonName)}
                                 </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>{displayValue(getItemCategory(item))}</TableCell>
-                            <TableCell>{displayValue(firstValue(item, unitKeys))}</TableCell>
-                            <TableCell>{displayValue(firstValue(item, packSizeKeys))}</TableCell>
-                            <TableCell className="text-right tabular-nums">{displayValue(firstValue(item, weightKeys))}</TableCell>
-                            <TableCell className="text-right tabular-nums">{displayValue(firstValue(item, ["grossKgPerUnit"]))}</TableCell>
-                            <TableCell>{displayValue(firstValue(item, ["packLevel", "packSource"]))}</TableCell>
-                            <TableCell className="text-center">
-                              <HoverCard openDelay={120} closeDelay={80}>
-                                <HoverCardTrigger asChild>
-                                  <button
-                                    type="button"
-                                    onClick={(event) => event.stopPropagation()}
-                                    className="inline-flex cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                                {!active && (
+                                  <Badge
+                                    variant="outline"
+                                    className="h-4 shrink-0 border-muted-foreground/30 px-1 text-[10px] font-normal text-muted-foreground"
                                   >
-                                    {metaQty > 0 ? (
-                                      <Badge variant="secondary" className="font-medium">{metaQty}</Badge>
-                                    ) : (
-                                      <Badge variant="outline" className="border-amber-500/40 bg-amber-50 text-amber-700 dark:bg-amber-950/30">
-                                        0
-                                      </Badge>
-                                    )}
-                                  </button>
-                                </HoverCardTrigger>
-                                <HoverCardContent align="center" className="w-72 p-3">
-                                  {metaQty > 0 ? (
-                                    <div className="space-y-2">
-                                      <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
-                                        <span>พารามิเตอร์ที่ตรงกับ Item นี้</span>
-                                        <span>{metaQty} รายการ</span>
-                                      </div>
-                                      <ul className="space-y-1 text-sm">
-                                        {matchedParameters.map((param) => (
-                                          <li key={param._id ?? param.name} className="flex items-center gap-2">
-                                            <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary/70" />
-                                            <span className="min-w-0 flex-1 truncate font-medium">{param.name}</span>
-                                            {param.scope && (
-                                              <Badge variant="outline" className="h-4 px-1 text-[10px] uppercase">
-                                                {param.scope}
-                                              </Badge>
-                                            )}
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  ) : (
-                                    <div className="text-sm text-muted-foreground">
-                                      ยังไม่มีพารามิเตอร์ที่ตรงกับ Item นี้
-                                    </div>
-                                  )}
-                                </HoverCardContent>
-                              </HoverCard>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={form.status === "inactive" ? "secondary" : "default"}>
-                                {form.status}
-                              </Badge>
-                            </TableCell>
-                            {extraColumns.map((key) => (
-                              <TableCell key={key} className="max-w-64 truncate">
-                                {displayValue(item[key])}
-                              </TableCell>
-                            ))}
-                            <TableCell onClick={(event) => event.stopPropagation()}>
-                              <div className="flex justify-end gap-1">
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => setEditing({ item, originalItemNo, override })}
-                                  title="แก้ไข"
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
+                                    ปิดใช้งาน
+                                  </Badge>
+                                )}
                               </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="mt-3 flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                            </div>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-sm">{formatPackSize(item)}</TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {displayValue(firstValue(item, unitsPerCartonKeys))}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums">
+                            {displayValue(firstValue(item, weightKeys))}
+                          </TableCell>
+                          <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="เมนูจัดการ">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setViewing({ item, originalItemNo, override })}>
+                                  <Eye className="mr-2 h-4 w-4" /> ดูรายละเอียด
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setEditing({ item, originalItemNo, override })}>
+                                  <Pencil className="mr-2 h-4 w-4" /> แก้ไข
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+
+              <div className="flex flex-col gap-2 border-t border-border p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-muted-foreground">
                   แสดง {filteredItems.length === 0 ? 0 : ((currentPage - 1) * pageSizeNumber) + 1}-
-                  {Math.min(currentPage * pageSizeNumber, filteredItems.length)} จาก {filteredItems.length} รายการ
+                  {Math.min(currentPage * pageSizeNumber, filteredItems.length)} จาก {filteredItems.length.toLocaleString()} รายการ
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">หน้า {currentPage}/{totalPages}</span>
@@ -1099,17 +1075,19 @@ export default function MasterItems() {
                   </Button>
                 </div>
               </div>
-              </>
-            )}
-          </CardContent>
+            </>
+          )}
         </Card>
 
-        {editing && (
+        {(editing || creating) && (
           <MasterItemDialog
-            item={editing.item}
-            originalItemNo={editing.originalItemNo}
-            initialMetaQty={countParametersFor(editing.item, parameters, groupIdsFor(editing.originalItemNo))}
-            onClose={() => setEditing(null)}
+            item={editing ? editing.item : null}
+            originalItemNo={editing ? editing.originalItemNo : ""}
+            initialMetaQty={editing ? countParametersFor(editing.item, parameters, groupIdsFor(editing.originalItemNo)) : 0}
+            onClose={() => {
+              setEditing(null);
+              setCreating(false);
+            }}
             onSaved={() => {
               queryClient.invalidateQueries({ queryKey: ["master-items"] });
               queryClient.invalidateQueries({ queryKey: ["master-item-meta"] });
@@ -1118,7 +1096,7 @@ export default function MasterItems() {
         )}
 
         {viewing && (
-          <MasterItemDetailDialog
+          <MasterItemDetailDrawer
             item={viewing.item}
             originalItemNo={viewing.originalItemNo}
             parameters={getParametersFor(viewing.item, parameters, groupIdsFor(viewing.originalItemNo))}
@@ -2179,7 +2157,7 @@ function MasterItemDialog({
   );
 }
 
-function MasterItemDetailDialog({
+function MasterItemDetailDrawer({
   item,
   originalItemNo,
   parameters,
@@ -2201,79 +2179,110 @@ function MasterItemDetailDialog({
   // membership resolve มาจาก catalog ดิบแล้ว (ส่งเป็น itemGroupIds) — map เป็นชื่อกลุ่มเพื่อแสดง
   const memberGroups = groups.filter((grp) => itemGroupIds.includes(grp._id));
   const classification = getClassification(firstValue(item, typeKeys));
-  const statusValue = firstValue(item, statusKeys);
-  const statusLabel = statusValue === false || String(statusValue || "").toLowerCase() === "inactive"
-    ? "inactive"
-    : "active";
+  const active = isItemActive(item);
+  const code = displayValue(originalItemNo || firstValue(item, codeKeys));
+  const name = displayValue(firstValue(item, nameKeys));
+  const description = displayValue(firstValue(item, descriptionKeys));
+  const hasExtra =
+    extraColumns.length > 0 && extraColumns.some((key) => String(item[key] ?? "").trim() !== "");
 
-  const fields: Array<{ label: string; value: React.ReactNode; full?: boolean }> = [
-    { label: "Code", value: <span className="font-semibold text-primary">{displayValue(originalItemNo || firstValue(item, codeKeys))}</span> },
-    { label: "ชื่อ Item", value: displayValue(firstValue(item, nameKeys)) },
-    { label: "commonname", value: displayValue(firstValue(item, commonNameKeys)) },
-    { label: "ประเภท", value: classification ? `${classification.code} - ${classification.label}` : displayValue(firstValue(item, typeKeys)) },
-    { label: "หมวดหมู่", value: displayValue(getItemCategory(item)) },
-    { label: "Unit", value: displayValue(firstValue(item, unitKeys)) },
-    { label: "Pack Size", value: displayValue(firstValue(item, packSizeKeys)) },
-    { label: "Kg/Carton", value: displayValue(firstValue(item, weightKeys)) },
-    { label: "Gross Kg/Unit", value: displayValue(firstValue(item, ["grossKgPerUnit"])) },
-    { label: "Declared Kg/Unit", value: displayValue(firstValue(item, ["declaredKgPerUnit"])) },
-    { label: "Weight Diff", value: displayValue(firstValue(item, ["weightDiff"])) },
-    { label: "Pack Level", value: displayValue(firstValue(item, ["packLevel"])) },
-    { label: "Units/Carton", value: displayValue(firstValue(item, ["unitsPerCarton"])) },
-    { label: "Pack Unit", value: displayValue(firstValue(item, ["packUnit"])) },
-    { label: "Measure", value: displayValue([firstValue(item, ["measureSize"]), firstValue(item, ["measureUnit"])].filter(Boolean).join(" ")) },
-    { label: "Pack Source", value: displayValue(firstValue(item, ["packSource"])) },
+  const mainFields: Array<{ label: string; value: React.ReactNode }> = [
+    { label: "ชื่อสินค้า", value: name },
+    { label: "ชื่อสามัญ", value: displayValue(firstValue(item, commonNameKeys)) },
     {
-      label: "Status",
-      value: (
-        <Badge variant={statusLabel === "inactive" ? "secondary" : "default"}>{statusLabel}</Badge>
-      ),
+      label: "ประเภท",
+      value: classification
+        ? `${classification.code} - ${classification.label}`
+        : displayValue(firstValue(item, typeKeys)),
     },
+    { label: "หมวดหมู่", value: displayValue(getItemCategory(item)) },
+    { label: "หน่วย", value: displayValue(firstValue(item, unitKeys)) },
     {
-      label: "รายละเอียด",
-      value: displayValue(firstValue(item, descriptionKeys)),
-      full: true,
+      label: "สถานะ",
+      value: (
+        <Badge
+          variant="outline"
+          className={cn(
+            "gap-1.5",
+            active
+              ? "border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30"
+              : "text-muted-foreground",
+          )}
+        >
+          <span className={cn("h-1.5 w-1.5 rounded-full", active ? "bg-emerald-500" : "bg-muted-foreground")} />
+          {active ? "ใช้งาน" : "ปิดใช้งาน"}
+        </Badge>
+      ),
     },
   ];
 
-  return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-start justify-between gap-2">
-            <DialogTitle>รายละเอียด Item</DialogTitle>
-            <Button size="icon" variant="ghost" onClick={onEdit} title="แก้ไข" className="-mt-1">
-              <Pencil className="h-4 w-4" />
-            </Button>
-          </div>
-        </DialogHeader>
+  const packFields: Array<{ label: string; value: React.ReactNode }> = [
+    { label: "ขนาดบรรจุ", value: formatPackSize(item) },
+    { label: "จำนวนต่อลัง", value: displayValue(firstValue(item, unitsPerCartonKeys)) },
+    { label: "น้ำหนักต่อลัง (kg)", value: displayValue(firstValue(item, weightKeys)) },
+    { label: "Kg/Unit", value: displayValue(firstValue(item, grossKgPerUnitKeys)) },
+    { label: "pack_level", value: displayValue(firstValue(item, packLevelKeys)) },
+    { label: "pack_source", value: displayValue(firstValue(item, packSourceKeys)) },
+    { label: "carton_unit", value: displayValue(firstValue(item, cartonUnitKeys)) },
+    {
+      label: "measure_size",
+      value: displayValue(
+        [firstValue(item, measureSizeKeys), firstValue(item, measureUnitKeys)].filter(Boolean).join(" "),
+      ),
+    },
+  ];
 
-        <div className="grid gap-4 py-2 grid-cols-1 md:grid-cols-2">
-          {fields.map((field) => (
-            <div
-              key={field.label}
-              className={`space-y-1 ${field.full ? "md:col-span-2" : ""}`}
-            >
-              <div className="text-xs font-medium text-muted-foreground">{field.label}</div>
-              <div className="text-sm break-words">{field.value}</div>
+  const Field = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="space-y-0.5">
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="break-words text-sm">{value}</div>
+    </div>
+  );
+
+  return (
+    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-md">
+        <SheetHeader className="space-y-1 border-b border-border p-6 pr-12 text-left">
+          <SheetTitle className="text-xl font-bold text-primary">{code}</SheetTitle>
+          <p className="text-sm text-muted-foreground">{name}</p>
+        </SheetHeader>
+
+        <div className="flex-1 space-y-6 p-6">
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ข้อมูลหลัก</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {mainFields.map((f) => (
+                <Field key={f.label} label={f.label} value={f.value} />
+              ))}
             </div>
-          ))}
+          </section>
+
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">บรรจุ / น้ำหนัก</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {packFields.map((f) => (
+                <Field key={f.label} label={f.label} value={f.value} />
+              ))}
+            </div>
+          </section>
 
           {memberGroups.length > 0 && (
-            <div className="md:col-span-2 space-y-1">
-              <div className="text-xs font-medium text-muted-foreground">กลุ่มที่สังกัด</div>
+            <section className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">กลุ่มที่สังกัด</h3>
               <div className="flex flex-wrap gap-1">
                 {memberGroups.map((grp) => (
                   <Badge key={grp._id} variant="secondary">{grp.name}</Badge>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
-          <div className="md:col-span-2 space-y-2">
-            <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
-              <span>พารามิเตอร์ที่ตรงกับ Item นี้</span>
-              <span>{parameters.length} รายการ</span>
+          <section className="space-y-2">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                พารามิเตอร์ที่ตรงกับสินค้านี้
+              </h3>
+              <span className="text-xs text-muted-foreground">{parameters.length} รายการ</span>
             </div>
             {parameters.length > 0 ? (
               <ul className="space-y-1 rounded-md border bg-muted/30 p-3 text-sm">
@@ -2291,39 +2300,46 @@ function MasterItemDetailDialog({
               </ul>
             ) : (
               <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
-                ยังไม่มีพารามิเตอร์ที่ตรงกับ Item นี้
+                ยังไม่มีพารามิเตอร์ที่ตรงกับสินค้านี้
               </div>
             )}
-          </div>
+          </section>
 
-          {extraColumns.length > 0 && extraColumns.some((key) => String(item[key] ?? "").trim() !== "") && (
-            <div className="md:col-span-2 space-y-2">
-              <div className="text-xs font-medium text-muted-foreground">ข้อมูลเพิ่มเติม</div>
-              <div className="grid gap-2 rounded-md border bg-muted/30 p-3 sm:grid-cols-2">
+          {description !== "-" && (
+            <section className="space-y-1">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">รายละเอียด</h3>
+              <p className="whitespace-pre-wrap break-words text-sm">{description}</p>
+            </section>
+          )}
+
+          {hasExtra && (
+            <section className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ข้อมูลเพิ่มเติม</h3>
+              <div className="grid gap-3 rounded-md border bg-muted/30 p-3 sm:grid-cols-2">
                 {extraColumns.map((key) => {
                   const value = displayValue(item[key]);
                   if (!value || value === "-") return null;
                   return (
                     <div key={key} className="space-y-0.5">
                       <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{key}</div>
-                      <div className="text-sm break-words">{value}</div>
+                      <div className="break-words text-sm">{value}</div>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </section>
           )}
         </div>
 
-        <DialogFooter>
+        <SheetFooter className="border-t border-border p-4">
           <Button variant="outline" onClick={onClose}>ปิด</Button>
           <Button onClick={onEdit}>
-            <Pencil className="h-4 w-4 mr-1.5" />
+            <Pencil className="mr-1.5 h-4 w-4" />
             แก้ไข
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 

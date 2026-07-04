@@ -24,7 +24,13 @@ function getQrValue(petition: Petition, item: Petition['items'][number]): string
   });
 }
 
-function QrCodeSvg({ value }: { value: string }) {
+function QrCodeSvg({
+  value,
+  sizeClass = 'h-[24mm] w-[24mm]',
+}: {
+  value: string;
+  sizeClass?: string;
+}) {
   const qr = QRCode.create(value, { errorCorrectionLevel: 'M' });
   const size = qr.modules.size;
   const modules = Array.from(qr.modules.data as Uint8Array);
@@ -32,7 +38,7 @@ function QrCodeSvg({ value }: { value: string }) {
   return (
     <svg
       viewBox={`0 0 ${size} ${size}`}
-      className="h-[24mm] w-[24mm] shrink-0"
+      className={`${sizeClass} shrink-0`}
       role="img"
       aria-label={`QR ${value}`}
       shapeRendering="crispEdges"
@@ -122,6 +128,9 @@ function LabelCard({
           <div className="mt-0.5 w-[24mm] break-all text-center text-[7px] font-bold leading-tight">
             {petition.petitionNo}
           </div>
+          {item.batchNo ? (
+            <QrCodeSvg value={item.batchNo} sizeClass="mt-0.5 h-[9mm] w-[9mm]" />
+          ) : null}
         </div>
         <div className="min-w-0 flex-1 space-y-1">
           <div className="relative min-h-[7mm] pr-[25mm]">
