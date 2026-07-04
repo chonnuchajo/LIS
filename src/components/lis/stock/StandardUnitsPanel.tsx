@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Minus, Trash2, Printer, Pencil, Plus, ChevronRight, ChevronDown } from "lucide-react";
+import { Printer, Pencil, Plus, ChevronRight, ChevronDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,6 @@ import { api } from "@/lib/api";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
 import { unitDerivedStatus, buildUnitTree } from "@/lib/stockUnit";
 import type { StockStandardItem, StockUnitItem } from "@/types/stock";
-import WithdrawDialog from "./WithdrawDialog";
-import DiscardDialog from "./DiscardDialog";
 import EditUnitDialog from "./EditUnitDialog";
 import ReceiveBottlesDialog from "./ReceiveBottlesDialog";
 
@@ -29,8 +27,6 @@ const STATUS_LABEL: Record<string, string> = {
  *  เพื่อไม่ให้ submit ฟอร์มที่ครอบอยู่ (ตอนฝังในฟอร์มแก้ไข Standard) */
 export default function StandardUnitsPanel({ standard }: { standard: StockStandardItem }) {
   const qc = useQueryClient();
-  const [withdrawQr, setWithdrawQr] = useState<string | null>(null);
-  const [discardQr, setDiscardQr] = useState<string | null>(null);
   const [editUnit, setEditUnit] = useState<StockUnitItem | null>(null);
   const [receiving, setReceiving] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -95,8 +91,6 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
               const u = row.unit;
               if (row.depth === 1 && !expanded.has(row.rootId)) return null;
               const st = unitDerivedStatus(u);
-              const canWithdraw = u.kind === "sealed" && st === "active";
-              const canDiscard = st !== "discarded";
               const isChild = row.depth === 1;
               return (
                 <TableRow key={u._id} className={isChild ? "bg-muted/30" : undefined}>
@@ -122,10 +116,8 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
                   <TableCell><Badge className={`text-xs ${STATUS_BADGE[st]}`}>{STATUS_LABEL[st]}</Badge></TableCell>
                   <TableCell>
                     <div className="flex justify-end gap-1">
-                      {canWithdraw && <Button type="button" size="icon" variant="ghost" title="แบ่ง working" onClick={() => setWithdrawQr(u.qrId)}><Minus className="w-4 h-4" /></Button>}
                       {st !== "discarded" && <Button type="button" size="icon" variant="ghost" title="แก้ไขข้อมูล" onClick={() => setEditUnit(u)}><Pencil className="w-4 h-4" /></Button>}
                       <Button type="button" size="icon" variant="ghost" title="ปริ้นซ้ำ" onClick={() => reprint(u)}><Printer className="w-4 h-4" /></Button>
-                      {canDiscard && <Button type="button" size="icon" variant="ghost" title="ทิ้ง" onClick={() => setDiscardQr(u.qrId)}><Trash2 className="w-4 h-4 text-destructive" /></Button>}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -136,8 +128,6 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
       </div>
 
       {receiving && <ReceiveBottlesDialog standard={standard} onClose={() => setReceiving(false)} onSaved={refresh} />}
-      {withdrawQr && <WithdrawDialog qrId={withdrawQr} onClose={() => setWithdrawQr(null)} onSaved={refresh} />}
-      {discardQr && <DiscardDialog qrId={discardQr} onClose={() => setDiscardQr(null)} onSaved={refresh} />}
       {editUnit && <EditUnitDialog unit={editUnit} onClose={() => setEditUnit(null)} onSaved={refresh} />}
     </div>
   );

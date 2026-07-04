@@ -31,10 +31,8 @@ import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
-import StandardWeighingSection, { type RequiredKey } from '@/components/lis/StandardWeighingSection';
 import { matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
-import type { StandardConfigDoc } from '@/lib/standardConfig';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -384,9 +382,6 @@ export default function LabTestingDetailPage() {
   const [wasReturned, setWasReturned] = useState(false);
   const [redoExplanation, setRedoExplanation] = useState('');
   const [selectedPhase, setSelectedPhase] = useState<PetitionPhase>(1);
-  const [standardConfigs, setStandardConfigs] = useState<StandardConfigDoc[]>([]);
-  const [standardWeighReady, setStandardWeighReady] = useState(true);
-  const [requiredStandardKeys, setRequiredStandardKeys] = useState<RequiredKey[]>([]);
   const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // Load all parameters, filter for Lab scope + shared QC params
@@ -406,12 +401,6 @@ export default function LabTestingDetailPage() {
   useEffect(() => {
     api.getInstrumentSources()
       .then((rows) => setInstrumentSources(rows ?? []))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    api.getStandardConfigs()
-      .then((rows) => setStandardConfigs(rows ?? []))
       .catch(() => {});
   }, []);
 
@@ -834,10 +823,6 @@ export default function LabTestingDetailPage() {
       });
       return;
     }
-    if (!standardWeighReady) {
-      toast.error('กรอกข้อมูลชั่ง Standard ให้ครบก่อนบันทึกผล');
-      return;
-    }
     if (petition.labReturnNote && !redoExplanation.trim()) {
       toast.error('กรุณาอธิบายว่าทำใหม่อย่างไร', { description: 'คำร้องนี้เคยถูกส่งกลับให้แก้ไข' });
       return;
@@ -858,7 +843,6 @@ export default function LabTestingDetailPage() {
         'lab',
         user?.name ?? 'system',
         redoExplanation.trim() || undefined,
-        requiredStandardKeys,
       );
       toast.success(
         updated.status === 'success'
@@ -974,18 +958,6 @@ export default function LabTestingDetailPage() {
             phase2DueAt={petition.phase2DueAt}
             phase2UnlockedAt={petition.phase2UnlockedAt}
             triggeredByName={petition.phase2TriggeredBy?.parameterName}
-          />
-        )}
-
-        {labItems.length > 0 && (
-          <StandardWeighingSection
-            petition={petition}
-            configs={standardConfigs}
-            readOnly={isLocked}
-            onValidityChange={(ready, keys) => {
-              setStandardWeighReady(ready);
-              setRequiredStandardKeys(keys);
-            }}
           />
         )}
 
@@ -1537,7 +1509,7 @@ export default function LabTestingDetailPage() {
             <Button
               variant={isComplete ? 'primary' : 'outline'}
               onClick={isComplete ? handleSubmitResult : handleSaveDraft}
-              disabled={submitting || (isComplete && !standardWeighReady)}
+              disabled={submitting}
               className="gap-2"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : isComplete ? <Send className="h-4 w-4" /> : <Save className="h-4 w-4" />}

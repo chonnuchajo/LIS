@@ -21,6 +21,10 @@ import {
 
 import { api } from "@/lib/api";
 import { summarizeUnits } from "@/lib/stockUnit";
+import {
+  FREQUENCY_UNITS, FREQUENCY_PRESETS, parseFrequency, formatFrequency, isPreset,
+  type FrequencyUnit,
+} from "@/lib/standardFrequency";
 import UnitsDrawer from "@/components/lis/stock/UnitsDrawer";
 import StandardUnitsPanel from "@/components/lis/stock/StandardUnitsPanel";
 import ReceiveBottlesDialog from "@/components/lis/stock/ReceiveBottlesDialog";
@@ -177,7 +181,7 @@ function StandardsTab() {
                   <TableHead className="w-16">Code</TableHead>
                   <TableHead>ชื่อ</TableHead>
                   <TableHead className="text-center">คงคลัง (ขวด)</TableHead>
-                  <TableHead className="hidden xl:table-cell">ความถี่</TableHead>
+                  <TableHead className="hidden xl:table-cell">ความถี่/1 ครั้ง</TableHead>
                   <TableHead className="hidden xl:table-cell">อุณหภูมิ</TableHead>
                   <TableHead>สถานะ</TableHead>
                   <TableHead className="w-32 text-right">Actions</TableHead>
@@ -752,6 +756,52 @@ function SimpleMoveDialog({
   );
 }
 
+// "ความถี่/1 ครั้ง" picker — 6 presets + กำหนดเอง (count + day/week/month).
+// Emits the canonical "1/N unit" string upstream; empty stays empty. Local state is
+// seeded once from the incoming value (the dialog remounts per open, so this is safe).
+function FrequencyField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const initial = parseFrequency(value);
+  const initialIsPreset = isPreset(value);
+  const [mode, setMode] = useState<string>(
+    initialIsPreset ? formatFrequency(initial!.count, initial!.unit) : initial ? "custom" : "",
+  );
+  const [count, setCount] = useState<number>(initial && !initialIsPreset ? initial.count : 1);
+  const [unit, setUnit] = useState<FrequencyUnit>(initial && !initialIsPreset ? initial.unit : "day");
+
+  const emit = (m: string, c: number, u: FrequencyUnit) => {
+    if (m === "custom") onChange(formatFrequency(Math.max(1, Math.floor(c) || 1), u));
+    else onChange(m); // preset string ("" never reachable from the UI)
+  };
+
+  return (
+    <div className="space-y-2">
+      <Select value={mode || undefined} onValueChange={v => { setMode(v); emit(v, count, unit); }}>
+        <SelectTrigger><SelectValue placeholder="เลือกความถี่" /></SelectTrigger>
+        <SelectContent>
+          {FREQUENCY_PRESETS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+          <SelectItem value="custom">กำหนดเอง</SelectItem>
+        </SelectContent>
+      </Select>
+      {mode === "custom" && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">1 /</span>
+          <Input
+            type="number" min={1} className="w-20" aria-label="จำนวน"
+            value={String(count)}
+            onChange={e => { const n = Number(e.target.value); setCount(n); emit("custom", n, unit); }}
+          />
+          <Select value={unit} onValueChange={v => { setUnit(v as FrequencyUnit); emit("custom", count, v as FrequencyUnit); }}>
+            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {FREQUENCY_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function StandardDialog({
   item, onClose, onSaved,
 }: {
@@ -885,8 +935,8 @@ function StandardDialog({
                 <Input value={String(form.usagePerUseMg ?? "")} onChange={e => setField("usagePerUseMg", e.target.value)} />
               </div>
               <div>
-                <Label>ความถี่</Label>
-                <Input value={form.frequency} onChange={e => setField("frequency", e.target.value)} placeholder="เช่น 1/1 Week" />
+                <Label>ความถี่/1 ครั้ง</Label>
+                <FrequencyField value={form.frequency} onChange={v => setField("frequency", v)} />
               </div>
               <div>
                 <Label>อุณหภูมิที่เก็บ (°C)</Label>
