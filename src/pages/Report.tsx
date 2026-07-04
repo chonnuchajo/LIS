@@ -14,6 +14,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar, RadarChart
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
 
 const drugNames = ["all", "glyphosate", "paraquat", "chlorpyrifos", "cypermethrin", "atrazine"] as const;
 const drugLabels: Record<string, string> = {
@@ -170,6 +171,7 @@ const Report = () => {
   const [oeeDateTo, setOeeDateTo] = useState<Date>();
   const [workloadDateFrom, setWorkloadDateFrom] = useState<Date>();
   const [workloadDateTo, setWorkloadDateTo] = useState<Date>();
+  const { tabs, defaultKey } = useAccessibleTabs("/report");
 
   const activeDrugs = selectedDrug === "all"
     ? Object.keys(trendConfig)
@@ -233,12 +235,14 @@ const Report = () => {
           description="ภาพรวม Trend %AI, OEE เครื่องวิเคราะห์ และ Workload บุคลากร"
         />
 
-        <Tabs defaultValue="dashboard">
+        <Tabs defaultValue={defaultKey}>
           <TabsList className="mb-4 flex-wrap h-auto">
-            <TabsTrigger value="dashboard" className="gap-1.5"><LayoutDashboard className="w-4 h-4" />Dashboard ภาพรวม</TabsTrigger>
-            <TabsTrigger value="trend" className="gap-1.5"><TrendingUp className="w-4 h-4" />%AI</TabsTrigger>
-            <TabsTrigger value="oee" className="gap-1.5"><Gauge className="w-4 h-4" />OEE เครื่องวิเคราะห์</TabsTrigger>
-            <TabsTrigger value="workload" className="gap-1.5"><Users className="w-4 h-4" />Workload บุคลากร</TabsTrigger>
+            {tabs.map((t) => (
+              <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
+                {t.icon && <t.icon className="w-4 h-4" />}
+                {t.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           {/* Dashboard Overview - Real-time Weekly */}

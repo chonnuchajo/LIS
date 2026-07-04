@@ -36,6 +36,7 @@ import type {
   StockStandardItem, StockSolventItem, StockGlasswareItem,
   StockTransactionItem, StockUnitItem,
 } from "@/types/stock";
+import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
 
 const LOW_STD_QTY = 1;
 const LOW_SOL_QTY = 3;
@@ -967,6 +968,7 @@ const StockPage = () => {
   const [scannedUnit, setScannedUnit] = useState<StockUnitItem | null>(null);
   const [action, setAction] = useState<"withdraw" | "discard" | null>(null);
   const qc = useQueryClient();
+  const { tabs, defaultKey } = useAccessibleTabs("/stock");
 
   const onScanned = async (qrId: string) => {
     setScanOpen(false);
@@ -992,13 +994,14 @@ const StockPage = () => {
         title={<span className="inline-flex items-center gap-2"><Package className="w-6 h-6" /> Stock Management</span>}
         description="จัดการ inventory: Standards, สารเคมี, เครื่องแก้ว — บันทึกข้อมูลใน MongoDB"
       />
-      <Tabs defaultValue="standard">
+      <Tabs defaultValue={defaultKey}>
         <TabsList className="mb-4 flex-wrap h-auto">
-          <TabsTrigger value="standard">Standards</TabsTrigger>
-          <TabsTrigger value="solvent">สารเคมี</TabsTrigger>
-          <TabsTrigger value="glassware">เครื่องแก้ว</TabsTrigger>
-          <TabsTrigger value="receive">รับเข้า</TabsTrigger>
-          <TabsTrigger value="history">ประวัติ</TabsTrigger>
+          {tabs.map((t) => (
+            <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
+              {t.icon && <t.icon className="h-4 w-4" />}
+              {t.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
         <TabsContent value="standard"><StandardsTab /></TabsContent>
         <TabsContent value="solvent"><SolventsTab /></TabsContent>

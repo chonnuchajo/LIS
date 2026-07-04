@@ -18,6 +18,7 @@ import {
   type PetitionAuditEvent,
   type PetitionStatus,
 } from "@/types/petition.types";
+import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
 
 const EVENT_VARIANT: Record<PetitionAuditEvent, "gray-soft" | "primary-soft" | "yellow-soft" | "blue-soft" | "green-soft" | "red-soft"> = {
   created: "primary-soft",
@@ -50,6 +51,7 @@ const AdminData = () => {
   const [search, setSearch] = useState("");
   const [logSearch, setLogSearch] = useState("");
   const { data: auditData, loading: auditLoading, error: auditError } = usePetitionAuditLogList({ page: 1, limit: 10 });
+  const { tabs, defaultKey } = useAccessibleTabs("/admin-data");
 
   // Only show QC-approved records (complete results)
   const approvedRecords = doneSamples
@@ -117,12 +119,15 @@ const AdminData = () => {
           description="ข้อมูลที่ผ่านการอนุมัติ QC แล้ว สำหรับการวิเคราะห์แบบ Data Driven"
         />
 
-        <Tabs defaultValue="database">
+        <Tabs defaultValue={defaultKey}>
           <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
             <TabsList className="mb-4 w-max">
-              <TabsTrigger value="database" className="gap-1.5"><Database className="w-4 h-4" />ฐานข้อมูลผลลัพธ์</TabsTrigger>
-              <TabsTrigger value="activelog" className="gap-1.5"><Activity className="w-4 h-4" />Active Log</TabsTrigger>
-              <TabsTrigger value="auditlog" className="gap-1.5"><History className="w-4 h-4" />Audit Log</TabsTrigger>
+              {tabs.map((t) => (
+                <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
+                  {t.icon && <t.icon className="w-4 h-4" />}
+                  {t.label}
+                </TabsTrigger>
+              ))}
             </TabsList>
           </div>
 
