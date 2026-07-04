@@ -2,29 +2,60 @@ import { describe, it, expect, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useAccessibleTabs } from "./useAccessibleTabs";
 
-// canAccess(path): true for everything except the restricted dashboard tab.
-vi.mock("./useCanAccessPath", () => ({
-  useCanAccessPath: () => (path: string) => path !== "/settings/dashboard",
+// Mutable mock the hook reads each render.
+const mock = { permissions: [] as string[], isAdmin: false };
+vi.mock("./useEffectivePermissions", () => ({
+  useEffectivePermissions: () => mock,
 }));
 
-describe("useAccessibleTabs", () => {
-  const keys = ["environment", "printers", "dashboard"];
-
-  it("hides a restricted tab the user cannot access", () => {
-    const { result } = renderHook(() => useAccessibleTabs("/settings", keys));
-    expect(result.current.isVisible("dashboard")).toBe(false);
-    expect(result.current.isVisible("environment")).toBe(true);
-    expect(result.current.visibleKeys).toEqual(["environment", "printers"]);
+describe("useAccessibleTabs (deny model)", () => {
+  it("shows all registry tabs by default (nothing denied)", () => {
+    mock.permissions = [];
+    mock.isAdmin = false;
+    const { result } = renderHook(() => useAccessibleTabs("/stock"));
+    expect(result.current.visibleKeys).toEqual([
+      "standard",
+      "solvent",
+      "glassware",
+      "receive",
+      "history",
+    ]);
   });
 
-  it("keeps unregistered tabs visible regardless of canAccess", () => {
-    const { result } = renderHook(() => useAccessibleTabs("/settings", ["printers"]));
-    // "printers" is not in RESTRICTED_TABS, so it is always visible.
-    expect(result.current.isVisible("printers")).toBe(true);
+  it("hides a denied tab", () => {
+    mock.permissions = ["deny:/stock/history"];
+    mock.isAdmin = false;
+    const { result } = renderHook(() => useAccessibleTabs("/stock"));
+    expect(result.current.isVisible("history")).toBe(false);
+    expect(result.current.visibleKeys).not.toContain("history");
   });
 
-  it("defaultKey is the first visible key", () => {
-    const { result } = renderHook(() => useAccessibleTabs("/settings", keys));
-    expect(result.current.defaultKey).toBe("environment");
+  it("adminOnly tab is hidden for non-admin, shown for admin", () => {
+    mock.permissions = [];
+    mock.isAdmin = false;
+    expect(renderHook(() => useAccessibleTabs("/settings")).result.current.isVisible("line")).toBe(false);
+    mock.isAdmin = true;
+    expect(renderHook(() => useAccessibleTabs("/settings")).result.current.isVisible("line")).toBe(true);
+  });
+
+  it("admin ignores deny tokens", () => {
+    mock.permissions = ["deny:/stock/history"];
+    mock.isAdmin = true;
+    const { result } = renderHook(() => useAccessibleTabs("/stock"));
+    expect(result.current.isVisible("history")).toBe(true);
+  });
+
+  it("keeps an unregistered key visible", () => {
+    mock.permissions = [];
+    mock.isAdmin = false;
+    const { result } = renderHook(() => useAccessibleTabs("/stock"));
+    expect(result.current.isVisible("nonexistent")).toBe(true);
+  });
+
+  it("defaultKey falls back to the first visible key", () => {
+    mock.permissions = ["deny:/stock/standard"];
+    mock.isAdmin = false;
+    const { result } = renderHook(() => useAccessibleTabs("/stock"));
+    expect(result.current.defaultKey).toBe("solvent");
   });
 });
