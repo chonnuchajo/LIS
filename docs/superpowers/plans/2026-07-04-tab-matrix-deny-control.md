@@ -645,7 +645,7 @@ Run: `npx tsc -p tsconfig.app.json --noEmit`
 Expected: no new errors in `SettingsPage.tsx`.
 
 Run: `npx vitest run src/pages/__tests__/SettingsPage.test.tsx`
-Expected: PASS (4 tests) — the tab-name assertions resolve against the mapped `tabs`.
+Expected: PASS (3 tests) — the tab-name assertions resolve against the mapped `tabs`.
 
 - [ ] **Step 5: Commit**
 
