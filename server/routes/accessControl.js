@@ -9,6 +9,7 @@ const { resolveHrField } = require('../lib/userProfile');
 const { primaryRole, normalizeRoles, unionPermissions } = require('../lib/roles');
 const { fetchMonthlyEmployees } = require('../lib/employeeDirectory');
 const { findEmployeeByEmail, findEmployeeById, planEmployeeSync } = require('../lib/employeeLink');
+const { isStorablePermission } = require('../lib/permissionFilter');
 
 const defaultGroups = [
   { id: 'dashboard', name: 'หน้าหลัก', description: 'ภาพรวมแล็บและงานที่กำลังดำเนินการ', paths: ['/', '/home', '/dashboard/lab'], locked: false, sortOrder: 10 },
@@ -486,9 +487,7 @@ router.put('/roles/:id/permissions', async (req, res) => {
     // computed 'others' group — paths that live only in the frontend's
     // PAGE_ITEMS and aren't stored in any group's `paths` — survive the filter.
     const permissions = Array.isArray(req.body.permissions)
-      ? req.body.permissions.filter(
-          id => typeof id === 'string' && (validIds.has(id) || id.startsWith('/')),
-        )
+      ? req.body.permissions.filter(id => isStorablePermission(id, validIds))
       : [];
     const role = await Role.findOneAndUpdate(
       { id: req.params.id },
