@@ -17,6 +17,10 @@ test('addInterval adds day/week/month', () => {
   assert.deepStrictEqual(addInterval(new Date('2026-01-15'), 1, 'month'), new Date('2026-02-15'));
 });
 
+test('addInterval clamps month-end (date-fns addMonths parity)', () => {
+  assert.deepStrictEqual(addInterval(new Date('2026-01-31'), 1, 'month'), new Date('2026-02-28'));
+});
+
 test('computeWorkingLifecycle: shelf + frequency, both under parent', () => {
   const { exp, frequencyDue } = computeWorkingLifecycle({
     withdrawnAt: new Date('2026-01-01'),

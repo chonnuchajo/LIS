@@ -16,9 +16,16 @@ function parseFrequencyInterval(str) {
 function addInterval(from, count, unit) {
   const v = Math.max(0, Math.floor(Number(count) || 0));
   const d = new Date(from);
-  if (unit === 'week') d.setDate(d.getDate() + v * 7);
-  else if (unit === 'month') d.setMonth(d.getMonth() + v);
-  else d.setDate(d.getDate() + v);
+  if (unit === 'week') { d.setDate(d.getDate() + v * 7); return d; }
+  if (unit === 'month') {
+    const day = d.getDate();
+    d.setDate(1);                              // avoid rollover while shifting month
+    d.setMonth(d.getMonth() + v);
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(day, lastDay));         // clamp to end of target month (date-fns addMonths semantics)
+    return d;
+  }
+  d.setDate(d.getDate() + v);
   return d;
 }
 
