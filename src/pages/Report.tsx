@@ -235,7 +235,7 @@ const Report = () => {
           description="ภาพรวม Trend %AI, OEE เครื่องวิเคราะห์ และ Workload บุคลากร"
         />
 
-        <Tabs defaultValue={defaultKey}>
+        <Tabs key={defaultKey} defaultValue={defaultKey}>
           <TabsList className="mb-4 flex-wrap h-auto">
             {tabs.map((t) => (
               <TabsTrigger key={t.key} value={t.key} className="gap-1.5">

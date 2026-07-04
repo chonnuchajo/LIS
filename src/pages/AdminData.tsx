@@ -119,7 +119,7 @@ const AdminData = () => {
           description="ข้อมูลที่ผ่านการอนุมัติ QC แล้ว สำหรับการวิเคราะห์แบบ Data Driven"
         />
 
-        <Tabs defaultValue={defaultKey}>
+        <Tabs key={defaultKey} defaultValue={defaultKey}>
           <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
             <TabsList className="mb-4 w-max">
               {tabs.map((t) => (

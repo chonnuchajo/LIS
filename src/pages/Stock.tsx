@@ -994,7 +994,7 @@ const StockPage = () => {
         title={<span className="inline-flex items-center gap-2"><Package className="w-6 h-6" /> Stock Management</span>}
         description="จัดการ inventory: Standards, สารเคมี, เครื่องแก้ว — บันทึกข้อมูลใน MongoDB"
       />
-      <Tabs defaultValue={defaultKey}>
+      <Tabs key={defaultKey} defaultValue={defaultKey}>
         <TabsList className="mb-4 flex-wrap h-auto">
           {tabs.map((t) => (
             <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
