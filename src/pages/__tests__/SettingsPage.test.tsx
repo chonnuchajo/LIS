@@ -30,6 +30,13 @@ vi.mock("@/hooks/useAuth", () => ({
 
 vi.mock("@/hooks/useAccessibleTabs", () => ({
   useAccessibleTabs: () => ({
+    tabs: [
+      { key: "environment", label: "ห้องตรวจสภาพแวดล้อม" },
+      { key: "printers", label: "เครื่องพิมพ์เอกสาร" },
+      { key: "doc-numbers", label: "รหัสเอกสาร" },
+      { key: "instruments", label: "เครื่องมือ/API" },
+      { key: "dashboard", label: "แดชบอร์ด" },
+    ],
     isVisible: () => true,
     defaultKey: "environment",
   }),

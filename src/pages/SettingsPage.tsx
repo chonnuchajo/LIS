@@ -20,8 +20,6 @@ import type { EnvRoom, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import { DOC_NUMBER_TYPES, type DocumentNumberConfig, type DocumentNumberConfigInput, type DocNumberType } from "@/lib/documentNumberConfig";
 import { normalizeRoles } from "@/lib/roles";
 
-const TAB_KEYS = ["environment", "printers", "doc-numbers", "instruments", "dashboard"];
-
 const SettingsPage = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -124,7 +122,7 @@ const SettingsPage = () => {
   });
   const roleOptions = (accessMatrix?.roles ?? []).map((r) => ({ id: r.id, name: r.name }));
 
-  const { isVisible, defaultKey } = useAccessibleTabs("/settings", TAB_KEYS);
+  const { tabs, isVisible, defaultKey } = useAccessibleTabs("/settings");
   const [activeTab, setActiveTab] = useState<string | undefined>(defaultKey);
   const currentTab = activeTab && isVisible(activeTab) ? activeTab : defaultKey;
 
@@ -147,23 +145,12 @@ const SettingsPage = () => {
       />
       <Tabs value={currentTab} onValueChange={setActiveTab}>
         <TabsList>
-          {isVisible("environment") && (
-            <TabsTrigger value="environment">ห้องตรวจสภาพแวดล้อม</TabsTrigger>
-          )}
-          {isVisible("printers") && (
-            <TabsTrigger value="printers">เครื่องพิมพ์เอกสาร</TabsTrigger>
-          )}
-          {isVisible("doc-numbers") && (
-            <TabsTrigger value="doc-numbers">รหัสเอกสาร</TabsTrigger>
-          )}
-          {isVisible("instruments") && (
-            <TabsTrigger value="instruments">เครื่องมือ/API</TabsTrigger>
-          )}
-          {isVisible("dashboard") && (
-            <TabsTrigger value="dashboard">แดชบอร์ด</TabsTrigger>
-          )}
-          {isAdmin && <TabsTrigger value="line">LINE</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="api">API</TabsTrigger>}
+          {tabs.map((t) => (
+            <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
+              {t.icon && <t.icon className="h-4 w-4" />}
+              {t.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <TabsContent value="environment" className="space-y-3">
