@@ -1,13 +1,9 @@
 // src/components/lis/ChemicalRequisitionPanel.tsx
-// การ์ดเบิกสารเคมี (solvent) — ปุ่มเปิด dialog + รายการที่เบิกวันนี้ + ยกเลิก/คืนสต็อก.
-// ย้ายมาจากการ์ดบนของ RoomEquipmentCheckPage เพื่อใช้ในหน้า "การเบิก stock".
-import { useState } from "react";
+// การ์ดแสดงรายการเบิกสารเคมี (solvent) วันนี้ + ยกเลิก/คืนสต็อก (list-only — ปุ่มเบิกอยู่ที่ StockRequisitionTab)
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FlaskConical, Plus, X } from "lucide-react";
+import { FlaskConical, X } from "lucide-react";
 import { toast } from "sonner";
 
-import ChemicalRequisitionDialog from "@/components/lis/daily-check/ChemicalRequisitionDialog";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import { todayStr } from "@/lib/chemicalRequisition";
@@ -17,12 +13,10 @@ const fmtTime = (iso: string) =>
 
 interface Props {
   roomSlug: string;
-  instruments: { id: string; name: string }[];
 }
 
-export default function ChemicalRequisitionPanel({ roomSlug, instruments }: Props) {
+export default function ChemicalRequisitionPanel({ roomSlug }: Props) {
   const queryClient = useQueryClient();
-  const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data: requisitions = [] } = useQuery({
     queryKey: ["chemical-requisitions", roomSlug, todayStr()],
@@ -38,24 +32,17 @@ export default function ChemicalRequisitionPanel({ roomSlug, instruments }: Prop
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteChemicalRequisition(id),
-    onSuccess: () => {
-      toast.success("ยกเลิกการเบิกแล้ว (คืนสต็อก)");
-      invalidate();
-    },
+    onSuccess: () => { toast.success("ยกเลิกการเบิกแล้ว (คืนสต็อก)"); invalidate(); },
     onError: (err: Error) => toast.error(err.message || "ยกเลิกไม่สำเร็จ"),
   });
 
   return (
     <Card className="border-primary/20">
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
+      <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <FlaskConical className="h-4 w-4 text-primary" />
-          เบิกสารเคมีวันนี้
+          สารเคมีที่เบิกวันนี้
         </CardTitle>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" />
-          เบิกสารเคมี
-        </Button>
       </CardHeader>
       <CardContent>
         {requisitions.length === 0 ? (
@@ -91,15 +78,6 @@ export default function ChemicalRequisitionPanel({ roomSlug, instruments }: Prop
           </ul>
         )}
       </CardContent>
-
-      {dialogOpen && (
-        <ChemicalRequisitionDialog
-          roomSlug={roomSlug}
-          instruments={instruments}
-          onClose={() => setDialogOpen(false)}
-          onSaved={invalidate}
-        />
-      )}
     </Card>
   );
 }
