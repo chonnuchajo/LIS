@@ -1,5 +1,6 @@
 import { addDays, addWeeks, addMonths } from "date-fns";
 import type { StockUnitItem } from "@/types/stock";
+import { parseFrequency, type FrequencyUnit } from "./standardFrequency";
 
 export type ShelfUnit = "day" | "week" | "month";
 export interface OpenShelfLife {
@@ -174,4 +175,53 @@ export function buildUnitTree(
     rows.push({ unit: orphan, label: String(n), depth: 0, hasChildren: false, rootId: orphan._id });
   }
   return rows;
+}
+
+function addInterval(from: Date, count: number, unit: FrequencyUnit): Date {
+  const v = Math.max(0, Math.floor(count || 0));
+  if (unit === "week") return addWeeks(from, v);
+  if (unit === "month") return addMonths(from, v);
+  return addDays(from, v);
+}
+
+/** อายุ working แยก 2 ค่า — mirror ของ server/lib/workingLifecycle.js */
+export function computeWorkingLifecycle(opts: {
+  withdrawnAt: Date;
+  frequency?: string | null;
+  shelf: OpenShelfLife;
+  parentExp: Date | null;
+}): { exp: Date | null; frequencyDue: Date | null } {
+  const { withdrawnAt, frequency, shelf, parentExp } = opts;
+  const cap = (d: Date | null): Date | null =>
+    d && parentExp && d.getTime() > parentExp.getTime() ? parentExp : d;
+  const shelfVal = Math.max(0, Math.floor(Number(shelf?.value) || 0));
+  const exp = shelfVal <= 0 ? parentExp : cap(addShelfLife(withdrawnAt, shelf));
+  const fi = parseFrequency(frequency);
+  const frequencyDue = fi ? cap(addInterval(withdrawnAt, fi.count, fi.unit)) : null;
+  return { exp, frequencyDue };
+}
+
+export type WorkingUsability = "active" | "freqDue" | "expired" | "empty" | "discarded";
+
+/** สถานะการใช้งาน working ของ standard: หมดอายุ (exp) มาก่อนหมดความถี่ (frequencyDue) */
+export function workingUsability(
+  u: { status: string; exp?: string | null; frequencyDue?: string | null },
+  now: Date = new Date(),
+): WorkingUsability {
+  if (u.status === "discarded") return "discarded";
+  if (u.status === "empty") return "empty";
+  if (u.exp && new Date(u.exp).getTime() <= now.getTime()) return "expired";
+  if (u.frequencyDue && new Date(u.frequencyDue).getTime() <= now.getTime()) return "freqDue";
+  return "active";
+}
+
+/** เลือกขวด sealed ที่ EXP ใกล้สุด (FEFO) และยัง active */
+export function pickFefoSealed(units: StockUnitItem[], now: Date = new Date()): StockUnitItem | null {
+  const usable = units.filter((u) => u.kind === "sealed" && unitDerivedStatus(u, now) === "active");
+  if (!usable.length) return null;
+  return usable.slice().sort((a, b) => {
+    const ax = a.exp ? new Date(a.exp).getTime() : Infinity;
+    const bx = b.exp ? new Date(b.exp).getTime() : Infinity;
+    return ax - bx;
+  })[0];
 }

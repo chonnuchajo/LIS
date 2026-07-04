@@ -99,6 +99,7 @@ export interface StockUnitItem {
   parentId?: string | null;
   lotNo?: string;
   exp?: string | null;
+  frequencyDue?: string | null;
   volume: StockUnitVolume;
   status: StockUnitStatus;
   receivedDate?: string | null;
