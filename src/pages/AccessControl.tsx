@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { NAV_ITEMS, PAGE_ITEMS, type NavItem } from "@/lib/navItems";
-import { restrictedTabsFor, tabPath } from "@/lib/tabItems";
+import { configurableTabsFor, denyToken, isTabDenied, tabsFor } from "@/lib/tabRegistry";
 import {
   ChevronDown,
   ChevronRight,
@@ -122,8 +122,7 @@ const PathPicker = ({
     if (checked) {
       if (!value.includes(item.path)) onChange([...value, item.path]);
     } else {
-      const childTabPaths = restrictedTabsFor(item.path).map((t) => tabPath(t.parent, t.key));
-      onChange(value.filter((p) => p !== item.path && !childTabPaths.includes(p)));
+      onChange(value.filter((p) => p !== item.path));
     }
   };
 
@@ -196,33 +195,6 @@ const PathPicker = ({
                     {item.path}
                   </span>
                 </label>
-                {checked &&
-                  restrictedTabsFor(item.path).map((tab) => {
-                    const tabVirtualPath = tabPath(tab.parent, tab.key);
-                    const tabChecked = value.includes(tabVirtualPath);
-                    return (
-                      <label
-                        key={tabVirtualPath}
-                        className="ml-6 flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-accent"
-                      >
-                        <Checkbox
-                          checked={tabChecked}
-                          disabled={disabled}
-                          onCheckedChange={(c) =>
-                            onChange(
-                              c === true
-                                ? [...value, tabVirtualPath]
-                                : value.filter((p) => p !== tabVirtualPath),
-                            )
-                          }
-                        />
-                        <span className="truncate text-xs text-muted-foreground">↳ {tab.label}</span>
-                        <span className="ml-auto truncate font-mono text-[10px] text-muted-foreground">
-                          {tabVirtualPath}
-                        </span>
-                      </label>
-                    );
-                  })}
               </div>
             );
           })}
@@ -263,6 +235,7 @@ const AccessControl = () => {
   const [navDrag, setNavDrag] = useState<{ groupId: string; path: string } | null>(null);
   const [navDragOverPath, setNavDragOverPath] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
   const [directory, setDirectory] = useState<EmployeeDirectoryEntry[]>([]);
   const [linkingUserId, setLinkingUserId] = useState<string | null>(null);
   const [employeeSearch, setEmployeeSearch] = useState("");
@@ -717,6 +690,25 @@ const AccessControl = () => {
     });
   };
 
+  const toggleExpandedPage = (groupId: string, path: string) => {
+    const key = `${groupId}|${path}`;
+    setExpandedPages((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  // A stored path like "/settings/dashboard" whose parent has a registry tab of that
+  // key is a leftover tab-grant from the old opt-in model — never render it as a page
+  // row (its tab is now shown under its parent page instead).
+  const isTabVirtualPath = (p: string) => {
+    const i = p.lastIndexOf("/");
+    if (i <= 0) return false;
+    return tabsFor(p.slice(0, i)).some((t) => t.key === p.slice(i + 1));
+  };
+
   const savePermissions = async (roleId: string, nextRolePermissions: string[]) => {
     const previous = permissions[roleId];
     setPermissions((current) => ({ ...current, [roleId]: nextRolePermissions }));
@@ -785,6 +777,22 @@ const AccessControl = () => {
       (entry) => entry !== group.id && !groupPathSet.has(entry),
     );
     next.push(...groupPaths.filter((p) => granted.has(p)));
+    savePermissions(roleId, next);
+  };
+
+  const toggleTabForRole = (
+    roleId: string,
+    parent: string,
+    key: string,
+    allowed: boolean,
+  ) => {
+    const token = denyToken(parent, key);
+    const current = permissions[roleId] ?? [];
+    const next = allowed
+      ? current.filter((p) => p !== token)
+      : current.includes(token)
+        ? current
+        : [...current, token];
     savePermissions(roleId, next);
   };
 
@@ -1358,52 +1366,88 @@ const AccessControl = () => {
                               ))}
                             </TableRow>
                             {expanded &&
-                              groupPaths.map((path) => {
-                                const navItem = navItemByPath.get(path);
-                                return (
-                                  <TableRow
-                                    key={`${group.id}-${path}`}
-                                    className="bg-muted/30"
-                                  >
-                                    <TableCell className="sticky left-0 z-10 min-w-[130px] w-[130px] sm:min-w-[200px] sm:w-[200px] md:min-w-[240px] md:w-[240px] bg-card py-1.5 pl-12 shadow-[1px_0_0_0_hsl(var(--border))]">
-                                      <div className="flex items-center gap-2">
-                                        {navItem ? (
-                                          <>
-                                            <navItem.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                                            <span className="text-sm">{navItem.label}</span>
-                                            <span className="ml-1 font-mono text-[10px] text-muted-foreground">
-                                              {path}
-                                            </span>
-                                          </>
-                                        ) : (
-                                          <span className="font-mono text-xs text-muted-foreground">
-                                            {path}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </TableCell>
-                                    {roles.map((role) => (
-                                      <TableCell
-                                        key={role.id}
-                                        className="px-1 py-1.5 text-center sm:px-4"
-                                      >
-                                        <Checkbox
-                                          checked={isPageGranted(role.id, group, path)}
-                                          onCheckedChange={(c) =>
-                                            togglePageForRole(
-                                              role.id,
-                                              group,
-                                              path,
-                                              c === true,
-                                            )
-                                          }
-                                          aria-label={`${role.name} ${navItem?.label ?? path}`}
-                                        />
-                                      </TableCell>
-                                    ))}
-                                  </TableRow>
-                                );
-                              })}
+                              groupPaths
+                                .filter((path) => !isTabVirtualPath(path))
+                                .map((path) => {
+                                  const navItem = navItemByPath.get(path);
+                                  const pageTabs = configurableTabsFor(path);
+                                  const pageExpandKey = `${group.id}|${path}`;
+                                  const pageExpanded = expandedPages.has(pageExpandKey);
+                                  return (
+                                    <Fragment key={`${group.id}-${path}`}>
+                                      <TableRow className="bg-muted/30">
+                                        <TableCell className="sticky left-0 z-10 min-w-[130px] w-[130px] sm:min-w-[200px] sm:w-[200px] md:min-w-[240px] md:w-[240px] bg-card py-1.5 pl-12 shadow-[1px_0_0_0_hsl(var(--border))]">
+                                          <div className="flex items-center gap-2">
+                                            {pageTabs.length > 0 ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => toggleExpandedPage(group.id, path)}
+                                                className="rounded text-muted-foreground hover:text-foreground"
+                                                aria-label={pageExpanded ? "ยุบรายแท็บ" : "ขยายรายแท็บ"}
+                                                aria-expanded={pageExpanded}
+                                              >
+                                                {pageExpanded ? (
+                                                  <ChevronDown className="h-3.5 w-3.5" />
+                                                ) : (
+                                                  <ChevronRight className="h-3.5 w-3.5" />
+                                                )}
+                                              </button>
+                                            ) : (
+                                              <span className="inline-block w-3.5" />
+                                            )}
+                                            {navItem ? (
+                                              <>
+                                                <navItem.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                                <span className="text-sm">{navItem.label}</span>
+                                                <span className="ml-1 font-mono text-[10px] text-muted-foreground">
+                                                  {path}
+                                                </span>
+                                              </>
+                                            ) : (
+                                              <span className="font-mono text-xs text-muted-foreground">
+                                                {path}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </TableCell>
+                                        {roles.map((role) => (
+                                          <TableCell key={role.id} className="px-1 py-1.5 text-center sm:px-4">
+                                            <Checkbox
+                                              checked={isPageGranted(role.id, group, path)}
+                                              onCheckedChange={(c) =>
+                                                togglePageForRole(role.id, group, path, c === true)
+                                              }
+                                              aria-label={`${role.name} ${navItem?.label ?? path}`}
+                                            />
+                                          </TableCell>
+                                        ))}
+                                      </TableRow>
+                                      {pageExpanded &&
+                                        pageTabs.map((tab) => (
+                                          <TableRow key={`${group.id}-${path}-${tab.key}`} className="bg-muted/10">
+                                            <TableCell className="sticky left-0 z-10 min-w-[130px] w-[130px] sm:min-w-[200px] sm:w-[200px] md:min-w-[240px] md:w-[240px] bg-card py-1 pl-[4.5rem] shadow-[1px_0_0_0_hsl(var(--border))]">
+                                              <span className="text-xs text-muted-foreground">↳ {tab.label}</span>
+                                            </TableCell>
+                                            {roles.map((role) => {
+                                              const pageGranted = isPageGranted(role.id, group, path);
+                                              return (
+                                                <TableCell key={role.id} className="px-1 py-1 text-center sm:px-4">
+                                                  <Checkbox
+                                                    checked={!isTabDenied(permissions[role.id] ?? [], path, tab.key)}
+                                                    disabled={!pageGranted}
+                                                    onCheckedChange={(c) =>
+                                                      toggleTabForRole(role.id, path, tab.key, c === true)
+                                                    }
+                                                    aria-label={`${role.name} ${navItem?.label ?? path} ${tab.label}`}
+                                                  />
+                                                </TableCell>
+                                              );
+                                            })}
+                                          </TableRow>
+                                        ))}
+                                    </Fragment>
+                                  );
+                                })}
                           </Fragment>
                         );
                       })}
