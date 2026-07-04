@@ -68,10 +68,10 @@ export default function ChemicalRequisitionPanel({ roomSlug, instruments }: Prop
                   {req.createdAt ? fmtTime(req.createdAt) : ""}
                 </span>
                 <span className="font-medium">{req.solventName}</span>
-                <span className="text-muted-foreground">x {req.qty} ขวด</span>
-                <span className="text-muted-foreground">to {req.instrumentName}</span>
+                <span className="text-muted-foreground">× {req.qty} ขวด</span>
+                <span className="text-muted-foreground">→ {req.instrumentName}</span>
                 {req.requestedBy?.name && (
-                  <span className="text-xs text-muted-foreground">by {req.requestedBy.name}</span>
+                  <span className="text-xs text-muted-foreground">โดย {req.requestedBy.name}</span>
                 )}
                 <button
                   type="button"
