@@ -14,6 +14,7 @@ import { pathMatches, userCanAccessPath } from "@/lib/accessControl";
 import { api } from "@/lib/api";
 import { normalizeRoles, unionPermissions } from "@/lib/roles";
 import { useIsTablet } from "@/hooks/use-mobile";
+import { useActiveRole } from "@/store/activeRole";
 
 type RoleOption = {
   id: string;
@@ -53,6 +54,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
   const queryClient = useQueryClient();
   const isTablet = useIsTablet();
   const isDrawer = variant === "drawer";
+  const { activeRole } = useActiveRole(normalizeRoles(user));
 
   const { data: accessControl } = useQuery({
     queryKey: ACCESS_CONTROL_QUERY_KEY,
@@ -73,10 +75,11 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
       user
         ? {
             ...user,
-            permissions: unionPermissions(normalizeRoles(user), accessControl?.permissions ?? {}),
+            roles: [activeRole],
+            permissions: unionPermissions([activeRole], accessControl?.permissions ?? {}),
           }
         : user,
-    [user, accessControl?.permissions],
+    [user, activeRole, accessControl?.permissions],
   );
 
   const [storedCollapsed, setStoredCollapsed] = useState<boolean>(() => {
@@ -309,17 +312,11 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
               )}
               <div className={cn("space-y-1 overflow-hidden", isGroupCollapsed && "hidden")}>
                 {visibleItems.map((item) => {
-                  const targetPath =
-                    item.path === "/"
-                      ? normalizeRoles(user).some(
-                          (r) => r === "qc" || r.startsWith("qc-") || r.startsWith("qc_"),
-                        )
-                        ? "/dashboard/qc"
-                        : "/dashboard/lab"
-                      : item.path;
+                  const targetPath = item.path === "/" ? "/home" : item.path;
                   const isActive =
                     item.path === activePath ||
-                    (item.path === "/" && location.pathname.startsWith("/dashboard/"));
+                    (item.path === "/" &&
+                      (location.pathname === "/home" || location.pathname.startsWith("/dashboard/")));
                   const Btn = (
                     <button
                       key={item.path}
