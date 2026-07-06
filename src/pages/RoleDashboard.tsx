@@ -20,6 +20,16 @@ const ACTION_LABEL: Record<string, string> = {
   "lab-inventory": "จัดการ", admin: "ดูรายละเอียด", viewer: "ดูรายละเอียด",
 };
 
+// Guards against CSV formula injection (Excel/Sheets execute cells starting with
+// = + - @ or a leading tab/CR as formulas) and quotes/escapes so commas or
+// embedded quotes in field values can't misalign the row.
+function csvCell(value: unknown): string {
+  const raw = String(value ?? "");
+  const dangerous = /^[=+\-@\t\r]/.test(raw);
+  const neutralized = dangerous ? `'${raw}` : raw;
+  return `"${neutralized.replace(/"/g, '""')}"`;
+}
+
 export default function RoleDashboard() {
   const { user } = useAuth();
   const roles = normalizeRoles(user);
@@ -44,8 +54,10 @@ export default function RoleDashboard() {
 
   const handleExport = () => {
     const header = ["คำร้อง", "ผู้ขอ", "ตัวอย่าง", "สถานะ"];
-    const lines = petitions.map((p) => [p.petitionNo, p.submittedBy?.name ?? "", p.items.length, p.status].join(","));
-    const blob = new Blob(["﻿" + [header.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+    const lines = petitions.map((p) =>
+      [p.petitionNo, p.submittedBy?.name ?? "", p.items.length, p.status].map(csvCell).join(","),
+    );
+    const blob = new Blob(["﻿" + [header.map(csvCell).join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = `dashboard-${profileId}.csv`; a.click();
