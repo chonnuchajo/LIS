@@ -65,6 +65,8 @@ export interface StockTransactionItem {
   beforeQty?: number | null;
   afterQty?: number | null;
   delta?: number | null;
+  volumeDelta?: number | null;
+  qrId?: string;
   unit?: string;
   sampleId?: string;
   note?: string;
@@ -99,6 +101,7 @@ export interface StockUnitItem {
   parentId?: string | null;
   lotNo?: string;
   exp?: string | null;
+  frequencyDue?: string | null;
   volume: StockUnitVolume;
   status: StockUnitStatus;
   receivedDate?: string | null;

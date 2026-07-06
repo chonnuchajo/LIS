@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
-import ChemicalRequisitionPanel from "@/components/lis/ChemicalRequisitionPanel";
+import StockRequisitionTab from "@/components/lis/StockRequisitionTab";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
 import { getRoomCatalog } from "@/lib/roomEquipment";
 import type { StockTransactionItem } from "@/types/stock";
@@ -94,7 +94,7 @@ const StockDeduction = () => {
         </TabsList>
 
         <TabsContent value="requisition">
-          <ChemicalRequisitionPanel roomSlug={ANALYSIS_ROOM_SLUG} instruments={analysisInstruments} />
+          <StockRequisitionTab roomSlug={ANALYSIS_ROOM_SLUG} instruments={analysisInstruments} />
         </TabsContent>
 
         <TabsContent value="history">

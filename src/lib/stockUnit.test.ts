@@ -8,6 +8,9 @@ import {
   unitDerivedStatus,
   summarizeUnits,
   buildUnitTree,
+  computeWorkingLifecycle,
+  workingUsability,
+  pickFefoSealed,
 } from "./stockUnit";
 import type { StockUnitItem } from "@/types/stock";
 
@@ -174,5 +177,82 @@ describe("buildUnitTree", () => {
     const orphan = rows.find((r) => r.unit._id === "worphan")!;
     expect(orphan.depth).toBe(0);
     expect(orphan.hasChildren).toBe(false);
+  });
+});
+
+describe("computeWorkingLifecycle", () => {
+  it("exp = withdraw + shelf, frequencyDue = withdraw + frequency", () => {
+    const r = computeWorkingLifecycle({
+      withdrawnAt: new Date("2026-01-01"), frequency: "1/1 week",
+      shelf: { value: 30, unit: "day" }, parentExp: new Date("2026-12-31"),
+    });
+    expect(r.exp).toEqual(new Date("2026-01-31"));
+    expect(r.frequencyDue).toEqual(new Date("2026-01-08"));
+  });
+  it("no frequency → frequencyDue null", () => {
+    const r = computeWorkingLifecycle({
+      withdrawnAt: new Date("2026-01-01"), frequency: "", shelf: { value: 30, unit: "day" }, parentExp: null,
+    });
+    expect(r.frequencyDue).toBeNull();
+  });
+  it("shelf 0 → exp = parentExp", () => {
+    const r = computeWorkingLifecycle({
+      withdrawnAt: new Date("2026-01-01"), frequency: "1/1 week", shelf: { value: 0, unit: "day" }, parentExp: new Date("2026-06-30"),
+    });
+    expect(r.exp).toEqual(new Date("2026-06-30"));
+  });
+  it("caps exp at parentExp when shelf pushes past it", () => {
+    const r = computeWorkingLifecycle({
+      withdrawnAt: new Date("2026-01-01"), frequency: "", shelf: { value: 300, unit: "day" }, parentExp: new Date("2026-02-01"),
+    });
+    expect(r.exp).toEqual(new Date("2026-02-01"));
+  });
+  it("caps frequencyDue at parentExp when interval pushes past it", () => {
+    const r = computeWorkingLifecycle({
+      withdrawnAt: new Date("2026-01-01"), frequency: "1/6 month", shelf: { value: 5, unit: "day" }, parentExp: new Date("2026-02-01"),
+    });
+    expect(r.frequencyDue).toEqual(new Date("2026-02-01"));
+  });
+});
+
+describe("workingUsability", () => {
+  const now = new Date("2026-06-15");
+  it("active when before both", () => {
+    expect(workingUsability({ status: "active", exp: "2026-07-01", frequencyDue: "2026-06-20" }, now)).toBe("active");
+  });
+  it("freqDue when past frequencyDue but before exp", () => {
+    expect(workingUsability({ status: "active", exp: "2026-07-01", frequencyDue: "2026-06-10" }, now)).toBe("freqDue");
+  });
+  it("expired takes priority over freqDue", () => {
+    expect(workingUsability({ status: "active", exp: "2026-06-01", frequencyDue: "2026-06-10" }, now)).toBe("expired");
+  });
+  it("no frequencyDue → governed by exp only", () => {
+    expect(workingUsability({ status: "active", exp: "2026-07-01", frequencyDue: null }, now)).toBe("active");
+  });
+  it("discarded/empty short-circuit", () => {
+    expect(workingUsability({ status: "discarded" }, now)).toBe("discarded");
+    expect(workingUsability({ status: "empty" }, now)).toBe("empty");
+  });
+});
+
+describe("pickFefoSealed", () => {
+  it("picks earliest-exp active sealed, ignores working/expired/discarded", () => {
+    const units = [
+      mk({ _id: "s1", kind: "sealed", exp: "2026-12-31" }),
+      mk({ _id: "s2", kind: "sealed", exp: "2026-03-01" }),
+      mk({ _id: "w1", kind: "working", exp: "2026-01-01" }),
+      mk({ _id: "s3", kind: "sealed", status: "discarded", exp: "2026-02-01" }),
+    ];
+    expect(pickFefoSealed(units, new Date("2026-01-01"))?._id).toBe("s2");
+  });
+  it("returns null when no active sealed", () => {
+    expect(pickFefoSealed([mk({ _id: "w1", kind: "working" })], new Date("2026-01-01"))).toBeNull();
+  });
+  it("ignores an expired sealed bottle even if its exp is earliest", () => {
+    const units = [
+      mk({ _id: "s1", kind: "sealed", exp: "2026-06-01" }),
+      mk({ _id: "sx", kind: "sealed", exp: "2025-01-01" }), // expired relative to `now` below
+    ];
+    expect(pickFefoSealed(units, new Date("2026-01-01"))?._id).toBe("s1");
   });
 });

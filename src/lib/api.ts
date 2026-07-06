@@ -345,8 +345,8 @@ export const api = {
       `/stock/units/${encodeURIComponent(qrId)}/withdraw`,
       { method: "POST", body: JSON.stringify(body) },
     ),
-  discardStockUnit: (qrId: string, body: { reason?: string }) =>
-    request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}/discard`, {
+  discardStockUnit: (qrId: string, body: { reason?: string; cascade?: boolean }) =>
+    request<{ discarded: string[]; count: number }>(`/stock/units/${encodeURIComponent(qrId)}/discard`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
