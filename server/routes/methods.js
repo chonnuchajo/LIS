@@ -2,7 +2,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const Method = require('../models/Method');
 const SimpleMethod = require('../models/SimpleMethod');
-const StandardConfig = require('../models/StandardConfig');
 
 const router = express.Router();
 
@@ -106,8 +105,7 @@ router.delete('/:id', async (req, res) => {
     if (doc.builtIn) return res.status(403).json({ message: 'ลบวิธีพื้นฐานไม่ได้ (ปิดการใช้งานแทน)' });
     // Block delete if referenced anywhere.
     const inSimple = await SimpleMethod.findOne({ methods: { $elemMatch: { $elemMatch: { $eq: doc.code } } } }).lean();
-    const inStd = await StandardConfig.findOne({ instrument: doc.code }).lean();
-    if (inSimple || inStd) {
+    if (inSimple) {
       return res.status(409).json({ message: 'วิธีนี้ถูกใช้อยู่ ลบไม่ได้ (ปิดการใช้งานแทน)' });
     }
     const actor = req.query.actor || (req.body && req.body.actor) || 'system';

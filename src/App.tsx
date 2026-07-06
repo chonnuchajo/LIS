@@ -61,7 +61,6 @@ const QCTestingPage = lazy(() => import("./pages/QCTestingPage"));
 const QCTestingDetailPage = lazy(() => import("./pages/QCTestingDetailPage"));
 const LabTestingPage = lazy(() => import("./pages/LabTestingPage"));
 const LabTestingDetailPage = lazy(() => import("./pages/LabTestingDetailPage"));
-const StandardConfig = lazy(() => import("./pages/StandardConfig"));
 const DensityResultPage = lazy(() => import('./pages/DensityResultPage'));
 
 const RouteFallback = () => (
@@ -140,7 +139,6 @@ const App = () => (
               <Route path="/access-control" element={<PrivateRoute><AccessControl /></PrivateRoute>} />
               <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
               <Route path="/parameter-settings" element={<PrivateRoute><ParameterSettings /></PrivateRoute>} />
-              <Route path="/standard-config" element={<PrivateRoute><StandardConfig /></PrivateRoute>} />
               <Route path="/petitions" element={<PrivateRoute><PetitionListPage /></PrivateRoute>} />
               <Route path="/adutuilog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
               <Route path="/auditlog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
