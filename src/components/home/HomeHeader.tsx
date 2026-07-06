@@ -1,5 +1,6 @@
 import { Sparkles } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { formatThaiDate, currentShift, greetForHour } from "@/lib/dateShift";
 
 interface HomeHeaderProps {
   title: string;
@@ -7,24 +8,11 @@ interface HomeHeaderProps {
   icon?: LucideIcon;
 }
 
-const SHIFT_SWITCH_HOUR = 12;
-
-const greetForHour = (h: number) => {
-  if (h < 12) return "อรุณสวัสดิ์";
-  if (h < 17) return "สวัสดีตอนบ่าย";
-  return "สวัสดีตอนเย็น";
-};
-
 export default function HomeHeader({ title, subtitle, icon: Icon = Sparkles }: HomeHeaderProps) {
   const now = new Date();
-  const dateText = now.toLocaleDateString("th-TH", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const dateText = formatThaiDate(now);
   const greet = greetForHour(now.getHours());
-  const shift = now.getHours() < SHIFT_SWITCH_HOUR ? "กะเช้า" : "กะบ่าย";
+  const shift = currentShift(now);
 
   return (
     <div className="mt-2 mb-6 flex flex-wrap items-start gap-4">
