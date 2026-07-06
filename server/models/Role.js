@@ -7,6 +7,7 @@ const RoleSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   locked: { type: Boolean, default: false },
   permissions: { type: [String], default: [] },
+  dashboardProfile: { type: String, default: '' },
 }, { timestamps: true });
 
 RoleSchema.index({ id: 1, deletedAt: 1 }, { unique: true });
