@@ -13,6 +13,7 @@ import { normalizeRoles } from "@/lib/roles";
 import { resolveProfileForRole, DASHBOARD_PROFILES } from "@/lib/dashboardProfiles";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { loadAccessControl } from "@/lib/accessControlSource";
+import GenericMenuGrid from "@/components/dashboard/GenericMenuGrid";
 
 const ACTION_LABEL: Record<string, string> = {
   "qc-reviewer": "อนุมัติผล", "qc-head": "อนุมัติ", "qc-staff": "ดำเนินการ",
@@ -44,9 +45,14 @@ export default function RoleDashboard() {
     [roleObjs],
   );
 
+  // resolveProfileForRole returns null for a custom/unknown role with no real
+  // profile match (explicit `viewer` role still resolves to "viewer" via the
+  // default map). Hooks below must stay unconditional, so we feed
+  // useDashboardData a harmless placeholder profile in the no-match case and
+  // branch only on what gets rendered.
   const profileId = resolveProfileForRole(activeRole, roleObjs);
-  const profile = DASHBOARD_PROFILES[profileId];
-  const { petitions, ctx, refresh } = useDashboardData(profile);
+  const profile = profileId ? DASHBOARD_PROFILES[profileId] : null;
+  const { petitions, ctx, refresh } = useDashboardData(profile ?? DASHBOARD_PROFILES.viewer);
 
   const urgentIds = useMemo(
     () => new Set(petitions.filter((p) => ctx.abnormalFlags[p._id] || ctx.returnedFlags[p._id]).map((p) => p._id)),
@@ -58,6 +64,14 @@ export default function RoleDashboard() {
     queryClient.invalidateQueries({ queryKey: ["dash"] });
     queryClient.invalidateQueries({ queryKey: ["access-control"] });
   };
+
+  if (!profileId || !profile) {
+    return (
+      <AppLayout>
+        <GenericMenuGrid />
+      </AppLayout>
+    );
+  }
 
   const handleExport = () => {
     const header = ["คำร้อง", "ผู้ขอ", "ตัวอย่าง", "สถานะ"];

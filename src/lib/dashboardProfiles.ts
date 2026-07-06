@@ -152,11 +152,17 @@ const DEFAULT_PROFILE_MAP: Record<string, DashboardProfileId> = {
   admin: "admin", qc: "qc-reviewer", lab: "lab-analyze", viewer: "viewer",
 };
 
-/** role.id → profile: explicit dashboardProfile wins, else default map, else rank prefix, else viewer. */
+/**
+ * role.id → profile: explicit dashboardProfile wins, else default map, else
+ * rank prefix, else null (no real match). A `null` result means the caller
+ * should fall back to the generic menu-grid dashboard, NOT the viewer
+ * petition-data dashboard — the explicit `viewer` role still resolves to
+ * "viewer" via the default map, so real Viewer users are unaffected.
+ */
 export function resolveProfileForRole(
   roleId: string,
   roles: { id: string; dashboardProfile?: string | null }[],
-): DashboardProfileId {
+): DashboardProfileId | null {
   const explicit = roles.find((r) => r.id === roleId)?.dashboardProfile;
   if (explicit && DASHBOARD_PROFILE_IDS.includes(explicit as DashboardProfileId)) {
     return explicit as DashboardProfileId;
@@ -165,7 +171,7 @@ export function resolveProfileForRole(
   if (roleId === "qc" || roleId.startsWith("qc-") || roleId.startsWith("qc_")) return "qc-reviewer";
   if (roleId === "lab" || roleId.startsWith("lab-") || roleId.startsWith("lab_")) return "lab-analyze";
   if (roleId === "admin") return "admin";
-  return "viewer";
+  return null;
 }
 
 /** stored active role wins if the user still holds it, else primaryRole. */

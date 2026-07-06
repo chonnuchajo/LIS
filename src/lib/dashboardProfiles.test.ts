@@ -15,11 +15,14 @@ describe("resolveProfileForRole", () => {
     expect(resolveProfileForRole("admin", [{ id: "admin" }])).toBe("admin");
     expect(resolveProfileForRole("viewer", [{ id: "viewer" }])).toBe("viewer");
   });
-  it("falls back by rank prefix then generic viewer", () => {
+  it("falls back by rank prefix then null (no real match)", () => {
     expect(resolveProfileForRole("qc-night", [{ id: "qc-night" }])).toBe("qc-reviewer");
     expect(resolveProfileForRole("lab_x", [{ id: "lab_x" }])).toBe("lab-analyze");
-    expect(resolveProfileForRole("random", [{ id: "random" }])).toBe("viewer");
-    expect(resolveProfileForRole("missing", [])).toBe("viewer");
+    expect(resolveProfileForRole("random", [{ id: "random" }])).toBeNull();
+    expect(resolveProfileForRole("missing", [])).toBeNull();
+  });
+  it("explicit viewer role still resolves to the viewer dashboard, not null", () => {
+    expect(resolveProfileForRole("viewer", [{ id: "viewer" }])).toBe("viewer");
   });
 });
 
