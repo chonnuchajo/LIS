@@ -9,7 +9,15 @@ export type AccessGroup = { id: string; paths?: string[] };
 export type AccessControlPayload = {
   groups: AccessGroup[];
   permissions: Record<string, string[]>;
-  roles?: { id: string; name: string }[];
+  roles?: { id: string; name: string; dashboardProfile?: string | null }[];
+  users?: {
+    id?: string;
+    name?: string;
+    email?: string;
+    status?: "active" | "inactive";
+    roleId?: string;
+    roleIds?: string[];
+  }[];
 };
 
 let cache: AccessControlPayload | null = null;
