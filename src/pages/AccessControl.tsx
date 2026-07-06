@@ -264,7 +264,7 @@ const AccessControl = () => {
       setUsers((current) => current.map((user) => (user.id === id ? normalized : user)));
     } catch (err) {
       setUsers(previous);
-      toast.error(err instanceof Error ? err.message : "Failed to update user");
+      toast.error(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
     }
   };
 
@@ -272,9 +272,9 @@ const AccessControl = () => {
     try {
       await api.delete(`/access-control/users/${id}`);
       setUsers((current) => current.filter((user) => user.id !== id));
-      toast.success("User removed");
+      toast.success("ลบผู้ใช้แล้ว");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to remove user");
+      toast.error(err instanceof Error ? err.message : "ลบผู้ใช้ไม่สำเร็จ");
     }
   };
 
@@ -333,7 +333,7 @@ const AccessControl = () => {
       setUsers((current) => [...current, normalized]);
       toast.success("เพิ่มผู้ใช้แล้ว");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to add user");
+      toast.error(err instanceof Error ? err.message : "เพิ่มผู้ใช้ไม่สำเร็จ");
     }
   };
 
@@ -346,7 +346,7 @@ const AccessControl = () => {
       notifyGroupMappingChanged();
       toast.success("เพิ่ม Role แล้ว");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to add role");
+      toast.error(err instanceof Error ? err.message : "เพิ่ม Role ไม่สำเร็จ");
     }
   };
 
@@ -373,7 +373,7 @@ const AccessControl = () => {
         return next;
       });
       notifyGroupMappingChanged();
-      toast.success("Role removed");
+      toast.success("ลบ Role แล้ว");
     } catch (err) {
       const anyErr = err as { response?: { data?: { error?: string; userCount?: number } }; message?: string };
       const serverMsg = anyErr.response?.data?.error;
@@ -381,7 +381,7 @@ const AccessControl = () => {
       toast.error(
         serverMsg === "role has assigned users"
           ? `ลบไม่ได้: ยังมีผู้ใช้${count ? ` ${count} คน` : ""}ใช้ role นี้อยู่`
-          : (serverMsg ?? (err instanceof Error ? err.message : "Failed to remove role")),
+          : (serverMsg ?? (err instanceof Error ? err.message : "ลบ Role ไม่สำเร็จ")),
       );
     }
   };

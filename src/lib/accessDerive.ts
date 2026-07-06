@@ -27,7 +27,10 @@ export function paginate<T>(list: T[], page: number, pageSize: number): { items:
 }
 
 export function countUsersInRole(users: AppUser[], roleId: string): number {
-  return users.filter((u) => u.roleIds.includes(roleId)).length;
+  return users.filter((u) => {
+    const ids = u.roleIds?.length ? u.roleIds : (u.roleId ? [u.roleId] : []);
+    return ids.includes(roleId);
+  }).length;
 }
 
 export function rolePermissionCount(permissions: Record<string, string[]>, roleId: string): number {

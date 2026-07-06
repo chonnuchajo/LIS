@@ -54,6 +54,9 @@ describe("role helpers", () => {
     expect(countUsersInRole(users, "viewer")).toBe(1);
     expect(countUsersInRole(users, "none")).toBe(0);
   });
+  it("countUsersInRole falls back to legacy singular roleId when roleIds is empty", () => {
+    expect(countUsersInRole([{ ...u({}), roleId: "qc", roleIds: [] }], "qc")).toBe(1);
+  });
   it("rolePermissionCount reads permissions[roleId] length, missing = 0", () => {
     expect(rolePermissionCount({ qc: ["/a", "/b"] }, "qc")).toBe(2);
     expect(rolePermissionCount({}, "qc")).toBe(0);
