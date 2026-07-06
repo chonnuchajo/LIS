@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DashboardLayoutPreview from "@/components/lis/DashboardLayoutPreview";
 import { api } from "@/lib/api";
+import { loadAccessControl, invalidateAccessControl } from "@/lib/accessControlSource";
+import { DASHBOARD_PROFILE_IDS, DASHBOARD_PROFILES } from "@/lib/dashboardProfiles";
 import {
   DASHBOARD_IDS,
   DEFAULT_ROLE_ID,
@@ -41,6 +43,11 @@ export default function DashboardLayoutConfigCard({ roles }: Props) {
     queryKey: ["dashboard-layout", dashboard],
     queryFn: () => api.getDashboardLayouts(dashboard),
     staleTime: 60_000,
+  });
+
+  const { data: access } = useQuery({
+    queryKey: ["access-control"],
+    queryFn: () => loadAccessControl(),
   });
 
   // The layout currently being edited (local, unsaved).
@@ -101,99 +108,145 @@ export default function DashboardLayoutConfigCard({ roles }: Props) {
   const kpiEnabled = draft.sections.find((s) => s.id === "kpi")?.enabled ?? true;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {/* Controls */}
-      <div className="space-y-4 rounded-xl border border-border bg-card p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <Tabs value={dashboard} onValueChange={(v) => setDashboard(v as DashboardId)}>
-            <TabsList>
-              {DASHBOARD_IDS.map((d) => (
-                <TabsTrigger key={d} value={d}>
-                  {d === "lab" ? "Lab" : "QC"}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-          <Select value={roleId} onValueChange={setRoleId}>
-            <SelectTrigger className="h-9 w-56">
-              <SelectValue placeholder="เลือก role" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={DEFAULT_ROLE_ID}>ค่ามาตรฐาน (default)</SelectItem>
-              {roles.map((r) => (
-                <SelectItem key={r.id} value={r.id}>
-                  {r.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Section list */}
-        <div className="space-y-2">
-          {sectionsInOrder.map((s) => {
-            const def = defOf(s.id);
-            const forced = FORCED_SECTIONS.includes(s.id);
-            return (
-              <div key={s.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2">
-                <div className="flex gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    disabled={!def?.reorderable || s.id === "header"}
-                    onClick={() => move(s.id, -1)}
-                    aria-label="เลื่อนขึ้น"
-                  >
-                    <ArrowUp className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    disabled={!def?.reorderable || s.id === "header"}
-                    onClick={() => move(s.id, 1)}
-                    aria-label="เลื่อนลง"
-                  >
-                    <ArrowDown className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-                <span className="flex-1 text-sm">{labelOf(s.id)}</span>
-                <Switch
-                  checked={s.enabled}
-                  disabled={forced}
-                  onCheckedChange={() => toggleSection(s.id)}
-                  title={forced ? "ส่วนนี้ต้องแสดงเสมอ" : undefined}
-                />
-              </div>
-            );
-          })}
-        </div>
-
-        {/* KPI sub-toggles */}
-        <div className={kpiEnabled ? "" : "opacity-50 pointer-events-none"}>
-          <p className="mb-2 text-xs font-medium text-muted-foreground">KPI ที่แสดง</p>
-          <div className="grid grid-cols-2 gap-2">
-            {KPI_CATALOG.map((k) => (
-              <label key={k.id} className="flex items-center gap-2 text-sm">
-                <Switch checked={draft.kpis[k.id]} onCheckedChange={() => toggleKpi(k.id)} />
-                {k.label}
-              </label>
-            ))}
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Controls */}
+        <div className="space-y-4 rounded-xl border border-border bg-card p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Tabs value={dashboard} onValueChange={(v) => setDashboard(v as DashboardId)}>
+              <TabsList>
+                {DASHBOARD_IDS.map((d) => (
+                  <TabsTrigger key={d} value={d}>
+                    {d === "lab" ? "Lab" : "QC"}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+            <Select value={roleId} onValueChange={setRoleId}>
+              <SelectTrigger className="h-9 w-56">
+                <SelectValue placeholder="เลือก role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={DEFAULT_ROLE_ID}>ค่ามาตรฐาน (default)</SelectItem>
+                {roles.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+
+          {/* Section list */}
+          <div className="space-y-2">
+            {sectionsInOrder.map((s) => {
+              const def = defOf(s.id);
+              const forced = FORCED_SECTIONS.includes(s.id);
+              return (
+                <div key={s.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2">
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      disabled={!def?.reorderable || s.id === "header"}
+                      onClick={() => move(s.id, -1)}
+                      aria-label="เลื่อนขึ้น"
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      disabled={!def?.reorderable || s.id === "header"}
+                      onClick={() => move(s.id, 1)}
+                      aria-label="เลื่อนลง"
+                    >
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  <span className="flex-1 text-sm">{labelOf(s.id)}</span>
+                  <Switch
+                    checked={s.enabled}
+                    disabled={forced}
+                    onCheckedChange={() => toggleSection(s.id)}
+                    title={forced ? "ส่วนนี้ต้องแสดงเสมอ" : undefined}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* KPI sub-toggles */}
+          <div className={kpiEnabled ? "" : "opacity-50 pointer-events-none"}>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">KPI ที่แสดง</p>
+            <div className="grid grid-cols-2 gap-2">
+              {KPI_CATALOG.map((k) => (
+                <label key={k.id} className="flex items-center gap-2 text-sm">
+                  <Switch checked={draft.kpis[k.id]} onCheckedChange={() => toggleKpi(k.id)} />
+                  {k.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+            {saveMutation.isPending ? "กำลังบันทึก…" : "บันทึก"}
+          </Button>
         </div>
 
-        <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? "กำลังบันทึก…" : "บันทึก"}
-        </Button>
+        {/* Live wireframe */}
+        <div>
+          <p className="mb-2 text-xs font-medium text-muted-foreground">ตัวอย่างผังหน้าจอ</p>
+          <DashboardLayoutPreview dashboard={dashboard} layout={draft} />
+        </div>
       </div>
 
-      {/* Live wireframe */}
-      <div>
-        <p className="mb-2 text-xs font-medium text-muted-foreground">ตัวอย่างผังหน้าจอ</p>
-        <DashboardLayoutPreview dashboard={dashboard} layout={draft} />
+      {/* Role → dashboard profile mapping */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="mb-2 text-sm font-medium">Dashboard profile ต่อ Role</p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          กำหนดว่าแต่ละ role จะเห็นแดชบอร์ดแบบไหนตอนเข้าหน้า Home (ถ้าไม่กำหนด จะใช้ค่าเริ่มต้นตาม role)
+        </p>
+        <div className="divide-y divide-border">
+          {(access?.roles ?? []).map((role: { id: string; name: string; dashboardProfile?: string | null }) => (
+            <div key={role.id} className="flex items-center justify-between gap-3 py-1.5">
+              <span className="text-sm">
+                {role.name} <span className="text-xs text-muted-foreground">({role.id})</span>
+              </span>
+              <Select
+                value={role.dashboardProfile ?? "_default"}
+                onValueChange={async (v) => {
+                  try {
+                    await api.patch(`/access-control/roles/${role.id}`, {
+                      dashboardProfile: v === "_default" ? "" : v,
+                    });
+                    invalidateAccessControl();
+                    queryClient.invalidateQueries({ queryKey: ["access-control"] });
+                    toast.success(`อัปเดต dashboard profile ของ ${role.name} แล้ว`);
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : "อัปเดตไม่สำเร็จ");
+                  }
+                }}
+              >
+                <SelectTrigger className="h-8 w-[220px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_default">ค่าเริ่มต้น (ตาม role)</SelectItem>
+                  {DASHBOARD_PROFILE_IDS.map((id) => (
+                    <SelectItem key={id} value={id}>
+                      {DASHBOARD_PROFILES[id].titleEn}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
