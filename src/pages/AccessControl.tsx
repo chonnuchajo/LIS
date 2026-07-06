@@ -5,11 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -25,52 +23,14 @@ import {
   LockKeyhole,
   Minus,
   Plus,
-  Search,
   ShieldCheck,
   Trash2,
-  UserCog,
   UsersRound,
 } from "lucide-react";
 import { toast } from "sonner";
-
-type UserStatus = "active" | "inactive";
-
-type AppUser = {
-  id: string;
-  name: string;
-  email: string;
-  roleId: string;
-  roleIds: string[];
-  department: string;
-  position: string;
-  employeeId: string;
-  status: UserStatus;
-  lastActive: string;
-};
-
-type EmployeeDirectoryEntry = {
-  employeeId: string;
-  name: string;
-  department: string;
-  position: string;
-  email: string;
-};
-
-type Role = {
-  id: string;
-  name: string;
-  description: string;
-  locked?: boolean;
-};
-
-type AccessGroup = {
-  id: string;
-  name: string;
-  description: string;
-  paths: string[];
-  locked?: boolean;
-  sortOrder?: number;
-};
+import UsersTab from "@/components/lis/access/UsersTab";
+import RolesTab from "@/components/lis/access/RolesTab";
+import type { AppUser, Role, AccessGroup, EmployeeDirectoryEntry } from "@/components/lis/access/types";
 
 const defaultRoles: Role[] = [
   { id: "admin", name: "Administrator", description: "Full system access", locked: true },
@@ -210,15 +170,6 @@ const AccessControl = () => {
   const [groups, setGroups] = useState<AccessGroup[]>([]);
   const [permissions, setPermissions] = useState<Record<string, string[]>>(defaultPermissions);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [newUser, setNewUser] = useState({
-    name: "",
-    email: "",
-    department: "",
-    position: "",
-    roleIds: ["viewer"] as string[],
-  });
-  const [newRole, setNewRole] = useState({ name: "", description: "" });
   const [newGroup, setNewGroup] = useState<{
     id: string;
     name: string;
@@ -237,8 +188,6 @@ const AccessControl = () => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
   const [directory, setDirectory] = useState<EmployeeDirectoryEntry[]>([]);
-  const [linkingUserId, setLinkingUserId] = useState<string | null>(null);
-  const [employeeSearch, setEmployeeSearch] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [linking, setLinking] = useState(false);
 
@@ -282,30 +231,6 @@ const AccessControl = () => {
     () => new Map(PAGE_ITEMS.map((item) => [item.path, item])),
     [],
   );
-
-  const filteredUsers = users.filter((user) => {
-    const query = search.toLowerCase();
-    return (
-      user.name.toLowerCase().includes(query) ||
-      user.email.toLowerCase().includes(query) ||
-      user.department.toLowerCase().includes(query) ||
-      user.position.toLowerCase().includes(query) ||
-      user.roleIds.some((rid) => roleById[rid]?.name.toLowerCase().includes(query))
-    );
-  });
-
-  const filteredDirectory = useMemo(() => {
-    const q = employeeSearch.toLowerCase();
-    const matched = q
-      ? directory.filter(
-          (e) =>
-            e.name.toLowerCase().includes(q) ||
-            e.employeeId.toLowerCase().includes(q) ||
-            e.department.toLowerCase().includes(q),
-        )
-      : directory;
-    return { items: matched.slice(0, 50), total: matched.length };
-  }, [directory, employeeSearch]);
 
   const sortedGroups = useMemo(
     () =>
@@ -365,8 +290,6 @@ const AccessControl = () => {
         roleIds: updated.roleIds && updated.roleIds.length > 0 ? updated.roleIds : [updated.roleId],
       };
       setUsers((current) => current.map((u) => (u.id === userId ? normalized : u)));
-      setLinkingUserId(null);
-      setEmployeeSearch("");
     } catch (err) {
       const e = err as { response?: { status?: number }; status?: number };
       const status = e?.response?.status ?? e?.status;
@@ -399,46 +322,42 @@ const AccessControl = () => {
     }
   };
 
-  const addUser = async () => {
-    if (!newUser.name.trim() || !newUser.email.trim()) {
-      toast.error("Name and email are required");
-      return;
-    }
-
+  const addUserFromDrawer = async (payload: { name: string; email: string; roleIds: string[] }) => {
+    if (!payload.name.trim() || !payload.email.trim()) { toast.error("ต้องกรอกชื่อและอีเมล"); return; }
     try {
       const res = await api.post<AppUser>("/access-control/users", {
-        ...newUser,
-        department: newUser.department.trim() || "Unassigned",
-        position: newUser.position.trim() || "Unassigned",
+        name: payload.name, email: payload.email, department: "Unassigned", position: "Unassigned", roleIds: payload.roleIds,
       });
       const added = res.data.data;
-      const normalizedAdded = { ...added, roleIds: added.roleIds && added.roleIds.length > 0 ? added.roleIds : [added.roleId] };
-      setUsers((current) => [...current, normalizedAdded]);
-      setNewUser({ name: "", email: "", department: "", position: "", roleIds: ["viewer"] });
-      toast.success("User added");
+      const normalized = { ...added, roleIds: added.roleIds && added.roleIds.length ? added.roleIds : [added.roleId] };
+      setUsers((current) => [...current, normalized]);
+      toast.success("เพิ่มผู้ใช้แล้ว");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to add user");
     }
   };
 
-  const addRole = async () => {
-    const name = newRole.name.trim();
-    if (!name) {
-      toast.error("Role name is required");
-      return;
-    }
+  const addRoleFromDialog = async (v: { name: string; description: string }) => {
+    if (!v.name.trim()) { toast.error("ต้องกรอกชื่อ Role"); return; }
     try {
-      const res = await api.post<Role>("/access-control/roles", {
-        name,
-        description: newRole.description.trim(),
-      });
+      const res = await api.post<Role>("/access-control/roles", { name: v.name, description: v.description });
       setRoles((current) => [...current, res.data.data]);
       setPermissions((current) => ({ ...current, [res.data.data.id]: [] }));
-      setNewRole({ name: "", description: "" });
       notifyGroupMappingChanged();
-      toast.success("Role added");
+      toast.success("เพิ่ม Role แล้ว");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to add role");
+    }
+  };
+
+  const updateRole = async (id: string, patch: { name: string; description: string }) => {
+    try {
+      const res = await api.patch<Role>(`/access-control/roles/${id}`, patch);
+      setRoles((current) => current.map((r) => (r.id === id ? { ...r, ...res.data.data } : r)));
+      notifyGroupMappingChanged();
+      toast.success("Role updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update role");
     }
   };
 
@@ -456,7 +375,14 @@ const AccessControl = () => {
       notifyGroupMappingChanged();
       toast.success("Role removed");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to remove role");
+      const anyErr = err as { response?: { data?: { error?: string; userCount?: number } }; message?: string };
+      const serverMsg = anyErr.response?.data?.error;
+      const count = anyErr.response?.data?.userCount;
+      toast.error(
+        serverMsg === "role has assigned users"
+          ? `ลบไม่ได้: ยังมีผู้ใช้${count ? ` ${count} คน` : ""}ใช้ role นี้อยู่`
+          : (serverMsg ?? (err instanceof Error ? err.message : "Failed to remove role")),
+      );
     }
   };
 
@@ -856,260 +782,29 @@ const AccessControl = () => {
           </div>
 
           <TabsContent value="users">
-            <Card>
-              <CardHeader className="flex flex-col gap-4 pb-3 lg:flex-row lg:items-center lg:justify-between">
-                <CardTitle className="text-base">User Management</CardTitle>
-                <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={syncEmployees}
-                    disabled={syncing}
-                    className="gap-2"
-                  >
-                    {syncing ? "กำลัง Sync..." : "Sync พนักงาน"}
-                  </Button>
-                  <div className="relative w-full lg:w-80">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={search}
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Search users, email, role..."
-                      className="pl-9"
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                <div className="grid gap-3 rounded-md border bg-muted/30 p-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_180px_auto]">
-                  <Input
-                    value={newUser.name}
-                    onChange={(event) => setNewUser({ ...newUser, name: event.target.value })}
-                    placeholder="Full name"
-                  />
-                  <Input
-                    value={newUser.email}
-                    onChange={(event) => setNewUser({ ...newUser, email: event.target.value })}
-                    placeholder="email@icpladda.com"
-                  />
-                  <div className="flex flex-wrap items-center gap-1 rounded-md border px-2 py-1">
-                    {roles.map((role) => {
-                      const active = newUser.roleIds.includes(role.id);
-                      return (
-                        <button
-                          key={role.id}
-                          type="button"
-                          onClick={() =>
-                            setNewUser({
-                              ...newUser,
-                              roleIds: active
-                                ? newUser.roleIds.filter((r) => r !== role.id)
-                                : [...newUser.roleIds, role.id],
-                            })
-                          }
-                          className={cn(
-                            "rounded px-2 py-0.5 text-xs font-medium transition-colors",
-                            active
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground hover:bg-muted/70",
-                          )}
-                        >
-                          {role.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <Button onClick={addUser} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    Add
-                  </Button>
-                </div>
-
-                <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-                  <Table className="min-w-[700px]">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>User</TableHead>
-                        <TableHead className="hidden lg:table-cell">Department</TableHead>
-                        <TableHead className="hidden lg:table-cell">Position</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead className="hidden md:table-cell">Status</TableHead>
-                        <TableHead className="hidden xl:table-cell">Last active</TableHead>
-                        <TableHead className="w-12"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredUsers.map((user) => (
-                        <TableRow key={user.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary">
-                                <UserCog className="h-4 w-4" />
-                              </div>
-                              <div>
-                                <p className="font-medium">{user.name}</p>
-                                <p className="text-xs text-muted-foreground">{user.email}</p>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  {user.employeeId ? (
-                                    <span className="text-xs text-muted-foreground">
-                                      รหัสพนักงาน: {user.employeeId}
-                                    </span>
-                                  ) : (
-                                    <span className="text-xs text-muted-foreground/60">
-                                      ยังไม่ผูกพนักงาน
-                                    </span>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setLinkingUserId(user.id);
-                                      setEmployeeSearch("");
-                                    }}
-                                    className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground hover:bg-accent transition-colors"
-                                  >
-                                    {user.employeeId ? "เปลี่ยน" : "ผูก"}
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="hidden lg:table-cell min-w-[160px]">
-                            <span className="text-sm text-muted-foreground">{user.department}</span>
-                          </TableCell>
-                          <TableCell className="hidden lg:table-cell min-w-[160px]">
-                            <span className="text-sm text-muted-foreground">{user.position}</span>
-                          </TableCell>
-                          <TableCell className="min-w-[160px] sm:min-w-[200px]">
-                            <div className="flex flex-wrap items-center gap-1">
-                              {roles.map((role) => {
-                                const active = user.roleIds.includes(role.id);
-                                return (
-                                  <button
-                                    key={role.id}
-                                    type="button"
-                                    onClick={() => {
-                                      const next = active
-                                        ? user.roleIds.filter((r) => r !== role.id)
-                                        : [...user.roleIds, role.id];
-                                      if (next.length === 0) return; // keep at least one role
-                                      updateUser(user.id, { roleIds: next });
-                                    }}
-                                    className={cn(
-                                      "rounded px-2 py-0.5 text-xs font-medium transition-colors",
-                                      active
-                                        ? "bg-primary text-primary-foreground"
-                                        : "bg-muted text-muted-foreground hover:bg-muted/70",
-                                    )}
-                                  >
-                                    {role.name}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell">
-                            <Select
-                              value={user.status}
-                              onValueChange={(value) =>
-                                updateUser(user.id, { status: value as UserStatus })
-                              }
-                            >
-                              <SelectTrigger className="w-32">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="active">Active</SelectItem>
-                                <SelectItem value="inactive">Inactive</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell className="hidden xl:table-cell">
-                            <Badge
-                              className={cn(
-                                user.status === "active"
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-muted text-muted-foreground",
-                              )}
-                            >
-                              {user.lastActive}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => deleteUser(user.id)}
-                              disabled={user.roleId === "admin"}
-                              aria-label="Delete user"
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
+            <UsersTab
+              users={users}
+              roles={roles}
+              directory={directory}
+              syncing={syncing}
+              onCreate={addUserFromDrawer}
+              onUpdate={updateUser}
+              onDelete={deleteUser}
+              onLinkEmployee={linkEmployee}
+              onSync={syncEmployees}
+            />
           </TabsContent>
 
           <TabsContent value="roles">
-            <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Create Role</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Input
-                    value={newRole.name}
-                    onChange={(event) => setNewRole({ ...newRole, name: event.target.value })}
-                    placeholder="Role name"
-                  />
-                  <Input
-                    value={newRole.description}
-                    onChange={(event) =>
-                      setNewRole({ ...newRole, description: event.target.value })
-                    }
-                    placeholder="Description"
-                  />
-                  <Button onClick={addRole} className="w-full gap-2">
-                    <Plus className="h-4 w-4" />
-                    Add Role
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                {roles.map((role) => (
-                  <Card key={role.id}>
-                    <CardHeader className="flex-row items-start justify-between gap-3 pb-3">
-                      <div>
-                        <CardTitle className="text-base">{role.name}</CardTitle>
-                        <p className="mt-1 text-sm text-muted-foreground">{role.description || "-"}</p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={role.locked}
-                        onClick={() => deleteRole(role.id)}
-                        aria-label="Delete role"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </CardHeader>
-                    <CardContent className="flex items-center justify-between">
-                      <Badge variant="outline">
-                        {(permissions[role.id] ?? []).length} permissions
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {users.filter((user) => user.roleIds.includes(role.id)).length} users
-                      </span>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
+            <RolesTab
+              roles={roles}
+              users={users}
+              permissions={permissions}
+              groups={groups}
+              onCreate={addRoleFromDialog}
+              onUpdate={updateRole}
+              onDelete={deleteRole}
+            />
           </TabsContent>
 
           <TabsContent value="groups">
@@ -1457,71 +1152,6 @@ const AccessControl = () => {
             </Card>
           </TabsContent>
         </Tabs>
-
-        {/* Employee link picker dialog */}
-        <Dialog
-          open={linkingUserId !== null}
-          onOpenChange={(open) => {
-            if (!open) {
-              setLinkingUserId(null);
-              setEmployeeSearch("");
-            }
-          }}
-        >
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>
-                ผูกพนักงาน —{" "}
-                {users.find((u) => u.id === linkingUserId)?.name ?? ""}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              <Input
-                value={employeeSearch}
-                onChange={(e) => setEmployeeSearch(e.target.value)}
-                placeholder="ค้นหาชื่อ, รหัสพนักงาน, แผนก..."
-                autoFocus
-              />
-              <div className="max-h-72 overflow-y-auto space-y-1 rounded-md border p-1">
-                {filteredDirectory.items.length === 0 ? (
-                  <p className="py-4 text-center text-sm text-muted-foreground">ไม่พบพนักงาน</p>
-                ) : (
-                  filteredDirectory.items.map((entry) => (
-                    <button
-                      key={entry.employeeId}
-                      type="button"
-                      onClick={() => {
-                        if (linkingUserId) linkEmployee(linkingUserId, entry.employeeId);
-                      }}
-                      className="w-full rounded px-3 py-2 text-left text-sm hover:bg-accent transition-colors"
-                    >
-                      <span className="font-medium">{entry.name}</span>
-                      <span className="text-muted-foreground">
-                        {" "}({entry.employeeId}) · {entry.department} · {entry.position}
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
-              {filteredDirectory.total > filteredDirectory.items.length && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  แสดง {filteredDirectory.items.length} จาก {filteredDirectory.total} รายการ — พิมพ์เพื่อค้นหา
-                </p>
-              )}
-            </div>
-            {linkingUserId && users.find((u) => u.id === linkingUserId)?.employeeId && (
-              <DialogFooter>
-                <Button
-                  variant="ghost"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => linkEmployee(linkingUserId, "")}
-                >
-                  ยกเลิกการผูก
-                </Button>
-              </DialogFooter>
-            )}
-          </DialogContent>
-        </Dialog>
     </AppLayout>
   );
 };
