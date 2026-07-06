@@ -1,16 +1,14 @@
 import { usePetitionAuditLogList } from "@/hooks/usePetition";
-import { PETITION_STATUS_CONFIG, type PetitionAuditLogEntry } from "@/types/petition.types";
+import {
+  PETITION_AUDIT_EVENT_LABELS,
+  PETITION_STATUS_CONFIG,
+  type PetitionAuditLogEntry,
+} from "@/types/petition.types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity } from "lucide-react";
 
-const EVENT_LABEL: Record<string, string> = {
-  created: "สร้างคำร้อง", statusChanged: "เปลี่ยนสถานะ", assigned: "มอบหมาย",
-  reviewed: "ตรวจทาน", updated: "แก้ไข", deleted: "ลบ", received: "รับตัวอย่าง",
-  resultEntered: "บันทึกผล", resultUpdated: "แก้ไขผล",
-};
-
 function describe(e: PetitionAuditLogEntry): string {
-  const base = EVENT_LABEL[e.event] ?? e.event;
+  const base = PETITION_AUDIT_EVENT_LABELS[e.event] ?? e.event;
   if (e.event === "statusChanged" && e.toStatus) {
     return `${base} → ${PETITION_STATUS_CONFIG[e.toStatus]?.label ?? e.toStatus}`;
   }

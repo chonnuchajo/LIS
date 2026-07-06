@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AppLayout from "@/components/lis/AppLayout";
 import DashboardHeader, { type DashRange } from "@/components/dashboard/DashboardHeader";
 import KpiRow from "@/components/dashboard/KpiRow";
@@ -35,6 +35,7 @@ export default function RoleDashboard() {
   const roles = normalizeRoles(user);
   const { activeRole } = useActiveRole(roles);
   const [range, setRange] = useState<DashRange>("today");
+  const queryClient = useQueryClient();
 
   const { data: access } = useQuery({ queryKey: ["access-control"], queryFn: () => loadAccessControl() });
   const roleObjs = access?.roles ?? [];
@@ -51,6 +52,12 @@ export default function RoleDashboard() {
     () => new Set(petitions.filter((p) => ctx.abnormalFlags[p._id] || ctx.returnedFlags[p._id]).map((p) => p._id)),
     [petitions, ctx.abnormalFlags, ctx.returnedFlags],
   );
+
+  const handleRefresh = () => {
+    refresh();
+    queryClient.invalidateQueries({ queryKey: ["dash"] });
+    queryClient.invalidateQueries({ queryKey: ["access-control"] });
+  };
 
   const handleExport = () => {
     const header = ["คำร้อง", "ผู้ขอ", "ตัวอย่าง", "สถานะ"];
@@ -71,7 +78,7 @@ export default function RoleDashboard() {
         subtitleTh={profile.subtitleTh}
         range={range}
         onRangeChange={setRange}
-        onRefresh={refresh}
+        onRefresh={handleRefresh}
         onExport={handleExport}
         roleNames={roleNames}
       />

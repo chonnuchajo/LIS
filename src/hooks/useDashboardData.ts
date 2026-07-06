@@ -21,13 +21,13 @@ function daysUntil(iso?: string | null): number {
 
 // /simple-methods entry shape (see server/routes/simpleMethods.js) — keyed by itemNo.
 // `methods` is a positional string[][] (one slot per '+'-split substance); a slot is
-// "configured" once it holds at least one code. Legacy docs migrated only to the older
-// `instruments` field (methods undefined) are intentionally NOT counted as configured
-// here — this mirrors the resolved spec, at the cost of slightly over-counting gaps for
-// any not-yet-migrated entries.
+// "configured" once it holds at least one code. Legacy docs written only to the older
+// `instruments` field (methods undefined/empty) are still valid config — clients fall
+// back to `instruments` per simpleMethods.js — so those also count as configured.
 interface SimpleMethodEntry {
   itemNo: string;
   methods?: string[][];
+  instruments?: string[];
 }
 
 // /master-items/slim shape (see server/routes/masterItems.js SLIM_KEYS).
@@ -143,7 +143,11 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
 
     const configured = new Set(
       simpleMethods
-        .filter((e) => e.methods && e.methods.some((slot) => slot.length > 0))
+        .filter(
+          (e) =>
+            (e.methods && e.methods.some((slot) => slot.length > 0)) ||
+            (e.instruments && e.instruments.length > 0),
+        )
         .map((e) => e.itemNo),
     );
     const methodGaps = slim.filter(
