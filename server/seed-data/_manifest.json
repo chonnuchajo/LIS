@@ -112,11 +112,6 @@
       "count": 0
     },
     {
-      "collection": "standardconfigs",
-      "file": "standardconfigs.json",
-      "count": 2
-    },
-    {
       "collection": "stocksolvents",
       "file": "stocksolvents.json",
       "count": 5

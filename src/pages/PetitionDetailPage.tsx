@@ -1,6 +1,17 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, FileCheck2, FileText, Pencil, Printer, RotateCcw, Sparkles, Trash2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  FileCheck2,
+  FileText,
+  Pencil,
+  Printer,
+  RotateCcw,
+  Sparkles,
+  Trash2,
+  UserCheck,
+} from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 import PageHeader from '@/components/lis/PageHeader';
 import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
@@ -44,6 +55,37 @@ import type { QCTestResult } from '@/types/petition.types';
 import { findSgParameter, type SgParameter } from '@/lib/formSpecificGravity';
 import { buildApprovalGroups } from '@/lib/qcApprovalRows';
 import { buildLaLisAssistant, type LaLisIssue } from '@/lib/laLisAssistant';
+import { cn } from '@/lib/utils';
+import StickyActionBar from '@/components/lis/StickyActionBar';
+
+function detailBannerText(petition: Petition) {
+  if (petition.status === 'rejected') return 'คำร้องนี้ถูกส่งกลับเพื่อแก้ไข';
+  if (!petition.assignedTo && (petition.status === 'sampleSent' || petition.status === 'pendingReview')) {
+    return 'คำร้องนี้รอการมอบหมายผู้รับงาน';
+  }
+  if (petition.qcReceivedBy || petition.labReceivedBy) {
+    return 'คำร้องนี้มีผู้รับผิดชอบแยกตามฝั่ง QC และ Lab แล้ว';
+  }
+  if (petition.status === 'inProgress') return 'คำร้องนี้อยู่ระหว่างดำเนินการ';
+  if (petition.status === 'approved' || petition.status === 'success') return 'คำร้องนี้เสร็จสิ้นแล้ว';
+  return 'ตรวจสอบข้อมูลคำร้องและดำเนินการขั้นถัดไป';
+}
+
+function detailBannerTone(petition: Petition) {
+  if (petition.status === 'rejected') return 'border-orange-200 bg-orange-50 text-orange-800';
+  if (!petition.assignedTo && (petition.status === 'sampleSent' || petition.status === 'pendingReview')) {
+    return 'border-primary-200 bg-primary-50 text-primary-700';
+  }
+  if (petition.status === 'approved' || petition.status === 'success') {
+    return 'border-green-200 bg-green-50 text-green-700';
+  }
+  return 'border-grey-200 bg-grey-50 text-grey-700';
+}
+
+function displayPerson(name?: string | null) {
+  const value = (name ?? '').trim();
+  return value || 'ยังไม่มี';
+}
 
 function QcNoteSection({ petition }: { petition: Petition }) {
   const qcNote = (petition.reviewHistory ?? []).find((e) => e.action === 'note') ?? null;
@@ -377,6 +419,68 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                   }
                 />
 
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                  <Card className="border-black-50 shadow-none">
+                    <CardContent className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-grey-500">เลขคำร้อง</p>
+                        <p className="mt-1 text-lg font-semibold text-black-500">{data.petitionNo}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-grey-500">สถานะ</p>
+                        <div className="mt-1">
+                          <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-grey-500">ผู้ยื่นคำร้อง</p>
+                        <p className="mt-1 text-sm text-black-500">{data.submittedBy?.name ?? '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-grey-500">วันที่ยื่น</p>
+                        <p className="mt-1 text-sm text-black-500">
+                          {new Date(data.createdAt).toLocaleString('th-TH', {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          })}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-black-50 shadow-none">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">การดำเนินการต่อ</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                      <div className={cn('rounded-xl border px-3 py-2', detailBannerTone(data))}>
+                        {detailBannerText(data)}
+                      </div>
+                      <div className="space-y-1 text-grey-600">
+                        <p>แผนกคำร้อง: <span className="font-medium text-black-500">{PETITION_DEPT_LABELS[data.dept]}</span></p>
+                        <p>ผู้รับผิดชอบ QC: <span className="font-medium text-black-500">{displayPerson(data.qcReceivedBy)}</span></p>
+                        <p>ผู้รับผิดชอบ Lab: <span className="font-medium text-black-500">{displayPerson(data.labReceivedBy)}</span></p>
+                      </div>
+                      {!isResultMode && !data.assignedTo && (data.status === 'sampleSent' || data.status === 'pendingReview') && (
+                        <Button className="w-full" onClick={() => navigate('/petitions/assign')}>
+                          <UserCheck className="h-4 w-4" />
+                          Assign ผู้รับงาน
+                        </Button>
+                      )}
+                      {!isResultMode && canEdit && (
+                        <Button
+                          variant="primary-outline"
+                          className="w-full"
+                          onClick={() => navigate(`/petitions/${data._id}/edit`)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                          แก้ไขคำร้อง
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
                 <AlertDialog
                   open={confirmDelete}
                   onOpenChange={(open) => {
@@ -424,6 +528,28 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                 {laLisSummary && <LaLisAssistantPanel summary={laLisSummary} />}
 
                 <PetitionView petition={data} />
+
+                <StickyActionBar
+                  onCancel={() => navigate(isResultMode ? '/record-results' : '/petitions')}
+                  cancelLabel="กลับไปรายการคำร้อง"
+                  saveLabel={!data.assignedTo && (data.status === 'sampleSent' || data.status === 'pendingReview')
+                    ? 'Assign ผู้รับงาน'
+                    : canEdit
+                      ? 'แก้ไขคำร้อง'
+                      : 'กลับไปรายการคำร้อง'}
+                  onSave={() => {
+                    if (!data.assignedTo && (data.status === 'sampleSent' || data.status === 'pendingReview')) {
+                      navigate('/petitions/assign');
+                      return;
+                    }
+                    if (canEdit) {
+                      navigate(`/petitions/${data._id}/edit`);
+                      return;
+                    }
+                    navigate(isResultMode ? '/record-results' : '/petitions');
+                  }}
+                  extra={<span className="text-xs text-grey-500">{detailBannerText(data)}</span>}
+                />
 
                 {(data.reviewHistory?.length ?? 0) > 0 && (
                   <Card>

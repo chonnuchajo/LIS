@@ -18,6 +18,7 @@ import {
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import PageHeader from '@/components/lis/PageHeader';
+import PageToolbar from '@/components/lis/PageToolbar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -588,6 +589,40 @@ export default function PetitionAssignPage() {
             }
           />
 
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <Card className="border-black-50 shadow-none">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Flow การมอบหมาย</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3 text-sm text-grey-600 md:grid-cols-3">
+                <div className="rounded-xl bg-grey-50 px-3 py-3">
+                  <p className="font-medium text-black-500">1. เลือกคำร้อง</p>
+                  <p className="mt-1 text-xs">เริ่มจากกองงานที่ยังไม่ถูก assign หรือรอทำ Phase 2</p>
+                </div>
+                <div className="rounded-xl bg-grey-50 px-3 py-3">
+                  <p className="font-medium text-black-500">2. เลือกผู้รับงาน</p>
+                  <p className="mt-1 text-xs">ลากคำร้องไปวางบนการ์ดเจ้าหน้าที่ของขั้นงานนั้น โดยผู้รับผิดชอบ QC และ Lab อาจเป็นคนละคนได้</p>
+                </div>
+                <div className="rounded-xl bg-grey-50 px-3 py-3">
+                  <p className="font-medium text-black-500">3. ยืนยันเครื่องมือ</p>
+                  <p className="mt-1 text-xs">ตรวจสอบเครื่องมือและบันทึกให้จบใน dialog เดียว</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-black-50 shadow-none">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">สรุปก่อน assign</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm text-grey-600">
+                <p>งานรอ assign: <span className="font-medium text-black-500">{allPetitions.filter((petition) => !petition.assignedTo).length}</span></p>
+                <p>คำร้องพร้อมทำต่อ: <span className="font-medium text-black-500">{normalPetitions.length}</span></p>
+                <p>คำร้อง Phase 2: <span className="font-medium text-black-500">{phase2Petitions.length}</span></p>
+                <p>หลักการ assign: <span className="font-medium text-black-500">แยกผู้รับผิดชอบตามฝั่ง QC และ Lab</span></p>
+              </CardContent>
+            </Card>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <Card>
               <CardHeader className="pb-2">
@@ -601,7 +636,7 @@ export default function PetitionAssignPage() {
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">คำร้องที่มีผู้รับผิดชอบ</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">คำร้องที่มีผู้รับงานแล้ว</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-foreground">
@@ -658,7 +693,7 @@ export default function PetitionAssignPage() {
               </TabsTrigger>
             </TabsList>
 
-            <div className="mt-3 rounded-[10px] border border-black-50 bg-white p-3">
+            <div className="hidden mt-3 rounded-[10px] border border-black-50 bg-white p-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-500" />
                 <Input
@@ -668,6 +703,21 @@ export default function PetitionAssignPage() {
                   className="pl-9"
                 />
               </div>
+            </div>
+
+            <div className="mt-3 rounded-2xl border border-black-50 bg-white p-4">
+              <PageToolbar
+                search={{
+                  value: search,
+                  onChange: setSearch,
+                  placeholder: 'ค้นหาเลขคำร้อง, ผู้ยื่น, แผนก, ผู้รับงาน',
+                }}
+                right={
+                  <div className="rounded-xl bg-grey-50 px-3 py-2 text-xs text-grey-600">
+                    คลิกการ์ดคำร้องเพื่อดูรายละเอียดก่อน assign ได้
+                  </div>
+                }
+              />
             </div>
 
             <TabsContent value="normal" className="mt-3">
@@ -1099,8 +1149,8 @@ function MachineAssignDialog({
                 </span>
               </DialogTitle>
               <DialogDescription>
-                {employeeLabel(employee)} · {employee.department} — เลือกเครื่องให้ครบทุกสารก่อนยืนยัน
-                {isReassign && ' (กำลังเปลี่ยนผู้รับผิดชอบ/เครื่อง)'}
+                {employeeLabel(employee)} · {employee.department} — เมื่อยืนยันแล้ว คนนี้จะเป็นผู้รับงานของขั้นนี้
+                {isReassign && ' (กำลังเปลี่ยนผู้รับงาน/เครื่อง)'}
               </DialogDescription>
             </DialogHeader>
 

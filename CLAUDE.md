@@ -35,8 +35,8 @@ cd server && npm run seed    # seed access-control data
 ### Backend (`server/`)
 
 - **Entry**: `server/index.js`. Connects to `MONGODB_URI` (default `mongodb://localhost:27017/LIS-DB`), then `loadAllModels()` + `ensureCollections()` auto-creates collections and runs `syncIndexes()` on boot. Config via `server/.env`.
-- **Models** (`server/models/`): `Sample`, `Petition`, `PetitionAuditLog`, `LabRequest`, `SampleReceipt`, `PhysicalResult`, `QCTestResult`, `Approval`, `Stock`, `StockTransaction`, `RealtimeDensity`, `DailyCheck`, `Machine`, `Parameter`, `SimpleMethod`, `SimpleMethodExclusion`, `StandardConfig`, `MasterItemMeta`, `ItemGroup`, `User`, `Role`, `AccessGroup`.
-- **Routes** (`server/routes/`): mounted in `server/index.js` — `samples`, `petitions`, `lab-requests`, `sample-receipts`, `physical-results`, `qc-results`, `approvals`, `densities`, `stock`, `daily-checks`, `machines`, `parameters`, `master-items`, `master-item-meta`, `item-groups`, `simple-methods`, `simple-method-exclusions`, `standard-configs`, `employees`, `uploads`, `auth`, `access-control`.
+- **Models** (`server/models/`): `Sample`, `Petition`, `PetitionAuditLog`, `LabRequest`, `SampleReceipt`, `PhysicalResult`, `QCTestResult`, `Approval`, `Stock`, `StockTransaction`, `RealtimeDensity`, `DailyCheck`, `Machine`, `Parameter`, `SimpleMethod`, `SimpleMethodExclusion`, `MasterItemMeta`, `ItemGroup`, `User`, `Role`, `AccessGroup`.
+- **Routes** (`server/routes/`): mounted in `server/index.js` — `samples`, `petitions`, `lab-requests`, `sample-receipts`, `physical-results`, `qc-results`, `approvals`, `densities`, `stock`, `daily-checks`, `machines`, `parameters`, `master-items`, `master-item-meta`, `item-groups`, `simple-methods`, `simple-method-exclusions`, `employees`, `uploads`, `auth`, `access-control`.
 - **Uploads**: QC photos served from `server/uploads/` at `/uploads` and `/LIS/uploads`.
 - **Data scripts**: `server/seed-access-control.js`, `export-data.js`, `import-data.js`, `sync-to-remote.js`; one-off migrations live in `server/scripts/` (e.g. `map-instruments-*.js` for GC/HPLC simple-method mapping).
 - **Seed-data backup (DB is recoverable from git)**: `npm run seed:export` dumps every collection (dynamic `listCollections()`, so new models need no wiring) to `server/seed-data/*.json` as EJSON; `npm run seed:import` rebuilds a DB non-destructively from them. `scripts/auto-sync.ps1` runs `export-data.js` on the prod box each sync cycle, so live data (UI-entered rows **and** any new collection) is committed/pushed automatically — a DB wipe is restorable with `seed:import`. When adding a model or doing a manual data/config change off-cycle, run `npm run seed:export` and commit so `seed-data/` stays current.
@@ -78,7 +78,7 @@ Route metadata (labels, icons, sidebar order) lives in `src/lib/navItems.ts`. Un
 - **Server state**: TanStack React Query (caching, refetching, mutations).
 - **API layer**: `src/lib/api.ts` — thin `fetch()` wrapper; all endpoints defined here.
 - **Global client state**: `SampleContext` (`src/context/SampleContext.tsx`) holds sample lists across pages; `NotificationContext` (`src/context/NotificationContext.tsx`) drives the bell + daily-check reminders.
-- **Domain logic** (`src/lib/`): `petitionTestItems.ts` (centralized param↔item classification matching), `qcProgress.ts`, `substances.ts` (positional `+`-split parsing), `standardConfig.ts`, `revisionHelpers.ts` (QC reject/revision chains), `productClassification.ts`, `parameterValidation.ts`. Several have co-located `*.test.ts` (Vitest).
+- **Domain logic** (`src/lib/`): `petitionTestItems.ts` (centralized param↔item classification matching), `qcProgress.ts`, `substances.ts` (positional `+`-split parsing), `revisionHelpers.ts` (QC reject/revision chains), `productClassification.ts`, `parameterValidation.ts`. Several have co-located `*.test.ts` (Vitest).
 
 ### UI Components
 
@@ -87,7 +87,7 @@ UI primitives come from shadcn/ui (`src/components/ui/`). Domain components live
 **29 pages** under `src/pages/`. Major workflows:
 - **Petitions**: list → new/edit → detail → **assign** (per-substance instrument picking) → audit log.
 - **Testing**: Lab testing & QC testing (list + detail), record results, QC approval, queue TV displays.
-- **Config/admin**: Master Items, Simple Method, Standard Config, Parameter Settings, Machines, Daily Check, Access Control, Admin Data, Stock / Stock Deduction, Reports, role-specific Home.
+- **Config/admin**: Master Items, Simple Method, Parameter Settings, Machines, Daily Check, Access Control, Admin Data, Stock / Stock Deduction, Reports, role-specific Home.
 
 ## Gotchas
 

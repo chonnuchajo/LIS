@@ -10,6 +10,7 @@ const { primaryRole, normalizeRoles, unionPermissions } = require('../lib/roles'
 const { fetchMonthlyEmployees } = require('../lib/employeeDirectory');
 const { findEmployeeByEmail, findEmployeeById, planEmployeeSync } = require('../lib/employeeLink');
 const { isStorablePermission } = require('../lib/permissionFilter');
+const { isValidProfileId } = require('../lib/dashboardProfiles');
 
 const defaultGroups = [
   { id: 'dashboard', name: 'หน้าหลัก', description: 'ภาพรวมแล็บและงานที่กำลังดำเนินการ', paths: ['/', '/home', '/dashboard/lab'], locked: false, sortOrder: 10 },
@@ -174,6 +175,7 @@ function formatRole(role) {
     name: role.name,
     description: role.description || '',
     locked: role.locked,
+    dashboardProfile: role.dashboardProfile || null,
   };
 }
 
@@ -457,6 +459,25 @@ router.post('/roles', async (req, res) => {
     res.status(201).json(formatRole(role));
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Role already exists' });
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.patch('/roles/:id', async (req, res) => {
+  try {
+    const updates = {};
+    if (typeof req.body.name === 'string') updates.name = req.body.name;
+    if (typeof req.body.description === 'string') updates.description = req.body.description;
+    if ('dashboardProfile' in req.body) {
+      if (!isValidProfileId(req.body.dashboardProfile)) {
+        return res.status(400).json({ error: 'invalid dashboardProfile' });
+      }
+      updates.dashboardProfile = req.body.dashboardProfile || '';
+    }
+    const role = await Role.findOneAndUpdate({ id: req.params.id }, updates, { new: true });
+    if (!role) return res.status(404).json({ error: 'role not found' });
+    res.json(formatRole(role));
+  } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });

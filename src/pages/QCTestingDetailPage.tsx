@@ -42,6 +42,7 @@ import { buildPreviousValueLookup, getPreviousValue, type PreviousValueLookup } 
 import { AiOutlierBadge } from '@/components/lis/AiOutlierBadge';
 import { checkOutlier, getAiStatus, streamAnalyzeQC, type OutlierCheckResult } from '@/lib/aiApi';
 import DensitySyncButton from '@/components/lis/DensitySyncButton';
+import { normalizeRoles } from '@/lib/roles';
 import {
   SG_VALUE_LABEL,
   SG_TEMP_LABEL,
@@ -88,6 +89,7 @@ interface TestFieldProps {
   lastBatchLabel?: string;
   outlierResult?: OutlierCheckResult | null;
   outputResult?: ResolvedOutput | null;
+  hideStandard?: boolean;
 }
 
 function TestField({
@@ -108,12 +110,13 @@ function TestField({
   lastBatchLabel,
   outlierResult,
   outputResult,
+  hideStandard = false,
 }: TestFieldProps) {
   const strVal = value == null ? '' : String(value);
   const strNote = noteValue == null ? '' : String(noteValue);
   const requireNoteOn = field.requireNoteOn ?? [];
   const showNote = field.type === 'enum' && requireNoteOn.includes(strVal);
-  const isAbnormal = outputResult ? outputResult.kind === 'abnormal' : isFieldAbnormal(field, value);
+  const isAbnormal = hideStandard ? false : (outputResult ? outputResult.kind === 'abnormal' : isFieldAbnormal(field, value));
   const customText = optionOutputText(field, value);
 
   return (
@@ -211,6 +214,7 @@ function TestField({
             isAbnormal && 'border-red-400 ring-1 ring-red-200',
           )}
           placeholder={
+            hideStandard ? undefined :
             field.standardOperator
               ? `มาตรฐาน: ${describeStandard(field)}`
               : field.standardValue != null
@@ -233,7 +237,7 @@ function TestField({
       {/* Live resolved-criterion line for conditionalMode fields */}
       {conditionalPending ? (
         <p className="text-[11px] text-amber-600">ยังกำหนดเกณฑ์ไม่ได้ — รอกรอกช่องเงื่อนไข</p>
-      ) : resolvedStandardText ? (
+      ) : !hideStandard && resolvedStandardText ? (
         <p className="text-[11px] text-emerald-600">เกณฑ์: {resolvedStandardText}</p>
       ) : null}
 
@@ -289,14 +293,14 @@ function TestField({
         <p
           className={cn(
             'mt-1 inline-flex items-center gap-1.5 rounded border px-2 py-1 text-sm',
-            isFieldAbnormal(field, previousValue)
+            !hideStandard && isFieldAbnormal(field, previousValue)
               ? 'border-red-300 bg-red-50 text-red-700'
               : 'border-grey-200 bg-grey-50 text-grey-700',
           )}
         >
           <span className="font-medium">ค่าเดิม:</span>
           <span className="font-mono font-semibold text-base">{String(previousValue)}</span>
-          {isFieldAbnormal(field, previousValue) && (
+          {!hideStandard && isFieldAbnormal(field, previousValue) && (
             <AlertTriangle className="h-4 w-4 text-red-500" />
           )}
         </p>
@@ -309,6 +313,7 @@ export default function QCTestingDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const canSeeRestrictedStandards = normalizeRoles(user).some((role) => role === 'admin' || role === 'qc-head');
   const confirm = useConfirm();
   const flashClass = useArrivalFlash();
 
@@ -859,7 +864,7 @@ export default function QCTestingDetailPage() {
   ): number => {
     let count = 0;
     fieldsToScan.forEach((field) => {
-      expandFieldForItem(field, item.commonName).forEach((unit) => {
+      expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards }).forEach((unit) => {
         if (unit.field.conditionalMode && unit.field.conditionalResult === 'output') {
           if (isConditionalOutputAbnormal(unit.field, { sameParam: src, otherParams: {} })) count += 1;
           return;
@@ -920,7 +925,7 @@ export default function QCTestingDetailPage() {
             : [{ values: phaseValues[k] ?? {}, suffix: '' }];
         visibleFields(param, phaseToCheck).forEach((field) => {
           if (field.type === 'reference') return; // reference fields are auto-resolved
-          expandFieldForItem(field, item.commonName).forEach((unit) => {
+          expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards }).forEach((unit) => {
             valueObjs.forEach(({ values: itemValues, suffix }) => {
               const val = itemValues[unit.key];
               // field-level `multiple` — required means at least one non-empty element
@@ -1287,6 +1292,7 @@ export default function QCTestingDetailPage() {
                                     itemGroupIds={idsFor(item)}
                                     value={rowVal ?? ''}
                                     noteValue={''}
+                                    hideStandard={(unit as { hiddenStandard?: boolean }).hiddenStandard === true}
                                     disabled={unitDisabled}
                                     onChange={(val) => writeRow(i, val)}
                                     onNoteChange={() => {}}
@@ -1318,6 +1324,7 @@ export default function QCTestingDetailPage() {
                           itemGroupIds={idsFor(item)}
                           value={srcValues[unit.key] ?? ''}
                           noteValue={srcValues[noteLabel] ?? ''}
+                          hideStandard={(unit as { hiddenStandard?: boolean }).hiddenStandard === true}
                           saveInfo={saveInfoSrc?.[unit.key]}
                           noteSaveInfo={saveInfoSrc?.[noteLabel]}
                           disabled={unitDisabled}
@@ -1368,7 +1375,7 @@ export default function QCTestingDetailPage() {
                             />
                           );
                         }
-                        const units = expandFieldForItem(field, item.commonName);
+                        const units = expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards });
                         return units.map((unit) => renderUnit(unit, srcValues, onUnitChange, saveInfoSrc));
                       })}
                     </div>

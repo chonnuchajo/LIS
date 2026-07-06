@@ -1,30 +1,38 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ChevronDown, ChevronLeft, ChevronRight, FilePlus2, Search, X } from 'lucide-react';
+import {
+  ArrowRight,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FilePlus2,
+  Search,
+  X,
+} from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
-import { Button } from '@/components/ui/button';
+import PageHeader from '@/components/lis/PageHeader';
+import PageToolbar from '@/components/lis/PageToolbar';
+import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
-import PageHeader from '@/components/lis/PageHeader';
-import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
-import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
-import { petitionStatusBadge } from '@/lib/statusBadge';
-import { usePetitionList } from '@/hooks/usePetition';
+import { useNotifications } from '@/context/NotificationContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useCanAccessPath } from '@/hooks/useCanAccessPath';
-import { useNotifications } from '@/context/NotificationContext';
-import { api, type ParameterItem } from '@/lib/api';
-import { normalizeRoles } from "@/lib/roles";
-import { isAssignedTo } from '@/lib/assignment';
-import { matchParametersForItem, parameterNamesForPetition } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
+import { usePetitionList } from '@/hooks/usePetition';
+import { isAssignedTo } from '@/lib/assignment';
+import { api, type ParameterItem } from '@/lib/api';
+import { matchParametersForItem, parameterNamesForPetition } from '@/lib/petitionTestItems';
+import { normalizeRoles } from '@/lib/roles';
+import { petitionStatusBadge } from '@/lib/statusBadge';
+import { cn } from '@/lib/utils';
 import {
-  PETITION_STATUSES,
   PETITION_DEPT_LABELS,
   PETITION_STATUS_CONFIG,
+  PETITION_STATUSES,
   type Petition,
 } from '@/types/petition.types';
 
@@ -38,6 +46,24 @@ const RECEIVED_STATUSES = new Set<Petition['status']>([
 ]);
 
 const LAB_BATCH_LAST_DIGITS = new Set(['1', '6']);
+const PAGE_SIZE = 20;
+
+const SUMMARY_STATUS_GROUPS: Array<{
+  key: string;
+  label: string;
+  hint: string;
+  statuses: Petition['status'][];
+}> = [
+  { key: '', label: 'ทั้งหมด', hint: 'คำร้องทั้งหมดในมุมมองนี้', statuses: [] },
+  { key: 'sampleSent', label: 'รอตรวจรับ', hint: 'งานที่ต้องรับเข้ากระบวนการ', statuses: ['sampleSent'] },
+  {
+    key: 'pendingReview,inProgress',
+    label: 'กำลังดำเนินการ',
+    hint: 'งานที่กำลังตรวจวิเคราะห์',
+    statuses: ['pendingReview', 'inProgress'],
+  },
+  { key: 'rejected', label: 'ส่งกลับแก้ไข', hint: 'คำร้องที่รอผู้ยื่นแก้ไข', statuses: ['rejected'] },
+];
 
 const isLabBatchNo = (batchNo?: string | null) => {
   const trimmed = String(batchNo ?? '').trim();
@@ -69,8 +95,7 @@ function isOwnSubmission(
   if (!user) return false;
   const userName = norm(user.name);
   const submitterName = norm(petition.submittedBy?.name);
-  if (userName && submitterName && userName === submitterName) return true;
-  return false;
+  return !!(userName && submitterName && userName === submitterName);
 }
 
 function isLabRole(role: string): boolean {
@@ -90,9 +115,7 @@ function canSeePetition(
   if (isOwnSubmission(petition, user)) return true;
   if (isAssignedTo(petition.assignedTo, user)) return true;
   if (RECEIVED_STATUSES.has(petition.status)) {
-    if (roles.some(isLabRole)) {
-      if (petitionHasLabItems(petition)) return true;
-    }
+    if (roles.some(isLabRole) && petitionHasLabItems(petition)) return true;
     if (roles.some(isQcRole)) return true;
   }
   return false;
@@ -107,7 +130,49 @@ export function canUserCreatePetition(
   return roles.length > 0 && roles.some((role) => role !== 'viewer');
 }
 
-const PAGE_SIZE = 20;
+function petitionMetaLine(petition: Petition) {
+  return [
+    petition.submittedBy?.name,
+    PETITION_DEPT_LABELS[petition.dept],
+    new Date(petition.createdAt).toLocaleString('th-TH', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }),
+  ]
+    .filter(Boolean)
+    .join(' • ');
+}
+
+function petitionActionLabel(petition: Petition) {
+  if (petition.status === 'sampleSent' || petition.status === 'pendingReview') return petition.assignedTo ? 'ดูผู้รับงาน' : 'Assign ผู้รับงาน';
+  if (petition.status === 'rejected') return 'ดูเหตุผล';
+  if (petition.status === 'approved' || petition.status === 'success') return 'ดูสรุปผล';
+  if (petition.status === 'inProgress') return 'ดูความคืบหน้า';
+  return 'ดูรายละเอียด';
+}
+
+function displayPerson(name?: string | null) {
+  const value = (name ?? '').trim();
+  return value || 'ยังไม่มี';
+}
+
+function petitionOwnerLine(petition: Petition) {
+  const qcOwner = petition.qcReceivedBy?.trim();
+  const labOwner = petition.labReceivedBy?.trim();
+  return `QC: ${displayPerson(qcOwner)} | Lab: ${displayPerson(labOwner)}`;
+}
+
+function petitionNextStepText(petition: Petition) {
+  if (petition.status === 'sampleSent') return 'สิ่งที่ต้องทำ: รอรับตัวอย่างเข้ากระบวนการ';
+  if (petition.status === 'pendingReview' && !petition.assignedTo) {
+    return 'สิ่งที่ต้องทำ: รอ assign ผู้รับงาน';
+  }
+  if (petition.status === 'rejected') return 'หมายเหตุ: คำร้องนี้ถูกส่งกลับเพื่อแก้ไข';
+  if (petition.qcReceivedBy || petition.labReceivedBy) return `ผู้รับผิดชอบ: ${petitionOwnerLine(petition)}`;
+  if (petition.status === 'inProgress') return 'สิ่งที่ต้องทำ: อยู่ระหว่างดำเนินการ';
+  if (petition.status === 'approved' || petition.status === 'success') return 'สถานะ: งานนี้เสร็จสิ้นแล้ว';
+  return 'สิ่งที่ต้องทำ: ตรวจสอบรายละเอียดคำร้อง';
+}
 
 export default function PetitionListPage() {
   const navigate = useNavigate();
@@ -149,26 +214,24 @@ export default function PetitionListPage() {
   );
   const { data, loading, error, refresh } = usePetitionList(params);
 
-  // Push bell notification for rejected petitions owned by the current user.
-  // NotificationContext de-dupes by id, so this is safe to run on every refresh.
   const { push } = useNotifications();
   useEffect(() => {
     if (!user?.employeeId || !data?.items) return;
-    for (const p of data.items) {
-      if (p.status !== 'rejected') continue;
-      if (p.submittedBy?.employeeId !== user.employeeId) continue;
-      const rejectEntry = [...(p.reviewHistory ?? [])].reverse().find((e) => e.action === 'reject');
+    for (const petition of data.items) {
+      if (petition.status !== 'rejected') continue;
+      if (petition.submittedBy?.employeeId !== user.employeeId) continue;
+      const rejectEntry = [...(petition.reviewHistory ?? [])].reverse().find((e) => e.action === 'reject');
       if (!rejectEntry) continue;
       push({
-        id: `petition-rejected-${p._id}`,
-        title: `คำร้อง ${p.petitionNo} ถูกส่งกลับให้แก้ไข`,
+        id: `petition-rejected-${petition._id}`,
+        title: `คำร้อง ${petition.petitionNo} ถูกส่งกลับให้แก้ไข`,
         message: rejectEntry.note,
         level: 'warning',
-        link: `/petitions/${p._id}`,
+        link: `/petitions/${petition._id}`,
         persistent: true,
       });
     }
-  }, [user?.employeeId, data?.items, push]);
+  }, [data?.items, push, user?.employeeId]);
 
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const [paramsLoaded, setParamsLoaded] = useState(false);
@@ -184,27 +247,24 @@ export default function PetitionListPage() {
   }, [canSeeTestItems]);
 
   const isLabUser = normalizeRoles(user).some(isLabRole);
-  // For lab users, only parameters readable by lab (lab scope or qc-shared-with-lab)
-  // are relevant — both for the displayed parameter list and for deciding which
-  // petitions should appear at all.
   const displayParameters = useMemo<ParameterItem[]>(
     () =>
       isLabUser
-        ? parameters.filter(
-            (p) => p.scope === 'lab' || (p.scope === 'qc' && p.shareWithLab === true),
-          )
+        ? parameters.filter((p) => p.scope === 'lab' || (p.scope === 'qc' && p.shareWithLab === true))
         : parameters,
-    [parameters, isLabUser],
+    [isLabUser, parameters],
   );
 
   const ownedItems = useMemo(() => {
     if (!data?.items) return [];
-    let items = canViewAll ? data.items : data.items.filter((p) => canSeePetition(p, user));
+    let items = canViewAll ? data.items : data.items.filter((petition) => canSeePetition(petition, user));
     if (isLabUser && paramsLoaded) {
-      items = items.filter((p) => petitionHasLabReadableItem(p, displayParameters, groupMembership));
+      items = items.filter((petition) =>
+        petitionHasLabReadableItem(petition, displayParameters, groupMembership),
+      );
     }
     return items;
-  }, [data?.items, canViewAll, user, isLabUser, paramsLoaded, displayParameters, groupMembership]);
+  }, [canViewAll, data?.items, displayParameters, groupMembership, isLabUser, paramsLoaded, user]);
 
   const totalCount = canViewAll ? data?.total ?? 0 : ownedItems.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -214,9 +274,9 @@ export default function PetitionListPage() {
 
   function updateParams(next: Record<string, string | undefined>) {
     const sp = new URLSearchParams(searchParams);
-    for (const [k, v] of Object.entries(next)) {
-      if (v) sp.set(k, v);
-      else sp.delete(k);
+    for (const [key, value] of Object.entries(next)) {
+      if (value) sp.set(key, value);
+      else sp.delete(key);
     }
     setSearchParams(sp, { replace: false });
   }
@@ -232,110 +292,88 @@ export default function PetitionListPage() {
   }
 
   const hasFilters = !!status || !!search;
-
   const emptyTitle = hasFilters
     ? 'ไม่พบคำร้องตามเงื่อนไขที่ค้นหา'
     : canViewAll
       ? 'ยังไม่มีคำร้องในระบบ'
       : 'ยังไม่มีคำร้องที่คุณยื่นหรือได้รับมอบหมาย';
 
-  const columns: DataTableColumn<Petition>[] = [
-    {
-      key: 'no',
-      header: 'เลขที่คำร้อง',
-      cell: (p) => <span className="font-medium text-primary-500">{p.petitionNo}</span>,
-    },
-    { key: 'submitter', header: 'ผู้ยื่น', cell: (p) => p.submittedBy?.name ?? '-' },
-    { key: 'dept', header: 'แผนก', cell: (p) => PETITION_DEPT_LABELS[p.dept] },
-    {
-      key: 'sample',
-      header: 'ชื่อตัวอย่าง',
-      cell: (p) => p.items?.map((it) => it.sampleName).filter(Boolean).join(', ') || '-',
-    },
-    ...(canSeeTestItems
-      ? [
-          {
-            key: 'tests',
-            header: 'รายการทดลอง',
-            className: 'max-w-[280px] whitespace-pre-wrap text-sm text-grey-700',
-            cell: (p: Petition) => parameterNamesForPetition(p, displayParameters).join(' • ') || '-',
-          } as DataTableColumn<Petition>,
-        ]
-      : []),
-    {
-      key: 'status',
-      header: 'สถานะ',
-      cell: (p) => {
-        const b = petitionStatusBadge(p);
-        return (
-          <div className="space-y-1">
-            <Badge variant={b.variant}>{b.label}</Badge>
-            <PetitionStatusTimeline petition={p} compact />
-          </div>
-        );
-      },
-    },
-    {
-      key: 'date',
-      header: 'วันที่ยื่น',
-      className: 'text-grey-500',
-      cell: (p) =>
-        new Date(p.createdAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }),
-    },
-  ];
+  const summaryCards = SUMMARY_STATUS_GROUPS.map((group) => {
+    const count = group.statuses.length === 0
+      ? totalCount
+      : ownedItems.filter((petition) => group.statuses.includes(petition.status)).length;
+    const active =
+      (group.key === '' && selectedStatuses.length === 0) ||
+      (group.statuses.length > 0 &&
+        selectedStatuses.length === group.statuses.length &&
+        group.statuses.every((statusItem) => selectedStatuses.includes(statusItem)));
+    return { ...group, count, active };
+  });
 
   return (
     <AppLayout>
-        <div className="space-y-4">
-          <PageHeader
-            title="รายการคำร้อง"
-            description="รายการคำร้องขอตรวจตัวอย่างทั้งหมดในระบบ"
-            actions={
-              canCreatePetition ? (
-                <Button onClick={() => navigate('/petitions/new')}>
-                  <FilePlus2 className="h-4 w-4" />
-                  ยื่นคำร้องใหม่
-                </Button>
-              ) : undefined
-            }
-          />
-
-          {createdNo && (
-            <div className="rounded-[10px] border border-green-500 bg-green-50 p-3 text-sm text-green-500">
-              บันทึกคำร้องเลขที่ <strong>{createdNo}</strong> เรียบร้อยแล้ว
-            </div>
-          )}
-          {error && (
-            <div className="rounded-[10px] border border-red-500 bg-red-50 p-3 text-sm text-red-500 flex items-center justify-between gap-3">
-              <span>โหลดรายการไม่สำเร็จ: {error}</span>
-              <Button variant="danger-outline" size="sm" onClick={refresh}>
-                ลองใหม่
+      <div className="space-y-4">
+        <PageHeader
+          title="รายการคำร้อง"
+          description="ดูคำร้องทั้งหมดและงานที่ต้องดำเนินการต่อ"
+          actions={
+            canCreatePetition ? (
+              <Button onClick={() => navigate('/petitions/new')}>
+                <FilePlus2 className="h-4 w-4" />
+                ยื่นคำร้องใหม่
               </Button>
-            </div>
-          )}
+            ) : undefined
+          }
+        />
 
-          <form
-            onSubmit={applySearch}
-            className="flex flex-wrap items-end gap-3 rounded-[10px] border border-black-50 bg-white p-3"
-          >
-            <div className="flex-1 min-w-[200px]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-500" />
-                <Input
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="ค้นหาเลขที่คำร้อง / ชื่อผู้ยื่น / แผนก..."
-                  className="pl-9"
-                />
-              </div>
-            </div>
-            <div className="w-full sm:w-56">
+        {createdNo && (
+          <div className="rounded-[10px] border border-green-500 bg-green-50 p-3 text-sm text-green-600">
+            บันทึกคำร้องเลขที่ <strong>{createdNo}</strong> เรียบร้อยแล้ว
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center justify-between gap-3 rounded-[10px] border border-red-500 bg-red-50 p-3 text-sm text-red-500">
+            <span>โหลดรายการไม่สำเร็จ: {error}</span>
+            <Button variant="danger-outline" size="sm" onClick={refresh}>
+              ลองใหม่
+            </Button>
+          </div>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {summaryCards.map((card) => (
+            <button
+              key={card.label}
+              type="button"
+              onClick={() => updateParams({ status: card.key || undefined, page: undefined })}
+              className={cn(
+                'rounded-2xl border bg-white p-4 text-left transition-all',
+                card.active
+                  ? 'border-primary-300 bg-primary-50 shadow-sm ring-1 ring-primary-100'
+                  : 'border-black-50 hover:border-primary-200 hover:bg-grey-50/50',
+              )}
+            >
+              <p className="text-sm font-medium text-grey-600">{card.label}</p>
+              <p className="mt-2 text-3xl font-bold text-black-500">{card.count}</p>
+              <p className="mt-1 text-xs text-grey-500">{card.hint}</p>
+            </button>
+          ))}
+        </div>
+
+        <form onSubmit={applySearch} className="rounded-2xl border border-black-50 bg-white p-4">
+          <PageToolbar
+            search={{
+              value: searchInput,
+              onChange: setSearchInput,
+              placeholder: 'ค้นหาเลขคำร้อง, ผู้ยื่น, ชื่อตัวอย่าง',
+            }}
+            filters={
               <Popover>
                 <PopoverTrigger asChild>
                   <button
                     type="button"
                     className={cn(
-                      'flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+                      'flex h-10 min-w-[210px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
                       selectedStatuses.length === 0 && 'text-grey-500',
                     )}
                   >
@@ -346,11 +384,11 @@ export default function PetitionListPage() {
                           ? PETITION_STATUS_CONFIG[selectedStatuses[0]].label
                           : `เลือก ${selectedStatuses.length} สถานะ`}
                     </span>
-                    <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+                    <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                   </button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
-                  <div className="flex items-center justify-between px-1 pb-2 border-b border-black-50 mb-1">
+                  <div className="mb-1 flex items-center justify-between border-b border-black-50 px-1 pb-2">
                     <span className="text-xs font-medium text-grey-700">เลือกสถานะ</span>
                     {selectedStatuses.length > 0 && (
                       <button
@@ -363,86 +401,170 @@ export default function PetitionListPage() {
                     )}
                   </div>
                   <div className="space-y-1">
-                    {visibleStatuses.map((s) => {
-                      const checked = selectedStatuses.includes(s);
+                    {visibleStatuses.map((statusItem) => {
+                      const checked = selectedStatuses.includes(statusItem);
                       return (
                         <label
-                          key={s}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-accent cursor-pointer text-sm"
+                          key={statusItem}
+                          className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
                         >
                           <Checkbox
                             checked={checked}
-                            onCheckedChange={(v) => {
-                              const next = v
-                                ? [...selectedStatuses, s]
-                                : selectedStatuses.filter((x) => x !== s);
+                            onCheckedChange={(value) => {
+                              const next = value
+                                ? [...selectedStatuses, statusItem]
+                                : selectedStatuses.filter((item) => item !== statusItem);
                               updateParams({
                                 status: next.length ? next.join(',') : undefined,
                                 page: undefined,
                               });
                             }}
                           />
-                          <span>{PETITION_STATUS_CONFIG[s].label}</span>
+                          <span>{PETITION_STATUS_CONFIG[statusItem].label}</span>
                         </label>
                       );
                     })}
                   </div>
                 </PopoverContent>
               </Popover>
-            </div>
-            <Button type="submit" size="default">
-              ค้นหา
-            </Button>
-            {hasFilters && (
-              <Button type="button" variant="ghost" size="default" onClick={clearFilters}>
-                <X className="h-4 w-4" />
-                ล้างตัวกรอง
-              </Button>
-            )}
-          </form>
-
-          <DataTable
-            columns={columns}
-            data={visibleItems}
-            rowKey={(p) => p._id}
-            isLoading={loading}
-            onRowClick={(p) => navigate(`/petitions/${p._id}`)}
-            emptyTitle={emptyTitle}
-            tableClassName="min-w-[700px]"
+            }
+            right={
+              <>
+                <Button type="submit">
+                  <Search className="h-4 w-4" />
+                  ค้นหา
+                </Button>
+                {hasFilters && (
+                  <Button type="button" variant="ghost" onClick={clearFilters}>
+                    <X className="h-4 w-4" />
+                    ล้างตัวกรอง
+                  </Button>
+                )}
+              </>
+            }
           />
+        </form>
 
-          {data && totalCount > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-              <span className="text-grey-500">
-                แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)} จาก{' '}
-                {totalCount} รายการ
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="primary-outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => updateParams({ page: String(page - 1) })}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  ก่อนหน้า
-                </Button>
-                <span className="text-black-500 font-medium">
-                  หน้า {page} / {totalPages}
-                </span>
-                <Button
-                  variant="primary-outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() => updateParams({ page: String(page + 1) })}
-                >
-                  ถัดไป
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+        <Card className="border-black-50 shadow-none">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">รายการคำร้อง</CardTitle>
+                <p className="mt-1 text-sm text-grey-500">
+                  เลือกคำร้องที่ต้องการดูต่อหรือดำเนินการขั้นถัดไป
+                </p>
               </div>
+              {data && totalCount > 0 && (
+                <span className="text-sm text-grey-500">
+                  แสดง {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, totalCount)} จาก {totalCount} รายการ
+                </span>
+              )}
             </div>
-          )}
-        </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {loading ? (
+              <div className="rounded-[10px] border border-dashed border-grey-200 py-12 text-center text-grey-500">
+                กำลังโหลดรายการคำร้อง...
+              </div>
+            ) : visibleItems.length === 0 ? (
+              <div className="rounded-[10px] border border-dashed border-grey-200 py-12 text-center">
+                <p className="text-sm font-medium text-black-500">{emptyTitle}</p>
+                <p className="mt-1 text-xs text-grey-500">ลองเปลี่ยนตัวกรองหรือค้นหาด้วยคำอื่น</p>
+              </div>
+            ) : (
+              visibleItems.map((petition) => {
+                const statusBadge = petitionStatusBadge(petition);
+                const sampleNames = petition.items
+                  .map((item) => item.sampleName)
+                  .filter((item): item is string => Boolean(item));
+                const primarySample = sampleNames[0] ?? '-';
+                const extraSamples = Math.max(0, sampleNames.length - 1);
+                const testItems = canSeeTestItems
+                  ? parameterNamesForPetition(petition, displayParameters)
+                  : [];
+
+                return (
+                  <button
+                    key={petition._id}
+                    type="button"
+                    onClick={() => navigate(`/petitions/${petition._id}`)}
+                    className="w-full rounded-2xl border border-black-50 bg-white p-4 text-left transition hover:border-primary-200 hover:bg-grey-50/40"
+                  >
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 flex-1 space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-base font-semibold text-primary-500">{petition.petitionNo}</p>
+                          <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
+                          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium text-black-500">{primarySample}</p>
+                            {extraSamples > 0 && <Badge variant="gray-soft">+อีก {extraSamples}</Badge>}
+                            <span className="text-xs text-grey-500">{petition.items.length} รายการ</span>
+                          </div>
+                          {testItems.length > 0 && (
+                            <p className="line-clamp-2 text-sm text-grey-600">
+                              {testItems.slice(0, 4).join(' • ')}
+                              {testItems.length > 4 ? ` • +อีก ${testItems.length - 4}` : ''}
+                            </p>
+                          )}
+                          <p className="text-xs text-grey-500">{petitionMetaLine(petition)}</p>
+                        </div>
+
+                        <div className="rounded-xl bg-grey-50 px-3 py-2 text-sm text-grey-700">
+                          {petitionNextStepText(petition)}
+                        </div>
+
+                        <PetitionStatusTimeline petition={petition} compact />
+                      </div>
+
+                      <div className="flex items-center gap-2 self-start lg:pl-4">
+                        <span className="inline-flex h-9 items-center gap-2 rounded-md border border-primary-200 bg-white px-3 text-sm font-medium text-primary-600">
+                          {petitionActionLabel(petition)}
+                          <ArrowRight className="h-4 w-4" />
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+
+        {data && totalCount > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            <span className="text-grey-500">
+              แสดง {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, totalCount)} จาก {totalCount} รายการ
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="primary-outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => updateParams({ page: String(page - 1) })}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                ก่อนหน้า
+              </Button>
+              <span className="font-medium text-black-500">
+                หน้า {page} / {totalPages}
+              </span>
+              <Button
+                variant="primary-outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => updateParams({ page: String(page + 1) })}
+              >
+                ถัดไป
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
     </AppLayout>
   );
 }

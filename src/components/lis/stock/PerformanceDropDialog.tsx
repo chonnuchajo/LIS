@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
@@ -6,7 +7,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import type { StockUnitItem } from "@/types/stock";
 
 interface Props {
@@ -15,12 +20,15 @@ interface Props {
   onSaved: () => void;
 }
 
-/** แจ้งประสิทธิภาพลดลง → ทิ้ง working ตัวเดียว หรือทั้งขวด (ขวดแม่ + working ทุกตัว) */
+const REASONS = ["ประสิทธิภาพลดลง", "หมดอายุ", "ปนเปื้อน", "ใช้งานไม่ได้", "อื่นๆ"] as const;
+
+/** แจ้งทิ้ง standard → ทิ้ง working ตัวเดียว หรือทั้งขวด (ขวดแม่ + working ทุกตัว) */
 export default function PerformanceDropDialog({ qrId, onClose, onSaved }: Props) {
   const [unit, setUnit] = useState<StockUnitItem | null>(null);
   const [loadErr, setLoadErr] = useState("");
   const [scope, setScope] = useState<"unit" | "whole">("unit");
-  const [reason, setReason] = useState("ประสิทธิภาพลดลง");
+  const [reasonKey, setReasonKey] = useState<string>(REASONS[0]);
+  const [customReason, setCustomReason] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -31,12 +39,15 @@ export default function PerformanceDropDialog({ qrId, onClose, onSaved }: Props)
     return () => { on = false; };
   }, [qrId]);
 
+  const isWorking = unit?.kind === "working";
+  const reason = reasonKey === "อื่นๆ" ? (customReason.trim() || "อื่นๆ") : reasonKey;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
-      const res = await api.discardStockUnit(qrId, { reason: reason || undefined, cascade: scope === "whole" });
-      toast.success(scope === "whole" ? `ทิ้งทั้งขวดแล้ว (${res.count} รายการ)` : "ทิ้ง working แล้ว");
+      const res = await api.discardStockUnit(qrId, { reason, cascade: scope === "whole" });
+      toast.success(scope === "whole" ? `ทิ้งทั้งขวดแล้ว (${res.count} รายการ)` : "แจ้งทิ้งแล้ว");
       onSaved();
       onClose();
     } catch (err) {
@@ -48,42 +59,82 @@ export default function PerformanceDropDialog({ qrId, onClose, onSaved }: Props)
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-[95vw] sm:max-w-md">
+      <DialogContent className="max-w-[95vw] rounded-2xl sm:max-w-md">
         <form onSubmit={submit}>
           <DialogHeader>
-            <DialogTitle>แจ้งประสิทธิภาพลดลง</DialogTitle>
-            <DialogDescription>{qrId}</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" /> แจ้งทิ้ง Standard
+            </DialogTitle>
+            <DialogDescription>เลือกเหตุผลและขอบเขตการทิ้งของขวดนี้</DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-4">
+
+          <div className="space-y-4 py-4">
             {loadErr && <p className="text-sm text-destructive">{loadErr}</p>}
+
+            {/* ชื่อ + ปริมาณคงเหลือ */}
             {unit && (
-              <div className="text-sm text-muted-foreground">
-                {unit.itemName} ({unit.itemCode}) · {unit.kind === "working" ? "working" : "คงคลัง"} · Lot {unit.lotNo || "-"}
+              <div className="rounded-xl border bg-muted/40 p-3">
+                <div className="font-medium">{unit.itemName}</div>
+                <div className="mt-0.5 text-sm text-muted-foreground">
+                  เหลือ <span className="font-medium text-foreground">{unit.volume?.remaining ?? "-"} {unit.volume?.unit}</span>
+                  {" · "}{isWorking ? "working" : "คงคลัง"}
+                  {unit.lotNo ? ` · Lot ${unit.lotNo}` : ""}
+                </div>
               </div>
             )}
-            <div>
-              <Label className="mb-1.5 block">ขอบเขตการทิ้ง</Label>
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="radio" name="scope" checked={scope === "unit"} onChange={() => setScope("unit")} />
-                  ทิ้งเฉพาะ{unit?.kind === "working" ? " working นี้" : "ขวดนี้"}
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="radio" name="scope" checked={scope === "whole"} onChange={() => setScope("whole")} />
-                  ทิ้งทั้งขวด (ขวดแม่ + working ลูกทุกตัว)
-                </label>
-              </div>
-            </div>
+
+            {/* เหตุผล */}
             <div>
               <Label className="mb-1.5 block">เหตุผล</Label>
-              <Input value={reason} onChange={(e) => setReason(e.target.value)} />
+              <Select value={reasonKey} onValueChange={setReasonKey}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {reasonKey === "อื่นๆ" && (
+                <Input
+                  className="mt-2"
+                  autoFocus
+                  placeholder="ระบุเหตุผล..."
+                  value={customReason}
+                  onChange={(e) => setCustomReason(e.target.value)}
+                />
+              )}
             </div>
-            <p className="text-xs text-muted-foreground">เมื่อทิ้งแล้ว QR ที่ทิ้งจะใช้งานต่อไม่ได้ถาวร</p>
+
+            {/* ขอบเขต */}
+            <div>
+              <Label className="mb-1.5 block">ขอบเขต</Label>
+              <div className="space-y-2">
+                {([
+                  { v: "unit", label: isWorking ? "ทิ้งเฉพาะ working นี้" : "ทิ้งขวดนี้" },
+                  { v: "whole", label: "ทิ้งทั้งขวด (ขวดแม่ + working ลูกทุกตัว)" },
+                ] as const).map((opt) => (
+                  <label
+                    key={opt.v}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-2 rounded-lg border p-2.5 text-sm transition-colors",
+                      scope === opt.v ? "border-primary bg-primary/5" : "hover:bg-muted/50",
+                    )}
+                  >
+                    <input type="radio" name="scope" checked={scope === opt.v} onChange={() => setScope(opt.v)} />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+              เมื่อทิ้งแล้ว QR ที่ทิ้งจะใช้งานต่อไม่ได้ถาวร
+            </p>
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
             <Button type="submit" variant="destructive" disabled={busy || !unit}>
-              {busy ? "กำลังบันทึก..." : "ยืนยันทิ้ง"}
+              {busy ? "กำลังบันทึก..." : "ยืนยันแจ้งทิ้ง"}
             </Button>
           </DialogFooter>
         </form>

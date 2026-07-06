@@ -40,6 +40,15 @@ function isSubstanceAbnormalJS(field, std, value) {
   );
 }
 
+function visibleSubstanceStandardJS(field, subKey, includeRestricted) {
+  const std = (field.substanceStandards || []).find(
+    (s) => matchSubstanceKeyJS(s.substance) === subKey,
+  );
+  if (!std) return undefined;
+  if (!includeRestricted && std.headOnly) return undefined;
+  return std;
+}
+
 // mirror of src/lib/parameterValidation.ts evalCondition / resolveStandard — keep in sync
 function conditionSourceValueJS(cond, ctx) {
   if (cond.sourceParameterId) {
@@ -192,6 +201,7 @@ router.get("/progress", async (req, res) => {
 // Returns map of petitionId → boolean (true if any field in any result is abnormal).
 router.get("/abnormal-flags", async (req, res) => {
   try {
+    const includeRestricted = String(req.query.includeRestricted || "").trim() === "1";
     const raw = String(req.query.petitionIds || "").trim();
     if (!raw) return res.json({});
     const ids = raw.split(",").map((s) => s.trim()).filter(Boolean);
@@ -233,9 +243,7 @@ router.get("/abnormal-flags", async (req, res) => {
             for (const [vkey, vval] of Object.entries(values)) {
               if (!vkey.startsWith(prefix)) continue;
               const subKey = vkey.slice(prefix.length);
-              const std = (field.substanceStandards || []).find(
-                (s) => matchSubstanceKeyJS(s.substance) === subKey,
-              );
+              const std = visibleSubstanceStandardJS(field, subKey, includeRestricted);
               if (isSubstanceAbnormalJS(field, std, vval)) { flagged = true; break; }
             }
             if (flagged) break;

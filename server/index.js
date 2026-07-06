@@ -43,7 +43,6 @@ mountApi('/master-items', require('./routes/masterItems'));
 mountApi('/master-item', require('./routes/masterItems'));
 mountApi('/master-item-meta', require('./routes/masterItemMeta'));
 mountApi('/simple-methods', require('./routes/simpleMethods'));
-mountApi('/standard-configs', require('./routes/standardConfigs'));
 mountApi('/standard-times', require('./routes/standardTimes'));
 mountApi('/simple-method-exclusions', require('./routes/simpleMethodExclusions'));
 mountApi('/common-name-overrides', require('./routes/commonNameOverrides'));

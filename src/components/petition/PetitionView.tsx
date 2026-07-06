@@ -46,6 +46,7 @@ export default function PetitionView({ petition: p }: Props) {
   const { user } = useAuth();
   const roles = normalizeRoles(user);
   const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
+  const canSeeRestrictedStandards = roles.some((r) => r === 'admin' || r === 'qc-head');
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const groupMembership = useItemGroupMembership();
   const idsFor = (it: { sampleId?: string }) =>
@@ -86,7 +87,7 @@ export default function PetitionView({ petition: p }: Props) {
     }
     return valueRows.flatMap((values, rowIndex) =>
       (param.valueFields ?? []).flatMap((field) =>
-        expandFieldForItem(field, item.commonName).flatMap((unit) => {
+        expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards }).flatMap((unit) => {
           const isNumeric = unit.field.type === 'number' || unit.field.type === 'float';
           const ctx = { sameParam: values, otherParams };
           const effectiveField = unit.field.conditionalMode && isNumeric
@@ -111,8 +112,8 @@ export default function PetitionView({ petition: p }: Props) {
               value,
               standard,
               hasStandard: standard.trim() !== '',
-              hideStandard: isSgParam,
-              abnormal: isFieldAbnormal(effectiveField, value),
+              hideStandard: isSgParam || (unit as { hiddenStandard?: boolean }).hiddenStandard === true,
+              abnormal: (unit as { hiddenStandard?: boolean }).hiddenStandard === true ? false : isFieldAbnormal(effectiveField, value),
             }));
         }),
       ),
@@ -225,8 +226,8 @@ export default function PetitionView({ petition: p }: Props) {
                                       <div key={entry.key} className="rounded-md border border-grey-100 bg-white px-2 py-1.5">
                                         <div className="flex flex-wrap items-center justify-between gap-1.5">
                                           <span className="text-grey-500">{entry.label}</span>
-                                          <Badge variant={!entry.hasStandard && !entry.hideStandard ? 'gray-soft' : entry.abnormal ? 'red-soft' : 'green-soft'}>
-                                            {!entry.hasStandard && !entry.hideStandard ? 'ไม่มีเกณฑ์' : entry.abnormal ? 'ไม่ผ่านเกณฑ์' : 'ผ่านเกณฑ์'}
+                                          <Badge variant={entry.hideStandard || !entry.hasStandard ? 'gray-soft' : entry.abnormal ? 'red-soft' : 'green-soft'}>
+                                            {entry.hideStandard ? 'ไม่แสดงเกณฑ์' : !entry.hasStandard ? 'ไม่มีเกณฑ์' : entry.abnormal ? 'ไม่ผ่านเกณฑ์' : 'ผ่านเกณฑ์'}
                                           </Badge>
                                         </div>
                                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">

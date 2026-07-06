@@ -17,7 +17,13 @@ const analysisInstruments =
   getRoomCatalog(ANALYSIS_ROOM_SLUG)?.instruments.map((i) => ({ id: i.id, name: i.name })) ?? [];
 
 const StockDeduction = () => {
+  const [tab, setTab] = useState<string>("requisition");
   const [type, setType] = useState<string>("");
+
+  const viewAllStandards = () => {
+    setType("standard");
+    setTab("history");
+  };
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock-deductions", type],
@@ -87,14 +93,18 @@ const StockDeduction = () => {
         description="เบิกสารเคมีให้เครื่อง และดูประวัติการตัด stock"
       />
 
-      <Tabs defaultValue="requisition">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="mb-4">
           <TabsTrigger value="requisition">เบิก stock</TabsTrigger>
           <TabsTrigger value="history">ประวัติ</TabsTrigger>
         </TabsList>
 
         <TabsContent value="requisition">
-          <StockRequisitionTab roomSlug={ANALYSIS_ROOM_SLUG} instruments={analysisInstruments} />
+          <StockRequisitionTab
+            roomSlug={ANALYSIS_ROOM_SLUG}
+            instruments={analysisInstruments}
+            onViewAllStandards={viewAllStandards}
+          />
         </TabsContent>
 
         <TabsContent value="history">

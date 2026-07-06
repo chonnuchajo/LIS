@@ -8,7 +8,6 @@ import type {
   StockTier,
   StockUnitItem,
 } from "@/types/stock";
-import type { StandardConfigDoc } from "@/lib/standardConfig";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import {
   defaultPrinterFor,
@@ -617,9 +616,11 @@ export const api = {
     const qs = new URLSearchParams({ petitionIds: petitionIds.join(",") }).toString();
     return request<QCProgressMap>(`/qc-results/progress?${qs}`);
   },
-  getAbnormalFlags: (petitionIds: string[]) => {
+  getAbnormalFlags: (petitionIds: string[], opts?: { includeRestricted?: boolean }) => {
     if (petitionIds.length === 0) return Promise.resolve({} as Record<string, boolean>);
-    const qs = new URLSearchParams({ petitionIds: petitionIds.join(",") }).toString();
+    const p = new URLSearchParams({ petitionIds: petitionIds.join(",") });
+    if (opts?.includeRestricted) p.set("includeRestricted", "1");
+    const qs = p.toString();
     return request<Record<string, boolean>>(`/qc-results/abnormal-flags?${qs}`);
   },
   getLastBatchValues: (commonName: string, parameterId: string, excludePetitionId: string) => {
@@ -705,23 +706,6 @@ export const api = {
     request<MethodDoc>(`/methods/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteMethod: (id: string) =>
     request<{ ok: true }>(`/methods/${encodeURIComponent(id)}`, { method: "DELETE" }),
-
-  // Standard Config
-  getStandardConfigs: () => request<StandardConfigDoc[]>("/standard-configs"),
-  createStandardConfig: (data: Partial<StandardConfigDoc>) =>
-    request<StandardConfigDoc>("/standard-configs", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  updateStandardConfig: (id: string, data: Partial<StandardConfigDoc>) =>
-    request<StandardConfigDoc>(`/standard-configs/${encodeURIComponent(id)}`, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    }),
-  deleteStandardConfig: (id: string) =>
-    request<{ ok: true }>(`/standard-configs/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }),
 };
 
 export type QCProgressEntry = {

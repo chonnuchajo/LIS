@@ -56,7 +56,9 @@ export function buildApprovalGroups(
   parameters: ParameterItem[],
   results: QCTestResult[],
   groupMembership: Map<string, string[]>,
+  options?: { includeRestrictedStandards?: boolean },
 ): ApprovalItemGroup[] {
+  const includeRestrictedStandards = options?.includeRestrictedStandards ?? false;
   // Cross-parameter conditional context uses each result's primary (entry-0) values.
   const v1: Record<string, Record<string, unknown>> = {};
   const v2: Record<string, Record<string, unknown>> = {};
@@ -108,7 +110,7 @@ export function buildApprovalGroups(
             if (phase === 2 && fPhase === "before") return;
             // reference fields are auto-resolved from substance standards elsewhere and intentionally omitted from approval rows
             if (field.type === "reference") return;
-            expandFieldForItem(field, item.commonName).forEach((unit) => {
+            expandFieldForItem(field, item.commonName, { includeRestrictedStandards }).forEach((unit) => {
               const effectiveField = unit.field.conditionalMode
                 ? resolveFieldStandard(unit.field, ctx)
                 : unit.field;
@@ -131,13 +133,14 @@ export function buildApprovalGroups(
               valueList.forEach((raw, vi) => {
                 const valueLabel = unit.field.multiple ? `ค่าที่ ${vi + 1}` : "";
                 const labelParts = [unit.field.label, valueLabel, entryLabel].filter(Boolean);
+                const hiddenStandard = (unit as { hiddenStandard?: boolean }).hiddenStandard === true;
                 rows.push({
                   key: `${k}__${unit.key}__p${phase}__e${ei}__v${vi}`,
                   label: labelParts.join(" · "),
                   unit: unit.field.unit,
                   value: asStr(raw),
-                  standardText: isOutputMode ? (outputRes?.text || (outputRes?.kind === "abnormal" ? "ตกเกณฑ์" : "")) : standardText,
-                  abnormal: isOutputMode ? outputRes?.kind === "abnormal" : isFieldAbnormal(effectiveField, raw),
+                  standardText: hiddenStandard ? "" : (isOutputMode ? (outputRes?.text || (outputRes?.kind === "abnormal" ? "ตกเกณฑ์" : "")) : standardText),
+                  abnormal: hiddenStandard ? false : (isOutputMode ? outputRes?.kind === "abnormal" : isFieldAbnormal(effectiveField, raw)),
                   note,
                   phase,
                 });
