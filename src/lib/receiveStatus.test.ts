@@ -1,5 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { isLegacyReceived, labReceivedAt, labReceivedBy, qcReceivedAt, qcReceivedBy, labTrackStatusBadge } from './receiveStatus';
+import {
+  isLegacyReceived,
+  labReceivedAt,
+  labReceivedBy,
+  qcReceivedAt,
+  qcReceivedBy,
+  labTrackStatusBadge,
+  qcTrackStatusBadge,
+  labTrackStatusSteps,
+  qcTrackStatusSteps,
+} from './receiveStatus';
+import type { Petition } from '@/types/petition.types';
 
 const T1 = '2026-06-08T01:00:00.000Z';
 const T2 = '2026-06-10T02:00:00.000Z';
@@ -67,5 +78,101 @@ describe('labTrackStatusBadge', () => {
   it('Lab completed shows Lab completion while petition waits for other gates', () => {
     const p = { status: 'inProgress' as const, labReceivedAt: T1, labCompletedAt: T2 };
     expect(labTrackStatusBadge(p).label).toBe('Lab ตรวจครบ · รออนุมัติ');
+  });
+});
+
+describe('qcTrackStatusBadge', () => {
+  it('QC not received yet → "รอรับ" even if global status inProgress', () => {
+    const p = { status: 'inProgress' as const, labReceivedAt: T1 };
+    expect(qcTrackStatusBadge(p).label).toBe('รอรับ');
+  });
+
+  it('QC received + global inProgress → "QC กำลังตรวจ"', () => {
+    const p = { status: 'inProgress' as const, qcReceivedAt: T1 };
+    expect(qcTrackStatusBadge(p).label).toBe('QC กำลังตรวจ');
+  });
+
+  it('QC completed while petition still open → "QC ตรวจครบ · รออนุมัติ"', () => {
+    const p = { status: 'inProgress' as const, qcReceivedAt: T1, qcCompletedAt: T2 };
+    expect(qcTrackStatusBadge(p).label).toBe('QC ตรวจครบ · รออนุมัติ');
+  });
+
+  it('approved → config label, no QC-track wording', () => {
+    const p = { status: 'approved' as const, qcReceivedAt: T1, qcCompletedAt: T2 };
+    expect(qcTrackStatusBadge(p).label).toBe('อนุมัติแล้ว');
+  });
+
+  it('legacy received (receivedAt only) counts as QC received', () => {
+    const p = { status: 'inProgress' as const, receivedAt: T1, receivedBy: 'Dev Administrator' };
+    expect(qcTrackStatusBadge(p).label).toBe('QC กำลังตรวจ');
+  });
+});
+
+describe('labTrackStatusSteps', () => {
+  it('4 steps in Lab-only order: รับตัวอย่าง → Assign → Lab → อนุมัติ Lab', () => {
+    const steps = labTrackStatusSteps({ status: 'sampleSent' } as Petition);
+    expect(steps.map((s) => s.label)).toEqual(['รับตัวอย่าง', 'Assign', 'Lab', 'อนุมัติ Lab']);
+  });
+
+  it('nothing done → received is the current step', () => {
+    const steps = labTrackStatusSteps({ status: 'sampleSent' } as Petition);
+    expect(steps.every((s) => !s.done)).toBe(true);
+    expect(steps.find((s) => s.current)?.key).toBe('received');
+  });
+
+  it('received + assigned + labCompleted, not approved → lab-approval is current', () => {
+    const p = {
+      status: 'inProgress',
+      labReceivedAt: T1,
+      assignedTo: { userId: 'u1' },
+      labCompletedAt: T2,
+    } as unknown as Petition;
+    const steps = labTrackStatusSteps(p);
+    expect(steps.filter((s) => s.done).map((s) => s.key)).toEqual(['received', 'assigned', 'lab']);
+    expect(steps.find((s) => s.current)?.key).toBe('lab-approval');
+  });
+
+  it('labApprovedAt set → every step done', () => {
+    const p = {
+      status: 'inProgress',
+      labReceivedAt: T1,
+      assignedTo: { userId: 'u1' },
+      labCompletedAt: T2,
+      labApprovedAt: T2,
+    } as unknown as Petition;
+    expect(labTrackStatusSteps(p).every((s) => s.done)).toBe(true);
+  });
+
+  it('rejected: intermediate steps done via closed, but อนุมัติ Lab stays not-done', () => {
+    const steps = labTrackStatusSteps({ status: 'rejected' } as Petition);
+    expect(steps.find((s) => s.key === 'received')?.done).toBe(true);
+    expect(steps.find((s) => s.key === 'lab-approval')?.done).toBe(false);
+  });
+});
+
+describe('qcTrackStatusSteps', () => {
+  it('4 steps in QC-only order: รับตัวอย่าง → Assign → QC → อนุมัติ QC', () => {
+    const steps = qcTrackStatusSteps({ status: 'sampleSent' } as Petition);
+    expect(steps.map((s) => s.label)).toEqual(['รับตัวอย่าง', 'Assign', 'QC', 'อนุมัติ QC']);
+  });
+
+  it('qc completed but not approved → อนุมัติ QC is current', () => {
+    const p = {
+      status: 'inProgress',
+      qcReceivedAt: T1,
+      assignedTo: { userId: 'u1' },
+      qcCompletedAt: T2,
+    } as unknown as Petition;
+    expect(qcTrackStatusSteps(p).find((s) => s.current)?.key).toBe('qc-approval');
+  });
+
+  it('approved → every step done including อนุมัติ QC', () => {
+    const p = {
+      status: 'approved',
+      qcReceivedAt: T1,
+      assignedTo: { userId: 'u1' },
+      qcCompletedAt: T2,
+    } as unknown as Petition;
+    expect(qcTrackStatusSteps(p).every((s) => s.done)).toBe(true);
   });
 });
