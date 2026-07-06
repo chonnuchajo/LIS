@@ -4,6 +4,7 @@ import { Plus, Trash2, Search } from "lucide-react";
 import { api, type ParameterValueField, type SubstanceStandard, type StandardOperator } from "@/lib/api";
 import { parseSubstances, extractSubstanceName, matchSubstanceKey } from "@/lib/substances";
 import { OPERATOR_OPTIONS, describeSubstanceStandard } from "@/lib/standardOperators";
+import { tradeNameKeys } from "@/lib/masterItemFields";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -18,8 +19,6 @@ import {
 } from "@/components/ui/tabs";
 
 const COMMON_NAME_KEYS = ["common_name", "commonname", "commonName", "item_name2", "itemType"];
-const ITEM_NAME_KEYS = ["item_name", "itemname", "itemName", "description", "item_desc"];
-
 function pickField(row: Record<string, unknown>, keys: string[]): string {
   for (const k of keys) {
     const v = row?.[k];
@@ -38,6 +37,11 @@ function buildSubstances(commonNames: string[]): string[] {
     }
   }
   return [...byKey.values()].sort((a, b) => a.localeCompare(b, ["th", "en"]));
+}
+
+function buildCommonNameOptions(commonNames: string[]): string[] {
+  return [...new Set(commonNames.map((v) => String(v).trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, ["th", "en"]));
 }
 
 type Props = {
@@ -93,33 +97,30 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
   const safeRows = Array.isArray(masterRows) ? masterRows : [];
   const safeGroups = Array.isArray(groups) ? groups : [];
 
-  const byCommonName = useMemo(
-    () => buildSubstances(safeRows.map((r) => pickField(r, COMMON_NAME_KEYS)).filter(Boolean)),
-    [safeRows],
-  );
-  const byName = useMemo(() => {
+  const commonNameOptions = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const found = new Map<string, string>();
+    const commonNames = safeRows
+      .map((row) => pickField(row, COMMON_NAME_KEYS))
+      .filter((commonName) => !q || commonName.toLowerCase().includes(q));
+    return buildCommonNameOptions(commonNames);
+  }, [safeRows, search]);
+
+  // trade name → รวม commonName ทุก item ที่ใช้ชื่อการค้าเดียวกัน (เช่น ต่างขนาดบรรจุ)
+  // → resolve เป็นสาร. trade name เป็นแค่ทางลัดค้นหาสาร ไม่ใช่หน่วยเก็บเกณฑ์
+  const tradeNameOptions = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const byTrade = new Map<string, Set<string>>();
     for (const row of safeRows) {
-      const itemName = pickField(row, ITEM_NAME_KEYS);
+      const tradeName = pickField(row, tradeNameKeys);
+      if (!tradeName) continue;
       const commonName = pickField(row, COMMON_NAME_KEYS);
-      const substances = parseSubstances(commonName)
-        .map((raw) => extractSubstanceName(raw) || raw)
-        .filter(Boolean);
-      for (const substance of substances) {
-        const key = matchSubstanceKey(substance);
-        if (!key) continue;
-        if (
-          !q ||
-          substance.toLowerCase().includes(q) ||
-          itemName.toLowerCase().includes(q) ||
-          commonName.toLowerCase().includes(q)
-        ) {
-          if (!found.has(key)) found.set(key, substance);
-        }
-      }
+      if (!byTrade.has(tradeName)) byTrade.set(tradeName, new Set());
+      if (commonName) byTrade.get(tradeName)!.add(commonName);
     }
-    return [...found.values()].sort((a, b) => a.localeCompare(b, ["th", "en"]));
+    return [...byTrade.entries()]
+      .filter(([tradeName]) => !q || tradeName.toLowerCase().includes(q))
+      .map(([tradeName, commonNames]) => ({ tradeName, substances: buildSubstances([...commonNames]) }))
+      .sort((a, b) => a.tradeName.localeCompare(b.tradeName, ["th", "en"]));
   }, [safeRows, search]);
 
   const selectedKeys = useMemo(() => new Set(list.map((s) => matchSubstanceKey(s.substance))), [list]);
@@ -128,6 +129,12 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
     const key = matchSubstanceKey(name);
     if (!key || selectedKeys.has(key)) return;
     setList((prev) => [...prev, { substance: name, operator: "gte", value: null, value2: null, headOnly: false }]);
+  };
+  const addCommonName = (commonName: string) => {
+    const substances = parseSubstances(commonName)
+      .map((raw) => extractSubstanceName(raw) || raw)
+      .filter(Boolean);
+    substances.forEach(addSubstance);
   };
   const removeAt = (i: number) => setList((prev) => prev.filter((_, idx) => idx !== i));
   const patchAt = (i: number, patch: Partial<EditableSubstanceStandard>) =>
@@ -164,29 +171,93 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
     </div>
   );
 
+  const commonNameList = (names: string[]) => (
+    <div className="max-h-[34rem] overflow-y-auto rounded border divide-y">
+      {names.length === 0 ? (
+        <p className="p-3 text-xs text-muted-foreground">ไม่พบ common name</p>
+      ) : (
+        names.map((commonName) => {
+          const substances = buildSubstances([commonName]);
+          const allAdded = substances.length > 0 && substances.every((n) => selectedKeys.has(matchSubstanceKey(n)));
+          return (
+            <button
+              key={commonName}
+              type="button"
+              disabled={substances.length === 0 || allAdded}
+              onClick={() => addCommonName(commonName)}
+              className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-40"
+              title={commonName}
+            >
+              <div className="min-w-0">
+                <div className="break-words font-medium text-foreground">{commonName}</div>
+                {substances.length > 0 ? (
+                  <div className="mt-1 break-words text-xs text-muted-foreground">
+                    สาร: {substances.join(", ")}
+                  </div>
+                ) : null}
+              </div>
+              {!allAdded && substances.length > 0 && <Plus className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
+            </button>
+          );
+        })
+      )}
+    </div>
+  );
+
+  const tradeNameList = (items: { tradeName: string; substances: string[] }[]) => (
+    <div className="max-h-[34rem] overflow-y-auto rounded border divide-y">
+      {items.length === 0 ? (
+        <p className="p-3 text-xs text-muted-foreground">ไม่พบ trade name</p>
+      ) : (
+        items.map(({ tradeName, substances }) => {
+          const allAdded = substances.length > 0 && substances.every((n) => selectedKeys.has(matchSubstanceKey(n)));
+          return (
+            <button
+              key={tradeName}
+              type="button"
+              disabled={substances.length === 0 || allAdded}
+              onClick={() => substances.forEach(addSubstance)}
+              className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-40"
+              title={tradeName}
+            >
+              <div className="min-w-0">
+                <div className="break-words font-medium text-foreground">{tradeName}</div>
+                {substances.length > 0 ? (
+                  <div className="mt-1 break-words text-xs text-muted-foreground">
+                    สาร: {substances.join(", ")}
+                  </div>
+                ) : null}
+              </div>
+              {!allAdded && substances.length > 0 && <Plus className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
+            </button>
+          );
+        })
+      )}
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle>ตั้งเงื่อนไขรายสาร — {field.label}</DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 overflow-hidden md:grid-cols-[1.2fr_1fr]">
           <div>
             <Label className="text-sm mb-1.5 block">เลือกสาร</Label>
             <Tabs defaultValue="common">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="common">commonName</TabsTrigger>
-                <TabsTrigger value="name">ชื่อ</TabsTrigger>
                 <TabsTrigger value="group">กลุ่ม</TabsTrigger>
+                <TabsTrigger value="trade">trade name</TabsTrigger>
               </TabsList>
-              <TabsContent value="common">{pickList(byCommonName)}</TabsContent>
-              <TabsContent value="name">
+              <TabsContent value="common">
                 {filterBox}
-                {pickList(byName)}
+                {commonNameList(commonNameOptions)}
               </TabsContent>
               <TabsContent value="group">
-                <div className="max-h-56 overflow-y-auto rounded border divide-y">
+                <div className="max-h-[34rem] overflow-y-auto rounded border divide-y">
                   {safeGroups.map((g) => {
                     const subs = buildSubstances(g.commonNames ?? []);
                     const allAdded = subs.length > 0 && subs.every((n) => selectedKeys.has(matchSubstanceKey(n)));
@@ -205,12 +276,16 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                   })}
                 </div>
               </TabsContent>
+              <TabsContent value="trade">
+                {filterBox}
+                {tradeNameList(tradeNameOptions)}
+              </TabsContent>
             </Tabs>
           </div>
 
           <div>
             <Label className="text-sm mb-1.5 block">เกณฑ์ต่อสาร ({list.length})</Label>
-            <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+            <div className="max-h-[34rem] space-y-2 overflow-y-auto pr-1">
               {list.length === 0 ? (
                 <p className="text-xs text-muted-foreground">ยังไม่ได้เลือกสาร</p>
               ) : (
