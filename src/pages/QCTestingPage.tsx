@@ -59,7 +59,7 @@ export default function QCTestingPage() {
       return;
     }
     let alive = true;
-    api.getAbnormalFlags(flaggablePetitionIds)
+    api.getAbnormalFlags(flaggablePetitionIds, { includeRestricted: false })
       .then((map) => { if (alive) setAbnormalMap(map || {}); })
       .catch(() => { if (alive) setAbnormalMap({}); });
     api.getReturnedFlags(flaggablePetitionIds)

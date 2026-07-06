@@ -616,9 +616,11 @@ export const api = {
     const qs = new URLSearchParams({ petitionIds: petitionIds.join(",") }).toString();
     return request<QCProgressMap>(`/qc-results/progress?${qs}`);
   },
-  getAbnormalFlags: (petitionIds: string[]) => {
+  getAbnormalFlags: (petitionIds: string[], opts?: { includeRestricted?: boolean }) => {
     if (petitionIds.length === 0) return Promise.resolve({} as Record<string, boolean>);
-    const qs = new URLSearchParams({ petitionIds: petitionIds.join(",") }).toString();
+    const p = new URLSearchParams({ petitionIds: petitionIds.join(",") });
+    if (opts?.includeRestricted) p.set("includeRestricted", "1");
+    const qs = p.toString();
     return request<Record<string, boolean>>(`/qc-results/abnormal-flags?${qs}`);
   },
   getLastBatchValues: (commonName: string, parameterId: string, excludePetitionId: string) => {

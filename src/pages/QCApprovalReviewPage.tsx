@@ -20,12 +20,14 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useConfirm } from "@/context/ConfirmDialog";
 import { RevisionRequestDialog } from "@/components/petition/RevisionRequestDialog";
+import { normalizeRoles } from "@/lib/roles";
 
 export default function QCApprovalReviewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const { user } = useAuth();
+  const canSeeRestrictedStandards = normalizeRoles(user).some((role) => role === "admin" || role === "qc-head");
   const confirm = useConfirm();
   const [submitting, setSubmitting] = useState(false);
   const [retestLab, setRetestLab] = useState(false);
@@ -61,12 +63,12 @@ export default function QCApprovalReviewPage() {
     if (!id) { setPetitionHasAbnormal(false); setAbnormalLoaded(false); return; }
     setAbnormalLoaded(false);
     let alive = true;
-    api.getAbnormalFlags([id])
+    api.getAbnormalFlags([id], { includeRestricted: canSeeRestrictedStandards })
       .then((m) => { if (alive) setPetitionHasAbnormal(!!m[id]); })
       .catch(() => { if (alive) setPetitionHasAbnormal(false); })
       .finally(() => { if (alive) setAbnormalLoaded(true); });
     return () => { alive = false; };
-  }, [id]);
+  }, [id, canSeeRestrictedStandards]);
 
   const doApprove = useCallback(async (conclusion: "pass" | "accepted-oos", note?: string) => {
     if (!petition) return;
@@ -142,7 +144,9 @@ export default function QCApprovalReviewPage() {
     );
   }
 
-  const groups = buildApprovalGroups(petition, parameters, results, groupMembership);
+  const groups = buildApprovalGroups(petition, parameters, results, groupMembership, {
+    includeRestrictedStandards: canSeeRestrictedStandards,
+  });
 
   return (
     <AppLayout title={petition.petitionNo}>

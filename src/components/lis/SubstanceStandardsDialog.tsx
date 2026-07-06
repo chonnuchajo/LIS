@@ -47,15 +47,17 @@ type Props = {
   onSave: (next: SubstanceStandard[]) => void;
 };
 
+type EditableSubstanceStandard = SubstanceStandard & { headOnly?: boolean };
+
 export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props) {
   const unit = field.unit ? ` ${field.unit}` : "";
-  const [list, setList] = useState<SubstanceStandard[]>(field.substanceStandards ?? []);
+  const [list, setList] = useState<EditableSubstanceStandard[]>(field.substanceStandards ?? []);
   const [search, setSearch] = useState("");
 
   // reseed รายการทุกครั้งที่เปิด dialog (component คงอยู่ในหน้า ไม่ remount)
   useEffect(() => {
     if (open) {
-      setList(field.substanceStandards ?? []);
+      setList((field.substanceStandards ?? []) as EditableSubstanceStandard[]);
       setSearch("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -97,10 +99,27 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
   );
   const byName = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const rows = q
-      ? safeRows.filter((r) => pickField(r, ITEM_NAME_KEYS).toLowerCase().includes(q))
-      : safeRows;
-    return buildSubstances(rows.map((r) => pickField(r, COMMON_NAME_KEYS)).filter(Boolean));
+    const found = new Map<string, string>();
+    for (const row of safeRows) {
+      const itemName = pickField(row, ITEM_NAME_KEYS);
+      const commonName = pickField(row, COMMON_NAME_KEYS);
+      const substances = parseSubstances(commonName)
+        .map((raw) => extractSubstanceName(raw) || raw)
+        .filter(Boolean);
+      for (const substance of substances) {
+        const key = matchSubstanceKey(substance);
+        if (!key) continue;
+        if (
+          !q ||
+          substance.toLowerCase().includes(q) ||
+          itemName.toLowerCase().includes(q) ||
+          commonName.toLowerCase().includes(q)
+        ) {
+          if (!found.has(key)) found.set(key, substance);
+        }
+      }
+    }
+    return [...found.values()].sort((a, b) => a.localeCompare(b, ["th", "en"]));
   }, [safeRows, search]);
 
   const selectedKeys = useMemo(() => new Set(list.map((s) => matchSubstanceKey(s.substance))), [list]);
@@ -108,10 +127,10 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
   const addSubstance = (name: string) => {
     const key = matchSubstanceKey(name);
     if (!key || selectedKeys.has(key)) return;
-    setList((prev) => [...prev, { substance: name, operator: "gte", value: null, value2: null }]);
+    setList((prev) => [...prev, { substance: name, operator: "gte", value: null, value2: null, headOnly: false }]);
   };
   const removeAt = (i: number) => setList((prev) => prev.filter((_, idx) => idx !== i));
-  const patchAt = (i: number, patch: Partial<SubstanceStandard>) =>
+  const patchAt = (i: number, patch: Partial<EditableSubstanceStandard>) =>
     setList((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
 
   const filterBox = (
@@ -233,6 +252,14 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                       )}
                       <span className="text-xs text-emerald-700">{describeSubstanceStandard(std, unit.trim())}</span>
                     </div>
+                    <label className="flex items-center gap-2 text-xs text-amber-700">
+                      <input
+                        type="checkbox"
+                        checked={std.headOnly === true}
+                        onChange={(e) => patchAt(i, { headOnly: e.target.checked })}
+                      />
+                      ให้หัวหน้า QC พิจารณาเท่านั้น
+                    </label>
                   </div>
                 ))
               )}
@@ -242,7 +269,7 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button type="button" variant="primary" onClick={() => { onSave(list); onClose(); }}>บันทึก</Button>
+          <Button type="button" variant="primary" onClick={() => { onSave(list as SubstanceStandard[]); onClose(); }}>บันทึก</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

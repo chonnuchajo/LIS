@@ -78,7 +78,7 @@ const QCApproval = () => {
       .catch(() => {
         if (alive) setTestersMap({});
       });
-    api.getAbnormalFlags(ids)
+    api.getAbnormalFlags(ids, { includeRestricted: true })
       .then((map) => {
         if (alive) setAbnormalMap(map || {});
       })

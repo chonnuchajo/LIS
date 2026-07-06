@@ -13,7 +13,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { api } from "@/lib/api";
-import { buildUnitTree, parseScannedQrId, pickFefoSealed, unitDerivedStatus, workingUsability } from "@/lib/stockUnit";
+import { buildUnitTree, parseScannedQrId, pickFefoSealed, unitDerivedStatus } from "@/lib/stockUnit";
+import { standardStatusMeta } from "@/lib/standardStatus";
 import { cn } from "@/lib/utils";
 import type { StockStandardItem, StockUnitItem } from "@/types/stock";
 
@@ -21,14 +22,6 @@ interface Props {
   onClose: () => void;
   onSaved: () => void;
 }
-
-const USABILITY: Record<string, { label: string; cls: string; usable: boolean }> = {
-  active: { label: "ยังใช้ได้", cls: "bg-emerald-100 text-emerald-700", usable: true },
-  freqDue: { label: "หมดความถี่", cls: "bg-amber-100 text-amber-700", usable: false },
-  expired: { label: "หมดอายุ", cls: "bg-orange-100 text-orange-700", usable: false },
-  empty: { label: "หมด", cls: "bg-slate-100 text-slate-600", usable: false },
-  discarded: { label: "ทิ้งแล้ว", cls: "bg-destructive/15 text-destructive", usable: false },
-};
 
 export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
   const qc = useQueryClient();
@@ -141,8 +134,7 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
                   ) : (
                     <ul className="divide-y rounded border">
                       {workings.map((u) => {
-                        const st = workingUsability(u);
-                        const meta = USABILITY[st] ?? USABILITY.active;
+                        const meta = standardStatusMeta(u);
                         return (
                           <li key={u._id} className="flex items-center gap-2 p-2 text-sm">
                             <span className="w-10 text-xs text-muted-foreground">{labelOf.get(u._id) ?? "-"}</span>

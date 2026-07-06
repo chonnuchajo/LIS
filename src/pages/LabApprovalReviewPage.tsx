@@ -65,7 +65,7 @@ export default function LabApprovalReviewPage() {
     if (!id) { setPetitionHasAbnormal(false); setAbnormalLoaded(false); return; }
     setAbnormalLoaded(false);
     let alive = true;
-    api.getAbnormalFlags([id])
+    api.getAbnormalFlags([id], { includeRestricted: false })
       .then((m) => { if (alive) setPetitionHasAbnormal(!!m[id]); })
       .catch(() => { if (alive) setPetitionHasAbnormal(false); })
       .finally(() => { if (alive) setAbnormalLoaded(true); });

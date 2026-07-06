@@ -37,16 +37,28 @@ export default function ChemicalRequisitionPanel({ roomSlug }: Props) {
   });
 
   return (
-    <Card className="border-primary/20">
+    <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <FlaskConical className="h-4 w-4 text-primary" />
-          สารเคมีที่เบิกวันนี้
+        <CardTitle className="flex items-center justify-between text-base">
+          <span className="flex items-center gap-2">
+            <FlaskConical className="h-4 w-4 text-primary" />
+            สารเคมีที่เบิกวันนี้
+          </span>
+          {requisitions.length > 0 && (
+            <span className="rounded-full bg-muted px-2.5 py-0.5 text-sm font-medium text-muted-foreground">
+              {requisitions.length}
+            </span>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent>
         {requisitions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">ยังไม่มีการเบิกวันนี้</p>
+          <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <FlaskConical className="h-5 w-5" />
+            </div>
+            <p className="text-sm text-muted-foreground">ยังไม่มีรายการเบิกวันนี้</p>
+          </div>
         ) : (
           <ul className="divide-y">
             {requisitions.map((req) => (

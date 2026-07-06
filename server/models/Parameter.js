@@ -13,6 +13,7 @@ const SubstanceStandardSchema = new mongoose.Schema({
   operator: { type: String, enum: OP_ENUM, default: null },
   value: { type: Number, default: null },
   value2: { type: Number, default: null },
+  headOnly: { type: Boolean, default: false },
 }, { _id: false });
 
 const StandardConditionSchema = new mongoose.Schema({

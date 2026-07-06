@@ -163,7 +163,9 @@ export type RenderFieldUnit = {
 export function expandFieldForItem(
   field: ParameterValueField,
   commonName: string | undefined,
-): RenderFieldUnit[] {
+  options: { includeRestrictedStandards?: boolean } = {},
+): (RenderFieldUnit & { hiddenStandard?: boolean })[] {
+  const includeRestrictedStandards = options.includeRestrictedStandards ?? false;
   const isNumeric = field.type === "number" || field.type === "float";
   if (!field.substanceMode || !isNumeric) {
     return [{ key: field.label, field }];
@@ -175,15 +177,21 @@ export function expandFieldForItem(
   return substances.map((raw) => {
     const name = extractSubstanceName(raw) || raw;
     const std = findSubstanceStandard(field, name);
+    const hiddenStandard = !!(std && (std as { headOnly?: boolean }).headOnly) && !includeRestrictedStandards;
     const vfield: ParameterValueField = {
       ...field,
       label: `${field.label} — ${name}`,
       substanceMode: false,
-      standardOperator: std?.operator,
-      standardValue: std?.value ?? null,
-      standardValue2: std?.value2 ?? null,
+      standardOperator: hiddenStandard ? undefined : std?.operator,
+      standardValue: hiddenStandard ? null : (std?.value ?? null),
+      standardValue2: hiddenStandard ? null : (std?.value2 ?? null),
     };
-    return { key: substanceFieldKey(field.label, name), field: vfield, substanceName: name };
+    return {
+      key: substanceFieldKey(field.label, name),
+      field: vfield,
+      substanceName: name,
+      hiddenStandard,
+    };
   });
 }
 

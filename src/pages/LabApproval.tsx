@@ -70,7 +70,7 @@ const LabApproval = () => {
       .then((r) => (r.ok ? r.json() : {}))
       .then((map: Record<string, string[]>) => { if (alive) setTestersMap(map || {}); })
       .catch(() => { if (alive) setTestersMap({}); });
-    api.getAbnormalFlags(ids)
+    api.getAbnormalFlags(ids, { includeRestricted: false })
       .then((map) => { if (alive) setAbnormalMap(map || {}); })
       .catch(() => { if (alive) setAbnormalMap({}); });
     api.getReturnedFlags(ids)
