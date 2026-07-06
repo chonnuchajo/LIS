@@ -587,7 +587,7 @@ describe("aggregations", () => {
   });
   it("deptWorkloadData groups by dept label", () => {
     const d = deptWorkloadData(list);
-    expect(d.find((x) => x.dept === "production")?.count).toBe(3);
+    expect(d.find((x) => x.dept === "production")?.count).toBe(4);
     expect(d.find((x) => x.dept === "rm")?.count).toBe(1);
   });
   it("normalDonutData splits abnormal vs normal by flags", () => {
