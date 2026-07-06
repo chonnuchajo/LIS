@@ -46,6 +46,8 @@ export function buddhistDate(iso?: string | null): string {
 }
 
 // จับคู่ labRequest ต่อ item — ตำแหน่ง sampleSeq ก่อน, batchNo รอง
+// หมายเหตุ: ตั้งใจไม่มี `?? labRequests[0]` fallback แบบ ResultReportPrintTemplate.labRequestFor —
+// รายงานนี้เป็นรายตัวอย่าง ถ้า item ไม่ match ไม่ควรไปยืมข้อมูลลูกค้าของตัวอย่างอื่นมาใส่
 function labRequestForItem(item: PetitionItem, labRequests: LabRequest[]): LabRequest | undefined {
   return (
     labRequests.find((lr) => lr.sampleSeq === item.seq) ??
@@ -92,7 +94,7 @@ export function buildLabReportPages(
     const requester = lr?.requester;
     return {
       reportNo: lr?.labRequestNo || petition.petitionNo,
-      reportDate: reportedDate,
+      reportDate: reportedDate || DASH,
       customer: {
         name: lr?.reportCustomerName || requester?.fullName || petition.submittedBy?.name || DASH,
         company: COMPANY_NAME,

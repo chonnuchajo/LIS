@@ -24,20 +24,29 @@ export default function LabReportDialog({ open, onOpenChange, petition }: Props)
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const [results, setResults] = useState<QCTestResult[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [paramsLoaded, setParamsLoaded] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
+    setParamsLoaded(false);
     api
       .getParameters()
       .then((all) =>
         setParameters(all.filter((p) => p.scope === "lab" || (p.scope === "qc" && p.shareWithLab === true))),
       )
-      .catch(() => setParameters([]));
+      .catch(() => setParameters([]))
+      .finally(() => setParamsLoaded(true));
   }, [open]);
 
   useEffect(() => {
-    if (!open || !petitionId) return;
+    if (!open) return;
+    if (!petitionId) {
+      // No petition to load — resolve immediately so the dialog doesn't spin forever.
+      setResults([]);
+      setLoaded(true);
+      return;
+    }
     setLoaded(false);
     api
       .getQCResults(petitionId)
@@ -45,6 +54,10 @@ export default function LabReportDialog({ open, onOpenChange, petition }: Props)
       .catch(() => setResults([]))
       .finally(() => setLoaded(true));
   }, [open, petitionId]);
+
+  // Both fetches (results + full parameter catalogue) must finish before the report
+  // is considered ready — printing early risks a report with blank results (params=[]).
+  const ready = loaded && paramsLoaded;
 
   const pages = useMemo(() => {
     if (!petition) return [];
@@ -62,7 +75,7 @@ export default function LabReportDialog({ open, onOpenChange, petition }: Props)
             <DialogTitle>ใบรายงานผลการทดสอบ — {petition?.petitionNo ?? ""}</DialogTitle>
           </DialogHeader>
 
-          {!loaded ? (
+          {!ready ? (
             <div className="flex items-center justify-center py-16 text-gray-400">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" /> กำลังโหลด…
             </div>
@@ -72,7 +85,7 @@ export default function LabReportDialog({ open, onOpenChange, petition }: Props)
 
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>ปิด</Button>
-            <Button onClick={() => setPrintOpen(true)} disabled={!loaded || pages.length === 0} className="gap-2">
+            <Button onClick={() => setPrintOpen(true)} disabled={!ready || pages.length === 0} className="gap-2">
               <Printer className="h-4 w-4" /> พิมพ์
             </Button>
           </DialogFooter>
