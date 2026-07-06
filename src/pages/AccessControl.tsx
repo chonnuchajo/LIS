@@ -355,9 +355,9 @@ const AccessControl = () => {
       const res = await api.patch<Role>(`/access-control/roles/${id}`, patch);
       setRoles((current) => current.map((r) => (r.id === id ? { ...r, ...res.data.data } : r)));
       notifyGroupMappingChanged();
-      toast.success("Role updated");
+      toast.success("แก้ไข Role แล้ว");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update role");
+      toast.error(err instanceof Error ? err.message : "แก้ไข Role ไม่สำเร็จ");
     }
   };
 
