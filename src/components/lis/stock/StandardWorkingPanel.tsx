@@ -25,7 +25,7 @@ export default function StandardWorkingPanel() {
     () => activeWorkingUnits(units, { search, statusFilter }),
     [units, search, statusFilter],
   );
-  const hasAny = units.some((u) => u.kind === "working" && u.status !== "discarded");
+  const hasAny = useMemo(() => activeWorkingUnits(units).length > 0, [units]);
 
   return (
     <div className="space-y-4">

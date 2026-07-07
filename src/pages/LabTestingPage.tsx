@@ -172,7 +172,7 @@ export default function LabTestingPage() {
         return (
           <div className="space-y-1">
             <Badge variant={b.variant}>{b.label}</Badge>
-            <PetitionStatusTimeline petition={p} compact />
+            <PetitionStatusTimeline petition={p} compact track="lab" />
           </div>
         );
       },

@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import StockRequisitionTab from "@/components/lis/StockRequisitionTab";
+import StandardWorkingPanel from "@/components/lis/stock/StandardWorkingPanel";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
 import { getRoomCatalog } from "@/lib/roomEquipment";
 import type { StockTransactionItem } from "@/types/stock";
@@ -21,8 +22,7 @@ const StockDeduction = () => {
   const [type, setType] = useState<string>("");
 
   const viewAllStandards = () => {
-    setType("standard");
-    setTab("history");
+    setTab("working");
   };
 
   const { data = [], isLoading } = useQuery({
@@ -96,6 +96,7 @@ const StockDeduction = () => {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="mb-4">
           <TabsTrigger value="requisition">เบิก stock</TabsTrigger>
+          <TabsTrigger value="working">Standard ใช้งานอยู่</TabsTrigger>
           <TabsTrigger value="history">ประวัติ</TabsTrigger>
         </TabsList>
 
@@ -105,6 +106,10 @@ const StockDeduction = () => {
             instruments={analysisInstruments}
             onViewAllStandards={viewAllStandards}
           />
+        </TabsContent>
+
+        <TabsContent value="working">
+          <StandardWorkingPanel />
         </TabsContent>
 
         <TabsContent value="history">

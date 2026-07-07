@@ -11,6 +11,7 @@ const { fetchMonthlyEmployees } = require('../lib/employeeDirectory');
 const { findEmployeeByEmail, findEmployeeById, planEmployeeSync } = require('../lib/employeeLink');
 const { isStorablePermission } = require('../lib/permissionFilter');
 const { isValidProfileId } = require('../lib/dashboardProfiles');
+const { roleInUse } = require('../lib/roleUsage');
 
 const defaultGroups = [
   { id: 'dashboard', name: 'หน้าหลัก', description: 'ภาพรวมแล็บและงานที่กำลังดำเนินการ', paths: ['/', '/home', '/dashboard/lab'], locked: false, sortOrder: 10 },
@@ -487,8 +488,16 @@ router.delete('/roles/:id', async (req, res) => {
     const role = await Role.findOne({ id: req.params.id });
     if (!role) return res.status(404).json({ error: 'role not found' });
     if (role.locked) return res.status(400).json({ error: 'locked role cannot be deleted' });
-    const users = await User.countDocuments({ $or: [{ role: role.id }, { roles: role.id }] });
-    if (users > 0) return res.status(400).json({ error: 'move users to another role before deleting' });
+    const users = await User.find();
+    // Map the actual User schema (legacy singular `role` + current `roles[]`)
+    // onto the generic { roleId, roleIds } shape roleInUse() expects.
+    if (roleInUse(users.map((u) => ({ roleId: u.role, roleIds: u.roles })), req.params.id)) {
+      const userCount = users.filter((u) => {
+        const ids = (u.roles && u.roles.length) ? u.roles : (u.role ? [u.role] : []);
+        return ids.includes(req.params.id);
+      }).length;
+      return res.status(409).json({ error: 'role has assigned users', userCount });
+    }
     const actor = req.query.actor || (req.body && req.body.actor) || 'system';
     await role.softDelete(actor);
     res.json({ success: true });

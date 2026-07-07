@@ -5,8 +5,6 @@ import { toast } from "sonner";
 
 import StockQrScanner from "@/components/lis/StockQrScanner";
 import WithdrawDialog from "@/components/lis/stock/WithdrawDialog";
-import PerformanceDropDialog from "@/components/lis/stock/PerformanceDropDialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,9 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { api } from "@/lib/api";
 import { buildUnitTree, parseScannedQrId, pickFefoSealed, unitDerivedStatus } from "@/lib/stockUnit";
-import { standardStatusMeta } from "@/lib/standardStatus";
 import { cn } from "@/lib/utils";
-import type { StockStandardItem, StockUnitItem } from "@/types/stock";
 
 interface Props {
   onClose: () => void;
@@ -29,7 +25,6 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
   const [pickOpen, setPickOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [withdrawQr, setWithdrawQr] = useState("");        // sealed qrId ที่จะแบ่ง → เปิด WithdrawDialog
-  const [perfDropQr, setPerfDropQr] = useState("");        // working qrId ที่จะแจ้ง/ทิ้ง
 
   const { data: standards = [] } = useQuery({
     queryKey: ["stock", "standards"],
@@ -43,7 +38,6 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
     enabled: !!code,
   });
 
-  const workings = units.filter((u) => u.kind === "working" && u.status !== "discarded");
   const sealed = units
     .filter((u) => u.kind === "sealed" && unitDerivedStatus(u) === "active")
     .sort((a, b) => (a.exp ? +new Date(a.exp) : Infinity) - (b.exp ? +new Date(b.exp) : Infinity));
@@ -77,19 +71,13 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
     setWithdrawQr(fefo.qrId);
   };
 
-  const reuse = (u: StockUnitItem) => {
-    toast.success(`ใช้ working ${labelOf.get(u._id) ?? u.qrId} (ยังใช้ได้ — ไม่ต้องแบ่งใหม่)`);
-    onSaved();
-    onClose();
-  };
-
   return (
     <>
       <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
         <DialogContent className="max-w-[95vw] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>เบิก Standard</DialogTitle>
-            <DialogDescription>เลือก standard แล้วใช้ working เดิม หรือแบ่ง working ใหม่จากขวด sealed</DialogDescription>
+            <DialogDescription>เลือก standard แล้วแบ่ง working ใหม่จากขวด sealed</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
@@ -127,34 +115,6 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
 
             {code && (
               <>
-                <div>
-                  <Label className="mb-1.5 block">working ที่มี</Label>
-                  {workings.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">ยังไม่มี working — แบ่งใหม่ด้านล่าง</p>
-                  ) : (
-                    <ul className="divide-y rounded border">
-                      {workings.map((u) => {
-                        const meta = standardStatusMeta(u);
-                        return (
-                          <li key={u._id} className="flex items-center gap-2 p-2 text-sm">
-                            <span className="w-10 text-xs text-muted-foreground">{labelOf.get(u._id) ?? "-"}</span>
-                            <Badge className={cn("text-xs", meta.cls)}>{meta.label}</Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {u.volume?.remaining ?? "-"} {u.volume?.unit} · EXP {u.exp ? new Date(u.exp).toLocaleDateString("th-TH") : "-"}
-                            </span>
-                            <span className="ml-auto flex gap-1">
-                              {meta.usable && <Button type="button" size="sm" onClick={() => reuse(u)}>ใช้อันนี้</Button>}
-                              <Button type="button" size="sm" variant="outline" className="text-destructive" onClick={() => setPerfDropQr(u.qrId)}>
-                                แจ้ง/ทิ้ง
-                              </Button>
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </div>
-
                 <div>
                   <Label className="mb-1.5 block">แบ่ง working ใหม่จากขวด sealed</Label>
                   {sealed.length === 0 ? (
@@ -197,13 +157,6 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
           qrId={withdrawQr}
           onClose={() => setWithdrawQr("")}
           onSaved={() => { refresh(); onSaved(); onClose(); }}
-        />
-      )}
-      {perfDropQr && (
-        <PerformanceDropDialog
-          qrId={perfDropQr}
-          onClose={() => setPerfDropQr("")}
-          onSaved={() => { refresh(); onSaved(); }}
         />
       )}
     </>

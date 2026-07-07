@@ -3,16 +3,16 @@
     "commonName": "CHLORFENAPYR 10% W/V SC",
     "thaiName": "คลอฟีนาเพอร์ 10% เอสซี",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
+    "sgMin": 1.049,
+    "sgMax": 1.051,
     "note": ""
   },
   {
     "commonName": "GIBBERELLIC ACID 5% W/V SL",
     "thaiName": "จิบเบอเรลลิก แอซิด 5% เอสแอล",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
+    "sgMin": 0.800,
+    "sgMax": 0.815,
     "note": ""
   },
   {
@@ -35,63 +35,63 @@
     "commonName": "CYPERMETHRIN 10% W/V EC (FDA)",
     "thaiName": "ไซเปอร์เมทธิน 10% อีซี (อย.)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
+    "sgMin": 0.9000,
+    "sgMax": 0.913,
     "note": ""
   },
   {
     "commonName": "CYPERMETHRIN 10% W/V EC (BIO, FDA)",
     "thaiName": "ไซเปอร์เมทธิน 10% อีซี ไบโอ (อย.)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
+    "sgMin": 0.902,
+    "sgMax": 0.913,
     "note": ""
   },
   {
     "commonName": "CYPERMETHRIN 10% W/V EC (LIVESTOCK)",
     "thaiName": "ไซเปอร์เมทธิน 10% อีซี ปศุสัตว์",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
+    "sgMin": 0.902,
+    "sgMax": 0.913,
     "note": ""
   },
   {
     "commonName": "CYPERMETHRIN 25% W/V EC (LIVESTOCK)",
     "thaiName": "ไซเปอร์เมทธิน 25% อีซี (ปศุสัตว์)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
+    "sgMin": 0.950,
+    "sgMax": 0.963,
     "note": ""
   },
   {
     "commonName": "CYPERMETHRIN 25% W/V EC (FDA)",
     "thaiName": "ไซเปอร์เมทธิน 25% อีซี (อย.)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
+    "sgMin": 0.950,
+    "sgMax": 0.964,
     "note": ""
   },
   {
     "commonName": "CYPERMETHRIN 25% W/V EC (BIO, FDA)",
     "thaiName": "ไซเปอร์เมทธิน 25% อีซี ไบโอ (อย.)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
+    "sgMin": 0.948,
+    "sgMax": 0.964,
     "note": ""
   },
   {
     "commonName": "CYPERMETHRIN 25% W/V EC (LIVESTOCK, BIO)",
     "thaiName": "ไซเปอร์เมทธิน 25% อีซี ปศุสัตว์ (ไบโอ)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
+    "sgMin": 0.946,
+    "sgMax": 0.958,
     "note": ""
   },
   {
     "commonName": "CYPERMETHRIN 25% W/V EC (WATER-BASED)",
     "thaiName": "ไซเปอร์เมทธิน 25% อีซี สูตรน้ำ",
     "category": "insecticide",
-    "sgMin": null,
+    "sgMin": ,
     "sgMax": null,
     "note": ""
   },

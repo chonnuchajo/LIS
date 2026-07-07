@@ -101,6 +101,9 @@ router.get('/', async (req, res) => {
       q.labApprovedAt = null;
       q.status = 'inProgress';
     }
+    if (req.query.labApproved === 'true') {
+      q.labApprovedAt = { $ne: null };
+    }
 
     const [docs, total] = await Promise.all([
       Petition.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),

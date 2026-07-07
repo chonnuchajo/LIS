@@ -1,57 +1,49 @@
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { LayoutGrid } from "lucide-react";
-import HomeHeader from "@/components/home/HomeHeader";
 import { Card, CardContent } from "@/components/ui/card";
-import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { NAV_ITEMS } from "@/lib/navItems";
 import { userCanAccessPath } from "@/lib/accessControl";
 import { normalizeRoles, unionPermissions } from "@/lib/roles";
+import { loadAccessControl } from "@/lib/accessControlSource";
 
-type AccessGroup = { id: string; paths?: string[] };
-type AccessControlState = { groups: AccessGroup[]; permissions: Record<string, string[]> };
-
-export default function HomeGeneric() {
+// Fallback dashboard for any role that doesn't resolve to a real profile
+// (see resolveProfileForRole in dashboardProfiles.ts): a plain grid of the
+// nav pages this user can actually access, ported from the deleted
+// HomeGeneric (git show ae42f66^:src/components/home/HomeGeneric.tsx).
+// No petition data here — access-driven only, so it's safe for restricted
+// custom roles that would 403 on a real drilldown.
+export default function GenericMenuGrid() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [accessControl, setAccessControl] = useState<AccessControlState | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    api
-      .get<AccessControlState>("/access-control")
-      .then((res) => {
-        if (!alive) return;
-        setAccessControl(res.data.data);
-      })
-      .catch(() => {
-        if (alive) setAccessControl({ groups: [], permissions: {} });
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  const { data: access } = useQuery({ queryKey: ["access-control"], queryFn: () => loadAccessControl() });
 
   const roles = normalizeRoles(user);
   const userWithPerms =
     user && roles.length > 0
-      ? { ...user, permissions: unionPermissions(roles, accessControl?.permissions ?? {}) }
+      ? { ...user, permissions: unionPermissions(roles, access?.permissions ?? {}) }
       : user;
 
   const accessible = NAV_ITEMS.filter(
-    (item) => item.path !== "/home" && userCanAccessPath(userWithPerms, item.path, accessControl?.groups ?? []),
+    (item) => item.path !== "/home" && userCanAccessPath(userWithPerms, item.path, access?.groups ?? []),
   );
 
   return (
     <>
-      <HomeHeader
-        title={user?.name ? user.name : "ยินดีต้อนรับ"}
-        subtitle="เลือกเมนูที่คุณเข้าใช้งานได้"
-        icon={LayoutGrid}
-      />
+      <div className="mb-4 flex items-center gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+          <LayoutGrid className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight leading-tight">
+            {user?.name ? user.name : "ยินดีต้อนรับ"}
+          </h1>
+          <p className="text-xs text-muted-foreground">เลือกเมนูที่คุณเข้าใช้งานได้</p>
+        </div>
+      </div>
 
-      {accessControl === null ? (
+      {access === undefined ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
             กำลังโหลดเมนู...

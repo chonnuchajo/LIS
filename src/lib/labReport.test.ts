@@ -1,0 +1,142 @@
+import { describe, it, expect } from "vitest";
+import { buildLabReportPages, buddhistDate } from "@/lib/labReport";
+import type { Petition } from "@/types/petition.types";
+import type { LabRequest } from "@/types/labRequest.types";
+import type { ApprovalItemGroup } from "@/lib/qcApprovalRows";
+
+const petition = {
+  _id: "pt1",
+  petitionNo: "P-2606-0018",
+  dept: "production",
+  submittedBy: { name: "สมชาย" },
+  items: [
+    {
+      seq: 1,
+      sampleName: "Gly",
+      commonName: "Glyphosate",
+      batchNo: "26RD-001",
+      sampleId: "S1",
+      condition: "normal",
+      productionDate: "2026-01-10T00:00:00.000Z",
+      submissionNo: "SUB-1",
+      labelManufacturer: "ICP",
+    },
+    {
+      seq: 2,
+      sampleName: "Para",
+      commonName: "Paraquat",
+      batchNo: "26RD-002",
+      sampleId: "S2",
+      condition: "defective",
+    },
+  ],
+  labReceivedAt: "2026-01-11T00:00:00.000Z",
+  firstResultAt: "2026-01-12T00:00:00.000Z",
+  labCompletedBy: "นุชจรินทร์",
+  labApprovedAt: "2026-01-15T00:00:00.000Z",
+  labApprovedBy: "นคร",
+} as unknown as Petition;
+
+const labRequests = [
+  {
+    _id: "lr1",
+    labRequestNo: "LR-001",
+    petitionId: "pt1",
+    petitionNo: "P-2606-0018",
+    batchNo: "26RD-001",
+    sampleSeq: 1,
+    reportCustomerName: "",
+    requester: { fullName: "คุณเอ", department: "RD", email: "a@x.com", phone: "012" },
+  },
+] as unknown as LabRequest[];
+
+const groups: ApprovalItemGroup[] = [
+  {
+    seq: 1,
+    sampleName: "Gly",
+    batchNo: "26RD-001",
+    sampleId: "S1",
+    commonName: "Glyphosate",
+    unmatched: false,
+    params: [
+      {
+        parameterId: "p1",
+        parameterName: "ปริมาณสาร",
+        scope: "lab",
+        hasPhases: false,
+        rows: [
+          { key: "k1", label: "Glyphosate", unit: "%w/v", value: "48.2", standardText: "45.5-50.5", abnormal: false, note: "", phase: 1 },
+        ],
+      },
+      {
+        parameterId: "p2",
+        parameterName: "pH (QC)",
+        scope: "qc",
+        hasPhases: false,
+        rows: [
+          { key: "k2", label: "pH", value: "7", standardText: "6-8", abnormal: false, note: "", phase: 1 },
+        ],
+      },
+    ],
+  },
+];
+
+describe("buddhistDate", () => {
+  it("แปลงเป็น พ.ศ. dd/mm/yyyy", () => {
+    expect(buddhistDate("2026-01-15T00:00:00.000Z")).toBe("15/01/2569");
+  });
+  it("ค่าว่าง → ''", () => {
+    expect(buddhistDate(undefined)).toBe("");
+    expect(buddhistDate(null)).toBe("");
+  });
+});
+
+describe("buildLabReportPages", () => {
+  const pages = buildLabReportPages(petition, labRequests, groups);
+
+  it("สร้าง 1 หน้าต่อ 1 item", () => {
+    expect(pages).toHaveLength(2);
+  });
+
+  it("map ข้อมูลลูกค้า/ตัวอย่าง หน้าแรกถูกต้อง", () => {
+    const p = pages[0];
+    expect(p.reportNo).toBe("LR-001");
+    expect(p.reportDate).toBe("15/01/2569");
+    expect(p.customer.name).toBe("คุณเอ"); // reportCustomerName ว่าง → requester.fullName
+    expect(p.customer.company).toBe("บริษัท ไอ ซี พี ลัดดา จำกัด");
+    expect(p.customer.department).toBe("RD");
+    expect(p.customer.email).toBe("a@x.com");
+    expect(p.sample.name).toBe("Glyphosate");
+    expect(p.sample.sampleNo).toBe("S1");
+    expect(p.sample.receivedDate).toBe("11/01/2569");
+    expect(p.sample.reportedDate).toBe("15/01/2569");
+    expect(p.sample.condition).toBe("ปกติ");
+    expect(p.analystName).toBe("นุชจรินทร์");
+    expect(p.labHeadName).toBe("นคร");
+  });
+
+  it("แถวผลกรองเฉพาะ scope=lab, method='-'", () => {
+    const p = pages[0];
+    expect(p.rows).toHaveLength(1); // qc row ถูกตัดออก
+    expect(p.rows[0]).toEqual({
+      testItem: "Glyphosate (%w/v)",
+      result: "48.2",
+      criteria: "45.5-50.5",
+      method: "-",
+    });
+  });
+
+  it("item ที่ไม่มี group → rows ว่าง + fallback ลูกค้า", () => {
+    const p = pages[1];
+    expect(p.rows).toHaveLength(0);
+    expect(p.customer.name).toBe("สมชาย"); // ไม่มี labRequest → submittedBy.name
+    expect(p.customer.department).toBe("แผนกผลิต"); // PETITION_DEPT_LABELS[production]
+    expect(p.sample.condition).toBe("บกพร่อง");
+  });
+
+  it("reportCustomerName ถ้ามี ชนะ requester.fullName", () => {
+    const lr2 = [{ ...labRequests[0], reportCustomerName: "ลูกค้าพิเศษ" }] as unknown as LabRequest[];
+    const out = buildLabReportPages(petition, lr2, groups);
+    expect(out[0].customer.name).toBe("ลูกค้าพิเศษ");
+  });
+});

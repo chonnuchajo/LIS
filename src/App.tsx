@@ -17,8 +17,6 @@ import EmployeeLinkGate from "@/components/lis/EmployeeLinkGate";
 // Route-level code splitting: each page is its own chunk, loaded on demand.
 // Keeps the initial bundle to the app shell + only the landing route.
 const Home = lazy(() => import("./pages/Home"));
-const LabDashboard = lazy(() => import("./pages/LabDashboard"));
-const QCDashboard = lazy(() => import("./pages/QCDashboard"));
 const QueueDisplay = lazy(() => import("./pages/QueueDisplay"));
 const Login = lazy(() => import("./pages/Login"));
 const AnalysisResults = lazy(() => import("./pages/AnalysisResults"));
@@ -105,8 +103,8 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/scanner" element={<ScannerPage />} />
               <Route path="/" element={<PrivateRoute><Home /></PrivateRoute>} />
-              <Route path="/dashboard/lab" element={<PrivateRoute><LabDashboard /></PrivateRoute>} />
-              <Route path="/dashboard/qc" element={<PrivateRoute><QCDashboard /></PrivateRoute>} />
+              <Route path="/dashboard/lab" element={<PrivateRoute><Navigate to="/home" replace /></PrivateRoute>} />
+              <Route path="/dashboard/qc" element={<PrivateRoute><Navigate to="/home" replace /></PrivateRoute>} />
               <Route path="/queue/lab" element={<QueueDisplay mode="lab" />} />
               <Route path="/queue/qc" element={<QueueDisplay mode="qc" />} />
               <Route path="/home" element={<PrivateRoute><Home /></PrivateRoute>} />

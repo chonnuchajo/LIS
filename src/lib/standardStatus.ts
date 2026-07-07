@@ -1,6 +1,6 @@
 // src/lib/standardStatus.ts
 // สถานะการใช้งานของ working standard (label + สี badge + usable) ใช้ร่วมทั้ง
-// StandardDailyPanel (การ์ด "แบ่งวันนี้") และ StandardRequisitionDialog (working list)
+// StandardDailyPanel (การ์ด "แบ่งวันนี้") และ StandardWorkingPanel (แท็บ "Standard ใช้งานอยู่")
 import { workingUsability, type WorkingUsability } from "./stockUnit";
 import type { StockUnitItem } from "@/types/stock";
 

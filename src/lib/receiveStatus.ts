@@ -1,5 +1,5 @@
 import type { Petition, PetitionStatus } from '@/types/petition.types';
-import { statusBadge, toneBadge, type StatusBadge } from './statusBadge';
+import { statusBadge, toneBadge, type StatusBadge, type PetitionStatusStep } from './statusBadge';
 
 /**
  * Per-side receive status (Lab / QC), with legacy backward-compat.
@@ -24,6 +24,7 @@ type ReceiveFields = Pick<
   | 'labApprovedAt'
   | 'qcReceivedAt'
   | 'qcReceivedBy'
+  | 'qcCompletedAt'
   | 'receivedAt'
   | 'receivedBy'
 >;
@@ -58,4 +59,57 @@ export function labTrackStatusBadge(p: ReceiveFields & { status: PetitionStatus 
   if (p.labCompletedAt) return toneBadge('warning', 'Lab ตรวจครบ · รออนุมัติ');
   if (p.status === 'inProgress') return toneBadge('info', 'Lab กำลังตรวจ');
   return statusBadge(p.status);
+}
+
+/**
+ * สถานะที่โชว์ในลิสต์ "การทดสอบ QC" — อิง track ของ QC เอง (คู่ขนานกับ labTrackStatusBadge).
+ *
+ * ต่างจาก petitionStatusBadge (สถานะรวมทั้งใบ เช่น "QC ตรวจครบ · รอส่วนอื่น") — หน้า QC
+ * ควรเห็นเฉพาะความคืบหน้าของ track QC เอง ก่อน QC รับให้โชว์ "รอรับ" เสมอ
+ */
+export function qcTrackStatusBadge(p: ReceiveFields & { status: PetitionStatus }): StatusBadge {
+  if (!qcReceivedAt(p)) return toneBadge('warning', 'รอรับ');
+  if (['success', 'approved', 'rejected'].includes(p.status)) return statusBadge(p.status);
+  if (p.qcCompletedAt) return toneBadge('warning', 'QC ตรวจครบ · รออนุมัติ');
+  // ค่า config ของ inProgress = "QC กำลังตรวจ" อยู่แล้ว จึงปล่อยผ่านลง statusBadge ได้เลย
+  return statusBadge(p.status);
+}
+
+const isClosedStatus = (status: PetitionStatus): boolean =>
+  ['success', 'approved', 'rejected'].includes(status);
+
+/** เติม `current` = step แรกที่ยังไม่ done (mirror ของ petitionStatusSteps) */
+function withCurrentStep(steps: PetitionStatusStep[]): PetitionStatusStep[] {
+  const firstOpen = steps.find((step) => !step.done);
+  return steps.map((step) => ({ ...step, current: step === firstOpen }));
+}
+
+/**
+ * Timeline เฉพาะ track Lab สำหรับหน้า /lab-testing:
+ *   รับตัวอย่าง → Assign → Lab → อนุมัติ Lab
+ * step กลางนับ done เมื่อ field ตัวเองมีหรือใบปิดแล้ว; step อนุมัติผูกกับ labApprovedAt ล้วน
+ */
+export function labTrackStatusSteps(petition: Petition): PetitionStatusStep[] {
+  const closed = isClosedStatus(petition.status);
+  return withCurrentStep([
+    { key: 'received', label: 'รับตัวอย่าง', done: !!labReceivedAt(petition) || closed },
+    { key: 'assigned', label: 'Assign', done: !!petition.assignedTo || closed },
+    { key: 'lab', label: 'Lab', done: !!petition.labCompletedAt || closed },
+    { key: 'lab-approval', label: 'อนุมัติ Lab', done: !!petition.labApprovedAt },
+  ]);
+}
+
+/**
+ * Timeline เฉพาะ track QC สำหรับหน้า /qc-testing:
+ *   รับตัวอย่าง → Assign → QC → อนุมัติ QC
+ * step อนุมัติปลายทางผูกกับ status === 'approved' (ตรงกับ petitionStatusSteps)
+ */
+export function qcTrackStatusSteps(petition: Petition): PetitionStatusStep[] {
+  const closed = isClosedStatus(petition.status);
+  return withCurrentStep([
+    { key: 'received', label: 'รับตัวอย่าง', done: !!qcReceivedAt(petition) || closed },
+    { key: 'assigned', label: 'Assign', done: !!petition.assignedTo || closed },
+    { key: 'qc', label: 'QC', done: !!petition.qcCompletedAt || closed },
+    { key: 'qc-approval', label: 'อนุมัติ QC', done: petition.status === 'approved' },
+  ]);
 }

@@ -1,9 +1,24 @@
 import type { Petition } from "@/types/petition.types";
 import { petitionStatusSteps } from "@/lib/statusBadge";
+import { labTrackStatusSteps, qcTrackStatusSteps } from "@/lib/receiveStatus";
 import { cn } from "@/lib/utils";
 
-export default function PetitionStatusTimeline({ petition, compact = false }: { petition: Petition; compact?: boolean }) {
-  const steps = petitionStatusSteps(petition);
+export default function PetitionStatusTimeline({
+  petition,
+  compact = false,
+  track,
+}: {
+  petition: Petition;
+  compact?: boolean;
+  /** จำกัด timeline ให้เหลือเฉพาะ track เดียว; ไม่ใส่ = flow รวมทั้งใบ (เดิม) */
+  track?: "lab" | "qc";
+}) {
+  const steps =
+    track === "lab"
+      ? labTrackStatusSteps(petition)
+      : track === "qc"
+        ? qcTrackStatusSteps(petition)
+        : petitionStatusSteps(petition);
   return (
     <div className={cn("flex flex-wrap items-center", compact ? "gap-1" : "gap-1.5")}>
       {steps.map((step, index) => (
