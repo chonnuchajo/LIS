@@ -91,7 +91,7 @@
     "commonName": "CYPERMETHRIN 25% W/V EC (WATER-BASED)",
     "thaiName": "ไซเปอร์เมทธิน 25% อีซี สูตรน้ำ",
     "category": "insecticide",
-    "sgMin": ,
+    "sgMin": null,
     "sgMax": null,
     "note": ""
   },
