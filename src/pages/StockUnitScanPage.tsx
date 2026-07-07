@@ -9,13 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { unitDerivedStatus } from "@/lib/stockUnit";
-import WithdrawDialog from "@/components/lis/stock/WithdrawDialog";
 import DiscardDialog from "@/components/lis/stock/DiscardDialog";
 
 export default function StockUnitScanPage() {
   const { qrId = "" } = useParams();
   const qc = useQueryClient();
-  const [action, setAction] = useState<"withdraw" | "discard" | null>(null);
+  const [action, setAction] = useState<"discard" | null>(null);
 
   const { data: unit, isLoading, error } = useQuery({
     queryKey: ["stock", "unit", qrId],
@@ -37,7 +36,7 @@ export default function StockUnitScanPage() {
             <div className="text-lg font-bold">{unit.itemName}</div>
             <div className="text-sm text-muted-foreground">{unit.itemCode} · Lot {unit.lotNo || "-"}</div>
             <div className="flex gap-2 text-sm">
-              <Badge variant="outline">{unit.kind === "working" ? "working" : "คงคลัง"}</Badge>
+              <Badge variant="outline">{unit.type || "primary"}</Badge>
               <span>เหลือ {unit.volume?.remaining} {unit.volume?.unit}</span>
               <span>EXP {unit.exp ? new Date(unit.exp).toLocaleDateString("th-TH") : "-"}</span>
             </div>
@@ -45,16 +44,12 @@ export default function StockUnitScanPage() {
               {st === "discarded" ? (
                 <p className="text-destructive font-medium">ขวดนี้ถูกทิ้งแล้ว ใช้งานต่อไม่ได้</p>
               ) : (
-                <>
-                  {unit.kind === "sealed" && st === "active" && <Button onClick={() => setAction("withdraw")}>แบ่งใช้ → working</Button>}
-                  <Button variant="destructive" onClick={() => setAction("discard")}>ทิ้งขวด</Button>
-                </>
+                <Button variant="destructive" onClick={() => setAction("discard")}>ทิ้งขวด</Button>
               )}
             </div>
           </CardContent>
         </Card>
       )}
-      {action === "withdraw" && <WithdrawDialog qrId={qrId} onClose={() => setAction(null)} onSaved={refresh} />}
       {action === "discard" && <DiscardDialog qrId={qrId} onClose={() => setAction(null)} onSaved={refresh} />}
     </AppLayout>
   );

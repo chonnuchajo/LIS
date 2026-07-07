@@ -30,7 +30,6 @@ import StandardUnitsPanel from "@/components/lis/stock/StandardUnitsPanel";
 import ReceiveBottlesDialog from "@/components/lis/stock/ReceiveBottlesDialog";
 import ReceiveCart from "@/components/lis/stock/ReceiveCart";
 import StockQrScanner from "@/components/lis/StockQrScanner";
-import WithdrawDialog from "@/components/lis/stock/WithdrawDialog";
 import DiscardDialog from "@/components/lis/stock/DiscardDialog";
 import type {
   StockStandardItem, StockSolventItem, StockGlasswareItem,
@@ -989,7 +988,7 @@ const StockPage = () => {
   const [scanOpen, setScanOpen] = useState(false);
   const [scannedQr, setScannedQr] = useState<string | null>(null);
   const [scannedUnit, setScannedUnit] = useState<StockUnitItem | null>(null);
-  const [action, setAction] = useState<"withdraw" | "discard" | null>(null);
+  const [action, setAction] = useState<"discard" | null>(null);
   const qc = useQueryClient();
   const { tabs, defaultKey } = useAccessibleTabs("/stock");
 
@@ -1048,28 +1047,20 @@ const StockPage = () => {
             <DialogHeader>
               <DialogTitle>{scannedUnit.itemName}</DialogTitle>
               <DialogDescription>
-                {scannedUnit.itemCode} · {scannedUnit.kind === "working" ? "working" : "คงคลัง"} · เหลือ {scannedUnit.volume?.remaining} {scannedUnit.volume?.unit}
+                {scannedUnit.itemCode} · {scannedUnit.type || "primary"} · เหลือ {scannedUnit.volume?.remaining} {scannedUnit.volume?.unit}
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2 py-2">
               {scannedUnit.status === "discarded" ? (
                 <p className="text-destructive font-medium text-center">ขวดนี้ถูกทิ้งแล้ว ใช้งานต่อไม่ได้</p>
               ) : (
-                <>
-                  {scannedUnit.kind === "sealed" && (
-                    <Button onClick={() => setAction("withdraw")}>แบ่งใช้ → working</Button>
-                  )}
-                  <Button variant="destructive" onClick={() => setAction("discard")}>ทิ้งขวด</Button>
-                </>
+                <Button variant="destructive" onClick={() => setAction("discard")}>ทิ้งขวด</Button>
               )}
             </div>
           </DialogContent>
         </Dialog>
       )}
 
-      {scannedQr && action === "withdraw" && (
-        <WithdrawDialog qrId={scannedQr} onClose={closeScanned} onSaved={refresh} />
-      )}
       {scannedQr && action === "discard" && (
         <DiscardDialog qrId={scannedQr} onClose={closeScanned} onSaved={refresh} />
       )}
