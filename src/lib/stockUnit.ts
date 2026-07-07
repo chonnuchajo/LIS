@@ -225,3 +225,11 @@ export function pickFefoSealed(units: StockUnitItem[], now: Date = new Date()): 
     return ax - bx;
   })[0];
 }
+
+/** ขวดที่ยังไม่ทิ้ง เรียงตามวันรับเข้า (flat) — ใช้แทน buildUnitTree หลังเลิก parent-child */
+export function visibleBottles(units: StockUnitItem[], now: Date = new Date()): StockUnitItem[] {
+  const timeOf = (u: StockUnitItem) => new Date(u.receivedDate || u.createdAt || 0).getTime();
+  return units
+    .filter((u) => unitDerivedStatus(u, now) !== "discarded")
+    .sort((a, b) => timeOf(a) - timeOf(b));
+}

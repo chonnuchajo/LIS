@@ -11,6 +11,7 @@ import {
   computeWorkingLifecycle,
   workingUsability,
   pickFefoSealed,
+  visibleBottles,
 } from "./stockUnit";
 import type { StockUnitItem } from "@/types/stock";
 
@@ -254,5 +255,16 @@ describe("pickFefoSealed", () => {
       mk({ _id: "sx", kind: "sealed", exp: "2025-01-01" }), // expired relative to `now` below
     ];
     expect(pickFefoSealed(units, new Date("2026-01-01"))?._id).toBe("s1");
+  });
+});
+
+describe("visibleBottles", () => {
+  it("drops discarded, keeps order by receivedDate", () => {
+    const rows = visibleBottles([
+      { _id: "b", status: "active", receivedDate: "2026-02-01" } as any,
+      { _id: "a", status: "active", receivedDate: "2026-01-01" } as any,
+      { _id: "d", status: "discarded", receivedDate: "2026-01-15" } as any,
+    ]);
+    expect(rows.map((u) => u._id)).toEqual(["a", "b"]);
   });
 });
