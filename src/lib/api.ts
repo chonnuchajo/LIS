@@ -331,21 +331,24 @@ export const api = {
   },
   getStockUnit: (qrId: string) =>
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`),
+  deductStockUnitMg: (
+    qrId: string,
+    body: { weights?: number[]; mg?: number; instrumentId?: string; instrumentName?: string; sampleId?: string; petitionNo?: string; note?: string },
+  ) =>
+    request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}/deduct-mg`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   receiveStockUnits: (
     standardId: string,
-    body: { lotNo?: string; sizeMl: number; unit?: string; source: "primary" | "supply"; bottles: { exp?: string }[]; note?: string },
+    body: { lotNo?: string; sizeMl: number; unit?: string; type: "primary" | "supplier" | "working"; bottles: { exp?: string }[]; note?: string },
   ) =>
     request<StockUnitItem[]>(`/stock/standards/${standardId}/units/receive`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  withdrawStockUnit: (qrId: string, body: { ml: number; note?: string }) =>
-    request<{ parent: StockUnitItem; working: StockUnitItem }>(
-      `/stock/units/${encodeURIComponent(qrId)}/withdraw`,
-      { method: "POST", body: JSON.stringify(body) },
-    ),
-  discardStockUnit: (qrId: string, body: { reason?: string; cascade?: boolean }) =>
-    request<{ discarded: string[]; count: number }>(`/stock/units/${encodeURIComponent(qrId)}/discard`, {
+  discardStockUnit: (qrId: string, body: { reason?: string; outcome?: "empty" | "discard" }) =>
+    request<{ status: string; qrId: string }>(`/stock/units/${encodeURIComponent(qrId)}/discard`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
