@@ -4,9 +4,7 @@ const { StockStandard, StockSolvent, StockGlassware } = require('../models/Stock
 const StockTransaction = require('../models/StockTransaction');
 const StockUnit = require('../models/StockUnit');
 const crypto = require('crypto');
-const { isValidReceiveSource, isValidUnitSource } = require('../lib/stockSource');
-const { computeWorkingLifecycle } = require('../lib/workingLifecycle');
-const { resolveCascadeRootId, selectDiscardTargets } = require('../lib/stockUnitDiscard');
+const { isValidReceiveType, isValidUnitType } = require('../lib/stockSource');
 const { sumWeights } = require('../lib/requisitionWeights');
 
 async function genUniqueQrId() {
@@ -97,47 +95,6 @@ async function deductMgFromUnit(qrId, mg, meta = {}) {
     userName: meta.userName,
   });
   return { unit: updated, before, after: updated.volume.remaining };
-}
-
-// สร้าง working unit จากขวดแม่ (exp ตาม frequency). volume mg = 0 (v1: ใช้แค่ exp ตัดสินว่ายัง valid).
-async function createWorkingFromParent(parentUnit, meta, req) {
-  const std = await StockStandard.findOne({ code: parentUnit.itemCode });
-  const shelf = (std && std.openShelfLife) || { value: 0, unit: 'day' };
-  const now = new Date();
-  const { exp, frequencyDue } = computeWorkingLifecycle({
-    withdrawnAt: now, frequency: std && std.frequency, shelf, parentExp: parentUnit.exp || null,
-  });
-  const qrId = await genUniqueQrId();
-  const working = await StockUnit.create({
-    qrId,
-    itemCode: parentUnit.itemCode,
-    itemName: parentUnit.itemName,
-    kind: 'working',
-    source: parentUnit.source || '',
-    parentId: parentUnit._id,
-    lotNo: parentUnit.lotNo,
-    exp,
-    frequencyDue,
-    volume: { initial: 0, remaining: 0, unit: 'mg' },
-    status: 'active',
-    withdrawnDate: now,
-    createdBy: req ? personOf(req) : undefined,
-  });
-  await logTransaction({
-    itemType: 'standard',
-    itemId: std ? std._id.toString() : parentUnit.itemCode,
-    itemCode: parentUnit.itemCode,
-    itemName: parentUnit.itemName,
-    action: 'withdraw',
-    unitId: working._id.toString(),
-    qrId,
-    volumeUnit: 'mg',
-    unit: 'mg',
-    note: (meta && meta.note) || 'auto working (ชั่ง standard)',
-    userEmail: meta && meta.userEmail,
-    userName: meta && meta.userName,
-  });
-  return working;
 }
 
 /* ==================== STANDARDS ==================== */
@@ -326,11 +283,11 @@ router.post('/standards/:id/units/receive', async (req, res) => {
     const std = await StockStandard.findById(req.params.id);
     if (!std) return res.status(404).json({ error: 'ไม่พบสาร' });
 
-    const { lotNo = '', sizeMl, unit = 'ml', bottles, source, note } = req.body || {};
+    const { lotNo = '', sizeMl, unit = 'ml', bottles, type, note } = req.body || {};
     const size = Number(sizeMl);
     if (!Number.isFinite(size) || size <= 0) return res.status(400).json({ error: 'ขนาด/ขวดไม่ถูกต้อง' });
     if (!Array.isArray(bottles) || bottles.length === 0) return res.status(400).json({ error: 'ต้องระบุอย่างน้อย 1 ขวด' });
-    if (!isValidReceiveSource(source)) return res.status(400).json({ error: 'ต้องเลือกที่มา (primary หรือ supply)' });
+    if (!isValidReceiveType(type)) return res.status(400).json({ error: 'ต้องเลือกประเภท (primary, supplier หรือ working)' });
 
     const now = new Date();
     const created = [];
@@ -341,7 +298,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
         itemCode: std.code,
         itemName: std.name,
         kind: 'sealed',
-        source,
+        type,
         lotNo,
         exp: b && b.exp ? new Date(b.exp) : null,
         volume: { initial: size, remaining: size, unit },
@@ -372,119 +329,40 @@ router.post('/standards/:id/units/receive', async (req, res) => {
   }
 });
 
-// แบ่ง working จากขวด sealed: POST /units/:qrId/withdraw { ml, note? }
-router.post('/units/:qrId/withdraw', async (req, res) => {
-  try {
-    const ml = Number(req.body && req.body.ml);
-    if (!Number.isFinite(ml) || ml <= 0) return res.status(400).json({ error: 'ปริมาณไม่ถูกต้อง' });
-
-    const parent = await StockUnit.findOne({ qrId: req.params.qrId });
-    if (!parent) return res.status(404).json({ error: 'ไม่พบขวด' });
-    if (parent.kind !== 'sealed') return res.status(400).json({ error: 'แบ่งได้เฉพาะขวดคงคลัง (sealed)' });
-    if (parent.status === 'discarded') return res.status(400).json({ error: 'ขวดนี้ถูกทิ้งแล้ว ใช้งานต่อไม่ได้' });
-    if (parent.status === 'empty') return res.status(400).json({ error: 'ขวดนี้หมดแล้ว' });
-    if (parent.exp && new Date(parent.exp).getTime() < Date.now()) return res.status(400).json({ error: 'ขวดนี้หมดอายุแล้ว' });
-
-    // atomic: หัก remaining เฉพาะเมื่อยัง active และเหลือพอ (กัน race 2 คนแบ่งพร้อมกัน)
-    const updatedParent = await StockUnit.findOneAndUpdate(
-      { qrId: req.params.qrId, status: 'active', 'volume.remaining': { $gte: ml } },
-      { $inc: { 'volume.remaining': -ml } },
-      { new: true },
-    );
-    if (!updatedParent) return res.status(400).json({ error: 'ปริมาณคงเหลือไม่พอ' });
-    if (updatedParent.volume.remaining <= 0) {
-      updatedParent.status = 'empty';
-      await updatedParent.save();
-    }
-
-    const std = await StockStandard.findOne({ code: parent.itemCode });
-    const shelf = (std && std.openShelfLife) || { value: 0, unit: 'day' };
-    const now = new Date();
-    const { exp, frequencyDue } = computeWorkingLifecycle({
-      withdrawnAt: now, frequency: std && std.frequency, shelf, parentExp: parent.exp || null,
-    });
-
-    const qrId = await genUniqueQrId();
-    const working = await StockUnit.create({
-      qrId,
-      itemCode: parent.itemCode,
-      itemName: parent.itemName,
-      kind: 'working',
-      source: parent.source || '',
-      parentId: parent._id,
-      lotNo: parent.lotNo,
-      exp,
-      frequencyDue,
-      volume: { initial: ml, remaining: ml, unit: parent.volume.unit },
-      status: 'active',
-      withdrawnDate: now,
-      createdBy: personOf(req),
-    });
-
-    await logTransaction({
-      itemType: 'standard',
-      itemId: std ? std._id.toString() : parent.itemCode,
-      itemCode: parent.itemCode,
-      itemName: parent.itemName,
-      action: 'withdraw',
-      unitId: working._id.toString(),
-      qrId,
-      volumeDelta: -ml,
-      volumeUnit: parent.volume.unit,
-      unit: parent.volume.unit,
-      note: req.body && req.body.note,
-      ...userMeta(req),
-    });
-
-    res.status(201).json({ parent: updatedParent, working });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-// ทิ้งขวด: POST /units/:qrId/discard { reason? }
-// ทิ้งขวด: POST /units/:qrId/discard { reason?, cascade? }
-// cascade=true → ทิ้งทั้งขวด (ขวดแม่ + working ลูกทุกตัวที่ยังไม่ถูกทิ้ง)
+// แจ้งสถานะขวด: POST /units/:qrId/discard { reason?, outcome? }
+// outcome='empty' → หมด (status=empty); ไม่งั้น → discarded + เหตุผล
 router.post('/units/:qrId/discard', async (req, res) => {
   try {
     const unit = await StockUnit.findOne({ qrId: req.params.qrId });
     if (!unit) return res.status(404).json({ error: 'ไม่พบขวด' });
-    const cascade = !!(req.body && req.body.cascade);
+    if (unit.status === 'discarded') return res.status(400).json({ error: 'ขวดนี้ถูกทิ้งแล้ว' });
+
     const reason = (req.body && req.body.reason) || '';
+    const outcome = (req.body && req.body.outcome) === 'empty' ? 'empty' : 'discard';
+    const std = await StockStandard.findOne({ code: unit.itemCode });
 
-    let targets;
-    if (cascade) {
-      const rootId = resolveCascadeRootId(unit);
-      const root = await StockUnit.findById(rootId);
-      const children = await StockUnit.find({ parentId: rootId });
-      targets = selectDiscardTargets({ root, children });
-    } else {
-      if (unit.status === 'discarded') return res.status(400).json({ error: 'ขวดนี้ถูกทิ้งแล้ว' });
-      targets = [unit];
-    }
-
-    const discarded = [];
-    for (const t of targets) {
-      t.status = 'discarded';
-      t.discardedAt = new Date();
-      t.discardedBy = personOf(req);
-      t.discardReason = reason;
-      await t.save();
-      const std = await StockStandard.findOne({ code: t.itemCode });
+    if (outcome === 'empty') {
+      unit.status = 'empty';
+      await unit.save();
       await logTransaction({
-        itemType: 'standard',
-        itemId: std ? std._id.toString() : t.itemCode,
-        itemCode: t.itemCode,
-        itemName: t.itemName,
-        action: 'discard',
-        unitId: t._id.toString(),
-        qrId: t.qrId,
-        note: reason,
-        ...userMeta(req),
+        itemType: 'standard', itemId: std ? std._id.toString() : unit.itemCode,
+        itemCode: unit.itemCode, itemName: unit.itemName, action: 'update',
+        unitId: unit._id.toString(), qrId: unit.qrId, note: reason || 'แจ้งหมด', ...userMeta(req),
       });
-      discarded.push(t.qrId);
+      return res.json({ status: 'empty', qrId: unit.qrId });
     }
-    res.json({ discarded, count: discarded.length });
+
+    unit.status = 'discarded';
+    unit.discardedAt = new Date();
+    unit.discardedBy = personOf(req);
+    unit.discardReason = reason;
+    await unit.save();
+    await logTransaction({
+      itemType: 'standard', itemId: std ? std._id.toString() : unit.itemCode,
+      itemCode: unit.itemCode, itemName: unit.itemName, action: 'discard',
+      unitId: unit._id.toString(), qrId: unit.qrId, note: reason, ...userMeta(req),
+    });
+    res.json({ status: 'discarded', qrId: unit.qrId });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -497,10 +375,10 @@ router.patch('/units/:qrId', async (req, res) => {
     if (!unit) return res.status(404).json({ error: 'ไม่พบขวด' });
     if (unit.status === 'discarded') return res.status(400).json({ error: 'ขวดนี้ถูกทิ้งแล้ว แก้ไขไม่ได้' });
 
-    const { lotNo, exp, volume, source } = req.body || {};
+    const { lotNo, exp, volume, type } = req.body || {};
     if (lotNo !== undefined) unit.lotNo = String(lotNo);
     if (exp !== undefined) unit.exp = exp ? new Date(exp) : null;
-    if (source !== undefined && isValidUnitSource(source)) unit.source = source;
+    if (type !== undefined && isValidUnitType(type)) unit.type = type;
     if (volume && typeof volume === 'object') {
       if (volume.unit !== undefined && ['ml', 'mg', 'g'].includes(volume.unit)) unit.volume.unit = volume.unit;
       if (volume.initial !== undefined) {
@@ -829,4 +707,3 @@ router.get('/transactions', async (req, res) => {
 module.exports = router;
 router.planDeductMg = planDeductMg;
 router.deductMgFromUnit = deductMgFromUnit;
-router.createWorkingFromParent = createWorkingFromParent;
