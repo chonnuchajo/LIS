@@ -117,7 +117,7 @@ function StandardsTab() {
     }).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
   }, [data, search, statusFilter, now, unitsByCode]);
 
-  const lowList = data.filter(s => standardLevel(sumOf(s).usable) === "low");
+  const lowList = data.filter(s => standardLevel(sumOf(s).usable) !== "ok");
   const expiringList = data.filter(s => { const x = sumOf(s); return x.expired > 0 || x.expiringSoon > 0; });
 
   return (
@@ -133,11 +133,15 @@ function StandardsTab() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
               {lowList.slice(0, 8).map(s => {
-                const x = sumOf(s);
+                const usable = sumOf(s).usable;
                 return (
                   <div key={`low-${s._id}`} className="flex items-center gap-2 text-destructive">
                     <Package className="w-3.5 h-3.5" />
-                    <span><strong>{s.name}</strong> ใกล้หมด เหลือรวม {x.usable} ขวด</span>
+                    <span>
+                      {usable === 0
+                        ? <><strong>{s.name}</strong> หมดแล้ว</>
+                        : <><strong>{s.name}</strong> ใกล้หมด เหลือรวม {usable} ขวด</>}
+                    </span>
                   </div>
                 );
               })}
@@ -294,7 +298,7 @@ function SolventsTab() {
     return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
   }, [data, search]);
 
-  const lowList = data.filter(s => solventLevel(s.qty) === "low");
+  const lowList = data.filter(s => solventLevel(s.qty) !== "ok");
 
   return (
     <div className="space-y-4">
@@ -306,7 +310,13 @@ function SolventsTab() {
               <span className="font-semibold text-destructive">สารเคมีใกล้หมด ({lowList.length} รายการ)</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-sm text-destructive">
-              {lowList.map(s => <div key={s._id}>• {s.name} เหลือ {s.qty} ขวด</div>)}
+              {lowList.map(s => (
+                <div key={s._id}>
+                  {s.qty === 0
+                    ? <>• {s.name} หมดแล้ว</>
+                    : <>• {s.name} เหลือ {s.qty} ขวด</>}
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
