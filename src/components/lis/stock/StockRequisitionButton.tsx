@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 interface Props {
   roomSlug: string;
-  instruments: { id: string; name: string }[];
+  instruments: { id: string; name: string; group?: string }[];
 }
 
 export default function StockRequisitionButton({ roomSlug, instruments }: Props) {
@@ -56,7 +56,7 @@ export default function StockRequisitionButton({ roomSlug, instruments }: Props)
         />
       )}
       {which === "standard" && (
-        <StandardRequisitionDialog onClose={() => setWhich(null)} onSaved={refreshStandards} />
+        <StandardRequisitionDialog instruments={instruments} onClose={() => setWhich(null)} onSaved={refreshStandards} />
       )}
     </>
   );

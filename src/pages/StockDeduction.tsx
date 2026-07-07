@@ -15,7 +15,7 @@ import { getRoomCatalog } from "@/lib/roomEquipment";
 import type { StockTransactionItem } from "@/types/stock";
 
 const analysisInstruments =
-  getRoomCatalog(ANALYSIS_ROOM_SLUG)?.instruments.map((i) => ({ id: i.id, name: i.name })) ?? [];
+  getRoomCatalog(ANALYSIS_ROOM_SLUG)?.instruments.map((i) => ({ id: i.id, name: i.name, group: i.group })) ?? [];
 
 const StockDeduction = () => {
   const [tab, setTab] = useState<string>("history");
