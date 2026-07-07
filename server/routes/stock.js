@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { isValidReceiveSource, isValidUnitSource } = require('../lib/stockSource');
 const { computeWorkingLifecycle } = require('../lib/workingLifecycle');
 const { resolveCascadeRootId, selectDiscardTargets } = require('../lib/stockUnitDiscard');
+const { sumWeights } = require('../lib/requisitionWeights');
 
 async function genUniqueQrId() {
   for (let i = 0; i < 5; i++) {
@@ -87,6 +88,9 @@ async function deductMgFromUnit(qrId, mg, meta = {}) {
     unit: 'mg',
     beforeQty: before,
     afterQty: updated.volume.remaining,
+    weights: meta.weights,
+    instrumentId: meta.instrumentId,
+    instrumentName: meta.instrumentName,
     sampleId: meta.sampleId,
     note: meta.note,
     userEmail: meta.userEmail,
@@ -260,12 +264,18 @@ router.post('/standards/:id/deduct', async (req, res) => {
   }
 });
 
-// หัก mg จากขวดตรงๆ: { mg, sampleId?, petitionNo?, note? }
+// หัก mg จากขวดตรงๆ: { mg?, weights?[], instrumentId?, instrumentName?, sampleId?, petitionNo?, note? }
 router.post('/units/:qrId/deduct-mg', async (req, res) => {
   try {
-    const { mg, sampleId, petitionNo, note } = req.body || {};
-    const meta = { sampleId, note: [petitionNo, note].filter(Boolean).join(' · '), ...userMeta(req) };
-    const result = await deductMgFromUnit(req.params.qrId, mg, meta);
+    const { mg, weights, instrumentId, instrumentName, sampleId, petitionNo, note } = req.body || {};
+    const amount = Array.isArray(weights) && weights.length ? sumWeights(weights) : mg;
+    const meta = {
+      weights: Array.isArray(weights) ? weights.map(Number) : undefined,
+      instrumentId, instrumentName, sampleId,
+      note: [petitionNo, note].filter(Boolean).join(' · '),
+      ...userMeta(req),
+    };
+    const result = await deductMgFromUnit(req.params.qrId, amount, meta);
     res.json(result.unit);
   } catch (err) {
     res.status(400).json({ error: err.message });
