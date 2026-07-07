@@ -16,7 +16,8 @@ const StockUnitSchema = new mongoose.Schema({
   itemCode: { type: String, required: true, index: true },
   itemName: { type: String, default: '' },
   kind: { type: String, enum: ['sealed', 'working'], required: true },
-  source: { type: String, enum: ['primary', 'supply', ''], default: '' },
+  source: { type: String, enum: ['primary', 'supply', ''], default: '' }, // deprecated → type
+  type: { type: String, enum: ['primary', 'supplier', 'working', ''], default: '', index: true },
   parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockUnit', default: null },
   lotNo: { type: String, default: '' },
   exp: { type: Date, default: null },
