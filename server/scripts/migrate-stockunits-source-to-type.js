@@ -15,7 +15,9 @@ const SRC_TO_TYPE = { primary: 'primary', supply: 'supplier' };
   const warns = [];
   for (const u of units) {
     let type = SRC_TO_TYPE[u.source];
-    if (!type) { type = 'primary'; warns.push(`${u.qrId} (${u.itemCode}) source='${u.source||''}' kind='${u.kind||''}' → primary [ตรวจสอบ]`); }
+    let warned = false;
+    if (!type) { type = 'primary'; warns.push(`${u.qrId} (${u.itemCode}) source='${u.source||''}' kind='${u.kind||''}' → primary [ตรวจสอบ]`); warned = true; }
+    if (u.kind === 'working' && !warned) warns.push(`${u.qrId} (${u.itemCode}) kind='working' → type='${type}' [legacy working; ตรวจสอบ]`);
     planned++;
     if (COMMIT) { u.type = type; await u.save(); }
   }

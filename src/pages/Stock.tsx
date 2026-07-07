@@ -91,7 +91,7 @@ function StandardsTab() {
       const counts: Record<string, number> = {};
       for (const u of units) {
         if (!isUsableBottle(u, new Date(now))) continue;
-        const t = u.type || "other";
+        const t = u.type || "primary";
         counts[t] = (counts[t] ?? 0) + 1;
       }
       m.set(code, counts);
@@ -306,7 +306,7 @@ function SolventsTab() {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className="w-5 h-5 text-destructive" />
-              <span className="font-semibold text-destructive">สารเคมีใกล้หมด ({lowList.length} รายการ)</span>
+              <span className="font-semibold text-destructive">แจ้งเตือนสารเคมี ({lowList.length} รายการ)</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-sm text-destructive">
               {lowList.map(s => (

@@ -25,7 +25,7 @@ function toDateInput(v?: string | null): string {
 
 export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
   const [lotNo, setLotNo] = useState(unit.lotNo ?? "");
-  const [source, setSource] = useState<"primary" | "supply" | "">(unit.source ?? "");
+  const [type, setType] = useState<"primary" | "supplier" | "working" | "">(unit.type ?? "");
   const [exp, setExp] = useState(toDateInput(unit.exp));
   const [initial, setInitial] = useState(String(unit.volume?.initial ?? ""));
   const [remaining, setRemaining] = useState(String(unit.volume?.remaining ?? ""));
@@ -43,7 +43,7 @@ export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
       await api.updateStockUnit(unit.qrId, {
         lotNo,
         exp: exp || null,
-        source,
+        type,
         volume: { initial: init, remaining: rem },
       });
       toast.success("บันทึกข้อมูลขวดแล้ว");
@@ -70,14 +70,16 @@ export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
               <Input value={lotNo} onChange={(e) => setLotNo(e.target.value)} placeholder="optional" />
             </div>
             <div>
-              <Label>ที่มา</Label>
+              <Label>ประเภท</Label>
               <div className="flex gap-2 mt-1">
-                <Button type="button" variant={source === "primary" ? "default" : "outline"} size="sm"
-                  onClick={() => setSource("primary")}>primary</Button>
-                <Button type="button" variant={source === "supply" ? "default" : "outline"} size="sm"
-                  onClick={() => setSource("supply")}>supply</Button>
-                <Button type="button" variant={source === "" ? "default" : "outline"} size="sm"
-                  onClick={() => setSource("")}>ไม่ระบุ</Button>
+                <Button type="button" variant={type === "primary" ? "default" : "outline"} size="sm"
+                  onClick={() => setType("primary")}>primary</Button>
+                <Button type="button" variant={type === "working" ? "default" : "outline"} size="sm"
+                  onClick={() => setType("working")}>working</Button>
+                <Button type="button" variant={type === "supplier" ? "default" : "outline"} size="sm"
+                  onClick={() => setType("supplier")}>supplier</Button>
+                <Button type="button" variant={type === "" ? "default" : "outline"} size="sm"
+                  onClick={() => setType("")}>ไม่ระบุ</Button>
               </div>
             </div>
             <div>

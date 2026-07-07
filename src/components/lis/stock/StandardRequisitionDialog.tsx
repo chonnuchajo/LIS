@@ -208,8 +208,8 @@ export default function StandardRequisitionDialog({ instruments, onClose, onSave
                 <div>
                   <div className="mb-1.5 flex items-center justify-between">
                     <Label>จำนวนน้ำหนัก</Label>
-                    <Input type="number" min={1} value={weights.length} className="h-8 w-20"
-                      onChange={(e) => setCount(Math.max(1, Number(e.target.value) || 1))} />
+                    <Input type="number" min={1} max={20} value={weights.length} className="h-8 w-20"
+                      onChange={(e) => setCount(Math.min(20, Math.max(1, Number(e.target.value) || 1)))} />
                   </div>
                   <div className="space-y-1.5">
                     {weights.map((w, i) => (
