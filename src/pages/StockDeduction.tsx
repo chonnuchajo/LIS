@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
-import StockRequisitionTab from "@/components/lis/StockRequisitionTab";
+import StockRequisitionButton from "@/components/lis/stock/StockRequisitionButton";
 import StandardWorkingPanel from "@/components/lis/stock/StandardWorkingPanel";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
 import { getRoomCatalog } from "@/lib/roomEquipment";
@@ -18,12 +18,8 @@ const analysisInstruments =
   getRoomCatalog(ANALYSIS_ROOM_SLUG)?.instruments.map((i) => ({ id: i.id, name: i.name })) ?? [];
 
 const StockDeduction = () => {
-  const [tab, setTab] = useState<string>("requisition");
+  const [tab, setTab] = useState<string>("history");
   const [type, setType] = useState<string>("");
-
-  const viewAllStandards = () => {
-    setTab("working");
-  };
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock-deductions", type],
@@ -91,22 +87,14 @@ const StockDeduction = () => {
           </span>
         }
         description="เบิกสารเคมีให้เครื่อง และดูประวัติการตัด stock"
+        actions={<StockRequisitionButton roomSlug={ANALYSIS_ROOM_SLUG} instruments={analysisInstruments} />}
       />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="mb-4">
-          <TabsTrigger value="requisition">เบิก stock</TabsTrigger>
-          <TabsTrigger value="working">Standard ใช้งานอยู่</TabsTrigger>
           <TabsTrigger value="history">ประวัติ</TabsTrigger>
+          <TabsTrigger value="working">Standard ใช้งานอยู่</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="requisition">
-          <StockRequisitionTab
-            roomSlug={ANALYSIS_ROOM_SLUG}
-            instruments={analysisInstruments}
-            onViewAllStandards={viewAllStandards}
-          />
-        </TabsContent>
 
         <TabsContent value="working">
           <StandardWorkingPanel />

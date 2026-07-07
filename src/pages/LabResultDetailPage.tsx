@@ -1,0 +1,115 @@
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { FlaskConical, Loader2, Printer } from "lucide-react";
+import AppLayout from "@/components/lis/AppLayout";
+import PageHeader from "@/components/lis/PageHeader";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { api, type ParameterItem } from "@/lib/api";
+import { usePetition, useLabRequestsByPetition } from "@/hooks/usePetition";
+import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
+import { buildApprovalGroups } from "@/lib/qcApprovalRows";
+import { buildLabReportPages } from "@/lib/labReport";
+import LabResultGroups from "@/components/petition/LabResultGroups";
+import LabResultReportTemplate, { LAB_REPORT_CSS } from "@/components/petition/LabResultReportTemplate";
+import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
+import { PETITION_DEPT_LABELS, type QCTestResult } from "@/types/petition.types";
+
+export default function LabResultDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  const { data: petition, loading, error } = usePetition(id);
+  const { data: labRequests } = useLabRequestsByPetition(id);
+  const groupMembership = useItemGroupMembership();
+  const [parameters, setParameters] = useState<ParameterItem[]>([]);
+  const [results, setResults] = useState<QCTestResult[]>([]);
+  const [paramsLoaded, setParamsLoaded] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
+
+  // เฉพาะ parameter ฝั่ง Lab เท่านั้น (scope === "lab") — ไม่รวม param ฝั่ง QC ที่แชร์ให้ Lab
+  // (เช่น ค่า ถพ.) เพราะหน้าผลวิเคราะห์ Lab ต้องเห็นเฉพาะผลของ parameter Lab
+  useEffect(() => {
+    api
+      .getParameters()
+      .then((all) => setParameters(all.filter((p) => p.scope === "lab")))
+      .catch(() => setParameters([]))
+      .finally(() => setParamsLoaded(true));
+  }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    api.getQCResults(id).then(setResults).catch(() => setResults([]));
+  }, [id]);
+
+  const groups = useMemo(() => {
+    if (!petition) return [];
+    return buildApprovalGroups(petition, parameters, results, groupMembership);
+  }, [petition, parameters, results, groupMembership]);
+
+  const pages = useMemo(() => {
+    if (!petition) return [];
+    return buildLabReportPages(petition, labRequests ?? [], groups);
+  }, [petition, labRequests, groups]);
+
+  const report = <LabResultReportTemplate pages={pages} />;
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-6 w-6 animate-spin text-primary-500" />
+        </div>
+      </AppLayout>
+    );
+  }
+  if (error || !petition) {
+    return (
+      <AppLayout>
+        <div className="text-center text-grey-500">{error || "ไม่พบข้อมูลคำร้อง"}</div>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout title={petition.petitionNo}>
+      <div className="space-y-6 pb-10">
+        <PageHeader
+          onBack={() => navigate("/lab-results")}
+          title={
+            <span className="inline-flex items-center gap-2">
+              <FlaskConical className="h-5 w-5 text-sky-500" />
+              ผลวิเคราะห์ Lab {petition.petitionNo}
+            </span>
+          }
+          actions={
+            <Button variant="primary-outline" onClick={() => setPrintOpen(true)} disabled={pages.length === 0} className="gap-2">
+              <Printer className="h-4 w-4" /> พิมพ์ผลวิเคราะห์ Lab
+            </Button>
+          }
+        />
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+          <Badge variant="gray-soft" className="font-normal">
+            ผู้นำส่ง: {petition.submittedBy?.name ?? "-"}
+          </Badge>
+        </div>
+
+        {!paramsLoaded ? (
+          <div className="flex items-center justify-center py-16 text-grey-400">
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" /> กำลังโหลด…
+          </div>
+        ) : groups.length === 0 ? (
+          <div className="py-12 text-center text-grey-400">ไม่มีรายการทดสอบ</div>
+        ) : (
+          <LabResultGroups groups={groups} />
+        )}
+      </div>
+
+      <PrintPreviewDialog open={printOpen} onOpenChange={setPrintOpen} docType="coa" css={LAB_REPORT_CSS}>
+        {report}
+      </PrintPreviewDialog>
+    </AppLayout>
+  );
+}
