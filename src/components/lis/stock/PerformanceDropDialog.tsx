@@ -22,11 +22,11 @@ interface Props {
 
 const REASONS = ["ประสิทธิภาพลดลง", "หมดอายุ", "ปนเปื้อน", "ใช้งานไม่ได้", "อื่นๆ"] as const;
 
-/** แจ้งทิ้ง standard → ทิ้ง working ตัวเดียว หรือทั้งขวด (ขวดแม่ + working ทุกตัว) */
+/** แจ้งสถานะขวด standard รายขวด → แจ้งหมด (empty) หรือแจ้งปัญหา/ทิ้งขวด (discard) */
 export default function PerformanceDropDialog({ qrId, onClose, onSaved }: Props) {
   const [unit, setUnit] = useState<StockUnitItem | null>(null);
   const [loadErr, setLoadErr] = useState("");
-  const [scope, setScope] = useState<"unit" | "whole">("unit");
+  const [outcome, setOutcome] = useState<"empty" | "discard">("discard");
   const [reasonKey, setReasonKey] = useState<string>(REASONS[0]);
   const [customReason, setCustomReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -40,14 +40,16 @@ export default function PerformanceDropDialog({ qrId, onClose, onSaved }: Props)
   }, [qrId]);
 
   const isWorking = unit?.kind === "working";
-  const reason = reasonKey === "อื่นๆ" ? (customReason.trim() || "อื่นๆ") : reasonKey;
+  const reason = outcome === "discard"
+    ? (reasonKey === "อื่นๆ" ? (customReason.trim() || "อื่นๆ") : reasonKey)
+    : undefined;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
-      const res = await api.discardStockUnit(qrId, { reason, cascade: scope === "whole" });
-      toast.success(scope === "whole" ? `ทิ้งทั้งขวดแล้ว (${res.count} รายการ)` : "แจ้งทิ้งแล้ว");
+      await api.discardStockUnit(qrId, { reason, outcome });
+      toast.success(outcome === "empty" ? "แจ้งหมดแล้ว" : "แจ้งปัญหา/ทิ้งขวดแล้ว");
       onSaved();
       onClose();
     } catch (err) {
@@ -63,9 +65,9 @@ export default function PerformanceDropDialog({ qrId, onClose, onSaved }: Props)
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Trash2 className="h-5 w-5 text-destructive" /> แจ้งทิ้ง Standard
+              <Trash2 className="h-5 w-5 text-destructive" /> แจ้งสถานะขวด
             </DialogTitle>
-            <DialogDescription>เลือกเหตุผลและขอบเขตการทิ้งของขวดนี้</DialogDescription>
+            <DialogDescription>แจ้งหมด หรือแจ้งปัญหา/ทิ้งขวดนี้</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
@@ -83,58 +85,60 @@ export default function PerformanceDropDialog({ qrId, onClose, onSaved }: Props)
               </div>
             )}
 
-            {/* เหตุผล */}
+            {/* การแจ้ง */}
             <div>
-              <Label className="mb-1.5 block">เหตุผล</Label>
-              <Select value={reasonKey} onValueChange={setReasonKey}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              {reasonKey === "อื่นๆ" && (
-                <Input
-                  className="mt-2"
-                  autoFocus
-                  placeholder="ระบุเหตุผล..."
-                  value={customReason}
-                  onChange={(e) => setCustomReason(e.target.value)}
-                />
-              )}
-            </div>
-
-            {/* ขอบเขต */}
-            <div>
-              <Label className="mb-1.5 block">ขอบเขต</Label>
+              <Label className="mb-1.5 block">การแจ้ง</Label>
               <div className="space-y-2">
                 {([
-                  { v: "unit", label: isWorking ? "ทิ้งเฉพาะ working นี้" : "ทิ้งขวดนี้" },
-                  { v: "whole", label: "ทิ้งทั้งขวด (ขวดแม่ + working ลูกทุกตัว)" },
+                  { v: "empty", label: "แจ้งหมด (ขวดนี้ใช้หมดแล้ว)" },
+                  { v: "discard", label: "แจ้งปัญหา / ทิ้งขวด (ระบุเหตุผล)" },
                 ] as const).map((opt) => (
                   <label
                     key={opt.v}
                     className={cn(
                       "flex cursor-pointer items-center gap-2 rounded-lg border p-2.5 text-sm transition-colors",
-                      scope === opt.v ? "border-primary bg-primary/5" : "hover:bg-muted/50",
+                      outcome === opt.v ? "border-primary bg-primary/5" : "hover:bg-muted/50",
                     )}
                   >
-                    <input type="radio" name="scope" checked={scope === opt.v} onChange={() => setScope(opt.v)} />
+                    <input type="radio" name="outcome" checked={outcome === opt.v} onChange={() => setOutcome(opt.v)} />
                     {opt.label}
                   </label>
                 ))}
               </div>
             </div>
 
+            {/* เหตุผล */}
+            {outcome === "discard" && (
+              <div>
+                <Label className="mb-1.5 block">เหตุผล</Label>
+                <Select value={reasonKey} onValueChange={setReasonKey}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                {reasonKey === "อื่นๆ" && (
+                  <Input
+                    className="mt-2"
+                    autoFocus
+                    placeholder="ระบุเหตุผล..."
+                    value={customReason}
+                    onChange={(e) => setCustomReason(e.target.value)}
+                  />
+                )}
+              </div>
+            )}
+
             <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-              เมื่อทิ้งแล้ว QR ที่ทิ้งจะใช้งานต่อไม่ได้ถาวร
+              เมื่อยืนยันแล้ว QR ที่แจ้งจะใช้งานต่อไม่ได้ถาวร
             </p>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
             <Button type="submit" variant="destructive" disabled={busy || !unit}>
-              {busy ? "กำลังบันทึก..." : "ยืนยันแจ้งทิ้ง"}
+              {busy ? "กำลังบันทึก..." : "ยืนยัน"}
             </Button>
           </DialogFooter>
         </form>
