@@ -883,3 +883,59 @@ describe("resolveConditionalOutput", () => {
     expect(isConditionalOutputAbnormal(outField, ctxWith(6))).toBe(false);
   });
 });
+
+import {
+  resolveLabelTolerance,
+  isLabelToleranceAbnormal,
+  findLabelToleranceStandard,
+} from "./parameterValidation";
+
+describe("resolveLabelTolerance", () => {
+  const std = { substance: "ABAMECTIN", autoPct: 2.5, headPct: 5 };
+  it("pass when within auto band (center from label %)", () => {
+    const r = resolveLabelTolerance(std, "ABAMECTIN 1% W/V EC", 1.0);
+    expect(r.center).toBe(1);
+    expect(r.autoRange).toEqual([0.975, 1.025]);
+    expect(r.headRange).toEqual([0.95, 1.05]);
+    expect(r.status).toBe("pass");
+  });
+  it("review when between auto and head band", () => {
+    expect(resolveLabelTolerance(std, "ABAMECTIN 1%", 1.04).status).toBe("review");
+  });
+  it("fail when beyond head band", () => {
+    expect(resolveLabelTolerance(std, "ABAMECTIN 1%", 1.2).status).toBe("fail");
+  });
+  it("none (skip) when name has no percent — center null", () => {
+    const r = resolveLabelTolerance(std, "ABAMECTIN 480 G/L", 1.0);
+    expect(r.center).toBeNull();
+    expect(r.status).toBe("none");
+  });
+  it("none but keeps ranges when value is empty (not yet filled)", () => {
+    const r = resolveLabelTolerance(std, "ABAMECTIN 1%", "");
+    expect(r.status).toBe("none");
+    expect(r.center).toBe(1);
+    expect(r.autoRange).toEqual([0.975, 1.025]);
+  });
+  it("no head band → outside auto is fail directly", () => {
+    const noHead = { substance: "A", autoPct: 2.5, headPct: null };
+    expect(resolveLabelTolerance(noHead, "A 1%", 1.04).status).toBe("fail");
+    expect(resolveLabelTolerance(noHead, "A 1%", 1.0).status).toBe("pass");
+  });
+  it("isLabelToleranceAbnormal true for review and fail, false for pass/none", () => {
+    expect(isLabelToleranceAbnormal(std, "A 1%", 1.04)).toBe(true);
+    expect(isLabelToleranceAbnormal(std, "A 1%", 1.2)).toBe(true);
+    expect(isLabelToleranceAbnormal(std, "A 1%", 1.0)).toBe(false);
+    expect(isLabelToleranceAbnormal(std, "A no-percent", 1.0)).toBe(false);
+  });
+});
+
+describe("findLabelToleranceStandard", () => {
+  const field: any = { label: "v", type: "number", labelToleranceMode: true,
+    labelToleranceStandards: [{ substance: "ABAMECTIN", autoPct: 2.5, headPct: 5 }] };
+  it("matches by substance key regardless of trailing spec", () => {
+    expect(findLabelToleranceStandard(field, "ABAMECTIN 1.8% W/V EC")?.autoPct).toBe(2.5);
+  });
+  it("returns undefined for unlisted substance", () => {
+    expect(findLabelToleranceStandard(field, "GLYPHOSATE")).toBeUndefined();
+  });
+});
