@@ -255,6 +255,20 @@ export function countAbnormalInResults(
           }
           continue;
         }
+        if (field.labelToleranceMode && isNumeric) {
+          const prefix = `${field.label}::`;
+          const substances = parseSubstances(r.commonName ?? "");
+          for (const [vkey, vval] of Object.entries(values)) {
+            if (!vkey.startsWith(prefix)) continue;
+            const subKey = vkey.slice(prefix.length);
+            const raw = substances.find(
+              (s) => matchSubstanceKey(extractSubstanceName(s) || s) === subKey,
+            ) ?? "";
+            const std = findLabelToleranceStandard(field, subKey);
+            if (isLabelToleranceAbnormal(std, raw, vval)) count += 1;
+          }
+          continue;
+        }
         if (field.conditionalMode && field.conditionalResult === "output" && isNumeric) {
           if (isConditionalOutputAbnormal(field, { sameParam: values, otherParams: valuesByItem.get(itemKey) ?? {} })) count += 1;
           continue;
