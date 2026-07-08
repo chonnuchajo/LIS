@@ -1005,6 +1005,13 @@ describe("resolveLabelTolerance — abs mode", () => {
     const stale = { substance: "A", mode: "abs" as const, autoPct: 50, headPct: 90, autoAbs: 0.05, headAbs: 0.1 };
     expect(resolveLabelTolerance(stale, "A 1.8%", 1.86).status).toBe("review");
   });
+  it("supports split modes where pass percent is derived from the head band", () => {
+    const split = { substance: "A", autoMode: "percent" as const, headMode: "abs" as const, autoPct: 50, headAbs: 0.1 };
+    const r = resolveLabelTolerance(split, "A 1.8%", 1.8);
+    expect(r.autoRange).toEqual([1.75, 1.85]);
+    expect(r.headRange).toEqual([1.7, 1.9]);
+    expect(resolveLabelTolerance(split, "A 1.8%", 1.86).status).toBe("review");
+  });
   it("isLabelToleranceAbnormal true for review and fail", () => {
     expect(isLabelToleranceAbnormal(std, "A 1.8%", 1.86)).toBe(true);
     expect(isLabelToleranceAbnormal(std, "A 1.8%", 1.95)).toBe(true);

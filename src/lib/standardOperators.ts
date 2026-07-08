@@ -101,6 +101,16 @@ export function describeLabelTolerance(std: LabelToleranceRule, unit: string): s
     return `ช่วง ${std.failLow}-${std.passLow}-${std.passHigh}-${std.failHigh}${unit ? ` ${unit}` : ""}`;
   }
   const u = unit ? ` ${unit}` : "";
+  if (std.autoMode || std.headMode) {
+    const auto = std.autoMode === "percent"
+      ? (std.autoPct == null ? "" : `ผ่าน ${std.autoPct}% ของหัวหน้าตรวจสอบ`)
+      : (std.autoAbs == null ? "" : `ผ่าน ±${std.autoAbs}`);
+    const head = std.headMode === "percent"
+      ? (std.headPct == null ? "" : `หัวหน้า ±${std.headPct}%`)
+      : (std.headAbs == null ? "" : `หัวหน้า ±${std.headAbs}`);
+    const parts = [auto, head].filter(Boolean);
+    return parts.length ? `${parts.join(" | ")}${u}` : "";
+  }
   if (mode === "abs") {
     if (std.autoAbs == null) return "";
     const head = std.headAbs != null ? ` (หัวหน้า ±${std.headAbs})` : "";

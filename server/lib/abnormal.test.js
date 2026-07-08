@@ -76,3 +76,11 @@ test('resolveLabelTolerance abs mode (BE mirror)', () => {
   assert.strictEqual(resolveLabelTolerance(stale, 'A 1.8%', 1.86).status, 'review');
   assert.strictEqual(isLabelToleranceAbnormal(std, 'ABAMECTIN 1.8%', 1.86), true);
 });
+
+test('resolveLabelTolerance split mode derives pass % from head band (BE mirror)', () => {
+  const std = { substance: 'A', autoMode: 'percent', headMode: 'abs', autoPct: 50, headAbs: 0.1 };
+  const r = resolveLabelTolerance(std, 'A 1.8%', 1.8);
+  assert.deepStrictEqual(r.autoRange, [1.75, 1.85]);
+  assert.deepStrictEqual(r.headRange, [1.7, 1.9]);
+  assert.strictEqual(resolveLabelTolerance(std, 'A 1.8%', 1.86).status, 'review');
+});

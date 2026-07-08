@@ -227,6 +227,24 @@ test('rejects labelTolerance abs headAbs < autoAbs', async () => {
   await assert.rejects(() => doc.validate(), /headAbs|หัวหน้า/);
 });
 
+test('accepts split modes where pass percent is derived from head reviewer band', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', autoMode: 'percent', headMode: 'abs', autoPct: 50, headAbs: 0.1 }] }],
+  });
+  await assert.doesNotReject(() => doc.validate());
+});
+
+test('rejects split percent pass when head reviewer band is missing', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', autoMode: 'percent', autoPct: 50 }] }],
+  });
+  await assert.rejects(() => doc.validate(), /หัวหน้าตรวจสอบ/);
+});
+
 test('rejects multiple + labelToleranceMode', async () => {
   const doc = new Parameter({
     name: 'x',

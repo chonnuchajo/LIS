@@ -519,6 +519,27 @@ export type LabelToleranceResolved = {
   headRange: [number, number] | null;        // ช่วงหัวหน้าอนุมัติ (null = ไม่ได้ตั้ง headPct/headAbs)
 };
 
+function normalizeLabelToleranceModes(std: LabelToleranceRule) {
+  if ((std.mode ?? "percent") === "range") {
+    return { mode: "range" as const, autoMode: null, headMode: null, legacy: false };
+  }
+  if (std.autoMode || std.headMode) {
+    return {
+      mode: "split" as const,
+      autoMode: (std.autoMode ?? "abs") as "percent" | "abs",
+      headMode: (std.headMode ?? (std.headAbs != null || std.headPct != null ? "abs" : null)) as "percent" | "abs" | null,
+      legacy: false,
+    };
+  }
+  const legacyMode = std.mode ?? "percent";
+  return {
+    mode: legacyMode,
+    autoMode: (legacyMode === "abs" ? "abs" : "percent") as "percent" | "abs",
+    headMode: (legacyMode === "abs" ? (std.headAbs != null ? "abs" : null) : (std.headPct != null ? "percent" : null)) as "percent" | "abs" | null,
+    legacy: true,
+  };
+}
+
 export function findLabelToleranceStandard(
   field: ParameterValueField,
   rawSpec: string,
@@ -563,7 +584,8 @@ export function resolveLabelTolerance(
   const num = typeof value === "number" ? value : Number(value);
   const round = (n: number) => Number(n.toFixed(6));
 
-  if ((std.mode ?? "percent") === "range") {
+  const normalized = normalizeLabelToleranceModes(std);
+  if (normalized.mode === "range") {
     const autoRange = std.passLow == null || std.passHigh == null ? null : [round(std.passLow), round(std.passHigh)] as [number, number];
     const headRange = std.failLow == null || std.failHigh == null ? null : [round(std.failLow), round(std.failHigh)] as [number, number];
     if (!autoRange || !headRange) {
@@ -579,23 +601,25 @@ export function resolveLabelTolerance(
     return { status, center, autoRange, headRange };
   }
 
-  // percent = ± เป็น % relative ของ center; abs = ± เป็นค่าจริงในหน่วยของ field
-  const isAbs = (std.mode ?? "percent") === "abs";
-  const autoAbs = isAbs
-    ? std.autoAbs
-    : std.autoPct == null || center == null
-      ? null
-      : Math.abs(center) * (std.autoPct / 100);
-  if (autoAbs == null || autoAbs <= 0 || center == null) {
+  if (center == null) {
     return { status: "none", center, autoRange: null, headRange: null };
   }
-  const headSet = isAbs ? std.headAbs != null : std.headPct != null;
-  const headAbs = headSet
-    ? (isAbs ? std.headAbs! : Math.abs(center) * (std.headPct! / 100))
-    : autoAbs;
+  const headAbs = normalized.headMode === "percent"
+    ? (std.headPct == null ? null : Math.abs(center) * (std.headPct / 100))
+    : normalized.headMode === "abs"
+      ? (std.headAbs ?? null)
+      : null;
+  const autoAbs = normalized.autoMode === "percent"
+    ? normalized.legacy
+      ? (std.autoPct == null ? null : Math.abs(center) * (std.autoPct / 100))
+      : (std.autoPct == null || headAbs == null ? null : headAbs * (std.autoPct / 100))
+    : (std.autoAbs ?? null);
+  if (autoAbs == null || autoAbs <= 0) {
+    return { status: "none", center, autoRange: null, headRange: null };
+  }
   const autoRange: [number, number] = [round(center - autoAbs), round(center + autoAbs)];
   const headRange: [number, number] | null =
-    headSet ? [round(center - headAbs), round(center + headAbs)] : null;
+    headAbs != null ? [round(center - headAbs), round(center + headAbs)] : null;
   if (value === null || value === undefined || value === "" || Number.isNaN(num)) {
     return { status: "none", center, autoRange, headRange };
   }

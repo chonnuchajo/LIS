@@ -102,6 +102,11 @@ describe("describeLabelTolerance", () => {
       { substance: "A", mode: "abs", autoPct: null, headPct: null, autoAbs: null, headAbs: null }, "%"))
       .toBe("");
   });
+  it("describes split modes separately", () => {
+    expect(describeLabelTolerance(
+      { substance: "A", autoMode: "percent", headMode: "abs", autoPct: 50, headAbs: 0.1 }, "g/L"))
+      .toBe("ผ่าน 50% ของหัวหน้าตรวจสอบ | หัวหน้า ±0.1 g/L");
+  });
 });
 
 describe("formatLabelToleranceRange", () => {
