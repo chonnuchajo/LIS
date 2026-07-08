@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronsUpDown, Check } from "lucide-react";
 import { toast } from "sonner";
@@ -38,13 +38,14 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
   const [weights, setWeights] = useState<string[]>([""]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [countCustomized, setCountCustomized] = useState(false);
 
   const { data: standards = [] } = useQuery({ queryKey: ["stock", "standards"], queryFn: api.getStandards });
   const { data: allUnits = [] } = useQuery({ queryKey: ["stock", "units"], queryFn: () => api.getStockUnits() });
 
   // สาร → กลุ่มเครื่อง (gc/hplc) จาก simple method (reuse pattern PetitionAssign)
   const { data: masterItems = [] } = useQuery<MasterItemRaw[]>({
-    queryKey: ["master-items"],
+    queryKey: ["master-items-for-standard-requisition"],
     queryFn: async () => {
       const res = await api.get<unknown>("/master-items");
       const payload = res.data.data;
@@ -118,6 +119,14 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
   const defaultCount = defaultWeightCount(effectiveGroup ?? undefined);
   const isCustom = !!effectiveGroup && weights.length !== defaultCount;
 
+  // ถ้า group index (master-items/simple-methods) โหลดเสร็จหลังเลือกสารแล้ว → resync
+  // จำนวนน้ำหนัก default ให้ตรงกลุ่มที่ resolve ได้ (ไม่ทับถ้าผู้ใช้ปรับเอง). loop-safe: set เฉพาะเมื่อ length ต่าง.
+  useEffect(() => {
+    if (!code || countCustomized || resolvedGroups.length !== 1) return;
+    const n = defaultWeightCount(resolvedGroups[0]);
+    setWeights((prev) => (prev.length === n ? prev : Array.from({ length: n }, () => "")));
+  }, [code, countCustomized, resolvedGroups]);
+
   const pickStandard = (c: string) => {
     setCode(c); setPickOpen(false); setQrId(""); setPickedGroup(null);
     const counts = { primary: 0, working: 0, supplier: 0 } as Record<BottleType, number>;
@@ -127,17 +136,22 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
     const groups = s ? resolveGroups(s.name, substanceGroups) : [];
     const n = groups.length === 1 ? defaultWeightCount(groups[0]) : 1;
     setWeights(Array.from({ length: n }, () => ""));
+    setCountCustomized(false);
   };
   const pickGroup = (g: InstrumentGroup) => {
     setPickedGroup(g);
     setWeights(Array.from({ length: defaultWeightCount(g) }, () => ""));
+    setCountCustomized(false);
   };
   const setWeightAt = (i: number, v: string) => setWeights((prev) => { const x = [...prev]; x[i] = v; return x; });
-  const setCount = (n: number) => setWeights((prev) => {
-    const x = prev.slice(0, Math.max(1, n));
-    while (x.length < n) x.push("");
-    return x;
-  });
+  const setCount = (n: number) => {
+    setCountCustomized(true);
+    setWeights((prev) => {
+      const x = prev.slice(0, Math.max(1, n));
+      while (x.length < n) x.push("");
+      return x;
+    });
+  };
 
   const submit = async () => {
     if (!bottle) return;
