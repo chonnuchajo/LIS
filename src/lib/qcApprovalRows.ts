@@ -6,12 +6,14 @@ import {
   fieldValueList,
   getEntryValues,
   isFieldAbnormal,
+  isLabelToleranceAbnormal,
   resolveConditionalOutput,
   resolveFieldStandard,
+  resolveLabelTolerance,
   resolveStandard,
   type ConditionContext,
 } from "@/lib/parameterValidation";
-import { describeResolvedStandard, describeStandard } from "@/lib/standardOperators";
+import { describeResolvedStandard, describeStandard, formatLabelToleranceRange } from "@/lib/standardOperators";
 
 export interface ApprovalFieldRow {
   key: string;
@@ -134,13 +136,32 @@ export function buildApprovalGroups(
                 const valueLabel = unit.field.multiple ? `ค่าที่ ${vi + 1}` : "";
                 const labelParts = [unit.field.label, valueLabel, entryLabel].filter(Boolean);
                 const hiddenStandard = (unit as { hiddenStandard?: boolean }).hiddenStandard === true;
+                // label-% tolerance unit: 3-zone verdict. review+fail mark the row abnormal
+                // (draws head-QC attention) but stay approvable via the server abnormal-flags
+                // path; standardText carries the resolved range + a status note.
+                let rowStandardText: string;
+                let rowAbnormal: boolean;
+                if (unit.labelTolerance) {
+                  const rv = resolveLabelTolerance(unit.labelTolerance.std, unit.labelTolerance.rawSpec, raw);
+                  const range = formatLabelToleranceRange(rv, unit.field.unit ?? "");
+                  const statusNote = rv.status === "review"
+                    ? "รอหัวหน้าอนุมัติ"
+                    : rv.status === "fail"
+                      ? "เกินช่วงที่อนุมัติได้"
+                      : "";
+                  rowStandardText = [range, statusNote].filter(Boolean).join(" · ");
+                  rowAbnormal = isLabelToleranceAbnormal(unit.labelTolerance.std, unit.labelTolerance.rawSpec, raw);
+                } else {
+                  rowStandardText = hiddenStandard ? "" : (isOutputMode ? (outputRes?.text || (outputRes?.kind === "abnormal" ? "ตกเกณฑ์" : "")) : standardText);
+                  rowAbnormal = hiddenStandard ? false : (isOutputMode ? outputRes?.kind === "abnormal" : isFieldAbnormal(effectiveField, raw));
+                }
                 rows.push({
                   key: `${k}__${unit.key}__p${phase}__e${ei}__v${vi}`,
                   label: labelParts.join(" · "),
                   unit: unit.field.unit,
                   value: asStr(raw),
-                  standardText: hiddenStandard ? "" : (isOutputMode ? (outputRes?.text || (outputRes?.kind === "abnormal" ? "ตกเกณฑ์" : "")) : standardText),
-                  abnormal: hiddenStandard ? false : (isOutputMode ? outputRes?.kind === "abnormal" : isFieldAbnormal(effectiveField, raw)),
+                  standardText: rowStandardText,
+                  abnormal: rowAbnormal,
                   note,
                   phase,
                 });

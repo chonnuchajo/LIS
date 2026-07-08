@@ -333,7 +333,7 @@ export const api = {
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`),
   deductStockUnitMg: (
     qrId: string,
-    body: { weights?: number[]; mg?: number; instrumentId?: string; instrumentName?: string; sampleId?: string; petitionNo?: string; note?: string },
+    body: { weights?: number[]; mg?: number; instrumentGroup?: "gc" | "hplc"; instrumentId?: string; instrumentName?: string; sampleId?: string; petitionNo?: string; note?: string },
   ) =>
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}/deduct-mg`, {
       method: "POST",
@@ -993,6 +993,15 @@ export type LabelToleranceStandard = {
 };
 
 export type StandardConditionOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "between";
+export type LabelToleranceRule = LabelToleranceStandard & {
+  mode?: "percent" | "range";
+  labelPercent?: number | null;
+  productTypes?: ("water" | "sand" | "powder")[];
+  passLow?: number | null;
+  passHigh?: number | null;
+  failLow?: number | null;
+  failHigh?: number | null;
+};
 
 export type StandardCondition = {
   sourceParameterId?: string | null;  // null/ว่าง = field พี่น้องใน parameter เดียวกัน
@@ -1038,7 +1047,7 @@ export type ParameterValueField = {
   conditionalResult?: "standard" | "output";
   // Label-% tolerance mode (number/float). center = %ฉลากที่แกะจากชื่อสารอัตโนมัติ.
   labelToleranceMode?: boolean;
-  labelToleranceStandards?: LabelToleranceStandard[];
+  labelToleranceStandards?: LabelToleranceRule[];
   // Field-level repeat — value stored as an array. text/number/float/enum only.
   multiple?: boolean;
   // โชว์ค่า field เดียวกันจากผลตรวจครั้งก่อนของ common name เดียวกัน (display-only)

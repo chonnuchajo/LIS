@@ -1,6 +1,7 @@
-import type { ParameterItem, ParameterValueField, TimerUnit, SubstanceStandard, StandardCondition, StandardOperator, OptionOutput, LabelToleranceStandard } from "./api";
+import type { ParameterItem, ParameterValueField, TimerUnit, SubstanceStandard, StandardCondition, StandardOperator, OptionOutput, LabelToleranceRule } from "./api";
 import type { QCTestResult } from "@/types/petition.types";
 import { parseSubstances, extractSubstanceName, matchSubstanceKey, substanceFieldKey, parseLabelPercent } from "./substances";
+import { getClassification } from "./productClassification";
 
 export function isEnumAbnormal(
   field: ParameterValueField,
@@ -156,7 +157,7 @@ export type RenderFieldUnit = {
   key: string;                 // ใช้เป็นทั้ง React key และ storage key ใน result.values
   field: ParameterValueField;  // อาจเป็น virtual field (ฉีด standard ของสารแล้ว)
   substanceName?: string;      // มีค่าเมื่อเป็น unit รายสาร
-  labelTolerance?: { std: LabelToleranceStandard | undefined; rawSpec: string };
+  labelTolerance?: { std: LabelToleranceRule | undefined; rawSpec: string };
 };
 
 // แตก field เดียวเป็นหลาย render unit เมื่อ substanceMode เปิด.
@@ -175,7 +176,8 @@ export function expandFieldForItem(
     }
     return substances.map((raw) => {
       const name = extractSubstanceName(raw) || raw;
-      const std = findLabelToleranceStandard(field, name);
+      const productType = getClassification(raw)?.group ?? getClassification(commonName ?? "")?.group ?? "";
+      const std = findLabelToleranceStandard(field, raw, productType);
       const vfield: ParameterValueField = {
         ...field,
         label: `${field.label} — ${name}`,
@@ -252,6 +254,21 @@ export function countAbnormalInResults(
               (s) => matchSubstanceKey(s.substance) === subKey,
             );
             if (isSubstanceAbnormal(field, std, vval)) count += 1;
+          }
+          continue;
+        }
+        if (field.labelToleranceMode && isNumeric) {
+          const prefix = `${field.label}::`;
+          const substances = parseSubstances(r.commonName ?? "");
+          for (const [vkey, vval] of Object.entries(values)) {
+            if (!vkey.startsWith(prefix)) continue;
+            const subKey = vkey.slice(prefix.length);
+            const raw = substances.find(
+              (s) => matchSubstanceKey(extractSubstanceName(s) || s) === subKey,
+            ) ?? "";
+            const productType = getClassification(raw)?.group ?? getClassification(r.commonName ?? "")?.group ?? "";
+            const std = findLabelToleranceStandard(field, raw, productType);
+            if (isLabelToleranceAbnormal(std, raw, vval)) count += 1;
           }
           continue;
         }
@@ -504,32 +521,72 @@ export type LabelToleranceResolved = {
 
 export function findLabelToleranceStandard(
   field: ParameterValueField,
-  substanceName: string,
-): LabelToleranceStandard | undefined {
-  const key = matchSubstanceKey(substanceName);
-  if (!key) return undefined;
-  return (field.labelToleranceStandards ?? []).find(
-    (s) => matchSubstanceKey(s.substance) === key,
-  );
+  rawSpec: string,
+  productType = "",
+): LabelToleranceRule | undefined {
+  const substanceKey = matchSubstanceKey(rawSpec);
+  const labelPercent = parseLabelPercent(rawSpec);
+  const wantedProductType = productType.trim();
+  let best: { std: LabelToleranceRule; score: number } | null = null;
+
+  for (const std of field.labelToleranceStandards ?? []) {
+    const substance = String(std.substance ?? "").trim();
+    const stdProductTypes = (std.productTypes ?? []).filter(Boolean);
+    const wantsSubstance = substance.length > 0;
+    const wantsPercent = std.labelPercent != null;
+    const wantsProductType = stdProductTypes.length > 0;
+
+    if (wantsSubstance && matchSubstanceKey(substance) !== substanceKey) continue;
+    if (wantsPercent && labelPercent !== std.labelPercent) continue;
+    if (wantsProductType && (!wantedProductType || !stdProductTypes.includes(wantedProductType as "water" | "sand" | "powder"))) continue;
+
+    const score =
+      (wantsPercent ? 4 : 0) +
+      (wantsProductType ? 2 : 0) +
+      (wantsSubstance ? 1 : 0);
+    if (!best || score > best.score) best = { std, score };
+  }
+
+  return best?.std;
 }
 
 // ศูนย์กลาง = %ฉลากจาก rawSpec; tolerance = relative % ของ center; 3 ช่วง.
 export function resolveLabelTolerance(
-  std: LabelToleranceStandard | undefined,
+  std: LabelToleranceRule | undefined,
   rawSpec: string,
   value: unknown,
 ): LabelToleranceResolved {
   const center = parseLabelPercent(rawSpec);
-  if (!std || std.autoPct == null || std.autoPct <= 0 || center == null) {
+  if (!std) {
+    return { status: "none", center, autoRange: null, headRange: null };
+  }
+  const num = typeof value === "number" ? value : Number(value);
+  const round = (n: number) => Number(n.toFixed(6));
+
+  if ((std.mode ?? "percent") === "range") {
+    const autoRange = std.passLow == null || std.passHigh == null ? null : [round(std.passLow), round(std.passHigh)] as [number, number];
+    const headRange = std.failLow == null || std.failHigh == null ? null : [round(std.failLow), round(std.failHigh)] as [number, number];
+    if (!autoRange || !headRange) {
+      return { status: "none", center, autoRange: null, headRange: null };
+    }
+    if (value === null || value === undefined || value === "" || Number.isNaN(num)) {
+      return { status: "none", center, autoRange, headRange };
+    }
+    let status: LabelToleranceStatus;
+    if (num >= autoRange[0] && num <= autoRange[1]) status = "pass";
+    else if (num >= headRange[0] && num <= headRange[1]) status = "review";
+    else status = "fail";
+    return { status, center, autoRange, headRange };
+  }
+
+  if (std.autoPct == null || std.autoPct <= 0 || center == null) {
     return { status: "none", center, autoRange: null, headRange: null };
   }
   const autoAbs = Math.abs(center) * (std.autoPct / 100);
   const headAbs = std.headPct != null ? Math.abs(center) * (std.headPct / 100) : autoAbs;
-  const round = (n: number) => Number(n.toFixed(6));
   const autoRange: [number, number] = [round(center - autoAbs), round(center + autoAbs)];
   const headRange: [number, number] | null =
     std.headPct != null ? [round(center - headAbs), round(center + headAbs)] : null;
-  const num = typeof value === "number" ? value : Number(value);
   if (value === null || value === undefined || value === "" || Number.isNaN(num)) {
     return { status: "none", center, autoRange, headRange };
   }
@@ -542,7 +599,7 @@ export function resolveLabelTolerance(
 }
 
 export function isLabelToleranceAbnormal(
-  std: LabelToleranceStandard | undefined,
+  std: LabelToleranceRule | undefined,
   rawSpec: string,
   value: unknown,
 ): boolean {

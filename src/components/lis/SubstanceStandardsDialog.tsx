@@ -238,12 +238,12 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="w-[95vw] sm:w-[95vw] max-w-[1400px] sm:max-w-[1400px] max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle>ตั้งเงื่อนไขรายสาร — {field.label}</DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-4 overflow-hidden md:grid-cols-[1.2fr_1fr]">
+        <div className="grid grid-cols-1 gap-4 overflow-hidden md:grid-cols-[1fr_1.6fr]">
           <div>
             <Label className="text-sm mb-1.5 block">เลือกสาร</Label>
             <Tabs defaultValue="common">

@@ -17,9 +17,16 @@ const SubstanceStandardSchema = new mongoose.Schema({
 }, { _id: false });
 
 const LabelToleranceStandardSchema = new mongoose.Schema({
-  substance: { type: String, required: true, trim: true },
+  substance: { type: String, default: '', trim: true },
+  mode: { type: String, enum: ['percent', 'range'], default: 'percent' },
+  labelPercent: { type: Number, default: null },
+  productTypes: { type: [String], default: [] },
   autoPct:   { type: Number, default: null },
   headPct:   { type: Number, default: null },
+  passLow: { type: Number, default: null },
+  passHigh: { type: Number, default: null },
+  failLow: { type: Number, default: null },
+  failHigh: { type: Number, default: null },
 }, { _id: false });
 
 const StandardConditionSchema = new mongoose.Schema({
@@ -241,12 +248,33 @@ ParameterSchema.pre('validate', function (next) {
       return next(new Error(`ช่อง "${f.label}": เลือกได้โหมดเดียวจาก แยกตามสาร / เงื่อนไขพิเศษ / ตาม %สาร`));
     }
     if (f.labelToleranceMode) {
+      const allowedPT = new Set(['water', 'sand', 'powder']);
       for (const s of f.labelToleranceStandards || []) {
-        if (s.autoPct == null || s.autoPct <= 0) {
-          return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±ออโต้ (autoPct) ต้องมากกว่า 0`));
+        const productTypes = (s.productTypes || []).filter(Boolean);
+        const substance = String(s.substance || '').trim();
+        const hasSelector = substance || s.labelPercent != null || productTypes.length > 0;
+        const mode = s.mode || 'percent';
+        if (!hasSelector) {
+          return next(new Error(`ช่อง "${f.label}": ต้องระบุสาร หรือ %ฉลาก หรือประเภทสินค้า อย่างน้อย 1 อย่างในเกณฑ์ %สาร`));
         }
-        if (s.headPct != null && s.headPct < s.autoPct) {
-          return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±หัวหน้า (headPct) ต้อง ≥ ±ออโต้`));
+        const badPT = productTypes.filter((p) => !allowedPT.has(p));
+        if (badPT.length > 0) {
+          return next(new Error(`ช่อง "${f.label}": productTypes ของเกณฑ์ %สารมีค่าที่ไม่รองรับ: ${badPT.join(', ')}`));
+        }
+        if (mode === 'range') {
+          if ([s.passLow, s.passHigh, s.failLow, s.failHigh].some((v) => v == null)) {
+            return next(new Error(`ช่อง "${f.label}": โหมดช่วงกำหนดเองต้องกรอก failLow, passLow, passHigh, failHigh ให้ครบ`));
+          }
+          if (!(s.failLow <= s.passLow && s.passLow <= s.passHigh && s.passHigh <= s.failHigh)) {
+            return next(new Error(`ช่อง "${f.label}": ช่วงกำหนดเองต้องเรียง failLow ≤ passLow ≤ passHigh ≤ failHigh`));
+          }
+        } else {
+          if (s.autoPct == null || s.autoPct <= 0) {
+            return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±ออโต้ (autoPct) ต้องมากกว่า 0`));
+          }
+          if (s.headPct != null && s.headPct < s.autoPct) {
+            return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±หัวหน้า (headPct) ต้อง ≥ ±ออโต้`));
+          }
         }
       }
     }

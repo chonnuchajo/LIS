@@ -56,7 +56,7 @@ export default function StockRequisitionButton({ roomSlug, instruments }: Props)
         />
       )}
       {which === "standard" && (
-        <StandardRequisitionDialog instruments={instruments} onClose={() => setWhich(null)} onSaved={refreshStandards} />
+        <StandardRequisitionDialog onClose={() => setWhich(null)} onSaved={refreshStandards} />
       )}
     </>
   );

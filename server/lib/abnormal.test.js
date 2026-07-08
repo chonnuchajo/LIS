@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { isEnumAbnormal, parseLabelPercent } = require('./abnormal');
+const { resolveLabelTolerance, isLabelToleranceAbnormal } = require('./abnormal');
 
 test('optionOutputs: only abnormal kind is flagged', () => {
   const field = {
@@ -42,4 +43,14 @@ test('parseLabelPercent extracts percent before % sign', () => {
   assert.strictEqual(parseLabelPercent('2,4-D 58% SL'), 58);
   assert.strictEqual(parseLabelPercent('GLYPHOSATE 480 G/L SL'), null);
   assert.strictEqual(parseLabelPercent(''), null);
+});
+
+test('resolveLabelTolerance 3-zone (BE mirror)', () => {
+  const std = { substance: 'ABAMECTIN', autoPct: 2.5, headPct: 5 };
+  assert.strictEqual(resolveLabelTolerance(std, 'ABAMECTIN 1%', 1.0).status, 'pass');
+  assert.strictEqual(resolveLabelTolerance(std, 'ABAMECTIN 1%', 1.04).status, 'review');
+  assert.strictEqual(resolveLabelTolerance(std, 'ABAMECTIN 1%', 1.2).status, 'fail');
+  assert.strictEqual(resolveLabelTolerance(std, 'ABAMECTIN 480 G/L', 1.0).status, 'none');
+  assert.strictEqual(isLabelToleranceAbnormal(std, 'ABAMECTIN 1%', 1.04), true);
+  assert.strictEqual(isLabelToleranceAbnormal(std, 'ABAMECTIN 1%', 1.0), false);
 });

@@ -204,3 +204,44 @@ test('rejects multiple + labelToleranceMode', async () => {
   });
   await assert.rejects(() => doc.validate());
 });
+
+test('persists percent + productType labelTolerance rules without substance', () => {
+  const doc = new Parameter({
+    name: 'เปอร์เซ็นต์รวม',
+    valueFields: [{
+      label: '%AI', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: '', labelPercent: 1, productTypes: ['water'], autoPct: 11.25, headPct: 15 }],
+    }],
+  });
+  const f = doc.valueFields[0];
+  assert.strictEqual(f.labelToleranceStandards[0].substance, '');
+  assert.strictEqual(f.labelToleranceStandards[0].labelPercent, 1);
+  assert.deepStrictEqual(f.labelToleranceStandards[0].productTypes, ['water']);
+});
+
+test('rejects labelTolerance rule with no selector at all', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: '', autoPct: 2, headPct: null }] }],
+  });
+  await assert.rejects(() => doc.validate(), /อย่างน้อย 1 อย่าง/);
+});
+
+test('accepts custom range labelTolerance rule', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: '', labelPercent: 0.3, productTypes: ['sand'], mode: 'range', failLow: 0.225, passLow: 0.2438, passHigh: 0.3563, failHigh: 0.375 }] }],
+  });
+  await assert.doesNotReject(() => doc.validate());
+});
+
+test('rejects custom range labelTolerance rule with unsorted bounds', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: '', labelPercent: 0.3, productTypes: ['sand'], mode: 'range', failLow: 0.3, passLow: 0.25, passHigh: 0.3563, failHigh: 0.375 }] }],
+  });
+  await assert.rejects(() => doc.validate(), /failLow/);
+});

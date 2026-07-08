@@ -250,6 +250,7 @@ export interface QCTestResult {
   itemSeq: number;
   sampleId?: string;
   sampleName?: string;
+  commonName?: string;
   parameterId: string;
   parameterName?: string;
   values: Record<string, unknown>;

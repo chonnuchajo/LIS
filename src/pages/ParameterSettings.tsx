@@ -29,7 +29,8 @@ import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import { SubstanceStandardsDialog } from "@/components/lis/SubstanceStandardsDialog";
 import { ConditionalStandardsDialog } from "@/components/lis/ConditionalStandardsDialog";
-import { describeRule, describeSubstanceStandard, describeOutputRule } from "@/lib/standardOperators";
+import { LabelToleranceDialog } from "@/components/lis/LabelToleranceDialog";
+import { describeRule, describeSubstanceStandard, describeOutputRule, describeLabelTolerance } from "@/lib/standardOperators";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -463,6 +464,15 @@ function OptionRow({
 }
 
 function StandardPreview({ field }: { field: ParameterValueField }) {
+  if (field.labelToleranceMode) {
+    const stds = field.labelToleranceStandards ?? [];
+    if (stds.length === 0) return <p className="text-xs text-muted-foreground">ยังไม่ได้ตั้งเกณฑ์ตาม %สาร</p>;
+    return (
+      <p className="text-xs text-emerald-700">
+        {stds.map((s) => `${s.substance} ${describeLabelTolerance(s, "")}`.trim()).join(" · ")}
+      </p>
+    );
+  }
   if (field.substanceMode) {
     const stds = field.substanceStandards ?? [];
     if (stds.length === 0) {
@@ -695,6 +705,10 @@ function summarizeField(field: ParameterValueField): string {
       return "ข้อความ";
     case "number":
     case "float": {
+      if (field.labelToleranceMode) {
+        const n = (field.labelToleranceStandards ?? []).length;
+        return n > 0 ? `ตาม %สาร ${n} สาร` : "ตาม %สาร (ยังไม่ตั้ง)";
+      }
       if (field.conditionalMode) {
         const n = (field.conditionalStandards ?? []).length;
         return n > 0 ? `เงื่อนไขพิเศษ ${n} กฎ` : "เงื่อนไขพิเศษ (ยังไม่ตั้งกฎ)";
@@ -999,6 +1013,7 @@ function ValueFieldEditor({
   const [expanded, setExpanded] = useState(!field.label?.trim());
   const [substanceDialogOpen, setSubstanceDialogOpen] = useState(false);
   const [conditionalDialogOpen, setConditionalDialogOpen] = useState(false);
+  const [labelToleranceDialogOpen, setLabelToleranceDialogOpen] = useState(false);
 
   const addOption = () => {
     const v = optionDraft.trim();
@@ -1265,6 +1280,7 @@ function ValueFieldEditor({
                     standardOperator: v === "number" || v === "float" ? field.standardOperator : undefined,
                     standardValue2: v === "number" || v === "float" ? field.standardValue2 ?? null : null,
                     conditionalMode: v === "number" || v === "float" ? field.conditionalMode : false,
+                    labelToleranceMode: v === "number" || v === "float" ? field.labelToleranceMode : false,
                     timerDurationSec: v === "timer" ? field.timerDurationSec ?? null : null,
                     timerUnit: v === "timer" ? field.timerUnit : undefined,
                     maxPhotos: v === "photo" ? (field.maxPhotos ?? 5) : undefined,
@@ -1299,15 +1315,19 @@ function ValueFieldEditor({
             <div className="space-y-3">
               {/* โหมดเกณฑ์ */}
               {(() => {
-                const mode: "single" | "substance" | "conditional" =
-                  field.conditionalMode ? "conditional" : field.substanceMode ? "substance" : "single";
-                const setMode = (m: "single" | "substance" | "conditional") =>
+                const mode: "single" | "substance" | "conditional" | "labelTolerance" =
+                  field.labelToleranceMode ? "labelTolerance"
+                  : field.conditionalMode ? "conditional"
+                  : field.substanceMode ? "substance" : "single";
+                const setMode = (m: "single" | "substance" | "conditional" | "labelTolerance") =>
                   onChange({
                     ...field,
                     substanceMode: m === "substance",
                     conditionalMode: m === "conditional",
+                    labelToleranceMode: m === "labelTolerance",
                     substanceStandards: m === "substance" ? field.substanceStandards ?? [] : field.substanceStandards,
                     conditionalStandards: m === "conditional" ? field.conditionalStandards ?? [] : field.conditionalStandards,
+                    labelToleranceStandards: m === "labelTolerance" ? field.labelToleranceStandards ?? [] : field.labelToleranceStandards,
                     standardOperator: m === "single" ? field.standardOperator : undefined,
                     standardValue: m === "single" ? field.standardValue : null,
                     standardValue2: m === "single" ? field.standardValue2 : null,
@@ -1316,7 +1336,7 @@ function ValueFieldEditor({
                 return (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                     <span className="text-muted-foreground">โหมดเกณฑ์:</span>
-                    {([["single", "ค่าเดียว"], ["substance", "แยกตามสาร"], ["conditional", "เงื่อนไขพิเศษ"]] as const).map(([m, lbl]) => (
+                    {([["single", "ค่าเดียว"], ["substance", "แยกตามสาร"], ["conditional", "เงื่อนไขพิเศษ"], ["labelTolerance", "ตาม %สาร"]] as const).map(([m, lbl]) => (
                       <label key={m} className="flex cursor-pointer items-center gap-1.5">
                         <input type="radio" checked={mode === m} onChange={() => setMode(m)} className="h-3.5 w-3.5" />
                         {lbl}
@@ -1326,7 +1346,33 @@ function ValueFieldEditor({
                 );
               })()}
 
-              {field.conditionalMode ? (
+              {field.labelToleranceMode ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
+                    <div className="sm:col-span-3 space-y-1.5">
+                      <Label className="text-sm">หน่วย *</Label>
+                      <Input
+                        value={field.unit ?? ""}
+                        onChange={(e) => onChange({ ...field, unit: e.target.value })}
+                        placeholder="เช่น %"
+                        className="h-10"
+                      />
+                    </div>
+                    <div className="sm:col-span-9 flex items-end">
+                      <Button type="button" variant="outline" className="h-10" onClick={() => setLabelToleranceDialogOpen(true)}>
+                        ตั้งเกณฑ์ตาม %สาร ({(field.labelToleranceStandards ?? []).length} สาร)
+                      </Button>
+                    </div>
+                  </div>
+                  <StandardPreview field={field} />
+                  <LabelToleranceDialog
+                    open={labelToleranceDialogOpen}
+                    field={field}
+                    onClose={() => setLabelToleranceDialogOpen(false)}
+                    onSave={(next) => onChange({ ...field, labelToleranceStandards: next })}
+                  />
+                </div>
+              ) : field.conditionalMode ? (
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                     <span className="text-muted-foreground">ผลของกฎ:</span>
@@ -2128,7 +2174,7 @@ function ParameterDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && !busy && onClose()}>
-      <DialogContent className="max-h-[92vh] w-[95vw] sm:max-w-5xl overflow-y-auto p-6 sm:p-8">
+      <DialogContent className="max-h-[92vh] w-[95vw] sm:max-w-[1400px] overflow-y-auto p-6 sm:p-8">
         <DialogHeader className="mb-2">
           <DialogTitle className="text-xl">
             {isEdit ? "แก้ไขพารามิเตอร์" : "เพิ่มพารามิเตอร์การตรวจสอบ"}
