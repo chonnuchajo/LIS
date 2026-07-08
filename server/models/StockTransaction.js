@@ -20,6 +20,7 @@ const StockTransactionSchema = new mongoose.Schema({
   weights: { type: [Number], default: undefined },
   instrumentId: String,
   instrumentName: String,
+  instrumentGroup: { type: String, enum: ['gc', 'hplc', null], default: null },
   userEmail: String,
   userName: String,
 }, { timestamps: true });

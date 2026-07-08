@@ -89,6 +89,7 @@ async function deductMgFromUnit(qrId, mg, meta = {}) {
     weights: meta.weights,
     instrumentId: meta.instrumentId,
     instrumentName: meta.instrumentName,
+    instrumentGroup: meta.instrumentGroup,
     sampleId: meta.sampleId,
     note: meta.note,
     userEmail: meta.userEmail,
@@ -224,11 +225,11 @@ router.post('/standards/:id/deduct', async (req, res) => {
 // หัก mg จากขวดตรงๆ: { mg?, weights?[], instrumentId?, instrumentName?, sampleId?, petitionNo?, note? }
 router.post('/units/:qrId/deduct-mg', async (req, res) => {
   try {
-    const { mg, weights, instrumentId, instrumentName, sampleId, petitionNo, note } = req.body || {};
+    const { mg, weights, instrumentId, instrumentName, instrumentGroup, sampleId, petitionNo, note } = req.body || {};
     const amount = Array.isArray(weights) && weights.length ? sumWeights(weights) : mg;
     const meta = {
       weights: Array.isArray(weights) ? weights.map(Number) : undefined,
-      instrumentId, instrumentName, sampleId,
+      instrumentId, instrumentName, instrumentGroup, sampleId,
       note: [petitionNo, note].filter(Boolean).join(' · '),
       ...userMeta(req),
     };
