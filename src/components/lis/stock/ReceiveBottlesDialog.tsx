@@ -19,7 +19,7 @@ interface Props {
 
 export default function ReceiveBottlesDialog({ standard, onClose, onSaved }: Props) {
   const [lotNo, setLotNo] = useState("");
-  const [source, setSource] = useState<"primary" | "supply">("primary");
+  const [type, setType] = useState<"primary" | "supplier" | "working">("primary");
   const [sizeMl, setSizeMl] = useState("100");
   const [count, setCount] = useState("1");
   const [sameExp, setSameExp] = useState(true);
@@ -61,7 +61,7 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved }: Pro
     setBusy(true);
     try {
       const created = await api.receiveStockUnits(standard._id, {
-        lotNo, sizeMl: size, unit: "ml", source, bottles,
+        lotNo, sizeMl: size, unit: "ml", type, bottles,
       });
       toast.success(`รับเข้า ${created.length} ขวดแล้ว`);
       if (printAfter) await printLabels(created);
@@ -84,12 +84,12 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved }: Pro
           </DialogHeader>
           <div className="space-y-3 py-4">
             <div>
-              <Label>ที่มา</Label>
+              <Label>ประเภท</Label>
               <div className="flex gap-2 mt-1">
-                <Button type="button" variant={source === "primary" ? "default" : "outline"} size="sm"
-                  onClick={() => setSource("primary")}>primary</Button>
-                <Button type="button" variant={source === "supply" ? "default" : "outline"} size="sm"
-                  onClick={() => setSource("supply")}>supply</Button>
+                {(["primary", "working", "supplier"] as const).map((t) => (
+                  <Button key={t} type="button" variant={type === t ? "default" : "outline"} size="sm"
+                    onClick={() => setType(t)}>{t}</Button>
+                ))}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

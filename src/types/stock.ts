@@ -66,6 +66,9 @@ export interface StockTransactionItem {
   afterQty?: number | null;
   delta?: number | null;
   volumeDelta?: number | null;
+  weights?: number[];
+  instrumentId?: string;
+  instrumentName?: string;
   qrId?: string;
   unit?: string;
   sampleId?: string;
@@ -98,6 +101,7 @@ export interface StockUnitItem {
   itemName: string;
   kind: StockUnitKind;
   source?: StockUnitSource;
+  type?: "primary" | "supplier" | "working" | "";
   parentId?: string | null;
   lotNo?: string;
   exp?: string | null;

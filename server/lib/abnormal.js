@@ -48,4 +48,10 @@ function isFieldAbnormal(field, value) {
   return isEnumAbnormal(field, value) || isNumericAbnormal(field, value);
 }
 
-module.exports = { isEnumAbnormal, isNumericAbnormal, isFieldAbnormal };
+// mirror of src/lib/substances.ts parseLabelPercent — keep in sync
+function parseLabelPercent(raw) {
+  const m = String(raw == null ? "" : raw).match(/(\d+(?:\.\d+)?)\s*%/);
+  return m ? Number(m[1]) : null;
+}
+
+module.exports = { isEnumAbnormal, isNumericAbnormal, isFieldAbnormal, parseLabelPercent };

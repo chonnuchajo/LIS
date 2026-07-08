@@ -152,3 +152,55 @@ test('rejects output mode combined with multiple', async () => {
   });
   await assert.rejects(() => doc.validate(), /กรอกหลายค่า/);
 });
+
+test('persists labelToleranceMode + labelToleranceStandards (not stripped by strict mode)', () => {
+  const doc = new Parameter({
+    name: 'ทดสอบ %สาร',
+    valueFields: [{
+      label: '%w/v', type: 'number', unit: '%',
+      labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'ABAMECTIN', autoPct: 2.5, headPct: 5 }],
+    }],
+  });
+  const f = doc.valueFields[0];
+  assert.strictEqual(f.labelToleranceMode, true);
+  assert.strictEqual(f.labelToleranceStandards.length, 1);
+  assert.strictEqual(f.labelToleranceStandards[0].substance, 'ABAMECTIN');
+  assert.strictEqual(f.labelToleranceStandards[0].autoPct, 2.5);
+  assert.strictEqual(f.labelToleranceStandards[0].headPct, 5);
+});
+
+test('rejects labelToleranceMode together with substanceMode (mutually exclusive)', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', substanceMode: true, labelToleranceMode: true }],
+  });
+  await assert.rejects(() => doc.validate());
+});
+
+test('rejects labelTolerance autoPct <= 0', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', autoPct: 0, headPct: null }] }],
+  });
+  await assert.rejects(() => doc.validate(), /autoPct|มากกว่า 0/);
+});
+
+test('rejects labelTolerance headPct < autoPct', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', autoPct: 5, headPct: 3 }] }],
+  });
+  await assert.rejects(() => doc.validate(), /headPct|หัวหน้า/);
+});
+
+test('rejects multiple + labelToleranceMode', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', multiple: true, labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', autoPct: 2, headPct: null }] }],
+  });
+  await assert.rejects(() => doc.validate());
+});

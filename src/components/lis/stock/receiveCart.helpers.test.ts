@@ -11,7 +11,7 @@ describe("receiveCart.helpers", () => {
     const r = makeEmptyRow();
     expect(r.category).toBeNull();
     expect(r.itemId).toBe("");
-    expect(r.source).toBe("primary");
+    expect(r.type).toBe("primary");
     expect(r.count).toBe("1");
     expect(r.qty).toBe("1");
     expect(r.sameExp).toBe(true);
@@ -21,11 +21,11 @@ describe("receiveCart.helpers", () => {
     expect(validateRow(makeEmptyRow())).toBe("ยังไม่ได้เลือกของ");
   });
 
-  it("validateRow: standard ต้องมี size>0, count เป็นจำนวนเต็มบวก, source", () => {
+  it("validateRow: standard ต้องมี size>0, count เป็นจำนวนเต็มบวก, type", () => {
     const base = { ...makeEmptyRow(), category: "standard" as const, itemId: "s1" };
     expect(validateRow({ ...base, sizeMl: "0" })).toBe("ขนาด/ขวดไม่ถูกต้อง");
     expect(validateRow({ ...base, sizeMl: "100", count: "0" })).toBe("จำนวนขวดต้องเป็นจำนวนเต็มบวก");
-    expect(validateRow({ ...base, sizeMl: "100", count: "2", source: "" as never })).toBe("ต้องเลือกที่มา");
+    expect(validateRow({ ...base, sizeMl: "100", count: "2", type: "" as never })).toBe("ต้องเลือกประเภท");
     expect(validateRow({ ...base, sizeMl: "100", count: "2" })).toBeNull();
   });
 

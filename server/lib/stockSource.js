@@ -31,4 +31,15 @@ function assignSealedSources(sealedCount, primaryQty) {
   return Array.from({ length: count }, (_, i) => (i < p ? 'primary' : 'supply'));
 }
 
-module.exports = { RECEIVE_SOURCES, UNIT_SOURCES, isValidReceiveSource, isValidUnitSource, tierSourceFor, assignSealedSources };
+// ประเภทขวด standard ใหม่ (แทน source เดิม): primary / supplier / working
+const RECEIVE_TYPES = Object.freeze(['primary', 'supplier', 'working']);
+const UNIT_TYPES = Object.freeze(['primary', 'supplier', 'working', '']);
+
+function isValidReceiveType(v) {
+  return RECEIVE_TYPES.includes(v);
+}
+function isValidUnitType(v) {
+  return UNIT_TYPES.includes(v);
+}
+
+module.exports = { RECEIVE_SOURCES, UNIT_SOURCES, isValidReceiveSource, isValidUnitSource, tierSourceFor, assignSealedSources, RECEIVE_TYPES, UNIT_TYPES, isValidReceiveType, isValidUnitType };

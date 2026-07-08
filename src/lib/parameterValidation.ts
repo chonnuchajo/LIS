@@ -1,6 +1,6 @@
-import type { ParameterItem, ParameterValueField, TimerUnit, SubstanceStandard, StandardCondition, StandardOperator, OptionOutput } from "./api";
+import type { ParameterItem, ParameterValueField, TimerUnit, SubstanceStandard, StandardCondition, StandardOperator, OptionOutput, LabelToleranceStandard } from "./api";
 import type { QCTestResult } from "@/types/petition.types";
-import { parseSubstances, extractSubstanceName, matchSubstanceKey, substanceFieldKey } from "./substances";
+import { parseSubstances, extractSubstanceName, matchSubstanceKey, substanceFieldKey, parseLabelPercent } from "./substances";
 
 export function isEnumAbnormal(
   field: ParameterValueField,
@@ -156,6 +156,7 @@ export type RenderFieldUnit = {
   key: string;                 // ใช้เป็นทั้ง React key และ storage key ใน result.values
   field: ParameterValueField;  // อาจเป็น virtual field (ฉีด standard ของสารแล้ว)
   substanceName?: string;      // มีค่าเมื่อเป็น unit รายสาร
+  labelTolerance?: { std: LabelToleranceStandard | undefined; rawSpec: string };
 };
 
 // แตก field เดียวเป็นหลาย render unit เมื่อ substanceMode เปิด.
@@ -167,6 +168,27 @@ export function expandFieldForItem(
 ): (RenderFieldUnit & { hiddenStandard?: boolean })[] {
   const includeRestrictedStandards = options.includeRestrictedStandards ?? false;
   const isNumeric = field.type === "number" || field.type === "float";
+  if (isNumeric && field.labelToleranceMode) {
+    const substances = parseSubstances(commonName ?? "");
+    if (substances.length === 0 || (substances.length === 1 && !substances[0])) {
+      return [{ key: field.label, field }];
+    }
+    return substances.map((raw) => {
+      const name = extractSubstanceName(raw) || raw;
+      const std = findLabelToleranceStandard(field, name);
+      const vfield: ParameterValueField = {
+        ...field,
+        label: `${field.label} — ${name}`,
+        labelToleranceMode: false,
+      };
+      return {
+        key: substanceFieldKey(field.label, name),
+        field: vfield,
+        substanceName: name,
+        labelTolerance: { std, rawSpec: raw },
+      };
+    });
+  }
   if (!field.substanceMode || !isNumeric) {
     return [{ key: field.label, field }];
   }
@@ -470,4 +492,60 @@ export function evalCondition(cond: StandardCondition, ctx: ConditionContext): b
     default:
       return false;
   }
+}
+
+export type LabelToleranceStatus = "pass" | "review" | "fail" | "none";
+export type LabelToleranceResolved = {
+  status: LabelToleranceStatus;              // "none" = ข้ามการตรวจ (center null / ค่าว่าง)
+  center: number | null;                     // %ฉลากที่แกะได้ (null = ไม่มี % ในชื่อ → ข้าม)
+  autoRange: [number, number] | null;        // ช่วงผ่านเอง
+  headRange: [number, number] | null;        // ช่วงหัวหน้าอนุมัติ (null = ไม่มี headPct)
+};
+
+export function findLabelToleranceStandard(
+  field: ParameterValueField,
+  substanceName: string,
+): LabelToleranceStandard | undefined {
+  const key = matchSubstanceKey(substanceName);
+  if (!key) return undefined;
+  return (field.labelToleranceStandards ?? []).find(
+    (s) => matchSubstanceKey(s.substance) === key,
+  );
+}
+
+// ศูนย์กลาง = %ฉลากจาก rawSpec; tolerance = relative % ของ center; 3 ช่วง.
+export function resolveLabelTolerance(
+  std: LabelToleranceStandard | undefined,
+  rawSpec: string,
+  value: unknown,
+): LabelToleranceResolved {
+  const center = parseLabelPercent(rawSpec);
+  if (!std || std.autoPct == null || std.autoPct <= 0 || center == null) {
+    return { status: "none", center, autoRange: null, headRange: null };
+  }
+  const autoAbs = Math.abs(center) * (std.autoPct / 100);
+  const headAbs = std.headPct != null ? Math.abs(center) * (std.headPct / 100) : autoAbs;
+  const round = (n: number) => Number(n.toFixed(6));
+  const autoRange: [number, number] = [round(center - autoAbs), round(center + autoAbs)];
+  const headRange: [number, number] | null =
+    std.headPct != null ? [round(center - headAbs), round(center + headAbs)] : null;
+  const num = typeof value === "number" ? value : Number(value);
+  if (value === null || value === undefined || value === "" || Number.isNaN(num)) {
+    return { status: "none", center, autoRange, headRange };
+  }
+  const dev = Math.abs(num - center);
+  let status: LabelToleranceStatus;
+  if (dev <= autoAbs) status = "pass";
+  else if (dev <= headAbs) status = "review";
+  else status = "fail";
+  return { status, center, autoRange, headRange };
+}
+
+export function isLabelToleranceAbnormal(
+  std: LabelToleranceStandard | undefined,
+  rawSpec: string,
+  value: unknown,
+): boolean {
+  const s = resolveLabelTolerance(std, rawSpec, value).status;
+  return s === "review" || s === "fail";
 }

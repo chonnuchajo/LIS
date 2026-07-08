@@ -1,16 +1,17 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Printer, Pencil, Plus, ChevronRight, ChevronDown } from "lucide-react";
+import { Printer, Pencil, Plus, TriangleAlert } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
-import { unitDerivedStatus, buildUnitTree } from "@/lib/stockUnit";
+import { unitDerivedStatus, visibleBottles } from "@/lib/stockUnit";
 import type { StockStandardItem, StockUnitItem } from "@/types/stock";
 import EditUnitDialog from "./EditUnitDialog";
 import ReceiveBottlesDialog from "./ReceiveBottlesDialog";
+import PerformanceDropDialog from "./PerformanceDropDialog";
 
 const STATUS_BADGE: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-700",
@@ -29,21 +30,15 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
   const qc = useQueryClient();
   const [editUnit, setEditUnit] = useState<StockUnitItem | null>(null);
   const [receiving, setReceiving] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const toggle = (rootId: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.has(rootId) ? next.delete(rootId) : next.add(rootId);
-      return next;
-    });
+  const [reportQr, setReportQr] = useState<string | null>(null);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "units", standard.code],
     queryFn: () => api.getStockUnits({ itemCode: standard.code }),
   });
 
-  // จัดเป็น tree: ref (sealed) เป็น root, working เป็นลูก 1.1/1.2; ซ่อน discarded ใน helper
-  const rows = buildUnitTree(data);
+  // รายการขวดแบบเรียบ (ไม่มี parent-child) — ซ่อน discarded ใน helper
+  const rows = visibleBottles(data);
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["stock", "units", standard.code] });
@@ -73,8 +68,7 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
           <TableHeader>
             <TableRow>
               <TableHead className="w-10 text-center">#</TableHead>
-              <TableHead>ชนิด</TableHead>
-              <TableHead>ที่มา</TableHead>
+              <TableHead>ประเภท</TableHead>
               <TableHead>Lot</TableHead>
               <TableHead className="text-right">คงเหลือ</TableHead>
               <TableHead>EXP</TableHead>
@@ -84,32 +78,15 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
             ) : rows.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">ยังไม่มีขวด — กดเพิ่มขวด</TableCell></TableRow>
-            ) : rows.map((row) => {
-              const u = row.unit;
-              if (row.depth === 1 && !expanded.has(row.rootId)) return null;
+              <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">ยังไม่มีขวด — กดเพิ่มขวด</TableCell></TableRow>
+            ) : rows.map((u, i) => {
               const st = unitDerivedStatus(u);
-              const isChild = row.depth === 1;
               return (
-                <TableRow key={u._id} className={isChild ? "bg-muted/30" : undefined}>
-                  <TableCell className="text-center text-muted-foreground">
-                    <div className={`flex items-center gap-1 ${isChild ? "pl-5" : ""}`}>
-                      {row.depth === 0 && row.hasChildren ? (
-                        <button type="button" onClick={() => toggle(row.rootId)} className="text-muted-foreground hover:text-foreground" aria-expanded={expanded.has(row.rootId)} aria-label={expanded.has(row.rootId) ? "พับ" : "กาง"} title={expanded.has(row.rootId) ? "พับ" : "กาง"}>
-                          {expanded.has(row.rootId) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                        </button>
-                      ) : row.depth === 0 ? (
-                        <span className="inline-block w-4" />
-                      ) : null}
-                      <span>{row.label}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell><Badge variant="outline">{u.kind === "working" ? "working" : "คงคลัง"}</Badge></TableCell>
-                  <TableCell className="text-xs">
-                    {u.source === "primary" ? "primary" : u.source === "supply" ? "supply" : "-"}
-                  </TableCell>
+                <TableRow key={u._id}>
+                  <TableCell className="text-center text-muted-foreground">{i + 1}</TableCell>
+                  <TableCell><Badge variant="outline">{u.type || "primary"}</Badge></TableCell>
                   <TableCell className="text-xs">{u.lotNo || "-"}</TableCell>
                   <TableCell className="text-right">{u.volume?.remaining ?? "-"} {u.volume?.unit}</TableCell>
                   <TableCell className="text-xs">{u.exp ? new Date(u.exp).toLocaleDateString("th-TH") : "-"}</TableCell>
@@ -118,6 +95,11 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
                     <div className="flex justify-end gap-1">
                       {st !== "discarded" && <Button type="button" size="icon" variant="ghost" title="แก้ไขข้อมูล" onClick={() => setEditUnit(u)}><Pencil className="w-4 h-4" /></Button>}
                       <Button type="button" size="icon" variant="ghost" title="ปริ้นซ้ำ" onClick={() => reprint(u)}><Printer className="w-4 h-4" /></Button>
+                      {st !== "discarded" && st !== "empty" && (
+                        <Button type="button" size="icon" variant="ghost" title="แจ้งหมด/ปัญหา" onClick={() => setReportQr(u.qrId)}>
+                          <TriangleAlert className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -129,6 +111,7 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
 
       {receiving && <ReceiveBottlesDialog standard={standard} onClose={() => setReceiving(false)} onSaved={refresh} />}
       {editUnit && <EditUnitDialog unit={editUnit} onClose={() => setEditUnit(null)} onSaved={refresh} />}
+      {reportQr && <PerformanceDropDialog qrId={reportQr} onClose={() => setReportQr(null)} onSaved={() => { setReportQr(null); refresh(); }} />}
     </div>
   );
 }

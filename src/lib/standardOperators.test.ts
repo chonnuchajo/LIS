@@ -73,3 +73,30 @@ describe("describeOutputRule", () => {
     expect(describeOutputRule(r)).toBe('อื่นๆ: default → "อื่นๆ" (ผิดปกติ)');
   });
 });
+
+import { describeLabelTolerance, formatLabelToleranceRange } from "./standardOperators";
+
+describe("describeLabelTolerance", () => {
+  it("summarizes auto + head percent", () => {
+    expect(describeLabelTolerance({ substance: "A", autoPct: 2.5, headPct: 5 }, "%"))
+      .toContain("±2.5%");
+    expect(describeLabelTolerance({ substance: "A", autoPct: 2.5, headPct: 5 }, "%"))
+      .toContain("หัวหน้า ±5%");
+  });
+  it("omits head when null", () => {
+    expect(describeLabelTolerance({ substance: "A", autoPct: 2.5, headPct: null }, ""))
+      .not.toContain("หัวหน้า");
+  });
+});
+
+describe("formatLabelToleranceRange", () => {
+  it("formats pass and head ranges", () => {
+    const out = formatLabelToleranceRange(
+      { status: "pass", center: 1, autoRange: [0.975, 1.025], headRange: [0.95, 1.05] }, "%");
+    expect(out).toContain("0.975");
+    expect(out).toContain("1.05");
+  });
+  it("returns empty when center null", () => {
+    expect(formatLabelToleranceRange({ status: "none", center: null, autoRange: null, headRange: null }, "%")).toBe("");
+  });
+});

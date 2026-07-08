@@ -17,6 +17,9 @@ const StockTransactionSchema = new mongoose.Schema({
   qrId: String,
   volumeDelta: { type: Number, default: null },
   volumeUnit: String,
+  weights: { type: [Number], default: undefined },
+  instrumentId: String,
+  instrumentName: String,
   userEmail: String,
   userName: String,
 }, { timestamps: true });

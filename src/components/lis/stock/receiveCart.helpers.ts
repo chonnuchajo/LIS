@@ -7,7 +7,7 @@ export interface CartRow {
   itemName: string;
   itemCode: string; // standard code; "" สำหรับ solvent/glassware
   // standard
-  source: "primary" | "supply";
+  type: "primary" | "supplier" | "working";
   sizeMl: string;
   count: string;
   sameExp: boolean;
@@ -31,7 +31,7 @@ export function makeEmptyRow(): CartRow {
     itemId: "",
     itemName: "",
     itemCode: "",
-    source: "primary",
+    type: "primary",
     sizeMl: "100",
     count: "1",
     sameExp: true,
@@ -52,7 +52,7 @@ export function validateRow(row: CartRow): string | null {
     if (!(Number(row.sizeMl) > 0)) return "ขนาด/ขวดไม่ถูกต้อง";
     const c = Number(row.count);
     if (!Number.isInteger(c) || c < 1) return "จำนวนขวดต้องเป็นจำนวนเต็มบวก";
-    if (row.source !== "primary" && row.source !== "supply") return "ต้องเลือกที่มา";
+    if (row.type !== "primary" && row.type !== "supplier" && row.type !== "working") return "ต้องเลือกประเภท";
     return null;
   }
   const q = Number(row.qty);

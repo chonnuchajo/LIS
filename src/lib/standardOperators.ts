@@ -1,5 +1,5 @@
-import type { StandardOperator, SubstanceStandard, StandardRule, StandardConditionOp, ParameterValueField } from "./api";
-import type { ResolvedStandard } from "./parameterValidation";
+import type { StandardOperator, SubstanceStandard, StandardRule, StandardConditionOp, ParameterValueField, LabelToleranceStandard } from "./api";
+import type { ResolvedStandard, LabelToleranceResolved } from "./parameterValidation";
 
 export function describeStandard(field: ParameterValueField): string {
   const op = field.standardOperator;
@@ -91,4 +91,22 @@ export function describeSubstanceStandard(std: SubstanceStandard, unit: string):
     case "tolerance": return v2 == null ? "" : `${v1} ± ${v2}%${u}`;
     default: return "";
   }
+}
+
+// สรุปเกณฑ์ labelTolerance ของสารตอน config เช่น "ฉลาก ±2.5% (หัวหน้า ±5%)"
+export function describeLabelTolerance(std: LabelToleranceStandard, unit: string): string {
+  if (std.autoPct == null) return "";
+  const u = unit ? ` ${unit}` : "";
+  const head = std.headPct != null ? ` (หัวหน้า ±${std.headPct}%)` : "";
+  return `ฉลาก ±${std.autoPct}%${head}${u}`;
+}
+
+// ช่วงจริงหลังแกะ %ฉลาก เช่น "ผ่าน 0.975–1.025 · หัวหน้าถึง 0.95–1.05 %"
+export function formatLabelToleranceRange(r: LabelToleranceResolved, unit: string): string {
+  if (r.center == null || !r.autoRange) return "";
+  const u = unit ? ` ${unit}` : "";
+  const fmt = (n: number) => Number(n.toFixed(4)).toString();
+  const auto = `ผ่าน ${fmt(r.autoRange[0])}–${fmt(r.autoRange[1])}`;
+  const head = r.headRange ? ` · หัวหน้าถึง ${fmt(r.headRange[0])}–${fmt(r.headRange[1])}` : "";
+  return `${auto}${head}${u}`;
 }

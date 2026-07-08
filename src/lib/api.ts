@@ -331,27 +331,30 @@ export const api = {
   },
   getStockUnit: (qrId: string) =>
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`),
+  deductStockUnitMg: (
+    qrId: string,
+    body: { weights?: number[]; mg?: number; instrumentId?: string; instrumentName?: string; sampleId?: string; petitionNo?: string; note?: string },
+  ) =>
+    request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}/deduct-mg`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   receiveStockUnits: (
     standardId: string,
-    body: { lotNo?: string; sizeMl: number; unit?: string; source: "primary" | "supply"; bottles: { exp?: string }[]; note?: string },
+    body: { lotNo?: string; sizeMl: number; unit?: string; type: "primary" | "supplier" | "working"; bottles: { exp?: string }[]; note?: string },
   ) =>
     request<StockUnitItem[]>(`/stock/standards/${standardId}/units/receive`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  withdrawStockUnit: (qrId: string, body: { ml: number; note?: string }) =>
-    request<{ parent: StockUnitItem; working: StockUnitItem }>(
-      `/stock/units/${encodeURIComponent(qrId)}/withdraw`,
-      { method: "POST", body: JSON.stringify(body) },
-    ),
-  discardStockUnit: (qrId: string, body: { reason?: string; cascade?: boolean }) =>
-    request<{ discarded: string[]; count: number }>(`/stock/units/${encodeURIComponent(qrId)}/discard`, {
+  discardStockUnit: (qrId: string, body: { reason?: string; outcome?: "empty" | "discard" }) =>
+    request<{ status: string; qrId: string }>(`/stock/units/${encodeURIComponent(qrId)}/discard`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
   updateStockUnit: (
     qrId: string,
-    body: { lotNo?: string; exp?: string | null; source?: "primary" | "supply" | ""; volume?: { initial?: number; remaining?: number; unit?: string } },
+    body: { lotNo?: string; exp?: string | null; type?: "primary" | "supplier" | "working" | ""; volume?: { initial?: number; remaining?: number; unit?: string } },
   ) =>
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`, {
       method: "PATCH",
@@ -983,6 +986,12 @@ export type SubstanceStandard = {
   value2?: number | null; // ใช้กับ between / tolerance
 };
 
+export type LabelToleranceStandard = {
+  substance: string;        // เก็บแบบ extractSubstanceName เช่น "ABAMECTIN"
+  autoPct: number | null;   // ± ชั้นใน (ผ่านเอง) % ของค่าฉลาก, > 0
+  headPct: number | null;   // ± ชั้นนอก (หัวหน้าอนุมัติ), ถ้าใส่ต้อง ≥ autoPct; null = ไม่มีช่วง review
+};
+
 export type StandardConditionOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "between";
 
 export type StandardCondition = {
@@ -1027,6 +1036,9 @@ export type ParameterValueField = {
   conditionalStandards?: StandardRule[];
   // ชนิดผลของกฎ conditional: 'standard' (เกณฑ์ตัวเลข เดิม) | 'output' (ข้อความ+สถานะ). default 'standard'
   conditionalResult?: "standard" | "output";
+  // Label-% tolerance mode (number/float). center = %ฉลากที่แกะจากชื่อสารอัตโนมัติ.
+  labelToleranceMode?: boolean;
+  labelToleranceStandards?: LabelToleranceStandard[];
   // Field-level repeat — value stored as an array. text/number/float/enum only.
   multiple?: boolean;
   // โชว์ค่า field เดียวกันจากผลตรวจครั้งก่อนของ common name เดียวกัน (display-only)

@@ -4,21 +4,18 @@ import { History, Filter } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import StockRequisitionButton from "@/components/lis/stock/StockRequisitionButton";
-import StandardWorkingPanel from "@/components/lis/stock/StandardWorkingPanel";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
 import { getRoomCatalog } from "@/lib/roomEquipment";
 import type { StockTransactionItem } from "@/types/stock";
 
 const analysisInstruments =
-  getRoomCatalog(ANALYSIS_ROOM_SLUG)?.instruments.map((i) => ({ id: i.id, name: i.name })) ?? [];
+  getRoomCatalog(ANALYSIS_ROOM_SLUG)?.instruments.map((i) => ({ id: i.id, name: i.name, group: i.group })) ?? [];
 
 const StockDeduction = () => {
-  const [tab, setTab] = useState<string>("history");
   const [type, setType] = useState<string>("");
 
   const { data = [], isLoading } = useQuery({
@@ -90,41 +87,28 @@ const StockDeduction = () => {
         actions={<StockRequisitionButton roomSlug={ANALYSIS_ROOM_SLUG} instruments={analysisInstruments} />}
       />
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="mb-4">
-          <TabsTrigger value="history">ประวัติ</TabsTrigger>
-          <TabsTrigger value="working">Standard ใช้งานอยู่</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="working">
-          <StandardWorkingPanel />
-        </TabsContent>
-
-        <TabsContent value="history">
-          <div className="mb-3 flex items-center justify-end gap-2">
-            <Filter className="w-4 h-4 text-muted-foreground" />
-            <Select value={type || "all"} onValueChange={(v) => setType(v === "all" ? "" : v)}>
-              <SelectTrigger className="h-9 w-full sm:w-44">
-                <SelectValue placeholder="ทุกหมวด" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">ทุกหมวด</SelectItem>
-                <SelectItem value="standard">Standards</SelectItem>
-                <SelectItem value="solvent">สารเคมี</SelectItem>
-                <SelectItem value="glassware">เครื่องแก้ว</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <DataTable
-            columns={columns}
-            data={data}
-            rowKey={(t) => t._id}
-            isLoading={isLoading}
-            emptyTitle="ยังไม่มีรายการตัด stock"
-            tableClassName="min-w-[900px]"
-          />
-        </TabsContent>
-      </Tabs>
+      <div className="mb-3 flex items-center justify-end gap-2">
+        <Filter className="w-4 h-4 text-muted-foreground" />
+        <Select value={type || "all"} onValueChange={(v) => setType(v === "all" ? "" : v)}>
+          <SelectTrigger className="h-9 w-full sm:w-44">
+            <SelectValue placeholder="ทุกหมวด" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">ทุกหมวด</SelectItem>
+            <SelectItem value="standard">Standards</SelectItem>
+            <SelectItem value="solvent">สารเคมี</SelectItem>
+            <SelectItem value="glassware">เครื่องแก้ว</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <DataTable
+        columns={columns}
+        data={data}
+        rowKey={(t) => t._id}
+        isLoading={isLoading}
+        emptyTitle="ยังไม่มีรายการตัด stock"
+        tableClassName="min-w-[900px]"
+      />
     </AppLayout>
   );
 };

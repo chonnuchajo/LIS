@@ -58,3 +58,30 @@ test('assignSealedSources guards sealedCount', () => {
   assert.deepStrictEqual(assignSealedSources(2.7, 1), ['primary', 'supply']);
   assert.deepStrictEqual(assignSealedSources(-3, 1), []);
 });
+
+// -------- TYPE VALIDATORS (primary/supplier/working) --------
+
+const {
+  RECEIVE_TYPES, UNIT_TYPES, isValidReceiveType, isValidUnitType,
+} = require('./stockSource');
+
+test('RECEIVE_TYPES = primary, supplier, working', () => {
+  assert.deepStrictEqual(RECEIVE_TYPES, ['primary', 'supplier', 'working']);
+});
+
+test('UNIT_TYPES adds blank', () => {
+  assert.deepStrictEqual(UNIT_TYPES, ['primary', 'supplier', 'working', '']);
+});
+
+test('isValidReceiveType rejects blank + junk', () => {
+  assert.strictEqual(isValidReceiveType('working'), true);
+  assert.strictEqual(isValidReceiveType('supplier'), true);
+  assert.strictEqual(isValidReceiveType(''), false);
+  assert.strictEqual(isValidReceiveType('supply'), false);
+});
+
+test('isValidUnitType accepts blank, rejects junk', () => {
+  assert.strictEqual(isValidUnitType(''), true);
+  assert.strictEqual(isValidUnitType('working'), true);
+  assert.strictEqual(isValidUnitType('supply'), false);
+});

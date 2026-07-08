@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 
 import { api } from "@/lib/api";
-import { summarizeUnits } from "@/lib/stockUnit";
+import { summarizeStandard, standardLevel, solventLevel, glasswareLevel, isUsableBottle } from "@/lib/stockStatus";
 import {
   FREQUENCY_UNITS, FREQUENCY_PRESETS, parseFrequency, formatFrequency, isPreset,
   type FrequencyUnit,
@@ -30,17 +30,12 @@ import StandardUnitsPanel from "@/components/lis/stock/StandardUnitsPanel";
 import ReceiveBottlesDialog from "@/components/lis/stock/ReceiveBottlesDialog";
 import ReceiveCart from "@/components/lis/stock/ReceiveCart";
 import StockQrScanner from "@/components/lis/StockQrScanner";
-import WithdrawDialog from "@/components/lis/stock/WithdrawDialog";
 import DiscardDialog from "@/components/lis/stock/DiscardDialog";
 import type {
   StockStandardItem, StockSolventItem, StockGlasswareItem,
   StockTransactionItem, StockUnitItem,
 } from "@/types/stock";
 import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
-
-const LOW_STD_QTY = 1;
-const LOW_SOL_QTY = 3;
-const LOW_GLASS_QTY = 5;
 
 type StandardStatusFilter = "all" | "ok" | "out" | "low" | "expired" | "soon";
 const STANDARD_STATUS_OPTIONS: { value: StandardStatusFilter; label: string }[] = [
@@ -87,26 +82,41 @@ function StandardsTab() {
   const now = Date.now();
 
   // per-bottle summary per standard (counts derived from StockUnit, not stale tier qty)
-  const sumOf = (s: StockStandardItem) => summarizeUnits(unitsByCode.get(s.code) ?? [], new Date(now));
+  const sumOf = (s: StockStandardItem) => summarizeStandard(unitsByCode.get(s.code) ?? [], new Date(now));
+
+  // usable-bottle breakdown by tier (primary/working/supplier) per standard code — small UX line in the table row
+  const usableByCode = useMemo(() => {
+    const m = new Map<string, Record<string, number>>();
+    for (const [code, units] of unitsByCode) {
+      const counts: Record<string, number> = {};
+      for (const u of units) {
+        if (!isUsableBottle(u, new Date(now))) continue;
+        const t = u.type || "primary";
+        counts[t] = (counts[t] ?? 0) + 1;
+      }
+      m.set(code, counts);
+    }
+    return m;
+  }, [unitsByCode, now]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return data.filter(s => {
       if (q && !s.name.toLowerCase().includes(q) && !s.code.toLowerCase().includes(q)) return false;
       if (statusFilter === "all") return true;
-      const sum = summarizeUnits(unitsByCode.get(s.code) ?? [], new Date(now));
-      const totalActive = sum.sealed + sum.working;
+      const sum = summarizeStandard(unitsByCode.get(s.code) ?? [], new Date(now));
+      const level = standardLevel(sum.usable);
       const eOk = sum.expired === 0 && sum.expiringSoon === 0;
-      if (statusFilter === "ok") return totalActive > LOW_STD_QTY && eOk;
-      if (statusFilter === "out") return totalActive === 0;
-      if (statusFilter === "low") return totalActive > 0 && totalActive <= LOW_STD_QTY;
+      if (statusFilter === "ok") return level === "ok" && eOk;
+      if (statusFilter === "out") return level === "out";
+      if (statusFilter === "low") return level === "low";
       if (statusFilter === "expired") return sum.expired > 0;
       if (statusFilter === "soon") return sum.expiringSoon > 0;
       return true;
     }).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
   }, [data, search, statusFilter, now, unitsByCode]);
 
-  const lowList = data.filter(s => { const x = sumOf(s); return x.sealed + x.working <= LOW_STD_QTY; });
+  const lowList = data.filter(s => standardLevel(sumOf(s).usable) !== "ok");
   const expiringList = data.filter(s => { const x = sumOf(s); return x.expired > 0 || x.expiringSoon > 0; });
 
   return (
@@ -122,13 +132,15 @@ function StandardsTab() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
               {lowList.slice(0, 8).map(s => {
-                const x = sumOf(s);
-                const totalActive = x.sealed + x.working;
-                const out = totalActive === 0;
+                const usable = sumOf(s).usable;
                 return (
                   <div key={`low-${s._id}`} className="flex items-center gap-2 text-destructive">
                     <Package className="w-3.5 h-3.5" />
-                    <span><strong>{s.name}</strong> {out ? "หมดแล้ว" : `ใกล้หมด เหลือรวม ${totalActive} ขวด`}</span>
+                    <span>
+                      {usable === 0
+                        ? <><strong>{s.name}</strong> หมดแล้ว</>
+                        : <><strong>{s.name}</strong> ใกล้หมด เหลือรวม {usable} ขวด</>}
+                    </span>
                   </div>
                 );
               })}
@@ -201,12 +213,16 @@ function StandardsTab() {
                         <button type="button" className="hover:underline text-left" onClick={() => setDrawer(item)}>{item.name}</button>
                       </TableCell>
                       {(() => {
-                        const sum = summarizeUnits(unitsByCode.get(item.code) ?? []);
+                        const sum = summarizeStandard(unitsByCode.get(item.code) ?? [], new Date(now));
+                        const counts = usableByCode.get(item.code) ?? {};
+                        const parts = (["primary", "working", "supplier"] as const)
+                          .filter(t => (counts[t] ?? 0) > 0)
+                          .map(t => `${t} ${counts[t]}`);
                         return (
                           <TableCell className="text-center">
-                            <div>{sum.sealed}</div>
-                            {sum.working > 0 && (
-                              <div className="text-xs text-muted-foreground">· {sum.working} working</div>
+                            <div>{sum.usable}</div>
+                            {parts.length > 0 && (
+                              <div className="text-xs text-muted-foreground">{parts.join(" · ")}</div>
                             )}
                           </TableCell>
                         );
@@ -215,13 +231,13 @@ function StandardsTab() {
                       <TableCell className="hidden xl:table-cell text-xs">{item.storageTemp || "-"}</TableCell>
                       <TableCell>
                         {(() => {
-                          const sum = summarizeUnits(unitsByCode.get(item.code) ?? []);
+                          const sum = summarizeStandard(unitsByCode.get(item.code) ?? [], new Date(now));
                           return (
                             <div className="flex flex-wrap gap-1">
-                              {sum.sealed + sum.working === 0 && <Badge className="bg-destructive/15 text-destructive text-xs">หมด</Badge>}
+                              {sum.usable === 0 && <Badge className="bg-destructive/15 text-destructive text-xs">หมด</Badge>}
                               {sum.expired > 0 && <Badge className="bg-destructive/15 text-destructive text-xs">หมดอายุ {sum.expired}</Badge>}
                               {sum.expiringSoon > 0 && <Badge className="bg-amber-100 text-amber-700 text-xs">ใกล้หมดอายุ {sum.expiringSoon}</Badge>}
-                              {sum.sealed + sum.working > 0 && sum.expired === 0 && sum.expiringSoon === 0 && <Badge className="bg-emerald-100 text-emerald-700 text-xs">ปกติ</Badge>}
+                              {sum.usable > 0 && sum.expired === 0 && sum.expiringSoon === 0 && <Badge className="bg-emerald-100 text-emerald-700 text-xs">ปกติ</Badge>}
                             </div>
                           );
                         })()}
@@ -281,7 +297,7 @@ function SolventsTab() {
     return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
   }, [data, search]);
 
-  const lowList = data.filter(s => s.qty < LOW_SOL_QTY);
+  const lowList = data.filter(s => solventLevel(s.qty) !== "ok");
 
   return (
     <div className="space-y-4">
@@ -290,10 +306,16 @@ function SolventsTab() {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className="w-5 h-5 text-destructive" />
-              <span className="font-semibold text-destructive">สารเคมีใกล้หมด ({lowList.length} รายการ)</span>
+              <span className="font-semibold text-destructive">แจ้งเตือนสารเคมี ({lowList.length} รายการ)</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-1 text-sm text-destructive">
-              {lowList.map(s => <div key={s._id}>• {s.name} เหลือ {s.qty} ขวด</div>)}
+              {lowList.map(s => (
+                <div key={s._id}>
+                  {s.qty === 0
+                    ? <>• {s.name} หมดแล้ว</>
+                    : <>• {s.name} เหลือ {s.qty} ขวด</>}
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -335,7 +357,7 @@ function SolventsTab() {
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell className="text-right">{item.sizeLiter}</TableCell>
                   <TableCell className="text-right">
-                    <Badge className={item.qty < LOW_SOL_QTY ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}>
+                    <Badge className={solventLevel(item.qty) === "ok" ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}>
                       {item.qty}
                     </Badge>
                   </TableCell>
@@ -416,7 +438,7 @@ function GlasswareTab() {
   }, [data, search]);
 
   // เครื่องแก้ว: แจ้งเฉพาะตอนหมดจริง (ไม่เตือนตอนใกล้หมด)
-  const outList = data.filter(s => s.qty <= 0);
+  const outList = data.filter(s => glasswareLevel(s.qty) === "out");
 
   return (
     <div className="space-y-4">
@@ -468,7 +490,7 @@ function GlasswareTab() {
                 <TableRow key={item._id}>
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell className="text-right">
-                    <Badge className={item.qty < LOW_GLASS_QTY ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}>
+                    <Badge className={glasswareLevel(item.qty) === "out" ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}>
                       {item.qty}
                     </Badge>
                   </TableCell>
@@ -966,7 +988,7 @@ const StockPage = () => {
   const [scanOpen, setScanOpen] = useState(false);
   const [scannedQr, setScannedQr] = useState<string | null>(null);
   const [scannedUnit, setScannedUnit] = useState<StockUnitItem | null>(null);
-  const [action, setAction] = useState<"withdraw" | "discard" | null>(null);
+  const [action, setAction] = useState<"discard" | null>(null);
   const qc = useQueryClient();
   const { tabs, defaultKey } = useAccessibleTabs("/stock");
 
@@ -1025,28 +1047,20 @@ const StockPage = () => {
             <DialogHeader>
               <DialogTitle>{scannedUnit.itemName}</DialogTitle>
               <DialogDescription>
-                {scannedUnit.itemCode} · {scannedUnit.kind === "working" ? "working" : "คงคลัง"} · เหลือ {scannedUnit.volume?.remaining} {scannedUnit.volume?.unit}
+                {scannedUnit.itemCode} · {scannedUnit.type || "primary"} · เหลือ {scannedUnit.volume?.remaining} {scannedUnit.volume?.unit}
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2 py-2">
               {scannedUnit.status === "discarded" ? (
                 <p className="text-destructive font-medium text-center">ขวดนี้ถูกทิ้งแล้ว ใช้งานต่อไม่ได้</p>
               ) : (
-                <>
-                  {scannedUnit.kind === "sealed" && (
-                    <Button onClick={() => setAction("withdraw")}>แบ่งใช้ → working</Button>
-                  )}
-                  <Button variant="destructive" onClick={() => setAction("discard")}>ทิ้งขวด</Button>
-                </>
+                <Button variant="destructive" onClick={() => setAction("discard")}>ทิ้งขวด</Button>
               )}
             </div>
           </DialogContent>
         </Dialog>
       )}
 
-      {scannedQr && action === "withdraw" && (
-        <WithdrawDialog qrId={scannedQr} onClose={closeScanned} onSaved={refresh} />
-      )}
       {scannedQr && action === "discard" && (
         <DiscardDialog qrId={scannedQr} onClose={closeScanned} onSaved={refresh} />
       )}

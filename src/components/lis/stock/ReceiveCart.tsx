@@ -104,7 +104,7 @@ export default function ReceiveCart() {
           if (row.category === "standard") {
             created = await api.receiveStockUnits(row.itemId, {
               lotNo: row.lotNo, sizeMl: Number(row.sizeMl), unit: "ml",
-              source: row.source, bottles: buildBottles(row),
+              type: row.type, bottles: buildBottles(row),
             });
           } else if (row.category === "solvent") {
             await api.receiveSolvent(row.itemId, { qty: Number(row.qty), note: composeSolventNote(row) });
@@ -193,10 +193,10 @@ export default function ReceiveCart() {
               {row.category === "standard" && (
                 <div className="space-y-2 pl-8">
                   <div className="flex gap-2">
-                    <Button type="button" size="sm" variant={row.source === "primary" ? "default" : "outline"}
-                      onClick={() => patchRow(row.id, { source: "primary" })}>primary</Button>
-                    <Button type="button" size="sm" variant={row.source === "supply" ? "default" : "outline"}
-                      onClick={() => patchRow(row.id, { source: "supply" })}>supply</Button>
+                    {(["primary", "working", "supplier"] as const).map((t) => (
+                      <Button key={t} type="button" size="sm" variant={row.type === t ? "default" : "outline"}
+                        onClick={() => patchRow(row.id, { type: t })}>{t}</Button>
+                    ))}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     <div><Label>Lot No</Label><Input value={row.lotNo} onChange={(e) => patchRow(row.id, { lotNo: e.target.value })} placeholder="optional" /></div>
