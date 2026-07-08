@@ -6,7 +6,7 @@ const Parameter = require("../models/Parameter");
 const { scheduleOrUnlockPhase2 } = require("../lib/phaseAdvance");
 const PetitionAuditLog = require('../models/PetitionAuditLog');
 const { qcResultAuditEvent, qcResultNote } = require('../lib/auditEvents');
-const { isEnumAbnormal, isNumericAbnormal, isFieldAbnormal } = require('../lib/abnormal');
+const { isEnumAbnormal, isNumericAbnormal, isFieldAbnormal, isLabelToleranceAbnormal } = require('../lib/abnormal');
 
 // mirror of src/lib/parameterValidation.ts getEntryValues / fieldValueList — keep in sync
 function getEntryValuesJS(result, param) {
@@ -47,6 +47,17 @@ function visibleSubstanceStandardJS(field, subKey, includeRestricted) {
   if (!std) return undefined;
   if (!includeRestricted && std.headOnly) return undefined;
   return std;
+}
+
+function findLabelToleranceStandardJS(field, subKey) {
+  return (field.labelToleranceStandards || []).find(
+    (s) => matchSubstanceKeyJS(s.substance) === subKey,
+  );
+}
+// รวม rawSpec (มี %) จาก commonName โดย split "+" แล้ว match ด้วย first-token key
+function rawSpecForSubKey(commonName, subKey) {
+  const parts = String(commonName || "").split("+").map((s) => s.trim()).filter(Boolean);
+  return parts.find((p) => matchSubstanceKeyJS(p) === subKey) || "";
 }
 
 // mirror of src/lib/parameterValidation.ts evalCondition / resolveStandard — keep in sync
@@ -209,7 +220,7 @@ router.get("/abnormal-flags", async (req, res) => {
 
     const docs = await QCTestResult.find(
       { petitionId: { $in: ids } },
-      { petitionId: 1, parameterId: 1, itemSeq: 1, values: 1, entries: 1 }
+      { petitionId: 1, parameterId: 1, itemSeq: 1, commonName: 1, values: 1, entries: 1 }
     ).lean();
 
     const paramIds = Array.from(new Set(docs.map((d) => String(d.parameterId))));
@@ -245,6 +256,18 @@ router.get("/abnormal-flags", async (req, res) => {
               const subKey = vkey.slice(prefix.length);
               const std = visibleSubstanceStandardJS(field, subKey, includeRestricted);
               if (isSubstanceAbnormalJS(field, std, vval)) { flagged = true; break; }
+            }
+            if (flagged) break;
+            continue;
+          }
+          if (field.labelToleranceMode && isNumeric) {
+            const prefix = `${field.label}::`;
+            for (const [vkey, vval] of Object.entries(values)) {
+              if (!vkey.startsWith(prefix)) continue;
+              const subKey = vkey.slice(prefix.length);
+              const std = findLabelToleranceStandardJS(field, subKey);
+              const raw = rawSpecForSubKey(d.commonName, subKey);
+              if (isLabelToleranceAbnormal(std, raw, vval)) { flagged = true; break; }
             }
             if (flagged) break;
             continue;

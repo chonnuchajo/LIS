@@ -54,4 +54,32 @@ function parseLabelPercent(raw) {
   return m ? Number(m[1]) : null;
 }
 
-module.exports = { isEnumAbnormal, isNumericAbnormal, isFieldAbnormal, parseLabelPercent };
+// mirror of src/lib/parameterValidation.ts resolveLabelTolerance — keep in sync
+function resolveLabelTolerance(std, rawSpec, value) {
+  const center = parseLabelPercent(rawSpec);
+  if (!std || std.autoPct == null || std.autoPct <= 0 || center == null) {
+    return { status: "none", center, autoRange: null, headRange: null };
+  }
+  const autoAbs = Math.abs(center) * (std.autoPct / 100);
+  const headAbs = std.headPct != null ? Math.abs(center) * (std.headPct / 100) : autoAbs;
+  const round = (n) => Number(n.toFixed(6));
+  const autoRange = [round(center - autoAbs), round(center + autoAbs)];
+  const headRange = std.headPct != null ? [round(center - headAbs), round(center + headAbs)] : null;
+  const num = typeof value === "number" ? value : Number(value);
+  if (value === null || value === undefined || value === "" || Number.isNaN(num)) {
+    return { status: "none", center, autoRange, headRange };
+  }
+  const dev = Math.abs(num - center);
+  let status;
+  if (dev <= autoAbs) status = "pass";
+  else if (dev <= headAbs) status = "review";
+  else status = "fail";
+  return { status, center, autoRange, headRange };
+}
+
+function isLabelToleranceAbnormal(std, rawSpec, value) {
+  const s = resolveLabelTolerance(std, rawSpec, value).status;
+  return s === "review" || s === "fail";
+}
+
+module.exports = { isEnumAbnormal, isNumericAbnormal, isFieldAbnormal, parseLabelPercent, resolveLabelTolerance, isLabelToleranceAbnormal };
