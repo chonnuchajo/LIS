@@ -469,7 +469,7 @@ function StandardPreview({ field }: { field: ParameterValueField }) {
     if (stds.length === 0) return <p className="text-xs text-muted-foreground">ยังไม่ได้ตั้งเกณฑ์ตาม %สาร</p>;
     return (
       <p className="text-xs text-emerald-700">
-        {stds.map((s) => `${s.substance} ${describeLabelTolerance(s, field.unit ?? "")}`.trim()).join(" · ")}
+        {stds.map((s) => `${s.substance} ${describeLabelTolerance(s, "")}`.trim()).join(" · ")}
       </p>
     );
   }
@@ -2174,7 +2174,7 @@ function ParameterDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && !busy && onClose()}>
-      <DialogContent className="max-h-[92vh] w-[95vw] sm:max-w-5xl overflow-y-auto p-6 sm:p-8">
+      <DialogContent className="max-h-[92vh] w-[95vw] sm:max-w-[1400px] overflow-y-auto p-6 sm:p-8">
         <DialogHeader className="mb-2">
           <DialogTitle className="text-xl">
             {isEdit ? "แก้ไขพารามิเตอร์" : "เพิ่มพารามิเตอร์การตรวจสอบ"}

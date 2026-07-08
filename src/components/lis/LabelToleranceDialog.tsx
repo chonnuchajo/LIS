@@ -42,6 +42,9 @@ function previewLine(std: LabelToleranceStandard): string {
   const head = std.headPct != null ? ` · หัวหน้าถึง ${(c - h).toFixed(3)}–${(c + h).toFixed(3)}` : "";
   return `ตัวอย่างฉลาก 1% → ${auto}${head}`;
 }
+function isRowInvalid(std: LabelToleranceStandard): boolean {
+  return std.autoPct == null || std.autoPct <= 0 || (std.headPct != null && std.headPct < std.autoPct);
+}
 
 type Props = {
   open: boolean;
@@ -104,6 +107,7 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
   }, [safeRows, search]);
 
   const selectedKeys = useMemo(() => new Set(list.map((s) => matchSubstanceKey(s.substance))), [list]);
+  const hasInvalid = useMemo(() => list.some(isRowInvalid), [list]);
   const addSubstance = (name: string) => {
     const key = matchSubstanceKey(name);
     if (!key || selectedKeys.has(key)) return;
@@ -143,7 +147,7 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="w-[95vw] sm:w-[95vw] max-w-[1400px] sm:max-w-[1400px] max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle>ตั้งเกณฑ์ตาม %สาร — {field.label}</DialogTitle>
           <p className="text-xs text-muted-foreground">
@@ -151,7 +155,7 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
           </p>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-4 overflow-hidden md:grid-cols-[1.2fr_1fr]">
+        <div className="grid grid-cols-1 gap-4 overflow-hidden md:grid-cols-[1fr_1.6fr]">
           <div>
             <Label className="text-sm mb-1.5 block">เลือกสาร</Label>
             <Tabs defaultValue="common">
@@ -226,15 +230,21 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                     <span className="text-muted-foreground">%{unit}</span>
                   </div>
                   <p className="text-xs text-emerald-700">{previewLine(std)}</p>
+                  {isRowInvalid(std) && (
+                    <p className="text-xs text-red-600">กรอก ±ออโต้ (&gt;0) และ ±หัวหน้า ≥ ±ออโต้</p>
+                  )}
                 </div>
               ))}
             </div>
           </div>
         </div>
 
+        {hasInvalid && (
+          <p className="text-right text-xs text-red-600">กรอก ±ออโต้ (&gt;0) และ ±หัวหน้า ≥ ±ออโต้ ให้ครบทุกสาร</p>
+        )}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button type="button" variant="primary" onClick={() => { onSave(list); onClose(); }}>บันทึก</Button>
+          <Button type="button" variant="primary" disabled={hasInvalid} onClick={() => { onSave(list); onClose(); }}>บันทึก</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
