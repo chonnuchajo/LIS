@@ -156,6 +156,7 @@ export type RenderFieldUnit = {
   key: string;                 // ใช้เป็นทั้ง React key และ storage key ใน result.values
   field: ParameterValueField;  // อาจเป็น virtual field (ฉีด standard ของสารแล้ว)
   substanceName?: string;      // มีค่าเมื่อเป็น unit รายสาร
+  labelTolerance?: { std: LabelToleranceStandard | undefined; rawSpec: string };
 };
 
 // แตก field เดียวเป็นหลาย render unit เมื่อ substanceMode เปิด.
@@ -167,6 +168,27 @@ export function expandFieldForItem(
 ): (RenderFieldUnit & { hiddenStandard?: boolean })[] {
   const includeRestrictedStandards = options.includeRestrictedStandards ?? false;
   const isNumeric = field.type === "number" || field.type === "float";
+  if (isNumeric && field.labelToleranceMode) {
+    const substances = parseSubstances(commonName ?? "");
+    if (substances.length === 0 || (substances.length === 1 && !substances[0])) {
+      return [{ key: field.label, field }];
+    }
+    return substances.map((raw) => {
+      const name = extractSubstanceName(raw) || raw;
+      const std = findLabelToleranceStandard(field, name);
+      const vfield: ParameterValueField = {
+        ...field,
+        label: `${field.label} — ${name}`,
+        labelToleranceMode: false,
+      };
+      return {
+        key: substanceFieldKey(field.label, name),
+        field: vfield,
+        substanceName: name,
+        labelTolerance: { std, rawSpec: raw },
+      };
+    });
+  }
   if (!field.substanceMode || !isNumeric) {
     return [{ key: field.label, field }];
   }

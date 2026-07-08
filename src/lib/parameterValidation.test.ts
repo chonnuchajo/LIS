@@ -676,6 +676,31 @@ describe("expandFieldForItem", () => {
   });
 });
 
+describe("expandFieldForItem — labelTolerance", () => {
+  const ltField: ParameterValueField = {
+    label: "%w/v", type: "number", unit: "%", labelToleranceMode: true,
+    labelToleranceStandards: [{ substance: "ABAMECTIN", autoPct: 2.5, headPct: 5 }],
+  };
+  it("expands per substance with rawSpec (keeps % for center)", () => {
+    const units = expandFieldForItem(ltField, "ABAMECTIN 1.8% W/V EC");
+    expect(units).toHaveLength(1);
+    expect(units[0].key).toBe("%w/v::abamectin");
+    expect(units[0].labelTolerance?.rawSpec).toBe("ABAMECTIN 1.8% W/V EC");
+    expect(units[0].labelTolerance?.std?.autoPct).toBe(2.5);
+    expect(units[0].field.labelToleranceMode).toBe(false);
+  });
+  it("substance without a configured std → unit with undefined std", () => {
+    const units = expandFieldForItem(ltField, "GLYPHOSATE 48% SL");
+    expect(units[0].labelTolerance?.std).toBeUndefined();
+  });
+  it("falls back to single plain unit when commonName empty", () => {
+    const units = expandFieldForItem(ltField, "");
+    expect(units).toHaveLength(1);
+    expect(units[0].key).toBe("%w/v");
+    expect(units[0].labelTolerance).toBeUndefined();
+  });
+});
+
 const ctx = (sameParam: Record<string, unknown>, otherParams: Record<string, Record<string, unknown>> = {}): ConditionContext =>
   ({ sameParam, otherParams });
 
