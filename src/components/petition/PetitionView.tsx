@@ -19,8 +19,9 @@ import {
   isFieldAbnormal,
   resolveFieldStandard,
   resolveStandard,
+  resolveLabelTolerance,
 } from '@/lib/parameterValidation';
-import { describeResolvedStandard, describeStandard } from '@/lib/standardOperators';
+import { describeResolvedStandard, describeStandard, formatLabelToleranceRange, labelToleranceBadge } from '@/lib/standardOperators';
 import { SG_FIELD_LABEL } from '@/lib/formSpecificGravity';
 
 interface Props { petition: Petition; }
@@ -104,17 +105,27 @@ export default function PetitionView({ petition: p }: Props) {
           return fieldValueList(values, unit.field)
             .map((value, valueIndex) => ({ value, valueIndex }))
             .filter(({ value }) => value != null && String(value).trim() !== '')
-            .map(({ value, valueIndex }) => ({
-              key: `${param._id}-${rowIndex}-${unit.key}-${valueIndex}`,
-              label: param.multiEntry && valueRows.length > 1
-                ? `รายการ ${rowIndex + 1} - ${unit.field.label}`
-                : unit.field.label,
-              value,
-              standard,
-              hasStandard: standard.trim() !== '',
-              hideStandard: isSgParam || (unit as { hiddenStandard?: boolean }).hiddenStandard === true,
-              abnormal: (unit as { hiddenStandard?: boolean }).hiddenStandard === true ? false : isFieldAbnormal(effectiveField, value),
-            }));
+            .map(({ value, valueIndex }) => {
+              // label-% tolerance unit: resolve per saved value → range text + status chip.
+              const lt = unit.labelTolerance
+                ? resolveLabelTolerance(unit.labelTolerance.std, unit.labelTolerance.rawSpec, value)
+                : null;
+              const rowStandard = lt ? formatLabelToleranceRange(lt, unit.field.unit ?? '') : standard;
+              return {
+                key: `${param._id}-${rowIndex}-${unit.key}-${valueIndex}`,
+                label: param.multiEntry && valueRows.length > 1
+                  ? `รายการ ${rowIndex + 1} - ${unit.field.label}`
+                  : unit.field.label,
+                value,
+                standard: rowStandard,
+                hasStandard: rowStandard.trim() !== '',
+                hideStandard: isSgParam || (unit as { hiddenStandard?: boolean }).hiddenStandard === true,
+                abnormal: lt
+                  ? (lt.status === 'review' || lt.status === 'fail')
+                  : (unit as { hiddenStandard?: boolean }).hiddenStandard === true ? false : isFieldAbnormal(effectiveField, value),
+                labelBadge: lt ? labelToleranceBadge(lt.status, lt.center) : null,
+              };
+            });
         }),
       ),
     );
@@ -226,9 +237,15 @@ export default function PetitionView({ petition: p }: Props) {
                                       <div key={entry.key} className="rounded-md border border-grey-100 bg-white px-2 py-1.5">
                                         <div className="flex flex-wrap items-center justify-between gap-1.5">
                                           <span className="text-grey-500">{entry.label}</span>
-                                          <Badge variant={entry.hideStandard || !entry.hasStandard ? 'gray-soft' : entry.abnormal ? 'red-soft' : 'green-soft'}>
-                                            {entry.hideStandard ? 'ไม่แสดงเกณฑ์' : !entry.hasStandard ? 'ไม่มีเกณฑ์' : entry.abnormal ? 'ไม่ผ่านเกณฑ์' : 'ผ่านเกณฑ์'}
-                                          </Badge>
+                                          {entry.labelBadge ? (
+                                            <span className={`inline-block rounded border px-1.5 py-0.5 text-[11px] ${entry.labelBadge.cls}`}>
+                                              {entry.labelBadge.text}
+                                            </span>
+                                          ) : (
+                                            <Badge variant={entry.hideStandard || !entry.hasStandard ? 'gray-soft' : entry.abnormal ? 'red-soft' : 'green-soft'}>
+                                              {entry.hideStandard ? 'ไม่แสดงเกณฑ์' : !entry.hasStandard ? 'ไม่มีเกณฑ์' : entry.abnormal ? 'ไม่ผ่านเกณฑ์' : 'ผ่านเกณฑ์'}
+                                            </Badge>
+                                          )}
                                         </div>
                                         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
                                           <span>

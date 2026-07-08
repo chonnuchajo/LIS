@@ -10,9 +10,9 @@ import { api, type ParameterItem, type ParameterValueField } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useArrivalFlash } from '@/hooks/useArrivalFlash';
 import { useConfirm } from '@/context/ConfirmDialog';
-import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues, optionOutputText, enumNormalValues, resolveConditionalOutput, isConditionalOutputAbnormal } from '@/lib/parameterValidation';
-import type { ConditionContext, ResolvedOutput } from '@/lib/parameterValidation';
-import { describeResolvedStandard, describeStandard } from '@/lib/standardOperators';
+import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues, optionOutputText, enumNormalValues, resolveConditionalOutput, isConditionalOutputAbnormal, resolveLabelTolerance } from '@/lib/parameterValidation';
+import type { ConditionContext, ResolvedOutput, RenderFieldUnit } from '@/lib/parameterValidation';
+import { describeResolvedStandard, describeStandard, formatLabelToleranceRange, labelToleranceBadge } from '@/lib/standardOperators';
 import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
 import { PhotoField } from '@/components/lis/PhotoField';
@@ -1220,7 +1220,7 @@ export default function QCTestingDetailPage() {
                   // and `onUnitNoteChange` persist a write. For multiEntry params these
                   // target an entry value-object; otherwise the flat phase dict.
                   const renderUnit = (
-                    unit: { key: string; field: ParameterValueField },
+                    unit: RenderFieldUnit,
                     srcValues: Record<string, unknown>,
                     onUnitChange: (label: string, val: unknown) => void,
                     saveInfoSrc: Record<string, FieldSaveInfo> | undefined,
@@ -1347,6 +1347,16 @@ export default function QCTestingDetailPage() {
                           outlierResult={outlierResults[`${String(param._id)}__${unit.field.label}`]}
                           outputResult={outputResult}
                         />
+                        {unit.labelTolerance && (() => {
+                          const rv = resolveLabelTolerance(unit.labelTolerance.std, unit.labelTolerance.rawSpec, srcValues[unit.key]);
+                          const badge = labelToleranceBadge(rv.status, rv.center);
+                          return (
+                            <div className="mt-1 space-y-0.5">
+                              <p className="text-xs text-muted-foreground">{formatLabelToleranceRange(rv, unit.field.unit ?? '')}</p>
+                              {badge && <span className={`inline-block rounded border px-1.5 py-0.5 text-[11px] ${badge.cls}`}>{badge.text}</span>}
+                            </div>
+                          );
+                        })()}
                         {beforeRef != null && beforeRef !== '' ? (
                           <p className="text-[10px] text-grey-400 mt-0.5">
                             ก่อน: <span className="font-mono">{String(beforeRef)}</span>

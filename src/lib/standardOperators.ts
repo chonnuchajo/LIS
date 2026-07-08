@@ -110,3 +110,13 @@ export function formatLabelToleranceRange(r: LabelToleranceResolved, unit: strin
   const head = r.headRange ? ` · หัวหน้าถึง ${fmt(r.headRange[0])}–${fmt(r.headRange[1])}` : "";
   return `${auto}${head}${u}`;
 }
+
+// ป้ายสถานะ labelTolerance สำหรับ chip (pass/review/fail + ข้ามเมื่อไม่มี %ฉลาก)
+export function labelToleranceBadge(status: "pass" | "review" | "fail" | "none", center: number | null):
+  { text: string; cls: string } | null {
+  if (status === "pass") return { text: "ผ่าน", cls: "text-emerald-700 bg-emerald-50 border-emerald-200" };
+  if (status === "review") return { text: "รอหัวหน้าอนุมัติ", cls: "text-amber-700 bg-amber-50 border-amber-200" };
+  if (status === "fail") return { text: "ไม่ผ่าน (เกินช่วงอนุมัติ)", cls: "text-red-700 bg-red-50 border-red-200" };
+  if (status === "none" && center == null) return { text: "ข้ามการตรวจ — ไม่มี %ฉลาก", cls: "text-muted-foreground bg-muted border" };
+  return null; // none + ยังไม่กรอก = ไม่มี chip
+}
