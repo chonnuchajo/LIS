@@ -93,14 +93,20 @@ export function describeSubstanceStandard(std: SubstanceStandard, unit: string):
   }
 }
 
-// สรุปเกณฑ์ labelTolerance ของสารตอน config เช่น "ฉลาก ±2.5% (หัวหน้า ±5%)"
+// สรุปเกณฑ์ labelTolerance ของสารตอน config เช่น "ฉลาก ±2.5% (หัวหน้า ±5%)" หรือ "ฉลาก ±0.05 (หัวหน้า ±0.1) g/L"
 export function describeLabelTolerance(std: LabelToleranceRule, unit: string): string {
-  if ((std.mode ?? "percent") === "range") {
+  const mode = std.mode ?? "percent";
+  if (mode === "range") {
     if ([std.failLow, std.passLow, std.passHigh, std.failHigh].some((v) => v == null)) return "";
     return `ช่วง ${std.failLow}-${std.passLow}-${std.passHigh}-${std.failHigh}${unit ? ` ${unit}` : ""}`;
   }
-  if (std.autoPct == null) return "";
   const u = unit ? ` ${unit}` : "";
+  if (mode === "abs") {
+    if (std.autoAbs == null) return "";
+    const head = std.headAbs != null ? ` (หัวหน้า ±${std.headAbs})` : "";
+    return `ฉลาก ±${std.autoAbs}${head}${u}`;
+  }
+  if (std.autoPct == null) return "";
   const head = std.headPct != null ? ` (หัวหน้า ±${std.headPct}%)` : "";
   return `ฉลาก ±${std.autoPct}%${head}${u}`;
 }

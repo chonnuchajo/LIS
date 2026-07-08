@@ -516,7 +516,7 @@ export type LabelToleranceResolved = {
   status: LabelToleranceStatus;              // "none" = ข้ามการตรวจ (center null / ค่าว่าง)
   center: number | null;                     // %ฉลากที่แกะได้ (null = ไม่มี % ในชื่อ → ข้าม)
   autoRange: [number, number] | null;        // ช่วงผ่านเอง
-  headRange: [number, number] | null;        // ช่วงหัวหน้าอนุมัติ (null = ไม่มี headPct)
+  headRange: [number, number] | null;        // ช่วงหัวหน้าอนุมัติ (null = ไม่ได้ตั้ง headPct/headAbs)
 };
 
 export function findLabelToleranceStandard(
@@ -550,7 +550,7 @@ export function findLabelToleranceStandard(
   return best?.std;
 }
 
-// ศูนย์กลาง = %ฉลากจาก rawSpec; tolerance = relative % ของ center; 3 ช่วง.
+// ศูนย์กลาง = %ฉลากจาก rawSpec; tolerance = relative % (mode percent) หรือค่าจริง (mode abs) ของ center; 3 ช่วง.
 export function resolveLabelTolerance(
   std: LabelToleranceRule | undefined,
   rawSpec: string,
@@ -579,21 +579,30 @@ export function resolveLabelTolerance(
     return { status, center, autoRange, headRange };
   }
 
-  if (std.autoPct == null || std.autoPct <= 0 || center == null) {
+  // percent = ± เป็น % relative ของ center; abs = ± เป็นค่าจริงในหน่วยของ field
+  const isAbs = (std.mode ?? "percent") === "abs";
+  const autoAbs = isAbs
+    ? std.autoAbs
+    : std.autoPct == null || center == null
+      ? null
+      : Math.abs(center) * (std.autoPct / 100);
+  if (autoAbs == null || autoAbs <= 0 || center == null) {
     return { status: "none", center, autoRange: null, headRange: null };
   }
-  const autoAbs = Math.abs(center) * (std.autoPct / 100);
-  const headAbs = std.headPct != null ? Math.abs(center) * (std.headPct / 100) : autoAbs;
+  const headSet = isAbs ? std.headAbs != null : std.headPct != null;
+  const headAbs = headSet
+    ? (isAbs ? std.headAbs! : Math.abs(center) * (std.headPct! / 100))
+    : autoAbs;
   const autoRange: [number, number] = [round(center - autoAbs), round(center + autoAbs)];
   const headRange: [number, number] | null =
-    std.headPct != null ? [round(center - headAbs), round(center + headAbs)] : null;
+    headSet ? [round(center - headAbs), round(center + headAbs)] : null;
   if (value === null || value === undefined || value === "" || Number.isNaN(num)) {
     return { status: "none", center, autoRange, headRange };
   }
-  const dev = Math.abs(num - center);
+  // เทียบกับช่วงที่ round แล้ว (ไม่ใช่ dev ดิบ) — ช่วงที่โชว์ = ช่วงที่ตัดสิน, กันขอบพลาดเพราะ float
   let status: LabelToleranceStatus;
-  if (dev <= autoAbs) status = "pass";
-  else if (dev <= headAbs) status = "review";
+  if (num >= autoRange[0] && num <= autoRange[1]) status = "pass";
+  else if (headRange && num >= headRange[0] && num <= headRange[1]) status = "review";
   else status = "fail";
   return { status, center, autoRange, headRange };
 }

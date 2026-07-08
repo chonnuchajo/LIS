@@ -18,11 +18,14 @@ const SubstanceStandardSchema = new mongoose.Schema({
 
 const LabelToleranceStandardSchema = new mongoose.Schema({
   substance: { type: String, default: '', trim: true },
-  mode: { type: String, enum: ['percent', 'range'], default: 'percent' },
+  mode: { type: String, enum: ['percent', 'abs', 'range'], default: 'percent' },
   labelPercent: { type: Number, default: null },
   productTypes: { type: [String], default: [] },
   autoPct:   { type: Number, default: null },
   headPct:   { type: Number, default: null },
+  // mode 'abs' — ± รอบค่ากลาง (%ฉลาก) เป็นค่าจริงในหน่วยของ field
+  autoAbs:   { type: Number, default: null },
+  headAbs:   { type: Number, default: null },
   passLow: { type: Number, default: null },
   passHigh: { type: Number, default: null },
   failLow: { type: Number, default: null },
@@ -267,6 +270,13 @@ ParameterSchema.pre('validate', function (next) {
           }
           if (!(s.failLow <= s.passLow && s.passLow <= s.passHigh && s.passHigh <= s.failHigh)) {
             return next(new Error(`ช่อง "${f.label}": ช่วงกำหนดเองต้องเรียง failLow ≤ passLow ≤ passHigh ≤ failHigh`));
+          }
+        } else if (mode === 'abs') {
+          if (s.autoAbs == null || s.autoAbs <= 0) {
+            return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±ผ่าน (autoAbs) ต้องมากกว่า 0`));
+          }
+          if (s.headAbs != null && s.headAbs < s.autoAbs) {
+            return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±หัวหน้า (headAbs) ต้อง ≥ ±ผ่าน`));
           }
         } else {
           if (s.autoPct == null || s.autoPct <= 0) {

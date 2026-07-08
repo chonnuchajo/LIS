@@ -42,9 +42,13 @@ function hasSelector(rule: LabelToleranceRule): boolean {
 function isRuleInvalid(rule: LabelToleranceRule): boolean {
   if (!hasSelector(rule)) return true;
   if (rule.labelPercent != null && rule.labelPercent <= 0) return true;
-  if ((rule.mode ?? "percent") === "range") {
+  const mode = rule.mode ?? "percent";
+  if (mode === "range") {
     if ([rule.failLow, rule.passLow, rule.passHigh, rule.failHigh].some((v) => v == null)) return true;
     if (!(rule.failLow! <= rule.passLow! && rule.passLow! <= rule.passHigh! && rule.passHigh! <= rule.failHigh!)) return true;
+  } else if (mode === "abs") {
+    if (rule.autoAbs == null || rule.autoAbs <= 0) return true;
+    if (rule.headAbs != null && rule.headAbs < rule.autoAbs) return true;
   } else {
     if (rule.autoPct == null || rule.autoPct <= 0) return true;
     if (rule.headPct != null && rule.headPct < rule.autoPct) return true;
@@ -59,17 +63,26 @@ function previewLine(rule: LabelToleranceRule): string {
     (rule.productTypes ?? []).map((pt) => productTypeLabels[pt] ?? pt).join("/"),
   ].filter(Boolean).join(" ");
 
-  if ((rule.mode ?? "percent") === "range") {
+  const mode = rule.mode ?? "percent";
+  if (mode === "range") {
     if ([rule.failLow, rule.passLow, rule.passHigh, rule.failHigh].some((v) => v == null)) return "";
     return `${selectors || "กฎ"} -> fail < ${rule.failLow} | review ${rule.failLow}-${rule.passLow} และ ${rule.passHigh}-${rule.failHigh} | pass ${rule.passLow}-${rule.passHigh}`;
   }
 
-  if (rule.autoPct == null || rule.autoPct <= 0) return "";
   const center = rule.labelPercent ?? 1;
-  const autoAbs = center * (rule.autoPct / 100);
-  const headAbs = rule.headPct != null ? center * (rule.headPct / 100) : autoAbs;
+  let autoAbs: number;
+  let headAbs: number | null;
+  if (mode === "abs") {
+    if (rule.autoAbs == null || rule.autoAbs <= 0) return "";
+    autoAbs = rule.autoAbs;
+    headAbs = rule.headAbs;
+  } else {
+    if (rule.autoPct == null || rule.autoPct <= 0) return "";
+    autoAbs = center * (rule.autoPct / 100);
+    headAbs = rule.headPct != null ? center * (rule.headPct / 100) : null;
+  }
   const auto = `ผ่าน ${(center - autoAbs).toFixed(5)}-${(center + autoAbs).toFixed(5)}`;
-  const head = rule.headPct != null
+  const head = headAbs != null
     ? ` | หัวหน้าตรวจสอบ ${(center - headAbs).toFixed(5)}-${(center + headAbs).toFixed(5)}`
     : "";
   return `${selectors || "กฎ"} -> ${auto}${head}`;
@@ -147,7 +160,9 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
             <p className="rounded border border-dashed p-4 text-sm text-muted-foreground">ยังกำหนดเกณฑ์ไว้</p>
           ) : null}
 
-          {list.map((rule, index) => (
+          {list.map((rule, index) => {
+            const mode = rule.mode ?? "percent";
+            return (
             <div key={index} className="space-y-3 rounded-lg border p-3">
               <div className="flex items-center gap-2">
                 <button
@@ -194,7 +209,7 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                       <label className="flex items-center gap-2">
                         <input
                           type="radio"
-                          checked={(rule.mode ?? "percent") === "percent"}
+                          checked={mode === "percent"}
                           onChange={() => patchAt(index, { mode: "percent" })}
                         />
                         เปอร์เซ็นต์ ±
@@ -202,7 +217,15 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                       <label className="flex items-center gap-2">
                         <input
                           type="radio"
-                          checked={(rule.mode ?? "percent") === "range"}
+                          checked={mode === "abs"}
+                          onChange={() => patchAt(index, { mode: "abs" })}
+                        />
+                        ± ค่าคงที่
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          checked={mode === "range"}
                           onChange={() => patchAt(index, { mode: "range" })}
                         />
                         ช่วงกำหนดเอง
@@ -229,7 +252,7 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                     </div>
                   </div>
 
-                  {(rule.mode ?? "percent") === "range" ? (
+                  {mode === "range" ? (
                     <div className="space-y-1.5">
                       <div className="grid gap-3 md:grid-cols-2">
                         <div className="space-y-1.5">
@@ -256,6 +279,32 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                       {!canEditHeadFields && (
                         <p className="text-xs text-muted-foreground">ช่วง "ที่ผ่าน" (ต่ำสุด/สูงสุด) กำหนดโดย ADMIN / QC Head</p>
                       )}
+                    </div>
+                  ) : mode === "abs" ? (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-sm">ผ่าน ±</Label>
+                        <Input
+                          type="number"
+                          value={rule.autoAbs ?? ""}
+                          onChange={(e) => patchAt(index, { autoAbs: e.target.value === "" ? null : Number(e.target.value) })}
+                          placeholder="เช่น 0.05"
+                        />
+                      </div>
+                      {canEditHeadFields && (
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">หัวหน้าตรวจสอบ ±</Label>
+                          <Input
+                            type="number"
+                            value={rule.headAbs ?? ""}
+                            onChange={(e) => patchAt(index, { headAbs: e.target.value === "" ? null : Number(e.target.value) })}
+                            placeholder="เช่น 0.1"
+                          />
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground md:col-span-2">
+                        ค่ากลางมาจาก %ฉลากในชื่อสาร — ± ที่กรอกเป็นค่าจริงในหน่วยของช่อง ไม่ใช่ %
+                      </p>
                     </div>
                   ) : (
                     <div className="grid gap-3 md:grid-cols-2">
@@ -289,7 +338,8 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                 </>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <DialogFooter>

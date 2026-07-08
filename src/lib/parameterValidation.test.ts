@@ -960,6 +960,58 @@ describe("resolveLabelTolerance", () => {
   });
 });
 
+describe("resolveLabelTolerance — abs mode", () => {
+  const std = { substance: "ABAMECTIN", mode: "abs" as const, autoPct: null, headPct: null, autoAbs: 0.05, headAbs: 0.1 };
+
+  it("centers on the label percent and derives ranges from absolute deltas", () => {
+    const r = resolveLabelTolerance(std, "ABAMECTIN 1.8% W/V EC", 1.8);
+    expect(r.center).toBe(1.8);
+    expect(r.autoRange).toEqual([1.75, 1.85]);
+    expect(r.headRange).toEqual([1.7, 1.9]);
+  });
+  it("pass on the auto boundary, review on the head boundary", () => {
+    expect(resolveLabelTolerance(std, "ABAMECTIN 1.8%", 1.85).status).toBe("pass");
+    expect(resolveLabelTolerance(std, "ABAMECTIN 1.8%", 1.75).status).toBe("pass");
+    expect(resolveLabelTolerance(std, "ABAMECTIN 1.8%", 1.9).status).toBe("review");
+    expect(resolveLabelTolerance(std, "ABAMECTIN 1.8%", 1.7).status).toBe("review");
+  });
+  it("fail beyond the head band", () => {
+    expect(resolveLabelTolerance(std, "ABAMECTIN 1.8%", 1.91).status).toBe("fail");
+    expect(resolveLabelTolerance(std, "ABAMECTIN 1.8%", 1.69).status).toBe("fail");
+  });
+  it("no head delta → outside auto is fail directly", () => {
+    const noHead = { substance: "A", mode: "abs" as const, autoPct: null, headPct: null, autoAbs: 0.05, headAbs: null };
+    const r = resolveLabelTolerance(noHead, "A 1.8%", 1.86);
+    expect(r.status).toBe("fail");
+    expect(r.headRange).toBeNull();
+    expect(resolveLabelTolerance(noHead, "A 1.8%", 1.8).status).toBe("pass");
+  });
+  it("none (skip) when name has no percent — center null", () => {
+    const r = resolveLabelTolerance(std, "ABAMECTIN 480 G/L", 1.8);
+    expect(r.center).toBeNull();
+    expect(r.status).toBe("none");
+    expect(r.autoRange).toBeNull();
+  });
+  it("none when autoAbs missing or non-positive", () => {
+    expect(resolveLabelTolerance({ ...std, autoAbs: null }, "A 1.8%", 1.8).status).toBe("none");
+    expect(resolveLabelTolerance({ ...std, autoAbs: 0 }, "A 1.8%", 1.8).status).toBe("none");
+  });
+  it("none but keeps ranges when value is empty (not yet filled)", () => {
+    const r = resolveLabelTolerance(std, "ABAMECTIN 1.8%", "");
+    expect(r.status).toBe("none");
+    expect(r.autoRange).toEqual([1.75, 1.85]);
+  });
+  it("ignores autoPct/headPct left over from percent mode", () => {
+    const stale = { substance: "A", mode: "abs" as const, autoPct: 50, headPct: 90, autoAbs: 0.05, headAbs: 0.1 };
+    expect(resolveLabelTolerance(stale, "A 1.8%", 1.86).status).toBe("review");
+  });
+  it("isLabelToleranceAbnormal true for review and fail", () => {
+    expect(isLabelToleranceAbnormal(std, "A 1.8%", 1.86)).toBe(true);
+    expect(isLabelToleranceAbnormal(std, "A 1.8%", 1.95)).toBe(true);
+    expect(isLabelToleranceAbnormal(std, "A 1.8%", 1.8)).toBe(false);
+  });
+});
+
 describe("findLabelToleranceStandard", () => {
   const field: any = { label: "v", type: "number", labelToleranceMode: true,
     labelToleranceStandards: [{ substance: "ABAMECTIN", autoPct: 2.5, headPct: 5 }] };

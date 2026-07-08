@@ -54,3 +54,25 @@ test('resolveLabelTolerance 3-zone (BE mirror)', () => {
   assert.strictEqual(isLabelToleranceAbnormal(std, 'ABAMECTIN 1%', 1.04), true);
   assert.strictEqual(isLabelToleranceAbnormal(std, 'ABAMECTIN 1%', 1.0), false);
 });
+
+test('resolveLabelTolerance abs mode (BE mirror)', () => {
+  const std = { substance: 'ABAMECTIN', mode: 'abs', autoAbs: 0.05, headAbs: 0.1 };
+  const r = resolveLabelTolerance(std, 'ABAMECTIN 1.8% W/V EC', 1.8);
+  assert.strictEqual(r.center, 1.8);
+  assert.deepStrictEqual(r.autoRange, [1.75, 1.85]);
+  assert.deepStrictEqual(r.headRange, [1.7, 1.9]);
+  assert.strictEqual(resolveLabelTolerance(std, 'ABAMECTIN 1.8%', 1.85).status, 'pass');
+  assert.strictEqual(resolveLabelTolerance(std, 'ABAMECTIN 1.8%', 1.9).status, 'review');
+  assert.strictEqual(resolveLabelTolerance(std, 'ABAMECTIN 1.8%', 1.91).status, 'fail');
+  assert.strictEqual(resolveLabelTolerance(std, 'ABAMECTIN 480 G/L', 1.8).status, 'none');
+  assert.strictEqual(resolveLabelTolerance({ ...std, autoAbs: 0 }, 'ABAMECTIN 1.8%', 1.8).status, 'none');
+
+  const noHead = { substance: 'A', mode: 'abs', autoAbs: 0.05, headAbs: null };
+  assert.strictEqual(resolveLabelTolerance(noHead, 'A 1.8%', 1.86).status, 'fail');
+  assert.strictEqual(resolveLabelTolerance(noHead, 'A 1.8%', 1.8).headRange, null);
+
+  // autoPct/headPct ค้างจากโหมด percent ต้องถูกละเลย
+  const stale = { substance: 'A', mode: 'abs', autoPct: 50, headPct: 90, autoAbs: 0.05, headAbs: 0.1 };
+  assert.strictEqual(resolveLabelTolerance(stale, 'A 1.8%', 1.86).status, 'review');
+  assert.strictEqual(isLabelToleranceAbnormal(std, 'ABAMECTIN 1.8%', 1.86), true);
+});
