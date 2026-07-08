@@ -196,6 +196,55 @@ test('rejects labelTolerance headPct < autoPct', async () => {
   await assert.rejects(() => doc.validate(), /headPct|หัวหน้า/);
 });
 
+test('accepts labelTolerance abs mode and persists autoAbs/headAbs', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: 'g/L', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', mode: 'abs', autoAbs: 0.05, headAbs: 0.1 }] }],
+  });
+  await doc.validate();
+  const s = doc.valueFields[0].labelToleranceStandards[0];
+  assert.strictEqual(s.mode, 'abs');
+  assert.strictEqual(s.autoAbs, 0.05);
+  assert.strictEqual(s.headAbs, 0.1);
+});
+
+test('rejects labelTolerance abs autoAbs <= 0', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', mode: 'abs', autoAbs: 0, headAbs: null }] }],
+  });
+  await assert.rejects(() => doc.validate(), /autoAbs|มากกว่า 0/);
+});
+
+test('rejects labelTolerance abs headAbs < autoAbs', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', mode: 'abs', autoAbs: 0.05, headAbs: 0.02 }] }],
+  });
+  await assert.rejects(() => doc.validate(), /headAbs|หัวหน้า/);
+});
+
+test('accepts split modes where pass percent is derived from head reviewer band', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', autoMode: 'percent', headMode: 'abs', autoPct: 50, headAbs: 0.1 }] }],
+  });
+  await assert.doesNotReject(() => doc.validate());
+});
+
+test('rejects split percent pass when head reviewer band is missing', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', autoMode: 'percent', autoPct: 50 }] }],
+  });
+  await assert.rejects(() => doc.validate(), /หัวหน้าตรวจสอบ/);
+});
+
 test('rejects multiple + labelToleranceMode', async () => {
   const doc = new Parameter({
     name: 'x',

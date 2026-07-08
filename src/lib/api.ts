@@ -994,9 +994,16 @@ export type LabelToleranceStandard = {
 
 export type StandardConditionOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "between";
 export type LabelToleranceRule = LabelToleranceStandard & {
-  mode?: "percent" | "range";
+  mode?: "percent" | "abs" | "range";
+  autoMode?: "percent" | "abs";
+  headMode?: "percent" | "abs";
   labelPercent?: number | null;
   productTypes?: ("water" | "sand" | "powder")[];
+  // autoMode = "percent" => autoPct เป็น % ของช่วงหัวหน้าตรวจสอบ
+  // headMode = "percent" => headPct เป็น % ของค่ากลางจาก %ฉลาก
+  // mode "abs" — ± รอบค่ากลาง (%ฉลาก) เป็นค่าจริงในหน่วยของ field แทน % relative
+  autoAbs?: number | null;   // ± ชั้นใน (ผ่านเอง), > 0
+  headAbs?: number | null;   // ± ชั้นนอก (หัวหน้าอนุมัติ), ถ้าใส่ต้อง ≥ autoAbs; null = ไม่มีช่วง review
   passLow?: number | null;
   passHigh?: number | null;
   failLow?: number | null;

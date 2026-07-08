@@ -516,8 +516,29 @@ export type LabelToleranceResolved = {
   status: LabelToleranceStatus;              // "none" = ข้ามการตรวจ (center null / ค่าว่าง)
   center: number | null;                     // %ฉลากที่แกะได้ (null = ไม่มี % ในชื่อ → ข้าม)
   autoRange: [number, number] | null;        // ช่วงผ่านเอง
-  headRange: [number, number] | null;        // ช่วงหัวหน้าอนุมัติ (null = ไม่มี headPct)
+  headRange: [number, number] | null;        // ช่วงหัวหน้าอนุมัติ (null = ไม่ได้ตั้ง headPct/headAbs)
 };
+
+function normalizeLabelToleranceModes(std: LabelToleranceRule) {
+  if ((std.mode ?? "percent") === "range") {
+    return { mode: "range" as const, autoMode: null, headMode: null, legacy: false };
+  }
+  if (std.autoMode || std.headMode) {
+    return {
+      mode: "split" as const,
+      autoMode: (std.autoMode ?? "abs") as "percent" | "abs",
+      headMode: (std.headMode ?? (std.headAbs != null || std.headPct != null ? "abs" : null)) as "percent" | "abs" | null,
+      legacy: false,
+    };
+  }
+  const legacyMode = std.mode ?? "percent";
+  return {
+    mode: legacyMode,
+    autoMode: (legacyMode === "abs" ? "abs" : "percent") as "percent" | "abs",
+    headMode: (legacyMode === "abs" ? (std.headAbs != null ? "abs" : null) : (std.headPct != null ? "percent" : null)) as "percent" | "abs" | null,
+    legacy: true,
+  };
+}
 
 export function findLabelToleranceStandard(
   field: ParameterValueField,
@@ -550,7 +571,7 @@ export function findLabelToleranceStandard(
   return best?.std;
 }
 
-// ศูนย์กลาง = %ฉลากจาก rawSpec; tolerance = relative % ของ center; 3 ช่วง.
+// ศูนย์กลาง = %ฉลากจาก rawSpec; tolerance = relative % (mode percent) หรือค่าจริง (mode abs) ของ center; 3 ช่วง.
 export function resolveLabelTolerance(
   std: LabelToleranceRule | undefined,
   rawSpec: string,
@@ -563,7 +584,8 @@ export function resolveLabelTolerance(
   const num = typeof value === "number" ? value : Number(value);
   const round = (n: number) => Number(n.toFixed(6));
 
-  if ((std.mode ?? "percent") === "range") {
+  const normalized = normalizeLabelToleranceModes(std);
+  if (normalized.mode === "range") {
     const autoRange = std.passLow == null || std.passHigh == null ? null : [round(std.passLow), round(std.passHigh)] as [number, number];
     const headRange = std.failLow == null || std.failHigh == null ? null : [round(std.failLow), round(std.failHigh)] as [number, number];
     if (!autoRange || !headRange) {
@@ -579,21 +601,32 @@ export function resolveLabelTolerance(
     return { status, center, autoRange, headRange };
   }
 
-  if (std.autoPct == null || std.autoPct <= 0 || center == null) {
+  if (center == null) {
     return { status: "none", center, autoRange: null, headRange: null };
   }
-  const autoAbs = Math.abs(center) * (std.autoPct / 100);
-  const headAbs = std.headPct != null ? Math.abs(center) * (std.headPct / 100) : autoAbs;
+  const headAbs = normalized.headMode === "percent"
+    ? (std.headPct == null ? null : Math.abs(center) * (std.headPct / 100))
+    : normalized.headMode === "abs"
+      ? (std.headAbs ?? null)
+      : null;
+  const autoAbs = normalized.autoMode === "percent"
+    ? normalized.legacy
+      ? (std.autoPct == null ? null : Math.abs(center) * (std.autoPct / 100))
+      : (std.autoPct == null || headAbs == null ? null : headAbs * (std.autoPct / 100))
+    : (std.autoAbs ?? null);
+  if (autoAbs == null || autoAbs <= 0) {
+    return { status: "none", center, autoRange: null, headRange: null };
+  }
   const autoRange: [number, number] = [round(center - autoAbs), round(center + autoAbs)];
   const headRange: [number, number] | null =
-    std.headPct != null ? [round(center - headAbs), round(center + headAbs)] : null;
+    headAbs != null ? [round(center - headAbs), round(center + headAbs)] : null;
   if (value === null || value === undefined || value === "" || Number.isNaN(num)) {
     return { status: "none", center, autoRange, headRange };
   }
-  const dev = Math.abs(num - center);
+  // เทียบกับช่วงที่ round แล้ว (ไม่ใช่ dev ดิบ) — ช่วงที่โชว์ = ช่วงที่ตัดสิน, กันขอบพลาดเพราะ float
   let status: LabelToleranceStatus;
-  if (dev <= autoAbs) status = "pass";
-  else if (dev <= headAbs) status = "review";
+  if (num >= autoRange[0] && num <= autoRange[1]) status = "pass";
+  else if (headRange && num >= headRange[0] && num <= headRange[1]) status = "review";
   else status = "fail";
   return { status, center, autoRange, headRange };
 }

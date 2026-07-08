@@ -87,6 +87,26 @@ describe("describeLabelTolerance", () => {
     expect(describeLabelTolerance({ substance: "A", autoPct: 2.5, headPct: null }, ""))
       .not.toContain("หัวหน้า");
   });
+  it("summarizes abs mode without a percent sign", () => {
+    const out = describeLabelTolerance(
+      { substance: "A", mode: "abs", autoPct: null, headPct: null, autoAbs: 0.05, headAbs: 0.1 }, "g/L");
+    expect(out).toBe("ฉลาก ±0.05 (หัวหน้า ±0.1) g/L");
+  });
+  it("abs mode omits head and unit when absent", () => {
+    expect(describeLabelTolerance(
+      { substance: "A", mode: "abs", autoPct: null, headPct: null, autoAbs: 0.05, headAbs: null }, ""))
+      .toBe("ฉลาก ±0.05");
+  });
+  it("abs mode returns empty when autoAbs missing", () => {
+    expect(describeLabelTolerance(
+      { substance: "A", mode: "abs", autoPct: null, headPct: null, autoAbs: null, headAbs: null }, "%"))
+      .toBe("");
+  });
+  it("describes split modes separately", () => {
+    expect(describeLabelTolerance(
+      { substance: "A", autoMode: "percent", headMode: "abs", autoPct: 50, headAbs: 0.1 }, "g/L"))
+      .toBe("ผ่าน 50% ของหัวหน้าตรวจสอบ | หัวหน้า ±0.1 g/L");
+  });
 });
 
 describe("formatLabelToleranceRange", () => {

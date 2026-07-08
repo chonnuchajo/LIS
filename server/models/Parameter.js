@@ -18,16 +18,42 @@ const SubstanceStandardSchema = new mongoose.Schema({
 
 const LabelToleranceStandardSchema = new mongoose.Schema({
   substance: { type: String, default: '', trim: true },
-  mode: { type: String, enum: ['percent', 'range'], default: 'percent' },
+  mode: { type: String, enum: ['percent', 'abs', 'range'], default: 'percent' },
+  autoMode: { type: String, enum: ['percent', 'abs'], default: null },
+  headMode: { type: String, enum: ['percent', 'abs'], default: null },
   labelPercent: { type: Number, default: null },
   productTypes: { type: [String], default: [] },
   autoPct:   { type: Number, default: null },
   headPct:   { type: Number, default: null },
+  // mode 'abs' — ± รอบค่ากลาง (%ฉลาก) เป็นค่าจริงในหน่วยของ field
+  autoAbs:   { type: Number, default: null },
+  headAbs:   { type: Number, default: null },
   passLow: { type: Number, default: null },
   passHigh: { type: Number, default: null },
   failLow: { type: Number, default: null },
   failHigh: { type: Number, default: null },
 }, { _id: false });
+
+function normalizeLabelToleranceModes(std) {
+  if ((std.mode || 'percent') === 'range') {
+    return { mode: 'range', autoMode: null, headMode: null, legacy: false };
+  }
+  if (std.autoMode || std.headMode) {
+    return {
+      mode: 'split',
+      autoMode: std.autoMode || 'abs',
+      headMode: std.headMode || (std.headAbs != null || std.headPct != null ? 'abs' : null),
+      legacy: false,
+    };
+  }
+  const legacyMode = std.mode || 'percent';
+  return {
+    mode: legacyMode,
+    autoMode: legacyMode === 'abs' ? 'abs' : 'percent',
+    headMode: legacyMode === 'abs' ? (std.headAbs != null ? 'abs' : null) : (std.headPct != null ? 'percent' : null),
+    legacy: true,
+  };
+}
 
 const StandardConditionSchema = new mongoose.Schema({
   sourceParameterId: { type: String, default: null },
@@ -253,7 +279,7 @@ ParameterSchema.pre('validate', function (next) {
         const productTypes = (s.productTypes || []).filter(Boolean);
         const substance = String(s.substance || '').trim();
         const hasSelector = substance || s.labelPercent != null || productTypes.length > 0;
-        const mode = s.mode || 'percent';
+        const normalized = normalizeLabelToleranceModes(s);
         if (!hasSelector) {
           return next(new Error(`ช่อง "${f.label}": ต้องระบุสาร หรือ %ฉลาก หรือประเภทสินค้า อย่างน้อย 1 อย่างในเกณฑ์ %สาร`));
         }
@@ -261,7 +287,7 @@ ParameterSchema.pre('validate', function (next) {
         if (badPT.length > 0) {
           return next(new Error(`ช่อง "${f.label}": productTypes ของเกณฑ์ %สารมีค่าที่ไม่รองรับ: ${badPT.join(', ')}`));
         }
-        if (mode === 'range') {
+        if (normalized.mode === 'range') {
           if ([s.passLow, s.passHigh, s.failLow, s.failHigh].some((v) => v == null)) {
             return next(new Error(`ช่อง "${f.label}": โหมดช่วงกำหนดเองต้องกรอก failLow, passLow, passHigh, failHigh ให้ครบ`));
           }
@@ -269,11 +295,38 @@ ParameterSchema.pre('validate', function (next) {
             return next(new Error(`ช่อง "${f.label}": ช่วงกำหนดเองต้องเรียง failLow ≤ passLow ≤ passHigh ≤ failHigh`));
           }
         } else {
-          if (s.autoPct == null || s.autoPct <= 0) {
-            return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±ออโต้ (autoPct) ต้องมากกว่า 0`));
+          const headConfigured = normalized.headMode != null;
+          let headComparableAbs = null;
+          if (normalized.headMode === 'percent') {
+            if (s.headPct == null || s.headPct <= 0) {
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": หัวหน้าตรวจสอบแบบ % (headPct) ต้องมากกว่า 0`));
+            }
+          } else if (normalized.headMode === 'abs') {
+            if (s.headAbs == null || s.headAbs <= 0) {
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": หัวหน้าตรวจสอบแบบ ±คงที่ (headAbs) ต้องมากกว่า 0`));
+            }
+            headComparableAbs = s.headAbs;
           }
-          if (s.headPct != null && s.headPct < s.autoPct) {
-            return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±หัวหน้า (headPct) ต้อง ≥ ±ออโต้`));
+          if (normalized.autoMode === 'percent') {
+            if (s.autoPct == null || s.autoPct <= 0) {
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ผ่านแบบ % (autoPct) ต้องมากกว่า 0`));
+            }
+            if (!normalized.legacy && !headConfigured) {
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ถ้าช่อง "ผ่าน" ใช้ % ต้องตั้งค่าหัวหน้าตรวจสอบก่อน`));
+            }
+            if (headConfigured && s.autoPct > 100) {
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ผ่านแบบ % ต้องไม่เกิน 100% ของหัวหน้าตรวจสอบ`));
+            }
+            if (normalized.legacy && s.headPct != null && s.headPct < s.autoPct) {
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±หัวหน้า (headPct) ต้อง ≥ ±ออโต้`));
+            }
+          } else {
+            if (s.autoAbs == null || s.autoAbs <= 0) {
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±ผ่าน (autoAbs) ต้องมากกว่า 0`));
+            }
+            if (headComparableAbs != null && s.autoAbs > headComparableAbs) {
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": เกณฑ์ผ่านต้องไม่กว้างกว่าหัวหน้าตรวจสอบ`));
+            }
           }
         }
       }

@@ -54,6 +54,27 @@ function parseLabelPercent(raw) {
   return m ? Number(m[1]) : null;
 }
 
+function normalizeLabelToleranceModes(std) {
+  if ((std.mode || "percent") === "range") {
+    return { mode: "range", autoMode: null, headMode: null, legacy: false };
+  }
+  if (std.autoMode || std.headMode) {
+    return {
+      mode: "split",
+      autoMode: std.autoMode || "abs",
+      headMode: std.headMode || (std.headAbs != null || std.headPct != null ? "abs" : null),
+      legacy: false,
+    };
+  }
+  const legacyMode = std.mode || "percent";
+  return {
+    mode: legacyMode,
+    autoMode: legacyMode === "abs" ? "abs" : "percent",
+    headMode: legacyMode === "abs" ? (std.headAbs != null ? "abs" : null) : (std.headPct != null ? "percent" : null),
+    legacy: true,
+  };
+}
+
 // mirror of src/lib/parameterValidation.ts resolveLabelTolerance — keep in sync
 function resolveLabelTolerance(std, rawSpec, value) {
   const center = parseLabelPercent(rawSpec);
@@ -62,7 +83,8 @@ function resolveLabelTolerance(std, rawSpec, value) {
   }
   const num = typeof value === "number" ? value : Number(value);
   const round = (n) => Number(n.toFixed(6));
-  if ((std.mode || "percent") === "range") {
+  const normalized = normalizeLabelToleranceModes(std);
+  if (normalized.mode === "range") {
     const autoRange = std.passLow == null || std.passHigh == null ? null : [round(std.passLow), round(std.passHigh)];
     const headRange = std.failLow == null || std.failHigh == null ? null : [round(std.failLow), round(std.failHigh)];
     if (!autoRange || !headRange) return { status: "none", center, autoRange: null, headRange: null };
@@ -75,20 +97,31 @@ function resolveLabelTolerance(std, rawSpec, value) {
     else status = "fail";
     return { status, center, autoRange, headRange };
   }
-  if (std.autoPct == null || std.autoPct <= 0 || center == null) {
+  if (center == null) {
     return { status: "none", center, autoRange: null, headRange: null };
   }
-  const autoAbs = Math.abs(center) * (std.autoPct / 100);
-  const headAbs = std.headPct != null ? Math.abs(center) * (std.headPct / 100) : autoAbs;
+  const headAbs = normalized.headMode === "percent"
+    ? (std.headPct == null ? null : Math.abs(center) * (std.headPct / 100))
+    : normalized.headMode === "abs"
+      ? (std.headAbs ?? null)
+      : null;
+  const autoAbs = normalized.autoMode === "percent"
+    ? normalized.legacy
+      ? (std.autoPct == null ? null : Math.abs(center) * (std.autoPct / 100))
+      : (std.autoPct == null || headAbs == null ? null : headAbs * (std.autoPct / 100))
+    : (std.autoAbs ?? null);
+  if (autoAbs == null || autoAbs <= 0) {
+    return { status: "none", center, autoRange: null, headRange: null };
+  }
   const autoRange = [round(center - autoAbs), round(center + autoAbs)];
-  const headRange = std.headPct != null ? [round(center - headAbs), round(center + headAbs)] : null;
+  const headRange = headAbs != null ? [round(center - headAbs), round(center + headAbs)] : null;
   if (value === null || value === undefined || value === "" || Number.isNaN(num)) {
     return { status: "none", center, autoRange, headRange };
   }
-  const dev = Math.abs(num - center);
+  // เทียบกับช่วงที่ round แล้ว (ไม่ใช่ dev ดิบ) — ช่วงที่โชว์ = ช่วงที่ตัดสิน, กันขอบพลาดเพราะ float
   let status;
-  if (dev <= autoAbs) status = "pass";
-  else if (dev <= headAbs) status = "review";
+  if (num >= autoRange[0] && num <= autoRange[1]) status = "pass";
+  else if (headRange && num >= headRange[0] && num <= headRange[1]) status = "review";
   else status = "fail";
   return { status, center, autoRange, headRange };
 }
