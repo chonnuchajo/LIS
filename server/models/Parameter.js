@@ -16,6 +16,12 @@ const SubstanceStandardSchema = new mongoose.Schema({
   headOnly: { type: Boolean, default: false },
 }, { _id: false });
 
+const LabelToleranceStandardSchema = new mongoose.Schema({
+  substance: { type: String, required: true, trim: true },
+  autoPct:   { type: Number, default: null },
+  headPct:   { type: Number, default: null },
+}, { _id: false });
+
 const StandardConditionSchema = new mongoose.Schema({
   sourceParameterId: { type: String, default: null },
   sourceFieldLabel: { type: String, required: true },
@@ -101,6 +107,10 @@ const ValueFieldSchema = new mongoose.Schema({
   conditionalMode: { type: Boolean, default: false },
   conditionalStandards: { type: [StandardRuleSchema], default: [] },
   conditionalResult: { type: String, enum: ['standard', 'output'], default: 'standard' },
+  // Label-% tolerance (number/float). labelToleranceMode=true → center=%ฉลากที่แกะจากชื่อสาร,
+  // 3 ช่วง ต่อสาร. single/substance/conditional ถูก ignore. exclusive กับ substance/conditional.
+  labelToleranceMode: { type: Boolean, default: false },
+  labelToleranceStandards: { type: [LabelToleranceStandardSchema], default: [] },
 }, { _id: false });
 
 const ParameterSchema = new mongoose.Schema({
@@ -227,8 +237,18 @@ ParameterSchema.pre('validate', function (next) {
         return next(new Error(`ช่อง "${f.label}": field แบบ reference ใช้เป็น trigger ไม่ได้`));
       }
     }
-    if (f.substanceMode && f.conditionalMode) {
-      return next(new Error(`ช่อง "${f.label}": ใช้โหมด "แยกตามสาร" และ "เงื่อนไขพิเศษ" พร้อมกันไม่ได้`));
+    if ([f.substanceMode, f.conditionalMode, f.labelToleranceMode].filter(Boolean).length > 1) {
+      return next(new Error(`ช่อง "${f.label}": เลือกได้โหมดเดียวจาก แยกตามสาร / เงื่อนไขพิเศษ / ตาม %สาร`));
+    }
+    if (f.labelToleranceMode) {
+      for (const s of f.labelToleranceStandards || []) {
+        if (s.autoPct == null || s.autoPct <= 0) {
+          return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±ออโต้ (autoPct) ต้องมากกว่า 0`));
+        }
+        if (s.headPct != null && s.headPct < s.autoPct) {
+          return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±หัวหน้า (headPct) ต้อง ≥ ±ออโต้`));
+        }
+      }
     }
     if (f.conditionalMode && f.conditionalResult === 'output') {
       if (f.multiple) {
@@ -247,6 +267,9 @@ ParameterSchema.pre('validate', function (next) {
       }
       if (f.substanceMode) {
         return next(new Error(`ช่อง "${f.label}": ใช้ "กรอกหลายค่า" ร่วมกับโหมดรายสารไม่ได้`));
+      }
+      if (f.labelToleranceMode) {
+        return next(new Error(`ช่อง "${f.label}": ใช้ "กรอกหลายค่า" ร่วมกับโหมดตาม %สารไม่ได้`));
       }
       if (f.triggersPhase2) {
         return next(new Error(`ช่อง "${f.label}": ตัว trigger Phase 2 กรอกหลายค่าไม่ได้`));

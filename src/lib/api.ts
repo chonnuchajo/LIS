@@ -986,6 +986,12 @@ export type SubstanceStandard = {
   value2?: number | null; // ใช้กับ between / tolerance
 };
 
+export type LabelToleranceStandard = {
+  substance: string;        // เก็บแบบ extractSubstanceName เช่น "ABAMECTIN"
+  autoPct: number | null;   // ± ชั้นใน (ผ่านเอง) % ของค่าฉลาก, > 0
+  headPct: number | null;   // ± ชั้นนอก (หัวหน้าอนุมัติ), ถ้าใส่ต้อง ≥ autoPct; null = ไม่มีช่วง review
+};
+
 export type StandardConditionOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "between";
 
 export type StandardCondition = {
@@ -1030,6 +1036,9 @@ export type ParameterValueField = {
   conditionalStandards?: StandardRule[];
   // ชนิดผลของกฎ conditional: 'standard' (เกณฑ์ตัวเลข เดิม) | 'output' (ข้อความ+สถานะ). default 'standard'
   conditionalResult?: "standard" | "output";
+  // Label-% tolerance mode (number/float). center = %ฉลากที่แกะจากชื่อสารอัตโนมัติ.
+  labelToleranceMode?: boolean;
+  labelToleranceStandards?: LabelToleranceStandard[];
   // Field-level repeat — value stored as an array. text/number/float/enum only.
   multiple?: boolean;
   // โชว์ค่า field เดียวกันจากผลตรวจครั้งก่อนของ common name เดียวกัน (display-only)
