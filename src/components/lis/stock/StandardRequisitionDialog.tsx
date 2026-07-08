@@ -13,27 +13,28 @@ import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { isUsableBottle } from "@/lib/stockStatus";
 import { defaultWeightCount, sumWeights, validateWeights } from "@/lib/standardRequisition";
+import { buildSubstanceGroups, resolveGroups, type InstrumentGroup } from "@/lib/standardInstrumentGroups";
 import { cn } from "@/lib/utils";
 import type { StockUnitItem } from "@/types/stock";
 
-type Instrument = { id: string; name: string; group?: string };
 const TYPES = ["primary", "working", "supplier"] as const;
 type BottleType = (typeof TYPES)[number];
+type MasterItemRaw = Record<string, unknown>;
+const GROUP_LABEL: Record<InstrumentGroup, string> = { gc: "GC", hplc: "HPLC" };
 
 interface Props {
-  instruments: Instrument[];
   onClose: () => void;
   onSaved: () => void;
 }
 
-export default function StandardRequisitionDialog({ instruments, onClose, onSaved }: Props) {
+export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
   const qc = useQueryClient();
   const { user } = useAuth();
-  const [instrumentId, setInstrumentId] = useState("");
   const [code, setCode] = useState("");
   const [pickOpen, setPickOpen] = useState(false);
   const [bottleType, setBottleType] = useState<BottleType>("primary");
   const [qrId, setQrId] = useState("");
+  const [pickedGroup, setPickedGroup] = useState<InstrumentGroup | null>(null);
   const [weights, setWeights] = useState<string[]>([""]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -41,9 +42,37 @@ export default function StandardRequisitionDialog({ instruments, onClose, onSave
   const { data: standards = [] } = useQuery({ queryKey: ["stock", "standards"], queryFn: api.getStandards });
   const { data: allUnits = [] } = useQuery({ queryKey: ["stock", "units"], queryFn: () => api.getStockUnits() });
 
-  const instrument = instruments.find((i) => i.id === instrumentId);
+  // สาร → กลุ่มเครื่อง (gc/hplc) จาก simple method (reuse pattern PetitionAssign)
+  const { data: masterItems = [] } = useQuery<MasterItemRaw[]>({
+    queryKey: ["master-items"],
+    queryFn: async () => {
+      const res = await api.get<unknown>("/master-items");
+      const payload = res.data.data;
+      if (Array.isArray(payload)) return payload as MasterItemRaw[];
+      if (payload && typeof payload === "object") {
+        const arr = (payload as { data?: unknown }).data ?? (payload as { items?: unknown }).items;
+        if (Array.isArray(arr)) return arr as MasterItemRaw[];
+      }
+      return [];
+    },
+    staleTime: 5 * 60_000,
+  });
+  const { data: simpleMethods = [] } = useQuery<Array<{ itemNo: string; methods?: string[][]; instruments?: string[] }>>({
+    queryKey: ["simple-methods"],
+    queryFn: async () => {
+      const res = await api.get<Array<{ itemNo: string; methods?: string[][]; instruments?: string[] }>>("/simple-methods");
+      return (res.data.data ?? []).map((e) => ({ itemNo: e.itemNo, methods: e.methods, instruments: e.instruments }));
+    },
+    staleTime: 5 * 60_000,
+  });
+  const { data: registryMethods = [] } = useQuery({ queryKey: ["methods"], queryFn: () => api.getMethods(), staleTime: 5 * 60_000 });
+  const methodByCode = useMemo(() => new Map(registryMethods.map((m) => [m.code, m])), [registryMethods]);
+  const substanceGroups = useMemo(
+    () => buildSubstanceGroups(masterItems, simpleMethods, methodByCode),
+    [masterItems, simpleMethods, methodByCode],
+  );
 
-  // สารที่มีขวดใช้ได้จริง ≥ 1 (ทุก type) — "เปลี่ยน code เป็น stock ที่มี"
+  // สารที่มีขวดใช้ได้จริง ≥ 1 (ทุก type)
   const usableByCode = useMemo(() => {
     const m = new Map<string, StockUnitItem[]>();
     for (const u of allUnits) {
@@ -61,6 +90,13 @@ export default function StandardRequisitionDialog({ instruments, onClose, onSave
   );
   const standard = standards.find((s) => s.code === code) ?? null;
 
+  const resolvedGroups = useMemo(
+    () => (standard ? resolveGroups(standard.name, substanceGroups) : []),
+    [standard, substanceGroups],
+  );
+  const needsGroupPick = resolvedGroups.length >= 2;
+  const effectiveGroup: InstrumentGroup | null = resolvedGroups.length === 1 ? resolvedGroups[0] : pickedGroup;
+
   const bottlesOfType = useMemo(
     () => (usableByCode.get(code) ?? []).filter((u) => (u.type || "primary") === bottleType)
       .sort((a, b) => (a.exp ? +new Date(a.exp) : Infinity) - (b.exp ? +new Date(b.exp) : Infinity)),
@@ -77,20 +113,24 @@ export default function StandardRequisitionDialog({ instruments, onClose, onSave
   const nums = weights.map((w) => Number(w));
   const total = sumWeights(nums);
   const weightError = bottle ? validateWeights(nums, remainingMg) : "";
-  const canSave = !!(instrumentId && bottle && !weightError && user?.name);
+  const canSave = !!(bottle && !weightError && user?.name && (!needsGroupPick || pickedGroup));
 
-  // เปลี่ยนเครื่อง → ตั้งจำนวนช่องน้ำหนักตาม default (gc=3/hplc=1)
-  const pickInstrument = (id: string) => {
-    setInstrumentId(id);
-    const g = instruments.find((i) => i.id === id)?.group;
-    setWeights(Array.from({ length: defaultWeightCount(g) }, () => ""));
-  };
+  const defaultCount = defaultWeightCount(effectiveGroup ?? undefined);
+  const isCustom = !!effectiveGroup && weights.length !== defaultCount;
+
   const pickStandard = (c: string) => {
-    setCode(c); setPickOpen(false); setQrId("");
+    setCode(c); setPickOpen(false); setQrId(""); setPickedGroup(null);
     const counts = { primary: 0, working: 0, supplier: 0 } as Record<BottleType, number>;
     for (const u of usableByCode.get(c) ?? []) counts[((u.type || "primary") as BottleType)] += 1;
-    const first = TYPES.find((t) => counts[t] > 0) ?? "primary";
-    setBottleType(first);
+    setBottleType(TYPES.find((t) => counts[t] > 0) ?? "primary");
+    const s = standards.find((x) => x.code === c) ?? null;
+    const groups = s ? resolveGroups(s.name, substanceGroups) : [];
+    const n = groups.length === 1 ? defaultWeightCount(groups[0]) : 1;
+    setWeights(Array.from({ length: n }, () => ""));
+  };
+  const pickGroup = (g: InstrumentGroup) => {
+    setPickedGroup(g);
+    setWeights(Array.from({ length: defaultWeightCount(g) }, () => ""));
   };
   const setWeightAt = (i: number, v: string) => setWeights((prev) => { const x = [...prev]; x[i] = v; return x; });
   const setCount = (n: number) => setWeights((prev) => {
@@ -105,8 +145,7 @@ export default function StandardRequisitionDialog({ instruments, onClose, onSave
     try {
       await api.deductStockUnitMg(bottle.qrId, {
         weights: nums,
-        instrumentId,
-        instrumentName: instrument?.name,
+        instrumentGroup: effectiveGroup ?? undefined,
         note: note || undefined,
       });
       toast.success(`เบิก ${standard?.name ?? "standard"} ${nums.length} น้ำหนัก (${total} mg)`);
@@ -118,26 +157,17 @@ export default function StandardRequisitionDialog({ instruments, onClose, onSave
     } finally { setBusy(false); }
   };
 
+  const groupChoices: InstrumentGroup[] = resolvedGroups.length >= 2 ? resolvedGroups : (["gc", "hplc"] as InstrumentGroup[]);
+
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>เบิก Standard</DialogTitle>
-          <DialogDescription>เลือกเครื่อง สาร ประเภทขวด แล้วกรอก mg แต่ละน้ำหนัก</DialogDescription>
+          <DialogDescription>เลือกสาร ประเภทขวด แล้วกรอก mg แต่ละน้ำหนัก (กลุ่มเครื่องมาจาก simple method)</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* เครื่อง */}
-          <div>
-            <Label className="mb-1.5 block">เครื่อง</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {instruments.map((i) => (
-                <Button key={i.id} type="button" size="sm" variant={instrumentId === i.id ? "default" : "outline"}
-                  className="h-8 text-xs" onClick={() => pickInstrument(i.id)}>{i.name}</Button>
-              ))}
-            </div>
-          </div>
-
           {/* สาร (เฉพาะที่มีขวด) */}
           <div>
             <Label className="mb-1.5 block">Standard (มีของในสต็อก)</Label>
@@ -168,6 +198,33 @@ export default function StandardRequisitionDialog({ instruments, onClose, onSave
 
           {code && (
             <>
+              {/* วิธี / กลุ่มเครื่อง (จาก simple method) */}
+              <div>
+                <Label className="mb-1.5 block">วิธี / กลุ่มเครื่อง</Label>
+                {resolvedGroups.length === 1 ? (
+                  <div className="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm">
+                    <span className="font-medium">{GROUP_LABEL[resolvedGroups[0]]}</span>
+                    <span className="text-xs text-muted-foreground">· default {defaultWeightCount(resolvedGroups[0])} น้ำหนัก</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex gap-1.5">
+                      {groupChoices.map((g) => (
+                        <Button key={g} type="button" size="sm" variant={pickedGroup === g ? "default" : "outline"}
+                          className="h-8 text-xs" onClick={() => pickGroup(g)}>
+                          {GROUP_LABEL[g]}
+                        </Button>
+                      ))}
+                    </div>
+                    {resolvedGroups.length === 0 && (
+                      <p className="mt-1 text-xs text-amber-600">
+                        สารนี้ยังไม่มี simple method ระบุเครื่อง — ไปตั้งที่ Simple Method (เลือกเองชั่วคราวได้)
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+
               {/* ประเภทขวด */}
               <div>
                 <Label className="mb-1.5 block">ประเภทขวด</Label>
@@ -207,7 +264,10 @@ export default function StandardRequisitionDialog({ instruments, onClose, onSave
               {bottle && (
                 <div>
                   <div className="mb-1.5 flex items-center justify-between">
-                    <Label>จำนวนน้ำหนัก</Label>
+                    <Label className="flex items-center gap-1.5">
+                      จำนวนน้ำหนัก
+                      {isCustom && <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">custom</span>}
+                    </Label>
                     <Input type="number" min={1} max={20} value={weights.length} className="h-8 w-20"
                       onChange={(e) => setCount(Math.min(20, Math.max(1, Number(e.target.value) || 1)))} />
                   </div>
