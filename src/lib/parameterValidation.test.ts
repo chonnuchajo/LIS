@@ -964,3 +964,28 @@ describe("findLabelToleranceStandard", () => {
     expect(findLabelToleranceStandard(field, "GLYPHOSATE")).toBeUndefined();
   });
 });
+
+describe("countAbnormalInResults — labelTolerance", () => {
+  const param: any = {
+    _id: "p1", multiEntry: false,
+    valueFields: [{
+      label: "%w/v", type: "number", unit: "%", labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: "ABAMECTIN", autoPct: 2.5, headPct: 5 }],
+    }],
+  };
+  const mk = (val: number) => ([{
+    petitionId: "pt1", itemSeq: 0, parameterId: "p1",
+    commonName: "ABAMECTIN 1% W/V EC",
+    values: { "%w/v::abamectin": val },
+  }] as any);
+  it("counts review + fail, not pass", () => {
+    expect(countAbnormalInResults(mk(1.0), [param])).toBe(0);   // pass
+    expect(countAbnormalInResults(mk(1.04), [param])).toBe(1);  // review
+    expect(countAbnormalInResults(mk(1.2), [param])).toBe(1);   // fail
+  });
+  it("skips substance without percent in name", () => {
+    const noPct = [{ petitionId: "pt1", itemSeq: 0, parameterId: "p1",
+      commonName: "ABAMECTIN 480 G/L", values: { "%w/v::abamectin": 999 } }] as any;
+    expect(countAbnormalInResults(noPct, [param])).toBe(0);
+  });
+});
