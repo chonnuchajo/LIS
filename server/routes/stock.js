@@ -222,7 +222,7 @@ router.post('/standards/:id/deduct', async (req, res) => {
   }
 });
 
-// หัก mg จากขวดตรงๆ: { mg?, weights?[], instrumentId?, instrumentName?, sampleId?, petitionNo?, note? }
+// หัก mg จากขวดตรงๆ: { mg?, weights?[], instrumentGroup?, instrumentId?, instrumentName?, sampleId?, petitionNo?, note? }
 router.post('/units/:qrId/deduct-mg', async (req, res) => {
   try {
     const { mg, weights, instrumentId, instrumentName, instrumentGroup, sampleId, petitionNo, note } = req.body || {};

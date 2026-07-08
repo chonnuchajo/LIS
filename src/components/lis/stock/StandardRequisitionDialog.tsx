@@ -124,7 +124,7 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
   useEffect(() => {
     if (!code || countCustomized || resolvedGroups.length !== 1) return;
     const n = defaultWeightCount(resolvedGroups[0]);
-    setWeights((prev) => (prev.length === n ? prev : Array.from({ length: n }, () => "")));
+    setWeights((prev) => (prev.length === n ? prev : Array.from({ length: n }, (_, i) => prev[i] ?? "")));
   }, [code, countCustomized, resolvedGroups]);
 
   const pickStandard = (c: string) => {
