@@ -57,15 +57,31 @@ function parseLabelPercent(raw) {
 // mirror of src/lib/parameterValidation.ts resolveLabelTolerance — keep in sync
 function resolveLabelTolerance(std, rawSpec, value) {
   const center = parseLabelPercent(rawSpec);
-  if (!std || std.autoPct == null || std.autoPct <= 0 || center == null) {
+  if (!std) {
+    return { status: "none", center, autoRange: null, headRange: null };
+  }
+  const num = typeof value === "number" ? value : Number(value);
+  const round = (n) => Number(n.toFixed(6));
+  if ((std.mode || "percent") === "range") {
+    const autoRange = std.passLow == null || std.passHigh == null ? null : [round(std.passLow), round(std.passHigh)];
+    const headRange = std.failLow == null || std.failHigh == null ? null : [round(std.failLow), round(std.failHigh)];
+    if (!autoRange || !headRange) return { status: "none", center, autoRange: null, headRange: null };
+    if (value === null || value === undefined || value === "" || Number.isNaN(num)) {
+      return { status: "none", center, autoRange, headRange };
+    }
+    let status;
+    if (num >= autoRange[0] && num <= autoRange[1]) status = "pass";
+    else if (num >= headRange[0] && num <= headRange[1]) status = "review";
+    else status = "fail";
+    return { status, center, autoRange, headRange };
+  }
+  if (std.autoPct == null || std.autoPct <= 0 || center == null) {
     return { status: "none", center, autoRange: null, headRange: null };
   }
   const autoAbs = Math.abs(center) * (std.autoPct / 100);
   const headAbs = std.headPct != null ? Math.abs(center) * (std.headPct / 100) : autoAbs;
-  const round = (n) => Number(n.toFixed(6));
   const autoRange = [round(center - autoAbs), round(center + autoAbs)];
   const headRange = std.headPct != null ? [round(center - headAbs), round(center + headAbs)] : null;
-  const num = typeof value === "number" ? value : Number(value);
   if (value === null || value === undefined || value === "" || Number.isNaN(num)) {
     return { status: "none", center, autoRange, headRange };
   }

@@ -31,6 +31,25 @@ function matchSubstanceKeyJS(name) {
   return first ? first.toLowerCase() : "";
 }
 
+function parseLabelPercentJS(raw) {
+  const m = String(raw == null ? "" : raw).match(/(\d+(?:\.\d+)?)\s*%/);
+  return m ? Number(m[1]) : null;
+}
+
+const CLASSIFICATION_CODES = [
+  ['ULV', 'water'], ['EC', 'water'], ['EW', 'water'], ['SC', 'water'], ['SL', 'water'], ['ME', 'water'], ['ZC', 'water'], ['W/V', 'water'],
+  ['W/W', 'sand'], ['WP', 'powder'], ['WDG', 'powder'], ['WG', 'powder'], ['GR', 'sand'], ['ST', 'sand'], ['GB', 'sand'], ['SP', 'powder'], ['DS', 'powder'], ['DP', 'powder'],
+];
+
+function productTypeFromSpecJS(raw) {
+  const upperValue = String(raw || "").trim().toUpperCase();
+  for (const [code, group] of CLASSIFICATION_CODES.sort((a, b) => b[0].length - a[0].length)) {
+    const pattern = new RegExp(`(^|[^A-Z0-9])${code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^A-Z0-9]|$)`);
+    if (pattern.test(upperValue)) return group;
+  }
+  return "";
+}
+
 // mirror of src/lib/parameterValidation.ts isSubstanceAbnormal: build a virtual field, reuse isNumericAbnormal
 function isSubstanceAbnormalJS(field, std, value) {
   if (!std || !std.operator || std.value == null) return false;
@@ -49,10 +68,24 @@ function visibleSubstanceStandardJS(field, subKey, includeRestricted) {
   return std;
 }
 
-function findLabelToleranceStandardJS(field, subKey) {
-  return (field.labelToleranceStandards || []).find(
-    (s) => matchSubstanceKeyJS(s.substance) === subKey,
-  );
+function findLabelToleranceStandardJS(field, rawSpec, productType) {
+  const subKey = matchSubstanceKeyJS(rawSpec);
+  const labelPercent = parseLabelPercentJS(rawSpec);
+  const wantedProductType = String(productType || "").trim();
+  let best = null;
+  for (const std of field.labelToleranceStandards || []) {
+    const substance = String(std.substance || '').trim();
+    const stdProductTypes = Array.isArray(std.productTypes) ? std.productTypes.filter(Boolean) : [];
+    const wantsSubstance = substance.length > 0;
+    const wantsPercent = std.labelPercent != null;
+    const wantsProductType = stdProductTypes.length > 0;
+    if (wantsSubstance && matchSubstanceKeyJS(substance) !== subKey) continue;
+    if (wantsPercent && labelPercent !== std.labelPercent) continue;
+    if (wantsProductType && (!wantedProductType || !stdProductTypes.includes(wantedProductType))) continue;
+    const score = (wantsPercent ? 4 : 0) + (wantsProductType ? 2 : 0) + (wantsSubstance ? 1 : 0);
+    if (!best || score > best.score) best = { std, score };
+  }
+  return best ? best.std : undefined;
 }
 // รวม rawSpec (มี %) จาก commonName โดย split "+" แล้ว match ด้วย first-token key
 function rawSpecForSubKey(commonName, subKey) {
@@ -265,8 +298,9 @@ router.get("/abnormal-flags", async (req, res) => {
             for (const [vkey, vval] of Object.entries(values)) {
               if (!vkey.startsWith(prefix)) continue;
               const subKey = vkey.slice(prefix.length);
-              const std = findLabelToleranceStandardJS(field, subKey);
               const raw = rawSpecForSubKey(d.commonName, subKey);
+              const productType = productTypeFromSpecJS(raw) || productTypeFromSpecJS(d.commonName);
+              const std = findLabelToleranceStandardJS(field, raw, productType);
               if (isLabelToleranceAbnormal(std, raw, vval)) { flagged = true; break; }
             }
             if (flagged) break;

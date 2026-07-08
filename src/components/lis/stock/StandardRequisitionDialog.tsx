@@ -35,7 +35,9 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
   const [bottleType, setBottleType] = useState<BottleType>("primary");
   const [qrId, setQrId] = useState("");
   const [pickedGroup, setPickedGroup] = useState<InstrumentGroup | null>(null);
+  const [customCount, setCustomCount] = useState(false);
   const [weights, setWeights] = useState<string[]>([""]);
+  const [countText, setCountText] = useState("1"); // buffer ช่องจำนวนน้ำหนัก — ให้ว่างชั่วคราวได้ตอนแก้
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [countCustomized, setCountCustomized] = useState(false);
@@ -114,21 +116,24 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
   const nums = weights.map((w) => Number(w));
   const total = sumWeights(nums);
   const weightError = bottle ? validateWeights(nums, remainingMg) : "";
-  const canSave = !!(bottle && !weightError && user?.name && (!needsGroupPick || pickedGroup));
+  const canSave = !!(bottle && !weightError && user?.name && (!needsGroupPick || pickedGroup || customCount));
 
   const defaultCount = defaultWeightCount(effectiveGroup ?? undefined);
-  const isCustom = !!effectiveGroup && weights.length !== defaultCount;
+  const isCustom = customCount || (!!effectiveGroup && weights.length !== defaultCount);
 
   // ถ้า group index (master-items/simple-methods) โหลดเสร็จหลังเลือกสารแล้ว → resync
   // จำนวนน้ำหนัก default ให้ตรงกลุ่มที่ resolve ได้ (ไม่ทับถ้าผู้ใช้ปรับเอง). loop-safe: set เฉพาะเมื่อ length ต่าง.
   useEffect(() => {
-    if (!code || countCustomized || resolvedGroups.length !== 1) return;
+    if (!code || countCustomized || customCount || resolvedGroups.length !== 1) return;
     const n = defaultWeightCount(resolvedGroups[0]);
     setWeights((prev) => (prev.length === n ? prev : Array.from({ length: n }, (_, i) => prev[i] ?? "")));
-  }, [code, countCustomized, resolvedGroups]);
+  }, [code, countCustomized, customCount, resolvedGroups]);
+
+  // sync buffer ช่องจำนวนน้ำหนักให้ตรง weights.length เมื่อจำนวนถูกเปลี่ยนโดยระบบ (เลือกกลุ่ม/custom/resync)
+  useEffect(() => { setCountText(String(weights.length)); }, [weights.length]);
 
   const pickStandard = (c: string) => {
-    setCode(c); setPickOpen(false); setQrId(""); setPickedGroup(null);
+    setCode(c); setPickOpen(false); setQrId(""); setPickedGroup(null); setCustomCount(false);
     const counts = { primary: 0, working: 0, supplier: 0 } as Record<BottleType, number>;
     for (const u of usableByCode.get(c) ?? []) counts[((u.type || "primary") as BottleType)] += 1;
     setBottleType(TYPES.find((t) => counts[t] > 0) ?? "primary");
@@ -140,8 +145,16 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
   };
   const pickGroup = (g: InstrumentGroup) => {
     setPickedGroup(g);
+    setCustomCount(false);
     setWeights(Array.from({ length: defaultWeightCount(g) }, () => ""));
     setCountCustomized(false);
+  };
+  // "Custom" = กำหนดจำนวนน้ำหนักเอง: รีเซ็ตเป็น 1 แล้วปรับต่อได้ (instrumentGroup ยึดที่ resolve ได้ ดู submitGroup)
+  const selectCustom = () => {
+    setCustomCount(true);
+    setPickedGroup(null);
+    setWeights([""]);
+    setCountCustomized(true);
   };
   const setWeightAt = (i: number, v: string) => setWeights((prev) => { const x = [...prev]; x[i] = v; return x; });
   const setCount = (n: number) => {
@@ -159,7 +172,7 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
     try {
       await api.deductStockUnitMg(bottle.qrId, {
         weights: nums,
-        instrumentGroup: effectiveGroup ?? undefined,
+        instrumentGroup: submitGroup,
         note: note || undefined,
       });
       toast.success(`เบิก ${standard?.name ?? "standard"} ${nums.length} น้ำหนัก (${total} mg)`);
@@ -171,11 +184,19 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
     } finally { setBusy(false); }
   };
 
-  const groupChoices: InstrumentGroup[] = resolvedGroups.length >= 2 ? resolvedGroups : (["gc", "hplc"] as InstrumentGroup[]);
+  // ปุ่มกลุ่มที่โชว์: resolve ได้ = โชว์กลุ่มนั้นๆ, resolve ไม่ได้ = ให้เลือก gc/hplc เอง
+  const groupButtons: InstrumentGroup[] =
+    resolvedGroups.length >= 1 ? resolvedGroups : (["gc", "hplc"] as InstrumentGroup[]);
+  // ปุ่มที่กำลัง active (ไฮไลต์): custom ชนะ, ไม่งั้นตามกลุ่มที่ resolve/เลือก
+  const activeSel: InstrumentGroup | "custom" | null = customCount ? "custom" : effectiveGroup;
+  // instrumentGroup ที่ส่ง backend: custom = ยึดกลุ่มเดียวที่ผูกไว้ (ถ้ามี) ไม่งั้นว่าง
+  const submitGroup: InstrumentGroup | undefined = customCount
+    ? (resolvedGroups.length === 1 ? resolvedGroups[0] : undefined)
+    : (effectiveGroup ?? undefined);
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>เบิก Standard</DialogTitle>
           <DialogDescription>เลือกสาร ประเภทขวด แล้วกรอก mg แต่ละน้ำหนัก (กลุ่มเครื่องมาจาก simple method)</DialogDescription>
@@ -212,66 +233,67 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
 
           {code && (
             <>
-              {/* วิธี / กลุ่มเครื่อง (จาก simple method) */}
+              {/* วิธี / กลุ่มเครื่อง (จาก simple method) + Custom = กำหนดจำนวนน้ำหนักเอง */}
               <div>
                 <Label className="mb-1.5 block">วิธี / กลุ่มเครื่อง</Label>
-                {resolvedGroups.length === 1 ? (
-                  <div className="inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm">
-                    <span className="font-medium">{GROUP_LABEL[resolvedGroups[0]]}</span>
-                    <span className="text-xs text-muted-foreground">· default {defaultWeightCount(resolvedGroups[0])} น้ำหนัก</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex gap-1.5">
-                      {groupChoices.map((g) => (
-                        <Button key={g} type="button" size="sm" variant={pickedGroup === g ? "default" : "outline"}
-                          className="h-8 text-xs" onClick={() => pickGroup(g)}>
-                          {GROUP_LABEL[g]}
-                        </Button>
-                      ))}
-                    </div>
-                    {resolvedGroups.length === 0 && (
-                      <p className="mt-1 text-xs text-amber-600">
-                        สารนี้ยังไม่มี simple method ระบุเครื่อง — ไปตั้งที่ Simple Method (เลือกเองชั่วคราวได้)
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* ประเภทขวด */}
-              <div>
-                <Label className="mb-1.5 block">ประเภทขวด</Label>
-                <div className="flex gap-1.5">
-                  {TYPES.map((t) => (
-                    <Button key={t} type="button" size="sm" disabled={typeCounts[t] === 0}
-                      variant={bottleType === t ? "default" : "outline"} className="h-8 text-xs"
-                      onClick={() => { setBottleType(t); setQrId(""); }}>
-                      {t} ({typeCounts[t]})
+                <div className="flex flex-wrap gap-1.5">
+                  {groupButtons.map((g) => (
+                    <Button key={g} type="button" size="sm" variant={activeSel === g ? "default" : "outline"}
+                      className="h-8 text-xs" onClick={() => pickGroup(g)}>
+                      {GROUP_LABEL[g]} <span className="ml-1 opacity-70">({defaultWeightCount(g)})</span>
                     </Button>
                   ))}
+                  <Button type="button" size="sm" variant={activeSel === "custom" ? "default" : "outline"}
+                    className="h-8 text-xs" onClick={selectCustom}>
+                    Custom
+                  </Button>
                 </div>
+                {resolvedGroups.length === 0 && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    สารนี้ยังไม่มี simple method ระบุเครื่อง — ไปตั้งที่ Simple Method (เลือกเองชั่วคราวได้)
+                  </p>
+                )}
+                {activeSel === "custom" && (
+                  <p className="mt-1 text-xs text-muted-foreground">กำหนดจำนวนน้ำหนักเอง</p>
+                )}
               </div>
 
-              {/* ขวด */}
-              <div>
-                <Label className="mb-1.5 block">ขวด (EXP ใกล้สุดก่อน)</Label>
-                {bottlesOfType.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">ไม่มีขวดประเภทนี้</p>
-                ) : (
-                  <div className="space-y-1.5">
-                    {bottlesOfType.map((u) => (
-                      <label key={u.qrId} className={cn(
-                        "flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm",
-                        (bottle?.qrId === u.qrId) ? "border-primary bg-primary/5" : "hover:bg-muted/50")}>
-                        <input type="radio" name="bottle" checked={bottle?.qrId === u.qrId} onChange={() => setQrId(u.qrId)} />
-                        <span className="text-xs text-muted-foreground">
-                          Lot {u.lotNo || "-"} · เหลือ {u.volume?.remaining} {u.volume?.unit} · EXP {u.exp ? new Date(u.exp).toLocaleDateString("th-TH") : "-"}
-                        </span>
-                      </label>
+              {/* ประเภทขวด (ซ้าย) + ขวด (ขวา) — คนละกล่อง */}
+              <div className="grid grid-cols-[minmax(7rem,auto)_1fr] gap-4 items-start">
+                {/* ประเภทขวด */}
+                <div className="rounded-lg border p-3">
+                  <Label className="mb-1.5 block">ประเภทขวด</Label>
+                  <div className="flex flex-col gap-1.5">
+                    {TYPES.map((t) => (
+                      <Button key={t} type="button" size="sm" disabled={typeCounts[t] === 0}
+                        variant={bottleType === t ? "default" : "outline"} className="h-8 justify-start text-xs"
+                        onClick={() => { setBottleType(t); setQrId(""); }}>
+                        {t} ({typeCounts[t]})
+                      </Button>
                     ))}
                   </div>
-                )}
+                </div>
+
+                {/* ขวด */}
+                <div className="min-w-0 rounded-lg border p-3">
+                  <Label className="mb-1.5 block">ขวด (EXP ใกล้สุดก่อน)</Label>
+                  {bottlesOfType.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">ไม่มีขวดประเภทนี้</p>
+                  ) : (
+                    <div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
+                      {bottlesOfType.map((u) => (
+                        <label key={u.qrId} className={cn(
+                          "flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm",
+                          (bottle?.qrId === u.qrId) ? "border-primary bg-primary/5" : "hover:bg-muted/50")}>
+                          <input type="radio" name="bottle" checked={bottle?.qrId === u.qrId} onChange={() => setQrId(u.qrId)} />
+                          <span className="text-xs text-muted-foreground">
+                            Lot {u.lotNo || "-"} · เหลือ {u.volume?.remaining} {u.volume?.unit} · EXP {u.exp ? new Date(u.exp).toLocaleDateString("th-TH") : "-"}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* จำนวนน้ำหนัก + mg */}
@@ -282,8 +304,17 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
                       จำนวนน้ำหนัก
                       {isCustom && <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">custom</span>}
                     </Label>
-                    <Input type="number" min={1} max={20} value={weights.length} className="h-8 w-20"
-                      onChange={(e) => setCount(Math.min(20, Math.max(1, Number(e.target.value) || 1)))} />
+                    <Input type="number" min={1} max={20} value={countText} className="h-8 w-20"
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        setCountText(raw); // ปล่อยว่าง/ค่ากลางๆ ได้ระหว่างพิมพ์
+                        const n = Number(raw);
+                        if (raw !== "" && Number.isInteger(n) && n >= 1 && n <= 20) setCount(n);
+                      }}
+                      onBlur={() => {
+                        const n = Number(countText);
+                        if (!(Number.isInteger(n) && n >= 1 && n <= 20)) setCountText(String(weights.length));
+                      }} />
                   </div>
                   <div className="space-y-1.5">
                     {weights.map((w, i) => (

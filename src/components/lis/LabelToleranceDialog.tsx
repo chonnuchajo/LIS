@@ -1,250 +1,314 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Plus, Trash2, Search } from "lucide-react";
-import { api, type ParameterValueField, type LabelToleranceStandard } from "@/lib/api";
-import { parseSubstances, extractSubstanceName, matchSubstanceKey } from "@/lib/substances";
-import { tradeNameKeys } from "@/lib/masterItemFields";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
+import { type LabelToleranceRule, type ParameterValueField } from "@/lib/api";
+import { productTypeLabels } from "@/lib/productClassification";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useAuth } from "@/context/AuthContext";
+import { normalizeRoles } from "@/lib/roles";
 
-const COMMON_NAME_KEYS = ["common_name", "commonname", "commonName", "item_name2", "itemType"];
-function pickField(row: Record<string, unknown>, keys: string[]): string {
-  for (const k of keys) {
-    const v = row?.[k];
-    if (v != null && String(v).trim() !== "") return String(v).trim();
+const PRODUCT_TYPE_OPTIONS = [
+  { value: "water", label: productTypeLabels.water },
+  { value: "sand", label: productTypeLabels.sand },
+  { value: "powder", label: productTypeLabels.powder },
+] as const;
+
+function emptyRule(): LabelToleranceRule {
+  return {
+    mode: "percent",
+    substance: "",
+    labelPercent: null,
+    productTypes: [],
+    autoPct: null,
+    headPct: null,
+  };
+}
+
+function toggleValue(list: string[] | undefined, value: string): string[] {
+  const set = new Set((list ?? []).filter(Boolean));
+  if (set.has(value)) set.delete(value);
+  else set.add(value);
+  return [...set];
+}
+
+function hasSelector(rule: LabelToleranceRule): boolean {
+  return Boolean(String(rule.substance ?? "").trim())
+    || rule.labelPercent != null
+    || (rule.productTypes?.length ?? 0) > 0;
+}
+
+function isRuleInvalid(rule: LabelToleranceRule): boolean {
+  if (!hasSelector(rule)) return true;
+  if (rule.labelPercent != null && rule.labelPercent <= 0) return true;
+  if ((rule.mode ?? "percent") === "range") {
+    if ([rule.failLow, rule.passLow, rule.passHigh, rule.failHigh].some((v) => v == null)) return true;
+    if (!(rule.failLow! <= rule.passLow! && rule.passLow! <= rule.passHigh! && rule.passHigh! <= rule.failHigh!)) return true;
+  } else {
+    if (rule.autoPct == null || rule.autoPct <= 0) return true;
+    if (rule.headPct != null && rule.headPct < rule.autoPct) return true;
   }
-  return "";
+  return false;
 }
-function buildSubstances(commonNames: string[]): string[] {
-  const byKey = new Map<string, string>();
-  for (const cn of commonNames) {
-    for (const raw of parseSubstances(cn)) {
-      const name = extractSubstanceName(raw) || raw;
-      const key = matchSubstanceKey(name);
-      if (key && !byKey.has(key)) byKey.set(key, name);
-    }
+
+function previewLine(rule: LabelToleranceRule): string {
+  const selectors = [
+    rule.substance?.trim() || "",
+    rule.labelPercent != null ? `${rule.labelPercent}%` : "",
+    (rule.productTypes ?? []).map((pt) => productTypeLabels[pt] ?? pt).join("/"),
+  ].filter(Boolean).join(" ");
+
+  if ((rule.mode ?? "percent") === "range") {
+    if ([rule.failLow, rule.passLow, rule.passHigh, rule.failHigh].some((v) => v == null)) return "";
+    return `${selectors || "กฎ"} -> fail < ${rule.failLow} | review ${rule.failLow}-${rule.passLow} และ ${rule.passHigh}-${rule.failHigh} | pass ${rule.passLow}-${rule.passHigh}`;
   }
-  return [...byKey.values()].sort((a, b) => a.localeCompare(b, ["th", "en"]));
-}
-function buildCommonNameOptions(commonNames: string[]): string[] {
-  return [...new Set(commonNames.map((v) => String(v).trim()).filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, ["th", "en"]));
-}
-function previewLine(std: LabelToleranceStandard): string {
-  if (std.autoPct == null) return "";
-  const c = 1; // ตัวอย่างฉลาก 1%
-  const a = c * (std.autoPct / 100);
-  const h = std.headPct != null ? c * (std.headPct / 100) : a;
-  const auto = `ผ่าน ${(c - a).toFixed(3)}–${(c + a).toFixed(3)}`;
-  const head = std.headPct != null ? ` · หัวหน้าถึง ${(c - h).toFixed(3)}–${(c + h).toFixed(3)}` : "";
-  return `ตัวอย่างฉลาก 1% → ${auto}${head}`;
-}
-function isRowInvalid(std: LabelToleranceStandard): boolean {
-  return std.autoPct == null || std.autoPct <= 0 || (std.headPct != null && std.headPct < std.autoPct);
+
+  if (rule.autoPct == null || rule.autoPct <= 0) return "";
+  const center = rule.labelPercent ?? 1;
+  const autoAbs = center * (rule.autoPct / 100);
+  const headAbs = rule.headPct != null ? center * (rule.headPct / 100) : autoAbs;
+  const auto = `ผ่าน ${(center - autoAbs).toFixed(5)}-${(center + autoAbs).toFixed(5)}`;
+  const head = rule.headPct != null
+    ? ` | หัวหน้าตรวจสอบ ${(center - headAbs).toFixed(5)}-${(center + headAbs).toFixed(5)}`
+    : "";
+  return `${selectors || "กฎ"} -> ${auto}${head}`;
 }
 
 type Props = {
   open: boolean;
   field: ParameterValueField;
   onClose: () => void;
-  onSave: (next: LabelToleranceStandard[]) => void;
+  onSave: (next: LabelToleranceRule[]) => void;
 };
 
 export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
-  const unit = field.unit ? ` ${field.unit}` : "";
-  const [list, setList] = useState<LabelToleranceStandard[]>(field.labelToleranceStandards ?? []);
-  const [search, setSearch] = useState("");
+  const [list, setList] = useState<LabelToleranceRule[]>(field.labelToleranceStandards ?? []);
+  const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
+  const { user } = useAuth();
+
+  const canEditHeadFields = useMemo(() => {
+    const roles = normalizeRoles(user);
+    return roles.includes("admin") || roles.includes("qc-head");
+  }, [user]);
 
   useEffect(() => {
-    if (open) { setList(field.labelToleranceStandards ?? []); setSearch(""); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  const { data: masterRows = [] } = useQuery<Record<string, unknown>[]>({
-    queryKey: ["master-items"],
-    queryFn: async () => {
-      const res = await api.get<Record<string, unknown>[]>("/master-items");
-      return Array.isArray(res.data.data) ? res.data.data : [];
-    },
-    enabled: open,
-  });
-  const { data: groups = [] } = useQuery<{ _id: string; name: string; commonNames?: string[] }[]>({
-    queryKey: ["item-groups"],
-    queryFn: async () => {
-      const res = await api.get<{ _id: string; name: string; commonNames?: string[] }[]>("/item-groups");
-      return Array.isArray(res.data.data) ? res.data.data : [];
-    },
-    enabled: open,
-  });
-  const safeRows = Array.isArray(masterRows) ? masterRows : [];
-  const safeGroups = Array.isArray(groups) ? groups : [];
-
-  const commonNameOptions = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const commonNames = safeRows
-      .map((row) => pickField(row, COMMON_NAME_KEYS))
-      .filter((cn) => !q || cn.toLowerCase().includes(q));
-    return buildCommonNameOptions(commonNames);
-  }, [safeRows, search]);
-
-  const tradeNameOptions = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const byTrade = new Map<string, Set<string>>();
-    for (const row of safeRows) {
-      const tradeName = pickField(row, tradeNameKeys);
-      if (!tradeName) continue;
-      const cn = pickField(row, COMMON_NAME_KEYS);
-      if (!byTrade.has(tradeName)) byTrade.set(tradeName, new Set());
-      if (cn) byTrade.get(tradeName)!.add(cn);
+    if (open) {
+      setList(field.labelToleranceStandards ?? []);
+      setCollapsed({});
     }
-    return [...byTrade.entries()]
-      .filter(([t]) => !q || t.toLowerCase().includes(q))
-      .map(([tradeName, cns]) => ({ tradeName, substances: buildSubstances([...cns]) }))
-      .sort((a, b) => a.tradeName.localeCompare(b.tradeName, ["th", "en"]));
-  }, [safeRows, search]);
+  }, [field.labelToleranceStandards, open]);
 
-  const selectedKeys = useMemo(() => new Set(list.map((s) => matchSubstanceKey(s.substance))), [list]);
-  const hasInvalid = useMemo(() => list.some(isRowInvalid), [list]);
-  const addSubstance = (name: string) => {
-    const key = matchSubstanceKey(name);
-    if (!key || selectedKeys.has(key)) return;
-    setList((prev) => [...prev, { substance: name, autoPct: null, headPct: null }]);
+  const hasInvalid = useMemo(() => list.some(isRuleInvalid), [list]);
+
+  const patchAt = (index: number, patch: Partial<LabelToleranceRule>) => {
+    setList((prev) => prev.map((rule, i) => (i === index ? { ...rule, ...patch } : rule)));
   };
-  const removeAt = (i: number) => setList((prev) => prev.filter((_, idx) => idx !== i));
-  const patchAt = (i: number, patch: Partial<LabelToleranceStandard>) =>
-    setList((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
 
-  const filterBox = (
-    <div className="relative mb-2">
-      <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-      <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหา..." className="h-9 pl-8" />
-    </div>
-  );
-  const commonNameList = (names: string[]) => (
-    <div className="max-h-[30rem] overflow-y-auto rounded border divide-y">
-      {names.length === 0 ? (
-        <p className="p-3 text-xs text-muted-foreground">ไม่พบ common name</p>
-      ) : names.map((cn) => {
-        const subs = buildSubstances([cn]);
-        const allAdded = subs.length > 0 && subs.every((n) => selectedKeys.has(matchSubstanceKey(n)));
-        return (
-          <button key={cn} type="button" disabled={subs.length === 0 || allAdded}
-            onClick={() => subs.forEach(addSubstance)}
-            className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-40" title={cn}>
-            <div className="min-w-0">
-              <div className="break-words font-medium text-foreground">{cn}</div>
-              {subs.length > 0 && <div className="mt-1 break-words text-xs text-muted-foreground">สาร: {subs.join(", ")}</div>}
-            </div>
-            {!allAdded && subs.length > 0 && <Plus className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
-          </button>
-        );
-      })}
-    </div>
-  );
+  const addRule = () => setList((prev) => [...prev, emptyRule()]);
+
+  const removeRule = (index: number) => {
+    setList((prev) => prev.filter((_, i) => i !== index));
+    setCollapsed((prev) => {
+      const next: Record<number, boolean> = {};
+      for (const [key, value] of Object.entries(prev)) {
+        const n = Number(key);
+        if (n < index) next[n] = value;
+        else if (n > index) next[n - 1] = value;
+      }
+      return next;
+    });
+  };
+
+  const toggleCollapsed = (index: number) => {
+    setCollapsed((prev) => ({ ...prev, [index]: !prev[index] }));
+  };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="w-[95vw] sm:w-[95vw] max-w-[1400px] sm:max-w-[1400px] max-h-[90vh] overflow-hidden">
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden">
         <DialogHeader>
-          <DialogTitle>ตั้งเกณฑ์ตาม %สาร — {field.label}</DialogTitle>
+          <DialogTitle>ตั้งเกณฑ์ตาม % และประเภทสินค้า - {field.label}</DialogTitle>
           <p className="text-xs text-muted-foreground">
-            ศูนย์กลางแกะจาก %ในชื่อสารอัตโนมัติ · สารที่ชื่อไม่มี % จะข้ามการตรวจ
+            ตั้ง rule ได้จาก %ฉลาก, ประเภทสินค้า, และสารแบบไม่บังคับ ระบบจะเลือกกฎที่ตรงที่สุดให้อัตโนมัติ
           </p>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-4 overflow-hidden md:grid-cols-[1fr_1.6fr]">
-          <div>
-            <Label className="text-sm mb-1.5 block">เลือกสาร</Label>
-            <Tabs defaultValue="common">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="common">commonName</TabsTrigger>
-                <TabsTrigger value="group">กลุ่ม</TabsTrigger>
-                <TabsTrigger value="trade">trade name</TabsTrigger>
-              </TabsList>
-              <TabsContent value="common">{filterBox}{commonNameList(commonNameOptions)}</TabsContent>
-              <TabsContent value="group">
-                <div className="max-h-[30rem] overflow-y-auto rounded border divide-y">
-                  {safeGroups.map((g) => {
-                    const subs = buildSubstances(g.commonNames ?? []);
-                    const allAdded = subs.length > 0 && subs.every((n) => selectedKeys.has(matchSubstanceKey(n)));
-                    return (
-                      <button key={g._id} type="button" disabled={subs.length === 0 || allAdded}
-                        onClick={() => subs.forEach(addSubstance)}
-                        className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-40">
-                        <span className="truncate">{g.name}</span>
-                        {!allAdded && subs.length > 0 && <Plus className="h-4 w-4 text-primary shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </TabsContent>
-              <TabsContent value="trade">
-                {filterBox}
-                <div className="max-h-[30rem] overflow-y-auto rounded border divide-y">
-                  {tradeNameOptions.length === 0 ? (
-                    <p className="p-3 text-xs text-muted-foreground">ไม่พบ trade name</p>
-                  ) : tradeNameOptions.map(({ tradeName, substances }) => {
-                    const allAdded = substances.length > 0 && substances.every((n) => selectedKeys.has(matchSubstanceKey(n)));
-                    return (
-                      <button key={tradeName} type="button" disabled={substances.length === 0 || allAdded}
-                        onClick={() => substances.forEach(addSubstance)}
-                        className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-40" title={tradeName}>
-                        <div className="min-w-0">
-                          <div className="break-words font-medium text-foreground">{tradeName}</div>
-                          {substances.length > 0 && <div className="mt-1 break-words text-xs text-muted-foreground">สาร: {substances.join(", ")}</div>}
-                        </div>
-                        {!allAdded && substances.length > 0 && <Plus className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </TabsContent>
-            </Tabs>
+        <div className="space-y-3 overflow-y-auto pr-1">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm">กฎ ({list.length})</Label>
+            <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={addRule}>
+              <Plus className="h-4 w-4" />
+              เพิ่มกฎ
+            </Button>
           </div>
 
-          <div>
-            <Label className="text-sm mb-1.5 block">เกณฑ์ต่อสาร ({list.length})</Label>
-            <div className="max-h-[32rem] space-y-2 overflow-y-auto pr-1">
-              {list.length === 0 ? (
-                <p className="text-xs text-muted-foreground">ยังไม่ได้เลือกสาร</p>
-              ) : list.map((std, i) => (
-                <div key={matchSubstanceKey(std.substance)} className="rounded border p-2 space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium truncate">{std.substance}</span>
-                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeAt(i)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
+          {list.length === 0 ? (
+            <p className="rounded border border-dashed p-4 text-sm text-muted-foreground">ยังกำหนดเกณฑ์ไว้</p>
+          ) : null}
+
+          {list.map((rule, index) => (
+            <div key={index} className="space-y-3 rounded-lg border p-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleCollapsed(index)}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                  aria-expanded={!collapsed[index]}
+                >
+                  <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${collapsed[index] ? "-rotate-90" : ""}`} />
+                  <span className="text-sm font-medium">กฎที่ {index + 1}</span>
+                </button>
+                <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeRule(index)}>
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </Button>
+              </div>
+
+              {collapsed[index] ? (
+                <p className="text-xs text-emerald-700">{previewLine(rule) || "ยังไม่ได้ตั้งค่าเกณฑ์"}</p>
+              ) : (
+                <>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">สาร (ไม่บังคับ)</Label>
+                      <Input
+                        value={rule.substance ?? ""}
+                        onChange={(e) => patchAt(index, { substance: e.target.value })}
+                        placeholder="เช่น ABAMECTIN"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">% ฉลาก (ไม่บังคับ)</Label>
+                      <Input
+                        type="number"
+                        value={rule.labelPercent ?? ""}
+                        onChange={(e) => patchAt(index, { labelPercent: e.target.value === "" ? null : Number(e.target.value) })}
+                        placeholder="เช่น 1 หรือ 0.3"
+                      />
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="text-muted-foreground">±ออโต้</span>
-                    <Input type="number" value={std.autoPct ?? ""} placeholder="เช่น 2.5"
-                      onChange={(e) => patchAt(i, { autoPct: e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })}
-                      className="h-8 w-20" />
-                    <span className="text-muted-foreground">% · ±หัวหน้า</span>
-                    <Input type="number" value={std.headPct ?? ""} placeholder="เช่น 5"
-                      onChange={(e) => patchAt(i, { headPct: e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })}
-                      className="h-8 w-20" />
-                    <span className="text-muted-foreground">%{unit}</span>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">โหมดเกณฑ์</Label>
+                    <div className="flex flex-wrap gap-4 text-sm">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          checked={(rule.mode ?? "percent") === "percent"}
+                          onChange={() => patchAt(index, { mode: "percent" })}
+                        />
+                        เปอร์เซ็นต์ ±
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          checked={(rule.mode ?? "percent") === "range"}
+                          onChange={() => patchAt(index, { mode: "range" })}
+                        />
+                        ช่วงกำหนดเอง
+                      </label>
+                    </div>
                   </div>
-                  <p className="text-xs text-emerald-700">{previewLine(std)}</p>
-                  {isRowInvalid(std) && (
-                    <p className="text-xs text-red-600">กรอก ±ออโต้ (&gt;0) และ ±หัวหน้า ≥ ±ออโต้</p>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">ประเภทสินค้า (ไม่บังคับ)</Label>
+                    <div className="flex flex-wrap gap-3">
+                      {PRODUCT_TYPE_OPTIONS.map((opt) => {
+                        const checked = (rule.productTypes ?? []).includes(opt.value);
+                        return (
+                          <label key={opt.value} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => patchAt(index, { productTypes: toggleValue(rule.productTypes, opt.value) as LabelToleranceRule["productTypes"] })}
+                            />
+                            {opt.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {(rule.mode ?? "percent") === "range" ? (
+                    <div className="space-y-1.5">
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">ค่าต่ำสุดรอตรวจสอบ</Label>
+                          <Input type="number" value={rule.failLow ?? ""} onChange={(e) => patchAt(index, { failLow: e.target.value === "" ? null : Number(e.target.value) })} />
+                        </div>
+                        {canEditHeadFields && (
+                          <div className="space-y-1.5">
+                            <Label className="text-sm">ต่ำสุดที่ผ่าน</Label>
+                            <Input type="number" value={rule.passLow ?? ""} onChange={(e) => patchAt(index, { passLow: e.target.value === "" ? null : Number(e.target.value) })} />
+                          </div>
+                        )}
+                        <div className="space-y-1.5 order-3 md:order-3">
+                          <Label className="text-sm">ค่าสูงสุดรอตรวจสอบ</Label>
+                          <Input type="number" value={rule.failHigh ?? ""} onChange={(e) => patchAt(index, { failHigh: e.target.value === "" ? null : Number(e.target.value) })} />
+                        </div>
+                        {canEditHeadFields && (
+                          <div className="space-y-1.5 order-4 md:order-4">
+                            <Label className="text-sm">สูงสุดที่ผ่าน</Label>
+                            <Input type="number" value={rule.passHigh ?? ""} onChange={(e) => patchAt(index, { passHigh: e.target.value === "" ? null : Number(e.target.value) })} />
+                          </div>
+                        )}
+                      </div>
+                      {!canEditHeadFields && (
+                        <p className="text-xs text-muted-foreground">ช่วง "ที่ผ่าน" (ต่ำสุด/สูงสุด) กำหนดโดย ADMIN / QC Head</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-sm">ผ่าน</Label>
+                        <Input
+                          type="number"
+                          value={rule.autoPct ?? ""}
+                          onChange={(e) => patchAt(index, { autoPct: e.target.value === "" ? null : Number(e.target.value) })}
+                          placeholder="เช่น 11.25"
+                        />
+                      </div>
+                      {canEditHeadFields && (
+                        <div className="space-y-1.5">
+                          <Label className="text-sm">หัวหน้าตรวจสอบ</Label>
+                          <Input
+                            type="number"
+                            value={rule.headPct ?? ""}
+                            onChange={(e) => patchAt(index, { headPct: e.target.value === "" ? null : Number(e.target.value) })}
+                            placeholder="เช่น 15"
+                          />
+                        </div>
+                      )}
+                    </div>
                   )}
-                </div>
-              ))}
+
+                  <p className="text-xs text-emerald-700">{previewLine(rule)}</p>
+                  {isRuleInvalid(rule) ? (
+                    <p className="text-xs text-red-600">ต้องกรอกตัวเลือกอย่างน้อย 1 อย่าง และกรอกค่าตามโหมดให้ครบ โดยช่วงต้องเรียงจากต่ำไปสูง</p>
+                  ) : null}
+                </>
+              )}
             </div>
-          </div>
+          ))}
         </div>
 
-        {hasInvalid && (
-          <p className="text-right text-xs text-red-600">กรอก ±ออโต้ (&gt;0) และ ±หัวหน้า ≥ ±ออโต้ ให้ครบทุกสาร</p>
-        )}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button type="button" variant="primary" disabled={hasInvalid} onClick={() => { onSave(list); onClose(); }}>บันทึก</Button>
+          <Button
+            type="button"
+            variant="primary"
+            disabled={hasInvalid}
+            onClick={() => {
+              onSave(list.map((rule) => ({
+                ...rule,
+                substance: String(rule.substance ?? "").trim(),
+                productTypes: (rule.productTypes ?? []).filter(Boolean),
+              })));
+              onClose();
+            }}
+          >
+            บันทึก
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

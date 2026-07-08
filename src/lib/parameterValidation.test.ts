@@ -952,6 +952,12 @@ describe("resolveLabelTolerance", () => {
     expect(isLabelToleranceAbnormal(std, "A 1%", 1.0)).toBe(false);
     expect(isLabelToleranceAbnormal(std, "A no-percent", 1.0)).toBe(false);
   });
+  it("supports custom range mode", () => {
+    const rangeStd = { substance: "", mode: "range" as const, failLow: 0.225, passLow: 0.2438, passHigh: 0.3563, failHigh: 0.375 };
+    expect(resolveLabelTolerance(rangeStd, "ANY 0.3%", 0.3).status).toBe("pass");
+    expect(resolveLabelTolerance(rangeStd, "ANY 0.3%", 0.23).status).toBe("review");
+    expect(resolveLabelTolerance(rangeStd, "ANY 0.3%", 0.38).status).toBe("fail");
+  });
 });
 
 describe("findLabelToleranceStandard", () => {
@@ -962,6 +968,17 @@ describe("findLabelToleranceStandard", () => {
   });
   it("returns undefined for unlisted substance", () => {
     expect(findLabelToleranceStandard(field, "GLYPHOSATE")).toBeUndefined();
+  });
+  it("matches by label percent and product type without substance", () => {
+    const nextField: any = {
+      label: "v", type: "number", labelToleranceMode: true,
+      labelToleranceStandards: [
+        { substance: "", labelPercent: 1, productTypes: ["water"], autoPct: 11.25, headPct: 15 },
+        { substance: "", labelPercent: 1, productTypes: ["sand"], autoPct: 18.75, headPct: 25 },
+      ],
+    };
+    expect(findLabelToleranceStandard(nextField, "ANY 1% W/V EC", "water")?.autoPct).toBe(11.25);
+    expect(findLabelToleranceStandard(nextField, "ANY 1% W/W GR", "sand")?.autoPct).toBe(18.75);
   });
 });
 
@@ -987,5 +1004,38 @@ describe("countAbnormalInResults — labelTolerance", () => {
     const noPct = [{ petitionId: "pt1", itemSeq: 0, parameterId: "p1",
       commonName: "ABAMECTIN 480 G/L", values: { "%w/v::abamectin": 999 } }] as any;
     expect(countAbnormalInResults(noPct, [param])).toBe(0);
+  });
+  it("distinguishes the same percent by product type", () => {
+    const mixedParam: any = {
+      _id: "p2", multiEntry: false,
+      valueFields: [{
+        label: "%AI", type: "number", unit: "%", labelToleranceMode: true,
+        labelToleranceStandards: [
+          { substance: "", labelPercent: 1, productTypes: ["water"], autoPct: 11.25, headPct: 15 },
+          { substance: "", labelPercent: 1, productTypes: ["sand"], autoPct: 18.75, headPct: 25 },
+        ],
+      }],
+    };
+    const water = [{ petitionId: "pt2", itemSeq: 0, parameterId: "p2", commonName: "X 1% W/V EC", values: { "%AI::x": 1.14 } }] as any;
+    const sand = [{ petitionId: "pt2", itemSeq: 0, parameterId: "p2", commonName: "X 1% W/W GR", values: { "%AI::x": 1.14 } }] as any;
+    expect(countAbnormalInResults(water, [mixedParam])).toBe(1);
+    expect(countAbnormalInResults(sand, [mixedParam])).toBe(0);
+  });
+  it("flags review and fail for custom range mode", () => {
+    const rangeParam: any = {
+      _id: "p3", multiEntry: false,
+      valueFields: [{
+        label: "%AI", type: "number", unit: "%", labelToleranceMode: true,
+        labelToleranceStandards: [
+          { substance: "", labelPercent: 0.3, productTypes: ["sand"], mode: "range", failLow: 0.225, passLow: 0.2438, passHigh: 0.3563, failHigh: 0.375 },
+        ],
+      }],
+    };
+    const pass = [{ petitionId: "pt3", itemSeq: 0, parameterId: "p3", commonName: "X 0.3% W/W GR", values: { "%AI::x": 0.3 } }] as any;
+    const review = [{ petitionId: "pt3", itemSeq: 0, parameterId: "p3", commonName: "X 0.3% W/W GR", values: { "%AI::x": 0.23 } }] as any;
+    const fail = [{ petitionId: "pt3", itemSeq: 0, parameterId: "p3", commonName: "X 0.3% W/W GR", values: { "%AI::x": 0.4 } }] as any;
+    expect(countAbnormalInResults(pass, [rangeParam])).toBe(0);
+    expect(countAbnormalInResults(review, [rangeParam])).toBe(1);
+    expect(countAbnormalInResults(fail, [rangeParam])).toBe(1);
   });
 });

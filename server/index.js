@@ -90,7 +90,12 @@ if (fs.existsSync(distPath)) {
 function loadAllModels() {
   const modelsDir = path.join(__dirname, 'models');
   for (const file of fs.readdirSync(modelsDir)) {
-    if (file.endsWith('.js')) require(path.join(modelsDir, file));
+    // Only load model modules — skip co-located test files (*.test.js / *.spec.js).
+    // Requiring a test file here runs describe()/test() outside any test runner,
+    // throwing "describe is not defined" and crashing boot before app.listen().
+    if (file.endsWith('.js') && !/\.(test|spec)\.js$/.test(file)) {
+      require(path.join(modelsDir, file));
+    }
   }
 }
 
