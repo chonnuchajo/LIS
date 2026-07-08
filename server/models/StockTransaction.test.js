@@ -9,4 +9,10 @@ describe('StockTransaction schema', () => {
     expect(path.enumValues).toContain('hplc');
     expect(path.defaultValue).toBeNull();
   });
+
+  test('rejects out-of-enum instrumentGroup', () => {
+    const doc = new StockTransaction({ itemType: 'standard', itemId: 'x', action: 'deduct', instrumentGroup: 'lcms' });
+    const err = doc.validateSync();
+    expect(err && err.errors && err.errors.instrumentGroup).toBeTruthy();
+  });
 });

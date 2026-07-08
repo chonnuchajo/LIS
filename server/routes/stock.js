@@ -229,7 +229,9 @@ router.post('/units/:qrId/deduct-mg', async (req, res) => {
     const amount = Array.isArray(weights) && weights.length ? sumWeights(weights) : mg;
     const meta = {
       weights: Array.isArray(weights) ? weights.map(Number) : undefined,
-      instrumentId, instrumentName, instrumentGroup, sampleId,
+      instrumentId, instrumentName, sampleId,
+      // กัน audit หาย: ค่านอก enum → undefined (default null)
+      instrumentGroup: instrumentGroup === 'gc' || instrumentGroup === 'hplc' ? instrumentGroup : undefined,
       note: [petitionNo, note].filter(Boolean).join(' · '),
       ...userMeta(req),
     };
