@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { isEnumAbnormal } = require('./abnormal');
+const { isEnumAbnormal, parseLabelPercent } = require('./abnormal');
 
 test('optionOutputs: only abnormal kind is flagged', () => {
   const field = {
@@ -35,4 +35,11 @@ test('optionOutputs as a Map exercises the .get branch', () => {
   assert.strictEqual(isEnumAbnormal(field, 'ขุ่น'), true);
   assert.strictEqual(isEnumAbnormal(field, 'ใส'), false);
   assert.strictEqual(isEnumAbnormal(field, 'unknown'), false);
+});
+
+test('parseLabelPercent extracts percent before % sign', () => {
+  assert.strictEqual(parseLabelPercent('ABAMECTIN 1.8% W/V EC'), 1.8);
+  assert.strictEqual(parseLabelPercent('2,4-D 58% SL'), 58);
+  assert.strictEqual(parseLabelPercent('GLYPHOSATE 480 G/L SL'), null);
+  assert.strictEqual(parseLabelPercent(''), null);
 });

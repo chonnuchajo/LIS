@@ -54,3 +54,11 @@ export function matchSubstanceKey(name: string): string {
 export function substanceFieldKey(label: string, substance: string): string {
   return `${label}::${matchSubstanceKey(substance)}`;
 }
+
+// แกะเลข %ฉลากจากชื่อสารดิบ (หลัง parseSubstances split "+" แล้ว).
+// จับเลขที่ตามด้วย "%" ตัวแรก: "ABAMECTIN 1.8% W/V EC" → 1.8 ; "2,4-D 96% SL" → 96 (ข้าม "2,4").
+// ไม่มี "%" → null (สารนั้นข้ามการตรวจโหมด labelTolerance).
+export function parseLabelPercent(raw: string): number | null {
+  const m = String(raw ?? "").match(/(\d+(?:\.\d+)?)\s*%/);
+  return m ? Number(m[1]) : null;
+}

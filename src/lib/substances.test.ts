@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseSubstances, substanceKey, extractSubstanceName, matchSubstanceKey, substanceFieldKey } from "./substances";
+import { parseSubstances, substanceKey, extractSubstanceName, matchSubstanceKey, substanceFieldKey, parseLabelPercent } from "./substances";
 
 describe("parseSubstances", () => {
   it("returns single substance unchanged", () => {
@@ -108,5 +108,24 @@ describe("substanceFieldKey", () => {
   });
   it("produces a '::key' key when the label is empty", () => {
     expect(substanceFieldKey("", "ABAMECTIN 1.8% EC")).toBe("::abamectin");
+  });
+});
+
+describe("parseLabelPercent", () => {
+  it("extracts the percent before a % sign", () => {
+    expect(parseLabelPercent("ABAMECTIN 1.8% W/V EC (BROWN)")).toBe(1.8);
+  });
+  it("skips leading name numbers not followed by %", () => {
+    expect(parseLabelPercent("2,4-D DIMETHYLAMMONIUM 58% SL")).toBe(58);
+  });
+  it("handles a space before the % sign", () => {
+    expect(parseLabelPercent("GLYPHOSATE 48 %W/V SL")).toBe(48);
+  });
+  it("returns null when there is no percent", () => {
+    expect(parseLabelPercent("GLYPHOSATE 480 G/L SL")).toBeNull();
+    expect(parseLabelPercent("ABAMECTIN")).toBeNull();
+  });
+  it("returns null for empty input", () => {
+    expect(parseLabelPercent("")).toBeNull();
   });
 });
