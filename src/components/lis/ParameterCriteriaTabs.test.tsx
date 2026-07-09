@@ -23,6 +23,19 @@ const parameters: ParameterItem[] = [
       },
     ],
   },
+  {
+    _id: "p2",
+    name: "Parameter B",
+    scope: "qc",
+    valueFields: [
+      {
+        label: "%AI B",
+        type: "number",
+        labelToleranceMode: true,
+        labelToleranceStandards: [{ substance: "GLYPHOSATE", labelPercent: 5, autoPct: 20, headPct: 10 }],
+      },
+    ],
+  },
 ];
 
 describe("ParameterCriteriaTabs", () => {
@@ -82,7 +95,16 @@ describe("ParameterCriteriaTabs", () => {
 
     const table = screen.getByRole("table");
     const columnHeaders = within(table).getAllByRole("columnheader");
-    expect(columnHeaders).toHaveLength(6);
+    expect(columnHeaders.map((header) => header.textContent)).toEqual([
+      "Parameter",
+      "% ยา",
+      "เกณฑ์คลาดเคลื่อน%",
+      "ค่าต่ำสุด",
+      "25% ล่าง",
+      "25% บน",
+      "ค่าสูงสุด",
+    ]);
+    expect(within(table).getByRole("columnheader", { name: "Parameter" })).toBeInTheDocument();
     expect(within(table).getByRole("columnheader", { name: "% ยา" })).toBeInTheDocument();
     expect(
       within(table).getByRole("columnheader", { name: "เกณฑ์คลาดเคลื่อน%" }),
@@ -94,13 +116,41 @@ describe("ParameterCriteriaTabs", () => {
 
     const rows = within(table).getAllByRole("row");
     const bodyCells = within(rows[1]).getAllByRole("cell");
-    expect(bodyCells).toHaveLength(6);
+    expect(bodyCells).toHaveLength(7);
     expect(within(bodyCells[0]).getByText("Parameter A / %AI")).toBeInTheDocument();
     expect(within(bodyCells[0]).getByText("ABAMECTIN / 1%")).toBeInTheDocument();
+    expect(within(bodyCells[1]).getByText("1")).toBeInTheDocument();
 
-    const editButton = within(screen.getByRole("table")).getByRole("button");
+    const editButton = within(screen.getByRole("table")).getAllByRole("button")[0];
     fireEvent.click(editButton);
     expect(onEditField).toHaveBeenCalledWith("labelTolerance", "p1", 1);
+  });
+
+  it("filters by parameter and sorts label tolerance rows by drug percent", () => {
+    render(
+      <ParameterCriteriaTabs
+        value="labelTolerance"
+        onValueChange={() => undefined}
+        parameters={parameters}
+        scope="qc"
+        onEditField={() => undefined}
+      >
+        <div>original parameter list</div>
+      </ParameterCriteriaTabs>,
+    );
+
+    fireEvent.change(screen.getByLabelText("เลือก Parameter"), { target: { value: "p2" } });
+
+    expect(screen.queryByText("Parameter A / %AI")).not.toBeInTheDocument();
+    expect(screen.getByText("Parameter B / %AI B")).toBeInTheDocument();
+    expect(screen.getByText("GLYPHOSATE / 5%")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("เลือก Parameter"), { target: { value: "__all__" } });
+    fireEvent.change(screen.getByLabelText("เรียงลำดับ"), { target: { value: "drugPercentDesc" } });
+
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    expect(within(rows[0]).getByText("Parameter B / %AI B")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("Parameter A / %AI")).toBeInTheDocument();
   });
 
   it("renders an empty state for a tab with no rows", () => {
