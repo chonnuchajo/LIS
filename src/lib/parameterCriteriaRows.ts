@@ -6,6 +6,7 @@ import type {
   StandardRule,
   SubstanceStandard,
 } from "./api";
+import { describeLabelTolerance, describeOutputRule, describeRule } from "./standardOperators";
 import { productTypeLabels } from "./productClassification";
 
 export type AdvancedCriteriaMode = "substance" | "conditional" | "labelTolerance";
@@ -81,36 +82,12 @@ const owner = (
 const displayValue = (value: number | null | undefined) =>
   value == null || !Number.isFinite(Number(value)) ? "-" : String(value);
 
-const conditionOpLabel = {
-  eq: "=",
-  ne: "!=",
-  gt: ">",
-  gte: ">=",
-  lt: "<",
-  lte: "<=",
-  between: "between",
-} as const;
-
-const standardText = (rule: Pick<StandardRule, "operator" | "value" | "value2">, unit?: string) => {
-  if (!rule.operator || rule.value == null) return "-";
-  const suffix = unit ? ` ${unit}` : "";
-  if (rule.operator === "between") {
-    return rule.value2 == null ? "-" : `${rule.value} - ${rule.value2}${suffix}`;
-  }
-  if (rule.operator === "tolerance") {
-    return rule.value2 == null ? "-" : `${rule.value} +/- ${rule.value2}%${suffix}`;
-  }
-  return `${rule.operator} ${rule.value}${suffix}`;
-};
-
-const conditionsText = (rule: StandardRule) => {
-  if (!rule.conditions?.length) return "default";
-  return rule.conditions
-    .map((condition) => {
-      const value2 = condition.op === "between" && condition.value2 != null ? `-${condition.value2}` : "";
-      return `${condition.sourceFieldLabel} ${conditionOpLabel[condition.op]} ${condition.value}${value2}`;
-    })
-    .join(" และ ");
+const splitConditionAndResult = (description: string) => {
+  const [conditionText = "-", resultText = "-"] = description.split(" → ", 2);
+  const conditionsText = conditionText
+    .replace(/^.*: /, "")
+    .replace(/^ถ้า /, "");
+  return { conditionsText, resultText };
 };
 
 const selectorText = (rule: LabelToleranceRule) => {
@@ -197,18 +174,20 @@ export function buildConditionalCriteriaRows(
         });
         continue;
       }
-      rules.forEach((rule, ruleIndex) => {
+      rules.forEach((rule: StandardRule, ruleIndex) => {
+        const isOutput = (field.conditionalResult ?? "standard") === "output";
+        const described = isOutput
+          ? describeOutputRule(rule)
+          : describeRule(rule, field.unit || "");
+        const parsed = splitConditionAndResult(described);
         rows.push({
           ...base,
           mode: "conditional",
           rowId: `${base.parameterId}:${fieldIndex}:${ruleIndex}`,
           ruleIndex,
           ruleLabel: rule.label?.trim() || "-",
-          conditionsText: conditionsText(rule),
-          resultText:
-            (field.conditionalResult ?? "standard") === "output"
-              ? `${rule.outputText?.trim() || rule.label || "-"} (${rule.outputKind === "abnormal" ? "abnormal" : "normal"})`
-              : standardText(rule, field.unit),
+          conditionsText: parsed.conditionsText,
+          resultText: parsed.resultText,
           isSetupRow: false,
         });
       });
@@ -247,19 +226,21 @@ export function buildLabelToleranceCriteriaRows(
         continue;
       }
       rules.forEach((rule, ruleIndex) => {
+        const selector = selectorText(rule);
+        const summary = describeLabelTolerance(rule, field.unit || "");
         rows.push({
           ...base,
           mode: "labelTolerance",
           rowId: `${base.parameterId}:${fieldIndex}:${ruleIndex}`,
           ruleIndex,
-          selectorText: selectorText(rule),
+          selectorText: selector,
           drugPercent: displayValue(rule.labelPercent),
           tolerancePercent: tolerancePercent(rule),
           failLow: displayValue(rule.failLow),
           passLow: displayValue(rule.passLow),
           passHigh: displayValue(rule.passHigh),
           failHigh: displayValue(rule.failHigh),
-          previewText: selectorText(rule),
+          previewText: summary ? `${selector} | ${summary}` : selector,
           isSetupRow: false,
         });
       });

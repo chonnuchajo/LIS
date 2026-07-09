@@ -1,20 +1,32 @@
 import { describe, expect, it } from "vitest";
-import type { ParameterItem } from "./api";
+import type { LabelToleranceRule, ParameterItem, StandardRule } from "./api";
 import {
   buildConditionalCriteriaRows,
   buildLabelToleranceCriteriaRows,
   buildSubstanceCriteriaRows,
 } from "./parameterCriteriaRows";
 import { productTypeLabels } from "@/lib/productClassification";
+import { describeLabelTolerance, describeOutputRule, describeRule } from "./standardOperators";
+
+const splitDescribeOutput = (text: string) => {
+  const [conditionPart = "", resultPart = ""] = text.split(" → ", 2);
+  const cleanedCondition = conditionPart
+    .replace(/^.*: /, "")
+    .replace(/^ถ้า /, "");
+  return {
+    conditionsText: cleanedCondition,
+    resultText: resultPart,
+  };
+};
 
 const parameters: ParameterItem[] = [
   {
     _id: "p-qc",
-    name: "เธชเธฒเธฃเธชเธณเธเธฑเธ",
+    name: "QC Parameter",
     scope: "qc",
     valueFields: [
       {
-        label: "เธเธฃเธดเธกเธฒเธ“",
+        label: "Active",
         type: "number",
         unit: "%",
         substanceMode: true,
@@ -24,18 +36,43 @@ const parameters: ParameterItem[] = [
         ],
       },
       {
-        label: "เธเนเธณเธซเธเธฑเธ",
+        label: "Conditional Standard",
         type: "float",
         unit: "g",
         conditionalMode: true,
         conditionalResult: "standard",
         conditionalStandards: [
           {
-            label: "เธเนเธญเธเนเธซเธเน",
-            conditions: [{ sourceFieldLabel: "เธฅเธฑเธเธฉเธ“เธฐ", op: "eq", value: "เธเนเธญเธเนเธซเธเน" }],
+            label: "Between rule",
+            conditions: [{ sourceFieldLabel: "Moisture", op: "eq", value: "high" }],
             operator: "between",
             value: 23.5,
             value2: 26,
+          },
+          {
+            label: "Min rule",
+            conditions: [],
+            operator: "gte",
+            value: 95,
+            value2: null,
+          },
+        ],
+      },
+      {
+        label: "Conditional Output",
+        type: "number",
+        unit: "g",
+        conditionalMode: true,
+        conditionalResult: "output",
+        conditionalStandards: [
+          {
+            label: "Output rule",
+            conditions: [{ sourceFieldLabel: "Mode", op: "eq", value: "PASS" }],
+            operator: "between",
+            value: null,
+            value2: null,
+            outputText: "Review required",
+            outputKind: "abnormal",
           },
         ],
       },
@@ -75,7 +112,7 @@ const parameters: ParameterItem[] = [
     scope: "lab",
     valueFields: [
       {
-        label: "เธเนเธฒเธ—เธตเนเนเธกเนเธกเธตเนเธ–เธง",
+        label: "Lab field",
         type: "number",
         substanceMode: true,
         substanceStandards: [],
@@ -91,9 +128,9 @@ describe("parameter criteria row builders", () => {
     expect(rows[0]).toMatchObject({
       mode: "substance",
       parameterId: "p-qc",
-      parameterName: "เธชเธฒเธฃเธชเธณเธเธฑเธ",
+      parameterName: "QC Parameter",
       fieldIndex: 0,
-      fieldLabel: "เธเธฃเธดเธกเธฒเธ“",
+      fieldLabel: "Active",
       ruleIndex: 0,
       substance: "ABAMECTIN",
       operator: "gte",
@@ -110,7 +147,7 @@ describe("parameter criteria row builders", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       parameterId: "p-lab",
-      fieldLabel: "เธเนเธฒเธ—เธตเนเนเธกเนเธกเธตเนเธ–เธง",
+      fieldLabel: "Lab field",
       ruleIndex: null,
       isSetupRow: true,
     });
@@ -118,15 +155,46 @@ describe("parameter criteria row builders", () => {
 
   it("buildConditionalCriteriaRows formats conditions and standard result", () => {
     const rows = buildConditionalCriteriaRows(parameters, "qc");
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(3);
+    const standardRule = parameters[0].valueFields[1]!.conditionalStandards![0] as StandardRule;
+    const parsed = splitDescribeOutput(describeRule(standardRule, "g"));
     expect(rows[0]).toMatchObject({
       mode: "conditional",
       parameterId: "p-qc",
       fieldIndex: 1,
       ruleIndex: 0,
-      ruleLabel: "เธเนเธญเธเนเธซเธเน",
-      conditionsText: "เธฅเธฑเธเธฉเธ“เธฐ = เธเนเธญเธเนเธซเธเน",
-      resultText: "23.5 - 26 g",
+      ruleLabel: "Between rule",
+      conditionsText: parsed.conditionsText,
+      resultText: parsed.resultText,
+      isSetupRow: false,
+    });
+  });
+
+  it("maps non-between standard operators using shared helper text", () => {
+    const rows = buildConditionalCriteriaRows(parameters, "qc");
+    const gteRule = parameters[0].valueFields[1]!.conditionalStandards![1] as StandardRule;
+    const parsed = splitDescribeOutput(describeRule(gteRule, "g"));
+    expect(rows[1]).toMatchObject({
+      mode: "conditional",
+      fieldIndex: 1,
+      ruleIndex: 1,
+      ruleLabel: "Min rule",
+      conditionsText: "default",
+      resultText: parsed.resultText,
+    });
+  });
+
+  it("maps output-mode conditionals with shared output description helper", () => {
+    const rows = buildConditionalCriteriaRows(parameters, "qc");
+    const outputRule = parameters[0].valueFields[2]!.conditionalStandards![0] as StandardRule;
+    const expected = splitDescribeOutput(describeOutputRule(outputRule));
+    expect(rows[2]).toMatchObject({
+      mode: "conditional",
+      fieldIndex: 2,
+      ruleIndex: 0,
+      ruleLabel: "Output rule",
+      conditionsText: expected.conditionsText,
+      resultText: expected.resultText,
       isSetupRow: false,
     });
   });
@@ -134,6 +202,14 @@ describe("parameter criteria row builders", () => {
   it("buildLabelToleranceCriteriaRows maps requested table columns", () => {
     const rows = buildLabelToleranceCriteriaRows(parameters, "qc");
     expect(rows).toHaveLength(2);
+    const firstSummary = describeLabelTolerance(
+      parameters[0].valueFields[3].labelToleranceStandards![0] as LabelToleranceRule,
+      "%",
+    );
+    const secondSummary = describeLabelTolerance(
+      parameters[0].valueFields[3].labelToleranceStandards![1] as LabelToleranceRule,
+      "%",
+    );
     expect(rows[0]).toMatchObject({
       mode: "labelTolerance",
       selectorText: `0.3% / ${productTypeLabels.sand}`,
@@ -143,6 +219,7 @@ describe("parameter criteria row builders", () => {
       passLow: "0.2438",
       passHigh: "0.3563",
       failHigh: "0.375",
+      previewText: `${rows[0].selectorText} | ${firstSummary}`,
       isSetupRow: false,
     });
     expect(rows[1]).toMatchObject({
@@ -153,6 +230,7 @@ describe("parameter criteria row builders", () => {
       passLow: "-",
       passHigh: "-",
       failHigh: "-",
+      previewText: `${rows[1].selectorText} | ${secondSummary}`,
     });
   });
 });
