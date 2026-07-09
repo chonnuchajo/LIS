@@ -82,6 +82,8 @@ import {
   productTypeLabels,
 } from "@/lib/productClassification";
 import { generateParameter } from "@/lib/aiApi";
+import { ParameterCriteriaTabs, type ParameterCriteriaTab } from "@/components/lis/ParameterCriteriaTabs";
+import type { AdvancedCriteriaMode } from "@/lib/parameterCriteriaRows";
 import {
   partsToSec,
   secToParts,
@@ -118,6 +120,12 @@ const FILE_TYPE_OPTIONS: { value: string; label: string; accept: string }[] = [
   { value: 'word',  label: 'Word',  accept: '.doc,.docx' },
   { value: 'csv',   label: 'CSV',   accept: '.csv' },
 ];
+
+type CriteriaEditorTarget = {
+  mode: AdvancedCriteriaMode;
+  parameterId: string;
+  fieldIndex: number;
+};
 
 type MasterItemRecord = Record<string, unknown>;
 const ITEM_NAME_KEYS = ["item_name1", "itemName", "item_name", "name"];
@@ -2524,6 +2532,9 @@ function ParameterDialog({
 export default function ParameterSettings() {
   const queryClient = useQueryClient();
   const [scopeTab, setScopeTab] = useState<ParameterScope>("qc");
+  const [criteriaTab, setCriteriaTab] = useState<ParameterCriteriaTab>("list");
+  const [criteriaEditor, setCriteriaEditor] = useState<CriteriaEditorTarget | null>(null);
+  const [criteriaSaveBusy, setCriteriaSaveBusy] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [editing, setEditing] = useState<ParameterItem | null>(null);
@@ -2659,6 +2670,46 @@ export default function ParameterSettings() {
     }
   };
 
+  const criteriaParameter = useMemo(
+    () => parameters.find((parameter) => parameter._id === criteriaEditor?.parameterId),
+    [criteriaEditor?.parameterId, parameters],
+  );
+
+  const criteriaField = criteriaParameter && criteriaEditor
+    ? criteriaParameter.valueFields?.[criteriaEditor.fieldIndex]
+    : undefined;
+
+  const handleEditCriteriaField = (mode: AdvancedCriteriaMode, parameterId: string, fieldIndex: number) => {
+    const parameter = parameters.find((item) => item._id === parameterId);
+    const field = parameter?.valueFields?.[fieldIndex];
+    if (!parameter || !field) {
+      toast.error("ไม่พบ parameter หรือ field ที่ต้องการแก้ไข");
+      return;
+    }
+    setCriteriaEditor({ mode, parameterId, fieldIndex });
+  };
+
+  const handleSaveCriteriaField = async (nextField: ParameterValueField) => {
+    if (!criteriaEditor || !criteriaParameter?._id) {
+      toast.error("ไม่พบ parameter หรือ field ที่ต้องการบันทึก");
+      return;
+    }
+    const nextFields = [...(criteriaParameter.valueFields ?? [])];
+    nextFields[criteriaEditor.fieldIndex] = nextField;
+    const payload: Partial<ParameterItem> = { ...criteriaParameter, valueFields: nextFields };
+    setCriteriaSaveBusy(true);
+    try {
+      await api.updateParameter(criteriaParameter._id, payload);
+      toast.success("บันทึกเกณฑ์สำเร็จ");
+      setCriteriaEditor(null);
+      queryClient.invalidateQueries({ queryKey: ["parameters"] });
+    } catch (err) {
+      toast.error((err as Error).message || "บันทึกเกณฑ์ไม่สำเร็จ");
+    } finally {
+      setCriteriaSaveBusy(false);
+    }
+  };
+
   return (
     <AppLayout>
       <PageHeader
@@ -2721,8 +2772,15 @@ export default function ParameterSettings() {
         />
       </div>
 
-      <Card>
-        <CardHeader className="space-y-3">
+      <ParameterCriteriaTabs
+        value={criteriaTab}
+        onValueChange={setCriteriaTab}
+        parameters={parameters}
+        scope={scopeTab}
+        onEditField={handleEditCriteriaField}
+      >
+        <Card>
+          <CardHeader className="space-y-3">
           <CardTitle className="text-base">รายการพารามิเตอร์</CardTitle>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative flex-1">
@@ -2855,8 +2913,9 @@ export default function ParameterSettings() {
               </Table>
             </div>
           )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </ParameterCriteriaTabs>
 
       <ParameterDialog
         open={creating || !!editing}
@@ -2874,6 +2933,35 @@ export default function ParameterSettings() {
         onClose={closeDialog}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["parameters"] })}
       />
+
+      {criteriaEditor && criteriaField ? (
+        criteriaEditor.mode === "substance" ? (
+          <SubstanceStandardsDialog
+            open
+            field={criteriaField}
+            onClose={() => !criteriaSaveBusy && setCriteriaEditor(null)}
+            onSave={(next) => handleSaveCriteriaField({ ...criteriaField, substanceStandards: next })}
+          />
+        ) : criteriaEditor.mode === "conditional" ? (
+          <ConditionalStandardsDialog
+            open
+            field={criteriaField}
+            allParameters={parameters}
+            currentParameterId={criteriaParameter?._id}
+            siblingFields={(criteriaParameter?.valueFields ?? []).filter((_, index) => index !== criteriaEditor.fieldIndex)}
+            resultMode={criteriaField.conditionalResult ?? "standard"}
+            onClose={() => !criteriaSaveBusy && setCriteriaEditor(null)}
+            onSave={(next) => handleSaveCriteriaField({ ...criteriaField, conditionalStandards: next })}
+          />
+        ) : (
+          <LabelToleranceDialog
+            open
+            field={criteriaField}
+            onClose={() => !criteriaSaveBusy && setCriteriaEditor(null)}
+            onSave={(next) => handleSaveCriteriaField({ ...criteriaField, labelToleranceStandards: next })}
+          />
+        )
+      ) : null}
 
       <Dialog open={!!deleting} onOpenChange={(v) => !v && setDeleting(null)}>
         <DialogContent>
