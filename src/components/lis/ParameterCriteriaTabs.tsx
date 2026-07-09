@@ -46,10 +46,10 @@ export function ParameterCriteriaTabs({
   return (
     <Tabs value={value} onValueChange={(next) => onValueChange(next as ParameterCriteriaTab)}>
       <TabsList className="mb-4 grid w-full grid-cols-2 lg:inline-grid lg:w-auto lg:grid-cols-4">
-        <TabsTrigger value="list">เธฃเธฒเธขเธเธฒเธฃเธเธฒเธฃเธฒเธกเธดเน€เธ•เธญเธฃเน</TabsTrigger>
-        <TabsTrigger value="substance">เนเธขเธเธ•เธฒเธกเธชเธฒเธฃ</TabsTrigger>
-        <TabsTrigger value="conditional">เน€เธเธทเนเธญเธเนเธเธเธดเน€เธจเธฉ</TabsTrigger>
-        <TabsTrigger value="labelTolerance">เธ•เธฒเธก %เธชเธฒเธฃ</TabsTrigger>
+        <TabsTrigger value="list">ทั้งหมด</TabsTrigger>
+        <TabsTrigger value="substance">เกณฑ์สาร</TabsTrigger>
+        <TabsTrigger value="conditional">เกณฑ์เงื่อนไข</TabsTrigger>
+        <TabsTrigger value="labelTolerance">เกณฑ์ %ยา</TabsTrigger>
       </TabsList>
 
       <TabsContent value="list" className="mt-0">
@@ -63,12 +63,12 @@ export function ParameterCriteriaTabs({
               <TableRow>
                 <TableHead>Parameter</TableHead>
                 <TableHead>Field</TableHead>
-                <TableHead>เธชเธฒเธฃ</TableHead>
-                <TableHead>เน€เธเธทเนเธญเธเนเธ</TableHead>
-                <TableHead>เธเนเธฒ</TableHead>
-                <TableHead>เธเนเธฒ 2</TableHead>
-                <TableHead>เธซเธฑเธงเธซเธเนเธฒ QC</TableHead>
-                <TableHead className="text-right">เธเธฑเธ”เธเธฒเธฃ</TableHead>
+                <TableHead>สาร</TableHead>
+                <TableHead>เงื่อนไข</TableHead>
+                <TableHead>ค่าต่ำสุด</TableHead>
+                <TableHead>ค่าต่ำสุด 2</TableHead>
+                <TableHead>เฉพาะหัวหน้าตรวจ</TableHead>
+                <TableHead className="text-right">แก้ไข</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -80,10 +80,10 @@ export function ParameterCriteriaTabs({
                   <TableCell>{row.operator}</TableCell>
                   <TableCell>{row.value ?? "-"}</TableCell>
                   <TableCell>{row.value2 ?? "-"}</TableCell>
-                  <TableCell>{row.headOnly ? <Badge variant="secondary">เธเธโเธนเธเธฒ</Badge> : "-"}</TableCell>
+                  <TableCell>{row.headOnly ? <Badge variant="secondary">เฉพาะหัวหน้า</Badge> : "-"}</TableCell>
                   <TableCell className="text-right">
                     <EditButton
-                      label={`เนเธเนเนเธ เนเธขเธเธ•เธฒเธกเธชเธฒเธฃ ${row.fieldLabel}`}
+                      label={`แก้ไขเกณฑ์สาร ${row.fieldLabel}`}
                       onClick={() => onEditField("substance", row.parameterId, row.fieldIndex)}
                     />
                   </TableCell>
@@ -101,11 +101,11 @@ export function ParameterCriteriaTabs({
               <TableRow>
                 <TableHead>Parameter</TableHead>
                 <TableHead>Field</TableHead>
-                <TableHead>เธฅเธณเธ”เธฑเธ</TableHead>
-                <TableHead>เธเธทเนเธญเธเธ</TableHead>
-                <TableHead>เน€เธเธทเนเธญเธเนเธ</TableHead>
-                <TableHead>เธเธฅเธฅเธฑเธเธเน/เน€เธเธ“เธ‘เน</TableHead>
-                <TableHead className="text-right">เธเธฑเธ”เธเธฒเธฃ</TableHead>
+                <TableHead>กฎที่</TableHead>
+                <TableHead>ชื่อกฎ</TableHead>
+                <TableHead>เงื่อนไข</TableHead>
+                <TableHead>ผลลัพธ์</TableHead>
+                <TableHead className="text-right">แก้ไข</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -119,7 +119,7 @@ export function ParameterCriteriaTabs({
                   <TableCell>{row.resultText}</TableCell>
                   <TableCell className="text-right">
                     <EditButton
-                      label={`เนเธเนเนเธ เน€เธเธทเนเธญเธเนเธเธเธดเน€เธจเธฉ ${row.fieldLabel}`}
+                      label={`แก้ไขกฎ ${row.fieldLabel}`}
                       onClick={() => onEditField("conditional", row.parameterId, row.fieldIndex)}
                     />
                   </TableCell>
@@ -132,39 +132,34 @@ export function ParameterCriteriaTabs({
 
       <TabsContent value="labelTolerance" className="mt-0">
         <TableShell empty={labelRows.length === 0}>
-          <Table className="min-w-[1100px]">
+          <Table className="min-w-[900px]">
             <TableHeader>
               <TableRow>
-                <TableHead>Parameter</TableHead>
-                <TableHead>Field</TableHead>
-                <TableHead>เธชเธฒเธฃ/เธ•เธฑเธงเน€เธฅเธทเธญเธ</TableHead>
-                <TableHead>% เธขเธฒ</TableHead>
-                <TableHead>เน€เธเธ“เธ‘เนเธเธฅเธฒเธ”เน€เธเธฅเธทเนเธญเธ%</TableHead>
-                <TableHead>เธเนเธฒเธ•เนเธณเธชเธธเธ”</TableHead>
-                <TableHead>25% เธฅเนเธฒเธ</TableHead>
-                <TableHead>25% เธเธ</TableHead>
-                <TableHead>เธเนเธฒเธชเธนเธเธชเธธเธ”</TableHead>
-                <TableHead className="text-right">เธเธฑเธ”เธเธฒเธฃ</TableHead>
+                <TableHead>% ยา</TableHead>
+                <TableHead>เกณฑ์คลาดเคลื่อน%</TableHead>
+                <TableHead>ค่าต่ำสุด</TableHead>
+                <TableHead>25% ล่าง</TableHead>
+                <TableHead>25% บน</TableHead>
+                <TableHead>ค่าสูงสุด</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {labelRows.map((row) => (
                 <TableRow key={row.rowId}>
-                  <TableCell className="font-medium">{row.parameterName}</TableCell>
-                  <TableCell>{row.fieldLabel}</TableCell>
-                  <TableCell>{row.selectorText}</TableCell>
-                  <TableCell>{row.drugPercent}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-between gap-2">
+                      <span>{row.drugPercent}</span>
+                      <EditButton
+                        label={`แก้ไขเกณฑ์ %ยา ${row.fieldLabel}`}
+                        onClick={() => onEditField("labelTolerance", row.parameterId, row.fieldIndex)}
+                      />
+                    </div>
+                  </TableCell>
                   <TableCell>{row.tolerancePercent}</TableCell>
                   <TableCell>{row.failLow}</TableCell>
                   <TableCell>{row.passLow}</TableCell>
                   <TableCell>{row.passHigh}</TableCell>
                   <TableCell>{row.failHigh}</TableCell>
-                  <TableCell className="text-right">
-                    <EditButton
-                      label={`เนเธเนเนเธ เธ•เธฒเธก %เธชเธฒเธฃ ${row.fieldLabel}`}
-                      onClick={() => onEditField("labelTolerance", row.parameterId, row.fieldIndex)}
-                    />
-                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -179,7 +174,7 @@ function TableShell({ empty, children }: { empty: boolean; children: ReactNode }
   if (empty) {
     return (
       <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-        เธขเธฑเธเนเธกเนเธกเธตเธเนเธญเธกเธนเธฅเนเธเธกเธธเธกเธกเธญเธเธเธตเน
+        ไม่มีรายการเกณฑ์ในแท็บนี้
       </div>
     );
   }
