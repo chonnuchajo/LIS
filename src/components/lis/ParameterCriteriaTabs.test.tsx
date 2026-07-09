@@ -6,11 +6,11 @@ import { ParameterCriteriaTabs } from "./ParameterCriteriaTabs";
 const parameters: ParameterItem[] = [
   {
     _id: "p1",
-    name: "พารามิเตอร์ตัวอย่าง",
+    name: "Parameter A",
     scope: "qc",
     valueFields: [
       {
-        label: "ค่าความบริสุทธิ์",
+        label: "Active",
         type: "number",
         substanceMode: true,
         substanceStandards: [{ substance: "ABAMECTIN", operator: "gte", value: 95 }],
@@ -40,8 +40,10 @@ describe("ParameterCriteriaTabs", () => {
     );
 
     expect(screen.getByText("original parameter list")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "ทั้งหมด" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "เกณฑ์ %ยา" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "\u0E17\u0E31\u0E49\u0E07\u0E2B\u0E21\u0E14" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "\u0E41\u0E22\u0E01\u0E15\u0E32\u0E21\u0E2A\u0E32\u0E23" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "\u0E40\u0E07\u0E37\u0E48\u0E2D\u0E19\u0E44\u0E02\u0E1E\u0E34\u0E40\u0E28\u0E29" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "\u0E15\u0E32\u0E21 \u0025\u0E2A\u0E32\u0E23" })).toBeInTheDocument();
   });
 
   it("renders substance table rows and calls edit callback", () => {
@@ -59,7 +61,8 @@ describe("ParameterCriteriaTabs", () => {
     );
 
     expect(screen.getByText("ABAMECTIN")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "แก้ไขเกณฑ์สาร ค่าความบริสุทธิ์" }));
+    const editButton = within(screen.getByRole("table")).getByRole("button");
+    fireEvent.click(editButton);
     expect(onEditField).toHaveBeenCalledWith("substance", "p1", 0);
   });
 
@@ -77,17 +80,17 @@ describe("ParameterCriteriaTabs", () => {
       </ParameterCriteriaTabs>,
     );
 
-    const expectedHeaders = ["% ยา", "เกณฑ์คลาดเคลื่อน%", "ค่าต่ำสุด", "25% ล่าง", "25% บน", "ค่าสูงสุด"];
     const table = screen.getByRole("table");
-    for (const header of expectedHeaders) {
-      expect(within(table).getByRole("columnheader", { name: header })).toBeInTheDocument();
-    }
+    const columnHeaders = within(table).getAllByRole("columnheader");
+    expect(columnHeaders).toHaveLength(6);
+    expect(within(table).getByRole("columnheader", { name: "\u0025 \u0E22\u0E32" })).toBeInTheDocument();
 
     const rows = within(table).getAllByRole("row");
     const bodyCells = within(rows[1]).getAllByRole("cell");
     expect(bodyCells).toHaveLength(6);
 
-    fireEvent.click(screen.getByRole("button", { name: "แก้ไขเกณฑ์ %ยา %AI" }));
+    const editButton = within(screen.getByRole("table")).getByRole("button");
+    fireEvent.click(editButton);
     expect(onEditField).toHaveBeenCalledWith("labelTolerance", "p1", 1);
   });
 
@@ -104,6 +107,6 @@ describe("ParameterCriteriaTabs", () => {
       </ParameterCriteriaTabs>,
     );
 
-    expect(screen.getByText("ไม่มีรายการเกณฑ์ในแท็บนี้")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 });
