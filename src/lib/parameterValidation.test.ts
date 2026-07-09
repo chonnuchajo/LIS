@@ -953,7 +953,7 @@ describe("resolveLabelTolerance", () => {
     expect(isLabelToleranceAbnormal(std, "A no-percent", 1.0)).toBe(false);
   });
   it("supports custom range mode", () => {
-    const rangeStd = { substance: "", mode: "range" as const, failLow: 0.225, passLow: 0.2438, passHigh: 0.3563, failHigh: 0.375 };
+    const rangeStd = { substance: "", mode: "range" as const, autoPct: null, headPct: null, failLow: 0.225, passLow: 0.2438, passHigh: 0.3563, failHigh: 0.375 };
     expect(resolveLabelTolerance(rangeStd, "ANY 0.3%", 0.3).status).toBe("pass");
     expect(resolveLabelTolerance(rangeStd, "ANY 0.3%", 0.23).status).toBe("review");
     expect(resolveLabelTolerance(rangeStd, "ANY 0.3%", 0.38).status).toBe("fail");
@@ -992,9 +992,19 @@ describe("resolveLabelTolerance — abs mode", () => {
     expect(r.status).toBe("none");
     expect(r.autoRange).toBeNull();
   });
-  it("none when autoAbs missing or non-positive", () => {
-    expect(resolveLabelTolerance({ ...std, autoAbs: null }, "A 1.8%", 1.8).status).toBe("none");
-    expect(resolveLabelTolerance({ ...std, autoAbs: 0 }, "A 1.8%", 1.8).status).toBe("none");
+  it("returns none when autoAbs is missing or non-positive even if head band exists", () => {
+    expect(resolveLabelTolerance({ ...std, autoAbs: null }, "A 1.8%", 1.8)).toEqual({
+      status: "none",
+      center: 1.8,
+      autoRange: null,
+      headRange: null,
+    });
+    expect(resolveLabelTolerance({ ...std, autoAbs: 0 }, "A 1.8%", 1.8)).toEqual({
+      status: "none",
+      center: 1.8,
+      autoRange: null,
+      headRange: null,
+    });
   });
   it("none but keeps ranges when value is empty (not yet filled)", () => {
     const r = resolveLabelTolerance(std, "ABAMECTIN 1.8%", "");
@@ -1006,11 +1016,112 @@ describe("resolveLabelTolerance — abs mode", () => {
     expect(resolveLabelTolerance(stale, "A 1.8%", 1.86).status).toBe("review");
   });
   it("supports split modes where pass percent is derived from the head band", () => {
-    const split = { substance: "A", autoMode: "percent" as const, headMode: "abs" as const, autoPct: 50, headAbs: 0.1 };
+    const split = { substance: "A", autoMode: "percent" as const, headMode: "abs" as const, autoPct: 50, headPct: null, headAbs: 0.1 };
     const r = resolveLabelTolerance(split, "A 1.8%", 1.8);
     expect(r.autoRange).toEqual([1.75, 1.85]);
     expect(r.headRange).toEqual([1.7, 1.9]);
     expect(resolveLabelTolerance(split, "A 1.8%", 1.86).status).toBe("review");
+  });
+  it("insets split pass percent from the head band edges", () => {
+    const split = { substance: "A", autoMode: "percent" as const, headMode: "percent" as const, autoPct: 25, headPct: 15 };
+    const r = resolveLabelTolerance(split, "A 1%", 1);
+    expect(r.headRange).toEqual([0.85, 1.15]);
+    expect(r.autoRange).toEqual([0.8875, 1.1125]);
+    expect(resolveLabelTolerance(split, "A 1%", 0.8875).status).toBe("pass");
+    expect(resolveLabelTolerance(split, "A 1%", 1.1125).status).toBe("pass");
+    expect(resolveLabelTolerance(split, "A 1%", 0.88).status).toBe("review");
+    expect(resolveLabelTolerance(split, "A 1%", 1.12).status).toBe("review");
+  });
+  it("supports split range modes for pass and head bands", () => {
+    const split = {
+      substance: "A",
+      autoMode: "range" as const,
+      headMode: "range" as const,
+      autoPct: null,
+      headPct: null,
+      passLow: 1.75,
+      passHigh: 1.85,
+      failLow: 1.7,
+      failHigh: 1.9,
+    };
+    const r = resolveLabelTolerance(split, "A 1.8%", 1.8);
+    expect(r.autoRange).toEqual([1.75, 1.85]);
+    expect(r.headRange).toEqual([1.7, 1.9]);
+    expect(resolveLabelTolerance(split, "A 1.8%", 1.85).status).toBe("pass");
+    expect(resolveLabelTolerance(split, "A 1.8%", 1.86).status).toBe("review");
+    expect(resolveLabelTolerance(split, "A 1.8%", 1.91).status).toBe("fail");
+  });
+  it("supports head-only split mode when autoMode is none", () => {
+    const std = {
+      substance: "A",
+      autoMode: "none" as const,
+      headMode: "abs" as const,
+      autoPct: null,
+      headPct: null,
+      headAbs: 0.1,
+    };
+
+    const r = resolveLabelTolerance(std, "A 1.8%", 1.8);
+
+    expect(r.autoRange).toBeNull();
+    expect(r.headRange).toEqual([1.7, 1.9]);
+    expect(r.status).toBe("review");
+    expect(resolveLabelTolerance(std, "A 1.8%", 1.91).status).toBe("fail");
+    expect(isLabelToleranceAbnormal(std, "A 1.8%", 1.8)).toBe(true);
+  });
+
+  it("returns none when split auto band is missing even if head band exists", () => {
+    const std = {
+      substance: "A",
+      autoMode: "abs" as const,
+      headMode: "abs" as const,
+      autoPct: null,
+      headPct: null,
+      autoAbs: null,
+      headAbs: 0.1,
+    };
+
+    expect(resolveLabelTolerance(std, "A 1.8%", 1.8)).toEqual({
+      status: "none",
+      center: 1.8,
+      autoRange: null,
+      headRange: null,
+    });
+  });
+
+  it("supports auto-only split mode when headMode is none", () => {
+    const std = {
+      substance: "A",
+      autoMode: "abs" as const,
+      headMode: "none" as const,
+      autoPct: null,
+      headPct: null,
+      autoAbs: 0.05,
+    };
+
+    const r = resolveLabelTolerance(std, "A 1.8%", 1.8);
+
+    expect(r.autoRange).toEqual([1.75, 1.85]);
+    expect(r.headRange).toBeNull();
+    expect(r.status).toBe("pass");
+    expect(resolveLabelTolerance(std, "A 1.8%", 1.86).status).toBe("fail");
+  });
+
+  it("returns none for split mode with both bands disabled", () => {
+    const std = {
+      substance: "A",
+      autoMode: "none" as const,
+      headMode: "none" as const,
+      autoPct: null,
+      headPct: null,
+    };
+
+    expect(resolveLabelTolerance(std, "A 1.8%", 1.8)).toEqual({
+      status: "none",
+      center: 1.8,
+      autoRange: null,
+      headRange: null,
+    });
   });
   it("isLabelToleranceAbnormal true for review and fail", () => {
     expect(isLabelToleranceAbnormal(std, "A 1.8%", 1.86)).toBe(true);

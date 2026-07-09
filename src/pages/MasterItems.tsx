@@ -387,6 +387,42 @@ function displayValue(value: unknown) {
   return String(value);
 }
 
+function collectSearchValues(value: unknown, output: string[], seen = new WeakSet<object>()) {
+  if (value === undefined || value === null || value === "") return;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    output.push(String(value));
+    return;
+  }
+  if (value instanceof Date) {
+    output.push(value.toISOString());
+    return;
+  }
+  if (typeof value !== "object") return;
+  if (seen.has(value)) return;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectSearchValues(entry, output, seen));
+    return;
+  }
+  Object.values(value).forEach((entry) => collectSearchValues(entry, output, seen));
+}
+
+export function buildMasterItemSearchText({
+  item,
+  originalItemNo = "",
+  rawCommonName = "",
+  displayCommonName = "",
+}: {
+  item: MasterItem;
+  originalItemNo?: string;
+  rawCommonName?: string;
+  displayCommonName?: string;
+}): string {
+  const values = [originalItemNo, rawCommonName, displayCommonName];
+  collectSearchValues(item, values);
+  return values.join(" ").toLowerCase();
+}
+
 // Pack/weight keys carry both a camelCase (override layer) and a snake_case (ERP
 // feed) spelling; read either so the value shows regardless of source.
 const unitsPerCartonKeys = ["unitsPerCarton", "units_per_carton"];
@@ -737,9 +773,12 @@ export default function MasterItems() {
     return enrichedItems.filter(({ item, originalItemNo, rawCommonName, displayCommonName }) => {
       const matchesSearch =
         !q ||
-        String(firstValue(item, codeKeys)).toLowerCase().includes(q) ||
-        String(firstValue(item, nameKeys)).toLowerCase().includes(q) ||
-        String(displayCommonName || rawCommonName || "").toLowerCase().includes(q);
+        buildMasterItemSearchText({
+          item,
+          originalItemNo,
+          rawCommonName,
+          displayCommonName,
+        }).includes(q);
       const matchesCategory = categoryFilter === "all" || getItemCategory(item) === categoryFilter;
       const groupIds = groupMembership.get(originalItemNo) ?? [];
       const matchesGroup =

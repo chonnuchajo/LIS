@@ -19,8 +19,8 @@ const SubstanceStandardSchema = new mongoose.Schema({
 const LabelToleranceStandardSchema = new mongoose.Schema({
   substance: { type: String, default: '', trim: true },
   mode: { type: String, enum: ['percent', 'abs', 'range'], default: 'percent' },
-  autoMode: { type: String, enum: ['percent', 'abs'], default: null },
-  headMode: { type: String, enum: ['percent', 'abs'], default: null },
+  autoMode: { type: String, enum: ['none', 'percent', 'abs', 'range'], default: null },
+  headMode: { type: String, enum: ['none', 'percent', 'abs', 'range'], default: null },
   labelPercent: { type: Number, default: null },
   productTypes: { type: [String], default: [] },
   autoPct:   { type: Number, default: null },
@@ -41,8 +41,8 @@ function normalizeLabelToleranceModes(std) {
   if (std.autoMode || std.headMode) {
     return {
       mode: 'split',
-      autoMode: std.autoMode || 'abs',
-      headMode: std.headMode || (std.headAbs != null || std.headPct != null ? 'abs' : null),
+      autoMode: std.autoMode || (std.passLow != null || std.passHigh != null ? 'range' : 'abs'),
+      headMode: std.headMode || (std.failLow != null || std.failHigh != null ? 'range' : std.headAbs != null || std.headPct != null ? 'abs' : null),
       legacy: false,
     };
   }
@@ -295,17 +295,37 @@ ParameterSchema.pre('validate', function (next) {
             return next(new Error(`ช่อง "${f.label}": ช่วงกำหนดเองต้องเรียง failLow ≤ passLow ≤ passHigh ≤ failHigh`));
           }
         } else {
-          const headConfigured = normalized.headMode != null;
+          const headConfigured = normalized.headMode != null && normalized.headMode !== 'none';
           let headComparableAbs = null;
+          const headIsRange = normalized.headMode === 'range';
+          const autoIsRange = normalized.autoMode === 'range';
+          if (normalized.autoMode === 'none' && normalized.headMode === 'none') {
+            return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ต้องตั้งช่วงผ่านอัตโนมัติหรือหัวหน้าตรวจสอบอย่างน้อยหนึ่งช่วง`));
+          }
+          if (normalized.autoMode === 'none' && !normalized.headMode) {
+            return next(new Error(`field "${f.label}" substance "${s.substance}": autoMode none requires a head-review band`));
+          }
+          if (normalized.headMode === 'none' && !normalized.autoMode) {
+            return next(new Error(`field "${f.label}" substance "${s.substance}": headMode none requires an auto-pass band`));
+          }
           if (normalized.headMode === 'percent') {
             if (s.headPct == null || s.headPct <= 0) {
               return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": หัวหน้าตรวจสอบแบบ % (headPct) ต้องมากกว่า 0`));
             }
+          } else if (normalized.headMode === 'none') {
+            // no head-review band
           } else if (normalized.headMode === 'abs') {
             if (s.headAbs == null || s.headAbs <= 0) {
               return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": หัวหน้าตรวจสอบแบบ ±คงที่ (headAbs) ต้องมากกว่า 0`));
             }
             headComparableAbs = s.headAbs;
+          } else if (headIsRange) {
+            if (s.failLow == null || s.failHigh == null) {
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": หัวหน้าตรวจสอบแบบค่าระหว่างต้องกรอก failLow และ failHigh`));
+            }
+            if (s.failLow > s.failHigh) {
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": failLow ต้องไม่มากกว่า failHigh`));
+            }
           }
           if (normalized.autoMode === 'percent') {
             if (s.autoPct == null || s.autoPct <= 0) {
@@ -320,12 +340,24 @@ ParameterSchema.pre('validate', function (next) {
             if (normalized.legacy && s.headPct != null && s.headPct < s.autoPct) {
               return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±หัวหน้า (headPct) ต้อง ≥ ±ออโต้`));
             }
-          } else {
+          } else if (normalized.autoMode === 'none') {
+            // no auto-pass band
+          } else if (normalized.autoMode === 'abs') {
             if (s.autoAbs == null || s.autoAbs <= 0) {
               return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±ผ่าน (autoAbs) ต้องมากกว่า 0`));
             }
             if (headComparableAbs != null && s.autoAbs > headComparableAbs) {
               return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": เกณฑ์ผ่านต้องไม่กว้างกว่าหัวหน้าตรวจสอบ`));
+            }
+          } else if (autoIsRange) {
+            if (s.passLow == null || s.passHigh == null) {
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ช่วงผ่านแบบค่าระหว่างต้องกรอก passLow และ passHigh`));
+            }
+            if (s.passLow > s.passHigh) {
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": passLow ต้องไม่มากกว่า passHigh`));
+            }
+            if (headIsRange && (s.passLow < s.failLow || s.passHigh > s.failHigh)) {
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": passLow/passHigh ต้องอยู่ในช่วง failLow/failHigh ของหัวหน้าตรวจสอบ`));
             }
           }
         }

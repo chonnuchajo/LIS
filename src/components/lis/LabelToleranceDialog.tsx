@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { type LabelToleranceRule, type ParameterValueField } from "@/lib/api";
 import { productTypeLabels } from "@/lib/productClassification";
+import { formatLabelToleranceNumber } from "@/lib/standardOperators";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,7 +19,7 @@ const PRODUCT_TYPE_OPTIONS = [
   { value: "powder", label: productTypeLabels.powder },
 ] as const;
 
-type PassModeOption = "percent" | "abs" | "range";
+type BandModeOption = "none" | "percent" | "abs" | "range";
 
 function emptyRule(): LabelToleranceRule {
   return {
@@ -35,21 +36,21 @@ function emptyRule(): LabelToleranceRule {
 
 function normalizeRuleModes(rule: LabelToleranceRule) {
   if ((rule.mode ?? "percent") === "range") {
-    return { layoutMode: "range" as const, autoMode: null, headMode: null, legacy: false };
+    return { layoutMode: "range" as const, autoMode: "range" as const, headMode: "range" as const, legacy: false };
   }
   if (rule.autoMode || rule.headMode) {
     return {
       layoutMode: "split" as const,
-      autoMode: (rule.autoMode ?? "abs") as "percent" | "abs",
-      headMode: (rule.headMode ?? (rule.headAbs != null || rule.headPct != null ? "abs" : "percent")) as "percent" | "abs",
+      autoMode: (rule.autoMode ?? (rule.passLow != null || rule.passHigh != null ? "range" : "abs")) as BandModeOption,
+      headMode: (rule.headMode ?? (rule.failLow != null || rule.failHigh != null ? "range" : rule.headAbs != null || rule.headPct != null ? "abs" : "percent")) as BandModeOption,
       legacy: false,
     };
   }
   const mode = rule.mode ?? "percent";
   return {
     layoutMode: "split" as const,
-    autoMode: (mode === "abs" ? "abs" : "percent") as "percent" | "abs",
-    headMode: (mode === "abs" ? "abs" : "percent") as "percent" | "abs",
+    autoMode: (mode === "abs" ? "abs" : "percent") as BandModeOption,
+    headMode: (mode === "abs" ? "abs" : "percent") as BandModeOption,
     legacy: true,
   };
 }
@@ -67,30 +68,44 @@ function hasSelector(rule: LabelToleranceRule): boolean {
     || (rule.productTypes?.length ?? 0) > 0;
 }
 
+function validRange(low: number | null | undefined, high: number | null | undefined): boolean {
+  return low != null && high != null && low <= high;
+}
+
 function isRuleInvalid(rule: LabelToleranceRule): boolean {
   if (!hasSelector(rule)) return true;
   if (rule.labelPercent != null && rule.labelPercent <= 0) return true;
   const normalized = normalizeRuleModes(rule);
-  if (normalized.layoutMode === "range") {
-    if ([rule.failLow, rule.passLow, rule.passHigh, rule.failHigh].some((v) => v == null)) return true;
-    if (!(rule.failLow! <= rule.passLow! && rule.passLow! <= rule.passHigh! && rule.passHigh! <= rule.failHigh!)) return true;
-    return false;
-  }
-
-  const headConfigured = normalized.headMode === "percent"
-    ? rule.headPct != null && rule.headPct > 0
-    : rule.headAbs != null && rule.headAbs > 0;
+  const headConfigured = normalized.headMode === "none"
+    ? false
+    : normalized.headMode === "percent"
+      ? rule.headPct != null && rule.headPct > 0
+      : normalized.headMode === "abs"
+        ? rule.headAbs != null && rule.headAbs > 0
+        : validRange(rule.failLow, rule.failHigh);
   const comparableHeadAbs = normalized.headMode === "abs"
     ? (rule.headAbs == null || rule.headAbs <= 0 ? null : rule.headAbs)
     : null;
 
-  if (normalized.autoMode === "percent") {
+  if (normalized.autoMode === "none" && normalized.headMode === "none") return true;
+  if (normalized.headMode === "range" && !headConfigured) return true;
+
+  if (normalized.autoMode === "none") {
+    return !headConfigured;
+  } else if (normalized.autoMode === "percent") {
     if (rule.autoPct == null || rule.autoPct <= 0) return true;
     if (!normalized.legacy && !headConfigured) return true;
     if (headConfigured && rule.autoPct > 100) return true;
-  } else {
+  } else if (normalized.autoMode === "abs") {
     if (rule.autoAbs == null || rule.autoAbs <= 0) return true;
     if (comparableHeadAbs != null && rule.autoAbs > comparableHeadAbs) return true;
+  } else {
+    if (!validRange(rule.passLow, rule.passHigh)) return true;
+    if (
+      normalized.headMode === "range"
+      && validRange(rule.failLow, rule.failHigh)
+      && (rule.passLow! < rule.failLow! || rule.passHigh! > rule.failHigh!)
+    ) return true;
   }
   return false;
 }
@@ -103,50 +118,98 @@ function previewLine(rule: LabelToleranceRule): string {
   ].filter(Boolean).join(" ");
 
   const normalized = normalizeRuleModes(rule);
+  const center = rule.labelPercent ?? 1;
+  const rangeText = (low: number, high: number) =>
+    `${formatLabelToleranceNumber(low, center)}-${formatLabelToleranceNumber(high, center)}`;
+  const insetRangeFromHead = (
+    headRange: readonly [number, number] | null,
+    pct: number | null | undefined,
+  ): readonly [number, number] | null => {
+    if (pct == null || pct <= 0 || headRange == null) return null;
+    if (center < headRange[0] || center > headRange[1]) return null;
+    const low = headRange[0] + ((center - headRange[0]) * pct / 100);
+    const high = headRange[1] - ((headRange[1] - center) * pct / 100);
+    return low <= high ? [low, high] as const : null;
+  };
   if (normalized.layoutMode === "range") {
     if ([rule.failLow, rule.passLow, rule.passHigh, rule.failHigh].some((v) => v == null)) return "";
     return `${selectors || "กฎ"} -> fail < ${rule.failLow} | review ${rule.failLow}-${rule.passLow} และ ${rule.passHigh}-${rule.failHigh} | pass ${rule.passLow}-${rule.passHigh}`;
   }
 
-  const center = rule.labelPercent ?? 1;
+  if (normalized.autoMode === "range" || normalized.headMode === "range") {
+    const headAbs = normalized.headMode === "percent"
+      ? (rule.headPct == null || rule.headPct <= 0 ? null : center * (rule.headPct / 100))
+      : normalized.headMode === "abs"
+        ? (rule.headAbs == null || rule.headAbs <= 0 ? null : rule.headAbs)
+        : null;
+    const headRange = normalized.headMode === "range" && validRange(rule.failLow, rule.failHigh)
+      ? [rule.failLow!, rule.failHigh!] as const
+      : headAbs != null
+        ? [center - headAbs, center + headAbs] as const
+        : null;
+    const autoAbs = normalized.autoMode === "percent"
+      ? normalized.legacy
+        ? (rule.autoPct == null || rule.autoPct <= 0 ? null : center * (rule.autoPct / 100))
+        : null
+      : normalized.autoMode === "abs"
+        ? (rule.autoAbs == null || rule.autoAbs <= 0 ? null : rule.autoAbs)
+        : null;
+    const autoRange = normalized.autoMode === "range" && validRange(rule.passLow, rule.passHigh)
+      ? [rule.passLow!, rule.passHigh!] as const
+      : normalized.autoMode === "percent" && !normalized.legacy
+        ? insetRangeFromHead(headRange, rule.autoPct)
+      : autoAbs != null
+        ? [center - autoAbs, center + autoAbs] as const
+        : null;
+    if (autoRange == null && headRange == null) return "";
+    const auto = autoRange != null ? `ผ่าน ${rangeText(autoRange[0], autoRange[1])}` : "";
+    const head = headRange != null ? `หัวหน้าตรวจสอบ ${rangeText(headRange[0], headRange[1])}` : "";
+    return `${selectors || "กฎ"} -> ${[auto, head].filter(Boolean).join(" | ")}`;
+  }
+
   const headAbs = normalized.headMode === "percent"
     ? (rule.headPct == null || rule.headPct <= 0 ? null : center * (rule.headPct / 100))
     : (rule.headAbs == null || rule.headAbs <= 0 ? null : rule.headAbs);
+  const headRange = headAbs != null ? [center - headAbs, center + headAbs] as const : null;
   const autoAbs = normalized.autoMode === "percent"
     ? normalized.legacy
       ? (rule.autoPct == null || rule.autoPct <= 0 ? null : center * (rule.autoPct / 100))
-      : (rule.autoPct == null || rule.autoPct <= 0 || headAbs == null ? null : headAbs * (rule.autoPct / 100))
+      : null
     : (rule.autoAbs == null || rule.autoAbs <= 0 ? null : rule.autoAbs);
-  if (autoAbs == null) return "";
+  const autoRange = normalized.autoMode === "percent" && !normalized.legacy
+    ? insetRangeFromHead(headRange, rule.autoPct)
+    : autoAbs != null
+      ? [center - autoAbs, center + autoAbs] as const
+      : null;
+  if (autoRange == null && headRange == null) return "";
 
-  const auto = `ผ่าน ${(center - autoAbs).toFixed(5)}-${(center + autoAbs).toFixed(5)}`;
-  const head = headAbs != null
-    ? ` | หัวหน้าตรวจสอบ ${(center - headAbs).toFixed(5)}-${(center + headAbs).toFixed(5)}`
-    : "";
-  return `${selectors || "กฎ"} -> ${auto}${head}`;
+  const auto = autoRange != null ? `ผ่าน ${rangeText(autoRange[0], autoRange[1])}` : "";
+  const head = headRange != null ? `หัวหน้าตรวจสอบ ${rangeText(headRange[0], headRange[1])}` : "";
+  return `${selectors || "กฎ"} -> ${[auto, head].filter(Boolean).join(" | ")}`;
 }
 
-function derivePassMode(rule: LabelToleranceRule): PassModeOption {
-  const normalized = normalizeRuleModes(rule);
-  if (normalized.layoutMode === "range") return "range";
-  return normalized.autoMode === "abs" ? "abs" : "percent";
-}
-
-function patchRuleMode(
+function patchAutoMode(
   patchAt: (index: number, patch: Partial<LabelToleranceRule>) => void,
   index: number,
-  next: PassModeOption,
-  headMode: "percent" | "abs",
+  next: BandModeOption,
 ) {
-  if (next === "range") {
-    patchAt(index, { mode: "range" });
-    return;
-  }
-  if (next === "abs") {
-    patchAt(index, { mode: "abs", autoMode: "abs", headMode });
-    return;
-  }
-  patchAt(index, { mode: "percent", autoMode: "percent", headMode });
+  patchAt(index, {
+    mode: next === "abs" ? "abs" : "percent",
+    autoMode: next,
+    ...(next === "none" ? { autoPct: null, autoAbs: null, passLow: null, passHigh: null } : {}),
+  });
+}
+
+function patchHeadMode(
+  patchAt: (index: number, patch: Partial<LabelToleranceRule>) => void,
+  index: number,
+  next: BandModeOption,
+) {
+  patchAt(index, {
+    mode: next === "abs" ? "abs" : "percent",
+    headMode: next,
+    ...(next === "none" ? { headPct: null, headAbs: null, failLow: null, failHigh: null } : {}),
+  });
 }
 
 type Props = {
@@ -200,7 +263,7 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-3xl">
+      <DialogContent className="z-[10000] max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>ตั้งเกณฑ์ตาม % และประเภทสินค้า - {field.label}</DialogTitle>
           <DialogDescription className="text-xs">
@@ -208,7 +271,7 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 overflow-y-auto pr-1">
+        <div className="space-y-3 pr-1">
           <div className="flex items-center justify-between">
             <Label className="text-sm">กฎ ({list.length})</Label>
             <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={addRule}>
@@ -223,9 +286,8 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
 
           {list.map((rule, index) => {
             const normalized = normalizeRuleModes(rule);
-            const autoMode = normalized.autoMode ?? "percent";
-            const headMode = normalized.headMode ?? "percent";
-            const passMode = derivePassMode(rule);
+            const autoMode = normalized.autoMode as BandModeOption;
+            const headMode = normalized.headMode as BandModeOption;
 
             return (
               <div key={index} className="space-y-3 rounded-lg border p-3">
@@ -296,23 +358,6 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                       </div>
                     </div>
 
-                    <div className="space-y-1.5">
-                      <Label className="text-sm">ผ่าน</Label>
-                      <Select
-                        value={passMode}
-                        onValueChange={(value) => patchRuleMode(patchAt, index, value as PassModeOption, headMode)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="percent">เปอร์เซ็นต์ ±</SelectItem>
-                          <SelectItem value="abs">± ค่าคงที่</SelectItem>
-                          <SelectItem value="range">ช่วงกำหนดเอง</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
                     {normalized.layoutMode === "range" ? (
                       <div className="space-y-1.5">
                         <div className="grid gap-3 md:grid-cols-2">
@@ -346,23 +391,61 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                         <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
                           <Label className="text-sm">ช่วงผ่านอัตโนมัติ</Label>
                           <div className="grid gap-2 sm:grid-cols-[150px_minmax(0,1fr)]">
-                            <div className="rounded-md border border-input bg-muted/30 px-3 py-2 text-sm">
-                              {autoMode === "percent" ? "เปอร์เซ็นต์ ±" : "± ค่าคงที่"}
-                            </div>
-                            <Input
-                              type="number"
-                              value={autoMode === "percent" ? (rule.autoPct ?? "") : (rule.autoAbs ?? "")}
-                              onChange={(e) => patchAt(
-                                index,
-                                autoMode === "percent"
-                                  ? { autoPct: e.target.value === "" ? null : Number(e.target.value) }
-                                  : { autoAbs: e.target.value === "" ? null : Number(e.target.value) },
-                              )}
-                              placeholder={autoMode === "percent" ? "เช่น 80" : "เช่น 0.05"}
-                            />
+                            <Select
+                              value={autoMode}
+                              onValueChange={(value) => patchAutoMode(patchAt, index, value as BandModeOption)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="z-[10001]">
+                                <SelectItem value="none">ไม่มี</SelectItem>
+                                <SelectItem value="percent">% ของหัวหน้า</SelectItem>
+                                <SelectItem value="abs">± ค่าคงที่</SelectItem>
+                                <SelectItem value="range">ค่าระหว่าง</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {autoMode === "none" ? (
+                              <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                                ไม่มีช่วงผ่านอัตโนมัติ
+                              </p>
+                            ) : autoMode === "range" ? (
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                  type="number"
+                                  value={rule.passLow ?? ""}
+                                  onChange={(e) => patchAt(index, { passLow: e.target.value === "" ? null : Number(e.target.value) })}
+                                  placeholder="ต่ำสุด"
+                                />
+                                <Input
+                                  type="number"
+                                  value={rule.passHigh ?? ""}
+                                  onChange={(e) => patchAt(index, { passHigh: e.target.value === "" ? null : Number(e.target.value) })}
+                                  placeholder="สูงสุด"
+                                />
+                              </div>
+                            ) : (
+                              <Input
+                                type="number"
+                                value={autoMode === "percent" ? (rule.autoPct ?? "") : (rule.autoAbs ?? "")}
+                                onChange={(e) => patchAt(
+                                  index,
+                                  autoMode === "percent"
+                                    ? { autoPct: e.target.value === "" ? null : Number(e.target.value) }
+                                    : { autoAbs: e.target.value === "" ? null : Number(e.target.value) },
+                                )}
+                                placeholder={autoMode === "percent" ? "เช่น 80" : "เช่น 0.05"}
+                              />
+                            )}
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {autoMode === "percent" ? 'ถ้าเลือก % จะคิดจากช่วง "หัวหน้าตรวจสอบ"' : "กรอกเป็นค่า ± จริงตามหน่วยของช่อง"}
+                            {autoMode === "none"
+                              ? "ไม่มีช่วงผ่านอัตโนมัติ"
+                              : autoMode === "range"
+                                ? "กรอกช่วงต่ำสุด-สูงสุดที่ผ่านอัตโนมัติ"
+                                : autoMode === "percent"
+                                  ? 'ถ้าเลือก % จะคิดจากช่วง "หัวหน้าตรวจสอบ"'
+                                  : "กรอกเป็นค่า ± จริงตามหน่วยของช่อง"}
                           </p>
                         </div>
 
@@ -372,19 +455,42 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                             <div className="grid gap-2 sm:grid-cols-[150px_minmax(0,1fr)]">
                               <Select
                                 value={headMode}
-                                onValueChange={(value) => patchAt(index, { headMode: value as "percent" | "abs" })}
+                                onValueChange={(value) => patchHeadMode(patchAt, index, value as BandModeOption)}
                               >
                                 <SelectTrigger>
                                   <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="z-[10001]">
+                                  <SelectItem value="none">ไม่มี</SelectItem>
                                   <SelectItem value="percent">% ฉลาก</SelectItem>
                                   <SelectItem value="abs">± ค่าคงที่</SelectItem>
+                                  <SelectItem value="range">ค่าระหว่าง</SelectItem>
                                 </SelectContent>
                               </Select>
+                              {headMode === "none" ? (
+                                <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                                  ไม่มีช่วงหัวหน้าตรวจสอบ
+                                </p>
+                              ) : headMode === "range" ? (
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    type="number"
+                                    value={rule.failLow ?? ""}
+                                    onChange={(e) => patchAt(index, { failLow: e.target.value === "" ? null : Number(e.target.value) })}
+                                    placeholder="ต่ำสุด"
+                                  />
+                                  <Input
+                                    type="number"
+                                    value={rule.failHigh ?? ""}
+                                    onChange={(e) => patchAt(index, { failHigh: e.target.value === "" ? null : Number(e.target.value) })}
+                                    placeholder="สูงสุด"
+                                  />
+                                </div>
+                              ) : null}
                               <Input
+                                className={headMode === "none" ? "hidden" : headMode === "range" ? "hidden" : undefined}
                                 type="number"
-                                value={headMode === "percent" ? (rule.headPct ?? "") : (rule.headAbs ?? "")}
+                                value={headMode === "percent" ? (rule.headPct ?? "") : headMode === "abs" ? (rule.headAbs ?? "") : ""}
                                 onChange={(e) => patchAt(
                                   index,
                                   headMode === "percent"

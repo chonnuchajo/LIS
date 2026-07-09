@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -41,6 +41,30 @@ const EMPTY_GROUPS: NavGroup[] = [];
 
 export type AppSidebarVariant = "desktop" | "drawer";
 
+const NAV_SCROLL_STORAGE_KEY: Record<AppSidebarVariant, string> = {
+  desktop: "lis.sidebar.navScrollTop.desktop",
+  drawer: "lis.sidebar.navScrollTop.drawer",
+};
+
+function readNavScrollTop(key: string) {
+  if (typeof window === "undefined") return 0;
+  try {
+    const value = Number(sessionStorage.getItem(key) ?? "0");
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveNavScrollTop(key: string, scrollTop: number) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(key, String(Math.max(0, Math.round(scrollTop))));
+  } catch {
+    // Ignore storage failures; navigation should still work normally.
+  }
+}
+
 interface AppSidebarProps {
   variant?: AppSidebarVariant;
   /** Called when the user picks a nav item — useful for the drawer to close itself. */
@@ -54,6 +78,8 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
   const queryClient = useQueryClient();
   const isTablet = useIsTablet();
   const isDrawer = variant === "drawer";
+  const navRef = useRef<HTMLElement | null>(null);
+  const navScrollStorageKey = NAV_SCROLL_STORAGE_KEY[variant];
   const { activeRole } = useActiveRole(normalizeRoles(user));
 
   const { data: accessControl } = useQuery({
@@ -127,6 +153,21 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
   useEffect(() => {
     localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(collapsedGroups));
   }, [collapsedGroups]);
+
+  const persistNavScroll = useCallback(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    saveNavScrollTop(navScrollStorageKey, nav.scrollTop);
+  }, [navScrollStorageKey]);
+
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    nav.scrollTop = readNavScrollTop(navScrollStorageKey);
+    return () => {
+      saveNavScrollTop(navScrollStorageKey, nav.scrollTop);
+    };
+  }, [navScrollStorageKey]);
 
   const toggleGroup = (id: string) =>
     setCollapsedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -257,7 +298,11 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
         </div>
 
         {/* Nav */}
-        <nav className={cn("flex-1 py-3 overflow-y-auto overscroll-contain scrollbar-hide", collapsed ? "px-2" : "px-3")}>
+        <nav
+          ref={navRef}
+          onScroll={persistNavScroll}
+          className={cn("flex-1 py-3 overflow-y-auto overscroll-contain scrollbar-hide", collapsed ? "px-2" : "px-3")}
+        >
           {!collapsed && (
             <div className="px-1 pb-2">
               <div className="relative">
@@ -321,6 +366,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
                     <button
                       key={item.path}
                       onClick={() => {
+                        persistNavScroll();
                         navigate(targetPath);
                         onNavigate?.();
                       }}
