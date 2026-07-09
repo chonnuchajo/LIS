@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
-import { api, type ParameterItem } from "@/lib/api";
+import { api, type ParameterItem, type ParameterValueField, type SubstanceStandard } from "@/lib/api";
 import ParameterSettings from "../ParameterSettings";
 
 vi.mock("@/components/lis/AppLayout", () => ({
@@ -25,8 +25,15 @@ vi.mock("@/context/AuthContext", () => ({
   },
 }));
 
+type SubstanceStandardsDialogMockProps = {
+  open: boolean;
+  field: ParameterValueField;
+  onSave: (next: SubstanceStandard[]) => void;
+  onClose: () => void;
+};
+
 vi.mock("@/components/lis/SubstanceStandardsDialog", () => ({
-  SubstanceStandardsDialog: ({ open, field, onSave, onClose }: any) =>
+  SubstanceStandardsDialog: ({ open, field, onSave, onClose }: SubstanceStandardsDialogMockProps) =>
     open ? (
       <button
         type="button"
