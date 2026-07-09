@@ -40,10 +40,10 @@ describe("ParameterCriteriaTabs", () => {
     );
 
     expect(screen.getByText("original parameter list")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "\u0E17\u0E31\u0E49\u0E07\u0E2B\u0E21\u0E14" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "\u0E41\u0E22\u0E01\u0E15\u0E32\u0E21\u0E2A\u0E32\u0E23" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "\u0E40\u0E07\u0E37\u0E48\u0E2D\u0E19\u0E44\u0E02\u0E1E\u0E34\u0E40\u0E28\u0E29" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "\u0E15\u0E32\u0E21 \u0025\u0E2A\u0E32\u0E23" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "ทั้งหมด" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "แยกตามสาร" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "เงื่อนไขพิเศษ" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "ตาม %สาร" })).toBeInTheDocument();
   });
 
   it("renders substance table rows and calls edit callback", () => {
@@ -83,7 +83,14 @@ describe("ParameterCriteriaTabs", () => {
     const table = screen.getByRole("table");
     const columnHeaders = within(table).getAllByRole("columnheader");
     expect(columnHeaders).toHaveLength(6);
-    expect(within(table).getByRole("columnheader", { name: "\u0025 \u0E22\u0E32" })).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "% ยา" })).toBeInTheDocument();
+    expect(
+      within(table).getByRole("columnheader", { name: "เกณฑ์คลาดเคลื่อน%" }),
+    ).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "ค่าต่ำสุด" })).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "25% ล่าง" })).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "25% บน" })).toBeInTheDocument();
+    expect(within(table).getByRole("columnheader", { name: "ค่าสูงสุด" })).toBeInTheDocument();
 
     const rows = within(table).getAllByRole("row");
     const bodyCells = within(rows[1]).getAllByRole("cell");
@@ -107,6 +114,7 @@ describe("ParameterCriteriaTabs", () => {
       </ParameterCriteriaTabs>,
     );
 
+    expect(screen.getByText("ไม่มีรายการเกณฑ์ในแท็บนี้")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 });

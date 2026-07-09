@@ -63,12 +63,12 @@ export function ParameterCriteriaTabs({
               <TableRow>
                 <TableHead>Parameter</TableHead>
                 <TableHead>Field</TableHead>
-                <TableHead>เธชเธฒเธฃ</TableHead>
-                <TableHead>เน€เธเธทเนเธญเธเนเธ</TableHead>
-                <TableHead>เธเนเธฒเธ•เนเธณเธชเธธเธ”</TableHead>
-                <TableHead>เธเนเธฒเธ•เนเธณเธชเธธเธ” 2</TableHead>
-                <TableHead>เน€เธเธเธฒเธฐเธซเธฑเธงเธซเธเนเธฒเธ•เธฃเธงเธ</TableHead>
-                <TableHead className="text-right">เนเธเนเนเธ</TableHead>
+                <TableHead>สาร</TableHead>
+                <TableHead>เงื่อนไข</TableHead>
+                <TableHead>ค่าต่ำสุด</TableHead>
+                <TableHead>ค่าต่ำสุด 2</TableHead>
+                <TableHead>เฉพาะหัวหน้าตรวจ</TableHead>
+                <TableHead className="text-right">แก้ไข</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -80,10 +80,10 @@ export function ParameterCriteriaTabs({
                   <TableCell>{row.operator}</TableCell>
                   <TableCell>{row.value ?? "-"}</TableCell>
                   <TableCell>{row.value2 ?? "-"}</TableCell>
-                  <TableCell>{row.headOnly ? <Badge variant="secondary">เน€เธเธเธฒเธฐเธซเธฑเธงเธซเธเนเธฒ</Badge> : "-"}</TableCell>
+                  <TableCell>{row.headOnly ? <Badge variant="secondary">เฉพาะหัวหน้า</Badge> : "-"}</TableCell>
                   <TableCell className="text-right">
                     <EditButton
-                      label={`เนเธเนเนเธเน€เธเธ“เธ‘เนเธชเธฒเธฃ ${row.fieldLabel}`}
+                      label={`แก้ไขเกณฑ์สาร ${row.fieldLabel}`}
                       onClick={() => onEditField("substance", row.parameterId, row.fieldIndex)}
                     />
                   </TableCell>
@@ -101,11 +101,11 @@ export function ParameterCriteriaTabs({
               <TableRow>
                 <TableHead>Parameter</TableHead>
                 <TableHead>Field</TableHead>
-                <TableHead>เธเธเธ—เธตเน</TableHead>
-                <TableHead>เธเธทเนเธญเธเธ</TableHead>
-                <TableHead>เน€เธเธทเนเธญเธเนเธ</TableHead>
-                <TableHead>เธเธฅเธฅเธฑเธเธเน</TableHead>
-                <TableHead className="text-right">เนเธเนเนเธ</TableHead>
+                <TableHead>กฎที่</TableHead>
+                <TableHead>ชื่อกฎ</TableHead>
+                <TableHead>เงื่อนไข</TableHead>
+                <TableHead>ผลลัพธ์</TableHead>
+                <TableHead className="text-right">แก้ไข</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -119,7 +119,7 @@ export function ParameterCriteriaTabs({
                   <TableCell>{row.resultText}</TableCell>
                   <TableCell className="text-right">
                     <EditButton
-                      label={`เนเธเนเนเธเธเธ ${row.fieldLabel}`}
+                      label={`แก้ไขกฎ ${row.fieldLabel}`}
                       onClick={() => onEditField("conditional", row.parameterId, row.fieldIndex)}
                     />
                   </TableCell>
@@ -135,12 +135,12 @@ export function ParameterCriteriaTabs({
           <Table className="min-w-[900px]">
             <TableHeader>
               <TableRow>
-                <TableHead>{"\u0025 \u0E22\u0E32"}</TableHead>
-                <TableHead>เธงเธฅเธชเธฒเธ”เธขเธฒเน€เธเธ“เธ‘เนเธเธฅเธฒเธ”เน€เธเธฅเธทเนเธ¥เธ%</TableHead>
-                <TableHead>เธเนเธฒเธ•เนเธณเธชเธธเธ”</TableHead>
-                <TableHead>25% เธฅเนเธฒเธ</TableHead>
-                <TableHead>25% เธเธ</TableHead>
-                <TableHead>เธเนเธฒเธชเธนเธเธชเธธเธ”</TableHead>
+                <TableHead>{"% ยา"}</TableHead>
+                <TableHead>เกณฑ์คลาดเคลื่อน%</TableHead>
+                <TableHead>ค่าต่ำสุด</TableHead>
+                <TableHead>25% ล่าง</TableHead>
+                <TableHead>25% บน</TableHead>
+                <TableHead>ค่าสูงสุด</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -150,7 +150,7 @@ export function ParameterCriteriaTabs({
                     <div className="flex items-center justify-between gap-2">
                       <span>{row.drugPercent}</span>
                       <EditButton
-                        label={`เนเธเนเนเธเน€เธเธ“เธ‘เน %เธขเธฒ ${row.fieldLabel}`}
+                        label={`แก้ไขเกณฑ์ %ยา ${row.fieldLabel}`}
                         onClick={() => onEditField("labelTolerance", row.parameterId, row.fieldIndex)}
                       />
                     </div>
@@ -174,7 +174,7 @@ function TableShell({ empty, children }: { empty: boolean; children: ReactNode }
   if (empty) {
     return (
       <div className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-        เนเธกเนเธกเธตเธฃเธฒเธขเธเธฒเธฃเน€เธเธ“เธ‘เนเนเธเนเธ—เนเธเธเธตเน
+        ไม่มีรายการเกณฑ์ในแท็บนี้
       </div>
     );
   }
