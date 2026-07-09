@@ -3,10 +3,12 @@ import type {
   ParameterItem,
   ParameterScope,
   ParameterValueField,
+  StandardCondition,
+  StandardConditionOp,
   StandardRule,
   SubstanceStandard,
 } from "./api";
-import { describeLabelTolerance, describeOutputRule, describeRule } from "./standardOperators";
+import { describeLabelTolerance, describeResolvedStandard } from "./standardOperators";
 import { productTypeLabels } from "./productClassification";
 
 export type AdvancedCriteriaMode = "substance" | "conditional" | "labelTolerance";
@@ -82,12 +84,41 @@ const owner = (
 const displayValue = (value: number | null | undefined) =>
   value == null || !Number.isFinite(Number(value)) ? "-" : String(value);
 
-const splitConditionAndResult = (description: string) => {
-  const [conditionText = "-", resultText = "-"] = description.split(" → ", 2);
-  const conditionsText = conditionText
-    .replace(/^.*: /, "")
-    .replace(/^ถ้า /, "");
-  return { conditionsText, resultText };
+const CONDITION_OP_LABEL: Record<StandardConditionOp, string> = {
+  eq: "=",
+  ne: "≠",
+  gt: ">",
+  gte: "≥",
+  lt: "<",
+  lte: "≤",
+  between: "ช่วง",
+};
+
+const conditionText = (condition: StandardCondition) => {
+  const value2 = condition.op === "between" && condition.value2 != null
+    ? `–${condition.value2}`
+    : "";
+  return `${condition.sourceFieldLabel} ${CONDITION_OP_LABEL[condition.op]} ${condition.value}${value2}`;
+};
+
+const conditionsText = (rule: StandardRule) => {
+  const conditions = rule.conditions ?? [];
+  return conditions.length > 0
+    ? conditions.map(conditionText).join(" และ ")
+    : "default";
+};
+
+const standardResultText = (rule: StandardRule, unit: string) => {
+  return describeResolvedStandard(
+    { operator: rule.operator, value: rule.value, value2: rule.value2 ?? null },
+    unit,
+  );
+};
+
+const outputResultText = (rule: StandardRule) => {
+  const text = (rule.outputText && rule.outputText.trim()) || rule.label || "(ไม่ระบุข้อความ)";
+  const kind = rule.outputKind === "abnormal" ? "ผิดปกติ" : "ปกติ";
+  return `"${text}" (${kind})`;
 };
 
 const selectorText = (rule: LabelToleranceRule) => {
@@ -176,18 +207,16 @@ export function buildConditionalCriteriaRows(
       }
       rules.forEach((rule: StandardRule, ruleIndex) => {
         const isOutput = (field.conditionalResult ?? "standard") === "output";
-        const described = isOutput
-          ? describeOutputRule(rule)
-          : describeRule(rule, field.unit || "");
-        const parsed = splitConditionAndResult(described);
         rows.push({
           ...base,
           mode: "conditional",
           rowId: `${base.parameterId}:${fieldIndex}:${ruleIndex}`,
           ruleIndex,
           ruleLabel: rule.label?.trim() || "-",
-          conditionsText: parsed.conditionsText,
-          resultText: parsed.resultText,
+          conditionsText: conditionsText(rule),
+          resultText: isOutput
+            ? outputResultText(rule)
+            : standardResultText(rule, field.unit || ""),
           isSetupRow: false,
         });
       });
