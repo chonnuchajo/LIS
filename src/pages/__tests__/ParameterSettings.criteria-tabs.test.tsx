@@ -26,16 +26,17 @@ vi.mock("@/context/AuthContext", () => ({
 }));
 
 vi.mock("@/components/lis/SubstanceStandardsDialog", () => ({
-  SubstanceStandardsDialog: ({ open, field, onSave }: any) =>
+  SubstanceStandardsDialog: ({ open, field, onSave, onClose }: any) =>
     open ? (
       <button
         type="button"
-        onClick={() =>
+        onClick={() => {
           onSave([
             ...(field.substanceStandards ?? []),
             { substance: "NEW", operator: "gte", value: 1 },
-          ])
-        }
+          ]);
+          onClose();
+        }}
       >
         save substance dialog
       </button>
@@ -81,13 +82,13 @@ describe("ParameterSettings criteria tabs", () => {
   const parameters: ParameterItem[] = [
     {
       _id: "p1",
-      name: "สารสำคัญ",
+      name: "เธชเธฒเธฃเธชเธณเธเธฑเธ",
       scope: "qc",
       status: "active",
       applyAll: true,
       valueFields: [
         {
-          label: "ปริมาณ",
+          label: "เธเธฃเธดเธกเธฒเธ“",
           type: "number",
           substanceMode: true,
           substanceStandards: [{ substance: "ABAMECTIN", operator: "gte", value: 95 }],
@@ -106,12 +107,11 @@ describe("ParameterSettings criteria tabs", () => {
   it("opens substance tab and saves substance criteria updates", async () => {
     renderPage();
 
-    const criteriaListTab = screen.getByRole("tab", { name: "ทั้งหมด" });
-    const criteriaTabList = criteriaListTab.closest('[role="tablist"]');
-    const criteriaTabs = criteriaTabList ? within(criteriaTabList).getAllByRole("tab") : [];
+    const criteriaTabList = screen.getAllByRole("tablist")[1];
+    const criteriaTabs = within(criteriaTabList).getAllByRole("tab");
     expect(criteriaTabs).toHaveLength(4);
 
-    const substancesTab = screen.getByRole("tab", { name: "แยกตามสาร" });
+    const substancesTab = criteriaTabs[1];
     expect(substancesTab).toBeInTheDocument();
     fireEvent.mouseDown(substancesTab);
     fireEvent.click(substancesTab);
@@ -141,5 +141,27 @@ describe("ParameterSettings criteria tabs", () => {
       }),
     );
     expect(payload?.valueFields?.[0]?.substanceStandards).toHaveLength(2);
+  });
+
+  it("keeps substance dialog open when save fails", async () => {
+    renderPage();
+
+    const criteriaTabList = screen.getAllByRole("tablist")[1];
+    const substancesTab = within(criteriaTabList).getAllByRole("tab")[1];
+    fireEvent.mouseDown(substancesTab);
+    fireEvent.click(substancesTab);
+
+    expect(await screen.findByText("ABAMECTIN")).toBeInTheDocument();
+
+    const table = screen.getByRole("table");
+    const editButton = within(table).getByRole("button");
+    fireEvent.click(editButton);
+
+    api.updateParameter.mockRejectedValueOnce(new Error("save failed"));
+
+    fireEvent.click(screen.getByText("save substance dialog"));
+
+    await waitFor(() => expect(api.updateParameter).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("save substance dialog")).toBeInTheDocument();
   });
 });

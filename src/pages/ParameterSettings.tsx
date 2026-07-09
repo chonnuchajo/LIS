@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -2535,6 +2535,7 @@ export default function ParameterSettings() {
   const [criteriaTab, setCriteriaTab] = useState<ParameterCriteriaTab>("list");
   const [criteriaEditor, setCriteriaEditor] = useState<CriteriaEditorTarget | null>(null);
   const [criteriaSaveBusy, setCriteriaSaveBusy] = useState(false);
+  const criteriaSaveBusyRef = useRef(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [editing, setEditing] = useState<ParameterItem | null>(null);
@@ -2679,6 +2680,10 @@ export default function ParameterSettings() {
     ? criteriaParameter.valueFields?.[criteriaEditor.fieldIndex]
     : undefined;
 
+  const closeCriteriaEditor = () => {
+    if (!criteriaSaveBusyRef.current) setCriteriaEditor(null);
+  };
+
   const handleEditCriteriaField = (mode: AdvancedCriteriaMode, parameterId: string, fieldIndex: number) => {
     const parameter = parameters.find((item) => item._id === parameterId);
     const field = parameter?.valueFields?.[fieldIndex];
@@ -2686,10 +2691,13 @@ export default function ParameterSettings() {
       toast.error("ไม่พบ parameter หรือ field ที่ต้องการแก้ไข");
       return;
     }
+    criteriaSaveBusyRef.current = false;
+    setCriteriaSaveBusy(false);
     setCriteriaEditor({ mode, parameterId, fieldIndex });
   };
 
   const handleSaveCriteriaField = async (nextField: ParameterValueField) => {
+    if (criteriaSaveBusyRef.current) return;
     if (!criteriaEditor || !criteriaParameter?._id) {
       toast.error("ไม่พบ parameter หรือ field ที่ต้องการบันทึก");
       return;
@@ -2697,6 +2705,7 @@ export default function ParameterSettings() {
     const nextFields = [...(criteriaParameter.valueFields ?? [])];
     nextFields[criteriaEditor.fieldIndex] = nextField;
     const payload: Partial<ParameterItem> = { ...criteriaParameter, valueFields: nextFields };
+    criteriaSaveBusyRef.current = true;
     setCriteriaSaveBusy(true);
     try {
       await api.updateParameter(criteriaParameter._id, payload);
@@ -2706,6 +2715,7 @@ export default function ParameterSettings() {
     } catch (err) {
       toast.error((err as Error).message || "บันทึกเกณฑ์ไม่สำเร็จ");
     } finally {
+      criteriaSaveBusyRef.current = false;
       setCriteriaSaveBusy(false);
     }
   };
@@ -2939,7 +2949,7 @@ export default function ParameterSettings() {
           <SubstanceStandardsDialog
             open
             field={criteriaField}
-            onClose={() => !criteriaSaveBusy && setCriteriaEditor(null)}
+            onClose={closeCriteriaEditor}
             onSave={(next) => handleSaveCriteriaField({ ...criteriaField, substanceStandards: next })}
           />
         ) : criteriaEditor.mode === "conditional" ? (
@@ -2950,14 +2960,14 @@ export default function ParameterSettings() {
             currentParameterId={criteriaParameter?._id}
             siblingFields={(criteriaParameter?.valueFields ?? []).filter((_, index) => index !== criteriaEditor.fieldIndex)}
             resultMode={criteriaField.conditionalResult ?? "standard"}
-            onClose={() => !criteriaSaveBusy && setCriteriaEditor(null)}
+            onClose={closeCriteriaEditor}
             onSave={(next) => handleSaveCriteriaField({ ...criteriaField, conditionalStandards: next })}
           />
         ) : (
           <LabelToleranceDialog
             open
             field={criteriaField}
-            onClose={() => !criteriaSaveBusy && setCriteriaEditor(null)}
+            onClose={closeCriteriaEditor}
             onSave={(next) => handleSaveCriteriaField({ ...criteriaField, labelToleranceStandards: next })}
           />
         )
