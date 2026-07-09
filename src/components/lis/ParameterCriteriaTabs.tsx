@@ -147,8 +147,16 @@ export function ParameterCriteriaTabs({
               {labelRows.map((row) => (
                 <TableRow key={row.rowId}>
                   <TableCell>
-                    <div className="flex items-center justify-between gap-2">
-                      <span>{row.drugPercent}</span>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <div className="font-medium tabular-nums">{row.drugPercent}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {row.parameterName} / {row.fieldLabel}
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {row.selectorText}
+                        </div>
+                      </div>
                       <EditButton
                         label={`แก้ไขเกณฑ์ %ยา ${row.fieldLabel}`}
                         onClick={() => onEditField("labelTolerance", row.parameterId, row.fieldIndex)}

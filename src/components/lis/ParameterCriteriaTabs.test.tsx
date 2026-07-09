@@ -95,6 +95,8 @@ describe("ParameterCriteriaTabs", () => {
     const rows = within(table).getAllByRole("row");
     const bodyCells = within(rows[1]).getAllByRole("cell");
     expect(bodyCells).toHaveLength(6);
+    expect(within(bodyCells[0]).getByText("Parameter A / %AI")).toBeInTheDocument();
+    expect(within(bodyCells[0]).getByText("ABAMECTIN / 1%")).toBeInTheDocument();
 
     const editButton = within(screen.getByRole("table")).getByRole("button");
     fireEvent.click(editButton);
