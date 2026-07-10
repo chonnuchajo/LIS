@@ -50,3 +50,24 @@ export function summarizeStandard(
   }
   return { usable, expired, expiringSoon };
 }
+
+export type StandardStatus = "ok" | "out" | "low" | "expired" | "soon";
+
+/**
+ * filter สถานะแบบเลือกหลายค่า (OR): true ถ้า summary ตรงกับสถานะใดสถานะหนึ่ง
+ * ใน statuses; set ว่าง = ผ่านเสมอ (ไม่กรอง). เงื่อนไขต่อสถานะตรงกับ badge
+ * ในตาราง Standards: "ok" ต้อง usable ok และไม่มีขวดหมดอายุ/ใกล้หมดอายุเลย.
+ */
+export function standardMatchesStatuses(
+  sum: StdSummary,
+  statuses: ReadonlySet<StandardStatus>,
+): boolean {
+  if (statuses.size === 0) return true;
+  const level = standardLevel(sum.usable);
+  if (statuses.has("ok") && level === "ok" && sum.expired === 0 && sum.expiringSoon === 0) return true;
+  if (statuses.has("out") && level === "out") return true;
+  if (statuses.has("low") && level === "low") return true;
+  if (statuses.has("expired") && sum.expired > 0) return true;
+  if (statuses.has("soon") && sum.expiringSoon > 0) return true;
+  return false;
+}
