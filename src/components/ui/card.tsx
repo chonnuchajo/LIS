@@ -24,7 +24,7 @@ const INTERACTIVE_SELECTOR = [
 ].join(",");
 
 function isIgnoredOpenTarget(target: EventTarget | null, currentTarget: HTMLElement) {
-  if (!(target instanceof HTMLElement)) return false;
+  if (!(target instanceof Element)) return false;
   const match = target.closest(INTERACTIVE_SELECTOR);
   return Boolean(match && currentTarget.contains(match) && match !== currentTarget);
 }
@@ -52,8 +52,8 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
     return (
       <div
         ref={ref}
-        role={interactive ? role ?? "button" : role}
-        tabIndex={interactive ? tabIndex ?? 0 : tabIndex}
+        role={interactive ? "button" : role}
+        tabIndex={interactive ? 0 : tabIndex}
         className={cn(
           "rounded-lg border bg-card text-card-foreground shadow-sm",
           interactive &&
