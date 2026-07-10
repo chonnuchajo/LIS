@@ -53,6 +53,28 @@ type SortableCriteriaRow = {
 };
 
 const criteriaCollator = new Intl.Collator(["th", "en"], { numeric: true, sensitivity: "base" });
+const SEARCHABLE_ROW_KEYS = [
+  "parameterName",
+  "fieldLabel",
+  "substance",
+  "operator",
+  "value",
+  "value2",
+  "productTypeText",
+  "categoryText",
+  "ruleLabel",
+  "conditionsText",
+  "resultText",
+  "selectorText",
+  "drugPercent",
+  "tolerancePercent",
+  "headTolerance",
+  "failLow",
+  "passLow",
+  "passHigh",
+  "failHigh",
+  "previewText",
+] as const;
 
 const SUBSTANCE_SORT_OPTIONS: Array<{ value: CriteriaSortKey; label: string }> = [
   { value: "substanceAsc", label: "ชื่อสาร A-Z" },
@@ -350,7 +372,17 @@ function filterAndSortRows<T extends SortableCriteriaRow>(
 
 function matchesCriteriaSearch(row: SortableCriteriaRow, searchQuery: string) {
   if (!searchQuery) return true;
-  return row.searchText.toLowerCase().includes(searchQuery);
+  const searchable = row as unknown as Record<string, unknown>;
+  const rowSearchText = String(searchable.searchText ?? "").toLowerCase();
+  if (rowSearchText.includes(searchQuery)) return true;
+  return SEARCHABLE_ROW_KEYS.some((key) => {
+    const value = searchable[key];
+    if (value == null) return false;
+    if (Array.isArray(value)) {
+      return value.some((item) => String(item).toLowerCase().includes(searchQuery));
+    }
+    return String(value).toLowerCase().includes(searchQuery);
+  });
 }
 
 function compareCriteriaRows<T extends SortableCriteriaRow>(

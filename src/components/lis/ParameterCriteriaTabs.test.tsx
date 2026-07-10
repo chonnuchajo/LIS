@@ -64,6 +64,44 @@ const parameters: ParameterItem[] = [
   },
 ];
 
+const metadataParameters: ParameterItem[] = [
+  {
+    _id: "p-meta",
+    name: "Metadata Parameter",
+    scope: "qc",
+    status: "active",
+    note: "Hidden owner note",
+    itemNames: ["Trade Alpha"],
+    commonNames: ["Hidden Common Name"],
+    productTypes: ["water"],
+    categories: ["FG"],
+    subCategories: ["F"],
+    itemGroups: ["group-hidden"],
+    valueFields: [
+      {
+        label: "Hidden Field Label",
+        type: "number",
+        unit: "%",
+        substanceMode: true,
+        substanceStandards: [{ substance: "CYPERMETHRIN", operator: "gte", value: 90 }],
+      },
+    ],
+  },
+  {
+    _id: "p-other",
+    name: "Other Parameter",
+    scope: "qc",
+    valueFields: [
+      {
+        label: "Other Field",
+        type: "number",
+        substanceMode: true,
+        substanceStandards: [{ substance: "ABAMECTIN", operator: "gte", value: 95 }],
+      },
+    ],
+  },
+];
+
 function renderCriteriaTabs(
   props: Partial<ComponentProps<typeof ParameterCriteriaTabs>> = {},
 ) {
@@ -81,6 +119,10 @@ function renderCriteriaTabs(
     </ParameterCriteriaTabs>,
   );
   return { onEditField };
+}
+
+function criteriaSearchInput() {
+  return screen.getAllByRole("textbox")[0];
 }
 
 function bodyRows() {
@@ -292,6 +334,44 @@ describe("ParameterCriteriaTabs", () => {
     const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
     expect(within(rows[0]).getByText("Parameter B")).toBeInTheDocument();
     expect(within(rows[1]).getByText("Parameter A")).toBeInTheDocument();
+  });
+
+  it("filters criteria rows by hidden parameter metadata", () => {
+    renderCriteriaTabs({
+      value: "substance",
+      parameters: metadataParameters,
+    });
+
+    fireEvent.change(criteriaSearchInput(), {
+      target: { value: "hidden owner note" },
+    });
+
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(1);
+    expect(within(rows[0]).getByText("Metadata Parameter")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("CYPERMETHRIN")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).queryByText("Other Parameter")).not.toBeInTheDocument();
+  });
+
+  it("filters criteria rows by apply-to metadata and hidden field label", () => {
+    renderCriteriaTabs({
+      value: "substance",
+      parameters: metadataParameters,
+    });
+
+    fireEvent.change(criteriaSearchInput(), {
+      target: { value: "Trade Alpha" },
+    });
+
+    expect(within(screen.getByRole("table")).getAllByRole("row").slice(1)).toHaveLength(1);
+    expect(within(screen.getByRole("table")).getByText("Metadata Parameter")).toBeInTheDocument();
+
+    fireEvent.change(criteriaSearchInput(), {
+      target: { value: "Hidden Field Label" },
+    });
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(1);
+    expect(within(rows[0]).getByText("Metadata Parameter")).toBeInTheDocument();
   });
 
   it("filters criteria rows by substance search text", () => {
