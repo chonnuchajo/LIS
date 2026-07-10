@@ -23,7 +23,10 @@ const field: ParameterValueField = {
   substanceStandards: [],
 };
 
-function renderDialog(onSave = vi.fn<(next: SubstanceStandard[]) => void>()) {
+function renderDialog(
+  onSave = vi.fn<(next: SubstanceStandard[]) => void>(),
+  substanceStandards: SubstanceStandard[] = [],
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -32,7 +35,7 @@ function renderDialog(onSave = vi.fn<(next: SubstanceStandard[]) => void>()) {
     <QueryClientProvider client={queryClient}>
       <SubstanceStandardsDialog
         open
-        field={field}
+        field={{ ...field, substanceStandards }}
         onClose={() => undefined}
         onSave={onSave}
       />
@@ -122,5 +125,49 @@ describe("SubstanceStandardsDialog", () => {
     expect(screen.getByText("MANCOZEB 80% WP")).toBeInTheDocument();
     expect(screen.queryByText("CYPERMETHRIN 25% W/V BIO EC(LIVE STOCK)")).not.toBeInTheDocument();
     expect(screen.queryByText("CYPERMETHRIN 25% W/V EC(GMP)")).not.toBeInTheDocument();
+  });
+
+  const compactStandards: SubstanceStandard[] = [
+    { substance: "ABAMECTIN", operator: "gte", value: 95, value2: null },
+    { substance: "DIQUAT", operator: "between", value: 78, value2: 82 },
+  ];
+
+  it("renders selected standards as compact single rows with inline controls", async () => {
+    renderDialog(undefined, compactStandards);
+
+    await screen.findByText("ABAMECTIN");
+
+    expect(screen.getByLabelText("เงื่อนไข ABAMECTIN")).toHaveValue("gte");
+    expect(screen.getByLabelText("ค่า ABAMECTIN")).toHaveValue(95);
+    expect(screen.queryByLabelText("ค่าที่สอง ABAMECTIN")).not.toBeInTheDocument();
+
+    expect(screen.getByLabelText("เงื่อนไข DIQUAT")).toHaveValue("between");
+    expect(screen.getByLabelText("ค่าที่สอง DIQUAT")).toHaveValue(82);
+    expect(screen.getByLabelText("หน.QC DIQUAT")).not.toBeChecked();
+
+    // หน่วยขึ้นหัวลิสต์ครั้งเดียว และไม่มีข้อความสรุปสีเขียวรายแถวแล้ว
+    expect(screen.getByText(/หน่วย: %/)).toBeInTheDocument();
+    expect(screen.queryByText("≥ 95%")).not.toBeInTheDocument();
+  });
+
+  it("reveals the second value input when operator becomes tolerance", async () => {
+    renderDialog(undefined, compactStandards);
+
+    const op = await screen.findByLabelText("เงื่อนไข ABAMECTIN");
+    fireEvent.change(op, { target: { value: "tolerance" } });
+
+    expect(screen.getByLabelText("ค่าที่สอง ABAMECTIN")).toBeInTheDocument();
+  });
+
+  it("toggles head-only on the right row and saves it", async () => {
+    const { onSave } = renderDialog(undefined, compactStandards);
+
+    fireEvent.click(await screen.findByLabelText("หน.QC DIQUAT"));
+    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const saved = onSave.mock.calls[0][0];
+    expect(saved.find((s) => s.substance === "DIQUAT")).toMatchObject({ headOnly: true });
+    expect(saved.find((s) => s.substance === "ABAMECTIN")).not.toMatchObject({ headOnly: true });
   });
 });
