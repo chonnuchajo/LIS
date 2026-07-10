@@ -25,6 +25,7 @@ import { SubstanceStandardsDialog } from "@/components/lis/SubstanceStandardsDia
 import { SubstanceStandardRowDialog } from "@/components/lis/SubstanceStandardRowDialog";
 import { ConditionalStandardsDialog } from "@/components/lis/ConditionalStandardsDialog";
 import { LabelToleranceDialog } from "@/components/lis/LabelToleranceDialog";
+import { ParameterDetailDrawer } from "@/components/lis/ParameterDetailDrawer";
 import { describeRule, describeSubstanceStandard, describeOutputRule, describeLabelTolerance, describeSingleStandard } from "@/lib/standardOperators";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -2378,6 +2379,7 @@ export default function ParameterSettings() {
   const [editing, setEditing] = useState<ParameterItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<ParameterItem | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   const parametersQuery = useQuery({
     queryKey: ["parameters"],
@@ -2494,6 +2496,10 @@ export default function ParameterSettings() {
       return matchesSearch && matchesStatus;
     });
   }, [scopedParameters, search, statusFilter]);
+
+  const viewing = viewingId
+    ? parameters.find((p) => p._id === viewingId) ?? null
+    : null;
 
   const activeCount = scopedParameters.filter((p) => (p.status ?? "active") === "active").length;
   const qcCount = parameters.filter((p) => (p.scope ?? "qc") === "qc").length;
@@ -2715,7 +2721,12 @@ export default function ParameterSettings() {
                     filtered.map((p, i) => {
                       const pScope = (p.scope ?? "qc") as ParameterScope;
                       return (
-                      <TableRow key={p._id ?? i}>
+                      <TableRow
+                        key={p._id ?? i}
+                        className="cursor-pointer"
+                        onClick={() => p._id && setViewingId(p._id)}
+                        title="คลิกเพื่อดูรายละเอียด"
+                      >
                         <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -2756,7 +2767,10 @@ export default function ParameterSettings() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={() => setEditing(p)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditing(p);
+                            }}
                             title="แก้ไข"
                           >
                             <Pencil className="h-4 w-4" />
@@ -2764,7 +2778,10 @@ export default function ParameterSettings() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={() => setDeleting(p)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleting(p);
+                            }}
                             title="ลบ"
                             className="text-destructive hover:text-destructive"
                           >
@@ -2799,6 +2816,19 @@ export default function ParameterSettings() {
         onClose={closeDialog}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["parameters"] })}
       />
+
+      {viewing ? (
+        <ParameterDetailDrawer
+          parameter={viewing}
+          allParameters={parameters}
+          groupNameById={groupNameById}
+          onEdit={() => {
+            setViewingId(null);
+            setEditing(viewing);
+          }}
+          onClose={() => setViewingId(null)}
+        />
+      ) : null}
 
       {criteriaEditor && criteriaField ? (
         criteriaEditor.mode === "substance" ? (
