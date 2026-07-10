@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, AlertTriangle, Clock, Plus, Pencil, ArrowDownToLine, History, Search, ScanLine } from "lucide-react";
+import { Package, AlertTriangle, Clock, Plus, Pencil, ArrowDownToLine, History, Search, ScanLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import AppLayout from "@/components/lis/AppLayout";
@@ -25,9 +25,8 @@ import {
   FREQUENCY_UNITS, FREQUENCY_PRESETS, parseFrequency, formatFrequency, isPreset,
   type FrequencyUnit,
 } from "@/lib/standardFrequency";
-import UnitsDrawer from "@/components/lis/stock/UnitsDrawer";
+import StandardDetailDrawer from "@/components/lis/stock/StandardDetailDrawer";
 import StandardUnitsPanel from "@/components/lis/stock/StandardUnitsPanel";
-import ReceiveBottlesDialog from "@/components/lis/stock/ReceiveBottlesDialog";
 import ReceiveCart from "@/components/lis/stock/ReceiveCart";
 import StockQrScanner from "@/components/lis/StockQrScanner";
 import DiscardDialog from "@/components/lis/stock/DiscardDialog";
@@ -71,13 +70,15 @@ function StandardsTab() {
     return m;
   }, [allUnits]);
 
-  const [drawer, setDrawer] = useState<StockStandardItem | null>(null);
-  const [receiving, setReceiving] = useState<StockStandardItem | null>(null);
+  const [drawerId, setDrawerId] = useState<string | null>(null);
+  const drawerItem = drawerId ? data.find(s => s._id === drawerId) ?? null : null;
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StandardStatusFilter>("all");
   const [editing, setEditing] = useState<StockStandardItem | null>(null);
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<StockStandardItem | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const now = Date.now();
 
@@ -118,6 +119,22 @@ function StandardsTab() {
 
   const lowList = data.filter(s => standardLevel(sumOf(s).usable) !== "ok");
   const expiringList = data.filter(s => { const x = sumOf(s); return x.expired > 0 || x.expiringSoon > 0; });
+
+  const deleteItem = async () => {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    try {
+      await api.deleteStandard(deleting._id);
+      toast.success("ลบรายการสำเร็จ");
+      qc.invalidateQueries({ queryKey: ["stock", "standards"] });
+      qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+      setDeleting(null);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -197,7 +214,7 @@ function StandardsTab() {
                   <TableHead className="hidden xl:table-cell">ความถี่/1 ครั้ง</TableHead>
                   <TableHead className="hidden xl:table-cell">อุณหภูมิ</TableHead>
                   <TableHead>สถานะ</TableHead>
-                  <TableHead className="w-32 text-right">Actions</TableHead>
+                  <TableHead className="w-12"><span className="sr-only">ลบ</span></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -207,11 +224,14 @@ function StandardsTab() {
                   <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">ไม่มีข้อมูล</TableCell></TableRow>
                 ) : filtered.map(item => {
                   return (
-                    <TableRow key={item._id}>
+                    <TableRow
+                      key={item._id}
+                      className="cursor-pointer"
+                      onClick={() => setDrawerId(item._id)}
+                      title="คลิกเพื่อดูรายละเอียด"
+                    >
                       <TableCell className="font-semibold text-primary">{item.code}</TableCell>
-                      <TableCell className="font-medium">
-                        <button type="button" className="hover:underline text-left" onClick={() => setDrawer(item)}>{item.name}</button>
-                      </TableCell>
+                      <TableCell className="font-medium">{item.name}</TableCell>
                       {(() => {
                         const sum = summarizeStandard(unitsByCode.get(item.code) ?? [], new Date(now));
                         const counts = usableByCode.get(item.code) ?? {};
@@ -243,10 +263,14 @@ function StandardsTab() {
                         })()}
                       </TableCell>
                       <TableCell>
-                        <div className="flex justify-end gap-1">
-                          <Button size="icon" variant="ghost" title="รับเข้า (ขวด)" onClick={() => setReceiving(item)}><ArrowDownToLine className="w-4 h-4" /></Button>
-                          <Button size="icon" variant="ghost" title="รายขวด" onClick={() => setDrawer(item)}><Package className="w-4 h-4" /></Button>
-                          <Button size="icon" variant="ghost" title="แก้ไข" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
+                        <div className="flex justify-end">
+                          <Button
+                            size="icon" variant="ghost"
+                            title={`ลบ Standard ${item.name}`} aria-label={`ลบ Standard ${item.name}`}
+                            onClick={e => { e.stopPropagation(); setDeleting(item); }}
+                          >
+                            <Trash2 className="w-4 h-4 text-destructive" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -265,14 +289,22 @@ function StandardsTab() {
           onSaved={() => { qc.invalidateQueries({ queryKey: ["stock", "standards"] }); }}
         />
       )}
-      {drawer && <UnitsDrawer standard={drawer} onClose={() => setDrawer(null)} />}
-      {receiving && (
-        <ReceiveBottlesDialog
-          standard={receiving}
-          onClose={() => setReceiving(null)}
-          onSaved={() => { qc.invalidateQueries({ queryKey: ["stock", "units"] }); }}
+      {drawerItem && (
+        <StandardDetailDrawer
+          standard={drawerItem}
+          units={unitsByCode.get(drawerItem.code) ?? []}
+          onEdit={() => setEditing(drawerItem)}
+          onClose={() => setDrawerId(null)}
         />
       )}
+      <DeleteConfirmDialog
+        open={!!deleting}
+        title="ลบ Standard?"
+        itemName={deleting?.name}
+        busy={deleteBusy}
+        onCancel={() => setDeleting(null)}
+        onConfirm={deleteItem}
+      />
     </div>
   );
 }
@@ -291,6 +323,8 @@ function SolventsTab() {
   const [editing, setEditing] = useState<StockSolventItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [moving, setMoving] = useState<{ item: StockSolventItem; mode: "deduct" | "receive" } | null>(null);
+  const [deleting, setDeleting] = useState<StockSolventItem | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -298,6 +332,22 @@ function SolventsTab() {
   }, [data, search]);
 
   const lowList = data.filter(s => solventLevel(s.qty) !== "ok");
+
+  const deleteItem = async () => {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    try {
+      await api.deleteSolvent(deleting._id);
+      toast.success("ลบรายการสำเร็จ");
+      qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
+      qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+      setDeleting(null);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -344,7 +394,7 @@ function SolventsTab() {
                 <TableHead className="text-right">จำนวน (ขวด)</TableHead>
                 <TableHead className="text-right">ราคา (บาท)</TableHead>
                 <TableHead>หมายเหตุ</TableHead>
-                <TableHead className="w-32 text-right">Actions</TableHead>
+                <TableHead className="w-40 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -367,6 +417,9 @@ function SolventsTab() {
                     <div className="flex justify-end gap-1">
                       <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" title={`ลบสารเคมี ${item.name}`} aria-label={`ลบสารเคมี ${item.name}`} onClick={() => setDeleting(item)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -413,6 +466,14 @@ function SolventsTab() {
           }}
         />
       )}
+      <DeleteConfirmDialog
+        open={!!deleting}
+        title="ลบสารเคมี?"
+        itemName={deleting?.name}
+        busy={deleteBusy}
+        onCancel={() => setDeleting(null)}
+        onConfirm={deleteItem}
+      />
     </div>
   );
 }
@@ -431,6 +492,8 @@ function GlasswareTab() {
   const [editing, setEditing] = useState<StockGlasswareItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [moving, setMoving] = useState<{ item: StockGlasswareItem; mode: "deduct" | "receive" } | null>(null);
+  const [deleting, setDeleting] = useState<StockGlasswareItem | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -439,6 +502,22 @@ function GlasswareTab() {
 
   // เครื่องแก้ว: แจ้งเฉพาะตอนหมดจริง (ไม่เตือนตอนใกล้หมด)
   const outList = data.filter(s => glasswareLevel(s.qty) === "out");
+
+  const deleteItem = async () => {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    try {
+      await api.deleteGlassware(deleting._id);
+      toast.success("ลบรายการสำเร็จ");
+      qc.invalidateQueries({ queryKey: ["stock", "glassware"] });
+      qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+      setDeleting(null);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -478,7 +557,7 @@ function GlasswareTab() {
                 <TableHead className="text-right">จำนวน (ชิ้น)</TableHead>
                 <TableHead className="text-right">ราคา/ชิ้น (บาท)</TableHead>
                 <TableHead>หมายเหตุ</TableHead>
-                <TableHead className="w-32 text-right">Actions</TableHead>
+                <TableHead className="w-40 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -500,6 +579,9 @@ function GlasswareTab() {
                     <div className="flex justify-end gap-1">
                       <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" title={`ลบเครื่องแก้ว ${item.name}`} aria-label={`ลบเครื่องแก้ว ${item.name}`} onClick={() => setDeleting(item)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -545,6 +627,14 @@ function GlasswareTab() {
           }}
         />
       )}
+      <DeleteConfirmDialog
+        open={!!deleting}
+        title="ลบเครื่องแก้ว?"
+        itemName={deleting?.name}
+        busy={deleteBusy}
+        onCancel={() => setDeleting(null)}
+        onConfirm={deleteItem}
+      />
     </div>
   );
 }
@@ -652,6 +742,36 @@ function ActionBadge({ action }: { action: string }) {
 // ============================================================
 // Reusable dialogs
 // ============================================================
+function DeleteConfirmDialog({
+  open, title, itemName, busy, onCancel, onConfirm,
+}: {
+  open: boolean;
+  title: string;
+  itemName?: string;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={next => { if (!next && !busy) onCancel(); }}>
+      <DialogContent className="max-w-[95vw] sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>
+            {itemName ? `รายการ "${itemName}" จะถูกลบออกจากหน้ารายการ และบันทึกประวัติไว้ใน MongoDB` : "ยืนยันการลบรายการนี้"}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>ยกเลิก</Button>
+          <Button type="button" variant="destructive" onClick={onConfirm} disabled={busy}>
+            {busy ? "กำลังลบ..." : "ลบ"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface SimpleField {
   key: string;
   label: string;
