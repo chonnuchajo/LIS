@@ -3,9 +3,11 @@ const router = express.Router();
 const { StockStandard, StockSolvent, StockGlassware } = require('../models/Stock');
 const StockTransaction = require('../models/StockTransaction');
 const StockUnit = require('../models/StockUnit');
+const User = require('../models/User');
 const crypto = require('crypto');
 const { isValidReceiveType, isValidUnitType } = require('../lib/stockSource');
 const { sumWeights } = require('../lib/requisitionWeights');
+const { normalizeActorFields } = require('../lib/stockActor');
 
 async function genUniqueQrId() {
   for (let i = 0; i < 5; i++) {
@@ -16,18 +18,24 @@ async function genUniqueQrId() {
   throw new Error('ไม่สามารถสร้าง qrId ที่ไม่ซ้ำได้');
 }
 
-function personOf(req) {
-  const m = userMeta(req);
+async function personOf(req) {
+  const m = await userMeta(req);
   return m.userName ? { email: m.userEmail, name: m.userName } : undefined;
 }
 
 const TIERS = ['primary', 'supplier', 'working'];
 
-function userMeta(req) {
-  return {
-    userEmail: req.body?._user?.email || req.headers['x-user-email'] || '',
-    userName: req.body?._user?.name || req.headers['x-user-name'] || '',
+async function userMeta(req) {
+  if (req._stockUserMeta) return req._stockUserMeta;
+  const raw = {
+    email: req.body?._user?.email || req.headers['x-user-email'] || '',
+    name: req.body?._user?.name || req.headers['x-user-name'] || '',
   };
+  const email = String(raw.email || '').trim().toLowerCase();
+  const stored = email ? await User.findOne({ email }).lean() : null;
+  const actor = normalizeActorFields(raw, stored || {});
+  req._stockUserMeta = { userEmail: actor.email, userName: actor.name };
+  return req._stockUserMeta;
 }
 
 async function logTransaction(data) {
@@ -130,7 +138,7 @@ router.post('/standards', async (req, res) => {
       action: 'create',
       afterQty: item.primary?.qty ?? 0,
       unit: 'bottle',
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
     res.status(201).json(item);
   } catch (err) {
@@ -154,7 +162,7 @@ router.patch('/standards/:id', async (req, res) => {
       afterQty: item.primary?.qty ?? 0,
       delta: (item.primary?.qty ?? 0) - (before.primary?.qty ?? 0),
       unit: 'bottle',
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
     res.json(item);
   } catch (err) {
@@ -175,7 +183,7 @@ router.delete('/standards/:id', async (req, res) => {
       itemName: item.name,
       action: 'delete',
       beforeQty: item.primary?.qty ?? 0,
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
     res.json({ success: true });
   } catch (err) {
@@ -213,7 +221,7 @@ router.post('/standards/:id/deduct', async (req, res) => {
       unit: 'bottle',
       sampleId,
       note,
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
 
     res.json(item);
@@ -233,7 +241,7 @@ router.post('/units/:qrId/deduct-mg', async (req, res) => {
       // กัน audit หาย: ค่านอก enum → undefined (default null)
       instrumentGroup: instrumentGroup === 'gc' || instrumentGroup === 'hplc' ? instrumentGroup : undefined,
       note: [petitionNo, note].filter(Boolean).join(' · '),
-      ...userMeta(req),
+      ...(await userMeta(req)),
     };
     const result = await deductMgFromUnit(req.params.qrId, amount, meta);
     res.json(result.unit);
@@ -269,7 +277,7 @@ router.post('/standards/:id/receive', async (req, res) => {
       delta: amount,
       unit: 'bottle',
       note,
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
 
     res.json(item);
@@ -307,7 +315,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
         volume: { initial: size, remaining: size, unit },
         status: 'active',
         receivedDate: now,
-        createdBy: personOf(req),
+        createdBy: await personOf(req),
       });
       created.push(u);
       await logTransaction({
@@ -323,7 +331,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
         volumeUnit: unit,
         unit,
         note,
-        ...userMeta(req),
+        ...(await userMeta(req)),
       });
     }
     res.status(201).json(created);
@@ -350,20 +358,20 @@ router.post('/units/:qrId/discard', async (req, res) => {
       await logTransaction({
         itemType: 'standard', itemId: std ? std._id.toString() : unit.itemCode,
         itemCode: unit.itemCode, itemName: unit.itemName, action: 'update',
-        unitId: unit._id.toString(), qrId: unit.qrId, note: reason || 'แจ้งหมด', ...userMeta(req),
+        unitId: unit._id.toString(), qrId: unit.qrId, note: reason || 'แจ้งหมด', ...(await userMeta(req)),
       });
       return res.json({ status: 'empty', qrId: unit.qrId });
     }
 
     unit.status = 'discarded';
     unit.discardedAt = new Date();
-    unit.discardedBy = personOf(req);
+    unit.discardedBy = await personOf(req);
     unit.discardReason = reason;
     await unit.save();
     await logTransaction({
       itemType: 'standard', itemId: std ? std._id.toString() : unit.itemCode,
       itemCode: unit.itemCode, itemName: unit.itemName, action: 'discard',
-      unitId: unit._id.toString(), qrId: unit.qrId, note: reason, ...userMeta(req),
+      unitId: unit._id.toString(), qrId: unit.qrId, note: reason, ...(await userMeta(req)),
     });
     res.json({ status: 'discarded', qrId: unit.qrId });
   } catch (err) {
@@ -450,7 +458,7 @@ router.post('/solvents', async (req, res) => {
       action: 'create',
       afterQty: item.qty,
       unit: 'bottle',
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
     res.status(201).json(item);
   } catch (err) {
@@ -473,7 +481,7 @@ router.patch('/solvents/:id', async (req, res) => {
       afterQty: item.qty,
       delta: item.qty - before.qty,
       unit: 'bottle',
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
     res.json(item);
   } catch (err) {
@@ -493,7 +501,7 @@ router.delete('/solvents/:id', async (req, res) => {
       itemName: item.name,
       action: 'delete',
       beforeQty: item.qty,
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
     res.json({ success: true });
   } catch (err) {
@@ -523,7 +531,7 @@ router.post('/solvents/:id/deduct', async (req, res) => {
       unit: 'bottle',
       sampleId,
       note,
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
     res.json(item);
   } catch (err) {
@@ -551,7 +559,7 @@ router.post('/solvents/:id/receive', async (req, res) => {
       delta: amount,
       unit: 'bottle',
       note,
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
     res.json(item);
   } catch (err) {
@@ -580,7 +588,7 @@ router.post('/glassware', async (req, res) => {
       action: 'create',
       afterQty: item.qty,
       unit: 'piece',
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
     res.status(201).json(item);
   } catch (err) {
@@ -603,7 +611,7 @@ router.patch('/glassware/:id', async (req, res) => {
       afterQty: item.qty,
       delta: item.qty - before.qty,
       unit: 'piece',
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
     res.json(item);
   } catch (err) {
@@ -623,7 +631,7 @@ router.delete('/glassware/:id', async (req, res) => {
       itemName: item.name,
       action: 'delete',
       beforeQty: item.qty,
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
     res.json({ success: true });
   } catch (err) {
@@ -653,7 +661,7 @@ router.post('/glassware/:id/deduct', async (req, res) => {
       unit: 'piece',
       sampleId,
       note,
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
     res.json(item);
   } catch (err) {
@@ -681,7 +689,7 @@ router.post('/glassware/:id/receive', async (req, res) => {
       delta: amount,
       unit: 'piece',
       note,
-      ...userMeta(req),
+      ...(await userMeta(req)),
     });
     res.json(item);
   } catch (err) {
@@ -700,8 +708,22 @@ router.get('/transactions', async (req, res) => {
     if (action) filter.action = action;
     const txs = await StockTransaction.find(filter)
       .sort({ createdAt: -1 })
-      .limit(Math.min(Number(limit) || 200, 1000));
-    res.json(txs);
+      .limit(Math.min(Number(limit) || 200, 1000))
+      .lean();
+    const missingNameEmails = [...new Set(txs
+      .filter((tx) => !normalizeActorFields({ email: tx.userEmail, name: tx.userName }).name && tx.userEmail)
+      .map((tx) => String(tx.userEmail).trim().toLowerCase()))];
+    const users = missingNameEmails.length
+      ? await User.find({ email: { $in: missingNameEmails } }).lean()
+      : [];
+    const userByEmail = new Map(users.map((user) => [String(user.email).trim().toLowerCase(), user]));
+    res.json(txs.map((tx) => {
+      const actor = normalizeActorFields(
+        { email: tx.userEmail, name: tx.userName },
+        userByEmail.get(String(tx.userEmail || '').trim().toLowerCase()) || {},
+      );
+      return { ...tx, userEmail: actor.email || tx.userEmail, userName: actor.name || tx.userName };
+    }));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
