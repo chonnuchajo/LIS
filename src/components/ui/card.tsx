@@ -43,20 +43,16 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
       onKeyDown,
       role,
       tabIndex,
-      children,
       ...props
     },
     ref,
   ) => {
     const interactive = typeof onOpen === "function";
-    const hasTextOnlyChildren = React.Children.toArray(children).every((child) => {
-      return typeof child === "string" || typeof child === "number";
-    });
 
     return (
       <div
         ref={ref}
-        role={interactive && hasTextOnlyChildren ? role ?? "button" : role}
+        role={interactive ? role ?? "button" : role}
         tabIndex={interactive ? tabIndex ?? 0 : tabIndex}
         className={cn(
           "rounded-lg border bg-card text-card-foreground shadow-sm",
@@ -82,7 +78,6 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
           onOpen();
         }}
         {...props}
-        {...{ children }}
       />
     );
   },

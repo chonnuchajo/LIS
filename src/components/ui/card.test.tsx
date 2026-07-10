@@ -42,10 +42,16 @@ describe("Card onOpen", () => {
       </Card>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Child action" }));
+    const buttons = screen.getAllByRole("button", { name: "Child action" });
+    const childButton = buttons.find((node) => node.tagName.toLowerCase() === "button");
+    const cardButton = buttons.find((node) => node.tagName.toLowerCase() === "div");
+    expect(childButton).toBeDefined();
+    expect(cardButton).toBeDefined();
+    fireEvent.click(childButton!);
 
     expect(onChildClick).toHaveBeenCalledTimes(1);
     expect(onOpen).not.toHaveBeenCalled();
+    expect(cardButton).toHaveAttribute("role", "button");
   });
 
   it("does not call onOpen from data-card-open-ignore children", () => {
