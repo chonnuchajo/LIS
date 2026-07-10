@@ -48,6 +48,7 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
     ref,
   ) => {
     const interactive = typeof onOpen === "function";
+    const clickSequenceDoubleClickRef = React.useRef(false);
 
     return (
       <div
@@ -63,11 +64,18 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
         onClick={(event) => {
           onClick?.(event);
           if (!interactive || event.defaultPrevented || isIgnoredOpenTarget(event.target, event.currentTarget)) return;
+          if (event.detail > 1) {
+            clickSequenceDoubleClickRef.current = true;
+            return;
+          }
           onOpen();
         }}
         onDoubleClick={(event) => {
+          const handledByClickSequence = clickSequenceDoubleClickRef.current;
+          clickSequenceDoubleClickRef.current = false;
           onDoubleClick?.(event);
           if (!interactive || event.defaultPrevented || isIgnoredOpenTarget(event.target, event.currentTarget)) return;
+          if (handledByClickSequence) return;
           onOpen();
         }}
         onKeyDown={(event) => {

@@ -45,6 +45,18 @@ describe("Card onOpen", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
+  it("opens once for a browser double-click sequence", () => {
+    const onOpen = vi.fn();
+    render(<Card onOpen={onOpen}>Open me</Card>);
+    const card = screen.getByRole("button", { name: "Open me" });
+
+    fireEvent.click(card, { detail: 1 });
+    fireEvent.click(card, { detail: 2 });
+    fireEvent.doubleClick(card, { detail: 2 });
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
   it("calls onOpen on Enter and Space", () => {
     const onOpen = vi.fn();
     render(<Card onOpen={onOpen}>Open me</Card>);
