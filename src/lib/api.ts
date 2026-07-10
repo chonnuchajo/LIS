@@ -333,7 +333,7 @@ export const api = {
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`),
   deductStockUnitMg: (
     qrId: string,
-    body: { weights?: number[]; mg?: number; instrumentGroup?: "gc" | "hplc"; instrumentId?: string; instrumentName?: string; sampleId?: string; petitionNo?: string; note?: string },
+    body: { weights?: number[]; mg?: number; instrumentGroup?: "gc" | "hplc"; instrumentId?: string; instrumentName?: string; sampleId?: string; petitionNo?: string; note?: string; _user?: { email?: string; name?: string } },
   ) =>
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}/deduct-mg`, {
       method: "POST",

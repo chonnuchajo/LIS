@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -30,6 +30,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -47,6 +48,7 @@ import {
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetFooter,
   SheetHeader,
   SheetTitle,
@@ -206,6 +208,7 @@ type MasterItemOverride = {
 type MasterItemOverrideMap = Record<string, MasterItemOverride>;
 
 const DIRECT_MASTER_ITEM_URL = "https://n8n-plant.icpladda.com/webhook/API/Item-production";
+const MASTER_ITEM_DETAIL_CLICK_DELAY_MS = 250;
 
 const idKeys = ["_id", "id", "itemId", "item_id", "item_no", "code", "itemCode"];
 const codeKeys = ["item_no", "itemCode", "item_code", "code", "Code", "ITEM_CODE"];
@@ -670,6 +673,7 @@ async function fetchDirectMasterItems() {
 
 export default function MasterItems() {
   const queryClient = useQueryClient();
+  const itemDetailClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
@@ -682,6 +686,28 @@ export default function MasterItems() {
   const [exporting, setExporting] = useState<null | "xlsx" | "pdf">(null);
   const [syncingWeights, setSyncingWeights] = useState(false);
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+
+  const clearItemDetailClickTimer = () => {
+    if (itemDetailClickTimerRef.current) {
+      clearTimeout(itemDetailClickTimerRef.current);
+      itemDetailClickTimerRef.current = null;
+    }
+  };
+
+  const openItemDetails = (next: { item: MasterItem; originalItemNo: string; override?: MasterItemOverride }) => {
+    clearItemDetailClickTimer();
+    setViewing(next);
+  };
+
+  const scheduleItemDetails = (next: { item: MasterItem; originalItemNo: string; override?: MasterItemOverride }) => {
+    clearItemDetailClickTimer();
+    itemDetailClickTimerRef.current = setTimeout(() => {
+      itemDetailClickTimerRef.current = null;
+      setViewing(next);
+    }, MASTER_ITEM_DETAIL_CLICK_DELAY_MS);
+  };
+
+  useEffect(() => () => clearItemDetailClickTimer(), []);
 
   const {
     data: items = [],
@@ -1032,7 +1058,12 @@ export default function MasterItems() {
                         <TableRow
                           key={rowKey}
                           className="h-14 cursor-pointer"
-                          onClick={() => setViewing({ item, originalItemNo, override })}
+                          onClick={(event) => {
+                            if (event.detail > 1) return;
+                            scheduleItemDetails({ item, originalItemNo, override });
+                          }}
+                          onDoubleClick={() => openItemDetails({ item, originalItemNo, override })}
+                          title="คลิกเพื่อดูรายละเอียด"
                         >
                           <TableCell className="font-semibold text-primary">
                             {displayValue(firstValue(item, codeKeys))}
@@ -1067,7 +1098,11 @@ export default function MasterItems() {
                           <TableCell className="text-right tabular-nums">
                             {displayValue(firstValue(item, weightKeys))}
                           </TableCell>
-                          <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
+                          <TableCell
+                            className="text-right"
+                            onClick={(event) => event.stopPropagation()}
+                            onDoubleClick={(event) => event.stopPropagation()}
+                          >
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="เมนูจัดการ">
@@ -1075,7 +1110,7 @@ export default function MasterItems() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setViewing({ item, originalItemNo, override })}>
+                                <DropdownMenuItem onClick={() => openItemDetails({ item, originalItemNo, override })}>
                                   <Eye className="mr-2 h-4 w-4" /> ดูรายละเอียด
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => setEditing({ item, originalItemNo, override })}>
@@ -2051,6 +2086,9 @@ function MasterItemDialog({
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle>{isEdit ? "แก้ไข Item" : "เพิ่ม Item"}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {isEdit ? "Edit master item metadata" : "Create a master item override"}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4 grid-cols-1 md:grid-cols-2">
@@ -2285,8 +2323,22 @@ function MasterItemDetailDrawer({
   return (
     <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
       <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-md">
-        <SheetHeader className="space-y-1 border-b border-border p-6 pr-12 text-left">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="absolute right-10 top-3.5 h-7 w-7"
+          aria-label="แก้ไข item จากแถบรายละเอียด"
+          title="แก้ไข"
+          onClick={onEdit}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <SheetHeader className="space-y-1 border-b border-border p-6 pr-20 text-left">
           <SheetTitle className="text-xl font-bold text-primary">{code}</SheetTitle>
+          <SheetDescription className="sr-only">
+            Master item details and matching parameters
+          </SheetDescription>
           <p className="text-sm text-muted-foreground">{name}</p>
         </SheetHeader>
 

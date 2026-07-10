@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { isUsableBottle } from "@/lib/stockStatus";
-import { defaultWeightCount, sumWeights, validateWeights } from "@/lib/standardRequisition";
+import { defaultWeightCount, requisitionUser, sumWeights, validateWeights } from "@/lib/standardRequisition";
 import { buildSubstanceGroups, resolveGroups, type InstrumentGroup } from "@/lib/standardInstrumentGroups";
 import { cn } from "@/lib/utils";
 import type { StockUnitItem } from "@/types/stock";
@@ -174,6 +174,7 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
         weights: nums,
         instrumentGroup: submitGroup,
         note: note || undefined,
+        _user: requisitionUser(user),
       });
       toast.success(`เบิก ${standard?.name ?? "standard"} ${nums.length} น้ำหนัก (${total} mg)`);
       qc.invalidateQueries({ queryKey: ["stock", "units"] });

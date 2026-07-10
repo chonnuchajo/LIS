@@ -78,6 +78,13 @@ import {
   type TimerUnit,
 } from "@/lib/api";
 import {
+  FIELD_TYPE_META,
+  SCOPE_BADGE_CLASS,
+  SCOPE_LABEL,
+  summarizeOptionFilter,
+  type OptionFilter,
+} from "@/lib/parameterDisplay";
+import {
   formatClassificationOption,
   getClassification,
   getCommonName,

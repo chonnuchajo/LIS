@@ -9,6 +9,7 @@ import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import StockRequisitionButton from "@/components/lis/stock/StockRequisitionButton";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
+import { deductionAmount } from "@/lib/stockDeduction";
 import { getRoomCatalog } from "@/lib/roomEquipment";
 import type { StockTransactionItem } from "@/types/stock";
 
@@ -39,19 +40,21 @@ const StockDeduction = () => {
     {
       key: "item",
       header: "รายการ",
-      cell: (t) => (
-        <>
-          <div className="font-medium">{t.itemName}</div>
-          {t.itemCode && <div className="text-xs text-muted-foreground">{t.itemCode}</div>}
-        </>
-      ),
+      cell: (t) => <div className="font-medium">{t.itemName}</div>,
     },
-    { key: "tier", header: "Tier", cell: (t) => (t.tier ? <Badge variant="outline">{t.tier}</Badge> : "-") },
     {
       key: "delta",
       header: "จำนวนที่ตัด",
-      className: "text-right font-mono text-destructive",
-      cell: (t) => `${t.delta != null ? t.delta : "-"} ${t.unit || ""}`,
+      className: "text-right font-mono",
+      cell: (t) => {
+        const { text, sub } = deductionAmount(t);
+        return (
+          <>
+            <div className="text-destructive">{text}</div>
+            {sub && <div className="text-xs text-muted-foreground">{sub}</div>}
+          </>
+        );
+      },
     },
     {
       key: "remaining",
@@ -60,14 +63,9 @@ const StockDeduction = () => {
       cell: (t) => (
         <>
           {t.beforeQty ?? "-"} → <strong>{t.afterQty ?? "-"}</strong>
+          {t.unit ? <span className="text-xs text-muted-foreground"> {t.unit}</span> : null}
         </>
       ),
-    },
-    {
-      key: "sample",
-      header: "Sample ID",
-      className: "text-xs",
-      cell: (t) => (t.sampleId ? <Badge variant="outline">{t.sampleId}</Badge> : "-"),
     },
     { key: "user", header: "ผู้ดำเนินการ", className: "text-xs", cell: (t) => t.userName || t.userEmail || "-" },
     { key: "note", header: "หมายเหตุ", className: "text-xs text-muted-foreground", cell: (t) => t.note || "" },
@@ -107,7 +105,7 @@ const StockDeduction = () => {
         rowKey={(t) => t._id}
         isLoading={isLoading}
         emptyTitle="ยังไม่มีรายการตัด stock"
-        tableClassName="min-w-[900px]"
+        tableClassName="min-w-[760px]"
       />
     </AppLayout>
   );
