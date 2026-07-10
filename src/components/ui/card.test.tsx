@@ -75,6 +75,23 @@ describe("Card onOpen", () => {
     expect(cardButton).toHaveAttribute("role", "button");
   });
 
+  it("keeps draggable and nested title actions independent", () => {
+    const onOpen = vi.fn();
+    const onTitleClick = vi.fn();
+    render(
+      <Card onOpen={onOpen} draggable>
+        <button type="button" onClick={onTitleClick}>PET-001</button>
+        <span>Card body</span>
+      </Card>,
+    );
+
+    fireEvent.click(screen.getByText("Card body"));
+    fireEvent.click(screen.getByRole("button", { name: "PET-001" }));
+
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onTitleClick).toHaveBeenCalledTimes(1);
+  });
+
   it("does not call onOpen from SVG in interactive child", () => {
     const onOpen = vi.fn();
     const onChildClick = vi.fn();

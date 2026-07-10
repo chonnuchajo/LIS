@@ -1008,7 +1008,8 @@ function PetitionCard({
   const blocked = groups.length === 0 || groups.some((g) => groupHasUnassignable(g, methodByCode));
 
   return (
-    <div
+    <Card
+      onOpen={onClick}
       draggable
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = 'move';
@@ -1017,7 +1018,7 @@ function PetitionCard({
       }}
       onDragEnd={onDragEnd}
       className={cn(
-        'group cursor-grab rounded-lg border border-grey-200 bg-white p-2.5 shadow-sm transition active:cursor-grabbing hover:border-primary-200 hover:shadow',
+        'group cursor-grab rounded-lg border-grey-200 bg-white p-2.5 shadow-sm transition active:cursor-grabbing hover:border-primary-200 hover:shadow',
         dragging && 'opacity-40',
       )}
     >
@@ -1081,7 +1082,7 @@ function PetitionCard({
           </Badge>
         )}
       </div>
-    </div>
+    </Card>
   );
 }
 

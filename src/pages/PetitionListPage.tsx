@@ -342,21 +342,20 @@ export default function PetitionListPage() {
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map((card) => (
-            <button
+            <Card
               key={card.label}
-              type="button"
-              onClick={() => updateParams({ status: card.key || undefined, page: undefined })}
+              onOpen={() => updateParams({ status: card.key || undefined, page: undefined })}
               className={cn(
-                'rounded-2xl border bg-white p-4 text-left transition-all',
+                "rounded-2xl p-4 text-left transition-all",
                 card.active
-                  ? 'border-primary-300 bg-primary-50 shadow-sm ring-1 ring-primary-100'
-                  : 'border-black-50 hover:border-primary-200 hover:bg-grey-50/50',
+                  ? "border-primary-300 bg-primary-50 shadow-sm ring-1 ring-primary-100"
+                  : "border-black-50 hover:border-primary-200 hover:bg-grey-50/50",
               )}
             >
               <p className="text-sm font-medium text-grey-600">{card.label}</p>
               <p className="mt-2 text-3xl font-bold text-black-500">{card.count}</p>
               <p className="mt-1 text-xs text-grey-500">{card.hint}</p>
-            </button>
+            </Card>
           ))}
         </div>
 
@@ -484,11 +483,10 @@ export default function PetitionListPage() {
                   : [];
 
                 return (
-                  <button
+                  <Card
                     key={petition._id}
-                    type="button"
-                    onClick={() => navigate(`/petitions/${petition._id}`)}
-                    className="w-full rounded-2xl border border-black-50 bg-white p-4 text-left transition hover:border-primary-200 hover:bg-grey-50/40"
+                    onOpen={() => navigate(`/petitions/${petition._id}`)}
+                    className="w-full rounded-2xl border-black-50 p-4 text-left transition hover:border-primary-200 hover:bg-grey-50/40"
                   >
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0 flex-1 space-y-3">
@@ -527,7 +525,7 @@ export default function PetitionListPage() {
                         </span>
                       </div>
                     </div>
-                  </button>
+                  </Card>
                 );
               })
             )}
