@@ -3,11 +3,19 @@ const router = express.Router();
 const { StockSolvent } = require('../models/Stock');
 const StockTransaction = require('../models/StockTransaction');
 const ChemicalRequisition = require('../models/ChemicalRequisition');
+const User = require('../models/User');
 const { buildDeductNote, normalizeReqInput } = require('../lib/chemicalRequisition');
+const { normalizeActorFields } = require('../lib/stockActor');
 
 async function logTx(data) {
   try { await StockTransaction.create(data); }
   catch (err) { console.error('logTransaction failed:', err.message); }
+}
+
+async function resolveRequestedBy(requestedBy) {
+  const email = String(requestedBy?.email || '').trim().toLowerCase();
+  const stored = email ? await User.findOne({ email }).lean() : null;
+  return normalizeActorFields(requestedBy, stored || {});
 }
 
 // GET /chemical-requisitions?room=&date=
@@ -30,6 +38,8 @@ router.post('/', async (req, res) => {
     const norm = normalizeReqInput(req.body);
     if (norm.error) return res.status(400).json({ error: norm.error });
     const v = norm.value;
+    const requestedBy = await resolveRequestedBy(v.requestedBy);
+    if (!requestedBy.name) return res.status(400).json({ error: 'ผู้ดำเนินการต้องมีชื่อ' });
 
     const solvent = await StockSolvent.findById(v.solventId);
     if (!solvent) return res.status(404).json({ error: 'ไม่พบสารเคมี' });
@@ -52,8 +62,8 @@ router.post('/', async (req, res) => {
       delta: -v.qty,
       unit: 'bottle',
       note: buildDeductNote(v.instrumentName, v.note),
-      userEmail: v.requestedBy.email,
-      userName: v.requestedBy.name,
+      userEmail: requestedBy.email,
+      userName: requestedBy.name,
     });
 
     const requisition = await ChemicalRequisition.create({
@@ -67,7 +77,7 @@ router.post('/', async (req, res) => {
       qty: v.qty,
       unit: 'bottle',
       note: v.note,
-      requestedBy: v.requestedBy,
+      requestedBy,
     });
 
     res.status(201).json({ requisition, solvent: updated });

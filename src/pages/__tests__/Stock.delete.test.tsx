@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import StockPage from "../Stock";
@@ -11,6 +11,9 @@ const apiMock = vi.hoisted(() => ({
   getSolvents: vi.fn(),
   getGlassware: vi.fn(),
   getStockTransactions: vi.fn(),
+}));
+const tabsMock = vi.hoisted(() => ({
+  defaultKey: "standard",
 }));
 
 vi.mock("@/lib/api", () => ({ api: apiMock }));
@@ -43,10 +46,20 @@ vi.mock("@/components/lis/stock/ReceiveCart", () => ({
   default: () => null,
 }));
 
+vi.mock("@/context/AuthContext", () => ({
+  useAuth: () => ({
+    user: { email: "tester@example.com", name: "Tester" },
+  }),
+}));
+
 vi.mock("@/hooks/useAccessibleTabs", () => ({
   useAccessibleTabs: () => ({
-    defaultKey: "standard",
-    tabs: [{ key: "standard", label: "Standards" }],
+    defaultKey: tabsMock.defaultKey,
+    tabs: [
+      { key: "standard", label: "Standards" },
+      { key: "solvent", label: "Solvents" },
+      { key: "glassware", label: "Glassware" },
+    ],
   }),
 }));
 
@@ -57,7 +70,8 @@ vi.mock("sonner", () => ({
   },
 }));
 
-function renderStock() {
+function renderStock(defaultKey = "standard") {
+  tabsMock.defaultKey = defaultKey;
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -71,6 +85,7 @@ function renderStock() {
 describe("StockPage delete actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    tabsMock.defaultKey = "standard";
     apiMock.getStandards.mockResolvedValue([
       {
         _id: "std-1",
@@ -88,8 +103,25 @@ describe("StockPage delete actions", () => {
     ]);
     apiMock.getStockUnits.mockResolvedValue([]);
     apiMock.deleteStandard.mockResolvedValue({ success: true });
-    apiMock.getSolvents.mockResolvedValue([]);
-    apiMock.getGlassware.mockResolvedValue([]);
+    apiMock.getSolvents.mockResolvedValue([
+      {
+        _id: "solvent-1",
+        name: "Methanol",
+        sizeLiter: 2.5,
+        qty: 3,
+        price: 1200,
+        note: "HPLC grade",
+      },
+    ]);
+    apiMock.getGlassware.mockResolvedValue([
+      {
+        _id: "glass-1",
+        name: "Volumetric flask",
+        qty: 12,
+        pricePerPiece: 450,
+        note: "Class A",
+      },
+    ]);
     apiMock.getStockTransactions.mockResolvedValue([]);
   });
 
@@ -111,5 +143,53 @@ describe("StockPage delete actions", () => {
     fireEvent.click(await screen.findByRole("cell", { name: "Pesticide Standard" }));
 
     expect(await screen.findByTestId("standard-detail-drawer")).toBeInTheDocument();
+  });
+
+  it("opens the detail drawer when double-clicking a standard row", async () => {
+    renderStock();
+
+    fireEvent.doubleClick(await screen.findByRole("cell", { name: "Pesticide Standard" }));
+
+    expect(await screen.findByTestId("standard-detail-drawer")).toBeInTheDocument();
+  });
+
+  it("opens solvent details when clicking or double-clicking a solvent row", async () => {
+    renderStock("solvent");
+
+    fireEvent.click(await screen.findByRole("cell", { name: "Methanol" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Methanol" });
+    expect(within(dialog).getByRole("heading", { name: "Methanol" })).toBeInTheDocument();
+    expect(within(dialog).getByText("HPLC grade")).toBeInTheDocument();
+  });
+
+  it("opens solvent details when double-clicking a solvent row", async () => {
+    renderStock("solvent");
+
+    fireEvent.doubleClick(await screen.findByRole("cell", { name: "Methanol" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Methanol" });
+    expect(within(dialog).getByRole("heading", { name: "Methanol" })).toBeInTheDocument();
+    expect(within(dialog).getByText("HPLC grade")).toBeInTheDocument();
+  });
+
+  it("opens glassware details when clicking a glassware row", async () => {
+    renderStock("glassware");
+
+    fireEvent.click(await screen.findByRole("cell", { name: "Volumetric flask" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Volumetric flask" });
+    expect(within(dialog).getByRole("heading", { name: "Volumetric flask" })).toBeInTheDocument();
+    expect(within(dialog).getByText("Class A")).toBeInTheDocument();
+  });
+
+  it("opens glassware details when double-clicking a glassware row", async () => {
+    renderStock("glassware");
+
+    fireEvent.doubleClick(await screen.findByRole("cell", { name: "Volumetric flask" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Volumetric flask" });
+    expect(within(dialog).getByRole("heading", { name: "Volumetric flask" })).toBeInTheDocument();
+    expect(within(dialog).getByText("Class A")).toBeInTheDocument();
   });
 });

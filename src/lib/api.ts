@@ -26,6 +26,7 @@ import type { MethodDoc, MethodInput } from './methodRegistry';
 import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
 
 export type ApiRouteInfo = { method: string; path: string };
+type StockUserPayload = { _user?: { email?: string; name?: string } };
 
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
@@ -247,28 +248,28 @@ export const api = {
 
   // Stock — Standards
   getStandards: () => request<StockStandardItem[]>("/stock/standards"),
-  createStandard: (data: Partial<StockStandardItem>) =>
+  createStandard: (data: Partial<StockStandardItem> & StockUserPayload) =>
     request<StockStandardItem>("/stock/standards", { method: "POST", body: JSON.stringify(data) }),
-  updateStandard: (id: string, data: Partial<StockStandardItem>) =>
+  updateStandard: (id: string, data: Partial<StockStandardItem> & StockUserPayload) =>
     request<StockStandardItem>(`/stock/standards/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteStandard: (id: string) =>
     request<{ success: true }>(`/stock/standards/${id}`, { method: "DELETE" }),
-  deductStandard: (id: string, body: { tier: StockTier; qty: number; sampleId?: string; note?: string }) =>
+  deductStandard: (id: string, body: { tier: StockTier; qty: number; sampleId?: string; note?: string } & StockUserPayload) =>
     request<StockStandardItem>(`/stock/standards/${id}/deduct`, { method: "POST", body: JSON.stringify(body) }),
-  receiveStandard: (id: string, body: { tier: StockTier; qty: number; note?: string }) =>
+  receiveStandard: (id: string, body: { tier: StockTier; qty: number; note?: string } & StockUserPayload) =>
     request<StockStandardItem>(`/stock/standards/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
 
   // Stock — Solvents
   getSolvents: () => request<StockSolventItem[]>("/stock/solvents"),
-  createSolvent: (data: Partial<StockSolventItem>) =>
+  createSolvent: (data: Partial<StockSolventItem> & StockUserPayload) =>
     request<StockSolventItem>("/stock/solvents", { method: "POST", body: JSON.stringify(data) }),
-  updateSolvent: (id: string, data: Partial<StockSolventItem>) =>
+  updateSolvent: (id: string, data: Partial<StockSolventItem> & StockUserPayload) =>
     request<StockSolventItem>(`/stock/solvents/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteSolvent: (id: string) =>
     request<{ success: true }>(`/stock/solvents/${id}`, { method: "DELETE" }),
-  deductSolvent: (id: string, body: { qty: number; sampleId?: string; note?: string }) =>
+  deductSolvent: (id: string, body: { qty: number; sampleId?: string; note?: string } & StockUserPayload) =>
     request<StockSolventItem>(`/stock/solvents/${id}/deduct`, { method: "POST", body: JSON.stringify(body) }),
-  receiveSolvent: (id: string, body: { qty: number; note?: string }) =>
+  receiveSolvent: (id: string, body: { qty: number; note?: string } & StockUserPayload) =>
     request<StockSolventItem>(`/stock/solvents/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
 
   // Chemical requisition — เบิกสารเคมี (solvent) → เครื่อง (daily-check/analysis)
@@ -301,15 +302,15 @@ export const api = {
 
   // Stock — Glassware
   getGlassware: () => request<StockGlasswareItem[]>("/stock/glassware"),
-  createGlassware: (data: Partial<StockGlasswareItem>) =>
+  createGlassware: (data: Partial<StockGlasswareItem> & StockUserPayload) =>
     request<StockGlasswareItem>("/stock/glassware", { method: "POST", body: JSON.stringify(data) }),
-  updateGlassware: (id: string, data: Partial<StockGlasswareItem>) =>
+  updateGlassware: (id: string, data: Partial<StockGlasswareItem> & StockUserPayload) =>
     request<StockGlasswareItem>(`/stock/glassware/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   deleteGlassware: (id: string) =>
     request<{ success: true }>(`/stock/glassware/${id}`, { method: "DELETE" }),
-  deductGlassware: (id: string, body: { qty: number; sampleId?: string; note?: string }) =>
+  deductGlassware: (id: string, body: { qty: number; sampleId?: string; note?: string } & StockUserPayload) =>
     request<StockGlasswareItem>(`/stock/glassware/${id}/deduct`, { method: "POST", body: JSON.stringify(body) }),
-  receiveGlassware: (id: string, body: { qty: number; note?: string }) =>
+  receiveGlassware: (id: string, body: { qty: number; note?: string } & StockUserPayload) =>
     request<StockGlasswareItem>(`/stock/glassware/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
 
   // Stock — Transactions (audit log)
@@ -333,7 +334,7 @@ export const api = {
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`),
   deductStockUnitMg: (
     qrId: string,
-    body: { weights?: number[]; mg?: number; instrumentGroup?: "gc" | "hplc"; instrumentId?: string; instrumentName?: string; sampleId?: string; petitionNo?: string; note?: string; _user?: { email?: string; name?: string } },
+    body: { weights?: number[]; mg?: number; instrumentGroup?: "gc" | "hplc"; instrumentId?: string; instrumentName?: string; sampleId?: string; petitionNo?: string; note?: string } & StockUserPayload,
   ) =>
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}/deduct-mg`, {
       method: "POST",
@@ -341,13 +342,13 @@ export const api = {
     }),
   receiveStockUnits: (
     standardId: string,
-    body: { lotNo?: string; sizeMl: number; unit?: string; type: "primary" | "supplier" | "working"; bottles: { exp?: string }[]; note?: string },
+    body: { lotNo?: string; sizeMl: number; unit?: string; type: "primary" | "supplier" | "working"; bottles: { exp?: string }[]; note?: string } & StockUserPayload,
   ) =>
     request<StockUnitItem[]>(`/stock/standards/${standardId}/units/receive`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  discardStockUnit: (qrId: string, body: { reason?: string; outcome?: "empty" | "discard" }) =>
+  discardStockUnit: (qrId: string, body: { reason?: string; outcome?: "empty" | "discard" } & StockUserPayload) =>
     request<{ status: string; qrId: string }>(`/stock/units/${encodeURIComponent(qrId)}/discard`, {
       method: "POST",
       body: JSON.stringify(body),
