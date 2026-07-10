@@ -80,6 +80,9 @@ import {
   getClassification,
   getCommonName,
 } from "@/lib/productClassification";
+import { getMasterItemRegulatoryType } from "@/lib/masterItemRegulatoryType";
+
+export { getMasterItemRegulatoryType } from "@/lib/masterItemRegulatoryType";
 
 type MasterItem = Record<string, unknown>;
 // A substance slot holds a SET of method codes (an AND-set). A row's assignments
@@ -269,7 +272,6 @@ const hiddenTableKeys = [
   "packing_unit_desc",
   "packing_qty_per",
 ];
-
 const OVERRIDE_FIELD_MAP: Array<{ key: keyof MasterItemOverride; targets: string[] }> = [
   { key: "itemCode", targets: codeKeys },
   { key: "itemName", targets: nameKeys },
@@ -2218,6 +2220,7 @@ function MasterItemDetailDrawer({
   // membership resolve มาจาก catalog ดิบแล้ว (ส่งเป็น itemGroupIds) — map เป็นชื่อกลุ่มเพื่อแสดง
   const memberGroups = groups.filter((grp) => itemGroupIds.includes(grp._id));
   const classification = getClassification(firstValue(item, typeKeys));
+  const regulatoryType = getMasterItemRegulatoryType(item);
   const active = isItemActive(item);
   const code = displayValue(originalItemNo || firstValue(item, codeKeys));
   const name = displayValue(firstValue(item, nameKeys));
@@ -2227,6 +2230,7 @@ function MasterItemDetailDrawer({
 
   const mainFields: Array<{ label: string; value: React.ReactNode }> = [
     { label: "ชื่อสินค้า", value: name },
+    ...(regulatoryType ? [{ label: "Type", value: regulatoryType }] : []),
     { label: "ชื่อสามัญ", value: displayValue(firstValue(item, commonNameKeys)) },
     {
       label: "ประเภท",

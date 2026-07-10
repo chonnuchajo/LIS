@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/s
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
 import AppSidebar from "@/components/lis/AppSidebar";
 import NotificationBell from "@/components/lis/NotificationBell";
+import UserProfileMenu from "@/components/lis/UserProfileMenu";
 import { cn } from "@/lib/utils";
 
 interface AppLayoutProps {
@@ -84,7 +85,10 @@ const AppLayout = ({
             <h1 className="text-sm font-bold text-foreground tracking-wide">LIS</h1>
           )}
         </div>
-        <NotificationBell />
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <UserProfileMenu />
+        </div>
       </header>
 
       {/* Right column — desktop topbar + main; push down to clear the fixed mobile topbar */}
@@ -97,6 +101,7 @@ const AppLayout = ({
         {/* Desktop topbar — only on >=md, holds the notification bell on the right */}
         <header className="hidden md:flex print:hidden sticky top-0 z-30 h-12 items-center justify-end gap-2 px-4 lg:px-6 bg-background/80 backdrop-blur-sm">
           <NotificationBell />
+          <UserProfileMenu />
         </header>
 
         <main

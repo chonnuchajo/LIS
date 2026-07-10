@@ -1,7 +1,7 @@
 import type { ParameterItem } from "@/lib/api";
 import type { QCProgressEntry } from "@/lib/api";
 import type { Petition } from "@/types/petition.types";
-import { matchParametersForItem } from "@/lib/petitionTestItems";
+import { getPetitionCategory, matchParametersForItem } from "@/lib/petitionTestItems";
 import { expandFieldForItem } from "@/lib/parameterValidation";
 
 export { matchParametersForItem };
@@ -32,6 +32,7 @@ export function computePetitionProgress(
 
   let total = 0;
   let filled = 0;
+  const category = getPetitionCategory(petition);
 
   for (const item of petition.items ?? []) {
     const ids = membership?.get(String(item.sampleId ?? '').trim()) ?? [];
@@ -44,7 +45,7 @@ export function computePetitionProgress(
       const key = `${item.seq}__${param._id}`;
       const filledLabels = filledByKey.get(key);
       for (const f of fields) {
-        for (const unit of expandFieldForItem(f, item.commonName)) {
+        for (const unit of expandFieldForItem(f, item.commonName, { category })) {
           total += 1;
           if (filledLabels?.has(unit.key)) filled += 1;
         }

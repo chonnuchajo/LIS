@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import AppSidebar from "../AppSidebar";
@@ -71,5 +71,11 @@ describe("AppSidebar", () => {
     const secondNav = getSidebarNav(second.container);
 
     expect(secondNav.scrollTop).toBe(180);
+  });
+
+  it("does not render the user profile in the sidebar footer", () => {
+    renderSidebar();
+
+    expect(screen.queryByText("admin@example.com")).not.toBeInTheDocument();
   });
 });

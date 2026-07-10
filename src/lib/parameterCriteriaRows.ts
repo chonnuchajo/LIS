@@ -30,6 +30,11 @@ export type SubstanceCriteriaRow = CriteriaRowOwner & {
   operator: string;
   value: number | null;
   value2: number | null;
+  productTypes: string[];
+  regulatoryTypes: string[];
+  categories: string[];
+  productTypeText: string;
+  categoryText: string;
   headOnly: boolean;
   isSetupRow: boolean;
 };
@@ -136,6 +141,24 @@ const tolerancePercent = (rule: LabelToleranceRule) => {
   return displayValue(rule.autoPct);
 };
 
+const productTypeText = (values: string[] | undefined) => {
+  const text = (values ?? [])
+    .map((value) => productTypeLabels[value] ?? value)
+    .filter(Boolean)
+    .join("/");
+  return text || "-";
+};
+
+const regulatoryTypeText = (values: string[] | undefined) => {
+  const text = (values ?? []).filter(Boolean).join("/");
+  return text || "";
+};
+
+const categoryText = (values: string[] | undefined) => {
+  const text = (values ?? []).filter(Boolean).join("/");
+  return text || "-";
+};
+
 export function buildSubstanceCriteriaRows(
   parameters: ParameterItem[],
   scope: ParameterScope,
@@ -157,6 +180,11 @@ export function buildSubstanceCriteriaRows(
           operator: "-",
           value: null,
           value2: null,
+          productTypes: [],
+          regulatoryTypes: [],
+          categories: [],
+          productTypeText: "-",
+          categoryText: "-",
           headOnly: false,
           isSetupRow: true,
         });
@@ -172,6 +200,11 @@ export function buildSubstanceCriteriaRows(
           operator: standard.operator,
           value: standard.value,
           value2: standard.value2 ?? null,
+          productTypes: standard.productTypes ?? [],
+          regulatoryTypes: standard.regulatoryTypes ?? [],
+          categories: standard.categories ?? [],
+          productTypeText: regulatoryTypeText(standard.regulatoryTypes) || productTypeText(standard.productTypes),
+          categoryText: categoryText(standard.categories),
           headOnly: standard.headOnly === true,
           isSetupRow: false,
         });

@@ -14,6 +14,9 @@ const SubstanceStandardSchema = new mongoose.Schema({
   value: { type: Number, default: null },
   value2: { type: Number, default: null },
   headOnly: { type: Boolean, default: false },
+  productTypes: { type: [String], default: [] },
+  regulatoryTypes: { type: [String], default: [] },
+  categories: { type: [String], default: [] },
 }, { _id: false });
 
 const LabelToleranceStandardSchema = new mongoose.Schema({
@@ -272,6 +275,28 @@ ParameterSchema.pre('validate', function (next) {
     }
     if ([f.substanceMode, f.conditionalMode, f.labelToleranceMode].filter(Boolean).length > 1) {
       return next(new Error(`ช่อง "${f.label}": เลือกได้โหมดเดียวจาก แยกตามสาร / เงื่อนไขพิเศษ / ตาม %สาร`));
+    }
+    if (f.substanceMode) {
+      const allowedPT = new Set(['water', 'sand', 'powder']);
+      const allowedRegType = new Set(['GMP', 'BIO', 'LS']);
+      const allowedCat = new Set(['RM', 'FG']);
+      for (const s of f.substanceStandards || []) {
+        s.productTypes = (s.productTypes || []).map((p) => String(p).trim()).filter(Boolean);
+        s.regulatoryTypes = (s.regulatoryTypes || []).map((p) => String(p).trim().toUpperCase()).filter(Boolean);
+        s.categories = (s.categories || []).map((c) => String(c).trim().toUpperCase()).filter(Boolean);
+        const badPT = s.productTypes.filter((p) => !allowedPT.has(p));
+        if (badPT.length > 0) {
+          return next(new Error(`ช่อง "${f.label}": productTypes ของเกณฑ์รายสารมีค่าที่ไม่รองรับ: ${badPT.join(', ')}`));
+        }
+        const badRegType = s.regulatoryTypes.filter((p) => !allowedRegType.has(p));
+        if (badRegType.length > 0) {
+          return next(new Error(`ช่อง "${f.label}": regulatoryTypes ของเกณฑ์รายสารมีค่าที่ไม่รองรับ: ${badRegType.join(', ')}`));
+        }
+        const badCat = s.categories.filter((c) => !allowedCat.has(c));
+        if (badCat.length > 0) {
+          return next(new Error(`ช่อง "${f.label}": categories ของเกณฑ์รายสารมีค่าที่ไม่รองรับ: ${badCat.join(', ')}`));
+        }
+      }
     }
     if (f.labelToleranceMode) {
       const allowedPT = new Set(['water', 'sand', 'powder']);

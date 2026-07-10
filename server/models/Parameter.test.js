@@ -57,6 +57,91 @@ test('persists substanceMode + substanceStandards (not stripped by strict mode)'
   assert.strictEqual(f.substanceStandards[0].value, 1.8);
 });
 
+test('persists productTypes and RM/FG categories on substanceStandards', async () => {
+  const doc = new Parameter({
+    name: 'substance selectors',
+    valueFields: [{
+      label: 'AI content', type: 'number', unit: '%',
+      substanceMode: true,
+      substanceStandards: [{
+        substance: 'ABAMECTIN',
+        operator: 'gte',
+        value: 95,
+        value2: null,
+        productTypes: ['water'],
+        categories: ['RM'],
+      }],
+    }],
+  });
+
+  await doc.validate();
+
+  const std = doc.valueFields[0].substanceStandards[0];
+  assert.deepStrictEqual(std.productTypes, ['water']);
+  assert.deepStrictEqual(std.categories, ['RM']);
+});
+
+test('persists regulatoryTypes on substanceStandards', async () => {
+  const doc = new Parameter({
+    name: 'substance regulatory selectors',
+    valueFields: [{
+      label: 'AI content', type: 'number', unit: '%',
+      substanceMode: true,
+      substanceStandards: [{
+        substance: 'CHLORFENAPYR',
+        operator: 'gte',
+        value: 95,
+        value2: null,
+        regulatoryTypes: ['GMP', 'BIO', 'LS'],
+        categories: ['RM', 'FG'],
+      }],
+    }],
+  });
+
+  await doc.validate();
+
+  const std = doc.valueFields[0].substanceStandards[0];
+  assert.deepStrictEqual(std.regulatoryTypes, ['GMP', 'BIO', 'LS']);
+  assert.deepStrictEqual(std.categories, ['RM', 'FG']);
+});
+
+test('rejects unsupported productTypes and categories on substanceStandards', async () => {
+  const doc = new Parameter({
+    name: 'bad substance selectors',
+    valueFields: [{
+      label: 'AI content', type: 'number', unit: '%',
+      substanceMode: true,
+      substanceStandards: [{
+        substance: 'ABAMECTIN',
+        operator: 'gte',
+        value: 95,
+        productTypes: ['gel'],
+        categories: ['PACK'],
+      }],
+    }],
+  });
+
+  await assert.rejects(() => doc.validate(), /productTypes|categories|unsupported|ไม่รองรับ/);
+});
+
+test('rejects unsupported regulatoryTypes on substanceStandards', async () => {
+  const doc = new Parameter({
+    name: 'bad substance regulatory selectors',
+    valueFields: [{
+      label: 'AI content', type: 'number', unit: '%',
+      substanceMode: true,
+      substanceStandards: [{
+        substance: 'CHLORFENAPYR',
+        operator: 'gte',
+        value: 95,
+        regulatoryTypes: ['NMP'],
+      }],
+    }],
+  });
+
+  await assert.rejects(() => doc.validate(), /regulatoryTypes|ไม่รองรับ/);
+});
+
 test('persists conditionalMode + conditionalStandards incl nested conditions (string & numeric values)', () => {
   const doc = new Parameter({
     name: 'ทดสอบเงื่อนไข',

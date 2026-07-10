@@ -141,11 +141,13 @@ export function ParameterCriteriaTabs({
 
       <TabsContent value="substance" className="mt-0">
         <TableShell empty={visibleSubstanceRows.length === 0}>
-          <Table className="min-w-[900px]">
+          <Table className="min-w-[1050px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Parameter</TableHead>
                 <TableHead>Field</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>หมวดหมู่</TableHead>
                 <TableHead>สาร</TableHead>
                 <TableHead>เงื่อนไข</TableHead>
                 <TableHead>ค่าต่ำสุด</TableHead>
@@ -159,6 +161,8 @@ export function ParameterCriteriaTabs({
                 <TableRow key={row.rowId}>
                   <TableCell className="font-medium">{row.parameterName}</TableCell>
                   <TableCell>{row.fieldLabel}</TableCell>
+                  <TableCell>{row.productTypeText}</TableCell>
+                  <TableCell>{row.categoryText}</TableCell>
                   <TableCell>{row.substance}</TableCell>
                   <TableCell>{row.operator}</TableCell>
                   <TableCell>{row.value ?? "-"}</TableCell>

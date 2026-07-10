@@ -1,13 +1,12 @@
 import { useAuth } from "@/context/AuthContext";
-import { useActiveRole } from "@/store/activeRole";
-import { normalizeRoles } from "@/lib/roles";
 import { formatThaiDate, currentShift } from "@/lib/dateShift";
 import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { RefreshCw, Download } from "lucide-react";
-import ActiveRoleSwitcher from "./ActiveRoleSwitcher";
+import type { NavItem } from "@/lib/navItems";
+import DashboardNavMenu from "./DashboardNavMenu";
 
 export type DashRange = "today" | "7d" | "30d";
 const RANGE_LABEL: Record<DashRange, string> = { today: "วันนี้", "7d": "7 วัน", "30d": "30 วัน" };
@@ -19,15 +18,13 @@ interface Props {
   onRangeChange: (r: DashRange) => void;
   onRefresh: () => void;
   onExport: () => void;
-  roleNames?: Record<string, string>;
+  navItems?: NavItem[];
 }
 
 export default function DashboardHeader({
-  titleEn, subtitleTh, range, onRangeChange, onRefresh, onExport, roleNames = {},
+  titleEn, subtitleTh, range, onRangeChange, onRefresh, onExport, navItems = [],
 }: Props) {
   const { user } = useAuth();
-  const roles = normalizeRoles(user);
-  const { activeRole, setActiveRole } = useActiveRole(roles);
   const now = new Date();
 
   return (
@@ -55,7 +52,7 @@ export default function DashboardHeader({
         <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={onExport}>
           <Download className="h-4 w-4" /> Export
         </Button>
-        <ActiveRoleSwitcher roles={roles} activeRole={activeRole} onChange={setActiveRole} roleNames={roleNames} />
+        <DashboardNavMenu items={navItems} />
       </div>
     </div>
   );

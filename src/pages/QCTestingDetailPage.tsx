@@ -18,7 +18,7 @@ import { TimerField } from '@/components/lis/TimerField';
 import { PhotoField } from '@/components/lis/PhotoField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
-import { matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
+import { getPetitionCategory, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import {
   PETITION_DEPT_LABELS,
@@ -318,6 +318,7 @@ export default function QCTestingDetailPage() {
   const flashClass = useArrivalFlash();
 
   const { data: petition, loading: petitionLoading, error: petitionError } = usePetition(id);
+  const petitionCategory = getPetitionCategory(petition);
   // Active worklist for tab-strip switcher (other petitions currently in QC)
   const { data: worklistData } = usePetitionList({
     status: 'pendingReview,inProgress',
@@ -864,7 +865,7 @@ export default function QCTestingDetailPage() {
   ): number => {
     let count = 0;
     fieldsToScan.forEach((field) => {
-      expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards }).forEach((unit) => {
+      expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards, category: petitionCategory }).forEach((unit) => {
         if (unit.field.conditionalMode && unit.field.conditionalResult === 'output') {
           if (isConditionalOutputAbnormal(unit.field, { sameParam: src, otherParams: {} })) count += 1;
           return;
@@ -925,7 +926,7 @@ export default function QCTestingDetailPage() {
             : [{ values: phaseValues[k] ?? {}, suffix: '' }];
         visibleFields(param, phaseToCheck).forEach((field) => {
           if (field.type === 'reference') return; // reference fields are auto-resolved
-          expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards }).forEach((unit) => {
+          expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards, category: petitionCategory }).forEach((unit) => {
             valueObjs.forEach(({ values: itemValues, suffix }) => {
               const val = itemValues[unit.key];
               // field-level `multiple` — required means at least one non-empty element
@@ -1385,7 +1386,7 @@ export default function QCTestingDetailPage() {
                             />
                           );
                         }
-                        const units = expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards });
+                        const units = expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards, category: petitionCategory });
                         return units.map((unit) => renderUnit(unit, srcValues, onUnitChange, saveInfoSrc));
                       })}
                     </div>

@@ -3,10 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { LayoutGrid } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
-import { NAV_ITEMS } from "@/lib/navItems";
-import { userCanAccessPath } from "@/lib/accessControl";
-import { normalizeRoles, unionPermissions } from "@/lib/roles";
+import { normalizeRoles } from "@/lib/roles";
 import { loadAccessControl } from "@/lib/accessControlSource";
+import { getAccessibleNavItemsForRoles } from "@/lib/accessNav";
 
 // Fallback dashboard for any role that doesn't resolve to a real profile
 // (see resolveProfileForRole in dashboardProfiles.ts): a plain grid of the
@@ -20,14 +19,7 @@ export default function GenericMenuGrid() {
   const { data: access } = useQuery({ queryKey: ["access-control"], queryFn: () => loadAccessControl() });
 
   const roles = normalizeRoles(user);
-  const userWithPerms =
-    user && roles.length > 0
-      ? { ...user, permissions: unionPermissions(roles, access?.permissions ?? {}) }
-      : user;
-
-  const accessible = NAV_ITEMS.filter(
-    (item) => item.path !== "/home" && userCanAccessPath(userWithPerms, item.path, access?.groups ?? []),
-  );
+  const accessible = getAccessibleNavItemsForRoles(roles, access);
 
   return (
     <>

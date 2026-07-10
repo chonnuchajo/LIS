@@ -1,6 +1,6 @@
 import type { ParameterItem } from "@/lib/api";
 import type { Petition, QCTestResult } from "@/types/petition.types";
-import { matchParametersForItem } from "@/lib/petitionTestItems";
+import { getPetitionCategory, matchParametersForItem } from "@/lib/petitionTestItems";
 import {
   expandFieldForItem,
   fieldValueList,
@@ -61,6 +61,7 @@ export function buildApprovalGroups(
   options?: { includeRestrictedStandards?: boolean },
 ): ApprovalItemGroup[] {
   const includeRestrictedStandards = options?.includeRestrictedStandards ?? false;
+  const petitionCategory = getPetitionCategory(petition);
   // Cross-parameter conditional context uses each result's primary (entry-0) values.
   const v1: Record<string, Record<string, unknown>> = {};
   const v2: Record<string, Record<string, unknown>> = {};
@@ -112,7 +113,7 @@ export function buildApprovalGroups(
             if (phase === 2 && fPhase === "before") return;
             // reference fields are auto-resolved from substance standards elsewhere and intentionally omitted from approval rows
             if (field.type === "reference") return;
-            expandFieldForItem(field, item.commonName, { includeRestrictedStandards }).forEach((unit) => {
+            expandFieldForItem(field, item.commonName, { includeRestrictedStandards, category: petitionCategory }).forEach((unit) => {
               const effectiveField = unit.field.conditionalMode
                 ? resolveFieldStandard(unit.field, ctx)
                 : unit.field;

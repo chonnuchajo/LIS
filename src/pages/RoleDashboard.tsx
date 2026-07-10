@@ -8,12 +8,12 @@ import WorkflowSummary from "@/components/dashboard/WorkflowSummary";
 import AnalyticsSection from "@/components/dashboard/AnalyticsSection";
 import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
 import { useAuth } from "@/context/AuthContext";
-import { useActiveRole } from "@/store/activeRole";
-import { normalizeRoles } from "@/lib/roles";
+import { normalizeRoles, primaryRole } from "@/lib/roles";
 import { resolveProfileForRole, DASHBOARD_PROFILES } from "@/lib/dashboardProfiles";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { loadAccessControl } from "@/lib/accessControlSource";
 import GenericMenuGrid from "@/components/dashboard/GenericMenuGrid";
+import { getAccessibleNavItemsForRoles } from "@/lib/accessNav";
 
 const ACTION_LABEL: Record<string, string> = {
   "qc-reviewer": "อนุมัติผล", "qc-head": "อนุมัติ", "qc-staff": "ดำเนินการ",
@@ -34,23 +34,19 @@ function csvCell(value: unknown): string {
 export default function RoleDashboard() {
   const { user } = useAuth();
   const roles = normalizeRoles(user);
-  const { activeRole } = useActiveRole(roles);
   const [range, setRange] = useState<DashRange>("today");
   const queryClient = useQueryClient();
 
   const { data: access } = useQuery({ queryKey: ["access-control"], queryFn: () => loadAccessControl() });
   const roleObjs = access?.roles ?? [];
-  const roleNames = useMemo(
-    () => Object.fromEntries(roleObjs.map((r: { id: string; name: string }) => [r.id, r.name])),
-    [roleObjs],
-  );
+  const navItems = useMemo(() => getAccessibleNavItemsForRoles(roles, access), [roles, access]);
 
   // resolveProfileForRole returns null for a custom/unknown role with no real
   // profile match (explicit `viewer` role still resolves to "viewer" via the
   // default map). Hooks below must stay unconditional, so we feed
   // useDashboardData a harmless placeholder profile in the no-match case and
   // branch only on what gets rendered.
-  const profileId = resolveProfileForRole(activeRole, roleObjs);
+  const profileId = resolveProfileForRole(primaryRole(roles), roleObjs);
   const profile = profileId ? DASHBOARD_PROFILES[profileId] : null;
   const { petitions, ctx, refresh } = useDashboardData(profile ?? DASHBOARD_PROFILES.viewer);
 
@@ -94,7 +90,7 @@ export default function RoleDashboard() {
         onRangeChange={setRange}
         onRefresh={handleRefresh}
         onExport={handleExport}
-        roleNames={roleNames}
+        navItems={navItems}
       />
       <KpiRow kpis={profile.kpis} ctx={ctx} />
       <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,65fr)_35fr]">

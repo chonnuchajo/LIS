@@ -8,13 +8,21 @@ import {
 import { productTypeLabels } from "@/lib/productClassification";
 import { describeLabelTolerance } from "./standardOperators";
 
-const headOnlySubstanceStandard: SubstanceStandard & { headOnly: boolean } = {
+const headOnlySubstanceStandard: SubstanceStandard & {
+  headOnly: boolean;
+  productTypes: string[];
+  categories: string[];
+  regulatoryTypes: string[];
+} = {
   substance: "ABAMECTIN",
   operator: "gte",
   value: 95,
   value2: null,
   headOnly: true,
-};
+  productTypes: ["water"],
+  categories: ["RM"],
+  regulatoryTypes: ["GMP", "BIO"],
+} as any;
 
 const parameters: ParameterItem[] = [
   {
@@ -134,6 +142,10 @@ describe("parameter criteria row builders", () => {
       value: 95,
       value2: null,
       headOnly: true,
+      productTypes: ["water"],
+      categories: ["RM"],
+      productTypeText: "GMP/BIO",
+      categoryText: "RM",
       isSetupRow: false,
     });
     expect(rows[1].substance).toBe("IMIDACLOPRID");

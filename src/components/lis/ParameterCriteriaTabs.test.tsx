@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ParameterItem } from "@/lib/api";
+import { productTypeLabels } from "@/lib/productClassification";
 import { ParameterCriteriaTabs } from "./ParameterCriteriaTabs";
 
 const parameters: ParameterItem[] = [
@@ -13,7 +14,15 @@ const parameters: ParameterItem[] = [
         label: "Active",
         type: "number",
         substanceMode: true,
-        substanceStandards: [{ substance: "ABAMECTIN", operator: "gte", value: 95 }],
+        substanceStandards: [
+          {
+            substance: "ABAMECTIN",
+            operator: "gte",
+            value: 95,
+            productTypes: ["water"],
+            categories: ["RM"],
+          } as any,
+        ],
       },
       {
         label: "%AI",
@@ -74,6 +83,8 @@ describe("ParameterCriteriaTabs", () => {
     );
 
     expect(screen.getByText("ABAMECTIN")).toBeInTheDocument();
+    expect(screen.getByText(productTypeLabels.water)).toBeInTheDocument();
+    expect(screen.getByText("RM")).toBeInTheDocument();
     const editButton = within(screen.getByRole("table")).getByRole("button");
     fireEvent.click(editButton);
     expect(onEditField).toHaveBeenCalledWith("substance", "p1", 0);

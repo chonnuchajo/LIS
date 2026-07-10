@@ -10,7 +10,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { api, type ParameterItem } from '@/lib/api';
 import { normalizeRoles } from "@/lib/roles";
-import { matchParametersForItem } from '@/lib/petitionTestItems';
+import { getPetitionCategory, matchParametersForItem } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import {
   expandFieldForItem,
@@ -48,6 +48,7 @@ export default function PetitionView({ petition: p }: Props) {
   const roles = normalizeRoles(user);
   const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
   const canSeeRestrictedStandards = roles.some((r) => r === 'admin' || r === 'qc-head');
+  const petitionCategory = getPetitionCategory(p);
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const groupMembership = useItemGroupMembership();
   const idsFor = (it: { sampleId?: string }) =>
@@ -88,7 +89,7 @@ export default function PetitionView({ petition: p }: Props) {
     }
     return valueRows.flatMap((values, rowIndex) =>
       (param.valueFields ?? []).flatMap((field) =>
-        expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards }).flatMap((unit) => {
+        expandFieldForItem(field, item.commonName, { includeRestrictedStandards: canSeeRestrictedStandards, category: petitionCategory }).flatMap((unit) => {
           const isNumeric = unit.field.type === 'number' || unit.field.type === 'float';
           const ctx = { sameParam: values, otherParams };
           const effectiveField = unit.field.conditionalMode && isNumeric

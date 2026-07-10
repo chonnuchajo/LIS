@@ -628,8 +628,86 @@ describe("findSubstanceStandard", () => {
   it("matches by first-token, case-insensitive, ignoring form spec", () => {
     expect(findSubstanceStandard(subField, "abamectin 1.8% w/v ec")?.value).toBe(95);
   });
+  it("prefers exact full commonName standards before falling back to active substance rules", () => {
+    const field: ParameterValueField = {
+      label: "AI",
+      type: "number",
+      unit: "%",
+      substanceMode: true,
+      substanceStandards: [
+        { substance: "CYPERMETHRIN", operator: "gte", value: 80, value2: null },
+        { substance: "CYPERMETHRIN 25% W/V BIO EC(LIVE STOCK)", operator: "gte", value: 95, value2: null },
+        { substance: "CYPERMETHRIN 25% W/V EC(GMP)", operator: "gte", value: 90, value2: null },
+      ],
+    };
+
+    expect(findSubstanceStandard(field, "CYPERMETHRIN 25% W/V BIO EC(LIVE STOCK)")?.value).toBe(95);
+    expect(findSubstanceStandard(field, "CYPERMETHRIN 25% W/V EC(GMP)")?.value).toBe(90);
+    expect(findSubstanceStandard(field, "CYPERMETHRIN 10% W/V EC")?.value).toBe(80);
+  });
   it("returns undefined when no substance matches", () => {
     expect(findSubstanceStandard(subField, "GLYPHOSATE")).toBeUndefined();
+  });
+  it("prefers the substance rule matching product type and RM/FG category", () => {
+    const field: ParameterValueField = {
+      label: "AI",
+      type: "number",
+      unit: "%",
+      substanceMode: true,
+      substanceStandards: [
+        { substance: "ABAMECTIN", operator: "gte", value: 80, value2: null },
+        {
+          substance: "ABAMECTIN",
+          operator: "gte",
+          value: 95,
+          value2: null,
+          productTypes: ["water"],
+          categories: ["RM"],
+        } as any,
+        {
+          substance: "ABAMECTIN",
+          operator: "gte",
+          value: 90,
+          value2: null,
+          productTypes: ["sand"],
+          categories: ["FG"],
+        } as any,
+      ],
+    };
+
+    expect(findSubstanceStandard(field, "ABAMECTIN 1% W/V EC", { category: "RM" })?.value).toBe(95);
+    expect(findSubstanceStandard(field, "ABAMECTIN 1% W/W GR", { category: "FG" })?.value).toBe(90);
+    expect(findSubstanceStandard(field, "ABAMECTIN 1% W/V EC", { category: "FG" })?.value).toBe(80);
+  });
+
+  it("prefers the substance rule matching regulatory type markers", () => {
+    const field: ParameterValueField = {
+      label: "AI",
+      type: "number",
+      unit: "%",
+      substanceMode: true,
+      substanceStandards: [
+        { substance: "CHLORFENAPYR", operator: "gte", value: 80, value2: null },
+        {
+          substance: "CHLORFENAPYR",
+          operator: "gte",
+          value: 90,
+          value2: null,
+          regulatoryTypes: ["GMP"],
+        } as any,
+        {
+          substance: "CHLORFENAPYR",
+          operator: "gte",
+          value: 95,
+          value2: null,
+          regulatoryTypes: ["BIO"],
+        } as any,
+      ],
+    };
+
+    expect(findSubstanceStandard(field, "CHLORFENAPYR 10% W/V SC (GMP)")?.value).toBe(90);
+    expect(findSubstanceStandard(field, "CHLORFENAPYR 10% W/V SC (BIO)")?.value).toBe(95);
+    expect(findSubstanceStandard(field, "CHLORFENAPYR 10% W/V SC")?.value).toBe(80);
   });
 });
 
@@ -661,6 +739,30 @@ describe("expandFieldForItem", () => {
     expect(units[0].field.standardOperator).toBe("gte");
     expect(units[0].field.standardValue).toBe(95);
     expect(units[0].field.substanceMode).toBe(false);
+  });
+
+  it("injects the substance standard matching inferred product type and category", () => {
+    const field: ParameterValueField = {
+      label: "AI",
+      type: "number",
+      unit: "%",
+      substanceMode: true,
+      substanceStandards: [
+        { substance: "ABAMECTIN", operator: "gte", value: 80, value2: null },
+        {
+          substance: "ABAMECTIN",
+          operator: "gte",
+          value: 95,
+          value2: null,
+          productTypes: ["water"],
+          categories: ["RM"],
+        } as any,
+      ],
+    };
+
+    const units = expandFieldForItem(field, "ABAMECTIN 1% W/V EC", { category: "RM" });
+
+    expect(units[0].field.standardValue).toBe(95);
   });
 
   it("expands substances with no standard (no operator → no validation)", () => {
