@@ -155,7 +155,37 @@ describe("ParameterCriteriaTabs", () => {
     expect(within(table).getByText("CYFLUTHRIN")).toBeInTheDocument();
     expect(within(table).queryByText("RM")).not.toBeInTheDocument();
     fireEvent.click(within(table).getAllByRole("button")[0]);
-    expect(onEditField).toHaveBeenCalledWith("substance", "p1", 0);
+    expect(onEditField).toHaveBeenCalledTimes(1);
+    expect(onEditField).toHaveBeenCalledWith("substance", "p1", 0, 1);
+  });
+
+  it("opens the row's rule when clicking anywhere on a substance row", () => {
+    const { onEditField } = renderCriteriaTabs({ value: "substance" });
+
+    fireEvent.click(within(screen.getByRole("table")).getByText("BIFENTHRIN"));
+
+    expect(onEditField).toHaveBeenCalledTimes(1);
+    expect(onEditField).toHaveBeenCalledWith("substance", "p1", 0, 2);
+  });
+
+  it("passes a null rule index for the setup row of an unconfigured field", () => {
+    const { onEditField } = renderCriteriaTabs({
+      value: "substance",
+      parameters: [
+        {
+          _id: "p-empty",
+          name: "Parameter Empty",
+          scope: "qc",
+          valueFields: [
+            { label: "Active", type: "number", substanceMode: true, substanceStandards: [] },
+          ],
+        },
+      ],
+    });
+
+    fireEvent.click(within(screen.getByRole("table")).getByRole("button"));
+
+    expect(onEditField).toHaveBeenCalledWith("substance", "p-empty", 0, null);
   });
 
   it("defaults the substance tab to substance A-Z and hides parameter order and percent sort options", () => {

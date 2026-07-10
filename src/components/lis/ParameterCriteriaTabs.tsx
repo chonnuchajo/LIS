@@ -103,7 +103,7 @@ export type ParameterCriteriaTabsProps = {
   scope: ParameterScope;
   children: ReactNode;
   canViewHeadCriteriaColumns?: boolean;
-  onEditField: (mode: AdvancedCriteriaMode, parameterId: string, fieldIndex: number) => void;
+  onEditField: (mode: AdvancedCriteriaMode, parameterId: string, fieldIndex: number, ruleIndex?: number | null) => void;
 };
 
 export function ParameterCriteriaTabs({
@@ -244,7 +244,11 @@ export function ParameterCriteriaTabs({
             </TableHeader>
             <TableBody>
               {visibleSubstanceRows.map((row) => (
-                <TableRow key={row.rowId}>
+                <TableRow
+                  key={row.rowId}
+                  className="cursor-pointer"
+                  onClick={() => onEditField("substance", row.parameterId, row.fieldIndex, row.ruleIndex)}
+                >
                   <TableCell className="font-medium">{row.parameterName}</TableCell>
                   <TableCell>{row.substance}</TableCell>
                   <TableCell>{row.value ?? "-"}</TableCell>
@@ -252,7 +256,7 @@ export function ParameterCriteriaTabs({
                   <TableCell className="text-right">
                     <EditButton
                       label={`แก้ไขเกณฑ์สาร ${row.fieldLabel}`}
-                      onClick={() => onEditField("substance", row.parameterId, row.fieldIndex)}
+                      onClick={() => onEditField("substance", row.parameterId, row.fieldIndex, row.ruleIndex)}
                     />
                   </TableCell>
                 </TableRow>
@@ -478,7 +482,17 @@ function TableShell({ empty, children }: { empty: boolean; children: ReactNode }
 
 function EditButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <Button type="button" variant="ghost" size="icon" aria-label={label} title={label} onClick={onClick}>
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label={label}
+      title={label}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+    >
       <Pencil className="h-4 w-4" />
     </Button>
   );
