@@ -16,9 +16,26 @@ const parameters: ParameterItem[] = [
         substanceMode: true,
         substanceStandards: [
           {
+            substance: "CYFLUTHRIN",
+            operator: "between",
+            value: 20,
+            value2: 80,
+            productTypes: ["water"],
+            categories: ["RM"],
+          } as any,
+          {
             substance: "ABAMECTIN",
-            operator: "gte",
+            operator: "between",
             value: 95,
+            value2: 110,
+            productTypes: ["water"],
+            categories: ["RM"],
+          } as any,
+          {
+            substance: "BIFENTHRIN",
+            operator: "gte",
+            value: 50,
+            value2: null,
             productTypes: ["water"],
             categories: ["RM"],
           } as any,
@@ -66,6 +83,10 @@ function renderCriteriaTabs(
   return { onEditField };
 }
 
+function bodyRows() {
+  return within(screen.getByRole("table")).getAllByRole("row").slice(1);
+}
+
 describe("ParameterCriteriaTabs", () => {
   it("renders the existing list content in the list tab", () => {
     renderCriteriaTabs({ value: "list" });
@@ -88,9 +109,89 @@ describe("ParameterCriteriaTabs", () => {
     expect(headers.some((text) => text.includes("เฉพาะหัวหน้าตรวจ"))).toBe(false);
 
     expect(within(table).getByText("ABAMECTIN")).toBeInTheDocument();
+    expect(within(table).getByText("BIFENTHRIN")).toBeInTheDocument();
+    expect(within(table).getByText("CYFLUTHRIN")).toBeInTheDocument();
     expect(within(table).queryByText("RM")).not.toBeInTheDocument();
-    fireEvent.click(within(table).getByRole("button"));
+    fireEvent.click(within(table).getAllByRole("button")[0]);
     expect(onEditField).toHaveBeenCalledWith("substance", "p1", 0);
+  });
+
+  it("defaults the substance tab to substance A-Z and hides parameter order and percent sort options", () => {
+    renderCriteriaTabs({ value: "substance" });
+
+    const sortSelect = screen.getByLabelText("เรียงลำดับ");
+    const optionTexts = within(sortSelect).getAllByRole("option").map((option) => option.textContent ?? "");
+
+    expect(sortSelect).toHaveValue("substanceAsc");
+    expect(optionTexts).toEqual([
+      "ชื่อสาร A-Z",
+      "ชื่อสาร Z-A",
+      "ค่าต่ำสุด น้อยไปมาก",
+      "ค่าต่ำสุด มากไปน้อย",
+      "ค่าสูงสุด น้อยไปมาก",
+      "ค่าสูงสุด มากไปน้อย",
+    ]);
+    expect(optionTexts.some((text) => text.includes("ตามลำดับ Parameter"))).toBe(false);
+    expect(optionTexts.some((text) => text.includes("%สาร"))).toBe(false);
+
+    const rows = bodyRows();
+    expect(within(rows[0]).getByText("ABAMECTIN")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("BIFENTHRIN")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("CYFLUTHRIN")).toBeInTheDocument();
+  });
+
+  it("sorts substance rows by substance Z-A", () => {
+    renderCriteriaTabs({ value: "substance" });
+
+    fireEvent.change(screen.getByLabelText("เรียงลำดับ"), { target: { value: "substanceDesc" } });
+
+    const rows = bodyRows();
+    expect(within(rows[0]).getByText("CYFLUTHRIN")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("BIFENTHRIN")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("ABAMECTIN")).toBeInTheDocument();
+  });
+
+  it("sorts substance rows by minimum value in both directions", () => {
+    renderCriteriaTabs({ value: "substance" });
+
+    fireEvent.change(screen.getByLabelText("เรียงลำดับ"), { target: { value: "minValueAsc" } });
+    let rows = bodyRows();
+    expect(within(rows[0]).getByText("CYFLUTHRIN")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("BIFENTHRIN")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("ABAMECTIN")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("เรียงลำดับ"), { target: { value: "minValueDesc" } });
+    rows = bodyRows();
+    expect(within(rows[0]).getByText("ABAMECTIN")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("BIFENTHRIN")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("CYFLUTHRIN")).toBeInTheDocument();
+  });
+
+  it("sorts substance rows by maximum value in both directions with missing values last", () => {
+    renderCriteriaTabs({ value: "substance" });
+
+    fireEvent.change(screen.getByLabelText("เรียงลำดับ"), { target: { value: "maxValueAsc" } });
+    let rows = bodyRows();
+    expect(within(rows[0]).getByText("CYFLUTHRIN")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("ABAMECTIN")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("BIFENTHRIN")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("เรียงลำดับ"), { target: { value: "maxValueDesc" } });
+    rows = bodyRows();
+    expect(within(rows[0]).getByText("ABAMECTIN")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("CYFLUTHRIN")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("BIFENTHRIN")).toBeInTheDocument();
+  });
+
+  it("keeps percent sort options available on the label tolerance tab", () => {
+    renderCriteriaTabs({ value: "labelTolerance", canViewHeadCriteriaColumns: true });
+
+    const optionTexts = within(screen.getByLabelText("เรียงลำดับ"))
+      .getAllByRole("option")
+      .map((option) => option.textContent ?? "");
+
+    expect(optionTexts).toContain("%สาร น้อยไปมาก");
+    expect(optionTexts).toContain("%สาร มากไปน้อย");
   });
 
   it("renders conditional table without a Field column", () => {

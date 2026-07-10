@@ -25,7 +25,17 @@ export type ParameterCriteriaTab = "list" | AdvancedCriteriaMode;
 
 const ALL_PARAMETERS_VALUE = "__all__";
 
-type CriteriaSortKey = "parameterOrder" | "parameterName" | "drugPercentAsc" | "drugPercentDesc";
+type CriteriaSortKey =
+  | "parameterOrder"
+  | "parameterName"
+  | "substanceAsc"
+  | "substanceDesc"
+  | "minValueAsc"
+  | "minValueDesc"
+  | "maxValueAsc"
+  | "maxValueDesc"
+  | "drugPercentAsc"
+  | "drugPercentDesc";
 
 type ParameterOption = ParameterItem & { _id: string };
 
@@ -36,10 +46,33 @@ type SortableCriteriaRow = {
   fieldLabel: string;
   ruleIndex: number | null;
   searchText: string;
+  substance?: string;
+  value?: number | null;
+  value2?: number | null;
   drugPercent?: string;
 };
 
 const criteriaCollator = new Intl.Collator(["th", "en"], { numeric: true, sensitivity: "base" });
+
+const SUBSTANCE_SORT_OPTIONS: Array<{ value: CriteriaSortKey; label: string }> = [
+  { value: "substanceAsc", label: "ชื่อสาร A-Z" },
+  { value: "substanceDesc", label: "ชื่อสาร Z-A" },
+  { value: "minValueAsc", label: "ค่าต่ำสุด น้อยไปมาก" },
+  { value: "minValueDesc", label: "ค่าต่ำสุด มากไปน้อย" },
+  { value: "maxValueAsc", label: "ค่าสูงสุด น้อยไปมาก" },
+  { value: "maxValueDesc", label: "ค่าสูงสุด มากไปน้อย" },
+];
+
+const DEFAULT_SORT_OPTIONS: Array<{ value: CriteriaSortKey; label: string }> = [
+  { value: "parameterOrder", label: "ตามลำดับ Parameter" },
+  { value: "parameterName", label: "ชื่อ Parameter" },
+];
+
+const LABEL_TOLERANCE_SORT_OPTIONS: Array<{ value: CriteriaSortKey; label: string }> = [
+  ...DEFAULT_SORT_OPTIONS,
+  { value: "drugPercentAsc", label: "%สาร น้อยไปมาก" },
+  { value: "drugPercentDesc", label: "%สาร มากไปน้อย" },
+];
 
 export type ParameterCriteriaTabsProps = {
   value: ParameterCriteriaTab;
@@ -61,9 +94,21 @@ export function ParameterCriteriaTabs({
   onEditField,
 }: ParameterCriteriaTabsProps) {
   const [parameterFilter, setParameterFilter] = useState(ALL_PARAMETERS_VALUE);
-  const [sortKey, setSortKey] = useState<CriteriaSortKey>("parameterOrder");
+  const [sortKeyByTab, setSortKeyByTab] = useState<Record<Exclude<ParameterCriteriaTab, "list">, CriteriaSortKey>>({
+    substance: "substanceAsc",
+    conditional: "parameterOrder",
+    labelTolerance: "parameterOrder",
+  });
   const [criteriaSearch, setCriteriaSearch] = useState("");
   const showHeadCriteriaColumns = canViewHeadCriteriaColumns === true;
+  const activeCriteriaTab = value === "list" ? "substance" : value;
+  const sortOptions =
+    activeCriteriaTab === "substance"
+      ? SUBSTANCE_SORT_OPTIONS
+      : activeCriteriaTab === "labelTolerance"
+        ? LABEL_TOLERANCE_SORT_OPTIONS
+        : DEFAULT_SORT_OPTIONS;
+  const sortKey = sortKeyByTab[activeCriteriaTab];
 
   const scopedParameters = useMemo(
     () =>
@@ -142,12 +187,18 @@ export function ParameterCriteriaTabs({
               aria-label="เรียงลำดับ"
               className="h-9 bg-background"
               value={sortKey}
-              onChange={(event) => setSortKey(event.target.value as CriteriaSortKey)}
+              onChange={(event) =>
+                setSortKeyByTab((current) => ({
+                  ...current,
+                  [activeCriteriaTab]: event.target.value as CriteriaSortKey,
+                }))
+              }
             >
-              <option value="parameterOrder">ตามลำดับ Parameter</option>
-              <option value="parameterName">ชื่อ Parameter</option>
-              <option value="drugPercentAsc">%สาร น้อยไปมาก</option>
-              <option value="drugPercentDesc">%สาร มากไปน้อย</option>
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </NativeSelect>
           </label>
         </div>
@@ -315,6 +366,15 @@ function compareCriteriaRows<T extends SortableCriteriaRow>(
         defaultCompare(a, b)
       );
     }
+    if (sortKey === "substanceAsc" || sortKey === "substanceDesc") {
+      return compareSubstance(a, b, sortKey === "substanceAsc" ? "asc" : "desc") || defaultCompare(a, b);
+    }
+    if (sortKey === "minValueAsc" || sortKey === "minValueDesc") {
+      return compareNullableNumber(a.value, b.value, sortKey === "minValueAsc" ? "asc" : "desc") || defaultCompare(a, b);
+    }
+    if (sortKey === "maxValueAsc" || sortKey === "maxValueDesc") {
+      return compareNullableNumber(a.value2, b.value2, sortKey === "maxValueAsc" ? "asc" : "desc") || defaultCompare(a, b);
+    }
     if (sortKey === "drugPercentAsc" || sortKey === "drugPercentDesc") {
       return compareDrugPercent(a, b, sortKey === "drugPercentAsc" ? "asc" : "desc") || defaultCompare(a, b);
     }
@@ -334,6 +394,29 @@ function compareByParameterOrder<T extends SortableCriteriaRow>(
     (a.ruleIndex ?? -1) - (b.ruleIndex ?? -1) ||
     criteriaCollator.compare(a.fieldLabel, b.fieldLabel)
   );
+}
+
+function compareSubstance<T extends SortableCriteriaRow>(a: T, b: T, direction: "asc" | "desc") {
+  const result = criteriaCollator.compare(a.substance ?? "", b.substance ?? "");
+  return direction === "asc" ? result : -result;
+}
+
+function compareNullableNumber(
+  aValue: number | null | undefined,
+  bValue: number | null | undefined,
+  direction: "asc" | "desc",
+) {
+  if (aValue == null && bValue == null) return 0;
+  if (aValue == null) return 1;
+  if (bValue == null) return -1;
+  const aNumber = Number(aValue);
+  const bNumber = Number(bValue);
+  const aValid = Number.isFinite(aNumber);
+  const bValid = Number.isFinite(bNumber);
+  if (!aValid && !bValid) return 0;
+  if (!aValid) return 1;
+  if (!bValid) return -1;
+  return direction === "asc" ? aNumber - bNumber : bNumber - aNumber;
 }
 
 function compareDrugPercent<T extends SortableCriteriaRow>(a: T, b: T, direction: "asc" | "desc") {
