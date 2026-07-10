@@ -41,7 +41,7 @@ export function SubstanceStandardRowDialog({
       setHeadOnly(substance.headOnly === true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, substance]);
+  }, [open]);
 
   const needsValue2 = operator === "between" || operator === "tolerance";
 
