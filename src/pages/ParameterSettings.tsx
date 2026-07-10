@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import { SubstanceStandardsDialog } from "@/components/lis/SubstanceStandardsDialog";
+import { SubstanceStandardRowDialog } from "@/components/lis/SubstanceStandardRowDialog";
 import { ConditionalStandardsDialog } from "@/components/lis/ConditionalStandardsDialog";
 import { LabelToleranceDialog } from "@/components/lis/LabelToleranceDialog";
 import { describeRule, describeSubstanceStandard, describeOutputRule, describeLabelTolerance } from "@/lib/standardOperators";
@@ -127,6 +128,7 @@ type CriteriaEditorTarget = {
   mode: AdvancedCriteriaMode;
   parameterId: string;
   fieldIndex: number;
+  ruleIndex: number | null;
 };
 
 type MasterItemRecord = Record<string, unknown>;
@@ -2678,11 +2680,21 @@ export default function ParameterSettings() {
     ? criteriaParameter.valueFields?.[criteriaEditor.fieldIndex]
     : undefined;
 
+  const criteriaRowStandard =
+    criteriaEditor?.mode === "substance" && criteriaEditor.ruleIndex != null
+      ? criteriaField?.substanceStandards?.[criteriaEditor.ruleIndex]
+      : undefined;
+
   const closeCriteriaEditor = () => {
     if (!criteriaSaveBusyRef.current) setCriteriaEditor(null);
   };
 
-  const handleEditCriteriaField = (mode: AdvancedCriteriaMode, parameterId: string, fieldIndex: number) => {
+  const handleEditCriteriaField = (
+    mode: AdvancedCriteriaMode,
+    parameterId: string,
+    fieldIndex: number,
+    ruleIndex: number | null = null,
+  ) => {
     const parameter = parameters.find((item) => item._id === parameterId);
     const field = parameter?.valueFields?.[fieldIndex];
     if (!parameter || !field) {
@@ -2691,7 +2703,7 @@ export default function ParameterSettings() {
     }
     criteriaSaveBusyRef.current = false;
     setCriteriaSaveBusy(false);
-    setCriteriaEditor({ mode, parameterId, fieldIndex });
+    setCriteriaEditor({ mode, parameterId, fieldIndex, ruleIndex });
   };
 
   const handleSaveCriteriaField = async (nextField: ParameterValueField) => {
@@ -2945,12 +2957,31 @@ export default function ParameterSettings() {
 
       {criteriaEditor && criteriaField ? (
         criteriaEditor.mode === "substance" ? (
-          <SubstanceStandardsDialog
-            open
-            field={criteriaField}
-            onClose={closeCriteriaEditor}
-            onSave={(next) => handleSaveCriteriaField({ ...criteriaField, substanceStandards: next })}
-          />
+          criteriaRowStandard ? (
+            <SubstanceStandardRowDialog
+              open
+              substance={criteriaRowStandard}
+              parameterName={criteriaParameter?.name ?? ""}
+              fieldLabel={criteriaField.label}
+              unit={criteriaField.unit}
+              onClose={closeCriteriaEditor}
+              onSave={(next) =>
+                handleSaveCriteriaField({
+                  ...criteriaField,
+                  substanceStandards: (criteriaField.substanceStandards ?? []).map((standard, index) =>
+                    index === criteriaEditor.ruleIndex ? next : standard,
+                  ),
+                })
+              }
+            />
+          ) : (
+            <SubstanceStandardsDialog
+              open
+              field={criteriaField}
+              onClose={closeCriteriaEditor}
+              onSave={(next) => handleSaveCriteriaField({ ...criteriaField, substanceStandards: next })}
+            />
+          )
         ) : criteriaEditor.mode === "conditional" ? (
           <ConditionalStandardsDialog
             open
