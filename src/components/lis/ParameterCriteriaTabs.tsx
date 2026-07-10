@@ -35,32 +35,11 @@ type SortableCriteriaRow = {
   fieldIndex: number;
   fieldLabel: string;
   ruleIndex: number | null;
+  searchText: string;
   drugPercent?: string;
 };
 
 const criteriaCollator = new Intl.Collator(["th", "en"], { numeric: true, sensitivity: "base" });
-const SEARCHABLE_ROW_KEYS = [
-  "parameterName",
-  "fieldLabel",
-  "substance",
-  "operator",
-  "value",
-  "value2",
-  "productTypeText",
-  "categoryText",
-  "ruleLabel",
-  "conditionsText",
-  "resultText",
-  "selectorText",
-  "drugPercent",
-  "tolerancePercent",
-  "headTolerance",
-  "failLow",
-  "passLow",
-  "passHigh",
-  "failHigh",
-  "previewText",
-] as const;
 
 export type ParameterCriteriaTabsProps = {
   value: ParameterCriteriaTab;
@@ -320,12 +299,7 @@ function filterAndSortRows<T extends SortableCriteriaRow>(
 
 function matchesCriteriaSearch(row: SortableCriteriaRow, searchQuery: string) {
   if (!searchQuery) return true;
-  const record = row as Record<string, unknown>;
-  return SEARCHABLE_ROW_KEYS.some((key) => {
-    const value = record[key];
-    if (value == null) return false;
-    return String(value).toLowerCase().includes(searchQuery);
-  });
+  return row.searchText.toLowerCase().includes(searchQuery);
 }
 
 function compareCriteriaRows<T extends SortableCriteriaRow>(

@@ -205,6 +205,68 @@ describe("ParameterCriteriaTabs", () => {
     expect(screen.queryByText("ABAMECTIN / 1%")).not.toBeInTheDocument();
   });
 
+  it("matches substance search terms that exist only in indexed searchText", () => {
+    renderCriteriaTabs({
+      value: "substance",
+      parameters: [
+        {
+          _id: "p-searchable",
+          name: "Searchable Parameter",
+          scope: "qc",
+          status: "active",
+          note: "hidden owner note for criteria search",
+          itemNames: ["Trade Alpha"],
+          commonNames: ["Hidden Common Name"],
+          valueFields: [
+            {
+              label: "Active",
+              type: "number",
+              substanceMode: true,
+              substanceStandards: [
+                {
+                  substance: "ABAMECTIN",
+                  operator: "gte",
+                  value: 95,
+                  productTypes: ["water"],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          _id: "p-other",
+          name: "Visible Field",
+          scope: "qc",
+          valueFields: [
+            {
+              label: "Active",
+              type: "number",
+              substanceMode: true,
+              substanceStandards: [
+                {
+                  substance: "DIQUAT",
+                  operator: "gte",
+                  value: 40,
+                  productTypes: ["powder"],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    fireEvent.change(screen.getByPlaceholderText(/Parameter/), {
+      target: { value: "trade alpha" },
+    });
+
+    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    expect(rows).toHaveLength(1);
+    expect(within(rows[0]).getByText("Searchable Parameter")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("ABAMECTIN")).toBeInTheDocument();
+    expect(within(rows[0]).queryByText("Visible Field")).not.toBeInTheDocument();
+  });
+
   it("renders an empty state for a tab with no rows", () => {
     renderCriteriaTabs({ value: "conditional" });
 
