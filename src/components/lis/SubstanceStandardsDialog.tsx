@@ -79,12 +79,14 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
   const [list, setList] = useState<EditableSubstanceStandard[]>(field.substanceStandards ?? []);
   const [pickerCategory, setPickerCategory] = useState<PickerCategory>("all");
   const [search, setSearch] = useState("");
+  const [listSearch, setListSearch] = useState("");
 
   useEffect(() => {
     if (open) {
       setList((field.substanceStandards ?? []) as EditableSubstanceStandard[]);
       setPickerCategory("all");
       setSearch("");
+      setListSearch("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -160,6 +162,13 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
   };
 
   const selectedKeys = useMemo(() => new Set(list.map((s) => standardKey(s.substance)).filter(Boolean)), [list]);
+
+  const visibleStandards = useMemo(() => {
+    const q = standardKey(listSearch);
+    const all = list.map((std, index) => ({ std, index }));
+    if (!q) return all;
+    return all.filter(({ std }) => standardKey(std.substance).includes(q));
+  }, [list, listSearch]);
 
   const addStandard = (name: string) => {
     const substance = String(name ?? "").trim();
@@ -326,17 +335,39 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
           </div>
 
           <div className="min-w-0">
-            <Label className="text-sm mb-1.5 block">
-              เกณฑ์ต่อสาร ({list.length})
-              {field.unit ? (
-                <span className="font-normal text-muted-foreground"> · หน่วย: {field.unit}</span>
-              ) : null}
-            </Label>
-            <div className="max-h-[34rem] space-y-1 overflow-y-auto pr-1">
+            <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <Label className="text-sm">
+                เกณฑ์ต่อสาร ({list.length})
+                {field.unit ? (
+                  <span className="font-normal text-muted-foreground"> · หน่วย: {field.unit}</span>
+                ) : null}
+              </Label>
+              {listSearch.trim() !== "" && (
+                <span className="text-xs text-muted-foreground">
+                  แสดง {visibleStandards.length}/{list.length}
+                </span>
+              )}
+            </div>
+            <div className="relative mb-2">
+              <Label htmlFor="substance-list-search" className="sr-only">ค้นหาสารที่เลือก</Label>
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="substance-list-search"
+                type="search"
+                value={listSearch}
+                onChange={(e) => setListSearch(e.target.value)}
+                placeholder="ค้นหาสารที่เลือก..."
+                autoComplete="off"
+                className="h-9 pl-8"
+              />
+            </div>
+            <div className="max-h-[31rem] space-y-1 overflow-y-auto pr-1">
               {list.length === 0 ? (
                 <p className="text-xs text-muted-foreground">ยังไม่ได้เลือกสาร</p>
+              ) : visibleStandards.length === 0 ? (
+                <p className="text-xs text-muted-foreground">ไม่พบสารที่ค้นหา</p>
               ) : (
-                list.map((std, i) => (
+                visibleStandards.map(({ std, index: i }) => (
                   <div
                     key={`${standardKey(std.substance)}-${i}`}
                     className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded border px-2 py-1.5"

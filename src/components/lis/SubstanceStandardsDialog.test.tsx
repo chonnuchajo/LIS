@@ -170,4 +170,57 @@ describe("SubstanceStandardsDialog", () => {
     expect(saved.find((s) => s.substance === "DIQUAT")).toMatchObject({ headOnly: true });
     expect(saved.find((s) => s.substance === "ABAMECTIN")).not.toMatchObject({ headOnly: true });
   });
+
+  it("filters the selected list with its own search box", async () => {
+    renderDialog(undefined, [
+      { substance: "ABAMECTIN", operator: "gte", value: 95, value2: null },
+      { substance: "ACETAMIPRID", operator: "gte", value: 97, value2: null },
+      { substance: "DIQUAT", operator: "between", value: 78, value2: 82 },
+    ]);
+
+    const listSearch = await screen.findByPlaceholderText("ค้นหาสารที่เลือก...");
+    fireEvent.change(listSearch, { target: { value: "diquat" } }); // case-insensitive
+
+    expect(screen.getByLabelText("ค่า DIQUAT")).toBeInTheDocument();
+    expect(screen.queryByLabelText("ค่า ABAMECTIN")).not.toBeInTheDocument();
+    expect(screen.getByText("แสดง 1/3")).toBeInTheDocument();
+
+    fireEvent.change(listSearch, { target: { value: "ไม่มีสารนี้" } });
+    expect(screen.getByText("ไม่พบสารที่ค้นหา")).toBeInTheDocument();
+  });
+
+  it("edits and removes the correct item while the list is filtered", async () => {
+    const { onSave } = renderDialog(undefined, [
+      { substance: "ABAMECTIN", operator: "gte", value: 95, value2: null },
+      { substance: "DIQUAT", operator: "gte", value: 40, value2: null },
+    ]);
+
+    const listSearch = await screen.findByPlaceholderText("ค้นหาสารที่เลือก...");
+    fireEvent.change(listSearch, { target: { value: "DIQUAT" } });
+    fireEvent.change(screen.getByLabelText("ค่า DIQUAT"), { target: { value: "50" } });
+
+    fireEvent.change(listSearch, { target: { value: "ABAMECTIN" } });
+    fireEvent.click(screen.getByLabelText("ลบ ABAMECTIN"));
+
+    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledWith([
+      expect.objectContaining({ substance: "DIQUAT", value: 50 }),
+    ]);
+  });
+
+  it("clones the correct item while the list is filtered", async () => {
+    renderDialog(undefined, [
+      { substance: "ABAMECTIN", operator: "gte", value: 95, value2: null },
+      { substance: "DIQUAT", operator: "gte", value: 40, value2: null },
+    ]);
+
+    const listSearch = await screen.findByPlaceholderText("ค้นหาสารที่เลือก...");
+    fireEvent.change(listSearch, { target: { value: "DIQUAT" } });
+    fireEvent.click(screen.getByLabelText("คัดลอก DIQUAT"));
+
+    // clone แทรกถัดจากตัวเดิมในลิสต์เต็ม และชื่อเดียวกันย่อม match filter → เห็น 2 แถว
+    expect(screen.getAllByLabelText(/^ค่า DIQUAT$/)).toHaveLength(2);
+    expect(screen.getByText("แสดง 2/3")).toBeInTheDocument();
+  });
 });
