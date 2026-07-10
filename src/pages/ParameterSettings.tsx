@@ -63,6 +63,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 import {
   api,
   type ItemGroupItem,
@@ -84,6 +85,7 @@ import {
 import { generateParameter } from "@/lib/aiApi";
 import { ParameterCriteriaTabs, type ParameterCriteriaTab } from "@/components/lis/ParameterCriteriaTabs";
 import type { AdvancedCriteriaMode } from "@/lib/parameterCriteriaRows";
+import { normalizeRoles } from "@/lib/roles";
 import {
   partsToSec,
   secToParts,
@@ -1372,7 +1374,6 @@ function ValueFieldEditor({
                       </Button>
                     </div>
                   </div>
-                  <StandardPreview field={field} />
                   <LabelToleranceDialog
                     open={labelToleranceDialogOpen}
                     field={field}
@@ -1412,17 +1413,6 @@ function ValueFieldEditor({
                       </Button>
                     </div>
                   </div>
-                  {(field.conditionalStandards ?? []).length === 0 ? (
-                    <p className="text-xs text-muted-foreground">ยังไม่ได้ตั้งกฎ</p>
-                  ) : (
-                    <div className="space-y-0.5">
-                      {(field.conditionalStandards ?? []).map((r, i) => (
-                        <p key={i} className="text-xs text-emerald-700">
-                          {(field.conditionalResult ?? "standard") === "output" ? describeOutputRule(r) : describeRule(r, field.unit ?? "")}
-                        </p>
-                      ))}
-                    </div>
-                  )}
                   <ConditionalStandardsDialog
                     open={conditionalDialogOpen}
                     field={field}
@@ -1452,7 +1442,6 @@ function ValueFieldEditor({
                       </Button>
                     </div>
                   </div>
-                  <StandardPreview field={field} />
                   <SubstanceStandardsDialog
                     open={substanceDialogOpen}
                     field={field}
@@ -2531,6 +2520,7 @@ function ParameterDialog({
 
 export default function ParameterSettings() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [scopeTab, setScopeTab] = useState<ParameterScope>("qc");
   const [criteriaTab, setCriteriaTab] = useState<ParameterCriteriaTab>("list");
   const [criteriaEditor, setCriteriaEditor] = useState<CriteriaEditorTarget | null>(null);
@@ -2547,6 +2537,10 @@ export default function ParameterSettings() {
     queryFn: () => api.getParameters(),
   });
   const parameters = parametersQuery.data ?? [];
+  const canViewHeadCriteriaColumns = useMemo(() => {
+    const roles = normalizeRoles(user);
+    return roles.includes("admin") || roles.includes("qc-head");
+  }, [user]);
 
   const masterItemsQuery = useQuery({
     queryKey: ["master-items-for-parameters"],
@@ -2638,7 +2632,11 @@ export default function ParameterSettings() {
         ...(p.productTypes ?? []),
         ...(p.categories ?? []),
         ...(p.subCategories ?? []),
-        ...(p.valueFields ?? []).map((f) => f.label),
+        ...(p.valueFields ?? []).flatMap((f) => [
+          f.label,
+          ...(f.substanceStandards ?? []).map((standard) => standard.substance),
+          ...(f.labelToleranceStandards ?? []).map((standard) => standard.substance),
+        ]),
       ]
         .filter(Boolean)
         .join(" ")
@@ -2787,6 +2785,7 @@ export default function ParameterSettings() {
         onValueChange={setCriteriaTab}
         parameters={parameters}
         scope={scopeTab}
+        canViewHeadCriteriaColumns={canViewHeadCriteriaColumns}
         onEditField={handleEditCriteriaField}
       >
         <Card>
@@ -2798,7 +2797,7 @@ export default function ParameterSettings() {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="ค้นหาชื่อ / ใช้กับ / ช่อง..."
+                placeholder="ค้นหาชื่อ / สาร / ใช้กับ / ช่อง..."
                 className="pl-8"
               />
             </div>

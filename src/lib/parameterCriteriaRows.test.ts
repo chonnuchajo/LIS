@@ -255,6 +255,7 @@ describe("parameter criteria row builders", () => {
       selectorText: `0.3% / ${productTypeLabels.sand}`,
       drugPercent: "0.3",
       tolerancePercent: "-",
+      headTolerance: "-",
       failLow: "0.225",
       passLow: "0.2438",
       passHigh: "0.3563",
@@ -265,12 +266,48 @@ describe("parameter criteria row builders", () => {
     expect(rows[1]).toMatchObject({
       selectorText: "ABAMECTIN / 1%",
       drugPercent: "1",
-      tolerancePercent: "25",
+      tolerancePercent: "25%",
+      headTolerance: "15%",
       failLow: "-",
       passLow: "-",
       passHigh: "-",
       failHigh: "-",
       previewText: `${rows[1].selectorText} | ${secondSummary}`,
+    });
+  });
+
+  it("formats absolute label tolerance values with plus-minus text", () => {
+    const rows = buildLabelToleranceCriteriaRows(
+      [
+        {
+          _id: "p-abs",
+          name: "Absolute Parameter",
+          scope: "qc",
+          valueFields: [
+            {
+              label: "Absolute",
+              type: "number",
+              labelToleranceMode: true,
+              labelToleranceStandards: [
+                {
+                  substance: "ABS",
+                  labelPercent: 1,
+                  autoMode: "abs",
+                  headMode: "abs",
+                  autoAbs: 0.05,
+                  headAbs: 0.1,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      "qc",
+    );
+
+    expect(rows[0]).toMatchObject({
+      tolerancePercent: "± 0.05",
+      headTolerance: "± 0.1",
     });
   });
 });

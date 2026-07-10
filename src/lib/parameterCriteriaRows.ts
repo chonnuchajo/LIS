@@ -56,6 +56,7 @@ export type LabelToleranceCriteriaRow = CriteriaRowOwner & {
   selectorText: string;
   drugPercent: string;
   tolerancePercent: string;
+  headTolerance: string;
   failLow: string;
   passLow: string;
   passHigh: string;
@@ -135,10 +136,30 @@ const selectorText = (rule: LabelToleranceRule) => {
   return parts.length ? parts.join(" / ") : "ทั้งหมด";
 };
 
+const displayPercent = (value: number | null | undefined) => {
+  const text = displayValue(value);
+  return text === "-" ? text : `${text}%`;
+};
+
+const displayAbsTolerance = (value: number | null | undefined) => {
+  const text = displayValue(value);
+  return text === "-" ? text : `± ${text}`;
+};
+
 const tolerancePercent = (rule: LabelToleranceRule) => {
   if ((rule.mode ?? "percent") === "range") return "-";
-  if (rule.autoMode && rule.autoMode !== "percent") return "-";
-  return displayValue(rule.autoPct);
+  const mode = rule.autoMode ?? ((rule.mode ?? "percent") === "abs" ? "abs" : "percent");
+  if (mode === "percent") return displayPercent(rule.autoPct);
+  if (mode === "abs") return displayAbsTolerance(rule.autoAbs);
+  return "-";
+};
+
+const headTolerance = (rule: LabelToleranceRule) => {
+  if ((rule.mode ?? "percent") === "range") return "-";
+  const mode = rule.headMode ?? ((rule.mode ?? "percent") === "abs" ? "abs" : "percent");
+  if (mode === "percent") return displayPercent(rule.headPct);
+  if (mode === "abs") return displayAbsTolerance(rule.headAbs);
+  return "-";
 };
 
 const productTypeText = (values: string[] | undefined) => {
@@ -278,6 +299,7 @@ export function buildLabelToleranceCriteriaRows(
           selectorText: "-",
           drugPercent: "-",
           tolerancePercent: "-",
+          headTolerance: "-",
           failLow: "-",
           passLow: "-",
           passHigh: "-",
@@ -298,6 +320,7 @@ export function buildLabelToleranceCriteriaRows(
           selectorText: selector,
           drugPercent: displayValue(rule.labelPercent),
           tolerancePercent: tolerancePercent(rule),
+          headTolerance: headTolerance(rule),
           failLow: displayValue(rule.failLow),
           passLow: displayValue(rule.passLow),
           passHigh: displayValue(rule.passHigh),
