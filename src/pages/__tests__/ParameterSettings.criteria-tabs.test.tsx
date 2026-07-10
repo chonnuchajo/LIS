@@ -114,7 +114,7 @@ describe("ParameterSettings criteria tabs", () => {
     api.updateParameter.mockResolvedValue(undefined);
   });
 
-  it("opens substance tab and saves substance criteria updates", async () => {
+  it("opens substance tab and saves a single-substance quick edit", async () => {
     renderPage();
 
     const criteriaTabList = screen.getAllByRole("tablist")[1];
@@ -122,17 +122,19 @@ describe("ParameterSettings criteria tabs", () => {
     expect(criteriaTabs).toHaveLength(4);
 
     const substancesTab = criteriaTabs[1];
-    expect(substancesTab).toBeInTheDocument();
     fireEvent.mouseDown(substancesTab);
     fireEvent.click(substancesTab);
 
     expect(await screen.findByText("ABAMECTIN")).toBeInTheDocument();
 
     const table = screen.getByRole("table");
-    const editButton = within(table).getByRole("button");
-    fireEvent.click(editButton);
+    fireEvent.click(within(table).getByRole("button"));
 
-    fireEvent.click(screen.getByText("save substance dialog"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("ABAMECTIN")).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText("ค่า"), { target: { value: "97" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "บันทึก" }));
 
     await waitFor(() => expect(api.updateParameter).toHaveBeenCalledTimes(1));
 
@@ -142,18 +144,17 @@ describe("ParameterSettings criteria tabs", () => {
       expect.objectContaining({
         valueFields: expect.arrayContaining([
           expect.objectContaining({
-            substanceStandards: expect.arrayContaining([
-              expect.objectContaining({ substance: "ABAMECTIN" }),
-              expect.objectContaining({ substance: "NEW" }),
-            ]),
+            substanceStandards: [
+              expect.objectContaining({ substance: "ABAMECTIN", operator: "gte", value: 97 }),
+            ],
           }),
         ]),
       }),
     );
-    expect(payload?.valueFields?.[0]?.substanceStandards).toHaveLength(2);
+    expect(payload?.valueFields?.[0]?.substanceStandards).toHaveLength(1);
   });
 
-  it("keeps substance dialog open when save fails", async () => {
+  it("keeps the quick-edit dialog open when save fails", async () => {
     renderPage();
 
     const criteriaTabList = screen.getAllByRole("tablist")[1];
@@ -164,15 +165,52 @@ describe("ParameterSettings criteria tabs", () => {
     expect(await screen.findByText("ABAMECTIN")).toBeInTheDocument();
 
     const table = screen.getByRole("table");
-    const editButton = within(table).getByRole("button");
-    fireEvent.click(editButton);
+    fireEvent.click(within(table).getByRole("button"));
 
+    const dialog = await screen.findByRole("dialog");
     api.updateParameter.mockRejectedValueOnce(new Error("save failed"));
 
-    fireEvent.click(screen.getByText("save substance dialog"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "บันทึก" }));
 
     await waitFor(() => expect(api.updateParameter).toHaveBeenCalledTimes(1));
-    expect(screen.getByText("save substance dialog")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "บันทึก" })).toBeInTheDocument();
+  });
+
+  it("opens the full substance dialog from an unconfigured field's setup row", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      {
+        _id: "p-setup",
+        name: "Setup Parameter",
+        scope: "qc",
+        status: "active",
+        applyAll: true,
+        valueFields: [
+          { label: "ปริมาณ", type: "number", substanceMode: true, substanceStandards: [] },
+        ],
+      },
+    ]);
+
+    renderPage();
+
+    const criteriaTabList = await waitFor(() => screen.getAllByRole("tablist")[1]);
+    const substancesTab = within(criteriaTabList).getAllByRole("tab")[1];
+    fireEvent.mouseDown(substancesTab);
+    fireEvent.click(substancesTab);
+
+    const table = await waitFor(() => screen.getByRole("table"));
+    expect(within(table).getByText("Setup Parameter")).toBeInTheDocument();
+
+    fireEvent.click(within(table).getByRole("button"));
+
+    fireEvent.click(await screen.findByText("save substance dialog"));
+
+    await waitFor(() => expect(api.updateParameter).toHaveBeenCalledTimes(1));
+    const [, payload] = api.updateParameter.mock.calls[0] as [string, ParameterItem];
+    expect(payload?.valueFields?.[0]?.substanceStandards).toHaveLength(1);
+    expect(payload?.valueFields?.[0]?.substanceStandards?.[0]).toEqual(
+      expect.objectContaining({ substance: "NEW" }),
+    );
   });
 
   it("filters the parameter list by substance names saved in criteria", async () => {
