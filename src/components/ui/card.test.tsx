@@ -78,15 +78,24 @@ describe("Card onOpen", () => {
   it("keeps draggable and nested title actions independent", () => {
     const onOpen = vi.fn();
     const onTitleClick = vi.fn();
+    const onDragStart = vi.fn();
     render(
-      <Card onOpen={onOpen} draggable>
+      <Card onOpen={onOpen} draggable onDragStart={onDragStart}>
         <button type="button" onClick={onTitleClick}>PET-001</button>
         <span>Card body</span>
       </Card>,
     );
 
+    const allButtons = screen.getAllByRole("button");
+    const titleButton = allButtons.find((node) => node.tagName.toLowerCase() === "button")!;
+    const cardButton = allButtons.find((node) => node.tagName.toLowerCase() === "div")!;
+
+    fireEvent.dragStart(cardButton);
+    expect(onDragStart).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
+
     fireEvent.click(screen.getByText("Card body"));
-    fireEvent.click(screen.getByRole("button", { name: "PET-001" }));
+    fireEvent.click(titleButton);
 
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onTitleClick).toHaveBeenCalledTimes(1);
