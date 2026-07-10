@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { OPERATOR_OPTIONS, describeSubstanceStandard, describeRule, describeResolvedStandard, describeOutputRule } from "./standardOperators";
-import type { StandardRule } from "./api";
+import { OPERATOR_OPTIONS, describeSubstanceStandard, describeRule, describeResolvedStandard, describeOutputRule, describeSingleStandard } from "./standardOperators";
+import type { StandardRule, ParameterValueField } from "./api";
 
 describe("OPERATOR_OPTIONS", () => {
   it("includes a 'none' entry plus all 7 operators", () => {
@@ -294,5 +294,73 @@ describe("formatLabelToleranceRange", () => {
   });
   it("returns empty when center null", () => {
     expect(formatLabelToleranceRange({ status: "none", center: null, autoRange: null, headRange: null }, "%")).toBe("");
+  });
+});
+
+const field = (over: Partial<ParameterValueField>): ParameterValueField => ({
+  label: "ค่า", type: "float", ...over,
+});
+
+describe("describeSingleStandard", () => {
+  it("no operator: not-configured message, set=false", () => {
+    const r = describeSingleStandard(field({}));
+    expect(r).toEqual({ text: "ยังไม่ได้กำหนดเงื่อนไข — จะไม่ตรวจค่าผิดปกติ", set: false });
+  });
+
+  it("operator but no value: missing-value message, set=false", () => {
+    const r = describeSingleStandard(field({ standardOperator: "gte", standardValue: null }));
+    expect(r).toEqual({ text: "ยังไม่ได้กรอกค่ามาตรฐาน", set: false });
+  });
+
+  it("lt", () => {
+    expect(describeSingleStandard(field({ standardOperator: "lt", standardValue: 5 })))
+      .toEqual({ text: "ค่าปกติ: < 5", set: true });
+  });
+  it("lte", () => {
+    expect(describeSingleStandard(field({ standardOperator: "lte", standardValue: 5 })))
+      .toEqual({ text: "ค่าปกติ: ≤ 5", set: true });
+  });
+  it("eq", () => {
+    expect(describeSingleStandard(field({ standardOperator: "eq", standardValue: 5 })))
+      .toEqual({ text: "ค่าปกติ: = 5", set: true });
+  });
+  it("gte", () => {
+    expect(describeSingleStandard(field({ standardOperator: "gte", standardValue: 5 })))
+      .toEqual({ text: "ค่าปกติ: ≥ 5", set: true });
+  });
+  it("gt", () => {
+    expect(describeSingleStandard(field({ standardOperator: "gt", standardValue: 5 })))
+      .toEqual({ text: "ค่าปกติ: > 5", set: true });
+  });
+
+  it("between with value2: renders range", () => {
+    expect(describeSingleStandard(field({ standardOperator: "between", standardValue: 10, standardValue2: 50 })))
+      .toEqual({ text: "ค่าปกติ: 10 - 50", set: true });
+  });
+  it("between without value2: missing-end message, set=false", () => {
+    expect(describeSingleStandard(field({ standardOperator: "between", standardValue: 10, standardValue2: null })))
+      .toEqual({ text: "ยังไม่ได้กรอกค่าสิ้นสุดของช่วง", set: false });
+  });
+
+  it("tolerance with a valid pct: computes low-high range", () => {
+    const r = describeSingleStandard(field({ standardOperator: "tolerance", standardValue: 100, standardValue2: 5 }));
+    expect(r).toEqual({ text: "ค่าปกติ: 100 ± 5% (95 - 105)", set: true });
+  });
+  it("tolerance with null pct: not-configured tolerance message, set=false", () => {
+    expect(describeSingleStandard(field({ standardOperator: "tolerance", standardValue: 100, standardValue2: null })))
+      .toEqual({ text: "ยังไม่ได้กรอก tolerance %", set: false });
+  });
+  it("tolerance with pct <= 0: not-configured tolerance message, set=false", () => {
+    expect(describeSingleStandard(field({ standardOperator: "tolerance", standardValue: 100, standardValue2: 0 })))
+      .toEqual({ text: "ยังไม่ได้กรอก tolerance %", set: false });
+  });
+
+  it("appends the unit suffix when present", () => {
+    expect(describeSingleStandard(field({ standardOperator: "gte", standardValue: 5, unit: "cP" })))
+      .toEqual({ text: "ค่าปกติ: ≥ 5 cP", set: true });
+  });
+  it("omits the unit suffix when absent", () => {
+    expect(describeSingleStandard(field({ standardOperator: "gte", standardValue: 5 })))
+      .toEqual({ text: "ค่าปกติ: ≥ 5", set: true });
   });
 });

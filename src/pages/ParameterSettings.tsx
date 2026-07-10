@@ -25,7 +25,7 @@ import { SubstanceStandardsDialog } from "@/components/lis/SubstanceStandardsDia
 import { SubstanceStandardRowDialog } from "@/components/lis/SubstanceStandardRowDialog";
 import { ConditionalStandardsDialog } from "@/components/lis/ConditionalStandardsDialog";
 import { LabelToleranceDialog } from "@/components/lis/LabelToleranceDialog";
-import { describeRule, describeSubstanceStandard, describeOutputRule, describeLabelTolerance } from "@/lib/standardOperators";
+import { describeRule, describeSubstanceStandard, describeOutputRule, describeLabelTolerance, describeSingleStandard } from "@/lib/standardOperators";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -502,47 +502,12 @@ function StandardPreview({ field }: { field: ParameterValueField }) {
       </div>
     );
   }
-  const op = field.standardOperator;
-  const v1 = field.standardValue;
-  const v2 = field.standardValue2;
-  const unit = field.unit ? ` ${field.unit}` : "";
-
-  if (!op) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        ยังไม่ได้กำหนดเงื่อนไข — จะไม่ตรวจค่าผิดปกติ
-      </p>
-    );
-  }
-  if (v1 == null) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        ยังไม่ได้กรอกค่ามาตรฐาน
-      </p>
-    );
-  }
-
-  let text = "";
-  switch (op) {
-    case "lt": text = `ค่าปกติ: < ${v1}${unit}`; break;
-    case "lte": text = `ค่าปกติ: ≤ ${v1}${unit}`; break;
-    case "eq": text = `ค่าปกติ: = ${v1}${unit}`; break;
-    case "gte": text = `ค่าปกติ: ≥ ${v1}${unit}`; break;
-    case "gt": text = `ค่าปกติ: > ${v1}${unit}`; break;
-    case "between":
-      if (v2 == null) return <p className="text-xs text-muted-foreground">ยังไม่ได้กรอกค่าสิ้นสุดของช่วง</p>;
-      text = `ค่าปกติ: ${v1} - ${v2}${unit}`;
-      break;
-    case "tolerance":
-      if (v2 == null || v2 <= 0) return <p className="text-xs text-muted-foreground">ยังไม่ได้กรอก tolerance %</p>;
-      {
-        const low = v1 - Math.abs(v1) * (v2 / 100);
-        const high = v1 + Math.abs(v1) * (v2 / 100);
-        text = `ค่าปกติ: ${v1} ± ${v2}% (${low} - ${high})${unit}`;
-      }
-      break;
-  }
-  return <p className="text-xs text-emerald-700">{text}</p>;
+  const single = describeSingleStandard(field);
+  return (
+    <p className={cn("text-xs", single.set ? "text-emerald-700" : "text-muted-foreground")}>
+      {single.text}
+    </p>
+  );
 }
 
 const TIMER_PART_LABEL: Record<keyof TimerParts, string> = {
