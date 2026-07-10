@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
-  ChevronDown, ChevronLeft, ChevronRight, LogOut, Search, User,
+  ChevronDown, ChevronLeft, ChevronRight, Search,
 } from "lucide-react";
 import { NAV_ITEMS } from "@/lib/navItems";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -14,7 +13,6 @@ import { pathMatches, userCanAccessPath } from "@/lib/accessControl";
 import { api } from "@/lib/api";
 import { normalizeRoles, unionPermissions } from "@/lib/roles";
 import { useIsTablet } from "@/hooks/use-mobile";
-import { useActiveRole } from "@/store/activeRole";
 
 type RoleOption = {
   id: string;
@@ -41,6 +39,30 @@ const EMPTY_GROUPS: NavGroup[] = [];
 
 export type AppSidebarVariant = "desktop" | "drawer";
 
+const NAV_SCROLL_STORAGE_KEY: Record<AppSidebarVariant, string> = {
+  desktop: "lis.sidebar.navScrollTop.desktop",
+  drawer: "lis.sidebar.navScrollTop.drawer",
+};
+
+function readNavScrollTop(key: string) {
+  if (typeof window === "undefined") return 0;
+  try {
+    const value = Number(sessionStorage.getItem(key) ?? "0");
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveNavScrollTop(key: string, scrollTop: number) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(key, String(Math.max(0, Math.round(scrollTop))));
+  } catch {
+    // Ignore storage failures; navigation should still work normally.
+  }
+}
+
 interface AppSidebarProps {
   variant?: AppSidebarVariant;
   /** Called when the user picks a nav item — useful for the drawer to close itself. */
@@ -50,11 +72,13 @@ interface AppSidebarProps {
 const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const isTablet = useIsTablet();
   const isDrawer = variant === "drawer";
-  const { activeRole } = useActiveRole(normalizeRoles(user));
+  const navRef = useRef<HTMLElement | null>(null);
+  const navScrollStorageKey = NAV_SCROLL_STORAGE_KEY[variant];
+  const roles = normalizeRoles(user);
 
   const { data: accessControl } = useQuery({
     queryKey: ACCESS_CONTROL_QUERY_KEY,
@@ -65,21 +89,17 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
     staleTime: 5 * 60 * 1000,
   });
 
-  const roleNameById = useMemo<Record<string, string>>(
-    () => Object.fromEntries((accessControl?.roles ?? []).map((r) => [r.id, r.name])),
-    [accessControl],
-  );
   const navGroups = accessControl?.groups?.length ? accessControl.groups : EMPTY_GROUPS;
   const effectiveUser = useMemo(
     () =>
       user
         ? {
             ...user,
-            roles: [activeRole],
-            permissions: unionPermissions([activeRole], accessControl?.permissions ?? {}),
+            roles,
+            permissions: unionPermissions(roles, accessControl?.permissions ?? {}),
           }
         : user,
-    [user, activeRole, accessControl?.permissions],
+    [user, roles, accessControl?.permissions],
   );
 
   const [storedCollapsed, setStoredCollapsed] = useState<boolean>(() => {
@@ -128,6 +148,21 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
     localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(collapsedGroups));
   }, [collapsedGroups]);
 
+  const persistNavScroll = useCallback(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    saveNavScrollTop(navScrollStorageKey, nav.scrollTop);
+  }, [navScrollStorageKey]);
+
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    nav.scrollTop = readNavScrollTop(navScrollStorageKey);
+    return () => {
+      saveNavScrollTop(navScrollStorageKey, nav.scrollTop);
+    };
+  }, [navScrollStorageKey]);
+
   const toggleGroup = (id: string) =>
     setCollapsedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
 
@@ -136,13 +171,6 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
     window.addEventListener("lis-access-groups-changed", handler);
     return () => window.removeEventListener("lis-access-groups-changed", handler);
   }, [queryClient]);
-
-  const handleLogout = () => {
-    logout();
-    toast.success("ออกจากระบบสำเร็จ");
-    onNavigate?.();
-    navigate("/login", { replace: true });
-  };
 
   const sections = useMemo(() => {
     const sorted = [...navGroups].sort((a, b) => {
@@ -185,12 +213,6 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
 
     return result;
   }, [navGroups]);
-
-  const roleLabel = (() => {
-    const roles = normalizeRoles(user);
-    if (roles.length === 0) return "No role";
-    return roles.map((r) => roleNameById[r] ?? r).join(", ");
-  })();
 
   // The active nav item is the one whose path is the longest prefix of the
   // current pathname — so /daily-check stays active on /daily-check/balance,
@@ -257,7 +279,11 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
         </div>
 
         {/* Nav */}
-        <nav className={cn("flex-1 py-3 overflow-y-auto overscroll-contain scrollbar-hide", collapsed ? "px-2" : "px-3")}>
+        <nav
+          ref={navRef}
+          onScroll={persistNavScroll}
+          className={cn("flex-1 py-3 overflow-y-auto overscroll-contain scrollbar-hide", collapsed ? "px-2" : "px-3")}
+        >
           {!collapsed && (
             <div className="px-1 pb-2">
               <div className="relative">
@@ -321,6 +347,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
                     <button
                       key={item.path}
                       onClick={() => {
+                        persistNavScroll();
                         navigate(targetPath);
                         onNavigate?.();
                       }}
@@ -362,84 +389,6 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
               </p>
             )}
         </nav>
-
-        {/* Footer */}
-        <div className={cn("mt-auto space-y-2", collapsed ? "p-2" : "p-3")}>
-          {collapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="w-full flex justify-center bg-accent rounded-lg py-2.5">
-                  {user?.photoUrl ? (
-                    <img
-                      src={user.photoUrl}
-                      alt={user?.name || user?.email || "Profile"}
-                      className="h-8 w-8 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-                      <User className="w-4 h-4 text-primary-foreground" />
-                    </div>
-                  )}
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="right">
-                <div className="text-xs">
-                  <div className="font-semibold">{user?.name || user?.email}</div>
-                  <div className="text-muted-foreground">{user?.email}</div>
-                  <div className="text-muted-foreground">Role: {roleLabel}</div>
-                  <div className="text-muted-foreground">
-                    {[user?.department, user?.position].filter(Boolean).join(" · ") || "Unassigned"}
-                  </div>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <div className="flex items-center gap-3 bg-accent rounded-lg px-3 py-2.5">
-              {user?.photoUrl ? (
-                <img
-                  src={user.photoUrl}
-                  alt={user?.name || user?.email || "Profile"}
-                  className="h-8 w-8 shrink-0 rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-                  <User className="w-4 h-4 text-primary-foreground" />
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">{user?.name || user?.email}</p>
-                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-                <p className="text-[11px] text-muted-foreground truncate">Role: {roleLabel}</p>
-                <p className="text-[11px] text-muted-foreground truncate">
-                  {[user?.department, user?.position].filter(Boolean).join(" · ") || "Unassigned"}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {collapsed ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={handleLogout}
-                  aria-label="ออกจากระบบ"
-                  className="flex items-center justify-center w-full h-10 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right">ออกจากระบบ</TooltipContent>
-            </Tooltip>
-          ) : (
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              ออกจากระบบ
-            </button>
-          )}
-        </div>
       </aside>
     </TooltipProvider>
   );

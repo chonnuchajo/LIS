@@ -102,10 +102,32 @@ export function describeLabelTolerance(std: LabelToleranceRule, unit: string): s
   }
   const u = unit ? ` ${unit}` : "";
   if (std.autoMode || std.headMode) {
-    const auto = std.autoMode === "percent"
+    if (std.autoMode === "range" || std.headMode === "range") {
+      const auto = std.autoMode === "none"
+        ? ""
+        : std.autoMode === "range"
+          ? (std.passLow == null || std.passHigh == null ? "" : `ผ่าน ${std.passLow}-${std.passHigh}`)
+          : std.autoMode === "percent"
+            ? (std.autoPct == null ? "" : `ผ่าน ${std.autoPct}% ของหัวหน้าตรวจสอบ`)
+            : (std.autoAbs == null ? "" : `ผ่าน ±${std.autoAbs}`);
+      const head = std.headMode === "none"
+        ? ""
+        : std.headMode === "range"
+          ? (std.failLow == null || std.failHigh == null ? "" : `หัวหน้า ${std.failLow}-${std.failHigh}`)
+          : std.headMode === "percent"
+            ? (std.headPct == null ? "" : `หัวหน้า ±${std.headPct}%`)
+            : (std.headAbs == null ? "" : `หัวหน้า ±${std.headAbs}`);
+      const parts = [auto, head].filter(Boolean);
+      return parts.length ? `${parts.join(" | ")}${u}` : "";
+    }
+    const auto = std.autoMode === "none"
+      ? ""
+      : std.autoMode === "percent"
       ? (std.autoPct == null ? "" : `ผ่าน ${std.autoPct}% ของหัวหน้าตรวจสอบ`)
       : (std.autoAbs == null ? "" : `ผ่าน ±${std.autoAbs}`);
-    const head = std.headMode === "percent"
+    const head = std.headMode === "none"
+      ? ""
+      : std.headMode === "percent"
       ? (std.headPct == null ? "" : `หัวหน้า ±${std.headPct}%`)
       : (std.headAbs == null ? "" : `หัวหน้า ±${std.headAbs}`);
     const parts = [auto, head].filter(Boolean);
@@ -122,10 +144,23 @@ export function describeLabelTolerance(std: LabelToleranceRule, unit: string): s
 }
 
 // ช่วงจริงหลังแกะ %ฉลาก เช่น "ผ่าน 0.975–1.025 · หัวหน้าตรวจสอบ 0.95–1.05 %"
+export function labelToleranceDisplayDecimals(center: number | null): 2 | 4 | 5 {
+  if (center == null || !Number.isFinite(center)) return 4;
+  if (Math.abs(center) > 2.5) return 2;
+  const fraction = Math.abs(center).toFixed(12).replace(/0+$/, "").replace(/\.$/, "").split(".")[1] ?? "";
+  const leadingZeros = fraction.match(/^0+/)?.[0].length ?? 0;
+  return leadingZeros > 1 || fraction.length >= 3 ? 5 : 4;
+}
+
+export function formatLabelToleranceNumber(value: number, center: number | null): string {
+  const decimals = labelToleranceDisplayDecimals(center);
+  return Number(value.toFixed(decimals)).toFixed(decimals);
+}
+
 export function formatLabelToleranceRange(r: LabelToleranceResolved, unit: string): string {
   if (r.center == null || !r.autoRange) return "";
   const u = unit ? ` ${unit}` : "";
-  const fmt = (n: number) => Number(n.toFixed(4)).toString();
+  const fmt = (n: number) => formatLabelToleranceNumber(n, r.center);
   const auto = `ผ่าน ${fmt(r.autoRange[0])}–${fmt(r.autoRange[1])}`;
   const head = r.headRange ? ` · หัวหน้าตรวจสอบ ${fmt(r.headRange[0])}–${fmt(r.headRange[1])}` : "";
   return `${auto}${head}${u}`;

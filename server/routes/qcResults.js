@@ -3,6 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const QCTestResult = require("../models/QCTestResult");
 const Parameter = require("../models/Parameter");
+const Petition = require("../models/Petition");
 const { scheduleOrUnlockPhase2 } = require("../lib/phaseAdvance");
 const PetitionAuditLog = require('../models/PetitionAuditLog');
 const { qcResultAuditEvent, qcResultNote } = require('../lib/auditEvents');
@@ -50,6 +51,18 @@ function productTypeFromSpecJS(raw) {
   return "";
 }
 
+function normalizeCategoryJS(value) {
+  const normalized = String(value || "").trim().toUpperCase();
+  return normalized === "RM" || normalized === "FG" ? normalized : "";
+}
+
+function categoryFromDeptJS(value) {
+  const dept = String(value || "").trim().toLowerCase();
+  if (dept === "rm") return "RM";
+  if (dept === "fg") return "FG";
+  return normalizeCategoryJS(value);
+}
+
 // mirror of src/lib/parameterValidation.ts isSubstanceAbnormal: build a virtual field, reuse isNumericAbnormal
 function isSubstanceAbnormalJS(field, std, value) {
   if (!std || !std.operator || std.value == null) return false;
@@ -59,10 +72,25 @@ function isSubstanceAbnormalJS(field, std, value) {
   );
 }
 
-function visibleSubstanceStandardJS(field, subKey, includeRestricted) {
-  const std = (field.substanceStandards || []).find(
-    (s) => matchSubstanceKeyJS(s.substance) === subKey,
-  );
+function findSubstanceStandardJS(field, rawSpec, productType, category) {
+  const subKey = matchSubstanceKeyJS(rawSpec);
+  const wantedProductType = String(productType || productTypeFromSpecJS(rawSpec) || "").trim();
+  const wantedCategory = normalizeCategoryJS(category);
+  let best = null;
+  for (const std of field.substanceStandards || []) {
+    if (matchSubstanceKeyJS(std.substance) !== subKey) continue;
+    const productTypes = Array.isArray(std.productTypes) ? std.productTypes.filter(Boolean) : [];
+    const categories = Array.isArray(std.categories) ? std.categories.map(normalizeCategoryJS).filter(Boolean) : [];
+    if (productTypes.length > 0 && (!wantedProductType || !productTypes.includes(wantedProductType))) continue;
+    if (categories.length > 0 && (!wantedCategory || !categories.includes(wantedCategory))) continue;
+    const score = (productTypes.length > 0 ? 2 : 0) + (categories.length > 0 ? 2 : 0);
+    if (!best || score > best.score) best = { std, score };
+  }
+  return best ? best.std : undefined;
+}
+
+function visibleSubstanceStandardJS(field, rawSpec, includeRestricted, productType, category) {
+  const std = findSubstanceStandardJS(field, rawSpec, productType, category);
   if (!std) return undefined;
   if (!includeRestricted && std.headOnly) return undefined;
   return std;
@@ -262,6 +290,18 @@ router.get("/abnormal-flags", async (req, res) => {
       : [];
     const paramById = new Map(params.map((p) => [String(p._id), p]));
 
+    const petitions = await Petition.find(
+      { _id: { $in: ids } },
+      { dept: 1, items: 1 },
+    ).lean();
+    const categoryByItem = {};
+    for (const petition of petitions) {
+      const category = categoryFromDeptJS(petition.dept);
+      for (const item of petition.items || []) {
+        categoryByItem[`${String(petition._id)}__${item.seq}`] = category;
+      }
+    }
+
     const valuesByItem = {};   // `${petitionId}__${itemSeq}` -> { [parameterId]: values }
     for (const d of docs) {
       const key = `${d.petitionId}__${d.itemSeq}`;
@@ -287,7 +327,10 @@ router.get("/abnormal-flags", async (req, res) => {
             for (const [vkey, vval] of Object.entries(values)) {
               if (!vkey.startsWith(prefix)) continue;
               const subKey = vkey.slice(prefix.length);
-              const std = visibleSubstanceStandardJS(field, subKey, includeRestricted);
+              const raw = rawSpecForSubKey(d.commonName, subKey) || subKey;
+              const productType = productTypeFromSpecJS(raw) || productTypeFromSpecJS(d.commonName);
+              const category = categoryByItem[`${d.petitionId}__${d.itemSeq}`] || "";
+              const std = visibleSubstanceStandardJS(field, raw, includeRestricted, productType, category);
               if (isSubstanceAbnormalJS(field, std, vval)) { flagged = true; break; }
             }
             if (flagged) break;

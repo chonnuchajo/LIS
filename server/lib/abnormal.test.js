@@ -65,7 +65,12 @@ test('resolveLabelTolerance abs mode (BE mirror)', () => {
   assert.strictEqual(resolveLabelTolerance(std, 'ABAMECTIN 1.8%', 1.9).status, 'review');
   assert.strictEqual(resolveLabelTolerance(std, 'ABAMECTIN 1.8%', 1.91).status, 'fail');
   assert.strictEqual(resolveLabelTolerance(std, 'ABAMECTIN 480 G/L', 1.8).status, 'none');
-  assert.strictEqual(resolveLabelTolerance({ ...std, autoAbs: 0 }, 'ABAMECTIN 1.8%', 1.8).status, 'none');
+  assert.deepStrictEqual(resolveLabelTolerance({ ...std, autoAbs: 0 }, 'ABAMECTIN 1.8%', 1.8), {
+    status: 'none',
+    center: 1.8,
+    autoRange: null,
+    headRange: null,
+  });
 
   const noHead = { substance: 'A', mode: 'abs', autoAbs: 0.05, headAbs: null };
   assert.strictEqual(resolveLabelTolerance(noHead, 'A 1.8%', 1.86).status, 'fail');
@@ -83,4 +88,72 @@ test('resolveLabelTolerance split mode derives pass % from head band (BE mirror)
   assert.deepStrictEqual(r.autoRange, [1.75, 1.85]);
   assert.deepStrictEqual(r.headRange, [1.7, 1.9]);
   assert.strictEqual(resolveLabelTolerance(std, 'A 1.8%', 1.86).status, 'review');
+});
+
+test('resolveLabelTolerance split pass percent insets from head band edges (BE mirror)', () => {
+  const std = { substance: 'A', autoMode: 'percent', headMode: 'percent', autoPct: 25, headPct: 15 };
+  const r = resolveLabelTolerance(std, 'A 1%', 1);
+  assert.deepStrictEqual(r.headRange, [0.85, 1.15]);
+  assert.deepStrictEqual(r.autoRange, [0.8875, 1.1125]);
+  assert.strictEqual(resolveLabelTolerance(std, 'A 1%', 0.8875).status, 'pass');
+  assert.strictEqual(resolveLabelTolerance(std, 'A 1%', 1.1125).status, 'pass');
+  assert.strictEqual(resolveLabelTolerance(std, 'A 1%', 0.88).status, 'review');
+  assert.strictEqual(resolveLabelTolerance(std, 'A 1%', 1.12).status, 'review');
+});
+
+test('resolveLabelTolerance split range modes (BE mirror)', () => {
+  const std = {
+    substance: 'A',
+    autoMode: 'range',
+    headMode: 'range',
+    passLow: 1.75,
+    passHigh: 1.85,
+    failLow: 1.7,
+    failHigh: 1.9,
+  };
+  const r = resolveLabelTolerance(std, 'A 1.8%', 1.8);
+  assert.deepStrictEqual(r.autoRange, [1.75, 1.85]);
+  assert.deepStrictEqual(r.headRange, [1.7, 1.9]);
+  assert.strictEqual(resolveLabelTolerance(std, 'A 1.8%', 1.85).status, 'pass');
+  assert.strictEqual(resolveLabelTolerance(std, 'A 1.8%', 1.86).status, 'review');
+  assert.strictEqual(resolveLabelTolerance(std, 'A 1.8%', 1.91).status, 'fail');
+});
+
+test('resolveLabelTolerance supports head-only split mode when autoMode is none (BE mirror)', () => {
+  const std = { substance: 'A', autoMode: 'none', headMode: 'abs', headAbs: 0.1 };
+  const r = resolveLabelTolerance(std, 'A 1.8%', 1.8);
+
+  assert.strictEqual(r.autoRange, null);
+  assert.deepStrictEqual(r.headRange, [1.7, 1.9]);
+  assert.strictEqual(r.status, 'review');
+  assert.strictEqual(resolveLabelTolerance(std, 'A 1.8%', 1.91).status, 'fail');
+  assert.strictEqual(isLabelToleranceAbnormal(std, 'A 1.8%', 1.8), true);
+});
+
+test('resolveLabelTolerance returns none when split auto band is missing even if head band exists', () => {
+  const std = { substance: 'A', autoMode: 'abs', headMode: 'abs', autoAbs: null, headAbs: 0.1 };
+  const r = resolveLabelTolerance(std, 'A 1.8%', 1.8);
+
+  assert.deepStrictEqual(r, {
+    status: 'none',
+    center: 1.8,
+    autoRange: null,
+    headRange: null,
+  });
+  assert.deepStrictEqual(resolveLabelTolerance(std, 'A 1.8%', 1.91), {
+    status: 'none',
+    center: 1.8,
+    autoRange: null,
+    headRange: null,
+  });
+});
+
+test('resolveLabelTolerance supports auto-only split mode when headMode is none (BE mirror)', () => {
+  const std = { substance: 'A', autoMode: 'abs', headMode: 'none', autoAbs: 0.05 };
+  const r = resolveLabelTolerance(std, 'A 1.8%', 1.8);
+
+  assert.deepStrictEqual(r.autoRange, [1.75, 1.85]);
+  assert.strictEqual(r.headRange, null);
+  assert.strictEqual(r.status, 'pass');
+  assert.strictEqual(resolveLabelTolerance(std, 'A 1.8%', 1.86).status, 'fail');
 });

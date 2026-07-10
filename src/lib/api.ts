@@ -115,7 +115,7 @@ function toLegacyPrintConfig(
 // Generic axios-style methods for pages that use api.get/api.patch pattern
 async function axiosStyleRequest<T>(path: string, options?: RequestInit): Promise<{ data: { data: T } }> {
   const data = await fetchApi(path, options);
-  return { data: { data } };
+  return { data: { data: data as T } };
 }
 
 // Fetch a binary file (e.g. export to xlsx/pdf). Tries each API base; on a JSON
@@ -983,6 +983,9 @@ export type SubstanceStandard = {
   substance: string;      // เก็บแบบ extractSubstanceName เช่น "ABAMECTIN"
   operator: StandardOperator;
   value: number | null;
+  productTypes?: ("water" | "sand" | "powder")[];
+  regulatoryTypes?: ("GMP" | "BIO" | "LS")[];
+  categories?: ("RM" | "FG")[];
   value2?: number | null; // ใช้กับ between / tolerance
 };
 
@@ -995,11 +998,11 @@ export type LabelToleranceStandard = {
 export type StandardConditionOp = "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "between";
 export type LabelToleranceRule = LabelToleranceStandard & {
   mode?: "percent" | "abs" | "range";
-  autoMode?: "percent" | "abs";
-  headMode?: "percent" | "abs";
+  autoMode?: "none" | "percent" | "abs" | "range";
+  headMode?: "none" | "percent" | "abs" | "range";
   labelPercent?: number | null;
   productTypes?: ("water" | "sand" | "powder")[];
-  // autoMode = "percent" => autoPct เป็น % ของช่วงหัวหน้าตรวจสอบ
+  // autoMode = "percent" => autoPct เป็น % ที่เว้นจากขอบช่วงหัวหน้าตรวจสอบเข้าด้านใน
   // headMode = "percent" => headPct เป็น % ของค่ากลางจาก %ฉลาก
   // mode "abs" — ± รอบค่ากลาง (%ฉลาก) เป็นค่าจริงในหน่วยของ field แทน % relative
   autoAbs?: number | null;   // ± ชั้นใน (ผ่านเอง), > 0

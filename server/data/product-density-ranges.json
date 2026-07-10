@@ -3,1336 +3,1336 @@
     "commonName": "CHLORFENAPYR 10% W/V SC",
     "thaiName": "คลอฟีนาเพอร์ 10% เอสซี",
     "category": "insecticide",
-    "sgMin": 1.049,
-    "sgMax": 1.051,
-    "note": ""
+    "operator": "between",
+    "value": 1.049,
+    "value2": 1.053
   },
   {
     "commonName": "GIBBERELLIC ACID 5% W/V SL",
     "thaiName": "จิบเบอเรลลิก แอซิด 5% เอสแอล",
     "category": "insecticide",
-    "sgMin": 0.800,
-    "sgMax": 0.815,
-    "note": ""
+    "operator": "between",
+    "value": 0.8,
+    "value2": 0.815
   },
   {
-    "commonName": "SOLVESSO-100",
+    "commonName": "SOLVESSO 100",
     "thaiName": "โซลเวสโซ่-100",
     "category": "solvent",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "eq",
+    "value": 0.868,
+    "value2": null
   },
   {
-    "commonName": "SOLVESSO-150",
+    "commonName": "SOLVESSO 150",
     "thaiName": "โซลเวสโซ่-150",
     "category": "solvent",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "eq",
+    "value": 0.891,
+    "value2": null
   },
   {
-    "commonName": "CYPERMETHRIN 10% W/V EC (FDA)",
-    "thaiName": "ไซเปอร์เมทธิน 10% อีซี (อย.)",
+    "commonName": "CYPERMETHRIN 10% W/V EC (PUBLIC HEALTH)",
+    "thaiName": "ไซเปอร์เมทธิน 10% อีซี (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": 0.9000,
-    "sgMax": 0.913,
-    "note": ""
+    "operator": "between",
+    "value": 0.9,
+    "value2": 0.913
   },
   {
-    "commonName": "CYPERMETHRIN 10% W/V EC (BIO, FDA)",
-    "thaiName": "ไซเปอร์เมทธิน 10% อีซี ไบโอ (อย.)",
+    "commonName": "CYPERMETHRIN 10% W/V EC BIO (PUBLIC HEALTH)",
+    "thaiName": "ไซเปอร์เมทธิน 10% อีซี BIO (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": 0.902,
-    "sgMax": 0.913,
-    "note": ""
+    "operator": "between",
+    "value": 0.902,
+    "value2": 0.913
   },
   {
-    "commonName": "CYPERMETHRIN 10% W/V EC (LIVESTOCK)",
-    "thaiName": "ไซเปอร์เมทธิน 10% อีซี ปศุสัตว์",
+    "commonName": "CYPERMETHRIN 10% W/V EC (LIVE STOCK)",
+    "thaiName": "ไซเปอร์เมทธิน 10% อีซี (LIVE STOCK)",
     "category": "insecticide",
-    "sgMin": 0.902,
-    "sgMax": 0.913,
-    "note": ""
+    "operator": "between",
+    "value": 0.905,
+    "value2": 0.951
   },
   {
-    "commonName": "CYPERMETHRIN 25% W/V EC (LIVESTOCK)",
-    "thaiName": "ไซเปอร์เมทธิน 25% อีซี (ปศุสัตว์)",
+    "commonName": "CYPERMETHRIN 25% W/V EC (LIVE STOCK)",
+    "thaiName": "ไซเปอร์เมทธิน 25% อีซี (LIVE STOCK)",
     "category": "insecticide",
-    "sgMin": 0.950,
-    "sgMax": 0.963,
-    "note": ""
+    "operator": "between",
+    "value": 0.95,
+    "value2": 0.963
   },
   {
-    "commonName": "CYPERMETHRIN 25% W/V EC (FDA)",
-    "thaiName": "ไซเปอร์เมทธิน 25% อีซี (อย.)",
+    "commonName": "CYPERMETHRIN 25% W/V EC (PUBLIC HEALTH)",
+    "thaiName": "ไซเปอร์เมทธิน 25% อีซี (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": 0.950,
-    "sgMax": 0.964,
-    "note": ""
+    "operator": "between",
+    "value": 0.95,
+    "value2": 0.964
   },
   {
-    "commonName": "CYPERMETHRIN 25% W/V EC (BIO, FDA)",
-    "thaiName": "ไซเปอร์เมทธิน 25% อีซี ไบโอ (อย.)",
+    "commonName": "CYPERMETHRIN 25% W/V EC BIO (PUBLIC HEALTH)",
+    "thaiName": "ไซเปอร์เมทธิน 25% อีซี BIO (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": 0.948,
-    "sgMax": 0.964,
-    "note": ""
+    "operator": "between",
+    "value": 0.948,
+    "value2": 0.964
   },
   {
-    "commonName": "CYPERMETHRIN 25% W/V EC (LIVESTOCK, BIO)",
-    "thaiName": "ไซเปอร์เมทธิน 25% อีซี ปศุสัตว์ (ไบโอ)",
+    "commonName": "CYPERMETHRIN 25% W/V EC BIO (LIVE STOCK)",
+    "thaiName": "ไซเปอร์เมทธิน 25% อีซี BIO (LIVE STOCK)",
     "category": "insecticide",
-    "sgMin": 0.946,
-    "sgMax": 0.958,
-    "note": ""
+    "operator": "between",
+    "value": 0.946,
+    "value2": 0.958
   },
   {
     "commonName": "CYPERMETHRIN 25% W/V EC (WATER-BASED)",
     "thaiName": "ไซเปอร์เมทธิน 25% อีซี สูตรน้ำ",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.043,
+    "value2": 1.054
   },
   {
     "commonName": "CYPERMETHRIN 35% W/V EC",
     "thaiName": "ไซเปอร์เมทธิน 35% อีซี",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.978,
+    "value2": 0.998
   },
   {
-    "commonName": "CYPERMETHRIN 35% W/V EC (LIVESTOCK)",
-    "thaiName": "ไซเปอร์เมทธิน 35% อีซี (ปศุสัตว์)",
+    "commonName": "CYPERMETHRIN 35% W/V EC (LIVE STOCK)",
+    "thaiName": "ไซเปอร์เมทธิน 35% อีซี (LIVE STOCK)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.98,
+    "value2": 0.993
   },
   {
     "commonName": "XYLENE",
     "thaiName": "ไซลีน",
     "category": "solvent",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "eq",
+    "value": 0.865,
+    "value2": null
   },
   {
-    "commonName": "DELTAMETHRIN 0.5% W/V EC (FDA)",
-    "thaiName": "เดลทราเมทริน 0.5% อีซี (อย.)",
+    "commonName": "DELTAMETHRIN 0.5% W/V EC (PUBLIC HEALTH)",
+    "thaiName": "เดลทราเมทริน 0.5% อีซี (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.874,
+    "value2": 0.88
   },
   {
-    "commonName": "DELTAMETHRIN 1% W/V EC (FDA)",
-    "thaiName": "เดลทราเมทริน 1% อีซี (อย.)",
+    "commonName": "DELTAMETHRIN 1% W/V EC (PUBLIC HEALTH)",
+    "thaiName": "เดลทราเมทริน 1% อีซี (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.875,
+    "value2": 0.888
   },
   {
-    "commonName": "DELTAMETHRIN 1.5% W/V EC (FDA)",
-    "thaiName": "เดลทราเมทริน 1.5% อีซี (อย.)",
+    "commonName": "DELTAMETHRIN 1.5% W/V EC (PUBLIC HEALTH)",
+    "thaiName": "เดลทราเมทริน 1.5% อีซี (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.879,
+    "value2": 0.89
   },
   {
-    "commonName": "DELTAMETHRIN 1.5% W/V EC (BIO, FDA)",
-    "thaiName": "เดลทราเมทริน 1.5% อีซี ไบโอ (อย.)",
+    "commonName": "DELTAMETHRIN 1.5% W/V EC BIO (PUBLIC HEALTH)",
+    "thaiName": "เดลทราเมทริน 1.5% อีซี BIO (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.885,
+    "value2": 0.887
   },
   {
-    "commonName": "DELTAMETHRIN 2% W/V EC (FDA)",
-    "thaiName": "เดลทราเมทริน 2% อีซี (อย.)",
+    "commonName": "DELTAMETHRIN 2% W/V EC (PUBLIC HEALTH)",
+    "thaiName": "เดลทราเมทริน 2% อีซี (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.881,
+    "value2": 0.89
   },
   {
-    "commonName": "DELTAMETHRIN 2.5% W/V EC (FDA)",
-    "thaiName": "เดลทราเมทริน 2.5% อีซี (อย.)",
+    "commonName": "DELTAMETHRIN 2.5% W/V EC (PUBLIC HEALTH)",
+    "thaiName": "เดลทราเมทริน 2.5% อีซี (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.883,
+    "value2": 0.894
   },
   {
     "commonName": "DIFENOCONAZOLE 12.5% + AZOXYSTROBIN 20% W/V SC",
     "thaiName": "ไดฟีโนโคนาโซล 12.5%+อะซอกซีสโตรบิน 20% เอสซี",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.097,
+    "value2": 1.124
   },
   {
     "commonName": "DIETHYLENE GLYCOL",
     "thaiName": "ไดเอชเทอลีน ไกลคอล",
     "category": "solvent",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "eq",
+    "value": 1.11,
+    "value2": null
   },
   {
     "commonName": "DIFENOCONAZOLE 25% W/V EC (IMPORTED)",
     "thaiName": "ไดฟีโนโคนาโซล 25% อีซี (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.002,
+    "value2": 1.015
   },
   {
     "commonName": "DIFENOCONAZOLE 15% + PROPICONAZOLE 15% W/V EC",
     "thaiName": "ไดฟีโนโคนาโซล 15%+โพรพิโคนาโซล 15% อีซี",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.008,
+    "value2": 1.078
   },
   {
     "commonName": "THIAMETHOXAM 14.1% + LAMBDA-CYHALOTHRIN 10.6% ZC",
     "thaiName": "ไทอะมีทอกแซม 14.1% + แลมป์ด้า-ไซฮาโลทริน 10.6% ZC",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "eq",
+    "value": 1.087,
+    "value2": null
   },
   {
     "commonName": "BACILLUS THURINGIENSIS 16000 IU/MG SC (IMPORTED)",
     "thaiName": "บาซิลลัส 16000 IU/mg เอสซี (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "non-% strength → no W/V"
+    "operator": "between",
+    "value": 0.988,
+    "value2": 1.06
   },
   {
     "commonName": "BUPROFEZIN 40% W/V SC",
     "thaiName": "บูโพฟีซิน 40% SC",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.024,
+    "value2": 1.091
   },
   {
-    "commonName": "BIFENTHRIN 2.5% W/V EC (FDA)",
-    "thaiName": "ไบเฟนทริน 2.5% อีซี (อย.)",
+    "commonName": "BIFENTHRIN 2.5% W/V EC (PUBLIC HEALTH)",
+    "thaiName": "ไบเฟนทริน 2.5% อีซี (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.876,
+    "value2": 0.885
   },
   {
-    "commonName": "BIFENTHRIN 10% W/V EC (LIVESTOCK)",
-    "thaiName": "ไบเฟนทริน 10% อีซี (ปศุสัตว์)",
+    "commonName": "BIFENTHRIN 10% W/V EC (LIVE STOCK)",
+    "thaiName": "ไบเฟนทริน 10% อีซี (LIVE STOCK)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.902,
+    "value2": 0.913
   },
   {
-    "commonName": "BIFENTHRIN 10% W/V EC (FDA)",
-    "thaiName": "ไบเฟนทริน 10% อีซี (อย.)",
+    "commonName": "BIFENTHRIN 10% W/V EC (PUBLIC HEALTH)",
+    "thaiName": "ไบเฟนทริน 10% อีซี (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.9,
+    "value2": 0.914
   },
   {
     "commonName": "PROFENOFOS 50% W/V EC",
     "thaiName": "โปรฟีโนฟอส 50% อีซี",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.112,
+    "value2": 1.165
   },
   {
     "commonName": "PROFENOFOS 50% W/V EC (IMPORTED)",
     "thaiName": "โปรฟีโนฟอส 50% อีซี (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.129,
+    "value2": 1.16
   },
   {
     "commonName": "PIRIMIPHOS-METHYL 50% W/V EC (IMPORTED)",
     "thaiName": "พิริมิฟอส-เมทิล 50% อีซี (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.016,
+    "value2": 1.04
   },
   {
     "commonName": "PROCHLORAZ 45% W/V EC",
     "thaiName": "โพรคลอราซ 45% อีซี",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.06,
+    "value2": 1.082
   },
   {
     "commonName": "PROCHLORAZ 45% W/V EW (IMPORTED)",
     "thaiName": "โพรคลอราซ 45% อีดับเบิ้ลยู (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.09,
+    "value2": 1.145
   },
   {
     "commonName": "PROPAMOCARB 72.2% W/V SL (IMPORTED)",
     "thaiName": "โพรพาโมคาร์บ 72.2% เอสแอล (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.074,
+    "value2": 1.095
   },
   {
     "commonName": "PROPICONAZOLE 25% W/V EC (IMPORTED)",
     "thaiName": "โพรพิโคนาซอล 25% อีซี (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.963,
+    "value2": 1.037
   },
   {
     "commonName": "PROPICONAZOLE 9% + PROCHLORAZ 40% W/V EC",
     "thaiName": "โพรพิโคนาซอล 9%+โพรคลอราซ 40% อีซี",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.059,
+    "value2": 1.08
   },
   {
-    "commonName": "PERMETHRIN 10% W/V EC (FDA)",
-    "thaiName": "เพอร์เมทริน 10% อีซี (อย.)",
+    "commonName": "PERMETHRIN 10% W/V EC (PUBLIC HEALTH)",
+    "thaiName": "เพอร์เมทริน 10% อีซี (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.887,
+    "value2": 0.91
   },
   {
     "commonName": "FIPRONIL 2.5% W/V EC",
     "thaiName": "ฟิโปรนิล 2.5% อีซี",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "eq",
+    "value": 0.909,
+    "value2": null
   },
   {
-    "commonName": "FIPRONIL 5% W/V SC (FDA)",
-    "thaiName": "ฟิโปรนิล  5% เอสซี (อย.)",
+    "commonName": "FIPRONIL 5% W/V SC (PUBLIC HEALTH)",
+    "thaiName": "ฟิโปรนิล 5% เอสซี (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.024,
+    "value2": 1.045
   },
   {
     "commonName": "FIPRONIL 5% W/V SC",
-    "thaiName": "ฟิโปรนิล  5% เอสซี",
+    "thaiName": "ฟิโปรนิล 5% เอสซี",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.024,
+    "value2": 1.045
   },
   {
     "commonName": "FIPRONIL 5% W/V SC (IMPORTED)",
-    "thaiName": "ฟิโปรนิล  5% เอสซี (นำเข้า)",
+    "thaiName": "ฟิโปรนิล 5% เอสซี (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.028,
+    "value2": 1.045
   },
   {
     "commonName": "FENOBUCARB 50% W/V EC (BPMC)",
     "thaiName": "ฟีโนบูคาร์บ 50% อีซี (บีพีเอ็มซี)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.962,
+    "value2": 0.982
   },
   {
     "commonName": "METHANOL",
     "thaiName": "เมทานอล",
     "category": "solvent",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "eq",
+    "value": 0.788,
+    "value2": null
   },
   {
     "commonName": "METHYL ESTER",
     "thaiName": "เมทิล เอสเทอร์",
     "category": "solvent",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.861,
+    "value2": 0.865
   },
   {
     "commonName": "LUFENURON 5% W/V EC (IMPORTED)",
     "thaiName": "ลูฟีนูรอน 5% อีซี (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.937,
+    "value2": 0.961
   },
   {
     "commonName": "LAMBDA-CYHALOTHRIN 1% + PIPERONYL BUTOXIDE 5% + TETRAMETHRIN 4% W/V EC (IMPORTED)",
     "thaiName": "แลมด้า1%+ไบเพอร์โรนิล5%+เตตระเมทริน4% อีซี (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "3 actives"
+    "operator": "between",
+    "value": 0.903,
+    "value2": 0.914
   },
   {
     "commonName": "SPIRODICLOFEN 24% W/V SC",
     "thaiName": "สไปโรดิโคลเฟน 24% เอสซี",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.073,
+    "value2": 1.077
   },
   {
     "commonName": "ACETONE",
     "thaiName": "อะซีโตน",
     "category": "solvent",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "eq",
+    "value": 0.788,
+    "value2": null
   },
   {
     "commonName": "ACETAMIPRID 2.85% W/V EC (IMPORTED)",
     "thaiName": "อะเซทามิปริด 2.85% อีซี (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.87,
+    "value2": 0.948
   },
   {
     "commonName": "ABAMECTIN 1.8% W/V EC (HEAVY)",
     "thaiName": "อะบาเมคติน 1.8% อีซี (หนัก)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.014,
+    "value2": 1.041
   },
   {
     "commonName": "ABAMECTIN 1.8% W/V EC (LIGHT)",
     "thaiName": "อะบาเมคติน 1.8% อีซี (เบา)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.017,
+    "value2": 1.041
   },
   {
     "commonName": "ABAMECTIN 1.8% W/V EC (SELF-MIXED)",
     "thaiName": "อะบาเมคติน 1.8% อีซี (ผสมเอง)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.896,
+    "value2": 0.905
   },
   {
     "commonName": "ABAMECTIN 1.8% W/V EC (50 CP)",
     "thaiName": "อะบาเมคติน 1.8% อีซี (50 ซีพี)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "eq",
+    "value": 0.898,
+    "value2": null
   },
   {
     "commonName": "ABAMECTIN 1.8% W/V EC (IMPORTED)",
     "thaiName": "อะบาเมคติน 1.8 % อีซี (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.942,
+    "value2": 1.018
   },
   {
     "commonName": "ABAMECTIN 1.8% W/V EC (BROWN, NON-STICKY, IMPORTED)",
     "thaiName": "อะบาแม็คติน 1.8% อีซี (สูตรสีน้ำตาล ไม่เหนียว, นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.829,
+    "value2": 0.923
   },
   {
     "commonName": "ABAMECTIN 1.8% W/V EC (YELLOW, NON-STICKY, IMPORTED)",
     "thaiName": "อะบาแม็คติน 1.8% อีซี (สูตรสีเหลือง ไม่เหนียว, นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.828,
+    "value2": 0.906
   },
   {
     "commonName": "AMITRAZ 20% W/V EC (IMPORTED)",
     "thaiName": "อามีทราซ 20% อีซี (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.918,
+    "value2": 0.942
   },
   {
     "commonName": "IMIDACLOPRID 10% W/V SL (IMPORTED)",
     "thaiName": "อิมิดาคลอปริด 10% เอสแอล (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.013,
+    "value2": 1.075
   },
   {
-    "commonName": "IMIDACLOPRID 10% W/V SL (FDA)",
-    "thaiName": "อิมิดาคลอปริด 10% เอสแอล (อย.)",
+    "commonName": "IMIDACLOPRID 10% W/V SL (PUBLIC HEALTH)",
+    "thaiName": "อิมิดาคลอปริด 10% เอสแอล (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.032,
+    "value2": 1.063
   },
   {
-    "commonName": "IMIDACLOPRID 10% W/V SL (FDA, NMP)",
-    "thaiName": "อิมิดาคลอปริด 10% เอสแอล อย. (ใช้ NMP)",
+    "commonName": "IMIDACLOPRID 10% W/V SL (NMP) (PUBLIC HEALTH)",
+    "thaiName": "อิมิดาคลอปริด 10% เอสแอล (ใช้ NMP) (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "eq",
+    "value": 1.027,
+    "value2": null
   },
   {
-    "commonName": "IMIDACLOPRID 10% W/V SL (FDA, DMF, DMSO)",
-    "thaiName": "อิมิดาคลอปริด 10% เอสแอล อย. (ใช้ DMF, DMSO)",
+    "commonName": "IMIDACLOPRID 10% W/V SL (DMF, DMSO) (PUBLIC HEALTH)",
+    "thaiName": "อิมิดาคลอปริด 10% เอสแอล (ใช้ DMF, DMSO) (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.051,
+    "value2": 1.055
   },
   {
     "commonName": "INDOXACARB 15% W/V SC (IMPORTED)",
     "thaiName": "อินด็อกซาคาร์บ 15% SC (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.044,
+    "value2": 1.075
   },
   {
     "commonName": "ETHEPHON 48% W/V SL",
     "thaiName": "อีเทฟอน 48% เอสแอล",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.207,
+    "value2": 1.245
   },
   {
     "commonName": "ETHEPHON 48% W/V SL (IMPORTED)",
     "thaiName": "อีเทฟอน 48% เอสแอล (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.198,
+    "value2": 1.245
   },
   {
-    "commonName": "ETOFENPROX 5% W/V EC (FDA)",
-    "thaiName": "อีโทเฟนฟร็อกซ์ 5% อีซี (อย.)",
+    "commonName": "ETOFENPROX 5% W/V EC (PUBLIC HEALTH)",
+    "thaiName": "อีโทเฟนฟร็อกซ์ 5% อีซี (PUBLIC HEALTH)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.882,
+    "value2": 0.892
   },
   {
     "commonName": "EMAMECTIN BENZOATE 2.0% W/V ME (IMPORTED)",
     "thaiName": "อีมาเม็คติน 2.0% เอ็มอี (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.941,
+    "value2": 1.007
   },
   {
     "commonName": "OMETHOATE 50% W/V SL",
     "thaiName": "โอเมทโธเอท 50% เอสแอล",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.02,
+    "value2": 1.116
   },
   {
     "commonName": "HEXACONAZOLE 5% W/V SC (IMPORTED)",
     "thaiName": "เฮ็กซาโคนาโซล 5% เอสซี (นำเข้า)",
     "category": "insecticide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.013,
+    "value2": 1.029
   },
   {
     "commonName": "2,4-D DIMETHYLAMMONIUM 84% W/V SL",
     "thaiName": "2,4-ดี ไดเมทิล แอมโมเนียม 84% เอสแอล",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.22,
+    "value2": 1.238
   },
   {
     "commonName": "2,4-D-TRIISOPROPANOLAMINE SALT 45.2% + PICLORAM 11.6% W/V SL",
-    "thaiName": "2,4-ดี ไตรไอโซโพรพาโนลามีน ซอลท์45.2%+                      พิโคแรม11.6%SL",
+    "thaiName": "2,4-ดี ไตรไอโซโพรพาโนลามีน ซอลท์45.2%+พิโคแรม11.6%SL",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.105,
+    "value2": 1.171
   },
   {
     "commonName": "GLUFOSINATE-AMMONIUM 15% W/V SL (IMPORTED)",
     "thaiName": "กลูโฟซิเนต-แอมโมเนียม 15% เอสแอล (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.056,
+    "value2": 1.085
   },
   {
-    "commonName": "GLUFOSINATE-AMMONIUM 15% W/V SL (PREMIUM)",
-    "thaiName": "กลูโฟซิเนต-แอมโมเนียม 15% เอสแอล (Premium)",
+    "commonName": "GLUFOSINATE-AMMONIUM 15% W/V SL-HI",
+    "thaiName": "กลูโฟซิเนต-แอมโมเนียม 15% เอสแอล-HI",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.056,
+    "value2": 1.085
   },
   {
-    "commonName": "GLUFOSINATE-AMMONIUM 15% W/V SL (LOW-PRICE)",
-    "thaiName": "กลูโฟซิเนต-แอมโมเนียม 15% เอสแอล (Low-price)",
+    "commonName": "GLUFOSINATE-AMMONIUM 15% W/V SL-LO",
+    "thaiName": "กลูโฟซิเนต-แอมโมเนียม 15% เอสแอล-LO",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.056,
+    "value2": 1.085
   },
   {
     "commonName": "GLYPHOSATE 48% W/V SL (IMPORTED, AM)",
-    "thaiName": "ไกลโฟเสท 48% เอสแอล (นำเข้า)  (เอเอ็ม)",
+    "thaiName": "ไกลโฟเสท 48% เอสแอล (นำเข้า) (เอเอ็ม)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.186,
+    "value2": 1.191
   },
   {
     "commonName": "GLYPHOSATE 48% W/V SL (IMPORTED, IPA)",
-    "thaiName": "ไกลโฟเสท 48% เอสแอล (นำเข้า)  (IPA)",
+    "thaiName": "ไกลโฟเสท 48% เอสแอล (นำเข้า) (IPA)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.155,
+    "value2": 1.187
   },
   {
     "commonName": "GLYPHOSATE 48% W/V SL",
     "thaiName": "ไกลโฟเสท 48% เอสแอล",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.15,
+    "value2": 1.182
   },
   {
     "commonName": "GLYPHOSATE 48% W/V SL (SPECIAL)",
     "thaiName": "ไกลโฟเสท 48% เอสแอล พิเศษ",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.157,
+    "value2": 1.162
   },
   {
     "commonName": "GLYPHOSATE 77% TECH",
     "thaiName": "ไกลโฟเสท 77% เทค",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "technical"
+    "operator": "between",
+    "value": 1.228,
+    "value2": 1.251
   },
   {
     "commonName": "CHLOROTHALONIL 50% W/V SC (IMPORTED)",
     "thaiName": "คลอโลทาโลนิล 50% เอสซี (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.227,
+    "value2": 1.268
   },
   {
     "commonName": "KRESOXIM-METHYL 50% W/V SC",
     "thaiName": "ครีซอกซิม เมทิล 50% เอสซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.128,
+    "value2": 1.141
   },
   {
     "commonName": "QUIZALOFOP-P-ETHYL 5% W/V EC (IMPORTED)",
     "thaiName": "ควิซาโลฟอบ-พี-เอทิล 5% EC (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.929,
+    "value2": 0.971
   },
   {
     "commonName": "CARBENDAZIM 50% W/V SC",
     "thaiName": "คาร์เบนดาซิม 50% เอสซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.145,
+    "value2": 1.18
   },
   {
     "commonName": "CARBENDAZIM 50% W/V SC (IMPORTED)",
     "thaiName": "คาร์เบนดาซิม 50% เอสซี (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.153,
+    "value2": 1.177
   },
   {
     "commonName": "CLOMAZONE 48% W/V EC",
-    "thaiName": "โคลมาโซน  48% อีซี",
+    "thaiName": "โคลมาโซน 48% อีซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.082,
+    "value2": 1.102
   },
   {
     "commonName": "CLOMAZONE 48% W/V EC (IMPORTED)",
-    "thaiName": "โคลมาโซน  48% อีซี (นำเข้า)",
+    "thaiName": "โคลมาโซน 48% อีซี (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.053,
+    "value2": 1.076
   },
   {
     "commonName": "CLOMAZONE 12% + PROPANIL 27% W/V EC",
     "thaiName": "โคลมาโซน 12% + โพรพานิล 27% EC",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.029,
+    "value2": 1.056
   },
   {
     "commonName": "SUNMORIN (STICKER)",
     "thaiName": "ซันโมริน-ยาจับใบ",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ"
+    "operator": "between",
+    "value": 1.09,
+    "value2": 1.093
   },
   {
     "commonName": "CYHALOFOP-BUTYL 10% W/V EC (IMPORTED)",
     "thaiName": "ไซฮาโลฟอบ-บิวทิล 10% อีซี (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.923,
+    "value2": 1.006
   },
   {
     "commonName": "FLUAZIFOP-P-BUTYL 15% W/V EC (IMPORTED)",
     "thaiName": "ฟลูอะซิฟอบ-พี-บิวทิล 15% อีซี (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.966,
+    "value2": 0.981
   },
   {
     "commonName": "FOMESAFEN 25% W/V SL (IMPORTED)",
     "thaiName": "โฟมีซาเฟน 25% เอสแอล (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.118,
+    "value2": 1.132
   },
   {
     "commonName": "DIURON 80% W/V SC",
     "thaiName": "ไดยูรอน 80% เอสซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.273,
+    "value2": 1.298
   },
   {
     "commonName": "DIQUAT DIBROMIDE 37.3% W/V SL",
     "thaiName": "ไดควอต ไดโบรไมด์ 37.3% SL",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.162,
+    "value2": 1.167
   },
   {
     "commonName": "TRICLOPYR BUTOXYETHYL ESTER 66.8% W/V EC",
     "thaiName": "ไตรโคลเพอร์ บิวท็อกซี่เอทิล เอสเทอร์ 66.8% CE",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "source wrote \"CE\"→EC"
+    "operator": "between",
+    "value": 1.132,
+    "value2": 1.149
   },
   {
     "commonName": "TEBUCONAZOLE 43% W/V SC (IMPORTED)",
     "thaiName": "ทีบูโคนาโซล 43% เอสซี (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.112,
+    "value2": 1.125
   },
   {
     "commonName": "BUTACHLOR 60% W/V EC",
     "thaiName": "บิวตาคลอร์ 60% อีซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.994,
+    "value2": 1.011
   },
   {
     "commonName": "BUTACHLOR 60% W/V EC (IMPORTED, NO SAFENER)",
     "thaiName": "บิวตาคลอร์ 60% อีซี (นำเข้า) (No SFN)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.002,
+    "value2": 1.039
   },
   {
     "commonName": "BUTACHLOR 60% W/V EC (+ SAFENER)",
-    "thaiName": "บิวตาคลอร์ 60%  อีซี+เซฟเฟอร์เนอร์ (SFN)",
+    "thaiName": "บิวตาคลอร์ 60% อีซี+เซฟเฟอร์เนอร์ (SFN)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.033,
+    "value2": 1.064
   },
   {
     "commonName": "BUTACHLOR 60% W/V EC (+ FENCLORIM)",
     "thaiName": "บิวตาคลอร์ 60% อีซี + เฟนโคริม",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.029,
+    "value2": 1.036
   },
   {
     "commonName": "BUTACHLOR 60% W/V EW (IMPORTED)",
     "thaiName": "บิวตาคลอร์ 60% อีดับเบิลยู (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.057,
+    "value2": 1.071
   },
   {
     "commonName": "BUTACHLOR 35% + PROPANIL 35% W/V EC",
     "thaiName": "บิวตาคลอร์ 35% +โพรพานิล 35% อีซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.083,
+    "value2": 1.105
   },
   {
     "commonName": "BISPYRIBAC-SODIUM 10% W/V SC",
     "thaiName": "บีสไพรีแบค - โซเดียม 10% เอสซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.045,
+    "value2": 1.071
   },
   {
     "commonName": "PENDIMETHALIN 33% W/V EC (IMPORTED)",
     "thaiName": "เพนดิเมทาลิน 33% อีซี (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.957,
+    "value2": 1.038
   },
   {
     "commonName": "PRETILACHLOR 30% W/V EC (IMPORTED)",
     "thaiName": "เพรตติลาคลอร์ 30% EC (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.972,
+    "value2": 1.007
   },
   {
     "commonName": "PACLOBUTRAZOL 10% W/V SC",
     "thaiName": "แพคโคบิวทราโซล 10% เอสซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.02,
+    "value2": 1.035
   },
   {
     "commonName": "PACLOBUTRAZOL 25% W/V SC",
     "thaiName": "แพคโคบิวทราโซล 25% เอสซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.03,
+    "value2": 1.066
   },
   {
     "commonName": "PROPANIL 36% W/V EC",
     "thaiName": "โพรพานิล 36% อีซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.024,
+    "value2": 1.056
   },
   {
     "commonName": "METOLACHLOR 72% W/V EC (IMPORTED)",
     "thaiName": "เมโทลาคลอร์ 72% อีซี (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.052,
+    "value2": 1.067
   },
   {
     "commonName": "OXADIAZON 25% W/V EC",
     "thaiName": "ออกซาไดอะซอน 25% อีซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.946,
+    "value2": 0.974
   },
   {
     "commonName": "ACETOCHLOR 50% W/V EC",
     "thaiName": "อะเซโตคลอร์ 50% อีซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.988,
+    "value2": 1.009
   },
   {
     "commonName": "ANILOFOS 30% W/V EC",
     "thaiName": "อะนิโลฟอส 30% อีซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.96,
+    "value2": 0.995
   },
   {
     "commonName": "ANILOFOS 18% + PROPANIL 36% W/V EC",
-    "thaiName": "อะนิโลฟอส 18% +  โพรพานิล 36% อีซี",
+    "thaiName": "อะนิโลฟอส 18% + โพรพานิล 36% อีซี",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.08,
+    "value2": 1.105
   },
   {
     "commonName": "AMETRYN 50% W/V SC (IMPORTED)",
     "thaiName": "อะมีทรีน 50% เอสซี (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.062,
+    "value2": 1.1
   },
   {
     "commonName": "HALOXYFOP-P-METHYL 10.8% W/V EC (IMPORTED)",
     "thaiName": "ฮาลอกซิฟอบ-พี-เมทิล 10.8% อีซี (นำเข้า)",
     "category": "herbicide",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.973,
+    "value2": 0.989
   },
   {
     "commonName": "SUPER FIFTY",
     "thaiName": "ซุปเปอร์ฟิฟตี้",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.22,
+    "value2": 1.243
   },
   {
     "commonName": "SUPER SEAWEED 12% W/V SL",
     "thaiName": "ซุปเปอร์ซีวีด 12% เอสแอล",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ"
+    "operator": "between",
+    "value": 1.013,
+    "value2": 1.075
   },
   {
     "commonName": "SUPER SEAWEED 15% W/V SL",
     "thaiName": "ซุปเปอร์ซีวีด 15% เอสแอล",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ"
+    "operator": "between",
+    "value": 1.077,
+    "value2": 1.084
   },
   {
     "commonName": "SIMINO",
     "thaiName": "ซิมิโน",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.05,
+    "value2": 1.1
   },
   {
     "commonName": "SEAFOW",
     "thaiName": "ซีโฟว์",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "eq",
+    "value": 1.057,
+    "value2": null
   },
   {
     "commonName": "SODIUM HUMATE 12% W/V AC",
     "thaiName": "โซเดียมฮิวเมท 12% AC",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.035,
+    "value2": 1.045
   },
   {
     "commonName": "CLEANING SOLUTION (VEGETABLE & FRUIT WASH)",
     "thaiName": "น้ำยาทำความสะอาด (น้ำยาล้างผักและผลไม้)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ"
+    "operator": "between",
+    "value": 1.029,
+    "value2": 1.04
   },
   {
     "commonName": "WATER CONDITIONER (SUPER BUFFER)",
     "thaiName": "สารปรับสภาพน้ำ (ซุปเปอร์บัฟเฟอร์)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.1280000000000001,
+    "value2": 1.135
   },
   {
     "commonName": "BINGO WHITE (CALCIUM-BORON)",
     "thaiName": "บิงโกไวท์ (แคลเซียมโบรอน)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ"
+    "operator": "between",
+    "value": 1.313,
+    "value2": 1.32
   },
   {
     "commonName": "PROTEIN HYDROLYSATE 40%",
     "thaiName": "โปรตีนไฮโดรไลเซส 40%",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.138,
+    "value2": 1.178
   },
   {
     "commonName": "BIOZIN",
     "thaiName": "ไบโอซิน",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.069,
+    "value2": 1.07
   },
   {
     "commonName": "BOMB'S BOOSTER",
     "thaiName": "บอมส์ บูสเตอร์",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "eq",
+    "value": 1.194,
+    "value2": null
   },
   {
     "commonName": "FULVICA 6%",
     "thaiName": "ฟลูวิก้า 6%",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ"
+    "operator": "between",
+    "value": 1.018,
+    "value2": 1.025
   },
   {
     "commonName": "FULVICA 3%",
     "thaiName": "ฟลูวิก้า 3%",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ"
+    "operator": "between",
+    "value": 1.01,
+    "value2": 1.018
   },
   {
     "commonName": "AQUA BUFFER (WATER SYSTEM)",
     "thaiName": "สารที่ใช้ในระบบน้ำ (อะควาบัพเฟอร์)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ"
+    "operator": "between",
+    "value": 1.145,
+    "value2": 1.322
   },
   {
     "commonName": "AMINO ACID 20%",
     "thaiName": "อะมิโนแอซิด 20%",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.094,
+    "value2": 1.108
   },
   {
     "commonName": "AMINO ACID 40% (BIOLIFE40, IMPORTED)",
     "thaiName": "อะมิโนแอซิด 40% (Biolife40) (นำเข้า)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.152,
+    "value2": 1.191
   },
   {
     "commonName": "HONEY GEL",
     "thaiName": "ฮันนี่เจล",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.05,
+    "value2": 1.075
   },
   {
     "commonName": "HUMATE 120",
     "thaiName": "ฮิวเมท 120",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.039,
+    "value2": 1.08
   },
   {
     "commonName": "CARBOR",
     "thaiName": "Carbor",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 0.996,
+    "value2": 0.998
   },
   {
     "commonName": "CODE A11 (ZINC 13%)",
-    "thaiName": "code A11 (ซิงค์ 13% )",
+    "thaiName": "code A11 (ซิงค์ 13%)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.42,
+    "value2": 1.47
   },
   {
     "commonName": "CODE A14 (INTER BORON 500)",
     "thaiName": "code A14 (อินเตอร์โบรอน 500)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "eq",
+    "value": 1.2,
+    "value2": null
   },
   {
     "commonName": "CODE A16 (LD MANGANESE 1)",
     "thaiName": "code A16 (แอลดี แมงกานีส 1)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "eq",
+    "value": 1.228,
+    "value2": null
   },
   {
     "commonName": "CODE A17 (LD MANGANESE 2)",
-    "thaiName": "code A 17 (แอลดี แมงกานีส 2) ",
+    "thaiName": "code A 17 (แอลดี แมงกานีส 2)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "eq",
+    "value": 1.34,
+    "value2": null
   },
   {
     "commonName": "CODE A18 (LD MAGNESIUM)",
     "thaiName": "code A 18 (แอลดี แมกนีเซียม)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.224,
+    "value2": 1.235
   },
   {
     "commonName": "CODE A20 (PASMAG, GOODMAG)",
     "thaiName": "code A20 (พาซแมก, กู๊ดแม็ก)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.28,
+    "value2": 1.32
   },
   {
     "commonName": "CODE A21 (PASMANG)",
     "thaiName": "code A21 (พาซแมง)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.37,
+    "value2": 1.4
   },
   {
     "commonName": "CODE A22 (EXTRA BOR)",
     "thaiName": "code A22 (เอ็กซ์ตร้าบอร์)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.345,
+    "value2": 1.364
   },
   {
     "commonName": "CODE A24 (EDEN I-ZINC)",
     "thaiName": "code A24 (อีเดนไอซิงค์)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.6,
+    "value2": 1.82
   },
   {
     "commonName": "CODE A26 (LD FERROUS)",
     "thaiName": "code A26 (แอลดี เฟอร์รัส)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "eq",
+    "value": 1.216,
+    "value2": null
   },
   {
     "commonName": "CODE A27 (DIATA 17)",
-    "thaiName": "code A27 ( ไดอาต้า 17 )",
+    "thaiName": "code A27 (ไดอาต้า 17)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.202,
+    "value2": 1.22
   },
   {
     "commonName": "CODE A31 (DYNA PLUS, WEBSIDE, SARA PLUS)",
-    "thaiName": "code A31 (ไดน่าพลัส,เว็ปไซด์,ซาร่าพลัส)",
+    "thaiName": "code A31 (ไดน่าพลัส, เว็ปไซด์, ซาร่าพลัส)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.271,
+    "value2": 1.3
   },
   {
     "commonName": "CODE A40 (LD CALBOR NO.4)",
     "thaiName": "code A40 (แอลดี แคลบอร์ No.4)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.334,
+    "value2": 1.369
   },
   {
     "commonName": "CODE A41 (LD CALBOR NO.5)",
     "thaiName": "code A41 (แอลดี แคลบอร์ No.5)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.306,
+    "value2": 1.37
   },
   {
     "commonName": "CODE A41 (BINGO WHITE)",
     "thaiName": "code A41 - บิงโกไวท์",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.322,
+    "value2": 1.379
   },
   {
     "commonName": "CODE A42 (LD BORON 400)",
     "thaiName": "code A42 (แอลดี โบรอน 400)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "eq",
+    "value": 1.15,
+    "value2": null
   },
   {
     "commonName": "CODE A54 (STAR VEER)",
     "thaiName": "code A54 (สตาร์เวียร์)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.152,
+    "value2": 1.208
   },
   {
     "commonName": "CODE A55 (INTER MIX)",
     "thaiName": "code A55 (อินเตอร์ มิกซ์)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.215,
+    "value2": 1.306
   },
   {
     "commonName": "CODE A60 (LD ZINC-MAG)",
     "thaiName": "code A60 (แอลดี ซิงค์แมก)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.35,
+    "value2": 1.45
   },
   {
     "commonName": "CODE A63 (ZINC-AMINO)",
     "thaiName": "code A63 (ซิงค์อะมิโน)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "eq",
+    "value": 1.153,
+    "value2": null
   },
   {
     "commonName": "CODE A69 (0-25-20)",
     "thaiName": "code A 69 (0-25-20)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.36,
+    "value2": 1.475
   },
   {
     "commonName": "CODE A70 (ZINC GOLD)",
     "thaiName": "code A70 (Zine Gold)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ, ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.249,
+    "value2": 1.304
   },
   {
     "commonName": "CODE A71 (CALCIUM-BORON GLYCINE)",
     "thaiName": "code A 71 (แคลเซียมโบรอนไกลซีน)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.205,
+    "value2": 1.225
   },
   {
     "commonName": "CODE A73 (0-25-16)",
     "thaiName": "code A 73 (0-25-16)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันของเหลว"
+    "operator": "between",
+    "value": 1.307,
+    "value2": 1.39
   },
   {
     "commonName": "NAA 4.5%",
     "thaiName": "NAA 4.5%",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "eq",
+    "value": 1.02,
+    "value2": null
   },
   {
     "commonName": "WATER CONDITIONER (PRIMIX)",
     "thaiName": "สารปรับสภาพน้ำ (PRIMIX)",
     "category": "fertilizer",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "eq",
+    "value": 1.13,
+    "value2": null
   },
   {
     "commonName": "2,4-D DIMETHYLAMMONIUM 84% W/V SL (IMPORTED)",
     "thaiName": "2,4-D ไดเมทิล แอมโมเนียม 84% SL (นำเข้า)",
     "category": "imported",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 1.22,
+    "value2": 1.238
   },
   {
     "commonName": "FENOXAPROP-P-ETHYL 6.9% W/V EW (IMPORTED)",
     "thaiName": "ฟิโนซาพรอป-พี-เอทิล 6.9% EW (นำเข้า)",
     "category": "imported",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.996,
+    "value2": 1.013
   },
   {
     "commonName": "ADJUVANT (WHITE OIL)",
     "thaiName": "สารเสริมประสิทธิภาพ (Adjuvent) (ไวท์ออย)",
     "category": "imported",
-    "sgMin": null,
-    "sgMax": null,
-    "note": "ยืนยันชื่อ"
+    "operator": "between",
+    "value": 0.821,
+    "value2": 0.83
   },
   {
     "commonName": "IMIDACLOPRID 5% W/V EC (IMPORTED)",
     "thaiName": "อิมิดาคลอปริด 5% EC (นำเข้า)",
     "category": "imported",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.943,
+    "value2": 0.97
   },
   {
     "commonName": "AMITRAZ 20% W/V EC",
     "thaiName": "อามีทราช 20% EC",
     "category": "imported",
-    "sgMin": null,
-    "sgMax": null,
-    "note": ""
+    "operator": "between",
+    "value": 0.918,
+    "value2": 0.942
   }
 ]

@@ -2,6 +2,7 @@ import type { ParameterItem, ParameterValueField, TimerUnit, SubstanceStandard, 
 import type { QCTestResult } from "@/types/petition.types";
 import { parseSubstances, extractSubstanceName, matchSubstanceKey, substanceFieldKey, parseLabelPercent } from "./substances";
 import { getClassification } from "./productClassification";
+import { getMasterItemRegulatoryTypes } from "./masterItemRegulatoryType";
 
 export function isEnumAbnormal(
   field: ParameterValueField,
@@ -124,14 +125,91 @@ export function fieldValueList(
   return [values[field.label]];
 }
 
+function normalizeCategory(value: unknown): "RM" | "FG" | "" {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return normalized === "RM" || normalized === "FG" ? normalized : "";
+}
+
+function normalizeRegulatoryType(value: unknown): "GMP" | "BIO" | "LS" | "" {
+  const normalized = String(value ?? "").trim().toUpperCase();
+  return normalized === "GMP" || normalized === "BIO" || normalized === "LS" ? normalized : "";
+}
+
+function uniqueRegulatoryTypes(values: unknown[]): ("GMP" | "BIO" | "LS")[] {
+  const out: ("GMP" | "BIO" | "LS")[] = [];
+  for (const value of values) {
+    const normalized = normalizeRegulatoryType(value);
+    if (normalized && !out.includes(normalized)) out.push(normalized);
+  }
+  return out;
+}
+
+function categoryFromDept(value: unknown): "RM" | "FG" | "" {
+  const dept = String(value ?? "").trim().toLowerCase();
+  if (dept === "rm") return "RM";
+  if (dept === "fg") return "FG";
+  return normalizeCategory(value);
+}
+
+function fullSubstanceKey(value: unknown): string {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 export function findSubstanceStandard(
   field: ParameterValueField,
   substanceName: string,
+  selector: { productType?: string; category?: string; regulatoryType?: string; regulatoryTypes?: string[] } = {},
 ): SubstanceStandard | undefined {
-  const key = matchSubstanceKey(substanceName);
-  if (!key) return undefined;
-  return (field.substanceStandards ?? []).find(
-    (s) => matchSubstanceKey(s.substance) === key,
+  const exactKey = fullSubstanceKey(substanceName);
+  const substanceKey = matchSubstanceKey(substanceName);
+  if (!exactKey && !substanceKey) return undefined;
+  const wantedProductType = String(
+    selector.productType || getClassification(substanceName)?.group || "",
+  ).trim();
+  const wantedCategory = normalizeCategory(selector.category);
+  const wantedRegulatoryTypes = uniqueRegulatoryTypes([
+    selector.regulatoryType,
+    ...(selector.regulatoryTypes ?? []),
+    ...getMasterItemRegulatoryTypes({ common_name: substanceName }),
+  ]);
+
+  const scoreCandidate = (std: SubstanceStandard): number | null => {
+    const productTypes: string[] = (std.productTypes ?? []).filter(Boolean);
+    const regulatoryTypes = uniqueRegulatoryTypes(std.regulatoryTypes ?? []);
+    const categories: string[] = (std.categories ?? []).map(normalizeCategory).filter(Boolean);
+    if (productTypes.length > 0 && (!wantedProductType || !productTypes.includes(wantedProductType))) return null;
+    if (
+      regulatoryTypes.length > 0 &&
+      (wantedRegulatoryTypes.length === 0 || !regulatoryTypes.some((type) => wantedRegulatoryTypes.includes(type)))
+    ) return null;
+    if (categories.length > 0 && (!wantedCategory || !categories.includes(wantedCategory))) return null;
+    return (
+      (regulatoryTypes.length > 0 ? 2 : 0) +
+      (productTypes.length > 0 ? 2 : 0) +
+      (categories.length > 0 ? 2 : 0)
+    );
+  };
+
+  const pickBest = (standards: SubstanceStandard[]): SubstanceStandard | undefined => {
+    let best: { std: SubstanceStandard; score: number } | undefined;
+    for (const std of standards) {
+      const score = scoreCandidate(std);
+      if (score == null) continue;
+      if (!best || score > best.score) best = { std, score };
+    }
+    return best?.std;
+  };
+
+  const standards = field.substanceStandards ?? [];
+  const exact = pickBest(standards.filter((std) => fullSubstanceKey(std.substance) === exactKey));
+  if (exact) return exact;
+
+  if (!substanceKey) return undefined;
+  return pickBest(
+    standards.filter((std) =>
+      matchSubstanceKey(std.substance) === substanceKey &&
+      fullSubstanceKey(std.substance) === matchSubstanceKey(std.substance),
+    ),
   );
 }
 
@@ -165,7 +243,7 @@ export type RenderFieldUnit = {
 export function expandFieldForItem(
   field: ParameterValueField,
   commonName: string | undefined,
-  options: { includeRestrictedStandards?: boolean } = {},
+  options: { includeRestrictedStandards?: boolean; productType?: string; category?: string } = {},
 ): (RenderFieldUnit & { hiddenStandard?: boolean })[] {
   const includeRestrictedStandards = options.includeRestrictedStandards ?? false;
   const isNumeric = field.type === "number" || field.type === "float";
@@ -176,7 +254,12 @@ export function expandFieldForItem(
     }
     return substances.map((raw) => {
       const name = extractSubstanceName(raw) || raw;
-      const productType = getClassification(raw)?.group ?? getClassification(commonName ?? "")?.group ?? "";
+      const productType = (
+        options.productType?.trim() ||
+        getClassification(raw)?.group ||
+        getClassification(commonName ?? "")?.group ||
+        ""
+      );
       const std = findLabelToleranceStandard(field, raw, productType);
       const vfield: ParameterValueField = {
         ...field,
@@ -200,7 +283,13 @@ export function expandFieldForItem(
   }
   return substances.map((raw) => {
     const name = extractSubstanceName(raw) || raw;
-    const std = findSubstanceStandard(field, name);
+    const productType = (
+      options.productType?.trim() ||
+      getClassification(raw)?.group ||
+      getClassification(commonName ?? "")?.group ||
+      ""
+    );
+    const std = findSubstanceStandard(field, raw || name, { productType, category: options.category });
     const hiddenStandard = !!(std && (std as { headOnly?: boolean }).headOnly) && !includeRestrictedStandards;
     const vfield: ParameterValueField = {
       ...field,
@@ -247,12 +336,17 @@ export function countAbnormalInResults(
         const isNumeric = field.type === "number" || field.type === "float";
         if (field.substanceMode && isNumeric) {
           const prefix = `${field.label}::`;
+          const substances = parseSubstances(r.commonName ?? "");
+          const resultMeta = r as QCTestResult & { category?: string; itemCategory?: string; dept?: string };
+          const category = resultMeta.category ?? resultMeta.itemCategory ?? categoryFromDept(resultMeta.dept);
           for (const [vkey, vval] of Object.entries(values)) {
             if (!vkey.startsWith(prefix)) continue;
             const subKey = vkey.slice(prefix.length);
-            const std = (field.substanceStandards ?? []).find(
-              (s) => matchSubstanceKey(s.substance) === subKey,
-            );
+            const raw = substances.find(
+              (s) => matchSubstanceKey(extractSubstanceName(s) || s) === subKey,
+            ) ?? subKey;
+            const productType = getClassification(raw)?.group ?? getClassification(r.commonName ?? "")?.group ?? "";
+            const std = findSubstanceStandard(field, raw, { productType, category });
             if (isSubstanceAbnormal(field, std, vval)) count += 1;
           }
           continue;
@@ -526,8 +620,8 @@ function normalizeLabelToleranceModes(std: LabelToleranceRule) {
   if (std.autoMode || std.headMode) {
     return {
       mode: "split" as const,
-      autoMode: (std.autoMode ?? "abs") as "percent" | "abs",
-      headMode: (std.headMode ?? (std.headAbs != null || std.headPct != null ? "abs" : null)) as "percent" | "abs" | null,
+      autoMode: (std.autoMode ?? (std.passLow != null || std.passHigh != null ? "range" : "abs")) as "none" | "percent" | "abs" | "range",
+      headMode: (std.headMode ?? (std.failLow != null || std.failHigh != null ? "range" : std.headAbs != null || std.headPct != null ? "abs" : null)) as "none" | "percent" | "abs" | "range" | null,
       legacy: false,
     };
   }
@@ -601,31 +695,55 @@ export function resolveLabelTolerance(
     return { status, center, autoRange, headRange };
   }
 
-  if (center == null) {
-    return { status: "none", center, autoRange: null, headRange: null };
-  }
+  const explicitRange = (low: number | null | undefined, high: number | null | undefined): [number, number] | null => {
+    if (low == null || high == null || low > high) return null;
+    return [round(low), round(high)];
+  };
+
   const headAbs = normalized.headMode === "percent"
-    ? (std.headPct == null ? null : Math.abs(center) * (std.headPct / 100))
+    ? (std.headPct == null || center == null ? null : Math.abs(center) * (std.headPct / 100))
     : normalized.headMode === "abs"
-      ? (std.headAbs ?? null)
+      ? (center == null ? null : (std.headAbs ?? null))
       : null;
+  const headRange: [number, number] | null = normalized.headMode === "range"
+    ? explicitRange(std.failLow, std.failHigh)
+    : headAbs != null
+      ? [round(center - headAbs), round(center + headAbs)]
+      : null;
+  const insetRangeFromHead = (pct: number | null | undefined): [number, number] | null => {
+    if (pct == null || pct <= 0 || center == null || headRange == null) return null;
+    if (center < headRange[0] || center > headRange[1]) return null;
+    const next: [number, number] = [
+      round(headRange[0] + ((center - headRange[0]) * pct / 100)),
+      round(headRange[1] - ((headRange[1] - center) * pct / 100)),
+    ];
+    return next[0] <= next[1] ? next : null;
+  };
   const autoAbs = normalized.autoMode === "percent"
     ? normalized.legacy
-      ? (std.autoPct == null ? null : Math.abs(center) * (std.autoPct / 100))
-      : (std.autoPct == null || headAbs == null ? null : headAbs * (std.autoPct / 100))
-    : (std.autoAbs ?? null);
-  if (autoAbs == null || autoAbs <= 0) {
+      ? (std.autoPct == null || center == null ? null : Math.abs(center) * (std.autoPct / 100))
+      : null
+    : normalized.autoMode === "abs"
+      ? (center == null ? null : (std.autoAbs ?? null))
+      : null;
+  const autoRange: [number, number] | null = normalized.autoMode === "range"
+    ? explicitRange(std.passLow, std.passHigh)
+    : normalized.autoMode === "percent" && !normalized.legacy
+      ? insetRangeFromHead(std.autoPct)
+    : autoAbs != null && autoAbs > 0
+      ? [round(center - autoAbs), round(center + autoAbs)]
+      : null;
+  if (!autoRange && normalized.autoMode !== "none") {
     return { status: "none", center, autoRange: null, headRange: null };
   }
-  const autoRange: [number, number] = [round(center - autoAbs), round(center + autoAbs)];
-  const headRange: [number, number] | null =
-    headAbs != null ? [round(center - headAbs), round(center + headAbs)] : null;
+  if (!autoRange && !headRange) {
+    return { status: "none", center, autoRange: null, headRange: null };
+  }
   if (value === null || value === undefined || value === "" || Number.isNaN(num)) {
     return { status: "none", center, autoRange, headRange };
   }
-  // เทียบกับช่วงที่ round แล้ว (ไม่ใช่ dev ดิบ) — ช่วงที่โชว์ = ช่วงที่ตัดสิน, กันขอบพลาดเพราะ float
   let status: LabelToleranceStatus;
-  if (num >= autoRange[0] && num <= autoRange[1]) status = "pass";
+  if (autoRange && num >= autoRange[0] && num <= autoRange[1]) status = "pass";
   else if (headRange && num >= headRange[0] && num <= headRange[1]) status = "review";
   else status = "fail";
   return { status, center, autoRange, headRange };

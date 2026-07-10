@@ -22,6 +22,12 @@ export function getItemSubCategory(item: PetitionItem): string {
   return extractItemNoPrefix(item.sampleId);
 }
 
+export function getPetitionCategory(petition?: Pick<Petition, 'dept'> | null): 'RM' | 'FG' | '' {
+  if (petition?.dept === 'rm') return 'RM';
+  if (petition?.dept === 'fg') return 'FG';
+  return '';
+}
+
 // Returns true when the parameter's "ใช้กับ" criteria fit this petition item.
 // applyAll → match unconditionally. Otherwise it's an OR across the five
 // dimensions we can derive from a PetitionItem (itemName / commonName /

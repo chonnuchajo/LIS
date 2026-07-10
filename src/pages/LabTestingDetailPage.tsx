@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
-import { matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
+import { getPetitionCategory, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import {
   PETITION_DEPT_LABELS,
@@ -350,6 +350,7 @@ export default function LabTestingDetailPage() {
   const flashClass = useArrivalFlash();
 
   const { data: petition, loading: petitionLoading, error: petitionError } = usePetition(id);
+  const petitionCategory = getPetitionCategory(petition);
   const { data: worklistData } = usePetitionList({
     status: 'pendingReview,inProgress',
     limit: 20,
@@ -705,7 +706,7 @@ export default function LabTestingDetailPage() {
   ): number => {
     let count = 0;
     fieldsToScan.forEach((field) => {
-      expandFieldForItem(field, item.commonName).forEach((unit) => {
+      expandFieldForItem(field, item.commonName, { category: petitionCategory }).forEach((unit) => {
         if (unit.field.conditionalMode && unit.field.conditionalResult === 'output') {
           if (isConditionalOutputAbnormal(unit.field, { sameParam: src, otherParams: {} })) count += 1;
           return;
@@ -770,7 +771,7 @@ export default function LabTestingDetailPage() {
             : [{ values: phaseValues[k] ?? {}, suffix: '' }];
         visibleFields(param, phaseToCheck).forEach((field) => {
           if (field.type === 'reference') return; // reference fields are auto-resolved
-          expandFieldForItem(field, item.commonName).forEach((unit) => {
+          expandFieldForItem(field, item.commonName, { category: petitionCategory }).forEach((unit) => {
             valueObjs.forEach(({ values: itemValues, suffix }) => {
               const val = itemValues[unit.key];
               // field-level `multiple` — required means at least one non-empty element
@@ -1213,7 +1214,7 @@ export default function LabTestingDetailPage() {
                                       />
                                     );
                                   }
-                                  const units = expandFieldForItem(field, item.commonName);
+                                  const units = expandFieldForItem(field, item.commonName, { category: petitionCategory });
                                   return units.map((unit) => renderEditUnit(unit, srcValues, onUnitChange, saveInfoSrc, scalarExtras));
                                 })}
                               </div>
@@ -1425,7 +1426,7 @@ export default function LabTestingDetailPage() {
                                       />
                                     );
                                   }
-                                  const units = expandFieldForItem(field, item.commonName);
+                                  const units = expandFieldForItem(field, item.commonName, { category: petitionCategory });
                                   return units.map((unit) => renderReadUnit(unit, srcValues, saveInfoSrc));
                                 })}
                               </div>

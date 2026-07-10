@@ -57,6 +57,91 @@ test('persists substanceMode + substanceStandards (not stripped by strict mode)'
   assert.strictEqual(f.substanceStandards[0].value, 1.8);
 });
 
+test('persists productTypes and RM/FG categories on substanceStandards', async () => {
+  const doc = new Parameter({
+    name: 'substance selectors',
+    valueFields: [{
+      label: 'AI content', type: 'number', unit: '%',
+      substanceMode: true,
+      substanceStandards: [{
+        substance: 'ABAMECTIN',
+        operator: 'gte',
+        value: 95,
+        value2: null,
+        productTypes: ['water'],
+        categories: ['RM'],
+      }],
+    }],
+  });
+
+  await doc.validate();
+
+  const std = doc.valueFields[0].substanceStandards[0];
+  assert.deepStrictEqual(std.productTypes, ['water']);
+  assert.deepStrictEqual(std.categories, ['RM']);
+});
+
+test('persists regulatoryTypes on substanceStandards', async () => {
+  const doc = new Parameter({
+    name: 'substance regulatory selectors',
+    valueFields: [{
+      label: 'AI content', type: 'number', unit: '%',
+      substanceMode: true,
+      substanceStandards: [{
+        substance: 'CHLORFENAPYR',
+        operator: 'gte',
+        value: 95,
+        value2: null,
+        regulatoryTypes: ['GMP', 'BIO', 'LS'],
+        categories: ['RM', 'FG'],
+      }],
+    }],
+  });
+
+  await doc.validate();
+
+  const std = doc.valueFields[0].substanceStandards[0];
+  assert.deepStrictEqual(std.regulatoryTypes, ['GMP', 'BIO', 'LS']);
+  assert.deepStrictEqual(std.categories, ['RM', 'FG']);
+});
+
+test('rejects unsupported productTypes and categories on substanceStandards', async () => {
+  const doc = new Parameter({
+    name: 'bad substance selectors',
+    valueFields: [{
+      label: 'AI content', type: 'number', unit: '%',
+      substanceMode: true,
+      substanceStandards: [{
+        substance: 'ABAMECTIN',
+        operator: 'gte',
+        value: 95,
+        productTypes: ['gel'],
+        categories: ['PACK'],
+      }],
+    }],
+  });
+
+  await assert.rejects(() => doc.validate(), /productTypes|categories|unsupported|ไม่รองรับ/);
+});
+
+test('rejects unsupported regulatoryTypes on substanceStandards', async () => {
+  const doc = new Parameter({
+    name: 'bad substance regulatory selectors',
+    valueFields: [{
+      label: 'AI content', type: 'number', unit: '%',
+      substanceMode: true,
+      substanceStandards: [{
+        substance: 'CHLORFENAPYR',
+        operator: 'gte',
+        value: 95,
+        regulatoryTypes: ['NMP'],
+      }],
+    }],
+  });
+
+  await assert.rejects(() => doc.validate(), /regulatoryTypes|ไม่รองรับ/);
+});
+
 test('persists conditionalMode + conditionalStandards incl nested conditions (string & numeric values)', () => {
   const doc = new Parameter({
     name: 'ทดสอบเงื่อนไข',
@@ -245,6 +330,86 @@ test('rejects split percent pass when head reviewer band is missing', async () =
   await assert.rejects(() => doc.validate(), /หัวหน้าตรวจสอบ/);
 });
 
+test('rejects split percent pass when head reviewer band is explicitly none', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', autoMode: 'percent', headMode: 'none', autoPct: 50 }] }],
+  });
+
+  await assert.rejects(() => doc.validate(), /หัวหน้าตรวจสอบ|headMode|head reviewer band/);
+});
+
+test('accepts split range modes for labelTolerance pass and head bands', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{
+        substance: 'A',
+        autoMode: 'range',
+        headMode: 'range',
+        passLow: 1.75,
+        passHigh: 1.85,
+        failLow: 1.7,
+        failHigh: 1.9,
+      }] }],
+  });
+  await assert.doesNotReject(() => doc.validate());
+});
+
+test('rejects split range pass outside head range', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{
+        substance: 'A',
+        autoMode: 'range',
+        headMode: 'range',
+        passLow: 1.65,
+        passHigh: 1.85,
+        failLow: 1.7,
+        failHigh: 1.9,
+      }] }],
+  });
+  await assert.rejects(() => doc.validate(), /passLow/);
+});
+
+test('accepts labelTolerance autoMode none with a valid head reviewer band', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', autoMode: 'none', headMode: 'abs', headAbs: 0.1 }] }],
+  });
+
+  await assert.doesNotReject(() => doc.validate());
+  const s = doc.valueFields[0].labelToleranceStandards[0];
+  assert.strictEqual(s.autoMode, 'none');
+  assert.strictEqual(s.headMode, 'abs');
+});
+
+test('accepts labelTolerance headMode none with a valid automatic pass band', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', autoMode: 'abs', headMode: 'none', autoAbs: 0.05 }] }],
+  });
+
+  await assert.doesNotReject(() => doc.validate());
+  const s = doc.valueFields[0].labelToleranceStandards[0];
+  assert.strictEqual(s.autoMode, 'abs');
+  assert.strictEqual(s.headMode, 'none');
+});
+
+test('rejects labelTolerance when both split bands are none', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', autoMode: 'none', headMode: 'none' }] }],
+  });
+
+  await assert.rejects(() => doc.validate(), /อย่างน้อยหนึ่งช่วง|usable threshold|หัวหน้าตรวจสอบ|ผ่าน/);
+});
+
 test('rejects multiple + labelToleranceMode', async () => {
   const doc = new Parameter({
     name: 'x',
@@ -252,6 +417,26 @@ test('rejects multiple + labelToleranceMode', async () => {
       labelToleranceStandards: [{ substance: 'A', autoPct: 2, headPct: null }] }],
   });
   await assert.rejects(() => doc.validate());
+});
+
+test('rejects labelTolerance autoMode none when head band is missing', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', autoMode: 'none' }] }],
+  });
+
+  await assert.rejects(() => doc.validate(), /เธ•เนเธญเธเธ•เนเธฑเธเธเนเธงเธ|เธชเธฒเธฃ|head|usable threshold/);
+});
+
+test('rejects labelTolerance headMode none when auto band is missing', async () => {
+  const doc = new Parameter({
+    name: 'x',
+    valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
+      labelToleranceStandards: [{ substance: 'A', headMode: 'none' }] }],
+  });
+
+  await assert.rejects(() => doc.validate(), /เธ•เนเธญเธเธ•เนเธฑเธเธเนเธงเธ|เธชเธฒเธฃ|auto|usable threshold/);
 });
 
 test('persists percent + productType labelTolerance rules without substance', () => {

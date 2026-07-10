@@ -1,24 +1,37 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import ActiveRoleSwitcher from "./ActiveRoleSwitcher";
+import DashboardHeader from "./DashboardHeader";
+import { NAV_ITEMS } from "@/lib/navItems";
 
-describe("ActiveRoleSwitcher", () => {
-  it("shows a static chip for a single role", () => {
+vi.mock("@/context/AuthContext", () => ({
+  useAuth: () => ({
+    user: {
+      department: "QC",
+      roles: ["lab", "qc"],
+      status: "active",
+    },
+  }),
+}));
+
+describe("DashboardHeader", () => {
+  it("renders role-matrix nav instead of a role selector", () => {
     render(
       <MemoryRouter>
-        <ActiveRoleSwitcher roles={["qc"]} activeRole="qc" onChange={vi.fn()} roleNames={{ qc: "QC Reviewer" }} />
+        <DashboardHeader
+          titleEn="QC Dashboard"
+          subtitleTh=""
+          range="today"
+          onRangeChange={vi.fn()}
+          onRefresh={vi.fn()}
+          onExport={vi.fn()}
+          navItems={NAV_ITEMS.filter((item) => ["/petitions", "/qc-testing"].includes(item.path))}
+        />
       </MemoryRouter>,
     );
-    expect(screen.getByText("QC Reviewer")).toBeInTheDocument();
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
-  });
-  it("renders a dropdown when the user holds multiple roles", () => {
-    render(
-      <MemoryRouter>
-        <ActiveRoleSwitcher roles={["lab", "qc"]} activeRole="qc" onChange={vi.fn()} roleNames={{ lab: "Lab", qc: "QC" }} />
-      </MemoryRouter>,
-    );
-    expect(screen.getByRole("combobox")).toBeInTheDocument();
+
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
+    expect(screen.getByRole("navigation", { name: "เมนูหน้าแรก" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /เมนู/ })).toBeInTheDocument();
   });
 });

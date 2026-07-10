@@ -80,6 +80,9 @@ import {
   getClassification,
   getCommonName,
 } from "@/lib/productClassification";
+import { getMasterItemRegulatoryType } from "@/lib/masterItemRegulatoryType";
+
+export { getMasterItemRegulatoryType } from "@/lib/masterItemRegulatoryType";
 
 type MasterItem = Record<string, unknown>;
 // A substance slot holds a SET of method codes (an AND-set). A row's assignments
@@ -269,7 +272,6 @@ const hiddenTableKeys = [
   "packing_unit_desc",
   "packing_qty_per",
 ];
-
 const OVERRIDE_FIELD_MAP: Array<{ key: keyof MasterItemOverride; targets: string[] }> = [
   { key: "itemCode", targets: codeKeys },
   { key: "itemName", targets: nameKeys },
@@ -385,6 +387,42 @@ function displayValue(value: unknown) {
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
+}
+
+function collectSearchValues(value: unknown, output: string[], seen = new WeakSet<object>()) {
+  if (value === undefined || value === null || value === "") return;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    output.push(String(value));
+    return;
+  }
+  if (value instanceof Date) {
+    output.push(value.toISOString());
+    return;
+  }
+  if (typeof value !== "object") return;
+  if (seen.has(value)) return;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectSearchValues(entry, output, seen));
+    return;
+  }
+  Object.values(value).forEach((entry) => collectSearchValues(entry, output, seen));
+}
+
+export function buildMasterItemSearchText({
+  item,
+  originalItemNo = "",
+  rawCommonName = "",
+  displayCommonName = "",
+}: {
+  item: MasterItem;
+  originalItemNo?: string;
+  rawCommonName?: string;
+  displayCommonName?: string;
+}): string {
+  const values = [originalItemNo, rawCommonName, displayCommonName];
+  collectSearchValues(item, values);
+  return values.join(" ").toLowerCase();
 }
 
 // Pack/weight keys carry both a camelCase (override layer) and a snake_case (ERP
@@ -737,9 +775,12 @@ export default function MasterItems() {
     return enrichedItems.filter(({ item, originalItemNo, rawCommonName, displayCommonName }) => {
       const matchesSearch =
         !q ||
-        String(firstValue(item, codeKeys)).toLowerCase().includes(q) ||
-        String(firstValue(item, nameKeys)).toLowerCase().includes(q) ||
-        String(displayCommonName || rawCommonName || "").toLowerCase().includes(q);
+        buildMasterItemSearchText({
+          item,
+          originalItemNo,
+          rawCommonName,
+          displayCommonName,
+        }).includes(q);
       const matchesCategory = categoryFilter === "all" || getItemCategory(item) === categoryFilter;
       const groupIds = groupMembership.get(originalItemNo) ?? [];
       const matchesGroup =
@@ -2179,6 +2220,7 @@ function MasterItemDetailDrawer({
   // membership resolve มาจาก catalog ดิบแล้ว (ส่งเป็น itemGroupIds) — map เป็นชื่อกลุ่มเพื่อแสดง
   const memberGroups = groups.filter((grp) => itemGroupIds.includes(grp._id));
   const classification = getClassification(firstValue(item, typeKeys));
+  const regulatoryType = getMasterItemRegulatoryType(item);
   const active = isItemActive(item);
   const code = displayValue(originalItemNo || firstValue(item, codeKeys));
   const name = displayValue(firstValue(item, nameKeys));
@@ -2188,6 +2230,7 @@ function MasterItemDetailDrawer({
 
   const mainFields: Array<{ label: string; value: React.ReactNode }> = [
     { label: "ชื่อสินค้า", value: name },
+    ...(regulatoryType ? [{ label: "Type", value: regulatoryType }] : []),
     { label: "ชื่อสามัญ", value: displayValue(firstValue(item, commonNameKeys)) },
     {
       label: "ประเภท",
