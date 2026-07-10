@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   isUsableBottle, usableBottleCount, standardLevel, solventLevel, glasswareLevel, summarizeStandard,
+  standardMatchesStatuses, type StandardStatus,
 } from "./stockStatus";
 
 const now = new Date("2026-07-07T00:00:00Z");
@@ -57,5 +58,48 @@ describe("summarizeStandard", () => {
       now, 30,
     );
     expect(s).toEqual({ usable: 2, expired: 1, expiringSoon: 1 });
+  });
+});
+
+describe("standardMatchesStatuses", () => {
+  const S = (...xs: StandardStatus[]) => new Set(xs);
+  const sum = (usable: number, expired = 0, expiringSoon = 0) => ({ usable, expired, expiringSoon });
+
+  it("empty set matches everything", () => {
+    expect(standardMatchesStatuses(sum(0), S())).toBe(true);
+    expect(standardMatchesStatuses(sum(5, 2, 1), S())).toBe(true);
+  });
+
+  it("ok requires level ok AND no expiry issues", () => {
+    expect(standardMatchesStatuses(sum(2), S("ok"))).toBe(true);
+    expect(standardMatchesStatuses(sum(2, 1, 0), S("ok"))).toBe(false);
+    expect(standardMatchesStatuses(sum(2, 0, 1), S("ok"))).toBe(false);
+    expect(standardMatchesStatuses(sum(1), S("ok"))).toBe(false); // low ไม่ใช่ ok
+  });
+
+  it("out / low match by usable level", () => {
+    expect(standardMatchesStatuses(sum(0), S("out"))).toBe(true);
+    expect(standardMatchesStatuses(sum(1), S("out"))).toBe(false);
+    expect(standardMatchesStatuses(sum(1), S("low"))).toBe(true);
+    expect(standardMatchesStatuses(sum(2), S("low"))).toBe(false);
+  });
+
+  it("expired / soon match by counts", () => {
+    expect(standardMatchesStatuses(sum(2, 1, 0), S("expired"))).toBe(true);
+    expect(standardMatchesStatuses(sum(2, 0, 0), S("expired"))).toBe(false);
+    expect(standardMatchesStatuses(sum(2, 0, 3), S("soon"))).toBe(true);
+    expect(standardMatchesStatuses(sum(2, 0, 0), S("soon"))).toBe(false);
+  });
+
+  it("union: matches if ANY selected status matches", () => {
+    expect(standardMatchesStatuses(sum(2, 0, 1), S("expired", "soon"))).toBe(true);
+    expect(standardMatchesStatuses(sum(2, 0, 0), S("expired", "soon"))).toBe(false);
+    expect(standardMatchesStatuses(sum(0), S("ok", "out"))).toBe(true);
+  });
+
+  it("expiringSoon summary fails ok but passes ok+soon union", () => {
+    const s = sum(2, 0, 1);
+    expect(standardMatchesStatuses(s, S("ok"))).toBe(false);
+    expect(standardMatchesStatuses(s, S("ok", "soon"))).toBe(true);
   });
 });

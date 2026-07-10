@@ -6,6 +6,8 @@ import { MemoryRouter } from "react-router-dom";
 import { api, type ParameterItem, type ParameterValueField, type SubstanceStandard } from "@/lib/api";
 import ParameterSettings from "../ParameterSettings";
 
+let mockUser: { role: string; roles: string[] } | null = { role: "admin", roles: ["admin"] };
+
 vi.mock("@/components/lis/AppLayout", () => ({
   default: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
@@ -15,11 +17,11 @@ vi.mock("@/components/lis/PageHeader", () => ({
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({ user: { role: "admin", roles: ["admin"] } }),
+  useAuth: () => ({ user: mockUser }),
 }));
 
 vi.mock("@/context/AuthContext", () => ({
-  useAuth: () => ({ user: { role: "admin", roles: ["admin"] } }),
+  useAuth: () => ({ user: mockUser }),
   AuthContext: {
     Provider: ({ children }: { children: ReactNode }) => <>{children}</>,
   },
@@ -106,12 +108,13 @@ describe("ParameterSettings criteria tabs", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUser = { role: "admin", roles: ["admin"] };
     api.get.mockResolvedValue({ data: { data: [] } });
     api.getParameters.mockResolvedValue(parameters);
     api.updateParameter.mockResolvedValue(undefined);
   });
 
-  it("opens substance tab and saves substance criteria updates", async () => {
+  it("opens substance tab and saves a single-substance quick edit", async () => {
     renderPage();
 
     const criteriaTabList = screen.getAllByRole("tablist")[1];
@@ -119,17 +122,19 @@ describe("ParameterSettings criteria tabs", () => {
     expect(criteriaTabs).toHaveLength(4);
 
     const substancesTab = criteriaTabs[1];
-    expect(substancesTab).toBeInTheDocument();
     fireEvent.mouseDown(substancesTab);
     fireEvent.click(substancesTab);
 
     expect(await screen.findByText("ABAMECTIN")).toBeInTheDocument();
 
     const table = screen.getByRole("table");
-    const editButton = within(table).getByRole("button");
-    fireEvent.click(editButton);
+    fireEvent.click(within(table).getByRole("button"));
 
-    fireEvent.click(screen.getByText("save substance dialog"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("ABAMECTIN")).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText("ค่า"), { target: { value: "97" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "บันทึก" }));
 
     await waitFor(() => expect(api.updateParameter).toHaveBeenCalledTimes(1));
 
@@ -139,18 +144,17 @@ describe("ParameterSettings criteria tabs", () => {
       expect.objectContaining({
         valueFields: expect.arrayContaining([
           expect.objectContaining({
-            substanceStandards: expect.arrayContaining([
-              expect.objectContaining({ substance: "ABAMECTIN" }),
-              expect.objectContaining({ substance: "NEW" }),
-            ]),
+            substanceStandards: [
+              expect.objectContaining({ substance: "ABAMECTIN", operator: "gte", value: 97 }),
+            ],
           }),
         ]),
       }),
     );
-    expect(payload?.valueFields?.[0]?.substanceStandards).toHaveLength(2);
+    expect(payload?.valueFields?.[0]?.substanceStandards).toHaveLength(1);
   });
 
-  it("keeps substance dialog open when save fails", async () => {
+  it("keeps the quick-edit dialog open when save fails", async () => {
     renderPage();
 
     const criteriaTabList = screen.getAllByRole("tablist")[1];
@@ -161,14 +165,228 @@ describe("ParameterSettings criteria tabs", () => {
     expect(await screen.findByText("ABAMECTIN")).toBeInTheDocument();
 
     const table = screen.getByRole("table");
-    const editButton = within(table).getByRole("button");
-    fireEvent.click(editButton);
+    fireEvent.click(within(table).getByRole("button"));
 
+    const dialog = await screen.findByRole("dialog");
     api.updateParameter.mockRejectedValueOnce(new Error("save failed"));
 
-    fireEvent.click(screen.getByText("save substance dialog"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "บันทึก" }));
 
     await waitFor(() => expect(api.updateParameter).toHaveBeenCalledTimes(1));
-    expect(screen.getByText("save substance dialog")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "บันทึก" })).toBeInTheDocument();
+  });
+
+  it("opens the full substance dialog from an unconfigured field's setup row", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      {
+        _id: "p-setup",
+        name: "Setup Parameter",
+        scope: "qc",
+        status: "active",
+        applyAll: true,
+        valueFields: [
+          { label: "ปริมาณ", type: "number", substanceMode: true, substanceStandards: [] },
+        ],
+      },
+    ]);
+
+    renderPage();
+
+    const criteriaTabList = await waitFor(() => screen.getAllByRole("tablist")[1]);
+    const substancesTab = within(criteriaTabList).getAllByRole("tab")[1];
+    fireEvent.mouseDown(substancesTab);
+    fireEvent.click(substancesTab);
+
+    const table = await waitFor(() => screen.getByRole("table"));
+    expect(within(table).getByText("Setup Parameter")).toBeInTheDocument();
+
+    fireEvent.click(within(table).getByRole("button"));
+
+    fireEvent.click(await screen.findByText("save substance dialog"));
+
+    await waitFor(() => expect(api.updateParameter).toHaveBeenCalledTimes(1));
+    const [, payload] = api.updateParameter.mock.calls[0] as [string, ParameterItem];
+    expect(payload?.valueFields?.[0]?.substanceStandards).toHaveLength(1);
+    expect(payload?.valueFields?.[0]?.substanceStandards?.[0]).toEqual(
+      expect.objectContaining({ substance: "NEW" }),
+    );
+  });
+
+  it("filters the parameter list by substance names saved in criteria", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      {
+        _id: "p-label",
+        name: "Label Criteria Parameter",
+        scope: "qc",
+        status: "active",
+        applyAll: true,
+        valueFields: [
+          {
+            label: "%AI",
+            type: "number",
+            labelToleranceMode: true,
+            labelToleranceStandards: [
+              { substance: "GLYPHOSATE", labelPercent: 1, autoPct: 25, headPct: 15 },
+            ],
+          },
+        ],
+      },
+      {
+        _id: "p-other",
+        name: "Other Parameter",
+        scope: "qc",
+        status: "active",
+        applyAll: true,
+        valueFields: [
+          {
+            label: "Amount",
+            type: "number",
+            substanceMode: true,
+            substanceStandards: [{ substance: "ABAMECTIN", operator: "gte", value: 95 }],
+          },
+        ],
+      },
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText("Label Criteria Parameter")).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText(/ค้นหาชื่อ/), { target: { value: "glyph" } });
+
+    expect(screen.getByText("Label Criteria Parameter")).toBeInTheDocument();
+    expect(screen.queryByText("Other Parameter")).not.toBeInTheDocument();
+  });
+
+  it("does not show advanced criteria preview text under setup controls", async () => {
+    const advancedParameters: ParameterItem[] = [
+      {
+        _id: "p-advanced",
+        name: "Advanced Parameter",
+        scope: "qc",
+        status: "active",
+        applyAll: true,
+        valueFields: [
+          {
+            label: "Substance Field",
+            type: "number",
+            unit: "%",
+            substanceMode: true,
+            substanceStandards: [{ substance: "ABAMECTIN", operator: "gte", value: 95 }],
+          },
+          {
+            label: "Conditional Field",
+            type: "number",
+            unit: "%",
+            conditionalMode: true,
+            conditionalStandards: [
+              {
+                label: "Rule A",
+                conditions: [{ sourceFieldLabel: "Source", op: "gt", value: 10 }],
+                operator: "gte",
+                value: 20,
+              },
+            ],
+          },
+          {
+            label: "Label Field",
+            type: "number",
+            unit: "%",
+            labelToleranceMode: true,
+            labelToleranceStandards: [
+              { substance: "GLYPHOSATE", labelPercent: 1, autoPct: 25, headPct: 15 },
+            ],
+          },
+        ],
+      },
+    ];
+    api.getParameters.mockResolvedValueOnce(advancedParameters);
+
+    renderPage();
+
+    const parameterName = await screen.findByText("Advanced Parameter");
+    const row = parameterName.closest("tr");
+    expect(row).not.toBeNull();
+    fireEvent.click(within(row as HTMLTableRowElement).getAllByRole("button")[0]);
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Substance Field/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /Conditional Field/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: /Label Field/ }));
+
+    expect(within(dialog).queryByText(/ABAMECTIN.*95%/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/Rule A.*Source.*20%/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/GLYPHOSATE.*25%/)).not.toBeInTheDocument();
+  });
+
+  it("shows head criteria columns for admin in label tolerance tab", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      {
+        _id: "p-label",
+        name: "Label Parameter",
+        scope: "qc",
+        status: "active",
+        applyAll: true,
+        valueFields: [
+          {
+            label: "%AI",
+            type: "number",
+            labelToleranceMode: true,
+            labelToleranceStandards: [{ substance: "ABAMECTIN", labelPercent: 1, autoPct: 25, headPct: 15 }],
+          },
+        ],
+      },
+    ]);
+
+    renderPage();
+
+    const criteriaTabList = await waitFor(() => screen.getAllByRole("tablist")[1]);
+    const labelToleranceTab = within(criteriaTabList).getAllByRole("tab")[3];
+    fireEvent.mouseDown(labelToleranceTab);
+    fireEvent.click(labelToleranceTab);
+    await screen.findByText("ABAMECTIN / 1%");
+
+    const headerTexts = within(await screen.findByRole("table"))
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent ?? "");
+    expect(headerTexts).toContain("เกณฑ์กลาง");
+    expect(headerTexts.some((text) => text.includes("(%,+-)"))).toBe(true);
+    expect(headerTexts.filter((text) => text.includes("25%"))).toHaveLength(2);
+  });
+
+  it("hides head criteria columns for non-head roles in label tolerance tab", async () => {
+    mockUser = { role: "viewer", roles: ["viewer"] };
+    api.getParameters.mockResolvedValueOnce([
+      {
+        _id: "p-label",
+        name: "Label Parameter",
+        scope: "qc",
+        status: "active",
+        applyAll: true,
+        valueFields: [
+          {
+            label: "%AI",
+            type: "number",
+            labelToleranceMode: true,
+            labelToleranceStandards: [{ substance: "ABAMECTIN", labelPercent: 1, autoPct: 25, headPct: 15 }],
+          },
+        ],
+      },
+    ]);
+
+    renderPage();
+
+    const criteriaTabList = await waitFor(() => screen.getAllByRole("tablist")[1]);
+    const labelToleranceTab = within(criteriaTabList).getAllByRole("tab")[3];
+    fireEvent.mouseDown(labelToleranceTab);
+    fireEvent.click(labelToleranceTab);
+    await screen.findByText("ABAMECTIN / 1%");
+
+    const headerTexts = within(await screen.findByRole("table"))
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent ?? "");
+    expect(headerTexts).toContain("เกณฑ์กลาง");
+    expect(headerTexts.some((text) => text.includes("(%,+-)"))).toBe(false);
+    expect(headerTexts.some((text) => text.includes("25%"))).toBe(false);
   });
 });

@@ -144,7 +144,7 @@ export function buildApprovalGroups(
                 let rowAbnormal: boolean;
                 if (unit.labelTolerance) {
                   const rv = resolveLabelTolerance(unit.labelTolerance.std, unit.labelTolerance.rawSpec, raw);
-                  const range = formatLabelToleranceRange(rv, unit.field.unit ?? "");
+                  const range = formatLabelToleranceRange(rv, unit.field.unit ?? "", { showAutoPass: true });
                   const statusNote = rv.status === "review"
                     ? "รอหัวหน้าอนุมัติ"
                     : rv.status === "fail"

@@ -3,16 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Copy, Plus, Search, Trash2 } from "lucide-react";
 import { api, type ParameterValueField, type StandardOperator, type SubstanceStandard } from "@/lib/api";
 import { tradeNameKeys } from "@/lib/masterItemFields";
-import { describeSubstanceStandard, OPERATOR_OPTIONS } from "@/lib/standardOperators";
+import { OPERATOR_OPTIONS } from "@/lib/standardOperators";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  NativeSelect, Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+import { NativeSelect } from "@/components/ui/select";
 import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from "@/components/ui/tabs";
@@ -78,16 +76,17 @@ function rowMatchesPickerCategory(row: Record<string, unknown>, category: Picker
 }
 
 export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props) {
-  const unit = field.unit ? ` ${field.unit}` : "";
   const [list, setList] = useState<EditableSubstanceStandard[]>(field.substanceStandards ?? []);
   const [pickerCategory, setPickerCategory] = useState<PickerCategory>("all");
   const [search, setSearch] = useState("");
+  const [listSearch, setListSearch] = useState("");
 
   useEffect(() => {
     if (open) {
       setList((field.substanceStandards ?? []) as EditableSubstanceStandard[]);
       setPickerCategory("all");
       setSearch("");
+      setListSearch("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -163,6 +162,13 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
   };
 
   const selectedKeys = useMemo(() => new Set(list.map((s) => standardKey(s.substance)).filter(Boolean)), [list]);
+
+  const visibleStandards = useMemo(() => {
+    const q = standardKey(listSearch);
+    const all = list.map((std, index) => ({ std, index }));
+    if (!q) return all;
+    return all.filter(({ std }) => standardKey(std.substance).includes(q));
+  }, [list, listSearch]);
 
   const addStandard = (name: string) => {
     const substance = String(name ?? "").trim();
@@ -328,63 +334,114 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
             </Tabs>
           </div>
 
-          <div>
-            <Label className="text-sm mb-1.5 block">เกณฑ์ต่อสาร ({list.length})</Label>
-            <div className="max-h-[34rem] space-y-2 overflow-y-auto pr-1">
+          <div className="min-w-0">
+            <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <Label className="text-sm">
+                เกณฑ์ต่อสาร ({list.length})
+                {field.unit ? (
+                  <span className="font-normal text-muted-foreground"> · หน่วย: {field.unit}</span>
+                ) : null}
+              </Label>
+              {listSearch.trim() !== "" && (
+                <span className="text-xs text-muted-foreground">
+                  แสดง {visibleStandards.length}/{list.length}
+                </span>
+              )}
+            </div>
+            <div className="relative mb-2">
+              <Label htmlFor="substance-list-search" className="sr-only">ค้นหาสารที่เลือก</Label>
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="substance-list-search"
+                type="search"
+                value={listSearch}
+                onChange={(e) => setListSearch(e.target.value)}
+                placeholder="ค้นหาสารที่เลือก..."
+                autoComplete="off"
+                className="h-9 pl-8"
+              />
+            </div>
+            <div className="max-h-[31rem] space-y-1 overflow-y-auto pr-1">
               {list.length === 0 ? (
                 <p className="text-xs text-muted-foreground">ยังไม่ได้เลือกสาร</p>
+              ) : visibleStandards.length === 0 ? (
+                <p className="text-xs text-muted-foreground">ไม่พบสารที่ค้นหา</p>
               ) : (
-                list.map((std, i) => (
-                  <div key={`${standardKey(std.substance)}-${i}`} className="rounded border p-2 space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium truncate">{std.substance}</span>
-                      <div className="flex items-center gap-1">
-                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => cloneAt(i)} title="คัดลอกกฎนี้">
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeAt(i)}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Select
-                        value={std.operator}
-                        onValueChange={(v) => patchAt(i, { operator: v as StandardOperator })}
-                      >
-                        <SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {OPERATOR_OPTIONS.filter((o) => o.value !== "none").map((o) => (
-                            <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                visibleStandards.map(({ std, index: i }) => (
+                  <div
+                    key={`${standardKey(std.substance)}-${i}`}
+                    className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded border px-2 py-1.5"
+                  >
+                    <span
+                      className="min-w-0 flex-1 basis-40 truncate text-sm font-medium"
+                      title={std.substance}
+                    >
+                      {std.substance}
+                    </span>
+                    <NativeSelect
+                      aria-label={`เงื่อนไข ${std.substance}`}
+                      value={std.operator}
+                      onChange={(e) => patchAt(i, { operator: e.target.value as StandardOperator })}
+                      className="h-8 w-44 px-2 py-1"
+                    >
+                      {OPERATOR_OPTIONS.filter((o) => o.value !== "none").map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </NativeSelect>
+                    <Input
+                      type="number"
+                      aria-label={`ค่า ${std.substance}`}
+                      value={std.value ?? ""}
+                      onChange={(e) => patchAt(i, { value: e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })}
+                      placeholder={std.operator === "tolerance" ? "ค่ามาตรฐาน" : std.operator === "between" ? "ตั้งแต่" : "ค่า"}
+                      className="h-8 w-24"
+                    />
+                    {(std.operator === "between" || std.operator === "tolerance") && (
                       <Input
                         type="number"
-                        value={std.value ?? ""}
-                        onChange={(e) => patchAt(i, { value: e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })}
-                        placeholder={std.operator === "tolerance" ? "ค่ามาตรฐาน" : std.operator === "between" ? "ตั้งแต่" : "ค่า"}
+                        aria-label={`ค่าที่สอง ${std.substance}`}
+                        value={std.value2 ?? ""}
+                        onChange={(e) => patchAt(i, { value2: e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })}
+                        placeholder={std.operator === "tolerance" ? "+/- %" : "ถึง"}
                         className="h-8 w-24"
                       />
-                      {(std.operator === "between" || std.operator === "tolerance") && (
-                        <Input
-                          type="number"
-                          value={std.value2 ?? ""}
-                          onChange={(e) => patchAt(i, { value2: e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })}
-                          placeholder={std.operator === "tolerance" ? "+/- %" : "ถึง"}
-                          className="h-8 w-24"
-                        />
-                      )}
-                      <span className="text-xs text-emerald-700">{describeSubstanceStandard(std, unit.trim())}</span>
-                    </div>
-                    <label className="flex items-center gap-2 text-xs text-amber-700">
+                    )}
+                    <label
+                      className="flex items-center gap-1 text-xs text-amber-700"
+                      title="ให้หัวหน้า QC พิจารณาเท่านั้น"
+                    >
                       <input
                         type="checkbox"
+                        aria-label={`หน.QC ${std.substance}`}
                         checked={std.headOnly === true}
                         onChange={(e) => patchAt(i, { headOnly: e.target.checked })}
                       />
-                      ให้หัวหน้า QC พิจารณาเท่านั้น
+                      หน.QC
                     </label>
+                    <div className="ml-auto flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => cloneAt(i)}
+                        title="คัดลอกกฎนี้"
+                        aria-label={`คัดลอก ${std.substance}`}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => removeAt(i)}
+                        title="ลบ"
+                        aria-label={`ลบ ${std.substance}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </div>
                   </div>
                 ))
               )}

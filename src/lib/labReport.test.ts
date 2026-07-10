@@ -126,6 +126,27 @@ describe("buildLabReportPages", () => {
     });
   });
 
+  it("prints only the head reviewer range and keeps the percent unit for label tolerance criteria", () => {
+    const labelToleranceGroups: ApprovalItemGroup[] = [
+      {
+        ...groups[0],
+        params: [
+          {
+            ...groups[0].params[0],
+            rows: [
+              {
+                ...groups[0].params[0].rows[0],
+                standardText: "ผ่าน 48.13–51.88 · หัวหน้าตรวจสอบ 47.50–52.50 %",
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    const out = buildLabReportPages(petition, labRequests, labelToleranceGroups);
+    expect(out[0].rows[0].criteria).toBe("47.50–52.50 %");
+  });
+
   it("item ที่ไม่มี group → rows ว่าง + fallback ลูกค้า", () => {
     const p = pages[1];
     expect(p.rows).toHaveLength(0);

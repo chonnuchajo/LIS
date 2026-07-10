@@ -74,43 +74,78 @@ describe("describeOutputRule", () => {
   });
 });
 
-import { describeLabelTolerance, formatLabelToleranceRange } from "./standardOperators";
+import { describeLabelTolerance, formatLabelToleranceRange, labelToleranceBadge } from "./standardOperators";
 
 describe("describeLabelTolerance", () => {
-  it("summarizes auto + head percent", () => {
+  it("summarizes head percent by default", () => {
     expect(describeLabelTolerance({ substance: "A", autoPct: 2.5, headPct: 5 }, "%"))
+      .toContain("หัวหน้าตรวจสอบ ±5%");
+    expect(describeLabelTolerance({ substance: "A", autoPct: 2.5, headPct: 5 }, "%"))
+      .not.toContain("±2.5%");
+  });
+  it("can include auto pass percent for approval display", () => {
+    expect(describeLabelTolerance({ substance: "A", autoPct: 2.5, headPct: 5 }, "%", { showAutoPass: true }))
       .toContain("±2.5%");
-    expect(describeLabelTolerance({ substance: "A", autoPct: 2.5, headPct: 5 }, "%"))
-      .toContain("หัวหน้า ±5%");
+    expect(describeLabelTolerance({ substance: "A", autoPct: 2.5, headPct: 5 }, "%", { showAutoPass: true }))
+      .toContain("หัวหน้าตรวจสอบ ±5%");
   });
   it("omits head when null", () => {
     expect(describeLabelTolerance({ substance: "A", autoPct: 2.5, headPct: null }, ""))
-      .not.toContain("หัวหน้า");
+      .toBe("");
   });
-  it("summarizes abs mode without a percent sign", () => {
+  it("summarizes abs mode as head reviewer criteria by default", () => {
     const out = describeLabelTolerance(
       { substance: "A", mode: "abs", autoPct: null, headPct: null, autoAbs: 0.05, headAbs: 0.1 }, "g/L");
-    expect(out).toBe("ฉลาก ±0.05 (หัวหน้า ±0.1) g/L");
+    expect(out).toBe("หัวหน้าตรวจสอบ ±0.1 g/L");
+  });
+  it("can include abs auto pass criteria for approval display", () => {
+    const out = describeLabelTolerance(
+      { substance: "A", mode: "abs", autoPct: null, headPct: null, autoAbs: 0.05, headAbs: 0.1 },
+      "g/L",
+      { showAutoPass: true },
+    );
+    expect(out).toBe("ฉลาก ±0.05 (หัวหน้าตรวจสอบ ±0.1) g/L");
   });
   it("abs mode omits head and unit when absent", () => {
     expect(describeLabelTolerance(
       { substance: "A", mode: "abs", autoPct: null, headPct: null, autoAbs: 0.05, headAbs: null }, ""))
-      .toBe("ฉลาก ±0.05");
+      .toBe("");
+    expect(describeLabelTolerance(
+      { substance: "A", mode: "abs", autoPct: null, headPct: null, autoAbs: 0.05, headAbs: null },
+      "",
+      { showAutoPass: true },
+    )).toBe("ฉลาก ±0.05");
   });
   it("abs mode returns empty when autoAbs missing", () => {
     expect(describeLabelTolerance(
       { substance: "A", mode: "abs", autoPct: null, headPct: null, autoAbs: null, headAbs: null }, "%"))
       .toBe("");
   });
-  it("describes split modes separately", () => {
+  it("describes split modes as head reviewer criteria by default", () => {
     expect(describeLabelTolerance(
       { substance: "A", autoMode: "percent", headMode: "abs", autoPct: 50, headPct: null, headAbs: 0.1 }, "g/L"))
-      .toBe("ผ่าน 50% ของหัวหน้าตรวจสอบ | หัวหน้า ±0.1 g/L");
+      .toBe("หัวหน้าตรวจสอบ ±0.1 g/L");
   });
-  it("describes split range modes separately", () => {
+  it("can include split auto pass criteria for approval display", () => {
+    expect(describeLabelTolerance(
+      { substance: "A", autoMode: "percent", headMode: "abs", autoPct: 50, headPct: null, headAbs: 0.1 },
+      "g/L",
+      { showAutoPass: true },
+    )).toBe("ผ่าน 50% ของหัวหน้าตรวจสอบ | หัวหน้าตรวจสอบ ±0.1 g/L");
+  });
+  it("describes split range modes as head reviewer criteria by default", () => {
     const out = describeLabelTolerance(
       { substance: "A", autoMode: "range", headMode: "range", autoPct: null, headPct: null, passLow: 1.75, passHigh: 1.85, failLow: 1.7, failHigh: 1.9 },
       "%",
+    );
+    expect(out).not.toContain("1.75-1.85");
+    expect(out).toContain("1.7-1.9");
+  });
+  it("can include split range auto pass criteria for approval display", () => {
+    const out = describeLabelTolerance(
+      { substance: "A", autoMode: "range", headMode: "range", autoPct: null, headPct: null, passLow: 1.75, passHigh: 1.85, failLow: 1.7, failHigh: 1.9 },
+      "%",
+      { showAutoPass: true },
     );
     expect(out).toContain("1.75-1.85");
     expect(out).toContain("1.7-1.9");
@@ -119,13 +154,27 @@ describe("describeLabelTolerance", () => {
     expect(describeLabelTolerance(
       { substance: "A", autoMode: "none", headMode: "abs", autoPct: null, headPct: null, headAbs: 0.1 },
       "g/L",
-    )).toBe("หัวหน้า ±0.1 g/L");
+    )).toBe("หัวหน้าตรวจสอบ ±0.1 g/L");
   });
   it("describes split mode with no head reviewer band", () => {
     expect(describeLabelTolerance(
       { substance: "A", autoMode: "abs", headMode: "none", autoPct: null, headPct: null, autoAbs: 0.05 },
       "g/L",
+    )).toBe("");
+    expect(describeLabelTolerance(
+      { substance: "A", autoMode: "abs", headMode: "none", autoPct: null, headPct: null, autoAbs: 0.05 },
+      "g/L",
+      { showAutoPass: true },
     )).toBe("ผ่าน ±0.05 g/L");
+  });
+  it("defaults split mode summaries to head reviewer criteria without pass text", () => {
+    const out = describeLabelTolerance(
+      { substance: "A", autoMode: "percent", headMode: "abs", autoPct: 50, headPct: null, headAbs: 0.1 },
+      "g/L",
+    );
+
+    expect(out).toBe("หัวหน้าตรวจสอบ ±0.1 g/L");
+    expect(out).not.toContain("ผ่าน");
   });
   it("describes split range mode with no automatic pass band", () => {
     expect(describeLabelTolerance(
@@ -141,7 +190,7 @@ describe("describeLabelTolerance", () => {
         failHigh: 1.9,
       },
       "g/L",
-    )).toBe("หัวหน้า 1.7-1.9 g/L");
+    )).toBe("หัวหน้าตรวจสอบ 1.7-1.9 g/L");
   });
   it("describes split range mode with no head reviewer band", () => {
     expect(describeLabelTolerance(
@@ -157,14 +206,45 @@ describe("describeLabelTolerance", () => {
         failHigh: null,
       },
       "g/L",
+    )).toBe("");
+    expect(describeLabelTolerance(
+      {
+        substance: "A",
+        autoMode: "range",
+        headMode: "none",
+        autoPct: null,
+        headPct: null,
+        passLow: 1.75,
+        passHigh: 1.85,
+        failLow: null,
+        failHigh: null,
+      },
+      "g/L",
+      { showAutoPass: true },
     )).toBe("ผ่าน 1.75-1.85 g/L");
   });
 });
 
 describe("formatLabelToleranceRange", () => {
+  it("defaults to the head reviewer range without pass text", () => {
+    const out = formatLabelToleranceRange(
+      { status: "pass", center: 1, autoRange: [0.975, 1.025], headRange: [0.95, 1.05] },
+      "%",
+    );
+
+    expect(out).toBe("หัวหน้าตรวจสอบ 0.9500–1.0500 %");
+    expect(out).not.toContain("ผ่าน");
+    expect(out).not.toContain("0.975");
+  });
+  it("does not render a pass badge by default", () => {
+    expect(labelToleranceBadge("pass", 1)).toBeNull();
+  });
   it("formats pass and head ranges", () => {
     const out = formatLabelToleranceRange(
-      { status: "pass", center: 1, autoRange: [0.975, 1.025], headRange: [0.95, 1.05] }, "%");
+      { status: "pass", center: 1, autoRange: [0.975, 1.025], headRange: [0.95, 1.05] },
+      "%",
+      { showAutoPass: true },
+    );
     expect(out).toContain("0.975");
     expect(out).toContain("1.05");
   });
@@ -172,6 +252,7 @@ describe("formatLabelToleranceRange", () => {
     const out = formatLabelToleranceRange(
       { status: "pass", center: 0.125, autoRange: [0.1109375, 0.1390625], headRange: [0.10625, 0.14375] },
       "%",
+      { showAutoPass: true },
     );
     expect(out).toContain("0.11094");
     expect(out).toContain("0.13906");
@@ -182,6 +263,7 @@ describe("formatLabelToleranceRange", () => {
     const out = formatLabelToleranceRange(
       { status: "pass", center: 1, autoRange: [0.8875, 1.1125], headRange: [0.85, 1.15] },
       "%",
+      { showAutoPass: true },
     );
     expect(out).toContain("0.8875");
     expect(out).toContain("1.1125");
@@ -192,6 +274,7 @@ describe("formatLabelToleranceRange", () => {
     const out = formatLabelToleranceRange(
       { status: "pass", center: 5, autoRange: [4.4375, 5.5625], headRange: [4.25, 5.75] },
       "%",
+      { showAutoPass: true },
     );
     expect(out).toContain("4.44");
     expect(out).toContain("5.56");
@@ -202,6 +285,7 @@ describe("formatLabelToleranceRange", () => {
     const out = formatLabelToleranceRange(
       { status: "pass", center: 0.005, autoRange: [0.0044375, 0.0055625], headRange: [0.00425, 0.00575] },
       "%",
+      { showAutoPass: true },
     );
     expect(out).toContain("0.00444");
     expect(out).toContain("0.00556");

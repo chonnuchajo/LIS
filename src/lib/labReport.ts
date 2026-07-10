@@ -55,6 +55,28 @@ function labRequestForItem(item: PetitionItem, labRequests: LabRequest[]): LabRe
   );
 }
 
+function labReportCriteriaText(standardText: string): string {
+  const raw = standardText.trim();
+  if (!raw) return "";
+
+  const numericParts = raw
+    .split(/\s*(?:·|\|)\s*/u)
+    .map((part) =>
+      part
+        .replace(/[^\d.,+\-–—<>≤≥=±%\s]/gu, " ")
+        .replace(/\s*([\-–—])\s*/g, "$1")
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
+    .filter((part) => /\d/.test(part));
+
+  if (!numericParts.length) return raw;
+  if (/หัวหน้าตรวจสอบ|หัวหน้า/u.test(raw)) {
+    return numericParts[numericParts.length - 1];
+  }
+  return numericParts.join(" · ");
+}
+
 function rowsForItem(group: ApprovalItemGroup | undefined): LabReportRow[] {
   if (!group) return [];
   const out: LabReportRow[] = [];
@@ -66,7 +88,7 @@ function rowsForItem(group: ApprovalItemGroup | undefined): LabReportRow[] {
         out.push({
           testItem: `${r.label}${unit}`,
           result: r.value || DASH,
-          criteria: r.standardText || DASH,
+          criteria: r.standardText ? labReportCriteriaText(r.standardText) : DASH,
           method: DASH,
         });
       });

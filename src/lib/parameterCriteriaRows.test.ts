@@ -29,6 +29,15 @@ const parameters: ParameterItem[] = [
     _id: "p-qc",
     name: "QC Parameter",
     scope: "qc",
+    status: "active",
+    note: "hidden owner note for criteria search",
+    applyAll: false,
+    itemNames: ["Trade Alpha"],
+    commonNames: ["Hidden Common Name"],
+    productTypes: ["water"],
+    categories: ["FG"],
+    subCategories: ["F"],
+    itemGroups: ["group-hidden"],
     valueFields: [
       {
         label: "Active",
@@ -255,6 +264,7 @@ describe("parameter criteria row builders", () => {
       selectorText: `0.3% / ${productTypeLabels.sand}`,
       drugPercent: "0.3",
       tolerancePercent: "-",
+      headTolerance: "-",
       failLow: "0.225",
       passLow: "0.2438",
       passHigh: "0.3563",
@@ -265,12 +275,97 @@ describe("parameter criteria row builders", () => {
     expect(rows[1]).toMatchObject({
       selectorText: "ABAMECTIN / 1%",
       drugPercent: "1",
-      tolerancePercent: "25",
+      tolerancePercent: "25%",
+      headTolerance: "15%",
       failLow: "-",
       passLow: "-",
       passHigh: "-",
       failHigh: "-",
       previewText: `${rows[1].selectorText} | ${secondSummary}`,
+    });
+  });
+
+  it("includes parameter and field metadata in substance row searchText", () => {
+    const rows = buildSubstanceCriteriaRows(parameters, "qc");
+    const searchText = rows[0].searchText.toLowerCase();
+
+    expect(searchText).toContain("qc parameter");
+    expect(searchText).toContain("active");
+    expect(searchText).toContain("hidden owner note for criteria search");
+    expect(searchText).toContain("trade alpha");
+    expect(searchText).toContain("hidden common name");
+    expect(searchText).toContain("water");
+    expect(searchText).toContain(productTypeLabels.water.toLowerCase());
+    expect(searchText).toContain("fg");
+    expect(searchText).toContain("f");
+    expect(searchText).toContain("group-hidden");
+    expect(searchText).toContain("number");
+    expect(searchText).toContain("%");
+  });
+
+  it("includes row-specific substance rule metadata in searchText", () => {
+    const rows = buildSubstanceCriteriaRows(parameters, "qc");
+    const first = rows[0].searchText.toLowerCase();
+    const second = rows[1].searchText.toLowerCase();
+
+    expect(first).toContain("abamectin");
+    expect(first).toContain("gte");
+    expect(first).toContain("95");
+    expect(first).toContain("gmp");
+    expect(first).toContain("bio");
+    expect(first).toContain("rm");
+    expect(first).toContain("headonly");
+    expect(second).toContain("imidacloprid");
+    expect(second).toContain("between");
+    expect(second).toContain("110");
+  });
+
+  it("includes conditional and label tolerance rule metadata in searchText", () => {
+    const conditionalRows = buildConditionalCriteriaRows(parameters, "qc");
+    const labelRows = buildLabelToleranceCriteriaRows(parameters, "qc");
+
+    expect(conditionalRows[0].searchText.toLowerCase()).toContain("moisture");
+    expect(conditionalRows[0].searchText.toLowerCase()).toContain("between rule");
+    expect(conditionalRows[2].searchText.toLowerCase()).toContain("review required");
+    expect(conditionalRows[2].searchText.toLowerCase()).toContain("abnormal");
+    expect(labelRows[0].searchText.toLowerCase()).toContain("0.2438");
+    expect(labelRows[0].searchText.toLowerCase()).toContain(productTypeLabels.sand.toLowerCase());
+    expect(labelRows[1].searchText.toLowerCase()).toContain("abamectin");
+    expect(labelRows[1].searchText.toLowerCase()).toContain("25%");
+  });
+
+  it("formats absolute label tolerance values with plus-minus text", () => {
+    const rows = buildLabelToleranceCriteriaRows(
+      [
+        {
+          _id: "p-abs",
+          name: "Absolute Parameter",
+          scope: "qc",
+          valueFields: [
+            {
+              label: "Absolute",
+              type: "number",
+              labelToleranceMode: true,
+              labelToleranceStandards: [
+                {
+                  substance: "ABS",
+                  labelPercent: 1,
+                  autoMode: "abs",
+                  headMode: "abs",
+                  autoAbs: 0.05,
+                  headAbs: 0.1,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      "qc",
+    );
+
+    expect(rows[0]).toMatchObject({
+      tolerancePercent: "± 0.05",
+      headTolerance: "± 0.1",
     });
   });
 });

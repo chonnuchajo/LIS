@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, Search } from "lucide-react";
 
 import type { ParameterItem, ParameterScope } from "@/lib/api";
 import {
@@ -8,8 +8,8 @@ import {
   buildLabelToleranceCriteriaRows,
   buildSubstanceCriteriaRows,
 } from "@/lib/parameterCriteriaRows";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -25,7 +25,17 @@ export type ParameterCriteriaTab = "list" | AdvancedCriteriaMode;
 
 const ALL_PARAMETERS_VALUE = "__all__";
 
-type CriteriaSortKey = "parameterOrder" | "parameterName" | "fieldName" | "drugPercentAsc" | "drugPercentDesc";
+type CriteriaSortKey =
+  | "parameterOrder"
+  | "parameterName"
+  | "substanceAsc"
+  | "substanceDesc"
+  | "minValueAsc"
+  | "minValueDesc"
+  | "maxValueAsc"
+  | "maxValueDesc"
+  | "drugPercentAsc"
+  | "drugPercentDesc";
 
 type ParameterOption = ParameterItem & { _id: string };
 
@@ -35,10 +45,56 @@ type SortableCriteriaRow = {
   fieldIndex: number;
   fieldLabel: string;
   ruleIndex: number | null;
+  searchText: string;
+  substance?: string;
+  value?: number | null;
+  value2?: number | null;
   drugPercent?: string;
 };
 
 const criteriaCollator = new Intl.Collator(["th", "en"], { numeric: true, sensitivity: "base" });
+const SEARCHABLE_ROW_KEYS = [
+  "parameterName",
+  "fieldLabel",
+  "substance",
+  "operator",
+  "value",
+  "value2",
+  "productTypeText",
+  "categoryText",
+  "ruleLabel",
+  "conditionsText",
+  "resultText",
+  "selectorText",
+  "drugPercent",
+  "tolerancePercent",
+  "headTolerance",
+  "failLow",
+  "passLow",
+  "passHigh",
+  "failHigh",
+  "previewText",
+] as const;
+
+const SUBSTANCE_SORT_OPTIONS: Array<{ value: CriteriaSortKey; label: string }> = [
+  { value: "substanceAsc", label: "ชื่อสาร A-Z" },
+  { value: "substanceDesc", label: "ชื่อสาร Z-A" },
+  { value: "minValueAsc", label: "ค่าต่ำสุด น้อยไปมาก" },
+  { value: "minValueDesc", label: "ค่าต่ำสุด มากไปน้อย" },
+  { value: "maxValueAsc", label: "ค่าสูงสุด น้อยไปมาก" },
+  { value: "maxValueDesc", label: "ค่าสูงสุด มากไปน้อย" },
+];
+
+const DEFAULT_SORT_OPTIONS: Array<{ value: CriteriaSortKey; label: string }> = [
+  { value: "parameterOrder", label: "ตามลำดับ Parameter" },
+  { value: "parameterName", label: "ชื่อ Parameter" },
+];
+
+const LABEL_TOLERANCE_SORT_OPTIONS: Array<{ value: CriteriaSortKey; label: string }> = [
+  ...DEFAULT_SORT_OPTIONS,
+  { value: "drugPercentAsc", label: "%สาร น้อยไปมาก" },
+  { value: "drugPercentDesc", label: "%สาร มากไปน้อย" },
+];
 
 export type ParameterCriteriaTabsProps = {
   value: ParameterCriteriaTab;
@@ -46,7 +102,8 @@ export type ParameterCriteriaTabsProps = {
   parameters: ParameterItem[];
   scope: ParameterScope;
   children: ReactNode;
-  onEditField: (mode: AdvancedCriteriaMode, parameterId: string, fieldIndex: number) => void;
+  canViewHeadCriteriaColumns?: boolean;
+  onEditField: (mode: AdvancedCriteriaMode, parameterId: string, fieldIndex: number, ruleIndex?: number | null) => void;
 };
 
 export function ParameterCriteriaTabs({
@@ -55,10 +112,25 @@ export function ParameterCriteriaTabs({
   parameters,
   scope,
   children,
+  canViewHeadCriteriaColumns = false,
   onEditField,
 }: ParameterCriteriaTabsProps) {
   const [parameterFilter, setParameterFilter] = useState(ALL_PARAMETERS_VALUE);
-  const [sortKey, setSortKey] = useState<CriteriaSortKey>("parameterOrder");
+  const [sortKeyByTab, setSortKeyByTab] = useState<Record<Exclude<ParameterCriteriaTab, "list">, CriteriaSortKey>>({
+    substance: "substanceAsc",
+    conditional: "parameterOrder",
+    labelTolerance: "parameterOrder",
+  });
+  const [criteriaSearch, setCriteriaSearch] = useState("");
+  const showHeadCriteriaColumns = canViewHeadCriteriaColumns === true;
+  const activeCriteriaTab = value === "list" ? "substance" : value;
+  const sortOptions =
+    activeCriteriaTab === "substance"
+      ? SUBSTANCE_SORT_OPTIONS
+      : activeCriteriaTab === "labelTolerance"
+        ? LABEL_TOLERANCE_SORT_OPTIONS
+        : DEFAULT_SORT_OPTIONS;
+  const sortKey = sortKeyByTab[activeCriteriaTab];
 
   const scopedParameters = useMemo(
     () =>
@@ -77,17 +149,18 @@ export function ParameterCriteriaTabs({
   const substanceRows = useMemo(() => buildSubstanceCriteriaRows(parameters, scope), [parameters, scope]);
   const conditionalRows = useMemo(() => buildConditionalCriteriaRows(parameters, scope), [parameters, scope]);
   const labelRows = useMemo(() => buildLabelToleranceCriteriaRows(parameters, scope), [parameters, scope]);
+  const normalizedCriteriaSearch = criteriaSearch.trim().toLowerCase();
   const visibleSubstanceRows = useMemo(
-    () => filterAndSortRows(substanceRows, activeParameterFilter, sortKey, parameterOrder),
-    [activeParameterFilter, parameterOrder, sortKey, substanceRows],
+    () => filterAndSortRows(substanceRows, activeParameterFilter, normalizedCriteriaSearch, sortKey, parameterOrder),
+    [activeParameterFilter, normalizedCriteriaSearch, parameterOrder, sortKey, substanceRows],
   );
   const visibleConditionalRows = useMemo(
-    () => filterAndSortRows(conditionalRows, activeParameterFilter, sortKey, parameterOrder),
-    [activeParameterFilter, conditionalRows, parameterOrder, sortKey],
+    () => filterAndSortRows(conditionalRows, activeParameterFilter, normalizedCriteriaSearch, sortKey, parameterOrder),
+    [activeParameterFilter, conditionalRows, normalizedCriteriaSearch, parameterOrder, sortKey],
   );
   const visibleLabelRows = useMemo(
-    () => filterAndSortRows(labelRows, activeParameterFilter, sortKey, parameterOrder),
-    [activeParameterFilter, labelRows, parameterOrder, sortKey],
+    () => filterAndSortRows(labelRows, activeParameterFilter, normalizedCriteriaSearch, sortKey, parameterOrder),
+    [activeParameterFilter, labelRows, normalizedCriteriaSearch, parameterOrder, sortKey],
   );
 
   return (
@@ -101,6 +174,19 @@ export function ParameterCriteriaTabs({
 
       {value !== "list" ? (
         <div className="mb-4 flex flex-col gap-3 rounded-md border bg-muted/20 p-3 sm:flex-row sm:items-end">
+          <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-muted-foreground sm:min-w-[260px] sm:flex-1">
+            ค้นหาเกณฑ์
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                aria-label="ค้นหาเกณฑ์"
+                value={criteriaSearch}
+                onChange={(event) => setCriteriaSearch(event.target.value)}
+                placeholder="ค้นหาสาร / Parameter / ค่าเกณฑ์..."
+                className="h-9 bg-background pl-8"
+              />
+            </div>
+          </label>
           <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-muted-foreground sm:min-w-[220px]">
             Parameter
             <NativeSelect
@@ -123,13 +209,18 @@ export function ParameterCriteriaTabs({
               aria-label="เรียงลำดับ"
               className="h-9 bg-background"
               value={sortKey}
-              onChange={(event) => setSortKey(event.target.value as CriteriaSortKey)}
+              onChange={(event) =>
+                setSortKeyByTab((current) => ({
+                  ...current,
+                  [activeCriteriaTab]: event.target.value as CriteriaSortKey,
+                }))
+              }
             >
-              <option value="parameterOrder">ตามลำดับ Parameter</option>
-              <option value="parameterName">ชื่อ Parameter</option>
-              <option value="fieldName">ชื่อ Field</option>
-              <option value="drugPercentAsc">%ยา น้อยไปมาก</option>
-              <option value="drugPercentDesc">%ยา มากไปน้อย</option>
+              {sortOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </NativeSelect>
           </label>
         </div>
@@ -141,37 +232,31 @@ export function ParameterCriteriaTabs({
 
       <TabsContent value="substance" className="mt-0">
         <TableShell empty={visibleSubstanceRows.length === 0}>
-          <Table className="min-w-[1050px]">
+          <Table className="min-w-[720px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Parameter</TableHead>
-                <TableHead>Field</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>หมวดหมู่</TableHead>
                 <TableHead>สาร</TableHead>
-                <TableHead>เงื่อนไข</TableHead>
                 <TableHead>ค่าต่ำสุด</TableHead>
                 <TableHead>ค่าต่ำสุด 2</TableHead>
-                <TableHead>เฉพาะหัวหน้าตรวจ</TableHead>
                 <TableHead className="text-right">แก้ไข</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {visibleSubstanceRows.map((row) => (
-                <TableRow key={row.rowId}>
+                <TableRow
+                  key={row.rowId}
+                  className="cursor-pointer"
+                  onClick={() => onEditField("substance", row.parameterId, row.fieldIndex, row.ruleIndex)}
+                >
                   <TableCell className="font-medium">{row.parameterName}</TableCell>
-                  <TableCell>{row.fieldLabel}</TableCell>
-                  <TableCell>{row.productTypeText}</TableCell>
-                  <TableCell>{row.categoryText}</TableCell>
                   <TableCell>{row.substance}</TableCell>
-                  <TableCell>{row.operator}</TableCell>
                   <TableCell>{row.value ?? "-"}</TableCell>
                   <TableCell>{row.value2 ?? "-"}</TableCell>
-                  <TableCell>{row.headOnly ? <Badge variant="secondary">เฉพาะหัวหน้า</Badge> : "-"}</TableCell>
                   <TableCell className="text-right">
                     <EditButton
                       label={`แก้ไขเกณฑ์สาร ${row.fieldLabel}`}
-                      onClick={() => onEditField("substance", row.parameterId, row.fieldIndex)}
+                      onClick={() => onEditField("substance", row.parameterId, row.fieldIndex, row.ruleIndex)}
                     />
                   </TableCell>
                 </TableRow>
@@ -183,11 +268,10 @@ export function ParameterCriteriaTabs({
 
       <TabsContent value="conditional" className="mt-0">
         <TableShell empty={visibleConditionalRows.length === 0}>
-          <Table className="min-w-[900px]">
+          <Table className="min-w-[820px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Parameter</TableHead>
-                <TableHead>Field</TableHead>
                 <TableHead>กฎที่</TableHead>
                 <TableHead>ชื่อกฎ</TableHead>
                 <TableHead>เงื่อนไข</TableHead>
@@ -199,7 +283,6 @@ export function ParameterCriteriaTabs({
               {visibleConditionalRows.map((row) => (
                 <TableRow key={row.rowId}>
                   <TableCell className="font-medium">{row.parameterName}</TableCell>
-                  <TableCell>{row.fieldLabel}</TableCell>
                   <TableCell>{row.ruleIndex == null ? "-" : row.ruleIndex + 1}</TableCell>
                   <TableCell>{row.ruleLabel}</TableCell>
                   <TableCell>{row.conditionsText}</TableCell>
@@ -219,15 +302,20 @@ export function ParameterCriteriaTabs({
 
       <TabsContent value="labelTolerance" className="mt-0">
         <TableShell empty={visibleLabelRows.length === 0}>
-          <Table className="min-w-[1000px]">
+          <Table className={showHeadCriteriaColumns ? "min-w-[1100px]" : "min-w-[780px]"}>
             <TableHeader>
               <TableRow>
                 <TableHead>Parameter</TableHead>
-                <TableHead>{"% ยา"}</TableHead>
-                <TableHead>เกณฑ์คลาดเคลื่อน%</TableHead>
+                <TableHead>%สาร</TableHead>
+                {showHeadCriteriaColumns ? <TableHead>เกณฑ์คลาดเคลื่อน (%,+-)</TableHead> : null}
+                <TableHead>เกณฑ์กลาง</TableHead>
                 <TableHead>ค่าต่ำสุด</TableHead>
-                <TableHead>25% ล่าง</TableHead>
-                <TableHead>25% บน</TableHead>
+                {showHeadCriteriaColumns ? (
+                  <>
+                    <TableHead>25% ล่าง</TableHead>
+                    <TableHead>25% บน</TableHead>
+                  </>
+                ) : null}
                 <TableHead>ค่าสูงสุด</TableHead>
               </TableRow>
             </TableHeader>
@@ -236,7 +324,7 @@ export function ParameterCriteriaTabs({
                 <TableRow key={row.rowId}>
                   <TableCell>
                     <div className="min-w-0 space-y-1">
-                      <div className="font-medium">{row.parameterName} / {row.fieldLabel}</div>
+                      <div className="font-medium">{row.parameterName}</div>
                       <div className="truncate text-xs text-muted-foreground">{row.selectorText}</div>
                     </div>
                   </TableCell>
@@ -244,15 +332,20 @@ export function ParameterCriteriaTabs({
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-medium tabular-nums">{row.drugPercent}</span>
                       <EditButton
-                        label={`แก้ไขเกณฑ์ %ยา ${row.fieldLabel}`}
+                        label={`แก้ไขเกณฑ์ %สาร ${row.fieldLabel}`}
                         onClick={() => onEditField("labelTolerance", row.parameterId, row.fieldIndex)}
                       />
                     </div>
                   </TableCell>
-                  <TableCell>{row.tolerancePercent}</TableCell>
+                  {showHeadCriteriaColumns ? <TableCell>{row.tolerancePercent}</TableCell> : null}
+                  <TableCell>{row.headTolerance}</TableCell>
                   <TableCell>{row.failLow}</TableCell>
-                  <TableCell>{row.passLow}</TableCell>
-                  <TableCell>{row.passHigh}</TableCell>
+                  {showHeadCriteriaColumns ? (
+                    <>
+                      <TableCell>{row.passLow}</TableCell>
+                      <TableCell>{row.passHigh}</TableCell>
+                    </>
+                  ) : null}
                   <TableCell>{row.failHigh}</TableCell>
                 </TableRow>
               ))}
@@ -267,13 +360,33 @@ export function ParameterCriteriaTabs({
 function filterAndSortRows<T extends SortableCriteriaRow>(
   rows: T[],
   parameterFilter: string,
+  searchQuery: string,
   sortKey: CriteriaSortKey,
   parameterOrder: Map<string, number>,
 ) {
   return rows
-    .filter((row) => parameterFilter === ALL_PARAMETERS_VALUE || row.parameterId === parameterFilter)
+    .filter(
+      (row) =>
+        (parameterFilter === ALL_PARAMETERS_VALUE || row.parameterId === parameterFilter) &&
+        matchesCriteriaSearch(row, searchQuery),
+    )
     .slice()
     .sort(compareCriteriaRows(sortKey, parameterOrder));
+}
+
+function matchesCriteriaSearch(row: SortableCriteriaRow, searchQuery: string) {
+  if (!searchQuery) return true;
+  const searchable = row as unknown as Record<string, unknown>;
+  const rowSearchText = String(searchable.searchText ?? "").toLowerCase();
+  if (rowSearchText.includes(searchQuery)) return true;
+  return SEARCHABLE_ROW_KEYS.some((key) => {
+    const value = searchable[key];
+    if (value == null) return false;
+    if (Array.isArray(value)) {
+      return value.some((item) => String(item).toLowerCase().includes(searchQuery));
+    }
+    return String(value).toLowerCase().includes(searchQuery);
+  });
 }
 
 function compareCriteriaRows<T extends SortableCriteriaRow>(
@@ -289,12 +402,14 @@ function compareCriteriaRows<T extends SortableCriteriaRow>(
         defaultCompare(a, b)
       );
     }
-    if (sortKey === "fieldName") {
-      return (
-        criteriaCollator.compare(a.fieldLabel, b.fieldLabel) ||
-        criteriaCollator.compare(a.parameterName, b.parameterName) ||
-        defaultCompare(a, b)
-      );
+    if (sortKey === "substanceAsc" || sortKey === "substanceDesc") {
+      return compareSubstance(a, b, sortKey === "substanceAsc" ? "asc" : "desc") || defaultCompare(a, b);
+    }
+    if (sortKey === "minValueAsc" || sortKey === "minValueDesc") {
+      return compareNullableNumber(a.value, b.value, sortKey === "minValueAsc" ? "asc" : "desc") || defaultCompare(a, b);
+    }
+    if (sortKey === "maxValueAsc" || sortKey === "maxValueDesc") {
+      return compareNullableNumber(a.value2, b.value2, sortKey === "maxValueAsc" ? "asc" : "desc") || defaultCompare(a, b);
     }
     if (sortKey === "drugPercentAsc" || sortKey === "drugPercentDesc") {
       return compareDrugPercent(a, b, sortKey === "drugPercentAsc" ? "asc" : "desc") || defaultCompare(a, b);
@@ -315,6 +430,29 @@ function compareByParameterOrder<T extends SortableCriteriaRow>(
     (a.ruleIndex ?? -1) - (b.ruleIndex ?? -1) ||
     criteriaCollator.compare(a.fieldLabel, b.fieldLabel)
   );
+}
+
+function compareSubstance<T extends SortableCriteriaRow>(a: T, b: T, direction: "asc" | "desc") {
+  const result = criteriaCollator.compare(a.substance ?? "", b.substance ?? "");
+  return direction === "asc" ? result : -result;
+}
+
+function compareNullableNumber(
+  aValue: number | null | undefined,
+  bValue: number | null | undefined,
+  direction: "asc" | "desc",
+) {
+  if (aValue == null && bValue == null) return 0;
+  if (aValue == null) return 1;
+  if (bValue == null) return -1;
+  const aNumber = Number(aValue);
+  const bNumber = Number(bValue);
+  const aValid = Number.isFinite(aNumber);
+  const bValid = Number.isFinite(bNumber);
+  if (!aValid && !bValid) return 0;
+  if (!aValid) return 1;
+  if (!bValid) return -1;
+  return direction === "asc" ? aNumber - bNumber : bNumber - aNumber;
 }
 
 function compareDrugPercent<T extends SortableCriteriaRow>(a: T, b: T, direction: "asc" | "desc") {
@@ -344,7 +482,17 @@ function TableShell({ empty, children }: { empty: boolean; children: ReactNode }
 
 function EditButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <Button type="button" variant="ghost" size="icon" aria-label={label} title={label} onClick={onClick}>
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label={label}
+      title={label}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+    >
       <Pencil className="h-4 w-4" />
     </Button>
   );

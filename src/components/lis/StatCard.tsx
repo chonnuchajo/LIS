@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { Card } from "@/components/ui/card";
 
 interface StatCardProps {
   icon: LucideIcon;
@@ -44,20 +45,17 @@ const StatCard = ({ icon: Icon, value, label, variant, sublabel, active, onClick
   const classes = variantClasses[variant];
   const interactive = typeof onClick === "function";
 
-  const Wrapper: keyof JSX.IntrinsicElements = interactive ? "button" : "div";
-
   return (
-    <Wrapper
-      type={interactive ? "button" : undefined}
-      onClick={onClick}
+    <Card
+      onOpen={onClick}
       aria-pressed={interactive ? Boolean(active) : undefined}
       className={cn(
-        "relative w-full overflow-hidden rounded-xl bg-card p-4 text-left",
+        "relative w-full overflow-hidden rounded-xl p-4 text-left",
         "shadow-[0_1px_2px_rgba(15,23,42,0.04),0_2px_8px_-2px_rgba(15,23,42,0.06)]",
         "border border-border/70 transition-all",
         "before:absolute before:left-0 before:top-0 before:h-full before:w-1",
         classes.bar,
-        interactive && "cursor-pointer hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        interactive && "hover:-translate-y-0.5 hover:shadow-md",
         active && "ring-2 ring-primary ring-offset-2",
       )}
     >
@@ -73,7 +71,7 @@ const StatCard = ({ icon: Icon, value, label, variant, sublabel, active, onClick
           ) : null}
         </div>
       </div>
-    </Wrapper>
+    </Card>
   );
 };
 

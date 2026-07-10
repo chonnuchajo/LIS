@@ -55,20 +55,21 @@ export default function GenericMenuGrid() {
           {accessible.map((item) => {
             const Icon = item.icon;
             return (
-              <button
+              <Card
                 key={item.path}
-                type="button"
-                onClick={() => navigate(item.path)}
-                className="flex items-center gap-3 rounded-lg border border-border bg-card p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onOpen={() => navigate(item.path)}
+                className="transition hover:-translate-y-0.5 hover:shadow-md"
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
-                  <Icon className="h-4 w-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">{item.label}</p>
-                  <p className="text-xs text-muted-foreground truncate">{item.path}</p>
-                </div>
-              </button>
+                <CardContent className="flex items-center gap-3 p-4 text-left">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold">{item.label}</p>
+                    <p className="text-xs text-muted-foreground truncate">{item.path}</p>
+                  </div>
+                </CardContent>
+              </Card>
             );
           })}
         </div>

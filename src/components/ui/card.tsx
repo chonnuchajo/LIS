@@ -2,9 +2,94 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)} {...props} />
-));
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  onOpen?: () => void;
+}
+
+const INTERACTIVE_SELECTOR = [
+  "a[href]",
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "[role='button']",
+  "[role='link']",
+  "[role='checkbox']",
+  "[role='radio']",
+  "[role='switch']",
+  "[role='menuitem']",
+  "[role='option']",
+  "[contenteditable='true']",
+  "[data-card-open-ignore]",
+].join(",");
+
+function isIgnoredOpenTarget(target: EventTarget | null, currentTarget: HTMLElement) {
+  if (!(target instanceof Element)) return false;
+  const match = target.closest(INTERACTIVE_SELECTOR);
+  return Boolean(match && currentTarget.contains(match) && match !== currentTarget);
+}
+
+function shouldOpenFromKey(key: string) {
+  return key === "Enter" || key === " ";
+}
+
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
+  (
+    {
+      className,
+      onOpen,
+      onClick,
+      onDoubleClick,
+      onKeyDown,
+      role,
+      tabIndex,
+      ...props
+    },
+    ref,
+  ) => {
+    const interactive = typeof onOpen === "function";
+    const clickSequenceDoubleClickRef = React.useRef(false);
+
+    return (
+      <div
+        ref={ref}
+        role={interactive ? "button" : role}
+        tabIndex={interactive ? 0 : tabIndex}
+        className={cn(
+          "rounded-lg border bg-card text-card-foreground shadow-sm",
+          interactive &&
+            "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          className,
+        )}
+        onClick={(event) => {
+          onClick?.(event);
+          if (!interactive || event.defaultPrevented || isIgnoredOpenTarget(event.target, event.currentTarget)) return;
+          if (event.detail > 1) {
+            clickSequenceDoubleClickRef.current = true;
+            return;
+          }
+          onOpen();
+        }}
+        onDoubleClick={(event) => {
+          const handledByClickSequence = clickSequenceDoubleClickRef.current;
+          clickSequenceDoubleClickRef.current = false;
+          onDoubleClick?.(event);
+          if (!interactive || event.defaultPrevented || isIgnoredOpenTarget(event.target, event.currentTarget)) return;
+          if (handledByClickSequence) return;
+          onOpen();
+        }}
+        onKeyDown={(event) => {
+          onKeyDown?.(event);
+          if (!interactive || event.defaultPrevented || !shouldOpenFromKey(event.key)) return;
+          if (isIgnoredOpenTarget(event.target, event.currentTarget)) return;
+          event.preventDefault();
+          onOpen();
+        }}
+        {...props}
+      />
+    );
+  },
+);
 Card.displayName = "Card";
 
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(

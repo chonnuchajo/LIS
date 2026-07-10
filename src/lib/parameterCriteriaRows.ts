@@ -20,6 +20,7 @@ export type CriteriaRowOwner = {
   fieldIndex: number;
   fieldLabel: string;
   field: ParameterValueField;
+  searchText: string;
 };
 
 export type SubstanceCriteriaRow = CriteriaRowOwner & {
@@ -56,6 +57,7 @@ export type LabelToleranceCriteriaRow = CriteriaRowOwner & {
   selectorText: string;
   drugPercent: string;
   tolerancePercent: string;
+  headTolerance: string;
   failLow: string;
   passLow: string;
   passHigh: string;
@@ -76,18 +78,58 @@ const owner = (
   fieldIndex: number,
 ): CriteriaRowOwner | null => {
   if (!parameter._id) return null;
+  const scope = (parameter.scope ?? "qc") as ParameterScope;
   return {
     parameterId: parameter._id,
     parameterName: parameter.name,
-    parameterScope: (parameter.scope ?? "qc") as ParameterScope,
+    parameterScope: scope,
     fieldIndex,
     fieldLabel: field.label,
     field,
+    searchText: buildSearchText(
+      parameter.name,
+      scope,
+      parameter.status,
+      parameter.note,
+      parameter.applyAll ? ["applyAll", "all"] : "",
+      parameter.itemNames,
+      parameter.commonNames,
+      productTypeSearchTokens(parameter.productTypes),
+      parameter.categories,
+      parameter.subCategories,
+      parameter.itemGroups,
+      field.label,
+      field.type,
+      field.unit,
+      field.options,
+      field.requireNoteOn,
+      field.expectedValues,
+      field.allowedFileTypes,
+      field.optionOutputs,
+      field.optionFilters,
+    ),
   };
 };
 
 const displayValue = (value: number | null | undefined) =>
   value == null || !Number.isFinite(Number(value)) ? "-" : String(value);
+
+const flattenSearchTokens = (value: unknown): string[] => {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value.flatMap(flattenSearchTokens);
+  if (typeof value === "object") return Object.values(value).flatMap(flattenSearchTokens);
+  const text = String(value).trim();
+  return text ? [text] : [];
+};
+
+const productTypeSearchTokens = (values: string[] | undefined) =>
+  (values ?? []).flatMap((value) => [value, productTypeLabels[value] ?? ""]);
+
+const buildSearchText = (...tokens: unknown[]) =>
+  flattenSearchTokens(tokens).join(" ");
+
+const appendSearchText = (base: CriteriaRowOwner, ...tokens: unknown[]) =>
+  buildSearchText(base.searchText, tokens);
 
 const CONDITION_OP_LABEL: Record<StandardConditionOp, string> = {
   eq: "=",
@@ -135,10 +177,30 @@ const selectorText = (rule: LabelToleranceRule) => {
   return parts.length ? parts.join(" / ") : "ทั้งหมด";
 };
 
+const displayPercent = (value: number | null | undefined) => {
+  const text = displayValue(value);
+  return text === "-" ? text : `${text}%`;
+};
+
+const displayAbsTolerance = (value: number | null | undefined) => {
+  const text = displayValue(value);
+  return text === "-" ? text : `± ${text}`;
+};
+
 const tolerancePercent = (rule: LabelToleranceRule) => {
   if ((rule.mode ?? "percent") === "range") return "-";
-  if (rule.autoMode && rule.autoMode !== "percent") return "-";
-  return displayValue(rule.autoPct);
+  const mode = rule.autoMode ?? ((rule.mode ?? "percent") === "abs" ? "abs" : "percent");
+  if (mode === "percent") return displayPercent(rule.autoPct);
+  if (mode === "abs") return displayAbsTolerance(rule.autoAbs);
+  return "-";
+};
+
+const headTolerance = (rule: LabelToleranceRule) => {
+  if ((rule.mode ?? "percent") === "range") return "-";
+  const mode = rule.headMode ?? ((rule.mode ?? "percent") === "abs" ? "abs" : "percent");
+  if (mode === "percent") return displayPercent(rule.headPct);
+  if (mode === "abs") return displayAbsTolerance(rule.headAbs);
+  return "-";
 };
 
 const productTypeText = (values: string[] | undefined) => {
@@ -187,10 +249,13 @@ export function buildSubstanceCriteriaRows(
           categoryText: "-",
           headOnly: false,
           isSetupRow: true,
+          searchText: appendSearchText(base, "substance", "setup"),
         });
         continue;
       }
       standards.forEach((standard: SubstanceStandard & { headOnly?: boolean }, ruleIndex) => {
+        const productText = regulatoryTypeText(standard.regulatoryTypes) || productTypeText(standard.productTypes);
+        const catText = categoryText(standard.categories);
         rows.push({
           ...base,
           mode: "substance",
@@ -203,9 +268,23 @@ export function buildSubstanceCriteriaRows(
           productTypes: standard.productTypes ?? [],
           regulatoryTypes: standard.regulatoryTypes ?? [],
           categories: standard.categories ?? [],
-          productTypeText: regulatoryTypeText(standard.regulatoryTypes) || productTypeText(standard.productTypes),
-          categoryText: categoryText(standard.categories),
+          productTypeText: productText,
+          categoryText: catText,
           headOnly: standard.headOnly === true,
+          searchText: appendSearchText(
+            base,
+            "substance",
+            standard.substance,
+            standard.operator,
+            standard.value,
+            standard.value2,
+            productTypeSearchTokens(standard.productTypes),
+            standard.regulatoryTypes,
+            standard.categories,
+            productText,
+            catText,
+            standard.headOnly === true ? ["headOnly", "head only"] : "",
+          ),
           isSetupRow: false,
         });
       });
@@ -235,21 +314,43 @@ export function buildConditionalCriteriaRows(
           conditionsText: "-",
           resultText: "-",
           isSetupRow: true,
+          searchText: appendSearchText(base, "conditional", "setup"),
         });
         continue;
       }
       rules.forEach((rule: StandardRule, ruleIndex) => {
         const isOutput = (field.conditionalResult ?? "standard") === "output";
+        const conditionSummary = conditionsText(rule);
+        const resultSummary = isOutput
+          ? outputResultText(rule)
+          : standardResultText(rule, field.unit || "");
         rows.push({
           ...base,
           mode: "conditional",
           rowId: `${base.parameterId}:${fieldIndex}:${ruleIndex}`,
           ruleIndex,
           ruleLabel: rule.label?.trim() || "-",
-          conditionsText: conditionsText(rule),
-          resultText: isOutput
-            ? outputResultText(rule)
-            : standardResultText(rule, field.unit || ""),
+          conditionsText: conditionSummary,
+          resultText: resultSummary,
+          searchText: appendSearchText(
+            base,
+            "conditional",
+            rule.label,
+            conditionSummary,
+            resultSummary,
+            rule.conditions?.map((condition) => [
+              condition.sourceParameterId,
+              condition.sourceFieldLabel,
+              condition.op,
+              condition.value,
+              condition.value2,
+            ]),
+            rule.operator,
+            rule.value,
+            rule.value2,
+            rule.outputText,
+            rule.outputKind,
+          ),
           isSetupRow: false,
         });
       });
@@ -278,18 +379,22 @@ export function buildLabelToleranceCriteriaRows(
           selectorText: "-",
           drugPercent: "-",
           tolerancePercent: "-",
+          headTolerance: "-",
           failLow: "-",
           passLow: "-",
           passHigh: "-",
           failHigh: "-",
           previewText: "-",
           isSetupRow: true,
+          searchText: appendSearchText(base, "labelTolerance", "setup"),
         });
         continue;
       }
       rules.forEach((rule, ruleIndex) => {
         const selector = selectorText(rule);
         const summary = describeLabelTolerance(rule, field.unit || "");
+        const autoText = tolerancePercent(rule);
+        const headText = headTolerance(rule);
         rows.push({
           ...base,
           mode: "labelTolerance",
@@ -298,11 +403,31 @@ export function buildLabelToleranceCriteriaRows(
           selectorText: selector,
           drugPercent: displayValue(rule.labelPercent),
           tolerancePercent: tolerancePercent(rule),
+          headTolerance: headTolerance(rule),
           failLow: displayValue(rule.failLow),
           passLow: displayValue(rule.passLow),
           passHigh: displayValue(rule.passHigh),
           failHigh: displayValue(rule.failHigh),
           previewText: summary ? `${selector} | ${summary}` : selector,
+          searchText: appendSearchText(
+            base,
+            "labelTolerance",
+            selector,
+            summary,
+            rule.substance,
+            rule.labelPercent,
+            productTypeSearchTokens(rule.productTypes),
+            rule.autoPct,
+            rule.headPct,
+            rule.autoAbs,
+            rule.headAbs,
+            rule.failLow,
+            rule.passLow,
+            rule.passHigh,
+            rule.failHigh,
+            autoText,
+            headText,
+          ),
           isSetupRow: false,
         });
       });

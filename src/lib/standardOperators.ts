@@ -1,6 +1,10 @@
 import type { StandardOperator, SubstanceStandard, StandardRule, StandardConditionOp, ParameterValueField, LabelToleranceRule } from "./api";
 import type { ResolvedStandard, LabelToleranceResolved } from "./parameterValidation";
 
+type LabelToleranceDisplayOptions = {
+  showAutoPass?: boolean;
+};
+
 export function describeStandard(field: ParameterValueField): string {
   const op = field.standardOperator;
   const v1 = field.standardValue;
@@ -93,17 +97,23 @@ export function describeSubstanceStandard(std: SubstanceStandard, unit: string):
   }
 }
 
-// สรุปเกณฑ์ labelTolerance ของสารตอน config เช่น "ฉลาก ±2.5% (หัวหน้า ±5%)" หรือ "ฉลาก ±0.05 (หัวหน้า ±0.1) g/L"
-export function describeLabelTolerance(std: LabelToleranceRule, unit: string): string {
+// สรุปเกณฑ์ labelTolerance ของสารตอน config โดย default แสดงเกณฑ์หัวหน้าตรวจสอบเท่านั้น
+// (โหมดอนุมัติ QC ส่ง showAutoPass เพื่อแสดงช่วงผ่านอัตโนมัติด้วย)
+export function describeLabelTolerance(std: LabelToleranceRule, unit: string, options: LabelToleranceDisplayOptions = {}): string {
+  const showAutoPass = options.showAutoPass === true;
   const mode = std.mode ?? "percent";
   if (mode === "range") {
-    if ([std.failLow, std.passLow, std.passHigh, std.failHigh].some((v) => v == null)) return "";
-    return `ช่วง ${std.failLow}-${std.passLow}-${std.passHigh}-${std.failHigh}${unit ? ` ${unit}` : ""}`;
+    if (showAutoPass) {
+      if ([std.failLow, std.passLow, std.passHigh, std.failHigh].some((v) => v == null)) return "";
+      return `ช่วง ${std.failLow}-${std.passLow}-${std.passHigh}-${std.failHigh}${unit ? ` ${unit}` : ""}`;
+    }
+    if (std.failLow == null || std.failHigh == null) return "";
+    return `หัวหน้าตรวจสอบ ${std.failLow}-${std.failHigh}${unit ? ` ${unit}` : ""}`;
   }
   const u = unit ? ` ${unit}` : "";
   if (std.autoMode || std.headMode) {
     if (std.autoMode === "range" || std.headMode === "range") {
-      const auto = std.autoMode === "none"
+      const auto = !showAutoPass || std.autoMode === "none"
         ? ""
         : std.autoMode === "range"
           ? (std.passLow == null || std.passHigh == null ? "" : `ผ่าน ${std.passLow}-${std.passHigh}`)
@@ -113,14 +123,14 @@ export function describeLabelTolerance(std: LabelToleranceRule, unit: string): s
       const head = std.headMode === "none"
         ? ""
         : std.headMode === "range"
-          ? (std.failLow == null || std.failHigh == null ? "" : `หัวหน้า ${std.failLow}-${std.failHigh}`)
+          ? (std.failLow == null || std.failHigh == null ? "" : `หัวหน้าตรวจสอบ ${std.failLow}-${std.failHigh}`)
           : std.headMode === "percent"
-            ? (std.headPct == null ? "" : `หัวหน้า ±${std.headPct}%`)
-            : (std.headAbs == null ? "" : `หัวหน้า ±${std.headAbs}`);
+            ? (std.headPct == null ? "" : `หัวหน้าตรวจสอบ ±${std.headPct}%`)
+            : (std.headAbs == null ? "" : `หัวหน้าตรวจสอบ ±${std.headAbs}`);
       const parts = [auto, head].filter(Boolean);
       return parts.length ? `${parts.join(" | ")}${u}` : "";
     }
-    const auto = std.autoMode === "none"
+    const auto = !showAutoPass || std.autoMode === "none"
       ? ""
       : std.autoMode === "percent"
       ? (std.autoPct == null ? "" : `ผ่าน ${std.autoPct}% ของหัวหน้าตรวจสอบ`)
@@ -128,22 +138,29 @@ export function describeLabelTolerance(std: LabelToleranceRule, unit: string): s
     const head = std.headMode === "none"
       ? ""
       : std.headMode === "percent"
-      ? (std.headPct == null ? "" : `หัวหน้า ±${std.headPct}%`)
-      : (std.headAbs == null ? "" : `หัวหน้า ±${std.headAbs}`);
+      ? (std.headPct == null ? "" : `หัวหน้าตรวจสอบ ±${std.headPct}%`)
+      : (std.headAbs == null ? "" : `หัวหน้าตรวจสอบ ±${std.headAbs}`);
     const parts = [auto, head].filter(Boolean);
     return parts.length ? `${parts.join(" | ")}${u}` : "";
   }
   if (mode === "abs") {
-    if (std.autoAbs == null) return "";
-    const head = std.headAbs != null ? ` (หัวหน้า ±${std.headAbs})` : "";
-    return `ฉลาก ±${std.autoAbs}${head}${u}`;
+    if (std.headAbs != null) {
+      const auto = showAutoPass && std.autoAbs != null ? `ฉลาก ±${std.autoAbs} ` : "";
+      const head = showAutoPass ? `(หัวหน้าตรวจสอบ ±${std.headAbs})` : `หัวหน้าตรวจสอบ ±${std.headAbs}`;
+      return `${auto}${head}${u}`;
+    }
+    return showAutoPass && std.autoAbs != null ? `ฉลาก ±${std.autoAbs}${u}` : "";
   }
-  if (std.autoPct == null) return "";
-  const head = std.headPct != null ? ` (หัวหน้า ±${std.headPct}%)` : "";
-  return `ฉลาก ±${std.autoPct}%${head}${u}`;
+  if (std.headPct != null) {
+    const auto = showAutoPass && std.autoPct != null ? `ฉลาก ±${std.autoPct}% ` : "";
+    const head = showAutoPass ? `(หัวหน้าตรวจสอบ ±${std.headPct}%)` : `หัวหน้าตรวจสอบ ±${std.headPct}%`;
+    return `${auto}${head}${u}`;
+  }
+  return showAutoPass && std.autoPct != null ? `ฉลาก ±${std.autoPct}%${u}` : "";
 }
 
-// ช่วงจริงหลังแกะ %ฉลาก เช่น "ผ่าน 0.975–1.025 · หัวหน้าตรวจสอบ 0.95–1.05 %"
+// ช่วงจริงหลังแกะ %ฉลาก เช่น "หัวหน้าตรวจสอบ 0.95–1.05 %"
+// (โหมดอนุมัติ QC ส่ง showAutoPass เพื่อแสดง "ผ่าน 0.975–1.025" ด้วย)
 export function labelToleranceDisplayDecimals(center: number | null): 2 | 4 | 5 {
   if (center == null || !Number.isFinite(center)) return 4;
   if (Math.abs(center) > 2.5) return 2;
@@ -157,21 +174,25 @@ export function formatLabelToleranceNumber(value: number, center: number | null)
   return Number(value.toFixed(decimals)).toFixed(decimals);
 }
 
-export function formatLabelToleranceRange(r: LabelToleranceResolved, unit: string): string {
-  if (r.center == null || !r.autoRange) return "";
+export function formatLabelToleranceRange(r: LabelToleranceResolved, unit: string, options: LabelToleranceDisplayOptions = {}): string {
+  if (r.center == null) return "";
   const u = unit ? ` ${unit}` : "";
   const fmt = (n: number) => formatLabelToleranceNumber(n, r.center);
-  const auto = `ผ่าน ${fmt(r.autoRange[0])}–${fmt(r.autoRange[1])}`;
-  const head = r.headRange ? ` · หัวหน้าตรวจสอบ ${fmt(r.headRange[0])}–${fmt(r.headRange[1])}` : "";
-  return `${auto}${head}${u}`;
+  const parts = [
+    options.showAutoPass === true && r.autoRange
+      ? `ผ่าน ${fmt(r.autoRange[0])}–${fmt(r.autoRange[1])}`
+      : "",
+    r.headRange ? `หัวหน้าตรวจสอบ ${fmt(r.headRange[0])}–${fmt(r.headRange[1])}` : "",
+  ].filter(Boolean);
+  return parts.length ? `${parts.join(" · ")}${u}` : "";
 }
 
 // ป้ายสถานะ labelTolerance สำหรับ chip (pass/review/fail + ข้ามเมื่อไม่มี %ฉลาก)
 export function labelToleranceBadge(status: "pass" | "review" | "fail" | "none", center: number | null):
   { text: string; cls: string } | null {
-  if (status === "pass") return { text: "ผ่าน", cls: "text-emerald-700 bg-emerald-50 border-emerald-200" };
+  if (status === "pass") return null;
   if (status === "review") return { text: "หัวหน้าตรวจสอบ", cls: "text-amber-700 bg-amber-50 border-amber-200" };
-  if (status === "fail") return { text: "ไม่ผ่าน (เกินช่วงอนุมัติ)", cls: "text-red-700 bg-red-50 border-red-200" };
+  if (status === "fail") return { text: "เกินช่วงอนุมัติ", cls: "text-red-700 bg-red-50 border-red-200" };
   if (status === "none" && center == null) return { text: "ข้ามการตรวจ — ไม่มี %ฉลาก", cls: "text-muted-foreground bg-muted border" };
   return null; // none + ยังไม่กรอก = ไม่มี chip
 }

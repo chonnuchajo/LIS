@@ -24,9 +24,10 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 /** ตารางจัดการขวดรายตัวของสารมาตรฐาน (เพิ่ม/แก้/แบ่ง/ปริ้นซ้ำ/ทิ้ง) — ใช้ทั้งใน
- *  UnitsDrawer และฝังในฟอร์มแก้ไข Standard. ปุ่มทุกอันเป็น type="button"
- *  เพื่อไม่ให้ submit ฟอร์มที่ครอบอยู่ (ตอนฝังในฟอร์มแก้ไข Standard) */
-export default function StandardUnitsPanel({ standard }: { standard: StockStandardItem }) {
+ *  StandardDetailDrawer และฝังในฟอร์มแก้ไข Standard. ปุ่มทุกอันเป็น type="button"
+ *  เพื่อไม่ให้ submit ฟอร์มที่ครอบอยู่ (ตอนฝังในฟอร์มแก้ไข Standard)
+ *  ส่ง onEdit เมื่อต้องการปุ่มแก้ไขข้างปุ่มเพิ่มขวด (ใช้ใน drawer); ไม่ส่ง = ไม่มีปุ่ม */
+export default function StandardUnitsPanel({ standard, onEdit }: { standard: StockStandardItem; onEdit?: () => void }) {
   const qc = useQueryClient();
   const [editUnit, setEditUnit] = useState<StockUnitItem | null>(null);
   const [receiving, setReceiving] = useState(false);
@@ -58,7 +59,12 @@ export default function StandardUnitsPanel({ standard }: { standard: StockStanda
 
   return (
     <div>
-      <div className="flex justify-end mb-2">
+      <div className="flex justify-end gap-2 mb-2">
+        {onEdit && (
+          <Button type="button" size="sm" variant="outline" onClick={onEdit}>
+            <Pencil className="w-4 h-4 mr-1" /> แก้ไข
+          </Button>
+        )}
         <Button type="button" size="sm" variant="outline" onClick={() => setReceiving(true)}>
           <Plus className="w-4 h-4 mr-1" /> เพิ่มขวด (รับเข้า)
         </Button>
