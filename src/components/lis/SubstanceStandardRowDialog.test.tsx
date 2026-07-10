@@ -39,6 +39,7 @@ describe("SubstanceStandardRowDialog", () => {
     expect(screen.getByText("ปริมาณสารสำคัญ · Active")).toBeInTheDocument();
     expect(screen.getByLabelText("เงื่อนไข")).toHaveValue("gte");
     expect(screen.getByLabelText("ค่า")).toHaveValue(95);
+    expect(screen.getByText("%")).toBeInTheDocument();
     expect(screen.queryByLabelText("ถึง")).not.toBeInTheDocument();
   });
 
