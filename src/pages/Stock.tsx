@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, AlertTriangle, Clock, Plus, Pencil, ArrowDownToLine, History, Search, ScanLine, Trash2 } from "lucide-react";
+import { Package, AlertTriangle, Clock, Plus, Pencil, ArrowDownToLine, History, Search, ScanLine, Trash2, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 import AppLayout from "@/components/lis/AppLayout";
@@ -18,9 +18,18 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 import { api } from "@/lib/api";
-import { summarizeStandard, standardLevel, solventLevel, glasswareLevel, isUsableBottle } from "@/lib/stockStatus";
+import { useAuth } from "@/context/AuthContext";
+import { requisitionUser } from "@/lib/standardRequisition";
+import {
+  summarizeStandard, standardLevel, solventLevel, glasswareLevel, isUsableBottle,
+  standardMatchesStatuses, type StandardStatus,
+} from "@/lib/stockStatus";
 import {
   FREQUENCY_UNITS, FREQUENCY_PRESETS, parseFrequency, formatFrequency, isPreset,
   type FrequencyUnit,
@@ -36,9 +45,7 @@ import type {
 } from "@/types/stock";
 import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
 
-type StandardStatusFilter = "all" | "ok" | "out" | "low" | "expired" | "soon";
-const STANDARD_STATUS_OPTIONS: { value: StandardStatusFilter; label: string }[] = [
-  { value: "all", label: "ทุกสถานะ" },
+const STANDARD_STATUS_OPTIONS: { value: StandardStatus; label: string }[] = [
   { value: "ok", label: "ปกติ" },
   { value: "out", label: "หมด" },
   { value: "low", label: "ใกล้หมด" },
@@ -74,7 +81,15 @@ function StandardsTab() {
   const drawerItem = drawerId ? data.find(s => s._id === drawerId) ?? null : null;
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StandardStatusFilter>("all");
+  const [statusFilters, setStatusFilters] = useState<Set<StandardStatus>>(new Set());
+  const toggleStatus = (value: StandardStatus) => {
+    setStatusFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  };
   const [editing, setEditing] = useState<StockStandardItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<StockStandardItem | null>(null);
@@ -104,21 +119,19 @@ function StandardsTab() {
     const q = search.trim().toLowerCase();
     return data.filter(s => {
       if (q && !s.name.toLowerCase().includes(q) && !s.code.toLowerCase().includes(q)) return false;
-      if (statusFilter === "all") return true;
+      if (statusFilters.size === 0) return true;
       const sum = summarizeStandard(unitsByCode.get(s.code) ?? [], new Date(now));
-      const level = standardLevel(sum.usable);
-      const eOk = sum.expired === 0 && sum.expiringSoon === 0;
-      if (statusFilter === "ok") return level === "ok" && eOk;
-      if (statusFilter === "out") return level === "out";
-      if (statusFilter === "low") return level === "low";
-      if (statusFilter === "expired") return sum.expired > 0;
-      if (statusFilter === "soon") return sum.expiringSoon > 0;
-      return true;
+      return standardMatchesStatuses(sum, statusFilters);
     }).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
-  }, [data, search, statusFilter, now, unitsByCode]);
+  }, [data, search, statusFilters, now, unitsByCode]);
 
   const lowList = data.filter(s => standardLevel(sumOf(s).usable) !== "ok");
   const expiringList = data.filter(s => { const x = sumOf(s); return x.expired > 0 || x.expiringSoon > 0; });
+
+  const statusLabel =
+    statusFilters.size === 0 ? "ทุกสถานะ"
+    : statusFilters.size === 1 ? STANDARD_STATUS_OPTIONS.find(o => statusFilters.has(o.value))!.label
+    : `สถานะ (${statusFilters.size})`;
 
   const deleteItem = async () => {
     if (!deleting) return;
@@ -190,14 +203,26 @@ function StandardsTab() {
                 placeholder="ค้นหา code หรือชื่อ" className="pl-8 h-9 w-full sm:w-64"
               />
             </div>
-            <Select value={statusFilter} onValueChange={v => setStatusFilter(v as StandardStatusFilter)}>
-              <SelectTrigger className="h-9 w-full sm:w-40"><SelectValue /></SelectTrigger>
-              <SelectContent>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-9 w-full sm:w-40 justify-between font-normal">
+                  {statusLabel}
+                  <ChevronDown className="w-4 h-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
                 {STANDARD_STATUS_OPTIONS.map(o => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  <DropdownMenuCheckboxItem
+                    key={o.value}
+                    checked={statusFilters.has(o.value)}
+                    onCheckedChange={() => toggleStatus(o.value)}
+                    onSelect={e => e.preventDefault()}
+                  >
+                    {o.label}
+                  </DropdownMenuCheckboxItem>
                 ))}
-              </SelectContent>
-            </Select>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button size="sm" onClick={() => setCreating(true)}>
               <Plus className="w-4 h-4 mr-1" /> เพิ่มรายการ
             </Button>
@@ -228,6 +253,7 @@ function StandardsTab() {
                       key={item._id}
                       className="cursor-pointer"
                       onClick={() => setDrawerId(item._id)}
+                      onDoubleClick={() => setDrawerId(item._id)}
                       title="คลิกเพื่อดูรายละเอียด"
                     >
                       <TableCell className="font-semibold text-primary">{item.code}</TableCell>
@@ -263,11 +289,15 @@ function StandardsTab() {
                         })()}
                       </TableCell>
                       <TableCell>
-                        <div className="flex justify-end">
+                        <div
+                          className="flex justify-end"
+                          onClick={e => e.stopPropagation()}
+                          onDoubleClick={e => e.stopPropagation()}
+                        >
                           <Button
                             size="icon" variant="ghost"
                             title={`ลบ Standard ${item.name}`} aria-label={`ลบ Standard ${item.name}`}
-                            onClick={e => { e.stopPropagation(); setDeleting(item); }}
+                            onClick={() => setDeleting(item)}
                           >
                             <Trash2 className="w-4 h-4 text-destructive" />
                           </Button>
@@ -309,11 +339,101 @@ function StandardsTab() {
   );
 }
 
+function SolventDetailDrawer({
+  item, onClose, onReceive, onEdit,
+}: {
+  item: StockSolventItem;
+  onClose: () => void;
+  onReceive: () => void;
+  onEdit: () => void;
+}) {
+  const fields: [string, string][] = [
+    ["Size (L)", item.sizeLiter != null ? String(item.sizeLiter) : "-"],
+    ["Quantity (bottles)", String(item.qty ?? 0)],
+    ["Price (THB)", item.price != null ? item.price.toLocaleString() : "-"],
+    ["Note", item.note || "-"],
+  ];
+
+  return (
+    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-md">
+        <SheetHeader className="space-y-2 border-b border-border p-5 pr-16 text-left">
+          <SheetTitle className="text-xl font-bold">{item.name}</SheetTitle>
+          <SheetDescription>Solvent</SheetDescription>
+        </SheetHeader>
+        <div className="flex flex-col gap-4 p-5">
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={onReceive}>
+              <ArrowDownToLine className="w-4 h-4 mr-1" /> Receive
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={onEdit}>
+              <Pencil className="w-4 h-4 mr-1" /> Edit
+            </Button>
+          </div>
+          <dl className="grid grid-cols-1 gap-3 text-sm">
+            {fields.map(([label, value]) => (
+              <div key={label} className="flex gap-2">
+                <dt className="text-muted-foreground shrink-0">{label}:</dt>
+                <dd className="font-medium break-words min-w-0">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function GlasswareDetailDrawer({
+  item, onClose, onReceive, onEdit,
+}: {
+  item: StockGlasswareItem;
+  onClose: () => void;
+  onReceive: () => void;
+  onEdit: () => void;
+}) {
+  const fields: [string, string][] = [
+    ["Quantity (pieces)", String(item.qty ?? 0)],
+    ["Price / piece (THB)", item.pricePerPiece != null ? item.pricePerPiece.toLocaleString() : "-"],
+    ["Note", item.note || "-"],
+  ];
+
+  return (
+    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-md">
+        <SheetHeader className="space-y-2 border-b border-border p-5 pr-16 text-left">
+          <SheetTitle className="text-xl font-bold">{item.name}</SheetTitle>
+          <SheetDescription>Glassware</SheetDescription>
+        </SheetHeader>
+        <div className="flex flex-col gap-4 p-5">
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={onReceive}>
+              <ArrowDownToLine className="w-4 h-4 mr-1" /> Receive
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={onEdit}>
+              <Pencil className="w-4 h-4 mr-1" /> Edit
+            </Button>
+          </div>
+          <dl className="grid grid-cols-1 gap-3 text-sm">
+            {fields.map(([label, value]) => (
+              <div key={label} className="flex gap-2">
+                <dt className="text-muted-foreground shrink-0">{label}:</dt>
+                <dd className="font-medium break-words min-w-0">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 // ============================================================
 // Solvents Tab
 // ============================================================
 function SolventsTab() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "solvents"],
     queryFn: api.getSolvents,
@@ -325,6 +445,8 @@ function SolventsTab() {
   const [moving, setMoving] = useState<{ item: StockSolventItem; mode: "deduct" | "receive" } | null>(null);
   const [deleting, setDeleting] = useState<StockSolventItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detailItem = detailId ? data.find(s => s._id === detailId) ?? null : null;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -403,7 +525,13 @@ function SolventsTab() {
               ) : filtered.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">ไม่มีข้อมูล</TableCell></TableRow>
               ) : filtered.map(item => (
-                <TableRow key={item._id}>
+                <TableRow
+                  key={item._id}
+                  className="cursor-pointer"
+                  onClick={() => setDetailId(item._id)}
+                  onDoubleClick={() => setDetailId(item._id)}
+                  title="Open details"
+                >
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell className="text-right">{item.sizeLiter}</TableCell>
                   <TableCell className="text-right">
@@ -414,7 +542,11 @@ function SolventsTab() {
                   <TableCell className="text-right">{item.price.toLocaleString()}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{item.note}</TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-1">
+                    <div
+                      className="flex justify-end gap-1"
+                      onClick={e => e.stopPropagation()}
+                      onDoubleClick={e => e.stopPropagation()}
+                    >
                       <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" title={`ลบสารเคมี ${item.name}`} aria-label={`ลบสารเคมี ${item.name}`} onClick={() => setDeleting(item)}>
@@ -430,6 +562,14 @@ function SolventsTab() {
         </CardContent>
       </Card>
 
+      {detailItem && (
+        <SolventDetailDrawer
+          item={detailItem}
+          onClose={() => setDetailId(null)}
+          onReceive={() => setMoving({ item: detailItem, mode: "receive" })}
+          onEdit={() => setEditing(detailItem)}
+        />
+      )}
       {(creating || editing) && (
         <SimpleItemDialog
           title="สารเคมี"
@@ -459,8 +599,9 @@ function SolventsTab() {
           unit="ขวด"
           onClose={() => setMoving(null)}
           onSubmit={async (qty, note) => {
-            if (moving.mode === "deduct") await api.deductSolvent(moving.item._id, { qty, note });
-            else await api.receiveSolvent(moving.item._id, { qty, note });
+            const _user = requisitionUser(user);
+            if (moving.mode === "deduct") await api.deductSolvent(moving.item._id, { qty, note, _user });
+            else await api.receiveSolvent(moving.item._id, { qty, note, _user });
             qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
             qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
           }}
@@ -483,6 +624,7 @@ function SolventsTab() {
 // ============================================================
 function GlasswareTab() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "glassware"],
     queryFn: api.getGlassware,
@@ -494,6 +636,8 @@ function GlasswareTab() {
   const [moving, setMoving] = useState<{ item: StockGlasswareItem; mode: "deduct" | "receive" } | null>(null);
   const [deleting, setDeleting] = useState<StockGlasswareItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detailItem = detailId ? data.find(s => s._id === detailId) ?? null : null;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -566,7 +710,13 @@ function GlasswareTab() {
               ) : filtered.length === 0 ? (
                 <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">ไม่มีข้อมูล</TableCell></TableRow>
               ) : filtered.map(item => (
-                <TableRow key={item._id}>
+                <TableRow
+                  key={item._id}
+                  className="cursor-pointer"
+                  onClick={() => setDetailId(item._id)}
+                  onDoubleClick={() => setDetailId(item._id)}
+                  title="Open details"
+                >
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell className="text-right">
                     <Badge className={glasswareLevel(item.qty) === "out" ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}>
@@ -576,7 +726,11 @@ function GlasswareTab() {
                   <TableCell className="text-right">{item.pricePerPiece.toLocaleString()}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{item.note}</TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-1">
+                    <div
+                      className="flex justify-end gap-1"
+                      onClick={e => e.stopPropagation()}
+                      onDoubleClick={e => e.stopPropagation()}
+                    >
                       <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" title={`ลบเครื่องแก้ว ${item.name}`} aria-label={`ลบเครื่องแก้ว ${item.name}`} onClick={() => setDeleting(item)}>
@@ -620,10 +774,25 @@ function GlasswareTab() {
           unit="ชิ้น"
           onClose={() => setMoving(null)}
           onSubmit={async (qty, note) => {
-            if (moving.mode === "deduct") await api.deductGlassware(moving.item._id, { qty, note });
-            else await api.receiveGlassware(moving.item._id, { qty, note });
+            const _user = requisitionUser(user);
+            if (moving.mode === "deduct") await api.deductGlassware(moving.item._id, { qty, note, _user });
+            else await api.receiveGlassware(moving.item._id, { qty, note, _user });
             qc.invalidateQueries({ queryKey: ["stock", "glassware"] });
             qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
+          }}
+        />
+      )}
+      {detailItem && (
+        <GlasswareDetailDrawer
+          item={detailItem}
+          onClose={() => setDetailId(null)}
+          onReceive={() => {
+            setDetailId(null);
+            setMoving({ item: detailItem, mode: "receive" });
+          }}
+          onEdit={() => {
+            setDetailId(null);
+            setEditing(detailItem);
           }}
         />
       )}
