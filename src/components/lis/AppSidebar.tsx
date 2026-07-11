@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   ChevronDown, ChevronLeft, ChevronRight, Search,
 } from "lucide-react";
@@ -70,7 +70,6 @@ interface AppSidebarProps {
 }
 
 const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
-  const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -344,15 +343,26 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
                     (item.path === "/" &&
                       (location.pathname === "/home" || location.pathname.startsWith("/dashboard/")));
                   const Btn = (
-                    <button
+                    <Link
                       key={item.path}
-                      onClick={() => {
+                      to={targetPath}
+                      onClick={(e) => {
                         persistNavScroll();
-                        navigate(targetPath);
-                        onNavigate?.();
+                        // Let the browser handle modifier/middle clicks natively
+                        // (open in new tab/window) — only run SPA side effects on
+                        // a plain left click.
+                        if (
+                          e.button === 0 &&
+                          !e.metaKey &&
+                          !e.ctrlKey &&
+                          !e.shiftKey &&
+                          !e.altKey
+                        ) {
+                          onNavigate?.();
+                        }
                       }}
                       className={cn(
-                        "flex items-center w-full rounded-lg text-sm font-medium transition-colors",
+                        "flex items-center w-full rounded-lg text-sm font-medium transition-colors no-underline",
                         collapsed ? "justify-center h-10 px-0" : "gap-3 px-3 py-2.5",
                         isActive
                           ? "bg-primary text-primary-foreground shadow-sm"
@@ -361,7 +371,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
                     >
                       <item.icon className="w-5 h-5 shrink-0" />
                       {!collapsed && <span className="truncate">{item.label}</span>}
-                    </button>
+                    </Link>
                   );
                   return collapsed ? (
                     <Tooltip key={item.path}>
