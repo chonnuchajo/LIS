@@ -41,8 +41,9 @@ function normalizeRoleId(value: unknown) {
 }
 
 function roleFamilyForDevRole(roleId: string, explicitFamily?: unknown): RoleFamily {
-  const family = normalizeFamily(explicitFamily);
-  if (family) return family;
+  if (explicitFamily !== undefined && explicitFamily !== null) {
+    return normalizeFamily(explicitFamily);
+  }
   if (roleId === "lab" || roleId.startsWith("lab-") || roleId.startsWith("lab_")) return "lab";
   if (roleId === "qc" || roleId.startsWith("qc-") || roleId.startsWith("qc_")) return "qc";
   return "";

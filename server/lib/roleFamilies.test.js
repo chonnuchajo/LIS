@@ -21,7 +21,7 @@ test('normalizeRoleFamily accepts only lab, qc, and blank', () => {
 test('roleFamilyForId uses explicit family before prefix fallback', () => {
   assert.strictEqual(roleFamilyForId('custom-role', 'lab'), 'lab');
   assert.strictEqual(roleFamilyForId('lab-head', 'qc'), 'qc');
-  assert.strictEqual(roleFamilyForId('qc-head', ''), 'qc');
+  assert.strictEqual(roleFamilyForId('lab-support', ''), '');
   assert.strictEqual(roleFamilyForId('lab_inventory', undefined), 'lab');
   assert.strictEqual(roleFamilyForId('production', undefined), '');
 });
@@ -87,6 +87,20 @@ test('mergeBaseRolesForFamilies falls back to legacy prefixes without role docs'
   assert.deepStrictEqual(
     mergeBaseRolesForFamilies(['lab-head', 'lab-inventory', 'qc-head'], []),
     ['lab-head', 'lab-inventory', 'qc-head', 'lab-analyze', 'qc-staff'],
+  );
+});
+
+test('mergeBaseRolesForFamilies respects an explicit blank family on a prefixed role', () => {
+  assert.deepStrictEqual(
+    mergeBaseRolesForFamilies(['lab-support'], [{ id: 'lab-support', family: '' }]),
+    ['lab-support'],
+  );
+});
+
+test('mergeBaseRolesForFamilies uses legacy prefixes when family metadata is absent', () => {
+  assert.deepStrictEqual(
+    mergeBaseRolesForFamilies(['lab-support'], [{ id: 'lab-support' }]),
+    ['lab-support', 'lab-analyze'],
   );
 });
 

@@ -16,6 +16,7 @@ const {
   LAB_BASE_ROLE,
   QC_BASE_ROLE,
   normalizeRoleFamily,
+  roleFamilyForId,
   mergeBaseRolesForFamilies,
   applyBaseRolesToUser,
 } = require('../lib/roleFamilies');
@@ -154,15 +155,17 @@ async function ensureGroups() {
 
 async function ensureRoleFamilyDefaults() {
   for (const role of defaultRoles.filter((item) => [LAB_BASE_ROLE, QC_BASE_ROLE].includes(item.id))) {
-    const { family, ...insertFields } = role;
     await Role.updateOne(
       { id: role.id },
-      { $setOnInsert: insertFields, $set: { family } },
+      { $setOnInsert: role },
       { upsert: true },
     );
   }
   for (const [id, family] of knownRoleFamilies.entries()) {
-    await Role.updateOne({ id }, { $set: { family } });
+    await Role.updateOne(
+      { id, $or: [{ family: { $exists: false } }, { family: null }] },
+      { $set: { family } },
+    );
   }
 }
 
@@ -209,7 +212,7 @@ function uniqueRoleIds(values, fallback = 'viewer') {
 
 async function normalizeRequestedRoles(values, fallback = 'viewer') {
   const requested = uniqueRoleIds(values, fallback);
-  const found = await Role.find({ id: { $in: requested } });
+  const found = await Role.find({ id: { $in: requested } }).lean();
   const foundIds = new Set(found.map((role) => role.id));
   const missing = requested.filter((id) => !foundIds.has(id));
   if (missing.length > 0) {
@@ -222,7 +225,7 @@ async function normalizeRequestedRoles(values, fallback = 'viewer') {
 
 async function applyStoredBaseRoles(user) {
   const current = normalizeRoles(user);
-  const roleDocs = current.length > 0 ? await Role.find({ id: { $in: current } }) : [];
+  const roleDocs = current.length > 0 ? await Role.find({ id: { $in: current } }).lean() : [];
   applyBaseRolesToUser(user, roleDocs);
   return user;
 }
@@ -246,13 +249,22 @@ function formatUser(user, permissions) {
 }
 
 function formatRole(role) {
+  const rawRole = typeof role?.toObject === 'function'
+    ? role.toObject({ defaults: false })
+    : role;
+  const hasFamilyMetadata = typeof role?.$isDefault === 'function'
+    ? !role.$isDefault('family') && role.family !== null
+    : hasOwn(rawRole, 'family') && rawRole.family !== null;
+  const family = hasFamilyMetadata
+    ? normalizeRoleFamily(rawRole.family)
+    : roleFamilyForId(rawRole.id);
   return {
-    id: role.id,
-    name: role.name,
-    description: role.description || '',
-    locked: role.locked,
-    dashboardProfile: role.dashboardProfile || null,
-    family: normalizeRoleFamily(role.family),
+    id: rawRole.id,
+    name: rawRole.name,
+    description: rawRole.description || '',
+    locked: rawRole.locked,
+    dashboardProfile: rawRole.dashboardProfile || null,
+    family,
   };
 }
 

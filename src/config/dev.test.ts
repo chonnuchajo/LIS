@@ -85,6 +85,26 @@ describe("dev role selection normalization", () => {
     expect(normalizeDevRoleSelection(["lab-head"], withoutLabAnalyze)).toEqual(["admin"]);
     expect(normalizeDevRoleSelection(["qc-head"], withoutQcStaff)).toEqual(["admin"]);
   });
+
+  it("keeps an explicitly blank prefixed role without adding a base role", () => {
+    const roles: DevRoleOption[] = [
+      { id: "admin", name: "Admin", family: "" },
+      { id: "lab-support", name: "Lab Support", family: "" },
+      { id: "lab-analyze", name: "Lab Analyze", family: "lab" },
+    ];
+
+    expect(normalizeDevRoleSelection(["lab-support"], roles)).toEqual(["lab-support"]);
+  });
+
+  it("uses ID fallback when a prefixed role has no family metadata", () => {
+    const roles: DevRoleOption[] = [
+      { id: "admin", name: "Admin", family: "" },
+      { id: "qc_support", name: "QC Support" },
+      { id: "qc-staff", name: "QC Staff", family: "qc" },
+    ];
+
+    expect(normalizeDevRoleSelection(["qc_support"], roles)).toEqual(["qc_support", "qc-staff"]);
+  });
 });
 
 describe("synthesizeDevAssignees", () => {

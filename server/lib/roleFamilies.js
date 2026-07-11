@@ -13,8 +13,9 @@ function normalizeRoleId(value) {
 }
 
 function roleFamilyForId(roleId, explicitFamily) {
-  const family = normalizeRoleFamily(explicitFamily);
-  if (family) return family;
+  if (explicitFamily !== undefined && explicitFamily !== null) {
+    return normalizeRoleFamily(explicitFamily);
+  }
   const id = normalizeRoleId(roleId);
   if (id === 'lab' || id.startsWith('lab-') || id.startsWith('lab_')) return 'lab';
   if (id === 'qc' || id.startsWith('qc-') || id.startsWith('qc_')) return 'qc';
@@ -57,7 +58,10 @@ function mergeBaseRolesForFamilies(roleIds, roleDocs = []) {
 
   for (const id of merged) {
     const doc = byId.get(id);
-    const family = roleFamilyForId(id, doc?.family);
+    const family = roleFamilyForId(
+      id,
+      doc && Object.prototype.hasOwnProperty.call(doc, 'family') ? doc.family : undefined,
+    );
     const baseRole = baseRoleForFamily(family);
     if (baseRole && !seen.has(baseRole)) {
       seen.add(baseRole);
