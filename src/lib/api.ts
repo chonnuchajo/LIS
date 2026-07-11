@@ -7,6 +7,7 @@ import type {
   StockTransactionItem,
   StockTier,
   StockUnitItem,
+  DeductionResolutionReason,
 } from "@/types/stock";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import {
@@ -320,6 +321,29 @@ export const api = {
       : "";
     return request<StockTransactionItem[]>(`/stock/transactions${qs}`);
   },
+  getPendingStockDeductions: (params: {
+    itemType: "standard" | "solvent";
+    itemId?: string;
+    itemCode?: string;
+    instrumentId?: string;
+    instrumentGroup?: "gc" | "hplc";
+    excludeQrId?: string;
+  }) => {
+    const qs = "?" + new URLSearchParams(
+      Object.entries(params)
+        .filter(([, v]) => v != null && v !== "")
+        .map(([k, v]) => [k, String(v)]),
+    ).toString();
+    return request<StockTransactionItem[]>(`/stock/transactions/pending-deduction${qs}`);
+  },
+  resolveStockDeduction: (
+    id: string,
+    body: { reason: DeductionResolutionReason; note?: string } & StockUserPayload,
+  ) =>
+    request<StockTransactionItem>(`/stock/transactions/${encodeURIComponent(id)}/resolve-deduction`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   // Stock — Units (per-bottle)
   getStockUnits: (params?: { itemCode?: string; status?: string; kind?: string }) => {

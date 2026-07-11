@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
@@ -62,5 +62,15 @@ describe("StockDeduction item display", () => {
 
     expect(await screen.findByText("ABAMECTIN")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText("STD-001")).not.toBeInTheDocument());
+  });
+
+  it("opens deduction details from a clicked row and shows the resolution action", async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByText("ABAMECTIN"));
+
+    expect(await screen.findByRole("heading", { name: "รายละเอียดการเบิก" })).toBeInTheDocument();
+    expect(screen.getAllByText("ABAMECTIN").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "แจ้งหมด/ปัญหา" })).toBeInTheDocument();
   });
 });

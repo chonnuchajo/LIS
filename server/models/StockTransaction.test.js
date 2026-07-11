@@ -15,4 +15,12 @@ describe('StockTransaction schema', () => {
     const err = doc.validateSync();
     expect(err && err.errors && err.errors.instrumentGroup).toBeTruthy();
   });
+
+  test('has deductionResolution reason enum for deduction close-out', () => {
+    const path = StockTransaction.schema.path('deductionResolution.reason');
+    expect(path).toBeDefined();
+    expect(path.enumValues).toContain('empty');
+    expect(path.enumValues).toContain('ineffective');
+    expect(path.enumValues).toContain('other');
+  });
 });

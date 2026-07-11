@@ -1,5 +1,17 @@
 const mongoose = require('mongoose');
 
+const PersonSchema = new mongoose.Schema({
+  email: { type: String, default: '' },
+  name: { type: String, default: '' },
+}, { _id: false });
+
+const DeductionResolutionSchema = new mongoose.Schema({
+  reason: { type: String, enum: ['empty', 'ineffective', 'other'] },
+  note: { type: String, default: '' },
+  resolvedAt: Date,
+  resolvedBy: { type: PersonSchema, default: undefined },
+}, { _id: false });
+
 const StockTransactionSchema = new mongoose.Schema({
   itemType: { type: String, enum: ['standard', 'solvent', 'glassware'], required: true, index: true },
   itemId: { type: String, required: true, index: true },
@@ -21,6 +33,7 @@ const StockTransactionSchema = new mongoose.Schema({
   instrumentId: String,
   instrumentName: String,
   instrumentGroup: { type: String, enum: ['gc', 'hplc', null], default: null },
+  deductionResolution: { type: DeductionResolutionSchema, default: undefined },
   userEmail: String,
   userName: String,
 }, { timestamps: true });

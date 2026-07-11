@@ -8,6 +8,10 @@ const crypto = require('crypto');
 const { isValidReceiveType, isValidUnitType } = require('../lib/stockSource');
 const { sumWeights } = require('../lib/requisitionWeights');
 const { normalizeActorFields } = require('../lib/stockActor');
+const {
+  buildPendingDeductionFilter,
+  normalizeDeductionResolutionInput,
+} = require('../lib/deductionResolution');
 
 async function genUniqueQrId() {
   for (let i = 0; i < 5; i++) {
@@ -44,6 +48,31 @@ async function logTransaction(data) {
   } catch (err) {
     console.error('logTransaction failed:', err.message);
   }
+}
+
+const RESOLUTION_REASON_LABELS = {
+  empty: 'หมด',
+  ineffective: 'ไม่มีประสิทธิภาพ',
+  other: 'อื่นๆ',
+};
+
+async function applyUnitResolutionFromTransaction(tx, resolution, req) {
+  if (tx.itemType !== 'standard' || !tx.qrId) return null;
+
+  const unit = await StockUnit.findOne({ qrId: tx.qrId });
+  if (!unit) throw new Error('ไม่พบขวด (QR)');
+
+  if (resolution.reason === 'empty') {
+    if (unit.status !== 'discarded') unit.status = 'empty';
+  } else if (unit.status !== 'discarded') {
+    unit.status = 'discarded';
+    unit.discardedAt = new Date();
+    unit.discardedBy = await personOf(req);
+    unit.discardReason = resolution.note || RESOLUTION_REASON_LABELS[resolution.reason];
+  }
+
+  await unit.save();
+  return unit;
 }
 
 function stripMeta(body) {
@@ -698,6 +727,45 @@ router.post('/glassware/:id/receive', async (req, res) => {
 });
 
 /* ==================== TRANSACTIONS (Audit Log) ==================== */
+
+router.get('/transactions/pending-deduction', async (req, res) => {
+  try {
+    const built = buildPendingDeductionFilter(req.query || {});
+    if (built.error) return res.status(400).json({ error: built.error });
+    const txs = await StockTransaction.find(built.value)
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+    res.json(txs);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/transactions/:id/resolve-deduction', async (req, res) => {
+  try {
+    const norm = normalizeDeductionResolutionInput(req.body || {});
+    if (norm.error) return res.status(400).json({ error: norm.error });
+
+    const tx = await StockTransaction.findById(req.params.id);
+    if (!tx) return res.status(404).json({ error: 'ไม่พบรายการเบิก' });
+    if (tx.action !== 'deduct' || !['standard', 'solvent'].includes(tx.itemType)) {
+      return res.status(400).json({ error: 'รองรับเฉพาะรายการเบิก Standard และสารเคมี' });
+    }
+
+    await applyUnitResolutionFromTransaction(tx, norm.value, req);
+    const actor = await userMeta(req);
+    tx.deductionResolution = {
+      ...norm.value,
+      resolvedAt: new Date(),
+      resolvedBy: { email: actor.userEmail, name: actor.userName },
+    };
+    await tx.save();
+    res.json(tx);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
 
 router.get('/transactions', async (req, res) => {
   try {

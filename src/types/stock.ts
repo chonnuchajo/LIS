@@ -53,6 +53,14 @@ export interface StockGlasswareItem {
 
 export type StockItemType = "standard" | "solvent" | "glassware";
 export type StockAction = "create" | "update" | "delete" | "deduct" | "receive" | "withdraw" | "discard";
+export type DeductionResolutionReason = "empty" | "ineffective" | "other";
+
+export interface DeductionResolution {
+  reason: DeductionResolutionReason;
+  note?: string;
+  resolvedAt?: string;
+  resolvedBy?: { email?: string; name?: string };
+}
 
 export interface StockTransactionItem {
   _id: string;
@@ -69,10 +77,12 @@ export interface StockTransactionItem {
   weights?: number[];
   instrumentId?: string;
   instrumentName?: string;
+  instrumentGroup?: "gc" | "hplc" | null;
   qrId?: string;
   unit?: string;
   sampleId?: string;
   note?: string;
+  deductionResolution?: DeductionResolution;
   userEmail?: string;
   userName?: string;
   createdAt: string;
