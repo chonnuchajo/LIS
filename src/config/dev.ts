@@ -7,6 +7,14 @@ export const DEV_MODE =
 
 export const DEV_DEFAULT_ROLE = "admin";
 
+export type RoleFamily = "" | "lab" | "qc";
+
+export type DevRoleOption = {
+  id: string;
+  name: string;
+  family?: RoleFamily | null;
+};
+
 export type DevAuthUser = {
   id: string;
   email: string;
@@ -20,6 +28,96 @@ export type DevAuthUser = {
   status: "active";
 };
 
+const LAB_DEV_BASE_ROLE = "lab-analyze";
+const QC_DEV_BASE_ROLE = "qc-staff";
+
+function normalizeFamily(value: unknown): RoleFamily {
+  const family = String(value ?? "").trim().toLowerCase();
+  return family === "lab" || family === "qc" ? family : "";
+}
+
+function normalizeRoleId(value: unknown) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function roleFamilyForDevRole(roleId: string, explicitFamily?: unknown): RoleFamily {
+  const family = normalizeFamily(explicitFamily);
+  if (family) return family;
+  if (roleId === "lab" || roleId.startsWith("lab-") || roleId.startsWith("lab_")) return "lab";
+  if (roleId === "qc" || roleId.startsWith("qc-") || roleId.startsWith("qc_")) return "qc";
+  return "";
+}
+
+function baseRoleForDevFamily(family: RoleFamily) {
+  if (family === "lab") return LAB_DEV_BASE_ROLE;
+  if (family === "qc") return QC_DEV_BASE_ROLE;
+  return "";
+}
+
+function uniqueRoleIds(ids: string[]) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of ids) {
+    const normalized = normalizeRoleId(id);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
+function rolesById(roles: DevRoleOption[]) {
+  return new Map(roles.map((role) => [role.id, role]));
+}
+
+export function normalizeDevRoleSelection(roleIds: string[], roles: DevRoleOption[]): string[] {
+  const byId = rolesById(roles);
+  const selected = uniqueRoleIds(roleIds).filter((id) => byId.has(id));
+  const kept: string[] = [];
+  const families = new Set<RoleFamily>();
+
+  for (const id of selected) {
+    const role = byId.get(id);
+    const family = roleFamilyForDevRole(id, role?.family);
+    const baseRole = baseRoleForDevFamily(family);
+    if (baseRole && !byId.has(baseRole)) continue;
+    kept.push(id);
+    if (family) families.add(family);
+  }
+
+  const withBase = [...kept];
+  for (const family of families) {
+    const baseRole = baseRoleForDevFamily(family);
+    if (baseRole && byId.has(baseRole)) withBase.push(baseRole);
+  }
+
+  const normalized = uniqueRoleIds(withBase);
+  if (normalized.length > 0) return normalized;
+  return byId.has(DEV_DEFAULT_ROLE) ? [DEV_DEFAULT_ROLE] : [];
+}
+
+export function toggleDevRoleSelection(
+  currentIds: string[],
+  toggledId: string,
+  roles: DevRoleOption[],
+): string[] {
+  const byId = rolesById(roles);
+  const id = normalizeRoleId(toggledId);
+  if (!byId.has(id)) return normalizeDevRoleSelection(currentIds, roles);
+
+  const current = normalizeDevRoleSelection(currentIds, roles);
+  const role = byId.get(id);
+  const family = roleFamilyForDevRole(id, role?.family);
+  const baseRole = baseRoleForDevFamily(family);
+  const next = current.includes(id)
+    ? id === baseRole
+      ? current.filter((roleId) => roleFamilyForDevRole(roleId, byId.get(roleId)?.family) !== family)
+      : current.filter((roleId) => roleId !== id)
+    : [...current, id];
+
+  return normalizeDevRoleSelection(next, roles);
+}
+
 // Mock the HR/Microsoft department per dev role (prod gets it from Microsoft sync).
 // admin→IT, lab*→lab, qc*→qc, viewer→ผลิต 1.
 const devDepartment = (roleId: string): string => {
@@ -31,7 +129,7 @@ const devDepartment = (roleId: string): string => {
 };
 
 export const synthesizeDevUser = (
-  roles: { id: string; name: string }[],
+  roles: DevRoleOption[],
 ): DevAuthUser => {
   const ids = roles.map((r) => r.id);
   const primaryId = primaryRole(ids);

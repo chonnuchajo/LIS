@@ -3,7 +3,14 @@ import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "@/lib/msalConfig";
 import { api } from "@/lib/api";
 import { loadAccessControl } from "@/lib/accessControlSource";
-import { DEV_MODE, DEV_DEFAULT_ROLE, synthesizeDevUser } from "@/config/dev";
+import {
+  DEV_MODE,
+  DEV_DEFAULT_ROLE,
+  synthesizeDevUser,
+  normalizeDevRoleSelection,
+  toggleDevRoleSelection,
+  type DevRoleOption,
+} from "@/config/dev";
 import { unionPermissions } from "@/lib/roles";
 
 interface AuthUser {
@@ -34,7 +41,7 @@ interface AuthContextType {
   // state on success so the gate closes without a re-login.
   linkSelfEmployee: (employeeId: string) => Promise<void>;
   devRoleIds?: string[];
-  devRoles?: { id: string; name: string }[];
+  devRoles?: DevRoleOption[];
   toggleDevRole?: (role: string) => void;
 }
 
@@ -75,21 +82,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return single ? [single] : [DEV_DEFAULT_ROLE];
   });
   const [devPermissions, setDevPermissions] = useState<Record<string, string[]>>({});
-  const [devRoles, setDevRoles] = useState<{ id: string; name: string }[]>([]);
+  const [devRoles, setDevRoles] = useState<DevRoleOption[]>([]);
+
+  const sameRoleSelection = (a: string[], b: string[]) =>
+    a.length === b.length && a.every((id, index) => id === b[index]);
 
   const setDevRolesSelection = (ids: string[]) => {
-    const next = ids.length > 0 ? ids : [DEV_DEFAULT_ROLE];
+    const next = normalizeDevRoleSelection(ids, devRoles);
     localStorage.setItem("dev_roles", JSON.stringify(next));
     setDevRoleIds(next);
   };
 
   // Toggle a single role in/out of the dev selection (used by DevRoleSwitcher).
   const toggleDevRole = (role: string) => {
-    setDevRolesSelection(
-      devRoleIds.includes(role)
-        ? devRoleIds.filter((r) => r !== role)
-        : [...devRoleIds, role],
-    );
+    setDevRolesSelection(toggleDevRoleSelection(devRoleIds, role, devRoles));
   };
 
   // In DEV_MODE there is no Microsoft sync, so the dev user carries no
@@ -124,15 +130,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!DEV_MODE) return;
     if (devRoles.length === 0) return; // not loaded yet
     const valid = devRoleIds.filter((id) => devRoles.some((r) => r.id === id));
-    if (valid.length === devRoleIds.length) return; // all still valid
-    setDevRolesSelection(valid.length > 0 ? valid : [DEV_DEFAULT_ROLE]);
+    const normalized = normalizeDevRoleSelection(valid, devRoles);
+    if (sameRoleSelection(normalized, devRoleIds)) return;
+    setDevRolesSelection(normalized);
   }, [devRoles, devRoleIds]);
 
   const devUser: AuthUser | null = DEV_MODE
     ? (() => {
         const selected = devRoleIds
           .map((id) => devRoles.find((r) => r.id === id))
-          .filter((r): r is { id: string; name: string } => Boolean(r));
+          .filter((r): r is DevRoleOption => Boolean(r));
         const roleObjs = selected.length > 0
           ? selected
           : devRoles.filter((r) => r.id === DEV_DEFAULT_ROLE);
