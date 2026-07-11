@@ -235,6 +235,15 @@ describe("computeKpi", () => {
     dailyCheckPending: 1, dailyCheckDone: 37, dailyCheckTotal: 38, dailyCheckLoading: false,
     stockLow: 3, stockExpiring: 2, withdrawalsToday: 5, withdrawalsYesterday: 3,
     qcApprovedToday: 6, qcApprovedYesterday: 4, methodGaps: 9, masterItemsTotal: 120,
+    labInventorySummary: {
+      nearEmpty: 0,
+      outOfStock: 0,
+      nearExpiry: 0,
+      todayDeductions: 0,
+      rows: [],
+    },
+    labInventoryLoading: false,
+    deductionTrend: [],
   };
   it("status counts", () => {
     expect(computeKpi("inProgress", ctx).value).toBe(1);

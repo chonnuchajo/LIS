@@ -6,20 +6,17 @@ import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { loadAccessControl } from "@/lib/accessControlSource";
 import type { DashboardProfile } from "@/lib/dashboardProfiles";
-import { isAssignedToUser, type MetricsCtx } from "@/lib/dashboardMetrics";
+import {
+  EMPTY_LAB_INVENTORY_SUMMARY,
+  deductionTrendData,
+  isAssignedToUser,
+  labInventorySummaryData,
+  type MetricsCtx,
+} from "@/lib/dashboardMetrics";
+import { normalizeRoles } from "@/lib/roles";
 import { dailyCheckProgressFromSources } from "@/lib/dailyCheckProgress";
 import { EQUIPMENT_ROOM_SLUGS } from "@/lib/roomEquipment";
 import type { Petition } from "@/types/petition.types";
-
-const EXPIRY_WARN_DAYS = 180;
-const SOLVENT_LOW_QTY = 3;
-
-function daysUntil(iso?: string | null): number {
-  if (!iso) return Infinity;
-  const t = new Date(iso).getTime();
-  if (!Number.isFinite(t)) return Infinity;
-  return Math.ceil((t - Date.now()) / 86_400_000);
-}
 
 // /simple-methods entry shape (see server/routes/simpleMethods.js) — keyed by itemNo.
 // `methods` is a positional string[][] (one slot per '+'-split substance); a slot is
@@ -63,6 +60,8 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
   const { user } = useAuth();
   const kpis = new Set(profile.kpis);
   const need = (id: string) => kpis.has(id as never);
+  const roleIds = normalizeRoles(user);
+  const wantInventorySummary = roleIds.includes("lab-inventory");
 
   // caveat: totals/trend bounded to the fetched window (real-only, no server aggregate)
   const { data: petData, loading, refresh } = usePetitionList({ page: 1, limit: 200 });
@@ -85,15 +84,33 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
     queryFn: () => api.getReturnedFlags(ids),
   });
 
-  const wantStock = need("stockLow") || need("stockExpiring");
-  const { data: solvents = [] } = useQuery({ queryKey: ["dash", "solvents"], enabled: wantStock, queryFn: api.getSolvents });
-  const { data: standards = [] } = useQuery({ queryKey: ["dash", "standards"], enabled: wantStock, queryFn: api.getStandards });
+  const wantStock = wantInventorySummary || need("stockLow") || need("stockExpiring");
+  const { data: solvents = [], isLoading: solventsLoading } = useQuery({
+    queryKey: ["dash", "solvents"],
+    enabled: wantStock,
+    queryFn: api.getSolvents,
+  });
+  const { data: standards = [], isLoading: standardsLoading } = useQuery({
+    queryKey: ["dash", "standards"],
+    enabled: wantStock,
+    queryFn: api.getStandards,
+  });
+  const { data: glassware = [], isLoading: glasswareLoading } = useQuery({
+    queryKey: ["dash", "glassware"],
+    enabled: wantStock,
+    queryFn: api.getGlassware,
+  });
+  const { data: stockUnits = [], isLoading: stockUnitsLoading } = useQuery({
+    queryKey: ["dash", "stock-units"],
+    enabled: wantStock,
+    queryFn: () => api.getStockUnits(),
+  });
 
-  const wantWithdraw = need("withdrawalsToday") || profile.analytics.some((a) => a.kind === "withdrawBar");
-  const { data: txns = [] } = useQuery({
-    queryKey: ["dash", "txns"],
+  const wantWithdraw = wantInventorySummary || need("withdrawalsToday") || profile.analytics.some((a) => a.kind === "withdrawBar");
+  const { data: txns = [], isLoading: txnsLoading } = useQuery({
+    queryKey: ["dash", "txns", "deduct"],
     enabled: wantWithdraw,
-    queryFn: () => api.getStockTransactions({ action: "withdraw", limit: 500 }),
+    queryFn: () => api.getStockTransactions({ action: "deduct", limit: 500 }),
   });
 
   const wantDailyProgress = profile.id === "lab-analyze" || need("dailyCheckPending");
@@ -178,6 +195,24 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
     const methodGaps = slim.filter(
       (s) => !!s.commonName && s.commonName.trim() !== "" && !!s.itemNo && !configured.has(s.itemNo),
     ).length;
+    const labInventorySummary = wantInventorySummary || wantStock
+      ? labInventorySummaryData({
+        standards,
+        units: stockUnits,
+        solvents,
+        glassware,
+        deductions: txns,
+        now,
+      })
+      : EMPTY_LAB_INVENTORY_SUMMARY;
+    const labInventoryLoading = (wantInventorySummary || wantStock) && (
+      standardsLoading ||
+      stockUnitsLoading ||
+      solventsLoading ||
+      glasswareLoading ||
+      txnsLoading
+    );
+    const deductionTrend = wantWithdraw ? deductionTrendData(txns, now, 7) : [];
 
     return {
       petitions,
@@ -193,16 +228,17 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
       dailyCheckDone: dailyCheckProgress.done,
       dailyCheckTotal: dailyCheckProgress.total,
       dailyCheckLoading,
-      stockLow: solvents.filter((s) => (s.qty ?? 0) < SOLVENT_LOW_QTY).length,
-      stockExpiring: standards.filter(
-        (s) => Math.min(daysUntil(s.working?.exp), daysUntil(s.supplier?.exp)) <= EXPIRY_WARN_DAYS,
-      ).length,
-      withdrawalsToday: txns.filter((t) => isToday(t.createdAt)).length,
-      withdrawalsYesterday: txns.filter((t) => isYesterday(t.createdAt)).length,
+      stockLow: labInventorySummary.nearEmpty + labInventorySummary.outOfStock,
+      stockExpiring: labInventorySummary.nearExpiry,
+      withdrawalsToday: txns.filter((t) => t.action === "deduct" && isToday(t.createdAt)).length,
+      withdrawalsYesterday: txns.filter((t) => t.action === "deduct" && isYesterday(t.createdAt)).length,
       qcApprovedToday: petitions.filter((p) => p.status === "approved" && isToday(p.approvedAt)).length,
       qcApprovedYesterday: petitions.filter((p) => p.status === "approved" && isYesterday(p.approvedAt)).length,
       methodGaps: wantConfig ? methodGaps : 0,
       masterItemsTotal: slim.length,
+      labInventorySummary,
+      labInventoryLoading,
+      deductionTrend,
     };
   }, [
     petitions,
@@ -213,6 +249,8 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
     returnedFlags,
     solvents,
     standards,
+    stockUnits,
+    glassware,
     txns,
     dailySummary,
     envSummary,
@@ -222,6 +260,14 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
     slim,
     simpleMethods,
     wantConfig,
+    wantStock,
+    wantWithdraw,
+    wantInventorySummary,
+    standardsLoading,
+    stockUnitsLoading,
+    solventsLoading,
+    glasswareLoading,
+    txnsLoading,
   ]);
 
   return { petitions, ctx, loading, refresh };

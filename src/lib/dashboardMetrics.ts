@@ -35,6 +35,9 @@ export interface MetricsCtx {
   qcApprovedYesterday: number;
   methodGaps: number;
   masterItemsTotal: number;
+  labInventorySummary: LabInventorySummary;
+  labInventoryLoading: boolean;
+  deductionTrend: DeductionTrendDatum[];
 }
 
 export interface KpiValue { value: number; delta?: number }
