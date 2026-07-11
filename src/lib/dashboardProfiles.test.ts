@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  DASHBOARD_PROFILES, KPI_META, resolveProfileForRole, resolveActiveRole,
+  DASHBOARD_PROFILES, KPI_META, resolveProfileForRole, resolveActiveRole, resolveDashboardRole,
 } from "./dashboardProfiles";
 
 describe("resolveProfileForRole", () => {
@@ -36,9 +36,32 @@ describe("resolveActiveRole", () => {
     expect(resolveActiveRole(["lab", "qc"], "qc")).toBe("qc");
   });
   it("falls back to primaryRole when stored is absent/invalid", () => {
-    expect(resolveActiveRole(["lab", "qc"], "admin")).toBe("qc"); // qc outranks lab
+    expect(resolveActiveRole(["lab", "qc"], "admin")).toBe("qc");
     expect(resolveActiveRole(["lab"], null)).toBe("lab");
     expect(resolveActiveRole([], null)).toBe("viewer");
+  });
+});
+
+describe("resolveDashboardRole", () => {
+  it("prefers admin over base working roles", () => {
+    expect(resolveDashboardRole(["lab-head", "lab-analyze", "admin"])).toBe("admin");
+    expect(resolveDashboardRole(["qc-head", "qc-staff", "admin"])).toBe("admin");
+  });
+
+  it("uses lab-analyze as the home profile when Lab higher roles include it", () => {
+    expect(resolveDashboardRole(["lab-head", "lab-analyze"])).toBe("lab-analyze");
+    expect(resolveDashboardRole(["lab-inventory", "lab-analyze"])).toBe("lab-analyze");
+  });
+
+  it("uses qc-staff as the home profile when QC higher roles include it", () => {
+    expect(resolveDashboardRole(["qc-head", "qc-staff"])).toBe("qc-staff");
+    expect(resolveDashboardRole(["qc-data-config", "qc-staff"])).toBe("qc-staff");
+  });
+
+  it("falls back to the existing primary role behavior when no base working role is present", () => {
+    expect(resolveDashboardRole(["lab-head"])).toBe("lab-head");
+    expect(resolveDashboardRole(["lab", "qc"])).toBe("qc");
+    expect(resolveDashboardRole([])).toBe("viewer");
   });
 });
 

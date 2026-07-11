@@ -10,8 +10,8 @@ import AnalyticsSection from "@/components/dashboard/AnalyticsSection";
 import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
-import { normalizeRoles, primaryRole } from "@/lib/roles";
-import { resolveProfileForRole, DASHBOARD_PROFILES, type KpiId } from "@/lib/dashboardProfiles";
+import { normalizeRoles } from "@/lib/roles";
+import { resolveProfileForRole, resolveDashboardRole, DASHBOARD_PROFILES, type KpiId } from "@/lib/dashboardProfiles";
 import {
   buildQcStaffWorklist,
   buildLabWorklist,
@@ -84,7 +84,7 @@ export default function RoleDashboard() {
   // default map). Hooks below must stay unconditional, so we feed
   // useDashboardData a harmless placeholder profile in the no-match case and
   // branch only on what gets rendered.
-  const profileId = resolveProfileForRole(primaryRole(roles), roleObjs);
+  const profileId = resolveProfileForRole(resolveDashboardRole(roles), roleObjs);
   const profile = profileId ? DASHBOARD_PROFILES[profileId] : null;
   const { petitions, ctx, refresh } = useDashboardData(profile ?? DASHBOARD_PROFILES.viewer);
   const isLabAnalyze = profileId === "lab-analyze";

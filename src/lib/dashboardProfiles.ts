@@ -189,8 +189,17 @@ export function resolveProfileForRole(
   return null;
 }
 
+export function resolveDashboardRole(roleIds: string[]): string {
+  if (roleIds.includes("admin")) return "admin";
+  if (roleIds.includes("qc-staff")) return "qc-staff";
+  if (roleIds.includes("lab-analyze")) return "lab-analyze";
+  const resolved = primaryRole(roleIds);
+  return resolved === "lab" && roleIds.includes("qc") ? "qc" : resolved;
+}
+
 /** stored active role wins if the user still holds it, else primaryRole. */
 export function resolveActiveRole(roleIds: string[], stored: string | null): string {
   if (stored && roleIds.includes(stored)) return stored;
-  return primaryRole(roleIds);
+  const resolved = primaryRole(roleIds);
+  return resolved === "lab" && roleIds.includes("qc") ? "qc" : resolved;
 }
