@@ -197,6 +197,16 @@ export function resolveDashboardRole(roleIds: string[]): string {
   return resolved === "lab" && roleIds.includes("qc") ? "qc" : resolved;
 }
 
+export type LabInventorySummaryPlacement = "top" | "bottom" | "hidden";
+
+export function labInventorySummaryPlacement(
+  roleIds: string[],
+  profileId: DashboardProfileId | null,
+): LabInventorySummaryPlacement {
+  if (!roleIds.includes("lab-inventory")) return "hidden";
+  return profileId === "lab-inventory" ? "top" : "bottom";
+}
+
 /** stored active role wins if the user still holds it, else primaryRole. */
 export function resolveActiveRole(roleIds: string[], stored: string | null): string {
   if (stored && roleIds.includes(stored)) return stored;

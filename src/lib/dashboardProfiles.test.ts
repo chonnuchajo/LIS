@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   DASHBOARD_PROFILES, KPI_META, resolveProfileForRole, resolveActiveRole, resolveDashboardRole,
+  labInventorySummaryPlacement,
 } from "./dashboardProfiles";
 
 describe("resolveProfileForRole", () => {
@@ -62,6 +63,23 @@ describe("resolveDashboardRole", () => {
     expect(resolveDashboardRole(["lab-head"])).toBe("lab-head");
     expect(resolveDashboardRole(["lab", "qc"])).toBe("qc");
     expect(resolveDashboardRole([])).toBe("viewer");
+  });
+});
+
+describe("Lab Inventory summary placement", () => {
+  it("places the summary at the top when Lab Inventory is the primary dashboard", () => {
+    expect(labInventorySummaryPlacement(["lab-inventory"], "lab-inventory")).toBe("top");
+  });
+
+  it("places the summary below another primary dashboard when Lab Inventory is also held", () => {
+    expect(labInventorySummaryPlacement(["lab-analyze", "lab-inventory"], "lab-analyze")).toBe("bottom");
+    expect(labInventorySummaryPlacement(["lab-head", "lab-inventory"], "lab-head")).toBe("bottom");
+  });
+
+  it("hides the summary when the user does not hold Lab Inventory", () => {
+    expect(labInventorySummaryPlacement(["lab-analyze"], "lab-analyze")).toBe("hidden");
+    expect(labInventorySummaryPlacement(["qc-staff"], "qc-staff")).toBe("hidden");
+    expect(labInventorySummaryPlacement([], null)).toBe("hidden");
   });
 });
 

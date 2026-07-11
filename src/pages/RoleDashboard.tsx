@@ -8,10 +8,17 @@ import ActionTable from "@/components/dashboard/ActionTable";
 import WorkflowSummary from "@/components/dashboard/WorkflowSummary";
 import AnalyticsSection from "@/components/dashboard/AnalyticsSection";
 import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
+import LabInventorySummaryCard from "@/components/dashboard/LabInventorySummary";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { normalizeRoles } from "@/lib/roles";
-import { resolveProfileForRole, resolveDashboardRole, DASHBOARD_PROFILES, type KpiId } from "@/lib/dashboardProfiles";
+import {
+  resolveProfileForRole,
+  resolveDashboardRole,
+  labInventorySummaryPlacement,
+  DASHBOARD_PROFILES,
+  type KpiId,
+} from "@/lib/dashboardProfiles";
 import {
   buildQcStaffWorklist,
   buildLabWorklist,
@@ -89,6 +96,13 @@ export default function RoleDashboard() {
   const { petitions, ctx, refresh } = useDashboardData(profile ?? DASHBOARD_PROFILES.viewer);
   const isLabAnalyze = profileId === "lab-analyze";
   const isQcStaff = profileId === "qc-staff";
+  const inventorySummaryPlacement = labInventorySummaryPlacement(roles, profileId);
+  const inventorySummarySection = inventorySummaryPlacement === "hidden" ? null : (
+    <LabInventorySummaryCard
+      summary={ctx.labInventorySummary}
+      loading={ctx.labInventoryLoading}
+    />
+  );
   const qcStaffIdsParam = useMemo(() => petitions.map((p) => p._id).join(","), [petitions]);
   const { data: qcParticipants = {} } = useQuery<Record<string, string[]>>({
     queryKey: ["dash", "qc-testers", qcStaffIdsParam],
@@ -199,6 +213,7 @@ export default function RoleDashboard() {
           />
         ) : undefined}
       />
+      {inventorySummaryPlacement === "top" ? inventorySummarySection : null}
       <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,65fr)_35fr]">
         <ActionTable
           petitions={isLabAnalyze ? labPageData.pageRows : isQcStaff ? qcStaffPageData.pageRows : petitions}
@@ -279,6 +294,7 @@ export default function RoleDashboard() {
       </div>
       {!isLabAnalyze ? <AnalyticsSection specs={profile.analytics} ctx={ctx} /> : null}
       {!isLabAnalyze ? <ActivityTimeline kind={profile.activity} /> : null}
+      {inventorySummaryPlacement === "bottom" ? inventorySummarySection : null}
     </AppLayout>
   );
 }
