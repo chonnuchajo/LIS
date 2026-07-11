@@ -1,7 +1,18 @@
-import { describe, expect, it } from "vitest";
+import React from "react";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import LabInventorySummaryCard from "./LabInventorySummary";
 import type { LabInventorySummary } from "@/lib/dashboardMetrics";
+
+vi.mock("recharts", async () => {
+  const actual = await vi.importActual<typeof import("recharts")>("recharts");
+
+  return {
+    ...actual,
+    ResponsiveContainer: ({ children }: { children: React.ReactElement }) =>
+      React.cloneElement(children, { width: 260, height: 220 }),
+  };
+});
 
 function summary(over: Partial<LabInventorySummary> = {}): LabInventorySummary {
   const base = {
