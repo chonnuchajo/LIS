@@ -197,6 +197,20 @@ export function resolveDashboardRole(roleIds: string[]): string {
   return resolved === "lab" && roleIds.includes("qc") ? "qc" : resolved;
 }
 
+export type LabDataConfigCoveragePlacement = "top" | "bottom" | "hidden";
+
+export function hasLabDataConfigRole(roleIds: string[]): boolean {
+  return roleIds.includes("lab-data-config") || roleIds.includes("lab-config");
+}
+
+export function labDataConfigCoveragePlacement(
+  roleIds: string[],
+  profileId: DashboardProfileId | null,
+): LabDataConfigCoveragePlacement {
+  if (!hasLabDataConfigRole(roleIds)) return "hidden";
+  return profileId === "lab-config" ? "top" : "bottom";
+}
+
 /** stored active role wins if the user still holds it, else primaryRole. */
 export function resolveActiveRole(roleIds: string[], stored: string | null): string {
   if (stored && roleIds.includes(stored)) return stored;
