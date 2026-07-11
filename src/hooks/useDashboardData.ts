@@ -5,10 +5,17 @@ import { useSamples } from "@/context/SampleContext";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { loadAccessControl } from "@/lib/accessControlSource";
-import type { DashboardProfile } from "@/lib/dashboardProfiles";
-import { isAssignedToUser, type MetricsCtx } from "@/lib/dashboardMetrics";
+import { hasLabDataConfigRole, type DashboardProfile } from "@/lib/dashboardProfiles";
+import {
+  isAssignedToUser,
+  simpleMethodCoverageData,
+  standardTimeCoverageData,
+  type MetricsCtx,
+} from "@/lib/dashboardMetrics";
 import { dailyCheckProgressFromSources } from "@/lib/dailyCheckProgress";
 import { EQUIPMENT_ROOM_SLUGS } from "@/lib/roomEquipment";
+import { normalizeRoles } from "@/lib/roles";
+import type { MethodDoc } from "@/lib/methodRegistry";
 import type { Petition } from "@/types/petition.types";
 
 const EXPIRY_WARN_DAYS = 180;
@@ -62,6 +69,8 @@ export interface DashboardData {
 export function useDashboardData(profile: DashboardProfile): DashboardData {
   const { user } = useAuth();
   const kpis = new Set(profile.kpis);
+  const roleIds = normalizeRoles(user);
+  const wantConfigCoverage = hasLabDataConfigRole(roleIds);
   const need = (id: string) => kpis.has(id as never);
 
   // caveat: totals/trend bounded to the fetched window (real-only, no server aggregate)
@@ -122,16 +131,26 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
     queryFn: () => loadAccessControl(),
   });
 
-  const wantConfig = need("methodGaps") || need("masterItemsTotal");
-  const { data: slim = [] } = useQuery({
+  const wantConfig = wantConfigCoverage || need("methodGaps") || need("masterItemsTotal");
+  const { data: slim = [], isLoading: slimLoading } = useQuery({
     queryKey: ["dash", "slim"],
     enabled: wantConfig,
     queryFn: () => api.get<unknown>("/master-items/slim").then((r) => unwrapSlim(r.data.data)),
   });
-  const { data: simpleMethods = [] } = useQuery({
+  const { data: simpleMethods = [], isLoading: simpleMethodsLoading } = useQuery({
     queryKey: ["dash", "simple-methods"],
     enabled: wantConfig,
     queryFn: () => api.get<SimpleMethodEntry[]>("/simple-methods").then((r) => r.data.data),
+  });
+  const { data: methods = [], isLoading: methodsLoading } = useQuery({
+    queryKey: ["dash", "methods"],
+    enabled: wantConfigCoverage,
+    queryFn: () => api.get<MethodDoc[]>("/methods").then((r) => r.data.data),
+  });
+  const { data: standardTimeSummary, isLoading: standardTimeSummaryLoading } = useQuery({
+    queryKey: ["standard-times", "summary"],
+    enabled: wantConfigCoverage,
+    queryFn: api.getStandardTimeSummary,
   });
 
   const ctx: MetricsCtx = useMemo(() => {
@@ -178,6 +197,18 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
     const methodGaps = slim.filter(
       (s) => !!s.commonName && s.commonName.trim() !== "" && !!s.itemNo && !configured.has(s.itemNo),
     ).length;
+    const simpleMethodCoverage = wantConfigCoverage
+      ? simpleMethodCoverageData(slim, simpleMethods, methods)
+      : [];
+    const standardTimeCoverage = wantConfigCoverage
+      ? standardTimeCoverageData(standardTimeSummary?.byInstrument ?? [])
+      : [];
+    const configCoverageLoading = wantConfigCoverage && (
+      slimLoading ||
+      simpleMethodsLoading ||
+      methodsLoading ||
+      standardTimeSummaryLoading
+    );
 
     return {
       petitions,
@@ -203,6 +234,9 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
       qcApprovedYesterday: petitions.filter((p) => p.status === "approved" && isYesterday(p.approvedAt)).length,
       methodGaps: wantConfig ? methodGaps : 0,
       masterItemsTotal: slim.length,
+      simpleMethodCoverage,
+      standardTimeCoverage,
+      configCoverageLoading,
     };
   }, [
     petitions,
@@ -222,6 +256,13 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
     slim,
     simpleMethods,
     wantConfig,
+    wantConfigCoverage,
+    methods,
+    standardTimeSummary,
+    slimLoading,
+    simpleMethodsLoading,
+    methodsLoading,
+    standardTimeSummaryLoading,
   ]);
 
   return { petitions, ctx, loading, refresh };
