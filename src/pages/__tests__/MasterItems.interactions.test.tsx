@@ -120,4 +120,18 @@ describe("MasterItems interactions", () => {
 
     expect(await screen.findByDisplayValue("FG-001")).toBeInTheDocument();
   });
+
+  it("calculates gross kg per unit from kg and units per carton", async () => {
+    renderMasterItems();
+
+    await screen.findByText("FG-001");
+    const addButton = screen.getAllByRole("button").find((button) => button.querySelector(".lucide-plus"));
+    expect(addButton).toBeDefined();
+    fireEvent.click(addButton!);
+
+    fireEvent.change(await screen.findByLabelText("Kg/Carton"), { target: { value: "18" } });
+    fireEvent.change(await screen.findByLabelText("Units/Carton"), { target: { value: "12" } });
+
+    expect(screen.getByLabelText("Gross Kg/Unit")).toHaveValue(1.5);
+  });
 });

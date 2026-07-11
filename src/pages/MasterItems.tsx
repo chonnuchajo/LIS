@@ -149,10 +149,7 @@ type MasterItemForm = {
   requiredInspectionQty: string;
   kgPerCarton: string;
   grossKgPerUnit: string;
-  declaredKgPerUnit: string;
-  weightDiff: string;
   packLevel: string;
-  packSource: string;
   cartonUnit: string;
   unitsPerCarton: string;
   packUnit: string;
@@ -171,10 +168,7 @@ const emptyForm: MasterItemForm = {
   requiredInspectionQty: "0",
   kgPerCarton: "",
   grossKgPerUnit: "",
-  declaredKgPerUnit: "",
-  weightDiff: "",
   packLevel: "",
-  packSource: "",
   cartonUnit: "",
   unitsPerCarton: "",
   packUnit: "",
@@ -194,10 +188,7 @@ type MasterItemOverride = {
   requiredInspectionQty: number;
   kgPerCarton?: number | null;
   grossKgPerUnit?: number | null;
-  declaredKgPerUnit?: number | null;
-  weightDiff?: number | null;
   packLevel?: number | null;
-  packSource?: string;
   cartonUnit?: string;
   unitsPerCarton?: number | null;
   packUnit?: string;
@@ -222,10 +213,7 @@ const packSizeKeys = ["packSize", "pack_size", "desc2", "description2", "item_na
 const weightKeys = ["kgPerCarton", "kg_per_carton", "gross_kg_per_carton"];
 const packKeys = [
   "grossKgPerUnit",
-  "declaredKgPerUnit",
-  "weightDiff",
   "packLevel",
-  "packSource",
   "cartonUnit",
   "unitsPerCarton",
   "packUnit",
@@ -435,8 +423,9 @@ const measureSizeKeys = ["measureSize", "measure_size"];
 const measureUnitKeys = ["measureUnit", "measure_unit"];
 const grossKgPerUnitKeys = ["grossKgPerUnit", "gross_kg_per_unit"];
 const packLevelKeys = ["packLevel", "pack_level"];
-const packSourceKeys = ["packSource", "pack_source"];
 const cartonUnitKeys = ["cartonUnit", "carton_unit"];
+const defaultUnitOptions = ["KG", "G", "ซอง", "ลัง"];
+const customUnitValue = "__custom_unit__";
 
 // "12 × 1 L" — units per carton × per-unit measure, kept to one line for the
 // table cell. Falls back to the raw ERP pack-size string, then "-".
@@ -619,10 +608,7 @@ function itemToForm(item: MasterItem, metaQty = 0): MasterItemForm {
     requiredInspectionQty: String(metaQty || 0),
     kgPerCarton: formString(firstValue(item, weightKeys)),
     grossKgPerUnit: formString(firstValue(item, ["grossKgPerUnit"])),
-    declaredKgPerUnit: formString(firstValue(item, ["declaredKgPerUnit"])),
-    weightDiff: formString(firstValue(item, ["weightDiff"])),
     packLevel: formString(firstValue(item, ["packLevel"])),
-    packSource: formString(firstValue(item, ["packSource"])),
     cartonUnit: formString(firstValue(item, ["cartonUnit"])),
     unitsPerCarton: formString(firstValue(item, ["unitsPerCarton"])),
     packUnit: formString(firstValue(item, ["packUnit"])),
@@ -659,6 +645,81 @@ function buildPayload(form: MasterItemForm, editing: MasterItem | null) {
     status: form.status,
     description: form.description.trim(),
   };
+}
+
+function UnitSelectField({
+  id,
+  label,
+  value,
+  options,
+  onChange,
+  onAddOption,
+}: {
+  id: "cartonUnit" | "measureUnit";
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (value: string) => void;
+  onAddOption: (value: string) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [newValue, setNewValue] = useState("");
+  const shownOptions = value && !options.includes(value) ? [...options, value] : options;
+  const add = () => {
+    const next = newValue.trim();
+    if (!next) return;
+    onAddOption(next);
+    onChange(next);
+    setNewValue("");
+    setAdding(false);
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Select
+        value={value}
+        onValueChange={(next) => {
+          if (next === customUnitValue) {
+            setAdding(true);
+            return;
+          }
+          onChange(next);
+        }}
+      >
+        <SelectTrigger id={id}>
+          <SelectValue placeholder="เลือกหน่วย" />
+        </SelectTrigger>
+        <SelectContent>
+          {shownOptions.map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+          <SelectItem value={customUnitValue}>เพิ่มหน่วยใหม่...</SelectItem>
+        </SelectContent>
+      </Select>
+      {adding && (
+        <div className="flex gap-2">
+          <Input
+            value={newValue}
+            onChange={(event) => setNewValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                add();
+              }
+            }}
+            autoFocus
+            placeholder="เช่น PCS"
+          />
+          <Button type="button" variant="secondary" onClick={add}>
+            เพิ่ม
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 async function fetchDirectMasterItems() {
@@ -1993,16 +2054,20 @@ function MasterItemDialog({
   const [form, setForm] = useState<MasterItemForm>(() =>
     item ? itemToForm(item, initialMetaQty) : { ...emptyForm, requiredInspectionQty: String(initialMetaQty || 0) },
   );
+  const [unitOptions, setUnitOptions] = useState(defaultUnitOptions);
   const [busy, setBusy] = useState(false);
   const isEdit = !!item;
+  const addUnitOption = (option: string) => {
+    setUnitOptions((current) => current.includes(option) ? current : [...current, option]);
+  };
 
   const setField = (key: keyof MasterItemForm, value: string) => {
     setForm((current) => {
       const next = { ...current, [key]: value };
-      if (key === "kgPerCarton" || key === "packUnit") {
+      if (key === "kgPerCarton" || key === "unitsPerCarton") {
         const kg = formNumber(next.kgPerCarton);
-        const packUnit = formNumber(next.packUnit);
-        next.grossKgPerUnit = kg === null || packUnit === null || packUnit <= 0 ? "" : String(kg / packUnit);
+        const unitsPerCarton = formNumber(next.unitsPerCarton);
+        next.grossKgPerUnit = kg === null || unitsPerCarton === null || unitsPerCarton <= 0 ? "" : String(kg / unitsPerCarton);
       }
       return next;
     });
@@ -2028,8 +2093,6 @@ function MasterItemDialog({
     const numberFields = {
       kgPerCarton: formNumber(form.kgPerCarton),
       grossKgPerUnit: formNumber(form.grossKgPerUnit),
-      declaredKgPerUnit: formNumber(form.declaredKgPerUnit),
-      weightDiff: formNumber(form.weightDiff),
       packLevel: formNumber(form.packLevel),
       unitsPerCarton: formNumber(form.unitsPerCarton),
       measureSize: formNumber(form.measureSize),
@@ -2049,7 +2112,6 @@ function MasterItemDialog({
       description: form.description.trim(),
       requiredInspectionQty: qtyValue,
       ...numberFields,
-      packSource: form.packSource.trim(),
       cartonUnit: form.cartonUnit.trim(),
       packUnit: form.packUnit.trim(),
       measureUnit: form.measureUnit.trim(),
@@ -2171,8 +2233,6 @@ function MasterItemDialog({
             </div>
             {([
               ["grossKgPerUnit", "Gross Kg/Unit"],
-              ["declaredKgPerUnit", "Declared Kg/Unit"],
-              ["weightDiff", "Weight Diff"],
               ["packLevel", "Pack Level"],
               ["unitsPerCarton", "Units/Carton"],
               ["measureSize", "Measure Size"],
@@ -2190,10 +2250,7 @@ function MasterItemDialog({
               </div>
             ))}
             {([
-              ["cartonUnit", "Carton Unit"],
               ["packUnit", "Pack Unit"],
-              ["measureUnit", "Measure Unit"],
-              ["packSource", "Pack Source"],
             ] as const).map(([key, label]) => (
               <div key={key} className="space-y-1.5">
                 <Label htmlFor={key}>{label}</Label>
@@ -2204,6 +2261,22 @@ function MasterItemDialog({
                 />
               </div>
             ))}
+            <UnitSelectField
+              id="cartonUnit"
+              label="Carton Unit"
+              value={form.cartonUnit}
+              options={unitOptions}
+              onChange={(value) => setField("cartonUnit", value)}
+              onAddOption={addUnitOption}
+            />
+            <UnitSelectField
+              id="measureUnit"
+              label="Measure Unit"
+              value={form.measureUnit}
+              options={unitOptions}
+              onChange={(value) => setField("measureUnit", value)}
+              onAddOption={addUnitOption}
+            />
             <div className="space-y-1.5">
               <Label>Status</Label>
               <Select value={form.status} onValueChange={(value) => setField("status", value)}>
@@ -2303,7 +2376,6 @@ function MasterItemDetailDrawer({
     { label: "น้ำหนักต่อลัง (kg)", value: displayValue(firstValue(item, weightKeys)) },
     { label: "Kg/Unit", value: displayValue(firstValue(item, grossKgPerUnitKeys)) },
     { label: "pack_level", value: displayValue(firstValue(item, packLevelKeys)) },
-    { label: "pack_source", value: displayValue(firstValue(item, packSourceKeys)) },
     { label: "carton_unit", value: displayValue(firstValue(item, cartonUnitKeys)) },
     {
       label: "measure_size",
