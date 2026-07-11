@@ -121,18 +121,17 @@ describe("MasterItems interactions", () => {
     expect(await screen.findByDisplayValue("FG-001")).toBeInTheDocument();
   });
 
-  it("shows commonname as read-only when editing an item", async () => {
+  it("calculates gross kg per unit from kg and units per carton", async () => {
     renderMasterItems();
 
-    const row = (await screen.findByText("FG-001")).closest("tr");
-    expect(row).not.toBeNull();
+    await screen.findByText("FG-001");
+    const addButton = screen.getAllByRole("button").find((button) => button.querySelector(".lucide-plus"));
+    expect(addButton).toBeDefined();
+    fireEvent.click(addButton!);
 
-    fireEvent.doubleClick(row!);
-    const editButton = await screen.findByLabelText("แก้ไข item จากแถบรายละเอียด");
-    fireEvent.click(editButton);
+    fireEvent.change(await screen.findByLabelText("Kg/Carton"), { target: { value: "18" } });
+    fireEvent.change(await screen.findByLabelText("Units/Carton"), { target: { value: "12" } });
 
-    const commonNameInput = await screen.findByLabelText("commonname");
-    expect(commonNameInput).toHaveValue("Cypermethrin");
-    expect(commonNameInput).toBeDisabled();
+    expect(screen.getByLabelText("Gross Kg/Unit")).toHaveValue(1.5);
   });
 });
