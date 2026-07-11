@@ -51,6 +51,52 @@ describe("RoleEditDialog", () => {
     });
   });
 
+  it("infers and submits the Lab family for a legacy lab-prefixed role", () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <RoleEditDialog
+        open
+        mode="edit"
+        role={{ id: "lab-head", name: "Lab Head", description: "Approves Lab work" }}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(screen.getByLabelText("Lab")).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      name: "Lab Head",
+      description: "Approves Lab work",
+      family: "lab",
+    });
+  });
+
+  it("infers and submits the QC family for a legacy qc-prefixed role", () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <RoleEditDialog
+        open
+        mode="edit"
+        role={{ id: "qc_staff", name: "QC Staff", description: "Checks QC work" }}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(screen.getByLabelText("QC")).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      name: "QC Staff",
+      description: "Checks QC work",
+      family: "qc",
+    });
+  });
+
   it("submits a blank family for roles outside Lab and QC", () => {
     const onSubmit = vi.fn();
 

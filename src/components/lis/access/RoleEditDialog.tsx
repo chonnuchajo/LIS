@@ -22,6 +22,13 @@ interface Props {
   onSubmit: (values: { name: string; description: string; family: RoleFamily }) => void;
 }
 
+function resolveFamily(role: Role): RoleFamily {
+  if (role.family === "lab" || role.family === "qc") return role.family;
+  if (/^lab(?:[-_]|$)/.test(role.id)) return "lab";
+  if (/^qc(?:[-_]|$)/.test(role.id)) return "qc";
+  return "";
+}
+
 export default function RoleEditDialog({ open, mode, role, onClose, onSubmit }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -31,7 +38,7 @@ export default function RoleEditDialog({ open, mode, role, onClose, onSubmit }: 
     if (!open) return;
     setName(mode === "edit" && role ? role.name : "");
     setDescription(mode === "edit" && role ? role.description : "");
-    setFamily(mode === "edit" && role ? role.family ?? "" : "");
+    setFamily(mode === "edit" && role ? resolveFamily(role) : "");
   }, [open, mode, role]);
 
   const submit = () => {
