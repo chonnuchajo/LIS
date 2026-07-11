@@ -4,6 +4,7 @@ import {
   normalDonutData, requestTrendData, completedIn, computeKpi,
   buildLabWorklist, buildQcStaffWorklist, labWorklistCounts, qcStaffWorklistCounts,
   paginateLabWorklist, assignedWeekdayData,
+  simpleMethodCoverageData, standardTimeCoverageData,
   type MetricsCtx,
 } from "./dashboardMetrics";
 import type { Petition } from "@/types/petition.types";
@@ -20,6 +21,16 @@ function pet(over: Partial<Petition>): Petition {
     ...over,
   } as Petition;
 }
+
+function toCounts(rows: { label: string; value: number }[]): Record<string, number> {
+  return Object.fromEntries(rows.map((row) => [row.label, row.value]));
+}
+
+const methods = [
+  { _id: "m-gc", code: "GC", label: "GC", requiresMachine: true, machinePrefix: "GC", defaultTimes: 3, order: 1, active: true, builtIn: true },
+  { _id: "m-hplc", code: "HPLC", label: "HPLC", requiresMachine: true, machinePrefix: "HPLC", defaultTimes: 1, order: 2, active: true, builtIn: true },
+  { _id: "m-titration", code: "TITRATION", label: "Titration", requiresMachine: false, machinePrefix: "", defaultTimes: 1, order: 3, active: true, builtIn: false },
+];
 
 describe("date helpers", () => {
   it("ageHours computes elapsed hours, clamped >= 0", () => {
@@ -77,6 +88,55 @@ describe("aggregations", () => {
   });
 });
 
+describe("Lab Data Config coverage pies", () => {
+  it("simpleMethodCoverageData separates GC, HPLC, GC + HPLC, and unassigned slots", () => {
+    const masterItems = [
+      { itemNo: "P1", commonName: "ALPHA 10% EC" },
+      { itemNo: "P2", commonName: "BETA 20% SC" },
+      { itemNo: "P3", commonName: "GAMMA 5% + DELTA 10% EC" },
+      { itemNo: "P4", commonName: "EPSILON 1% SL" },
+      { itemNo: "P5", commonName: "ZETA 1% SL" },
+    ];
+    const simpleMethods = [
+      { itemNo: "P1", methods: [["GC"]] },
+      { itemNo: "P2", methods: [["HPLC"]] },
+      { itemNo: "P3", methods: [["GC", "HPLC"], []] },
+      { itemNo: "P4", methods: [["TITRATION"]] },
+    ];
+
+    expect(toCounts(simpleMethodCoverageData(masterItems, simpleMethods, methods))).toEqual({
+      GC: 1,
+      HPLC: 1,
+      "GC + HPLC": 1,
+      "ยังไม่ได้กำหนด": 3,
+    });
+  });
+
+  it("simpleMethodCoverageData reads legacy instruments through slot compatibility", () => {
+    const masterItems = [{ itemNo: "LEGACY", commonName: "ALPHA 10% EC + BETA 20% SC" }];
+    const simpleMethods = [{ itemNo: "LEGACY", instruments: ["GC", "HPLC"] }];
+
+    expect(toCounts(simpleMethodCoverageData(masterItems, simpleMethods, methods))).toEqual({
+      GC: 1,
+      HPLC: 1,
+    });
+  });
+
+  it("standardTimeCoverageData returns per-instrument configured rows and one unassigned slice", () => {
+    const summary = [
+      { _id: "GC7890A", total: 4, withData: 3 },
+      { _id: "HPLC1260", total: 2, withData: 2 },
+      { _id: "GC8890", total: 1, withData: 0 },
+    ];
+
+    expect(toCounts(standardTimeCoverageData(summary))).toEqual({
+      GC7890A: 3,
+      HPLC1260: 2,
+      "ยังไม่กำหนด": 2,
+    });
+  });
+});
+
 describe("computeKpi", () => {
   const ctx: MetricsCtx = {
     petitions: [
@@ -91,6 +151,9 @@ describe("computeKpi", () => {
     dailyCheckPending: 1, dailyCheckDone: 37, dailyCheckTotal: 38, dailyCheckLoading: false,
     stockLow: 3, stockExpiring: 2, withdrawalsToday: 5, withdrawalsYesterday: 3,
     qcApprovedToday: 6, qcApprovedYesterday: 4, methodGaps: 9, masterItemsTotal: 120,
+    simpleMethodCoverage: [],
+    standardTimeCoverage: [],
+    configCoverageLoading: false,
   };
   it("status counts", () => {
     expect(computeKpi("inProgress", ctx).value).toBe(1);

@@ -4,6 +4,8 @@ import {
 } from "@/types/petition.types";
 import type { KpiId } from "@/lib/dashboardProfiles";
 import { labReceivedAt, qcReceivedAt, qcReceivedBy } from "@/lib/receiveStatus";
+import { readSlotMethods, type MethodDoc } from "@/lib/methodRegistry";
+import { parseSubstances } from "@/lib/substances";
 
 export interface MetricsCtx {
   petitions: Petition[];
@@ -27,6 +29,9 @@ export interface MetricsCtx {
   qcApprovedYesterday: number;
   methodGaps: number;
   masterItemsTotal: number;
+  simpleMethodCoverage: ConfigPieDatum[];
+  standardTimeCoverage: ConfigPieDatum[];
+  configCoverageLoading: boolean;
 }
 
 export interface KpiValue { value: number; delta?: number }
@@ -349,6 +354,129 @@ function countStatus(petitions: Petition[], status: PetitionStatus): number {
 }
 function countFlags(flags: Record<string, boolean>): number {
   return Object.values(flags).filter(Boolean).length;
+}
+
+export interface ConfigPieDatum {
+  key: string;
+  label: string;
+  value: number;
+  color: string;
+}
+
+export interface SimpleMethodCoverageItem {
+  itemNo?: string;
+  commonName?: string;
+}
+
+export interface SimpleMethodCoverageEntry {
+  itemNo: string;
+  methods?: string[][];
+  instruments?: string[];
+}
+
+export interface StandardTimeCoverageSummary {
+  _id: string;
+  total: number;
+  withData: number;
+}
+
+const CONFIG_COLORS = {
+  gc: "hsl(217,91%,55%)",
+  hplc: "hsl(142,71%,42%)",
+  both: "hsl(262,83%,58%)",
+  unassigned: "hsl(38,92%,50%)",
+};
+
+const STANDARD_TIME_COLORS = [
+  "hsl(217,91%,55%)",
+  "hsl(142,71%,42%)",
+  "hsl(262,83%,58%)",
+  "hsl(189,94%,43%)",
+  "hsl(330,81%,60%)",
+  "hsl(24,95%,53%)",
+];
+
+function normalizeCode(value: string): string {
+  return String(value || "").trim().toUpperCase();
+}
+
+function configuredMachinePrefixes(
+  codes: string[],
+  methodByCode: Map<string, MethodDoc>,
+): Set<"GC" | "HPLC"> {
+  const prefixes = new Set<"GC" | "HPLC">();
+  for (const code of codes) {
+    const method = methodByCode.get(normalizeCode(code));
+    if (!method || !method.requiresMachine) continue;
+    const prefix = normalizeCode(method.machinePrefix);
+    if (prefix === "GC" || prefix === "HPLC") prefixes.add(prefix);
+  }
+  return prefixes;
+}
+
+function pieDatum(key: string, label: string, value: number, color: string): ConfigPieDatum | null {
+  return value > 0 ? { key, label, value, color } : null;
+}
+
+export function simpleMethodCoverageData(
+  items: SimpleMethodCoverageItem[],
+  entries: SimpleMethodCoverageEntry[],
+  methods: MethodDoc[],
+): ConfigPieDatum[] {
+  const methodByCode = new Map(methods.map((method) => [normalizeCode(method.code), method]));
+  const entryByItemNo = new Map(entries.map((entry) => [String(entry.itemNo || "").trim(), entry]));
+  const counts = { gc: 0, hplc: 0, both: 0, unassigned: 0 };
+
+  for (const item of items) {
+    const itemNo = String(item.itemNo || "").trim();
+    const commonName = String(item.commonName || "").trim();
+    if (!itemNo || !commonName) continue;
+
+    const substances = parseSubstances(commonName);
+    const entry = entryByItemNo.get(itemNo);
+    const slots = entry ? readSlotMethods(entry, substances.length) : Array.from({ length: substances.length }, () => []);
+
+    for (const slot of slots) {
+      const prefixes = configuredMachinePrefixes(slot, methodByCode);
+      const hasGc = prefixes.has("GC");
+      const hasHplc = prefixes.has("HPLC");
+      if (hasGc && hasHplc) counts.both += 1;
+      else if (hasGc) counts.gc += 1;
+      else if (hasHplc) counts.hplc += 1;
+      else counts.unassigned += 1;
+    }
+  }
+
+  return [
+    pieDatum("gc", "GC", counts.gc, CONFIG_COLORS.gc),
+    pieDatum("hplc", "HPLC", counts.hplc, CONFIG_COLORS.hplc),
+    pieDatum("both", "GC + HPLC", counts.both, CONFIG_COLORS.both),
+    pieDatum("unassigned", "ยังไม่ได้กำหนด", counts.unassigned, CONFIG_COLORS.unassigned),
+  ].filter((row): row is ConfigPieDatum => Boolean(row));
+}
+
+export function standardTimeCoverageData(summary: StandardTimeCoverageSummary[]): ConfigPieDatum[] {
+  const rows: ConfigPieDatum[] = [];
+  let unassigned = 0;
+
+  summary.forEach((row, index) => {
+    const label = String(row._id || "").trim() || "ไม่ระบุเครื่อง";
+    const total = Math.max(0, Number(row.total) || 0);
+    const withData = Math.max(0, Number(row.withData) || 0);
+    const configured = Math.min(total, withData);
+    unassigned += Math.max(0, total - configured);
+    if (configured > 0) {
+      rows.push({
+        key: `instrument-${label}`,
+        label,
+        value: configured,
+        color: STANDARD_TIME_COLORS[index % STANDARD_TIME_COLORS.length],
+      });
+    }
+  });
+
+  const missing = pieDatum("unassigned", "ยังไม่กำหนด", unassigned, CONFIG_COLORS.unassigned);
+  return missing ? [...rows, missing] : rows;
 }
 
 // ---- KPI dispatch ----
