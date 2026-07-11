@@ -9,13 +9,15 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import PendingDeductionResolutionFields from "@/components/lis/stock/PendingDeductionResolutionFields";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import { isDeductionResolutionReady } from "@/lib/deductionResolution";
 import { isUsableBottle } from "@/lib/stockStatus";
 import { defaultWeightCount, requisitionUser, sumWeights, validateWeights } from "@/lib/standardRequisition";
 import { buildSubstanceGroups, resolveGroups, type InstrumentGroup } from "@/lib/standardInstrumentGroups";
 import { cn } from "@/lib/utils";
-import type { StockUnitItem } from "@/types/stock";
+import type { DeductionResolutionReason, StockUnitItem } from "@/types/stock";
 
 const TYPES = ["primary", "working", "supplier"] as const;
 type BottleType = (typeof TYPES)[number];
@@ -39,6 +41,8 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
   const [weights, setWeights] = useState<string[]>([""]);
   const [countText, setCountText] = useState("1"); // buffer ช่องจำนวนน้ำหนัก — ให้ว่างชั่วคราวได้ตอนแก้
   const [note, setNote] = useState("");
+  const [pendingReason, setPendingReason] = useState<DeductionResolutionReason | "">("");
+  const [pendingNote, setPendingNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [countCustomized, setCountCustomized] = useState(false);
 
@@ -116,10 +120,33 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
   const nums = weights.map((w) => Number(w));
   const total = sumWeights(nums);
   const weightError = bottle ? validateWeights(nums, remainingMg) : "";
-  const canSave = !!(bottle && !weightError && user?.name && (!needsGroupPick || pickedGroup || customCount));
 
   const defaultCount = defaultWeightCount(effectiveGroup ?? undefined);
   const isCustom = customCount || (!!effectiveGroup && weights.length !== defaultCount);
+  const submitGroup: InstrumentGroup | undefined = customCount
+    ? (resolvedGroups.length === 1 ? resolvedGroups[0] : undefined)
+    : (effectiveGroup ?? undefined);
+
+  const { data: pendingDeductions = [] } = useQuery({
+    queryKey: ["stock", "pending-deductions", "standard", standard?._id, standard?.code, submitGroup ?? "", bottle?.qrId ?? ""],
+    enabled: Boolean(standard && bottle),
+    queryFn: () =>
+      api.getPendingStockDeductions({
+        itemType: "standard",
+        itemId: standard!._id,
+        itemCode: standard!.code,
+        instrumentGroup: submitGroup,
+        excludeQrId: bottle!.qrId,
+      }),
+  });
+  const pendingDeduction = pendingDeductions[0] ?? null;
+  const pendingReady = !pendingDeduction || isDeductionResolutionReady(pendingReason, pendingNote);
+  const canSave = !!(bottle && !weightError && user?.name && (!needsGroupPick || pickedGroup || customCount) && pendingReady);
+
+  useEffect(() => {
+    setPendingReason("");
+    setPendingNote("");
+  }, [pendingDeduction?._id]);
 
   // ถ้า group index (master-items/simple-methods) โหลดเสร็จหลังเลือกสารแล้ว → resync
   // จำนวนน้ำหนัก default ให้ตรงกลุ่มที่ resolve ได้ (ไม่ทับถ้าผู้ใช้ปรับเอง). loop-safe: set เฉพาะเมื่อ length ต่าง.
@@ -170,6 +197,13 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
     if (!bottle) return;
     setBusy(true);
     try {
+      if (pendingDeduction && pendingReason) {
+        await api.resolveStockDeduction(pendingDeduction._id, {
+          reason: pendingReason,
+          note: pendingNote.trim() || undefined,
+          _user: requisitionUser(user),
+        });
+      }
       await api.deductStockUnitMg(bottle.qrId, {
         weights: nums,
         instrumentGroup: submitGroup,
@@ -177,6 +211,7 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
         _user: requisitionUser(user),
       });
       toast.success(`เบิก ${standard?.name ?? "standard"} ${nums.length} น้ำหนัก (${total} mg)`);
+      qc.invalidateQueries({ queryKey: ["stock", "pending-deductions"] });
       qc.invalidateQueries({ queryKey: ["stock", "units"] });
       qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
       onSaved(); onClose();
@@ -190,11 +225,6 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
     resolvedGroups.length >= 1 ? resolvedGroups : (["gc", "hplc"] as InstrumentGroup[]);
   // ปุ่มที่กำลัง active (ไฮไลต์): custom ชนะ, ไม่งั้นตามกลุ่มที่ resolve/เลือก
   const activeSel: InstrumentGroup | "custom" | null = customCount ? "custom" : effectiveGroup;
-  // instrumentGroup ที่ส่ง backend: custom = ยึดกลุ่มเดียวที่ผูกไว้ (ถ้ามี) ไม่งั้นว่าง
-  const submitGroup: InstrumentGroup | undefined = customCount
-    ? (resolvedGroups.length === 1 ? resolvedGroups[0] : undefined)
-    : (effectiveGroup ?? undefined);
-
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -331,6 +361,16 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
                   </p>
                   {weightError && <p className="mt-1 text-sm text-destructive">{weightError}</p>}
                 </div>
+              )}
+
+              {pendingDeduction && (
+                <PendingDeductionResolutionFields
+                  transaction={pendingDeduction}
+                  reason={pendingReason}
+                  note={pendingNote}
+                  onReasonChange={setPendingReason}
+                  onNoteChange={setPendingNote}
+                />
               )}
 
               <div>

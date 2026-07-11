@@ -61,6 +61,8 @@ router.post('/', async (req, res) => {
       afterQty: updated.qty,
       delta: -v.qty,
       unit: 'bottle',
+      instrumentId: v.instrumentId,
+      instrumentName: v.instrumentName,
       note: buildDeductNote(v.instrumentName, v.note),
       userEmail: requestedBy.email,
       userName: requestedBy.name,

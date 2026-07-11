@@ -20,6 +20,7 @@ export default function StockRequisitionButton({ roomSlug, instruments }: Props)
   const [which, setWhich] = useState<"chemical" | "standard" | null>(null);
 
   const refreshStandards = () => {
+    queryClient.invalidateQueries({ queryKey: ["stock", "pending-deductions"] });
     queryClient.invalidateQueries({ queryKey: ["stock", "units"] });
     queryClient.invalidateQueries({ queryKey: ["stock", "transactions"] });
   };
@@ -49,6 +50,7 @@ export default function StockRequisitionButton({ roomSlug, instruments }: Props)
           instruments={instruments}
           onClose={() => setWhich(null)}
           onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ["stock", "pending-deductions"] });
             queryClient.invalidateQueries({ queryKey: ["chemical-requisitions"] });
             queryClient.invalidateQueries({ queryKey: ["stock", "solvents"] });
             queryClient.invalidateQueries({ queryKey: ["stock", "transactions"] });
