@@ -35,7 +35,7 @@ function ChartFor({ spec, ctx }: { spec: ChartSpec; ctx: MetricsCtx }) {
   if (spec.kind === "deptBar") return <SimpleBar data={ctx ? deptWorkloadData(ctx.petitions).map((d) => ({ name: d.label, count: d.count })) : []} />;
   if (spec.kind === "analystBar") return <SimpleBar data={analystWorkloadData(ctx.petitions).map((d) => ({ name: d.name, count: d.count }))} />;
   if (spec.kind === "assignedWeekdayBar") return <WeekdayBar data={assignedWeekdayData(ctx.petitions)} />;
-  if (spec.kind === "withdrawBar") return <TrendBar data={requestTrendData(ctx.petitions, ctx.now, 7)} note="(ใช้ createdAt คำขอเป็นตัวแทนช่วง — การเบิกจริงดูหน้าเบิก)" />;
+  if (spec.kind === "withdrawBar") return <TrendBar data={ctx.deductionTrend} />;
   if (spec.kind === "requestTrend") return <TrendBar data={requestTrendData(ctx.petitions, ctx.now, 14)} />;
   if (spec.kind === "normalDonut") return <Donut data={normalDonutData(ctx.petitions, ctx.abnormalFlags)} />;
   return <Donut data={statusDonutData(ctx.petitions)} />; // statusDonut
