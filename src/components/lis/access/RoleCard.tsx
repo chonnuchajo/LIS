@@ -21,6 +21,12 @@ interface Props {
   onDelete: () => void;
 }
 
+function familyLabel(family?: Role["family"]) {
+  if (family === "lab") return "Lab";
+  if (family === "qc") return "QC";
+  return "";
+}
+
 export default function RoleCard({ role, userCount, permCount, modules, onEdit, onDelete }: Props) {
   const [confirm, setConfirm] = useState(false);
   const deletable = !role.locked && userCount === 0;
@@ -34,6 +40,7 @@ export default function RoleCard({ role, userCount, permCount, modules, onEdit, 
           <CardTitle className="text-base flex items-center gap-2">
             {role.name}
             {role.locked ? <Badge variant="gray-soft" className="text-[10px]">locked</Badge> : null}
+            {familyLabel(role.family) ? <Badge variant="outline" className="text-[10px]">{familyLabel(role.family)}</Badge> : null}
           </CardTitle>
           <p className="mt-1 text-sm text-muted-foreground">{role.description || "—"}</p>
         </div>

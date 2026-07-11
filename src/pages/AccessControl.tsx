@@ -30,13 +30,15 @@ import {
 import { toast } from "sonner";
 import UsersTab from "@/components/lis/access/UsersTab";
 import RolesTab from "@/components/lis/access/RolesTab";
-import type { AppUser, Role, AccessGroup, EmployeeDirectoryEntry } from "@/components/lis/access/types";
+import type { AppUser, Role, AccessGroup, EmployeeDirectoryEntry, RoleFamily } from "@/components/lis/access/types";
 
 const defaultRoles: Role[] = [
-  { id: "admin", name: "Administrator", description: "Full system access", locked: true },
-  { id: "lab", name: "Lab Analyst", description: "Sample handling and result entry" },
-  { id: "qc", name: "QC Reviewer", description: "Review and approve results" },
-  { id: "viewer", name: "Viewer", description: "Read-only access to dashboards and reports" },
+  { id: "admin", name: "Administrator", description: "Full system access", locked: true, family: "" },
+  { id: "lab-analyze", name: "Lab Analyze", description: "Base Lab analysis workspace", family: "lab" },
+  { id: "qc-staff", name: "QC Staff", description: "Base QC receiving and tracking workspace", family: "qc" },
+  { id: "lab", name: "Lab Analyst", description: "Sample handling and result entry", family: "lab" },
+  { id: "qc", name: "QC Reviewer", description: "Review and approve results", family: "qc" },
+  { id: "viewer", name: "Viewer", description: "Read-only access to dashboards and reports", family: "" },
 ];
 
 const defaultUsers: AppUser[] = [];
@@ -337,10 +339,10 @@ const AccessControl = () => {
     }
   };
 
-  const addRoleFromDialog = async (v: { name: string; description: string }) => {
+  const addRoleFromDialog = async (v: { name: string; description: string; family: RoleFamily }) => {
     if (!v.name.trim()) { toast.error("ต้องกรอกชื่อ Role"); return; }
     try {
-      const res = await api.post<Role>("/access-control/roles", { name: v.name, description: v.description });
+      const res = await api.post<Role>("/access-control/roles", { name: v.name, description: v.description, family: v.family });
       setRoles((current) => [...current, res.data.data]);
       setPermissions((current) => ({ ...current, [res.data.data.id]: [] }));
       notifyGroupMappingChanged();
@@ -350,7 +352,7 @@ const AccessControl = () => {
     }
   };
 
-  const updateRole = async (id: string, patch: { name: string; description: string }) => {
+  const updateRole = async (id: string, patch: { name: string; description: string; family: RoleFamily }) => {
     try {
       const res = await api.patch<Role>(`/access-control/roles/${id}`, patch);
       setRoles((current) => current.map((r) => (r.id === id ? { ...r, ...res.data.data } : r)));

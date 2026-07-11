@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { countUsersInRole, rolePermissionCount, accessibleModules } from "@/lib/accessDerive";
-import type { Role, AppUser, AccessGroup } from "./types";
+import type { Role, AppUser, AccessGroup, RoleFamily } from "./types";
 import RoleCard from "./RoleCard";
 import RoleEditDialog from "./RoleEditDialog";
 
@@ -11,8 +11,8 @@ interface Props {
   users: AppUser[];
   permissions: Record<string, string[]>;
   groups: AccessGroup[];
-  onCreate: (v: { name: string; description: string }) => void;
-  onUpdate: (id: string, v: { name: string; description: string }) => void;
+  onCreate: (v: { name: string; description: string; family: RoleFamily }) => void;
+  onUpdate: (id: string, v: { name: string; description: string; family: RoleFamily }) => void;
   onDelete: (id: string) => void;
 }
 

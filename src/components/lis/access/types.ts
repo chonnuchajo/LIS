@@ -13,11 +13,14 @@ export type AppUser = {
   lastActive: string;
 };
 
+export type RoleFamily = "" | "lab" | "qc";
+
 export type Role = {
   id: string;
   name: string;
   description: string;
   locked?: boolean;
+  family?: RoleFamily;
 };
 
 export type AccessGroup = {
