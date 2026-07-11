@@ -1,6 +1,26 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import ConfigCoveragePies from "./ConfigCoveragePies";
+
+const chartBounds = {
+  bottom: 220,
+  height: 220,
+  left: 0,
+  right: 640,
+  top: 0,
+  width: 640,
+  x: 0,
+  y: 0,
+  toJSON: () => ({}),
+} as DOMRect;
+
+beforeEach(() => {
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(chartBounds);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("ConfigCoveragePies", () => {
   it("renders both pie cards and legend counts", () => {
