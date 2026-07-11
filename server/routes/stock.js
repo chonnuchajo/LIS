@@ -769,13 +769,27 @@ router.post('/transactions/:id/resolve-deduction', async (req, res) => {
 
 router.get('/transactions', async (req, res) => {
   try {
-    const { itemType, itemId, action, limit = 200 } = req.query;
+    const { itemType, itemId, action, createdFrom, createdTo, limit = 200, skip = 0 } = req.query;
     const filter = {};
     if (itemType) filter.itemType = itemType;
     if (itemId) filter.itemId = itemId;
     if (action) filter.action = action;
+    if (createdFrom || createdTo) {
+      filter.createdAt = {};
+      if (createdFrom) {
+        const from = new Date(createdFrom);
+        if (Number.isNaN(from.getTime())) return res.status(400).json({ error: 'Invalid createdFrom' });
+        filter.createdAt.$gte = from;
+      }
+      if (createdTo) {
+        const to = new Date(createdTo);
+        if (Number.isNaN(to.getTime())) return res.status(400).json({ error: 'Invalid createdTo' });
+        filter.createdAt.$lt = to;
+      }
+    }
     const txs = await StockTransaction.find(filter)
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: -1, _id: -1 })
+      .skip(Math.max(0, Number.parseInt(skip, 10) || 0))
       .limit(Math.min(Number(limit) || 200, 1000))
       .lean();
     const missingNameEmails = [...new Set(txs

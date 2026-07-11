@@ -28,6 +28,15 @@ import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
 
 export type ApiRouteInfo = { method: string; path: string };
 type StockUserPayload = { _user?: { email?: string; name?: string } };
+export interface StockTransactionParams {
+  itemType?: string;
+  itemId?: string;
+  action?: string;
+  createdFrom?: string;
+  createdTo?: string;
+  limit?: number;
+  skip?: number;
+}
 
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
@@ -315,7 +324,7 @@ export const api = {
     request<StockGlasswareItem>(`/stock/glassware/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
 
   // Stock — Transactions (audit log)
-  getStockTransactions: (params?: { itemType?: string; itemId?: string; action?: string; limit?: number }) => {
+  getStockTransactions: (params?: StockTransactionParams) => {
     const qs = params
       ? "?" + new URLSearchParams(Object.entries(params).filter(([, v]) => v != null).map(([k, v]) => [k, String(v)])).toString()
       : "";

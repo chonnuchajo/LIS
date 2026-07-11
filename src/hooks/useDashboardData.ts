@@ -4,6 +4,7 @@ import { usePetitionList } from "@/hooks/usePetition";
 import { useSamples } from "@/context/SampleContext";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import type { StockTransactionParams } from "@/lib/api";
 import { loadAccessControl } from "@/lib/accessControlSource";
 import { hasLabDataConfigRole, type DashboardProfile } from "@/lib/dashboardProfiles";
 import {
@@ -11,6 +12,7 @@ import {
   deductionTrendData,
   isAssignedToUser,
   labInventorySummaryData,
+  localDayWindow,
   simpleMethodCoverageData,
   standardTimeCoverageData,
   type MetricsCtx,
@@ -20,6 +22,7 @@ import { EQUIPMENT_ROOM_SLUGS } from "@/lib/roomEquipment";
 import { normalizeRoles } from "@/lib/roles";
 import type { MethodDoc } from "@/lib/methodRegistry";
 import type { Petition } from "@/types/petition.types";
+import type { StockTransactionItem } from "@/types/stock";
 
 // /simple-methods entry shape (see server/routes/simpleMethods.js) — keyed by itemNo.
 // `methods` is a positional string[][] (one slot per '+'-split substance); a slot is
@@ -59,6 +62,28 @@ export interface DashboardData {
   refresh: () => void;
 }
 
+export const DASHBOARD_DEDUCTION_PAGE_SIZE = 500;
+
+export async function fetchDashboardDeductions(
+  now: number,
+  getTransactions: (params?: StockTransactionParams) => Promise<StockTransactionItem[]>,
+): Promise<StockTransactionItem[]> {
+  const { createdFrom, createdTo } = localDayWindow(now, 7);
+  const deductions: StockTransactionItem[] = [];
+
+  for (let skip = 0; ; skip += DASHBOARD_DEDUCTION_PAGE_SIZE) {
+    const page = await getTransactions({
+      action: "deduct",
+      createdFrom,
+      createdTo,
+      limit: DASHBOARD_DEDUCTION_PAGE_SIZE,
+      skip,
+    });
+    deductions.push(...page);
+    if (page.length < DASHBOARD_DEDUCTION_PAGE_SIZE) return deductions;
+  }
+}
+
 export function useDashboardData(profile: DashboardProfile): DashboardData {
   const { user } = useAuth();
   const kpis = new Set(profile.kpis);
@@ -67,7 +92,7 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
   const need = (id: string) => kpis.has(id as never);
   const wantInventorySummary = roleIds.includes("lab-inventory");
 
-  // caveat: totals/trend bounded to the fetched window (real-only, no server aggregate)
+  // Deductions are fetched from the last seven local calendar days without an aggregate endpoint.
   const { data: petData, loading, refresh } = usePetitionList({ page: 1, limit: 200 });
   const petitions = petData?.items ?? [];
   const ids = petitions.map((p) => p._id);
@@ -114,7 +139,7 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
   const { data: txns = [], isLoading: txnsLoading } = useQuery({
     queryKey: ["dash", "txns", "deduct"],
     enabled: wantWithdraw,
-    queryFn: () => api.getStockTransactions({ action: "deduct", limit: 500 }),
+    queryFn: () => fetchDashboardDeductions(Date.now(), api.getStockTransactions),
   });
 
   const wantDailyProgress = profile.id === "lab-analyze" || need("dailyCheckPending");

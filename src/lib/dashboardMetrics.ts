@@ -60,6 +60,13 @@ function startOfLocalDay(now: number, dayOffset = 0): number {
   d.setDate(d.getDate() - dayOffset);
   return d.getTime();
 }
+
+export function localDayWindow(now: number, days: number): { createdFrom: string; createdTo: string } {
+  return {
+    createdFrom: new Date(startOfLocalDay(now, days - 1)).toISOString(),
+    createdTo: new Date(startOfLocalDay(now, -1)).toISOString(),
+  };
+}
 export function isSameLocalDay(iso: string | null | undefined, now: number): boolean {
   if (!iso) return false;
   const t = new Date(iso).getTime();
