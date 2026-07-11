@@ -128,6 +128,26 @@ describe("ParameterSettings row click/double-click opens detail drawer", () => {
     expect(screen.queryByText(/ช่องค่า \(/)).not.toBeInTheDocument();
   });
 
+  it("double-clicking the edit (แก้ไข) button opens the edit dialog, not the detail drawer", async () => {
+    renderPage();
+
+    const nameCell = await screen.findByText("ความหนืดทดสอบ");
+    const row = nameCell.closest("tr") as HTMLTableRowElement;
+    const editButton = row.querySelector('button[title="แก้ไข"]') as HTMLButtonElement;
+    expect(editButton).not.toBeNull();
+
+    // A real browser double-click dispatches click, click, then dblclick (in
+    // that order) on the same element; fireEvent.doubleClick alone only
+    // dispatches the dblclick event, so drive the full sequence to reproduce
+    // the native behavior the bug depends on.
+    fireEvent.click(editButton);
+    fireEvent.click(editButton);
+    fireEvent.doubleClick(editButton);
+
+    expect(await screen.findByText("แก้ไขพารามิเตอร์")).toBeInTheDocument();
+    expect(screen.queryByText(/ช่องค่า \(/)).not.toBeInTheDocument();
+  });
+
   it("clicking the delete (ลบ) button opens the delete confirm dialog, not the detail drawer", async () => {
     renderPage();
 

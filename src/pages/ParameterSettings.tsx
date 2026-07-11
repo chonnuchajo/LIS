@@ -2772,6 +2772,7 @@ export default function ParameterSettings() {
                               e.stopPropagation();
                               setEditing(p);
                             }}
+                            onDoubleClick={(e) => e.stopPropagation()}
                             title="แก้ไข"
                           >
                             <Pencil className="h-4 w-4" />
@@ -2783,6 +2784,7 @@ export default function ParameterSettings() {
                               e.stopPropagation();
                               setDeleting(p);
                             }}
+                            onDoubleClick={(e) => e.stopPropagation()}
                             title="ลบ"
                             className="text-destructive hover:text-destructive"
                           >
