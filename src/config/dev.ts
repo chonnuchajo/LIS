@@ -55,6 +55,12 @@ function baseRoleForDevFamily(family: RoleFamily) {
   return "";
 }
 
+function familyForDevBaseRole(roleId: string): RoleFamily {
+  if (roleId === LAB_DEV_BASE_ROLE) return "lab";
+  if (roleId === QC_DEV_BASE_ROLE) return "qc";
+  return "";
+}
+
 function uniqueRoleIds(ids: string[]) {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -108,11 +114,14 @@ export function toggleDevRoleSelection(
 
   const current = normalizeDevRoleSelection(currentIds, roles);
   const role = byId.get(id);
-  const family = roleFamilyForDevRole(id, role?.family);
+  const family = familyForDevBaseRole(id) || roleFamilyForDevRole(id, role?.family);
   const baseRole = baseRoleForDevFamily(family);
   const next = current.includes(id)
     ? id === baseRole
-      ? current.filter((roleId) => roleFamilyForDevRole(roleId, byId.get(roleId)?.family) !== family)
+      ? current.filter(
+          (roleId) =>
+            (familyForDevBaseRole(roleId) || roleFamilyForDevRole(roleId, byId.get(roleId)?.family)) !== family,
+        )
       : current.filter((roleId) => roleId !== id)
     : [...current, id];
 

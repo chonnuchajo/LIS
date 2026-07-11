@@ -78,6 +78,26 @@ describe("dev role selection normalization", () => {
     expect(toggleDevRoleSelection(["admin", "qc-head", "qc-staff"], "qc-staff", devRoles)).toEqual(["admin"]);
   });
 
+  it("removing lab-analyze removes Lab-family roles when its family is explicitly blank", () => {
+    const roles: DevRoleOption[] = [
+      { id: "admin", name: "Admin", family: "" },
+      { id: "lab-head", name: "Lab Head", family: "lab" },
+      { id: "lab-analyze", name: "Lab Analyze", family: "" },
+    ];
+
+    expect(toggleDevRoleSelection(["lab-head", "lab-analyze"], "lab-analyze", roles)).toEqual(["admin"]);
+  });
+
+  it("removing qc-staff removes QC-family roles when its family is explicitly blank", () => {
+    const roles: DevRoleOption[] = [
+      { id: "admin", name: "Admin", family: "" },
+      { id: "qc-head", name: "QC Head", family: "qc" },
+      { id: "qc-staff", name: "QC Staff", family: "" },
+    ];
+
+    expect(toggleDevRoleSelection(["qc-head", "qc-staff"], "qc-staff", roles)).toEqual(["admin"]);
+  });
+
   it("falls back to admin when a selected family is missing its base role", () => {
     const withoutLabAnalyze = devRoles.filter((role) => role.id !== "lab-analyze");
     const withoutQcStaff = devRoles.filter((role) => role.id !== "qc-staff");
