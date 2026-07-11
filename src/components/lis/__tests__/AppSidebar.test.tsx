@@ -78,4 +78,23 @@ describe("AppSidebar", () => {
 
     expect(screen.queryByText("admin@example.com")).not.toBeInTheDocument();
   });
+
+  it("renders a larger icon in the desktop sidebar collapse toggle", () => {
+    const { container } = renderSidebar();
+    const toggle = container.querySelector("aside > button");
+    if (!toggle) throw new Error("Sidebar collapse toggle not found");
+
+    const icon = toggle.querySelector("svg");
+    if (!icon) throw new Error("Sidebar collapse toggle icon not found");
+
+    expect(icon).toHaveClass("w-5", "h-5");
+  });
+
+  it("keeps the desktop sidebar collapse toggle above the topbar with enough icon room", () => {
+    const { container } = renderSidebar();
+    const toggle = container.querySelector("aside > button");
+    if (!toggle) throw new Error("Sidebar collapse toggle not found");
+
+    expect(toggle).toHaveClass("z-40", "w-7", "h-7", "-right-3.5");
+  });
 });

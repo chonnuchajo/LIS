@@ -3,7 +3,7 @@ import {
 } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { statusDonutData, pipelineStages } from "@/lib/dashboardMetrics";
+import { assignedWeekdayData, statusDonutData, pipelineStages } from "@/lib/dashboardMetrics";
 import type { WorkflowKind } from "@/lib/dashboardProfiles";
 import type { Petition } from "@/types/petition.types";
 
@@ -12,7 +12,13 @@ export default function WorkflowSummary({ kind, petitions }: { kind: WorkflowKin
     <Card>
       <CardHeader className="pb-2"><CardTitle className="text-base">สรุป Workflow</CardTitle></CardHeader>
       <CardContent>
-        {kind === "statusDonut" ? <StatusDonut petitions={petitions} /> : <PipelineBar petitions={petitions} />}
+        {kind === "statusDonut" ? (
+          <StatusDonut petitions={petitions} />
+        ) : kind === "assignedWeekdayBar" ? (
+          <AssignedWeekdayBar petitions={petitions} />
+        ) : (
+          <PipelineBar petitions={petitions} />
+        )}
       </CardContent>
     </Card>
   );
@@ -57,6 +63,22 @@ function PipelineBar({ petitions }: { petitions: Petition[] }) {
         <CartesianGrid horizontal={false} strokeDasharray="3 3" />
         <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
         <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} width={72} />
+        <ChartTooltip content={<ChartTooltipContent />} />
+        <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 3, 3, 0]} />
+      </BarChart>
+    </ChartContainer>
+  );
+}
+
+function AssignedWeekdayBar({ petitions }: { petitions: Petition[] }) {
+  const data = assignedWeekdayData(petitions);
+  if (data.every((d) => d.count === 0)) return <Empty />;
+  return (
+    <ChartContainer config={{ count: { label: "จำนวน", color: "hsl(var(--primary))" } }} className="h-[220px] w-full">
+      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 12 }}>
+        <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+        <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+        <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} width={58} />
         <ChartTooltip content={<ChartTooltipContent />} />
         <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 3, 3, 0]} />
       </BarChart>

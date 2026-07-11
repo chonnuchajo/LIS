@@ -3,9 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useNotifications } from "@/context/NotificationContext";
 import { useAuth } from "@/context/AuthContext";
+import { DAILY_CHECK_SCALE_TOTAL } from "@/lib/dailyCheckProgress";
 
 const REMINDER_HOUR = 8;
-const EXPECTED_SCALES = 5;
 const STORAGE_PREFIX = "lis.dailyCheck.reminderShown.";
 
 const todayStr = () => {
@@ -38,7 +38,7 @@ const DailyCheckReminderWatcher = () => {
       const flagKey = `${STORAGE_PREFIX}${date}`;
 
       // วันนี้บันทึกครบแล้ว → ปลดแจ้งเตือน (ถ้ามี)
-      if ((summary.scaleIds?.length ?? 0) >= EXPECTED_SCALES) {
+      if ((summary.scaleIds?.length ?? 0) >= DAILY_CHECK_SCALE_TOTAL) {
         if (notifications.some(n => n.id === "daily-check-reminder")) {
           dismiss("daily-check-reminder");
         }
@@ -55,7 +55,7 @@ const DailyCheckReminderWatcher = () => {
       push({
         id: "daily-check-reminder",
         title: "ถึงเวลา Daily Check",
-        message: `กรุณาบันทึกผล Calibrate เครื่องชั่งประจำวัน (${summary.scaleIds?.length ?? 0}/${EXPECTED_SCALES} แล้ว)`,
+        message: `กรุณาบันทึกผล Calibrate เครื่องชั่งประจำวัน (${summary.scaleIds?.length ?? 0}/${DAILY_CHECK_SCALE_TOTAL} แล้ว)`,
         level: "warning",
         link: "/daily-check",
         persistent: true,

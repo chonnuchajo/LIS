@@ -12,6 +12,11 @@ describe("resolveProfileForRole", () => {
     const roles = [{ id: "qc", dashboardProfile: null }];
     expect(resolveProfileForRole("qc", roles)).toBe("qc-reviewer");
     expect(resolveProfileForRole("lab", [{ id: "lab" }])).toBe("lab-analyze");
+    expect(resolveProfileForRole("qc-staff", [{ id: "qc-staff" }])).toBe("qc-staff");
+    expect(resolveProfileForRole("qc-head", [{ id: "qc-head" }])).toBe("qc-head");
+    expect(resolveProfileForRole("lab-head", [{ id: "lab-head" }])).toBe("lab-head");
+    expect(resolveProfileForRole("lab-inventory", [{ id: "lab-inventory" }])).toBe("lab-inventory");
+    expect(resolveProfileForRole("lab-data-config", [{ id: "lab-data-config" }])).toBe("lab-config");
     expect(resolveProfileForRole("admin", [{ id: "admin" }])).toBe("admin");
     expect(resolveProfileForRole("viewer", [{ id: "viewer" }])).toBe("viewer");
   });
@@ -45,5 +50,27 @@ describe("registry integrity", () => {
       expect(p.kpis.length).toBeGreaterThanOrEqual(2);
       expect(p.kpis.length).toBeLessThanOrEqual(6);
     }
+  });
+
+  it("lab analyze profile uses the focused worklist dashboard config", () => {
+    expect(DASHBOARD_PROFILES["lab-analyze"].kpis).toEqual(["assignedToMe", "inProgress", "completedToday"]);
+    expect(DASHBOARD_PROFILES["lab-analyze"].workflow).toBeNull();
+    expect(DASHBOARD_PROFILES["lab-analyze"].analytics).toEqual([
+      { kind: "assignedWeekdayBar", title: "งานที่ถูก assign ตามวัน" },
+    ]);
+  });
+
+  it("qc staff profile uses the requested receiving-to-approval dashboard config", () => {
+    expect(DASHBOARD_PROFILES["qc-staff"].kpis).toEqual([
+      "waitingReceive",
+      "inProgress",
+      "waitingReview",
+      "approvedToday",
+    ]);
+    expect(KPI_META.waitingReceive.label).toBe("งานรอรับ");
+    expect(KPI_META.inProgress.label).toBe("กำลังดำเนินการ");
+    expect(KPI_META.waitingReview.label).toBe("รอตรวจ");
+    expect(KPI_META.approvedToday.label).toBe("เสร็จวันนี้");
+    expect(DASHBOARD_PROFILES["qc-staff"].workflow).toBe("assignedWeekdayBar");
   });
 });

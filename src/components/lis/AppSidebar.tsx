@@ -248,9 +248,9 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
             type="button"
             onClick={toggleCollapsed}
             aria-label={collapsed ? "ขยายเมนู" : "ซ่อนเมนู"}
-            className="absolute -right-3 top-7 z-10 w-6 h-6 rounded-full border border-border bg-card shadow-sm flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            className="absolute -right-3.5 top-7 z-40 w-7 h-7 rounded-full border border-border bg-card shadow-sm flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           >
-            {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+            {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
           </button>
         )}
 

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -7,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PETITION_STATUS_CONFIG, PETITION_DEPT_LABELS, type Petition } from "@/types/petition.types";
+import {
+  PETITION_STATUS_CONFIG,
+  PETITION_DEPT_LABELS,
+  type Petition,
+  type StatusBadgeVariant,
+} from "@/types/petition.types";
 import { ageHours } from "@/lib/dashboardMetrics";
 
 const OLD_AGE_HOURS = 48;
@@ -17,18 +23,35 @@ interface Props {
   actionLabel: string;
   actionPathPrefix: string;
   urgentIds: Set<string>;
+  title?: string;
+  emptyMessage?: string;
+  sortRows?: boolean;
+  footer?: ReactNode;
+  statusBadge?: (petition: Petition) => { label: string; variant: StatusBadgeVariant };
 }
 
-export default function ActionTable({ petitions, actionLabel, actionPathPrefix, urgentIds }: Props) {
+export default function ActionTable({
+  petitions,
+  actionLabel,
+  actionPathPrefix,
+  urgentIds,
+  title = "ต้องดำเนินการ",
+  emptyMessage,
+  sortRows = true,
+  footer,
+  statusBadge,
+}: Props) {
   const navigate = useNavigate();
   const now = Date.now();
   const firstTs = (p: Petition) => p.sampleSentAt ?? p.receivedAt ?? p.createdAt;
-  const rows = [...petitions].sort((a, b) => (ageHours(firstTs(b), now) ?? 0) - (ageHours(firstTs(a), now) ?? 0));
+  const rows = sortRows
+    ? [...petitions].sort((a, b) => (ageHours(firstTs(b), now) ?? 0) - (ageHours(firstTs(a), now) ?? 0))
+    : petitions;
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">ต้องดำเนินการ</CardTitle>
+        <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
@@ -46,12 +69,16 @@ export default function ActionTable({ petitions, actionLabel, actionPathPrefix, 
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">ไม่มีรายการที่ต้องดำเนินการ</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                    {emptyMessage ?? "ไม่มีรายการที่ต้องดำเนินการ"}
+                  </TableCell>
+                </TableRow>
               ) : rows.map((p) => {
                 const age = ageHours(firstTs(p), now);
                 const urgent = urgentIds.has(p._id);
                 const old = (age ?? 0) >= OLD_AGE_HOURS;
-                const status = PETITION_STATUS_CONFIG[p.status];
+                const status = statusBadge?.(p) ?? PETITION_STATUS_CONFIG[p.status];
                 return (
                   <TableRow
                     key={p._id}
@@ -85,6 +112,7 @@ export default function ActionTable({ petitions, actionLabel, actionPathPrefix, 
             </TableBody>
           </Table>
         </div>
+        {footer ? <div className="border-t px-4 py-3">{footer}</div> : null}
       </CardContent>
     </Card>
   );

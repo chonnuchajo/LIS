@@ -20,10 +20,10 @@ export type StatVariant = "blue" | "amber" | "green" | "red" | "neutral";
 export type KpiId =
   // petition status (current)
   | "petitionsTotal" | "inProgress" | "waitingReceive" | "pendingAssign"
-  | "waitingSendLab" | "completedTotal" | "pendingApprovalQc" | "pendingApprovalLab"
+  | "waitingSendLab" | "waitingReview" | "completedTotal" | "pendingApprovalQc" | "pendingApprovalLab"
   | "assignedToMe" | "activeTotal"
   // time-based (delta today vs yesterday)
-  | "completedToday" | "qcApprovedToday" | "withdrawalsToday"
+  | "completedToday" | "approvedToday" | "qcApprovedToday" | "withdrawalsToday"
   // flags / approx
   | "abnormalResults" | "returnedTotal" | "normalRateApprox"
   // admin / users
@@ -43,15 +43,17 @@ export interface KpiMeta {
 export const KPI_META: Record<KpiId, KpiMeta> = {
   petitionsTotal:    { label: "คำขอทั้งหมด",   icon: ClipboardList, variant: "neutral", drilldownPath: "/petitions" },
   inProgress:        { label: "กำลังดำเนินการ", icon: FlaskConical,  variant: "blue",    drilldownPath: "/petitions?status=inProgress" },
-  waitingReceive:    { label: "รอตรวจรับ",      icon: Hourglass,     variant: "amber",   drilldownPath: "/petitions?status=sampleSent" },
+  waitingReceive:    { label: "งานรอรับ",       icon: Hourglass,     variant: "amber",   drilldownPath: "/petitions?status=sampleSent" },
   pendingAssign:     { label: "รอมอบหมาย",      icon: UserCheck,     variant: "blue",    drilldownPath: "/petitions/assign" },
   waitingSendLab:    { label: "รอส่ง Lab",       icon: ClipboardList, variant: "amber",   drilldownPath: "/petitions?status=pendingReview" },
+  waitingReview:     { label: "รอตรวจ",          icon: ShieldCheck,   variant: "amber",   drilldownPath: "/qc-approval" },
   completedTotal:    { label: "เสร็จสิ้น",       icon: CheckCircle2,  variant: "green",   drilldownPath: "/petitions?status=success" },
   pendingApprovalQc: { label: "รออนุมัติ QC",   icon: ShieldCheck,   variant: "amber",   drilldownPath: "/qc-approval" },
   pendingApprovalLab:{ label: "รออนุมัติ Lab",  icon: ShieldCheck,   variant: "amber",   drilldownPath: "/lab-approval" },
   assignedToMe:      { label: "งานของฉัน",       icon: ClipboardCheck,variant: "blue",    drilldownPath: "/lab-testing" },
   activeTotal:       { label: "งานกำลังทำ",     icon: FlaskConical,  variant: "blue",    drilldownPath: "/petitions" },
   completedToday:    { label: "เสร็จวันนี้",     icon: CheckCircle2,  variant: "green" },
+  approvedToday:     { label: "เสร็จวันนี้", icon: CheckCircle2, variant: "green" },
   qcApprovedToday:   { label: "อนุมัติวันนี้",   icon: CheckCircle2,  variant: "green" },
   withdrawalsToday:  { label: "เบิกวันนี้",      icon: Package,       variant: "blue",    drilldownPath: "/stock-deduction" },
   abnormalResults:   { label: "ผลผิดปกติ",       icon: AlertTriangle, variant: "red",     drilldownPath: "/record-results" },
@@ -67,8 +69,10 @@ export const KPI_META: Record<KpiId, KpiMeta> = {
   masterItemsTotal:  { label: "รายการสินค้า",    icon: Database,      variant: "neutral", drilldownPath: "/master-items" },
 };
 
-export type WorkflowKind = "statusDonut" | "pipeline";
-export type ChartKind = "deptBar" | "normalDonut" | "analystBar" | "withdrawBar" | "requestTrend" | "statusDonut";
+export type WorkflowKind = "statusDonut" | "pipeline" | "assignedWeekdayBar";
+export type ChartKind =
+  | "deptBar" | "normalDonut" | "analystBar" | "withdrawBar" | "requestTrend" | "statusDonut"
+  | "assignedWeekdayBar";
 export interface ChartSpec { kind: ChartKind; title: string }
 export type ActivityKind = "audit" | "statusChanges";
 
@@ -92,9 +96,9 @@ export const DASHBOARD_PROFILES: Record<DashboardProfileId, DashboardProfile> = 
   },
   "lab-analyze": {
     id: "lab-analyze", titleEn: "Lab Analyze Dashboard", subtitleTh: "งานวิเคราะห์ของฉัน",
-    kpis: ["assignedToMe", "inProgress", "completedToday", "returnedTotal"],
-    workflow: "statusDonut",
-    analytics: [{ kind: "statusDonut", title: "สถานะงานของฉัน" }],
+    kpis: ["assignedToMe", "inProgress", "completedToday"],
+    workflow: null,
+    analytics: [{ kind: "assignedWeekdayBar", title: "งานที่ถูก assign ตามวัน" }],
     activity: "statusChanges",
   },
   "lab-config": {
@@ -120,9 +124,9 @@ export const DASHBOARD_PROFILES: Record<DashboardProfileId, DashboardProfile> = 
   },
   "qc-staff": {
     id: "qc-staff", titleEn: "QC Staff Dashboard", subtitleTh: "รับตัวอย่าง · ส่ง Lab · ติดตาม",
-    kpis: ["assignedToMe", "waitingReceive", "waitingSendLab", "completedToday", "returnedTotal"],
-    workflow: "pipeline",
-    analytics: [{ kind: "statusDonut", title: "สัดส่วนสถานะ" }],
+    kpis: ["waitingReceive", "inProgress", "waitingReview", "approvedToday"],
+    workflow: "assignedWeekdayBar",
+    analytics: [],
     activity: "statusChanges",
   },
   "qc-reviewer": {
@@ -149,7 +153,18 @@ export const DASHBOARD_PROFILES: Record<DashboardProfileId, DashboardProfile> = 
 };
 
 const DEFAULT_PROFILE_MAP: Record<string, DashboardProfileId> = {
-  admin: "admin", qc: "qc-reviewer", lab: "lab-analyze", viewer: "viewer",
+  admin: "admin",
+  qc: "qc-reviewer",
+  "qc-staff": "qc-staff",
+  "qc-reviewer": "qc-reviewer",
+  "qc-head": "qc-head",
+  lab: "lab-analyze",
+  "lab-analyze": "lab-analyze",
+  "lab-data-config": "lab-config",
+  "lab-config": "lab-config",
+  "lab-head": "lab-head",
+  "lab-inventory": "lab-inventory",
+  viewer: "viewer",
 };
 
 /**

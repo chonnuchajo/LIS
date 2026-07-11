@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   ageHours, isSameLocalDay, countByStatus, statusDonutData, deptWorkloadData,
-  normalDonutData, requestTrendData, completedIn, computeKpi, type MetricsCtx,
+  normalDonutData, requestTrendData, completedIn, computeKpi,
+  buildLabWorklist, buildQcStaffWorklist, labWorklistCounts, qcStaffWorklistCounts,
+  paginateLabWorklist, assignedWeekdayData,
+  type MetricsCtx,
 } from "./dashboardMetrics";
 import type { Petition } from "@/types/petition.types";
 
@@ -84,13 +87,15 @@ describe("computeKpi", () => {
     now: NOW,
     abnormalFlags: { a: true }, returnedFlags: { c: true },
     pendingQcCount: 4, assignedToMeCount: 2,
-    usersTotal: 10, usersActive: 7, rolesTotal: 4, dailyCheckPending: 1,
+    usersTotal: 10, usersActive: 7, rolesTotal: 4,
+    dailyCheckPending: 1, dailyCheckDone: 37, dailyCheckTotal: 38, dailyCheckLoading: false,
     stockLow: 3, stockExpiring: 2, withdrawalsToday: 5, withdrawalsYesterday: 3,
     qcApprovedToday: 6, qcApprovedYesterday: 4, methodGaps: 9, masterItemsTotal: 120,
   };
   it("status counts", () => {
     expect(computeKpi("inProgress", ctx).value).toBe(1);
     expect(computeKpi("waitingReceive", ctx).value).toBe(1);
+    expect(computeKpi("waitingReview", ctx).value).toBe(1);
     expect(computeKpi("petitionsTotal", ctx).value).toBe(3);
   });
   it("flags + passthrough ctx numbers", () => {
@@ -102,8 +107,183 @@ describe("computeKpi", () => {
   it("time-based KPIs carry delta today-minus-yesterday", () => {
     expect(computeKpi("withdrawalsToday", ctx)).toEqual({ value: 5, delta: 2 });
     expect(computeKpi("qcApprovedToday", ctx)).toEqual({ value: 6, delta: 2 });
+    expect(computeKpi("approvedToday", ctx)).toEqual({ value: 6, delta: 2 });
   });
   it("normalRateApprox = round(100*(1-abnormal/total))", () => {
     expect(computeKpi("normalRateApprox", ctx).value).toBe(67); // 1 abnormal of 3
+  });
+});
+
+describe("qc staff worklist helpers", () => {
+  const receivedNewest = new Date(2026, 6, 6, 11).toISOString();
+  const participantOlder = new Date(2026, 6, 6, 9).toISOString();
+  const doneEarly = new Date(2026, 6, 6, 8).toISOString();
+  const doneLate = new Date(2026, 6, 6, 14).toISOString();
+  const yesterday = new Date(2026, 6, 5, 14).toISOString();
+  const user = { employeeId: "QC1", name: "QC A" };
+  const participants = {
+    "in-participant": ["QC A"],
+    "review-tester": ["QC A"],
+    "review-other": ["QC B"],
+  };
+
+  const list = [
+    pet({ _id: "waiting-receive", status: "sampleSent", sampleSentAt: doneEarly }),
+    pet({
+      _id: "in-received",
+      status: "inProgress",
+      qcReceivedAt: receivedNewest,
+      qcReceivedBy: "QC B",
+    }),
+    pet({
+      _id: "in-participant",
+      status: "inProgress",
+      assignedTo: { employeeId: "E2", name: "B", assignedAt: participantOlder },
+    }),
+    pet({ _id: "in-unrelated", status: "inProgress" }),
+    pet({ _id: "review-mine", status: "success", completedAt: doneLate, qcCompletedBy: "QC A" }),
+    pet({ _id: "review-tester", status: "success", completedAt: doneEarly }),
+    pet({ _id: "review-other", status: "success", completedAt: doneLate, qcCompletedBy: "QC B" }),
+    pet({ _id: "approved-today", status: "approved", approvedAt: new Date(NOW).toISOString() }),
+    pet({ _id: "approved-yesterday", status: "approved", approvedAt: yesterday }),
+  ];
+
+  it("filters QC staff rows by clicked KPI state", () => {
+    expect(buildQcStaffWorklist(list, "waitingReceive", user, NOW, participants).map((p) => p._id))
+      .toEqual(["waiting-receive"]);
+    expect(buildQcStaffWorklist(list, "inProgress", user, NOW, participants).map((p) => p._id))
+      .toEqual(["in-received", "in-participant"]);
+    expect(buildQcStaffWorklist(list, "waitingReview", user, NOW, participants).map((p) => p._id))
+      .toEqual(["review-mine", "review-tester"]);
+    expect(buildQcStaffWorklist(list, "approvedToday", user, NOW, participants).map((p) => p._id))
+      .toEqual(["approved-today"]);
+  });
+
+  it("qcStaffWorklistCounts matches the QC staff dashboard filters", () => {
+    expect(qcStaffWorklistCounts(list, user, NOW, participants)).toEqual({
+      waitingReceive: 1,
+      inProgress: 2,
+      waitingReview: 2,
+      approvedToday: 1,
+    });
+  });
+});
+
+describe("lab analyze worklist helpers", () => {
+  const assignedOlder = new Date(2026, 6, 5, 9).toISOString();
+  const assignedNewer = new Date(2026, 6, 6, 10).toISOString();
+  const doneEarly = new Date(2026, 6, 6, 8).toISOString();
+  const doneLate = new Date(2026, 6, 6, 14).toISOString();
+  const yesterday = new Date(2026, 6, 5, 14).toISOString();
+
+  const list = [
+    pet({
+      _id: "older",
+      petitionNo: "P-old",
+      status: "inProgress",
+      assignedTo: { employeeId: "", name: "A", assignedAt: assignedOlder },
+      labReceivedAt: assignedOlder,
+    }),
+    pet({
+      _id: "newer",
+      petitionNo: "P-new",
+      status: "inProgress",
+      assignedTo: { employeeId: "E1", name: "A", assignedAt: assignedNewer },
+      labReceivedAt: assignedNewer,
+    }),
+    pet({
+      _id: "other",
+      petitionNo: "P-other",
+      status: "inProgress",
+      assignedTo: { employeeId: "E2", name: "B", assignedAt: assignedNewer },
+      labReceivedAt: assignedNewer,
+    }),
+    pet({
+      _id: "not-progress",
+      petitionNo: "P-pending",
+      status: "pendingReview",
+      assignedTo: { employeeId: "E1", name: "A", assignedAt: assignedNewer },
+    }),
+    pet({
+      _id: "sent-result",
+      petitionNo: "P-sent",
+      status: "inProgress",
+      assignedTo: { employeeId: "E1", name: "A", assignedAt: assignedNewer },
+      labReceivedAt: assignedNewer,
+      labCompletedAt: doneLate,
+    }),
+    pet({
+      _id: "done-early",
+      petitionNo: "P-done-1",
+      status: "inProgress",
+      assignedTo: { employeeId: "E1", name: "A", assignedAt: assignedOlder },
+      labCompletedAt: doneEarly,
+    }),
+    pet({
+      _id: "done-late",
+      petitionNo: "P-done-2",
+      status: "inProgress",
+      assignedTo: { employeeId: "E1", name: "A", assignedAt: assignedNewer },
+      labCompletedAt: doneLate,
+    }),
+    pet({
+      _id: "done-other",
+      petitionNo: "P-done-other",
+      status: "inProgress",
+      assignedTo: { employeeId: "E2", name: "B", assignedAt: assignedNewer },
+      labCompletedAt: doneLate,
+    }),
+    pet({
+      _id: "done-yesterday",
+      petitionNo: "P-done-3",
+      status: "inProgress",
+      assignedTo: { employeeId: "E1", name: "A", assignedAt: assignedOlder },
+      labCompletedAt: yesterday,
+    }),
+  ];
+
+  it("buildLabWorklist returns my assigned open work newest first", () => {
+    expect(buildLabWorklist(list, "assignedToMe", { employeeId: "E1", name: "A" }, NOW).map((p) => p._id))
+      .toEqual(["newer", "not-progress", "older"]);
+  });
+
+  it("buildLabWorklist returns my accepted in-progress lab work newest first", () => {
+    expect(buildLabWorklist(list, "inProgress", { employeeId: "E1", name: "A" }, NOW).map((p) => p._id))
+      .toEqual(["newer", "older"]);
+  });
+
+  it("buildLabWorklist returns my lab-completed-today work newest first", () => {
+    expect(buildLabWorklist(list, "completedToday", { employeeId: "E1", name: "A" }, NOW).map((p) => p._id))
+      .toEqual(["sent-result", "done-late", "done-early"]);
+  });
+
+  it("labWorklistCounts matches the lab dashboard worklist filters", () => {
+    expect(labWorklistCounts(list, { employeeId: "E1", name: "A" }, NOW)).toEqual({
+      assignedToMe: 3,
+      inProgress: 2,
+      completedToday: 3,
+    });
+  });
+
+  it("paginateLabWorklist returns 4 rows per page and clamps page bounds", () => {
+    expect(paginateLabWorklist([1, 2, 3, 4, 5], 1).pageRows).toEqual([1, 2, 3, 4]);
+    expect(paginateLabWorklist([1, 2, 3, 4, 5], 2).pageRows).toEqual([5]);
+    expect(paginateLabWorklist([1, 2, 3, 4, 5], 99).page).toBe(2);
+    expect(paginateLabWorklist([], 1)).toEqual({ pageRows: [], page: 1, totalPages: 1, total: 0 });
+  });
+
+  it("assignedWeekdayData shows Monday-Saturday by default and Sunday only when assigned", () => {
+    const monday = pet({
+      _id: "mon",
+      assignedTo: { employeeId: "E1", name: "A", assignedAt: new Date(2026, 6, 6, 9).toISOString() },
+    });
+    const sunday = pet({
+      _id: "sun",
+      assignedTo: { employeeId: "E1", name: "A", assignedAt: new Date(2026, 6, 12, 9).toISOString() },
+    });
+
+    expect(assignedWeekdayData([monday]).map((d) => d.key)).toEqual(["mon", "tue", "wed", "thu", "fri", "sat"]);
+    expect(assignedWeekdayData([monday, sunday]).map((d) => d.key)).toEqual(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
+    expect(assignedWeekdayData([monday, sunday]).find((d) => d.key === "sun")?.count).toBe(1);
   });
 });

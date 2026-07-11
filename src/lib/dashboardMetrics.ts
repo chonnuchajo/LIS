@@ -3,6 +3,7 @@ import {
   type Petition, type PetitionStatus, type PetitionDept,
 } from "@/types/petition.types";
 import type { KpiId } from "@/lib/dashboardProfiles";
+import { labReceivedAt, qcReceivedAt, qcReceivedBy } from "@/lib/receiveStatus";
 
 export interface MetricsCtx {
   petitions: Petition[];
@@ -15,6 +16,9 @@ export interface MetricsCtx {
   usersActive: number;
   rolesTotal: number;
   dailyCheckPending: number;
+  dailyCheckDone: number;
+  dailyCheckTotal: number;
+  dailyCheckLoading: boolean;
   stockLow: number;
   stockExpiring: number;
   withdrawalsToday: number;
@@ -133,6 +137,201 @@ export function requestTrendData(petitions: Petition[], now: number, days: numbe
   return buckets;
 }
 
+export type LabWorklistFilter = "assignedToMe" | "inProgress" | "completedToday";
+export type QcStaffWorklistFilter = "waitingReceive" | "inProgress" | "waitingReview" | "approvedToday";
+export type QcParticipantMap = Record<string, readonly string[]>;
+
+export interface LabDashboardUser {
+  employeeId?: string | null;
+  name?: string | null;
+  email?: string | null;
+}
+
+export interface LabWeekdayBucket {
+  key: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+  label: string;
+  count: number;
+}
+
+const WEEKDAY_BUCKETS: LabWeekdayBucket[] = [
+  { key: "mon", label: "จันทร์", count: 0 },
+  { key: "tue", label: "อังคาร", count: 0 },
+  { key: "wed", label: "พุธ", count: 0 },
+  { key: "thu", label: "พฤหัส", count: 0 },
+  { key: "fri", label: "ศุกร์", count: 0 },
+  { key: "sat", label: "เสาร์", count: 0 },
+  { key: "sun", label: "อาทิตย์", count: 0 },
+];
+
+function assignmentIso(p: Petition): string | null | undefined {
+  return p.assignedTo?.assignedAt ?? p.receivedAt ?? p.sampleSentAt ?? p.createdAt;
+}
+
+function qcAssignmentIso(p: Petition): string | null | undefined {
+  return qcReceivedAt(p) ?? assignmentIso(p);
+}
+
+function completionIso(p: Petition): string | null | undefined {
+  return p.completedAt ?? p.approvedAt ?? p.updatedAt;
+}
+
+function labCompletionIso(p: Petition): string | null | undefined {
+  return p.labCompletedAt ?? p.completedAt ?? p.approvedAt ?? p.updatedAt;
+}
+
+function qcCompletionIso(p: Petition): string | null | undefined {
+  return p.qcCompletedAt ?? p.completedAt ?? p.approvedAt ?? p.updatedAt;
+}
+
+function approvalIso(p: Petition): string | null | undefined {
+  return p.approvedAt ?? p.completedAt ?? p.updatedAt;
+}
+
+function timeValue(iso: string | null | undefined): number {
+  if (!iso) return 0;
+  const t = new Date(iso).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
+function normalizedPerson(value: string | null | undefined): string {
+  return value?.trim().toLocaleLowerCase() ?? "";
+}
+
+function isCurrentUserName(value: string | null | undefined, user: LabDashboardUser | null | undefined): boolean {
+  const candidate = normalizedPerson(value);
+  if (!candidate || !user) return false;
+  return [user.name, user.email].some((part) => normalizedPerson(part) === candidate);
+}
+
+export function isAssignedToUser(p: Petition, user: LabDashboardUser | null | undefined): boolean {
+  const assigned = p.assignedTo;
+  if (!user || !assigned) return false;
+  const userEmployeeId = user.employeeId?.trim();
+  const assignedEmployeeId = assigned.employeeId?.trim();
+  if (userEmployeeId && assignedEmployeeId && userEmployeeId === assignedEmployeeId) return true;
+  const userName = user.name?.trim();
+  const assignedName = assigned.name?.trim();
+  return !!userName && !!assignedName && userName === assignedName;
+}
+
+export function buildLabWorklist(
+  petitions: Petition[],
+  filter: LabWorklistFilter,
+  user: LabDashboardUser | null | undefined,
+  now: number,
+): Petition[] {
+  const rows = petitions.filter((p) => {
+    if (!isAssignedToUser(p, user)) return false;
+    if (filter === "assignedToMe") return !p.labCompletedAt && p.status !== "success" && p.status !== "approved" && p.status !== "rejected";
+    if (filter === "inProgress") return p.status === "inProgress" && !!labReceivedAt(p) && !p.labCompletedAt;
+    return !!p.labCompletedAt && isSameLocalDay(labCompletionIso(p), now);
+  });
+
+  const rowTime = filter === "completedToday" ? labCompletionIso : assignmentIso;
+  return rows.sort((a, b) => timeValue(rowTime(b)) - timeValue(rowTime(a)));
+}
+
+export function labWorklistCounts(
+  petitions: Petition[],
+  user: LabDashboardUser | null | undefined,
+  now: number,
+): Record<LabWorklistFilter, number> {
+  return {
+    assignedToMe: buildLabWorklist(petitions, "assignedToMe", user, now).length,
+    inProgress: buildLabWorklist(petitions, "inProgress", user, now).length,
+    completedToday: buildLabWorklist(petitions, "completedToday", user, now).length,
+  };
+}
+
+export function isQcParticipant(
+  p: Petition,
+  user: LabDashboardUser | null | undefined,
+  participantNames: readonly string[] = [],
+): boolean {
+  return [qcReceivedBy(p), p.qcCompletedBy, ...participantNames].some((name) => isCurrentUserName(name, user));
+}
+
+export function buildQcStaffWorklist(
+  petitions: Petition[],
+  filter: QcStaffWorklistFilter = "inProgress",
+  user?: LabDashboardUser | null,
+  now = Date.now(),
+  participantsByPetition: QcParticipantMap = {},
+): Petition[] {
+  const rows = petitions.filter((p) => {
+    const participantNames = participantsByPetition[p._id] ?? [];
+    if (filter === "waitingReceive") return p.status === "sampleSent";
+    if (filter === "inProgress") {
+      return p.status === "inProgress" && (!!qcReceivedAt(p) || isQcParticipant(p, user, participantNames));
+    }
+    if (filter === "waitingReview") {
+      return p.status === "success" && isQcParticipant(p, user, participantNames);
+    }
+    return p.status === "approved" && isSameLocalDay(approvalIso(p), now);
+  });
+
+  const rowTime =
+    filter === "waitingReview" ? qcCompletionIso :
+    filter === "approvedToday" ? approvalIso :
+    filter === "inProgress" ? qcAssignmentIso :
+    assignmentIso;
+  return rows.sort((a, b) => timeValue(rowTime(b)) - timeValue(rowTime(a)));
+}
+
+export function qcStaffWorklistCounts(
+  petitions: Petition[],
+  user: LabDashboardUser | null | undefined,
+  now: number,
+  participantsByPetition: QcParticipantMap = {},
+): Record<QcStaffWorklistFilter, number> {
+  return {
+    waitingReceive: buildQcStaffWorklist(petitions, "waitingReceive", user, now, participantsByPetition).length,
+    inProgress: buildQcStaffWorklist(petitions, "inProgress", user, now, participantsByPetition).length,
+    waitingReview: buildQcStaffWorklist(petitions, "waitingReview", user, now, participantsByPetition).length,
+    approvedToday: buildQcStaffWorklist(petitions, "approvedToday", user, now, participantsByPetition).length,
+  };
+}
+
+export function paginateLabWorklist<T>(rows: T[], page: number, pageSize = 4) {
+  const safePageSize = Math.max(1, Math.floor(pageSize));
+  const total = rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / safePageSize));
+  const safePage = Math.min(totalPages, Math.max(1, Math.floor(page)));
+  const start = (safePage - 1) * safePageSize;
+  return {
+    pageRows: rows.slice(start, start + safePageSize),
+    page: safePage,
+    totalPages,
+    total,
+  };
+}
+
+export function assignedWeekdayData(petitions: Petition[]): LabWeekdayBucket[] {
+  const byKey = new Map<LabWeekdayBucket["key"], LabWeekdayBucket>(
+    WEEKDAY_BUCKETS.map((d) => [d.key, { ...d }]),
+  );
+
+  for (const p of petitions) {
+    if (!p.assignedTo) continue;
+    const t = timeValue(assignmentIso(p));
+    if (!t) continue;
+    const day = new Date(t).getDay();
+    const key: LabWeekdayBucket["key"] =
+      day === 0 ? "sun" :
+      day === 1 ? "mon" :
+      day === 2 ? "tue" :
+      day === 3 ? "wed" :
+      day === 4 ? "thu" :
+      day === 5 ? "fri" :
+      "sat";
+    const bucket = byKey.get(key);
+    if (bucket) bucket.count += 1;
+  }
+
+  const ordered = WEEKDAY_BUCKETS.map((d) => byKey.get(d.key) ?? d);
+  return ordered.filter((d) => d.key !== "sun" || d.count > 0);
+}
+
 /** success/approved whose completedAt (fallback approvedAt/updatedAt) lands on local day `dayOffset`. */
 export function completedIn(petitions: Petition[], now: number, dayOffset: number): number {
   const start = startOfLocalDay(now, dayOffset);
@@ -161,6 +360,7 @@ export function computeKpi(id: KpiId, ctx: MetricsCtx): KpiValue {
     case "waitingReceive": return { value: countStatus(P, "sampleSent") };
     case "pendingAssign": return { value: countStatus(P, "pendingReview") };
     case "waitingSendLab": return { value: countStatus(P, "pendingReview") };
+    case "waitingReview": return { value: countStatus(P, "success") };
     case "completedTotal": return { value: countStatus(P, "success") + countStatus(P, "approved") };
     case "activeTotal":
       return { value: countStatus(P, "inProgress") + countStatus(P, "pendingReview") + countStatus(P, "sampleSent") };
@@ -169,6 +369,8 @@ export function computeKpi(id: KpiId, ctx: MetricsCtx): KpiValue {
     case "assignedToMe": return { value: ctx.assignedToMeCount };
     case "completedToday":
       return { value: completedIn(P, ctx.now, 0), delta: completedIn(P, ctx.now, 0) - completedIn(P, ctx.now, 1) };
+    case "approvedToday":
+      return { value: ctx.qcApprovedToday, delta: ctx.qcApprovedToday - ctx.qcApprovedYesterday };
     case "qcApprovedToday":
       return { value: ctx.qcApprovedToday, delta: ctx.qcApprovedToday - ctx.qcApprovedYesterday };
     case "withdrawalsToday":

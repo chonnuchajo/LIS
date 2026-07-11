@@ -1,12 +1,14 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { usePetitionList } from "@/hooks/usePetition";
 import { useSamples } from "@/context/SampleContext";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { loadAccessControl } from "@/lib/accessControlSource";
 import type { DashboardProfile } from "@/lib/dashboardProfiles";
-import type { MetricsCtx } from "@/lib/dashboardMetrics";
+import { isAssignedToUser, type MetricsCtx } from "@/lib/dashboardMetrics";
+import { dailyCheckProgressFromSources } from "@/lib/dailyCheckProgress";
+import { EQUIPMENT_ROOM_SLUGS } from "@/lib/roomEquipment";
 import type { Petition } from "@/types/petition.types";
 
 const EXPIRY_WARN_DAYS = 180;
@@ -94,8 +96,24 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
     queryFn: () => api.getStockTransactions({ action: "withdraw", limit: 500 }),
   });
 
-  const wantDaily = need("dailyCheckPending");
-  const { data: dailySummary } = useQuery({ queryKey: ["dash", "daily"], enabled: wantDaily, queryFn: api.getDailyCheckTodaySummary });
+  const wantDailyProgress = profile.id === "lab-analyze" || need("dailyCheckPending");
+  const { data: dailySummary } = useQuery({
+    queryKey: ["dash", "daily"],
+    enabled: wantDailyProgress,
+    queryFn: api.getDailyCheckTodaySummary,
+  });
+  const { data: envSummary } = useQuery({
+    queryKey: ["dash", "env", "today-summary"],
+    enabled: wantDailyProgress,
+    queryFn: api.getEnvCheckTodaySummary,
+  });
+  const equipmentCheckQueries = useQueries({
+    queries: EQUIPMENT_ROOM_SLUGS.map((room) => ({
+      queryKey: ["dash", "equipment-checks", "today", room],
+      enabled: wantDailyProgress,
+      queryFn: () => api.getEquipmentChecks({ room }),
+    })),
+  });
 
   const wantUsers = need("usersTotal") || need("usersActive") || need("rolesTotal");
   const { data: access } = useQuery({
@@ -134,12 +152,19 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
     const pendingQcCount = doneSamples.filter(
       (s) => !approvals[s.id]?.qcStatus || approvals[s.id]?.qcStatus === "pending",
     ).length;
-    const assignedToMeCount = petitions.filter(
-      (p) =>
-        p.status === "inProgress" &&
-        ((!!user?.employeeId && p.assignedTo?.employeeId === user.employeeId) ||
-          (!!user?.name && p.assignedTo?.name === user.name)),
-    ).length;
+    const assignedToMeCount = petitions.filter((p) => isAssignedToUser(p, user)).length;
+    const dailyCheckProgress = dailyCheckProgressFromSources({
+      scaleIds: dailySummary?.scaleIds,
+      scaleCount: dailySummary?.count,
+      environmentRooms: envSummary?.rooms,
+      environmentCount: envSummary?.count,
+      equipmentRecords: equipmentCheckQueries.flatMap((query) => query.data ?? []),
+    });
+    const dailyCheckLoading = wantDailyProgress && (
+      !dailySummary ||
+      !envSummary ||
+      equipmentCheckQueries.some((query) => query.isLoading)
+    );
 
     const configured = new Set(
       simpleMethods
@@ -164,7 +189,10 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
       usersTotal: access?.users?.length ?? 0,
       usersActive: access?.users?.filter((u) => u.status !== "inactive").length ?? 0,
       rolesTotal: access?.roles?.length ?? 0,
-      dailyCheckPending: dailySummary && !dailySummary.allPass ? 1 : 0,
+      dailyCheckPending: dailyCheckProgress.pending,
+      dailyCheckDone: dailyCheckProgress.done,
+      dailyCheckTotal: dailyCheckProgress.total,
+      dailyCheckLoading,
       stockLow: solvents.filter((s) => (s.qty ?? 0) < SOLVENT_LOW_QTY).length,
       stockExpiring: standards.filter(
         (s) => Math.min(daysUntil(s.working?.exp), daysUntil(s.supplier?.exp)) <= EXPIRY_WARN_DAYS,
@@ -187,6 +215,9 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
     standards,
     txns,
     dailySummary,
+    envSummary,
+    equipmentCheckQueries,
+    wantDailyProgress,
     access,
     slim,
     simpleMethods,

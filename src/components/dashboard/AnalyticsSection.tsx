@@ -6,13 +6,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ChartSpec } from "@/lib/dashboardProfiles";
 import {
   deptWorkloadData, analystWorkloadData, normalDonutData, requestTrendData, statusDonutData,
+  assignedWeekdayData,
   type MetricsCtx,
 } from "@/lib/dashboardMetrics";
+import { cn } from "@/lib/utils";
 
-export default function AnalyticsSection({ specs, ctx }: { specs: ChartSpec[]; ctx: MetricsCtx }) {
+interface AnalyticsSectionProps {
+  specs: ChartSpec[];
+  ctx: MetricsCtx;
+  layout?: "grid" | "single";
+}
+
+export default function AnalyticsSection({ specs, ctx, layout = "grid" }: AnalyticsSectionProps) {
   if (specs.length === 0) return null;
   return (
-    <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className={cn("grid grid-cols-1 gap-4", layout === "grid" && "mb-4 lg:grid-cols-2")}>
       {specs.map((s) => (
         <Card key={s.kind + s.title}>
           <CardHeader className="pb-2"><CardTitle className="text-base">{s.title}</CardTitle></CardHeader>
@@ -26,6 +34,7 @@ export default function AnalyticsSection({ specs, ctx }: { specs: ChartSpec[]; c
 function ChartFor({ spec, ctx }: { spec: ChartSpec; ctx: MetricsCtx }) {
   if (spec.kind === "deptBar") return <SimpleBar data={ctx ? deptWorkloadData(ctx.petitions).map((d) => ({ name: d.label, count: d.count })) : []} />;
   if (spec.kind === "analystBar") return <SimpleBar data={analystWorkloadData(ctx.petitions).map((d) => ({ name: d.name, count: d.count }))} />;
+  if (spec.kind === "assignedWeekdayBar") return <WeekdayBar data={assignedWeekdayData(ctx.petitions)} />;
   if (spec.kind === "withdrawBar") return <TrendBar data={requestTrendData(ctx.petitions, ctx.now, 7)} note="(ใช้ createdAt คำขอเป็นตัวแทนช่วง — การเบิกจริงดูหน้าเบิก)" />;
   if (spec.kind === "requestTrend") return <TrendBar data={requestTrendData(ctx.petitions, ctx.now, 14)} />;
   if (spec.kind === "normalDonut") return <Donut data={normalDonutData(ctx.petitions, ctx.abnormalFlags)} />;
@@ -42,6 +51,20 @@ function SimpleBar({ data }: { data: { name: string; count: number }[] }) {
         <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
         <ChartTooltip content={<ChartTooltipContent />} />
         <Bar dataKey="count" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
+      </BarChart>
+    </ChartContainer>
+  );
+}
+
+function WeekdayBar({ data }: { data: { label: string; count: number }[] }) {
+  return (
+    <ChartContainer config={{ count: { label: "จำนวน", color: "hsl(var(--primary))" } }} className="h-[220px] w-full">
+      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 12 }}>
+        <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+        <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+        <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} width={58} />
+        <ChartTooltip content={<ChartTooltipContent />} />
+        <Bar dataKey="count" fill="hsl(var(--primary))" radius={[0, 3, 3, 0]} />
       </BarChart>
     </ChartContainer>
   );
