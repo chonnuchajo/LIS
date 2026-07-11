@@ -4,7 +4,7 @@
 
 **Goal:** Add a Lab Inventory dashboard donut summary for near-empty stock, out-of-stock items, near-expiry Standards, and today's stock deductions.
 
-**Architecture:** Keep inventory counting in pure dashboard metric helpers, feed those helpers from `useDashboardData()`, and render a dedicated dashboard card only for the `lab-inventory` profile. Reuse existing stock status rules and Recharts/shadcn dashboard card conventions so KPI values, donut values, and the withdrawal trend all come from the same stock transaction data.
+**Architecture:** Keep inventory counting in pure dashboard metric helpers, feed those helpers from `useDashboardData()`, and render a dedicated dashboard card whenever the current user holds the `lab-inventory` role. If another working role such as `lab-analyze` wins the primary dashboard, keep that primary dashboard first and place the inventory card below it. Reuse existing stock status rules and Recharts/shadcn dashboard card conventions so KPI values, donut values, and the withdrawal trend all come from the same stock transaction data.
 
 **Tech Stack:** React 18, TypeScript, Vitest, React Testing Library, TanStack Query, Recharts, shadcn/ui, Tailwind CSS.
 
@@ -22,6 +22,8 @@
 - Treat Glassware out of stock as `qty === 0`; glassware has no near-empty state.
 - Treat Standard near expiry as `summarizeStandard(...).expiringSoon > 0`.
 - Today's deduction count uses stock transaction rows where `action === "deduct"` and `createdAt` is on the local calendar day.
+- A user who holds both `lab-analyze` and `lab-inventory` sees the Lab Analyze dashboard first, then the Inventory summary below it.
+- A user whose primary dashboard is `lab-inventory` sees the Inventory summary directly below the KPI row.
 
 ---
 
@@ -33,9 +35,9 @@
 - Modify `src/components/dashboard/AnalyticsSection.tsx`: make `withdrawBar` render `ctx.deductionTrend` instead of petition `createdAt` proxy data.
 - Create `src/components/dashboard/LabInventorySummary.tsx`: render the donut card, count legend, loading state, and empty state.
 - Create `src/components/dashboard/LabInventorySummary.test.tsx`: component tests for labels/counts, loading state, and empty state.
-- Modify `src/lib/dashboardProfiles.ts`: add a pure `shouldShowLabInventorySummary(profileId)` placement helper.
+- Modify `src/lib/dashboardProfiles.ts`: add a pure `labInventorySummaryPlacement(roleIds, profileId)` placement helper.
 - Modify `src/lib/dashboardProfiles.test.ts`: test the placement helper.
-- Modify `src/pages/RoleDashboard.tsx`: render `LabInventorySummary` below the KPI row only for the Lab Inventory profile.
+- Modify `src/pages/RoleDashboard.tsx`: render `LabInventorySummary` below the KPI row for primary Lab Inventory dashboards, or below the primary dashboard content when `lab-inventory` is an additional held role.
 
 ---
 
@@ -415,6 +417,7 @@ git commit -m "feat(dashboard): compute lab inventory summary metrics"
 **Interfaces:**
 - Consumes: `labInventorySummaryData(input)` from `src/lib/dashboardMetrics.ts`
 - Consumes: `deductionTrendData(transactions, now, days)` from `src/lib/dashboardMetrics.ts`
+- Consumes: `normalizeRoles(user)` from `src/lib/roles.ts`
 - Extends: `MetricsCtx` with `labInventorySummary`, `labInventoryLoading`, and `deductionTrend`
 - Produces: `ctx.labInventorySummary`
 - Produces: `ctx.labInventoryLoading`
@@ -475,7 +478,29 @@ import {
 } from "@/lib/dashboardMetrics";
 ```
 
-- [ ] **Step 4: Fetch stock units and deduction transactions for Lab Inventory**
+- [ ] **Step 4: Detect held Inventory role and fetch stock data for it**
+
+In `src/hooks/useDashboardData.ts`, add this import after the metric imports:
+
+```ts
+import { normalizeRoles } from "@/lib/roles";
+```
+
+After:
+
+```ts
+  const kpis = new Set(profile.kpis);
+  const need = (id: string) => kpis.has(id as never);
+```
+
+add:
+
+```ts
+  const roleIds = normalizeRoles(user);
+  const wantInventorySummary = roleIds.includes("lab-inventory");
+```
+
+Then replace the existing stock and transaction query block.
 
 Replace the existing stock and transaction query block:
 
@@ -495,7 +520,7 @@ Replace the existing stock and transaction query block:
 with:
 
 ```ts
-  const wantStock = need("stockLow") || need("stockExpiring") || profile.id === "lab-inventory";
+  const wantStock = wantInventorySummary || need("stockLow") || need("stockExpiring");
   const { data: solvents = [], isLoading: solventsLoading } = useQuery({
     queryKey: ["dash", "solvents"],
     enabled: wantStock,
@@ -517,7 +542,7 @@ with:
     queryFn: () => api.getStockUnits(),
   });
 
-  const wantWithdraw = need("withdrawalsToday") || profile.analytics.some((a) => a.kind === "withdrawBar");
+  const wantWithdraw = wantInventorySummary || need("withdrawalsToday") || profile.analytics.some((a) => a.kind === "withdrawBar");
   const { data: txns = [], isLoading: txnsLoading } = useQuery({
     queryKey: ["dash", "txns", "deduct"],
     enabled: wantWithdraw,
@@ -530,7 +555,7 @@ with:
 Inside the `useMemo()` in `src/hooks/useDashboardData.ts`, after `methodGaps`, add:
 
 ```ts
-    const labInventorySummary = wantStock
+    const labInventorySummary = wantInventorySummary || wantStock
       ? labInventorySummaryData({
         standards,
         units: stockUnits,
@@ -540,7 +565,7 @@ Inside the `useMemo()` in `src/hooks/useDashboardData.ts`, after `methodGaps`, a
         now,
       })
       : EMPTY_LAB_INVENTORY_SUMMARY;
-    const labInventoryLoading = wantStock && (
+    const labInventoryLoading = (wantInventorySummary || wantStock) && (
       standardsLoading ||
       stockUnitsLoading ||
       solventsLoading ||
@@ -601,6 +626,7 @@ In `src/hooks/useDashboardData.ts`, add these dependencies to the `useMemo` depe
     glassware,
     wantStock,
     wantWithdraw,
+    wantInventorySummary,
     standardsLoading,
     stockUnitsLoading,
     solventsLoading,
@@ -821,7 +847,8 @@ git commit -m "feat(dashboard): add lab inventory summary card"
 - Modify: `src/pages/RoleDashboard.tsx`
 
 **Interfaces:**
-- Produces: `function shouldShowLabInventorySummary(profileId: DashboardProfileId | null): boolean`
+- Produces: `type LabInventorySummaryPlacement = "top" | "bottom" | "hidden"`
+- Produces: `function labInventorySummaryPlacement(roleIds: string[], profileId: DashboardProfileId | null): LabInventorySummaryPlacement`
 - Consumes: `LabInventorySummaryCard` from `src/components/dashboard/LabInventorySummary.tsx`
 - Consumes: `ctx.labInventorySummary` and `ctx.labInventoryLoading`
 
@@ -832,7 +859,7 @@ In `src/lib/dashboardProfiles.test.ts`, extend the import from `./dashboardProfi
 ```ts
 import {
   DASHBOARD_PROFILES, KPI_META, resolveProfileForRole, resolveActiveRole, resolveDashboardRole,
-  shouldShowLabInventorySummary,
+  labInventorySummaryPlacement,
 } from "./dashboardProfiles";
 ```
 
@@ -840,12 +867,19 @@ Add this `describe` block before `describe("registry integrity", ...)`:
 
 ```ts
 describe("Lab Inventory summary placement", () => {
-  it("shows the inventory summary only on the Lab Inventory dashboard profile", () => {
-    expect(shouldShowLabInventorySummary("lab-inventory")).toBe(true);
-    expect(shouldShowLabInventorySummary("lab-analyze")).toBe(false);
-    expect(shouldShowLabInventorySummary("lab-config")).toBe(false);
-    expect(shouldShowLabInventorySummary("qc-staff")).toBe(false);
-    expect(shouldShowLabInventorySummary(null)).toBe(false);
+  it("places the summary at the top when Lab Inventory is the primary dashboard", () => {
+    expect(labInventorySummaryPlacement(["lab-inventory"], "lab-inventory")).toBe("top");
+  });
+
+  it("places the summary below another primary dashboard when Lab Inventory is also held", () => {
+    expect(labInventorySummaryPlacement(["lab-analyze", "lab-inventory"], "lab-analyze")).toBe("bottom");
+    expect(labInventorySummaryPlacement(["lab-head", "lab-inventory"], "lab-head")).toBe("bottom");
+  });
+
+  it("hides the summary when the user does not hold Lab Inventory", () => {
+    expect(labInventorySummaryPlacement(["lab-analyze"], "lab-analyze")).toBe("hidden");
+    expect(labInventorySummaryPlacement(["qc-staff"], "qc-staff")).toBe("hidden");
+    expect(labInventorySummaryPlacement([], null)).toBe("hidden");
   });
 });
 ```
@@ -858,15 +892,21 @@ Run:
 npm run test -- src/lib/dashboardProfiles.test.ts
 ```
 
-Expected result: FAIL because `shouldShowLabInventorySummary` is not exported.
+Expected result: FAIL because `labInventorySummaryPlacement` is not exported.
 
 - [ ] **Step 3: Add the placement helper**
 
 In `src/lib/dashboardProfiles.ts`, add this function after `resolveDashboardRole()`:
 
 ```ts
-export function shouldShowLabInventorySummary(profileId: DashboardProfileId | null): boolean {
-  return profileId === "lab-inventory";
+export type LabInventorySummaryPlacement = "top" | "bottom" | "hidden";
+
+export function labInventorySummaryPlacement(
+  roleIds: string[],
+  profileId: DashboardProfileId | null,
+): LabInventorySummaryPlacement {
+  if (!roleIds.includes("lab-inventory")) return "hidden";
+  return profileId === "lab-inventory" ? "top" : "bottom";
 }
 ```
 
@@ -890,21 +930,34 @@ with:
 import {
   resolveProfileForRole,
   resolveDashboardRole,
-  shouldShowLabInventorySummary,
+  labInventorySummaryPlacement,
   DASHBOARD_PROFILES,
   type KpiId,
 } from "@/lib/dashboardProfiles";
 ```
 
+After `const isQcStaff = profileId === "qc-staff";`, add:
+
+```ts
+  const inventorySummaryPlacement = labInventorySummaryPlacement(roles, profileId);
+  const inventorySummarySection = inventorySummaryPlacement === "hidden" ? null : (
+    <LabInventorySummaryCard
+      summary={ctx.labInventorySummary}
+      loading={ctx.labInventoryLoading}
+    />
+  );
+```
+
 Immediately after the existing `<KpiRow ... />` block in `RoleDashboard`, add:
 
 ```tsx
-      {shouldShowLabInventorySummary(profileId) ? (
-        <LabInventorySummaryCard
-          summary={ctx.labInventorySummary}
-          loading={ctx.labInventoryLoading}
-        />
-      ) : null}
+      {inventorySummaryPlacement === "top" ? inventorySummarySection : null}
+```
+
+At the end of the dashboard content, immediately after the existing `ActivityTimeline` render, add:
+
+```tsx
+      {inventorySummaryPlacement === "bottom" ? inventorySummarySection : null}
 ```
 
 - [ ] **Step 5: Run focused placement validation**
@@ -916,7 +969,7 @@ npm run test -- src/lib/dashboardProfiles.test.ts src/components/dashboard/LabIn
 npx tsc --noEmit
 ```
 
-Expected result: profile tests PASS, component tests PASS, and TypeScript completes with no errors.
+Expected result: profile tests PASS, component tests PASS, and TypeScript completes with no errors. A user with roles `["lab-analyze", "lab-inventory"]` keeps the Lab Analyze profile first and gets the Inventory summary at the bottom.
 
 - [ ] **Step 6: Commit Task 4**
 
@@ -1031,9 +1084,10 @@ Expected result:
 - `labInventorySummaryData()` counts Standard, Solvent, and Glassware according to the design rules.
 - `deductionTrendData()` uses stock transaction `createdAt` and ignores non-`deduct` actions.
 - `useDashboardData()` fetches stock transactions with `action: "deduct"`.
+- `useDashboardData()` fetches Lab Inventory stock data when the current user holds `lab-inventory`, even if the resolved primary dashboard is `lab-analyze`.
 - `stockLow`, `stockExpiring`, and `withdrawalsToday` are populated from the same summary/transaction sources as the donut.
 - `AnalyticsSection` uses `ctx.deductionTrend` for `withdrawBar`.
-- `RoleDashboard` renders `LabInventorySummaryCard` only when `profileId === "lab-inventory"`.
+- `RoleDashboard` renders `LabInventorySummaryCard` at the top for primary `lab-inventory`, and at the bottom when `lab-inventory` is held alongside another primary dashboard such as `lab-analyze`.
 - No generated `assets/` files, root `app.html`, or seed exports are changed.
 
 - [ ] **Step 4: Confirm prohibited commands were not run**
@@ -1062,6 +1116,6 @@ If Step 1 and Step 2 pass without source fixes, do not create an empty commit.
 
 ## Self-Review Notes
 
-- Spec coverage: Task 1 implements the counting rules and transaction trend logic. Task 2 wires existing API data and keeps KPI values consistent with the donut. Task 3 adds the visible donut/count card. Task 4 renders it only for `lab-inventory`. Task 5 replaces the withdrawal proxy trend with real `deduct` transaction buckets. Task 6 verifies tests, typecheck, diff scope, and the no-build policy.
+- Spec coverage: Task 1 implements the counting rules and transaction trend logic. Task 2 wires existing API data by held role and keeps KPI values consistent with the donut. Task 3 adds the visible donut/count card. Task 4 renders it at top for primary `lab-inventory` and at bottom when `lab-inventory` is held alongside another primary dashboard. Task 5 replaces the withdrawal proxy trend with real `deduct` transaction buckets. Task 6 verifies tests, typecheck, diff scope, and the no-build policy.
 - Placeholder scan: the plan contains no deferred requirement markers and every code-changing step includes exact code or exact replacement snippets.
 - Type consistency: `LabInventorySummary`, `LabInventorySummaryDatum`, and `DeductionTrendDatum` are defined in Task 1, populated in Task 2, consumed by the component in Task 3, inserted in Task 4, and used by analytics in Task 5.

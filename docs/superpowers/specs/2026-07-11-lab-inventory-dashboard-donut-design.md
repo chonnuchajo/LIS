@@ -16,9 +16,20 @@ The dashboard should answer four operational questions at a glance:
 
 ## Placement
 
-Show the new summary only on the `lab-inventory` dashboard profile.
+Show the new summary whenever the current user holds the `lab-inventory` role,
+independent of the resolved primary dashboard profile.
 
-Place it below the existing KPI row and above the main dashboard grid so inventory users see the alert composition before the transaction trend and activity content.
+Placement depends on the resolved primary dashboard:
+
+- If the primary dashboard profile is `lab-inventory`, place it below the
+  existing KPI row and above the main dashboard grid.
+- If the user holds `lab-inventory` alongside another primary working role
+  such as `lab-analyze`, keep that primary dashboard first and place the
+  Inventory summary below the primary dashboard content.
+
+This means a user with both `lab-analyze` and `lab-inventory` should still see
+the Lab Analyze dashboard first, with the Inventory data shown below it rather
+than choosing only one dashboard.
 
 Desktop layout:
 
@@ -111,8 +122,14 @@ Update `MetricsCtx` to include:
 
 Update `useDashboardData()`:
 
-- Fetch stock units when the profile needs Lab Inventory stock metrics.
-- Fetch stock transactions with `action: "deduct"` when the profile needs `withdrawalsToday` or the `withdrawBar` analytic.
+- Detect held roles from the current user. Fetch Inventory summary data when
+  `roleIds.includes("lab-inventory")`, even if the resolved profile is
+  `lab-analyze`.
+- Fetch stock units when the profile needs Lab Inventory stock metrics or the
+  user holds `lab-inventory`.
+- Fetch stock transactions with `action: "deduct"` when the profile needs
+  `withdrawalsToday`, the `withdrawBar` analytic, or the user holds
+  `lab-inventory`.
 - Compute `stockLow`, `stockExpiring`, and donut data from the same stock sources so KPI and donut counts are consistent.
 - Keep existing KPI names, with these values:
   - `stockLow = nearEmpty + outOfStock`
@@ -129,7 +146,14 @@ Add a small dashboard component:
 - `src/components/dashboard/LabInventorySummary.tsx`
 - Props should consume computed summary rows from `MetricsCtx`, not fetch directly.
 
-Render this component from `RoleDashboard` only when `profileId === "lab-inventory"`.
+Render this component from `RoleDashboard` when the current role list includes
+`lab-inventory`.
+
+Placement in `RoleDashboard`:
+
+- `profileId === "lab-inventory"`: render directly after the KPI row.
+- any other `profileId` with `lab-inventory` held: render after the main
+  dashboard content, so the primary dashboard stays first.
 
 ## Error And Loading States
 
@@ -156,7 +180,8 @@ Component tests should cover:
 
 - Lab Inventory summary renders all labels and counts.
 - Empty summary shows an empty state.
-- The component is only inserted for `lab-inventory` in `RoleDashboard` or via a small pure placement helper if testing the page directly is too coupled.
+- The component is inserted for a user who holds `lab-inventory` even when the
+  primary profile is `lab-analyze`.
 
 Focused validation commands:
 
