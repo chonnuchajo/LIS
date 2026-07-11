@@ -83,9 +83,9 @@ describe("ParameterSettings row click/double-click opens detail drawer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUser = { role: "admin", roles: ["admin"] };
-    api.get.mockResolvedValue({ data: { data: [] } });
-    api.getParameters.mockResolvedValue(parameters);
-    api.updateParameter.mockResolvedValue(undefined);
+    vi.mocked(api.get).mockResolvedValue({ data: { data: [] } });
+    vi.mocked(api.getParameters).mockResolvedValue(parameters);
+    vi.mocked(api.updateParameter).mockResolvedValue(undefined);
   });
 
   it("opens the read-only detail drawer on a single click of the row", async () => {
