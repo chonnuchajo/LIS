@@ -136,6 +136,28 @@ describe("ParameterDetailDrawer", () => {
     expect(screen.getByText("ต้องกรอกหมายเหตุ")).toBeInTheDocument();
   });
 
+  it("enum: optionFilters โชว์ไอคอน Filter + สรุปตัวกรอง เฉพาะ option ที่ตั้งไว้", () => {
+    renderDrawer({
+      _id: "p1",
+      name: "X",
+      valueFields: [
+        {
+          label: "ลักษณะ",
+          type: "enum",
+          options: ["ใส", "ขุ่น", "เข้ม"],
+          optionFilters: {
+            "ขุ่น": { commonNames: ["EC", "SC"] },
+            "เข้ม": { itemGroups: ["g1"] },
+          },
+        },
+      ],
+    });
+    expect(screen.getByText("common: EC/SC")).toBeInTheDocument();
+    expect(screen.getByText("กลุ่ม: กลุ่มน้ำ")).toBeInTheDocument();
+    const clearRow = screen.getByText("ใส").closest("div");
+    expect(clearRow?.textContent).not.toMatch(/common:|กลุ่ม:/);
+  });
+
   it("enum legacy (ไม่มี optionOutputs): expectedValues → ปกติ, ที่เหลือ → ไม่ปกติ", () => {
     renderDrawer({
       _id: "p1",

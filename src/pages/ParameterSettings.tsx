@@ -25,7 +25,8 @@ import { SubstanceStandardsDialog } from "@/components/lis/SubstanceStandardsDia
 import { SubstanceStandardRowDialog } from "@/components/lis/SubstanceStandardRowDialog";
 import { ConditionalStandardsDialog } from "@/components/lis/ConditionalStandardsDialog";
 import { LabelToleranceDialog } from "@/components/lis/LabelToleranceDialog";
-import { describeRule, describeSubstanceStandard, describeOutputRule, describeLabelTolerance } from "@/lib/standardOperators";
+import { ParameterDetailDrawer } from "@/components/lis/ParameterDetailDrawer";
+import { describeRule, describeSubstanceStandard, describeOutputRule, describeLabelTolerance, describeSingleStandard } from "@/lib/standardOperators";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -502,47 +503,12 @@ function StandardPreview({ field }: { field: ParameterValueField }) {
       </div>
     );
   }
-  const op = field.standardOperator;
-  const v1 = field.standardValue;
-  const v2 = field.standardValue2;
-  const unit = field.unit ? ` ${field.unit}` : "";
-
-  if (!op) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        ยังไม่ได้กำหนดเงื่อนไข — จะไม่ตรวจค่าผิดปกติ
-      </p>
-    );
-  }
-  if (v1 == null) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        ยังไม่ได้กรอกค่ามาตรฐาน
-      </p>
-    );
-  }
-
-  let text = "";
-  switch (op) {
-    case "lt": text = `ค่าปกติ: < ${v1}${unit}`; break;
-    case "lte": text = `ค่าปกติ: ≤ ${v1}${unit}`; break;
-    case "eq": text = `ค่าปกติ: = ${v1}${unit}`; break;
-    case "gte": text = `ค่าปกติ: ≥ ${v1}${unit}`; break;
-    case "gt": text = `ค่าปกติ: > ${v1}${unit}`; break;
-    case "between":
-      if (v2 == null) return <p className="text-xs text-muted-foreground">ยังไม่ได้กรอกค่าสิ้นสุดของช่วง</p>;
-      text = `ค่าปกติ: ${v1} - ${v2}${unit}`;
-      break;
-    case "tolerance":
-      if (v2 == null || v2 <= 0) return <p className="text-xs text-muted-foreground">ยังไม่ได้กรอก tolerance %</p>;
-      {
-        const low = v1 - Math.abs(v1) * (v2 / 100);
-        const high = v1 + Math.abs(v1) * (v2 / 100);
-        text = `ค่าปกติ: ${v1} ± ${v2}% (${low} - ${high})${unit}`;
-      }
-      break;
-  }
-  return <p className="text-xs text-emerald-700">{text}</p>;
+  const single = describeSingleStandard(field);
+  return (
+    <p className={cn("text-xs", single.set ? "text-emerald-700" : "text-muted-foreground")}>
+      {single.text}
+    </p>
+  );
 }
 
 const TIMER_PART_LABEL: Record<keyof TimerParts, string> = {
@@ -2413,6 +2379,7 @@ export default function ParameterSettings() {
   const [editing, setEditing] = useState<ParameterItem | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<ParameterItem | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   const parametersQuery = useQuery({
     queryKey: ["parameters"],
@@ -2529,6 +2496,10 @@ export default function ParameterSettings() {
       return matchesSearch && matchesStatus;
     });
   }, [scopedParameters, search, statusFilter]);
+
+  const viewing = viewingId
+    ? parameters.find((p) => p._id === viewingId) ?? null
+    : null;
 
   const activeCount = scopedParameters.filter((p) => (p.status ?? "active") === "active").length;
   const qcCount = parameters.filter((p) => (p.scope ?? "qc") === "qc").length;
@@ -2750,7 +2721,13 @@ export default function ParameterSettings() {
                     filtered.map((p, i) => {
                       const pScope = (p.scope ?? "qc") as ParameterScope;
                       return (
-                      <TableRow key={p._id ?? i}>
+                      <TableRow
+                        key={p._id ?? i}
+                        className="cursor-pointer"
+                        onClick={() => p._id && setViewingId(p._id)}
+                        onDoubleClick={() => p._id && setViewingId(p._id)}
+                        title="คลิกเพื่อดูรายละเอียด"
+                      >
                         <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -2791,7 +2768,11 @@ export default function ParameterSettings() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={() => setEditing(p)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditing(p);
+                            }}
+                            onDoubleClick={(e) => e.stopPropagation()}
                             title="แก้ไข"
                           >
                             <Pencil className="h-4 w-4" />
@@ -2799,7 +2780,11 @@ export default function ParameterSettings() {
                           <Button
                             size="icon"
                             variant="ghost"
-                            onClick={() => setDeleting(p)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleting(p);
+                            }}
+                            onDoubleClick={(e) => e.stopPropagation()}
                             title="ลบ"
                             className="text-destructive hover:text-destructive"
                           >
@@ -2834,6 +2819,19 @@ export default function ParameterSettings() {
         onClose={closeDialog}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["parameters"] })}
       />
+
+      {viewing ? (
+        <ParameterDetailDrawer
+          parameter={viewing}
+          allParameters={parameters}
+          groupNameById={groupNameById}
+          onEdit={() => {
+            setViewingId(null);
+            setEditing(viewing);
+          }}
+          onClose={() => setViewingId(null)}
+        />
+      ) : null}
 
       {criteriaEditor && criteriaField ? (
         criteriaEditor.mode === "substance" ? (

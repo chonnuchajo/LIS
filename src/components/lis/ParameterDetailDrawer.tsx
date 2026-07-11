@@ -22,6 +22,7 @@ import {
   describeLabelTolerance,
   describeOutputRule,
   describeRule,
+  describeSingleStandard,
   describeSubstanceStandard,
 } from "@/lib/standardOperators";
 import {
@@ -70,33 +71,6 @@ function CriteriaList({ title, items, emptyText }: { title: string; items: strin
       ) : null}
     </div>
   );
-}
-
-/** logic เดียวกับ StandardPreview (โหมดค่าเดียว) ในหน้า ParameterSettings */
-function singleStandardText(field: ParameterValueField): { text: string; set: boolean } {
-  const op = field.standardOperator;
-  const v1 = field.standardValue;
-  const v2 = field.standardValue2;
-  const unit = field.unit ? ` ${field.unit}` : "";
-  if (!op) return { text: "ยังไม่ได้กำหนดเงื่อนไข — จะไม่ตรวจค่าผิดปกติ", set: false };
-  if (v1 == null) return { text: "ยังไม่ได้กรอกค่ามาตรฐาน", set: false };
-  switch (op) {
-    case "lt": return { text: `ค่าปกติ: < ${v1}${unit}`, set: true };
-    case "lte": return { text: `ค่าปกติ: ≤ ${v1}${unit}`, set: true };
-    case "eq": return { text: `ค่าปกติ: = ${v1}${unit}`, set: true };
-    case "gte": return { text: `ค่าปกติ: ≥ ${v1}${unit}`, set: true };
-    case "gt": return { text: `ค่าปกติ: > ${v1}${unit}`, set: true };
-    case "between":
-      if (v2 == null) return { text: "ยังไม่ได้กรอกค่าสิ้นสุดของช่วง", set: false };
-      return { text: `ค่าปกติ: ${v1} - ${v2}${unit}`, set: true };
-    case "tolerance": {
-      if (v2 == null || v2 <= 0) return { text: "ยังไม่ได้กรอก tolerance %", set: false };
-      const low = v1 - Math.abs(v1) * (v2 / 100);
-      const high = v1 + Math.abs(v1) * (v2 / 100);
-      return { text: `ค่าปกติ: ${v1} ± ${v2}% (${low} - ${high})${unit}`, set: true };
-    }
-  }
-  return { text: "", set: false };
 }
 
 function OptionOutputChip({ output }: { output: OptionOutput | undefined }) {
@@ -215,7 +189,7 @@ function FieldDetail({
           </div>
         );
       }
-      const single = singleStandardText(field);
+      const single = describeSingleStandard(field);
       return (
         <div className="space-y-1">
           {unitLine}
