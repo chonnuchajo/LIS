@@ -4,9 +4,17 @@ import {
   normalDonutData, requestTrendData, completedIn, computeKpi,
   buildLabWorklist, buildQcStaffWorklist, labWorklistCounts, qcStaffWorklistCounts,
   paginateLabWorklist, assignedWeekdayData,
+  labInventorySummaryData, deductionTrendData,
   type MetricsCtx,
 } from "./dashboardMetrics";
 import type { Petition } from "@/types/petition.types";
+import type {
+  StockGlasswareItem,
+  StockSolventItem,
+  StockStandardItem,
+  StockTransactionItem,
+  StockUnitItem,
+} from "@/types/stock";
 
 const NOW = new Date(2026, 6, 6, 15, 0).getTime(); // 6 Jul 2026 15:00 local
 
@@ -19,6 +27,84 @@ function pet(over: Partial<Petition>): Petition {
     createdAt: "2026-07-06T01:00:00.000Z", updatedAt: "2026-07-06T01:00:00.000Z",
     ...over,
   } as Petition;
+}
+
+function stockStandard(over: Partial<StockStandardItem>): StockStandardItem {
+  return {
+    _id: over._id ?? "std-id",
+    code: over.code ?? "STD",
+    name: over.name ?? "Standard",
+    primary: { qty: 0, ordered: 0, sizeMg: null, exp: "", usesPerBottle: null, pricePerUnit: 0, totalPrice: 0 },
+    supplier: { qty: 0, sizeMg: null, exp: "" },
+    working: { qty: 0, sizeMg: null, exp: "" },
+    usagePerUseMg: null,
+    frequency: "",
+    storageTemp: "",
+    status: "",
+    expiryStatus: "",
+    ...over,
+  };
+}
+
+function stockUnit(over: Partial<StockUnitItem>): StockUnitItem {
+  return {
+    _id: over._id ?? "unit-id",
+    qrId: over.qrId ?? "qr-id",
+    itemCode: over.itemCode ?? "STD",
+    itemName: over.itemName ?? "Standard",
+    kind: over.kind ?? "sealed",
+    source: over.source ?? "primary",
+    type: over.type ?? "primary",
+    parentId: over.parentId ?? null,
+    lotNo: over.lotNo ?? "",
+    exp: over.exp ?? null,
+    volume: over.volume ?? { initial: 100, remaining: 100, unit: "mg" },
+    status: over.status ?? "active",
+    receivedDate: over.receivedDate ?? null,
+    withdrawnDate: over.withdrawnDate ?? null,
+    discardedAt: over.discardedAt ?? null,
+    discardReason: over.discardReason ?? "",
+    ...over,
+  };
+}
+
+function solvent(over: Partial<StockSolventItem>): StockSolventItem {
+  return {
+    _id: over._id ?? "solvent-id",
+    name: over.name ?? "Solvent",
+    sizeLiter: over.sizeLiter ?? 1,
+    qty: over.qty ?? 0,
+    price: over.price ?? 0,
+    note: over.note ?? "",
+    ...over,
+  };
+}
+
+function glassware(over: Partial<StockGlasswareItem>): StockGlasswareItem {
+  return {
+    _id: over._id ?? "glass-id",
+    name: over.name ?? "Glassware",
+    qty: over.qty ?? 0,
+    pricePerPiece: over.pricePerPiece ?? 0,
+    note: over.note ?? "",
+    ...over,
+  };
+}
+
+function stockTxn(over: Partial<StockTransactionItem>): StockTransactionItem {
+  return {
+    _id: over._id ?? "tx-id",
+    itemType: over.itemType ?? "standard",
+    itemId: over.itemId ?? "item-id",
+    itemName: over.itemName ?? "Item",
+    action: over.action ?? "deduct",
+    createdAt: over.createdAt ?? new Date(NOW).toISOString(),
+    ...over,
+  };
+}
+
+function toRowCounts(rows: { key: string; value: number }[]): Record<string, number> {
+  return Object.fromEntries(rows.map((row) => [row.key, row.value]));
 }
 
 describe("date helpers", () => {
@@ -74,6 +160,64 @@ describe("aggregations", () => {
     ];
     expect(completedIn(today, NOW, 0)).toBe(2);
     expect(completedIn(today, NOW, 1)).toBe(1);
+  });
+});
+
+describe("Lab Inventory dashboard metrics", () => {
+  it("labInventorySummaryData counts near empty, out of stock, near expiry, and today's deductions", () => {
+    const now = new Date(2026, 6, 6, 15, 0).getTime();
+    const summary = labInventorySummaryData({
+      standards: [
+        stockStandard({ _id: "std-near", code: "STD-NEAR", name: "Near standard" }),
+        stockStandard({ _id: "std-out", code: "STD-OUT", name: "Out standard" }),
+        stockStandard({ _id: "std-exp", code: "STD-EXP", name: "Expiring standard" }),
+      ],
+      units: [
+        stockUnit({ _id: "u-near", qrId: "qr-near", itemCode: "STD-NEAR", exp: "2026-09-01" }),
+        stockUnit({ _id: "u-out", qrId: "qr-out", itemCode: "STD-OUT", exp: "2026-06-01" }),
+        stockUnit({ _id: "u-exp-1", qrId: "qr-exp-1", itemCode: "STD-EXP", exp: "2026-07-20" }),
+        stockUnit({ _id: "u-exp-2", qrId: "qr-exp-2", itemCode: "STD-EXP", exp: "2026-09-01" }),
+      ],
+      solvents: [
+        solvent({ _id: "sol-near", name: "Near solvent", qty: 1 }),
+        solvent({ _id: "sol-out", name: "Out solvent", qty: 0 }),
+        solvent({ _id: "sol-ok", name: "Ok solvent", qty: 2 }),
+      ],
+      glassware: [
+        glassware({ _id: "glass-out", name: "Out glass", qty: 0 }),
+        glassware({ _id: "glass-ok", name: "Ok glass", qty: 1 }),
+      ],
+      deductions: [
+        stockTxn({ _id: "tx-today-1", action: "deduct", createdAt: new Date(2026, 6, 6, 9).toISOString() }),
+        stockTxn({ _id: "tx-today-2", action: "deduct", createdAt: new Date(2026, 6, 6, 14).toISOString() }),
+        stockTxn({ _id: "tx-receive", action: "receive", createdAt: new Date(2026, 6, 6, 10).toISOString() }),
+        stockTxn({ _id: "tx-yesterday", action: "deduct", createdAt: new Date(2026, 6, 5, 10).toISOString() }),
+      ],
+      now,
+    });
+
+    expect(summary.nearEmpty).toBe(2);
+    expect(summary.outOfStock).toBe(3);
+    expect(summary.nearExpiry).toBe(1);
+    expect(summary.todayDeductions).toBe(2);
+    expect(toRowCounts(summary.rows)).toEqual({
+      nearEmpty: 2,
+      outOfStock: 3,
+      nearExpiry: 1,
+      todayDeductions: 2,
+    });
+  });
+
+  it("deductionTrendData buckets only deduction transactions by local day", () => {
+    const now = new Date(2026, 6, 6, 15, 0).getTime();
+    const rows = deductionTrendData([
+      stockTxn({ _id: "today-1", action: "deduct", createdAt: new Date(2026, 6, 6, 8).toISOString() }),
+      stockTxn({ _id: "today-2", action: "deduct", createdAt: new Date(2026, 6, 6, 11).toISOString() }),
+      stockTxn({ _id: "yesterday", action: "deduct", createdAt: new Date(2026, 6, 5, 11).toISOString() }),
+      stockTxn({ _id: "receive-today", action: "receive", createdAt: new Date(2026, 6, 6, 12).toISOString() }),
+    ], now, 3);
+
+    expect(rows.map((row) => row.count)).toEqual([0, 1, 2]);
   });
 });
 

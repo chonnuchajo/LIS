@@ -4,6 +4,14 @@ import {
 } from "@/types/petition.types";
 import type { KpiId } from "@/lib/dashboardProfiles";
 import { labReceivedAt, qcReceivedAt, qcReceivedBy } from "@/lib/receiveStatus";
+import type {
+  StockGlasswareItem,
+  StockSolventItem,
+  StockStandardItem,
+  StockTransactionItem,
+  StockUnitItem,
+} from "@/types/stock";
+import { summarizeStandard } from "@/lib/stockStatus";
 
 export interface MetricsCtx {
   petitions: Petition[];
@@ -330,6 +338,128 @@ export function assignedWeekdayData(petitions: Petition[]): LabWeekdayBucket[] {
 
   const ordered = WEEKDAY_BUCKETS.map((d) => byKey.get(d.key) ?? d);
   return ordered.filter((d) => d.key !== "sun" || d.count > 0);
+}
+
+export type LabInventorySummaryKey = "nearEmpty" | "outOfStock" | "nearExpiry" | "todayDeductions";
+
+export interface LabInventorySummaryDatum {
+  key: LabInventorySummaryKey;
+  label: string;
+  value: number;
+  color: string;
+}
+
+export interface LabInventorySummary {
+  nearEmpty: number;
+  outOfStock: number;
+  nearExpiry: number;
+  todayDeductions: number;
+  rows: LabInventorySummaryDatum[];
+}
+
+export interface LabInventorySummaryInput {
+  standards: StockStandardItem[];
+  units: StockUnitItem[];
+  solvents: StockSolventItem[];
+  glassware: StockGlasswareItem[];
+  deductions: StockTransactionItem[];
+  now: number;
+}
+
+export interface DeductionTrendDatum {
+  date: string;
+  count: number;
+}
+
+export const EMPTY_LAB_INVENTORY_SUMMARY: LabInventorySummary = {
+  nearEmpty: 0,
+  outOfStock: 0,
+  nearExpiry: 0,
+  todayDeductions: 0,
+  rows: [
+    { key: "nearEmpty", label: "ใกล้หมด", value: 0, color: "hsl(38,92%,50%)" },
+    { key: "outOfStock", label: "หมดสต็อก", value: 0, color: "hsl(0,72%,51%)" },
+    { key: "nearExpiry", label: "ใกล้หมดอายุ", value: 0, color: "hsl(262,83%,58%)" },
+    { key: "todayDeductions", label: "เบิกวันนี้", value: 0, color: "hsl(217,91%,55%)" },
+  ],
+};
+
+function unitsByItemCode(units: StockUnitItem[]): Map<string, StockUnitItem[]> {
+  const byCode = new Map<string, StockUnitItem[]>();
+  for (const unit of units) {
+    const code = String(unit.itemCode || "").trim();
+    if (!code) continue;
+    const current = byCode.get(code) ?? [];
+    current.push(unit);
+    byCode.set(code, current);
+  }
+  return byCode;
+}
+
+function localDayLabel(timestamp: number): string {
+  return new Date(timestamp).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+}
+
+export function labInventorySummaryData(input: LabInventorySummaryInput): LabInventorySummary {
+  const nowDate = new Date(input.now);
+  const unitsByCode = unitsByItemCode(input.units);
+  let nearEmpty = 0;
+  let outOfStock = 0;
+  let nearExpiry = 0;
+
+  for (const standard of input.standards) {
+    const summary = summarizeStandard(unitsByCode.get(standard.code) ?? [], nowDate);
+    if (summary.usable === 1) nearEmpty += 1;
+    if (summary.usable === 0) outOfStock += 1;
+    if (summary.expiringSoon > 0) nearExpiry += 1;
+  }
+
+  for (const item of input.solvents) {
+    const qty = Number(item.qty) || 0;
+    if (qty === 1) nearEmpty += 1;
+    if (qty === 0) outOfStock += 1;
+  }
+
+  for (const item of input.glassware) {
+    const qty = Number(item.qty) || 0;
+    if (qty === 0) outOfStock += 1;
+  }
+
+  const todayDeductions = input.deductions.filter(
+    (transaction) => transaction.action === "deduct" && isSameLocalDay(transaction.createdAt, input.now),
+  ).length;
+
+  return {
+    nearEmpty,
+    outOfStock,
+    nearExpiry,
+    todayDeductions,
+    rows: [
+      { key: "nearEmpty", label: "ใกล้หมด", value: nearEmpty, color: "hsl(38,92%,50%)" },
+      { key: "outOfStock", label: "หมดสต็อก", value: outOfStock, color: "hsl(0,72%,51%)" },
+      { key: "nearExpiry", label: "ใกล้หมดอายุ", value: nearExpiry, color: "hsl(262,83%,58%)" },
+      { key: "todayDeductions", label: "เบิกวันนี้", value: todayDeductions, color: "hsl(217,91%,55%)" },
+    ],
+  };
+}
+
+export function deductionTrendData(
+  transactions: StockTransactionItem[],
+  now: number,
+  days: number,
+): DeductionTrendDatum[] {
+  const buckets: DeductionTrendDatum[] = [];
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const start = startOfLocalDay(now, i);
+    const end = startOfLocalDay(now, i - 1);
+    const count = transactions.filter((transaction) => {
+      if (transaction.action !== "deduct") return false;
+      const t = new Date(transaction.createdAt).getTime();
+      return t >= start && t < end;
+    }).length;
+    buckets.push({ date: localDayLabel(start), count });
+  }
+  return buckets;
 }
 
 /** success/approved whose completedAt (fallback approvedAt/updatedAt) lands on local day `dayOffset`. */
