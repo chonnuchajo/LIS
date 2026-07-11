@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   DASHBOARD_PROFILES, KPI_META, resolveProfileForRole, resolveActiveRole, resolveDashboardRole,
   labInventorySummaryPlacement,
+  hasLabDataConfigRole, labDataConfigCoveragePlacement,
 } from "./dashboardProfiles";
 
 describe("resolveProfileForRole", () => {
@@ -80,6 +81,21 @@ describe("Lab Inventory summary placement", () => {
     expect(labInventorySummaryPlacement(["lab-analyze"], "lab-analyze")).toBe("hidden");
     expect(labInventorySummaryPlacement(["qc-staff"], "qc-staff")).toBe("hidden");
     expect(labInventorySummaryPlacement([], null)).toBe("hidden");
+  });
+});
+
+describe("Lab Data Config dashboard pie placement", () => {
+  it("detects both Lab Data Config role ids", () => {
+    expect(hasLabDataConfigRole(["lab-data-config"])).toBe(true);
+    expect(hasLabDataConfigRole(["lab-config"])).toBe(true);
+    expect(hasLabDataConfigRole(["lab-analyze"])).toBe(false);
+  });
+
+  it("places config pies at the top only for the lab-config profile", () => {
+    expect(labDataConfigCoveragePlacement(["lab-data-config"], "lab-config")).toBe("top");
+    expect(labDataConfigCoveragePlacement(["lab-data-config", "lab-analyze"], "lab-analyze")).toBe("bottom");
+    expect(labDataConfigCoveragePlacement(["lab-analyze"], "lab-analyze")).toBe("hidden");
+    expect(labDataConfigCoveragePlacement(["lab-config"], null)).toBe("bottom");
   });
 });
 

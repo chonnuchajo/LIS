@@ -8,6 +8,7 @@ import ActionTable from "@/components/dashboard/ActionTable";
 import WorkflowSummary from "@/components/dashboard/WorkflowSummary";
 import AnalyticsSection from "@/components/dashboard/AnalyticsSection";
 import ActivityTimeline from "@/components/dashboard/ActivityTimeline";
+import ConfigCoveragePies from "@/components/dashboard/ConfigCoveragePies";
 import LabInventorySummaryCard from "@/components/dashboard/LabInventorySummary";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
@@ -15,8 +16,9 @@ import { normalizeRoles } from "@/lib/roles";
 import {
   resolveProfileForRole,
   resolveDashboardRole,
-  labInventorySummaryPlacement,
   DASHBOARD_PROFILES,
+  labDataConfigCoveragePlacement,
+  labInventorySummaryPlacement,
   type KpiId,
 } from "@/lib/dashboardProfiles";
 import {
@@ -101,6 +103,14 @@ export default function RoleDashboard() {
     <LabInventorySummaryCard
       summary={ctx.labInventorySummary}
       loading={ctx.labInventoryLoading}
+    />
+  );
+  const labConfigCoveragePlacement = labDataConfigCoveragePlacement(roles, profileId);
+  const labConfigCoverageSection = labConfigCoveragePlacement === "hidden" ? null : (
+    <ConfigCoveragePies
+      simpleMethodData={ctx.simpleMethodCoverage}
+      standardTimeData={ctx.standardTimeCoverage}
+      loading={ctx.configCoverageLoading}
     />
   );
   const qcStaffIdsParam = useMemo(() => petitions.map((p) => p._id).join(","), [petitions]);
@@ -197,6 +207,7 @@ export default function RoleDashboard() {
         onExport={handleExport}
         navItems={navItems}
       />
+      {labConfigCoveragePlacement === "top" ? labConfigCoverageSection : null}
       <KpiRow
         kpis={profile.kpis}
         ctx={ctx}
@@ -294,6 +305,7 @@ export default function RoleDashboard() {
       </div>
       {!isLabAnalyze ? <AnalyticsSection specs={profile.analytics} ctx={ctx} /> : null}
       {!isLabAnalyze ? <ActivityTimeline kind={profile.activity} /> : null}
+      {labConfigCoveragePlacement === "bottom" ? labConfigCoverageSection : null}
       {inventorySummaryPlacement === "bottom" ? inventorySummarySection : null}
     </AppLayout>
   );
