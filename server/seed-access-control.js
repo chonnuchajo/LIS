@@ -25,10 +25,12 @@ const GROUPS = [
 ];
 
 const ROLES = [
-  { id: 'admin', name: 'Administrator', description: 'Full system access', locked: true, permissions: ['others', 'qc', 'lab', 'inventory'] },
-  { id: 'lab', name: 'Lab Analyst', description: 'Sample handling and result entry', locked: false, permissions: ['/record-results', '/daily-check', '/stock-deduction', '/petitions/assign', '/master-items', '/simple-method', '/machines', '/stock'] },
-  { id: 'qc', name: 'QC Reviewer', description: 'Review and approve results', locked: false, permissions: ['inventory', '/physical-inspection'] },
-  { id: 'viewer', name: 'Viewer', description: 'Read-only access to dashboards and reports', locked: false, permissions: ['/home', '/', '/petitions'] },
+  { id: 'admin', name: 'Administrator', description: 'Full system access', locked: true, permissions: ['others', 'qc', 'lab', 'inventory'], family: '' },
+  { id: 'lab-analyze', name: 'Lab Analyze', description: 'Base Lab analysis workspace', locked: false, permissions: ['/dashboard/lab', '/record-results', '/daily-check', '/lab-testing', '/lab-testing/:id'], family: 'lab', dashboardProfile: 'lab-analyze' },
+  { id: 'qc-staff', name: 'QC Staff', description: 'Base QC receiving and tracking workspace', locked: false, permissions: ['/dashboard/qc', '/physical-inspection', '/qc-testing', '/qc-testing/:id'], family: 'qc', dashboardProfile: 'qc-staff' },
+  { id: 'lab', name: 'Lab Analyst', description: 'Sample handling and result entry', locked: false, permissions: ['/record-results', '/daily-check', '/stock-deduction', '/petitions/assign', '/master-items', '/simple-method', '/machines', '/stock'], family: 'lab' },
+  { id: 'qc', name: 'QC Reviewer', description: 'Review and approve results', locked: false, permissions: ['inventory', '/physical-inspection'], family: 'qc' },
+  { id: 'viewer', name: 'Viewer', description: 'Read-only access to dashboards and reports', locked: false, permissions: ['/home', '/', '/petitions'], family: '' },
 ];
 
 async function main() {

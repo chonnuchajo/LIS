@@ -12,6 +12,13 @@ const { findEmployeeByEmail, findEmployeeById, planEmployeeSync } = require('../
 const { isStorablePermission } = require('../lib/permissionFilter');
 const { isValidProfileId } = require('../lib/dashboardProfiles');
 const { roleInUse } = require('../lib/roleUsage');
+const {
+  LAB_BASE_ROLE,
+  QC_BASE_ROLE,
+  normalizeRoleFamily,
+  mergeBaseRolesForFamilies,
+  applyBaseRolesToUser,
+} = require('../lib/roleFamilies');
 
 const defaultGroups = [
   { id: 'dashboard', name: 'หน้าหลัก', description: 'ภาพรวมแล็บและงานที่กำลังดำเนินการ', paths: ['/', '/home', '/dashboard/lab'], locked: false, sortOrder: 10 },
@@ -27,11 +34,27 @@ const defaultGroups = [
 ];
 
 const defaultRoles = [
-  { id: 'admin', name: 'Administrator', description: 'Full system access', locked: true, permissions: defaultGroups.map(g => g.id) },
-  { id: 'lab', name: 'Lab Analyst', description: 'Sample handling and result entry', permissions: ['dashboard', 'samples', 'results', 'stock'] },
-  { id: 'qc', name: 'QC Reviewer', description: 'Review and approve results', permissions: ['dashboard', 'results', 'qc', 'reports'] },
-  { id: 'viewer', name: 'Viewer', description: 'Read-only access to dashboards and reports', permissions: ['dashboard', 'reports'] },
+  { id: 'admin', name: 'Administrator', description: 'Full system access', locked: true, permissions: defaultGroups.map(g => g.id), family: '' },
+  { id: LAB_BASE_ROLE, name: 'Lab Analyze', description: 'Base Lab analysis workspace', permissions: ['dashboard', 'samples', 'results', '/lab-testing', '/lab-testing/:id'], family: 'lab', dashboardProfile: 'lab-analyze' },
+  { id: QC_BASE_ROLE, name: 'QC Staff', description: 'Base QC receiving and tracking workspace', permissions: ['dashboard', 'samples', 'qc', '/qc-testing', '/qc-testing/:id'], family: 'qc', dashboardProfile: 'qc-staff' },
+  { id: 'lab', name: 'Lab Analyst', description: 'Sample handling and result entry', permissions: ['dashboard', 'samples', 'results', 'stock'], family: 'lab' },
+  { id: 'qc', name: 'QC Reviewer', description: 'Review and approve results', permissions: ['dashboard', 'results', 'qc', 'reports'], family: 'qc' },
+  { id: 'viewer', name: 'Viewer', description: 'Read-only access to dashboards and reports', permissions: ['dashboard', 'reports'], family: '' },
 ];
+
+const knownRoleFamilies = new Map([
+  ['lab', 'lab'],
+  [LAB_BASE_ROLE, 'lab'],
+  ['lab-data-config', 'lab'],
+  ['lab-config', 'lab'],
+  ['lab-head', 'lab'],
+  ['lab-inventory', 'lab'],
+  ['qc', 'qc'],
+  [QC_BASE_ROLE, 'qc'],
+  ['qc-reviewer', 'qc'],
+  ['qc-data-config', 'qc'],
+  ['qc-head', 'qc'],
+]);
 
 function slugify(value) {
   return String(value || '')
@@ -129,6 +152,20 @@ async function ensureGroups() {
   return AccessGroup.find().sort({ sortOrder: 1, name: 1 }).lean();
 }
 
+async function ensureRoleFamilyDefaults() {
+  for (const role of defaultRoles.filter((item) => [LAB_BASE_ROLE, QC_BASE_ROLE].includes(item.id))) {
+    const { family, ...insertFields } = role;
+    await Role.updateOne(
+      { id: role.id },
+      { $setOnInsert: insertFields, $set: { family } },
+      { upsert: true },
+    );
+  }
+  for (const [id, family] of knownRoleFamilies.entries()) {
+    await Role.updateOne({ id }, { $set: { family } });
+  }
+}
+
 async function ensureDefaults() {
   const groups = await ensureGroups();
   const count = await Role.countDocuments();
@@ -139,6 +176,7 @@ async function ensureDefaults() {
     { id: 'admin' },
     { $addToSet: { permissions: { $each: groups.map(group => group.id) } } },
   );
+  await ensureRoleFamilyDefaults();
   return groups;
 }
 
@@ -150,6 +188,43 @@ async function getRolePermissions(rolesInput) {
   const roleDocs = await Role.find({ id: { $in: roles } }).lean();
   const permsByRole = Object.fromEntries(roleDocs.map((r) => [r.id, r.permissions || []]));
   return unionPermissions(roles, permsByRole);
+}
+
+function hasOwn(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function uniqueRoleIds(values, fallback = 'viewer') {
+  const source = Array.isArray(values) && values.length > 0 ? values : [fallback];
+  const seen = new Set();
+  const out = [];
+  for (const value of source) {
+    const id = String(value ?? '').trim().toLowerCase();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out.length > 0 ? out : [fallback];
+}
+
+async function normalizeRequestedRoles(values, fallback = 'viewer') {
+  const requested = uniqueRoleIds(values, fallback);
+  const found = await Role.find({ id: { $in: requested } });
+  const foundIds = new Set(found.map((role) => role.id));
+  const missing = requested.filter((id) => !foundIds.has(id));
+  if (missing.length > 0) {
+    const error = new Error('role not found');
+    error.status = 400;
+    throw error;
+  }
+  return mergeBaseRolesForFamilies(requested, found);
+}
+
+async function applyStoredBaseRoles(user) {
+  const current = normalizeRoles(user);
+  const roleDocs = current.length > 0 ? await Role.find({ id: { $in: current } }) : [];
+  applyBaseRolesToUser(user, roleDocs);
+  return user;
 }
 
 function formatUser(user, permissions) {
@@ -177,6 +252,7 @@ function formatRole(role) {
     description: role.description || '',
     locked: role.locked,
     dashboardProfile: role.dashboardProfile || null,
+    family: normalizeRoleFamily(role.family),
   };
 }
 
@@ -245,16 +321,14 @@ router.get('/', async (req, res) => {
 
 router.post('/users', async (req, res) => {
   try {
+    await ensureDefaults();
     const { name, email, department, position, roleId, roleIds, status } = req.body;
     if (!email) return res.status(400).json({ error: 'email is required' });
 
-    const requested = [...new Set(
+    const requested = await normalizeRequestedRoles(
       Array.isArray(roleIds) && roleIds.length > 0 ? roleIds : [roleId || 'viewer'],
-    )];
-    const found = await Role.find({ id: { $in: requested } });
-    if (found.length !== requested.length) {
-      return res.status(400).json({ error: 'role not found' });
-    }
+      'viewer',
+    );
 
     const user = await User.create({
       name,
@@ -304,6 +378,7 @@ router.post('/users/microsoft', async (req, res) => {
         user.name = name || user.name || normalizedEmail;
       }
       user.lastActive = now;
+      await applyStoredBaseRoles(user);
       try {
         await user.save();
       } catch (e) {
@@ -324,13 +399,17 @@ router.post('/users/microsoft', async (req, res) => {
     // HR is the source of truth for แผนก/ตำแหน่ง when matched; otherwise keep the
     // resolveHrField/Graph value. Resolved before create so there's a single write.
     const link = await resolveEmployeeLink(normalizedEmail);
+    const resolvedDepartment = (link && link.department) || resolveHrField(department, undefined);
+    const resolvedPosition = (link && link.position) || resolveHrField(position, undefined);
+    const roles = await normalizeRequestedRoles([role], role);
     const newUserDoc = {
       email: normalizedEmail,
       // HR is the source of truth for the display name once linked.
       name: (link && link.name) || name || normalizedEmail,
       role,
-      department: (link && link.department) || resolveHrField(department, undefined),
-      position: (link && link.position) || resolveHrField(position, undefined),
+      roles,
+      department: resolvedDepartment,
+      position: resolvedPosition,
       employeeId: (link && link.employeeId) || '',
       status: 'active',
       lastActive: now,
@@ -358,23 +437,19 @@ router.post('/users/microsoft', async (req, res) => {
 
 router.patch('/users/:id', async (req, res) => {
   try {
+    await ensureDefaults();
     const patch = {};
     ['name', 'email', 'department', 'position', 'status', 'lastActive'].forEach(key => {
       if (req.body[key] !== undefined) patch[key] = req.body[key];
     });
     if (req.body.roleIds !== undefined || req.body.roleId !== undefined) {
-      const requested = [...new Set(
+      patch.roles = await normalizeRequestedRoles(
         Array.isArray(req.body.roleIds) && req.body.roleIds.length > 0
           ? req.body.roleIds
           : [req.body.roleId],
-      )];
-      const found = await Role.find({ id: { $in: requested } });
-      if (found.length !== requested.length) {
-        return res.status(400).json({ error: 'role not found' });
-      }
-      patch.roles = requested;
+        'viewer',
+      );
     }
-    if (patch.roles) patch.role = primaryRole(patch.roles);
 
     if (req.body.employeeId !== undefined) {
       const employeeId = String(req.body.employeeId || '').trim();
@@ -405,8 +480,11 @@ router.patch('/users/:id', async (req, res) => {
       }
     }
 
-    const user = await User.findByIdAndUpdate(req.params.id, patch, { new: true });
+    const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: 'user not found' });
+    Object.assign(user, patch);
+    await applyStoredBaseRoles(user);
+    await user.save();
     res.json(formatUser(user));
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'employee already linked to another user' });
@@ -416,19 +494,23 @@ router.patch('/users/:id', async (req, res) => {
 
 router.post('/users/sync-employees', async (_req, res) => {
   try {
+    await ensureDefaults();
     const employees = await fetchMonthlyEmployees();
     const users = await User.find();
     const plan = planEmployeeSync(
       users.map(u => ({ id: u._id.toString(), email: u.email, employeeId: u.employeeId || '' })),
       employees,
     );
+    const usersById = new Map(users.map((u) => [u._id.toString(), u]));
     for (const update of plan.updates) {
-      await User.findByIdAndUpdate(update.userId, {
-        employeeId: update.employeeId,
-        name: update.name || undefined,
-        department: update.department || undefined,
-        position: update.position || undefined,
-      });
+      const user = usersById.get(update.userId);
+      if (!user) continue;
+      user.employeeId = update.employeeId;
+      if (update.name) user.name = update.name;
+      if (update.department) user.department = update.department;
+      if (update.position) user.position = update.position;
+      await applyStoredBaseRoles(user);
+      await user.save();
     }
     res.json({ linked: plan.linked, alreadyLinked: plan.alreadyLinked, unmatched: plan.unmatched });
   } catch (err) {
@@ -455,8 +537,13 @@ router.post('/roles', async (req, res) => {
   try {
     const { name, description } = req.body;
     if (!name) return res.status(400).json({ error: 'name is required' });
+    if (!hasOwn(req.body, 'family')) return res.status(400).json({ error: 'family is required' });
+    const family = normalizeRoleFamily(req.body.family);
+    if (String(req.body.family ?? '').trim() && !family) {
+      return res.status(400).json({ error: 'invalid family' });
+    }
     const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const role = await Role.create({ id, name, description, permissions: [] });
+    const role = await Role.create({ id, name, description, family, permissions: [] });
     res.status(201).json(formatRole(role));
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Role already exists' });
@@ -469,6 +556,13 @@ router.patch('/roles/:id', async (req, res) => {
     const updates = {};
     if (typeof req.body.name === 'string') updates.name = req.body.name;
     if (typeof req.body.description === 'string') updates.description = req.body.description;
+    if ('family' in req.body) {
+      const family = normalizeRoleFamily(req.body.family);
+      if (String(req.body.family ?? '').trim() && !family) {
+        return res.status(400).json({ error: 'invalid family' });
+      }
+      updates.family = family;
+    }
     if ('dashboardProfile' in req.body) {
       if (!isValidProfileId(req.body.dashboardProfile)) {
         return res.status(400).json({ error: 'invalid dashboardProfile' });
