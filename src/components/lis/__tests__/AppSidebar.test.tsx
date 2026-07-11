@@ -90,11 +90,11 @@ describe("AppSidebar", () => {
     expect(icon).toHaveClass("w-5", "h-5");
   });
 
-  it("keeps the desktop sidebar collapse toggle above the topbar with enough icon room", () => {
+  it("keeps the desktop sidebar collapse toggle raised off the nav edge", () => {
     const { container } = renderSidebar();
     const toggle = container.querySelector("aside > button");
     if (!toggle) throw new Error("Sidebar collapse toggle not found");
 
-    expect(toggle).toHaveClass("z-40", "w-7", "h-7", "-right-3.5");
+    expect(toggle).toHaveClass("z-40", "w-8", "h-8", "-right-4", "ring-4", "ring-background", "shadow-md");
   });
 });

@@ -7,7 +7,6 @@ import {
   FlaskConical,
   Gauge,
   Home,
-  LayoutDashboard,
   LockKeyhole,
   Monitor,
   Network,
@@ -31,8 +30,6 @@ export type NavItem = {
 
 export const NAV_ITEMS: NavItem[] = [
   { icon: Home, label: "หน้าแรก", path: "/home" },
-  { icon: LayoutDashboard, label: "Lab Dashboard", path: "/dashboard/lab" },
-  { icon: LayoutDashboard, label: "QC Dashboard", path: "/dashboard/qc" },
   { icon: FileText, label: "รายการคำร้อง", path: "/petitions" },
   { icon: ClipboardList, label: "ผลวิเคราะห์", path: "/record-results" },
   { icon: ClipboardList, label: "ผลวิเคราะห์ Lab", path: "/lab-results" },

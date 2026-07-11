@@ -1,12 +1,17 @@
 // Mirror of src/lib/roles.ts — keep in sync. One user can hold several roles;
 // permissions union over all of them, single-behaviour branches use the primary.
 
+const ROLE_PRIORITY = {
+  viewer: 0,
+  admin: 10,
+  'qc-head': 9,
+  'lab-head': 8,
+  'lab-analyze': 5,
+  'qc-staff': 5,
+};
+
 function roleRank(role) {
-  if (role === 'admin') return 4;
-  if (role === 'qc' || role.startsWith('qc-') || role.startsWith('qc_')) return 3;
-  if (role === 'lab' || role.startsWith('lab-') || role.startsWith('lab_')) return 2;
-  if (role === 'viewer') return 0;
-  return 1;
+  return ROLE_PRIORITY[role] ?? 4;
 }
 
 function primaryRole(roles) {

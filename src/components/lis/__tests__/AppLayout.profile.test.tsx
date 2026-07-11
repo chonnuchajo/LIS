@@ -68,4 +68,20 @@ describe("AppLayout profile placement", () => {
     expect(await screen.findByText("Admin User")).toBeInTheDocument();
     expect(screen.getByText("admin@example.com")).toBeInTheDocument();
   });
+
+  it("raises the desktop sidebar rail above the sticky page header so the collapse toggle isn't sunk", () => {
+    renderLayout();
+
+    // position:sticky makes the rail wrapper its own stacking context, trapping
+    // the collapse toggle's z-40 inside it. The wrapper must carry a z-index that
+    // beats the page's sticky header (z-30) or the toggle's overhang gets painted
+    // over — the "sunk arrow" bug.
+    const wrapper = screen
+      .getAllByTestId("app-sidebar")
+      .map((s) => s.parentElement)
+      .find((el) => el?.className.includes("sticky"));
+    if (!wrapper) throw new Error("Desktop sidebar rail wrapper not found");
+
+    expect(wrapper).toHaveClass("sticky", "z-40");
+  });
 });

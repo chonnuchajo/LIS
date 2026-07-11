@@ -8,13 +8,18 @@ export interface RoleHolder {
   roles?: string[];
 }
 
-// Higher number = higher priority. admin > qc(-*) > lab(-*) > custom > viewer.
+// Higher number = higher priority. Keep in sync with server/lib/roles.js.
+const ROLE_PRIORITY: Record<string, number> = {
+  viewer: 0,
+  admin: 10,
+  "qc-head": 9,
+  "lab-head": 8,
+  "lab-analyze": 5,
+  "qc-staff": 5,
+};
+
 function roleRank(role: string): number {
-  if (role === "admin") return 4;
-  if (role === "qc" || role.startsWith("qc-") || role.startsWith("qc_")) return 3;
-  if (role === "lab" || role.startsWith("lab-") || role.startsWith("lab_")) return 2;
-  if (role === "viewer") return 0;
-  return 1; // any other custom role
+  return ROLE_PRIORITY[role] ?? 4;
 }
 
 /** Highest-priority role in the list, or "viewer" when empty. Ties break by

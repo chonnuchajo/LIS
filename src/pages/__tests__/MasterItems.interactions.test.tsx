@@ -120,4 +120,19 @@ describe("MasterItems interactions", () => {
 
     expect(await screen.findByDisplayValue("FG-001")).toBeInTheDocument();
   });
+
+  it("shows commonname as read-only when editing an item", async () => {
+    renderMasterItems();
+
+    const row = (await screen.findByText("FG-001")).closest("tr");
+    expect(row).not.toBeNull();
+
+    fireEvent.doubleClick(row!);
+    const editButton = await screen.findByLabelText("แก้ไข item จากแถบรายละเอียด");
+    fireEvent.click(editButton);
+
+    const commonNameInput = await screen.findByLabelText("commonname");
+    expect(commonNameInput).toHaveValue("Cypermethrin");
+    expect(commonNameInput).toBeDisabled();
+  });
 });

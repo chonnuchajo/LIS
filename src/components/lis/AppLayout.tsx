@@ -44,8 +44,12 @@ const AppLayout = ({
       )}
     >
       {/* Desktop sidebar — pinned to the viewport so it doesn't scroll away with
-          the page; only its own nav list scrolls (see AppSidebar's <nav>). */}
-      <div className="hidden md:flex print:hidden sticky top-0 h-screen self-start">
+          the page; only its own nav list scrolls (see AppSidebar's <nav>).
+          z-40: position:sticky makes this a stacking context, which traps the
+          collapse toggle's own z-40 inside it. Without a z-index here the whole
+          rail sits at z:auto(0) and the page's sticky header (z-30) paints over
+          the toggle button's overhang — making the arrow look "sunk". */}
+      <div className="hidden md:flex print:hidden sticky top-0 z-40 h-screen self-start">
         <AppSidebar variant="desktop" />
       </div>
 

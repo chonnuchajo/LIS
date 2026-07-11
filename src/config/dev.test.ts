@@ -44,19 +44,20 @@ describe("synthesizeDevUser", () => {
     expect(user.name).toBe("Dev ผู้ตรวจ");
   });
 
-  it("derives the primary (highest-priority) role when given several, and keeps all in roles[]", () => {
+  it("derives the primary role when given several, and keeps all in roles[]", () => {
     const user = synthesizeDevUser([
       { id: "lab", name: "Lab" },
       { id: "qc", name: "QC" },
     ]);
 
-    // qc outranks lab → primary is qc
-    expect(user.role).toBe("qc");
+    // lab and qc are both "other" priority roles, so the first selected role wins.
+    expect(user.role).toBe("lab");
     expect(user.roles).toEqual(["lab", "qc"]);
-    expect(user.id).toBe("dev-qc");
-    expect(user.name).toBe("Dev QC");
+    expect(user.id).toBe("dev-lab");
+    expect(user.name).toBe("Dev Lab");
   });
 });
+
 describe("dev role selection normalization", () => {
   it("adds lab-analyze when a Lab role is selected", () => {
     expect(normalizeDevRoleSelection(["lab"], devRoles)).toEqual(["lab", "lab-analyze"]);

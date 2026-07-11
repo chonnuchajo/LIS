@@ -38,12 +38,12 @@ function CoveragePieCard({
       </CardHeader>
       <CardContent>
         {loading ? (
-          <StateText>เธเธณเธฅเธฑเธเนเธซเธฅเธ”...</StateText>
+          <StateText>กำลังโหลด...</StateText>
         ) : data.length === 0 ? (
-          <StateText>เนเธกเนเธกเธตเธเนเธญเธกเธนเธฅ</StateText>
+          <StateText>ไม่มีข้อมูล</StateText>
         ) : (
           <>
-            <ChartContainer config={{ value: { label: "เธเธณเธเธงเธ" } }} className="h-[220px] w-full">
+            <ChartContainer config={{ value: { label: "จำนวน" } }} className="h-[220px] w-full">
               <PieChart>
                 <Pie
                   data={data}
@@ -67,7 +67,7 @@ function CoveragePieCard({
                     <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: row.color }} />
                     <span className="truncate text-muted-foreground">{row.label}</span>
                   </div>
-                  <span className="shrink-0 font-medium tabular-nums">{row.value.toLocaleString()} เธฃเธฒเธขเธเธฒเธฃ</span>
+                  <span className="shrink-0 font-medium tabular-nums">{row.value.toLocaleString()} รายการ</span>
                 </div>
               ))}
             </div>

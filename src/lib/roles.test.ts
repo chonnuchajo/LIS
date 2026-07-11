@@ -6,25 +6,33 @@ describe("primaryRole", () => {
     expect(primaryRole([])).toBe("viewer");
   });
 
-  it("ranks admin highest", () => {
-    expect(primaryRole(["viewer", "lab", "admin", "qc"])).toBe("admin");
+  it("ranks admin above every other role", () => {
+    expect(primaryRole(["viewer", "lab-head", "admin", "qc-head"])).toBe("admin");
   });
 
-  it("ranks qc above lab", () => {
-    expect(primaryRole(["lab", "qc"])).toBe("qc");
+  it("ranks qc-head above lab-head", () => {
+    expect(primaryRole(["lab-head", "qc-head"])).toBe("qc-head");
   });
 
-  it("treats qc- and lab- prefixes by family", () => {
-    expect(primaryRole(["lab-analyst", "qc-head"])).toBe("qc-head");
+  it("ranks lab-head above staff working roles", () => {
+    expect(primaryRole(["qc-staff", "lab-head"])).toBe("lab-head");
+    expect(primaryRole(["lab-analyze", "lab-head"])).toBe("lab-head");
   });
 
-  it("ranks a custom role above viewer but below lab", () => {
+  it("ranks lab-analyze and qc-staff equally", () => {
+    expect(primaryRole(["lab-analyze", "qc-staff"])).toBe("lab-analyze");
+    expect(primaryRole(["qc-staff", "lab-analyze"])).toBe("qc-staff");
+  });
+
+  it("ranks staff working roles above other non-viewer roles", () => {
+    expect(primaryRole(["lab-inventory", "lab-analyze"])).toBe("lab-analyze");
+    expect(primaryRole(["production", "qc-staff"])).toBe("qc-staff");
+  });
+
+  it("ranks viewer lowest and breaks other-role ties by array order", () => {
     expect(primaryRole(["viewer", "production"])).toBe("production");
+    expect(primaryRole(["production", "lab"])).toBe("production");
     expect(primaryRole(["lab", "production"])).toBe("lab");
-  });
-
-  it("breaks ties by array order", () => {
-    expect(primaryRole(["lab-analyst", "lab-head"])).toBe("lab-analyst");
   });
 });
 

@@ -238,7 +238,10 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
                 // so its <nav> scrolls internally instead of the whole rail growing
                 // and scrolling away with the page.
                 "h-screen transition-[width] duration-200 ease-out",
-                collapsed ? "w-16" : "w-72",
+                // Collapsed rail is w-20 (not w-16) so the centered logo clears
+                // the collapse toggle button, which pokes -right-4 into the rail
+                // (at w-16 the 40px logo and 32px button overlap ~5px).
+                collapsed ? "w-20" : "w-72",
               ),
         )}
       >
@@ -248,7 +251,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
             type="button"
             onClick={toggleCollapsed}
             aria-label={collapsed ? "ขยายเมนู" : "ซ่อนเมนู"}
-            className="absolute -right-3.5 top-7 z-40 w-7 h-7 rounded-full border border-border bg-card shadow-sm flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            className="absolute -right-4 top-7 z-40 w-8 h-8 rounded-full border border-border bg-card shadow-md ring-4 ring-background flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           >
             {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
           </button>

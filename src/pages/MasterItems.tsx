@@ -1995,6 +1995,7 @@ function MasterItemDialog({
   );
   const [busy, setBusy] = useState(false);
   const isEdit = !!item;
+  const readOnlyCommonName = item ? displayValue(firstValue(item, commonNameKeys)) : "";
 
   const setField = (key: keyof MasterItemForm, value: string) => {
     setForm((current) => {
@@ -2112,6 +2113,17 @@ function MasterItemDialog({
                 disabled={isEdit}
               />
             </div>
+            {isEdit && (
+              <div className="space-y-1.5 md:col-span-2">
+                <Label htmlFor="commonname">commonname</Label>
+                <Input
+                  id="commonname"
+                  value={readOnlyCommonName}
+                  disabled
+                  readOnly
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="itemType">ประเภท</Label>
               <Select value={getClassification(form.itemType)?.code ?? ""} onValueChange={setClassification}>
