@@ -2725,6 +2725,7 @@ export default function ParameterSettings() {
                         key={p._id ?? i}
                         className="cursor-pointer"
                         onClick={() => p._id && setViewingId(p._id)}
+                        onDoubleClick={() => p._id && setViewingId(p._id)}
                         title="คลิกเพื่อดูรายละเอียด"
                       >
                         <TableCell className="text-muted-foreground">{i + 1}</TableCell>
