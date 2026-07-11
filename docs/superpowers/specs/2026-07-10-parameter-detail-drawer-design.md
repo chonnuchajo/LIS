@@ -42,16 +42,21 @@
 
 ### 1. แถวในตาราง
 
-- `<TableRow className="cursor-pointer" onClick={() => setViewingId(p._id)} title="คลิกเพื่อดูรายละเอียด">`
-  — idiom เดียวกับตาราง Stock/Master Items
+- `<TableRow className="cursor-pointer" onClick={...} onDoubleClick={...} title="คลิกเพื่อดูรายละเอียด">`
+  — idiom เดียวกับตาราง Stock/Master Items. เปิด drawer ได้ทั้ง **single-click และ
+  double-click** (double-click เป็นท่าเปิดแบบ desktop app; single-click ก็เปิดอยู่แล้ว
+  ท่าเดียวก็พอ แต่รองรับทั้งคู่ให้ผู้ใช้ที่คุ้นท่าไหนก็ได้)
 - ปุ่ม ✏️ แก้ไข / 🗑️ ลบ ท้ายแถว: เพิ่ม `e.stopPropagation()` — ทำงานเหมือนเดิม
   ไม่เปิด drawer
 
 ### 2. ความสดของข้อมูล
 
-- state เป็น `viewingId: string | null` (ไม่เก็บ object) แล้ว derive ทุก render:
-  `const viewing = parameters.find(p => p._id === viewingId)`
-- ถ้า id หายไปจากลิสต์ (ถูกลบ/เปลี่ยน scope) → drawer ปิดตัวเอง (render null)
+- state เป็น `viewingId: string | null` (ไม่เก็บ object) แล้ว derive ทุก render จาก
+  ลิสต์ **เต็ม** (`parameters`, ไม่ใช่ `filtered`): `const viewing = parameters.find(p => p._id === viewingId)`
+- ถ้า id หายจาก `parameters` (parameter **ถูกลบ**) → drawer ปิดตัวเอง (render null).
+  จงใจ derive จากลิสต์เต็มไม่ใช่ลิสต์ที่กรอง เพื่อไม่ให้ drawer เด้งปิดเองกลางคัน
+  ตอน background refetch (query refetch เอง ~10s) เปลี่ยน status/scope ของตัวที่กำลังดู
+  ให้หลุด filter — Sheet เป็น modal ผู้ใช้เปลี่ยนแท็บ/ค้นหาเองระหว่างเปิดไม่ได้อยู่แล้ว
 - กด **แก้ไข** ใน drawer → `setViewingId(null)` แล้ว `setEditing(viewing)` —
   ปิด drawer ก่อนเปิด dialog แก้ไขตัวเดิม (ไม่ซ้อนกัน)
 
