@@ -21,6 +21,11 @@ Required behavior:
 - If a user is assigned a Lab-family role, `lab-analyze` is added. If a user is
   assigned a QC-family role, `qc-staff` is added.
 - Existing roles are preserved and automatic roles are not duplicated.
+- Dev mode follows the same rule: selecting a Lab role also selects
+  `lab-analyze`, and selecting a QC role also selects `qc-staff`.
+- In dev mode, removing `lab-analyze` removes the active Lab-family selection
+  and falls back to `admin` if no roles remain. Removing `qc-staff` behaves the
+  same way for QC-family selections.
 
 ## Decisions
 
@@ -99,6 +104,25 @@ The user role drawer does not need to manually add base roles. It sends the
 selected roles to the API, and the API response updates the drawer/table with
 the normalized role list.
 
+## Dev Mode Design
+
+Dev mode currently stores a local multi-role selection in `dev_roles` and
+renders role buttons from the live Access Control role list. Add a small
+frontend normalization helper so dev mode mirrors backend behavior without
+requiring a Microsoft login:
+
+- `normalizeDevRoleSelection(roleIds, roleDocs)` appends `lab-analyze` or
+  `qc-staff` when the selected role list contains a Lab/QC-family role.
+- Family is read from `Role.family` when available, with the same prefix
+  fallback as the backend for legacy role ids.
+- Automatic base roles are only appended when the base role still exists in the
+  live dev role list. If `lab-analyze` or `qc-staff` has been deleted from
+  Access Control, the related family selection is removed and dev mode falls
+  back to `admin` if nothing valid remains.
+- `toggleDevRoleSelection(currentIds, roleId, roleDocs)` handles click behavior.
+  Toggling off `lab-analyze` removes Lab-family dev selections; toggling off
+  `qc-staff` removes QC-family dev selections.
+
 ## Testing
 
 Use TDD before production edits.
@@ -120,10 +144,21 @@ Access Control routes rather than database-heavy integration where possible.
 Frontend tests should cover `RoleEditDialog` payload behavior if the current
 test setup supports this component cheaply.
 
+Dev mode tests should cover:
+
+- Selecting `lab` adds `lab-analyze`.
+- Selecting `qc` adds `qc-staff`.
+- Toggling off `lab-analyze` removes Lab-family roles and falls back to `admin`
+  when nothing remains.
+- Toggling off `qc-staff` removes QC-family roles and falls back to `admin`
+  when nothing remains.
+- If `lab-analyze` or `qc-staff` is missing from the live role list, related
+  family selections are discarded and `admin` is used as the safe fallback.
+
 Validation commands:
 
 - `node --test server/lib/roleFamilies.test.js`
-- `npm run test -- src/lib/roles.test.ts src/lib/dashboardProfiles.test.ts`
+- `npm run test -- src/lib/roles.test.ts src/lib/dashboardProfiles.test.ts src/config/dev.test.ts`
 - `npx tsc --noEmit` because TypeScript frontend types/components change
 
 No build command should be run.
