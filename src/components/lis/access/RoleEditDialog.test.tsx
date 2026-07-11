@@ -74,6 +74,29 @@ describe("RoleEditDialog", () => {
     });
   });
 
+  it("preserves an explicit blank family for a legacy lab-prefixed role", () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <RoleEditDialog
+        open
+        mode="edit"
+        role={{ id: "lab-head", name: "Lab Head", description: "", family: "" }}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(screen.getByLabelText("Not Lab/QC")).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      name: "Lab Head",
+      description: "",
+      family: "",
+    });
+  });
+
   it("infers and submits the QC family for a legacy qc-prefixed role", () => {
     const onSubmit = vi.fn();
 

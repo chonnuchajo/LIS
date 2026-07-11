@@ -23,7 +23,7 @@ interface Props {
 }
 
 function resolveFamily(role: Role): RoleFamily {
-  if (role.family === "lab" || role.family === "qc") return role.family;
+  if (role.family != null) return role.family;
   if (/^lab(?:[-_]|$)/.test(role.id)) return "lab";
   if (/^qc(?:[-_]|$)/.test(role.id)) return "qc";
   return "";

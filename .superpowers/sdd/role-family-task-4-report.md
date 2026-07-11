@@ -47,3 +47,19 @@ Completed on branch `develop`.
 ### Concerns
 
 - No production build was run, per repository policy and task instructions.
+
+## Explicit Blank Family Preservation Fix
+
+### Commands Run
+
+- `npm.cmd run test -- src/components/lis/access/RoleEditDialog.test.tsx`
+- `npm.cmd run test -- src/components/lis/access/RoleEditDialog.test.tsx`
+
+### RED/GREEN Evidence
+
+- RED: the focused suite failed with 1 expected failure. A `lab-head` role with explicit `family: ""` did not select Not Lab/QC because the resolver fell back to the legacy ID.
+- GREEN: the focused suite passed after the resolver began preserving any non-null family value before legacy-ID inference. Result: 1 file, 6 tests passed.
+
+### Concerns
+
+- No production build was run, per repository policy and task instructions.
