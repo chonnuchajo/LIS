@@ -1,4 +1,6 @@
-const { openWorkUnits, bottleneckCounts, buildLiveSection, buildStatsSection, percentile } = require('./execSummary');
+const {
+  openWorkUnits, bottleneckCounts, buildLiveSection, buildStatsSection, percentile, stageDurations,
+} = require('./execSummary');
 
 const NOW = Date.parse('2026-07-13T10:00:00.000Z');
 const hoursAgo = (h) => new Date(NOW - h * 3600000).toISOString();
@@ -201,6 +203,119 @@ describe('openWorkUnits', () => {
     expect(units[0].track).toBe('qc');
     expect(units[0].stage).toBe('waitingReceive');
   });
+
+  // --- Real-data bug: stage must come from the FURTHEST progress reached, not
+  // the first missing timestamp. Real petitions have gaps (a receive scan that
+  // was never recorded) even after later milestones completed — see P-2606-0010.
+
+  it('derives waitingFinal (not waitingReceive) for a petition with no receive timestamps at all but Lab+QC both finished', () => {
+    // Real shape: P-2606-0010, status 'success'. sampleSentAt is set but neither
+    // labReceivedAt nor qcReceivedAt was ever recorded — yet labCompletedAt,
+    // labApprovedAt and qcCompletedAt prove the work is long done. The petition
+    // is legitimately only waiting on the head's Final Result (approvedAt null).
+    // The old "first missing timestamp" walk read the null labReceivedAt as
+    // "still waiting to be received" and emitted a phantom waitingReceive unit
+    // alongside the correct waitingFinal one.
+    const petition = {
+      _id: 'real1', petitionNo: 'P-2606-0010', dept: 'fg', status: 'success', items: [labItem],
+      sampleSentAt: hoursAgo(50),
+      // labReceivedAt / qcReceivedAt intentionally absent — never scanned
+      labCompletedAt: hoursAgo(30),
+      labApprovedAt: hoursAgo(29),
+      qcCompletedAt: hoursAgo(20),
+      // approvedAt intentionally absent — still open, waiting on Final Result
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    expect(units).toHaveLength(1);
+    expect(units[0].stage).toBe('waitingFinal');
+    expect(units.some((u) => u.stage === 'waitingReceive')).toBe(false);
+
+    const counts = bottleneckCounts(units);
+    expect(counts.find((c) => c.stage === 'waitingReceive').count).toBe(0);
+  });
+
+  it('reads a Lab track missing labReceivedAt but with labCompletedAt set as waitingLabApprove, not waitingReceive', () => {
+    const petition = {
+      _id: 'real2', petitionNo: 'P-REAL2', dept: 'fg', status: 'inProgress', items: [labItem],
+      sampleSentAt: hoursAgo(40),
+      // labReceivedAt intentionally absent
+      labCompletedAt: hoursAgo(10),
+      // labApprovedAt absent — still waiting on the Lab head to release the result
+    };
+    const [labUnit] = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE })
+      .filter((u) => u.track === 'lab');
+    expect(labUnit.stage).toBe('waitingLabApprove');
+  });
+
+  // --- CRITICAL regression: the QC "shared wait" de-dup guard was left keyed to
+  // the OLD "first missing timestamp" premise (labTrack && !labReceived) after the
+  // Lab track was switched to a furthest-progress reverse walk. Once Lab's stage
+  // can be waitingLabApprove/labTesting/nothing-at-all while labReceivedAt is still
+  // null, that guard's premise ("Lab must have emitted waitingReceive") is false,
+  // and it wrongly swallows QC's own, genuinely distinct waitingReceive unit — in
+  // the worst case (Lab fully approved) the petition emits NO unit at all and
+  // disappears from the entire live dashboard.
+
+  it('emits a qc/waitingReceive unit (petition not absent) when Lab is already approved but QC has not received', () => {
+    // Lab track is fully done (labApprovedAt set) — its branch emits NOTHING.
+    // QC has not received the sample at all (no qcReceivedAt, no qcCompletedAt).
+    // Under the old guard this petition emitted ZERO work units and vanished.
+    const petition = {
+      _id: 'crit1', petitionNo: 'P-CRIT1', dept: 'fg', status: 'inProgress', items: [labItem],
+      sampleSentAt: hoursAgo(10),
+      // labReceivedAt / qcReceivedAt intentionally absent — never scanned
+      labApprovedAt: hoursAgo(1),
+      // qcCompletedAt intentionally absent
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    expect(units).toHaveLength(1);
+    expect(units[0].track).toBe('qc');
+    expect(units[0].stage).toBe('waitingReceive');
+  });
+
+  it('emits BOTH lab/labTesting and qc/waitingReceive when Lab is assigned and mid-testing but QC has not received', () => {
+    // Lab is mid-testing (assignedAt set, labReceivedAt still null — a receive scan
+    // that was never recorded) so its branch emits labTesting, NOT waitingReceive.
+    // QC's own receive lag must therefore surface as its own unit, not be
+    // suppressed as if it were the same shared wait Lab already reported.
+    const petition = {
+      _id: 'crit2', petitionNo: 'P-CRIT2', dept: 'fg', status: 'inProgress', items: [labItem],
+      sampleSentAt: hoursAgo(6),
+      assignedTo: { name: 'ก', assignedAt: hoursAgo(6) },
+      assignedMachines: [{ estimatedMinutes: 999 }],
+      // labReceivedAt / qcReceivedAt intentionally absent
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    expect(units.map((u) => `${u.track}/${u.stage}`).sort()).toEqual(['lab/labTesting', 'qc/waitingReceive']);
+  });
+
+  it('emits BOTH lab/waitingLabApprove and qc/waitingReceive when Lab has finished testing but QC has not received', () => {
+    const petition = {
+      _id: 'crit3', petitionNo: 'P-CRIT3', dept: 'fg', status: 'inProgress', items: [labItem],
+      sampleSentAt: hoursAgo(20),
+      labCompletedAt: hoursAgo(2),
+      // labReceivedAt / qcReceivedAt / labApprovedAt intentionally absent
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    expect(units.map((u) => `${u.track}/${u.stage}`).sort()).toEqual(['lab/waitingLabApprove', 'qc/waitingReceive']);
+  });
+
+  // --- Finding 2: the live waitingFinal Math.max must be gated on the petition
+  // actually having a Lab track, mirroring stageDurations' finalResultStart — a
+  // QC-only petition carrying a stray, later labApprovedAt must still be measured
+  // from qcCompletedAt alone, or the live tile disagrees with the stats bar.
+
+  it('measures the live waitingFinal unit from qcCompletedAt alone for a QC-only petition, even with a stray later labApprovedAt', () => {
+    const petition = {
+      _id: 'crit4', petitionNo: 'P-CRIT4', dept: 'fg', status: 'success', items: [qcItem],
+      qcReceivedAt: hoursAgo(6), qcCompletedAt: hoursAgo(2),
+      labApprovedAt: hoursAgo(1), // stray — this petition has no Lab track at all
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    expect(units).toHaveLength(1);
+    expect(units[0].stage).toBe('waitingFinal');
+    expect(units[0].elapsedMin).toBe(120); // from qcCompletedAt (2h ago), NOT labApprovedAt (1h ago)
+  });
 });
 
 describe('bottleneckCounts', () => {
@@ -351,14 +466,13 @@ describe('buildLiveSection', () => {
     }
   });
 
-  it('de-duplicates a petition that produces two overdue work units at once (one per track)', () => {
-    // A petition open on both Lab and QC tracks, both independently overdue, must
-    // only contribute its id ONCE to ids.overdue — even though it produces two
-    // units and counts.overdue (a unit count) is 2 for this single petition. This
-    // is the one legitimate case where a count and its deduped id list diverge in
-    // length by design: the count measures work units, the id list measures
-    // distinct petitions to highlight, and a petition must never appear twice in
-    // a highlight link.
+  it('counts a petition overdue on both tracks once, matching the single id the tile links to', () => {
+    // A petition open on both Lab and QC tracks, both independently overdue, still
+    // produces two work units — but counts.overdue must be PETITION-level (1), not
+    // a work-unit count (2), because the tile's number and the ids it drill-downs
+    // into must always agree: a head who sees "2" but only gets 1 highlighted card
+    // back is looking at a lie. bottleneckCounts (a per-stage view) is the one place
+    // that legitimately still counts work units — untouched here.
     const qcBaselineWithData = {
       avgMinutesByParam: { p1: 30 },
       paramIdsByCommonName: { [labItem.commonName]: ['p1'] },
@@ -375,8 +489,14 @@ describe('buildLiveSection', () => {
     const live = buildLiveSection([bothTracksOverdue], {
       now: NOW, qcBaseline: qcBaselineWithData, abnormalFlags: {},
     });
-    expect(live.counts.overdue).toBe(2);
+    expect(live.counts.overdue).toBe(1);
     expect(live.ids.overdue).toEqual(['both1']);
+
+    // The invariant this whole fix exists for: every tile's count equals the
+    // length of the id list it links to, for every key, with no exceptions.
+    for (const key of Object.keys(live.counts)) {
+      expect(live.ids[key]).toHaveLength(live.counts[key]);
+    }
   });
 });
 
@@ -387,6 +507,48 @@ describe('percentile', () => {
 
   it('returns null for an empty sample set', () => {
     expect(percentile([], 0.9)).toBeNull();
+  });
+});
+
+describe('stageDurations waitingFinal', () => {
+  // Finding 3: Lab and QC tracks are independent. A lab-track petition's QC side
+  // routinely finishes AFTER the Lab head has already signed off. The Final-Result
+  // wait must start at the LATER of the two — same rule openWorkUnits already uses
+  // for the live view — or the stats bar silently absorbs the leftover QC testing
+  // time into what should be a short "waiting on the head" number.
+
+  it('measures waitingFinal from qcCompletedAt (not labApprovedAt) when QC finishes after the Lab head signs', () => {
+    const petition = {
+      _id: 'wf1', petitionNo: 'P-WF1', dept: 'fg', status: 'approved', items: [labItem],
+      labApprovedAt: '2026-07-11T01:00:00.000Z', // Lab head signs at 01:00
+      qcCompletedAt: '2026-07-11T03:00:00.000Z', // QC finishes later, at 03:00
+      approvedAt: '2026-07-11T04:00:00.000Z',    // Final Result issued at 04:00
+    };
+    const { waitingFinal } = stageDurations(petition);
+    // From qcCompletedAt (03:00) → approvedAt (04:00) = 60 min, NOT from
+    // labApprovedAt (01:00) → approvedAt (04:00) = 180 min.
+    expect(waitingFinal).toBe(60);
+  });
+
+  it('still measures waitingFinal from labApprovedAt when the Lab head signs after QC finished', () => {
+    const petition = {
+      _id: 'wf2', petitionNo: 'P-WF2', dept: 'fg', status: 'approved', items: [labItem],
+      qcCompletedAt: '2026-07-11T01:00:00.000Z', // QC finishes first
+      labApprovedAt: '2026-07-11T03:00:00.000Z', // Lab head signs later
+      approvedAt: '2026-07-11T04:00:00.000Z',
+    };
+    const { waitingFinal } = stageDurations(petition);
+    expect(waitingFinal).toBe(60); // 03:00 → 04:00
+  });
+
+  it('measures waitingFinal from qcCompletedAt alone for a QC-only petition (unchanged behavior)', () => {
+    const petition = {
+      _id: 'wf3', petitionNo: 'P-WF3', dept: 'fg', status: 'approved', items: [qcItem],
+      qcCompletedAt: '2026-07-11T03:00:00.000Z',
+      approvedAt: '2026-07-11T04:00:00.000Z',
+    };
+    const { waitingFinal } = stageDurations(petition);
+    expect(waitingFinal).toBe(60);
   });
 });
 
@@ -422,7 +584,7 @@ describe('buildStatsSection', () => {
   };
 
   it('averages each stage across the closed petitions', () => {
-    const { turnaround } = buildStatsSection(closed, opts);
+    const { turnaround } = buildStatsSection(closed, closed, opts);
     const receive = turnaround.find((t) => t.stage === 'waitingReceive');
     expect(receive.avgMin).toBe(120); // (60 + 180) / 2
     expect(receive.count).toBe(2);
@@ -431,19 +593,65 @@ describe('buildStatsSection', () => {
   });
 
   it('reports one throughput row per day in the window, newest last', () => {
-    const { throughput } = buildStatsSection(closed, opts);
+    const { throughput } = buildStatsSection(closed, closed, opts);
     expect(throughput).toHaveLength(7);
     expect(throughput.at(-1).date).toBe('2026-07-13');
     expect(throughput.find((d) => d.date === '2026-07-11')).toEqual({ date: '2026-07-11', created: 1, completed: 1 });
   });
 
+  // --- Finding 1: "created" must count petitions created in the window regardless
+  // of whether they are closed yet, NOT be filled from the same closed-only array
+  // that feeds "completed". Otherwise created <= completed always, and an open
+  // petition never shows up on the day it actually arrived.
+
+  it('counts a petition created today but not yet approved in today\'s created bucket, and in no completed bucket', () => {
+    const openToday = {
+      _id: 'open1', petitionNo: 'P-OPEN1', dept: 'fg', status: 'inProgress',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-13T02:00:00.000Z',
+      // approvedAt intentionally absent — still open
+    };
+    const { throughput } = buildStatsSection([], [openToday], opts);
+    const today = throughput.find((d) => d.date === '2026-07-13');
+    expect(today).toEqual({ date: '2026-07-13', created: 1, completed: 0 });
+    expect(throughput.every((d) => d.completed === 0)).toBe(true);
+  });
+
+  it('lets inflow exceed outflow when more petitions arrive than close in the window', () => {
+    // Three petitions created inside the window; only one of them has also closed.
+    // With created wrongly sourced from the closed array (the bug), Σcreated could
+    // never exceed Σcompleted — this pins the case that used to be impossible.
+    const closedToday = {
+      _id: 'cw1', petitionNo: 'P-CW1', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-13T01:00:00.000Z',
+      approvedAt: '2026-07-13T05:00:00.000Z',
+    };
+    const openA = {
+      _id: 'ow1', petitionNo: 'P-OW1', dept: 'fg', status: 'inProgress',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-13T02:00:00.000Z',
+    };
+    const openB = {
+      _id: 'ow2', petitionNo: 'P-OW2', dept: 'fg', status: 'sampleSent',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-13T03:00:00.000Z',
+    };
+    const { throughput } = buildStatsSection([closedToday], [closedToday, openA, openB], opts);
+    const totalCreated = throughput.reduce((sum, d) => sum + d.created, 0);
+    const totalCompleted = throughput.reduce((sum, d) => sum + d.completed, 0);
+    expect(totalCreated).toBe(3);
+    expect(totalCompleted).toBe(1);
+    expect(totalCreated).toBeGreaterThan(totalCompleted);
+  });
+
   it('derives abnormal and rework rates from the closed set', () => {
-    const { quality } = buildStatsSection(closed, opts);
+    const { quality } = buildStatsSection(closed, closed, opts);
     expect(quality).toEqual({ closed: 2, abnormal: 1, abnormalRate: 0.5, reworked: 1, reworkRate: 0.5 });
   });
 
   it('splits workload between the Lab assignee and the QC testers', () => {
-    const { workload } = buildStatsSection(closed, opts);
+    const { workload } = buildStatsSection(closed, closed, opts);
     // d1 is batch B002 (QC-only, no Lab track) — its assignedTo is stray data and
     // must NOT be credited to workload.lab, even though it is credited to workload.qc.
     expect(workload.lab).toEqual([]);
@@ -458,7 +666,7 @@ describe('buildStatsSection', () => {
       approvedAt: '2026-07-09T05:00:00.000Z', // totalMinutes = 5h = 300 min
       assignedTo: { name: 'สมศักดิ์', assignedAt: '2026-07-09T01:00:00.000Z' },
     };
-    const { workload } = buildStatsSection([labPetition], opts);
+    const { workload } = buildStatsSection([labPetition], [labPetition], opts);
     expect(workload.lab).toEqual([{ name: 'สมศักดิ์', completed: 1, avgMinutes: 300 }]);
   });
 
@@ -474,12 +682,12 @@ describe('buildStatsSection', () => {
       approvedAt: '2026-07-10T02:00:00.000Z',
       assignedTo: { name: 'สมชาย', assignedAt: '2026-07-10T00:30:00.000Z' }, // stray data
     };
-    const { workload } = buildStatsSection([qcOnlyWithAssignee], opts);
+    const { workload } = buildStatsSection([qcOnlyWithAssignee], [qcOnlyWithAssignee], opts);
     expect(workload.lab).toEqual([]);
   });
 
   it('returns empty structures when nothing closed in the window', () => {
-    const { turnaround, quality, workload } = buildStatsSection([], opts);
+    const { turnaround, quality, workload } = buildStatsSection([], [], opts);
     expect(turnaround.every((t) => t.count === 0 && t.avgMin === null)).toBe(true);
     expect(quality).toEqual({ closed: 0, abnormal: 0, abnormalRate: 0, reworked: 0, reworkRate: 0 });
     expect(workload).toEqual({ lab: [], qc: [] });
@@ -504,7 +712,7 @@ describe('buildStatsSection', () => {
       sampleSentAt: '2026-07-08T00:00:00.000Z',
       // qcReceivedAt intentionally missing — never received according to the data
     };
-    const { turnaround } = buildStatsSection([withReceipt, missingReceipt], opts);
+    const { turnaround } = buildStatsSection([withReceipt, missingReceipt], [withReceipt, missingReceipt], opts);
     const receive = turnaround.find((t) => t.stage === 'waitingReceive');
     expect(receive.avgMin).toBe(100);
     expect(Number.isNaN(receive.avgMin)).toBe(false);
@@ -526,7 +734,7 @@ describe('buildStatsSection', () => {
       sampleSentAt: '2026-07-09T05:00:00.000Z',
       qcReceivedAt: '2026-07-09T04:00:00.000Z', // recorded BEFORE it was sent — a data glitch
     };
-    const { turnaround } = buildStatsSection([normal, outOfOrder], opts);
+    const { turnaround } = buildStatsSection([normal, outOfOrder], [normal, outOfOrder], opts);
     const receive = turnaround.find((t) => t.stage === 'waitingReceive');
     // If the glitch leaked through as -60, the average would be 20 (or 50 if clamped
     // to 0) instead of 100, and count would be 2 instead of 1.
@@ -555,7 +763,7 @@ describe('buildStatsSection', () => {
       qcCompletedAt: '2026-07-06T01:30:00.000Z',
       approvedAt: '2026-07-06T02:00:00.000Z',
     };
-    const { turnaround } = buildStatsSection([labPetition, qcOnlyPetition], opts);
+    const { turnaround } = buildStatsSection([labPetition, qcOnlyPetition], [labPetition, qcOnlyPetition], opts);
     const byStage = Object.fromEntries(turnaround.map((t) => [t.stage, t]));
     // If the QC-only petition were counted as a 0-minute Lab stage instead of being
     // excluded, these averages would be halved (30/90/30) and counts would be 2.

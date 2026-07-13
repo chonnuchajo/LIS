@@ -1,4 +1,4 @@
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ExecSummary } from "@/lib/execSummary";
@@ -27,16 +27,14 @@ export default function TurnaroundChart({ rows }: { rows: ExecSummary["stats"]["
           <p className="py-8 text-center text-sm text-muted-foreground">ไม่มีข้อมูลในช่วงนี้</p>
         ) : (
           <ChartContainer config={CONFIG} className="h-[240px] w-full">
-            <ResponsiveContainer>
-              <BarChart data={data} layout="vertical" margin={{ left: 24 }}>
-                <CartesianGrid horizontal={false} />
-                <XAxis type="number" fontSize={11} />
-                <YAxis type="category" dataKey="label" width={110} fontSize={11} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="avgHours" fill="var(--color-avgHours)" radius={3} />
-                <Bar dataKey="p90Hours" fill="var(--color-p90Hours)" radius={3} />
-              </BarChart>
-            </ResponsiveContainer>
+            <BarChart data={data} layout="vertical" margin={{ left: 24 }}>
+              <CartesianGrid horizontal={false} />
+              <XAxis type="number" fontSize={11} />
+              <YAxis type="category" dataKey="label" width={110} fontSize={11} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="avgHours" fill="var(--color-avgHours)" radius={3} />
+              <Bar dataKey="p90Hours" fill="var(--color-p90Hours)" radius={3} />
+            </BarChart>
           </ChartContainer>
         )}
       </CardContent>

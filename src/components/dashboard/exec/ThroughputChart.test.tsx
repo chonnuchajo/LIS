@@ -2,12 +2,23 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ThroughputChart from "./ThroughputChart";
 
-// ThroughputChart nests recharts' <ResponsiveContainer> inside <ChartContainer>
-// (which already provides one) — a pre-existing quirk unrelated to this fix that
-// makes recharts log a benign dev-mode size warning in jsdom. Silence console.warn
-// here so the assertions below aren't drowned out by that unrelated noise.
+// jsdom has no real layout engine, so getBoundingClientRect() defaults to all
+// zeros — recharts' ResponsiveContainer would then warn that it measured a
+// 0x0 container. Give it real numbers, matching ConfigCoveragePies.test.tsx.
+const chartBounds = {
+  bottom: 240,
+  height: 240,
+  left: 0,
+  right: 640,
+  top: 0,
+  width: 640,
+  x: 0,
+  y: 0,
+  toJSON: () => ({}),
+} as DOMRect;
+
 beforeEach(() => {
-  vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(chartBounds);
 });
 
 afterEach(() => {

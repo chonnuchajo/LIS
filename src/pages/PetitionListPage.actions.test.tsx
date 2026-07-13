@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import PetitionListPage from './PetitionListPage';
@@ -42,6 +43,7 @@ const mocks = vi.hoisted(() => {
       assignedTo: { employeeId: 'E002', name: 'ผู้รับงาน' },
     }),
     petition('P-2607-0006', 'deliveringQC'),
+    petition('P-2607-0007', 'approved'),
   ];
 
   return {
@@ -76,12 +78,31 @@ vi.mock('@/hooks/useItemGroupMembership', () => ({
 }));
 
 vi.mock('@/hooks/usePetition', () => ({
-  usePetitionList: () => ({
-    data: { items: mocks.petitions, total: mocks.petitions.length },
-    loading: false,
-    error: null,
-    refresh: mocks.refresh,
-  }),
+  usePetitionList: (params: { status?: string; search?: string }) => {
+    const search = params.search?.trim().toLowerCase();
+    const items = mocks.petitions
+      .filter((petition) =>
+        params.status ? params.status.split(',').includes(petition.status) : true,
+      )
+      .filter((petition) => {
+        if (!search) return true;
+        return [
+          petition.petitionNo,
+          petition.submittedBy?.name,
+          ...petition.items.map((item) => item.sampleName),
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(search);
+      });
+    return {
+      data: { items, total: items.length },
+      loading: false,
+      error: null,
+      refresh: mocks.refresh,
+    };
+  },
 }));
 
 vi.mock('@/context/NotificationContext', () => ({
@@ -100,14 +121,17 @@ function LocationProbe() {
 }
 
 function renderPage(props: React.ComponentProps<typeof PetitionListPage> = {}) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter
-      initialEntries={['/petitions']}
-      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-    >
-      <PetitionListPage {...props} />
-      <LocationProbe />
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter
+        initialEntries={['/petitions']}
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
+        <PetitionListPage {...props} />
+        <LocationProbe />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -135,5 +159,53 @@ describe('PetitionListPage action cues', () => {
     fireEvent.click(await screen.findByText('P-2607-0001'));
 
     expect(screen.getByTestId('location')).toHaveTextContent('/petition-timeline/P-2607-0001');
+  });
+
+  it('shows approved petitions as completed instead of final-result wording', async () => {
+    renderPage();
+
+    expect(await screen.findByText('P-2607-0007')).toBeInTheDocument();
+    expect(screen.getByText('เสร็จสิ้น')).toBeInTheDocument();
+    expect(screen.queryByText('ออก Final Result แล้ว')).not.toBeInTheDocument();
+  });
+
+  it('keeps summary card counts based on all visible petitions when a status card filters the list', async () => {
+    renderPage();
+
+    expect(await screen.findByText('P-2607-0001')).toBeInTheDocument();
+
+    const allCard = screen.getByText('ทั้งหมด').closest('[role="button"]');
+    const waitingCard = screen.getByText(/รอตรวจ/).closest('[role="button"]');
+    const inProgressCard = screen.getAllByText('กำลังดำเนินการ')[0].closest('[role="button"]');
+    const rejectedCard = screen.getAllByText(/ส่งกลับ/)[0].closest('[role="button"]');
+
+    expect(allCard).toHaveTextContent('7');
+    expect(waitingCard).toHaveTextContent('1');
+    expect(inProgressCard).toHaveTextContent('2');
+    expect(rejectedCard).toHaveTextContent('1');
+
+    fireEvent.click(screen.getByText(/รอตรวจ/));
+
+    expect(await screen.findByText('P-2607-0004')).toBeInTheDocument();
+    expect(screen.queryByText('P-2607-0001')).not.toBeInTheDocument();
+    expect(allCard).toHaveTextContent('7');
+    expect(waitingCard).toHaveTextContent('1');
+    expect(inProgressCard).toHaveTextContent('2');
+    expect(rejectedCard).toHaveTextContent('1');
+  });
+
+  it('filters the list as soon as the search field changes', async () => {
+    renderPage();
+
+    expect(await screen.findByText('P-2607-0001')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'P-2607-0004' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('P-2607-0004')).toBeInTheDocument();
+      expect(screen.queryByText('P-2607-0001')).not.toBeInTheDocument();
+    });
   });
 });

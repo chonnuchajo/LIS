@@ -1,9 +1,10 @@
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
 import type { LabReportPage } from "@/lib/labReport";
+import { A4_PRINT_FONT_FAMILY, A4_PRINT_FONT_SIZE, A4_PRINT_HEADING_FONT_WEIGHT } from "@/lib/printConfig";
 
 export const LAB_REPORT_CSS = `
-.lr-root, .lr-root * { box-sizing: border-box; color: #000; font-family: 'Sarabun', 'TH SarabunPSK', 'Kanit', Arial, sans-serif; }
-.lr-page { width: 210mm; padding: 12mm; background: #fff; font-size: 12pt; }
+.lr-root, .lr-root * { box-sizing: border-box; color: #000; font-family: ${A4_PRINT_FONT_FAMILY}; font-size: ${A4_PRINT_FONT_SIZE}; }
+.lr-page { width: 210mm; padding: 12mm; background: #fff; }
 .lr-page + .lr-page { margin-top: 6mm; page-break-before: always; break-before: page; }
 .lr-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .lr-tbl td, .lr-tbl th { border: 0.8pt solid #000; padding: 2.4mm; vertical-align: top; word-break: break-word; }
@@ -28,6 +29,20 @@ export const LAB_REPORT_CSS = `
 .lr-note-ind { margin-left: 12mm; }
 .lr-foot { display: flex; justify-content: space-between; margin-top: 6mm; font-size: 9.5pt; color: #444; }
 @media screen { .lr-page { margin: 0 auto; box-shadow: 0 0 0 1px #ddd; } }
+.lr-root, .lr-root * { font-size: ${A4_PRINT_FONT_SIZE} !important; }
+.lr-root h1,
+.lr-root h2,
+.lr-root h3,
+.lr-root h4,
+.lr-root h5,
+.lr-root h6,
+.lr-root th,
+.lr-title,
+.lr-hd-mid,
+.lr-strong,
+.print-heading {
+  font-weight: ${A4_PRINT_HEADING_FONT_WEIGHT} !important;
+}
 `;
 
 export default function LabResultReportTemplate({ pages }: { pages: LabReportPage[] }) {
@@ -131,7 +146,7 @@ export default function LabResultReportTemplate({ pages }: { pages: LabReportPag
             </tbody>
           </table>
 
-          <div className="lr-remark">หมายเหตุ : {page.remark}</div>
+          <div className="lr-remark">หมายเหตุ : {page.remark || "................"}</div>
 
           {/* Signatures */}
           <div className="lr-sign">

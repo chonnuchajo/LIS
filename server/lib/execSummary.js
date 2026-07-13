@@ -103,45 +103,77 @@ function openWorkUnits(petitions, { now, qcBaseline }) {
     const labApproved = toDate(petition.labApprovedAt);
     const qcCompleted = toDate(petition.qcCompletedAt);
 
-    // ── Lab track
+    // ── Lab track — stage comes from the FURTHEST progress reached, walking the
+    // states in reverse so a later milestone always wins over an earlier missing
+    // timestamp. Real petitions have gaps (e.g. a receive scan that was never
+    // recorded) even after later stages completed — see P-2606-0010, where
+    // labReceivedAt is null but labApprovedAt proves the Lab track is done.
+    //
+    // labEmittedWaitingReceive tracks — directly, not re-derived — whether THIS
+    // branch actually produced a Lab waitingReceive unit. The QC track below reads
+    // this flag (not a proxy like "labTrack && !labReceived") to decide whether the
+    // shared "nobody has received it yet" wait was already reported once by Lab.
+    // Re-deriving the condition let the two drift apart before (see Finding 1):
+    // once Lab's furthest-progress walk could land on labTesting/waitingLabApprove/
+    // nothing-at-all while labReceivedAt was still null, "labTrack && !labReceived"
+    // stopped meaning "Lab reported the shared wait" and started wrongly suppressing
+    // QC's own, distinct waitingReceive unit — in the worst case (Lab already
+    // approved) the petition emitted NO unit at all and vanished from the dashboard.
+    let labEmittedWaitingReceive = false;
     if (labTrack) {
-      if (!labReceived) {
-        const elapsed = minutesSince(petition.sampleSentAt, now);
-        if (elapsed != null) units.push(unit(petition, 'lab', 'waitingReceive', elapsed, null, 'ok'));
-      } else if (!assignedAt) {
+      if (labApproved) {
+        // Lab track done — nothing to emit.
+      } else if (labCompleted) {
+        const elapsed = minutesSince(labCompleted, now);
+        units.push(unit(petition, 'lab', 'waitingLabApprove', elapsed, null, 'ok'));
+      } else if (assignedAt) {
+        const elapsed = minutesSince(labReceived || assignedAt, now);
+        units.push(unit(petition, 'lab', 'labTesting', elapsed, labBaselineMinutes(petition)));
+      } else if (labReceived) {
         const elapsed = minutesSince(labReceived, now);
         const state = elapsed >= UNASSIGNED_ALERT_MIN ? 'unassigned' : 'ok';
         units.push(unit(petition, 'lab', 'pendingAssign', elapsed, null, state));
-      } else if (!labCompleted) {
-        const elapsed = minutesSince(labReceived, now);
-        units.push(unit(petition, 'lab', 'labTesting', elapsed, labBaselineMinutes(petition)));
-      } else if (!labApproved) {
-        const elapsed = minutesSince(labCompleted, now);
-        units.push(unit(petition, 'lab', 'waitingLabApprove', elapsed, null, 'ok'));
+      } else {
+        const elapsed = minutesSince(petition.sampleSentAt, now);
+        if (elapsed != null) {
+          units.push(unit(petition, 'lab', 'waitingReceive', elapsed, null, 'ok'));
+          labEmittedWaitingReceive = true;
+        }
       }
     }
 
-    // ── QC track
-    if (!qcReceived) {
-      // The "nobody has received it yet" wait is shared across tracks — suppress the
-      // QC copy only while Lab is ALSO still waiting (Lab's unit already reports it).
-      // Once Lab has received and QC hasn't, this is a distinct, QC-only lag (Lab and
-      // QC receive independently via PATCH /petitions/:id/receive side=lab|qc) and
-      // must get its own unit — otherwise a stuck QC receive is invisible.
-      const sharedWaitAlreadyReported = labTrack && !labReceived;
-      const elapsed = minutesSince(petition.sampleSentAt, now);
-      if (elapsed != null && !sharedWaitAlreadyReported) units.push(unit(petition, 'qc', 'waitingReceive', elapsed, null, 'ok'));
-    } else if (!qcCompleted) {
+    // ── QC track — same furthest-progress principle: qcCompletedAt wins over a
+    // missing qcReceivedAt (a receive scan that was never recorded).
+    if (qcCompleted) {
+      // QC track done — nothing to emit.
+    } else if (qcReceived) {
       const elapsed = minutesSince(qcReceived, now);
       units.push(unit(petition, 'qc', 'qcTesting', elapsed, qcBaselineMinutes(petition, qcBaseline)));
+    } else {
+      // The "nobody has received it yet" wait is shared across tracks — suppress the
+      // QC copy only when Lab's own branch ABOVE actually emitted that shared unit
+      // (labEmittedWaitingReceive). Any other Lab stage (labTesting, waitingLabApprove,
+      // or Lab already fully approved) means Lab did NOT report this wait, so QC's
+      // receive lag is a distinct, QC-only lag (Lab and QC receive independently via
+      // PATCH /petitions/:id/receive side=lab|qc) and must get its own unit —
+      // otherwise a stuck QC receive is invisible.
+      const elapsed = minutesSince(petition.sampleSentAt, now);
+      if (elapsed != null && !labEmittedWaitingReceive) units.push(unit(petition, 'qc', 'waitingReceive', elapsed, null, 'ok'));
     }
 
     // ── รอ Final Result (ทุกรางที่ใบนี้มี ทดสอบครบแล้ว)
+    // Mirrors stageDurations' finalResultStart: the max(qcCompletedAt, labApprovedAt)
+    // rule only applies to a petition that actually HAS a Lab track. A QC-only
+    // petition carrying a stray labApprovedAt (data glitch, never a real Lab track)
+    // must be measured from qcCompletedAt alone, or the live tile and the stats bar
+    // disagree on the same petition (Finding 2).
     if (isPetitionComplete(petition)) {
-      const startedAt = Math.max(
-        qcCompleted ? qcCompleted.getTime() : 0,
-        labApproved ? labApproved.getTime() : 0,
-      );
+      const startedAt = labTrack
+        ? Math.max(
+          qcCompleted ? qcCompleted.getTime() : 0,
+          labApproved ? labApproved.getTime() : 0,
+        )
+        : (qcCompleted ? qcCompleted.getTime() : 0);
       if (startedAt > 0) {
         units.push(unit(petition, 'final', 'waitingFinal', (now - startedAt) / MS_PER_MIN, null, 'ok'));
       }
@@ -183,15 +215,9 @@ function buildLiveSection(petitions, { now, qcBaseline, abnormalFlags = {} }) {
   const waitingHeadUnits = units.filter((u) => u.stage === 'waitingLabApprove' || u.stage === 'waitingFinal');
   const abnormalPetitions = openPetitions.filter((p) => abnormalFlags[String(p._id)]);
 
-  const counts = {
-    urgent: urgentPetitions.length,
-    overdue: overdueUnits.length,
-    atRisk: atRiskUnits.length,
-    unassigned: unassignedUnits.length,
-    waitingHead: waitingHeadUnits.length,
-    abnormal: abnormalPetitions.length,
-  };
-
+  // ids ก่อน แล้วนับจาก ids.length เสมอ — เพื่อให้ตัวเลขบน tile กับใบที่ลิงก์ไป
+  // highlight ตรงกันโดยโครงสร้าง (ไม่ใช่บังเอิญ) แม้ใบเดียวจะมีหลาย work unit
+  // (เช่น lab-batch ที่เกินเวลาทั้งราง Lab และ QC พร้อมกัน) ก็ต้องนับครั้งเดียว
   const ids = {
     urgent: uniqueIds(urgentPetitions.map((p) => String(p._id))),
     overdue: uniqueIds(overdueUnits.map((u) => u.petitionId)),
@@ -200,6 +226,8 @@ function buildLiveSection(petitions, { now, qcBaseline, abnormalFlags = {} }) {
     waitingHead: uniqueIds(waitingHeadUnits.map((u) => u.petitionId)),
     abnormal: uniqueIds(abnormalPetitions.map((p) => String(p._id))),
   };
+
+  const counts = Object.fromEntries(Object.entries(ids).map(([key, list]) => [key, list.length]));
 
   // งานที่กำลังทดสอบและยังอยู่ในเกณฑ์ (state 'ok') ไม่ต้องรบกวนหัวหน้า — แต่ด่านที่
   // "รอคนมาทำ" ต้องโผล่เสมอ แม้จะยังไม่เกินเวลา เพราะมันคือคิวที่รอการตัดสินใจ
@@ -243,6 +271,19 @@ function localDateKey(ms) {
   return `${d.getFullYear()}-${month}-${day}`;
 }
 
+// จุดเริ่มรอ Final Result ต้องเป็น "รางที่เสร็จทีหลัง" เสมอ — Lab กับ QC เดินขนาน
+// กัน ใบที่มีราง Lab อาจตรวจ QC เสร็จหลังหัวหน้า Lab เซ็นแล้วก็ได้ ถ้ายังตรึงจุด
+// เริ่มไว้ที่ labApprovedAt เฉย ๆ แถบนี้จะกลืนเวลาตรวจ QC ที่เหลือเข้ามาโดยไม่รู้ตัว
+// ต้อง mirror สูตรเดียวกับ openWorkUnits (max ของ qcCompletedAt/labApprovedAt)
+function finalResultStart(petition, labTrack) {
+  if (!labTrack) return petition.qcCompletedAt ?? null;
+  const qc = toDate(petition.qcCompletedAt);
+  const lab = toDate(petition.labApprovedAt);
+  if (!qc) return petition.labApprovedAt ?? null;
+  if (!lab) return petition.qcCompletedAt ?? null;
+  return qc.getTime() >= lab.getTime() ? petition.qcCompletedAt : petition.labApprovedAt;
+}
+
 /** เวลาที่แต่ละใบใช้ในแต่ละด่าน — ใบที่ timestamp ไม่ครบจะไม่ถูกนับในด่านนั้น (ไม่ทำให้ค่าเฉลี่ยเป็น NaN) */
 function stageDurations(petition) {
   const qcReceived = qcReceivedAtOf(petition);
@@ -253,10 +294,7 @@ function stageDurations(petition) {
     labTesting: labTrack ? diffMinutes(petition.labReceivedAt, petition.labCompletedAt) : null,
     qcTesting: qcDurationMinutes(petition),
     waitingLabApprove: labTrack ? diffMinutes(petition.labCompletedAt, petition.labApprovedAt) : null,
-    waitingFinal: diffMinutes(
-      labTrack ? petition.labApprovedAt : petition.qcCompletedAt,
-      petition.approvedAt,
-    ),
+    waitingFinal: diffMinutes(finalResultStart(petition, labTrack), petition.approvedAt),
   };
 }
 
@@ -274,8 +312,15 @@ function round(value) {
   return value == null ? null : Math.round(value);
 }
 
-function buildStatsSection(closedPetitions, { now, days, abnormalFlags = {}, qcTesterNames = {} }) {
+// closedPetitions drives turnaround/quality/workload (all correctly closed-only).
+// createdPetitions is a SEPARATE series for the "created" half of throughput — it
+// must include petitions still open, or the inflow line can never read above the
+// outflow line (the entire point of the chart). The caller passes a dedicated
+// `createdAt >= windowStart` query: a union of the open + closed sets would miss
+// petitions that arrived in the window and were later rejected, which still arrived.
+function buildStatsSection(closedPetitions, createdPetitions, { now, days, abnormalFlags = {}, qcTesterNames = {} }) {
   const petitions = closedPetitions || [];
+  const createdSource = createdPetitions || [];
 
   // ── turnaround ต่อด่าน
   const samplesByStage = Object.fromEntries(STAGE_ORDER.map((stage) => [stage, []]));
@@ -299,9 +344,11 @@ function buildStatsSection(closedPetitions, { now, days, abnormalFlags = {}, qcT
   for (let i = days - 1; i >= 0; i -= 1) {
     buckets.set(localDateKey(now - i * 86400000), { created: 0, completed: 0 });
   }
-  for (const petition of petitions) {
+  for (const petition of createdSource) {
     const createdKey = petition.createdAt ? localDateKey(new Date(petition.createdAt).getTime()) : null;
     if (createdKey && buckets.has(createdKey)) buckets.get(createdKey).created += 1;
+  }
+  for (const petition of petitions) {
     const doneKey = petition.approvedAt ? localDateKey(new Date(petition.approvedAt).getTime()) : null;
     if (doneKey && buckets.has(doneKey)) buckets.get(doneKey).completed += 1;
   }

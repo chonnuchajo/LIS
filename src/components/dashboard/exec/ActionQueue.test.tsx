@@ -1,5 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import ActionQueue from "./ActionQueue";
 import type { ExecWorkUnit } from "@/lib/execSummary";
@@ -28,6 +28,28 @@ describe("ActionQueue", () => {
     render(<MemoryRouter><ActionQueue units={[unit({ petitionId: "x1" })]} /></MemoryRouter>);
     const row = screen.getByText("P-1").closest("tr")!;
     expect(within(row).getByRole("link")).toHaveAttribute("href", "/petitions?highlight=x1");
+  });
+
+  it("navigates from a click anywhere on the row, not just the petition number", () => {
+    function LocationProbe() {
+      const location = useLocation();
+      return <output data-testid="location">{location.pathname + location.search}</output>;
+    }
+    render(
+      <MemoryRouter>
+        <ActionQueue units={[unit({ petitionId: "x1", stageLabel: "Lab กำลังทดสอบ" })]} />
+        <LocationProbe />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByText("Lab กำลังทดสอบ"));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/petitions?highlight=x1");
+  });
+
+  it("drops the redundant view button now that the whole row is the link", () => {
+    render(<MemoryRouter><ActionQueue units={[unit({})]} /></MemoryRouter>);
+    expect(screen.queryByRole("button", { name: "ดู" })).not.toBeInTheDocument();
   });
 
   it("shows an empty state when nothing needs attention", () => {

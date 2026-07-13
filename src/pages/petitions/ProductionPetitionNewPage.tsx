@@ -295,6 +295,11 @@ function currentBuddhistYearShort(): string {
   return String((new Date().getFullYear() + 543) % 100).padStart(2, '0');
 }
 
+const LABEL_HEADER_LINE_1 = 'ป้ายนำส่งตัวอย่าง บริษัท ไอ ซี พี';
+const LABEL_HEADER_LINE_2 = 'ลัดดา จำกัด';
+const LABEL_HEADER_TEXT = `${LABEL_HEADER_LINE_1} ${LABEL_HEADER_LINE_2}`;
+const DOCUMENT_NUMBER_LABEL = 'เลขที่';
+
 function getQrValue(petition: Petition, item: Petition['items'][number]): string {
   return JSON.stringify({
     id: petition._id,
@@ -304,7 +309,13 @@ function getQrValue(petition: Petition, item: Petition['items'][number]): string
   });
 }
 
-function PreviewQrCode({ value }: { value: string }) {
+function PreviewQrCode({
+  value,
+  sizeClass = 'h-32 w-32',
+}: {
+  value: string;
+  sizeClass?: string;
+}) {
   const qr = QRCode.create(value, { errorCorrectionLevel: 'M' });
   const size = qr.modules.size;
   const modules = Array.from(qr.modules.data as Uint8Array);
@@ -312,7 +323,7 @@ function PreviewQrCode({ value }: { value: string }) {
   return (
     <svg
       viewBox={`0 0 ${size} ${size}`}
-      className="h-32 w-32 shrink-0"
+      className={`${sizeClass} shrink-0`}
       role="img"
       aria-label={`QR ${value}`}
       shapeRendering="crispEdges"
@@ -343,22 +354,34 @@ function LabelPreview({ petition }: { petition: Petition }) {
             style={{ fontFamily: 'Tahoma, Arial, sans-serif' }}
           >
             <div className="mb-3 flex items-start gap-3">
-              <div className="shrink-0 border border-black bg-white p-1">
-                <PreviewQrCode value={getQrValue(petition, item)} />
+              <div className="flex shrink-0 flex-col items-center">
+                <div className="border border-black bg-white p-1">
+                  <PreviewQrCode value={getQrValue(petition, item)} />
+                </div>
+                <div className="mt-1 w-32 break-all text-center text-xs font-bold leading-tight">
+                  {petition.petitionNo}
+                </div>
+                {item.batchNo ? (
+                  <>
+                    <PreviewQrCode value={item.batchNo} sizeClass="mt-1 h-14 w-14" />
+                    <div className="mt-1 w-32 break-all text-center text-[10px] font-bold leading-tight">
+                      {item.batchNo}
+                    </div>
+                  </>
+                ) : null}
               </div>
               <div className="min-w-0 flex-1 space-y-2">
-                <div className="relative min-h-10 pr-32">
-                  <div className="text-center text-base font-bold leading-tight">
-                    <div>ป้ายนำส่งตัวอย่าง บริษัท ไอ ซี พี</div>
-                    <div>ลัดดา จำกัด</div>
+                <div className="grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                  <div className="min-w-0 px-2 text-center text-[13px] font-bold leading-tight">
+                    <span className="block whitespace-nowrap">{LABEL_HEADER_TEXT}</span>
                   </div>
-                  <div className="absolute right-0 top-0 flex items-end gap-1 whitespace-nowrap text-sm">
-                    <span>เลขที่</span>
-                    <span className="inline-block min-w-[4rem] border-b border-black px-1 text-center">
+                  <div className="flex items-end gap-1 whitespace-nowrap text-[11px]">
+                    <span>{DOCUMENT_NUMBER_LABEL}</span>
+                    <span className="inline-block min-w-[2.5rem] border-b border-black px-1 text-center">
                       {item.sampleId || '\u00a0'}
                     </span>
                     <span>/</span>
-                    <span className="inline-block min-w-[2rem] border-b border-black px-1 text-center">
+                    <span className="inline-block min-w-[1.25rem] border-b border-black px-1 text-center">
                       {yearShort}
                     </span>
                   </div>
@@ -371,7 +394,12 @@ function LabelPreview({ petition }: { petition: Petition }) {
                 </div>
                 <div className="grid gap-2 text-sm sm:grid-cols-2">
                   <PreviewField label="Lot No." value={item.lotNo} />
-                  <PreviewField label="แบชนัมเบอร์" value={item.batchNo} />
+                  <PreviewField
+                    label="แบชนัมเบอร์"
+                    value={item.batchNo}
+                    valueClassName="text-xs leading-tight"
+                    multiline
+                  />
                 </div>
                 <div className="grid gap-2 text-sm sm:grid-cols-2">
                   <PreviewField label="ผู้ผลิต" value={item.labelManufacturer} />

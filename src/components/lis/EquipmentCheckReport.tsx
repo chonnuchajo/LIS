@@ -1,5 +1,6 @@
 import type { EquipmentCheckRecord } from "@/lib/api";
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
+import { A4_PRINT_FONT_FAMILY, A4_PRINT_FONT_SIZE, A4_PRINT_HEADING_FONT_WEIGHT } from "@/lib/printConfig";
 import {
   fmtDate,
   fmtTime,
@@ -28,10 +29,12 @@ export interface EquipmentCheckReportProps {
 // A4 landscape — ตาราง 8 คอลัมน์กว้าง; ScaledPreview ย่อพอดีจอด้วย width คงที่
 export const EQUIPMENT_REPORT_CSS = `
 @page { size: A4 landscape; margin: 12mm; }
-body{font-family:'Kanit',sans-serif;margin:0;color:#000;font-size:12px;}
+body{font-family:${A4_PRINT_FONT_FAMILY};margin:0;color:#000;font-size:${A4_PRINT_FONT_SIZE};}
+.eqr,.eqr *{font-family:${A4_PRINT_FONT_FAMILY};font-size:${A4_PRINT_FONT_SIZE}!important;}
 .eqr table{border-collapse:collapse;width:100%;}
 .eqr th,.eqr td{border:1px solid #000;padding:5px 8px;vertical-align:top;}
-.eqr thead th{background:#f3f4f6;font-weight:600;}
+.eqr thead th{background:#f3f4f6;}
+.eqr thead th,.eqr h1,.eqr h2,.eqr h3,.eqr h4,.eqr h5,.eqr h6,.eqr .print-heading{font-weight:${A4_PRINT_HEADING_FONT_WEIGHT}!important;}
 .eqr .sig-line{border-bottom:1px dotted #000;display:inline-block;min-width:200px;}
 `;
 
@@ -45,7 +48,10 @@ export default function EquipmentCheckReport({
   const printedAtLabel = `${fmtDate(printedAt.slice(0, 10))} ${fmtTime(printedAt)}`;
 
   return (
-    <div className="eqr bg-white text-black p-6 font-[Kanit]" style={{ fontSize: 12, width: "1040px" }}>
+    <div
+      className="eqr bg-white text-black p-6"
+      style={{ fontSize: A4_PRINT_FONT_SIZE, width: "1040px", fontFamily: A4_PRINT_FONT_FAMILY }}
+    >
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <img src={ICP_LADDA_LOGO_URL} alt="ICP Ladda" className="h-12" />

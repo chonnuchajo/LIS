@@ -82,10 +82,6 @@ router.get('/', async (req, res) => {
     const search = (req.query.search || '').trim();
 
     const q = {};
-    if (status) {
-      const list = String(status).split(',').map((s) => s.trim()).filter(Boolean);
-      q.status = list.length > 1 ? { $in: list } : list[0];
-    }
     if (dept && ['production', 'rm', 'fg'].includes(String(dept))) q.dept = dept;
     if (search) {
       const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
@@ -95,6 +91,12 @@ router.get('/', async (req, res) => {
         { 'submittedBy.name': rx },
         { 'items.batchNo': rx },
       ];
+    }
+    const summaryQ = { ...q };
+
+    if (status) {
+      const list = String(status).split(',').map((s) => s.trim()).filter(Boolean);
+      q.status = list.length > 1 ? { $in: list } : list[0];
     }
 
     // ?ids=a,b,c → ดึงเฉพาะใบที่ระบุ (ใช้โดยการไฮไลท์จากแดชบอร์ด) — ไม่แบ่งหน้า
@@ -116,10 +118,16 @@ router.get('/', async (req, res) => {
       q.labApprovedAt = { $ne: null };
     }
 
-    const [docs, total] = await Promise.all([
+    const [docs, total, summaryTotal, statusCountRows] = await Promise.all([
       Petition.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
       Petition.countDocuments(q),
+      Petition.countDocuments(summaryQ),
+      Petition.aggregate([
+        { $match: summaryQ },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
     ]);
+    const statusCounts = Object.fromEntries(statusCountRows.map((row) => [row._id, row.count]));
     // Lazy phase advance for petitions whose phase2DueAt has elapsed
     const now = new Date();
     const items = [];
@@ -129,7 +137,7 @@ router.get('/', async (req, res) => {
       }
       items.push(doc.toObject());
     }
-    res.json({ items, total, page, limit });
+    res.json({ items, total, page, limit, summaryTotal, statusCounts });
   } catch (err) {
     res.status(500).json({ error: { message: err.message } });
   }
@@ -180,10 +188,17 @@ router.get('/exec-summary', async (req, res) => {
 
     const windowStart = new Date(now - days * 86400000);
 
-    const [openDocs, closedDocs, qcBaseline] = await Promise.all([
+    const [openDocs, closedDocs, createdDocs, qcBaseline] = await Promise.all([
       // งานที่ยังไม่ปิด — ไม่จำกัดช่วงเวลา เพราะงานค้างเก่าคือสิ่งที่หัวหน้าต้องเห็นที่สุด
       Petition.find({ approvedAt: null, status: { $nin: ['approved', 'rejected'] } }).lean(),
       Petition.find({ approvedAt: { $gte: windowStart } }).lean(),
+      // "created" series for throughput: a dedicated, provably-complete query on
+      // createdAt alone. Rejected petitions (status 'rejected', approvedAt null) sit
+      // in neither openDocs (excluded by status) nor closedDocs (approvedAt never
+      // set) — they arrived and were later sent back, but they DID arrive, and the
+      // inflow line must show that. Project only createdAt, the one field the
+      // throughput bucketing reads (see buildStatsSection).
+      Petition.find({ createdAt: { $gte: windowStart } }, { createdAt: 1 }).lean(),
       loadQcBaseline(now),
     ]);
 
@@ -226,7 +241,9 @@ router.get('/exec-summary', async (req, res) => {
       generatedAt: new Date(now).toISOString(),
       days,
       live: buildLiveSection(openDocs, { now, qcBaseline, abnormalFlags }),
-      stats: buildStatsSection(closedDocs, { now, days, abnormalFlags, qcTesterNames }),
+      // createdDocs is its own query (createdAt >= windowStart), independent of
+      // open/closed status — see buildStatsSection's throughput "created" bucket.
+      stats: buildStatsSection(closedDocs, createdDocs, { now, days, abnormalFlags, qcTesterNames }),
     };
 
     execCache.set(days, { at: now, payload });

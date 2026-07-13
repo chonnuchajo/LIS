@@ -4,6 +4,7 @@ import { isLabBatch } from '@/types/petition.types';
 import type { Petition, PetitionItem, QCTestResult } from '@/types/petition.types';
 import type { LabRequest } from '@/types/labRequest.types';
 import { resolveSpecificGravity, type SgParameter } from '@/lib/formSpecificGravity';
+import { A4_PRINT_FONT_FAMILY, A4_PRINT_FONT_SIZE, A4_PRINT_HEADING_FONT_WEIGHT } from '@/lib/printConfig';
 
 function buddhistShort(iso?: string | null): string {
   if (!iso) return '';
@@ -606,11 +607,12 @@ const PRINT_CSS = `
 @page pageA4L { size: A4 landscape; margin: 0; }
 
 .pr-root, .pr-root * {
-  font-family: 'Angsana New', 'Cordia New', 'Sarabun', 'TH SarabunPSK', serif;
+  font-family: ${A4_PRINT_FONT_FAMILY};
+  font-size: ${A4_PRINT_FONT_SIZE};
   color: #000;
   box-sizing: border-box;
 }
-.pr-root { font-size: 11pt; line-height: 1.12; }
+.pr-root { line-height: 1.12; }
 
 .pr-page1 {
   width: 210mm; height: 297mm;
@@ -829,4 +831,23 @@ const PRINT_CSS = `
 .pr-p2-sign-col { flex: 0 1 auto; font-size: 11pt; min-width: 8cm; }
 
 .pr-p2-warn { text-align: center; margin-top: 10pt; font-size: 11pt; }
+
+.pr-root, .pr-root * {
+  font-size: ${A4_PRINT_FONT_SIZE} !important;
+}
+.pr-root h1,
+.pr-root h2,
+.pr-root h3,
+.pr-root h4,
+.pr-root h5,
+.pr-root h6,
+.pr-root th,
+.pr-p1-title,
+.pr-p2-title,
+.pr-terms-title,
+.pr-q b,
+.pr-officer-sum,
+.print-heading {
+  font-weight: ${A4_PRINT_HEADING_FONT_WEIGHT} !important;
+}
 `;

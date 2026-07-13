@@ -1,7 +1,6 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { PETITION_DEPT_LABELS, type PetitionDept } from "@/types/petition.types";
 import { formatMinutes, highlightPath, type ExecWorkUnit } from "@/lib/execSummary";
 
@@ -22,6 +21,8 @@ const REASON_TONE: Record<ExecWorkUnit["state"], string> = {
 };
 
 export default function ActionQueue({ units }: { units: ExecWorkUnit[] }) {
+  const navigate = useNavigate();
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -39,27 +40,30 @@ export default function ActionQueue({ units }: { units: ExecWorkUnit[] }) {
                 <th>ด่านที่ติด</th>
                 <th>ผู้รับผิดชอบ</th>
                 <th>สถานะเวลา</th>
-                <th />
               </tr>
             </thead>
             <tbody>
-              {units.map((u) => (
-                <tr key={`${u.petitionId}-${u.track}`} className="border-b last:border-0">
-                  <td className="py-2 font-medium">
-                    {u.petitionNo}
-                    {u.priority === 1 ? <Badge variant="destructive" className="ml-2">ด่วน</Badge> : null}
-                  </td>
-                  <td>{PETITION_DEPT_LABELS[u.dept as PetitionDept] ?? u.dept}</td>
-                  <td>{u.stageLabel}</td>
-                  <td>{u.assigneeName || "—"}</td>
-                  <td className={REASON_TONE[u.state]}>{REASON[u.state](u)}</td>
-                  <td className="text-right">
-                    <Button asChild size="sm" variant="outline">
-                      <Link to={highlightPath([u.petitionId])}>ดู</Link>
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+              {units.map((u) => {
+                const to = highlightPath([u.petitionId]);
+                return (
+                  <tr
+                    key={`${u.petitionId}-${u.track}`}
+                    onClick={() => navigate(to)}
+                    className="cursor-pointer border-b transition-colors last:border-0 hover:bg-muted/50"
+                  >
+                    <td className="py-2 font-medium">
+                      <Link to={to} className="text-primary-500 hover:underline">
+                        {u.petitionNo}
+                      </Link>
+                      {u.priority === 1 ? <Badge variant="destructive" className="ml-2">ด่วน</Badge> : null}
+                    </td>
+                    <td>{PETITION_DEPT_LABELS[u.dept as PetitionDept] ?? u.dept}</td>
+                    <td>{u.stageLabel}</td>
+                    <td>{u.assigneeName || "—"}</td>
+                    <td className={REASON_TONE[u.state]}>{REASON[u.state](u)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

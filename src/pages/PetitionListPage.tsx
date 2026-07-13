@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   FilePlus2,
-  Search,
   X,
 } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
@@ -42,6 +42,10 @@ import {
 } from '@/types/petition.types';
 
 const PAGE_SIZE = 20;
+
+// How long a petition arriving from a dashboard drill-down stays visually marked
+// before it settles back into an ordinary list card.
+const HIGHLIGHT_GLOW_MS = 5000;
 
 const SUMMARY_STATUS_GROUPS: Array<{
   key: string;
@@ -131,6 +135,13 @@ export default function PetitionListPage({
   const search = searchParams.get('search') ?? searchParams.get('q') ?? searchParams.get('requestNo') ?? '';
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
 
+  const highlightIds = (searchParams.get('highlight') ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const highlightKey = highlightIds.join(',');
+  const highlightSet = new Set(highlightIds);
+
   const selectedStatuses = useMemo<Petition['status'][]>(() => {
     if (!status) return [];
     return status
@@ -152,6 +163,29 @@ export default function PetitionListPage({
     [page, status, search, canViewAll],
   );
   const { data, loading, error, refresh } = usePetitionList(params);
+  const summaryParams = useMemo(
+    () => ({
+      page: 1,
+      limit: canViewAll ? PAGE_SIZE : 500,
+      search: search || undefined,
+    }),
+    [canViewAll, search],
+  );
+  const { data: summaryData } = usePetitionList(summaryParams);
+
+  const { data: highlighted = [] } = useQuery({
+    queryKey: ['petitions', 'highlight', highlightKey],
+    enabled: highlightIds.length > 0,
+    queryFn: async () => {
+      const res = await fetch(
+        `${import.meta.env.BASE_URL}api/petitions?ids=${encodeURIComponent(highlightKey)}`,
+        { cache: 'no-store' },
+      );
+      if (!res.ok) return [];
+      const body = await res.json();
+      return (body.items ?? []) as Petition[];
+    },
+  });
 
   const { push } = useNotifications();
   useEffect(() => {
@@ -194,16 +228,36 @@ export default function PetitionListPage({
     [isLabUser, parameters],
   );
 
-  const ownedItems = useMemo(() => {
-    if (!data?.items) return [];
-    let items = canViewAll ? data.items : data.items.filter((petition) => canSeePetition(petition, user));
-    if (isLabUser && paramsLoaded) {
-      items = items.filter((petition) =>
-        petitionHasLabReadableItem(petition, displayParameters, groupMembership),
-      );
-    }
-    return items;
-  }, [canViewAll, data?.items, displayParameters, groupMembership, isLabUser, paramsLoaded, user]);
+  // Single source of truth for "can this user see this petition" — reused for both
+  // the paginated list AND the dashboard-highlight group below, so a shared/bookmarked
+  // ?highlight= link can never show a non-admin user a petition outside their scope.
+  const applyVisibilityFilter = useCallback(
+    (items: Petition[]) => {
+      let result = canViewAll ? items : items.filter((petition) => canSeePetition(petition, user));
+      if (isLabUser && paramsLoaded) {
+        result = result.filter((petition) =>
+          petitionHasLabReadableItem(petition, displayParameters, groupMembership),
+        );
+      }
+      return result;
+    },
+    [canViewAll, displayParameters, groupMembership, isLabUser, paramsLoaded, user],
+  );
+
+  const ownedItems = useMemo(
+    () => (data?.items ? applyVisibilityFilter(data.items) : []),
+    [applyVisibilityFilter, data?.items],
+  );
+
+  const summaryOwnedItems = useMemo(
+    () => (summaryData?.items ? applyVisibilityFilter(summaryData.items) : ownedItems),
+    [applyVisibilityFilter, ownedItems, summaryData?.items],
+  );
+
+  const visibleHighlighted = useMemo(
+    () => applyVisibilityFilter(highlighted),
+    [applyVisibilityFilter, highlighted],
+  );
 
   const totalCount = canViewAll ? data?.total ?? 0 : ownedItems.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -211,18 +265,45 @@ export default function PetitionListPage({
     ? ownedItems
     : ownedItems.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  function updateParams(next: Record<string, string | undefined>) {
+  // The list is server-paginated, so a petition drilled into from the dashboard may
+  // well live on another page. Pull it in from the ?ids= fetch and render it at the
+  // top of the list as an ordinary card — deduped against the page it may already be on.
+  const listItems = useMemo(() => {
+    if (visibleHighlighted.length === 0) return visibleItems;
+    const pinnedIds = new Set(visibleHighlighted.map((petition) => petition._id));
+    return [...visibleHighlighted, ...visibleItems.filter((petition) => !pinnedIds.has(petition._id))];
+  }, [visibleHighlighted, visibleItems]);
+
+  const [glowing, setGlowing] = useState(true);
+  useEffect(() => {
+    if (!highlightKey) return;
+    setGlowing(true);
+    const timer = window.setTimeout(() => setGlowing(false), HIGHLIGHT_GLOW_MS);
+    return () => window.clearTimeout(timer);
+  }, [highlightKey]);
+
+  const glowAnchorRef = useRef<HTMLDivElement | null>(null);
+  const firstHighlightedId = visibleHighlighted[0]?._id;
+  useEffect(() => {
+    if (!firstHighlightedId) return;
+    glowAnchorRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  }, [firstHighlightedId]);
+
+  function updateParams(next: Record<string, string | undefined>, options?: { replace?: boolean }) {
     const sp = new URLSearchParams(searchParams);
+    // Searching, filtering or paging is the user moving on from whatever the
+    // dashboard sent them here to look at — the highlight goes with it.
+    if (!('highlight' in next)) sp.delete('highlight');
     for (const [key, value] of Object.entries(next)) {
       if (value) sp.set(key, value);
       else sp.delete(key);
     }
-    setSearchParams(sp, { replace: false });
+    setSearchParams(sp, { replace: options?.replace ?? false });
   }
 
-  function applySearch(e: React.FormEvent) {
-    e.preventDefault();
-    updateParams({ search: searchInput.trim() || undefined, page: undefined });
+  function handleSearchChange(value: string) {
+    setSearchInput(value);
+    updateParams({ search: value.trim() || undefined, page: undefined }, { replace: true });
   }
 
   function clearFilters() {
@@ -237,10 +318,16 @@ export default function PetitionListPage({
       ? 'ยังไม่มีคำร้องในระบบ'
       : 'ยังไม่มีคำร้องที่คุณยื่นหรือได้รับมอบหมาย';
 
+  const summaryTotalCount = canViewAll
+    ? summaryData?.summaryTotal ?? summaryData?.total ?? totalCount
+    : summaryOwnedItems.length;
+
   const summaryCards = SUMMARY_STATUS_GROUPS.map((group) => {
     const count = group.statuses.length === 0
-      ? totalCount
-      : ownedItems.filter((petition) => group.statuses.includes(petition.status)).length;
+      ? summaryTotalCount
+      : canViewAll && summaryData?.statusCounts
+        ? group.statuses.reduce((sum, statusItem) => sum + (summaryData.statusCounts?.[statusItem] ?? 0), 0)
+        : summaryOwnedItems.filter((petition) => group.statuses.includes(petition.status)).length;
     const active =
       (group.key === '' && selectedStatuses.length === 0) ||
       (group.statuses.length > 0 &&
@@ -248,6 +335,66 @@ export default function PetitionListPage({
         group.statuses.every((statusItem) => selectedStatuses.includes(statusItem)));
     return { ...group, count, active };
   });
+
+  const renderPetitionCard = (
+    petition: Petition,
+    isGlowing = false,
+    ref?: React.Ref<HTMLDivElement>,
+  ) => {
+    const statusBadge = petitionStatusBadge(petition);
+    const sampleNames = petition.items
+      .map((item) => item.sampleName)
+      .filter((item): item is string => Boolean(item));
+    const primarySample = sampleNames[0] ?? '-';
+    const extraSamples = Math.max(0, sampleNames.length - 1);
+    const testItems = canSeeTestItems
+      ? parameterNamesForPetition(petition, displayParameters)
+      : [];
+
+    return (
+      <Card
+        key={petition._id}
+        ref={ref}
+        data-highlight={isGlowing ? 'on' : undefined}
+        onOpen={() => navigate(petitionDetailPath(petition))}
+        className={cn(
+          'w-full rounded-2xl border-black-50 p-4 text-left transition duration-700 hover:border-primary-200 hover:bg-grey-50/40',
+          isGlowing && 'border-amber-300 bg-amber-50 ring-2 ring-amber-200 hover:bg-amber-50',
+        )}
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-base font-semibold text-primary-500">{petition.petitionNo}</p>
+              <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
+              <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium text-black-500">{primarySample}</p>
+                {extraSamples > 0 && <Badge variant="gray-soft">+อีก {extraSamples}</Badge>}
+                <span className="text-xs text-grey-500">{petition.items.length} รายการ</span>
+              </div>
+              {testItems.length > 0 && (
+                <p className="line-clamp-2 text-sm text-grey-600">
+                  {testItems.slice(0, 4).join(' • ')}
+                  {testItems.length > 4 ? ` • +อีก ${testItems.length - 4}` : ''}
+                </p>
+              )}
+              <p className="text-xs text-grey-500">{petitionMetaLine(petition)}</p>
+            </div>
+
+            <div className="rounded-xl bg-grey-50 px-3 py-2 text-sm text-grey-700">
+              {petitionNextStepText(petition)}
+            </div>
+
+            <PetitionStatusTimeline petition={petition} compact />
+          </div>
+        </div>
+      </Card>
+    );
+  };
 
   return (
     <AppLayout>
@@ -298,11 +445,11 @@ export default function PetitionListPage({
           ))}
         </div>
 
-        <form onSubmit={applySearch} className="rounded-2xl border border-black-50 bg-white p-4">
+        <div className="rounded-2xl border border-black-50 bg-white p-4">
           <PageToolbar
             search={{
               value: searchInput,
-              onChange: setSearchInput,
+              onChange: handleSearchChange,
               placeholder: 'ค้นหาเลขคำร้อง, ผู้ยื่น, ชื่อตัวอย่าง',
             }}
             filters={
@@ -368,10 +515,6 @@ export default function PetitionListPage({
             }
             right={
               <>
-                <Button type="submit">
-                  <Search className="h-4 w-4" />
-                  ค้นหา
-                </Button>
                 {hasFilters && (
                   <Button type="button" variant="ghost" onClick={clearFilters}>
                     <X className="h-4 w-4" />
@@ -381,7 +524,7 @@ export default function PetitionListPage({
               </>
             }
           />
-        </form>
+        </div>
 
         <Card className="border-black-50 shadow-none">
           <CardHeader className="pb-3">
@@ -404,60 +547,18 @@ export default function PetitionListPage({
               <div className="rounded-[10px] border border-dashed border-grey-200 py-12 text-center text-grey-500">
                 กำลังโหลดรายการคำร้อง...
               </div>
-            ) : visibleItems.length === 0 ? (
+            ) : listItems.length === 0 ? (
               <div className="rounded-[10px] border border-dashed border-grey-200 py-12 text-center">
                 <p className="text-sm font-medium text-black-500">{emptyTitle}</p>
                 <p className="mt-1 text-xs text-grey-500">ลองเปลี่ยนตัวกรองหรือค้นหาด้วยคำอื่น</p>
               </div>
             ) : (
-              visibleItems.map((petition) => {
-                const statusBadge = petitionStatusBadge(petition);
-                const sampleNames = petition.items
-                  .map((item) => item.sampleName)
-                  .filter((item): item is string => Boolean(item));
-                const primarySample = sampleNames[0] ?? '-';
-                const extraSamples = Math.max(0, sampleNames.length - 1);
-                const testItems = canSeeTestItems
-                  ? parameterNamesForPetition(petition, displayParameters)
-                  : [];
-
-                return (
-                  <Card
-                    key={petition._id}
-                    onOpen={() => navigate(petitionDetailPath(petition))}
-                    className="w-full rounded-2xl border-black-50 p-4 text-left transition hover:border-primary-200 hover:bg-grey-50/40"
-                  >
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0 flex-1 space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-base font-semibold text-primary-500">{petition.petitionNo}</p>
-                          <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
-                          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
-                        </div>
-
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-medium text-black-500">{primarySample}</p>
-                            {extraSamples > 0 && <Badge variant="gray-soft">+อีก {extraSamples}</Badge>}
-                            <span className="text-xs text-grey-500">{petition.items.length} รายการ</span>
-                          </div>
-                          {testItems.length > 0 && (
-                            <p className="line-clamp-2 text-sm text-grey-600">
-                              {testItems.slice(0, 4).join(' • ')}
-                              {testItems.length > 4 ? ` • +อีก ${testItems.length - 4}` : ''}
-                            </p>
-                          )}
-                          <p className="text-xs text-grey-500">{petitionMetaLine(petition)}</p>
-                        </div>
-
-                        <div className="rounded-xl bg-grey-50 px-3 py-2 text-sm text-grey-700">
-                          {petitionNextStepText(petition)}
-                        </div>
-
-                        <PetitionStatusTimeline petition={petition} compact />
-                      </div>
-                    </div>
-                  </Card>
+              listItems.map((petition) => {
+                const isHighlighted = highlightSet.has(petition._id);
+                return renderPetitionCard(
+                  petition,
+                  isHighlighted && glowing,
+                  petition._id === firstHighlightedId ? glowAnchorRef : undefined,
                 );
               })
             )}

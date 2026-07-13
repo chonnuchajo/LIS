@@ -122,7 +122,7 @@ export default function PrintPreviewDialog({
 
   function handleBrowserPreview() {
     try {
-      openBrowserPrintPreview(meta?.label ?? docType, printRef.current, { css });
+      openBrowserPrintPreview(meta?.label ?? docType, printRef.current, { css, docType });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "เปิด print preview ไม่สำเร็จ");
     }

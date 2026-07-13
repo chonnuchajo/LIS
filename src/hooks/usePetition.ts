@@ -84,6 +84,8 @@ interface PetitionListResponse {
   total: number;
   page: number;
   limit: number;
+  summaryTotal?: number;
+  statusCounts?: Partial<Record<Petition['status'], number>>;
 }
 
 interface PetitionListOptions {

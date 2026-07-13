@@ -1,4 +1,5 @@
 import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
+import { A4_PRINT_FONT_FAMILY, A4_PRINT_FONT_SIZE, A4_PRINT_HEADING_FONT_WEIGHT } from '@/lib/printConfig';
 import type { LabRequest } from '@/types/labRequest.types';
 import type { Petition, PetitionItem, QCTestResult } from '@/types/petition.types';
 
@@ -207,8 +208,8 @@ export default function ResultReportPrintTemplate({
 
 const CSS = `
 @page { size: A4 portrait; margin: 0; }
-.rr-root, .rr-root * { box-sizing: border-box; color: #000; font-family: 'Sarabun', 'TH SarabunPSK', Arial, sans-serif; }
-.rr-page { width: 210mm; min-height: 297mm; padding: 12mm; background: #fff; font-size: 11pt; }
+.rr-root, .rr-root * { box-sizing: border-box; color: #000; font-family: ${A4_PRINT_FONT_FAMILY}; font-size: ${A4_PRINT_FONT_SIZE}; }
+.rr-page { width: 210mm; min-height: 297mm; padding: 12mm; background: #fff; }
 .rr-header { display: grid; grid-template-columns: 26mm 1fr 55mm; gap: 8mm; align-items: start; border-bottom: 1.2pt solid #000; padding-bottom: 6mm; }
 .rr-header img { width: 24mm; height: auto; }
 .rr-header h1 { margin: 0 0 2mm; font-size: 16pt; }
@@ -228,4 +229,16 @@ th { width: 25%; background: #f3f3f3; text-align: left; }
 .rr-line { border-bottom: 0.8pt dotted #000; height: 12mm; }
 .rr-note { margin-top: 8mm; font-size: 9.5pt; }
 @media screen { .rr-page { margin: 0 auto; box-shadow: 0 0 0 1px #ddd; } }
+.rr-root, .rr-root * { font-size: ${A4_PRINT_FONT_SIZE} !important; }
+.rr-root h1,
+.rr-root h2,
+.rr-root h3,
+.rr-root h4,
+.rr-root h5,
+.rr-root h6,
+.rr-root th,
+.rr-watermark,
+.print-heading {
+  font-weight: ${A4_PRINT_HEADING_FONT_WEIGHT} !important;
+}
 `;

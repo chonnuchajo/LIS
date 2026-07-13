@@ -24,6 +24,7 @@ export type StatusBadgeVariant =
   | 'green' | 'green-soft'
   | 'red' | 'red-soft'
   | 'blue' | 'blue-soft'
+  | 'purple' | 'purple-soft'
   | 'gray' | 'gray-soft';
 
 export const PETITION_STATUS_CONFIG: Record<
@@ -35,7 +36,7 @@ export const PETITION_STATUS_CONFIG: Record<
   pendingReview: { label: 'รับตัวอย่างแล้ว',  variant: 'yellow-soft' },
   inProgress:    { label: 'กำลังดำเนินการ',     variant: 'blue-soft' },
   success:       { label: 'ทดสอบเสร็จสิ้น',  variant: 'green-soft' },
-  approved:      { label: 'ออก Final Result แล้ว', variant: 'green-soft' },
+  approved:      { label: 'เสร็จสิ้น', variant: 'purple-soft' },
   rejected:      { label: 'ส่งกลับให้แก้ไข',    variant: 'red-soft' },
 };
 

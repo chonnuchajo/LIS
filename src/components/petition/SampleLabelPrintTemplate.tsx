@@ -24,6 +24,11 @@ function getQrValue(petition: Petition, item: Petition['items'][number]): string
   });
 }
 
+const LABEL_HEADER_LINE_1 = 'ป้ายนำส่งตัวอย่าง บริษัท ไอ ซี พี';
+const LABEL_HEADER_LINE_2 = 'ลัดดา จำกัด';
+const LABEL_HEADER_TEXT = `${LABEL_HEADER_LINE_1} ${LABEL_HEADER_LINE_2}`;
+const DOCUMENT_NUMBER_LABEL = 'เลขที่';
+
 function QrCodeSvg({
   value,
   sizeClass = 'h-[24mm] w-[24mm]',
@@ -59,12 +64,14 @@ function Field({
   value,
   className = '',
   valueClassName = '',
+  valueTestId,
   multiline = false,
 }: {
   label: string;
   value?: string;
   className?: string;
   valueClassName?: string;
+  valueTestId?: string;
   multiline?: boolean;
 }) {
   const valueBaseClass = multiline
@@ -74,7 +81,7 @@ function Field({
   return (
     <div className={`flex min-w-0 items-end gap-1 ${className}`}>
       <span className="whitespace-nowrap">{label}</span>
-      <span className={`${valueBaseClass} ${valueClassName}`}>
+      <span data-testid={valueTestId} className={`${valueBaseClass} ${valueClassName}`}>
         {value || ''}
       </span>
     </div>
@@ -129,22 +136,37 @@ function LabelCard({
             {petition.petitionNo}
           </div>
           {item.batchNo ? (
-            <QrCodeSvg value={item.batchNo} sizeClass="mt-0.5 h-[9mm] w-[9mm]" />
+            <>
+              <QrCodeSvg value={item.batchNo} sizeClass="mt-0.5 h-[9mm] w-[9mm]" />
+              <div
+                data-testid="sample-label-batch-qr-text"
+                className="mt-0.5 w-[24mm] break-all text-center text-[5.5px] font-bold leading-none"
+              >
+                {item.batchNo}
+              </div>
+            </>
           ) : null}
         </div>
         <div className="min-w-0 flex-1 space-y-1">
-          <div className="relative min-h-[7mm] pr-[25mm]">
-            <div className="text-center text-[11px] font-bold leading-tight">
-              <div>ป้ายนำส่งตัวอย่าง บริษัท ไอ ซี พี</div>
-              <div>ลัดดา จำกัด</div>
+          <div className="grid min-h-[7mm] grid-cols-[minmax(0,1fr)_auto] items-start gap-1">
+            <div
+              data-testid="sample-label-header-title"
+              className="min-w-0 px-0.5 text-center text-[8.5px] font-bold leading-tight"
+            >
+              <span data-testid="sample-label-title-line" className="block whitespace-nowrap">
+                {LABEL_HEADER_TEXT}
+              </span>
             </div>
-            <div className="absolute right-0 top-0 flex items-end gap-1 whitespace-nowrap text-[9.5px]">
-              <span>เลขที่</span>
-              <span className="inline-block border-b border-black px-1 min-w-[2.5rem] text-center">
+            <div
+              data-testid="sample-label-document-number"
+              className="flex items-end gap-0.5 whitespace-nowrap text-[7px]"
+            >
+              <span>{DOCUMENT_NUMBER_LABEL}</span>
+              <span className="inline-block min-w-[1.45rem] border-b border-black px-0.5 text-center">
                 {item.sampleId || '\u00a0'}
               </span>
               <span>/</span>
-              <span className="inline-block border-b border-black px-1 min-w-[2rem] text-center">
+              <span className="inline-block min-w-[1.1rem] border-b border-black px-0.5 text-center">
                 {yearShort}
               </span>
             </div>
@@ -155,7 +177,13 @@ function LabelCard({
           </div>
           <div className="grid grid-cols-2 gap-1.5">
             <Field label="Lot No." value={item.lotNo} />
-            <Field label="แบชนัมเบอร์" value={item.batchNo} />
+            <Field
+              label="แบชนัมเบอร์"
+              value={item.batchNo}
+              valueClassName="text-[8px] leading-tight"
+              valueTestId="sample-label-batch-number-value"
+              multiline
+            />
           </div>
           <div className="grid grid-cols-2 gap-1.5">
             <Field label="ผู้ผลิต" value={item.labelManufacturer} />
