@@ -10,6 +10,7 @@ const CONFIG = {
 
 export default function ThroughputChart({ rows }: { rows: ExecSummary["stats"]["throughput"] }) {
   const data = rows.map((r) => ({ ...r, day: r.date.slice(5) })); // MM-DD
+  const isEmpty = data.every((d) => d.created === 0 && d.completed === 0);
 
   return (
     <Card>
@@ -17,18 +18,22 @@ export default function ThroughputChart({ rows }: { rows: ExecSummary["stats"]["
         <CardTitle className="text-base">งานเข้า vs งานปิด</CardTitle>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={CONFIG} className="h-[240px] w-full">
-          <ResponsiveContainer>
-            <LineChart data={data}>
-              <CartesianGrid vertical={false} />
-              <XAxis dataKey="day" fontSize={11} />
-              <YAxis allowDecimals={false} fontSize={11} />
-              <ChartTooltip content={<ChartTooltipContent />} />
-              <Line type="monotone" dataKey="created" stroke="var(--color-created)" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="completed" stroke="var(--color-completed)" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartContainer>
+        {isEmpty ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">ไม่มีข้อมูลในช่วงนี้</p>
+        ) : (
+          <ChartContainer config={CONFIG} className="h-[240px] w-full">
+            <ResponsiveContainer>
+              <LineChart data={data}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="day" fontSize={11} />
+                <YAxis allowDecimals={false} fontSize={11} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Line type="monotone" dataKey="created" stroke="var(--color-created)" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="completed" stroke="var(--color-completed)" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        )}
       </CardContent>
     </Card>
   );

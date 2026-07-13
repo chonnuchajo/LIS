@@ -182,6 +182,24 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.queryByRole("button", { name: "Pre Report" })).not.toBeInTheDocument();
   });
 
+  it("does not show Pre Report before all required fields are recorded", async () => {
+    Object.assign(mocks.petition, { status: "success" });
+    renderDetail();
+
+    expect(await screen.findByRole("heading", { name: "P-2607-001" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pre Report" })).not.toBeInTheDocument();
+  });
+
+  it("shows Pre Report after all required fields are recorded before final approval", async () => {
+    Object.assign(mocks.petition, { status: "success" });
+    mocks.getQCProgress.mockResolvedValue({
+      "petition-1": [{ itemSeq: 1, parameterId: "parameter-1", filledLabels: ["Viscosity", "Color"] }],
+    });
+    renderDetail();
+
+    expect(await screen.findByRole("button", { name: "Pre Report" })).toBeInTheDocument();
+  });
+
   it("keeps the sample label document available after QC receives the sample", async () => {
     Object.assign(mocks.petition, { qcReceivedBy: "QC Receiver" });
     renderDetail();

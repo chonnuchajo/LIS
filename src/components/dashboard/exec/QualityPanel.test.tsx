@@ -13,4 +13,15 @@ describe("QualityPanel", () => {
     render(<QualityPanel quality={{ closed: 0, abnormal: 0, abnormalRate: 0, reworked: 0, reworkRate: 0 }} />);
     expect(screen.getByText("ไม่มีข้อมูลในช่วงนี้")).toBeInTheDocument();
   });
+
+  it("renders a genuine zero rate as 0%", () => {
+    render(<QualityPanel quality={{ closed: 40, abnormal: 0, abnormalRate: 0, reworked: 0, reworkRate: 0 }} />);
+    expect(screen.getAllByText("0%")).toHaveLength(2);
+  });
+
+  it("renders a tiny non-zero rate as <1% instead of rounding down to 0%", () => {
+    render(<QualityPanel quality={{ closed: 1000, abnormal: 1, abnormalRate: 0.001, reworked: 0, reworkRate: 0 }} />);
+    expect(screen.getByText("<1%")).toBeInTheDocument();
+    expect(screen.getByText("0%")).toBeInTheDocument(); // reworkRate is a genuine zero
+  });
 });

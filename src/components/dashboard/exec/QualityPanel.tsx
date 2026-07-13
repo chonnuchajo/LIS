@@ -1,7 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ExecSummary } from "@/lib/execSummary";
 
-const pct = (rate: number) => `${Math.round(rate * 100)}%`;
+const pct = (rate: number) => {
+  const rounded = Math.round(rate * 100);
+  if (rate > 0 && rounded === 0) return "<1%";
+  return `${rounded}%`;
+};
 
 export default function QualityPanel({ quality }: { quality: ExecSummary["stats"]["quality"] }) {
   return (

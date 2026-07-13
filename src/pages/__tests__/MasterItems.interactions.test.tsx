@@ -119,6 +119,7 @@ describe("MasterItems interactions", () => {
     fireEvent.click(editButton);
 
     expect(await screen.findByDisplayValue("FG-001")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Cypermethrin")).toBeDisabled();
   });
 
   it("calculates gross kg per unit from kg and units per carton", async () => {

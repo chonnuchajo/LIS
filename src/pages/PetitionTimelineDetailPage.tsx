@@ -158,6 +158,9 @@ export default function PetitionTimelineDetailPage() {
   const activities = showAllActivities ? model.activities : model.activities.slice(0, 5);
   const progressLabel = model.progress.percent == null ? "-" : `${model.progress.percent}%`;
   const sgParameter = findSgParameter(parameters);
+  const canShowPreReport = canPrintPreReport(petition)
+    && model.progress.total > 0
+    && model.progress.filled >= model.progress.total;
 
   async function loadDocumentData(): Promise<boolean> {
     if (documentDataLoaded) return true;
@@ -230,7 +233,7 @@ export default function PetitionTimelineDetailPage() {
       <Card aria-label="Documents" className="border-black-50 shadow-none"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4 text-primary-500" />Documents</CardTitle></CardHeader><CardContent className="space-y-2">
         <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading} onClick={() => { void openDocument(setLabelPrintOpen); }}><Printer className="h-4 w-4" />พิมพ์ฉลาก</Button>
         {(labRequests?.length ?? 0) > 0 && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading} onClick={() => { void openDocument(setServicePrintOpen); }}><FileText className="h-4 w-4" />พิมพ์ใบคำขอรับบริการ</Button>}
-        {canPrintPreReport(petition) && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading} onClick={() => { void openDocument(setPreReportOpen); }}><FileText className="h-4 w-4" />Pre Report</Button>}
+        {canShowPreReport && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading} onClick={() => { void openDocument(setPreReportOpen); }}><FileText className="h-4 w-4" />Pre Report</Button>}
         {petition.status === "approved" && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading} onClick={() => { void openDocument(setFinalReportOpen); }}><FileCheck2 className="h-4 w-4" />Final Report</Button>}
         {documentLoading && <p className="text-xs text-grey-500">กำลังโหลดข้อมูลเอกสาร...</p>}
         {documentError && <p className="text-xs text-red-600">โหลดข้อมูลเอกสารไม่สำเร็จ: {documentError}</p>}
