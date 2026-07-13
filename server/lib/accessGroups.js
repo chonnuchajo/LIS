@@ -20,4 +20,12 @@ function findOrphanBackfillPaths(groups, candidatePaths = BACKFILL_PATHS) {
   return candidatePaths.filter((path) => !assigned.has(path));
 }
 
-module.exports = { BACKFILL_PATHS, findOrphanBackfillPaths };
+function findGroupForBackfill(groups, preferredGroupId, anchorPath) {
+  const safeGroups = groups || [];
+  const preferred = safeGroups.find((group) => group && group.id === preferredGroupId);
+  if (preferred) return preferred.id;
+  const anchored = safeGroups.find((group) => ((group && group.paths) || []).includes(anchorPath));
+  return anchored ? anchored.id : null;
+}
+
+module.exports = { BACKFILL_PATHS, findOrphanBackfillPaths, findGroupForBackfill };
