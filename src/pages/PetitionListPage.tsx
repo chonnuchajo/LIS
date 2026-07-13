@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   ChevronDown,
   ChevronLeft,
@@ -131,6 +132,13 @@ export default function PetitionListPage({
   const search = searchParams.get('search') ?? searchParams.get('q') ?? searchParams.get('requestNo') ?? '';
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
 
+  const highlightIds = (searchParams.get('highlight') ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const highlightKey = highlightIds.join(',');
+  const highlightSet = new Set(highlightIds);
+
   const selectedStatuses = useMemo<Petition['status'][]>(() => {
     if (!status) return [];
     return status
@@ -152,6 +160,20 @@ export default function PetitionListPage({
     [page, status, search, canViewAll],
   );
   const { data, loading, error, refresh } = usePetitionList(params);
+
+  const { data: highlighted = [] } = useQuery({
+    queryKey: ['petitions', 'highlight', highlightKey],
+    enabled: highlightIds.length > 0,
+    queryFn: async () => {
+      const res = await fetch(
+        `${import.meta.env.BASE_URL}api/petitions?ids=${encodeURIComponent(highlightKey)}`,
+        { cache: 'no-store' },
+      );
+      if (!res.ok) return [];
+      const body = await res.json();
+      return (body.items ?? []) as Petition[];
+    },
+  });
 
   const { push } = useNotifications();
   useEffect(() => {
@@ -248,6 +270,60 @@ export default function PetitionListPage({
         group.statuses.every((statusItem) => selectedStatuses.includes(statusItem)));
     return { ...group, count, active };
   });
+
+  const renderPetitionCard = (petition: Petition, isHighlighted = false) => {
+    const statusBadge = petitionStatusBadge(petition);
+    const sampleNames = petition.items
+      .map((item) => item.sampleName)
+      .filter((item): item is string => Boolean(item));
+    const primarySample = sampleNames[0] ?? '-';
+    const extraSamples = Math.max(0, sampleNames.length - 1);
+    const testItems = canSeeTestItems
+      ? parameterNamesForPetition(petition, displayParameters)
+      : [];
+
+    return (
+      <Card
+        key={petition._id}
+        onOpen={() => navigate(petitionDetailPath(petition))}
+        className={cn(
+          'w-full rounded-2xl border-black-50 p-4 text-left transition hover:border-primary-200 hover:bg-grey-50/40',
+          isHighlighted && 'border-amber-300 bg-amber-50 hover:bg-amber-50',
+        )}
+      >
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-base font-semibold text-primary-500">{petition.petitionNo}</p>
+              <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
+              <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium text-black-500">{primarySample}</p>
+                {extraSamples > 0 && <Badge variant="gray-soft">+อีก {extraSamples}</Badge>}
+                <span className="text-xs text-grey-500">{petition.items.length} รายการ</span>
+              </div>
+              {testItems.length > 0 && (
+                <p className="line-clamp-2 text-sm text-grey-600">
+                  {testItems.slice(0, 4).join(' • ')}
+                  {testItems.length > 4 ? ` • +อีก ${testItems.length - 4}` : ''}
+                </p>
+              )}
+              <p className="text-xs text-grey-500">{petitionMetaLine(petition)}</p>
+            </div>
+
+            <div className="rounded-xl bg-grey-50 px-3 py-2 text-sm text-grey-700">
+              {petitionNextStepText(petition)}
+            </div>
+
+            <PetitionStatusTimeline petition={petition} compact />
+          </div>
+        </div>
+      </Card>
+    );
+  };
 
   return (
     <AppLayout>
@@ -383,6 +459,22 @@ export default function PetitionListPage({
           />
         </form>
 
+        {highlightIds.length > 0 && (
+          <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50/50 p-3">
+            <div className="mb-3 flex items-center justify-between text-sm">
+              <span className="font-medium text-amber-800">
+                ไฮไลท์ {highlighted.length} รายการจากแดชบอร์ด
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => updateParams({ highlight: undefined })}>
+                ล้างไฮไลท์
+              </Button>
+            </div>
+            <div className="space-y-3">
+              {highlighted.map((petition) => renderPetitionCard(petition, true))}
+            </div>
+          </div>
+        )}
+
         <Card className="border-black-50 shadow-none">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -410,56 +502,7 @@ export default function PetitionListPage({
                 <p className="mt-1 text-xs text-grey-500">ลองเปลี่ยนตัวกรองหรือค้นหาด้วยคำอื่น</p>
               </div>
             ) : (
-              visibleItems.map((petition) => {
-                const statusBadge = petitionStatusBadge(petition);
-                const sampleNames = petition.items
-                  .map((item) => item.sampleName)
-                  .filter((item): item is string => Boolean(item));
-                const primarySample = sampleNames[0] ?? '-';
-                const extraSamples = Math.max(0, sampleNames.length - 1);
-                const testItems = canSeeTestItems
-                  ? parameterNamesForPetition(petition, displayParameters)
-                  : [];
-
-                return (
-                  <Card
-                    key={petition._id}
-                    onOpen={() => navigate(petitionDetailPath(petition))}
-                    className="w-full rounded-2xl border-black-50 p-4 text-left transition hover:border-primary-200 hover:bg-grey-50/40"
-                  >
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0 flex-1 space-y-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-base font-semibold text-primary-500">{petition.petitionNo}</p>
-                          <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
-                          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
-                        </div>
-
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-medium text-black-500">{primarySample}</p>
-                            {extraSamples > 0 && <Badge variant="gray-soft">+อีก {extraSamples}</Badge>}
-                            <span className="text-xs text-grey-500">{petition.items.length} รายการ</span>
-                          </div>
-                          {testItems.length > 0 && (
-                            <p className="line-clamp-2 text-sm text-grey-600">
-                              {testItems.slice(0, 4).join(' • ')}
-                              {testItems.length > 4 ? ` • +อีก ${testItems.length - 4}` : ''}
-                            </p>
-                          )}
-                          <p className="text-xs text-grey-500">{petitionMetaLine(petition)}</p>
-                        </div>
-
-                        <div className="rounded-xl bg-grey-50 px-3 py-2 text-sm text-grey-700">
-                          {petitionNextStepText(petition)}
-                        </div>
-
-                        <PetitionStatusTimeline petition={petition} compact />
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })
+              visibleItems.map((petition) => renderPetitionCard(petition, highlightSet.has(petition._id)))
             )}
           </CardContent>
         </Card>

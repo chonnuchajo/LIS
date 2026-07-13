@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
@@ -100,14 +101,17 @@ function LocationProbe() {
 }
 
 function renderPage(props: React.ComponentProps<typeof PetitionListPage> = {}) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter
-      initialEntries={['/petitions']}
-      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-    >
-      <PetitionListPage {...props} />
-      <LocationProbe />
-    </MemoryRouter>,
+    <QueryClientProvider client={client}>
+      <MemoryRouter
+        initialEntries={['/petitions']}
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
+        <PetitionListPage {...props} />
+        <LocationProbe />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
