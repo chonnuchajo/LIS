@@ -1,0 +1,217 @@
+.route-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  min-height: 100vh;
+  overflow: hidden;
+  place-items: center;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 50% 43%, rgba(95, 104, 112, 0.28), transparent 37rem),
+    linear-gradient(145deg, #24272b 0%, #111315 52%, #050506 100%);
+}
+
+.route-loading__visual,
+.route-loading__scene {
+  position: absolute;
+  width: min(72vw, 31rem);
+  aspect-ratio: 1;
+}
+
+.route-loading__visual {
+  overflow: hidden;
+}
+
+.route-loading__scene {
+  display: grid;
+  place-items: center;
+}
+
+.route-loading__halo {
+  position: absolute;
+  inset: 18%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  filter: blur(2.8rem);
+  animation: route-loading-halo 4s ease-in-out infinite;
+}
+
+.route-loading__orbit {
+  position: absolute;
+  inset: 12%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  box-shadow: 0 0 2rem rgba(255, 255, 255, 0.08);
+  animation: route-loading-orbit 9s linear infinite;
+}
+
+.route-loading__scan {
+  position: absolute;
+  right: -8%;
+  left: -8%;
+  height: 12%;
+  border-top: 1px solid rgba(255, 255, 255, 0.68);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.18) 25%,
+    rgba(255, 255, 255, 0.36) 50%,
+    rgba(255, 255, 255, 0.18) 75%,
+    transparent
+  );
+  filter: blur(0.1rem);
+  animation: route-loading-scan 3.8s ease-in-out infinite;
+}
+
+.route-loading__artwork {
+  z-index: 1;
+  width: clamp(13rem, 35vw, 21rem);
+  height: auto;
+  filter: drop-shadow(0 0 0.8rem rgba(255, 255, 255, 0.55));
+  animation:
+    route-loading-float 4.6s ease-in-out infinite,
+    route-loading-glow 3.2s ease-in-out infinite;
+}
+
+.route-loading__label {
+  position: absolute;
+  bottom: 3%;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.route-loading__particle {
+  position: absolute;
+  width: 0.26rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 0 0.65rem rgba(255, 255, 255, 0.85);
+  animation: route-loading-particle 4.4s ease-in-out infinite;
+}
+
+.route-loading__particle--one {
+  top: 20%;
+  left: 24%;
+  animation-delay: -0.5s;
+}
+
+.route-loading__particle--two {
+  top: 30%;
+  right: 19%;
+  animation-delay: -2.3s;
+}
+
+.route-loading__particle--three {
+  right: 25%;
+  bottom: 23%;
+  animation-delay: -1.4s;
+}
+
+.route-loading__particle--four {
+  bottom: 18%;
+  left: 29%;
+  animation-delay: -3.1s;
+}
+
+.route-loading__particle--five {
+  top: 47%;
+  left: 16%;
+  animation-delay: -1.8s;
+}
+
+@keyframes route-loading-halo {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.88);
+  }
+
+  50% {
+    opacity: 0.92;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes route-loading-orbit {
+  from {
+    transform: rotate(0deg) scale(0.94);
+  }
+
+  50% {
+    transform: rotate(180deg) scale(1);
+  }
+
+  to {
+    transform: rotate(360deg) scale(0.94);
+  }
+}
+
+@keyframes route-loading-scan {
+  0% {
+    top: -14%;
+    opacity: 0;
+  }
+
+  15% {
+    opacity: 0.85;
+  }
+
+  85% {
+    opacity: 0.85;
+  }
+
+  100% {
+    top: 102%;
+    opacity: 0;
+  }
+}
+
+@keyframes route-loading-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-0.8rem);
+  }
+}
+
+@keyframes route-loading-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0.7rem rgba(255, 255, 255, 0.42));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 1.35rem rgba(255, 255, 255, 0.82));
+  }
+}
+
+@keyframes route-loading-particle {
+  0%,
+  100% {
+    opacity: 0.26;
+    transform: translate3d(0, 0.45rem, 0) scale(0.8);
+  }
+
+  50% {
+    opacity: 0.95;
+    transform: translate3d(0.5rem, -0.45rem, 0) scale(1.25);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-loading__visual,
+  .route-loading__visual *,
+  .route-loading__artwork {
+    animation: none !important;
+    transition: none !important;
+  }
+}

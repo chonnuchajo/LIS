@@ -13,6 +13,7 @@ import PrivateRoute from "@/components/PrivateRoute";
 import RoutePointerLockGuard from "@/components/RoutePointerLockGuard";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
 import EmployeeLinkGate from "@/components/lis/EmployeeLinkGate";
+import { RouteLoading } from "@/components/RouteLoading";
 
 // Route-level code splitting: each page is its own chunk, loaded on demand.
 // Keeps the initial bundle to the app shell + only the landing route.
@@ -64,12 +65,6 @@ const LabTestingPage = lazy(() => import("./pages/LabTestingPage"));
 const LabTestingDetailPage = lazy(() => import("./pages/LabTestingDetailPage"));
 const DensityResultPage = lazy(() => import('./pages/DensityResultPage'));
 
-const RouteFallback = () => (
-  <div className="flex min-h-screen items-center justify-center">
-    <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
-  </div>
-);
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -101,7 +96,7 @@ const App = () => (
           <NotificationProvider>
             <DailyCheckReminderWatcher />
             <SampleProvider>
-              <Suspense fallback={<RouteFallback />}>
+              <Suspense fallback={<RouteLoading />}>
               <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/scanner" element={<ScannerPage />} />
