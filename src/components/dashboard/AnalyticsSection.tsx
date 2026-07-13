@@ -8,6 +8,7 @@ import {
   deptWorkloadData, analystWorkloadData, normalDonutData, requestTrendData, statusDonutData,
   assignedWeekdayData,
   type MetricsCtx,
+  type WeekdayWorkloadBasis,
 } from "@/lib/dashboardMetrics";
 import { cn } from "@/lib/utils";
 
@@ -15,26 +16,35 @@ interface AnalyticsSectionProps {
   specs: ChartSpec[];
   ctx: MetricsCtx;
   layout?: "grid" | "single";
+  weekdayBasis?: WeekdayWorkloadBasis;
 }
 
-export default function AnalyticsSection({ specs, ctx, layout = "grid" }: AnalyticsSectionProps) {
+export default function AnalyticsSection({ specs, ctx, layout = "grid", weekdayBasis = "labAssigned" }: AnalyticsSectionProps) {
   if (specs.length === 0) return null;
   return (
     <div className={cn("grid grid-cols-1 gap-4", layout === "grid" && "mb-4 lg:grid-cols-2")}>
       {specs.map((s) => (
         <Card key={s.kind + s.title}>
           <CardHeader className="pb-2"><CardTitle className="text-base">{s.title}</CardTitle></CardHeader>
-          <CardContent><ChartFor spec={s} ctx={ctx} /></CardContent>
+          <CardContent><ChartFor spec={s} ctx={ctx} weekdayBasis={weekdayBasis} /></CardContent>
         </Card>
       ))}
     </div>
   );
 }
 
-function ChartFor({ spec, ctx }: { spec: ChartSpec; ctx: MetricsCtx }) {
+function ChartFor({
+  spec,
+  ctx,
+  weekdayBasis,
+}: {
+  spec: ChartSpec;
+  ctx: MetricsCtx;
+  weekdayBasis: WeekdayWorkloadBasis;
+}) {
   if (spec.kind === "deptBar") return <SimpleBar data={ctx ? deptWorkloadData(ctx.petitions).map((d) => ({ name: d.label, count: d.count })) : []} />;
   if (spec.kind === "analystBar") return <SimpleBar data={analystWorkloadData(ctx.petitions).map((d) => ({ name: d.name, count: d.count }))} />;
-  if (spec.kind === "assignedWeekdayBar") return <WeekdayBar data={assignedWeekdayData(ctx.petitions)} />;
+  if (spec.kind === "assignedWeekdayBar") return <WeekdayBar data={assignedWeekdayData(ctx.petitions, ctx.now, weekdayBasis)} />;
   if (spec.kind === "withdrawBar") return <TrendBar data={ctx.deductionTrend} />;
   if (spec.kind === "requestTrend") return <TrendBar data={requestTrendData(ctx.petitions, ctx.now, 14)} />;
   if (spec.kind === "normalDonut") return <Donut data={normalDonutData(ctx.petitions, ctx.abnormalFlags)} />;

@@ -98,6 +98,7 @@ export default function RoleDashboard() {
   const { petitions, ctx, refresh } = useDashboardData(profile ?? DASHBOARD_PROFILES.viewer);
   const isLabAnalyze = profileId === "lab-analyze";
   const isQcStaff = profileId === "qc-staff";
+  const weekdayBasis = isQcStaff ? "qcSampleSent" : "labAssigned";
   const inventorySummaryPlacement = labInventorySummaryPlacement(roles, profileId);
   const inventorySummarySection = inventorySummaryPlacement === "hidden" ? null : (
     <LabInventorySummaryCard
@@ -298,12 +299,28 @@ export default function RoleDashboard() {
           ) : undefined}
         />
         {isLabAnalyze ? (
-          <AnalyticsSection specs={profile.analytics} ctx={labAnalyticsCtx} layout="single" />
+          <AnalyticsSection
+            specs={profile.analytics}
+            ctx={labAnalyticsCtx}
+            layout="single"
+            weekdayBasis="labAssigned"
+          />
         ) : profile.workflow ? (
-          <WorkflowSummary kind={profile.workflow} petitions={petitions} />
+          <WorkflowSummary
+            kind={profile.workflow}
+            petitions={petitions}
+            now={ctx.now}
+            weekdayBasis={weekdayBasis}
+          />
         ) : <div />}
       </div>
-      {!isLabAnalyze ? <AnalyticsSection specs={profile.analytics} ctx={ctx} /> : null}
+      {!isLabAnalyze ? (
+        <AnalyticsSection
+          specs={profile.analytics}
+          ctx={ctx}
+          weekdayBasis={weekdayBasis}
+        />
+      ) : null}
       {!isLabAnalyze ? <ActivityTimeline kind={profile.activity} /> : null}
       {labConfigCoveragePlacement === "bottom" ? labConfigCoverageSection : null}
       {inventorySummaryPlacement === "bottom" ? inventorySummarySection : null}
