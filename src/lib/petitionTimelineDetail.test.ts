@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ParameterItem, QCProgressEntry } from "@/lib/api";
-import type { Petition, PetitionAuditLogEntry } from "@/types/petition.types";
+import type { Petition, PetitionAuditLogEntry, QCTestResult } from "@/types/petition.types";
 import { buildTimelineDetailModel } from "./petitionTimelineDetail";
 
 const at = (day: number, hour: number, minute = 0) => new Date(2026, 6, day, hour, minute).toISOString();
@@ -39,8 +39,9 @@ function model(
   progressEntries: QCProgressEntry[] = [],
   auditLogs: PetitionAuditLogEntry[] = [],
   now = new Date(2026, 6, 13, 12),
+  qcResults: QCTestResult[] = [],
 ) {
-  return buildTimelineDetailModel({ petition: petitionData, parameters, progressEntries, auditLogs }, now);
+  return buildTimelineDetailModel({ petition: petitionData, parameters, progressEntries, auditLogs, qcResults }, now);
 }
 
 describe("buildTimelineDetailModel", () => {
@@ -274,5 +275,135 @@ describe("buildTimelineDetailModel", () => {
       endAt: at(13, 14),
       done: true,
     });
+  });
+
+  const labParameter: ParameterItem = {
+    _id: "parameter-lab",
+    name: "Lab assay",
+    scope: "lab",
+    status: "active",
+    applyAll: true,
+    valueFields: [{ label: "Assay", type: "number", required: true }],
+  };
+
+  const resultAudit = (id: string, parameterId: string, itemSeq: number, createdAt: string, event: "resultEntered" | "resultUpdated" = "resultEntered"): PetitionAuditLogEntry => ({
+    _id: id,
+    petitionId: "petition-1",
+    petitionNo: "P-2607-001",
+    event,
+    actor: "Analyst",
+    metadata: { parameterId, itemSeq },
+    createdAt,
+  });
+
+  it("ลากแท่ง parameter จาก QC รับตัวอย่าง ถึงเวลาที่ใส่ค่า", () => {
+    const result = model(
+      petition({ qcReceivedAt: at(13, 9) }),
+      [requiredParameter],
+      [],
+      [resultAudit("audit-1", "parameter-1", 1, at(13, 11))],
+    );
+
+    expect(result.timeline.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({
+      label: "Required checks",
+      kind: "bar",
+      track: "qc",
+      startAt: at(13, 9),
+      endAt: at(13, 11),
+      done: true,
+    });
+  });
+
+  it("ยืดแท่ง parameter ไปถึงการแก้ค่าครั้งล่าสุด", () => {
+    const result = model(
+      petition({ qcReceivedAt: at(13, 9) }),
+      [requiredParameter],
+      [],
+      [
+        resultAudit("audit-1", "parameter-1", 1, at(13, 11)),
+        resultAudit("audit-2", "parameter-1", 1, at(13, 13), "resultUpdated"),
+      ],
+    );
+
+    expect(result.timeline.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({ endAt: at(13, 13) });
+  });
+
+  it("แถว parameter ฝั่ง Lab เริ่มที่ Lab รับตัวอย่าง", () => {
+    const result = model(
+      petition({
+        items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+        qcReceivedAt: at(13, 9),
+        labReceivedAt: at(13, 10),
+      }),
+      [labParameter],
+      [],
+      [resultAudit("audit-1", "parameter-lab", 1, at(13, 14))],
+    );
+
+    expect(result.timeline.rows.find((row) => row.key === "param::parameter-lab")).toMatchObject({
+      track: "lab",
+      startAt: at(13, 10),
+      endAt: at(13, 14),
+    });
+  });
+
+  it("รวมหลายตัวอย่างเป็นแถวเดียว และไม่วาดแท่งจนกว่าจะใส่ค่าครบทุกตัวอย่าง", () => {
+    const twoItems = petition({
+      qcReceivedAt: at(13, 9),
+      items: [
+        { seq: 1, sampleName: "Sample A", batchNo: "BATCH-002", sampleId: "sample-1" },
+        { seq: 2, sampleName: "Sample B", batchNo: "BATCH-003", sampleId: "sample-2" },
+      ],
+    });
+
+    const partial = model(twoItems, [requiredParameter], [], [resultAudit("audit-1", "parameter-1", 1, at(13, 11))]);
+    const paramRows = partial.timeline.rows.filter((row) => row.key.startsWith("param::"));
+    expect(paramRows).toHaveLength(1);
+    expect(paramRows[0]).toMatchObject({ startAt: null, endAt: null, done: false });
+
+    const complete = model(twoItems, [requiredParameter], [], [
+      resultAudit("audit-1", "parameter-1", 1, at(13, 11)),
+      resultAudit("audit-2", "parameter-1", 2, at(13, 15)),
+    ]);
+    expect(complete.timeline.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({
+      startAt: at(13, 9),
+      endAt: at(13, 15),
+    });
+  });
+
+  it("ใช้เวลาจาก QCTestResult เมื่อคำร้องเก่ายังไม่มี audit log ระดับ field", () => {
+    const result = model(
+      petition({ qcReceivedAt: at(13, 9) }),
+      [requiredParameter],
+      [],
+      [],
+      new Date(2026, 6, 13, 12),
+      [{ petitionId: "petition-1", itemSeq: 1, parameterId: "parameter-1", values: {}, enteredAt: at(13, 10), updatedAt: at(13, 12) }],
+    );
+
+    expect(result.timeline.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({ endAt: at(13, 12) });
+  });
+
+  it("เรียงแถว: milestone → parameter QC → parameter Lab → ออกผล Lab → Final Result", () => {
+    const result = model(
+      petition({
+        items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+        qcReceivedAt: at(13, 9),
+        labReceivedAt: at(13, 10),
+      }),
+      [labParameter, requiredParameter],
+      [],
+      [],
+    );
+
+    expect(result.timeline.rows.map((row) => row.key)).toEqual([
+      "received-qc",
+      "received-lab",
+      "assigned",
+      "param::parameter-1",
+      "param::parameter-lab",
+      "lab-approved",
+      "final",
+    ]);
   });
 });

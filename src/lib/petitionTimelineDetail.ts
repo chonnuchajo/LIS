@@ -2,7 +2,7 @@ import type { ParameterItem, QCProgressEntry } from "@/lib/api";
 import { expandFieldForItem } from "@/lib/parameterValidation";
 import { getPetitionCategory, matchParametersForItem } from "@/lib/petitionTestItems";
 import { hasLabTrack } from "@/lib/statusBadge";
-import { PETITION_STATUS_CONFIG, type Petition, type PetitionAuditLogEntry, type PetitionStatus } from "@/types/petition.types";
+import { PETITION_STATUS_CONFIG, type Petition, type PetitionAuditLogEntry, type PetitionStatus, type QCTestResult } from "@/types/petition.types";
 
 export type TimelineDetailTaskState = "pending" | "inProgress" | "recorded" | "approved";
 export type TimelineDetailTask = {
@@ -55,6 +55,7 @@ export type TimelineDetailInput = {
   parameters: ParameterItem[];
   progressEntries: QCProgressEntry[];
   auditLogs: PetitionAuditLogEntry[];
+  qcResults: QCTestResult[];
   itemGroupIds?: Map<string, string[]>;
 };
 
@@ -250,6 +251,13 @@ function metadataString(metadata: Record<string, unknown> | undefined, key: stri
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+function metadataNumber(metadata: Record<string, unknown> | undefined, key: string): number | null {
+  const value = metadata?.[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
+  return null;
+}
+
 function metadataObjectName(metadata: Record<string, unknown> | undefined, key: string): string | null {
   const value = metadata?.[key];
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -339,6 +347,71 @@ function buildMilestoneRows(petition: Petition): TimelineDetailRow[] {
   ].filter((row): row is TimelineDetailRow => row !== null);
 }
 
+// เวลาล่าสุดที่มีคน "แตะ" แต่ละคู่ (itemSeq, parameterId) — audit log เป็นหลัก, QCTestResult เป็น fallback ของคำร้องเก่า
+function buildParameterTouches(auditLogs: PetitionAuditLogEntry[], qcResults: QCTestResult[]): Map<string, string> {
+  const latest = new Map<string, number>();
+
+  for (const entry of auditLogs) {
+    if (entry.event !== "resultEntered" && entry.event !== "resultUpdated") continue;
+    const parameterId = metadataString(entry.metadata, "parameterId");
+    const itemSeq = metadataNumber(entry.metadata, "itemSeq");
+    const touchedAt = validDate(entry.createdAt);
+    if (!parameterId || itemSeq == null || !touchedAt) continue;
+    const key = `${itemSeq}::${parameterId}`;
+    latest.set(key, Math.max(latest.get(key) ?? 0, touchedAt.getTime()));
+  }
+
+  for (const result of qcResults) {
+    const key = `${result.itemSeq}::${result.parameterId}`;
+    if (latest.has(key)) continue;
+    const touchedAt = validDate(result.updatedAt ?? result.enteredAt);
+    if (touchedAt) latest.set(key, touchedAt.getTime());
+  }
+
+  return new Map(Array.from(latest, ([key, time]) => [key, new Date(time).toISOString()]));
+}
+
+function buildParameterRows(
+  petition: Petition,
+  parameters: ParameterItem[],
+  auditLogs: PetitionAuditLogEntry[],
+  qcResults: QCTestResult[],
+  itemGroupIds: Map<string, string[]> | undefined,
+  fallbackStartAt: string,
+): TimelineDetailRow[] {
+  const touches = buildParameterTouches(auditLogs, qcResults);
+  const groups = new Map<string, { parameter: ParameterItem; pairKeys: string[] }>();
+
+  for (const item of petition.items ?? []) {
+    const groupIds = itemGroupIds?.get(String(item.sampleId ?? "").trim()) ?? [];
+    for (const parameter of matchParametersForItem(item, parameters, groupIds)) {
+      const parameterId = parameter._id;
+      if (!parameterId) continue;
+      const group = groups.get(parameterId) ?? { parameter, pairKeys: [] };
+      group.pairKeys.push(`${item.seq}::${parameterId}`);
+      groups.set(parameterId, group);
+    }
+  }
+
+  const rows = Array.from(groups, ([parameterId, group]) => {
+    const isLab = group.parameter.scope === "lab";
+    const receivedAt = (isLab ? petition.labReceivedAt : petition.qcReceivedAt) ?? fallbackStartAt;
+    const touchedAts = group.pairKeys.map((key) => touches.get(key) ?? null);
+    // ยังแตะไม่ครบทุกตัวอย่าง → ไม่วาดแท่ง
+    const endAt = touchedAts.every((touchedAt) => !!touchedAt) ? latestValidDate(...touchedAts) : null;
+    return makeBarRow({
+      key: `param::${parameterId}`,
+      label: group.parameter.name,
+      track: isLab ? "lab" : "qc",
+      startAt: endAt ? receivedAt : null,
+      endAt,
+    });
+  });
+
+  // QC ก่อน Lab (Array.prototype.sort เสถียร → ลำดับเดิมภายในกลุ่มคงอยู่)
+  return rows.sort((left, right) => Number(left.track === "lab") - Number(right.track === "lab"));
+}
+
 function buildClosingRows(petition: Petition): TimelineDetailRow[] {
   const hasLab = hasLabTrack(petition);
   const labApprovedAt = petition.labApprovedAt ?? null;
@@ -383,7 +456,11 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
   );
   const header = buildHeaderTiming(startAt, actualEndAt, input.petition.status, now);
   const tasks = buildRequiredTasks(input.petition, input.parameters, input.progressEntries, input.itemGroupIds);
-  const rows = [...buildMilestoneRows(input.petition), ...buildClosingRows(input.petition)];
+  const rows = [
+    ...buildMilestoneRows(input.petition),
+    ...buildParameterRows(input.petition, input.parameters, input.auditLogs, input.qcResults ?? [], input.itemGroupIds, startAt),
+    ...buildClosingRows(input.petition),
+  ];
 
   return {
     header: { ...header, startKind: receivedAt ? "received" : "submitted" },
