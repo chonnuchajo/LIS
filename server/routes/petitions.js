@@ -96,6 +96,17 @@ router.get('/', async (req, res) => {
         { 'items.batchNo': rx },
       ];
     }
+
+    // ?ids=a,b,c → ดึงเฉพาะใบที่ระบุ (ใช้โดยการไฮไลท์จากแดชบอร์ด) — ไม่แบ่งหน้า
+    const idsRaw = String(req.query.ids || '').trim();
+    if (idsRaw) {
+      const ids = idsRaw.split(',').map((s) => s.trim()).filter((s) => mongoose.isValidObjectId(s));
+      if (ids.length === 0) return res.json({ items: [], total: 0, page: 1, limit: 0 });
+      const docs = await Petition.find({ _id: { $in: ids } }).sort({ createdAt: -1 });
+      const items = docs.map((doc) => doc.toObject());
+      return res.json({ items, total: items.length, page: 1, limit: items.length });
+    }
+
     if (req.query.awaitingLabApproval === 'true') {
       q.labCompletedAt = { $ne: null };
       q.labApprovedAt = null;
@@ -119,6 +130,106 @@ router.get('/', async (req, res) => {
       items.push(doc.toObject());
     }
     res.json({ items, total, page, limit });
+  } catch (err) {
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
+const { buildLiveSection, buildStatsSection } = require('../lib/execSummary');
+const { buildQcParamBaseline } = require('../lib/qcParamBaseline');
+const { computeAbnormalFlags } = require('../lib/abnormalFlags');
+
+const EXEC_DAYS_ALLOWED = [7, 30, 90];
+const EXEC_CACHE_MS = 60 * 1000;
+const QC_BASELINE_CACHE_MS = 10 * 60 * 1000;
+const QC_BASELINE_LOOKBACK_DAYS = 180;
+const execCache = new Map();   // days → { at, payload }
+let qcBaselineCache = null;    // { at, value } — ค่าเฉลี่ยย้อนหลัง 180 วัน ไม่ต้อง real-time
+
+// ค่าเฉลี่ยเวลา QC ต่อ parameter สแกนงานย้อนหลัง 180 วัน จึงแพงเกินกว่าจะคิดใหม่ทุกนาที
+async function loadQcBaseline(now) {
+  if (qcBaselineCache && now - qcBaselineCache.at < QC_BASELINE_CACHE_MS) return qcBaselineCache.value;
+
+  const baselineStart = new Date(now - QC_BASELINE_LOOKBACK_DAYS * 86400000);
+  const baselineDocs = await Petition.find({ qcCompletedAt: { $gte: baselineStart } }, {
+    items: 1, qcReceivedAt: 1, qcCompletedAt: 1, receivedAt: 1, labReceivedAt: 1,
+  }).lean();
+
+  const baselineIds = baselineDocs.map((p) => String(p._id));
+  const baselineResults = baselineIds.length
+    ? await QCTestResult.find(
+      { petitionId: { $in: baselineIds } },
+      { petitionId: 1, parameterId: 1, parameterName: 1, commonName: 1 },
+    ).lean()
+    : [];
+
+  const value = buildQcParamBaseline(baselineDocs, baselineResults);
+  qcBaselineCache = { at: now, value };
+  return value;
+}
+
+// GET /api/petitions/exec-summary?days=7|30|90 — ตัวเลขสำหรับแดชบอร์ดผู้บริหาร
+router.get('/exec-summary', async (req, res) => {
+  try {
+    const requested = Number(req.query.days);
+    const days = EXEC_DAYS_ALLOWED.includes(requested) ? requested : 30;
+
+    const cached = execCache.get(days);
+    const now = Date.now();
+    if (cached && now - cached.at < EXEC_CACHE_MS) return res.json(cached.payload);
+
+    const windowStart = new Date(now - days * 86400000);
+
+    const [openDocs, closedDocs, qcBaseline] = await Promise.all([
+      // งานที่ยังไม่ปิด — ไม่จำกัดช่วงเวลา เพราะงานค้างเก่าคือสิ่งที่หัวหน้าต้องเห็นที่สุด
+      Petition.find({ approvedAt: null, status: { $nin: ['approved', 'rejected'] } }).lean(),
+      Petition.find({ approvedAt: { $gte: windowStart } }).lean(),
+      loadQcBaseline(now),
+    ]);
+
+    // abnormal flags ใช้สูตรเดียวกับ badge ในหน้ารายการ (lib เดียวกัน)
+    const flagIds = [...openDocs, ...closedDocs].map((p) => String(p._id));
+    const flagResults = flagIds.length
+      ? await QCTestResult.find(
+        { petitionId: { $in: flagIds } },
+        { petitionId: 1, parameterId: 1, itemSeq: 1, commonName: 1, values: 1, entries: 1 },
+      ).lean()
+      : [];
+    const paramIds = Array.from(new Set(flagResults.map((d) => String(d.parameterId))));
+    const params = paramIds.length
+      ? await Parameter.find({ _id: { $in: paramIds } }, { valueFields: 1, multiEntry: 1 }).lean()
+      : [];
+    const abnormalFlags = computeAbnormalFlags({
+      docs: flagResults,
+      params,
+      petitions: [...openDocs, ...closedDocs],
+    });
+
+    // ผู้บันทึกผล QC ต่อใบ — ตรรกะเดียวกับ /qc-results/testers (ผู้แก้ล่าสุดคือเจ้าของ)
+    const qcTesterNames = {};
+    for (const row of flagResults) qcTesterNames[row.petitionId] ??= [];
+    const testerDocs = flagIds.length
+      ? await QCTestResult.find(
+        { petitionId: { $in: closedDocs.map((p) => String(p._id)) } },
+        { petitionId: 1, enteredBy: 1, updatedBy: 1 },
+      ).lean()
+      : [];
+    for (const row of testerDocs) {
+      const name = row.updatedBy?.name || row.enteredBy?.name;
+      if (!name) continue;
+      qcTesterNames[row.petitionId] ??= [];
+      if (!qcTesterNames[row.petitionId].includes(name)) qcTesterNames[row.petitionId].push(name);
+    }
+
+    const payload = {
+      generatedAt: new Date(now).toISOString(),
+      days,
+      live: buildLiveSection(openDocs, { now, qcBaseline, abnormalFlags }),
+      stats: buildStatsSection(closedDocs, { now, days, abnormalFlags, qcTesterNames }),
+    };
+
+    execCache.set(days, { at: now, payload });
+    res.json(payload);
   } catch (err) {
     res.status(500).json({ error: { message: err.message } });
   }
