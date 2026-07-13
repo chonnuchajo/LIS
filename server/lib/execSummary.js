@@ -1,5 +1,5 @@
 const { isLabBatch, isPetitionComplete } = require('./petitionStatusLog');
-const { qcBaselineMinutes, qcReceivedAtOf } = require('./qcParamBaseline');
+const { qcBaselineMinutes, qcReceivedAtOf, qcDurationMinutes } = require('./qcParamBaseline');
 
 const MS_PER_MIN = 60000;
 const AT_RISK_RATIO = 0.8;
@@ -191,6 +191,133 @@ function buildLiveSection(petitions, { now, qcBaseline, abnormalFlags = {} }) {
   return { counts, bottleneck: bottleneckCounts(units), actionQueue };
 }
 
+function diffMinutes(from, to) {
+  const a = toDate(from);
+  const b = toDate(to);
+  if (!a || !b) return null;
+  const minutes = (b.getTime() - a.getTime()) / MS_PER_MIN;
+  return minutes >= 0 ? minutes : null;
+}
+
+/** nearest-rank percentile — p90 ของ 10 ตัวอย่าง = ตัวที่ 9 (เรียงน้อยไปมาก) */
+function percentile(values, ratio) {
+  const list = (values || []).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+  if (!list.length) return null;
+  const rank = Math.max(1, Math.ceil(ratio * list.length));
+  return list[rank - 1];
+}
+
+function localDateKey(ms) {
+  const d = new Date(ms);
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${month}-${day}`;
+}
+
+/** เวลาที่แต่ละใบใช้ในแต่ละด่าน — ใบที่ timestamp ไม่ครบจะไม่ถูกนับในด่านนั้น (ไม่ทำให้ค่าเฉลี่ยเป็น NaN) */
+function stageDurations(petition) {
+  const qcReceived = qcReceivedAtOf(petition);
+  const labTrack = hasLabTrack(petition);
+  return {
+    waitingReceive: diffMinutes(petition.sampleSentAt, labTrack ? petition.labReceivedAt : qcReceived),
+    pendingAssign: labTrack ? diffMinutes(petition.labReceivedAt, petition.assignedTo?.assignedAt) : null,
+    labTesting: labTrack ? diffMinutes(petition.labReceivedAt, petition.labCompletedAt) : null,
+    qcTesting: qcDurationMinutes(petition),
+    waitingLabApprove: labTrack ? diffMinutes(petition.labCompletedAt, petition.labApprovedAt) : null,
+    waitingFinal: diffMinutes(
+      labTrack ? petition.labApprovedAt : petition.qcCompletedAt,
+      petition.approvedAt,
+    ),
+  };
+}
+
+function totalMinutes(petition) {
+  return diffMinutes(petition.createdAt, petition.approvedAt);
+}
+
+function averageOf(values) {
+  const list = (values || []).filter((n) => Number.isFinite(n));
+  if (!list.length) return null;
+  return list.reduce((a, b) => a + b, 0) / list.length;
+}
+
+function round(value) {
+  return value == null ? null : Math.round(value);
+}
+
+function buildStatsSection(closedPetitions, { now, days, abnormalFlags = {}, qcTesterNames = {} }) {
+  const petitions = closedPetitions || [];
+
+  // ── turnaround ต่อด่าน
+  const samplesByStage = Object.fromEntries(STAGE_ORDER.map((stage) => [stage, []]));
+  for (const petition of petitions) {
+    const durations = stageDurations(petition);
+    for (const stage of STAGE_ORDER) {
+      const value = durations[stage];
+      if (value != null) samplesByStage[stage].push(value);
+    }
+  }
+  const turnaround = STAGE_ORDER.map((stage) => ({
+    stage,
+    label: STAGE_LABELS[stage],
+    avgMin: round(averageOf(samplesByStage[stage])),
+    p90Min: round(percentile(samplesByStage[stage], 0.9)),
+    count: samplesByStage[stage].length,
+  }));
+
+  // ── throughput รายวัน (วันนี้อยู่ท้ายสุด)
+  const buckets = new Map();
+  for (let i = days - 1; i >= 0; i -= 1) {
+    buckets.set(localDateKey(now - i * 86400000), { created: 0, completed: 0 });
+  }
+  for (const petition of petitions) {
+    const createdKey = petition.createdAt ? localDateKey(new Date(petition.createdAt).getTime()) : null;
+    if (createdKey && buckets.has(createdKey)) buckets.get(createdKey).created += 1;
+    const doneKey = petition.approvedAt ? localDateKey(new Date(petition.approvedAt).getTime()) : null;
+    if (doneKey && buckets.has(doneKey)) buckets.get(doneKey).completed += 1;
+  }
+  const throughput = Array.from(buckets, ([date, value]) => ({ date, ...value }));
+
+  // ── คุณภาพ
+  const closed = petitions.length;
+  const abnormal = petitions.filter((p) => abnormalFlags[String(p._id)]).length;
+  const reworked = petitions.filter((p) => !!p.revisionOf).length;
+  const quality = {
+    closed,
+    abnormal,
+    abnormalRate: closed ? abnormal / closed : 0,
+    reworked,
+    reworkRate: closed ? reworked / closed : 0,
+  };
+
+  // ── ภาระงานต่อคน
+  const labByName = new Map();
+  const qcByName = new Map();
+  const push = (map, name, minutes) => {
+    if (!name) return;
+    if (!map.has(name)) map.set(name, []);
+    map.get(name).push(minutes);
+  };
+  for (const petition of petitions) {
+    push(labByName, petition.assignedTo?.name, totalMinutes(petition));
+    for (const name of qcTesterNames[String(petition._id)] || []) {
+      push(qcByName, name, qcDurationMinutes(petition));
+    }
+  }
+  const toWorkloadRows = (map) => Array.from(map, ([name, samples]) => ({
+    name,
+    completed: samples.length,
+    avgMinutes: round(averageOf(samples)),
+  })).sort((a, b) => b.completed - a.completed);
+
+  return {
+    turnaround,
+    throughput,
+    quality,
+    workload: { lab: toWorkloadRows(labByName), qc: toWorkloadRows(qcByName) },
+  };
+}
+
 module.exports = {
   STAGE_ORDER,
   STAGE_LABELS,
@@ -200,4 +327,7 @@ module.exports = {
   openWorkUnits,
   bottleneckCounts,
   buildLiveSection,
+  buildStatsSection,
+  percentile,
+  stageDurations,
 };

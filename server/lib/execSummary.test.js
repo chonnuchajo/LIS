@@ -1,4 +1,4 @@
-const { openWorkUnits, bottleneckCounts, buildLiveSection } = require('./execSummary');
+const { openWorkUnits, bottleneckCounts, buildLiveSection, buildStatsSection, percentile } = require('./execSummary');
 
 const NOW = Date.parse('2026-07-13T10:00:00.000Z');
 const hoursAgo = (h) => new Date(NOW - h * 3600000).toISOString();
@@ -268,5 +268,160 @@ describe('buildLiveSection', () => {
     });
     const overdueOnly = live.actionQueue.filter((u) => u.state === 'overdue');
     expect(overdueOnly.map((u) => u.petitionNo)).toEqual(['P-D', 'P-C']);
+  });
+});
+
+describe('percentile', () => {
+  it('takes the nearest-rank value so p90 of ten samples is the ninth', () => {
+    expect(percentile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0.9)).toBe(9);
+  });
+
+  it('returns null for an empty sample set', () => {
+    expect(percentile([], 0.9)).toBeNull();
+  });
+});
+
+describe('buildStatsSection', () => {
+  const closed = [
+    {
+      _id: 'd1', petitionNo: 'P-D1', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-11T00:00:00.000Z',
+      sampleSentAt: '2026-07-11T00:00:00.000Z',
+      qcReceivedAt: '2026-07-11T01:00:00.000Z',   // รอรับ 60 นาที
+      qcCompletedAt: '2026-07-11T03:00:00.000Z',  // ทดสอบ 120 นาที
+      approvedAt: '2026-07-11T04:00:00.000Z',     // รอ final 60 นาที
+      assignedTo: { name: 'สมชาย', assignedAt: '2026-07-11T01:00:00.000Z' },
+    },
+    {
+      _id: 'd2', petitionNo: 'P-D2', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-12T00:00:00.000Z',
+      sampleSentAt: '2026-07-12T00:00:00.000Z',
+      qcReceivedAt: '2026-07-12T03:00:00.000Z',   // รอรับ 180 นาที
+      qcCompletedAt: '2026-07-12T04:00:00.000Z',  // ทดสอบ 60 นาที
+      approvedAt: '2026-07-12T05:00:00.000Z',
+      revisionOf: 'old-one',                      // ใบนี้เป็นงานทำใหม่
+    },
+  ];
+
+  const opts = {
+    now: Date.parse('2026-07-13T10:00:00.000Z'),
+    days: 7,
+    abnormalFlags: { d1: true, d2: false },
+    qcTesterNames: { d1: ['สมหญิง'], d2: ['สมหญิง'] },
+  };
+
+  it('averages each stage across the closed petitions', () => {
+    const { turnaround } = buildStatsSection(closed, opts);
+    const receive = turnaround.find((t) => t.stage === 'waitingReceive');
+    expect(receive.avgMin).toBe(120); // (60 + 180) / 2
+    expect(receive.count).toBe(2);
+    const qcTesting = turnaround.find((t) => t.stage === 'qcTesting');
+    expect(qcTesting.avgMin).toBe(90); // (120 + 60) / 2
+  });
+
+  it('reports one throughput row per day in the window, newest last', () => {
+    const { throughput } = buildStatsSection(closed, opts);
+    expect(throughput).toHaveLength(7);
+    expect(throughput.at(-1).date).toBe('2026-07-13');
+    expect(throughput.find((d) => d.date === '2026-07-11')).toEqual({ date: '2026-07-11', created: 1, completed: 1 });
+  });
+
+  it('derives abnormal and rework rates from the closed set', () => {
+    const { quality } = buildStatsSection(closed, opts);
+    expect(quality).toEqual({ closed: 2, abnormal: 1, abnormalRate: 0.5, reworked: 1, reworkRate: 0.5 });
+  });
+
+  it('splits workload between the Lab assignee and the QC testers', () => {
+    const { workload } = buildStatsSection(closed, opts);
+    expect(workload.lab).toEqual([{ name: 'สมชาย', completed: 1, avgMinutes: 240 }]);
+    expect(workload.qc).toEqual([{ name: 'สมหญิง', completed: 2, avgMinutes: 90 }]);
+  });
+
+  it('returns empty structures when nothing closed in the window', () => {
+    const { turnaround, quality, workload } = buildStatsSection([], opts);
+    expect(turnaround.every((t) => t.count === 0 && t.avgMin === null)).toBe(true);
+    expect(quality).toEqual({ closed: 0, abnormal: 0, abnormalRate: 0, reworked: 0, reworkRate: 0 });
+    expect(workload).toEqual({ lab: [], qc: [] });
+  });
+
+  // --- extra coverage beyond the brief's own cases ---
+
+  it('excludes a petition missing a stage timestamp from that stage average instead of poisoning it with NaN', () => {
+    const withReceipt = {
+      _id: 'e1', petitionNo: 'P-E1', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-08T00:00:00.000Z',
+      sampleSentAt: '2026-07-08T00:00:00.000Z',
+      qcReceivedAt: '2026-07-08T01:40:00.000Z',   // waitingReceive = 100 min
+      qcCompletedAt: '2026-07-08T02:40:00.000Z',  // qcTesting = 60 min
+      approvedAt: '2026-07-08T03:00:00.000Z',
+    };
+    const missingReceipt = {
+      _id: 'e2', petitionNo: 'P-E2', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-08T00:00:00.000Z',
+      sampleSentAt: '2026-07-08T00:00:00.000Z',
+      // qcReceivedAt intentionally missing — never received according to the data
+    };
+    const { turnaround } = buildStatsSection([withReceipt, missingReceipt], opts);
+    const receive = turnaround.find((t) => t.stage === 'waitingReceive');
+    expect(receive.avgMin).toBe(100);
+    expect(Number.isNaN(receive.avgMin)).toBe(false);
+    expect(receive.count).toBe(1);
+  });
+
+  it('never lets an out-of-order timestamp pair contribute a negative duration to the average', () => {
+    const normal = {
+      _id: 'e1', petitionNo: 'P-E1', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-08T00:00:00.000Z',
+      sampleSentAt: '2026-07-08T00:00:00.000Z',
+      qcReceivedAt: '2026-07-08T01:40:00.000Z', // waitingReceive = 100 min
+    };
+    const outOfOrder = {
+      _id: 'e3', petitionNo: 'P-E3', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-09T00:00:00.000Z',
+      sampleSentAt: '2026-07-09T05:00:00.000Z',
+      qcReceivedAt: '2026-07-09T04:00:00.000Z', // recorded BEFORE it was sent — a data glitch
+    };
+    const { turnaround } = buildStatsSection([normal, outOfOrder], opts);
+    const receive = turnaround.find((t) => t.stage === 'waitingReceive');
+    // If the glitch leaked through as -60, the average would be 20 (or 50 if clamped
+    // to 0) instead of 100, and count would be 2 instead of 1.
+    expect(receive.avgMin).toBe(100);
+    expect(receive.count).toBe(1);
+  });
+
+  it('keeps a Lab-only stage null for a QC-only petition instead of counting it as zero', () => {
+    const labPetition = {
+      _id: 'e4', petitionNo: 'P-E4', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B001', commonName: 'ยาแดง' }], // ends in '1' → Lab track
+      createdAt: '2026-07-05T00:00:00.000Z',
+      sampleSentAt: '2026-07-05T00:00:00.000Z',
+      labReceivedAt: '2026-07-05T01:00:00.000Z',
+      assignedTo: { name: 'สมศักดิ์', assignedAt: '2026-07-05T02:00:00.000Z' }, // pendingAssign = 60
+      labCompletedAt: '2026-07-05T04:00:00.000Z', // labTesting = 180
+      labApprovedAt: '2026-07-05T05:00:00.000Z',  // waitingLabApprove = 60
+      approvedAt: '2026-07-05T06:00:00.000Z',
+    };
+    const qcOnlyPetition = {
+      _id: 'e5', petitionNo: 'P-E5', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }], // QC-only, no Lab track
+      createdAt: '2026-07-06T00:00:00.000Z',
+      sampleSentAt: '2026-07-06T00:00:00.000Z',
+      qcReceivedAt: '2026-07-06T00:30:00.000Z',
+      qcCompletedAt: '2026-07-06T01:30:00.000Z',
+      approvedAt: '2026-07-06T02:00:00.000Z',
+    };
+    const { turnaround } = buildStatsSection([labPetition, qcOnlyPetition], opts);
+    const byStage = Object.fromEntries(turnaround.map((t) => [t.stage, t]));
+    // If the QC-only petition were counted as a 0-minute Lab stage instead of being
+    // excluded, these averages would be halved (30/90/30) and counts would be 2.
+    expect(byStage.pendingAssign).toMatchObject({ avgMin: 60, count: 1 });
+    expect(byStage.labTesting).toMatchObject({ avgMin: 180, count: 1 });
+    expect(byStage.waitingLabApprove).toMatchObject({ avgMin: 60, count: 1 });
   });
 });
