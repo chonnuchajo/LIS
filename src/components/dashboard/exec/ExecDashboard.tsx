@@ -2,15 +2,12 @@ import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useExecSummary } from "@/hooks/useExecSummary";
-import type { ExecPeriod, ExecWorkUnit } from "@/lib/execSummary";
+import type { ExecPeriod } from "@/lib/execSummary";
 import AlertStrip from "./AlertStrip";
 import ActionQueue from "./ActionQueue";
 import BottleneckBars from "./BottleneckBars";
 
 const PERIODS: ExecPeriod[] = [7, 30, 90];
-
-const idsWhere = (units: ExecWorkUnit[], match: (u: ExecWorkUnit) => boolean) =>
-  Array.from(new Set(units.filter(match).map((u) => u.petitionId)));
 
 export default function ExecDashboard() {
   const { data, isLoading, isError, period, setPeriod } = useExecSummary();
@@ -54,11 +51,12 @@ export default function ExecDashboard() {
         <>
           <AlertStrip
             counts={data.live.counts}
-            overdueIds={idsWhere(queue, (u) => u.state === "overdue")}
-            atRiskIds={idsWhere(queue, (u) => u.state === "atRisk")}
-            unassignedIds={idsWhere(queue, (u) => u.state === "unassigned")}
-            waitingHeadIds={idsWhere(queue, (u) => u.stage === "waitingLabApprove" || u.stage === "waitingFinal")}
-            urgentIds={idsWhere(queue, (u) => u.priority === 1)}
+            overdueIds={data.live.ids.overdue}
+            atRiskIds={data.live.ids.atRisk}
+            unassignedIds={data.live.ids.unassigned}
+            waitingHeadIds={data.live.ids.waitingHead}
+            urgentIds={data.live.ids.urgent}
+            abnormalIds={data.live.ids.abnormal}
           />
           <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,65fr)_35fr]">
             <ActionQueue units={queue} />

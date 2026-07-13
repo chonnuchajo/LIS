@@ -82,6 +82,7 @@ vi.mock("@/components/dashboard/ActivityTimeline", () => ({ default: () => <div>
 vi.mock("@/components/dashboard/ConfigCoveragePies", () => ({ default: () => <div data-testid="config-coverage">Config coverage</div> }));
 vi.mock("@/components/dashboard/LabInventorySummary", () => ({ default: () => <div data-testid="inventory-summary">Inventory summary</div> }));
 vi.mock("@/components/dashboard/GenericMenuGrid", () => ({ default: () => <div>Menu</div> }));
+vi.mock("@/components/dashboard/exec/ExecDashboard", () => ({ default: () => <div data-testid="exec-dashboard">Exec dashboard</div> }));
 
 import RoleDashboard from "./RoleDashboard";
 
@@ -188,6 +189,16 @@ describe("RoleDashboard overlays", () => {
     renderDashboard();
 
     expect(screen.queryByText("Activity")).not.toBeInTheDocument();
+  });
+
+  it("renders the Executive Dashboard for the admin profile", () => {
+    // Regression coverage: every other profile has a dedicated assertion below,
+    // but until now nothing pinned the admin → ExecDashboard wiring in
+    // RoleDashboard.tsx — a silent revert of that branch would go uncaught.
+    state.roles = ["admin"];
+    renderDashboard();
+
+    expect(screen.getByTestId("exec-dashboard")).toBeInTheDocument();
   });
 
   it("uses persisted priority to flag dashboard work as urgent", () => {

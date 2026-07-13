@@ -33,6 +33,10 @@ export interface ExecSummary {
       urgent: number; overdue: number; atRisk: number;
       unassigned: number; waitingHead: number; abnormal: number;
     };
+    ids: {
+      urgent: string[]; overdue: string[]; atRisk: string[];
+      unassigned: string[]; waitingHead: string[]; abnormal: string[];
+    };
     bottleneck: { stage: ExecStage; label: string; count: number }[];
     actionQueue: ExecWorkUnit[];
   };
