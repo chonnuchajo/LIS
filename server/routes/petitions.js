@@ -180,10 +180,17 @@ router.get('/exec-summary', async (req, res) => {
 
     const windowStart = new Date(now - days * 86400000);
 
-    const [openDocs, closedDocs, qcBaseline] = await Promise.all([
+    const [openDocs, closedDocs, createdDocs, qcBaseline] = await Promise.all([
       // งานที่ยังไม่ปิด — ไม่จำกัดช่วงเวลา เพราะงานค้างเก่าคือสิ่งที่หัวหน้าต้องเห็นที่สุด
       Petition.find({ approvedAt: null, status: { $nin: ['approved', 'rejected'] } }).lean(),
       Petition.find({ approvedAt: { $gte: windowStart } }).lean(),
+      // "created" series for throughput: a dedicated, provably-complete query on
+      // createdAt alone. Rejected petitions (status 'rejected', approvedAt null) sit
+      // in neither openDocs (excluded by status) nor closedDocs (approvedAt never
+      // set) — they arrived and were later sent back, but they DID arrive, and the
+      // inflow line must show that. Project only createdAt, the one field the
+      // throughput bucketing reads (see buildStatsSection).
+      Petition.find({ createdAt: { $gte: windowStart } }, { createdAt: 1 }).lean(),
       loadQcBaseline(now),
     ]);
 
@@ -226,12 +233,9 @@ router.get('/exec-summary', async (req, res) => {
       generatedAt: new Date(now).toISOString(),
       days,
       live: buildLiveSection(openDocs, { now, qcBaseline, abnormalFlags }),
-      // createdPetitions = openDocs + closedDocs: every petition still open (any
-      // creation date) plus every petition closed within the window — together they
-      // cover everything CREATED within the window (a window-created petition that's
-      // already closed necessarily has approvedAt >= createdAt >= windowStart, so it's
-      // already in closedDocs). See buildStatsSection's throughput "created" bucket.
-      stats: buildStatsSection(closedDocs, [...openDocs, ...closedDocs], { now, days, abnormalFlags, qcTesterNames }),
+      // createdDocs is its own query (createdAt >= windowStart), independent of
+      // open/closed status — see buildStatsSection's throughput "created" bucket.
+      stats: buildStatsSection(closedDocs, createdDocs, { now, days, abnormalFlags, qcTesterNames }),
     };
 
     execCache.set(days, { at: now, payload });
