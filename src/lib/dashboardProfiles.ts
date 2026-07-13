@@ -93,10 +93,10 @@ export interface DashboardProfile {
 
 export const DASHBOARD_PROFILES: Record<DashboardProfileId, DashboardProfile> = {
   admin: {
-    id: "admin", titleEn: "Dashboard", subtitleTh: "ภาพรวมระบบ · ผู้ใช้ · งานค้าง",
-    kpis: ["urgentTotal", "usersTotal", "usersActive", "rolesTotal", "activeTotal", "dailyCheckPending"],
-    workflow: "statusDonut",
-    analytics: [{ kind: "deptBar", title: "งานต่อแผนก" }, { kind: "statusDonut", title: "สัดส่วนสถานะคำขอ" }],
+    id: "admin", titleEn: "Executive Dashboard", subtitleTh: "ภาพรวม Lab + QC",
+    kpis: ["urgentTotal"],
+    workflow: null,
+    analytics: [],
     activity: "audit",
   },
   "lab-analyze": {

@@ -106,7 +106,6 @@ describe("Lab Data Config dashboard pie placement", () => {
 
 describe("registry integrity", () => {
   it("uses a generic dashboard title for the requested home profiles", () => {
-    expect(DASHBOARD_PROFILES.admin.titleEn).toBe("Dashboard");
     expect(DASHBOARD_PROFILES["lab-analyze"].titleEn).toBe("Dashboard");
     expect(DASHBOARD_PROFILES["qc-staff"].titleEn).toBe("Dashboard");
   });
@@ -115,9 +114,16 @@ describe("registry integrity", () => {
     expect(Object.keys(DASHBOARD_PROFILES)).toHaveLength(9);
     for (const p of Object.values(DASHBOARD_PROFILES)) {
       for (const k of p.kpis) expect(KPI_META[k]).toBeDefined();
+      if (p.id === "admin") continue; // exec dashboard renders its own alert strip, not the shared KPI row
       expect(p.kpis.length).toBeGreaterThanOrEqual(2);
       expect(p.kpis.length).toBeLessThanOrEqual(6);
     }
+  });
+
+  it("keeps user-admin KPIs off the exec dashboard", () => {
+    expect(DASHBOARD_PROFILES.admin.kpis).not.toContain("usersTotal");
+    expect(DASHBOARD_PROFILES.admin.kpis).not.toContain("rolesTotal");
+    expect(DASHBOARD_PROFILES.admin.titleEn).toBe("Executive Dashboard");
   });
 
   it("places the urgent KPI first in every dashboard profile", () => {
@@ -177,9 +183,12 @@ describe("weekly workflow card", () => {
     expect(DASHBOARD_PROFILES["qc-reviewer"].workflow).toBe("assignedWeekdayBar");
     expect(DASHBOARD_PROFILES["qc-head"].workflow).toBe("assignedWeekdayBar");
   });
-  it("keeps the status donut for admin and viewer", () => {
-    expect(DASHBOARD_PROFILES.admin.workflow).toBe("statusDonut");
+  it("keeps the status donut for viewer", () => {
     expect(DASHBOARD_PROFILES.viewer.workflow).toBe("statusDonut");
+  });
+
+  it("has no workflow card for the exec dashboard (its own alert strip replaces it)", () => {
+    expect(DASHBOARD_PROFILES.admin.workflow).toBeNull();
   });
   it("counts QC weekly work from the sample-sent date", () => {
     expect(weekdayWorkflowBasis("qc-staff")).toBe("qcSampleSent");

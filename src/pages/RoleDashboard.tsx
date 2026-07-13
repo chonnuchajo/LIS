@@ -41,6 +41,7 @@ import { labTrackStatusBadge, qcTrackStatusBadge } from "@/lib/receiveStatus";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { loadAccessControl } from "@/lib/accessControlSource";
 import GenericMenuGrid from "@/components/dashboard/GenericMenuGrid";
+import ExecDashboard from "@/components/dashboard/exec/ExecDashboard";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const ACTION_LABEL: Record<string, string> = {
@@ -335,6 +336,14 @@ export default function RoleDashboard() {
     return (
       <AppLayout>
         <GenericMenuGrid />
+      </AppLayout>
+    );
+  }
+
+  if (profileId === "admin") {
+    return (
+      <AppLayout>
+        <ExecDashboard />
       </AppLayout>
     );
   }
