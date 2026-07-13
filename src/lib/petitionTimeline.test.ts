@@ -102,6 +102,19 @@ describe("buildPetitionTimelineRow", () => {
     expect(row.isClosed).toBe(true);
     expect(row.milestones.at(-1)).toMatchObject({ key: "final-result", done: true });
   });
+
+  it("does not let updatedAt replace the latest workflow milestone", () => {
+    const row = buildPetitionTimelineRow(
+      petition({
+        sampleSentAt: "2026-07-01T02:00:00.000Z",
+        qcReceivedAt: "2026-07-01T03:00:00.000Z",
+        updatedAt: "2026-07-05T12:00:00.000Z",
+      }),
+      new Date("2026-07-06T00:00:00.000Z"),
+    );
+
+    expect(row.lastAt).toBe("2026-07-01T03:00:00.000Z");
+  });
 });
 
 describe("timeline scale helpers", () => {
@@ -134,6 +147,26 @@ describe("timeline scale helpers", () => {
       total: 2,
       inProgress: 1,
       closed: 1,
+    });
+  });
+
+  it("does not count success rows as waiting", () => {
+    const rows = [
+      buildPetitionTimelineRow(
+        petition({
+          status: "success",
+          qcCompletedAt: "2026-07-01T02:00:00.000Z",
+          completedAt: "2026-07-01T03:00:00.000Z",
+        }),
+        new Date("2026-07-04T00:00:00.000Z"),
+      ),
+    ];
+
+    expect(buildTimelineSummary(rows, new Date("2026-07-04T00:00:00.000Z"))).toMatchObject({
+      total: 1,
+      inProgress: 0,
+      closed: 1,
+      waiting: 0,
     });
   });
 });

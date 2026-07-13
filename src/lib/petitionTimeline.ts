@@ -21,6 +21,7 @@ export type PetitionTimelineSummary = { total: number; inProgress: number; close
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CLOSED_STATUSES = new Set<Petition["status"]>(["approved", "rejected"]);
+const SUMMARY_CLOSED_STATUSES = new Set<Petition["status"]>(["success", "approved", "rejected"]);
 
 function validDate(value?: string | null): Date | null {
   if (!value) return null;
@@ -129,10 +130,11 @@ export function buildTimelineTicks(window: TimelineWindow): TimelineTick[] {
 }
 
 export function buildTimelineSummary(rows: PetitionTimelineRow[], now: Date = new Date()): PetitionTimelineSummary {
+  const isSummaryClosed = (row: PetitionTimelineRow) => row.isClosed || SUMMARY_CLOSED_STATUSES.has(row.petition.status);
   return {
     total: rows.length,
-    inProgress: rows.filter((row) => !row.isClosed && row.petition.status !== "success").length,
-    closed: rows.filter((row) => row.isClosed || row.petition.status === "success").length,
-    waiting: rows.filter((row) => !row.isClosed && !!validDate(row.lastAt) && now.getTime() - validDate(row.lastAt)!.getTime() > DAY_MS).length,
+    inProgress: rows.filter((row) => !isSummaryClosed(row)).length,
+    closed: rows.filter(isSummaryClosed).length,
+    waiting: rows.filter((row) => !isSummaryClosed(row) && !!validDate(row.lastAt) && now.getTime() - validDate(row.lastAt)!.getTime() > DAY_MS).length,
   };
 }
