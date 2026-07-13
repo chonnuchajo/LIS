@@ -192,15 +192,9 @@ function buildLiveSection(petitions, { now, qcBaseline, abnormalFlags = {} }) {
   const waitingHeadUnits = units.filter((u) => u.stage === 'waitingLabApprove' || u.stage === 'waitingFinal');
   const abnormalPetitions = openPetitions.filter((p) => abnormalFlags[String(p._id)]);
 
-  const counts = {
-    urgent: urgentPetitions.length,
-    overdue: overdueUnits.length,
-    atRisk: atRiskUnits.length,
-    unassigned: unassignedUnits.length,
-    waitingHead: waitingHeadUnits.length,
-    abnormal: abnormalPetitions.length,
-  };
-
+  // ids ก่อน แล้วนับจาก ids.length เสมอ — เพื่อให้ตัวเลขบน tile กับใบที่ลิงก์ไป
+  // highlight ตรงกันโดยโครงสร้าง (ไม่ใช่บังเอิญ) แม้ใบเดียวจะมีหลาย work unit
+  // (เช่น lab-batch ที่เกินเวลาทั้งราง Lab และ QC พร้อมกัน) ก็ต้องนับครั้งเดียว
   const ids = {
     urgent: uniqueIds(urgentPetitions.map((p) => String(p._id))),
     overdue: uniqueIds(overdueUnits.map((u) => u.petitionId)),
@@ -209,6 +203,8 @@ function buildLiveSection(petitions, { now, qcBaseline, abnormalFlags = {} }) {
     waitingHead: uniqueIds(waitingHeadUnits.map((u) => u.petitionId)),
     abnormal: uniqueIds(abnormalPetitions.map((p) => String(p._id))),
   };
+
+  const counts = Object.fromEntries(Object.entries(ids).map(([key, list]) => [key, list.length]));
 
   // งานที่กำลังทดสอบและยังอยู่ในเกณฑ์ (state 'ok') ไม่ต้องรบกวนหัวหน้า — แต่ด่านที่
   // "รอคนมาทำ" ต้องโผล่เสมอ แม้จะยังไม่เกินเวลา เพราะมันคือคิวที่รอการตัดสินใจ

@@ -394,14 +394,13 @@ describe('buildLiveSection', () => {
     }
   });
 
-  it('de-duplicates a petition that produces two overdue work units at once (one per track)', () => {
-    // A petition open on both Lab and QC tracks, both independently overdue, must
-    // only contribute its id ONCE to ids.overdue — even though it produces two
-    // units and counts.overdue (a unit count) is 2 for this single petition. This
-    // is the one legitimate case where a count and its deduped id list diverge in
-    // length by design: the count measures work units, the id list measures
-    // distinct petitions to highlight, and a petition must never appear twice in
-    // a highlight link.
+  it('counts a petition overdue on both tracks once, matching the single id the tile links to', () => {
+    // A petition open on both Lab and QC tracks, both independently overdue, still
+    // produces two work units — but counts.overdue must be PETITION-level (1), not
+    // a work-unit count (2), because the tile's number and the ids it drill-downs
+    // into must always agree: a head who sees "2" but only gets 1 highlighted card
+    // back is looking at a lie. bottleneckCounts (a per-stage view) is the one place
+    // that legitimately still counts work units — untouched here.
     const qcBaselineWithData = {
       avgMinutesByParam: { p1: 30 },
       paramIdsByCommonName: { [labItem.commonName]: ['p1'] },
@@ -418,8 +417,14 @@ describe('buildLiveSection', () => {
     const live = buildLiveSection([bothTracksOverdue], {
       now: NOW, qcBaseline: qcBaselineWithData, abnormalFlags: {},
     });
-    expect(live.counts.overdue).toBe(2);
+    expect(live.counts.overdue).toBe(1);
     expect(live.ids.overdue).toEqual(['both1']);
+
+    // The invariant this whole fix exists for: every tile's count equals the
+    // length of the id list it links to, for every key, with no exceptions.
+    for (const key of Object.keys(live.counts)) {
+      expect(live.ids[key]).toHaveLength(live.counts[key]);
+    }
   });
 });
 
