@@ -23,9 +23,15 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCanAccessPath } from '@/hooks/useCanAccessPath';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import { usePetitionList } from '@/hooks/usePetition';
-import { isAssignedTo } from '@/lib/assignment';
 import { api, type ParameterItem } from '@/lib/api';
-import { matchParametersForItem, parameterNamesForPetition } from '@/lib/petitionTestItems';
+import { parameterNamesForPetition } from '@/lib/petitionTestItems';
+import {
+  canSeePetition,
+  canUserCreatePetition as canUserCreatePetitionShared,
+  isLabRole,
+  isLabBatchNo,
+  petitionHasLabReadableItem,
+} from '@/lib/petitionVisibility';
 import { normalizeRoles } from '@/lib/roles';
 import { petitionStatusBadge } from '@/lib/statusBadge';
 import { cn } from '@/lib/utils';
@@ -36,16 +42,6 @@ import {
   type Petition,
 } from '@/types/petition.types';
 
-const norm = (value?: string | null) => (value ?? '').trim().toLowerCase();
-
-const RECEIVED_STATUSES = new Set<Petition['status']>([
-  'sampleSent',
-  'pendingReview',
-  'inProgress',
-  'success',
-]);
-
-const LAB_BATCH_LAST_DIGITS = new Set(['1', '6']);
 const PAGE_SIZE = 20;
 
 const SUMMARY_STATUS_GROUPS: Array<{
@@ -65,69 +61,11 @@ const SUMMARY_STATUS_GROUPS: Array<{
   { key: 'rejected', label: 'ส่งกลับแก้ไข', hint: 'คำร้องที่รอผู้ยื่นแก้ไข', statuses: ['rejected'] },
 ];
 
-const isLabBatchNo = (batchNo?: string | null) => {
-  const trimmed = String(batchNo ?? '').trim();
-  return trimmed.length > 0 && LAB_BATCH_LAST_DIGITS.has(trimmed.slice(-1));
-};
-
-const petitionHasLabItems = (petition: Petition) =>
-  petition.items.some((item) => isLabBatchNo(item.batchNo));
-
-const petitionHasLabReadableItem = (
-  petition: Petition,
-  labParams: ParameterItem[],
-  membership?: Map<string, string[]>,
-) =>
-  petition.items.some(
-    (item) =>
-      isLabBatchNo(item.batchNo) &&
-      matchParametersForItem(
-        item,
-        labParams,
-        membership?.get(String(item.sampleId ?? '').trim()) ?? [],
-      ).length > 0,
-  );
-
-function isOwnSubmission(
-  petition: Petition,
-  user: { email?: string; name?: string } | null,
-): boolean {
-  if (!user) return false;
-  const userName = norm(user.name);
-  const submitterName = norm(petition.submittedBy?.name);
-  return !!(userName && submitterName && userName === submitterName);
-}
-
-function isLabRole(role: string): boolean {
-  return role === 'lab' || role.startsWith('lab-') || role.startsWith('lab_');
-}
-
-function isQcRole(role: string): boolean {
-  return role === 'qc' || role.startsWith('qc-') || role.startsWith('qc_');
-}
-
-function canSeePetition(
-  petition: Petition,
-  user: { email?: string; name?: string; employeeId?: string; role?: string; roles?: string[] } | null,
-): boolean {
-  if (!user) return false;
-  const roles = normalizeRoles(user);
-  if (isOwnSubmission(petition, user)) return true;
-  if (isAssignedTo(petition.assignedTo, user)) return true;
-  if (RECEIVED_STATUSES.has(petition.status)) {
-    if (roles.some(isLabRole) && petitionHasLabItems(petition)) return true;
-    if (roles.some(isQcRole)) return true;
-  }
-  return false;
-}
-
 export function canUserCreatePetition(
   user: { role?: string; roles?: string[] } | null | undefined,
   canAccessNewPetition: boolean,
 ): boolean {
-  if (!canAccessNewPetition) return false;
-  const roles = normalizeRoles(user).map((role) => role.toLowerCase());
-  return roles.length > 0 && roles.some((role) => role !== 'viewer');
+  return canUserCreatePetitionShared(user, canAccessNewPetition);
 }
 
 function petitionMetaLine(petition: Petition) {
