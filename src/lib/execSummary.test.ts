@@ -21,6 +21,26 @@ describe("formatMinutes", () => {
   it("floors anything under a minute to zero", () => {
     expect(formatMinutes(0.4)).toBe("0 น.");
   });
+
+  it("switches to whole days with no trailing hours when the remainder is exact", () => {
+    expect(formatMinutes(2880)).toBe("2 วัน");
+  });
+
+  it("renders an em dash for null (no baseline/no data), not zero", () => {
+    expect(formatMinutes(null)).toBe("—");
+  });
+
+  it("renders an em dash for undefined, not NaN garbage", () => {
+    expect(formatMinutes(undefined)).toBe("—");
+  });
+
+  it("renders an em dash for NaN", () => {
+    expect(formatMinutes(NaN)).toBe("—");
+  });
+
+  it("still renders a real zero as 0 น., not an em dash", () => {
+    expect(formatMinutes(0)).toBe("0 น.");
+  });
 });
 
 describe("highlightPath", () => {

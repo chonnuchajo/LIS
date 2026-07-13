@@ -47,7 +47,8 @@ export interface ExecSummary {
   };
 }
 
-export function formatMinutes(minutes: number): string {
+export function formatMinutes(minutes: number | null | undefined): string {
+  if (typeof minutes !== "number" || !Number.isFinite(minutes)) return "—";
   const total = Math.floor(Math.max(0, minutes));
   if (total < 60) return `${total} น.`;
   if (total < 1440) {
