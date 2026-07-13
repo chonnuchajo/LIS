@@ -248,6 +248,19 @@ function localDateKey(ms) {
   return `${d.getFullYear()}-${month}-${day}`;
 }
 
+// จุดเริ่มรอ Final Result ต้องเป็น "รางที่เสร็จทีหลัง" เสมอ — Lab กับ QC เดินขนาน
+// กัน ใบที่มีราง Lab อาจตรวจ QC เสร็จหลังหัวหน้า Lab เซ็นแล้วก็ได้ ถ้ายังตรึงจุด
+// เริ่มไว้ที่ labApprovedAt เฉย ๆ แถบนี้จะกลืนเวลาตรวจ QC ที่เหลือเข้ามาโดยไม่รู้ตัว
+// ต้อง mirror สูตรเดียวกับ openWorkUnits (max ของ qcCompletedAt/labApprovedAt)
+function finalResultStart(petition, labTrack) {
+  if (!labTrack) return petition.qcCompletedAt ?? null;
+  const qc = toDate(petition.qcCompletedAt);
+  const lab = toDate(petition.labApprovedAt);
+  if (!qc) return petition.labApprovedAt ?? null;
+  if (!lab) return petition.qcCompletedAt ?? null;
+  return qc.getTime() >= lab.getTime() ? petition.qcCompletedAt : petition.labApprovedAt;
+}
+
 /** เวลาที่แต่ละใบใช้ในแต่ละด่าน — ใบที่ timestamp ไม่ครบจะไม่ถูกนับในด่านนั้น (ไม่ทำให้ค่าเฉลี่ยเป็น NaN) */
 function stageDurations(petition) {
   const qcReceived = qcReceivedAtOf(petition);
@@ -258,10 +271,7 @@ function stageDurations(petition) {
     labTesting: labTrack ? diffMinutes(petition.labReceivedAt, petition.labCompletedAt) : null,
     qcTesting: qcDurationMinutes(petition),
     waitingLabApprove: labTrack ? diffMinutes(petition.labCompletedAt, petition.labApprovedAt) : null,
-    waitingFinal: diffMinutes(
-      labTrack ? petition.labApprovedAt : petition.qcCompletedAt,
-      petition.approvedAt,
-    ),
+    waitingFinal: diffMinutes(finalResultStart(petition, labTrack), petition.approvedAt),
   };
 }
 

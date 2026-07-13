@@ -1,4 +1,6 @@
-const { openWorkUnits, bottleneckCounts, buildLiveSection, buildStatsSection, percentile } = require('./execSummary');
+const {
+  openWorkUnits, bottleneckCounts, buildLiveSection, buildStatsSection, percentile, stageDurations,
+} = require('./execSummary');
 
 const NOW = Date.parse('2026-07-13T10:00:00.000Z');
 const hoursAgo = (h) => new Date(NOW - h * 3600000).toISOString();
@@ -435,6 +437,48 @@ describe('percentile', () => {
 
   it('returns null for an empty sample set', () => {
     expect(percentile([], 0.9)).toBeNull();
+  });
+});
+
+describe('stageDurations waitingFinal', () => {
+  // Finding 3: Lab and QC tracks are independent. A lab-track petition's QC side
+  // routinely finishes AFTER the Lab head has already signed off. The Final-Result
+  // wait must start at the LATER of the two — same rule openWorkUnits already uses
+  // for the live view — or the stats bar silently absorbs the leftover QC testing
+  // time into what should be a short "waiting on the head" number.
+
+  it('measures waitingFinal from qcCompletedAt (not labApprovedAt) when QC finishes after the Lab head signs', () => {
+    const petition = {
+      _id: 'wf1', petitionNo: 'P-WF1', dept: 'fg', status: 'approved', items: [labItem],
+      labApprovedAt: '2026-07-11T01:00:00.000Z', // Lab head signs at 01:00
+      qcCompletedAt: '2026-07-11T03:00:00.000Z', // QC finishes later, at 03:00
+      approvedAt: '2026-07-11T04:00:00.000Z',    // Final Result issued at 04:00
+    };
+    const { waitingFinal } = stageDurations(petition);
+    // From qcCompletedAt (03:00) → approvedAt (04:00) = 60 min, NOT from
+    // labApprovedAt (01:00) → approvedAt (04:00) = 180 min.
+    expect(waitingFinal).toBe(60);
+  });
+
+  it('still measures waitingFinal from labApprovedAt when the Lab head signs after QC finished', () => {
+    const petition = {
+      _id: 'wf2', petitionNo: 'P-WF2', dept: 'fg', status: 'approved', items: [labItem],
+      qcCompletedAt: '2026-07-11T01:00:00.000Z', // QC finishes first
+      labApprovedAt: '2026-07-11T03:00:00.000Z', // Lab head signs later
+      approvedAt: '2026-07-11T04:00:00.000Z',
+    };
+    const { waitingFinal } = stageDurations(petition);
+    expect(waitingFinal).toBe(60); // 03:00 → 04:00
+  });
+
+  it('measures waitingFinal from qcCompletedAt alone for a QC-only petition (unchanged behavior)', () => {
+    const petition = {
+      _id: 'wf3', petitionNo: 'P-WF3', dept: 'fg', status: 'approved', items: [qcItem],
+      qcCompletedAt: '2026-07-11T03:00:00.000Z',
+      approvedAt: '2026-07-11T04:00:00.000Z',
+    };
+    const { waitingFinal } = stageDurations(petition);
+    expect(waitingFinal).toBe(60);
   });
 });
 
