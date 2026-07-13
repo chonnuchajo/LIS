@@ -619,6 +619,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }).then((r) => ({ printer: r.printer, copies: r.copies })),
+  downloadPrintPdf: (payload: { docType: PrintDocType; html: string }) =>
+    fetchBlob("/print/pdf", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 
   // Parameters (พารามิเตอร์การตรวจสอบของสารแต่ละชนิด)
   getParameters: () => request<ParameterItem[]>("/parameters"),
@@ -973,6 +978,19 @@ export type VirtualLabLog = {
   createdAt?: string;
 };
 
+type ApiErrorBody = {
+  error?: unknown;
+  message?: unknown;
+};
+
+function apiErrorMessage(body: ApiErrorBody, fallback: string): string {
+  const nestedMessage =
+    body.error && typeof body.error === "object" && "message" in body.error
+      ? (body.error as { message?: unknown }).message
+      : undefined;
+  return String(body.message || nestedMessage || body.error || fallback);
+}
+
 export type StandardTimeItem = {
   _id: string;
   instrument: string;
@@ -1178,9 +1196,8 @@ export async function uploadQcPhoto(file: File): Promise<{ url: string }> {
     body: form,
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText })) as any;
-    const message = body?.message || body?.error?.message || body?.error || 'Upload failed';
-    throw new Error(String(message));
+    const body = await res.json().catch(() => ({ error: res.statusText })) as ApiErrorBody;
+    throw new Error(apiErrorMessage(body, 'Upload failed'));
   }
   return res.json();
 }
@@ -1192,9 +1209,8 @@ export async function deleteQcPhoto(url: string): Promise<void> {
     body: JSON.stringify({ url }),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText })) as any;
-    const message = body?.message || body?.error?.message || body?.error || 'Delete failed';
-    throw new Error(String(message));
+    const body = await res.json().catch(() => ({ error: res.statusText })) as ApiErrorBody;
+    throw new Error(apiErrorMessage(body, 'Delete failed'));
   }
 }
 
@@ -1206,9 +1222,8 @@ export async function uploadParamFile(file: File): Promise<{ url: string; name: 
     body: form,
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText })) as any;
-    const message = body?.error || body?.message || res.statusText;
-    throw new Error(String(message));
+    const body = await res.json().catch(() => ({ error: res.statusText })) as ApiErrorBody;
+    throw new Error(apiErrorMessage(body, res.statusText));
   }
   return res.json();
 }
@@ -1220,8 +1235,7 @@ export async function deleteParamFile(url: string): Promise<void> {
     body: JSON.stringify({ url }),
   });
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText })) as any;
-    const message = body?.error || body?.message || res.statusText;
-    throw new Error(String(message));
+    const body = await res.json().catch(() => ({ error: res.statusText })) as ApiErrorBody;
+    throw new Error(apiErrorMessage(body, res.statusText));
   }
 }

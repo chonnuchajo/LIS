@@ -18,6 +18,7 @@ const badgeVariants = cva(
         green: "border-transparent bg-green-500 text-white",
         red: "border-transparent bg-red-500 text-white",
         blue: "border-transparent bg-primary-500 text-white",
+        purple: "border-transparent bg-violet-500 text-white",
         gray: "border-transparent bg-grey-500 text-white",
         // ===== soft =====
         "primary-soft": "border-transparent bg-primary-50 text-primary-600",
@@ -25,6 +26,7 @@ const badgeVariants = cva(
         "green-soft": "border-transparent bg-green-50 text-green-500",
         "red-soft": "border-transparent bg-red-50 text-red-500",
         "blue-soft": "border-transparent bg-primary-50 text-primary-500",
+        "purple-soft": "border-transparent bg-violet-50 text-violet-600",
         "gray-soft": "border-transparent bg-grey-100 text-grey-600",
       },
     },

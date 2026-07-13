@@ -254,7 +254,7 @@ export default function PetitionTimelineDetailPage() {
   }
 
   function printableElement(ref: RefObject<HTMLDivElement>): HTMLElement | null {
-    return (ref.current?.firstElementChild as HTMLElement | null) ?? ref.current;
+    return ref.current;
   }
 
   async function openDocumentPdf(key: TimelineDocumentKey, docType: PrintDocType, ref: RefObject<HTMLDivElement>, fileName: string) {

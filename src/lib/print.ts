@@ -1,5 +1,10 @@
 import { api } from "@/lib/api";
-import type { PrintDocType } from "@/lib/printConfig";
+import {
+  getPrintFontFamilyForDocType,
+  getPrintFontSizeForDocType,
+  getPrintHeadingFontWeightForDocType,
+  type PrintDocType,
+} from "@/lib/printConfig";
 
 // แปลง DOM node เป็น HTML string สำหรับส่งไป server.
 // node ควรมี <style> ของตัวเองฝังอยู่แล้ว (บาง template ทำ); ที่เหลือใช้ Tailwind
@@ -30,6 +35,22 @@ export function collectDocumentCss(): string {
   return css;
 }
 
+function printBaseCss(docType: PrintDocType): string {
+  const fontFamily = getPrintFontFamilyForDocType(docType);
+  const fontSize = getPrintFontSizeForDocType(docType);
+  const headingWeight = getPrintHeadingFontWeightForDocType(docType);
+  if (!fontFamily) return "";
+  return [
+    `html, body { font-family: ${fontFamily}; font-size: ${fontSize}; }`,
+    `h1, h2, h3, h4, h5, h6, th, .print-heading { font-weight: ${headingWeight}; }`,
+  ].join("\n");
+}
+
+function documentHtml(docType: PrintDocType, el: HTMLElement | null, css?: string): string {
+  const combinedCss = [collectDocumentCss(), printBaseCss(docType), css].filter(Boolean).join("\n");
+  return serializeForPrint(el, combinedCss || undefined);
+}
+
 export interface PrintResult {
   printer: string;
   copies: number;
@@ -41,17 +62,49 @@ export async function printDocument(
   opts?: { css?: string; copies?: number },
 ): Promise<PrintResult> {
   // prepend the app's stylesheet first, then any per-call css (per-call wins on conflict)
-  const combinedCss = [collectDocumentCss(), opts?.css].filter(Boolean).join("\n");
-  const html = serializeForPrint(el, combinedCss || undefined);
+  const html = documentHtml(docType, el, opts?.css);
   return api.printDocument({ docType, html, copies: opts?.copies });
+}
+
+export async function openPrintPdf(
+  docType: PrintDocType,
+  el: HTMLElement | null,
+  opts?: { css?: string; fileName?: string },
+): Promise<void> {
+  const html = documentHtml(docType, el, opts?.css);
+  const blob = await api.downloadPrintPdf({ docType, html });
+  const url = URL.createObjectURL(blob);
+  if (opts?.fileName) {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = opts.fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } else {
+    const opened = window.open(url, "_blank", "noopener");
+    if (!opened) {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${docType}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export function openBrowserPrintPreview(
   title: string,
   el: HTMLElement | null,
-  opts?: { css?: string },
+  opts?: { css?: string; docType?: PrintDocType },
 ) {
-  const combinedCss = [collectDocumentCss(), opts?.css].filter(Boolean).join("\n");
+  const combinedCss = [
+    collectDocumentCss(),
+    opts?.docType ? printBaseCss(opts.docType) : "",
+    opts?.css,
+  ].filter(Boolean).join("\n");
   const html = serializeForPrint(el, combinedCss || undefined);
   // NOTE: ห้ามใส่ noopener/noreferrer — ถ้าใส่ window.open จะคืนค่า null เสมอ
   // ทำให้เขียนเนื้อหาลงหน้าต่างไม่ได้ (preview จะว่างเปล่า)

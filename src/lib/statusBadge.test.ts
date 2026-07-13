@@ -20,6 +20,10 @@ describe("statusBadge", () => {
     expect(b.label).toBe("เสร็จแล้ว");
     expect(b.variant).toBe("green-soft");
   });
+
+  it("shows approved petitions as completed with the purple final-result tone", () => {
+    expect(statusBadge("approved")).toEqual({ label: "เสร็จสิ้น", variant: "purple-soft" });
+  });
 });
 
 describe("toneBadge", () => {

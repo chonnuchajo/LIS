@@ -6,7 +6,7 @@ export default function BottleneckBars({ rows }: { rows: ExecSummary["live"]["bo
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">คอขวดตอนนี้</CardTitle>
+        <CardTitle className="text-base">สถานะคำร้องตอนนี้</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {rows.map((row) => (

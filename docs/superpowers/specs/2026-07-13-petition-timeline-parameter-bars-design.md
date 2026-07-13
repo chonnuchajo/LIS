@@ -49,6 +49,18 @@ event `resultEntered` / `resultUpdated` มี `metadata.parameterId` + `metadat
 
 ผลพลอยได้: การ์ด Documents ไม่ต้องรอโหลดตอนกดปุ่มอีก (`documentDataLoaded` จริงตั้งแต่หน้าโหลดเสร็จ)
 
+## แท็บรายวัน (day tabs) — ข้อจำกัดที่เพิ่มเข้ามา
+
+ระหว่างเขียนสเปกนี้ มีงานอีกชุด (`2026-07-13-project-timeline-1700-tabs`) แก้ไฟล์เดียวกันไปแล้ว: timeline จบ 17:00 และ**แบ่งเป็นแท็บรายวัน** (`TimelineDetailDay[]`) ดีไซน์นี้ต่อยอดบน working tree ชุดนั้น
+
+ของเดิมแต่ละแถวเป็น "จุด" จึงแค่เช็คว่าจุดตกวันไหน แต่แท่งกินข้ามวันได้ (รับตัวอย่างวันจันทร์ ใส่ค่าวันพุธ) กติกาคือ **ตัดแท่งตามหน้าต่างของวัน (clip) แล้วบอกว่าต่อเนื่อง**:
+
+- แถวทั้งหมดโผล่ครบทุกแท็บ ลำดับเท่ากันเสมอ — ต่างกันแค่ "วันนี้วาดอะไร"
+- milestone: เห็นเฉพาะแท็บวันที่จุดนั้นตกอยู่
+- bar: เห็นในทุกวันที่ช่วงเวลาทับกับหน้าต่างวัน (08:00–17:00) โดยตัดหัว/ท้ายให้พอดีวัน
+- `continuesBefore` / `continuesAfter` → ขอบแท่งด้านนั้นตัดตรง (ไม่มน) บอกว่าต่อจากวันก่อน / ต่อไปวันถัดไป
+- วันที่แท่งกินทั้งวัน → แท่งเต็มความกว้าง ตัดตรงทั้งสองข้าง
+
 ## โครงสร้างข้อมูล (`petitionTimelineDetail.ts`)
 
 แทนที่ `TimelineDetailStage` ด้วย row เดียวที่รองรับทั้งสองชนิด:
@@ -67,27 +79,42 @@ export type TimelineDetailRow = {
   endAt: string | null;            // bar เท่านั้น — null = ไม่มีแท่ง
   done: boolean;
 };
+
+// row ที่ตัดเข้าหน้าต่างของวันแล้ว (ใช้ใน day tab)
+export type TimelineDetailDayRow = TimelineDetailRow & {
+  visible: boolean;                // วันนี้มีอะไรให้วาดไหม
+  segmentStartAt: string | null;   // bar ที่ตัดเข้าวันแล้ว
+  segmentEndAt: string | null;
+  continuesBefore: boolean;
+  continuesAfter: boolean;
+};
 ```
 
-`TimelineDetailModel.timeline.stages` → เปลี่ยนชื่อเป็น `rows` (ชนิด `TimelineDetailRow[]`)
-ส่วนอื่นของ model (`header`, `progress`, `tasks`, `activities`, `ticks`) **ไม่เปลี่ยน**
+- `TimelineDetailStage` → เลิกใช้ แทนด้วย `TimelineDetailRow`
+- `TimelineDetailModel.timeline.stages` → `rows: TimelineDetailRow[]` (ยังไม่ตัดวัน)
+- `TimelineDetailDay.stages` → `rows: TimelineDetailDayRow[]` (ตัดวันแล้ว, ครบทุกแถวเสมอ)
+- ส่วนอื่นของ model (`header`, `progress`, `tasks`, `activities`, `ticks`, `days`) **ไม่เปลี่ยน**
 
-`buildStages()` → แทนด้วย `buildRows()` ซึ่งประกอบจาก 3 ตัวช่วยแยก unit-test ได้อิสระ:
+`buildStages()` → แทนด้วย `buildRows()` ที่ประกอบจาก 3 ตัวช่วยซึ่ง unit-test แยกกันได้:
 
 1. `buildMilestoneRows(petition)` — QC รับ / Lab รับ / มอบหมาย
-2. `buildParameterRows(petition, parameters, auditLogs, qcResults, itemGroupIds)` — แถว parameter
-3. `buildClosingRows(petition, now)` — ออกผล Lab / Final Result
+2. `buildParameterRows(petition, parameters, auditLogs, qcResults, itemGroupIds, fallbackStartAt)` — แถว parameter
+3. `buildClosingRows(petition)` — ออกผล Lab / Final Result
+
+พร้อม `clipRowToDay(row, dayStartAt, dayEndAt)` สำหรับตัดแถวเข้าหน้าต่างวัน
 
 **`TimelineDetailInput` เพิ่ม field `qcResults: QCTestResult[]`**
 
 ## การเปลี่ยนแปลงฝั่ง UI (`PetitionTimelineDetailPage.tsx`)
 
-- โหลด `api.getQCResults(petition._id)` พร้อมกับ `getParameters()` / `getQCProgress()` ใน effect เดิม (ยิงขนานกัน ไม่เพิ่ม waterfall) แล้วส่งเข้า `buildTimelineDetailModel`
-- render `model.timeline.rows`:
+- โหลด `api.getQCResults(petition._id)` **ตั้งแต่หน้าโหลด** (ไม่ต้องรอกดปุ่มพิมพ์) แต่ **ไม่ block การ render** — แยกจาก `Promise.all` ของ parameters/progress เพื่อไม่ให้หน้าค้างถ้า endpoint นี้ช้า
+- ตัวโหลดเอกสารเดิม (`loadDocumentData`) เปลี่ยนเป็น **dedupe ด้วย promise ref**: ถ้ามี request ค้างอยู่ให้ `await` ตัวเดิมแทนที่จะยิงซ้ำหรือคืน `false` — ทำให้กดปุ่มพิมพ์ระหว่างโหลดแล้วรอเปิดได้เอง และยิง API แค่ครั้งเดียวต่อคำร้อง
+- render `activeTimelineDay.rows` (ตัดวันแล้ว):
   - `kind === "milestone"` → จุดกลมอย่างเดียว ณ ตำแหน่ง `at` (ไม่มีเส้นลากยาว)
-  - `kind === "bar"` → แท่งจาก `startAt` ถึง `endAt`; ถ้า `startAt`/`endAt` เป็น null → แถวว่าง (ชื่ออย่างเดียว)
-  - สีตาม `track`: qc = primary, lab = สีที่สอง, stage = neutral
-- ความกว้างคอลัมน์ชื่อแถวขยายพอสำหรับชื่อ parameter (ตัดด้วย truncate + `title`)
+  - `kind === "bar"` → แท่งจาก `segmentStartAt` ถึง `segmentEndAt`; `visible === false` → แถวว่าง (ชื่ออย่างเดียว)
+  - `continuesBefore` / `continuesAfter` → ขอบด้านนั้นตัดตรง (`rounded-l-none` / `rounded-r-none`)
+  - สีตาม `track`: qc = primary, lab = amber, stage = grey
+- ความกว้างคอลัมน์ชื่อแถวขยายเป็น 180px (ตัดด้วย truncate + `title`)
 - การ์ด **Tasks คงเดิม** ทุกอย่าง (แสดง filled/total ต่อคู่ item×parameter + สถานะ) — มันตอบคนละคำถามกับ timeline
 
 ## Error handling

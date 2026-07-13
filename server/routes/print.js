@@ -383,6 +383,58 @@ router.delete('/printers-config/:id', async (req, res) => {
   }
 });
 
+// POST /api/print/pdf — { docType, html } → PDF blob for browser preview/download
+router.post('/pdf', async (req, res) => {
+  const { docType, html } = req.body || {};
+  if (!ALLOWED_SLUGS.includes(docType)) return res.status(400).json({ error: 'docType ไม่ถูกต้อง' });
+  if (typeof html !== 'string' || !html.trim()) return res.status(400).json({ error: 'ไม่มีเนื้อหาเอกสาร' });
+
+  let browser;
+  try {
+    const chromePath = process.env.PRINT_CHROME_PATH;
+    if (!chromePath || !fs.existsSync(chromePath)) {
+      return res.status(500).json({ error: 'ไม่พบ Chrome สำหรับสร้าง PDF (ตั้งค่า PRINT_CHROME_PATH)' });
+    }
+
+    const puppeteer = require('puppeteer-core');
+    browser = await puppeteer.launch({
+      executablePath: chromePath,
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+    const page = await browser.newPage();
+    await page.setJavaScriptEnabled(false);
+    await page.setRequestInterception(true);
+    page.on('request', (r) => {
+      const u = r.url();
+      if (u.startsWith('data:')) return r.continue();
+      try {
+        if (ALLOWED_HOSTS.has(new URL(u).host)) return r.continue();
+      } catch (_) { /* fallthrough */ }
+      return r.abort();
+    });
+
+    const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
+</head><body>${html}</body></html>`;
+    await page.setContent(fullHtml, { waitUntil: 'load', timeout: 15000 });
+
+    const pdf = await page.pdf({
+      ...paperSpec(paperSizeForSlug(docType)).pdf,
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="lis-${docType}.pdf"`);
+    res.send(Buffer.from(pdf));
+  } catch (err) {
+    res.status(500).json({ error: `สร้าง PDF ไม่สำเร็จ: ${err.message}` });
+  } finally {
+    if (browser) { try { await browser.close(); } catch (_) {} }
+  }
+});
+
 // POST /api/print — { docType, html, copies? } → PDF/PNG → CUPS
 router.post('/', async (req, res) => {
   const { docType, html, copies: copiesOverride } = req.body || {};

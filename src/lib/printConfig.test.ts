@@ -2,7 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   PRINT_DOC_TYPES,
   PRINTER_KINDS,
+  A4_PRINT_FONT_FAMILY,
+  A4_PRINT_FONT_SIZE,
+  A4_PRINT_HEADING_FONT_WEIGHT,
   getPrintDocType,
+  getPrintFontFamilyForDocType,
+  getPrintFontSizeForDocType,
+  getPrintHeadingFontWeightForDocType,
   docTypeToKind,
   defaultPrinterFor,
   validatePrinterUrl,
@@ -32,6 +38,35 @@ describe("docTypeToKind", () => {
     expect(docTypeToKind("coa")).toBe("a4");
     expect(docTypeToKind("service-request")).toBe("a4");
     expect(docTypeToKind("daily-check-report")).toBe("a4");
+  });
+});
+
+describe("print font policy", () => {
+  it("uses Angsana New for every A4 document type", () => {
+    expect(A4_PRINT_FONT_FAMILY).toContain("'Angsana New'");
+    expect(getPrintFontFamilyForDocType("coa")).toBe(A4_PRINT_FONT_FAMILY);
+    expect(getPrintFontFamilyForDocType("service-request")).toBe(A4_PRINT_FONT_FAMILY);
+    expect(getPrintFontFamilyForDocType("daily-check-report")).toBe(A4_PRINT_FONT_FAMILY);
+  });
+
+  it("uses 16pt body text and bold headings for every A4 document type", () => {
+    expect(A4_PRINT_FONT_SIZE).toBe("16pt");
+    expect(A4_PRINT_HEADING_FONT_WEIGHT).toBe("700");
+    expect(getPrintFontSizeForDocType("coa")).toBe(A4_PRINT_FONT_SIZE);
+    expect(getPrintFontSizeForDocType("service-request")).toBe(A4_PRINT_FONT_SIZE);
+    expect(getPrintFontSizeForDocType("daily-check-report")).toBe(A4_PRINT_FONT_SIZE);
+    expect(getPrintHeadingFontWeightForDocType("coa")).toBe(A4_PRINT_HEADING_FONT_WEIGHT);
+    expect(getPrintHeadingFontWeightForDocType("service-request")).toBe(A4_PRINT_HEADING_FONT_WEIGHT);
+    expect(getPrintHeadingFontWeightForDocType("daily-check-report")).toBe(A4_PRINT_HEADING_FONT_WEIGHT);
+  });
+
+  it("does not apply the A4 font policy to sticker documents", () => {
+    expect(getPrintFontFamilyForDocType("sample-label")).toBeUndefined();
+    expect(getPrintFontFamilyForDocType("stock-label")).toBeUndefined();
+    expect(getPrintFontSizeForDocType("sample-label")).toBeUndefined();
+    expect(getPrintFontSizeForDocType("stock-label")).toBeUndefined();
+    expect(getPrintHeadingFontWeightForDocType("sample-label")).toBeUndefined();
+    expect(getPrintHeadingFontWeightForDocType("stock-label")).toBeUndefined();
   });
 });
 

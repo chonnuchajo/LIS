@@ -2,6 +2,10 @@ export type PrintDocType = "sample-label" | "coa" | "service-request" | "stock-l
 export type PaperSize = "A4" | "label-100x50" | "label-6x4";
 export type PrinterKind = "a4" | "sticker";
 
+export const A4_PRINT_FONT_FAMILY = "'Angsana New', 'Cordia New', 'Sarabun', 'TH SarabunPSK', serif";
+export const A4_PRINT_FONT_SIZE = "16pt";
+export const A4_PRINT_HEADING_FONT_WEIGHT = "700";
+
 export interface PrinterConfig {
   id: string;
   kind: PrinterKind;
@@ -55,6 +59,18 @@ const DOC_TYPE_KIND: Record<PrintDocType, PrinterKind> = {
 
 export function docTypeToKind(docType: PrintDocType): PrinterKind {
   return DOC_TYPE_KIND[docType];
+}
+
+export function getPrintFontFamilyForDocType(docType: PrintDocType): string | undefined {
+  return docTypeToKind(docType) === "a4" ? A4_PRINT_FONT_FAMILY : undefined;
+}
+
+export function getPrintFontSizeForDocType(docType: PrintDocType): string | undefined {
+  return docTypeToKind(docType) === "a4" ? A4_PRINT_FONT_SIZE : undefined;
+}
+
+export function getPrintHeadingFontWeightForDocType(docType: PrintDocType): string | undefined {
+  return docTypeToKind(docType) === "a4" ? A4_PRINT_HEADING_FONT_WEIGHT : undefined;
 }
 
 export interface PrintDocTypeMeta {

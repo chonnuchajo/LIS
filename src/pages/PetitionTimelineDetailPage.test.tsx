@@ -270,6 +270,7 @@ describe("PetitionTimelineDetailPage", () => {
   });
 
   it("keeps document PDF actions disabled until document data is ready", async () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     let resolveResults: ((value: []) => void) | undefined;
     mocks.getQCResults.mockReturnValue(new Promise((resolve) => { resolveResults = resolve; }));
     renderDetail();
@@ -286,11 +287,13 @@ describe("PetitionTimelineDetailPage", () => {
 
     fireEvent.click(labelButton);
     await waitFor(() => expect(mocks.downloadPrintPdf).toHaveBeenCalledOnce());
-    expect(window.open).toHaveBeenCalledWith("blob:petition-document", "_blank", "noopener");
+    expect(clickSpy).toHaveBeenCalledOnce();
+    expect(window.open).not.toHaveBeenCalled();
     expect(screen.queryByTestId("print-preview")).not.toBeInTheDocument();
   });
 
   it("opens timeline document actions as PDF files instead of print previews", async () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     renderDetail();
 
     const documentsCard = await screen.findByLabelText("Documents");
@@ -301,8 +304,12 @@ describe("PetitionTimelineDetailPage", () => {
       docType: "sample-label",
       html: expect.any(String),
     }));
+    const pdfPayload = mocks.downloadPrintPdf.mock.calls[0][0];
+    expect(pdfPayload.html).toContain("P-2607-001");
+    expect(pdfPayload.html).toContain("Sample A");
     expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
-    expect(window.open).toHaveBeenCalledWith("blob:petition-document", "_blank", "noopener");
+    expect(clickSpy).toHaveBeenCalledOnce();
+    expect(window.open).not.toHaveBeenCalled();
     expect(screen.queryByTestId("print-preview")).not.toBeInTheDocument();
   });
 
