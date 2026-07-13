@@ -226,7 +226,12 @@ router.get('/exec-summary', async (req, res) => {
       generatedAt: new Date(now).toISOString(),
       days,
       live: buildLiveSection(openDocs, { now, qcBaseline, abnormalFlags }),
-      stats: buildStatsSection(closedDocs, { now, days, abnormalFlags, qcTesterNames }),
+      // createdPetitions = openDocs + closedDocs: every petition still open (any
+      // creation date) plus every petition closed within the window — together they
+      // cover everything CREATED within the window (a window-created petition that's
+      // already closed necessarily has approvedAt >= createdAt >= windowStart, so it's
+      // already in closedDocs). See buildStatsSection's throughput "created" bucket.
+      stats: buildStatsSection(closedDocs, [...openDocs, ...closedDocs], { now, days, abnormalFlags, qcTesterNames }),
     };
 
     execCache.set(days, { at: now, payload });

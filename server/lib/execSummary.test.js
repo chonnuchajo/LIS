@@ -514,7 +514,7 @@ describe('buildStatsSection', () => {
   };
 
   it('averages each stage across the closed petitions', () => {
-    const { turnaround } = buildStatsSection(closed, opts);
+    const { turnaround } = buildStatsSection(closed, closed, opts);
     const receive = turnaround.find((t) => t.stage === 'waitingReceive');
     expect(receive.avgMin).toBe(120); // (60 + 180) / 2
     expect(receive.count).toBe(2);
@@ -523,19 +523,65 @@ describe('buildStatsSection', () => {
   });
 
   it('reports one throughput row per day in the window, newest last', () => {
-    const { throughput } = buildStatsSection(closed, opts);
+    const { throughput } = buildStatsSection(closed, closed, opts);
     expect(throughput).toHaveLength(7);
     expect(throughput.at(-1).date).toBe('2026-07-13');
     expect(throughput.find((d) => d.date === '2026-07-11')).toEqual({ date: '2026-07-11', created: 1, completed: 1 });
   });
 
+  // --- Finding 1: "created" must count petitions created in the window regardless
+  // of whether they are closed yet, NOT be filled from the same closed-only array
+  // that feeds "completed". Otherwise created <= completed always, and an open
+  // petition never shows up on the day it actually arrived.
+
+  it('counts a petition created today but not yet approved in today\'s created bucket, and in no completed bucket', () => {
+    const openToday = {
+      _id: 'open1', petitionNo: 'P-OPEN1', dept: 'fg', status: 'inProgress',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-13T02:00:00.000Z',
+      // approvedAt intentionally absent — still open
+    };
+    const { throughput } = buildStatsSection([], [openToday], opts);
+    const today = throughput.find((d) => d.date === '2026-07-13');
+    expect(today).toEqual({ date: '2026-07-13', created: 1, completed: 0 });
+    expect(throughput.every((d) => d.completed === 0)).toBe(true);
+  });
+
+  it('lets inflow exceed outflow when more petitions arrive than close in the window', () => {
+    // Three petitions created inside the window; only one of them has also closed.
+    // With created wrongly sourced from the closed array (the bug), Σcreated could
+    // never exceed Σcompleted — this pins the case that used to be impossible.
+    const closedToday = {
+      _id: 'cw1', petitionNo: 'P-CW1', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-13T01:00:00.000Z',
+      approvedAt: '2026-07-13T05:00:00.000Z',
+    };
+    const openA = {
+      _id: 'ow1', petitionNo: 'P-OW1', dept: 'fg', status: 'inProgress',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-13T02:00:00.000Z',
+    };
+    const openB = {
+      _id: 'ow2', petitionNo: 'P-OW2', dept: 'fg', status: 'sampleSent',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-13T03:00:00.000Z',
+    };
+    const { throughput } = buildStatsSection([closedToday], [closedToday, openA, openB], opts);
+    const totalCreated = throughput.reduce((sum, d) => sum + d.created, 0);
+    const totalCompleted = throughput.reduce((sum, d) => sum + d.completed, 0);
+    expect(totalCreated).toBe(3);
+    expect(totalCompleted).toBe(1);
+    expect(totalCreated).toBeGreaterThan(totalCompleted);
+  });
+
   it('derives abnormal and rework rates from the closed set', () => {
-    const { quality } = buildStatsSection(closed, opts);
+    const { quality } = buildStatsSection(closed, closed, opts);
     expect(quality).toEqual({ closed: 2, abnormal: 1, abnormalRate: 0.5, reworked: 1, reworkRate: 0.5 });
   });
 
   it('splits workload between the Lab assignee and the QC testers', () => {
-    const { workload } = buildStatsSection(closed, opts);
+    const { workload } = buildStatsSection(closed, closed, opts);
     // d1 is batch B002 (QC-only, no Lab track) — its assignedTo is stray data and
     // must NOT be credited to workload.lab, even though it is credited to workload.qc.
     expect(workload.lab).toEqual([]);
@@ -550,7 +596,7 @@ describe('buildStatsSection', () => {
       approvedAt: '2026-07-09T05:00:00.000Z', // totalMinutes = 5h = 300 min
       assignedTo: { name: 'สมศักดิ์', assignedAt: '2026-07-09T01:00:00.000Z' },
     };
-    const { workload } = buildStatsSection([labPetition], opts);
+    const { workload } = buildStatsSection([labPetition], [labPetition], opts);
     expect(workload.lab).toEqual([{ name: 'สมศักดิ์', completed: 1, avgMinutes: 300 }]);
   });
 
@@ -566,12 +612,12 @@ describe('buildStatsSection', () => {
       approvedAt: '2026-07-10T02:00:00.000Z',
       assignedTo: { name: 'สมชาย', assignedAt: '2026-07-10T00:30:00.000Z' }, // stray data
     };
-    const { workload } = buildStatsSection([qcOnlyWithAssignee], opts);
+    const { workload } = buildStatsSection([qcOnlyWithAssignee], [qcOnlyWithAssignee], opts);
     expect(workload.lab).toEqual([]);
   });
 
   it('returns empty structures when nothing closed in the window', () => {
-    const { turnaround, quality, workload } = buildStatsSection([], opts);
+    const { turnaround, quality, workload } = buildStatsSection([], [], opts);
     expect(turnaround.every((t) => t.count === 0 && t.avgMin === null)).toBe(true);
     expect(quality).toEqual({ closed: 0, abnormal: 0, abnormalRate: 0, reworked: 0, reworkRate: 0 });
     expect(workload).toEqual({ lab: [], qc: [] });
@@ -596,7 +642,7 @@ describe('buildStatsSection', () => {
       sampleSentAt: '2026-07-08T00:00:00.000Z',
       // qcReceivedAt intentionally missing — never received according to the data
     };
-    const { turnaround } = buildStatsSection([withReceipt, missingReceipt], opts);
+    const { turnaround } = buildStatsSection([withReceipt, missingReceipt], [withReceipt, missingReceipt], opts);
     const receive = turnaround.find((t) => t.stage === 'waitingReceive');
     expect(receive.avgMin).toBe(100);
     expect(Number.isNaN(receive.avgMin)).toBe(false);
@@ -618,7 +664,7 @@ describe('buildStatsSection', () => {
       sampleSentAt: '2026-07-09T05:00:00.000Z',
       qcReceivedAt: '2026-07-09T04:00:00.000Z', // recorded BEFORE it was sent — a data glitch
     };
-    const { turnaround } = buildStatsSection([normal, outOfOrder], opts);
+    const { turnaround } = buildStatsSection([normal, outOfOrder], [normal, outOfOrder], opts);
     const receive = turnaround.find((t) => t.stage === 'waitingReceive');
     // If the glitch leaked through as -60, the average would be 20 (or 50 if clamped
     // to 0) instead of 100, and count would be 2 instead of 1.
@@ -647,7 +693,7 @@ describe('buildStatsSection', () => {
       qcCompletedAt: '2026-07-06T01:30:00.000Z',
       approvedAt: '2026-07-06T02:00:00.000Z',
     };
-    const { turnaround } = buildStatsSection([labPetition, qcOnlyPetition], opts);
+    const { turnaround } = buildStatsSection([labPetition, qcOnlyPetition], [labPetition, qcOnlyPetition], opts);
     const byStage = Object.fromEntries(turnaround.map((t) => [t.stage, t]));
     // If the QC-only petition were counted as a 0-minute Lab stage instead of being
     // excluded, these averages would be halved (30/90/30) and counts would be 2.

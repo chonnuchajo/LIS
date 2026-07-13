@@ -289,8 +289,15 @@ function round(value) {
   return value == null ? null : Math.round(value);
 }
 
-function buildStatsSection(closedPetitions, { now, days, abnormalFlags = {}, qcTesterNames = {} }) {
+// closedPetitions drives turnaround/quality/workload (all correctly closed-only).
+// createdPetitions is a SEPARATE series for the "created" half of throughput — it
+// must include petitions still open, or the inflow line can never read above the
+// outflow line (the entire point of the chart). Callers typically pass openDocs +
+// closedDocs together so every petition created inside the window is covered
+// regardless of whether it has been approved yet.
+function buildStatsSection(closedPetitions, createdPetitions, { now, days, abnormalFlags = {}, qcTesterNames = {} }) {
   const petitions = closedPetitions || [];
+  const createdSource = createdPetitions || [];
 
   // ── turnaround ต่อด่าน
   const samplesByStage = Object.fromEntries(STAGE_ORDER.map((stage) => [stage, []]));
@@ -314,9 +321,11 @@ function buildStatsSection(closedPetitions, { now, days, abnormalFlags = {}, qcT
   for (let i = days - 1; i >= 0; i -= 1) {
     buckets.set(localDateKey(now - i * 86400000), { created: 0, completed: 0 });
   }
-  for (const petition of petitions) {
+  for (const petition of createdSource) {
     const createdKey = petition.createdAt ? localDateKey(new Date(petition.createdAt).getTime()) : null;
     if (createdKey && buckets.has(createdKey)) buckets.get(createdKey).created += 1;
+  }
+  for (const petition of petitions) {
     const doneKey = petition.approvedAt ? localDateKey(new Date(petition.approvedAt).getTime()) : null;
     if (doneKey && buckets.has(doneKey)) buckets.get(doneKey).completed += 1;
   }
