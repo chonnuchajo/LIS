@@ -261,6 +261,27 @@ describe("buildTimelineDetailModel", () => {
     });
   });
 
+  it("ลากแท่ง Final Result เริ่มที่ QC ครบ เมื่อ QC ครบทีหลัง Lab ออกผล (คำร้องมี Lab)", () => {
+    const result = model(petition({
+      status: "approved",
+      items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+      qcReceivedAt: at(13, 9),
+      labCompletedAt: at(13, 12),
+      labApprovedAt: at(13, 13),
+      qcCompletedAt: at(13, 15),
+      approvedAt: at(13, 16),
+    }));
+
+    expect(result.timeline.rows.find((row) => row.key === "final")).toMatchObject({
+      label: "Final Result",
+      kind: "bar",
+      track: "stage",
+      startAt: at(13, 15),
+      endAt: at(13, 16),
+      done: true,
+    });
+  });
+
   it("คำร้องที่ถูกส่งกลับแก้ไข ใช้ชื่อแถวและเวลา rejected", () => {
     const result = model(petition({
       status: "rejected",
@@ -382,6 +403,19 @@ describe("buildTimelineDetailModel", () => {
     );
 
     expect(result.timeline.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({ endAt: at(13, 12) });
+  });
+
+  it("ใช้เวลาจาก audit log เป็นหลัก แม้ QCTestResult จะมีเวลาใหม่กว่า", () => {
+    const result = model(
+      petition({ qcReceivedAt: at(13, 9) }),
+      [requiredParameter],
+      [],
+      [resultAudit("audit-1", "parameter-1", 1, at(13, 11))],
+      new Date(2026, 6, 13, 12),
+      [{ petitionId: "petition-1", itemSeq: 1, parameterId: "parameter-1", values: {}, enteredAt: at(13, 10), updatedAt: at(13, 14) }],
+    );
+
+    expect(result.timeline.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({ endAt: at(13, 11) });
   });
 
   it("เรียงแถว: milestone → parameter QC → parameter Lab → ออกผล Lab → Final Result", () => {
