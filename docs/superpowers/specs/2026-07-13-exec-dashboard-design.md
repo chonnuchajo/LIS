@@ -32,8 +32,10 @@ GET /LIS/api/petitions/exec-summary?days=30      (days ∈ 7 | 30 | 90, default 
 
 คืน object เดียว หน้าเว็บโหลดครั้งเดียวจบ แบ่ง 2 ก้อน:
 
-- **`live`** — สถานะ ณ ปัจจุบัน ไม่ขึ้นกับ `days` (งานเกินเวลา, เสี่ยงเลท, คอขวดต่อด่าน, งานรอหัวหน้า, สต๊อก)
+- **`live`** — สถานะ ณ ปัจจุบัน ไม่ขึ้นกับ `days` (งานเกินเวลา, เสี่ยงเลท, คอขวดต่อด่าน, งานรอหัวหน้า)
 - **`stats`** — สถิติในช่วง `days` (turnaround ต่อด่าน, throughput, คุณภาพ, ภาระงานต่อคน)
+
+**สต๊อกไม่อยู่ใน endpoint นี้** — บล็อกสต๊อกใช้ `LabInventorySummaryCard` + `labInventorySummaryData()` ที่มีอยู่แล้วและมีเทสต์แล้วฝั่งหน้าเว็บ (ป้อนจาก `useDashboardData`) การย้ายสูตรสต๊อกไปไว้ที่ server จะสร้างโค้ดสำเนาที่สองโดยไม่ได้อะไรเพิ่ม
 
 **การคำนวณอยู่ใน pure JS** (`server/lib/execSummary.js`) ไม่ใช่ aggregation pipeline ยาว ๆ — Mongo ทำแค่กรองช่วงวันและ project field ที่ใช้ เหตุผล: นิยาม "ด่าน / เกินเวลา / เสร็จ" ซับซ้อนและต้อง unit-test ให้แน่น ซึ่ง repo ใช้แพทเทิร์นนี้อยู่แล้ว (`abnormal.js`, `lineNotify.js`, `auditEvents.js` — pure lib + Jest test คู่กัน)
 
@@ -52,12 +54,12 @@ GET /LIS/api/petitions/exec-summary?days=30      (days ∈ 7 | 30 | 90, default 
 | ด่าน | เริ่มจับ | หยุดจับ |
 |---|---|---|
 | รอรับตัวอย่าง | `sampleSentAt` | `labReceivedAt` / `qcReceivedAt` |
-| รอ assign (Lab เท่านั้น) | `labReceivedAt` | audit event `assigned` |
+| รอ assign (Lab เท่านั้น) | `labReceivedAt` | `assignedTo.assignedAt` |
 | กำลังทดสอบ | `labReceivedAt` (Lab) / `qcReceivedAt` (QC) | `labCompletedAt` / `qcCompletedAt` |
 | รอออกผล Lab | `labCompletedAt` | `labApprovedAt` |
 | รอ Final Result | ทดสอบครบทุกรางที่ใบนั้นมี | `approvedAt` |
 
-ด่าน "รอ assign" ต้อง join `PetitionAuditLog` (petition ไม่มี field `assignedAt`)
+ด่าน "รอ assign" ใช้ `assignedTo.assignedAt` ที่ระบบเขียนไว้แล้วตอน assign (ไม่ต้อง join `PetitionAuditLog`)
 
 **ใบที่มีรางเดียว:** ไม่ใช่ทุกใบมีทั้ง Lab และ QC (lab-batch ถึงจะมีทั้งสอง) ใบที่มีเฉพาะราง QC ถือว่า "ทดสอบครบ" เมื่อ `qcCompletedAt` มีค่า — ไม่ต้องรอ `labApprovedAt` ที่จะไม่มีวันมา การตัดสินว่าใบมีรางไหนบ้าง ใช้ตรรกะเดียวกับที่หน้า Lab/QC ใช้อยู่ (`isLabBatch` / การมีอยู่ของ lab items) ห้ามเดาจาก timestamp ว่างเปล่า
 
@@ -68,9 +70,12 @@ GET /LIS/api/petitions/exec-summary?days=30      (days ∈ 7 | 30 | 90, default 
 ### Baseline และ "เกินเวลา"
 
 - **Lab:** `baseline = Σ estimatedMinutes` ของทุก entry ใน `assignedMachines` (สมมติว่านักวิเคราะห์คนเดียวทำเรียงกัน ไม่ใช่ขนาน) · จับเวลาตั้งแต่ `labReceivedAt`
-- **QC:** `baseline = max(avgMinutes ของแต่ละ parameter ที่ใบนั้นขอ)` — parameter ที่ช้าที่สุดเป็นตัวกำหนด เพราะทุก parameter ต้องเสร็จใบถึงปิดได้ · จับเวลาตั้งแต่ `qcReceivedAt`
-  - `avgMinutes` ของ parameter = ค่าเฉลี่ยของ (`qcCompletedAt` − `qcReceivedAt`) จากใบที่ปิดแล้วซึ่งขอ parameter นั้น ย้อนหลัง 180 วัน
+- **QC:** `baseline = max(avgMinutes ของแต่ละ parameter ที่ใบนั้นต้องทดสอบ)` — parameter ที่ช้าที่สุดเป็นตัวกำหนด เพราะทุก parameter ต้องเสร็จใบถึงปิดได้ · จับเวลาตั้งแต่ `qcReceivedAt`
+  - `avgMinutes` ของ parameter = ค่าเฉลี่ยของ (`qcCompletedAt` − `qcReceivedAt`) จากใบที่ปิดแล้วซึ่ง **มี `QCTestResult` ของ parameter นั้น** ย้อนหลัง 180 วัน
   - parameter ที่มีประวัติ **น้อยกว่า 3 ใบ** → ถือว่าไม่มี baseline (กันค่าเพี้ยนจาก sample เดียว)
+  - **ใบที่ยังทำอยู่ยังไม่มี `QCTestResult` ครบ** จึงยังไม่รู้ parameter set ที่แท้จริง — server จึง **เดา parameter set จากประวัติ**: parameter ที่เคยถูกบันทึกในใบที่ปิดแล้วซึ่งมี `commonName` เดียวกับ item ในใบนี้ (union ข้าม item ทุกตัวในใบ)
+  - **เหตุผลที่ไม่พอร์ต `matchParametersForItem` มาไว้ที่ server:** ตรรกะจับคู่ parameter อยู่ฝั่งหน้าเว็บ (`src/lib/petitionTestItems.ts`) และต้องใช้ Parameter list + item-group membership ประกอบ การก๊อบมาไว้อีกชุดจะสร้างโค้ดสองสำเนาที่ต้อง sync มือ ซึ่งเป็นปัญหาที่เคยเกิดกับ `isEnumAbnormal` มาแล้ว การเดาจากประวัติทำให้ server พึ่งพาแค่ข้อมูลที่ตัวเองมี (`QCTestResult.parameterId` + `items[].commonName`)
+  - item ที่ไม่มี `commonName` หรือไม่มีประวัติเลย → ใบนั้นไม่มี QC baseline (ไปเข้าเงื่อนไข "ยังไม่มีเกณฑ์เวลา")
 - **เกินเวลา (overdue):** `elapsed > baseline`
 - **เสี่ยงเลท (at-risk):** `0.8 × baseline ≤ elapsed ≤ baseline`
 - **ไม่มี baseline** (ยังไม่ assign / parameter ไม่มีประวัติพอ) → **ไม่นับเป็น overdue** แต่ถ้าค้างเกิน 24 ชม. จะโผล่ในลิสต์ "งานที่ต้องจัดการ" พร้อมเหตุผล `ยังไม่ assign` / `ยังไม่มีเกณฑ์เวลา`
@@ -110,7 +115,7 @@ Lab ใช้ `assignedTo` · QC ใช้ผู้บันทึกผล (ต
 ├──────────────────────────────────┬──────────────────────────────────┤
 │ ⑥ คุณภาพ (ผิดปกติ % · ตีกลับ %)   │ ⑦ ภาระงานทีม  [Lab | QC]        │
 ├──────────────────────────────────┴──────────────────────────────────┤
-│ ⑧ สต๊อกที่ต้องสั่ง (5 รายการใกล้สุด)                    [ไปหน้า Stock] │
+│ ⑧ สต๊อก — ใกล้หมด / หมดสต็อก / ใกล้หมดอายุ (reuse การ์ดเดิม) [ไป Stock] │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
