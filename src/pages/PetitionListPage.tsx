@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -216,16 +216,31 @@ export default function PetitionListPage({
     [isLabUser, parameters],
   );
 
-  const ownedItems = useMemo(() => {
-    if (!data?.items) return [];
-    let items = canViewAll ? data.items : data.items.filter((petition) => canSeePetition(petition, user));
-    if (isLabUser && paramsLoaded) {
-      items = items.filter((petition) =>
-        petitionHasLabReadableItem(petition, displayParameters, groupMembership),
-      );
-    }
-    return items;
-  }, [canViewAll, data?.items, displayParameters, groupMembership, isLabUser, paramsLoaded, user]);
+  // Single source of truth for "can this user see this petition" — reused for both
+  // the paginated list AND the dashboard-highlight group below, so a shared/bookmarked
+  // ?highlight= link can never show a non-admin user a petition outside their scope.
+  const applyVisibilityFilter = useCallback(
+    (items: Petition[]) => {
+      let result = canViewAll ? items : items.filter((petition) => canSeePetition(petition, user));
+      if (isLabUser && paramsLoaded) {
+        result = result.filter((petition) =>
+          petitionHasLabReadableItem(petition, displayParameters, groupMembership),
+        );
+      }
+      return result;
+    },
+    [canViewAll, displayParameters, groupMembership, isLabUser, paramsLoaded, user],
+  );
+
+  const ownedItems = useMemo(
+    () => (data?.items ? applyVisibilityFilter(data.items) : []),
+    [applyVisibilityFilter, data?.items],
+  );
+
+  const visibleHighlighted = useMemo(
+    () => applyVisibilityFilter(highlighted),
+    [applyVisibilityFilter, highlighted],
+  );
 
   const totalCount = canViewAll ? data?.total ?? 0 : ownedItems.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -463,14 +478,14 @@ export default function PetitionListPage({
           <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50/50 p-3">
             <div className="mb-3 flex items-center justify-between text-sm">
               <span className="font-medium text-amber-800">
-                ไฮไลท์ {highlighted.length} รายการจากแดชบอร์ด
+                ไฮไลท์ {visibleHighlighted.length} รายการจากแดชบอร์ด
               </span>
               <Button size="sm" variant="ghost" onClick={() => updateParams({ highlight: undefined })}>
                 ล้างไฮไลท์
               </Button>
             </div>
             <div className="space-y-3">
-              {highlighted.map((petition) => renderPetitionCard(petition, true))}
+              {visibleHighlighted.map((petition) => renderPetitionCard(petition, true))}
             </div>
           </div>
         )}

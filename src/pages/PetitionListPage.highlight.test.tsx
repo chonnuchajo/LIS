@@ -6,10 +6,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import PetitionListPage from './PetitionListPage';
 import type { Petition } from '@/types/petition.types';
 
+const ADMIN_USER = {
+  employeeId: 'E999',
+  email: 'admin@example.test',
+  name: 'Admin',
+  roles: ['admin'],
+};
+
 const mocks = vi.hoisted(() => ({
   getParameters: vi.fn().mockResolvedValue([]),
   push: vi.fn(),
   refresh: vi.fn(),
+  user: {
+    employeeId: 'E999',
+    email: 'admin@example.test',
+    name: 'Admin',
+    roles: ['admin'],
+  } as { employeeId: string; email: string; name: string; roles: string[] },
 }));
 
 vi.mock('@/components/lis/AppLayout', () => ({
@@ -17,14 +30,7 @@ vi.mock('@/components/lis/AppLayout', () => ({
 }));
 
 vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({
-    user: {
-      employeeId: 'E999',
-      email: 'admin@example.test',
-      name: 'Admin',
-      roles: ['admin'],
-    },
-  }),
+  useAuth: () => ({ user: mocks.user }),
 }));
 
 vi.mock('@/hooks/useCanAccessPath', () => ({
@@ -89,6 +95,7 @@ function renderPage(initialEntry: string) {
 describe('PetitionListPage highlight', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    mocks.user = ADMIN_USER;
   });
 
   it('pins the highlighted petitions above the paginated list', async () => {
@@ -130,5 +137,47 @@ describe('PetitionListPage highlight', () => {
 
     expect(screen.queryByText(/ไฮไลท์/)).not.toBeInTheDocument();
     expect(screen.getByTestId('location-search')).toHaveTextContent('');
+  });
+
+  // Finding 4: the pinned highlight group must run through the same visibility
+  // rule (canSeePetition) the main list applies for non-admin users — otherwise a
+  // shared/bookmarked ?highlight= URL leaks full petition cards outside a user's
+  // scope. Two petitions come back from the ?ids= fetch: one the user submitted
+  // (visible) and one submitted by someone else with no lab/qc/assignment tie to
+  // the user (must be filtered out), same as ownedItems does for the main list.
+  it('filters the highlighted group through the same visibility rule as the main list for a non-admin user', async () => {
+    mocks.user = {
+      employeeId: 'E777',
+      email: 'production@example.test',
+      name: 'สมหญิง',
+      roles: ['production'],
+    };
+    const ownPetition = highlightedPetition({
+      _id: 'x1',
+      petitionNo: 'P-OWN',
+      status: 'inProgress',
+      submittedBy: { employeeId: 'E777', name: 'สมหญิง', submittedAt: '2026-07-13T00:00:00.000Z' },
+    });
+    const otherPetition = highlightedPetition({
+      _id: 'x2',
+      petitionNo: 'P-OTHER',
+      status: 'inProgress',
+      submittedBy: { employeeId: 'E001', name: 'คนอื่น', submittedAt: '2026-07-13T00:00:00.000Z' },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ items: [ownPetition, otherPetition], total: 2 }),
+      }),
+    );
+
+    renderPage('/petitions?highlight=x1,x2');
+
+    // Waiting for the user's own petition to appear proves the async ?ids= fetch
+    // has resolved and the highlight group re-rendered — only then is the absence
+    // check below conclusive rather than a false negative from an unresolved fetch.
+    expect(await screen.findByText('P-OWN')).toBeInTheDocument();
+    expect(screen.queryByText('P-OTHER')).not.toBeInTheDocument();
   });
 });
