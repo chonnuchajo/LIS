@@ -157,9 +157,8 @@ function openWorkUnits(petitions, { now, qcBaseline }) {
       // receive lag is a distinct, QC-only lag (Lab and QC receive independently via
       // PATCH /petitions/:id/receive side=lab|qc) and must get its own unit —
       // otherwise a stuck QC receive is invisible.
-      const sharedWaitAlreadyReported = labEmittedWaitingReceive;
       const elapsed = minutesSince(petition.sampleSentAt, now);
-      if (elapsed != null && !sharedWaitAlreadyReported) units.push(unit(petition, 'qc', 'waitingReceive', elapsed, null, 'ok'));
+      if (elapsed != null && !labEmittedWaitingReceive) units.push(unit(petition, 'qc', 'waitingReceive', elapsed, null, 'ok'));
     }
 
     // ── รอ Final Result (ทุกรางที่ใบนี้มี ทดสอบครบแล้ว)
@@ -316,9 +315,9 @@ function round(value) {
 // closedPetitions drives turnaround/quality/workload (all correctly closed-only).
 // createdPetitions is a SEPARATE series for the "created" half of throughput — it
 // must include petitions still open, or the inflow line can never read above the
-// outflow line (the entire point of the chart). Callers typically pass openDocs +
-// closedDocs together so every petition created inside the window is covered
-// regardless of whether it has been approved yet.
+// outflow line (the entire point of the chart). The caller passes a dedicated
+// `createdAt >= windowStart` query: a union of the open + closed sets would miss
+// petitions that arrived in the window and were later rejected, which still arrived.
 function buildStatsSection(closedPetitions, createdPetitions, { now, days, abnormalFlags = {}, qcTesterNames = {} }) {
   const petitions = closedPetitions || [];
   const createdSource = createdPetitions || [];
