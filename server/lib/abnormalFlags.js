@@ -258,8 +258,22 @@ function computeAbnormalFlags({ docs, params, petitions, includeRestricted = fal
   return map;
 }
 
+/**
+ * รับ map ที่ computeAbnormalFlags คำนวณแล้ว + รายการ petitionId ที่ผู้เรียก request มา
+ * คืน map ใหม่ที่มีทุก id ที่ request มาเป็น key แน่นอน (ของเดิมไม่ถูกแตะ, ที่ขาดเติม false)
+ * รับประกัน contract ของ GET /qc-results/abnormal-flags ว่าทุก id ที่ถามจะมี key ในผลลัพธ์เสมอ
+ */
+function ensureRequestedIdsPresent(map, ids) {
+  const result = { ...map };
+  for (const id of ids || []) {
+    if (!(id in result)) result[id] = false;
+  }
+  return result;
+}
+
 module.exports = {
   computeAbnormalFlags,
+  ensureRequestedIdsPresent,
   getEntryValuesJS,
   fieldValueListJS,
   categoryFromDeptJS,

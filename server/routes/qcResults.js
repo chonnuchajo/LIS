@@ -9,6 +9,7 @@ const PetitionAuditLog = require('../models/PetitionAuditLog');
 const { qcResultAuditEvent, qcResultNote } = require('../lib/auditEvents');
 const {
   computeAbnormalFlags,
+  ensureRequestedIdsPresent,
   getEntryValuesJS,
 } = require('../lib/abnormalFlags');
 
@@ -119,8 +120,10 @@ router.get("/abnormal-flags", async (req, res) => {
       : [];
     const petitions = await Petition.find({ _id: { $in: ids } }, { dept: 1, items: 1 }).lean();
 
-    const map = computeAbnormalFlags({ docs, params, petitions, includeRestricted });
-    for (const id of ids) if (!(id in map)) map[id] = false;
+    const map = ensureRequestedIdsPresent(
+      computeAbnormalFlags({ docs, params, petitions, includeRestricted }),
+      ids,
+    );
     res.json(map);
   } catch (err) {
     res.status(500).json({ error: err.message });
