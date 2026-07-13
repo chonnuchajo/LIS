@@ -29,13 +29,20 @@ export type TimelineDetailRow = {
   endAt: string | null;
   done: boolean;
 };
+export type TimelineDetailDayRow = TimelineDetailRow & {
+  visible: boolean;
+  segmentStartAt: string | null;
+  segmentEndAt: string | null;
+  continuesBefore: boolean;
+  continuesAfter: boolean;
+};
 export type TimelineDetailDay = {
   key: string;
   label: string;
   startAt: string;
   endAt: string;
   ticks: TimelineDetailTick[];
-  stages: TimelineDetailRow[];
+  rows: TimelineDetailDayRow[];
 };
 export type TimelineDetailHeader = {
   startAt: string;
@@ -152,6 +159,38 @@ function buildTicks(startAt: string, endAt: string): TimelineDetailTick[] {
   return ticks;
 }
 
+function clipRowToDay(row: TimelineDetailRow, dayStartAt: string, dayEndAt: string): TimelineDetailDayRow {
+  const dayStart = new Date(dayStartAt).getTime();
+  const dayEnd = new Date(dayEndAt).getTime();
+  const hidden: TimelineDetailDayRow = {
+    ...row,
+    visible: false,
+    segmentStartAt: null,
+    segmentEndAt: null,
+    continuesBefore: false,
+    continuesAfter: false,
+  };
+
+  if (row.kind === "milestone") {
+    const at = validDate(row.at)?.getTime();
+    if (at == null || at < dayStart || at > dayEnd) return hidden;
+    return { ...hidden, visible: true };
+  }
+
+  const start = validDate(row.startAt)?.getTime();
+  const end = validDate(row.endAt)?.getTime();
+  if (start == null || end == null || end < dayStart || start > dayEnd) return hidden;
+
+  return {
+    ...row,
+    visible: true,
+    segmentStartAt: new Date(Math.max(start, dayStart)).toISOString(),
+    segmentEndAt: new Date(Math.min(end, dayEnd)).toISOString(),
+    continuesBefore: start < dayStart,
+    continuesAfter: end > dayEnd,
+  };
+}
+
 function buildTimelineDays(startAt: string, endAt: string, rows: TimelineDetailRow[]): TimelineDetailDay[] {
   const start = new Date(startAt);
   const end = new Date(endAt);
@@ -167,18 +206,13 @@ function buildTimelineDays(startAt: string, endAt: string, rows: TimelineDetailR
     const dayEnd = isSameLocalDay(cursor, end) && end.getTime() > defaultDayEnd.getTime()
       ? end
       : defaultDayEnd;
-    const visibleStages = rows.filter((row) => {
-      const rowAt = validDate(row.at);
-      return !!rowAt && rowAt.getTime() >= dayStart.getTime() && rowAt.getTime() <= dayEnd.getTime();
-    });
-
     days.push({
       key: localDayKey(cursor),
       label: formatDayLabel(cursor),
       startAt: dayStart.toISOString(),
       endAt: dayEnd.toISOString(),
       ticks: buildTicks(dayStart.toISOString(), dayEnd.toISOString()),
-      stages: visibleStages,
+      rows: rows.map((row) => clipRowToDay(row, dayStart.toISOString(), dayEnd.toISOString())),
     });
   }
 
@@ -188,7 +222,11 @@ function buildTimelineDays(startAt: string, endAt: string, rows: TimelineDetailR
     startAt: atHour(start, WORK_START_HOUR).toISOString(),
     endAt: atHour(start, WORK_END_HOUR).toISOString(),
     ticks: buildTicks(atHour(start, WORK_START_HOUR).toISOString(), atHour(start, WORK_END_HOUR).toISOString()),
-    stages: [],
+    rows: rows.map((row) => clipRowToDay(
+      row,
+      atHour(start, WORK_START_HOUR).toISOString(),
+      atHour(start, WORK_END_HOUR).toISOString(),
+    )),
   }];
 }
 

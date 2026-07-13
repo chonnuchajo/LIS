@@ -95,8 +95,8 @@ describe("buildTimelineDetailModel", () => {
     expect(result.timeline.days.map((day) => day.label)).toEqual(["12 ก.ค.", "13 ก.ค."]);
     expect(result.timeline.days[0]).toMatchObject({ startAt: at(12, 8), endAt: at(12, 17) });
     expect(result.timeline.days[1]).toMatchObject({ startAt: at(13, 8), endAt: at(13, 17) });
-    expect(result.timeline.days[0]?.stages.map((stage) => stage.key)).toContain("received-qc");
-    expect(result.timeline.days[1]?.stages.map((stage) => stage.key)).toEqual([]);
+    expect(result.timeline.days[0]?.rows.find((row) => row.key === "received-qc")).toMatchObject({ visible: true });
+    expect(result.timeline.days[1]?.rows.find((row) => row.key === "received-qc")).toMatchObject({ visible: false });
   });
 
   it("counts only applicable required non-photo fields and caps unapproved completion at 99 percent", () => {
@@ -439,5 +439,57 @@ describe("buildTimelineDetailModel", () => {
       "lab-approved",
       "final",
     ]);
+  });
+
+  it("ทุกแท็บวันมีครบทุกแถว เพื่อให้ลำดับแถวไม่ขยับ", () => {
+    const result = model(
+      petition({ qcReceivedAt: at(12, 10), qcCompletedAt: at(13, 9) }),
+      [requiredParameter],
+      [],
+      [resultAudit("audit-1", "parameter-1", 1, at(13, 11))],
+      new Date(2026, 6, 13, 12),
+    );
+
+    const keysByDay = result.timeline.days.map((day) => day.rows.map((row) => row.key));
+    expect(keysByDay[0]).toEqual(result.timeline.rows.map((row) => row.key));
+    expect(keysByDay[1]).toEqual(result.timeline.rows.map((row) => row.key));
+  });
+
+  it("ตัดแท่งที่กินข้ามวันให้พอดีหน้าต่างของแต่ละวัน พร้อมบอกว่าต่อเนื่อง", () => {
+    const result = model(
+      petition({ qcReceivedAt: at(12, 10) }),
+      [requiredParameter],
+      [],
+      [resultAudit("audit-1", "parameter-1", 1, at(13, 11))],
+      new Date(2026, 6, 13, 12),
+    );
+
+    const firstDay = result.timeline.days[0]?.rows.find((row) => row.key === "param::parameter-1");
+    expect(firstDay).toMatchObject({
+      visible: true,
+      segmentStartAt: at(12, 10),
+      segmentEndAt: at(12, 17),
+      continuesBefore: false,
+      continuesAfter: true,
+    });
+
+    const secondDay = result.timeline.days[1]?.rows.find((row) => row.key === "param::parameter-1");
+    expect(secondDay).toMatchObject({
+      visible: true,
+      segmentStartAt: at(13, 8),
+      segmentEndAt: at(13, 11),
+      continuesBefore: true,
+      continuesAfter: false,
+    });
+  });
+
+  it("แถวที่ไม่มีแท่งหรือจุดในวันนั้น ได้ visible = false", () => {
+    const result = model(petition({ qcReceivedAt: at(13, 9) }), [requiredParameter], [], []);
+
+    expect(result.timeline.days[0]?.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({
+      visible: false,
+      segmentStartAt: null,
+      segmentEndAt: null,
+    });
   });
 });
