@@ -22,10 +22,10 @@ function findOrphanBackfillPaths(groups, candidatePaths = BACKFILL_PATHS) {
 
 function findGroupForBackfill(groups, preferredGroupId, anchorPath) {
   const safeGroups = groups || [];
-  const preferred = safeGroups.find((group) => group && group.id === preferredGroupId);
-  if (preferred) return preferred.id;
   const anchored = safeGroups.find((group) => ((group && group.paths) || []).includes(anchorPath));
-  return anchored ? anchored.id : null;
+  if (anchored) return anchored.id;
+  const preferred = safeGroups.find((group) => group && group.id === preferredGroupId);
+  return preferred ? preferred.id : null;
 }
 
 module.exports = { BACKFILL_PATHS, findOrphanBackfillPaths, findGroupForBackfill };

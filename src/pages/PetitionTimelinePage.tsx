@@ -88,6 +88,7 @@ export default function PetitionTimelinePage() {
   const displayParameters = useMemo(() => isLabUser ? parameters.filter((p) => p.scope === "lab" || (p.scope === "qc" && p.shareWithLab === true)) : parameters, [isLabUser, parameters]);
   const visiblePetitions = useMemo(() => {
     const items = data?.items ?? [];
+    if (isLabUser && !paramsLoaded) return [];
     if (isAdmin) return items;
     let visible = items.filter((petition) => canSeePetition(petition, user));
     if (isLabUser && paramsLoaded) visible = visible.filter((petition) => petitionHasLabReadableItem(petition, displayParameters, groupMembership));
@@ -111,7 +112,7 @@ export default function PetitionTimelinePage() {
     <PageHeader title="Timeline คำร้อง" description="ดูช่วงเวลาการดำเนินงานของคำร้องแต่ละใบจากข้อมูลที่มีในระบบ" actions={<Button variant="primary-outline" size="sm" onClick={refresh}><RefreshCw className="h-4 w-4" />รีเฟรช</Button>} />
     {error && <div className="flex items-center justify-between gap-3 rounded-[10px] border border-red-500 bg-red-50 p-3 text-sm text-red-500"><span>โหลด timeline ไม่สำเร็จ: {error}</span><Button variant="danger-outline" size="sm" onClick={refresh}>ลองใหม่</Button></div>}
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="คำร้องที่เห็น" value={summary.total} hint="ตามสิทธิ์และตัวกรองปัจจุบัน" /><StatCard label="กำลังดำเนินการ" value={summary.inProgress} hint="ยังไม่ปิดงานหรือยังรอยืนยัน" /><StatCard label="เสร็จสิ้น/ปิดงาน" value={summary.closed} hint="ทดสอบครบ ออกผล หรือส่งกลับแล้ว" /><StatCard label="รอเกิน 24 ชม." value={summary.waiting} hint="ไม่มี milestone ใหม่เกินหนึ่งวัน" /></div>
-    <form className="grid gap-3 rounded-2xl border border-black-50 bg-white p-4 lg:grid-cols-[minmax(260px,1fr)_180px_150px_150px_auto]">
+    <form className="grid gap-3 rounded-2xl border border-black-50 bg-white p-4 lg:grid-cols-[minmax(260px,1fr)_180px_150px_150px_auto]" onSubmit={(event) => event.preventDefault()}>
       <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-500" /><Input value={search} onChange={(event) => setSearch(event.target.value)} aria-label="ค้นหาเลขคำร้อง ผู้ยื่น ตัวอย่าง หรือ batch" className="pl-9" /></div>
       <NativeSelect value={status} onChange={(event) => setStatus(event.target.value)}><option value="">ทุกสถานะ</option>{PETITION_STATUSES.map((item) => <option key={item} value={item}>{PETITION_STATUS_CONFIG[item].label}</option>)}</NativeSelect>
       <Input type="date" value={from} onChange={(event) => setFrom(event.target.value)} aria-label="วันที่เริ่มต้น" /><Input type="date" value={to} onChange={(event) => setTo(event.target.value)} aria-label="วันที่สิ้นสุด" />

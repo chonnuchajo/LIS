@@ -20,7 +20,7 @@ export type TimelineTick = { key: string; at: string; label: string; major: bool
 export type PetitionTimelineSummary = { total: number; inProgress: number; closed: number; waiting: number };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const CLOSED_STATUSES = new Set<Petition["status"]>(["approved", "rejected"]);
+const CLOSED_STATUSES = new Set<Petition["status"]>(["success", "approved", "rejected"]);
 const SUMMARY_CLOSED_STATUSES = new Set<Petition["status"]>(["success", "approved", "rejected"]);
 
 function validDate(value?: string | null): Date | null {

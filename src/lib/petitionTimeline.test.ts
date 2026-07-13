@@ -103,6 +103,22 @@ describe("buildPetitionTimelineRow", () => {
     expect(row.milestones.at(-1)).toMatchObject({ key: "final-result", done: true });
   });
 
+  it("treats success rows as closed without extending them to the current time", () => {
+    const row = buildPetitionTimelineRow(
+      petition({
+        status: "success",
+        qcCompletedAt: "2026-07-01T02:00:00.000Z",
+        completedAt: "2026-07-01T03:00:00.000Z",
+      }),
+      new Date("2026-07-04T00:00:00.000Z"),
+    );
+
+    expect(row.isClosed).toBe(true);
+    expect(row.isIdle).toBe(false);
+    expect(row.endAt).toBe("2026-07-01T03:00:00.000Z");
+    expect(row.segments.some((item) => item.current)).toBe(false);
+  });
+
   it("does not let updatedAt replace the latest workflow milestone", () => {
     const row = buildPetitionTimelineRow(
       petition({

@@ -42,11 +42,12 @@ test('findOrphanBackfillPaths detects a new petition timeline path only when unc
   assert.deepStrictEqual(findOrphanBackfillPaths(groups, ['/petition-timeline']), ['/petition-timeline']);
 });
 
-test('findGroupForBackfill prefers a group id and falls back to an anchor path owner', () => {
+test('findGroupForBackfill prefers the anchor path owner and falls back to a group id', () => {
   const groups = [
     { id: 'legacy-home', paths: ['/home', '/petitions'] },
     { id: 'stock', paths: ['/stock'] },
+    { id: 'samples', paths: ['/physical-inspection'] },
   ];
   assert.strictEqual(findGroupForBackfill(groups, 'samples', '/petitions'), 'legacy-home');
-  assert.strictEqual(findGroupForBackfill(groups, 'stock', '/petitions'), 'stock');
+  assert.strictEqual(findGroupForBackfill(groups, 'stock', '/missing-anchor'), 'stock');
 });
