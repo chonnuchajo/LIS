@@ -335,8 +335,38 @@ describe('buildStatsSection', () => {
 
   it('splits workload between the Lab assignee and the QC testers', () => {
     const { workload } = buildStatsSection(closed, opts);
-    expect(workload.lab).toEqual([{ name: 'สมชาย', completed: 1, avgMinutes: 240 }]);
+    // d1 is batch B002 (QC-only, no Lab track) — its assignedTo is stray data and
+    // must NOT be credited to workload.lab, even though it is credited to workload.qc.
+    expect(workload.lab).toEqual([]);
     expect(workload.qc).toEqual([{ name: 'สมหญิง', completed: 2, avgMinutes: 90 }]);
+  });
+
+  it('credits a Lab-batch petition with an assignee to workload.lab', () => {
+    const labPetition = {
+      _id: 'w1', petitionNo: 'P-W1', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B001', commonName: 'ยาแดง' }], // ends in '1' → Lab track
+      createdAt: '2026-07-09T00:00:00.000Z',
+      approvedAt: '2026-07-09T05:00:00.000Z', // totalMinutes = 5h = 300 min
+      assignedTo: { name: 'สมศักดิ์', assignedAt: '2026-07-09T01:00:00.000Z' },
+    };
+    const { workload } = buildStatsSection([labPetition], opts);
+    expect(workload.lab).toEqual([{ name: 'สมศักดิ์', completed: 1, avgMinutes: 300 }]);
+  });
+
+  it('does not credit a QC-only petition with a stray assignedTo to workload.lab', () => {
+    // Product-owner decision: assignment is a Lab-only concept in real operation, so
+    // an assignedTo on a QC-only petition is stray data — counting it would both
+    // inflate a Lab analyst's load with QC-only work AND double-count the petition,
+    // which is already credited to its QC testers via qcTesterNames.
+    const qcOnlyWithAssignee = {
+      _id: 'w2', petitionNo: 'P-W2', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }], // QC-only, no Lab track
+      createdAt: '2026-07-10T00:00:00.000Z',
+      approvedAt: '2026-07-10T02:00:00.000Z',
+      assignedTo: { name: 'สมชาย', assignedAt: '2026-07-10T00:30:00.000Z' }, // stray data
+    };
+    const { workload } = buildStatsSection([qcOnlyWithAssignee], opts);
+    expect(workload.lab).toEqual([]);
   });
 
   it('returns empty structures when nothing closed in the window', () => {

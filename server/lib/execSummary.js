@@ -299,7 +299,13 @@ function buildStatsSection(closedPetitions, { now, days, abnormalFlags = {}, qcT
     map.get(name).push(minutes);
   };
   for (const petition of petitions) {
-    push(labByName, petition.assignedTo?.name, totalMinutes(petition));
+    // Assignment is a Lab-only concept in real operation — an assignedTo on a
+    // QC-only petition is stray data. Crediting it would both inflate a Lab
+    // analyst's load with QC-only work and double-count the petition, which is
+    // already credited to its QC testers below via qcTesterNames.
+    if (hasLabTrack(petition)) {
+      push(labByName, petition.assignedTo?.name, totalMinutes(petition));
+    }
     for (const name of qcTesterNames[String(petition._id)] || []) {
       push(qcByName, name, qcDurationMinutes(petition));
     }
