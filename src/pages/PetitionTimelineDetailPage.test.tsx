@@ -325,4 +325,11 @@ describe("PetitionTimelineDetailPage", () => {
 
     expect(await screen.findByLabelText("Required checks (ช่วงเวลา)")).toBeInTheDocument();
   });
+
+  it("จุด milestone ไม่ลากเส้นยาวมาจากขอบซ้ายของแถว", async () => {
+    renderDetail();
+
+    const dot = await screen.findByLabelText("QC รับตัวอย่าง (จุด)");
+    expect(dot.parentElement?.children).toHaveLength(1);
+  });
 });
