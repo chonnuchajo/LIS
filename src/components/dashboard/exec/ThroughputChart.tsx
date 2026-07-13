@@ -1,0 +1,35 @@
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { ExecSummary } from "@/lib/execSummary";
+
+const CONFIG = {
+  created: { label: "งานเข้า", color: "hsl(217,91%,55%)" },
+  completed: { label: "งานปิด", color: "hsl(142,71%,45%)" },
+};
+
+export default function ThroughputChart({ rows }: { rows: ExecSummary["stats"]["throughput"] }) {
+  const data = rows.map((r) => ({ ...r, day: r.date.slice(5) })); // MM-DD
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">งานเข้า vs งานปิด</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ChartContainer config={CONFIG} className="h-[240px] w-full">
+          <ResponsiveContainer>
+            <LineChart data={data}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="day" fontSize={11} />
+              <YAxis allowDecimals={false} fontSize={11} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Line type="monotone" dataKey="created" stroke="var(--color-created)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="completed" stroke="var(--color-completed)" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
