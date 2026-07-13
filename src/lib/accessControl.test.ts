@@ -126,6 +126,11 @@ describe("userCanAccessPath", () => {
       expect(userCanAccessPath(user, "/lab-testing/abc", navGroups)).toBe(true);
     });
 
+    it("grants the petition timeline detail page when /petition-timeline is granted", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/petition-timeline"] };
+      expect(userCanAccessPath(user, "/petition-timeline/abc", navGroups)).toBe(true);
+    });
+
     it("grants result detail from /record-results without granting petition detail", () => {
       const user = { role: "lab", status: "active" as const, permissions: ["/record-results"] };
       expect(userCanAccessPath(user, "/record-results/abc", navGroups)).toBe(true);

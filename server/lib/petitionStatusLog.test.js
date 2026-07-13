@@ -131,7 +131,7 @@ const ASSIGNEE = { name: 'สมชาย', assignedBy: 'แอดมิน' };
 test('current: approved', () => {
   assert.deepStrictEqual(
     buildCurrent({ status: 'approved', items: [] }, QC0, [], true),
-    { label: 'หัวหน้า QC อนุมัติ — ปิดงาน' },
+    { label: 'หัวหน้า QC ออก Final Result — ปิดงาน' },
   );
 });
 
@@ -352,7 +352,7 @@ test('timeline: maps milestone events in order; skips non-milestones', () => {
     'QC บันทึกผล — pH',
     'QC แก้ไขผล — pH',
     'เสร็จสิ้น — รอหัวหน้า QC ยืนยัน',
-    'หัวหน้า QC อนุมัติ — ปิดงาน',
+    'หัวหน้า QC ออก Final Result — ปิดงาน',
   ]);
 });
 

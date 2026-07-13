@@ -12,8 +12,8 @@ export interface LineAudienceMeta {
 // Order here drives the picker + list grouping.
 export const LINE_AUDIENCES: LineAudienceMeta[] = [
   { value: "all", label: "ทุกเหตุการณ์ (รวม)", description: "รับทุก event ของทุกคำขอ — เหมาะกับกลุ่มรวม/แอดมิน" },
-  { value: "qc", label: "QC", description: "คำขอใหม่ · มอบหมาย QC · ตรวจ QC · อนุมัติ/ปิดงาน" },
-  { value: "lab", label: "Lab", description: "มอบหมาย Lab · บันทึกผล Lab · อนุมัติ Lab" },
+  { value: "qc", label: "QC", description: "คำขอใหม่ · มอบหมาย QC · ตรวจ QC · ออก Final Result/ปิดงาน" },
+  { value: "lab", label: "Lab", description: "มอบหมาย Lab · บันทึกผล Lab · ออกผล Lab" },
   { value: "production", label: "แผนกผลิต", description: "แจ้งกลับผู้ยื่น (แผนกผลิต) เมื่อผลออก/ปิดงาน" },
   { value: "rm", label: "แผนก RM", description: "แจ้งกลับผู้ยื่น (วัตถุดิบ) เมื่อผลออก/ปิดงาน" },
   { value: "fg", label: "แผนก FG", description: "แจ้งกลับผู้ยื่น (สินค้าสำเร็จรูป) เมื่อผลออก/ปิดงาน" },
@@ -55,7 +55,7 @@ export const LINE_NOTIFICATIONS: LineNotificationInfo[] = [
   },
   {
     emoji: "🎉",
-    title: "หัวหน้า QC อนุมัติ — ปิดงาน",
+    title: "หัวหน้า QC ออก Final Result — ปิดงาน",
     audiences: ["qc"],
     note: "+ แผนกผู้ยื่นคำขอ",
   },
@@ -67,7 +67,7 @@ export const LINE_NOTIFICATIONS: LineNotificationInfo[] = [
   },
   {
     emoji: "📝",
-    title: "บันทึกผล / อนุมัติรายฝั่ง (Lab หรือ QC)",
+    title: "บันทึกผล / ออกผลรายฝั่ง (Lab หรือ QC)",
     audiences: [],
     note: "ส่งไปเฉพาะฝั่งที่บันทึกผล (Lab หรือ QC)",
   },

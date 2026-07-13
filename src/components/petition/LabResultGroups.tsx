@@ -10,7 +10,7 @@ interface Props {
 
 /**
  * ตารางสรุปผลการทดสอบแบบ read-only (ช่อง/ค่าที่บันทึก/เกณฑ์/สถานะ/หมายเหตุ) ต่อรายการตัวอย่าง.
- * ใช้ร่วมกันระหว่างหน้าอนุมัติผล Lab และ dialog ดูรายละเอียดผล Lab — โครงสร้าง groups มาจาก
+ * ใช้ร่วมกันระหว่างหน้าออกผล Lab และ dialog ดูรายละเอียดผล Lab — โครงสร้าง groups มาจาก
  * buildApprovalGroups (parameters ถูก scope ก่อนส่งเข้ามา ที่นี่แค่ render).
  */
 export default function LabResultGroups({ groups }: Props) {

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  ArrowRight,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -23,9 +22,15 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCanAccessPath } from '@/hooks/useCanAccessPath';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import { usePetitionList } from '@/hooks/usePetition';
-import { isAssignedTo } from '@/lib/assignment';
 import { api, type ParameterItem } from '@/lib/api';
-import { matchParametersForItem, parameterNamesForPetition } from '@/lib/petitionTestItems';
+import { parameterNamesForPetition } from '@/lib/petitionTestItems';
+import {
+  canSeePetition,
+  canUserCreatePetition as canUserCreatePetitionShared,
+  isLabRole,
+  isLabBatchNo,
+  petitionHasLabReadableItem,
+} from '@/lib/petitionVisibility';
 import { normalizeRoles } from '@/lib/roles';
 import { petitionStatusBadge } from '@/lib/statusBadge';
 import { cn } from '@/lib/utils';
@@ -36,16 +41,6 @@ import {
   type Petition,
 } from '@/types/petition.types';
 
-const norm = (value?: string | null) => (value ?? '').trim().toLowerCase();
-
-const RECEIVED_STATUSES = new Set<Petition['status']>([
-  'sampleSent',
-  'pendingReview',
-  'inProgress',
-  'success',
-]);
-
-const LAB_BATCH_LAST_DIGITS = new Set(['1', '6']);
 const PAGE_SIZE = 20;
 
 const SUMMARY_STATUS_GROUPS: Array<{
@@ -65,70 +60,18 @@ const SUMMARY_STATUS_GROUPS: Array<{
   { key: 'rejected', label: 'ส่งกลับแก้ไข', hint: 'คำร้องที่รอผู้ยื่นแก้ไข', statuses: ['rejected'] },
 ];
 
-const isLabBatchNo = (batchNo?: string | null) => {
-  const trimmed = String(batchNo ?? '').trim();
-  return trimmed.length > 0 && LAB_BATCH_LAST_DIGITS.has(trimmed.slice(-1));
-};
-
-const petitionHasLabItems = (petition: Petition) =>
-  petition.items.some((item) => isLabBatchNo(item.batchNo));
-
-const petitionHasLabReadableItem = (
-  petition: Petition,
-  labParams: ParameterItem[],
-  membership?: Map<string, string[]>,
-) =>
-  petition.items.some(
-    (item) =>
-      isLabBatchNo(item.batchNo) &&
-      matchParametersForItem(
-        item,
-        labParams,
-        membership?.get(String(item.sampleId ?? '').trim()) ?? [],
-      ).length > 0,
-  );
-
-function isOwnSubmission(
-  petition: Petition,
-  user: { email?: string; name?: string } | null,
-): boolean {
-  if (!user) return false;
-  const userName = norm(user.name);
-  const submitterName = norm(petition.submittedBy?.name);
-  return !!(userName && submitterName && userName === submitterName);
-}
-
-function isLabRole(role: string): boolean {
-  return role === 'lab' || role.startsWith('lab-') || role.startsWith('lab_');
-}
-
-function isQcRole(role: string): boolean {
-  return role === 'qc' || role.startsWith('qc-') || role.startsWith('qc_');
-}
-
-function canSeePetition(
-  petition: Petition,
-  user: { email?: string; name?: string; employeeId?: string; role?: string; roles?: string[] } | null,
-): boolean {
-  if (!user) return false;
-  const roles = normalizeRoles(user);
-  if (isOwnSubmission(petition, user)) return true;
-  if (isAssignedTo(petition.assignedTo, user)) return true;
-  if (RECEIVED_STATUSES.has(petition.status)) {
-    if (roles.some(isLabRole) && petitionHasLabItems(petition)) return true;
-    if (roles.some(isQcRole)) return true;
-  }
-  return false;
-}
-
 export function canUserCreatePetition(
   user: { role?: string; roles?: string[] } | null | undefined,
   canAccessNewPetition: boolean,
 ): boolean {
-  if (!canAccessNewPetition) return false;
-  const roles = normalizeRoles(user).map((role) => role.toLowerCase());
-  return roles.length > 0 && roles.some((role) => role !== 'viewer');
+  return canUserCreatePetitionShared(user, canAccessNewPetition);
 }
+
+export type PetitionListPageProps = {
+  petitionDetailPath?: (petition: Petition) => string;
+  title?: string;
+  description?: string;
+};
 
 function petitionMetaLine(petition: Petition) {
   return [
@@ -141,14 +84,6 @@ function petitionMetaLine(petition: Petition) {
   ]
     .filter(Boolean)
     .join(' • ');
-}
-
-function petitionActionLabel(petition: Petition) {
-  if (petition.status === 'sampleSent' || petition.status === 'pendingReview') return petition.assignedTo ? 'ดูผู้รับงาน' : 'Assign ผู้รับงาน';
-  if (petition.status === 'rejected') return 'ดูเหตุผล';
-  if (petition.status === 'approved' || petition.status === 'success') return 'ดูสรุปผล';
-  if (petition.status === 'inProgress') return 'ดูความคืบหน้า';
-  return 'ดูรายละเอียด';
 }
 
 function displayPerson(name?: string | null) {
@@ -174,7 +109,11 @@ function petitionNextStepText(petition: Petition) {
   return 'สิ่งที่ต้องทำ: ตรวจสอบรายละเอียดคำร้อง';
 }
 
-export default function PetitionListPage() {
+export default function PetitionListPage({
+  petitionDetailPath = (petition) => `/petitions/${petition._id}`,
+  title = 'รายการคำร้อง',
+  description = 'ดูคำร้องทั้งหมดและงานที่ต้องดำเนินการต่อ',
+}: PetitionListPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -314,8 +253,8 @@ export default function PetitionListPage() {
     <AppLayout>
       <div className="space-y-4">
         <PageHeader
-          title="รายการคำร้อง"
-          description="ดูคำร้องทั้งหมดและงานที่ต้องดำเนินการต่อ"
+          title={title}
+          description={description}
           actions={
             canCreatePetition ? (
               <Button onClick={() => navigate('/petitions/new')}>
@@ -485,7 +424,7 @@ export default function PetitionListPage() {
                 return (
                   <Card
                     key={petition._id}
-                    onOpen={() => navigate(`/petitions/${petition._id}`)}
+                    onOpen={() => navigate(petitionDetailPath(petition))}
                     className="w-full rounded-2xl border-black-50 p-4 text-left transition hover:border-primary-200 hover:bg-grey-50/40"
                   >
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -516,13 +455,6 @@ export default function PetitionListPage() {
                         </div>
 
                         <PetitionStatusTimeline petition={petition} compact />
-                      </div>
-
-                      <div className="flex items-center gap-2 self-start lg:pl-4">
-                        <span className="inline-flex h-9 items-center gap-2 rounded-md border border-primary-200 bg-white px-3 text-sm font-medium text-primary-600">
-                          {petitionActionLabel(petition)}
-                          <ArrowRight className="h-4 w-4" />
-                        </span>
                       </div>
                     </div>
                   </Card>

@@ -13,6 +13,7 @@ import PrivateRoute from "@/components/PrivateRoute";
 import RoutePointerLockGuard from "@/components/RoutePointerLockGuard";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
 import EmployeeLinkGate from "@/components/lis/EmployeeLinkGate";
+import { RouteLoading } from "@/components/RouteLoading";
 
 // Route-level code splitting: each page is its own chunk, loaded on demand.
 // Keeps the initial bundle to the app shell + only the landing route.
@@ -51,6 +52,8 @@ const StandardTimePage = lazy(() => import("./pages/StandardTimePage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ScannerPage = lazy(() => import("./pages/ScannerPage"));
 const PetitionListPage = lazy(() => import("./pages/PetitionListPage"));
+const PetitionTimelinePage = lazy(() => import("./pages/PetitionTimelinePage"));
+const PetitionTimelineDetailPage = lazy(() => import("./pages/PetitionTimelineDetailPage"));
 const PetitionNewPage = lazy(() => import("./pages/PetitionNewPage"));
 const ProductionIntegrationPetitionNewPage = lazy(() => import("./pages/petitions/ProductionIntegrationPetitionNewPage"));
 const PetitionDetailPage = lazy(() => import("./pages/PetitionDetailPage"));
@@ -62,12 +65,6 @@ const QCTestingDetailPage = lazy(() => import("./pages/QCTestingDetailPage"));
 const LabTestingPage = lazy(() => import("./pages/LabTestingPage"));
 const LabTestingDetailPage = lazy(() => import("./pages/LabTestingDetailPage"));
 const DensityResultPage = lazy(() => import('./pages/DensityResultPage'));
-
-const RouteFallback = () => (
-  <div className="flex min-h-screen items-center justify-center">
-    <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
-  </div>
-);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -100,7 +97,7 @@ const App = () => (
           <NotificationProvider>
             <DailyCheckReminderWatcher />
             <SampleProvider>
-              <Suspense fallback={<RouteFallback />}>
+              <Suspense fallback={<RouteLoading />}>
               <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/scanner" element={<ScannerPage />} />
@@ -142,6 +139,8 @@ const App = () => (
               <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
               <Route path="/parameter-settings" element={<PrivateRoute><ParameterSettings /></PrivateRoute>} />
               <Route path="/petitions" element={<PrivateRoute><PetitionListPage /></PrivateRoute>} />
+              <Route path="/petition-timeline" element={<PrivateRoute><PetitionTimelinePage /></PrivateRoute>} />
+              <Route path="/petition-timeline/:id" element={<PrivateRoute><PetitionTimelineDetailPage /></PrivateRoute>} />
               <Route path="/adutuilog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
               <Route path="/auditlog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
               <Route path="/petitions/assign" element={<PrivateRoute><PetitionAssignPage /></PrivateRoute>} />

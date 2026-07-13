@@ -84,7 +84,7 @@ const QUEUE_CONFIG: Record<QueueMode, QueueConfig> = {
   },
   qc: {
     title: "QC Queue",
-    subtitle: "รายการคำขอสำหรับติดตาม ตรวจสอบ และอนุมัติผล QC",
+    subtitle: "รายการคำขอสำหรับติดตาม ตรวจสอบ และออก Final Result",
     accent: "bg-primary-600 text-white",
     icon: ShieldCheck,
     groups: [
@@ -107,7 +107,7 @@ const QUEUE_CONFIG: Record<QueueMode, QueueConfig> = {
       {
         id: "done",
         title: "เรียบร้อยแล้ว",
-        subtitle: "อนุมัติผลแล้ว",
+        subtitle: "ออกผลแล้ว",
         statuses: ["success"],
         icon: CheckCircle2,
         tone: "border-emerald-200 bg-emerald-50 text-emerald-700",

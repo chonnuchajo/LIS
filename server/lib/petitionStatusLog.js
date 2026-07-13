@@ -103,7 +103,7 @@ function buildCurrent(petition, qc, fieldLabels, labDone) {
   const status = petition.status;
 
   // --- terminal / pre-receive states: single label, no tracks ---
-  if (status === 'approved') return { label: 'หัวหน้า QC อนุมัติ — ปิดงาน' };
+  if (status === 'approved') return { label: 'หัวหน้า QC ออก Final Result — ปิดงาน' };
   if (status === 'rejected') return { label: 'ส่งกลับให้แก้ไข' };
   if (status === 'success') return { label: 'เสร็จสิ้น — รอหัวหน้า QC ยืนยัน', side: 'qc' };
 
@@ -210,7 +210,7 @@ function timelineLabel(log, petition) {
     case 'statusChanged':
       if (log.toStatus === 'sampleSent') return 'ส่งตัวอย่าง';
       if (log.toStatus === 'success') return 'เสร็จสิ้น — รอหัวหน้า QC ยืนยัน';
-      if (log.toStatus === 'approved') return 'หัวหน้า QC อนุมัติ — ปิดงาน';
+      if (log.toStatus === 'approved') return 'หัวหน้า QC ออก Final Result — ปิดงาน';
       if (log.toStatus === 'rejected') return 'ส่งกลับให้แก้ไข';
       return null; // other status transitions are not milestones
     default:

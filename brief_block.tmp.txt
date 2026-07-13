@@ -1,0 +1,77 @@
+const { buildStatsSection, percentile } = require('./execSummary');
+
+describe('percentile', () => {
+  it('takes the nearest-rank value so p90 of ten samples is the ninth', () => {
+    expect(percentile([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 0.9)).toBe(9);
+  });
+
+  it('returns null for an empty sample set', () => {
+    expect(percentile([], 0.9)).toBeNull();
+  });
+});
+
+describe('buildStatsSection', () => {
+  const closed = [
+    {
+      _id: 'd1', petitionNo: 'P-D1', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-11T00:00:00.000Z',
+      sampleSentAt: '2026-07-11T00:00:00.000Z',
+      qcReceivedAt: '2026-07-11T01:00:00.000Z',   // รอรับ 60 นาที
+      qcCompletedAt: '2026-07-11T03:00:00.000Z',  // ทดสอบ 120 นาที
+      approvedAt: '2026-07-11T04:00:00.000Z',     // รอ final 60 นาที
+      assignedTo: { name: 'สมชาย', assignedAt: '2026-07-11T01:00:00.000Z' },
+    },
+    {
+      _id: 'd2', petitionNo: 'P-D2', dept: 'fg', status: 'approved',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-12T00:00:00.000Z',
+      sampleSentAt: '2026-07-12T00:00:00.000Z',
+      qcReceivedAt: '2026-07-12T03:00:00.000Z',   // รอรับ 180 นาที
+      qcCompletedAt: '2026-07-12T04:00:00.000Z',  // ทดสอบ 60 นาที
+      approvedAt: '2026-07-12T05:00:00.000Z',
+      revisionOf: 'old-one',                      // ใบนี้เป็นงานทำใหม่
+    },
+  ];
+
+  const opts = {
+    now: Date.parse('2026-07-13T10:00:00.000Z'),
+    days: 7,
+    abnormalFlags: { d1: true, d2: false },
+    qcTesterNames: { d1: ['สมหญิง'], d2: ['สมหญิง'] },
+  };
+
+  it('averages each stage across the closed petitions', () => {
+    const { turnaround } = buildStatsSection(closed, opts);
+    const receive = turnaround.find((t) => t.stage === 'waitingReceive');
+    expect(receive.avgMin).toBe(120); // (60 + 180) / 2
+    expect(receive.count).toBe(2);
+    const qcTesting = turnaround.find((t) => t.stage === 'qcTesting');
+    expect(qcTesting.avgMin).toBe(90); // (120 + 60) / 2
+  });
+
+  it('reports one throughput row per day in the window, newest last', () => {
+    const { throughput } = buildStatsSection(closed, opts);
+    expect(throughput).toHaveLength(7);
+    expect(throughput.at(-1).date).toBe('2026-07-13');
+    expect(throughput.find((d) => d.date === '2026-07-11')).toEqual({ date: '2026-07-11', created: 1, completed: 1 });
+  });
+
+  it('derives abnormal and rework rates from the closed set', () => {
+    const { quality } = buildStatsSection(closed, opts);
+    expect(quality).toEqual({ closed: 2, abnormal: 1, abnormalRate: 0.5, reworked: 1, reworkRate: 0.5 });
+  });
+
+  it('splits workload between the Lab assignee and the QC testers', () => {
+    const { workload } = buildStatsSection(closed, opts);
+    expect(workload.lab).toEqual([{ name: 'สมชาย', completed: 1, avgMinutes: 240 }]);
+    expect(workload.qc).toEqual([{ name: 'สมหญิง', completed: 2, avgMinutes: 90 }]);
+  });
+
+  it('returns empty structures when nothing closed in the window', () => {
+    const { turnaround, quality, workload } = buildStatsSection([], opts);
+    expect(turnaround.every((t) => t.count === 0 && t.avgMin === null)).toBe(true);
+    expect(quality).toEqual({ closed: 0, abnormal: 0, abnormalRate: 0, reworked: 0, reworkRate: 0 });
+    expect(workload).toEqual({ lab: [], qc: [] });
+  });
+});

@@ -37,14 +37,14 @@ function itemsSummary(petition) {
 function petitionStatusText(petition) {
   const s = petition?.status;
   if (s === 'success') return 'ตรวจครบทุกส่วน — รอหัวหน้า QC ยืนยัน';
-  if (s === 'approved') return 'อนุมัติแล้ว — ปิดงาน';
+  if (s === 'approved') return 'ออก Final Result แล้ว — ปิดงาน';
   if (s === 'rejected') return 'ถูกส่งกลับให้แก้ไข';
   if (petition?.qcCompletedAt && petition?.labCompletedAt && !petition?.labApprovedAt) {
-    return 'ตรวจครบแล้ว · รอหัวหน้า Lab อนุมัติ';
+    return 'รอตรวจ';
   }
   if (petition?.qcCompletedAt) return 'QC ตรวจครบ · รอส่วนอื่น';
-  if (petition?.labApprovedAt) return 'Lab อนุมัติแล้ว · รอ QC';
-  if (petition?.labCompletedAt) return 'Lab ตรวจครบ · รออนุมัติ';
+  if (petition?.labApprovedAt) return 'ผล Lab ออกแล้ว · รอ QC';
+  if (petition?.labCompletedAt) return 'รอออกผล';
   if (s === 'inProgress') return 'กำลังตรวจ';
   if (s === 'pendingReview') return 'รับตัวอย่างแล้ว';
   if (s === 'sampleSent') return 'ส่งตัวอย่างแล้ว — รอรับ';
@@ -111,7 +111,7 @@ function describeEvent(petition, payload) {
           text = `✅ ${no} ตรวจครบทุกส่วนแล้ว — รอหัวหน้า QC ยืนยัน`;
           break;
         case 'approved':
-          text = `🎉 ${no} หัวหน้า QC อนุมัติ — ปิดงานแล้ว`;
+          text = `🎉 ${no} หัวหน้า QC ออก Final Result — ปิดงานแล้ว`;
           break;
         case 'rejected':
           text = `⛔ ${no} ถูกส่งกลับให้แก้ไข${payload?.note ? `\nเหตุผล: ${payload.note}` : ''}`;

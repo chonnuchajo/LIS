@@ -3,19 +3,37 @@ import {
 } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { assignedWeekdayData, statusDonutData, pipelineStages } from "@/lib/dashboardMetrics";
+import {
+  assignedWeekdayData, statusDonutData, pipelineStages, type WeekdayWorkloadBasis,
+} from "@/lib/dashboardMetrics";
 import type { WorkflowKind } from "@/lib/dashboardProfiles";
 import type { Petition } from "@/types/petition.types";
 
-export default function WorkflowSummary({ kind, petitions }: { kind: WorkflowKind; petitions: Petition[] }) {
+const TITLES: Record<WorkflowKind, string> = {
+  statusDonut: "สรุป Workflow",
+  pipeline: "สรุป Workflow",
+  assignedWeekdayBar: "งานรายสัปดาห์",
+};
+
+export default function WorkflowSummary({
+  kind,
+  petitions,
+  now,
+  weekdayBasis = "labAssigned",
+}: {
+  kind: WorkflowKind;
+  petitions: Petition[];
+  now: number;
+  weekdayBasis?: WeekdayWorkloadBasis;
+}) {
   return (
     <Card>
-      <CardHeader className="pb-2"><CardTitle className="text-base">สรุป Workflow</CardTitle></CardHeader>
+      <CardHeader className="pb-2"><CardTitle className="text-base">{TITLES[kind]}</CardTitle></CardHeader>
       <CardContent>
         {kind === "statusDonut" ? (
           <StatusDonut petitions={petitions} />
         ) : kind === "assignedWeekdayBar" ? (
-          <AssignedWeekdayBar petitions={petitions} />
+          <AssignedWeekdayBar petitions={petitions} now={now} basis={weekdayBasis} />
         ) : (
           <PipelineBar petitions={petitions} />
         )}
@@ -70,8 +88,16 @@ function PipelineBar({ petitions }: { petitions: Petition[] }) {
   );
 }
 
-function AssignedWeekdayBar({ petitions }: { petitions: Petition[] }) {
-  const data = assignedWeekdayData(petitions);
+function AssignedWeekdayBar({
+  petitions,
+  now,
+  basis,
+}: {
+  petitions: Petition[];
+  now: number;
+  basis: WeekdayWorkloadBasis;
+}) {
+  const data = assignedWeekdayData(petitions, now, basis);
   if (data.every((d) => d.count === 0)) return <Empty />;
   return (
     <ChartContainer config={{ count: { label: "จำนวน", color: "hsl(var(--primary))" } }} className="h-[220px] w-full">

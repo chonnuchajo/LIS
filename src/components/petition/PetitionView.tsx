@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  PETITION_DEPT_LABELS,
   isLabBatch,
   type Petition,
   type QCTestResult,
@@ -134,41 +133,6 @@ export default function PetitionView({ petition: p }: Props) {
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">ข้อมูลคำขอ</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <Field label="ผู้ยื่นคำขอ" value={p.submittedBy?.name} />
-          <Field label="แผนกผู้ยื่น" value={p.submittedBy?.department} />
-          <Field
-            label="วัน-เวลาที่ส่งคำร้อง"
-            value={
-              p.submittedBy?.submittedAt
-                ? new Date(p.submittedBy.submittedAt).toLocaleString('th-TH', {
-                    dateStyle: 'medium',
-                    timeStyle: 'short',
-                  })
-                : '-'
-            }
-          />
-          <Field label="แผนก" value={<Badge variant="blue-soft">{PETITION_DEPT_LABELS[p.dept]}</Badge>} />
-          <Field label="เลขที่คำร้อง" value={p.petitionNo} />
-          <Field label="ผู้นำส่ง" value={p.deliveredBy?.name ?? p.submittedBy?.name} />
-          <Field
-            label="วันที่นำส่ง"
-            value={
-              p.sampleSentAt
-                ? new Date(p.sampleSentAt).toLocaleString('th-TH', {
-                    dateStyle: 'medium',
-                    timeStyle: 'short',
-                  })
-                : '-'
-            }
-          />
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle>รายการตัวอย่าง ({p.items.length})</CardTitle>

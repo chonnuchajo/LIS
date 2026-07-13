@@ -45,7 +45,10 @@ export default function ActionTable({
   const now = Date.now();
   const firstTs = (p: Petition) => p.sampleSentAt ?? p.receivedAt ?? p.createdAt;
   const rows = sortRows
-    ? [...petitions].sort((a, b) => (ageHours(firstTs(b), now) ?? 0) - (ageHours(firstTs(a), now) ?? 0))
+    ? [...petitions].sort((a, b) => {
+      const urgency = Number(urgentIds.has(b._id)) - Number(urgentIds.has(a._id));
+      return urgency || (ageHours(firstTs(b), now) ?? 0) - (ageHours(firstTs(a), now) ?? 0);
+    })
     : petitions;
 
   return (
@@ -60,7 +63,6 @@ export default function ActionTable({
               <TableRow>
                 <TableHead>คำร้อง</TableHead>
                 <TableHead className="hidden sm:table-cell">ผู้ขอ</TableHead>
-                <TableHead className="text-center">ตย.</TableHead>
                 <TableHead>ขั้นตอน</TableHead>
                 <TableHead>ความสำคัญ</TableHead>
                 <TableHead className="text-right">อายุงาน</TableHead>
@@ -70,7 +72,7 @@ export default function ActionTable({
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
                     {emptyMessage ?? "ไม่มีรายการที่ต้องดำเนินการ"}
                   </TableCell>
                 </TableRow>
@@ -90,7 +92,6 @@ export default function ActionTable({
                       <div className="text-[11px] text-muted-foreground">{PETITION_DEPT_LABELS[p.dept]}</div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell text-sm">{p.submittedBy?.name ?? "-"}</TableCell>
-                    <TableCell className="text-center tabular-nums">{p.items.length}</TableCell>
                     <TableCell><Badge variant={status?.variant ?? "gray-soft"}>{status?.label}</Badge></TableCell>
                     <TableCell>
                       {urgent

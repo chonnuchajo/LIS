@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   ageHours, isSameLocalDay, countByStatus, statusDonutData, deptWorkloadData,
-  normalDonutData, requestTrendData, completedIn, computeKpi,
-  buildLabWorklist, buildQcStaffWorklist, labWorklistCounts, qcStaffWorklistCounts,
+  normalDonutData, requestTrendData, completedIn, computeKpi, prioritizeUrgentPetitions,
+  buildLabHeadWorklist, buildLabWorklist, buildQcStaffWorklist,
+  labHeadAnalystWorkloadData, labHeadWorklistCounts, labWorklistCounts, qcStaffWorklistCounts,
   paginateLabWorklist, assignedWeekdayData,
   labInventorySummaryData, deductionTrendData,
   simpleMethodCoverageData, standardTimeCoverageData,
@@ -284,8 +285,8 @@ describe("Lab Data Config coverage pies", () => {
 describe("computeKpi", () => {
   const ctx: MetricsCtx = {
     petitions: [
-      pet({ _id: "a", status: "inProgress" }),
-      pet({ _id: "b", status: "success", completedAt: new Date(NOW).toISOString() }),
+      pet({ _id: "a", status: "inProgress", priority: 1 }),
+      pet({ _id: "b", status: "success", completedAt: new Date(NOW).toISOString(), priority: 0 }),
       pet({ _id: "c", status: "sampleSent" }),
     ],
     now: NOW,
@@ -327,6 +328,16 @@ describe("computeKpi", () => {
   });
   it("normalRateApprox = round(100*(1-abnormal/total))", () => {
     expect(computeKpi("normalRateApprox", ctx).value).toBe(67); // 1 abnormal of 3
+  });
+  it("counts only priority-one petitions as urgent", () => {
+    expect(computeKpi("urgentTotal", ctx).value).toBe(1);
+  });
+  it("moves priority-one petitions ahead without changing their existing order", () => {
+    expect(prioritizeUrgentPetitions([
+      pet({ _id: "normal-old", priority: 0 }),
+      pet({ _id: "urgent-later", priority: 1 }),
+      pet({ _id: "urgent-first", priority: 1 }),
+    ]).map((petition) => petition._id)).toEqual(["urgent-later", "urgent-first", "normal-old"]);
   });
 });
 
@@ -488,7 +499,58 @@ describe("lab analyze worklist helpers", () => {
     expect(paginateLabWorklist([], 1)).toEqual({ pageRows: [], page: 1, totalPages: 1, total: 0 });
   });
 
-  it("assignedWeekdayData shows Monday-Saturday by default and Sunday only when assigned", () => {
+  it("assignedWeekdayData counts Lab assigned work only inside the current local week", () => {
+    const monday = pet({
+      _id: "mon",
+      assignedTo: { employeeId: "E1", name: "A", assignedAt: new Date(2026, 6, 6, 9).toISOString() },
+    });
+    const previousSunday = pet({
+      _id: "previous-sun",
+      assignedTo: { employeeId: "E1", name: "A", assignedAt: new Date(2026, 6, 5, 9).toISOString() },
+    });
+    const noAssignee = pet({
+      _id: "no-assignee",
+      assignedTo: null,
+      createdAt: new Date(2026, 6, 6, 10).toISOString(),
+    });
+
+    const rows = assignedWeekdayData([monday, previousSunday, noAssignee], NOW, "labAssigned");
+
+    expect(rows.map((d) => [d.key, d.count])).toEqual([
+      ["mon", 1],
+      ["tue", 0],
+      ["wed", 0],
+      ["thu", 0],
+      ["fri", 0],
+      ["sat", 0],
+    ]);
+  });
+
+  it("assignedWeekdayData counts QC work by sampleSentAt in the current local week", () => {
+    const sentTuesday = pet({
+      _id: "qc-tue",
+      sampleSentAt: new Date(2026, 6, 7, 10).toISOString(),
+      assignedTo: { employeeId: "E1", name: "A", assignedAt: new Date(2026, 5, 30, 9).toISOString() },
+    });
+    const fallbackCreated = pet({
+      _id: "qc-fallback",
+      assignedTo: null,
+      createdAt: new Date(2026, 6, 8, 11).toISOString(),
+    });
+    const previousWeek = pet({
+      _id: "qc-old",
+      sampleSentAt: new Date(2026, 6, 5, 10).toISOString(),
+      createdAt: new Date(2026, 6, 5, 10).toISOString(),
+    });
+
+    const rows = assignedWeekdayData([sentTuesday, fallbackCreated, previousWeek], NOW, "qcSampleSent");
+
+    expect(rows.find((d) => d.key === "tue")?.count).toBe(1);
+    expect(rows.find((d) => d.key === "wed")?.count).toBe(1);
+    expect(rows.find((d) => d.key === "sun")).toBeUndefined();
+  });
+
+  it("assignedWeekdayData shows Sunday only when current-week Sunday has data", () => {
     const monday = pet({
       _id: "mon",
       assignedTo: { employeeId: "E1", name: "A", assignedAt: new Date(2026, 6, 6, 9).toISOString() },
@@ -498,8 +560,103 @@ describe("lab analyze worklist helpers", () => {
       assignedTo: { employeeId: "E1", name: "A", assignedAt: new Date(2026, 6, 12, 9).toISOString() },
     });
 
-    expect(assignedWeekdayData([monday]).map((d) => d.key)).toEqual(["mon", "tue", "wed", "thu", "fri", "sat"]);
-    expect(assignedWeekdayData([monday, sunday]).map((d) => d.key)).toEqual(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
-    expect(assignedWeekdayData([monday, sunday]).find((d) => d.key === "sun")?.count).toBe(1);
+    expect(assignedWeekdayData([monday], NOW, "labAssigned").map((d) => d.key))
+      .toEqual(["mon", "tue", "wed", "thu", "fri", "sat"]);
+    expect(assignedWeekdayData([monday, sunday], NOW, "labAssigned").map((d) => d.key))
+      .toEqual(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]);
+    expect(assignedWeekdayData([monday, sunday], NOW, "labAssigned").find((d) => d.key === "sun")?.count)
+      .toBe(1);
+  });
+});
+
+describe("lab head dashboard helpers", () => {
+  const todayEarly = new Date(2026, 6, 6, 8).toISOString();
+  const todayLate = new Date(2026, 6, 6, 14).toISOString();
+  const yesterday = new Date(2026, 6, 5, 10).toISOString();
+  const thisWeek = new Date(2026, 6, 8, 9).toISOString();
+  const lastMonth = new Date(2026, 5, 30, 9).toISOString();
+
+  const list = [
+    pet({ _id: "waiting-receive", status: "sampleSent", assignedTo: null, sampleSentAt: todayEarly, createdAt: todayEarly }),
+    pet({
+      _id: "assigned-waiting-receive",
+      status: "sampleSent",
+      assignedTo: { employeeId: "E4", name: "Analyst D", assignedAt: todayLate },
+      sampleSentAt: todayLate,
+    }),
+    pet({ _id: "waiting-assign", status: "pendingReview", assignedTo: null, labReceivedAt: todayEarly, createdAt: todayEarly }),
+    pet({
+      _id: "assigned-working",
+      status: "inProgress",
+      assignedTo: { employeeId: "E1", name: "Analyst A", assignedAt: todayLate },
+      labReceivedAt: todayLate,
+    }),
+    pet({
+      _id: "waiting-approval",
+      status: "inProgress",
+      assignedTo: { employeeId: "E2", name: "Analyst B", assignedAt: yesterday },
+      labReceivedAt: yesterday,
+      labCompletedAt: todayLate,
+    }),
+    pet({
+      _id: "approved-today",
+      status: "inProgress",
+      assignedTo: { employeeId: "E1", name: "Analyst A", assignedAt: yesterday },
+      labCompletedAt: todayEarly,
+      labApprovedAt: todayLate,
+    }),
+    pet({
+      _id: "closed",
+      status: "approved",
+      assignedTo: { employeeId: "E3", name: "Analyst C", assignedAt: todayLate },
+      labCompletedAt: todayLate,
+      labApprovedAt: todayLate,
+    }),
+    pet({ _id: "old-unassigned", status: "pendingReview", assignedTo: null, createdAt: yesterday }),
+  ];
+
+  it("filters lab head worklist by all, waiting receive, waiting assign, waiting approval, and completed today", () => {
+    expect(buildLabHeadWorklist(list, "all", NOW).map((p) => p._id))
+      .toEqual(["waiting-approval", "assigned-waiting-receive", "assigned-working", "waiting-receive", "waiting-assign", "old-unassigned"]);
+    expect(buildLabHeadWorklist(list, "waitingReceive", NOW).map((p) => p._id))
+      .toEqual(["assigned-waiting-receive"]);
+    expect(buildLabHeadWorklist(list, "pendingAssign", NOW).map((p) => p._id))
+      .toEqual(["waiting-receive"]);
+    expect(buildLabHeadWorklist(list, "pendingApproval", NOW).map((p) => p._id))
+      .toEqual(["waiting-approval"]);
+    expect(buildLabHeadWorklist(list, "completedToday", NOW).map((p) => p._id))
+      .toEqual(["waiting-approval", "closed", "approved-today"]);
+  });
+
+  it("counts the same buckets that the lab head KPI row drives", () => {
+    expect(labHeadWorklistCounts(list, NOW)).toEqual({
+      all: 6,
+      waitingReceive: 1,
+      pendingAssign: 1,
+      pendingApproval: 1,
+      completedToday: 3,
+    });
+  });
+
+  it("groups analyst workload by selected local period", () => {
+    const rows = [
+      pet({ _id: "a-today", assignedTo: { employeeId: "E1", name: "Analyst A", assignedAt: todayEarly } }),
+      pet({ _id: "a-today-2", assignedTo: { employeeId: "E1", name: "Analyst A", assignedAt: todayLate } }),
+      pet({ _id: "b-week", assignedTo: { employeeId: "E2", name: "Analyst B", assignedAt: thisWeek } }),
+      pet({ _id: "c-last-month", assignedTo: { employeeId: "E3", name: "Analyst C", assignedAt: lastMonth } }),
+      pet({ _id: "no-assignee", assignedTo: null }),
+    ];
+
+    expect(labHeadAnalystWorkloadData(rows, NOW, "today")).toEqual([
+      { name: "Analyst A", count: 2 },
+    ]);
+    expect(labHeadAnalystWorkloadData(rows, NOW, "weekly")).toEqual([
+      { name: "Analyst A", count: 2 },
+      { name: "Analyst B", count: 1 },
+    ]);
+    expect(labHeadAnalystWorkloadData(rows, NOW, "monthly")).toEqual([
+      { name: "Analyst A", count: 2 },
+      { name: "Analyst B", count: 1 },
+    ]);
   });
 });

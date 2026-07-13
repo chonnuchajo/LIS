@@ -51,7 +51,7 @@ const asStr = (v: unknown) => (v == null ? "" : String(v));
 
 /**
  * แปลง petition + parameters (scope qc) + ผลที่บันทึก → โครงสร้างแถวสรุปแบบ read-only
- * สำหรับหน้าอนุมัติ. คงตรรกะ match/expand/abnormal/conditional ให้ตรงกับหน้ากรอกผล.
+ * สำหรับหน้าออกผล. คงตรรกะ match/expand/abnormal/conditional ให้ตรงกับหน้ากรอกผล.
  */
 export function buildApprovalGroups(
   petition: Petition,

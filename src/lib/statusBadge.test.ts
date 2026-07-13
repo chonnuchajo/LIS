@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { petitionExceptionScore, petitionStatusBadge, petitionStatusSteps, statusBadge, toneBadge } from "./statusBadge";
+import { hasLabTrack, petitionExceptionScore, petitionStatusBadge, petitionStatusSteps, statusBadge, toneBadge } from "./statusBadge";
 import type { Petition } from "@/types/petition.types";
 
 describe("statusBadge", () => {
@@ -44,8 +44,43 @@ describe("petitionStatusBadge", () => {
       qcCompletedAt: "2026-07-02",
       labCompletedAt: "2026-07-02",
     } as Petition);
-    expect(b.label).toBe("ตรวจครบแล้ว · รอหัวหน้า Lab อนุมัติ");
+    expect(b.label).toBe("รอตรวจ");
     expect(b.variant).toBe("yellow-soft");
+  });
+
+  it("shows pending results when Lab testing is complete", () => {
+    const b = petitionStatusBadge({
+      status: "inProgress",
+      labCompletedAt: "2026-07-02",
+    } as Petition);
+    expect(b.label).toBe("รอออกผล");
+    expect(b.variant).toBe("yellow-soft");
+  });
+});
+
+describe("hasLabTrack", () => {
+  it("returns false for a QC-only petition", () => {
+    expect(
+      hasLabTrack({
+        status: "inProgress",
+        items: [{ seq: 1, sampleName: "S", batchNo: "B-2" }],
+      } as Petition),
+    ).toBe(false);
+  });
+
+  it("returns true for a petition with a Lab batch", () => {
+    expect(
+      hasLabTrack({
+        status: "inProgress",
+        items: [{ seq: 1, sampleName: "S", batchNo: "B-1" }],
+      } as Petition),
+    ).toBe(true);
+  });
+
+  it("keeps legacy petitions with a Lab timestamp on the Lab track", () => {
+    expect(
+      hasLabTrack({ status: "inProgress", labReceivedAt: "2026-07-13T00:00:00.000Z" } as Petition),
+    ).toBe(true);
   });
 });
 

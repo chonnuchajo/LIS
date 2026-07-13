@@ -64,7 +64,7 @@ export default function KpiMetricWidgetCard({
       onOpen={onClick}
       aria-pressed={interactive ? Boolean(active) : undefined}
       className={cn(
-        "group relative col-span-2 w-full overflow-hidden rounded-xl border-border/70 bg-card p-4 text-left",
+        "group relative md:col-span-2 w-full overflow-hidden rounded-xl border-border/70 bg-card p-4 text-left",
         "shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_28px_-22px_rgba(15,23,42,0.32)]",
         "transition-all before:absolute before:inset-x-0 before:top-0 before:h-1",
         classes.line,

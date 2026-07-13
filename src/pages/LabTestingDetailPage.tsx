@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   FlaskConical,
@@ -109,6 +109,10 @@ function describeStandard(field: ParameterValueField): string {
   }
 }
 
+function formatLabLabelToleranceRange(rv: ReturnType<typeof resolveLabelTolerance>, unit: string): string {
+  return formatLabelToleranceRange(rv, unit).replace(/^หัวหน้าตรวจสอบ/, 'เกณฑ์กลาง');
+}
+
 interface TestFieldProps {
   field: ParameterValueField;
   item: PetitionItem;
@@ -129,6 +133,7 @@ interface TestFieldProps {
   provenance?: ValueProvenance;
   onPull?: (reading: InstrumentReading) => void;
   outputResult?: ResolvedOutput | null;
+  headerMeta?: ReactNode;
 }
 
 function TestField({
@@ -149,6 +154,7 @@ function TestField({
   provenance,
   onPull,
   outputResult,
+  headerMeta,
 }: TestFieldProps) {
   const strVal = value == null ? '' : String(value);
   const strNote = noteValue == null ? '' : String(noteValue);
@@ -160,12 +166,18 @@ function TestField({
 
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <label className="text-sm font-medium text-grey-700">
           {field.label}
           {field.unit && <span className="text-grey-400 font-normal ml-1">({field.unit})</span>}
           {field.required && !readOnly && <span className="text-red-500 ml-1">*</span>}
         </label>
+        {headerMeta}
+        {!readOnly && saveInfo?.state === 'saved' && saveInfo.savedBy && (
+          <span className="text-xs text-grey-400">
+            กรอกโดย {saveInfo.savedBy} เมื่อ {formatTime(saveInfo.savedAt)}
+          </span>
+        )}
         {isAbnormal && (
           <span
             className="inline-flex items-center"
@@ -330,11 +342,6 @@ function TestField({
         </div>
       )}
 
-      {!readOnly && saveInfo?.state === 'saved' && saveInfo.savedBy && (
-        <p className="text-xs text-grey-400">
-          กรอกโดย {saveInfo.savedBy} เมื่อ {formatTime(saveInfo.savedAt)}
-        </p>
-      )}
       {!readOnly && saveInfo?.state === 'error' && (
         <p className="text-xs text-red-400">บันทึกไม่สำเร็จ</p>
       )}
@@ -848,7 +855,7 @@ export default function LabTestingDetailPage() {
       toast.success(
         updated.status === 'success'
           ? 'บันทึกผล Lab เรียบร้อย — ส่งให้หัวหน้า QC ยืนยัน'
-          : 'บันทึกผล Lab เรียบร้อย — รอหัวหน้า Lab อนุมัติ',
+          : 'บันทึกผล Lab เรียบร้อย — รอหัวหน้า Lab ออกผล',
       );
       navigate('/lab-testing');
     } catch (e) {
@@ -1135,6 +1142,15 @@ export default function LabTestingDetailPage() {
                               const provenance = scalarExtras
                                 ? parseProvenance(srcValues[sourceLabel])
                                 : undefined;
+                              const labelToleranceInfo = unit.labelTolerance
+                                ? (() => {
+                                    const rv = resolveLabelTolerance(unit.labelTolerance.std, unit.labelTolerance.rawSpec, srcValues[unit.key]);
+                                    return {
+                                      criteriaText: formatLabLabelToleranceRange(rv, unit.field.unit ?? ''),
+                                      badge: labelToleranceBadge(rv.status, rv.center),
+                                    };
+                                  })()
+                                : null;
                               return (
                                 <div key={unit.key}>
                                   <TestField
@@ -1174,17 +1190,21 @@ export default function LabTestingDetailPage() {
                                     conditionalPending={isOutputMode ? false : (!!unit.field.conditionalMode && !resolved)}
                                     resolvedStandardText={isOutputMode ? undefined : resolvedStandardText}
                                     outputResult={outputResult}
+                                    headerMeta={
+                                      labelToleranceInfo?.criteriaText ? (
+                                        <span className="text-xs text-muted-foreground">
+                                          {labelToleranceInfo.criteriaText}
+                                        </span>
+                                      ) : undefined
+                                    }
                                   />
-                                  {unit.labelTolerance && (() => {
-                                    const rv = resolveLabelTolerance(unit.labelTolerance.std, unit.labelTolerance.rawSpec, srcValues[unit.key]);
-                                    const badge = labelToleranceBadge(rv.status, rv.center);
-                                    return (
-                                      <div className="mt-1 space-y-0.5">
-                                        <p className="text-xs text-muted-foreground">{formatLabelToleranceRange(rv, unit.field.unit ?? '')}</p>
-                                        {badge && <span className={`inline-block rounded border px-1.5 py-0.5 text-[11px] ${badge.cls}`}>{badge.text}</span>}
-                                      </div>
-                                    );
-                                  })()}
+                                  {labelToleranceInfo?.badge && (
+                                    <div className="mt-1">
+                                      <span className={`inline-block rounded border px-1.5 py-0.5 text-[11px] ${labelToleranceInfo.badge.cls}`}>
+                                        {labelToleranceInfo.badge.text}
+                                      </span>
+                                    </div>
+                                  )}
                                   {beforeRef != null && beforeRef !== '' ? (
                                     <p className="text-[10px] text-grey-400 mt-0.5">
                                       ก่อน: <span className="font-mono">{String(beforeRef)}</span>
@@ -1348,6 +1368,15 @@ export default function LabTestingDetailPage() {
                                 : undefined;
                               const isOutputMode = unit.field.conditionalMode && unit.field.conditionalResult === 'output';
                               const outputResult = isOutputMode ? resolveConditionalOutput(unit.field, condCtx) : null;
+                              const labelToleranceInfo = unit.labelTolerance
+                                ? (() => {
+                                    const rv = resolveLabelTolerance(unit.labelTolerance.std, unit.labelTolerance.rawSpec, srcValues[unit.key]);
+                                    return {
+                                      criteriaText: formatLabLabelToleranceRange(rv, unit.field.unit ?? ''),
+                                      badge: labelToleranceBadge(rv.status, rv.center),
+                                    };
+                                  })()
+                                : null;
 
                               if (unit.field.multiple) {
                                 const arr = readMultiple(srcValues, unit.key);
@@ -1394,17 +1423,21 @@ export default function LabTestingDetailPage() {
                                     conditionalPending={isOutputMode ? false : (!!unit.field.conditionalMode && !resolved)}
                                     resolvedStandardText={isOutputMode ? undefined : resolvedStandardText}
                                     outputResult={outputResult}
+                                    headerMeta={
+                                      labelToleranceInfo?.criteriaText ? (
+                                        <span className="text-xs text-muted-foreground">
+                                          {labelToleranceInfo.criteriaText}
+                                        </span>
+                                      ) : undefined
+                                    }
                                   />
-                                  {unit.labelTolerance && (() => {
-                                    const rv = resolveLabelTolerance(unit.labelTolerance.std, unit.labelTolerance.rawSpec, srcValues[unit.key]);
-                                    const badge = labelToleranceBadge(rv.status, rv.center);
-                                    return (
-                                      <div className="mt-1 space-y-0.5">
-                                        <p className="text-xs text-muted-foreground">{formatLabelToleranceRange(rv, unit.field.unit ?? '')}</p>
-                                        {badge && <span className={`inline-block rounded border px-1.5 py-0.5 text-[11px] ${badge.cls}`}>{badge.text}</span>}
-                                      </div>
-                                    );
-                                  })()}
+                                  {labelToleranceInfo?.badge && (
+                                    <div className="mt-1">
+                                      <span className={`inline-block rounded border px-1.5 py-0.5 text-[11px] ${labelToleranceInfo.badge.cls}`}>
+                                        {labelToleranceInfo.badge.text}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             };
@@ -1540,12 +1573,12 @@ export default function LabTestingDetailPage() {
           </div>
         )}
 
-        {/* รอหัวหน้า Lab อนุมัติ */}
+        {/* รอหัวหน้า Lab ออกผล */}
         {labItems.length > 0 && petition.labCompletedAt && !petition.labApprovedAt && (
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex flex-col items-center gap-3">
             <div className="flex flex-col items-center gap-1">
               <CheckCircle2 className="h-6 w-6 text-amber-500" />
-              <p className="text-sm font-semibold text-amber-700">บันทึกผลแล้ว — รอหัวหน้า Lab อนุมัติ</p>
+              <p className="text-sm font-semibold text-amber-700">บันทึกผลแล้ว — รอหัวหน้า Lab ออกผล</p>
               {abnormalCount > 0 && (
                 <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
                   <AlertTriangle className="h-3.5 w-3.5" />คำร้องนี้มีค่าผิดปกติ {abnormalCount} รายการ
@@ -1555,11 +1588,11 @@ export default function LabTestingDetailPage() {
           </div>
         )}
 
-        {/* Lab อนุมัติแล้ว */}
+        {/* ผล Lab ออกแล้ว */}
         {petition.labApprovedAt && (
           <div className="rounded-lg border border-green-200 bg-green-50 p-4 flex flex-col items-center gap-2">
             <CheckCircle2 className="h-6 w-6 text-green-500" />
-            <p className="text-sm font-semibold text-green-700">Lab อนุมัติแล้ว</p>
+            <p className="text-sm font-semibold text-green-700">ผล Lab ออกแล้ว</p>
             {petition.labApprovedBy && <p className="text-xs text-gray-500">โดย {petition.labApprovedBy}</p>}
           </div>
         )}

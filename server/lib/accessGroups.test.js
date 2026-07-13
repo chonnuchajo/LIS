@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { findOrphanBackfillPaths } = require('./accessGroups');
+const { findGroupForBackfill, findOrphanBackfillPaths } = require('./accessGroups');
 
 // Root cause regression guard for the "can't move Simple Method between groups"
 // bug: ensureGroups() used to force /simple-method (+ /machines) back into the
@@ -35,4 +35,29 @@ test('tolerates groups with missing or null paths arrays', () => {
     '/simple-method',
     '/machines',
   ]);
+});
+
+test('findOrphanBackfillPaths detects petition timeline paths only when unclaimed', () => {
+  const groups = [{ id: 'samples', paths: ['/petitions'] }];
+  assert.deepStrictEqual(findOrphanBackfillPaths(groups, ['/petition-timeline', '/petition-timeline/:id']), [
+    '/petition-timeline',
+    '/petition-timeline/:id',
+  ]);
+});
+
+test('findOrphanBackfillPaths adds only the missing timeline detail path', () => {
+  const groups = [{ id: 'samples', paths: ['/petition-timeline'] }];
+  assert.deepStrictEqual(findOrphanBackfillPaths(groups, ['/petition-timeline', '/petition-timeline/:id']), [
+    '/petition-timeline/:id',
+  ]);
+});
+
+test('findGroupForBackfill prefers the anchor path owner and falls back to a group id', () => {
+  const groups = [
+    { id: 'legacy-home', paths: ['/home', '/petitions'] },
+    { id: 'stock', paths: ['/stock'] },
+    { id: 'samples', paths: ['/physical-inspection'] },
+  ];
+  assert.strictEqual(findGroupForBackfill(groups, 'samples', '/petitions'), 'legacy-home');
+  assert.strictEqual(findGroupForBackfill(groups, 'stock', '/missing-anchor'), 'stock');
 });

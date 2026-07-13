@@ -810,7 +810,7 @@ export default function QCTestingDetailPage() {
     );
   }
 
-  // คำร้องที่บันทึกผลแล้ว (รออนุมัติ) ย้ายไปหน้าอนุมัติเฉพาะ — กันคนหลงเข้าฟอร์มที่ถูก lock
+  // คำร้องที่บันทึกผลแล้ว (รอออกผล) ย้ายไปหน้าออกผลเฉพาะ — กันคนหลงเข้าฟอร์มที่ถูก lock
   if (petition.status === "success") {
     return <Navigate to={`/qc-approval/${petition._id}`} replace />;
   }
@@ -1573,7 +1573,7 @@ export default function QCTestingDetailPage() {
           <p className={`text-sm font-semibold ${
             petition.status === 'approved' ? 'text-green-700' : 'text-red-700'
           }`}>
-            {petition.status === 'approved' ? 'อนุมัติแล้ว' : 'ส่งกลับให้แก้ไขแล้ว'}
+            {petition.status === 'approved' ? 'ออก Final Result แล้ว' : 'ส่งกลับให้แก้ไขแล้ว'}
           </p>
         </div>
       )}

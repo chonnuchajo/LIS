@@ -28,7 +28,7 @@ export default function DailyCheckProgressCard({ done, pending, total, loading =
           : `Daily Check ยังไม่ได้ทำ ${pending} รายการ ทำแล้ว ${done} จาก ${total} รายการ`
       }
       className={cn(
-        "group relative col-span-2 w-full overflow-hidden rounded-xl border-border/70 bg-card p-4 text-left",
+        "group relative md:col-span-2 w-full overflow-hidden rounded-xl border-border/70 bg-card p-4 text-left",
         "shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_28px_-22px_rgba(15,23,42,0.32)]",
         "transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_28px_-18px_rgba(15,23,42,0.35)]",
         "before:absolute before:inset-x-0 before:top-0 before:h-1",

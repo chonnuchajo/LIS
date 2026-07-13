@@ -96,6 +96,17 @@ router.get('/', async (req, res) => {
         { 'items.batchNo': rx },
       ];
     }
+
+    // ?ids=a,b,c → ดึงเฉพาะใบที่ระบุ (ใช้โดยการไฮไลท์จากแดชบอร์ด) — ไม่แบ่งหน้า
+    const idsRaw = String(req.query.ids || '').trim();
+    if (idsRaw) {
+      const ids = idsRaw.split(',').map((s) => s.trim()).filter((s) => mongoose.isValidObjectId(s));
+      if (ids.length === 0) return res.json({ items: [], total: 0, page: 1, limit: 0 });
+      const docs = await Petition.find({ _id: { $in: ids } }).sort({ createdAt: -1 });
+      const items = docs.map((doc) => doc.toObject());
+      return res.json({ items, total: items.length, page: 1, limit: items.length });
+    }
+
     if (req.query.awaitingLabApproval === 'true') {
       q.labCompletedAt = { $ne: null };
       q.labApprovedAt = null;
@@ -119,6 +130,107 @@ router.get('/', async (req, res) => {
       items.push(doc.toObject());
     }
     res.json({ items, total, page, limit });
+  } catch (err) {
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
+const { buildLiveSection, buildStatsSection } = require('../lib/execSummary');
+const { buildQcParamBaseline } = require('../lib/qcParamBaseline');
+const { computeAbnormalFlags } = require('../lib/abnormalFlags');
+
+const EXEC_DAYS_ALLOWED = [7, 30, 90];
+const EXEC_CACHE_MS = 60 * 1000;
+const QC_BASELINE_CACHE_MS = 10 * 60 * 1000;
+const QC_BASELINE_LOOKBACK_DAYS = 180;
+const execCache = new Map();   // days → { at, payload }
+let qcBaselineCache = null;    // { at, value } — ค่าเฉลี่ยย้อนหลัง 180 วัน ไม่ต้อง real-time
+
+// ค่าเฉลี่ยเวลา QC ต่อ parameter สแกนงานย้อนหลัง 180 วัน จึงแพงเกินกว่าจะคิดใหม่ทุกนาที
+async function loadQcBaseline(now) {
+  if (qcBaselineCache && now - qcBaselineCache.at < QC_BASELINE_CACHE_MS) return qcBaselineCache.value;
+
+  const baselineStart = new Date(now - QC_BASELINE_LOOKBACK_DAYS * 86400000);
+  const baselineDocs = await Petition.find({ qcCompletedAt: { $gte: baselineStart } }, {
+    items: 1, qcReceivedAt: 1, qcCompletedAt: 1, receivedAt: 1, labReceivedAt: 1,
+  }).lean();
+
+  const baselineIds = baselineDocs.map((p) => String(p._id));
+  const baselineResults = baselineIds.length
+    ? await QCTestResult.find(
+      { petitionId: { $in: baselineIds } },
+      { petitionId: 1, parameterId: 1, parameterName: 1, commonName: 1 },
+    ).lean()
+    : [];
+
+  const value = buildQcParamBaseline(baselineDocs, baselineResults);
+  qcBaselineCache = { at: now, value };
+  return value;
+}
+
+// GET /api/petitions/exec-summary?days=7|30|90 — ตัวเลขสำหรับแดชบอร์ดผู้บริหาร
+router.get('/exec-summary', async (req, res) => {
+  try {
+    const requested = Number(req.query.days);
+    const days = EXEC_DAYS_ALLOWED.includes(requested) ? requested : 30;
+
+    const cached = execCache.get(days);
+    const now = Date.now();
+    if (cached && now - cached.at < EXEC_CACHE_MS) return res.json(cached.payload);
+
+    const windowStart = new Date(now - days * 86400000);
+
+    const [openDocs, closedDocs, qcBaseline] = await Promise.all([
+      // งานที่ยังไม่ปิด — ไม่จำกัดช่วงเวลา เพราะงานค้างเก่าคือสิ่งที่หัวหน้าต้องเห็นที่สุด
+      Petition.find({ approvedAt: null, status: { $nin: ['approved', 'rejected'] } }).lean(),
+      Petition.find({ approvedAt: { $gte: windowStart } }).lean(),
+      loadQcBaseline(now),
+    ]);
+
+    // abnormal flags ใช้สูตรเดียวกับ badge ในหน้ารายการ (lib เดียวกัน)
+    // ดึง QCTestResult ครั้งเดียวสำหรับทั้ง flagIds — projection พก enteredBy/updatedBy
+    // มาด้วยเพื่อสร้าง qcTesterNames จากผลชุดเดียวกัน ไม่ query ซ้ำ
+    const flagIds = [...openDocs, ...closedDocs].map((p) => String(p._id));
+    const flagResults = flagIds.length
+      ? await QCTestResult.find(
+        { petitionId: { $in: flagIds } },
+        {
+          petitionId: 1, parameterId: 1, itemSeq: 1, commonName: 1, values: 1, entries: 1,
+          enteredBy: 1, updatedBy: 1,
+        },
+      ).lean()
+      : [];
+    const paramIds = Array.from(new Set(flagResults.map((d) => String(d.parameterId))));
+    const params = paramIds.length
+      ? await Parameter.find({ _id: { $in: paramIds } }, { valueFields: 1, multiEntry: 1 }).lean()
+      : [];
+    const abnormalFlags = computeAbnormalFlags({
+      docs: flagResults,
+      params,
+      petitions: [...openDocs, ...closedDocs],
+    });
+
+    // ผู้บันทึกผล QC ต่อใบ — ตรรกะเดียวกับ /qc-results/testers (ผู้แก้ล่าสุดคือเจ้าของ)
+    // credit เฉพาะใบในช่วงปิด (closedDocs) — ไม่รวมงานค้างที่ยังเปิดอยู่
+    const qcTesterNames = {};
+    const closedIdSet = new Set(closedDocs.map((p) => String(p._id)));
+    for (const row of flagResults) {
+      if (!closedIdSet.has(row.petitionId)) continue;
+      qcTesterNames[row.petitionId] ??= [];
+      const name = row.updatedBy?.name || row.enteredBy?.name;
+      if (!name) continue;
+      if (!qcTesterNames[row.petitionId].includes(name)) qcTesterNames[row.petitionId].push(name);
+    }
+
+    const payload = {
+      generatedAt: new Date(now).toISOString(),
+      days,
+      live: buildLiveSection(openDocs, { now, qcBaseline, abnormalFlags }),
+      stats: buildStatsSection(closedDocs, { now, days, abnormalFlags, qcTesterNames }),
+    };
+
+    execCache.set(days, { at: now, payload });
+    res.json(payload);
   } catch (err) {
     res.status(500).json({ error: { message: err.message } });
   }
@@ -386,17 +498,17 @@ router.post('/:id/complete', async (req, res) => {
   }
 });
 
-// POST /api/petitions/:id/lab-approve  → หัวหน้า Lab อนุมัติผล Lab. success เกิดเมื่อครบทุก track.
+// POST /api/petitions/:id/lab-approve  → หัวหน้า Lab ออกผล Lab. success เกิดเมื่อครบทุก track.
 router.post('/:id/lab-approve', async (req, res) => {
   try {
     const actor = req.body?.actor || 'system';
     const doc = await Petition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
     if (['success', 'approved', 'rejected'].includes(doc.status)) {
-      return res.status(409).json({ error: { message: 'คำร้องนี้ผ่านขั้น Lab อนุมัติแล้ว' } });
+      return res.status(409).json({ error: { message: 'คำร้องนี้ผ่านขั้นออกผล Lab แล้ว' } });
     }
     if (!doc.labCompletedAt) return badRequest(res, 'ผู้ทดสอบ Lab ยังไม่ได้บันทึกผล');
-    if (doc.labApprovedAt) return badRequest(res, 'Lab อนุมัติไปแล้ว');
+    if (doc.labApprovedAt) return badRequest(res, 'ออกผล Lab ไปแล้ว');
 
     const now = new Date();
     doc.labApprovedAt = now;
@@ -410,13 +522,13 @@ router.post('/:id/lab-approve', async (req, res) => {
       await doc.save();
       logAudit(doc, {
         event: 'statusChanged', fromStatus: prevStatus, toStatus: 'success', actor,
-        note: 'หัวหน้า Lab อนุมัติ — ครบทุกส่วน รอหัวหน้า QC อนุมัติ', metadata: { side: 'lab' },
+        note: 'หัวหน้า Lab ออกผล — ครบทุกส่วน รอหัวหน้า QC ออก Final Result', metadata: { side: 'lab' },
       });
     } else {
       await doc.save();
       logAudit(doc, {
         event: 'updated', toStatus: doc.status, actor,
-        note: 'หัวหน้า Lab อนุมัติ — รอ QC ตรวจให้ครบ', metadata: { side: 'lab' },
+        note: 'หัวหน้า Lab ออกผล — รอ QC ตรวจให้ครบ', metadata: { side: 'lab' },
       });
     }
     res.json(doc);
@@ -740,7 +852,7 @@ router.patch('/:id', async (req, res) => {
     // Approve transition: success → approved (conclusion = pass | accepted-oos)
     if (updates.status === 'approved') {
       if (before.status !== 'success') {
-        return res.status(409).json({ error: { message: 'อนุมัติได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
+        return res.status(409).json({ error: { message: 'ออก Final Result ได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
       }
       const conclusion = ['pass', 'accepted-oos'].includes(req.body.conclusion)
         ? req.body.conclusion
@@ -764,7 +876,7 @@ router.patch('/:id', async (req, res) => {
         fromStatus: 'success',
         toStatus: 'approved',
         actor: actor || 'system',
-        note: conclusion === 'accepted-oos' ? 'ยอมรับผลไม่ปกติ' : 'อนุมัติคำร้อง (ผลถูกต้อง)',
+        note: conclusion === 'accepted-oos' ? 'ยอมรับผลไม่ปกติ' : 'ออก Final Result (ผลถูกต้อง)',
         metadata: { conclusion },
       });
       return res.json(before);

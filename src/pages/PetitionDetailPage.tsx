@@ -55,6 +55,7 @@ import type { QCTestResult } from '@/types/petition.types';
 import { findSgParameter, type SgParameter } from '@/lib/formSpecificGravity';
 import { buildApprovalGroups } from '@/lib/qcApprovalRows';
 import { buildLaLisAssistant, type LaLisIssue } from '@/lib/laLisAssistant';
+import { canPrintSampleLabel, canPrintPreReport } from '@/lib/petitionPrintability';
 import { cn } from '@/lib/utils';
 import StickyActionBar from '@/components/lis/StickyActionBar';
 
@@ -363,10 +364,12 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                   title={isResultMode ? `ผลวิเคราะห์ ${data.petitionNo}` : data.petitionNo}
                   actions={
                     <>
-                      {isResultMode ? null : <Button variant="primary-outline" size="sm" onClick={() => setLabelPrintOpen(true)}>
-                        <Printer className="h-4 w-4" />
-                        พิมพ์ฉลาก
-                      </Button>}
+                      {!isResultMode && canPrintSampleLabel(data) && (
+                        <Button variant="primary-outline" size="sm" onClick={() => setLabelPrintOpen(true)}>
+                          <Printer className="h-4 w-4" />
+                          พิมพ์ฉลาก
+                        </Button>
+                      )}
                       {!isResultMode && hasLabRequests && (
                         <Button
                           variant="primary-outline"
@@ -377,14 +380,16 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                           พิมพ์ใบคำขอรับบริการ
                         </Button>
                       )}
-                      <Button
-                        variant="primary-outline"
-                        size="sm"
-                        onClick={() => setPreReportOpen(true)}
-                      >
-                        <FileText className="h-4 w-4" />
-                        Pre Report
-                      </Button>
+                      {canPrintPreReport(data) && (
+                        <Button
+                          variant="primary-outline"
+                          size="sm"
+                          onClick={() => setPreReportOpen(true)}
+                        >
+                          <FileText className="h-4 w-4" />
+                          Pre Report
+                        </Button>
+                      )}
                       {data.status === 'approved' && (
                         <Button
                           variant="primary-outline"
@@ -437,12 +442,39 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                         <p className="mt-1 text-sm text-black-500">{data.submittedBy?.name ?? '-'}</p>
                       </div>
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-grey-500">วันที่ยื่น</p>
+                        <p className="text-xs uppercase tracking-wide text-grey-500">แผนกผู้ยื่น</p>
+                        <p className="mt-1 text-sm text-black-500">{data.submittedBy?.department ?? '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-grey-500">วัน-เวลาที่ส่งคำร้อง</p>
                         <p className="mt-1 text-sm text-black-500">
-                          {new Date(data.createdAt).toLocaleString('th-TH', {
+                          {new Date(data.submittedBy?.submittedAt ?? data.createdAt).toLocaleString('th-TH', {
                             dateStyle: 'medium',
                             timeStyle: 'short',
                           })}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-grey-500">แผนก</p>
+                        <div className="mt-1">
+                          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[data.dept]}</Badge>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-grey-500">ผู้นำส่ง</p>
+                        <p className="mt-1 text-sm text-black-500">
+                          {data.deliveredBy?.name ?? data.submittedBy?.name ?? '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-grey-500">วันที่นำส่ง</p>
+                        <p className="mt-1 text-sm text-black-500">
+                          {data.sampleSentAt
+                            ? new Date(data.sampleSentAt).toLocaleString('th-TH', {
+                                dateStyle: 'medium',
+                                timeStyle: 'short',
+                              })
+                            : '-'}
                         </p>
                       </div>
                     </CardContent>

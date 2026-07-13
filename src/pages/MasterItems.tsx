@@ -2057,6 +2057,7 @@ function MasterItemDialog({
   const [unitOptions, setUnitOptions] = useState(defaultUnitOptions);
   const [busy, setBusy] = useState(false);
   const isEdit = !!item;
+  const readOnlyCommonName = item ? formString(firstValue(item, commonNameKeys)) : "";
   const addUnitOption = (option: string) => {
     setUnitOptions((current) => current.includes(option) ? current : [...current, option]);
   };

@@ -233,10 +233,10 @@ const QCApproval = () => {
           title={
             <span className="inline-flex items-center gap-2">
               <ShieldCheck className="w-6 h-6" />
-              QC Approval
+              ออก Final Result
             </span>
           }
-          description={`ตรวจสอบและอนุมัติผลการทดสอบจาก QC · ${sortedPetitions.length} รายการรออนุมัติ`}
+          description={`ตรวจสอบและออก Final Result จากผลการทดสอบ QC · ${sortedPetitions.length} รายการรอออกผล`}
         />
 
         <DataTable
@@ -245,7 +245,7 @@ const QCApproval = () => {
           rowKey={(p) => p._id}
           isLoading={petitionLoading}
           onRowClick={(p) => navigate(`/qc-approval/${p._id}`)}
-          emptyTitle="ไม่มีคำร้องที่รออนุมัติ"
+          emptyTitle="ไม่มีคำร้องที่รอออก Final Result"
           tableClassName="min-w-[700px]"
         />
       </div>
