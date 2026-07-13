@@ -188,11 +188,16 @@ router.get('/exec-summary', async (req, res) => {
     ]);
 
     // abnormal flags ใช้สูตรเดียวกับ badge ในหน้ารายการ (lib เดียวกัน)
+    // ดึง QCTestResult ครั้งเดียวสำหรับทั้ง flagIds — projection พก enteredBy/updatedBy
+    // มาด้วยเพื่อสร้าง qcTesterNames จากผลชุดเดียวกัน ไม่ query ซ้ำ
     const flagIds = [...openDocs, ...closedDocs].map((p) => String(p._id));
     const flagResults = flagIds.length
       ? await QCTestResult.find(
         { petitionId: { $in: flagIds } },
-        { petitionId: 1, parameterId: 1, itemSeq: 1, commonName: 1, values: 1, entries: 1 },
+        {
+          petitionId: 1, parameterId: 1, itemSeq: 1, commonName: 1, values: 1, entries: 1,
+          enteredBy: 1, updatedBy: 1,
+        },
       ).lean()
       : [];
     const paramIds = Array.from(new Set(flagResults.map((d) => String(d.parameterId))));
@@ -206,18 +211,14 @@ router.get('/exec-summary', async (req, res) => {
     });
 
     // ผู้บันทึกผล QC ต่อใบ — ตรรกะเดียวกับ /qc-results/testers (ผู้แก้ล่าสุดคือเจ้าของ)
+    // credit เฉพาะใบในช่วงปิด (closedDocs) — ไม่รวมงานค้างที่ยังเปิดอยู่
     const qcTesterNames = {};
-    for (const row of flagResults) qcTesterNames[row.petitionId] ??= [];
-    const testerDocs = flagIds.length
-      ? await QCTestResult.find(
-        { petitionId: { $in: closedDocs.map((p) => String(p._id)) } },
-        { petitionId: 1, enteredBy: 1, updatedBy: 1 },
-      ).lean()
-      : [];
-    for (const row of testerDocs) {
+    const closedIdSet = new Set(closedDocs.map((p) => String(p._id)));
+    for (const row of flagResults) {
+      if (!closedIdSet.has(row.petitionId)) continue;
+      qcTesterNames[row.petitionId] ??= [];
       const name = row.updatedBy?.name || row.enteredBy?.name;
       if (!name) continue;
-      qcTesterNames[row.petitionId] ??= [];
       if (!qcTesterNames[row.petitionId].includes(name)) qcTesterNames[row.petitionId].push(name);
     }
 
