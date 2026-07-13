@@ -4,6 +4,22 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import KpiRow from "./KpiRow";
 import type { MetricsCtx } from "@/lib/dashboardMetrics";
+import type { KpiId } from "@/lib/dashboardProfiles";
+import DailyCheckProgressCard from "./DailyCheckProgressCard";
+
+const KPI_IDS: KpiId[] = [
+  "urgentTotal",
+  "usersTotal",
+  "usersActive",
+  "rolesTotal",
+  "activeTotal",
+  "dailyCheckPending",
+  "assignedToMe",
+  "inProgress",
+  "completedToday",
+  "methodGaps",
+  "masterItemsTotal",
+];
 
 const ctx: MetricsCtx = {
   petitions: [],
@@ -42,6 +58,24 @@ const ctx: MetricsCtx = {
 };
 
 describe("KpiRow", () => {
+  it.each([
+    [5, "md:grid-cols-3"],
+    [6, "md:grid-cols-3"],
+    [7, "md:grid-cols-4"],
+    [8, "md:grid-cols-4"],
+    [9, "md:grid-cols-3"],
+    [10, "md:grid-cols-4"],
+    [11, "md:grid-cols-4"],
+  ] as const)("uses the requested desktop grid for %i cards", (count, gridClass) => {
+    const { container } = render(
+      <MemoryRouter>
+        <KpiRow kpis={KPI_IDS.slice(0, count)} ctx={ctx} />
+      </MemoryRouter>,
+    );
+
+    expect(container.firstElementChild).toHaveClass("grid-cols-2", gridClass);
+  });
+
   it("renders widget cards three per row and can place extra cards after the first KPI", () => {
     const { container } = render(
       <MemoryRouter>
@@ -55,7 +89,7 @@ describe("KpiRow", () => {
           ]}
           ctx={ctx}
           presentation="widgets"
-          extraCards={<div data-testid="daily-check-card">Daily Check</div>}
+          extraCards={<DailyCheckProgressCard done={4} pending={2} total={6} />}
           extraCardsAfter={1}
         />
       </MemoryRouter>,
@@ -74,6 +108,11 @@ describe("KpiRow", () => {
     expect(childText[3]).toContain("รอ assign");
     expect(childText[4]).toContain("รอรับ");
     expect(childText[5]).toContain("รอออกผล");
+
+    expect(grid?.children[0]).toHaveClass("md:col-span-2");
+    expect(grid?.children[0]).not.toHaveClass("col-span-2");
+    expect(grid?.children[1]).toHaveClass("md:col-span-2");
+    expect(grid?.children[1]).not.toHaveClass("col-span-2");
   });
 
   it("keeps widget rows with four or fewer cards on the compact grid", () => {
@@ -89,8 +128,8 @@ describe("KpiRow", () => {
     );
 
     const grid = container.firstElementChild;
-    expect(grid).toHaveClass("md:grid-cols-4");
-    expect(grid).toHaveClass("xl:grid-cols-8");
+    expect(grid).toHaveClass("md:grid-cols-8");
+    expect(grid).not.toHaveClass("md:grid-cols-4");
     expect(grid).not.toHaveClass("md:grid-cols-6");
   });
 });

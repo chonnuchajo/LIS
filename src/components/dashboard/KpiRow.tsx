@@ -19,6 +19,18 @@ const WIDGET_CAPTIONS: Partial<Record<KpiId, string>> = {
   approvedToday: "วันนี้",
 };
 
+function usesThreeDesktopColumns(cardCount: number) {
+  return cardCount === 5 || cardCount === 6 || cardCount === 9;
+}
+
+function gridClassFor(presentation: "default" | "widgets", cardCount: number) {
+  const threeColumns = usesThreeDesktopColumns(cardCount);
+  if (presentation === "widgets") {
+    return threeColumns ? "grid-cols-2 md:grid-cols-6" : "grid-cols-2 md:grid-cols-8";
+  }
+  return threeColumns ? "grid-cols-2 md:grid-cols-3" : "grid-cols-2 md:grid-cols-4";
+}
+
 function DeltaBadge({ delta }: { delta: number }) {
   if (delta === 0) return <span className="text-muted-foreground">±0 เทียบเมื่อวาน</span>;
   const up = delta > 0;
@@ -96,17 +108,13 @@ export default function KpiRow({
   const extraCardsIndex = extraCardsAfter === undefined
     ? renderedKpis.length
     : Math.max(0, Math.min(extraCardsAfter, renderedKpis.length));
-  const usesThreeCardRows = presentation === "widgets" && renderedKpis.length + (extraCards ? 1 : 0) > 4;
+  const totalCards = renderedKpis.length + (extraCards ? 1 : 0);
 
   return (
     <div
       className={cn(
         "mb-4 grid gap-3",
-        presentation === "widgets"
-          ? usesThreeCardRows
-            ? "grid-cols-2 md:grid-cols-6"
-            : "grid-cols-2 md:grid-cols-4 xl:grid-cols-8"
-          : "grid-cols-2 md:grid-cols-3 xl:grid-cols-6",
+        gridClassFor(presentation, totalCards),
       )}
     >
       {renderedKpis.slice(0, extraCardsIndex)}
