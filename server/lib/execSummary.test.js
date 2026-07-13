@@ -246,6 +246,76 @@ describe('openWorkUnits', () => {
       .filter((u) => u.track === 'lab');
     expect(labUnit.stage).toBe('waitingLabApprove');
   });
+
+  // --- CRITICAL regression: the QC "shared wait" de-dup guard was left keyed to
+  // the OLD "first missing timestamp" premise (labTrack && !labReceived) after the
+  // Lab track was switched to a furthest-progress reverse walk. Once Lab's stage
+  // can be waitingLabApprove/labTesting/nothing-at-all while labReceivedAt is still
+  // null, that guard's premise ("Lab must have emitted waitingReceive") is false,
+  // and it wrongly swallows QC's own, genuinely distinct waitingReceive unit — in
+  // the worst case (Lab fully approved) the petition emits NO unit at all and
+  // disappears from the entire live dashboard.
+
+  it('emits a qc/waitingReceive unit (petition not absent) when Lab is already approved but QC has not received', () => {
+    // Lab track is fully done (labApprovedAt set) — its branch emits NOTHING.
+    // QC has not received the sample at all (no qcReceivedAt, no qcCompletedAt).
+    // Under the old guard this petition emitted ZERO work units and vanished.
+    const petition = {
+      _id: 'crit1', petitionNo: 'P-CRIT1', dept: 'fg', status: 'inProgress', items: [labItem],
+      sampleSentAt: hoursAgo(10),
+      // labReceivedAt / qcReceivedAt intentionally absent — never scanned
+      labApprovedAt: hoursAgo(1),
+      // qcCompletedAt intentionally absent
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    expect(units).toHaveLength(1);
+    expect(units[0].track).toBe('qc');
+    expect(units[0].stage).toBe('waitingReceive');
+  });
+
+  it('emits BOTH lab/labTesting and qc/waitingReceive when Lab is assigned and mid-testing but QC has not received', () => {
+    // Lab is mid-testing (assignedAt set, labReceivedAt still null — a receive scan
+    // that was never recorded) so its branch emits labTesting, NOT waitingReceive.
+    // QC's own receive lag must therefore surface as its own unit, not be
+    // suppressed as if it were the same shared wait Lab already reported.
+    const petition = {
+      _id: 'crit2', petitionNo: 'P-CRIT2', dept: 'fg', status: 'inProgress', items: [labItem],
+      sampleSentAt: hoursAgo(6),
+      assignedTo: { name: 'ก', assignedAt: hoursAgo(6) },
+      assignedMachines: [{ estimatedMinutes: 999 }],
+      // labReceivedAt / qcReceivedAt intentionally absent
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    expect(units.map((u) => `${u.track}/${u.stage}`).sort()).toEqual(['lab/labTesting', 'qc/waitingReceive']);
+  });
+
+  it('emits BOTH lab/waitingLabApprove and qc/waitingReceive when Lab has finished testing but QC has not received', () => {
+    const petition = {
+      _id: 'crit3', petitionNo: 'P-CRIT3', dept: 'fg', status: 'inProgress', items: [labItem],
+      sampleSentAt: hoursAgo(20),
+      labCompletedAt: hoursAgo(2),
+      // labReceivedAt / qcReceivedAt / labApprovedAt intentionally absent
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    expect(units.map((u) => `${u.track}/${u.stage}`).sort()).toEqual(['lab/waitingLabApprove', 'qc/waitingReceive']);
+  });
+
+  // --- Finding 2: the live waitingFinal Math.max must be gated on the petition
+  // actually having a Lab track, mirroring stageDurations' finalResultStart — a
+  // QC-only petition carrying a stray, later labApprovedAt must still be measured
+  // from qcCompletedAt alone, or the live tile disagrees with the stats bar.
+
+  it('measures the live waitingFinal unit from qcCompletedAt alone for a QC-only petition, even with a stray later labApprovedAt', () => {
+    const petition = {
+      _id: 'crit4', petitionNo: 'P-CRIT4', dept: 'fg', status: 'success', items: [qcItem],
+      qcReceivedAt: hoursAgo(6), qcCompletedAt: hoursAgo(2),
+      labApprovedAt: hoursAgo(1), // stray — this petition has no Lab track at all
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    expect(units).toHaveLength(1);
+    expect(units[0].stage).toBe('waitingFinal');
+    expect(units[0].elapsedMin).toBe(120); // from qcCompletedAt (2h ago), NOT labApprovedAt (1h ago)
+  });
 });
 
 describe('bottleneckCounts', () => {

@@ -108,6 +108,18 @@ function openWorkUnits(petitions, { now, qcBaseline }) {
     // timestamp. Real petitions have gaps (e.g. a receive scan that was never
     // recorded) even after later stages completed — see P-2606-0010, where
     // labReceivedAt is null but labApprovedAt proves the Lab track is done.
+    //
+    // labEmittedWaitingReceive tracks — directly, not re-derived — whether THIS
+    // branch actually produced a Lab waitingReceive unit. The QC track below reads
+    // this flag (not a proxy like "labTrack && !labReceived") to decide whether the
+    // shared "nobody has received it yet" wait was already reported once by Lab.
+    // Re-deriving the condition let the two drift apart before (see Finding 1):
+    // once Lab's furthest-progress walk could land on labTesting/waitingLabApprove/
+    // nothing-at-all while labReceivedAt was still null, "labTrack && !labReceived"
+    // stopped meaning "Lab reported the shared wait" and started wrongly suppressing
+    // QC's own, distinct waitingReceive unit — in the worst case (Lab already
+    // approved) the petition emitted NO unit at all and vanished from the dashboard.
+    let labEmittedWaitingReceive = false;
     if (labTrack) {
       if (labApproved) {
         // Lab track done — nothing to emit.
@@ -123,7 +135,10 @@ function openWorkUnits(petitions, { now, qcBaseline }) {
         units.push(unit(petition, 'lab', 'pendingAssign', elapsed, null, state));
       } else {
         const elapsed = minutesSince(petition.sampleSentAt, now);
-        if (elapsed != null) units.push(unit(petition, 'lab', 'waitingReceive', elapsed, null, 'ok'));
+        if (elapsed != null) {
+          units.push(unit(petition, 'lab', 'waitingReceive', elapsed, null, 'ok'));
+          labEmittedWaitingReceive = true;
+        }
       }
     }
 
@@ -136,21 +151,30 @@ function openWorkUnits(petitions, { now, qcBaseline }) {
       units.push(unit(petition, 'qc', 'qcTesting', elapsed, qcBaselineMinutes(petition, qcBaseline)));
     } else {
       // The "nobody has received it yet" wait is shared across tracks — suppress the
-      // QC copy only while Lab is ALSO still waiting (Lab's unit already reports it).
-      // Once Lab has received and QC hasn't, this is a distinct, QC-only lag (Lab and
-      // QC receive independently via PATCH /petitions/:id/receive side=lab|qc) and
-      // must get its own unit — otherwise a stuck QC receive is invisible.
-      const sharedWaitAlreadyReported = labTrack && !labReceived;
+      // QC copy only when Lab's own branch ABOVE actually emitted that shared unit
+      // (labEmittedWaitingReceive). Any other Lab stage (labTesting, waitingLabApprove,
+      // or Lab already fully approved) means Lab did NOT report this wait, so QC's
+      // receive lag is a distinct, QC-only lag (Lab and QC receive independently via
+      // PATCH /petitions/:id/receive side=lab|qc) and must get its own unit —
+      // otherwise a stuck QC receive is invisible.
+      const sharedWaitAlreadyReported = labEmittedWaitingReceive;
       const elapsed = minutesSince(petition.sampleSentAt, now);
       if (elapsed != null && !sharedWaitAlreadyReported) units.push(unit(petition, 'qc', 'waitingReceive', elapsed, null, 'ok'));
     }
 
     // ── รอ Final Result (ทุกรางที่ใบนี้มี ทดสอบครบแล้ว)
+    // Mirrors stageDurations' finalResultStart: the max(qcCompletedAt, labApprovedAt)
+    // rule only applies to a petition that actually HAS a Lab track. A QC-only
+    // petition carrying a stray labApprovedAt (data glitch, never a real Lab track)
+    // must be measured from qcCompletedAt alone, or the live tile and the stats bar
+    // disagree on the same petition (Finding 2).
     if (isPetitionComplete(petition)) {
-      const startedAt = Math.max(
-        qcCompleted ? qcCompleted.getTime() : 0,
-        labApproved ? labApproved.getTime() : 0,
-      );
+      const startedAt = labTrack
+        ? Math.max(
+          qcCompleted ? qcCompleted.getTime() : 0,
+          labApproved ? labApproved.getTime() : 0,
+        )
+        : (qcCompleted ? qcCompleted.getTime() : 0);
       if (startedAt > 0) {
         units.push(unit(petition, 'final', 'waitingFinal', (now - startedAt) / MS_PER_MIN, null, 'ok'));
       }
