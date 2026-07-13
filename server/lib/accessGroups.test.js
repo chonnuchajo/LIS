@@ -37,9 +37,19 @@ test('tolerates groups with missing or null paths arrays', () => {
   ]);
 });
 
-test('findOrphanBackfillPaths detects a new petition timeline path only when unclaimed', () => {
+test('findOrphanBackfillPaths detects petition timeline paths only when unclaimed', () => {
   const groups = [{ id: 'samples', paths: ['/petitions'] }];
-  assert.deepStrictEqual(findOrphanBackfillPaths(groups, ['/petition-timeline']), ['/petition-timeline']);
+  assert.deepStrictEqual(findOrphanBackfillPaths(groups, ['/petition-timeline', '/petition-timeline/:id']), [
+    '/petition-timeline',
+    '/petition-timeline/:id',
+  ]);
+});
+
+test('findOrphanBackfillPaths adds only the missing timeline detail path', () => {
+  const groups = [{ id: 'samples', paths: ['/petition-timeline'] }];
+  assert.deepStrictEqual(findOrphanBackfillPaths(groups, ['/petition-timeline', '/petition-timeline/:id']), [
+    '/petition-timeline/:id',
+  ]);
 });
 
 test('findGroupForBackfill prefers the anchor path owner and falls back to a group id', () => {

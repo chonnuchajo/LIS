@@ -17,9 +17,14 @@ test('assigneeSide: lab dept/position → lab, else qc', () => {
   assert.strictEqual(assigneeSide(null), null);
 });
 
-test('petitionStatusText: both tested, lab not approved → รอหัวหน้า Lab', () => {
+test('petitionStatusText: both tested, lab not approved → รอตรวจ', () => {
   const p = { status: 'inProgress', qcCompletedAt: 'T', labCompletedAt: 'T' };
-  assert.strictEqual(petitionStatusText(p), 'ตรวจครบแล้ว · รอหัวหน้า Lab ออกผล');
+  assert.strictEqual(petitionStatusText(p), 'รอตรวจ');
+});
+
+test('petitionStatusText: Lab tested, waiting for result → รอออกผล', () => {
+  const p = { status: 'inProgress', labCompletedAt: 'T' };
+  assert.strictEqual(petitionStatusText(p), 'รอออกผล');
 });
 
 test('petitionStatusText: qc only → รอส่วนอื่น', () => {

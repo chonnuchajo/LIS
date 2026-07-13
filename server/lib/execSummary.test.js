@@ -269,6 +269,115 @@ describe('buildLiveSection', () => {
     const overdueOnly = live.actionQueue.filter((u) => u.state === 'overdue');
     expect(overdueOnly.map((u) => u.petitionNo)).toEqual(['P-D', 'P-C']);
   });
+
+  // --- Task 7 review finding: alert-tile ids must come from the same sources as
+  // the counts, NOT from the (smaller) action queue. `counts.urgent` and
+  // `counts.abnormal` in particular cover ALL open petitions with that flag —
+  // including ones still comfortably inside their time baseline, which the
+  // action queue deliberately excludes so it isn't noisy. If `ids` were ever
+  // derived from `actionQueue` again, these petitions would silently disappear
+  // from `ids.urgent` / `ids.abnormal` while `counts` stayed unchanged.
+
+  const atRiskPetition = {
+    _id: 'ar1', petitionNo: 'P-AR1', dept: 'fg', status: 'inProgress', items: [labItem],
+    qcReceivedAt: hoursAgo(9), qcCompletedAt: hoursAgo(8),
+    labReceivedAt: hoursAgo(4.5), assignedTo: { name: 'ก', assignedAt: hoursAgo(4.5) },
+    assignedMachines: [{ estimatedMinutes: 300 }], // elapsed 270 = 90% of baseline → atRisk
+  };
+  const unassignedPetition = {
+    _id: 'un1', petitionNo: 'P-UN1', dept: 'fg', status: 'pendingReview', items: [labItem],
+    qcReceivedAt: hoursAgo(31), qcCompletedAt: hoursAgo(30),
+    labReceivedAt: hoursAgo(30), // >24h with nobody assigned
+  };
+  // Urgent but mid-testing well inside its baseline (state 'ok') — the action
+  // queue drops 'ok' testing-stage units on purpose, so this petition never
+  // appears in actionQueue even though counts.urgent covers it.
+  const comfortableUrgent = {
+    _id: 'u1', petitionNo: 'P-U1', dept: 'fg', status: 'inProgress', items: [labItem], priority: 1,
+    qcReceivedAt: hoursAgo(9), qcCompletedAt: hoursAgo(8),
+    labReceivedAt: hoursAgo(1), assignedTo: { name: 'ข', assignedAt: hoursAgo(1) },
+    assignedMachines: [{ estimatedMinutes: 999 }], // elapsed 60, baseline 999 → ok
+  };
+  // Abnormal-flagged but likewise mid-testing well inside its baseline — the
+  // abnormalFlags map has no representation in actionQueue at all.
+  const comfortableAbnormal = {
+    _id: 'ab1', petitionNo: 'P-AB1', dept: 'fg', status: 'inProgress', items: [labItem],
+    qcReceivedAt: hoursAgo(9), qcCompletedAt: hoursAgo(8),
+    labReceivedAt: hoursAgo(1), assignedTo: { name: 'ค', assignedAt: hoursAgo(1) },
+    assignedMachines: [{ estimatedMinutes: 999 }], // elapsed 60, baseline 999 → ok
+  };
+
+  it('keeps ids.urgent and ids.abnormal covering petitions the action queue excludes', () => {
+    const petitions = [
+      overdue, waitingFinal, atRiskPetition, unassignedPetition, comfortableUrgent, comfortableAbnormal,
+    ];
+    const live = buildLiveSection(petitions, {
+      now: NOW, qcBaseline: EMPTY_BASELINE, abnormalFlags: { ab1: true },
+    });
+
+    // Both comfortable petitions must be absent from the action queue — that's
+    // the whole premise of this regression: the queue is not a valid source.
+    const queueIds = new Set(live.actionQueue.map((u) => u.petitionId));
+    expect(queueIds.has('u1')).toBe(false);
+    expect(queueIds.has('ab1')).toBe(false);
+
+    // Yet the alert-tile ids must still carry them.
+    expect(live.ids.urgent).toEqual(expect.arrayContaining(['u1']));
+    expect(live.ids.abnormal).toEqual(expect.arrayContaining(['ab1']));
+  });
+
+  it('never lets a count and its id list disagree in length, for every alert-tile key', () => {
+    const petitions = [
+      overdue, waitingFinal, atRiskPetition, unassignedPetition, comfortableUrgent, comfortableAbnormal,
+    ];
+    const live = buildLiveSection(petitions, {
+      now: NOW, qcBaseline: EMPTY_BASELINE, abnormalFlags: { ab1: true },
+    });
+
+    expect(live.counts).toEqual({
+      urgent: 2, overdue: 1, atRisk: 1, unassigned: 1, waitingHead: 1, abnormal: 1,
+    });
+    expect(live.ids).toEqual({
+      urgent: ['a', 'u1'],
+      overdue: ['a'],
+      atRisk: ['ar1'],
+      unassigned: ['un1'],
+      waitingHead: ['b'],
+      abnormal: ['ab1'],
+    });
+
+    for (const key of Object.keys(live.counts)) {
+      expect(live.ids[key]).toHaveLength(live.counts[key]);
+    }
+  });
+
+  it('de-duplicates a petition that produces two overdue work units at once (one per track)', () => {
+    // A petition open on both Lab and QC tracks, both independently overdue, must
+    // only contribute its id ONCE to ids.overdue — even though it produces two
+    // units and counts.overdue (a unit count) is 2 for this single petition. This
+    // is the one legitimate case where a count and its deduped id list diverge in
+    // length by design: the count measures work units, the id list measures
+    // distinct petitions to highlight, and a petition must never appear twice in
+    // a highlight link.
+    const qcBaselineWithData = {
+      avgMinutesByParam: { p1: 30 },
+      paramIdsByCommonName: { [labItem.commonName]: ['p1'] },
+    };
+    const bothTracksOverdue = {
+      _id: 'both1', petitionNo: 'P-BOTH1', dept: 'fg', status: 'inProgress', items: [labItem],
+      labReceivedAt: hoursAgo(9), assignedTo: { name: 'ก', assignedAt: hoursAgo(9) },
+      assignedMachines: [{ estimatedMinutes: 60 }], // lab: elapsed 540, baseline 60 → overdue
+      qcReceivedAt: hoursAgo(20), // qc: elapsed 1200, baseline 30 (via qcBaselineWithData) → overdue
+    };
+    const units = openWorkUnits([bothTracksOverdue], { now: NOW, qcBaseline: qcBaselineWithData });
+    expect(units.filter((u) => u.state === 'overdue').map((u) => u.track).sort()).toEqual(['lab', 'qc']);
+
+    const live = buildLiveSection([bothTracksOverdue], {
+      now: NOW, qcBaseline: qcBaselineWithData, abnormalFlags: {},
+    });
+    expect(live.counts.overdue).toBe(2);
+    expect(live.ids.overdue).toEqual(['both1']);
+  });
 });
 
 describe('percentile', () => {

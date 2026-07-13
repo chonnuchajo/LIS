@@ -40,11 +40,11 @@ function petitionStatusText(petition) {
   if (s === 'approved') return 'ออก Final Result แล้ว — ปิดงาน';
   if (s === 'rejected') return 'ถูกส่งกลับให้แก้ไข';
   if (petition?.qcCompletedAt && petition?.labCompletedAt && !petition?.labApprovedAt) {
-    return 'ตรวจครบแล้ว · รอหัวหน้า Lab ออกผล';
+    return 'รอตรวจ';
   }
   if (petition?.qcCompletedAt) return 'QC ตรวจครบ · รอส่วนอื่น';
   if (petition?.labApprovedAt) return 'ผล Lab ออกแล้ว · รอ QC';
-  if (petition?.labCompletedAt) return 'Lab ตรวจครบ · รอออกผล';
+  if (petition?.labCompletedAt) return 'รอออกผล';
   if (s === 'inProgress') return 'กำลังตรวจ';
   if (s === 'pendingReview') return 'รับตัวอย่างแล้ว';
   if (s === 'sampleSent') return 'ส่งตัวอย่างแล้ว — รอรับ';

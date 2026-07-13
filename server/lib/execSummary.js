@@ -159,17 +159,46 @@ function bottleneckCounts(units) {
   }));
 }
 
+/** ตัด id ซ้ำออกโดยรักษาลำดับเดิม — หนึ่งใบอาจมี 2 work unit (lab+qc) แต่ต้องนับ/แสดงครั้งเดียว */
+function uniqueIds(ids) {
+  const seen = new Set();
+  const result = [];
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    result.push(id);
+  }
+  return result;
+}
+
 function buildLiveSection(petitions, { now, qcBaseline, abnormalFlags = {} }) {
   const units = openWorkUnits(petitions, { now, qcBaseline });
   const openPetitions = (petitions || []).filter(isOpen);
 
+  // แหล่งเดียวกันสำหรับทั้ง counts และ ids — เพื่อไม่ให้ตัวเลขกับ id ที่ลิงก์ไปเพี้ยนกัน
+  const urgentPetitions = openPetitions.filter((p) => p.priority === 1);
+  const overdueUnits = units.filter((u) => u.state === 'overdue');
+  const atRiskUnits = units.filter((u) => u.state === 'atRisk');
+  const unassignedUnits = units.filter((u) => u.state === 'unassigned');
+  const waitingHeadUnits = units.filter((u) => u.stage === 'waitingLabApprove' || u.stage === 'waitingFinal');
+  const abnormalPetitions = openPetitions.filter((p) => abnormalFlags[String(p._id)]);
+
   const counts = {
-    urgent: openPetitions.filter((p) => p.priority === 1).length,
-    overdue: units.filter((u) => u.state === 'overdue').length,
-    atRisk: units.filter((u) => u.state === 'atRisk').length,
-    unassigned: units.filter((u) => u.state === 'unassigned').length,
-    waitingHead: units.filter((u) => u.stage === 'waitingLabApprove' || u.stage === 'waitingFinal').length,
-    abnormal: openPetitions.filter((p) => abnormalFlags[String(p._id)]).length,
+    urgent: urgentPetitions.length,
+    overdue: overdueUnits.length,
+    atRisk: atRiskUnits.length,
+    unassigned: unassignedUnits.length,
+    waitingHead: waitingHeadUnits.length,
+    abnormal: abnormalPetitions.length,
+  };
+
+  const ids = {
+    urgent: uniqueIds(urgentPetitions.map((p) => String(p._id))),
+    overdue: uniqueIds(overdueUnits.map((u) => u.petitionId)),
+    atRisk: uniqueIds(atRiskUnits.map((u) => u.petitionId)),
+    unassigned: uniqueIds(unassignedUnits.map((u) => u.petitionId)),
+    waitingHead: uniqueIds(waitingHeadUnits.map((u) => u.petitionId)),
+    abnormal: uniqueIds(abnormalPetitions.map((p) => String(p._id))),
   };
 
   // งานที่กำลังทดสอบและยังอยู่ในเกณฑ์ (state 'ok') ไม่ต้องรบกวนหัวหน้า — แต่ด่านที่
@@ -188,7 +217,7 @@ function buildLiveSection(petitions, { now, qcBaseline, abnormalFlags = {} }) {
     })
     .slice(0, ACTION_QUEUE_LIMIT);
 
-  return { counts, bottleneck: bottleneckCounts(units), actionQueue };
+  return { counts, ids, bottleneck: bottleneckCounts(units), actionQueue };
 }
 
 function diffMinutes(from, to) {

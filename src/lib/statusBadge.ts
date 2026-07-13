@@ -44,11 +44,11 @@ export function petitionStatusBadge(petition: Petition): StatusBadge {
   // สาขา qcCompletedAt ด้านล่าง ไม่งั้นจะถูกกลืนเป็น "รอส่วนอื่น" ทั้งที่ Lab ตรวจครบแล้ว
   // (เช่น P-2606-0018: qcCompletedAt + labCompletedAt แต่ยังไม่ labApprovedAt)
   if (petition.qcCompletedAt && petition.labCompletedAt && !petition.labApprovedAt) {
-    return toneBadge("warning", "ตรวจครบแล้ว · รอหัวหน้า Lab ออกผล");
+    return toneBadge("warning", "รอตรวจ");
   }
   if (petition.qcCompletedAt) return toneBadge("warning", "QC ตรวจครบ · รอส่วนอื่น");
   if (petition.labApprovedAt) return toneBadge("warning", "ผล Lab ออกแล้ว · รอ QC");
-  if (petition.labCompletedAt) return toneBadge("warning", "Lab ตรวจครบ · รอออกผล");
+  if (petition.labCompletedAt) return toneBadge("warning", "รอออกผล");
   return statusBadge(petition.status);
 }
 

@@ -32,9 +32,33 @@
 - Consumes: `receivePetition(id, actor)` returning a `Petition` with `_id`; the existing `onReceived(): void` callback; React Router's `navigate(to: string)`.
 - Produces: one successful receipt outcome: `onReceived()` followed by navigation to `/qc-testing/${received._id}`. No continuous-scan control, session receipt list, or success screen remains.
 
-- [ ] **Step 1: Write the failing focused tests**
+- [ ] **Step 1: Write and verify a failing test for the removed control**
 
-  In `src/components/petition/__tests__/QrReceiveModal.test.tsx`, import `useLocation`, render a small location probe alongside the modal, and add this test. It exercises the real manual-entry and confirmation flow rather than mocking the component's internal handlers.
+  In `src/components/petition/__tests__/QrReceiveModal.test.tsx`, add this focused test:
+
+  ```tsx
+  it('does not render the continuous scanning control', () => {
+    renderModal();
+
+    expect(screen.queryByText('สแกนต่อเนื่อง')).not.toBeInTheDocument();
+  });
+  ```
+
+  Run: `npm run test -- src/components/petition/__tests__/QrReceiveModal.test.tsx`
+
+  Expected: FAIL because the current modal renders `สแกนต่อเนื่อง`.
+
+- [ ] **Step 2: Remove only the visible continuous-scan control and verify the focused test passes**
+
+  In `src/components/petition/QrReceiveModal.tsx`, remove the `Switch` import and the header label/switch block. Leave the current successful-receipt branch in place for this first red-green cycle.
+
+  Run: `npm run test -- src/components/petition/__tests__/QrReceiveModal.test.tsx`
+
+  Expected: PASS with the new control-removal test and all existing modal tests green.
+
+- [ ] **Step 3: Write and verify a failing test for automatic navigation**
+
+  In `src/components/petition/__tests__/QrReceiveModal.test.tsx`, import `useLocation`, render a small location probe alongside the modal, and add this separate test. It exercises the real manual-entry and confirmation flow rather than mocking the component's internal handlers.
 
   ```tsx
   import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -53,7 +77,7 @@
     );
   }
 
-  it('removes continuous scanning and opens QC work after a receipt succeeds', async () => {
+  it('opens QC work after a receipt succeeds', async () => {
     (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: { data: qcPetition },
     });
@@ -62,8 +86,6 @@
     });
     const onReceived = vi.fn();
     renderModal(onReceived);
-
-    expect(screen.queryByText('สแกนต่อเนื่อง')).not.toBeInTheDocument();
 
     const input = await screen.findByPlaceholderText(/พิมพ์เลขที่คำร้อง/);
     fireEvent.change(input, { target: { value: 'P-2506-0002' } });
@@ -81,13 +103,13 @@
   });
   ```
 
-- [ ] **Step 2: Run the focused test and verify it fails for the current behavior**
+- [ ] **Step 4: Run the focused test and verify it fails for the current behavior**
 
   Run: `npm run test -- src/components/petition/__tests__/QrReceiveModal.test.tsx`
 
-  Expected: FAIL because the current modal still renders `สแกนต่อเนื่อง` and, with the default continuous mode, returns to scanning instead of changing the location to `/qc-testing/pet1`.
+  Expected: FAIL because the current default continuous mode returns to scanning instead of changing the location to `/qc-testing/pet1`.
 
-- [ ] **Step 3: Implement the one-outcome successful-receipt path**
+- [ ] **Step 5: Implement the one-outcome successful-receipt path**
 
   In `src/components/petition/QrReceiveModal.tsx`:
 
@@ -103,19 +125,19 @@
 
   Keep the surrounding `try`/`catch`, loading phase, scanner cleanup, manual entry, validation, and `rescan` behavior unchanged.
 
-- [ ] **Step 4: Run the focused test and verify it passes**
+- [ ] **Step 6: Run the focused test and verify it passes**
 
   Run: `npm run test -- src/components/petition/__tests__/QrReceiveModal.test.tsx`
 
   Expected: PASS with all `QrReceiveModal` tests green, including manual entry and camera fallback coverage.
 
-- [ ] **Step 5: Run static validation for the changed component**
+- [ ] **Step 7: Run static validation for the changed component**
 
   Run: `npx tsc --noEmit`
 
   Expected: exit code 0 with no TypeScript errors.
 
-- [ ] **Step 6: Inspect the scoped diff and commit only the task files**
+- [ ] **Step 8: Inspect the scoped diff and commit only the task files**
 
   Run:
 

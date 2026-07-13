@@ -80,9 +80,9 @@ describe('labTrackStatusBadge', () => {
     expect(labTrackStatusBadge(p).label).toBe('Lab กำลังตรวจ');
   });
 
-  it('Lab completed shows Lab completion while petition waits for other gates', () => {
+  it('Lab completed shows pending result while petition waits for other gates', () => {
     const p = { status: 'inProgress' as const, labReceivedAt: T1, labCompletedAt: T2 };
-    expect(labTrackStatusBadge(p).label).toBe('Lab ตรวจครบ · รอออกผล');
+    expect(labTrackStatusBadge(p).label).toBe('รอออกผล');
   });
 });
 

@@ -17,6 +17,8 @@
 - **ห้ามแตะ dashboard profile อื่น** (`lab-head`, `qc-head`, `qc-staff`, `lab-analyze`, `lab-config`, `lab-inventory`, `viewer`) — งานนี้เปลี่ยนเฉพาะเส้นทางของ `admin`
 - **ห้ามเพิ่ม npm dependency ใหม่** ทั้ง server และ frontend
 - worktree นี้มีงานค้างของ user อยู่หลายไฟล์ — **commit ด้วย explicit pathspec เฉพาะไฟล์ของ task นั้น** ห้าม `git add -A` / `git add .`
+- **baseline ของ `cd server && npx jest`:** ปัจจุบัน `31 failed, 7 passed (38 suites) · 55 tests passed` — 31 suite ที่พังเขียนด้วย `node:test` ไม่ใช่ Jest จึงพังมาก่อนงานนี้ **ห้ามพยายามแก้** · เกณฑ์ผ่าน = จำนวน test ที่รันได้ต้องเพิ่มขึ้นตามที่ task เพิ่ม และไม่มี suite ใหม่พัง
+- **standardOperator ที่ระบบใช้จริงคือ** `lt` / `lte` / `eq` / `gte` / `gt` / `between` / `tolerance` (ดู `server/lib/abnormal.js`) — **ไม่มี** `'<='` หรือ `'>='` ถ้าโค้ดตัวอย่างใน task ไหนเผลอใช้สัญลักษณ์ ให้ใช้โค้ดจริงแทน
 - ป้ายทุกอันในหน้าเว็บเป็นภาษาไทย (ตามที่ระบุในแต่ละ task)
 - เวลาที่ผ่านไปนับเป็น **wall clock 24 ชม.** ไม่หักวันหยุด/นอกเวลาทำการ
 - ห้ามพอร์ต `matchParametersForItem` (frontend) มาไว้ที่ server — QC parameter set เดาจากประวัติ `QCTestResult` เท่านั้น (ดูเหตุผลในสเปก)
@@ -713,10 +715,14 @@ function labBaselineMinutes(petition) {
   return values.reduce((a, b) => a + b, 0);
 }
 
+// เกณฑ์พอดีเป๊ะ = "ปกติ" (ตัดสินโดย user 2026-07-13) — จึงต้องปิดขอบบนของช่วง atRisk ด้วย
+// `< baselineMin` ไม่งั้นงานที่ใช้เวลาเท่าเกณฑ์จะถูกจัดเป็นเสี่ยงเลท ขัดกับเทสต์ข้อ 2
 function classify(elapsedMin, baselineMin) {
   if (baselineMin == null) return { state: 'noBaseline', overdueMin: null };
   if (elapsedMin > baselineMin) return { state: 'overdue', overdueMin: elapsedMin - baselineMin };
-  if (elapsedMin >= baselineMin * AT_RISK_RATIO) return { state: 'atRisk', overdueMin: null };
+  if (elapsedMin >= baselineMin * AT_RISK_RATIO && elapsedMin < baselineMin) {
+    return { state: 'atRisk', overdueMin: null };
+  }
   return { state: 'ok', overdueMin: null };
 }
 

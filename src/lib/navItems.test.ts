@@ -10,4 +10,13 @@ describe("NAV_ITEMS", () => {
   it("exposes the petition timeline page in the main nav", () => {
     expect(NAV_ITEMS.map((item) => item.path)).toContain("/petition-timeline");
   });
+
+  it("restores the prior labels for the approval queues", () => {
+    const labelsByPath = Object.fromEntries(
+      NAV_ITEMS.map((item) => [item.path, item.label]),
+    );
+
+    expect(labelsByPath["/qc-approval"]).toBe("อนุมัติผล QC");
+    expect(labelsByPath["/lab-approval"]).toBe("อนุมัติผล Lab");
+  });
 });

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import PetitionListPage from './PetitionListPage';
 import type { Petition } from '@/types/petition.types';
@@ -94,13 +94,19 @@ vi.mock('@/lib/api', () => ({
   },
 }));
 
-function renderPage() {
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}</output>;
+}
+
+function renderPage(props: React.ComponentProps<typeof PetitionListPage> = {}) {
   return render(
     <MemoryRouter
       initialEntries={['/petitions']}
       future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
     >
-      <PetitionListPage />
+      <PetitionListPage {...props} />
+      <LocationProbe />
     </MemoryRouter>,
   );
 }
@@ -121,5 +127,13 @@ describe('PetitionListPage action cues', () => {
     ]) {
       expect(screen.queryByText(label)).not.toBeInTheDocument();
     }
+  });
+
+  it('uses a configured destination when a petition row is opened', async () => {
+    renderPage({ petitionDetailPath: (petition) => `/petition-timeline/${petition._id}` });
+
+    fireEvent.click(await screen.findByText('P-2607-0001'));
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/petition-timeline/P-2607-0001');
   });
 });

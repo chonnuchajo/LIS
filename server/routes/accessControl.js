@@ -23,7 +23,7 @@ const {
 
 const defaultGroups = [
   { id: 'dashboard', name: 'หน้าหลัก', description: 'ภาพรวมแล็บและงานที่กำลังดำเนินการ', paths: ['/', '/home', '/dashboard/lab'], locked: false, sortOrder: 10 },
-  { id: 'samples', name: 'งานตัวอย่าง', description: 'รับ ส่ง และตรวจกายภาพตัวอย่าง', paths: ['/petitions', '/petition-timeline', '/petitions/new', '/petitions/production/new', '/petitions/ProductionIntegrationPetitionNewPage', '/petitions/:id', '/petitions/:id/edit', '/physical-inspection'], locked: false, sortOrder: 20 },
+  { id: 'samples', name: 'งานตัวอย่าง', description: 'รับ ส่ง และตรวจกายภาพตัวอย่าง', paths: ['/petitions', '/petition-timeline', '/petition-timeline/:id', '/petitions/new', '/petitions/production/new', '/petitions/ProductionIntegrationPetitionNewPage', '/petitions/:id', '/petitions/:id/edit', '/physical-inspection'], locked: false, sortOrder: 20 },
   { id: 'audit-log', name: 'Audit Log', description: 'ประวัติการเปลี่ยนสถานะคำร้อง', paths: ['/adutuilog', '/auditlog'], locked: false, sortOrder: 25 },
   { id: 'results', name: 'ผลวิเคราะห์', description: 'บันทึกผลและมาตรฐาน', paths: ['/record-results', '/stock-deduction', '/daily-check'], locked: false, sortOrder: 30 },
   { id: 'qc', name: 'ควบคุมคุณภาพ', description: 'อนุมัติหรือปฏิเสธผลและ Assign คำร้อง', paths: ['/dashboard/qc', '/qc-approval', '/petitions/assign', '/petitions/:id'], locked: false, sortOrder: 40 },
@@ -150,8 +150,11 @@ async function ensureGroups() {
       { $addToSet: { paths: { $each: orphanPaths } } },
     );
   }
-  const petitionTimelinePaths = findOrphanBackfillPaths(existingGroups, ['/petition-timeline']);
-  const petitionTimelineGroupId = findGroupForBackfill(existingGroups, 'samples', '/petitions');
+  const petitionTimelinePaths = findOrphanBackfillPaths(existingGroups, ['/petition-timeline', '/petition-timeline/:id']);
+  const timelineAnchorPath = existingGroups.some((group) => (group.paths || []).includes('/petition-timeline'))
+    ? '/petition-timeline'
+    : '/petitions';
+  const petitionTimelineGroupId = findGroupForBackfill(existingGroups, 'samples', timelineAnchorPath);
   if (petitionTimelinePaths.length && petitionTimelineGroupId) {
     await AccessGroup.updateOne(
       { id: petitionTimelineGroupId },

@@ -59,7 +59,7 @@ export function labTrackStatusBadge(p: ReceiveFields & { status: PetitionStatus 
   if (!labReceivedAt(p)) return toneBadge('warning', 'รอรับ');
   if (['success', 'approved', 'rejected'].includes(p.status)) return statusBadge(p.status);
   if (p.labApprovedAt) return toneBadge('warning', 'ผล Lab ออกแล้ว · รอ QC');
-  if (p.labCompletedAt) return toneBadge('warning', 'Lab ตรวจครบ · รอออกผล');
+  if (p.labCompletedAt) return toneBadge('warning', 'รอออกผล');
   if (p.status === 'inProgress') return toneBadge('info', 'Lab กำลังตรวจ');
   return statusBadge(p.status);
 }

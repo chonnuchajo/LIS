@@ -67,6 +67,12 @@ export function canUserCreatePetition(
   return canUserCreatePetitionShared(user, canAccessNewPetition);
 }
 
+export type PetitionListPageProps = {
+  petitionDetailPath?: (petition: Petition) => string;
+  title?: string;
+  description?: string;
+};
+
 function petitionMetaLine(petition: Petition) {
   return [
     petition.submittedBy?.name,
@@ -103,7 +109,11 @@ function petitionNextStepText(petition: Petition) {
   return 'สิ่งที่ต้องทำ: ตรวจสอบรายละเอียดคำร้อง';
 }
 
-export default function PetitionListPage() {
+export default function PetitionListPage({
+  petitionDetailPath = (petition) => `/petitions/${petition._id}`,
+  title = 'รายการคำร้อง',
+  description = 'ดูคำร้องทั้งหมดและงานที่ต้องดำเนินการต่อ',
+}: PetitionListPageProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -243,8 +253,8 @@ export default function PetitionListPage() {
     <AppLayout>
       <div className="space-y-4">
         <PageHeader
-          title="รายการคำร้อง"
-          description="ดูคำร้องทั้งหมดและงานที่ต้องดำเนินการต่อ"
+          title={title}
+          description={description}
           actions={
             canCreatePetition ? (
               <Button onClick={() => navigate('/petitions/new')}>
@@ -414,7 +424,7 @@ export default function PetitionListPage() {
                 return (
                   <Card
                     key={petition._id}
-                    onOpen={() => navigate(`/petitions/${petition._id}`)}
+                    onOpen={() => navigate(petitionDetailPath(petition))}
                     className="w-full rounded-2xl border-black-50 p-4 text-left transition hover:border-primary-200 hover:bg-grey-50/40"
                   >
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
