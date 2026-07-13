@@ -9,6 +9,12 @@ import {
 import type { WorkflowKind } from "@/lib/dashboardProfiles";
 import type { Petition } from "@/types/petition.types";
 
+const TITLES: Record<WorkflowKind, string> = {
+  statusDonut: "สรุป Workflow",
+  pipeline: "สรุป Workflow",
+  assignedWeekdayBar: "งานรายสัปดาห์",
+};
+
 export default function WorkflowSummary({
   kind,
   petitions,
@@ -22,7 +28,7 @@ export default function WorkflowSummary({
 }) {
   return (
     <Card>
-      <CardHeader className="pb-2"><CardTitle className="text-base">สรุป Workflow</CardTitle></CardHeader>
+      <CardHeader className="pb-2"><CardTitle className="text-base">{TITLES[kind]}</CardTitle></CardHeader>
       <CardContent>
         {kind === "statusDonut" ? (
           <StatusDonut petitions={petitions} />

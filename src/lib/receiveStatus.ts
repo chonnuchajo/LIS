@@ -27,6 +27,7 @@ type ReceiveFields = Pick<
   | 'qcCompletedAt'
   | 'receivedAt'
   | 'receivedBy'
+  | 'assignedTo'
 >;
 
 export function labReceivedAt(p: ReceiveFields): string | null | undefined {
@@ -50,13 +51,15 @@ export function qcReceivedBy(p: ReceiveFields): string | undefined {
  *
  * petition.status เป็นตัวเดียวใช้ร่วมทั้ง Lab/QC พอ QC รับ+assign จะกลายเป็น
  * `inProgress` ("QC กำลังตรวจ") ทั้งที่ Lab ยังไม่ได้รับตัวอย่าง ถ้าโชว์ตรงๆ
- * ฝั่ง Lab จะเห็น "QC กำลังตรวจ" ผิด — ก่อน Lab รับให้โชว์ "รอรับ" เสมอ
+ * ฝั่ง Lab จะเห็น "QC กำลังตรวจ" ผิด — ถ้ายังไม่ assign ให้โชว์ "รอ assign"; หลัง assign แล้วจึงเป็น "รอรับ"
  */
 export function labTrackStatusBadge(p: ReceiveFields & { status: PetitionStatus }): StatusBadge {
+  // Lab flow starts with assignment; assigned sample-sent work then waits for receive.
+  if (p.status === 'sampleSent' && !p.assignedTo) return toneBadge('info', 'รอ assign');
   if (!labReceivedAt(p)) return toneBadge('warning', 'รอรับ');
   if (['success', 'approved', 'rejected'].includes(p.status)) return statusBadge(p.status);
-  if (p.labApprovedAt) return toneBadge('warning', 'Lab อนุมัติแล้ว · รอ QC');
-  if (p.labCompletedAt) return toneBadge('warning', 'Lab ตรวจครบ · รออนุมัติ');
+  if (p.labApprovedAt) return toneBadge('warning', 'ผล Lab ออกแล้ว · รอ QC');
+  if (p.labCompletedAt) return toneBadge('warning', 'Lab ตรวจครบ · รอออกผล');
   if (p.status === 'inProgress') return toneBadge('info', 'Lab กำลังตรวจ');
   return statusBadge(p.status);
 }
@@ -70,7 +73,7 @@ export function labTrackStatusBadge(p: ReceiveFields & { status: PetitionStatus 
 export function qcTrackStatusBadge(p: ReceiveFields & { status: PetitionStatus }): StatusBadge {
   if (!qcReceivedAt(p)) return toneBadge('warning', 'รอรับ');
   if (['success', 'approved', 'rejected'].includes(p.status)) return statusBadge(p.status);
-  if (p.qcCompletedAt) return toneBadge('warning', 'QC ตรวจครบ · รออนุมัติ');
+  if (p.qcCompletedAt) return toneBadge('warning', 'รอ Final Result');
   // ค่า config ของ inProgress = "QC กำลังตรวจ" อยู่แล้ว จึงปล่อยผ่านลง statusBadge ได้เลย
   return statusBadge(p.status);
 }
@@ -86,23 +89,24 @@ function withCurrentStep(steps: PetitionStatusStep[]): PetitionStatusStep[] {
 
 /**
  * Timeline เฉพาะ track Lab สำหรับหน้า /lab-testing:
- *   รับตัวอย่าง → Assign → Lab → อนุมัติ Lab
- * step กลางนับ done เมื่อ field ตัวเองมีหรือใบปิดแล้ว; step อนุมัติผูกกับ labApprovedAt ล้วน
+ *   Assign → รับตัวอย่าง → Lab → ออกผล Lab
+ * step กลางนับ done เมื่อ field ตัวเองมีหรือใบปิดแล้ว; step ออกผลผูกกับ labApprovedAt ล้วน
  */
 export function labTrackStatusSteps(petition: Petition): PetitionStatusStep[] {
   const closed = isClosedStatus(petition.status);
+  // Lab ownership is assigned before the analyst receives the sample.
   return withCurrentStep([
-    { key: 'received', label: 'รับตัวอย่าง', done: !!labReceivedAt(petition) || closed },
     { key: 'assigned', label: 'Assign', done: !!petition.assignedTo || closed },
+    { key: 'received', label: 'รับตัวอย่าง', done: !!labReceivedAt(petition) || closed },
     { key: 'lab', label: 'Lab', done: !!petition.labCompletedAt || closed },
-    { key: 'lab-approval', label: 'อนุมัติ Lab', done: !!petition.labApprovedAt },
+    { key: 'lab-approval', label: 'ออกผล Lab', done: !!petition.labApprovedAt },
   ]);
 }
 
 /**
  * Timeline เฉพาะ track QC สำหรับหน้า /qc-testing:
- *   รับตัวอย่าง → Assign → QC → อนุมัติ QC
- * step อนุมัติปลายทางผูกกับ status === 'approved' (ตรงกับ petitionStatusSteps)
+ *   รับตัวอย่าง → Assign → QC → ออก Final Result
+ * step ปลายทางผูกกับ status === 'approved' (ตรงกับ petitionStatusSteps)
  */
 export function qcTrackStatusSteps(petition: Petition): PetitionStatusStep[] {
   const closed = isClosedStatus(petition.status);
@@ -110,6 +114,6 @@ export function qcTrackStatusSteps(petition: Petition): PetitionStatusStep[] {
     { key: 'received', label: 'รับตัวอย่าง', done: !!qcReceivedAt(petition) || closed },
     { key: 'assigned', label: 'Assign', done: !!petition.assignedTo || closed },
     { key: 'qc', label: 'QC', done: !!petition.qcCompletedAt || closed },
-    { key: 'qc-approval', label: 'อนุมัติ QC', done: petition.status === 'approved' },
+    { key: 'qc-approval', label: 'ออก Final Result', done: petition.status === 'approved' },
   ]);
 }

@@ -40,15 +40,15 @@ export function petitionStatusBadge(petition: Petition): StatusBadge {
   if (["success", "approved", "rejected"].includes(petition.status)) {
     return statusBadge(petition.status);
   }
-  // ทั้ง QC และ Lab บันทึกผลครบแล้ว เหลือเพียงหัวหน้า Lab อนุมัติ — ต้องมาก่อน
+  // ทั้ง QC และ Lab บันทึกผลครบแล้ว เหลือเพียงหัวหน้า Lab ออกผล — ต้องมาก่อน
   // สาขา qcCompletedAt ด้านล่าง ไม่งั้นจะถูกกลืนเป็น "รอส่วนอื่น" ทั้งที่ Lab ตรวจครบแล้ว
   // (เช่น P-2606-0018: qcCompletedAt + labCompletedAt แต่ยังไม่ labApprovedAt)
   if (petition.qcCompletedAt && petition.labCompletedAt && !petition.labApprovedAt) {
-    return toneBadge("warning", "ตรวจครบแล้ว · รอหัวหน้า Lab อนุมัติ");
+    return toneBadge("warning", "ตรวจครบแล้ว · รอหัวหน้า Lab ออกผล");
   }
   if (petition.qcCompletedAt) return toneBadge("warning", "QC ตรวจครบ · รอส่วนอื่น");
-  if (petition.labApprovedAt) return toneBadge("warning", "Lab อนุมัติแล้ว · รอ QC");
-  if (petition.labCompletedAt) return toneBadge("warning", "Lab ตรวจครบ · รออนุมัติ");
+  if (petition.labApprovedAt) return toneBadge("warning", "ผล Lab ออกแล้ว · รอ QC");
+  if (petition.labCompletedAt) return toneBadge("warning", "Lab ตรวจครบ · รอออกผล");
   return statusBadge(petition.status);
 }
 
@@ -75,10 +75,10 @@ export function petitionStatusSteps(petition: Petition): PetitionStatusStep[] {
   if (hasLab) {
     steps.push(
       { key: "lab", label: "Lab", done: labDone },
-      { key: "lab-approval", label: "อนุมัติ Lab", done: labApproved },
+      { key: "lab-approval", label: "ออกผล Lab", done: labApproved },
     );
   }
-  steps.push({ key: "qc-approval", label: "อนุมัติ QC", done: petition.status === "approved" });
+  steps.push({ key: "qc-approval", label: "ออก Final Result", done: petition.status === "approved" });
 
   const firstOpen = steps.find((step) => !step.done);
   return steps.map((step) => ({ ...step, current: step === firstOpen }));

@@ -7,7 +7,11 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 const WIDGET_CAPTIONS: Partial<Record<KpiId, string>> = {
+  labHeadAll: "ทั้งหมด",
+  labHeadWaitingReceive: "ยังไม่รับ",
   assignedToMe: "คำขอล่าสุด",
+  pendingAssign: "รอ assign",
+  labHeadPendingApproval: "Lab",
   waitingReceive: "รอรับตัวอย่าง",
   inProgress: "รับงานแล้ว",
   waitingReview: "ส่งผลแล้ว",
@@ -32,6 +36,7 @@ interface KpiRowProps {
   onKpiClick?: (id: KpiId) => void;
   valueOverrides?: Partial<Record<KpiId, number | string>>;
   extraCards?: ReactNode;
+  extraCardsAfter?: number;
   presentation?: "default" | "widgets";
 }
 
@@ -42,61 +47,71 @@ export default function KpiRow({
   onKpiClick,
   valueOverrides,
   extraCards,
+  extraCardsAfter,
   presentation = "default",
 }: KpiRowProps) {
   const navigate = useNavigate();
+  const renderedKpis = kpis.map((id) => {
+    const meta = KPI_META[id];
+    const { value, delta } = computeKpi(id, ctx);
+    const overrideValue = valueOverrides?.[id];
+    const displayValue = overrideValue ?? (id === "normalRateApprox" ? `${value}%` : value);
+    const sublabel = delta !== undefined && overrideValue === undefined
+      ? <DeltaBadge delta={delta} />
+      : presentation === "widgets"
+        ? WIDGET_CAPTIONS[id]
+        : undefined;
+    const handleClick = onKpiClick
+      ? () => onKpiClick(id)
+      : meta.drilldownPath
+        ? () => navigate(meta.drilldownPath!)
+        : undefined;
+    if (presentation === "widgets") {
+      return (
+        <KpiMetricWidgetCard
+          key={id}
+          icon={meta.icon}
+          value={displayValue}
+          label={meta.label}
+          variant={meta.variant}
+          sublabel={sublabel}
+          active={activeKpi === id}
+          onClick={handleClick}
+        />
+      );
+    }
+    return (
+      <StatCard
+        key={id}
+        icon={meta.icon}
+        value={displayValue}
+        label={meta.label}
+        variant={meta.variant}
+        sublabel={sublabel}
+        active={activeKpi === id}
+        onClick={handleClick}
+      />
+    );
+  });
+  const extraCardsIndex = extraCardsAfter === undefined
+    ? renderedKpis.length
+    : Math.max(0, Math.min(extraCardsAfter, renderedKpis.length));
+  const usesThreeCardRows = presentation === "widgets" && renderedKpis.length + (extraCards ? 1 : 0) > 4;
+
   return (
     <div
       className={cn(
         "mb-4 grid gap-3",
         presentation === "widgets"
-          ? "grid-cols-2 md:grid-cols-4 xl:grid-cols-8"
+          ? usesThreeCardRows
+            ? "grid-cols-2 md:grid-cols-6"
+            : "grid-cols-2 md:grid-cols-4 xl:grid-cols-8"
           : "grid-cols-2 md:grid-cols-3 xl:grid-cols-6",
       )}
     >
-      {kpis.map((id) => {
-        const meta = KPI_META[id];
-        const { value, delta } = computeKpi(id, ctx);
-        const overrideValue = valueOverrides?.[id];
-        const displayValue = overrideValue ?? (id === "normalRateApprox" ? `${value}%` : value);
-        const sublabel = delta !== undefined && overrideValue === undefined
-          ? <DeltaBadge delta={delta} />
-          : presentation === "widgets"
-            ? WIDGET_CAPTIONS[id]
-            : undefined;
-        const handleClick = onKpiClick
-          ? () => onKpiClick(id)
-          : meta.drilldownPath
-            ? () => navigate(meta.drilldownPath!)
-            : undefined;
-        if (presentation === "widgets") {
-          return (
-            <KpiMetricWidgetCard
-              key={id}
-              icon={meta.icon}
-              value={displayValue}
-              label={meta.label}
-              variant={meta.variant}
-              sublabel={sublabel}
-              active={activeKpi === id}
-              onClick={handleClick}
-            />
-          );
-        }
-        return (
-          <StatCard
-            key={id}
-            icon={meta.icon}
-            value={displayValue}
-            label={meta.label}
-            variant={meta.variant}
-            sublabel={sublabel}
-            active={activeKpi === id}
-            onClick={handleClick}
-          />
-        );
-      })}
+      {renderedKpis.slice(0, extraCardsIndex)}
       {extraCards}
+      {renderedKpis.slice(extraCardsIndex)}
     </div>
   );
 }

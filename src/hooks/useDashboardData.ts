@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { usePetitionList } from "@/hooks/usePetition";
 import { useSamples } from "@/context/SampleContext";
@@ -64,6 +64,12 @@ export interface DashboardData {
 
 export const DASHBOARD_DEDUCTION_PAGE_SIZE = 500;
 
+function delayUntilNextLocalMidnight(now = Date.now()): number {
+  const nextMidnight = new Date(now);
+  nextMidnight.setHours(24, 0, 0, 0);
+  return Math.max(nextMidnight.getTime() - now, 1);
+}
+
 export async function fetchDashboardDeductions(
   now: number,
   getTransactions: (params?: StockTransactionParams) => Promise<StockTransactionItem[]>,
@@ -86,6 +92,21 @@ export async function fetchDashboardDeductions(
 
 export function useDashboardData(profile: DashboardProfile): DashboardData {
   const { user } = useAuth();
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const scheduleMidnightUpdate = () => {
+      timer = setTimeout(() => {
+        setNow(Date.now());
+        scheduleMidnightUpdate();
+      }, delayUntilNextLocalMidnight());
+    };
+
+    scheduleMidnightUpdate();
+    return () => clearTimeout(timer);
+  }, []);
+
   const kpis = new Set(profile.kpis);
   const roleIds = normalizeRoles(user);
   const wantConfigCoverage = hasLabDataConfigRole(roleIds);
@@ -142,7 +163,7 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
     queryFn: () => fetchDashboardDeductions(Date.now(), api.getStockTransactions),
   });
 
-  const wantDailyProgress = profile.id === "lab-analyze" || need("dailyCheckPending");
+  const wantDailyProgress = profile.id === "lab-analyze" || profile.id === "lab-head" || need("dailyCheckPending");
   const { data: dailySummary } = useQuery({
     queryKey: ["dash", "daily"],
     enabled: wantDailyProgress,
@@ -191,7 +212,6 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
   });
 
   const ctx: MetricsCtx = useMemo(() => {
-    const now = Date.now();
     const isToday = (iso?: string | null) => {
       if (!iso) return false;
       const d = new Date(iso);
@@ -329,6 +349,7 @@ export function useDashboardData(profile: DashboardProfile): DashboardData {
     simpleMethodsLoading,
     methodsLoading,
     standardTimeSummaryLoading,
+    now,
   ]);
 
   return { petitions, ctx, loading, refresh };

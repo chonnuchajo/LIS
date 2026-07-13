@@ -6,6 +6,14 @@ import PageHeader from "@/components/lis/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { usePetition } from "@/hooks/usePetition";
 import { api, type ParameterItem } from "@/lib/api";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
@@ -18,9 +26,180 @@ import {
 import { buildApprovalGroups } from "@/lib/qcApprovalRows";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { useConfirm } from "@/context/ConfirmDialog";
+import { releaseBodyPointerLock, useConfirm } from "@/context/ConfirmDialog";
 import { RevisionRequestDialog } from "@/components/petition/RevisionRequestDialog";
 import { normalizeRoles } from "@/lib/roles";
+
+type RejectTarget = "requester" | "qc" | "lab";
+
+interface ParameterReferenceOption {
+  id: string;
+  label: string;
+}
+
+interface RejectDecisionDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  petitionNo: string;
+  submitterName: string;
+  references: ParameterReferenceOption[];
+  onConfirm: (target: RejectTarget, note: string, referenceLabels: string[]) => Promise<void> | void;
+}
+
+function QCRejectDecisionDialog({
+  open,
+  onOpenChange,
+  petitionNo,
+  submitterName,
+  references,
+  onConfirm,
+}: RejectDecisionDialogProps) {
+  const [target, setTarget] = useState<RejectTarget | "">("");
+  const [note, setNote] = useState("");
+  const [selectedRefs, setSelectedRefs] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setTarget("");
+      setNote("");
+      setSelectedRefs([]);
+      setSubmitting(false);
+    }
+  }, [open]);
+
+  const toggleRef = (id: string, checked: boolean) => {
+    setSelectedRefs((prev) => (
+      checked ? Array.from(new Set([...prev, id])) : prev.filter((x) => x !== id)
+    ));
+  };
+
+  const canConfirm = !!target && note.trim().length > 0 && !submitting;
+
+  const handleConfirm = async () => {
+    if (!target) return;
+    const trimmed = note.trim();
+    if (!trimmed) return;
+    const selectedLabels = references
+      .filter((ref) => selectedRefs.includes(ref.id))
+      .map((ref) => ref.label);
+    setSubmitting(true);
+    try {
+      await onConfirm(target, trimmed, selectedLabels);
+      setNote("");
+      setTarget("");
+      setSelectedRefs([]);
+      onOpenChange(false);
+      releaseBodyPointerLock();
+    } catch {
+      // keep dialog open so the reviewer can retry or edit the detail
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!submitting) onOpenChange(next); }}>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <RotateCcw className="h-4 w-4 text-orange-500" />
+            ไม่อนุมัติคำร้อง {petitionNo}
+          </DialogTitle>
+          <DialogDescription>
+            เลือกปลายทาง ระบุรายละเอียด และอ้างอิง parameter ที่เกี่ยวข้องได้
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">ส่งให้ใคร</legend>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {([
+                { value: "requester", label: "ผู้ยื่น", description: submitterName },
+                { value: "qc", label: "QC", description: "ส่งกลับ QC ทดสอบใหม่" },
+                { value: "lab", label: "Lab", description: "ส่งกลับ Lab ทดสอบใหม่" },
+              ] as const).map((option) => (
+                <label
+                  key={option.value}
+                  className="flex cursor-pointer items-start gap-2 rounded-md border border-grey-200 p-3 text-sm hover:bg-grey-50"
+                >
+                  <input
+                    type="radio"
+                    name="reject-target"
+                    aria-label={option.label}
+                    value={option.value}
+                    checked={target === option.value}
+                    onChange={() => setTarget(option.value)}
+                    disabled={submitting}
+                    className="mt-1"
+                  />
+                  <span className="min-w-0">
+                    <span className="block font-medium text-grey-800">{option.label}</span>
+                    <span className="block text-xs text-grey-500">{option.description}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="reject-detail">
+              รายละเอียด <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="reject-detail"
+              aria-label="รายละเอียด"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              disabled={submitting}
+              placeholder="ระบุเหตุผลหรือสิ่งที่ต้องแก้ไข..."
+              className="w-full rounded border px-3 py-2 text-sm min-h-[120px] focus:outline-none focus:ring-1 focus:ring-primary-300 disabled:bg-grey-50"
+            />
+          </div>
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">อ้างอิง parameter</legend>
+            {references.length > 0 ? (
+              <div className="max-h-52 space-y-1 overflow-y-auto rounded-md border border-grey-200 p-2">
+                {references.map((ref) => (
+                  <label
+                    key={ref.id}
+                    className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 text-sm hover:bg-grey-50"
+                  >
+                    <input
+                      type="checkbox"
+                      aria-label={ref.label}
+                      checked={selectedRefs.includes(ref.id)}
+                      onChange={(e) => toggleRef(ref.id, e.target.checked)}
+                      disabled={submitting}
+                      className="mt-1"
+                    />
+                    <span className="break-words">{ref.label}</span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-md border border-grey-200 bg-grey-50 px-3 py-2 text-sm text-grey-500">
+                ไม่มี parameter ให้เลือกอ้างอิง
+              </p>
+            )}
+          </fieldset>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
+            ยกเลิก
+          </Button>
+          <Button variant="destructive" onClick={handleConfirm} disabled={!canConfirm} className="gap-2">
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            ส่งกลับ
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function QCApprovalReviewPage() {
   const { id } = useParams<{ id: string }>();
@@ -30,12 +209,7 @@ export default function QCApprovalReviewPage() {
   const canSeeRestrictedStandards = normalizeRoles(user).some((role) => role === "admin" || role === "qc-head");
   const confirm = useConfirm();
   const [submitting, setSubmitting] = useState(false);
-  const [retestLab, setRetestLab] = useState(false);
-  const [retestQc, setRetestQc] = useState(false);
-  const retestTarget: "lab" | "qc" | "both" | null =
-    retestLab && retestQc ? "both" : retestLab ? "lab" : retestQc ? "qc" : null;
-  const [retestDialogOpen, setRetestDialogOpen] = useState(false);
-  const [returnDialogOpen, setReturnDialogOpen] = useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const [acceptReasonDialogOpen, setAcceptReasonDialogOpen] = useState(false);
 
   const { data: petition, loading, error } = usePetition(id);
@@ -75,7 +249,7 @@ export default function QCApprovalReviewPage() {
     setSubmitting(true);
     try {
       await api.approvePetition(petition._id, user?.name ?? "system", conclusion, note);
-      toast.success(conclusion === "accepted-oos" ? "ยอมรับผลเรียบร้อย" : "อนุมัติเรียบร้อย");
+      toast.success(conclusion === "accepted-oos" ? "ยอมรับผลเรียบร้อย" : "ออก Final Result เรียบร้อย");
       navigate("/qc-approval");
     } catch {
       toast.error("ดำเนินการไม่สำเร็จ");
@@ -85,7 +259,7 @@ export default function QCApprovalReviewPage() {
   }, [petition, user, navigate]);
 
   const handleApprovePass = useCallback(async () => {
-    if (!(await confirm({ title: "ผลถูกต้อง", description: "ยืนยันว่าผลถูกต้องและอนุมัติคำร้องนี้?" }))) return;
+    if (!(await confirm({ title: "อนุมัติ", description: "ยืนยันว่าอนุมัติและออก Final Result ของคำร้องนี้?" }))) return;
     await doApprove("pass");
   }, [confirm, doApprove]);
 
@@ -94,34 +268,29 @@ export default function QCApprovalReviewPage() {
     await doApprove("accepted-oos", note);
   }, [doApprove]);
 
-  const handleRetest = useCallback(async (note: string) => {
-    if (!petition || !retestTarget) return;
+  const handleRejectDecision = useCallback(async (
+    target: RejectTarget,
+    note: string,
+    referenceLabels: string[],
+  ) => {
+    if (!petition) return;
+    const fullNote = referenceLabels.length > 0
+      ? `${note}\n\nอ้างอิง parameter: ${referenceLabels.join("; ")}`
+      : note;
     setSubmitting(true);
     try {
-      await api.rejectPetition(petition._id, user?.name ?? "system", note, retestTarget);
-      const label = retestTarget === "lab" ? "Lab" : retestTarget === "qc" ? "QC" : "Lab และ QC";
-      toast.success(`ส่งกลับให้ ${label} ทดสอบใหม่เรียบร้อย`);
-      setRetestDialogOpen(false);
+      await api.rejectPetition(petition._id, user?.name ?? "system", fullNote, target);
+      if (target === "requester") {
+        toast.success("ส่งคืนผู้ยื่นเรียบร้อย", { description: `ส่งให้ ${petition.submittedBy?.name ?? "ผู้ยื่น"}` });
+      } else {
+        toast.success(`ส่งกลับให้ ${target === "lab" ? "Lab" : "QC"} ทดสอบใหม่เรียบร้อย`);
+      }
+      setRejectDialogOpen(false);
+      releaseBodyPointerLock();
       navigate("/qc-approval");
     } catch {
       toast.error("ส่งกลับไม่สำเร็จ");
-      throw new Error("retest failed");
-    } finally {
-      setSubmitting(false);
-    }
-  }, [petition, user, retestTarget, navigate]);
-
-  const handleReturnToRequester = useCallback(async (note: string) => {
-    if (!petition) return;
-    setSubmitting(true);
-    try {
-      await api.rejectPetition(petition._id, user?.name ?? "system", note, "requester");
-      toast.success("ส่งคืนผู้ส่งให้แก้ product เรียบร้อย", { description: `ส่งให้ ${petition.submittedBy?.name ?? "ผู้ยื่น"}` });
-      setReturnDialogOpen(false);
-      navigate("/qc-approval");
-    } catch {
-      toast.error("ส่งคืนไม่สำเร็จ");
-      throw new Error("return failed");
+      throw new Error("reject failed");
     } finally {
       setSubmitting(false);
     }
@@ -147,6 +316,14 @@ export default function QCApprovalReviewPage() {
   const groups = buildApprovalGroups(petition, parameters, results, groupMembership, {
     includeRestrictedStandards: canSeeRestrictedStandards,
   });
+  const parameterReferences: ParameterReferenceOption[] = groups.flatMap((g) =>
+    g.params.flatMap((param) =>
+      param.rows.map((row) => ({
+        id: `${g.seq}__${param.parameterId}__${row.key}`,
+        label: `รายการที่ ${g.seq}: ${g.sampleName} / ${param.parameterName} / ${row.label}`,
+      })),
+    ),
+  );
 
   return (
     <AppLayout title={petition.petitionNo}>
@@ -156,7 +333,7 @@ export default function QCApprovalReviewPage() {
           title={
             <span className="inline-flex items-center gap-2">
               <FlaskConical className="h-5 w-5 text-primary-500" />
-              อนุมัติผล {petition.petitionNo}
+              ออก Final Result {petition.petitionNo}
             </span>
           }
           actions={
@@ -263,61 +440,37 @@ export default function QCApprovalReviewPage() {
         {/* แผงตัดสิน — fixed bottom */}
         {abnormalLoaded && (<div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
           <div className="flex flex-col items-end gap-2">
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-gray-500">ถ้าให้ทดสอบใหม่ ส่งกลับไปยัง:</span>
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input type="checkbox" checked={retestLab} onChange={(e) => setRetestLab(e.target.checked)} />
-                Lab
-              </label>
-              <label className="flex items-center gap-1 cursor-pointer">
-                <input type="checkbox" checked={retestQc} onChange={(e) => setRetestQc(e.target.checked)} />
-                QC
-              </label>
-            </div>
             {!petitionHasAbnormal ? (
               <div className="flex flex-wrap items-center justify-end gap-3">
                 <Button variant="primary" size="sm" onClick={handleApprovePass} disabled={submitting} className="gap-2">
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  ผลถูกต้อง
+                  อนุมัติ
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setRetestDialogOpen(true)} disabled={submitting || !retestTarget} className="gap-2">
-                  <RotateCcw className="h-4 w-4" /> ผลไม่ถูกต้อง
+                <Button variant="outline" size="sm" onClick={() => setRejectDialogOpen(true)} disabled={submitting} className="gap-2">
+                  <RotateCcw className="h-4 w-4" /> ไม่อนุมัติ
                 </Button>
               </div>
             ) : (
               <div className="flex flex-wrap items-center justify-end gap-3">
                 <Button variant="primary" size="sm" onClick={() => setAcceptReasonDialogOpen(true)} disabled={submitting} className="gap-2">
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  ยอมรับผล
+                  อนุมัติ
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setReturnDialogOpen(true)} disabled={submitting} className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50">
-                  <RotateCcw className="h-4 w-4" /> ส่งคืนผู้ส่งแก้ product
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setRetestDialogOpen(true)} disabled={submitting || !retestTarget} className="gap-2">
-                  <RotateCcw className="h-4 w-4" /> ทดสอบใหม่
+                <Button variant="outline" size="sm" onClick={() => setRejectDialogOpen(true)} disabled={submitting} className="gap-2">
+                  <RotateCcw className="h-4 w-4" /> ไม่อนุมัติ
                 </Button>
               </div>
             )}
           </div>
         </div>)}
 
-        <RevisionRequestDialog
-          open={retestDialogOpen}
-          onOpenChange={setRetestDialogOpen}
+        <QCRejectDecisionDialog
+          open={rejectDialogOpen}
+          onOpenChange={setRejectDialogOpen}
           petitionNo={petition.petitionNo}
           submitterName={petition.submittedBy?.name ?? "ผู้ยื่น"}
-          recipientLabel={retestTarget === "lab" ? "ผู้ทดสอบ Lab" : retestTarget === "qc" ? "ผู้ทดสอบ QC" : "ผู้ทดสอบ Lab และ QC"}
-          warning={`คำร้องจะถูกส่งกลับให้${retestTarget === "both" ? "ทั้ง Lab และ QC" : retestTarget === "lab" ? "Lab" : "QC"}ทดสอบใหม่ (ไม่ปิดคำร้อง ไม่เกี่ยวกับผู้ส่ง)`}
-          onConfirm={handleRetest}
-        />
-        <RevisionRequestDialog
-          open={returnDialogOpen}
-          onOpenChange={setReturnDialogOpen}
-          petitionNo={petition.petitionNo}
-          submitterName={petition.submittedBy?.name ?? "ผู้ยื่น"}
-          recipientLabel={petition.submittedBy?.name ?? "ผู้ยื่น"}
-          warning="คำร้องจะถูกปิดและส่งคืนผู้ส่งให้แก้ไข product ตามคำแนะนำ"
-          onConfirm={handleReturnToRequester}
+          references={parameterReferences}
+          onConfirm={handleRejectDecision}
         />
         <RevisionRequestDialog
           open={acceptReasonDialogOpen}
@@ -325,7 +478,7 @@ export default function QCApprovalReviewPage() {
           petitionNo={petition.petitionNo}
           submitterName={petition.submittedBy?.name ?? "ผู้ยื่น"}
           recipientLabel="ยอมรับผลไม่ปกติ"
-          warning="คำร้องจะถูกอนุมัติโดยบันทึกผลไม่ปกติเป็นผลจริง — โปรดระบุเหตุผล"
+          warning="คำร้องจะออก Final Result โดยบันทึกผลไม่ปกติเป็นผลจริง — โปรดระบุเหตุผล"
           onConfirm={handleAcceptOos}
         />
       </div>

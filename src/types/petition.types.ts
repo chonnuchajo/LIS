@@ -33,9 +33,9 @@ export const PETITION_STATUS_CONFIG: Record<
   deliveringQC:  { label: 'กำลังส่งตัวอย่าง', variant: 'gray-soft' },
   sampleSent:    { label: 'ส่งตัวอย่างแล้ว',  variant: 'primary-soft' },
   pendingReview: { label: 'รับตัวอย่างแล้ว',  variant: 'yellow-soft' },
-  inProgress:    { label: 'QC กำลังตรวจ',     variant: 'blue-soft' },
+  inProgress:    { label: 'กำลังดำเนินการ',     variant: 'blue-soft' },
   success:       { label: 'ทดสอบเสร็จสิ้น',  variant: 'green-soft' },
-  approved:      { label: 'อนุมัติแล้ว',        variant: 'green-soft' },
+  approved:      { label: 'ออก Final Result แล้ว', variant: 'green-soft' },
   rejected:      { label: 'ส่งกลับให้แก้ไข',    variant: 'red-soft' },
 };
 
@@ -190,6 +190,7 @@ interface PetitionBase {
   submittedBy: PetitionSubmitter;
   deliveredBy?: PetitionDeliverer;
   items: PetitionItem[];
+  priority?: 0 | 1;
   cause?: string;
   reviewHistory?: ReviewEntry[];
   assignedTo?: PetitionAssignee | null;

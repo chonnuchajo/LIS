@@ -116,7 +116,7 @@ const AdminData = () => {
               Admin - ฐานข้อมูลตัวอย่าง
             </span>
           }
-          description="ข้อมูลที่ผ่านการอนุมัติ QC แล้ว สำหรับการวิเคราะห์แบบ Data Driven"
+          description="ข้อมูลที่ออก Final Result แล้ว สำหรับการวิเคราะห์แบบ Data Driven"
         />
 
         <Tabs key={defaultKey} defaultValue={defaultKey}>
@@ -134,7 +134,7 @@ const AdminData = () => {
           <TabsContent value="database">
             <Card>
               <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <CardTitle className="text-base">ผลลัพธ์ที่ QC อนุมัติแล้ว ({filtered.length} รายการ)</CardTitle>
+                <CardTitle className="text-base">ผลลัพธ์ที่ออก Final Result แล้ว ({filtered.length} รายการ)</CardTitle>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -166,7 +166,7 @@ const AdminData = () => {
                     <TableBody>
                       {filtered.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={11} className="text-center text-muted-foreground py-8 table-cell">ยังไม่มีข้อมูลที่ผ่านการอนุมัติ QC</TableCell>
+                          <TableCell colSpan={11} className="text-center text-muted-foreground py-8 table-cell">ยังไม่มีข้อมูลที่ออก Final Result</TableCell>
                         </TableRow>
                       ) : filtered.map(r => (
                         <TableRow key={r.id}>

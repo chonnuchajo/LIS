@@ -6,27 +6,70 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ChartSpec } from "@/lib/dashboardProfiles";
 import {
   deptWorkloadData, analystWorkloadData, normalDonutData, requestTrendData, statusDonutData,
-  assignedWeekdayData,
+  assignedWeekdayData, labHeadAnalystWorkloadData,
   type MetricsCtx,
+  type LabHeadWorkloadPeriod,
   type WeekdayWorkloadBasis,
 } from "@/lib/dashboardMetrics";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface AnalyticsSectionProps {
   specs: ChartSpec[];
   ctx: MetricsCtx;
   layout?: "grid" | "single";
+  labHeadPeriod?: LabHeadWorkloadPeriod;
+  onLabHeadPeriodChange?: (period: LabHeadWorkloadPeriod) => void;
   weekdayBasis?: WeekdayWorkloadBasis;
 }
 
-export default function AnalyticsSection({ specs, ctx, layout = "grid", weekdayBasis = "labAssigned" }: AnalyticsSectionProps) {
+const PERIOD_LABELS: Record<LabHeadWorkloadPeriod, string> = {
+  today: "วันนี้",
+  weekly: "Weekly",
+  monthly: "Monthly",
+};
+
+export default function AnalyticsSection({
+  specs,
+  ctx,
+  layout = "grid",
+  labHeadPeriod = "today",
+  onLabHeadPeriodChange,
+  weekdayBasis = "labAssigned",
+}: AnalyticsSectionProps) {
   if (specs.length === 0) return null;
   return (
     <div className={cn("grid grid-cols-1 gap-4", layout === "grid" && "mb-4 lg:grid-cols-2")}>
       {specs.map((s) => (
         <Card key={s.kind + s.title}>
-          <CardHeader className="pb-2"><CardTitle className="text-base">{s.title}</CardTitle></CardHeader>
-          <CardContent><ChartFor spec={s} ctx={ctx} weekdayBasis={weekdayBasis} /></CardContent>
+          <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 pb-2">
+            <CardTitle className="text-base">{s.title}</CardTitle>
+            {s.kind === "labHeadAnalystBar" ? (
+              <Select
+                value={labHeadPeriod}
+                onValueChange={(value) => onLabHeadPeriodChange?.(value as LabHeadWorkloadPeriod)}
+              >
+                <SelectTrigger className="h-8 w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {Object.entries(PERIOD_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            ) : null}
+          </CardHeader>
+          <CardContent><ChartFor spec={s} ctx={ctx} labHeadPeriod={labHeadPeriod} weekdayBasis={weekdayBasis} /></CardContent>
         </Card>
       ))}
     </div>
@@ -36,14 +79,17 @@ export default function AnalyticsSection({ specs, ctx, layout = "grid", weekdayB
 function ChartFor({
   spec,
   ctx,
+  labHeadPeriod,
   weekdayBasis,
 }: {
   spec: ChartSpec;
   ctx: MetricsCtx;
+  labHeadPeriod: LabHeadWorkloadPeriod;
   weekdayBasis: WeekdayWorkloadBasis;
 }) {
   if (spec.kind === "deptBar") return <SimpleBar data={ctx ? deptWorkloadData(ctx.petitions).map((d) => ({ name: d.label, count: d.count })) : []} />;
   if (spec.kind === "analystBar") return <SimpleBar data={analystWorkloadData(ctx.petitions).map((d) => ({ name: d.name, count: d.count }))} />;
+  if (spec.kind === "labHeadAnalystBar") return <SimpleBar data={labHeadAnalystWorkloadData(ctx.petitions, ctx.now, labHeadPeriod)} />;
   if (spec.kind === "assignedWeekdayBar") return <WeekdayBar data={assignedWeekdayData(ctx.petitions, ctx.now, weekdayBasis)} />;
   if (spec.kind === "withdrawBar") return <TrendBar data={ctx.deductionTrend} />;
   if (spec.kind === "requestTrend") return <TrendBar data={requestTrendData(ctx.petitions, ctx.now, 14)} />;
@@ -67,6 +113,7 @@ function SimpleBar({ data }: { data: { name: string; count: number }[] }) {
 }
 
 function WeekdayBar({ data }: { data: { label: string; count: number }[] }) {
+  if (data.every((d) => d.count === 0)) return <Empty />;
   return (
     <ChartContainer config={{ count: { label: "จำนวน", color: "hsl(var(--primary))" } }} className="h-[220px] w-full">
       <BarChart data={data} layout="vertical" margin={{ left: 8, right: 12 }}>

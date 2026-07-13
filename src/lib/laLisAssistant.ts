@@ -27,7 +27,7 @@ export function buildLaLisAssistant(
       : { level: "ok", text: "ข้อมูลผู้รับรายงานพร้อม" },
     petition.status === "approved"
       ? { level: "ok", text: "Final Report พร้อมออก" }
-      : { level: "warn", text: "Final Report ควรรออนุมัติขั้นสุดท้าย" },
+      : { level: "warn", text: "Final Report ควรรอออก Final Result ก่อน" },
   ];
 
   const oos: LaLisIssue[] = abnormal.length
@@ -39,7 +39,7 @@ export function buildLaLisAssistant(
 
   const draft = abnormal.length
     ? `พบผลนอกเกณฑ์ ${abnormal.length} รายการ จาก ${petition.items.length} ตัวอย่าง แนะนำให้ QC review และระบุเหตุผลก่อนออก Final Report`
-    : `ผลทดสอบ ${petition.items.length} ตัวอย่างไม่พบค่าออกนอกเกณฑ์จากข้อมูลที่บันทึก สามารถใช้ร่าง COA/Final Report ได้เมื่ออนุมัติครบ`;
+    : `ผลทดสอบ ${petition.items.length} ตัวอย่างไม่พบค่าออกนอกเกณฑ์จากข้อมูลที่บันทึก สามารถใช้ร่าง COA/Final Report ได้เมื่อออกผลครบ`;
 
   return { readiness, oos, draft, abnormalCount: abnormal.length, missingResultCount: missingResults.length };
 }

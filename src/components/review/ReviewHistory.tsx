@@ -3,7 +3,7 @@ import type { ReviewEntry } from '@/types/petition.types';
 
 const ACTION_LABEL = {
   note: 'บันทึก QC',
-  approve: 'อนุมัติ',
+  approve: 'ออกผล',
   reject: 'ไม่ผ่าน',
   startTesting: 'เริ่มตรวจ',
 } as const;

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   DASHBOARD_PROFILES, KPI_META, resolveProfileForRole, resolveActiveRole, resolveDashboardRole,
   labInventorySummaryPlacement,
-  hasLabDataConfigRole, labDataConfigCoveragePlacement,
+  hasLabDataConfigRole, labDataConfigCoveragePlacement, weekdayWorkflowBasis,
 } from "./dashboardProfiles";
 
 describe("resolveProfileForRole", () => {
@@ -50,9 +50,14 @@ describe("resolveDashboardRole", () => {
     expect(resolveDashboardRole(["qc-head", "qc-staff", "admin"])).toBe("admin");
   });
 
-  it("uses lab-analyze as the home profile when Lab higher roles include it", () => {
-    expect(resolveDashboardRole(["lab-head", "lab-analyze"])).toBe("lab-analyze");
+  it("uses lab-analyze as the home profile when secondary Lab roles include it", () => {
+    expect(resolveDashboardRole(["lab-data-config", "lab-analyze"])).toBe("lab-analyze");
     expect(resolveDashboardRole(["lab-inventory", "lab-analyze"])).toBe("lab-analyze");
+  });
+
+  it("uses lab-head as the home profile when Lab Head is present", () => {
+    expect(resolveDashboardRole(["lab-head", "lab-analyze"])).toBe("lab-head");
+    expect(resolveDashboardRole(["lab-head", "lab-inventory", "lab-analyze"])).toBe("lab-head");
   });
 
   it("uses qc-staff as the home profile when QC higher roles include it", () => {
@@ -100,6 +105,12 @@ describe("Lab Data Config dashboard pie placement", () => {
 });
 
 describe("registry integrity", () => {
+  it("uses a generic dashboard title for the requested home profiles", () => {
+    expect(DASHBOARD_PROFILES.admin.titleEn).toBe("Dashboard");
+    expect(DASHBOARD_PROFILES["lab-analyze"].titleEn).toBe("Dashboard");
+    expect(DASHBOARD_PROFILES["qc-staff"].titleEn).toBe("Dashboard");
+  });
+
   it("has all nine profiles and every profile's KPIs exist in KPI_META", () => {
     expect(Object.keys(DASHBOARD_PROFILES)).toHaveLength(9);
     for (const p of Object.values(DASHBOARD_PROFILES)) {
@@ -109,8 +120,15 @@ describe("registry integrity", () => {
     }
   });
 
+  it("places the urgent KPI first in every dashboard profile", () => {
+    for (const profile of Object.values(DASHBOARD_PROFILES)) {
+      expect(profile.kpis[0]).toBe("urgentTotal");
+    }
+    expect(KPI_META.urgentTotal.label).toBe("งานด่วน");
+  });
+
   it("lab analyze profile uses the focused worklist dashboard config", () => {
-    expect(DASHBOARD_PROFILES["lab-analyze"].kpis).toEqual(["assignedToMe", "inProgress", "completedToday"]);
+    expect(DASHBOARD_PROFILES["lab-analyze"].kpis).toEqual(["urgentTotal", "assignedToMe", "inProgress", "completedToday"]);
     expect(DASHBOARD_PROFILES["lab-analyze"].workflow).toBeNull();
     expect(DASHBOARD_PROFILES["lab-analyze"].analytics).toEqual([
       { kind: "assignedWeekdayBar", title: "งานที่ถูก assign ตามวัน" },
@@ -119,6 +137,7 @@ describe("registry integrity", () => {
 
   it("qc staff profile uses the requested receiving-to-approval dashboard config", () => {
     expect(DASHBOARD_PROFILES["qc-staff"].kpis).toEqual([
+      "urgentTotal",
       "waitingReceive",
       "inProgress",
       "waitingReview",
@@ -129,5 +148,47 @@ describe("registry integrity", () => {
     expect(KPI_META.waitingReview.label).toBe("รอตรวจ");
     expect(KPI_META.approvedToday.label).toBe("เสร็จวันนี้");
     expect(DASHBOARD_PROFILES["qc-staff"].workflow).toBe("assignedWeekdayBar");
+  });
+
+  it("lab head profile uses the dedicated work overview dashboard config", () => {
+    expect(DASHBOARD_PROFILES["lab-head"].kpis).toEqual([
+      "urgentTotal",
+      "labHeadAll",
+      "completedToday",
+      "pendingAssign",
+      "labHeadWaitingReceive",
+      "labHeadPendingApproval",
+    ]);
+    expect(KPI_META.labHeadAll.label).toBe("งานทั้งหมด");
+    expect(KPI_META.labHeadWaitingReceive.label).toBe("รอรับ");
+    expect(KPI_META.pendingAssign.label).toBe("รอ assign");
+    expect(KPI_META.labHeadPendingApproval.label).toBe("รอออกผล");
+    expect(KPI_META.completedToday.label).toBe("เสร็จวันนี้");
+    expect(DASHBOARD_PROFILES["lab-head"].workflow).toBeNull();
+    expect(DASHBOARD_PROFILES["lab-head"].analytics).toEqual([
+      { kind: "labHeadAnalystBar", title: "จำนวนงานต่อผู้วิเคราะห์" },
+    ]);
+  });
+});
+
+describe("weekly workflow card", () => {
+  it("shows the weekday bar for every QC profile", () => {
+    expect(DASHBOARD_PROFILES["qc-staff"].workflow).toBe("assignedWeekdayBar");
+    expect(DASHBOARD_PROFILES["qc-reviewer"].workflow).toBe("assignedWeekdayBar");
+    expect(DASHBOARD_PROFILES["qc-head"].workflow).toBe("assignedWeekdayBar");
+  });
+  it("keeps the status donut for admin and viewer", () => {
+    expect(DASHBOARD_PROFILES.admin.workflow).toBe("statusDonut");
+    expect(DASHBOARD_PROFILES.viewer.workflow).toBe("statusDonut");
+  });
+  it("counts QC weekly work from the sample-sent date", () => {
+    expect(weekdayWorkflowBasis("qc-staff")).toBe("qcSampleSent");
+    expect(weekdayWorkflowBasis("qc-reviewer")).toBe("qcSampleSent");
+    expect(weekdayWorkflowBasis("qc-head")).toBe("qcSampleSent");
+  });
+  it("counts other profiles from the lab assignment date", () => {
+    expect(weekdayWorkflowBasis("admin")).toBe("labAssigned");
+    expect(weekdayWorkflowBasis("lab-analyze")).toBe("labAssigned");
+    expect(weekdayWorkflowBasis(null)).toBe("labAssigned");
   });
 });

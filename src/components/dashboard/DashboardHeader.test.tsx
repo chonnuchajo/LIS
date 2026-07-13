@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import DashboardHeader from "./DashboardHeader";
-import { NAV_ITEMS } from "@/lib/navItems";
+import { formatThaiDate } from "@/lib/dateShift";
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({
@@ -15,23 +15,45 @@ vi.mock("@/context/AuthContext", () => ({
 }));
 
 describe("DashboardHeader", () => {
-  it("renders role-matrix nav instead of a role selector", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("renders the title without top action controls", () => {
     render(
       <MemoryRouter>
         <DashboardHeader
           titleEn="QC Dashboard"
           subtitleTh=""
-          range="today"
-          onRangeChange={vi.fn()}
-          onRefresh={vi.fn()}
-          onExport={vi.fn()}
-          navItems={NAV_ITEMS.filter((item) => ["/petitions", "/qc-testing"].includes(item.path))}
         />
       </MemoryRouter>,
     );
 
-    expect(screen.getAllByRole("combobox")).toHaveLength(1);
-    expect(screen.getByRole("navigation", { name: "เมนูหน้าแรก" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /เมนู/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "QC Dashboard" })).toBeInTheDocument();
+    expect(screen.queryAllByRole("combobox")).toHaveLength(0);
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(screen.queryByText("Export")).not.toBeInTheDocument();
+  });
+
+  it("renders only the date under the title", () => {
+    const now = new Date("2026-07-13T09:00:00+07:00");
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+
+    render(
+      <MemoryRouter>
+        <DashboardHeader
+          titleEn="Dashboard"
+          subtitleTh="Ignored subtitle"
+        />
+      </MemoryRouter>,
+    );
+
+    const expectedDate = formatThaiDate(now);
+    const dateLine = screen.getByText((content, element) =>
+      element?.tagName.toLowerCase() === "p" && content.includes(expectedDate),
+    );
+
+    expect(dateLine.textContent).toBe(expectedDate);
   });
 });

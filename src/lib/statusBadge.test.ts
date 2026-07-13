@@ -44,7 +44,7 @@ describe("petitionStatusBadge", () => {
       qcCompletedAt: "2026-07-02",
       labCompletedAt: "2026-07-02",
     } as Petition);
-    expect(b.label).toBe("ตรวจครบแล้ว · รอหัวหน้า Lab อนุมัติ");
+    expect(b.label).toBe("ตรวจครบแล้ว · รอหัวหน้า Lab ออกผล");
     expect(b.variant).toBe("yellow-soft");
   });
 });

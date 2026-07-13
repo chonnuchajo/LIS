@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { primaryRole } from "@/lib/roles";
+import type { WeekdayWorkloadBasis } from "@/lib/dashboardMetrics";
 
 export type DashboardProfileId =
   | "admin" | "lab-analyze" | "lab-config" | "lab-head" | "lab-inventory"
@@ -19,9 +20,9 @@ export type StatVariant = "blue" | "amber" | "green" | "red" | "neutral";
 
 export type KpiId =
   // petition status (current)
-  | "petitionsTotal" | "inProgress" | "waitingReceive" | "pendingAssign"
+  | "urgentTotal" | "petitionsTotal" | "inProgress" | "waitingReceive" | "pendingAssign"
   | "waitingSendLab" | "waitingReview" | "completedTotal" | "pendingApprovalQc" | "pendingApprovalLab"
-  | "assignedToMe" | "activeTotal"
+  | "assignedToMe" | "activeTotal" | "labHeadAll" | "labHeadWaitingReceive" | "labHeadPendingApproval"
   // time-based (delta today vs yesterday)
   | "completedToday" | "approvedToday" | "qcApprovedToday" | "withdrawalsToday"
   // flags / approx
@@ -41,20 +42,24 @@ export interface KpiMeta {
 }
 
 export const KPI_META: Record<KpiId, KpiMeta> = {
+  urgentTotal:       { label: "งานด่วน", icon: AlertTriangle, variant: "red" },
   petitionsTotal:    { label: "คำขอทั้งหมด",   icon: ClipboardList, variant: "neutral", drilldownPath: "/petitions" },
   inProgress:        { label: "กำลังดำเนินการ", icon: FlaskConical,  variant: "blue",    drilldownPath: "/petitions?status=inProgress" },
   waitingReceive:    { label: "งานรอรับ",       icon: Hourglass,     variant: "amber",   drilldownPath: "/petitions?status=sampleSent" },
-  pendingAssign:     { label: "รอมอบหมาย",      icon: UserCheck,     variant: "blue",    drilldownPath: "/petitions/assign" },
+  pendingAssign:     { label: "รอ assign",      icon: UserCheck,     variant: "blue",    drilldownPath: "/petitions/assign" },
   waitingSendLab:    { label: "รอส่ง Lab",       icon: ClipboardList, variant: "amber",   drilldownPath: "/petitions?status=pendingReview" },
   waitingReview:     { label: "รอตรวจ",          icon: ShieldCheck,   variant: "amber",   drilldownPath: "/qc-approval" },
   completedTotal:    { label: "เสร็จสิ้น",       icon: CheckCircle2,  variant: "green",   drilldownPath: "/petitions?status=success" },
-  pendingApprovalQc: { label: "รออนุมัติ QC",   icon: ShieldCheck,   variant: "amber",   drilldownPath: "/qc-approval" },
-  pendingApprovalLab:{ label: "รออนุมัติ Lab",  icon: ShieldCheck,   variant: "amber",   drilldownPath: "/lab-approval" },
+  pendingApprovalQc: { label: "รอออก Final Result", icon: ShieldCheck, variant: "amber",  drilldownPath: "/qc-approval" },
+  pendingApprovalLab:{ label: "รอออกผล Lab",   icon: ShieldCheck,   variant: "amber",   drilldownPath: "/lab-approval" },
   assignedToMe:      { label: "งานของฉัน",       icon: ClipboardCheck,variant: "blue",    drilldownPath: "/lab-testing" },
   activeTotal:       { label: "งานกำลังทำ",     icon: FlaskConical,  variant: "blue",    drilldownPath: "/petitions" },
+  labHeadAll:        { label: "งานทั้งหมด",      icon: ClipboardList, variant: "blue",    drilldownPath: "/petitions" },
+  labHeadWaitingReceive:{ label: "รอรับ",       icon: Hourglass,     variant: "amber",   drilldownPath: "/petitions" },
+  labHeadPendingApproval:{ label: "รอออกผล",   icon: ShieldCheck,   variant: "amber",   drilldownPath: "/lab-approval" },
   completedToday:    { label: "เสร็จวันนี้",     icon: CheckCircle2,  variant: "green" },
   approvedToday:     { label: "เสร็จวันนี้", icon: CheckCircle2, variant: "green" },
-  qcApprovedToday:   { label: "อนุมัติวันนี้",   icon: CheckCircle2,  variant: "green" },
+  qcApprovedToday:   { label: "ออก Final Result วันนี้", icon: CheckCircle2, variant: "green" },
   withdrawalsToday:  { label: "เบิกวันนี้",      icon: Package,       variant: "blue",    drilldownPath: "/stock-deduction" },
   abnormalResults:   { label: "ผลผิดปกติ",       icon: AlertTriangle, variant: "red",     drilldownPath: "/record-results" },
   returnedTotal:     { label: "งานตีกลับ",       icon: RotateCcw,     variant: "red",     drilldownPath: "/petitions" },
@@ -72,7 +77,7 @@ export const KPI_META: Record<KpiId, KpiMeta> = {
 export type WorkflowKind = "statusDonut" | "pipeline" | "assignedWeekdayBar";
 export type ChartKind =
   | "deptBar" | "normalDonut" | "analystBar" | "withdrawBar" | "requestTrend" | "statusDonut"
-  | "assignedWeekdayBar";
+  | "assignedWeekdayBar" | "labHeadAnalystBar";
 export interface ChartSpec { kind: ChartKind; title: string }
 export type ActivityKind = "audit" | "statusChanges";
 
@@ -88,64 +93,64 @@ export interface DashboardProfile {
 
 export const DASHBOARD_PROFILES: Record<DashboardProfileId, DashboardProfile> = {
   admin: {
-    id: "admin", titleEn: "Administrator Dashboard", subtitleTh: "ภาพรวมระบบ · ผู้ใช้ · งานค้าง",
-    kpis: ["usersTotal", "usersActive", "rolesTotal", "activeTotal", "dailyCheckPending"],
+    id: "admin", titleEn: "Dashboard", subtitleTh: "ภาพรวมระบบ · ผู้ใช้ · งานค้าง",
+    kpis: ["urgentTotal", "usersTotal", "usersActive", "rolesTotal", "activeTotal", "dailyCheckPending"],
     workflow: "statusDonut",
     analytics: [{ kind: "deptBar", title: "งานต่อแผนก" }, { kind: "statusDonut", title: "สัดส่วนสถานะคำขอ" }],
     activity: "audit",
   },
   "lab-analyze": {
-    id: "lab-analyze", titleEn: "Lab Analyze Dashboard", subtitleTh: "งานวิเคราะห์ของฉัน",
-    kpis: ["assignedToMe", "inProgress", "completedToday"],
+    id: "lab-analyze", titleEn: "Dashboard", subtitleTh: "งานวิเคราะห์ของฉัน",
+    kpis: ["urgentTotal", "assignedToMe", "inProgress", "completedToday"],
     workflow: null,
     analytics: [{ kind: "assignedWeekdayBar", title: "งานที่ถูก assign ตามวัน" }],
     activity: "statusChanges",
   },
   "lab-config": {
     id: "lab-config", titleEn: "Lab Data Config Dashboard", subtitleTh: "วิธีวิเคราะห์ · รายการสินค้า",
-    kpis: ["methodGaps", "masterItemsTotal"],
+    kpis: ["urgentTotal", "methodGaps", "masterItemsTotal"],
     workflow: null,
     analytics: [],
     activity: "statusChanges",
   },
   "lab-head": {
-    id: "lab-head", titleEn: "Lab Head Dashboard", subtitleTh: "อนุมัติ · ผิดปกติ · ภาระงาน",
-    kpis: ["pendingApprovalLab", "abnormalResults", "activeTotal", "completedToday"],
-    workflow: "pipeline",
-    analytics: [{ kind: "analystBar", title: "ภาระงานต่อผู้วิเคราะห์" }],
+    id: "lab-head", titleEn: "Lab Head Dashboard", subtitleTh: "ออกผล · ผิดปกติ · ภาระงาน",
+    kpis: ["urgentTotal", "labHeadAll", "completedToday", "pendingAssign", "labHeadWaitingReceive", "labHeadPendingApproval"],
+    workflow: null,
+    analytics: [{ kind: "labHeadAnalystBar", title: "จำนวนงานต่อผู้วิเคราะห์" }],
     activity: "statusChanges",
   },
   "lab-inventory": {
     id: "lab-inventory", titleEn: "Lab Inventory Dashboard", subtitleTh: "สต๊อก · หมดอายุ · การเบิก",
-    kpis: ["stockLow", "stockExpiring", "withdrawalsToday"],
+    kpis: ["urgentTotal", "stockLow", "stockExpiring", "withdrawalsToday"],
     workflow: null,
     analytics: [{ kind: "withdrawBar", title: "การเบิกต่อวัน" }],
     activity: "statusChanges",
   },
   "qc-staff": {
-    id: "qc-staff", titleEn: "QC Staff Dashboard", subtitleTh: "รับตัวอย่าง · ส่ง Lab · ติดตาม",
-    kpis: ["waitingReceive", "inProgress", "waitingReview", "approvedToday"],
+    id: "qc-staff", titleEn: "Dashboard", subtitleTh: "รับตัวอย่าง · ส่ง Lab · ติดตาม",
+    kpis: ["urgentTotal", "waitingReceive", "inProgress", "waitingReview", "approvedToday"],
     workflow: "assignedWeekdayBar",
     analytics: [],
     activity: "statusChanges",
   },
   "qc-reviewer": {
-    id: "qc-reviewer", titleEn: "QC Reviewer Dashboard", subtitleTh: "ตรวจทาน · อนุมัติผล",
-    kpis: ["pendingApprovalQc", "abnormalResults", "returnedTotal", "qcApprovedToday"],
-    workflow: "statusDonut",
+    id: "qc-reviewer", titleEn: "QC Reviewer Dashboard", subtitleTh: "ตรวจทาน · ออก Final Result",
+    kpis: ["urgentTotal", "pendingApprovalQc", "abnormalResults", "returnedTotal", "qcApprovedToday"],
+    workflow: "assignedWeekdayBar",
     analytics: [{ kind: "normalDonut", title: "ปกติ / ผิดปกติ" }],
     activity: "statusChanges",
   },
   "qc-head": {
-    id: "qc-head", titleEn: "QC Head Dashboard", subtitleTh: "อนุมัติ · ผิดปกติ · ประสิทธิภาพ",
-    kpis: ["pendingApprovalQc", "abnormalResults", "normalRateApprox", "activeTotal"],
-    workflow: "statusDonut",
+    id: "qc-head", titleEn: "QC Head Dashboard", subtitleTh: "ออก Final Result · ผิดปกติ · ประสิทธิภาพ",
+    kpis: ["urgentTotal", "pendingApprovalQc", "abnormalResults", "normalRateApprox", "activeTotal"],
+    workflow: "assignedWeekdayBar",
     analytics: [{ kind: "deptBar", title: "งานต่อแผนก" }, { kind: "normalDonut", title: "ปกติ / ผิดปกติ" }],
     activity: "audit",
   },
   viewer: {
     id: "viewer", titleEn: "Viewer Dashboard", subtitleTh: "ภาพรวมผู้บริหาร (อ่านอย่างเดียว)",
-    kpis: ["petitionsTotal", "inProgress", "completedTotal", "normalRateApprox"],
+    kpis: ["urgentTotal", "petitionsTotal", "inProgress", "completedTotal", "normalRateApprox"],
     workflow: "statusDonut",
     analytics: [{ kind: "statusDonut", title: "สัดส่วนสถานะ" }, { kind: "requestTrend", title: "คำขอต่อวัน (ในช่วงข้อมูล)" }],
     activity: "statusChanges",
@@ -191,6 +196,7 @@ export function resolveProfileForRole(
 
 export function resolveDashboardRole(roleIds: string[]): string {
   if (roleIds.includes("admin")) return "admin";
+  if (roleIds.includes("lab-head")) return "lab-head";
   if (roleIds.includes("qc-staff")) return "qc-staff";
   if (roleIds.includes("lab-analyze")) return "lab-analyze";
   const resolved = primaryRole(roleIds);
@@ -219,6 +225,13 @@ export function labDataConfigCoveragePlacement(
 ): LabDataConfigCoveragePlacement {
   if (!hasLabDataConfigRole(roleIds)) return "hidden";
   return profileId === "lab-config" ? "top" : "bottom";
+}
+
+const QC_WEEKDAY_PROFILES: DashboardProfileId[] = ["qc-staff", "qc-reviewer", "qc-head"];
+
+/** QC dashboards count weekly work when the sample was sent to Lab; the rest count assignment. */
+export function weekdayWorkflowBasis(profileId: DashboardProfileId | null): WeekdayWorkloadBasis {
+  return profileId && QC_WEEKDAY_PROFILES.includes(profileId) ? "qcSampleSent" : "labAssigned";
 }
 
 /** stored active role wins if the user still holds it, else primaryRole. */

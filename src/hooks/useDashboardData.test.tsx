@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DASHBOARD_PROFILES } from "@/lib/dashboardProfiles";
 
@@ -86,5 +86,30 @@ describe("useDashboardData inventory deductions", () => {
       createdFrom: expect.any(String),
       createdTo: expect.any(String),
     }));
+  });
+});
+
+describe("useDashboardData clock", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 13, 23, 59, 59));
+    state.user = { email: "qc@example.com", roles: ["qc-staff"] };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    state.user = { email: "analyst@example.com", roles: ["lab-analyze", "lab-inventory"] };
+  });
+
+  it("updates metrics now at the next local midnight", () => {
+    const { result } = renderHook(() => useDashboardData(DASHBOARD_PROFILES["qc-staff"]), { wrapper });
+    const initialNow = result.current.ctx.now;
+
+    act(() => {
+      vi.advanceTimersByTime(1_001);
+    });
+
+    expect(result.current.ctx.now).toBeGreaterThan(initialNow);
+    expect(new Date(result.current.ctx.now).getDate()).toBe(14);
   });
 });

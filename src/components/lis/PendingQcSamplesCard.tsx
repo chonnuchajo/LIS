@@ -34,7 +34,7 @@ export default function PendingQcSamplesCard({
               <Inbox className="h-6 w-6 text-muted-foreground" aria-hidden />
             </div>
             <p className="text-sm font-medium">ไม่มีผลวิเคราะห์ที่รอ QC</p>
-            <p className="text-xs text-muted-foreground">ทุกเคสได้รับการอนุมัติแล้ว ✨</p>
+            <p className="text-xs text-muted-foreground">ทุกเคสออก Final Result แล้ว ✨</p>
           </div>
         ) : (
           <>

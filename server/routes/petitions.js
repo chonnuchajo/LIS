@@ -386,17 +386,17 @@ router.post('/:id/complete', async (req, res) => {
   }
 });
 
-// POST /api/petitions/:id/lab-approve  → หัวหน้า Lab อนุมัติผล Lab. success เกิดเมื่อครบทุก track.
+// POST /api/petitions/:id/lab-approve  → หัวหน้า Lab ออกผล Lab. success เกิดเมื่อครบทุก track.
 router.post('/:id/lab-approve', async (req, res) => {
   try {
     const actor = req.body?.actor || 'system';
     const doc = await Petition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: { message: 'ไม่พบคำร้อง' } });
     if (['success', 'approved', 'rejected'].includes(doc.status)) {
-      return res.status(409).json({ error: { message: 'คำร้องนี้ผ่านขั้น Lab อนุมัติแล้ว' } });
+      return res.status(409).json({ error: { message: 'คำร้องนี้ผ่านขั้นออกผล Lab แล้ว' } });
     }
     if (!doc.labCompletedAt) return badRequest(res, 'ผู้ทดสอบ Lab ยังไม่ได้บันทึกผล');
-    if (doc.labApprovedAt) return badRequest(res, 'Lab อนุมัติไปแล้ว');
+    if (doc.labApprovedAt) return badRequest(res, 'ออกผล Lab ไปแล้ว');
 
     const now = new Date();
     doc.labApprovedAt = now;
@@ -410,13 +410,13 @@ router.post('/:id/lab-approve', async (req, res) => {
       await doc.save();
       logAudit(doc, {
         event: 'statusChanged', fromStatus: prevStatus, toStatus: 'success', actor,
-        note: 'หัวหน้า Lab อนุมัติ — ครบทุกส่วน รอหัวหน้า QC อนุมัติ', metadata: { side: 'lab' },
+        note: 'หัวหน้า Lab ออกผล — ครบทุกส่วน รอหัวหน้า QC ออก Final Result', metadata: { side: 'lab' },
       });
     } else {
       await doc.save();
       logAudit(doc, {
         event: 'updated', toStatus: doc.status, actor,
-        note: 'หัวหน้า Lab อนุมัติ — รอ QC ตรวจให้ครบ', metadata: { side: 'lab' },
+        note: 'หัวหน้า Lab ออกผล — รอ QC ตรวจให้ครบ', metadata: { side: 'lab' },
       });
     }
     res.json(doc);
@@ -740,7 +740,7 @@ router.patch('/:id', async (req, res) => {
     // Approve transition: success → approved (conclusion = pass | accepted-oos)
     if (updates.status === 'approved') {
       if (before.status !== 'success') {
-        return res.status(409).json({ error: { message: 'อนุมัติได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
+        return res.status(409).json({ error: { message: 'ออก Final Result ได้เฉพาะคำร้องสถานะ "ทดสอบเสร็จสิ้น"' } });
       }
       const conclusion = ['pass', 'accepted-oos'].includes(req.body.conclusion)
         ? req.body.conclusion
@@ -764,7 +764,7 @@ router.patch('/:id', async (req, res) => {
         fromStatus: 'success',
         toStatus: 'approved',
         actor: actor || 'system',
-        note: conclusion === 'accepted-oos' ? 'ยอมรับผลไม่ปกติ' : 'อนุมัติคำร้อง (ผลถูกต้อง)',
+        note: conclusion === 'accepted-oos' ? 'ยอมรับผลไม่ปกติ' : 'ออก Final Result (ผลถูกต้อง)',
         metadata: { conclusion },
       });
       return res.json(before);

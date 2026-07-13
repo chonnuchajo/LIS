@@ -161,6 +161,8 @@ export function requestTrendData(petitions: Petition[], now: number, days: numbe
 }
 
 export type LabWorklistFilter = "assignedToMe" | "inProgress" | "completedToday";
+export type LabHeadWorklistFilter = "all" | "waitingReceive" | "pendingAssign" | "pendingApproval" | "completedToday";
+export type LabHeadWorkloadPeriod = "today" | "weekly" | "monthly";
 export type QcStaffWorklistFilter = "waitingReceive" | "inProgress" | "waitingReview" | "approvedToday";
 export type QcParticipantMap = Record<string, readonly string[]>;
 
@@ -176,6 +178,8 @@ export interface LabWeekdayBucket {
   count: number;
 }
 
+export type WeekdayWorkloadBasis = "labAssigned" | "qcSampleSent";
+
 const WEEKDAY_BUCKETS: LabWeekdayBucket[] = [
   { key: "mon", label: "จันทร์", count: 0 },
   { key: "tue", label: "อังคาร", count: 0 },
@@ -188,6 +192,12 @@ const WEEKDAY_BUCKETS: LabWeekdayBucket[] = [
 
 function assignmentIso(p: Petition): string | null | undefined {
   return p.assignedTo?.assignedAt ?? p.receivedAt ?? p.sampleSentAt ?? p.createdAt;
+}
+
+function weekdayWorkloadIso(p: Petition, basis: WeekdayWorkloadBasis): string | null | undefined {
+  if (basis === "qcSampleSent") return p.sampleSentAt ?? p.createdAt;
+  if (!p.assignedTo) return null;
+  return p.assignedTo.assignedAt ?? assignmentIso(p);
 }
 
 function qcAssignmentIso(p: Petition): string | null | undefined {
@@ -214,6 +224,32 @@ function timeValue(iso: string | null | undefined): number {
   if (!iso) return 0;
   const t = new Date(iso).getTime();
   return Number.isFinite(t) ? t : 0;
+}
+
+function localWeekWindow(now: number): { start: number; end: number } {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  const day = start.getDay();
+  const daysSinceMonday = day === 0 ? 6 : day - 1;
+  start.setDate(start.getDate() - daysSinceMonday);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  return { start: start.getTime(), end: end.getTime() };
+}
+
+function localMonthWindow(now: number): { start: number; end: number } {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(1);
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + 1);
+  return { start: start.getTime(), end: end.getTime() };
+}
+
+function labHeadPeriodWindow(now: number, period: LabHeadWorkloadPeriod): { start: number; end: number } {
+  if (period === "weekly") return localWeekWindow(now);
+  if (period === "monthly") return localMonthWindow(now);
+  return { start: startOfLocalDay(now, 0), end: startOfLocalDay(now, -1) };
 }
 
 function normalizedPerson(value: string | null | undefined): string {
@@ -266,6 +302,97 @@ export function labWorklistCounts(
   };
 }
 
+function isTerminalLabHeadStatus(status: PetitionStatus): boolean {
+  return status === "approved" || status === "rejected";
+}
+
+function isLabHeadWaitingReceive(p: Petition): boolean {
+  return p.status === "sampleSent" && !!p.assignedTo && !labReceivedAt(p) && !p.labCompletedAt && !p.labApprovedAt && !isTerminalLabHeadStatus(p.status);
+}
+
+function isLabHeadPendingAssign(p: Petition): boolean {
+  return p.status === "sampleSent" && !p.assignedTo && !p.labCompletedAt && !p.labApprovedAt && !isTerminalLabHeadStatus(p.status);
+}
+
+function isLabHeadPendingApproval(p: Petition): boolean {
+  return !!p.labCompletedAt && !p.labApprovedAt;
+}
+
+function isLabHeadOpenWork(p: Petition): boolean {
+  if (isTerminalLabHeadStatus(p.status)) return false;
+  if (p.labApprovedAt) return false;
+  return isLabHeadPendingApproval(p) || !p.labCompletedAt;
+}
+
+function labHeadPriority(p: Petition): number {
+  if (isLabHeadPendingApproval(p)) return 3;
+  if (p.assignedTo) return 2;
+  if (isLabHeadPendingAssign(p)) return 1;
+  return 0;
+}
+
+function labHeadRowIso(p: Petition, filter: LabHeadWorklistFilter): string | null | undefined {
+  if (filter === "pendingApproval" || filter === "completedToday") return labCompletionIso(p);
+  if (filter === "waitingReceive") return p.sampleSentAt ?? p.receivedAt ?? p.createdAt;
+  if (filter === "pendingAssign") return p.sampleSentAt ?? p.receivedAt ?? p.createdAt;
+  return isLabHeadPendingApproval(p) ? labCompletionIso(p) : assignmentIso(p);
+}
+
+export function buildLabHeadWorklist(
+  petitions: Petition[],
+  filter: LabHeadWorklistFilter,
+  now: number,
+): Petition[] {
+  const rows = petitions.filter((p) => {
+    if (filter === "all") return isLabHeadOpenWork(p);
+    if (filter === "waitingReceive") return isLabHeadWaitingReceive(p);
+    if (filter === "pendingAssign") return isLabHeadPendingAssign(p);
+    if (filter === "pendingApproval") return isLabHeadPendingApproval(p);
+    return !!p.labCompletedAt && isSameLocalDay(labCompletionIso(p), now);
+  });
+
+  return rows.sort((a, b) => {
+    const byTime = timeValue(labHeadRowIso(b, filter)) - timeValue(labHeadRowIso(a, filter));
+    if (byTime !== 0) return byTime;
+    if (filter === "all") return labHeadPriority(b) - labHeadPriority(a);
+    return 0;
+  });
+}
+
+export function labHeadWorklistCounts(
+  petitions: Petition[],
+  now: number,
+): Record<LabHeadWorklistFilter, number> {
+  return {
+    all: buildLabHeadWorklist(petitions, "all", now).length,
+    waitingReceive: buildLabHeadWorklist(petitions, "waitingReceive", now).length,
+    pendingAssign: buildLabHeadWorklist(petitions, "pendingAssign", now).length,
+    pendingApproval: buildLabHeadWorklist(petitions, "pendingApproval", now).length,
+    completedToday: buildLabHeadWorklist(petitions, "completedToday", now).length,
+  };
+}
+
+export function labHeadAnalystWorkloadData(
+  petitions: Petition[],
+  now: number,
+  period: LabHeadWorkloadPeriod,
+): { name: string; count: number }[] {
+  const { start, end } = labHeadPeriodWindow(now, period);
+  const byName = new Map<string, number>();
+
+  for (const p of petitions) {
+    const name = p.assignedTo?.name?.trim();
+    if (!name) continue;
+    const assignedAt = timeValue(assignmentIso(p));
+    if (!assignedAt || assignedAt < start || assignedAt >= end) continue;
+    byName.set(name, (byName.get(name) ?? 0) + 1);
+  }
+
+  return [...byName.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "th"));
+}
+
 export function isQcParticipant(
   p: Petition,
   user: LabDashboardUser | null | undefined,
@@ -301,6 +428,10 @@ export function buildQcStaffWorklist(
   return rows.sort((a, b) => timeValue(rowTime(b)) - timeValue(rowTime(a)));
 }
 
+export function prioritizeUrgentPetitions(petitions: Petition[]): Petition[] {
+  return [...petitions].sort((a, b) => Number(b.priority === 1) - Number(a.priority === 1));
+}
+
 export function qcStaffWorklistCounts(
   petitions: Petition[],
   user: LabDashboardUser | null | undefined,
@@ -329,15 +460,19 @@ export function paginateLabWorklist<T>(rows: T[], page: number, pageSize = 4) {
   };
 }
 
-export function assignedWeekdayData(petitions: Petition[]): LabWeekdayBucket[] {
+export function assignedWeekdayData(
+  petitions: Petition[],
+  now = Date.now(),
+  basis: WeekdayWorkloadBasis = "labAssigned",
+): LabWeekdayBucket[] {
+  const { start, end } = localWeekWindow(now);
   const byKey = new Map<LabWeekdayBucket["key"], LabWeekdayBucket>(
     WEEKDAY_BUCKETS.map((d) => [d.key, { ...d }]),
   );
 
   for (const p of petitions) {
-    if (!p.assignedTo) continue;
-    const t = timeValue(assignmentIso(p));
-    if (!t) continue;
+    const t = timeValue(weekdayWorkloadIso(p, basis));
+    if (!t || t < start || t >= end) continue;
     const day = new Date(t).getDay();
     const key: LabWeekdayBucket["key"] =
       day === 0 ? "sun" :
@@ -623,17 +758,21 @@ export function standardTimeCoverageData(summary: StandardTimeCoverageSummary[])
 export function computeKpi(id: KpiId, ctx: MetricsCtx): KpiValue {
   const P = ctx.petitions;
   switch (id) {
+    case "urgentTotal": return { value: P.filter((petition) => petition.priority === 1).length };
     case "petitionsTotal": return { value: P.length };
     case "inProgress": return { value: countStatus(P, "inProgress") };
     case "waitingReceive": return { value: countStatus(P, "sampleSent") };
-    case "pendingAssign": return { value: countStatus(P, "pendingReview") };
+    case "pendingAssign": return { value: P.filter(isLabHeadPendingAssign).length };
     case "waitingSendLab": return { value: countStatus(P, "pendingReview") };
     case "waitingReview": return { value: countStatus(P, "success") };
     case "completedTotal": return { value: countStatus(P, "success") + countStatus(P, "approved") };
     case "activeTotal":
       return { value: countStatus(P, "inProgress") + countStatus(P, "pendingReview") + countStatus(P, "sampleSent") };
     case "pendingApprovalQc": return { value: ctx.pendingQcCount };
-    case "pendingApprovalLab": return { value: countStatus(P, "inProgress") };
+    case "pendingApprovalLab": return { value: P.filter(isLabHeadPendingApproval).length };
+    case "labHeadAll": return { value: P.filter(isLabHeadOpenWork).length };
+    case "labHeadWaitingReceive": return { value: P.filter(isLabHeadWaitingReceive).length };
+    case "labHeadPendingApproval": return { value: P.filter(isLabHeadPendingApproval).length };
     case "assignedToMe": return { value: ctx.assignedToMeCount };
     case "completedToday":
       return { value: completedIn(P, ctx.now, 0), delta: completedIn(P, ctx.now, 0) - completedIn(P, ctx.now, 1) };

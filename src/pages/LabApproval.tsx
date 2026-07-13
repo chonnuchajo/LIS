@@ -178,8 +178,8 @@ const LabApproval = () => {
     <AppLayout>
       <div className="space-y-6">
         <PageHeader
-          title={<span className="inline-flex items-center gap-2"><ShieldCheck className="w-6 h-6" />อนุมัติผล Lab</span>}
-          description={`ตรวจสอบและอนุมัติผลการทดสอบจาก Lab · ${sortedPetitions.length} รายการรออนุมัติ`}
+          title={<span className="inline-flex items-center gap-2"><ShieldCheck className="w-6 h-6" />ออกผล Lab</span>}
+          description={`ตรวจสอบและออกผลการทดสอบจาก Lab · ${sortedPetitions.length} รายการรอออกผล`}
         />
         <DataTable
           columns={columns}
@@ -187,7 +187,7 @@ const LabApproval = () => {
           rowKey={(p) => p._id}
           isLoading={loading}
           onRowClick={(p) => navigate(`/lab-approval/${p._id}`)}
-          emptyTitle="ไม่มีคำร้องที่รออนุมัติ Lab"
+          emptyTitle="ไม่มีคำร้องที่รอออกผล Lab"
           tableClassName="min-w-[700px]"
         />
       </div>

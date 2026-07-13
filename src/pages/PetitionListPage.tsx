@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  ArrowRight,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -79,14 +78,6 @@ function petitionMetaLine(petition: Petition) {
   ]
     .filter(Boolean)
     .join(' • ');
-}
-
-function petitionActionLabel(petition: Petition) {
-  if (petition.status === 'sampleSent' || petition.status === 'pendingReview') return petition.assignedTo ? 'ดูผู้รับงาน' : 'Assign ผู้รับงาน';
-  if (petition.status === 'rejected') return 'ดูเหตุผล';
-  if (petition.status === 'approved' || petition.status === 'success') return 'ดูสรุปผล';
-  if (petition.status === 'inProgress') return 'ดูความคืบหน้า';
-  return 'ดูรายละเอียด';
 }
 
 function displayPerson(name?: string | null) {
@@ -454,13 +445,6 @@ export default function PetitionListPage() {
                         </div>
 
                         <PetitionStatusTimeline petition={petition} compact />
-                      </div>
-
-                      <div className="flex items-center gap-2 self-start lg:pl-4">
-                        <span className="inline-flex h-9 items-center gap-2 rounded-md border border-primary-200 bg-white px-3 text-sm font-medium text-primary-600">
-                          {petitionActionLabel(petition)}
-                          <ArrowRight className="h-4 w-4" />
-                        </span>
                       </div>
                     </div>
                   </Card>

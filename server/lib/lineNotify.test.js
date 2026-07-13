@@ -19,7 +19,7 @@ test('assigneeSide: lab dept/position → lab, else qc', () => {
 
 test('petitionStatusText: both tested, lab not approved → รอหัวหน้า Lab', () => {
   const p = { status: 'inProgress', qcCompletedAt: 'T', labCompletedAt: 'T' };
-  assert.strictEqual(petitionStatusText(p), 'ตรวจครบแล้ว · รอหัวหน้า Lab อนุมัติ');
+  assert.strictEqual(petitionStatusText(p), 'ตรวจครบแล้ว · รอหัวหน้า Lab ออกผล');
 });
 
 test('petitionStatusText: qc only → รอส่วนอื่น', () => {

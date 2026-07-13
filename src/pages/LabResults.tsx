@@ -8,7 +8,7 @@ export default function LabResults() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
 
-  // คำร้องฝั่ง Lab ที่หัวหน้าห้องปฏิบัติการอนุมัติผลแล้ว
+  // คำร้องฝั่ง Lab ที่หัวหน้าห้องปฏิบัติการออกผลแล้ว
   const { data, loading } = usePetitionList({ labApproved: true, limit: 100 });
 
   const rows = useMemo(() => {
@@ -25,7 +25,7 @@ export default function LabResults() {
       <div className="p-6 space-y-4">
         <div>
           <h1 className="text-xl font-bold text-lis-text">ผลวิเคราะห์ Lab</h1>
-          <p className="text-sm text-gray-500">คำร้องที่หัวหน้าห้องปฏิบัติการอนุมัติผลแล้ว</p>
+          <p className="text-sm text-gray-500">คำร้องที่หัวหน้าห้องปฏิบัติการออกผลแล้ว</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -44,7 +44,7 @@ export default function LabResults() {
                 <th className="px-3 py-2">เลขคำร้อง</th>
                 <th className="px-3 py-2">แผนก</th>
                 <th className="px-3 py-2">ผู้ส่ง</th>
-                <th className="px-3 py-2">วันที่อนุมัติ Lab</th>
+                <th className="px-3 py-2">วันที่ออกผล Lab</th>
               </tr>
             </thead>
             <tbody>
@@ -52,7 +52,7 @@ export default function LabResults() {
                 <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">กำลังโหลด…</td></tr>
               )}
               {!loading && rows.length === 0 && (
-                <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">ยังไม่มีคำร้องที่หัวหน้า Lab อนุมัติ</td></tr>
+                <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">ยังไม่มีคำร้องที่หัวหน้า Lab ออกผล</td></tr>
               )}
               {rows.map((p) => (
                 <tr
