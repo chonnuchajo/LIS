@@ -154,6 +154,53 @@ describe('openWorkUnits', () => {
     expect(byStage.waitingLabApprove).toBe('ok');
     expect(byStage.waitingFinal).toBe('ok');
   });
+
+  // --- Finding 1: a lagging QC receive must not be swallowed by the "shared
+  // wait" de-dup guard once Lab has already received the sample ---
+
+  it('emits its own qc/waitingReceive unit once Lab has received but QC has not', () => {
+    // Lab and QC receive independently (PATCH /petitions/:id/receive side=lab|qc).
+    // Once Lab has received, a missing QC receive is a genuinely different, QC-only
+    // wait — not the shared "nobody has received it yet" state — so it must surface.
+    const petition = {
+      _id: 'p14', petitionNo: 'P-14', dept: 'fg', status: 'inProgress', items: [labItem],
+      sampleSentAt: hoursAgo(5),
+      labReceivedAt: hoursAgo(5), assignedTo: { name: 'ก', assignedAt: hoursAgo(5) },
+      assignedMachines: [{ estimatedMinutes: 999 }],
+      // qcReceivedAt intentionally absent
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    const qcWait = units.find((u) => u.track === 'qc' && u.stage === 'waitingReceive');
+    expect(qcWait).toBeDefined();
+    expect(qcWait.state).toBe('ok');
+    expect(qcWait.baselineMin).toBeNull();
+  });
+
+  it('emits exactly one waitingReceive unit when neither Lab nor QC has received yet', () => {
+    // Pins the existing anti-double-count behavior: while both sides are still
+    // waiting on the very same event, the shared wait must be reported once, not
+    // once per track.
+    const petition = {
+      _id: 'p15', petitionNo: 'P-15', dept: 'fg', status: 'sampleSent', items: [labItem],
+      sampleSentAt: hoursAgo(2),
+      // neither labReceivedAt nor qcReceivedAt set
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    const waitingReceiveUnits = units.filter((u) => u.stage === 'waitingReceive');
+    expect(waitingReceiveUnits).toHaveLength(1);
+    expect(waitingReceiveUnits[0].track).toBe('lab');
+  });
+
+  it('still emits qc/waitingReceive for a QC-only petition (no Lab track) that has not received', () => {
+    const petition = {
+      _id: 'p16', petitionNo: 'P-16', dept: 'fg', status: 'sampleSent', items: [qcItem],
+      sampleSentAt: hoursAgo(1),
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    expect(units).toHaveLength(1);
+    expect(units[0].track).toBe('qc');
+    expect(units[0].stage).toBe('waitingReceive');
+  });
 });
 
 describe('bottleneckCounts', () => {
@@ -198,5 +245,28 @@ describe('buildLiveSection', () => {
       now: NOW, qcBaseline: EMPTY_BASELINE, abnormalFlags: {},
     });
     expect(live.actionQueue.map((u) => u.petitionNo)).toEqual(['P-A', 'P-B']);
+  });
+
+  it('breaks a same-state tie by putting the more-overdue unit first', () => {
+    // Both units land in the 'overdue' state bucket (same rank), so the sort must
+    // fall through to the overdueMin-descending tie-break — untested until now
+    // because the only prior overdue-vs-overdue comparison never reached this branch.
+    const lessOverdue = {
+      _id: 'c', petitionNo: 'P-C', dept: 'fg', status: 'inProgress', items: [labItem],
+      qcReceivedAt: hoursAgo(9), qcCompletedAt: hoursAgo(8),
+      labReceivedAt: hoursAgo(5), assignedTo: { name: 'ก', assignedAt: hoursAgo(5) },
+      assignedMachines: [{ estimatedMinutes: 60 }], // elapsed 300, overdueMin 240
+    };
+    const moreOverdue = {
+      _id: 'd', petitionNo: 'P-D', dept: 'fg', status: 'inProgress', items: [labItem],
+      qcReceivedAt: hoursAgo(9), qcCompletedAt: hoursAgo(8),
+      labReceivedAt: hoursAgo(10), assignedTo: { name: 'ก', assignedAt: hoursAgo(10) },
+      assignedMachines: [{ estimatedMinutes: 60 }], // elapsed 600, overdueMin 540
+    };
+    const live = buildLiveSection([lessOverdue, moreOverdue], {
+      now: NOW, qcBaseline: EMPTY_BASELINE, abnormalFlags: {},
+    });
+    const overdueOnly = live.actionQueue.filter((u) => u.state === 'overdue');
+    expect(overdueOnly.map((u) => u.petitionNo)).toEqual(['P-D', 'P-C']);
   });
 });

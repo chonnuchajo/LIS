@@ -123,8 +123,14 @@ function openWorkUnits(petitions, { now, qcBaseline }) {
 
     // ── QC track
     if (!qcReceived) {
+      // The "nobody has received it yet" wait is shared across tracks — suppress the
+      // QC copy only while Lab is ALSO still waiting (Lab's unit already reports it).
+      // Once Lab has received and QC hasn't, this is a distinct, QC-only lag (Lab and
+      // QC receive independently via PATCH /petitions/:id/receive side=lab|qc) and
+      // must get its own unit — otherwise a stuck QC receive is invisible.
+      const sharedWaitAlreadyReported = labTrack && !labReceived;
       const elapsed = minutesSince(petition.sampleSentAt, now);
-      if (elapsed != null && !labTrack) units.push(unit(petition, 'qc', 'waitingReceive', elapsed, null, 'ok'));
+      if (elapsed != null && !sharedWaitAlreadyReported) units.push(unit(petition, 'qc', 'waitingReceive', elapsed, null, 'ok'));
     } else if (!qcCompleted) {
       const elapsed = minutesSince(qcReceived, now);
       units.push(unit(petition, 'qc', 'qcTesting', elapsed, qcBaselineMinutes(petition, qcBaseline)));
