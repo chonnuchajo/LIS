@@ -37,7 +37,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useAuth } from '@/hooks/useAuth';
 import { usePetitionList } from '@/hooks/usePetition';
 import { api, type MachineItem } from '@/lib/api';
-import { petitionStatusBadge } from '@/lib/statusBadge';
+import { hasLabTrack, petitionStatusBadge } from '@/lib/statusBadge';
 import { getMachineSuggestions, type MachineSuggestion } from '@/lib/aiApi';
 import { DEV_MODE, synthesizeDevAssignees } from '@/config/dev';
 import { parseSubstances } from '@/lib/substances';
@@ -1002,6 +1002,7 @@ function PetitionCard({
   assigned,
 }: PetitionCardProps) {
   const statusCfg = petitionStatusBadge(petition);
+  const showStatusBadge = hasLabTrack(petition);
   const machineCodes = (petition.assignedMachines ?? [])
     .map((m) => m.code)
     .filter(Boolean) as string[];
@@ -1035,9 +1036,11 @@ function PetitionCard({
             >
               {petition.petitionNo}
             </button>
-            <Badge variant={statusCfg.variant} className="ml-auto shrink-0">
-              {statusCfg.label}
-            </Badge>
+            {showStatusBadge && (
+              <Badge variant={statusCfg.variant} className="ml-auto shrink-0">
+                {statusCfg.label}
+              </Badge>
+            )}
           </div>
           <div className="mt-0.5 truncate text-[11px] text-grey-500">
             {petition.submittedBy?.name ?? '-'} · {petition.dept}

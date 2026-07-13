@@ -52,7 +52,7 @@ export function petitionStatusBadge(petition: Petition): StatusBadge {
   return statusBadge(petition.status);
 }
 
-function hasLabTrack(petition: Petition): boolean {
+export function hasLabTrack(petition: Petition): boolean {
   return Boolean(
     petition.labReceivedAt ||
       petition.labCompletedAt ||
