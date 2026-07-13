@@ -201,6 +201,49 @@ describe('openWorkUnits', () => {
     expect(units[0].track).toBe('qc');
     expect(units[0].stage).toBe('waitingReceive');
   });
+
+  // --- Real-data bug: stage must come from the FURTHEST progress reached, not
+  // the first missing timestamp. Real petitions have gaps (a receive scan that
+  // was never recorded) even after later milestones completed — see P-2606-0010.
+
+  it('derives waitingFinal (not waitingReceive) for a petition with no receive timestamps at all but Lab+QC both finished', () => {
+    // Real shape: P-2606-0010, status 'success'. sampleSentAt is set but neither
+    // labReceivedAt nor qcReceivedAt was ever recorded — yet labCompletedAt,
+    // labApprovedAt and qcCompletedAt prove the work is long done. The petition
+    // is legitimately only waiting on the head's Final Result (approvedAt null).
+    // The old "first missing timestamp" walk read the null labReceivedAt as
+    // "still waiting to be received" and emitted a phantom waitingReceive unit
+    // alongside the correct waitingFinal one.
+    const petition = {
+      _id: 'real1', petitionNo: 'P-2606-0010', dept: 'fg', status: 'success', items: [labItem],
+      sampleSentAt: hoursAgo(50),
+      // labReceivedAt / qcReceivedAt intentionally absent — never scanned
+      labCompletedAt: hoursAgo(30),
+      labApprovedAt: hoursAgo(29),
+      qcCompletedAt: hoursAgo(20),
+      // approvedAt intentionally absent — still open, waiting on Final Result
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    expect(units).toHaveLength(1);
+    expect(units[0].stage).toBe('waitingFinal');
+    expect(units.some((u) => u.stage === 'waitingReceive')).toBe(false);
+
+    const counts = bottleneckCounts(units);
+    expect(counts.find((c) => c.stage === 'waitingReceive').count).toBe(0);
+  });
+
+  it('reads a Lab track missing labReceivedAt but with labCompletedAt set as waitingLabApprove, not waitingReceive', () => {
+    const petition = {
+      _id: 'real2', petitionNo: 'P-REAL2', dept: 'fg', status: 'inProgress', items: [labItem],
+      sampleSentAt: hoursAgo(40),
+      // labReceivedAt intentionally absent
+      labCompletedAt: hoursAgo(10),
+      // labApprovedAt absent — still waiting on the Lab head to release the result
+    };
+    const [labUnit] = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE })
+      .filter((u) => u.track === 'lab');
+    expect(labUnit.stage).toBe('waitingLabApprove');
+  });
 });
 
 describe('bottleneckCounts', () => {

@@ -103,26 +103,38 @@ function openWorkUnits(petitions, { now, qcBaseline }) {
     const labApproved = toDate(petition.labApprovedAt);
     const qcCompleted = toDate(petition.qcCompletedAt);
 
-    // ── Lab track
+    // ── Lab track — stage comes from the FURTHEST progress reached, walking the
+    // states in reverse so a later milestone always wins over an earlier missing
+    // timestamp. Real petitions have gaps (e.g. a receive scan that was never
+    // recorded) even after later stages completed — see P-2606-0010, where
+    // labReceivedAt is null but labApprovedAt proves the Lab track is done.
     if (labTrack) {
-      if (!labReceived) {
-        const elapsed = minutesSince(petition.sampleSentAt, now);
-        if (elapsed != null) units.push(unit(petition, 'lab', 'waitingReceive', elapsed, null, 'ok'));
-      } else if (!assignedAt) {
+      if (labApproved) {
+        // Lab track done — nothing to emit.
+      } else if (labCompleted) {
+        const elapsed = minutesSince(labCompleted, now);
+        units.push(unit(petition, 'lab', 'waitingLabApprove', elapsed, null, 'ok'));
+      } else if (assignedAt) {
+        const elapsed = minutesSince(labReceived || assignedAt, now);
+        units.push(unit(petition, 'lab', 'labTesting', elapsed, labBaselineMinutes(petition)));
+      } else if (labReceived) {
         const elapsed = minutesSince(labReceived, now);
         const state = elapsed >= UNASSIGNED_ALERT_MIN ? 'unassigned' : 'ok';
         units.push(unit(petition, 'lab', 'pendingAssign', elapsed, null, state));
-      } else if (!labCompleted) {
-        const elapsed = minutesSince(labReceived, now);
-        units.push(unit(petition, 'lab', 'labTesting', elapsed, labBaselineMinutes(petition)));
-      } else if (!labApproved) {
-        const elapsed = minutesSince(labCompleted, now);
-        units.push(unit(petition, 'lab', 'waitingLabApprove', elapsed, null, 'ok'));
+      } else {
+        const elapsed = minutesSince(petition.sampleSentAt, now);
+        if (elapsed != null) units.push(unit(petition, 'lab', 'waitingReceive', elapsed, null, 'ok'));
       }
     }
 
-    // ── QC track
-    if (!qcReceived) {
+    // ── QC track — same furthest-progress principle: qcCompletedAt wins over a
+    // missing qcReceivedAt (a receive scan that was never recorded).
+    if (qcCompleted) {
+      // QC track done — nothing to emit.
+    } else if (qcReceived) {
+      const elapsed = minutesSince(qcReceived, now);
+      units.push(unit(petition, 'qc', 'qcTesting', elapsed, qcBaselineMinutes(petition, qcBaseline)));
+    } else {
       // The "nobody has received it yet" wait is shared across tracks — suppress the
       // QC copy only while Lab is ALSO still waiting (Lab's unit already reports it).
       // Once Lab has received and QC hasn't, this is a distinct, QC-only lag (Lab and
@@ -131,9 +143,6 @@ function openWorkUnits(petitions, { now, qcBaseline }) {
       const sharedWaitAlreadyReported = labTrack && !labReceived;
       const elapsed = minutesSince(petition.sampleSentAt, now);
       if (elapsed != null && !sharedWaitAlreadyReported) units.push(unit(petition, 'qc', 'waitingReceive', elapsed, null, 'ok'));
-    } else if (!qcCompleted) {
-      const elapsed = minutesSince(qcReceived, now);
-      units.push(unit(petition, 'qc', 'qcTesting', elapsed, qcBaselineMinutes(petition, qcBaseline)));
     }
 
     // ── รอ Final Result (ทุกรางที่ใบนี้มี ทดสอบครบแล้ว)
