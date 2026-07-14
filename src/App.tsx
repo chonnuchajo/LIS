@@ -98,7 +98,7 @@ const App = () => (
           <NotificationProvider>
             <DailyCheckReminderWatcher />
             <SampleProvider>
-              <StartupLoadingGate>
+              <StartupLoadingGate minimumDurationMs={3000}>
               <Suspense fallback={<RouteLoading />}>
               <Routes>
               <Route path="/login" element={<Login />} />
