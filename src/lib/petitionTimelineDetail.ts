@@ -410,16 +410,17 @@ function buildStageRows(petition: Petition, now: Date, fallbackStartAt: string):
   // คำร้องเก่า/เคสที่ข้ามการสแกนส่ง ยังต้องเห็นช่วงส่งตัวอย่าง — ถอยไปใช้เวลารับตัวอย่างที่เร็วสุดแทน
   const sampleSentAt = petition.sampleSentAt
     ?? firstValidDate(petition.qcReceivedAt, petition.receivedAt, petition.labReceivedAt);
+  // ต้องคง guard hasLab ไว้: assignedAt ถูกใช้ต่อใน endAt ของแถว sample-sent ด้วย (นอกบล็อก hasLab-only)
+  // ถ้าตัด guard ออก คำร้องไม่มี Lab ที่บังเอิญมี assignedTo ค้างอยู่ (stray) จะทำให้แถว sample-sent จบผิดเวลา
   const assignedAt = hasLab ? petition.assignedTo?.assignedAt ?? null : null;
   // ข้อมูลเก่าบางเคสมีรู timestamp: บันทึกผลแล้วแต่ไม่มีเวลารับตัวอย่าง — ถอยไปใช้จุดเริ่มกราฟ/เวลามอบหมาย
   // ไม่งั้นแท่งวิเคราะห์หายไปทั้งที่ทำจริง (ถ้ายังไม่บันทึกผลและยังไม่รับตัวอย่าง = ยังไม่เริ่มจริง ต้องไม่ fallback)
-  const qcStartAt = petition.qcReceivedAt ?? petition.receivedAt ?? (petition.qcCompletedAt ? fallbackStartAt : null);
-  const labStartAt = hasLab
-    ? petition.labReceivedAt ?? (petition.labCompletedAt ? (assignedAt ?? fallbackStartAt) : null)
-    : null;
+  const qcReceivedRealAt = petition.qcReceivedAt ?? petition.receivedAt ?? null;
+  const qcStartAt = qcReceivedRealAt ?? (petition.qcCompletedAt ? fallbackStartAt : null);
+  const labStartAt = petition.labReceivedAt ?? (petition.labCompletedAt ? (assignedAt ?? fallbackStartAt) : null);
   const qcCompletedAt = petition.qcCompletedAt ?? null;
-  const labCompletedAt = hasLab ? petition.labCompletedAt ?? null : null;
-  const labApprovedAt = hasLab ? petition.labApprovedAt ?? null : null;
+  const labCompletedAt = petition.labCompletedAt ?? null;
+  const labApprovedAt = petition.labApprovedAt ?? null;
   const closedAt = petition.approvedAt ?? petition.rejectedAt ?? null;
   // Pre Result เริ่มเมื่อ "บันทึกผลครบทั้งสองฝั่ง" — คำร้องที่มี Lab ต้องรอ Lab บันทึกผลด้วย
   const preResultStartAt = hasLab
@@ -427,8 +428,10 @@ function buildStageRows(petition: Petition, now: Date, fallbackStartAt: string):
     : qcCompletedAt;
 
   // แถวที่เริ่มแล้วแต่สถานะถัดไปยังไม่เกิด → ลากถึงตอนนี้ (done = false); ยังไม่เริ่ม → ไม่มีแท่ง
+  // คำร้องที่ปิดแล้ว (closedAt) ห้ามลากเลยจุดปิด — ไม่งั้นแท่งที่ขาด timestamp กลาง ๆ (รูข้อมูลเก่า) จะลากยาวถึงวันนี้ตลอดกาล
+  const openEndAt = closedAt ?? nowAt;
   const stage = (key: string, label: string, track: TimelineDetailRowTrack, startAt: string | null, endAt: string | null) =>
-    makeBarRow({ key, label, track, startAt, endAt: startAt ? endAt ?? nowAt : null, done: !!startAt && !!endAt });
+    makeBarRow({ key, label, track, startAt, endAt: startAt ? endAt ?? openEndAt : null, done: !!startAt && !!endAt });
 
   const final: TimelineDetailRow = {
     key: "final",
@@ -443,7 +446,8 @@ function buildStageRows(petition: Petition, now: Date, fallbackStartAt: string):
 
   return [
     stage("submitted", "ยื่นคำขอ", "stage", submittedAt, sampleSentAt),
-    stage("sample-sent", "ส่งตัวอย่าง", "stage", sampleSentAt, firstValidDate(qcStartAt, assignedAt)),
+    // ใช้เวลารับตัวอย่างจริงเท่านั้น ห้ามใช้ qcStartAt (อาจเป็น fallbackStartAt ที่ปั้นขึ้น) ไม่งั้นแถวนี้อาจจบก่อนเริ่ม
+    stage("sample-sent", "ส่งตัวอย่าง", "stage", sampleSentAt, firstValidDate(qcReceivedRealAt, assignedAt)),
     hasLab ? stage("assigned", "มอบหมายงาน Lab", "lab", assignedAt, labStartAt) : null,
     stage("qc-analyzing", "QC กำลังวิเคราะห์", "qc", qcStartAt, qcCompletedAt),
     hasLab ? stage("lab-analyzing", "Lab กำลังวิเคราะห์", "lab", labStartAt, labCompletedAt) : null,

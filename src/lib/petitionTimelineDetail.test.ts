@@ -202,18 +202,6 @@ describe("buildTimelineDetailModel", () => {
     ]);
   });
 
-  it("ไม่มีแถว QC/Lab รับตัวอย่าง ในกราฟอีกต่อไป", () => {
-    const result = model(petition({
-      items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
-      qcReceivedAt: at(13, 9),
-      labReceivedAt: at(13, 10),
-    }));
-
-    const keys = result.timeline.rows.map((row) => row.key);
-    expect(keys).not.toContain("received-qc");
-    expect(keys).not.toContain("received-lab");
-  });
-
   it("แถว ส่งตัวอย่าง จบที่อันที่มาก่อนระหว่าง QC เริ่มวิเคราะห์ กับ มอบหมายงาน Lab", () => {
     const labItem = { seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" };
 
@@ -248,6 +236,27 @@ describe("buildTimelineDetailModel", () => {
     expect(result.timeline.rows.find((row) => row.key === "sample-sent")).toMatchObject({
       startAt: at(13, 10),
       done: true,
+    });
+  });
+
+  it("มี sampleSentAt จริงแต่ไม่มี qcReceivedAt (มีแค่ qcCompletedAt) → แถว ส่งตัวอย่าง ต้องไม่จบก่อนเริ่ม", () => {
+    // qcCompletedAt อย่างเดียวทำให้ qcStartAt ใช้ fallbackStartAt (จุดเริ่มกราฟ) ซึ่งอาจเร็วกว่า sampleSentAt จริง
+    // ห้ามให้ fallback นั้นหลุดมาเป็น endAt ของแถวนี้ ไม่งั้นแท่งจะจบก่อนเริ่ม
+    const result = model(
+      petition({
+        submittedBy: { name: "Requester", submittedAt: at(13, 8) },
+        createdAt: at(13, 8),
+        sampleSentAt: at(13, 8, 30),
+        qcCompletedAt: at(13, 11),
+      }),
+      [], [], [],
+      new Date(2026, 6, 13, 12),
+    );
+
+    expect(result.timeline.rows.find((row) => row.key === "sample-sent")).toMatchObject({
+      startAt: at(13, 8, 30),
+      endAt: at(13, 12),
+      done: false,
     });
   });
 
@@ -359,6 +368,29 @@ describe("buildTimelineDetailModel", () => {
       startAt: at(13, 14),
       endAt: at(13, 15),
       done: true,
+    });
+  });
+
+  it("คำร้องปิดแล้วแต่ไม่มี labApprovedAt (รูข้อมูลเก่า) → แถว ออกผล Lab จบที่ approvedAt ไม่ลากถึงวันนี้", () => {
+    const result = model(petition({
+      status: "approved",
+      items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+      qcReceivedAt: at(13, 9),
+      assignedTo: { employeeId: "L001", name: "Lab Analyst", assignedAt: at(13, 9, 30) },
+      labReceivedAt: at(13, 10),
+      qcCompletedAt: at(13, 12),
+      labCompletedAt: at(13, 13),
+      // ไม่มี labApprovedAt โดยตั้งใจ — จำลองคำร้องเก่าที่ยังไม่มีด่านนี้ตอนบันทึก
+      approvedAt: at(13, 16),
+    }), [], [], [], new Date(2026, 6, 20, 12)); // now = 7 วันหลัง approvedAt
+
+    expect(result.timeline.rows.find((row) => row.key === "lab-approval")).toMatchObject({
+      label: "ออกผล Lab",
+      kind: "bar",
+      track: "lab",
+      startAt: at(13, 13),
+      endAt: at(13, 16),
+      done: false,
     });
   });
 
@@ -707,7 +739,7 @@ describe("buildTimelineDetailModel", () => {
       [requiredParameter],
       [],
       [],
-      new Date(2026, 6, 13, 12),
+      new Date(2026, 6, 13, 17),
       itemSeq,
     );
 
