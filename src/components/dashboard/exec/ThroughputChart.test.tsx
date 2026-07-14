@@ -52,5 +52,15 @@ describe("ThroughputChart", () => {
     );
     expect(screen.queryByText("ไม่มีข้อมูลในช่วงนี้")).not.toBeInTheDocument();
     expect(document.querySelector(".recharts-responsive-container")).toBeInTheDocument();
+    // A multi-day series draws real line segments, so the dots are noise — off.
+    expect(document.querySelectorAll(".recharts-line-dot")).toHaveLength(0);
+  });
+
+  it("shows dots on a single-day range, where a line has nothing to connect", () => {
+    // The 1-day range leaves one point per series. A <Line> through one point draws
+    // no visible stroke, so without dots the chart renders blank — the day's numbers
+    // would silently disappear.
+    render(<ThroughputChart rows={[{ date: "2026-07-08", created: 3, completed: 1 }]} />);
+    expect(document.querySelectorAll(".recharts-line-dot").length).toBeGreaterThan(0);
   });
 });

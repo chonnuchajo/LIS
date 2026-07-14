@@ -351,7 +351,7 @@ describe('buildLiveSection', () => {
       now: NOW, qcBaseline: EMPTY_BASELINE, abnormalFlags: { a: true, b: false },
     });
     expect(live.counts).toEqual({
-      urgent: 1, overdue: 1, atRisk: 0, waitingHead: 1, abnormal: 1, unassigned: 0,
+      total: 2, urgent: 1, overdue: 1, atRisk: 0, waitingHead: 1, abnormal: 1, unassigned: 0,
     });
   });
 
@@ -450,9 +450,10 @@ describe('buildLiveSection', () => {
     });
 
     expect(live.counts).toEqual({
-      urgent: 2, overdue: 1, atRisk: 1, unassigned: 1, waitingHead: 1, abnormal: 1,
+      total: 6, urgent: 2, overdue: 1, atRisk: 1, unassigned: 1, waitingHead: 1, abnormal: 1,
     });
     expect(live.ids).toEqual({
+      total: ['a', 'b', 'ar1', 'un1', 'u1', 'ab1'],
       urgent: ['a', 'u1'],
       overdue: ['a'],
       atRisk: ['ar1'],
@@ -497,6 +498,84 @@ describe('buildLiveSection', () => {
     for (const key of Object.keys(live.counts)) {
       expect(live.ids[key]).toHaveLength(live.counts[key]);
     }
+  });
+
+  // --- windowStart: the dashboard's day-range picker scopes the alert tiles and the
+  // bottleneck bars to petitions SUBMITTED inside the window, while the action queue
+  // deliberately stays all-time — an old petition still stuck is exactly the work a
+  // head must not lose sight of just because they narrowed the range to a day.
+  describe('windowStart', () => {
+    const daysAgo = (d) => new Date(NOW - d * 86400000).toISOString();
+    const fresh = {
+      _id: 'f1', petitionNo: 'P-F1', dept: 'fg', status: 'inProgress', items: [labItem], priority: 1,
+      createdAt: daysAgo(2),
+      qcReceivedAt: hoursAgo(9), qcCompletedAt: hoursAgo(8),
+      labReceivedAt: hoursAgo(9), assignedTo: { name: 'ก', assignedAt: hoursAgo(9) },
+      assignedMachines: [{ estimatedMinutes: 60 }], // overdue
+    };
+    const stale = {
+      _id: 's1', petitionNo: 'P-S1', dept: 'fg', status: 'inProgress', items: [labItem],
+      createdAt: daysAgo(40),
+      qcReceivedAt: hoursAgo(50), qcCompletedAt: hoursAgo(49),
+      labReceivedAt: hoursAgo(50), assignedTo: { name: 'ข', assignedAt: hoursAgo(50) },
+      assignedMachines: [{ estimatedMinutes: 60 }], // overdue too, but submitted long ago
+    };
+    const windowStart = NOW - 7 * 86400000;
+
+    it('counts only petitions submitted inside the window in the alert tiles', () => {
+      const live = buildLiveSection([fresh, stale], {
+        now: NOW, qcBaseline: EMPTY_BASELINE, abnormalFlags: {}, windowStart,
+      });
+      expect(live.counts.total).toBe(1);
+      expect(live.counts.overdue).toBe(1);
+      expect(live.ids.total).toEqual(['f1']);
+      expect(live.ids.overdue).toEqual(['f1']);
+    });
+
+    it('counts only petitions submitted inside the window in the bottleneck bars', () => {
+      const live = buildLiveSection([fresh, stale], {
+        now: NOW, qcBaseline: EMPTY_BASELINE, abnormalFlags: {}, windowStart,
+      });
+      const labTesting = live.bottleneck.find((b) => b.stage === 'labTesting');
+      expect(labTesting.count).toBe(1);
+    });
+
+    it('keeps an older still-open petition in the action queue regardless of the window', () => {
+      const live = buildLiveSection([fresh, stale], {
+        now: NOW, qcBaseline: EMPTY_BASELINE, abnormalFlags: {}, windowStart,
+      });
+      expect(live.actionQueue.map((u) => u.petitionNo).sort()).toEqual(['P-F1', 'P-S1']);
+    });
+
+    it('scopes by the day the sample was sent, so an old form sent recently still counts', () => {
+      // "ยื่นในช่วง" means the sample reached the lab in the window — same clock the
+      // inflow line uses. A form drafted 40 days ago but delivered yesterday is new
+      // work, and must show up in the tiles for a 7-day range.
+      const oldFormSentYesterday = {
+        ...stale, _id: 'os1', petitionNo: 'P-OS1', createdAt: daysAgo(40), sampleSentAt: daysAgo(1),
+      };
+      const live = buildLiveSection([oldFormSentYesterday], {
+        now: NOW, qcBaseline: EMPTY_BASELINE, abnormalFlags: {}, windowStart,
+      });
+      expect(live.ids.total).toEqual(['os1']);
+    });
+
+    it('keeps a petition with no createdAt visible rather than hiding it from the tiles', () => {
+      // Missing createdAt is a data gap, not evidence the petition is out of range —
+      // dropping it would make open work silently vanish from the dashboard.
+      const undated = { ...stale, _id: 'u0', petitionNo: 'P-U0', createdAt: undefined };
+      const live = buildLiveSection([undated], {
+        now: NOW, qcBaseline: EMPTY_BASELINE, abnormalFlags: {}, windowStart,
+      });
+      expect(live.ids.total).toEqual(['u0']);
+    });
+
+    it('falls back to the all-time view when no window is given', () => {
+      const live = buildLiveSection([fresh, stale], {
+        now: NOW, qcBaseline: EMPTY_BASELINE, abnormalFlags: {},
+      });
+      expect(live.counts.total).toBe(2);
+    });
   });
 });
 
@@ -609,6 +688,7 @@ describe('buildStatsSection', () => {
       _id: 'open1', petitionNo: 'P-OPEN1', dept: 'fg', status: 'inProgress',
       items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
       createdAt: '2026-07-13T02:00:00.000Z',
+      sampleSentAt: '2026-07-13T02:00:00.000Z',
       // approvedAt intentionally absent — still open
     };
     const { throughput } = buildStatsSection([], [openToday], opts);
@@ -625,17 +705,20 @@ describe('buildStatsSection', () => {
       _id: 'cw1', petitionNo: 'P-CW1', dept: 'fg', status: 'approved',
       items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
       createdAt: '2026-07-13T01:00:00.000Z',
+      sampleSentAt: '2026-07-13T01:00:00.000Z',
       approvedAt: '2026-07-13T05:00:00.000Z',
     };
     const openA = {
       _id: 'ow1', petitionNo: 'P-OW1', dept: 'fg', status: 'inProgress',
       items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
       createdAt: '2026-07-13T02:00:00.000Z',
+      sampleSentAt: '2026-07-13T02:00:00.000Z',
     };
     const openB = {
       _id: 'ow2', petitionNo: 'P-OW2', dept: 'fg', status: 'sampleSent',
       items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
       createdAt: '2026-07-13T03:00:00.000Z',
+      sampleSentAt: '2026-07-13T03:00:00.000Z',
     };
     const { throughput } = buildStatsSection([closedToday], [closedToday, openA, openB], opts);
     const totalCreated = throughput.reduce((sum, d) => sum + d.created, 0);
@@ -643,6 +726,33 @@ describe('buildStatsSection', () => {
     expect(totalCreated).toBe(3);
     expect(totalCompleted).toBe(1);
     expect(totalCreated).toBeGreaterThan(totalCompleted);
+  });
+
+  // --- "คำขอใหม่" = งานที่เข้ามาถึงแล็บ, ไม่ใช่ใบที่เพิ่งถูกร่างไว้ในระบบ · จุดเริ่มคือ
+  // sampleSentAt (ตัวอย่างถูกนำส่ง) ไม่ใช่ createdAt — ใบที่ยื่นวันนี้แต่ส่งตัวอย่าง
+  // อีกวัน ต้องไปโผล่ในวันที่ส่งตัวอย่าง
+
+  it('counts a petition on the day its sample was sent, not the day the form was drafted', () => {
+    const draftedThenSent = {
+      _id: 'ds1', petitionNo: 'P-DS1', dept: 'fg', status: 'sampleSent',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-09T02:00:00.000Z',
+      sampleSentAt: '2026-07-12T02:00:00.000Z',
+    };
+    const { throughput } = buildStatsSection([], [draftedThenSent], opts);
+    expect(throughput.find((d) => d.date === '2026-07-09').created).toBe(0);
+    expect(throughput.find((d) => d.date === '2026-07-12').created).toBe(1);
+  });
+
+  it('leaves a petition whose sample has not been sent out of the inflow entirely', () => {
+    const notSentYet = {
+      _id: 'ns1', petitionNo: 'P-NS1', dept: 'fg', status: 'pendingReview',
+      items: [{ seq: 1, batchNo: 'B002', commonName: 'ยาเขียว' }],
+      createdAt: '2026-07-13T02:00:00.000Z',
+      // sampleSentAt intentionally absent — ยังไม่ได้นำส่งตัวอย่าง
+    };
+    const { throughput } = buildStatsSection([], [notSentYet], opts);
+    expect(throughput.every((d) => d.created === 0)).toBe(true);
   });
 
   it('derives abnormal and rework rates from the closed set', () => {

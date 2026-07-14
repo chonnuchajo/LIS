@@ -1,3 +1,4 @@
+import FitToBox from '@/components/petition/FitToBox';
 import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
 import { customerCodeFromDepartment } from '@/lib/customerCode';
 import { isLabBatch } from '@/types/petition.types';
@@ -74,7 +75,7 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
 
   return (
     <section className="pr-page1">
-      <div className="pr-p1-inner">
+      <FitToBox className="pr-p1-inner" contentClassName="pr-fit-col">
         <div className="pr-p1-logo">
           <img src={ICP_LADDA_LOGO_URL} alt="ICP Ladda" />
         </div>
@@ -344,7 +345,7 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
           </tbody>
         </table>
         <div className="pr-p1-footer">FM-QP-07-01-001 R02 (16/12/67) P1/1</div>
-      </div>
+      </FitToBox>
     </section>
   );
 }
@@ -361,7 +362,7 @@ function PageTwo({ lr, petition, items, qcResults, sgParam }: { lr: LabRequest; 
   const sampleReturnNoReturn = lr.sampleReturn === 'discard';
   return (
     <section className="pr-page2">
-      <div className="pr-p2-inner">
+      <FitToBox className="pr-p2-inner" contentClassName="pr-fit-col">
         <div className="pr-p2-top">
           <img src={ICP_LADDA_LOGO_URL} alt="ICP Ladda" className="pr-p2-logo" />
           <div className="pr-p2-title"><b>ใบคำขอรับบริการ</b></div>
@@ -574,7 +575,7 @@ function PageTwo({ lr, petition, items, qcResults, sgParam }: { lr: LabRequest; 
           </div>
         </div>
         <div className="pr-p2-footer">FM-QP-07-04-001-R01 (30/05/68) P1/1</div>
-      </div>
+      </FitToBox>
     </section>
   );
 }
@@ -770,6 +771,8 @@ const PRINT_CSS = `
 .pr-p1-inner, .pr-p2-inner {
   display: flex; flex-direction: column; flex: 1 1 auto; min-height: 100%;
 }
+/* FitToBox วัดความสูงจริงของคอลัมน์นี้ แล้ว scale ลงถ้าล้นกรอบหน้ากระดาษ */
+.pr-fit-col { display: flex; flex-direction: column; }
 .pr-p1-footer, .pr-p2-footer {
   padding-top: 4pt;
   text-align: left; font-size: 10pt;

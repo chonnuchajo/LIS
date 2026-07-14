@@ -1,5 +1,18 @@
 import QRCode from 'qrcode';
+import FitToBox from '@/components/petition/FitToBox';
 import type { Petition } from '@/types/petition.types';
+
+// sampleName กับ commonName ของงานผลิตมักเป็นค่าเดียวกัน — ถ้าต่อกันดื้อๆ ชื่อจะซ้ำสองรอบ
+// แล้วดันบรรทัดล้นกรอบฉลาก 50mm จนบรรทัดท้าย (F-LAB) ถูกตัดทิ้ง
+function productLine(item: Petition['items'][number]): string {
+  const names = [item.sampleName, item.commonName]
+    .map((name) => name?.trim())
+    .filter((name): name is string => !!name);
+  const unique = names.filter(
+    (name, index) => names.findIndex((other) => other.toLowerCase() === name.toLowerCase()) === index,
+  );
+  return unique.join(' ');
+}
 
 function toBuddhistShort(iso?: string | null): string {
   if (!iso) return '';
@@ -114,7 +127,6 @@ function LabelCard({
   item: Petition['items'][number];
   yearShort: string;
 }) {
-  const productLine = [item.sampleName, item.commonName].filter(Boolean).join(' ');
   const sampledByName = petition.submittedBy?.name || item.labelSampledBy || '';
   const qrValue = getQrValue(petition, item);
   return (
@@ -129,6 +141,7 @@ function LabelCard({
         textRendering: 'geometricPrecision',
       }}
     >
+      <FitToBox className="h-full">
       <div className="mb-1 flex items-start gap-1.5">
         <div className="flex shrink-0 flex-col items-center pt-0.5">
           <QrCodeSvg value={qrValue} />
@@ -171,7 +184,7 @@ function LabelCard({
               </span>
             </div>
           </div>
-          <StackedField label="ชื่อผลิตภัณฑ์ และสารสำคัญ" value={productLine} />
+          <StackedField label="ชื่อผลิตภัณฑ์ และสารสำคัญ" value={productLine(item)} />
           <div>
             <Field label="วัน เดือน ปี ที่ผลิต/นำเข้า" value={toBuddhistShort(item.productionDate)} />
           </div>
@@ -206,6 +219,7 @@ function LabelCard({
       <div className="mt-1 text-[7.5px] font-semibold">F-LAB-01-10 Rev : 01 01/04/67</div>
 
       <div className="sr-only">{petition.petitionNo}</div>
+      </FitToBox>
     </div>
   );
 }

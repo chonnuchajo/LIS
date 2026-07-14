@@ -7,6 +7,7 @@ describe("QualityPanel", () => {
     render(<QualityPanel quality={{ closed: 40, abnormal: 5, abnormalRate: 0.125, reworked: 2, reworkRate: 0.05 }} />);
     expect(screen.getByText("13%")).toBeInTheDocument(); // 12.5 ปัดเป็น 13
     expect(screen.getByText("5%")).toBeInTheDocument();
+    expect(screen.getByText("ปกติ · 35 จาก 40 ใบ")).toBeInTheDocument();
   });
 
   it("says so plainly when nothing closed in the window", () => {

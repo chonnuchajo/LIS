@@ -14,7 +14,7 @@ import ThroughputChart from "./ThroughputChart";
 import QualityPanel from "./QualityPanel";
 import TeamWorkloadPanel from "./TeamWorkloadPanel";
 
-const PERIODS: ExecPeriod[] = [7, 30, 90];
+const PERIODS: ExecPeriod[] = [1, 7, 30];
 
 export default function ExecDashboard() {
   const { data, isLoading, isError, period, setPeriod } = useExecSummary();
@@ -59,8 +59,8 @@ export default function ExecDashboard() {
         <>
           <AlertStrip
             counts={data.live.counts}
+            totalIds={data.live.ids.total}
             overdueIds={data.live.ids.overdue}
-            atRiskIds={data.live.ids.atRisk}
             unassignedIds={data.live.ids.unassigned}
             waitingHeadIds={data.live.ids.waitingHead}
             urgentIds={data.live.ids.urgent}

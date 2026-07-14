@@ -2,7 +2,7 @@ import type { ParameterItem, QCProgressEntry } from "@/lib/api";
 import { expandFieldForItem } from "@/lib/parameterValidation";
 import { getPetitionCategory, matchParametersForItem } from "@/lib/petitionTestItems";
 import { hasLabTrack } from "@/lib/statusBadge";
-import { PETITION_STATUS_CONFIG, type Petition, type PetitionAuditLogEntry, type PetitionStatus, type QCTestResult } from "@/types/petition.types";
+import { PETITION_STATUS_CONFIG, type Petition, type PetitionAuditLogEntry, type PetitionStatus } from "@/types/petition.types";
 
 export type TimelineDetailTaskState = "pending" | "inProgress" | "recorded" | "approved";
 export type TimelineDetailTask = {
@@ -50,9 +50,18 @@ export type TimelineDetailHeader = {
   endAt: string;
   endKind: "actual" | "estimated" | "ongoing";
 };
+export type TimelineDetailItemTab = {
+  seq: number;
+  label: string;
+  commonName: string;
+  batchNo: string;
+  sampleName: string;
+};
 export type TimelineDetailModel = {
   header: TimelineDetailHeader;
+  items: TimelineDetailItemTab[];
   progress: TimelineDetailProgress;
+  overallProgress: TimelineDetailProgress;
   tasks: TimelineDetailTask[];
   activities: TimelineDetailActivity[];
   timeline: { startAt: string; endAt: string; ticks: TimelineDetailTick[]; rows: TimelineDetailRow[]; days: TimelineDetailDay[] };
@@ -62,8 +71,8 @@ export type TimelineDetailInput = {
   parameters: ParameterItem[];
   progressEntries: QCProgressEntry[];
   auditLogs: PetitionAuditLogEntry[];
-  qcResults: QCTestResult[];
   itemGroupIds?: Map<string, string[]>;
+  itemSeq?: number | null;
 };
 
 const WORK_START_HOUR = 8;
@@ -123,7 +132,10 @@ function buildHeaderTiming(startAt: string, actualEndAt: string | null, status: 
     return { startAt, startKind: "received", endAt: actualEndAt, endKind: "actual" };
   }
   if (isSameLocalDay(start, now)) {
-    return { startAt, startKind: "received", endAt: atHour(start, WORK_END_HOUR).toISOString(), endKind: "estimated" };
+    // ค่าประมาณ = เลิกงาน 17:00 ของวันนั้น แต่ห้ามย้อนไปก่อนเวลาเริ่มหรือก่อนตอนนี้
+    // (คำร้องที่รับตอน 19:14 แล้วเปิดดู 19:30 จะได้ช่วงกลับหัว Start 19:14 / End 17:00)
+    const estimatedEnd = Math.max(atHour(start, WORK_END_HOUR).getTime(), now.getTime());
+    return { startAt, startKind: "received", endAt: new Date(estimatedEnd).toISOString(), endKind: "estimated" };
   }
   return { startAt, startKind: "received", endAt: now.toISOString(), endKind: "ongoing" };
 }
@@ -172,8 +184,8 @@ function clipRowToDay(row: TimelineDetailRow, dayStartAt: string, dayEndAt: stri
   };
 
   if (row.kind === "milestone") {
-    const at = validDate(row.at)?.getTime();
-    if (at == null || at < dayStart || at > dayEnd) return hidden;
+    const at = validDate(row.at);
+    if (!at || !isSameLocalDay(at, new Date(dayStartAt))) return hidden;
     return { ...hidden, visible: true };
   }
 
@@ -191,9 +203,80 @@ function clipRowToDay(row: TimelineDetailRow, dayStartAt: string, dayEndAt: stri
   };
 }
 
-function buildTimelineDays(startAt: string, endAt: string, rows: TimelineDetailRow[]): TimelineDetailDay[] {
+function floorToHour(value: Date): Date {
+  const result = new Date(value);
+  result.setMinutes(0, 0, 0);
+  return result;
+}
+
+function ceilToHour(value: Date): Date {
+  const floored = floorToHour(value);
+  return floored.getTime() === value.getTime() ? floored : new Date(floored.getTime() + 60 * 60 * 1000);
+}
+
+// เก็บ timestamp ของแถวที่ตกวันปฏิทินเดียวกับ day (milestone.at, bar.startAt/endAt)
+// ไม่นับ endAt ของแท่งที่ยังไม่จบ (done=false) ที่เท่ากับ "ตอนนี้" (nowAt) — มันคือตำแหน่งเคอร์เซอร์ตอนเปิดหน้า
+// ไม่ใช่เหตุการณ์จริงที่บันทึกไว้ ถ้านับ จะทำให้หน้าต่างขยายเลื่อนตามเวลาจริงไปเรื่อย ๆ ทุกครั้งที่เปิดดูหลัง 17:00
+function rowTimestampsOnDay(rows: TimelineDetailRow[], day: Date, nowAt: number): Date[] {
+  const result: Date[] = [];
+  for (const row of rows) {
+    if (row.kind === "milestone") {
+      const at = validDate(row.at);
+      if (at && isSameLocalDay(at, day)) result.push(at);
+      continue;
+    }
+    const rowStart = validDate(row.startAt);
+    if (rowStart && isSameLocalDay(rowStart, day)) result.push(rowStart);
+    const rowEnd = validDate(row.endAt);
+    if (rowEnd && isSameLocalDay(rowEnd, day) && (row.done || rowEnd.getTime() !== nowAt)) result.push(rowEnd);
+  }
+  return result;
+}
+
+// วันที่มีกิจกรรมนอกเวลาทำการ (ก่อน 08:00 หรือหลัง 17:00) ต้องขยายหน้าต่างของวันนั้นให้ครอบคลุมกิจกรรมจริง
+// ปัดเวลาเริ่มลง / เวลาจบขึ้น ให้ตรงชั่วโมง เพื่อให้ ticks (เดินทีละชั่วโมง) ยังคงลงตัวเป็นเลขกลม
+function dayWindow(cursor: Date, rows: TimelineDetailRow[], timelineEnd: Date, nowAt: number): { start: Date; end: Date } {
+  const defaultStart = atHour(cursor, WORK_START_HOUR);
+  const defaultEnd = atHour(cursor, WORK_END_HOUR);
+  const timestamps = rowTimestampsOnDay(rows, cursor, nowAt);
+
+  const startCandidates = [defaultStart.getTime()];
+  const endCandidates = [defaultEnd.getTime()];
+  if (timestamps.length) {
+    const earliest = new Date(Math.min(...timestamps.map((value) => value.getTime())));
+    const latest = new Date(Math.max(...timestamps.map((value) => value.getTime())));
+    startCandidates.push(floorToHour(earliest).getTime());
+    endCandidates.push(ceilToHour(latest).getTime());
+  }
+  // วันสุดท้ายของกราฟ: ลากถึงเวลาจบจริงของ timeline
+  // แต่ถ้าเวลาจบนั้นคือ "ตอนนี้" (คำร้องที่ยังไม่ปิด) ห้ามขยาย — กฎเดียวกับ rowTimestampsOnDay
+  // มีแต่ timestamp ที่บันทึกไว้จริงเท่านั้นที่ขยายหน้าต่างวันได้
+  if (isSameLocalDay(cursor, timelineEnd) && timelineEnd.getTime() !== nowAt) endCandidates.push(timelineEnd.getTime());
+
+  // กันกรณีกิจกรรมท้ายวัน (23:xx) ที่ ceil ชั่วโมงแล้วเลยข้ามเที่ยงคืนไปวันถัดไป — ห้ามให้หน้าต่างของ "วันนี้" ทะลุออกนอกปฏิทินวันนี้
+  // ไม่งั้น buildTicks จะเห็น start/end คนละวันปฏิทิน แล้วสลับไปใช้สูตร ticks ข้ามวัน (label ผิดรูปแบบ) ทั้งที่ยังเป็นแท็บวันเดียว
+  const endOfDay = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), 23, 59, 0, 0).getTime();
+  const end = Math.min(Math.max(...endCandidates), endOfDay);
+
+  return { start: new Date(Math.min(...startCandidates)), end: new Date(end) };
+}
+
+function buildTimelineDay(cursor: Date, rows: TimelineDetailRow[], timelineEnd: Date, nowAt: number): TimelineDetailDay {
+  const { start: dayStart, end: dayEnd } = dayWindow(cursor, rows, timelineEnd, nowAt);
+  return {
+    key: localDayKey(cursor),
+    label: formatDayLabel(cursor),
+    startAt: dayStart.toISOString(),
+    endAt: dayEnd.toISOString(),
+    ticks: buildTicks(dayStart.toISOString(), dayEnd.toISOString()),
+    rows: rows.map((row) => clipRowToDay(row, dayStart.toISOString(), dayEnd.toISOString())),
+  };
+}
+
+function buildTimelineDays(startAt: string, endAt: string, rows: TimelineDetailRow[], now: Date): TimelineDetailDay[] {
   const start = new Date(startAt);
   const end = new Date(endAt);
+  const nowAt = now.getTime();
   const days: TimelineDetailDay[] = [];
 
   for (
@@ -201,33 +284,24 @@ function buildTimelineDays(startAt: string, endAt: string, rows: TimelineDetailR
     cursor.getTime() <= end.getTime();
     cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1, WORK_START_HOUR)
   ) {
-    const dayStart = atHour(cursor, WORK_START_HOUR);
-    const defaultDayEnd = atHour(cursor, WORK_END_HOUR);
-    const dayEnd = isSameLocalDay(cursor, end) && end.getTime() > defaultDayEnd.getTime()
-      ? end
-      : defaultDayEnd;
-    days.push({
-      key: localDayKey(cursor),
-      label: formatDayLabel(cursor),
-      startAt: dayStart.toISOString(),
-      endAt: dayEnd.toISOString(),
-      ticks: buildTicks(dayStart.toISOString(), dayEnd.toISOString()),
-      rows: rows.map((row) => clipRowToDay(row, dayStart.toISOString(), dayEnd.toISOString())),
-    });
+    days.push(buildTimelineDay(cursor, rows, end, nowAt));
   }
 
-  return days.length ? days : [{
-    key: localDayKey(start),
-    label: formatDayLabel(start),
-    startAt: atHour(start, WORK_START_HOUR).toISOString(),
-    endAt: atHour(start, WORK_END_HOUR).toISOString(),
-    ticks: buildTicks(atHour(start, WORK_START_HOUR).toISOString(), atHour(start, WORK_END_HOUR).toISOString()),
-    rows: rows.map((row) => clipRowToDay(
-      row,
-      atHour(start, WORK_START_HOUR).toISOString(),
-      atHour(start, WORK_END_HOUR).toISOString(),
-    )),
-  }];
+  return days.length ? days : [buildTimelineDay(start, rows, end, nowAt)];
+}
+
+function buildItemTabs(petition: Petition): TimelineDetailItemTab[] {
+  return (petition.items ?? []).map((item) => {
+    const commonName = item.commonName?.trim() ?? "";
+    const sampleName = item.sampleName?.trim() ?? "";
+    return {
+      seq: item.seq,
+      label: commonName || sampleName || `ตัวอย่างที่ ${item.seq}`,
+      commonName,
+      batchNo: item.batchNo?.trim() ?? "",
+      sampleName,
+    };
+  });
 }
 
 function buildRequiredTasks(
@@ -272,12 +346,24 @@ function buildRequiredTasks(
   return tasks;
 }
 
-function buildRequiredProgress(tasks: TimelineDetailTask[], isApproved: boolean): TimelineDetailProgress {
-  const total = tasks.reduce((sum, task) => sum + task.total, 0);
-  const filled = tasks.reduce((sum, task) => sum + task.filled, 0);
-  if (total === 0) return { filled: 0, total: 0, percent: null };
+function taskFieldTotals(tasks: TimelineDetailTask[]): { filled: number; total: number } {
+  return tasks.reduce(
+    (result, task) => ({ filled: result.filled + task.filled, total: result.total + task.total }),
+    { filled: 0, total: 0 },
+  );
+}
+
+function buildRequiredProgress(
+  tasks: TimelineDetailTask[],
+  options: { received: boolean; preResultDone: boolean; finalResultDone: boolean },
+): TimelineDetailProgress {
+  const fields = taskFieldTotals(tasks);
+  const total = fields.total + 3;
+  const filled = options.finalResultDone
+    ? total
+    : (options.received ? 1 : 0) + fields.filled + (options.preResultDone ? 1 : 0);
   const rawPercent = Math.round((filled / total) * 100);
-  return { filled, total, percent: isApproved ? 100 : Math.min(rawPercent, 99) };
+  return { filled, total, percent: options.finalResultDone ? 100 : Math.min(rawPercent, 99) };
 }
 
 function statusLabel(status?: PetitionStatus): string {
@@ -287,13 +373,6 @@ function statusLabel(status?: PetitionStatus): string {
 function metadataString(metadata: Record<string, unknown> | undefined, key: string): string | null {
   const value = metadata?.[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function metadataNumber(metadata: Record<string, unknown> | undefined, key: string): number | null {
-  const value = metadata?.[key];
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
-  return null;
 }
 
 function metadataObjectName(metadata: Record<string, unknown> | undefined, key: string): string | null {
@@ -352,6 +431,7 @@ function makeBarRow(input: {
   track: TimelineDetailRowTrack;
   startAt: string | null;
   endAt: string | null;
+  done?: boolean;
 }): TimelineDetailRow {
   const start = validDate(input.startAt);
   const end = validDate(input.endAt);
@@ -366,117 +446,65 @@ function makeBarRow(input: {
     at: null,
     startAt: complete ? orderedStart.toISOString() : null,
     endAt: complete ? end.toISOString() : null,
-    done: complete,
+    // แท่งที่ยังทำอยู่มี start/end ครบ (end = ตอนนี้) แต่ยังไม่ done
+    done: input.done ?? complete,
   };
 }
 
-function buildMilestoneRows(petition: Petition): TimelineDetailRow[] {
+// ทุกสถานะเป็นช่วงเวลาที่ลากไปจนสถานะถัดไปเริ่ม — end ของแถวหนึ่งคือ start ของแถวถัดไป
+// ปิดท้ายด้วยจุดเดียว (Final Result) ที่หัวหน้า QC อนุมัติ
+function buildStageRows(petition: Petition, now: Date, fallbackStartAt: string): TimelineDetailRow[] {
   const hasLab = hasLabTrack(petition);
-  const qcReceivedAt = petition.qcReceivedAt ?? petition.receivedAt ?? null;
-  const labReceivedAt = petition.labReceivedAt ?? null;
-  const assignedAt = petition.assignedTo?.assignedAt ?? null;
-  const milestone = (key: string, label: string, at: string | null): TimelineDetailRow =>
-    ({ key, label, kind: "milestone", track: "stage", at, startAt: null, endAt: null, done: !!validDate(at) });
+  const nowAt = now.toISOString();
 
-  return [
-    milestone("received-qc", "QC รับตัวอย่าง", qcReceivedAt),
-    hasLab ? milestone("received-lab", "Lab รับตัวอย่าง", labReceivedAt) : null,
-    hasLab ? milestone("assigned", "มอบหมายงาน Lab", assignedAt) : null,
-  ].filter((row): row is TimelineDetailRow => row !== null);
-}
-
-// เวลาล่าสุดที่มีคน "แตะ" แต่ละคู่ (itemSeq, parameterId) — audit log เป็นหลัก, QCTestResult เป็น fallback ของคำร้องเก่า
-function buildParameterTouches(auditLogs: PetitionAuditLogEntry[], qcResults: QCTestResult[]): Map<string, string> {
-  const latest = new Map<string, number>();
-
-  for (const entry of auditLogs) {
-    if (entry.event !== "resultEntered" && entry.event !== "resultUpdated") continue;
-    const parameterId = metadataString(entry.metadata, "parameterId");
-    const itemSeq = metadataNumber(entry.metadata, "itemSeq");
-    const touchedAt = validDate(entry.createdAt);
-    if (!parameterId || itemSeq == null || !touchedAt) continue;
-    const key = `${itemSeq}::${parameterId}`;
-    latest.set(key, Math.max(latest.get(key) ?? 0, touchedAt.getTime()));
-  }
-
-  for (const result of qcResults) {
-    const key = `${result.itemSeq}::${result.parameterId}`;
-    if (latest.has(key)) continue;
-    const touchedAt = validDate(result.updatedAt ?? result.enteredAt);
-    if (touchedAt) latest.set(key, touchedAt.getTime());
-  }
-
-  return new Map(Array.from(latest, ([key, time]) => [key, new Date(time).toISOString()]));
-}
-
-function buildParameterRows(
-  petition: Petition,
-  parameters: ParameterItem[],
-  auditLogs: PetitionAuditLogEntry[],
-  qcResults: QCTestResult[],
-  itemGroupIds: Map<string, string[]> | undefined,
-  fallbackStartAt: string,
-): TimelineDetailRow[] {
-  const touches = buildParameterTouches(auditLogs, qcResults);
-  const groups = new Map<string, { parameter: ParameterItem; pairKeys: string[] }>();
-
-  for (const item of petition.items ?? []) {
-    const groupIds = itemGroupIds?.get(String(item.sampleId ?? "").trim()) ?? [];
-    for (const parameter of matchParametersForItem(item, parameters, groupIds)) {
-      const parameterId = parameter._id;
-      if (!parameterId) continue;
-      const group = groups.get(parameterId) ?? { parameter, pairKeys: [] };
-      group.pairKeys.push(`${item.seq}::${parameterId}`);
-      groups.set(parameterId, group);
-    }
-  }
-
-  const rows = Array.from(groups, ([parameterId, group]) => {
-    const isLab = group.parameter.scope === "lab";
-    const receivedAt = (isLab ? petition.labReceivedAt : petition.qcReceivedAt) ?? fallbackStartAt;
-    const touchedAts = group.pairKeys.map((key) => touches.get(key) ?? null);
-    // ยังแตะไม่ครบทุกตัวอย่าง → ไม่วาดแท่ง
-    const endAt = touchedAts.every((touchedAt) => !!touchedAt) ? latestValidDate(...touchedAts) : null;
-    return makeBarRow({
-      key: `param::${parameterId}`,
-      label: group.parameter.name,
-      track: isLab ? "lab" : "qc",
-      startAt: endAt ? receivedAt : null,
-      endAt,
-    });
-  });
-
-  // QC ก่อน Lab (Array.prototype.sort เสถียร → ลำดับเดิมภายในกลุ่มคงอยู่)
-  return rows.sort((left, right) => Number(left.track === "lab") - Number(right.track === "lab"));
-}
-
-function buildClosingRows(petition: Petition): TimelineDetailRow[] {
-  const hasLab = hasLabTrack(petition);
-  const labApprovedAt = petition.labApprovedAt ?? null;
+  const submittedAt = firstValidDate(petition.submittedBy?.submittedAt, petition.createdAt);
+  // คำร้องเก่า/เคสที่ข้ามการสแกนส่ง ยังต้องเห็นช่วงส่งตัวอย่าง — ถอยไปใช้เวลารับตัวอย่างที่เร็วสุดแทน
+  const sampleSentAt = petition.sampleSentAt
+    ?? firstValidDate(petition.qcReceivedAt, petition.receivedAt, petition.labReceivedAt);
+  // ต้องคง guard hasLab ไว้: assignedAt ถูกใช้ต่อใน endAt ของแถว sample-sent ด้วย (นอกบล็อก hasLab-only)
+  // ถ้าตัด guard ออก คำร้องไม่มี Lab ที่บังเอิญมี assignedTo ค้างอยู่ (stray) จะทำให้แถว sample-sent จบผิดเวลา
+  const assignedAt = hasLab ? petition.assignedTo?.assignedAt ?? null : null;
+  // ข้อมูลเก่าบางเคสมีรู timestamp: บันทึกผลแล้วแต่ไม่มีเวลารับตัวอย่าง — ถอยไปใช้จุดเริ่มกราฟ/เวลามอบหมาย
+  // ไม่งั้นแท่งวิเคราะห์หายไปทั้งที่ทำจริง (ถ้ายังไม่บันทึกผลและยังไม่รับตัวอย่าง = ยังไม่เริ่มจริง ต้องไม่ fallback)
+  const qcReceivedRealAt = petition.qcReceivedAt ?? petition.receivedAt ?? null;
+  const qcStartAt = qcReceivedRealAt ?? (petition.qcCompletedAt ? fallbackStartAt : null);
+  const labStartAt = petition.labReceivedAt ?? (petition.labCompletedAt ? (assignedAt ?? fallbackStartAt) : null);
   const qcCompletedAt = petition.qcCompletedAt ?? null;
-  // Final เริ่มเมื่อ "ทั้งสองฝั่งจบ" — คำร้องที่มี Lab ต้องรอ Lab ออกผลด้วย
-  const finalStartAt = hasLab
-    ? (qcCompletedAt && labApprovedAt ? latestValidDate(qcCompletedAt, labApprovedAt) : null)
+  const labCompletedAt = petition.labCompletedAt ?? null;
+  const labApprovedAt = petition.labApprovedAt ?? null;
+  const closedAt = petition.approvedAt ?? petition.rejectedAt ?? null;
+  // Pre Result เริ่มเมื่อ "บันทึกผลครบทั้งสองฝั่ง" — คำร้องที่มี Lab ต้องรอ Lab บันทึกผลด้วย
+  const preResultStartAt = hasLab
+    ? (qcCompletedAt && labCompletedAt ? latestValidDate(qcCompletedAt, labCompletedAt) : null)
     : qcCompletedAt;
-  const finalEndAt = petition.status === "rejected"
-    ? petition.rejectedAt ?? null
-    : petition.approvedAt ?? null;
+
+  // แถวที่เริ่มแล้วแต่สถานะถัดไปยังไม่เกิด → ลากถึงตอนนี้ (done = false); ยังไม่เริ่ม → ไม่มีแท่ง
+  // คำร้องที่ปิดแล้ว (closedAt) ห้ามลากเลยจุดปิด — ไม่งั้นแท่งที่ขาด timestamp กลาง ๆ (รูข้อมูลเก่า) จะลากยาวถึงวันนี้ตลอดกาล
+  const openEndAt = closedAt ?? nowAt;
+  const stage = (key: string, label: string, track: TimelineDetailRowTrack, startAt: string | null, endAt: string | null) =>
+    makeBarRow({ key, label, track, startAt, endAt: startAt ? endAt ?? openEndAt : null, done: !!startAt && !!endAt });
+
+  const final: TimelineDetailRow = {
+    key: "final",
+    label: petition.status === "rejected" ? "ส่งกลับแก้ไข" : "Final Result",
+    kind: "milestone",
+    track: "stage",
+    at: closedAt,
+    startAt: null,
+    endAt: null,
+    done: !!validDate(closedAt),
+  };
 
   return [
-    hasLab ? makeBarRow({
-      key: "lab-approved",
-      label: "ออกผล Lab",
-      track: "lab",
-      startAt: petition.labCompletedAt ?? null,
-      endAt: labApprovedAt,
-    }) : null,
-    makeBarRow({
-      key: "final",
-      label: petition.status === "rejected" ? "ส่งกลับแก้ไข" : "Final Result",
-      track: "stage",
-      startAt: finalStartAt,
-      endAt: finalEndAt,
-    }),
+    stage("submitted", "ยื่นคำขอ", "stage", submittedAt, sampleSentAt),
+    // ใช้เวลารับตัวอย่างจริงเท่านั้น ห้ามใช้ qcStartAt (อาจเป็น fallbackStartAt ที่ปั้นขึ้น) ไม่งั้นแถวนี้อาจจบก่อนเริ่ม
+    stage("sample-sent", "ส่งตัวอย่าง", "stage", sampleSentAt, firstValidDate(qcReceivedRealAt, assignedAt)),
+    hasLab ? stage("assigned", "มอบหมายงาน Lab", "lab", assignedAt, labStartAt) : null,
+    stage("qc-analyzing", "QC กำลังวิเคราะห์", "qc", qcStartAt, qcCompletedAt),
+    hasLab ? stage("lab-analyzing", "Lab กำลังวิเคราะห์", "lab", labStartAt, labCompletedAt) : null,
+    hasLab ? stage("lab-approval", "ออกผล Lab", "lab", labCompletedAt, labApprovedAt) : null,
+    stage("pre-result", "Pre Result", "stage", preResultStartAt, closedAt),
+    final,
   ].filter((row): row is TimelineDetailRow => row !== null);
 }
 
@@ -484,6 +512,8 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
   const submittedAt = firstValidDate(input.petition.submittedBy?.submittedAt, input.petition.createdAt) ?? now.toISOString();
   const receivedAt = firstValidDate(input.petition.qcReceivedAt, input.petition.labReceivedAt, input.petition.receivedAt);
   const startAt = receivedAt ?? submittedAt;
+  // กราฟเริ่มที่จุดยื่นคำขอ (เก่าสุด) ส่วน header ยังนับจากเวลารับตัวอย่างเหมือนเดิม
+  const timelineStartAt = firstValidDate(submittedAt, startAt);
   const actualEndAt = latestValidDate(
     input.petition.approvedAt,
     input.petition.rejectedAt,
@@ -493,24 +523,29 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
     input.petition.qcCompletedAt,
   );
   const header = buildHeaderTiming(startAt, actualEndAt, input.petition.status, now);
-  const tasks = buildRequiredTasks(input.petition, input.parameters, input.progressEntries, input.itemGroupIds);
-  const rows = [
-    ...buildMilestoneRows(input.petition),
-    ...buildParameterRows(input.petition, input.parameters, input.auditLogs, input.qcResults ?? [], input.itemGroupIds, startAt),
-    ...buildClosingRows(input.petition),
-  ];
+  const allTasks = buildRequiredTasks(input.petition, input.parameters, input.progressEntries, input.itemGroupIds);
+  const tasks = input.itemSeq == null ? allTasks : allTasks.filter((task) => task.itemSeq === input.itemSeq);
+  const allFields = taskFieldTotals(allTasks);
+  const finalResultDone = input.petition.status === "approved";
+  const preResultDone = allFields.total > 0
+    && allFields.filled >= allFields.total
+    && (input.petition.status === "success" || finalResultDone || !!validDate(input.petition.qcCompletedAt));
+  const progressOptions = { received: !!receivedAt, preResultDone, finalResultDone };
+  const rows = buildStageRows(input.petition, now, timelineStartAt);
 
   return {
     header: { ...header, startKind: receivedAt ? "received" : "submitted" },
-    progress: buildRequiredProgress(tasks, input.petition.status === "approved"),
+    items: buildItemTabs(input.petition),
+    progress: buildRequiredProgress(tasks, progressOptions),
+    overallProgress: buildRequiredProgress(allTasks, progressOptions),
     tasks,
     activities: normalizeTimelineActivities(input.auditLogs),
     timeline: {
-      startAt: atHour(new Date(startAt), WORK_START_HOUR).toISOString(),
+      startAt: atHour(new Date(timelineStartAt), WORK_START_HOUR).toISOString(),
       endAt: header.endAt,
-      ticks: buildTicks(startAt, header.endAt),
+      ticks: buildTicks(timelineStartAt, header.endAt),
       rows,
-      days: buildTimelineDays(startAt, header.endAt, rows),
+      days: buildTimelineDays(timelineStartAt, header.endAt, rows, now),
     },
   };
 }

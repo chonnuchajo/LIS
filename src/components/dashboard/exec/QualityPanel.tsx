@@ -8,6 +8,9 @@ const pct = (rate: number) => {
 };
 
 export default function QualityPanel({ quality }: { quality: ExecSummary["stats"]["quality"] }) {
+  const normal = Math.max(0, quality.closed - quality.abnormal);
+  const normalRate = quality.closed ? normal / quality.closed : 0;
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -17,7 +20,13 @@ export default function QualityPanel({ quality }: { quality: ExecSummary["stats"
         {quality.closed === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">ไม่มีข้อมูลในช่วงนี้</p>
         ) : (
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <div className="text-3xl font-semibold text-emerald-600">{pct(normalRate)}</div>
+              <div className="text-xs text-muted-foreground">
+                ปกติ · {normal} จาก {quality.closed} ใบ
+              </div>
+            </div>
             <div>
               <div className="text-3xl font-semibold text-red-600">{pct(quality.abnormalRate)}</div>
               <div className="text-xs text-muted-foreground">

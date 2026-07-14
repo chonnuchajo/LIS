@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { AlertTriangle, Clock, Flame, ShieldCheck, UserX, Activity } from "lucide-react";
+import { AlertTriangle, ClipboardList, Clock, Flame, ShieldCheck, UserX } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -9,8 +9,8 @@ type Counts = ExecSummary["live"]["counts"];
 
 interface Props {
   counts: Counts;
+  totalIds?: string[];
   overdueIds: string[];
-  atRiskIds?: string[];
   waitingHeadIds?: string[];
   urgentIds?: string[];
   abnormalIds?: string[];
@@ -21,6 +21,7 @@ const TONE: Record<string, string> = {
   red: "border-red-200 bg-red-50 text-red-700",
   amber: "border-amber-200 bg-amber-50 text-amber-700",
   blue: "border-blue-200 bg-blue-50 text-blue-700",
+  neutral: "border-slate-200 bg-slate-50 text-slate-700",
 };
 
 function Tile({ label, value, icon: Icon, tone, to }: {
@@ -40,16 +41,16 @@ function Tile({ label, value, icon: Icon, tone, to }: {
 }
 
 export default function AlertStrip({
-  counts, overdueIds, atRiskIds = [], waitingHeadIds = [],
+  counts, totalIds = [], overdueIds, waitingHeadIds = [],
   urgentIds = [], abnormalIds = [], unassignedIds = [],
 }: Props) {
   return (
     <div className="mb-4 flex flex-wrap gap-3">
+      <Tile label="งานทั้งหมด" value={counts.total} icon={ClipboardList} tone="neutral" to={highlightPath(totalIds)} />
       <Tile label="งานด่วน" value={counts.urgent} icon={Flame} tone="red" to={highlightPath(urgentIds)} />
       <Tile label="เกินเวลา" value={counts.overdue} icon={Clock} tone="red" to={highlightPath(overdueIds)} />
-      <Tile label="เสี่ยงเลท" value={counts.atRisk} icon={Activity} tone="amber" to={highlightPath(atRiskIds)} />
       <Tile label="ยังไม่ assign" value={counts.unassigned} icon={UserX} tone="amber" to={highlightPath(unassignedIds)} />
-      <Tile label="รอมือหัวหน้า" value={counts.waitingHead} icon={ShieldCheck} tone="blue" to={highlightPath(waitingHeadIds)} />
+      <Tile label="รออนุมัติ" value={counts.waitingHead} icon={ShieldCheck} tone="blue" to={highlightPath(waitingHeadIds)} />
       <Tile label="ผลผิดปกติ" value={counts.abnormal} icon={AlertTriangle} tone="red" to={highlightPath(abnormalIds)} />
     </div>
   );

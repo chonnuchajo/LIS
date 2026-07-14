@@ -1,8 +1,24 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Check, ChevronsUpDown, Plus, Trash2 } from 'lucide-react';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
+import type { PetitionMasterItemOption } from '@/lib/petitionMasterItem';
 import { isLabBatch } from '@/types/petition.types';
 import SubmitterPicker, { type SubmitterValues } from './SubmitterPicker';
 
@@ -32,6 +48,8 @@ interface Props {
   deliverer: SubmitterValues;
   onDelivererChange: (v: SubmitterValues) => void;
   itemsReadOnly?: boolean;
+  masterItemOptions?: PetitionMasterItemOption[];
+  masterItemsLoading?: boolean;
 }
 
 export default function ItemsStep({
@@ -44,6 +62,8 @@ export default function ItemsStep({
   deliverer,
   onDelivererChange,
   itemsReadOnly = false,
+  masterItemOptions = [],
+  masterItemsLoading = false,
 }: Props) {
   function setItem(idx: number, patch: Partial<ItemRowValues>) {
     onChange(value.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
@@ -89,7 +109,7 @@ export default function ItemsStep({
         <div>
           <h2 className="text-lg font-semibold">รายการตัวอย่าง</h2>
           <p className="text-sm text-grey-500">
-            กรอกเลข batch และ lot สำหรับทุกตัวอย่าง — batch ที่ลงท้ายด้วย 1 หรือ 6 จะถูกขอใบคำขอรับบริการในขั้นถัดไป
+            เลือกชื่อตัวอย่างจาก Master Item และกรอกเลข batch — batch ที่ลงท้ายด้วย 1 หรือ 6 จะถูกขอใบคำขอรับบริการในขั้นถัดไป
           </p>
         </div>
         <Button size="sm" variant="primary-outline" onClick={addItem} disabled={itemsReadOnly}>
@@ -122,11 +142,16 @@ export default function ItemsStep({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <Label>ชื่อตัวอย่าง</Label>
-                  <Input
-                    value={it.sampleName}
-                    onChange={(e) => setItem(idx, { sampleName: e.target.value })}
+                  <MasterItemPicker
+                    value={it}
+                    options={masterItemOptions}
+                    loading={masterItemsLoading}
                     disabled={itemsReadOnly}
-                    placeholder="พิมพ์ชื่อตัวอย่าง"
+                    onPick={(option) => setItem(idx, {
+                      sampleName: option.sampleName,
+                      commonName: option.commonName,
+                      packageUnit: option.packageUnit,
+                    })}
                   />
                 </div>
                 <div>
@@ -139,24 +164,15 @@ export default function ItemsStep({
                   />
                 </div>
                 <div>
-                  <Label>เลข Lot (Lot No.)</Label>
-                  <Input
-                    value={it.lotNo}
-                    onChange={(e) => setItem(idx, { lotNo: e.target.value })}
-                    disabled={itemsReadOnly}
-                    placeholder="เช่น L240601"
-                  />
-                </div>
-                <div>
                   <Label>ชื่อสามัญ / Active Ingredient</Label>
                   <Input
                     value={it.commonName}
-                    onChange={(e) => setItem(idx, { commonName: e.target.value })}
-                    disabled={itemsReadOnly}
+                    disabled
+                    placeholder="เติมอัตโนมัติจาก Master Item"
                   />
                 </div>
                 <div>
-                  <Label>วันผลิต</Label>
+                  <Label>วันผลิต/วันที่รับเข้า</Label>
                   <Input
                     type="date"
                     value={it.productionDate ?? ''}
@@ -168,20 +184,9 @@ export default function ItemsStep({
                   <Label>ขนาดบรรจุ / จำนวน</Label>
                   <Input
                     value={it.packageUnit}
-                    onChange={(e) => setItem(idx, { packageUnit: e.target.value })}
-                    disabled={itemsReadOnly}
-                    placeholder="เช่น 1 kg × 20 ถุง"
+                    disabled
+                    placeholder="เติมอัตโนมัติจาก Master Item"
                   />
-                </div>
-                <div>
-                  <Label>เลขที่ใบนำส่ง</Label>
-                  <Input
-                    value={it.submissionNo}
-                    onChange={(e) => setItem(idx, { submissionNo: e.target.value })}
-                    disabled={itemsReadOnly}
-                    placeholder="เว้นว่าง = ใช้เลขคำขออัตโนมัติ"
-                  />
-                  <p className="mt-1 text-xs text-grey-400">ปล่อยว่างได้ ระบบจะใช้เลขคำขอให้อัตโนมัติ</p>
                 </div>
                 <div className="sm:col-span-2">
                   <Label>หมายเหตุ</Label>
@@ -198,5 +203,95 @@ export default function ItemsStep({
         })}
       </div>
     </div>
+  );
+}
+
+function MasterItemPicker({
+  value,
+  options,
+  loading,
+  disabled,
+  onPick,
+}: {
+  value: Pick<ItemRowValues, 'sampleName' | 'commonName' | 'packageUnit'>;
+  options: PetitionMasterItemOption[];
+  loading: boolean;
+  disabled?: boolean;
+  onPick: (option: PetitionMasterItemOption) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = useMemo(() => {
+    if (!value.sampleName) return null;
+    return options.find((option) => (
+      option.sampleName === value.sampleName &&
+      (!value.commonName || option.commonName === value.commonName) &&
+      (!value.packageUnit || option.packageUnit === value.packageUnit)
+    )) ?? null;
+  }, [options, value.commonName, value.packageUnit, value.sampleName]);
+
+  function pick(option: PetitionMasterItemOption) {
+    onPick(option);
+    setOpen(false);
+  }
+
+  return (
+    <Popover open={open && !disabled} onOpenChange={(nextOpen) => !disabled && setOpen(nextOpen)}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-label="ชื่อตัวอย่าง"
+          aria-expanded={open}
+          className="w-full justify-between font-normal"
+          disabled={disabled || loading}
+        >
+          <span className={cn('truncate text-left', !value.sampleName && 'text-grey-400')}>
+            {loading
+              ? 'กำลังโหลด Master Item...'
+              : value.sampleName || 'พิมพ์เพื่อค้นหาจาก Master Item'}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="ค้นหาชื่อตัวอย่างจาก Master Item..." />
+          <CommandList>
+            <CommandEmpty>ไม่พบชื่อตัวอย่างใน Master Item</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => {
+                const selectedOption = selected === option;
+                const commandValue = [
+                  option.sampleName,
+                  option.commonName,
+                  option.packageUnit,
+                  option.itemNo,
+                ].filter(Boolean).join(' ');
+                return (
+                  <CommandItem
+                    key={`${option.itemNo}-${option.sampleName}-${option.commonName}-${option.packageUnit}`}
+                    value={commandValue}
+                    onSelect={() => pick(option)}
+                  >
+                    <Check
+                      className={cn(
+                        'mr-2 h-4 w-4',
+                        selectedOption ? 'opacity-100' : 'opacity-0',
+                      )}
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate">{option.sampleName}</span>
+                      <span className="block truncate text-xs text-grey-500">
+                        {[option.commonName, option.packageUnit].filter(Boolean).join(' · ') || option.itemNo}
+                      </span>
+                    </span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }

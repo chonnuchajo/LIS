@@ -80,11 +80,24 @@
 .route-loading__label {
   position: absolute;
   bottom: 3%;
+  display: inline-flex;
+  align-items: baseline;
   margin: 0;
   color: rgba(15, 23, 42, 0.72);
-  font-size: 0.875rem;
+  font-size: 1.125rem;
   font-weight: 500;
   letter-spacing: 0.08em;
+}
+
+.route-loading__dots {
+  display: inline-block;
+  min-width: 1.45em;
+  text-align: left;
+}
+
+.route-loading__dots::after {
+  content: ".";
+  animation: route-loading-dots 1.2s steps(1, end) infinite;
 }
 
 .route-loading__particle {
@@ -221,11 +234,33 @@
   }
 }
 
+@keyframes route-loading-dots {
+  0%,
+  32% {
+    content: ".";
+  }
+
+  33%,
+  65% {
+    content: "..";
+  }
+
+  66%,
+  100% {
+    content: "...";
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .route-loading__visual,
   .route-loading__visual *,
-  .route-loading__artwork {
+  .route-loading__artwork,
+  .route-loading__dots::after {
     animation: none !important;
     transition: none !important;
+  }
+
+  .route-loading__dots::after {
+    content: "...";
   }
 }

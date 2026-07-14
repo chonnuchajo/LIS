@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import QRCode from 'qrcode';
 import { ArrowLeft, ArrowRight, CheckCircle2, Factory, Printer, RotateCcw, Save } from 'lucide-react';
 import { toast } from 'sonner';
@@ -15,6 +16,11 @@ import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
 import { createPetition, createLabRequest } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
+import {
+  buildPetitionMasterItemOptions,
+  findMatchingPetitionMasterItem,
+  normalizeMasterItemPayload,
+} from '@/lib/petitionMasterItem';
 import { isLabBatch, type Petition } from '@/types/petition.types';
 
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
@@ -531,6 +537,21 @@ export default function ProductionPetitionNewPage({
     : user?.department;
   const revisionOfId = searchParams.get('revisionOf');
   const [revisionSource, setRevisionSource] = useState<Petition | null>(null);
+  const {
+    data: masterItemRows = [],
+    isLoading: masterItemsLoading,
+    isError: masterItemsError,
+  } = useQuery({
+    queryKey: ['master-items-for-petition-new'],
+    queryFn: async () => {
+      const res = await api.get<unknown>('/master-items');
+      return normalizeMasterItemPayload(res.data.data);
+    },
+  });
+  const masterItemOptions = useMemo(
+    () => buildPetitionMasterItemOptions(masterItemRows),
+    [masterItemRows],
+  );
 
   const [stepIdx, setStepIdx] = useState(0);
   const currentStep = STEPS[stepIdx].key;
@@ -662,17 +683,25 @@ export default function ProductionPetitionNewPage({
         setStepError('ต้องมีตัวอย่างอย่างน้อย 1 รายการ');
         return false;
       }
+      if (masterItemsLoading) {
+        setStepError('กำลังโหลด Master Item กรุณารอสักครู่');
+        return false;
+      }
+      if (masterItemsError || masterItemOptions.length === 0) {
+        setStepError('โหลด Master Item ไม่สำเร็จ กรุณาลองใหม่');
+        return false;
+      }
       for (const it of items) {
         if (!it.sampleName.trim()) {
           setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกชื่อตัวอย่าง`);
           return false;
         }
-        if (!it.batchNo.trim()) {
-          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกเลขแบช`);
+        if (!findMatchingPetitionMasterItem(masterItemOptions, it)) {
+          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณาเลือกชื่อตัวอย่างจาก Master Item`);
           return false;
         }
-        if (!it.lotNo.trim()) {
-          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกเลข lot`);
+        if (!it.batchNo.trim()) {
+          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกเลขแบช`);
           return false;
         }
         if (!it.commonName.trim()) {
@@ -680,7 +709,7 @@ export default function ProductionPetitionNewPage({
           return false;
         }
         if (!it.productionDate) {
-          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณาเลือกวันผลิต`);
+          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณาเลือกวันผลิต/วันที่รับเข้า`);
           return false;
         }
         if (!it.packageUnit.trim()) {
@@ -914,6 +943,8 @@ export default function ProductionPetitionNewPage({
                   setDeliverer(v);
                 }}
                 itemsReadOnly={integrationMode}
+                masterItemOptions={masterItemOptions}
+                masterItemsLoading={masterItemsLoading}
               />
             )}
             {currentStep === 'lab' && labRequest && (

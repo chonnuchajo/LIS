@@ -11,6 +11,13 @@ const unit = (over: Partial<ExecWorkUnit>): ExecWorkUnit => ({
 });
 
 describe("ActionQueue", () => {
+  it("uses the executive queue column labels requested for the dashboard", () => {
+    render(<MemoryRouter><ActionQueue units={[unit({})]} /></MemoryRouter>);
+    expect(screen.queryByRole("columnheader", { name: "แผนก" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "สถานะ" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "เวลา" })).toBeInTheDocument();
+  });
+
   it("renders the overdue amount in Thai duration form", () => {
     render(<MemoryRouter><ActionQueue units={[unit({})]} /></MemoryRouter>);
     expect(screen.getByText("เกิน 2 ชม.")).toBeInTheDocument();

@@ -2,7 +2,7 @@
 // server/routes/petitions.js `/exec-summary`). Keep this in sync with the server's
 // buildLiveSection/buildStatsSection output shape — it is the authoritative source.
 
-export type ExecPeriod = 7 | 30 | 90;
+export type ExecPeriod = 1 | 7 | 30;
 
 export type ExecStage =
   | "waitingReceive" | "pendingAssign" | "labTesting"
@@ -30,10 +30,12 @@ export interface ExecSummary {
   days: ExecPeriod;
   live: {
     counts: {
+      total: number;
       urgent: number; overdue: number; atRisk: number;
       unassigned: number; waitingHead: number; abnormal: number;
     };
     ids: {
+      total: string[];
       urgent: string[]; overdue: string[]; atRisk: string[];
       unassigned: string[]; waitingHead: string[]; abnormal: string[];
     };

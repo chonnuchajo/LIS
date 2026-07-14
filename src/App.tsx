@@ -14,6 +14,7 @@ import RoutePointerLockGuard from "@/components/RoutePointerLockGuard";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
 import EmployeeLinkGate from "@/components/lis/EmployeeLinkGate";
 import { RouteLoading } from "@/components/RouteLoading";
+import { StartupLoadingGate } from "@/components/StartupLoadingGate";
 
 // Route-level code splitting: each page is its own chunk, loaded on demand.
 // Keeps the initial bundle to the app shell + only the landing route.
@@ -97,6 +98,7 @@ const App = () => (
           <NotificationProvider>
             <DailyCheckReminderWatcher />
             <SampleProvider>
+              <StartupLoadingGate>
               <Suspense fallback={<RouteLoading />}>
               <Routes>
               <Route path="/login" element={<Login />} />
@@ -157,6 +159,7 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
               </Suspense>
+              </StartupLoadingGate>
             </SampleProvider>
           </NotificationProvider>
         </AuthProvider>

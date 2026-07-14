@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { flushSync } from "react-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { toast } from "sonner";
-import { Activity, CalendarClock, ChevronDown, ChevronUp, Download, FileCheck2, FileText, ImageIcon, ListTodo, RefreshCw, UserRound } from "lucide-react";
+import { Activity, CalendarClock, ChevronDown, ChevronUp, FileCheck2, FileText, ImageIcon, ListTodo, Printer, RefreshCw, UserRound } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
+import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
 import PetitionPrintTemplate from "@/components/petition/PetitionPrintTemplate";
 import ResultReportPrintTemplate from "@/components/petition/ResultReportPrintTemplate";
 import SampleLabelPrintTemplate from "@/components/petition/SampleLabelPrintTemplate";
@@ -16,13 +15,12 @@ import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { useLabRequestsByPetition, usePetition, usePetitionAuditLog } from "@/hooks/usePetition";
 import { api, type ParameterItem, type QCProgressEntry } from "@/lib/api";
 import { findSgParameter } from "@/lib/formSpecificGravity";
-import { buildTimelineDetailModel } from "@/lib/petitionTimelineDetail";
+import { buildTimelineDetailModel, type TimelineDetailDayRow, type TimelineDetailRow, type TimelineDetailTick } from "@/lib/petitionTimelineDetail";
+import { timelineBarClass, timelineDotClass } from "@/lib/petitionTimelineColors";
 import { canPrintPreReport } from "@/lib/petitionPrintability";
 import { canSeePetition, isLabRole, petitionHasLabReadableItem } from "@/lib/petitionVisibility";
-import { openPrintPdf } from "@/lib/print";
-import type { PrintDocType } from "@/lib/printConfig";
 import { normalizeRoles } from "@/lib/roles";
-import { petitionStatusBadge } from "@/lib/statusBadge";
+import { hasLabTrack, petitionStatusBadge } from "@/lib/statusBadge";
 import { cn } from "@/lib/utils";
 
 function formatDateTime(value: string) {
@@ -52,33 +50,126 @@ function taskStateClass(state: "pending" | "inProgress" | "recorded" | "approved
   return "bg-grey-100 text-grey-700";
 }
 
-function barTrackClass(track: "qc" | "lab" | "stage", done: boolean) {
-  if (!done) return "bg-grey-200";
-  if (track === "lab") return "bg-amber-500";
-  if (track === "qc") return "bg-primary-500";
-  return "bg-grey-400";
+function progressFillClass(percent: number) {
+  if (percent <= 33) return "bg-red-500";
+  if (percent <= 66) return "bg-gradient-to-r from-red-500 to-amber-400";
+  return "bg-gradient-to-r from-red-500 via-amber-400 to-green-500";
 }
 
-function timelineTickVisibilityClass(index: number, total: number) {
+function timelineTickVisibilityClass(index: number, total: number, overview: boolean) {
+  if (overview && total > 12) {
+    const compactVisible = index === 0 || index === total - 1 || (index % 6 === 0 && index < total - 2);
+    return compactVisible ? "" : "hidden";
+  }
   if (total <= 7) return "";
   const compactVisible = index === 0 || index === total - 1 || (index % 2 === 0 && index < total - 2);
   return compactVisible ? "" : "hidden 2xl:block";
 }
 
+function timelineTickLineClass(index: number, total: number, overview: boolean) {
+  if (overview && total > 12 && timelineTickVisibilityClass(index, total, overview) === "hidden") return "hidden";
+  return "border-l border-grey-200";
+}
+
+function timelineTickPositionClass(left: number, overview: boolean) {
+  return left > (overview ? 80 : 92) ? "right-1" : "left-1";
+}
+
+function timelineTickTopClass(ticks: TimelineDetailTick[], index: number, overview: boolean) {
+  if (!overview || index === 0) return "top-0";
+  const current = validTimelineDate(ticks[index]?.at);
+  const previous = validTimelineDate(ticks[index - 1]?.at);
+  if (current && previous && current.toDateString() === previous.toDateString()) return "top-4";
+  return "top-0";
+}
+
+function localWorkdayStart(value: Date) {
+  const result = new Date(value);
+  result.setHours(8, 0, 0, 0);
+  return result;
+}
+
+function formatOverviewDayTick(value: Date) {
+  return value.toLocaleDateString("th-TH", { day: "2-digit", month: "short" }) + " 08:00";
+}
+
+function formatOverviewHourTick(value: Date) {
+  return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
+}
+
+function validTimelineDate(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function buildOverviewTicks(rows: TimelineDetailRow[], timelineEndAt: string, includeExactEnd: boolean): TimelineDetailTick[] {
+  const actionTimes: Date[] = [];
+  for (const row of rows) {
+    if (row.kind === "milestone") {
+      const at = validTimelineDate(row.at);
+      if (at) actionTimes.push(at);
+      continue;
+    }
+    const startAt = validTimelineDate(row.startAt);
+    const endAt = row.done ? validTimelineDate(row.endAt) : null;
+    if (startAt) actionTimes.push(startAt);
+    if (endAt) actionTimes.push(endAt);
+  }
+
+  const ticks = new Map<string, TimelineDetailTick>();
+  for (const actionTime of actionTimes) {
+    const dayStart = localWorkdayStart(actionTime);
+    const key = dayStart.toISOString();
+    ticks.set(key, { key, at: key, label: formatOverviewDayTick(dayStart) });
+  }
+
+  const end = validTimelineDate(timelineEndAt);
+  const hasExactEndAction = end && actionTimes.some((actionTime) => actionTime.getTime() === end.getTime());
+  if (includeExactEnd && end && hasExactEndAction) {
+    const dayStart = localWorkdayStart(end);
+    if (end.getTime() !== dayStart.getTime()) {
+      ticks.set(timelineEndAt, { key: timelineEndAt, at: timelineEndAt, label: formatOverviewHourTick(end) });
+    }
+  }
+
+  return [...ticks.values()].sort((left, right) => new Date(left.at).getTime() - new Date(right.at).getTime());
+}
+
+// แท่งที่ "กำลังทำอยู่" เท่านั้นที่วิ่ง shimmer — เงาเป็นสีกลาง ไม่ย้อมทับสีประจำแถวของแต่ละด่าน
+const ACTIVE_BAR_CLASS = "overflow-hidden shadow-[0_0_10px_rgba(0,0,0,0.18)] after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-1/2 after:rounded-full after:bg-gradient-to-r after:from-transparent after:via-white/70 after:to-transparent after:content-[''] after:animate-[timeline-shimmer_1.4s_linear_infinite]";
+
+function isSameCalendarDay(left: Date, right: Date) {
+  return left.toDateString() === right.toDateString();
+}
+
+// แท่งถูกตัดที่ขอบหน้าต่างของวัน ซึ่งอาจเป็นแค่ขอบเวลาทำการ (17:00) ของวันเดียวกัน —
+// จะบอกว่า "ต่อเนื่องข้ามวัน" ได้ต่อเมื่อปลายจริงของแท่งอยู่คนละวันปฏิทินกับแท็บที่กำลังดู
+function continuesAcrossCalendarDay(row: TimelineDetailDayRow, dayStartAt: string) {
+  const day = validTimelineDate(dayStartAt);
+  if (!day) return false;
+  const start = validTimelineDate(row.startAt);
+  const end = validTimelineDate(row.endAt);
+  return (row.continuesBefore && !!start && !isSameCalendarDay(start, day))
+    || (row.continuesAfter && !!end && !isSameCalendarDay(end, day));
+}
+
+function earliestIso(values: string[]) {
+  return values.reduce((earliest, value) => (new Date(value).getTime() < new Date(earliest).getTime() ? value : earliest));
+}
+
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return <div className="min-w-0 border-l border-black-50 pl-4 first:border-l-0 first:pl-0"><p className="text-xs text-grey-500">{label}</p><p className="mt-1 truncate text-sm font-semibold text-black-500" title={value}>{value}</p>{hint && <p className="mt-1 text-xs text-grey-500">{hint}</p>}</div>;
+  const visibleHint = label === "Progress" ? undefined : hint;
+  return <div className="min-w-0 border-l border-black-50 pl-4 first:border-l-0 first:pl-0"><p className="text-xs text-grey-500">{label}</p><p className="mt-1 truncate text-sm font-semibold text-black-500" title={value}>{value}</p>{visibleHint && <p className="mt-1 text-xs text-grey-500">{visibleHint}</p>}</div>;
 }
 
-function summarizeItemValues<T>(items: T[], pickValue: (item: T) => string | null | undefined): string {
-  const values = Array.from(new Set(
-    items
-      .map((item) => pickValue(item)?.trim())
-      .filter((value): value is string => !!value),
-  ));
-  return values.length ? values.join(", ") : "-";
-}
-
-type TimelineDocumentKey = "sample-label" | "service-request" | "pre-report" | "final-report";
+const documentButtonClass = "w-full justify-start";
+const documentButtonColors = {
+  sampleLabel: "border-primary-500 text-primary-500 hover:bg-primary-50",
+  serviceRequest: "border-yellow-500 text-yellow-500 hover:bg-yellow-50",
+  preReport: "border-green-500 text-green-500 hover:bg-green-50",
+  finalReport: "border-red-500 text-red-500 hover:bg-red-50",
+} as const;
 
 export default function PetitionTimelineDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -97,12 +188,12 @@ export default function PetitionTimelineDetailPage() {
   const [qcResults, setQcResults] = useState<import("@/types/petition.types").QCTestResult[]>([]);
   const [documentLoading, setDocumentLoading] = useState(false);
   const [documentError, setDocumentError] = useState<string | null>(null);
-  const [pdfLoadingDoc, setPdfLoadingDoc] = useState<TimelineDocumentKey | null>(null);
+  const [labelPrintOpen, setLabelPrintOpen] = useState(false);
+  const [servicePrintOpen, setServicePrintOpen] = useState(false);
+  const [preReportOpen, setPreReportOpen] = useState(false);
+  const [finalReportOpen, setFinalReportOpen] = useState(false);
   const [activeTimelineDayKey, setActiveTimelineDayKey] = useState<string | null>(null);
-  const labelDocumentRef = useRef<HTMLDivElement>(null);
-  const serviceDocumentRef = useRef<HTMLDivElement>(null);
-  const preReportDocumentRef = useRef<HTMLDivElement>(null);
-  const finalReportDocumentRef = useRef<HTMLDivElement>(null);
+  const [activeItemSeq, setActiveItemSeq] = useState<number | null>(null);
   const documentLoadVersion = useRef(0);
   const documentLoadState = useRef<{ loaded: boolean; promise: Promise<boolean> | null }>({ loaded: false, promise: null });
   const petitionId = petition?._id;
@@ -129,7 +220,7 @@ export default function PetitionTimelineDetailPage() {
         setProgressEntries(progress[petition._id] ?? []);
       })
       .catch((loadError: Error) => {
-        if (alive) setTaskError(loadError.message || "โหลดข้อมูลงานไม่สำเร็จ");
+        if (alive) setTaskError(loadError.message || "โหลดข้อมูล parameter ไม่สำเร็จ");
       })
       .finally(() => {
         if (alive) setParametersLoaded(true);
@@ -140,8 +231,12 @@ export default function PetitionTimelineDetailPage() {
   }, [petition?._id, taskReloadKey]);
 
   useEffect(() => {
-    setPdfLoadingDoc(null);
+    setLabelPrintOpen(false);
+    setServicePrintOpen(false);
+    setPreReportOpen(false);
+    setFinalReportOpen(false);
     setActiveTimelineDayKey(null);
+    setActiveItemSeq(null);
   }, [id]);
 
   const visibleParameters = useMemo(
@@ -158,11 +253,15 @@ export default function PetitionTimelineDetailPage() {
     return !isLabUser || petitionHasLabReadableItem(petition, visibleParameters, groupMembership);
   }, [groupMembership, isAdmin, isLabUser, parametersLoaded, petition, user, visibleParameters]);
 
+  const itemSeqs = useMemo(() => (petition?.items ?? []).map((item) => item.seq), [petition]);
+  // seq ที่ค้างอยู่อาจหายไปหลังรีเฟรช → ถอยไปตัวแรกเสมอ
+  const selectedItemSeq = activeItemSeq != null && itemSeqs.includes(activeItemSeq) ? activeItemSeq : itemSeqs[0] ?? null;
+
   const model = useMemo(
     () => petition && canViewPetition
-      ? buildTimelineDetailModel({ petition, parameters: visibleParameters, progressEntries, auditLogs, qcResults, itemGroupIds: groupMembership })
+      ? buildTimelineDetailModel({ petition, parameters: visibleParameters, progressEntries, auditLogs, itemGroupIds: groupMembership, itemSeq: selectedItemSeq })
       : null,
-    [auditLogs, canViewPetition, groupMembership, petition, progressEntries, qcResults, visibleParameters],
+    [auditLogs, canViewPetition, groupMembership, petition, progressEntries, selectedItemSeq, visibleParameters],
   );
 
   const loadDocumentData = useCallback(async (): Promise<boolean> => {
@@ -216,15 +315,19 @@ export default function PetitionTimelineDetailPage() {
   }
 
   const statusBadge = petitionStatusBadge(petition);
+  // คำร้องที่ปิดแล้ว: แท่งที่ไม่มีเวลาจบคือ "รูข้อมูล" ไม่ใช่งานที่ยังวิ่งอยู่ — ห้ามเรืองแสง/วิ่ง shimmer
+  const petitionClosed = petition.status === "approved" || petition.status === "rejected";
   const activities = showAllActivities ? model.activities : model.activities.slice(0, 5);
   const progressLabel = model.progress.percent == null ? "-" : `${model.progress.percent}%`;
   const sgParameter = findSgParameter(parameters);
+  // Pre Report ต้องมีผลบันทึกครบทุก track ที่คำร้องนี้มีจริง
+  // - มี Lab track: ต้องมีทั้ง qcCompletedAt และ labCompletedAt
+  // - ไม่มี Lab track: labCompletedAt ไม่มีวันถูกเขียน (server เขียนเฉพาะตอน Lab บันทึกผล) —
+  //   สัญญาณ "ครบ" ของคำร้องแบบนี้คือ qcCompletedAt แล้ว server flip status เป็น success ทันที (isPetitionComplete)
   const canShowPreReport = canPrintPreReport(petition)
-    && model.progress.total > 0
-    && model.progress.filled >= model.progress.total;
-  const commonNameSummary = summarizeItemValues(petition.items ?? [], (item) => item.commonName);
-  const batchSummary = summarizeItemValues(petition.items ?? [], (item) => item.batchNo);
-  const lotSummary = summarizeItemValues(petition.items ?? [], (item) => item.lotNo);
+    && Boolean(petition.qcCompletedAt)
+    && (hasLabTrack(petition) ? Boolean(petition.labCompletedAt) : petition.status === "success");
+  const activeItem = model.items.find((item) => item.seq === selectedItemSeq) ?? null;
   const responsibleName = petition.assignedTo?.name || "ยังไม่มอบหมาย";
   const timelineDays = model.timeline.days.length
     ? model.timeline.days
@@ -243,7 +346,30 @@ export default function PetitionTimelineDetailPage() {
           continuesAfter: false,
         })),
       }];
-  const activeTimelineDay = timelineDays.find((day) => day.key === activeTimelineDayKey) ?? timelineDays[0];
+  // แกนของแท็บภาพรวมต้องขยายแบบเดียวกับหน้าต่างของแต่ละวัน — ไม่งั้นกิจกรรมก่อน 08:00
+  // (เช่นเริ่ม 06:30) จะถูกหนีบเป็น 0% ไปกองที่ขอบซ้าย
+  const overviewStartAt = earliestIso([model.timeline.startAt, ...timelineDays.map((day) => day.startAt)]);
+  const timelineTabs = timelineDays.length > 1
+    ? [{
+        key: "overview",
+        label: "ภาพรวม",
+        startAt: overviewStartAt,
+        endAt: model.timeline.endAt,
+        ticks: buildOverviewTicks(model.timeline.rows, model.timeline.endAt, model.header.endKind === "actual"),
+        rows: model.timeline.rows.map((row) => ({
+          ...row,
+          visible: true,
+          segmentStartAt: row.startAt ?? row.at,
+          segmentEndAt: row.endAt ?? row.at,
+          continuesBefore: false,
+          continuesAfter: false,
+        })),
+      }, ...timelineDays]
+    : timelineDays;
+  const activeTimelineDay = timelineTabs.find((day) => day.key === activeTimelineDayKey) ?? timelineTabs[0];
+  const activeTimelineRows = activeTimelineDay.key === "overview"
+    ? activeTimelineDay.rows
+    : activeTimelineDay.rows.filter((row) => row.visible);
 
   const refreshTasks = () => setTaskReloadKey((value) => value + 1);
 
@@ -253,27 +379,17 @@ export default function PetitionTimelineDetailPage() {
     refreshTasks();
   }
 
-  function printableElement(ref: RefObject<HTMLDivElement>): HTMLElement | null {
-    return ref.current;
-  }
-
-  async function openDocumentPdf(key: TimelineDocumentKey, docType: PrintDocType, ref: RefObject<HTMLDivElement>, fileName: string) {
-    flushSync(() => setPdfLoadingDoc(key));
-    setDocumentError(null);
-    try {
-      if (!(await loadDocumentData())) return;
-      await openPrintPdf(docType, printableElement(ref), { fileName });
-    } catch (pdfError: unknown) {
-      const message = pdfError instanceof Error ? pdfError.message : "เปิด PDF ไม่สำเร็จ";
-      setDocumentError(message);
-      toast.error(message);
-    } finally {
-      setPdfLoadingDoc(null);
-    }
+  async function openDocument(setOpen: (open: boolean) => void) {
+    if (await loadDocumentData()) setOpen(true);
   }
 
   return <AppLayout title={`Timeline ${petition.petitionNo}`}><div className="space-y-4">
+    <style>{`@keyframes timeline-shimmer{0%{transform:translateX(-120%)}100%{transform:translateX(220%)}}`}</style>
     <PageHeader title="" onBack={() => navigate("/petition-timeline")} actions={<Button variant="primary-outline" size="sm" onClick={refreshTimeline}><RefreshCw className="h-4 w-4" />รีเฟรช</Button>} />
+
+    {model.items.length > 1 && <div role="tablist" aria-label="ตัวอย่างในคำขอ" className="flex flex-wrap gap-2">
+      {model.items.map((item) => <button key={item.seq} type="button" role="tab" aria-selected={item.seq === selectedItemSeq} title={item.label} className={cn("max-w-[240px] truncate rounded-[8px] border px-3 py-1.5 text-xs font-medium transition-colors", item.seq === selectedItemSeq ? "border-primary-500 bg-primary-50 text-primary-600" : "border-black-50 bg-white text-grey-600 hover:bg-grey-50")} onClick={() => setActiveItemSeq(item.seq)}>{item.label}</button>)}
+    </div>}
 
     <Card className="border-black-50 shadow-none"><CardContent className="grid gap-5 p-5 xl:grid-cols-[112px_minmax(0,1fr)]">
       <div className="flex aspect-square items-center justify-center rounded-[8px] border border-dashed border-grey-300 bg-grey-50 text-grey-400" aria-label="พื้นที่รูปตัวอย่าง"><ImageIcon className="h-8 w-8" /></div>
@@ -287,49 +403,51 @@ export default function PetitionTimelineDetailPage() {
           </div>
           <p className="text-xs text-grey-400">คำร้องโดย {petition.submittedBy?.name || "-"} · ผู้รับผิดชอบ {responsibleName}</p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-          <Metric label="Common name" value={commonNameSummary} />
-          <Metric label="เลข Batch" value={batchSummary} />
-          <Metric label="Lot" value={lotSummary} />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <Metric label="Common name" value={activeItem?.commonName || "-"} />
+          <Metric label="เลข Batch" value={activeItem?.batchNo || "-"} />
           <Metric label={model.header.startKind === "received" ? "Start time" : "เวลายื่นคำร้อง"} value={formatDateTime(model.header.startAt)} />
           <Metric label="End time" value={formatDateTime(model.header.endAt)} hint={model.header.endKind === "actual" ? "เวลาจริง" : model.header.endKind === "estimated" ? "ค่าประมาณ" : "กำลังดำเนินการ"} />
-          <Metric label="Progress" value={progressLabel} hint={model.progress.total ? `${model.progress.filled}/${model.progress.total} required fields` : "ไม่มี required parameter"} />
+          <Metric label="Progress" value={progressLabel} />
         </div>
-        {model.progress.percent != null && <div className="h-2 overflow-hidden rounded-full bg-grey-100"><div className="h-full bg-primary-500 transition-[width]" style={{ width: `${model.progress.percent}%` }} /></div>}
+        {model.progress.percent != null && <div role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={model.progress.percent} className="h-2 overflow-hidden rounded-full bg-grey-100"><div className={cn("h-full transition-[width]", progressFillClass(model.progress.percent))} style={{ width: `${model.progress.percent}%` }} /></div>}
       </div>
     </CardContent></Card>
 
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px] 2xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-4">
-        <Card aria-label="Project Timeline" className="border-black-50 shadow-none">
+        <Card aria-label="petition timeline" className="border-black-50 shadow-none">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base"><CalendarClock className="h-4 w-4 text-primary-500" />Project Timeline</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base"><CalendarClock className="h-4 w-4 text-primary-500" />Petition Timeline</CardTitle>
           </CardHeader>
           <CardContent>
-            {timelineDays.length > 1 && <div role="tablist" aria-label="Timeline days" className="mb-3 flex flex-wrap gap-2">{timelineDays.map((day) => <button key={day.key} type="button" role="tab" aria-selected={day.key === activeTimelineDay.key} className={cn("rounded-[8px] border px-3 py-1.5 text-xs font-medium transition-colors", day.key === activeTimelineDay.key ? "border-primary-500 bg-primary-50 text-primary-600" : "border-black-50 bg-white text-grey-600 hover:bg-grey-50")} onClick={() => setActiveTimelineDayKey(day.key)}>{day.label}</button>)}</div>}
+            {timelineTabs.length > 1 && <div role="tablist" aria-label="Timeline days" className="mb-3 flex flex-wrap gap-2">{timelineTabs.map((day) => <button key={day.key} type="button" role="tab" aria-selected={day.key === activeTimelineDay.key} className={cn("rounded-[8px] border px-3 py-1.5 text-xs font-medium transition-colors", day.key === activeTimelineDay.key ? "border-primary-500 bg-primary-50 text-primary-600" : "border-black-50 bg-white text-grey-600 hover:bg-grey-50")} onClick={() => setActiveTimelineDayKey(day.key)}>{day.label}</button>)}</div>}
             <div className="space-y-3">
               <div className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-end gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3">
                 <div aria-hidden="true" />
-                <div className="relative min-w-0 border-b border-black-50 pb-5 text-xs text-grey-500">
+                <div className={cn("relative min-w-0 border-b border-black-50 text-xs text-grey-500", activeTimelineDay.key === "overview" ? "pb-9" : "pb-5")}>
                   {activeTimelineDay.ticks.map((tick, index) => {
                     const left = timelinePercent(tick.at, activeTimelineDay.startAt, activeTimelineDay.endAt);
-                    return left == null ? null : <div key={tick.key} className="absolute top-0 h-full border-l border-grey-200" style={{ left: `${left}%` }}><span className={cn("absolute top-0 whitespace-nowrap", left > 92 ? "right-1" : "left-1", timelineTickVisibilityClass(index, activeTimelineDay.ticks.length))}>{tick.label}</span></div>;
+                    const isOverview = activeTimelineDay.key === "overview";
+                    return left == null ? null : <div key={tick.key} className={cn("absolute top-0 h-full", timelineTickLineClass(index, activeTimelineDay.ticks.length, isOverview))} style={{ left: `${left}%` }}><span className={cn("absolute whitespace-nowrap", timelineTickTopClass(activeTimelineDay.ticks, index, isOverview), timelineTickPositionClass(left, isOverview), timelineTickVisibilityClass(index, activeTimelineDay.ticks.length, isOverview))}>{tick.label}</span></div>;
                   })}
                 </div>
               </div>
-              {activeTimelineDay.rows.map((row) => {
+              {activeTimelineRows.map((row) => {
                 const progress = row.visible && row.kind === "milestone" ? timelinePercent(row.at, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const start = row.visible && row.kind === "bar" ? timelinePercent(row.segmentStartAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const end = row.visible && row.kind === "bar" ? timelinePercent(row.segmentEndAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const width = start != null && end != null ? Math.max(1, end - start) : null;
-                return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", row.done ? "bg-primary-600" : "bg-grey-300")} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={row.continuesBefore || row.continuesAfter ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", barTrackClass(row.track, row.done), row.continuesBefore && "rounded-l-none", row.continuesAfter && "rounded-r-none")} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
+                // แท่งจะ "กำลังทำอยู่" ได้ก็ต่อเมื่อคำร้องยังไม่ปิด — ปลายขวาตรง/สีอ่อนยังคงอยู่ทุกกรณีที่ไม่มีเวลาจบ
+                const active = !row.done && !petitionClosed;
+                return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", timelineDotClass(row.key, { done: row.done, rejected: petition.status === "rejected" }))} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={continuesAcrossCalendarDay(row, activeTimelineDay.startAt) ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", timelineBarClass(row.key, { done: row.done, rejected: petition.status === "rejected" }), row.continuesBefore && "rounded-l-none", !row.done && "rounded-r-none", active && ACTIVE_BAR_CLASS)} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
               })}
             </div>
           </CardContent>
         </Card>
 
-        <Card aria-label="Tasks" className="border-black-50 shadow-none"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><ListTodo className="h-4 w-4 text-primary-500" />Tasks</CardTitle></CardHeader><CardContent className="space-y-3">
-          {taskError ? <div className="flex items-center justify-between gap-3 rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-600"><span>โหลดข้อมูลงานไม่สำเร็จ: {taskError}</span><Button variant="danger-outline" size="sm" onClick={refreshTasks}>ลองใหม่</Button></div> : model.tasks.length === 0 ? <p className="py-4 text-center text-sm text-grey-500">ไม่มี parameter ที่ require สำหรับคำร้องนี้</p> : model.tasks.map((task) => <div key={task.key} className="grid gap-2 border-b border-black-50 pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_110px_100px]"><div className="min-w-0"><p className="truncate text-sm font-medium text-black-500">{task.parameterName}</p><p className="mt-1 text-xs text-grey-500">{task.sampleName}</p></div><div className="self-center"><div className="h-2 overflow-hidden rounded-full bg-grey-100"><div className="h-full bg-primary-500" style={{ width: `${(task.filled / task.total) * 100}%` }} /></div><p className="mt-1 text-xs text-grey-500">{task.filled}/{task.total}</p></div><span className={cn("self-center justify-self-start rounded px-2 py-1 text-xs font-medium", taskStateClass(task.state))}>{taskStateLabel(task.state)}</span></div>)}
+        <Card aria-label="Parameter ที่ต้องตรวจสอบ" className="border-black-50 shadow-none"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><ListTodo className="h-4 w-4 text-primary-500" />Parameter ที่ต้องตรวจสอบ</CardTitle></CardHeader><CardContent className="space-y-3">
+          {taskError ? <div className="flex items-center justify-between gap-3 rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-600"><span>โหลดข้อมูล parameter ไม่สำเร็จ: {taskError}</span><Button variant="danger-outline" size="sm" onClick={refreshTasks}>ลองใหม่</Button></div> : model.tasks.length === 0 ? <p className="py-4 text-center text-sm text-grey-500">ไม่มี parameter ที่ require สำหรับคำร้องนี้</p> : model.tasks.map((task) => <div key={task.key} className="grid gap-2 border-b border-black-50 pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_110px_100px]"><div className="min-w-0"><p className="truncate text-sm font-medium text-black-500">{task.parameterName}</p><p className="mt-1 text-xs text-grey-500">{task.sampleName}</p></div><div className="self-center"><div className="h-2 overflow-hidden rounded-full bg-grey-100"><div className="h-full bg-primary-500" style={{ width: `${(task.filled / task.total) * 100}%` }} /></div><p className="mt-1 text-xs text-grey-500">{task.filled}/{task.total}</p></div><span className={cn("self-center justify-self-start rounded px-2 py-1 text-xs font-medium", taskStateClass(task.state))}>{taskStateLabel(task.state)}</span></div>)}
         </CardContent></Card>
       </div>
 
@@ -340,21 +458,19 @@ export default function PetitionTimelineDetailPage() {
       </CardContent></Card>
 
       <Card aria-label="Documents" className="border-black-50 shadow-none"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4 text-primary-500" />Documents</CardTitle></CardHeader><CardContent className="space-y-2">
-        <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading || pdfLoadingDoc !== null} onClick={() => { void openDocumentPdf("sample-label", "sample-label", labelDocumentRef, `${petition.petitionNo}-sample-label.pdf`); }}><Download className="h-4 w-4" />ป้ายนำส่งตัวอย่าง</Button>
-        {(labRequests?.length ?? 0) > 0 && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading || pdfLoadingDoc !== null} onClick={() => { void openDocumentPdf("service-request", "service-request", serviceDocumentRef, `${petition.petitionNo}-service-request.pdf`); }}><Download className="h-4 w-4" />ใบคำขอรับบริการ</Button>}
-        {canShowPreReport && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading || pdfLoadingDoc !== null} onClick={() => { void openDocumentPdf("pre-report", "coa", preReportDocumentRef, `${petition.petitionNo}-pre-report.pdf`); }}><Download className="h-4 w-4" />Pre Report</Button>}
-        {petition.status === "approved" && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading || pdfLoadingDoc !== null} onClick={() => { void openDocumentPdf("final-report", "coa", finalReportDocumentRef, `${petition.petitionNo}-final-report.pdf`); }}><FileCheck2 className="h-4 w-4" />Final Report</Button>}
+        <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.sampleLabel)} disabled={documentLoading} onClick={() => { void openDocument(setLabelPrintOpen); }}><Printer className="h-4 w-4" />ป้ายนำส่งตัวอย่าง</Button>
+        {(labRequests?.length ?? 0) > 0 && <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.serviceRequest)} disabled={documentLoading} onClick={() => { void openDocument(setServicePrintOpen); }}><FileText className="h-4 w-4" />ใบคำขอรับบริการ</Button>}
+        {canShowPreReport && <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.preReport)} disabled={documentLoading} onClick={() => { void openDocument(setPreReportOpen); }}><FileText className="h-4 w-4" />Pre Report</Button>}
+        {petition.status === "approved" && <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.finalReport)} disabled={documentLoading} onClick={() => { void openDocument(setFinalReportOpen); }}><FileCheck2 className="h-4 w-4" />Final Report</Button>}
         {documentLoading && <p className="text-xs text-grey-500">กำลังโหลดข้อมูลเอกสาร...</p>}
         {documentError && <p className="text-xs text-red-600">โหลดข้อมูลเอกสารไม่สำเร็จ: {documentError}</p>}
       </CardContent></Card>
       </div>
     </div>
 
-    {pdfLoadingDoc && <div className="fixed left-[-10000px] top-0 opacity-0 pointer-events-none" aria-hidden="true">
-      {pdfLoadingDoc === "sample-label" && <div ref={labelDocumentRef}><SampleLabelPrintTemplate petition={petition} /></div>}
-      {pdfLoadingDoc === "service-request" && labRequests?.[0] && <div ref={serviceDocumentRef}><PetitionPrintTemplate labRequest={labRequests[0]} petition={petition} qcResults={qcResults} sgParam={sgParameter} /></div>}
-      {pdfLoadingDoc === "pre-report" && <div ref={preReportDocumentRef}><ResultReportPrintTemplate kind="pre" petition={petition} labRequests={labRequests ?? []} qcResults={qcResults} /></div>}
-      {pdfLoadingDoc === "final-report" && <div ref={finalReportDocumentRef}><ResultReportPrintTemplate kind="final" petition={petition} labRequests={labRequests ?? []} qcResults={qcResults} /></div>}
-    </div>}
+    {labelPrintOpen && <PrintPreviewDialog open={labelPrintOpen} onOpenChange={setLabelPrintOpen} docType="sample-label"><SampleLabelPrintTemplate petition={petition} /></PrintPreviewDialog>}
+    {servicePrintOpen && labRequests?.[0] && <PrintPreviewDialog open={servicePrintOpen} onOpenChange={setServicePrintOpen} docType="service-request"><PetitionPrintTemplate labRequest={labRequests[0]} petition={petition} qcResults={qcResults} sgParam={sgParameter} /></PrintPreviewDialog>}
+    {preReportOpen && <PrintPreviewDialog open={preReportOpen} onOpenChange={setPreReportOpen} docType="coa"><ResultReportPrintTemplate kind="pre" petition={petition} labRequests={labRequests ?? []} qcResults={qcResults} /></PrintPreviewDialog>}
+    {finalReportOpen && <PrintPreviewDialog open={finalReportOpen} onOpenChange={setFinalReportOpen} docType="coa"><ResultReportPrintTemplate kind="final" petition={petition} labRequests={labRequests ?? []} qcResults={qcResults} /></PrintPreviewDialog>}
   </div></AppLayout>;
 }
