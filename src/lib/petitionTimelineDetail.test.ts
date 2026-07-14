@@ -503,17 +503,47 @@ describe("buildTimelineDetailModel", () => {
   });
 
   it("กรอง tasks และแถว parameter เหลือเฉพาะตัวอย่างที่เลือก", () => {
+    // สองพารามิเตอร์คนละตัว ผูกกับคนละสาร (ไม่ใช่ applyAll) เพื่อให้ unfiltered ได้ 2 แถว param::
+    // และ filtered (itemSeq=2) เหลือแค่แถวของสารที่เลือกจริง ๆ
+    const parameterForA: ParameterItem = {
+      _id: "parameter-a",
+      name: "Assay A",
+      scope: "qc",
+      status: "active",
+      applyAll: false,
+      commonNames: ["ABAMECTIN 1.8% EC"],
+      valueFields: [
+        { label: "Viscosity", type: "number", required: true },
+        { label: "Color", type: "text", required: true },
+      ],
+    };
+    const parameterForB: ParameterItem = {
+      _id: "parameter-b",
+      name: "Assay B",
+      scope: "qc",
+      status: "active",
+      applyAll: false,
+      commonNames: ["EMAMECTIN 1.9% EC"],
+      valueFields: [
+        { label: "Viscosity", type: "number", required: true },
+        { label: "Color", type: "text", required: true },
+      ],
+    };
+
+    const unfiltered = model(twoItemPetition(), [parameterForA, parameterForB], [], [], new Date(2026, 6, 13, 12), [], null);
+    expect(unfiltered.timeline.rows.filter((row) => row.key.startsWith("param::"))).toHaveLength(2);
+
     const result = model(
       twoItemPetition(),
-      [requiredParameter],
-      [{ itemSeq: 2, parameterId: "parameter-1", filledLabels: ["Viscosity"] }],
+      [parameterForA, parameterForB],
+      [{ itemSeq: 2, parameterId: "parameter-b", filledLabels: ["Viscosity"] }],
       [],
       new Date(2026, 6, 13, 12),
       [],
       2,
     );
 
-    expect(result.tasks).toMatchObject([{ key: "2::parameter-1", itemSeq: 2, sampleName: "Sample B", filled: 1, total: 2 }]);
+    expect(result.tasks).toMatchObject([{ key: "2::parameter-b", itemSeq: 2, sampleName: "Sample B", filled: 1, total: 2 }]);
     expect(result.timeline.rows.filter((row) => row.key.startsWith("param::"))).toHaveLength(1);
   });
 
@@ -554,8 +584,25 @@ describe("buildTimelineDetailModel", () => {
   });
 
   it("จุด milestone แท่งปิดงาน และแท็บวัน เหมือนกันทุกตัวอย่างที่เลือก", () => {
+    // batchNo ลงท้าย 1/6 → hasLabTrack จริง เพื่อให้แถวฝั่ง Lab (received-lab, assigned, lab-approved)
+    // ถูกสร้างขึ้นมาจริง ไม่ใช่แค่ mock ที่ไม่เคยเกิดแถว
+    const labTrackPetition = () => petition({
+      status: "approved",
+      items: [
+        { seq: 1, sampleName: "Sample A", commonName: "ABAMECTIN 1.8% EC", batchNo: "BATCH-001", sampleId: "sample-1" },
+        { seq: 2, sampleName: "Sample B", commonName: "EMAMECTIN 1.9% EC", batchNo: "BATCH-006", sampleId: "sample-2" },
+      ],
+      qcReceivedAt: at(13, 9),
+      labReceivedAt: at(13, 10),
+      assignedTo: { employeeId: "L001", name: "Lab Analyst", assignedAt: at(13, 11) },
+      labCompletedAt: at(13, 14),
+      labApprovedAt: at(13, 15),
+      qcCompletedAt: at(13, 13),
+      approvedAt: at(13, 16),
+    });
+
     const build = (itemSeq: number | null) => model(
-      twoItemPetition(),
+      labTrackPetition(),
       [requiredParameter],
       [],
       [],
@@ -564,12 +611,19 @@ describe("buildTimelineDetailModel", () => {
       itemSeq,
     );
 
-    const stageKeys = (itemSeq: number | null) => build(itemSeq).timeline.rows
-      .filter((row) => !row.key.startsWith("param::"))
-      .map((row) => row.key);
+    const expectedStageRows = [
+      { key: "received-qc", label: "QC รับตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 9), startAt: null, endAt: null, done: true },
+      { key: "received-lab", label: "Lab รับตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 10), startAt: null, endAt: null, done: true },
+      { key: "assigned", label: "มอบหมายงาน Lab", kind: "milestone", track: "stage", at: at(13, 11), startAt: null, endAt: null, done: true },
+      { key: "lab-approved", label: "ออกผล Lab", kind: "bar", track: "lab", at: null, startAt: at(13, 14), endAt: at(13, 15), done: true },
+      { key: "final", label: "Final Result", kind: "bar", track: "stage", at: null, startAt: at(13, 15), endAt: at(13, 16), done: true },
+    ];
 
-    expect(stageKeys(1)).toEqual(stageKeys(2));
-    expect(stageKeys(1)).toEqual(stageKeys(null));
+    const stageRows = (itemSeq: number | null) => build(itemSeq).timeline.rows.filter((row) => !row.key.startsWith("param::"));
+
+    expect(stageRows(1)).toEqual(expectedStageRows);
+    expect(stageRows(2)).toEqual(expectedStageRows);
+    expect(stageRows(null)).toEqual(expectedStageRows);
     expect(build(1).timeline.days.map((day) => day.key)).toEqual(build(2).timeline.days.map((day) => day.key));
   });
 
