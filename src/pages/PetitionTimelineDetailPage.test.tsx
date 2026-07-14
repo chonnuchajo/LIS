@@ -478,21 +478,27 @@ describe("PetitionTimelineDetailPage", () => {
     expect(mocks.downloadPrintPdf).not.toHaveBeenCalled();
   });
 
-  it("แสดงจุดรับตัวอย่างแยก QC/Lab และไม่มีแถวสถานะเก่าอีกต่อไป", async () => {
+  it("ไม่มีแถวสถานะเก่า (รับตัวอย่าง/ครบ/บันทึกผล) อีกต่อไป มีแต่แท่งช่วงเวลาใหม่", async () => {
     renderDetail();
 
     expect(await screen.findByRole("heading", { name: "P-2607-001" })).toBeInTheDocument();
     const timelineCard = screen.getByLabelText("petition timeline");
-    expect(timelineCard).toHaveTextContent("QC รับตัวอย่าง");
+    // แถวเก่าที่ถูกแทนที่ด้วยแท่งช่วงเวลาต้องไม่หลงเหลืออยู่อีก
+    expect(timelineCard).not.toHaveTextContent("QC รับตัวอย่าง");
+    expect(timelineCard).not.toHaveTextContent("Lab รับตัวอย่าง");
     expect(timelineCard).not.toHaveTextContent("QC ครบ");
     expect(timelineCard).not.toHaveTextContent("Lab ครบ");
     expect(timelineCard).not.toHaveTextContent("บันทึกผล");
+    // แถวแท่งช่วงเวลาของโมเดลใหม่ต้องแสดงแทน
+    expect(timelineCard).toHaveTextContent("ยื่นคำขอ");
+    expect(timelineCard).toHaveTextContent("QC กำลังวิเคราะห์");
   });
 
   it("จุด milestone ไม่ลากเส้นยาวมาจากขอบซ้ายของแถว", async () => {
+    Object.assign(mocks.petition, { status: "approved", approvedAt: "2026-07-13T08:00:00.000Z" });
     renderDetail();
 
-    const dot = await screen.findByLabelText("QC รับตัวอย่าง (จุด)");
+    const dot = await screen.findByLabelText("Final Result (จุด)");
     expect(dot.parentElement?.children).toHaveLength(1);
   });
 
@@ -500,9 +506,9 @@ describe("PetitionTimelineDetailPage", () => {
     renderDetail();
 
     const bar = await screen.findByLabelText("QC กำลังวิเคราะห์ (ช่วงเวลา)");
-    expect(bar).toHaveClass("bg-primary-200");
+    expect(bar).toHaveClass("bg-sky-200");
     expect(bar).toHaveClass("rounded-r-none");
-    expect(bar).not.toHaveClass("bg-primary-500");
+    expect(bar).not.toHaveClass("bg-sky-500");
   });
 
   it("แท่งที่ทำเสร็จแล้วใช้สีเข้มและปลายมน", async () => {
@@ -510,7 +516,7 @@ describe("PetitionTimelineDetailPage", () => {
     renderDetail();
 
     const bar = await screen.findByLabelText("QC กำลังวิเคราะห์ (ช่วงเวลา)");
-    expect(bar).toHaveClass("bg-primary-500");
+    expect(bar).toHaveClass("bg-sky-500");
     expect(bar).not.toHaveClass("rounded-r-none");
   });
 
@@ -597,7 +603,9 @@ describe("PetitionTimelineDetailPage", () => {
 });
 
 describe("สีประจำแถวของกราฟ timeline", () => {
-  it("จุด milestone แต่ละจุดมีสีของตัวเอง ไม่ซ้ำกัน", async () => {
+  it("แท่งแต่ละแถวมีสีประจำตัวเอง ไม่ซ้ำกัน", async () => {
+    // หมายเหตุ: ตอนนี้เหลือ milestone เดียวคือ Final Result (ดู "จุด milestone ไม่ลากเส้นยาว...")
+    // ดังนั้นความ "ไม่ซ้ำสี" ที่ยังมีความหมายคือระหว่างแท่งช่วงเวลาของแต่ละแถว ไม่ใช่ระหว่างจุด
     Object.assign(mocks.petition, {
       labReceivedAt: "2026-07-13T04:30:00.000Z",
       qcCompletedAt: "2026-07-13T05:30:00.000Z",
@@ -606,14 +614,26 @@ describe("สีประจำแถวของกราฟ timeline", () => {
     });
     renderDetail();
 
-    expect(await screen.findByLabelText("ยื่นคำขอ (จุด)")).toHaveClass("bg-violet-500");
-    expect(screen.getByLabelText("ส่งตัวอย่าง (จุด)")).toHaveClass("bg-orange-500");
-    expect(screen.getByLabelText("QC รับตัวอย่าง (จุด)")).toHaveClass("bg-sky-500");
-    expect(screen.getByLabelText("Lab รับตัวอย่าง (จุด)")).toHaveClass("bg-lime-600");
+    const submittedBar = await screen.findByLabelText("ยื่นคำขอ (ช่วงเวลา)");
+    const sampleSentBar = screen.getByLabelText("ส่งตัวอย่าง (ช่วงเวลา)");
+    const qcBar = screen.getByLabelText("QC กำลังวิเคราะห์ (ช่วงเวลา)");
+    const labBar = screen.getByLabelText("Lab กำลังวิเคราะห์ (ช่วงเวลา)");
+
+    expect(submittedBar).toHaveClass("bg-violet-500");
+    expect(sampleSentBar).toHaveClass("bg-orange-500");
+    expect(qcBar).toHaveClass("bg-sky-500");
+    expect(labBar).toHaveClass("bg-amber-500");
+
+    const distinctBarColors = new Set(
+      [submittedBar, sampleSentBar, qcBar, labBar].map((bar) => Array.from(bar.classList).find((cls) => cls.startsWith("bg-"))),
+    );
+    expect(distinctBarColors.size).toBeGreaterThanOrEqual(3);
   });
 
   it("แท่ง Pre Result ไม่ใช้สีเดียวกับแท่ง Lab กำลังวิเคราะห์", async () => {
     Object.assign(mocks.petition, {
+      status: "approved",
+      approvedAt: "2026-07-13T08:00:00.000Z",
       labReceivedAt: "2026-07-13T04:30:00.000Z",
       qcCompletedAt: "2026-07-13T05:30:00.000Z",
       labCompletedAt: "2026-07-13T06:00:00.000Z",
@@ -625,12 +645,10 @@ describe("สีประจำแถวของกราฟ timeline", () => {
     expect(screen.getByLabelText("Lab กำลังวิเคราะห์ (ช่วงเวลา)")).toHaveClass("bg-amber-500");
   });
 
-  it("จุดที่ยังไม่ถึงไม่ค้างแสดงด้วยสีเดิม (ด่านที่ยังไม่มี timestamp ไม่วาดจุด)", async () => {
-    // หมายเหตุ: buildMilestoneRows/clipRowToDay (petitionTimelineDetail.ts) ผูก `done`
-    // กับการมี timestamp แบบ 1:1 เสมอ — ด่านที่ "ยังไม่ถึง" จึงไม่เคย render จุดค้างสีเก่า
-    // (ไม่ใช่จุดสีเทาแบบ visible) เคสสีเทาจริง ๆ (`timelineDotClass(key, { done: false })`)
-    // ครอบคลุมแล้วที่ src/lib/petitionTimelineColors.test.ts — เทสต์นี้ยืนยันแค่ว่าด่านที่ยังไม่มี
-    // ข้อมูลจะไม่โผล่มาเป็นจุดค้างสีผิด ๆ
+  it("จุดที่ยังไม่ถึงไม่วาดจุด Final Result ค้างไว้ (ด่านที่ยังไม่มี timestamp ไม่วาดแท่ง/จุด)", async () => {
+    // หมายเหตุ: ตอนนี้เหลือ milestone เดียวคือ Final Result — ด่านอื่นกลายเป็นแท่งช่วงเวลาหมดแล้ว
+    // เทสต์นี้ยืนยันว่าด่านที่ยังไม่มี timestamp จริง (ยังไม่รับตัวอย่าง/ยังไม่ปิดคำร้อง) จะไม่วาด
+    // แท่ง/จุดค้างไว้ผิด ๆ — ไม่ใช่จุดสีเทา (เคสนั้นครอบคลุมที่ src/lib/petitionTimelineColors.test.ts)
     Object.assign(mocks.petition, {
       qcReceivedAt: undefined,
       receivedAt: undefined,
@@ -639,7 +657,9 @@ describe("สีประจำแถวของกราฟ timeline", () => {
     });
     renderDetail();
 
-    await screen.findByLabelText("ยื่นคำขอ (จุด)");
-    expect(screen.queryByLabelText("QC รับตัวอย่าง (จุด)")).not.toBeInTheDocument();
+    await screen.findByLabelText("ยื่นคำขอ (ช่วงเวลา)");
+    expect(screen.queryByLabelText("ส่งตัวอย่าง (ช่วงเวลา)")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("QC กำลังวิเคราะห์ (ช่วงเวลา)")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Final Result (จุด)")).not.toBeInTheDocument();
   });
 });
