@@ -69,15 +69,6 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
   return <div className="min-w-0 border-l border-black-50 pl-4 first:border-l-0 first:pl-0"><p className="text-xs text-grey-500">{label}</p><p className="mt-1 truncate text-sm font-semibold text-black-500" title={value}>{value}</p>{hint && <p className="mt-1 text-xs text-grey-500">{hint}</p>}</div>;
 }
 
-function summarizeItemValues<T>(items: T[], pickValue: (item: T) => string | null | undefined): string {
-  const values = Array.from(new Set(
-    items
-      .map((item) => pickValue(item)?.trim())
-      .filter((value): value is string => !!value),
-  ));
-  return values.length ? values.join(", ") : "-";
-}
-
 type TimelineDocumentKey = "sample-label" | "service-request" | "pre-report" | "final-report";
 
 export default function PetitionTimelineDetailPage() {
@@ -99,6 +90,7 @@ export default function PetitionTimelineDetailPage() {
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [pdfLoadingDoc, setPdfLoadingDoc] = useState<TimelineDocumentKey | null>(null);
   const [activeTimelineDayKey, setActiveTimelineDayKey] = useState<string | null>(null);
+  const [activeItemSeq, setActiveItemSeq] = useState<number | null>(null);
   const labelDocumentRef = useRef<HTMLDivElement>(null);
   const serviceDocumentRef = useRef<HTMLDivElement>(null);
   const preReportDocumentRef = useRef<HTMLDivElement>(null);
@@ -142,6 +134,7 @@ export default function PetitionTimelineDetailPage() {
   useEffect(() => {
     setPdfLoadingDoc(null);
     setActiveTimelineDayKey(null);
+    setActiveItemSeq(null);
   }, [id]);
 
   const visibleParameters = useMemo(
@@ -158,11 +151,15 @@ export default function PetitionTimelineDetailPage() {
     return !isLabUser || petitionHasLabReadableItem(petition, visibleParameters, groupMembership);
   }, [groupMembership, isAdmin, isLabUser, parametersLoaded, petition, user, visibleParameters]);
 
+  const itemSeqs = useMemo(() => (petition?.items ?? []).map((item) => item.seq), [petition]);
+  // seq ที่ค้างอยู่อาจหายไปหลังรีเฟรช → ถอยไปตัวแรกเสมอ
+  const selectedItemSeq = activeItemSeq != null && itemSeqs.includes(activeItemSeq) ? activeItemSeq : itemSeqs[0] ?? null;
+
   const model = useMemo(
     () => petition && canViewPetition
-      ? buildTimelineDetailModel({ petition, parameters: visibleParameters, progressEntries, auditLogs, qcResults, itemGroupIds: groupMembership })
+      ? buildTimelineDetailModel({ petition, parameters: visibleParameters, progressEntries, auditLogs, qcResults, itemGroupIds: groupMembership, itemSeq: selectedItemSeq })
       : null,
-    [auditLogs, canViewPetition, groupMembership, petition, progressEntries, qcResults, visibleParameters],
+    [auditLogs, canViewPetition, groupMembership, petition, progressEntries, qcResults, selectedItemSeq, visibleParameters],
   );
 
   const loadDocumentData = useCallback(async (): Promise<boolean> => {
@@ -220,11 +217,9 @@ export default function PetitionTimelineDetailPage() {
   const progressLabel = model.progress.percent == null ? "-" : `${model.progress.percent}%`;
   const sgParameter = findSgParameter(parameters);
   const canShowPreReport = canPrintPreReport(petition)
-    && model.progress.total > 0
-    && model.progress.filled >= model.progress.total;
-  const commonNameSummary = summarizeItemValues(petition.items ?? [], (item) => item.commonName);
-  const batchSummary = summarizeItemValues(petition.items ?? [], (item) => item.batchNo);
-  const lotSummary = summarizeItemValues(petition.items ?? [], (item) => item.lotNo);
+    && model.overallProgress.total > 0
+    && model.overallProgress.filled >= model.overallProgress.total;
+  const activeItem = model.items.find((item) => item.seq === selectedItemSeq) ?? null;
   const responsibleName = petition.assignedTo?.name || "ยังไม่มอบหมาย";
   const timelineDays = model.timeline.days.length
     ? model.timeline.days
@@ -275,6 +270,10 @@ export default function PetitionTimelineDetailPage() {
   return <AppLayout title={`Timeline ${petition.petitionNo}`}><div className="space-y-4">
     <PageHeader title="" onBack={() => navigate("/petition-timeline")} actions={<Button variant="primary-outline" size="sm" onClick={refreshTimeline}><RefreshCw className="h-4 w-4" />รีเฟรช</Button>} />
 
+    {model.items.length > 1 && <div role="tablist" aria-label="ตัวอย่างในคำขอ" className="flex flex-wrap gap-2">
+      {model.items.map((item) => <button key={item.seq} type="button" role="tab" aria-selected={item.seq === selectedItemSeq} title={item.label} className={cn("max-w-[240px] truncate rounded-[8px] border px-3 py-1.5 text-xs font-medium transition-colors", item.seq === selectedItemSeq ? "border-primary-500 bg-primary-50 text-primary-600" : "border-black-50 bg-white text-grey-600 hover:bg-grey-50")} onClick={() => setActiveItemSeq(item.seq)}>{item.label}</button>)}
+    </div>}
+
     <Card className="border-black-50 shadow-none"><CardContent className="grid gap-5 p-5 xl:grid-cols-[112px_minmax(0,1fr)]">
       <div className="flex aspect-square items-center justify-center rounded-[8px] border border-dashed border-grey-300 bg-grey-50 text-grey-400" aria-label="พื้นที่รูปตัวอย่าง"><ImageIcon className="h-8 w-8" /></div>
       <div className="min-w-0 space-y-4">
@@ -287,10 +286,9 @@ export default function PetitionTimelineDetailPage() {
           </div>
           <p className="text-xs text-grey-400">คำร้องโดย {petition.submittedBy?.name || "-"} · ผู้รับผิดชอบ {responsibleName}</p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-          <Metric label="Common name" value={commonNameSummary} />
-          <Metric label="เลข Batch" value={batchSummary} />
-          <Metric label="Lot" value={lotSummary} />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <Metric label="Common name" value={activeItem?.commonName || "-"} />
+          <Metric label="เลข Batch" value={activeItem?.batchNo || "-"} />
           <Metric label={model.header.startKind === "received" ? "Start time" : "เวลายื่นคำร้อง"} value={formatDateTime(model.header.startAt)} />
           <Metric label="End time" value={formatDateTime(model.header.endAt)} hint={model.header.endKind === "actual" ? "เวลาจริง" : model.header.endKind === "estimated" ? "ค่าประมาณ" : "กำลังดำเนินการ"} />
           <Metric label="Progress" value={progressLabel} hint={model.progress.total ? `${model.progress.filled}/${model.progress.total} required fields` : "ไม่มี required parameter"} />

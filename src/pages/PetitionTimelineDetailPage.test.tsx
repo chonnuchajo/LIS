@@ -145,7 +145,8 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.getByText("คำร้องโดย Requester · ผู้รับผิดชอบ Analyst")).toBeInTheDocument();
     expect(screen.getByText("ABAMECTIN 1.8% W/V EC")).toBeInTheDocument();
     expect(screen.getByText("BATCH-002")).toBeInTheDocument();
-    expect(screen.getByText("LOT-88")).toBeInTheDocument();
+    expect(screen.queryByText("Lot")).not.toBeInTheDocument();
+    expect(screen.queryByText("LOT-88")).not.toBeInTheDocument();
     expect(screen.queryByText("ผู้ยื่นคำร้อง")).not.toBeInTheDocument();
     expect(screen.queryByText("ผู้รับงาน")).not.toBeInTheDocument();
   });
@@ -338,5 +339,64 @@ describe("PetitionTimelineDetailPage", () => {
 
     const dot = await screen.findByLabelText("QC รับตัวอย่าง (จุด)");
     expect(dot.parentElement?.children).toHaveLength(1);
+  });
+
+  const twoItems = [
+    { seq: 1, sampleName: "Sample A", commonName: "ABAMECTIN 1.8% W/V EC", batchNo: "BATCH-002", lotNo: "LOT-88", sampleId: "sample-1" },
+    { seq: 2, sampleName: "Sample B", commonName: "EMAMECTIN 1.9% EC", batchNo: "BATCH-003", lotNo: "LOT-99", sampleId: "sample-2" },
+  ];
+
+  it("ไม่แสดงแถบแท็บตัวอย่างเมื่อคำขอมีตัวอย่างเดียว", async () => {
+    renderDetail();
+
+    expect(await screen.findByRole("heading", { name: "P-2607-001" })).toBeInTheDocument();
+    expect(screen.queryByRole("tablist", { name: "ตัวอย่างในคำขอ" })).not.toBeInTheDocument();
+  });
+
+  it("แสดงแท็บตัวอย่างชื่อ commonName เมื่อคำขอมีหลายตัวอย่าง", async () => {
+    Object.assign(mocks.petition, { items: twoItems });
+    renderDetail();
+
+    expect(await screen.findByRole("tab", { name: "ABAMECTIN 1.8% W/V EC" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "EMAMECTIN 1.9% EC" })).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("สลับแท็บแล้ว Metric และการ์ด Tasks เปลี่ยนตามตัวอย่างที่เลือก", async () => {
+    Object.assign(mocks.petition, { items: twoItems });
+    mocks.getQCProgress.mockResolvedValue({
+      "petition-1": [
+        { itemSeq: 1, parameterId: "parameter-1", filledLabels: ["Viscosity"] },
+        { itemSeq: 2, parameterId: "parameter-1", filledLabels: [] },
+      ],
+    });
+    renderDetail();
+
+    // อย่าใช้ getByText(commonName) — ชื่อสารโผล่ทั้งในปุ่มแท็บและใน Metric จะได้ 2 element
+    expect(await screen.findByRole("tab", { name: "ABAMECTIN 1.8% W/V EC" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("BATCH-002")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tasks")).toHaveTextContent("Sample A");
+    expect(screen.getByLabelText("Tasks")).not.toHaveTextContent("Sample B");
+
+    fireEvent.click(screen.getByRole("tab", { name: "EMAMECTIN 1.9% EC" }));
+
+    expect(screen.getByRole("tab", { name: "EMAMECTIN 1.9% EC" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("BATCH-003")).toBeInTheDocument();
+    expect(screen.queryByText("BATCH-002")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Tasks")).toHaveTextContent("Sample B");
+    expect(screen.getByLabelText("Tasks")).not.toHaveTextContent("Sample A");
+  });
+
+  it("ยังไม่ให้ปุ่ม Pre Report เมื่อตัวอย่างที่เลือกกรอกครบ แต่ตัวอย่างอื่นยังไม่ครบ", async () => {
+    Object.assign(mocks.petition, { status: "success", items: twoItems });
+    mocks.getQCProgress.mockResolvedValue({
+      "petition-1": [
+        { itemSeq: 1, parameterId: "parameter-1", filledLabels: ["Viscosity", "Color"] },
+        { itemSeq: 2, parameterId: "parameter-1", filledLabels: [] },
+      ],
+    });
+    renderDetail();
+
+    expect(await screen.findByRole("tab", { name: "ABAMECTIN 1.8% W/V EC" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pre Report" })).not.toBeInTheDocument();
   });
 });
