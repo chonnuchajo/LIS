@@ -818,7 +818,9 @@ describe("PetitionTimelineDetailPage crosshair", () => {
     fireEvent.mouseMove(area, { clientX: 300, clientY: 40 });
 
     expect(screen.getByTestId("timeline-crosshair-line")).toHaveStyle({ left: "50%" });
-    expect(screen.getByTestId("timeline-crosshair-label")).toHaveTextContent(/13 ก\.ค\. \d{2}:\d{2}/);
+    // แกนวันนี้คือ 08:00–17:00 (9 ชม.) mock ราง left:100 width:400 เมาส์ clientX:300 = กึ่งกลางราง (50%)
+    // → 08:00 + 4:30 ชม. = 12:30 พอดี ไม่ใช่แค่ "เวลาสองหลักอะไรก็ได้"
+    expect(screen.getByTestId("timeline-crosshair-label")).toHaveTextContent("13 ก.ค. 12:30");
 
     fireEvent.mouseLeave(area);
 

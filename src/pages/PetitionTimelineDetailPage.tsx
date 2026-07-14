@@ -468,33 +468,35 @@ export default function PetitionTimelineDetailPage() {
             <div
               ref={timelineAreaRef}
               data-testid="timeline-area"
-              className="relative space-y-3"
+              className="relative"
               onMouseMove={handleTimelineMouseMove}
               onMouseLeave={() => setCrosshair(null)}
             >
-              <div className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-end gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3">
-                <div aria-hidden="true" />
-                <div
-                  ref={timelineTrackRef}
-                  data-testid="timeline-axis"
-                  className={cn("relative min-w-0 border-b border-black-50 text-xs text-grey-500", activeTimelineDay.key === "overview" ? "pb-9" : "pb-5")}
-                >
-                  {activeTimelineDay.ticks.map((tick, index) => {
-                    const left = timelinePercent(tick.at, activeTimelineDay.startAt, activeTimelineDay.endAt);
-                    const isOverview = activeTimelineDay.key === "overview";
-                    return left == null ? null : <div key={tick.key} className={cn("absolute top-0 h-full", timelineTickLineClass(index, activeTimelineDay.ticks.length, isOverview))} style={{ left: `${left}%` }}><span className={cn("absolute whitespace-nowrap", timelineTickTopClass(activeTimelineDay.ticks, index, isOverview), timelineTickPositionClass(left, isOverview), timelineTickVisibilityClass(index, activeTimelineDay.ticks.length, isOverview))}>{tick.label}</span></div>;
-                  })}
+              <div className="space-y-3">
+                <div className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-end gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3">
+                  <div aria-hidden="true" />
+                  <div
+                    ref={timelineTrackRef}
+                    data-testid="timeline-axis"
+                    className={cn("relative min-w-0 border-b border-black-50 text-xs text-grey-500", activeTimelineDay.key === "overview" ? "pb-9" : "pb-5")}
+                  >
+                    {activeTimelineDay.ticks.map((tick, index) => {
+                      const left = timelinePercent(tick.at, activeTimelineDay.startAt, activeTimelineDay.endAt);
+                      const isOverview = activeTimelineDay.key === "overview";
+                      return left == null ? null : <div key={tick.key} className={cn("absolute top-0 h-full", timelineTickLineClass(index, activeTimelineDay.ticks.length, isOverview))} style={{ left: `${left}%` }}><span className={cn("absolute whitespace-nowrap", timelineTickTopClass(activeTimelineDay.ticks, index, isOverview), timelineTickPositionClass(left, isOverview), timelineTickVisibilityClass(index, activeTimelineDay.ticks.length, isOverview))}>{tick.label}</span></div>;
+                    })}
+                  </div>
                 </div>
+                {activeTimelineRows.map((row) => {
+                  const progress = row.visible && row.kind === "milestone" ? timelinePercent(row.at, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
+                  const start = row.visible && row.kind === "bar" ? timelinePercent(row.segmentStartAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
+                  const end = row.visible && row.kind === "bar" ? timelinePercent(row.segmentEndAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
+                  const width = start != null && end != null ? Math.max(1, end - start) : null;
+                  // แท่งจะ "กำลังทำอยู่" ได้ก็ต่อเมื่อคำร้องยังไม่ปิด — ปลายขวาตรง/สีอ่อนยังคงอยู่ทุกกรณีที่ไม่มีเวลาจบ
+                  const active = !row.done && !petitionClosed;
+                  return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", timelineDotClass(row.key, { done: row.done, rejected: petition.status === "rejected" }))} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={continuesAcrossCalendarDay(row, activeTimelineDay.startAt) ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", timelineBarClass(row.key, { done: row.done, rejected: petition.status === "rejected" }), row.continuesBefore && "rounded-l-none", !row.done && "rounded-r-none", active && ACTIVE_BAR_CLASS)} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
+                })}
               </div>
-              {activeTimelineRows.map((row) => {
-                const progress = row.visible && row.kind === "milestone" ? timelinePercent(row.at, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
-                const start = row.visible && row.kind === "bar" ? timelinePercent(row.segmentStartAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
-                const end = row.visible && row.kind === "bar" ? timelinePercent(row.segmentEndAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
-                const width = start != null && end != null ? Math.max(1, end - start) : null;
-                // แท่งจะ "กำลังทำอยู่" ได้ก็ต่อเมื่อคำร้องยังไม่ปิด — ปลายขวาตรง/สีอ่อนยังคงอยู่ทุกกรณีที่ไม่มีเวลาจบ
-                const active = !row.done && !petitionClosed;
-                return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", timelineDotClass(row.key, { done: row.done, rejected: petition.status === "rejected" }))} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={continuesAcrossCalendarDay(row, activeTimelineDay.startAt) ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", timelineBarClass(row.key, { done: row.done, rejected: petition.status === "rejected" }), row.continuesBefore && "rounded-l-none", !row.done && "rounded-r-none", active && ACTIVE_BAR_CLASS)} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
-              })}
               {crosshair && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10">
                 <div className="grid h-full grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3">
                   <div />
