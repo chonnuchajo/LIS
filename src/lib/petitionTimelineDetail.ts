@@ -400,79 +400,56 @@ function makeBarRow(input: {
   };
 }
 
-function buildMilestoneRows(petition: Petition): TimelineDetailRow[] {
+// ทุกสถานะเป็นช่วงเวลาที่ลากไปจนสถานะถัดไปเริ่ม — end ของแถวหนึ่งคือ start ของแถวถัดไป
+// ปิดท้ายด้วยจุดเดียว (Final Result) ที่หัวหน้า QC อนุมัติ
+function buildStageRows(petition: Petition, now: Date, fallbackStartAt: string): TimelineDetailRow[] {
   const hasLab = hasLabTrack(petition);
+  const nowAt = now.toISOString();
+
   const submittedAt = firstValidDate(petition.submittedBy?.submittedAt, petition.createdAt);
-  const qcReceivedAt = petition.qcReceivedAt ?? petition.receivedAt ?? null;
-  const labReceivedAt = petition.labReceivedAt ?? null;
-  // คำร้องเก่า/เคสที่ข้ามการสแกนส่ง ยังต้องเห็นจุดส่ง — ถอยไปใช้เวลารับตัวอย่างที่เร็วสุดแทน
+  // คำร้องเก่า/เคสที่ข้ามการสแกนส่ง ยังต้องเห็นช่วงส่งตัวอย่าง — ถอยไปใช้เวลารับตัวอย่างที่เร็วสุดแทน
   const sampleSentAt = petition.sampleSentAt
     ?? firstValidDate(petition.qcReceivedAt, petition.receivedAt, petition.labReceivedAt);
-  const assignedAt = petition.assignedTo?.assignedAt ?? null;
-  const milestone = (key: string, label: string, at: string | null): TimelineDetailRow =>
-    ({ key, label, kind: "milestone", track: "stage", at, startAt: null, endAt: null, done: !!validDate(at) });
-
-  return [
-    milestone("submitted", "ยื่นคำขอ", submittedAt),
-    milestone("sample-sent", "ส่งตัวอย่าง", sampleSentAt),
-    milestone("received-qc", "QC รับตัวอย่าง", qcReceivedAt),
-    hasLab ? milestone("assigned", "มอบหมายงาน Lab", assignedAt) : null,
-    hasLab ? milestone("received-lab", "Lab รับตัวอย่าง", labReceivedAt) : null,
-  ].filter((row): row is TimelineDetailRow => row !== null);
-}
-
-function buildAnalyzingRows(petition: Petition, now: Date, fallbackStartAt: string): TimelineDetailRow[] {
-  const hasLab = hasLabTrack(petition);
-  // ข้อมูลเก่าบางเคสมีรู timestamp: จบงานแล้ว (completedAt) แต่ไม่มีเวลารับตัวอย่าง —
-  // ถอยไปใช้จุดเริ่มกราฟ/เวลามอบหมายแทน ไม่งั้นแท่งวิเคราะห์หายไปทั้งที่ทำจริง
-  // (ถ้ายังไม่จบและยังไม่รับตัวอย่าง = ยังไม่เริ่มจริง ต้องไม่ fallback)
+  const assignedAt = hasLab ? petition.assignedTo?.assignedAt ?? null : null;
+  // ข้อมูลเก่าบางเคสมีรู timestamp: บันทึกผลแล้วแต่ไม่มีเวลารับตัวอย่าง — ถอยไปใช้จุดเริ่มกราฟ/เวลามอบหมาย
+  // ไม่งั้นแท่งวิเคราะห์หายไปทั้งที่ทำจริง (ถ้ายังไม่บันทึกผลและยังไม่รับตัวอย่าง = ยังไม่เริ่มจริง ต้องไม่ fallback)
   const qcStartAt = petition.qcReceivedAt ?? petition.receivedAt ?? (petition.qcCompletedAt ? fallbackStartAt : null);
-  const labStartAt = petition.labReceivedAt ?? (petition.labCompletedAt ? (petition.assignedTo?.assignedAt ?? fallbackStartAt) : null);
-
-  // ยังไม่รับตัวอย่าง → ไม่มีแท่ง; รับแล้วแต่ยังไม่บันทึกครบ → ลากถึงตอนนี้ (done = false)
-  const analyzing = (key: string, label: string, track: TimelineDetailRowTrack, startAt: string | null, completedAt: string | null) =>
-    makeBarRow({
-      key,
-      label,
-      track,
-      startAt,
-      endAt: startAt ? completedAt ?? now.toISOString() : null,
-      done: !!startAt && !!completedAt,
-    });
-
-  return [
-    analyzing("qc-analyzing", "QC กำลังวิเคราะห์", "qc", qcStartAt, petition.qcCompletedAt ?? null),
-    hasLab ? analyzing("lab-analyzing", "Lab กำลังวิเคราะห์", "lab", labStartAt, petition.labCompletedAt ?? null) : null,
-  ].filter((row): row is TimelineDetailRow => row !== null);
-}
-
-function buildClosingRows(petition: Petition): TimelineDetailRow[] {
-  const hasLab = hasLabTrack(petition);
-  const labApprovedAt = petition.labApprovedAt ?? null;
+  const labStartAt = hasLab
+    ? petition.labReceivedAt ?? (petition.labCompletedAt ? (assignedAt ?? fallbackStartAt) : null)
+    : null;
   const qcCompletedAt = petition.qcCompletedAt ?? null;
-  // Final เริ่มเมื่อ "ทั้งสองฝั่งจบ" — คำร้องที่มี Lab ต้องรอ Lab ออกผลด้วย
-  const finalStartAt = hasLab
-    ? (qcCompletedAt && labApprovedAt ? latestValidDate(qcCompletedAt, labApprovedAt) : null)
+  const labCompletedAt = hasLab ? petition.labCompletedAt ?? null : null;
+  const labApprovedAt = hasLab ? petition.labApprovedAt ?? null : null;
+  const closedAt = petition.approvedAt ?? petition.rejectedAt ?? null;
+  // Pre Result เริ่มเมื่อ "บันทึกผลครบทั้งสองฝั่ง" — คำร้องที่มี Lab ต้องรอ Lab บันทึกผลด้วย
+  const preResultStartAt = hasLab
+    ? (qcCompletedAt && labCompletedAt ? latestValidDate(qcCompletedAt, labCompletedAt) : null)
     : qcCompletedAt;
-  const finalEndAt = petition.status === "rejected"
-    ? petition.rejectedAt ?? null
-    : petition.approvedAt ?? null;
+
+  // แถวที่เริ่มแล้วแต่สถานะถัดไปยังไม่เกิด → ลากถึงตอนนี้ (done = false); ยังไม่เริ่ม → ไม่มีแท่ง
+  const stage = (key: string, label: string, track: TimelineDetailRowTrack, startAt: string | null, endAt: string | null) =>
+    makeBarRow({ key, label, track, startAt, endAt: startAt ? endAt ?? nowAt : null, done: !!startAt && !!endAt });
+
+  const final: TimelineDetailRow = {
+    key: "final",
+    label: petition.status === "rejected" ? "ส่งกลับแก้ไข" : "Final Result",
+    kind: "milestone",
+    track: "stage",
+    at: closedAt,
+    startAt: null,
+    endAt: null,
+    done: !!validDate(closedAt),
+  };
 
   return [
-    hasLab ? makeBarRow({
-      key: "pre-result",
-      label: "Pre Result",
-      track: "lab",
-      startAt: petition.labCompletedAt ?? null,
-      endAt: labApprovedAt,
-    }) : null,
-    makeBarRow({
-      key: "final",
-      label: petition.status === "rejected" ? "ส่งกลับแก้ไข" : "Final Result",
-      track: "stage",
-      startAt: finalStartAt,
-      endAt: finalEndAt,
-    }),
+    stage("submitted", "ยื่นคำขอ", "stage", submittedAt, sampleSentAt),
+    stage("sample-sent", "ส่งตัวอย่าง", "stage", sampleSentAt, firstValidDate(qcStartAt, assignedAt)),
+    hasLab ? stage("assigned", "มอบหมายงาน Lab", "lab", assignedAt, labStartAt) : null,
+    stage("qc-analyzing", "QC กำลังวิเคราะห์", "qc", qcStartAt, qcCompletedAt),
+    hasLab ? stage("lab-analyzing", "Lab กำลังวิเคราะห์", "lab", labStartAt, labCompletedAt) : null,
+    hasLab ? stage("lab-approval", "ออกผล Lab", "lab", labCompletedAt, labApprovedAt) : null,
+    stage("pre-result", "Pre Result", "stage", preResultStartAt, closedAt),
+    final,
   ].filter((row): row is TimelineDetailRow => row !== null);
 }
 
@@ -499,11 +476,7 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
     && allFields.filled >= allFields.total
     && (input.petition.status === "success" || finalResultDone || !!validDate(input.petition.qcCompletedAt));
   const progressOptions = { received: !!receivedAt, preResultDone, finalResultDone };
-  const rows = [
-    ...buildMilestoneRows(input.petition),
-    ...buildAnalyzingRows(input.petition, now, timelineStartAt),
-    ...buildClosingRows(input.petition),
-  ];
+  const rows = buildStageRows(input.petition, now, timelineStartAt);
 
   return {
     header: { ...header, startKind: receivedAt ? "received" : "submitted" },

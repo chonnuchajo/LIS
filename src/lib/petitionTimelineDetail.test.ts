@@ -83,6 +83,8 @@ describe("buildTimelineDetailModel", () => {
   it("splits multi-day timelines into local day windows", () => {
     const result = model(
       petition({
+        submittedBy: { name: "Requester", submittedAt: at(12, 9) },
+        createdAt: at(12, 9),
         qcReceivedAt: at(12, 10),
         firstResultAt: at(13, 9),
       }),
@@ -95,8 +97,8 @@ describe("buildTimelineDetailModel", () => {
     expect(result.timeline.days.map((day) => day.label)).toEqual(["12 ก.ค.", "13 ก.ค."]);
     expect(result.timeline.days[0]).toMatchObject({ startAt: at(12, 8), endAt: at(12, 17) });
     expect(result.timeline.days[1]).toMatchObject({ startAt: at(13, 8), endAt: at(13, 17) });
-    expect(result.timeline.days[0]?.rows.find((row) => row.key === "received-qc")).toMatchObject({ visible: true });
-    expect(result.timeline.days[1]?.rows.find((row) => row.key === "received-qc")).toMatchObject({ visible: false });
+    expect(result.timeline.days[0]?.rows.find((row) => row.key === "submitted")).toMatchObject({ visible: true });
+    expect(result.timeline.days[1]?.rows.find((row) => row.key === "submitted")).toMatchObject({ visible: false });
   });
 
   it("counts received work as the first progress step before required fields are filled", () => {
@@ -172,50 +174,222 @@ describe("buildTimelineDetailModel", () => {
     expect(result.activities[1]?.label).toContain("Analyst");
   });
 
-  it("แสดงจุด ยื่นคำขอ → ส่งตัวอย่าง → QC รับ → มอบหมาย → Lab รับ ตามลำดับงานจริง", () => {
+  it("ทุกสถานะเป็นช่วงเวลาที่ลากถึงสถานะถัดไป และปิดท้ายด้วยจุด Final Result", () => {
     const result = model(petition({
+      status: "approved",
       items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+      submittedBy: { name: "Requester", submittedAt: at(13, 8) },
+      createdAt: at(13, 8),
       sampleSentAt: at(13, 8, 30),
       qcReceivedAt: at(13, 9),
+      assignedTo: { employeeId: "L001", name: "Lab Analyst", assignedAt: at(13, 9, 30) },
       labReceivedAt: at(13, 10),
-      assignedTo: { employeeId: "L001", name: "Lab Analyst", assignedAt: at(13, 11) },
-    }));
+      qcCompletedAt: at(13, 13),
+      labCompletedAt: at(13, 14),
+      labApprovedAt: at(13, 15),
+      approvedAt: at(13, 16),
+    }), [], [], [], new Date(2026, 6, 13, 17));
 
-    expect(result.timeline.rows.filter((row) => row.kind === "milestone")).toMatchObject([
-      { key: "submitted", label: "ยื่นคำขอ", at: at(13, 9), startAt: null, endAt: null, done: true },
-      { key: "sample-sent", label: "ส่งตัวอย่าง", at: at(13, 8, 30), startAt: null, endAt: null, done: true },
-      { key: "received-qc", label: "QC รับตัวอย่าง", at: at(13, 9), startAt: null, endAt: null, done: true },
-      { key: "assigned", label: "มอบหมายงาน Lab", at: at(13, 11), done: true },
-      { key: "received-lab", label: "Lab รับตัวอย่าง", at: at(13, 10), done: true },
+    expect(result.timeline.rows).toEqual([
+      { key: "submitted", label: "ยื่นคำขอ", kind: "bar", track: "stage", at: null, startAt: at(13, 8), endAt: at(13, 8, 30), done: true },
+      { key: "sample-sent", label: "ส่งตัวอย่าง", kind: "bar", track: "stage", at: null, startAt: at(13, 8, 30), endAt: at(13, 9), done: true },
+      { key: "assigned", label: "มอบหมายงาน Lab", kind: "bar", track: "lab", at: null, startAt: at(13, 9, 30), endAt: at(13, 10), done: true },
+      { key: "qc-analyzing", label: "QC กำลังวิเคราะห์", kind: "bar", track: "qc", at: null, startAt: at(13, 9), endAt: at(13, 13), done: true },
+      { key: "lab-analyzing", label: "Lab กำลังวิเคราะห์", kind: "bar", track: "lab", at: null, startAt: at(13, 10), endAt: at(13, 14), done: true },
+      { key: "lab-approval", label: "ออกผล Lab", kind: "bar", track: "lab", at: null, startAt: at(13, 14), endAt: at(13, 15), done: true },
+      { key: "pre-result", label: "Pre Result", kind: "bar", track: "stage", at: null, startAt: at(13, 14), endAt: at(13, 16), done: true },
+      { key: "final", label: "Final Result", kind: "milestone", track: "stage", at: at(13, 16), startAt: null, endAt: null, done: true },
     ]);
   });
 
-  it("จุด ส่งตัวอย่าง ใช้เวลาสแกนส่งจริงจาก sampleSentAt", () => {
-    const result = model(petition({ sampleSentAt: at(13, 8, 30), qcReceivedAt: at(13, 10) }));
+  it("ไม่มีแถว QC/Lab รับตัวอย่าง ในกราฟอีกต่อไป", () => {
+    const result = model(petition({
+      items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+      qcReceivedAt: at(13, 9),
+      labReceivedAt: at(13, 10),
+    }));
 
-    expect(result.timeline.rows.find((row) => row.key === "sample-sent")).toMatchObject({
-      label: "ส่งตัวอย่าง",
-      kind: "milestone",
-      at: at(13, 8, 30),
+    const keys = result.timeline.rows.map((row) => row.key);
+    expect(keys).not.toContain("received-qc");
+    expect(keys).not.toContain("received-lab");
+  });
+
+  it("แถว ส่งตัวอย่าง จบที่อันที่มาก่อนระหว่าง QC เริ่มวิเคราะห์ กับ มอบหมายงาน Lab", () => {
+    const labItem = { seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" };
+
+    const qcFirst = model(petition({
+      items: [labItem],
+      sampleSentAt: at(13, 8),
+      qcReceivedAt: at(13, 9),
+      assignedTo: { employeeId: "L001", name: "Lab Analyst", assignedAt: at(13, 11) },
+    }));
+    expect(qcFirst.timeline.rows.find((row) => row.key === "sample-sent")).toMatchObject({
+      startAt: at(13, 8),
+      endAt: at(13, 9),
+      done: true,
+    });
+
+    const assignFirst = model(petition({
+      items: [labItem],
+      sampleSentAt: at(13, 8),
+      assignedTo: { employeeId: "L001", name: "Lab Analyst", assignedAt: at(13, 8, 30) },
+      qcReceivedAt: at(13, 11),
+    }));
+    expect(assignFirst.timeline.rows.find((row) => row.key === "sample-sent")).toMatchObject({
+      startAt: at(13, 8),
+      endAt: at(13, 8, 30),
       done: true,
     });
   });
 
-  it("คำร้องที่ไม่ได้สแกนส่ง ให้จุด ส่งตัวอย่าง ตกไปที่เวลารับตัวอย่างที่เร็วสุด", () => {
+  it("คำร้องที่ไม่ได้สแกนส่ง ให้แถว ส่งตัวอย่าง เริ่มที่เวลารับตัวอย่างที่เร็วสุด", () => {
     const result = model(petition({ labReceivedAt: at(13, 11), qcReceivedAt: at(13, 10) }));
 
     expect(result.timeline.rows.find((row) => row.key === "sample-sent")).toMatchObject({
-      at: at(13, 10),
+      startAt: at(13, 10),
       done: true,
     });
   });
 
-  it("ยังไม่ส่งและยังไม่มีใครรับ → จุด ส่งตัวอย่าง ว่างและยังไม่ done", () => {
+  it("ยังไม่ส่งและยังไม่มีใครรับ → แถว ส่งตัวอย่าง ไม่มีแท่ง", () => {
     const result = model(petition());
 
     expect(result.timeline.rows.find((row) => row.key === "sample-sent")).toMatchObject({
+      startAt: null,
+      endAt: null,
+      done: false,
+    });
+  });
+
+  it("แถวที่ยังไม่จบ ลากถึงเวลาปัจจุบันและยังไม่ done", () => {
+    const result = model(
+      petition({ submittedBy: { name: "Requester", submittedAt: at(13, 9) }, createdAt: at(13, 9) }),
+      [], [], [],
+      new Date(2026, 6, 13, 12),
+    );
+
+    expect(result.timeline.rows.find((row) => row.key === "submitted")).toMatchObject({
+      startAt: at(13, 9),
+      endAt: at(13, 12),
+      done: false,
+    });
+  });
+
+  it("Pre Result เริ่มเมื่อบันทึกผลครบทั้ง Lab และ QC (เอาอันที่ช้ากว่า)", () => {
+    const labItem = { seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" };
+
+    const labLast = model(petition({
+      items: [labItem],
+      qcReceivedAt: at(13, 9),
+      labReceivedAt: at(13, 10),
+      qcCompletedAt: at(13, 13),
+      labCompletedAt: at(13, 14),
+    }), [], [], [], new Date(2026, 6, 13, 16));
+    expect(labLast.timeline.rows.find((row) => row.key === "pre-result")).toMatchObject({
+      startAt: at(13, 14),
+      endAt: at(13, 16),
+      done: false,
+    });
+
+    const qcLast = model(petition({
+      items: [labItem],
+      qcReceivedAt: at(13, 9),
+      labReceivedAt: at(13, 10),
+      labCompletedAt: at(13, 12),
+      qcCompletedAt: at(13, 15),
+    }), [], [], [], new Date(2026, 6, 13, 16));
+    expect(qcLast.timeline.rows.find((row) => row.key === "pre-result")).toMatchObject({
+      startAt: at(13, 15),
+      endAt: at(13, 16),
+      done: false,
+    });
+  });
+
+  it("Pre Result ยังไม่เริ่ม ถ้ามีแค่ฝั่งเดียวที่บันทึกผลครบ", () => {
+    const result = model(petition({
+      items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+      qcReceivedAt: at(13, 9),
+      labReceivedAt: at(13, 10),
+      labCompletedAt: at(13, 14),
+    }), [], [], [], new Date(2026, 6, 13, 16));
+
+    expect(result.timeline.rows.find((row) => row.key === "pre-result")).toMatchObject({
+      startAt: null,
+      endAt: null,
+      done: false,
+    });
+  });
+
+  it("คำร้องที่ไม่มี Lab: ตัดแถวฝั่ง Lab ทิ้ง และ Pre Result เริ่มที่ QC บันทึกผล", () => {
+    const result = model(petition({
+      status: "approved",
+      qcReceivedAt: at(13, 9),
+      assignedTo: { employeeId: "L001", name: "Stray Lab Analyst", assignedAt: at(13, 11) },
+      qcCompletedAt: at(13, 13),
+      approvedAt: at(13, 16),
+    }), [], [], [], new Date(2026, 6, 13, 17));
+
+    expect(result.timeline.rows.map((row) => row.key)).toEqual([
+      "submitted",
+      "sample-sent",
+      "qc-analyzing",
+      "pre-result",
+      "final",
+    ]);
+    expect(result.timeline.rows.find((row) => row.key === "pre-result")).toMatchObject({
+      startAt: at(13, 13),
+      endAt: at(13, 16),
+      done: true,
+    });
+  });
+
+  it("แถว ออกผล Lab ลากจาก Lab บันทึกผล ถึง หัวหน้า Lab ออกผล", () => {
+    const result = model(petition({
+      items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+      qcReceivedAt: at(13, 9),
+      labReceivedAt: at(13, 10),
+      labCompletedAt: at(13, 14),
+      labApprovedAt: at(13, 15),
+    }), [], [], [], new Date(2026, 6, 13, 16));
+
+    expect(result.timeline.rows.find((row) => row.key === "lab-approval")).toMatchObject({
+      label: "ออกผล Lab",
+      kind: "bar",
+      track: "lab",
+      startAt: at(13, 14),
+      endAt: at(13, 15),
+      done: true,
+    });
+  });
+
+  it("จุด Final Result ยังไม่ done เมื่อหัวหน้า QC ยังไม่อนุมัติ", () => {
+    const result = model(petition({ qcReceivedAt: at(13, 9), qcCompletedAt: at(13, 13) }));
+
+    expect(result.timeline.rows.find((row) => row.key === "final")).toMatchObject({
+      kind: "milestone",
       at: null,
       done: false,
+    });
+  });
+
+  it("คำร้องที่ถูกส่งกลับแก้ไข: Pre Result จบที่ rejectedAt และจุดปิดท้ายเปลี่ยนชื่อ", () => {
+    const result = model(petition({
+      status: "rejected",
+      qcReceivedAt: at(13, 9),
+      qcCompletedAt: at(13, 13),
+      rejectedAt: at(13, 14),
+    }), [], [], [], new Date(2026, 6, 13, 16));
+
+    expect(result.timeline.rows.find((row) => row.key === "pre-result")).toMatchObject({
+      startAt: at(13, 13),
+      endAt: at(13, 14),
+      done: true,
+    });
+    expect(result.timeline.rows.find((row) => row.key === "final")).toMatchObject({
+      label: "ส่งกลับแก้ไข",
+      kind: "milestone",
+      at: at(13, 14),
+      done: true,
     });
   });
 
@@ -225,15 +399,6 @@ describe("buildTimelineDetailModel", () => {
     expect(result.timeline.rows.map((row) => row.key)).not.toContain("results");
     expect(result.timeline.rows.map((row) => row.key)).not.toContain("qc-completed");
     expect(result.timeline.rows.map((row) => row.key)).not.toContain("lab-completed");
-  });
-
-  it("ซ่อนแถวฝั่ง Lab ทั้งหมดสำหรับคำร้องที่ไม่มีงาน Lab", () => {
-    const result = model(petition({
-      qcReceivedAt: at(13, 9),
-      assignedTo: { employeeId: "L001", name: "Stray Lab Analyst", assignedAt: at(13, 11) },
-    }));
-
-    expect(result.timeline.rows.map((row) => row.key)).toEqual(["submitted", "sample-sent", "received-qc", "qc-analyzing", "final"]);
   });
 
   it("จุดยื่นคำขอขยายช่วง timeline ให้เริ่มก่อนวันรับตัวอย่าง แต่ header ยังนับจากเวลารับ", () => {
@@ -254,109 +419,9 @@ describe("buildTimelineDetailModel", () => {
     expect(result.timeline.startAt).toBe(at(12, 8));
     expect(result.timeline.days.map((day) => day.label)).toEqual(["12 ก.ค.", "13 ก.ค."]);
     expect(result.timeline.days[0]?.rows.find((row) => row.key === "submitted")).toMatchObject({ visible: true });
-    expect(result.timeline.rows.find((row) => row.key === "submitted")).toMatchObject({ at: at(12, 9), done: true });
-  });
-
-  it("ลากแท่ง Pre Result จาก Lab บันทึกครบ ถึง Lab อนุมัติ", () => {
-    const result = model(petition({
-      items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
-      qcReceivedAt: at(13, 9),
-      labCompletedAt: at(13, 14),
-      labApprovedAt: at(13, 15),
-    }));
-
-    expect(result.timeline.rows.find((row) => row.key === "pre-result")).toMatchObject({
-      label: "Pre Result",
-      kind: "bar",
-      track: "lab",
-      startAt: at(13, 14),
-      endAt: at(13, 15),
-      done: true,
-    });
-  });
-
-  it("ไม่วาดแท่ง Pre Result เมื่อยังไม่อนุมัติ", () => {
-    const result = model(petition({
-      items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
-      qcReceivedAt: at(13, 9),
-      labCompletedAt: at(13, 14),
-    }));
-
-    expect(result.timeline.rows.find((row) => row.key === "pre-result")).toMatchObject({
-      startAt: null,
-      endAt: null,
-      done: false,
-    });
-  });
-
-  it("ลากแท่ง Final Result จาก QC ครบ + Lab ออกผล (เอาอันที่ช้ากว่า) ถึงอนุมัติ", () => {
-    const result = model(petition({
-      status: "approved",
-      items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
-      qcReceivedAt: at(13, 9),
-      qcCompletedAt: at(13, 13),
-      labCompletedAt: at(13, 14),
-      labApprovedAt: at(13, 15),
-      approvedAt: at(13, 16),
-    }));
-
-    expect(result.timeline.rows.find((row) => row.key === "final")).toMatchObject({
-      label: "Final Result",
-      kind: "bar",
-      track: "stage",
-      startAt: at(13, 15),
-      endAt: at(13, 16),
-      done: true,
-    });
-  });
-
-  it("Final Result ของคำร้องที่ไม่มี Lab เริ่มที่ QC ครบ", () => {
-    const result = model(petition({
-      status: "approved",
-      qcReceivedAt: at(13, 9),
-      qcCompletedAt: at(13, 13),
-      approvedAt: at(13, 16),
-    }));
-
-    expect(result.timeline.rows.find((row) => row.key === "final")).toMatchObject({
-      startAt: at(13, 13),
-      endAt: at(13, 16),
-    });
-  });
-
-  it("ลากแท่ง Final Result เริ่มที่ QC ครบ เมื่อ QC ครบทีหลัง Lab ออกผล (คำร้องมี Lab)", () => {
-    const result = model(petition({
-      status: "approved",
-      items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
-      qcReceivedAt: at(13, 9),
-      labCompletedAt: at(13, 12),
-      labApprovedAt: at(13, 13),
-      qcCompletedAt: at(13, 15),
-      approvedAt: at(13, 16),
-    }));
-
-    expect(result.timeline.rows.find((row) => row.key === "final")).toMatchObject({
-      label: "Final Result",
-      kind: "bar",
-      track: "stage",
-      startAt: at(13, 15),
-      endAt: at(13, 16),
-      done: true,
-    });
-  });
-
-  it("คำร้องที่ถูกส่งกลับแก้ไข ใช้ชื่อแถวและเวลา rejected", () => {
-    const result = model(petition({
-      status: "rejected",
-      qcReceivedAt: at(13, 9),
-      qcCompletedAt: at(13, 13),
-      rejectedAt: at(13, 14),
-    }));
-
-    expect(result.timeline.rows.find((row) => row.key === "final")).toMatchObject({
-      label: "ส่งกลับแก้ไข",
-      startAt: at(13, 13),
-      endAt: at(13, 14),
+    expect(result.timeline.rows.find((row) => row.key === "submitted")).toMatchObject({
+      startAt: at(12, 9),
+      endAt: at(13, 10),
       done: true,
     });
   });
@@ -483,30 +548,6 @@ describe("buildTimelineDetailModel", () => {
     expect(result.tasks).toHaveLength(1);
   });
 
-  it("เรียงแถว: ยื่นคำขอ → ส่งตัวอย่าง → QC รับ → มอบหมาย → Lab รับ → QC วิเคราะห์ → Lab วิเคราะห์ → Pre Result → Final Result", () => {
-    const result = model(
-      petition({
-        items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
-        qcReceivedAt: at(13, 9),
-        labReceivedAt: at(13, 10),
-      }),
-      [],
-      [],
-    );
-
-    expect(result.timeline.rows.map((row) => row.key)).toEqual([
-      "submitted",
-      "sample-sent",
-      "received-qc",
-      "assigned",
-      "received-lab",
-      "qc-analyzing",
-      "lab-analyzing",
-      "pre-result",
-      "final",
-    ]);
-  });
-
   it("ทุกแท็บวันมีครบทุกแถว เพื่อให้ลำดับแถวไม่ขยับ", () => {
     const result = model(
       petition({ qcReceivedAt: at(12, 10), qcCompletedAt: at(13, 9) }),
@@ -560,7 +601,7 @@ describe("buildTimelineDetailModel", () => {
     });
   });
 
-  it("จุด ยื่นคำขอ นอกเวลาทำการ (18:30) ยัง visible ในแท็บวันนั้น ส่วนวันอื่นยัง hidden", () => {
+  it("แท่ง ยื่นคำขอ ที่เริ่มนอกเวลาทำการ (18:30) ไม่หายไป แต่โผล่ในแท็บวันถัดไปที่บาร์ทับช่วงเวลาทำการจริง", () => {
     const result = model(
       petition({
         submittedBy: { name: "Requester", submittedAt: at(13, 18, 30) },
@@ -572,8 +613,9 @@ describe("buildTimelineDetailModel", () => {
     );
 
     expect(result.timeline.days.map((day) => day.label)).toEqual(["13 ก.ค.", "14 ก.ค."]);
-    expect(result.timeline.days[0]?.rows.find((row) => row.key === "submitted")).toMatchObject({ visible: true });
-    expect(result.timeline.days[1]?.rows.find((row) => row.key === "submitted")).toMatchObject({ visible: false });
+    // วันที่ 13 หน้าต่างเวลาทำการหยุดที่ 17:00 (ไม่ใช่วันสุดท้ายของกราฟ จึงไม่ขยาย) แท่งเริ่ม 18:30 เลยไม่ทับช่วงนั้นเลย
+    expect(result.timeline.days[0]?.rows.find((row) => row.key === "submitted")).toMatchObject({ visible: false });
+    expect(result.timeline.days[1]?.rows.find((row) => row.key === "submitted")).toMatchObject({ visible: true });
   });
 
   const twoItemPetition = () => petition({
@@ -653,7 +695,7 @@ describe("buildTimelineDetailModel", () => {
       ],
       qcReceivedAt: at(13, 9),
       labReceivedAt: at(13, 10),
-      assignedTo: { employeeId: "L001", name: "Lab Analyst", assignedAt: at(13, 11) },
+      assignedTo: { employeeId: "L001", name: "Lab Analyst", assignedAt: at(13, 9, 30) },
       labCompletedAt: at(13, 14),
       labApprovedAt: at(13, 15),
       qcCompletedAt: at(13, 13),
@@ -670,15 +712,14 @@ describe("buildTimelineDetailModel", () => {
     );
 
     const expectedRows = [
-      { key: "submitted", label: "ยื่นคำขอ", kind: "milestone", track: "stage", at: at(13, 9), startAt: null, endAt: null, done: true },
-      { key: "sample-sent", label: "ส่งตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 9), startAt: null, endAt: null, done: true },
-      { key: "received-qc", label: "QC รับตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 9), startAt: null, endAt: null, done: true },
-      { key: "assigned", label: "มอบหมายงาน Lab", kind: "milestone", track: "stage", at: at(13, 11), startAt: null, endAt: null, done: true },
-      { key: "received-lab", label: "Lab รับตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 10), startAt: null, endAt: null, done: true },
+      { key: "submitted", label: "ยื่นคำขอ", kind: "bar", track: "stage", at: null, startAt: at(13, 9), endAt: at(13, 9), done: true },
+      { key: "sample-sent", label: "ส่งตัวอย่าง", kind: "bar", track: "stage", at: null, startAt: at(13, 9), endAt: at(13, 9), done: true },
+      { key: "assigned", label: "มอบหมายงาน Lab", kind: "bar", track: "lab", at: null, startAt: at(13, 9, 30), endAt: at(13, 10), done: true },
       { key: "qc-analyzing", label: "QC กำลังวิเคราะห์", kind: "bar", track: "qc", at: null, startAt: at(13, 9), endAt: at(13, 13), done: true },
       { key: "lab-analyzing", label: "Lab กำลังวิเคราะห์", kind: "bar", track: "lab", at: null, startAt: at(13, 10), endAt: at(13, 14), done: true },
-      { key: "pre-result", label: "Pre Result", kind: "bar", track: "lab", at: null, startAt: at(13, 14), endAt: at(13, 15), done: true },
-      { key: "final", label: "Final Result", kind: "bar", track: "stage", at: null, startAt: at(13, 15), endAt: at(13, 16), done: true },
+      { key: "lab-approval", label: "ออกผล Lab", kind: "bar", track: "lab", at: null, startAt: at(13, 14), endAt: at(13, 15), done: true },
+      { key: "pre-result", label: "Pre Result", kind: "bar", track: "stage", at: null, startAt: at(13, 14), endAt: at(13, 16), done: true },
+      { key: "final", label: "Final Result", kind: "milestone", track: "stage", at: at(13, 16), startAt: null, endAt: null, done: true },
     ];
 
     expect(build(1).timeline.rows).toEqual(expectedRows);
