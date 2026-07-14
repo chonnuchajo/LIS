@@ -181,8 +181,8 @@ function clipRowToDay(row: TimelineDetailRow, dayStartAt: string, dayEndAt: stri
   };
 
   if (row.kind === "milestone") {
-    const at = validDate(row.at)?.getTime();
-    if (at == null || at < dayStart || at > dayEnd) return hidden;
+    const at = validDate(row.at);
+    if (!at || !isSameLocalDay(at, new Date(dayStartAt))) return hidden;
     return { ...hidden, visible: true };
   }
 
@@ -295,12 +295,24 @@ function buildRequiredTasks(
   return tasks;
 }
 
-function buildRequiredProgress(tasks: TimelineDetailTask[], isApproved: boolean): TimelineDetailProgress {
-  const total = tasks.reduce((sum, task) => sum + task.total, 0);
-  const filled = tasks.reduce((sum, task) => sum + task.filled, 0);
-  if (total === 0) return { filled: 0, total: 0, percent: null };
+function taskFieldTotals(tasks: TimelineDetailTask[]): { filled: number; total: number } {
+  return tasks.reduce(
+    (result, task) => ({ filled: result.filled + task.filled, total: result.total + task.total }),
+    { filled: 0, total: 0 },
+  );
+}
+
+function buildRequiredProgress(
+  tasks: TimelineDetailTask[],
+  options: { received: boolean; preResultDone: boolean; finalResultDone: boolean },
+): TimelineDetailProgress {
+  const fields = taskFieldTotals(tasks);
+  const total = fields.total + 3;
+  const filled = options.finalResultDone
+    ? total
+    : (options.received ? 1 : 0) + fields.filled + (options.preResultDone ? 1 : 0);
   const rawPercent = Math.round((filled / total) * 100);
-  return { filled, total, percent: isApproved ? 100 : Math.min(rawPercent, 99) };
+  return { filled, total, percent: options.finalResultDone ? 100 : Math.min(rawPercent, 99) };
 }
 
 function statusLabel(status?: PetitionStatus): string {
@@ -310,13 +322,6 @@ function statusLabel(status?: PetitionStatus): string {
 function metadataString(metadata: Record<string, unknown> | undefined, key: string): string | null {
   const value = metadata?.[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function metadataNumber(metadata: Record<string, unknown> | undefined, key: string): number | null {
-  const value = metadata?.[key];
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value))) return Number(value);
-  return null;
 }
 
 function metadataObjectName(metadata: Record<string, unknown> | undefined, key: string): string | null {
@@ -416,10 +421,13 @@ function buildMilestoneRows(petition: Petition): TimelineDetailRow[] {
   ].filter((row): row is TimelineDetailRow => row !== null);
 }
 
-function buildAnalyzingRows(petition: Petition, now: Date): TimelineDetailRow[] {
+function buildAnalyzingRows(petition: Petition, now: Date, fallbackStartAt: string): TimelineDetailRow[] {
   const hasLab = hasLabTrack(petition);
-  const qcStartAt = petition.qcReceivedAt ?? petition.receivedAt ?? null;
-  const labStartAt = petition.labReceivedAt ?? null;
+  // ข้อมูลเก่าบางเคสมีรู timestamp: จบงานแล้ว (completedAt) แต่ไม่มีเวลารับตัวอย่าง —
+  // ถอยไปใช้จุดเริ่มกราฟ/เวลามอบหมายแทน ไม่งั้นแท่งวิเคราะห์หายไปทั้งที่ทำจริง
+  // (ถ้ายังไม่จบและยังไม่รับตัวอย่าง = ยังไม่เริ่มจริง ต้องไม่ fallback)
+  const qcStartAt = petition.qcReceivedAt ?? petition.receivedAt ?? (petition.qcCompletedAt ? fallbackStartAt : null);
+  const labStartAt = petition.labReceivedAt ?? (petition.labCompletedAt ? (petition.assignedTo?.assignedAt ?? fallbackStartAt) : null);
 
   // ยังไม่รับตัวอย่าง → ไม่มีแท่ง; รับแล้วแต่ยังไม่บันทึกครบ → ลากถึงตอนนี้ (done = false)
   const analyzing = (key: string, label: string, track: TimelineDetailRowTrack, startAt: string | null, completedAt: string | null) =>
@@ -472,8 +480,8 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
   const submittedAt = firstValidDate(input.petition.submittedBy?.submittedAt, input.petition.createdAt) ?? now.toISOString();
   const receivedAt = firstValidDate(input.petition.qcReceivedAt, input.petition.labReceivedAt, input.petition.receivedAt);
   const startAt = receivedAt ?? submittedAt;
-  // กราฟเริ่มที่จุดส่งตัวอย่าง (เก่าสุด) ส่วน header ยังนับจากเวลารับตัวอย่างเหมือนเดิม
-  const timelineStartAt = firstValidDate(submittedAt, startAt) ?? startAt;
+  // กราฟเริ่มที่จุดยื่นคำขอ (เก่าสุด) ส่วน header ยังนับจากเวลารับตัวอย่างเหมือนเดิม
+  const timelineStartAt = firstValidDate(submittedAt, startAt);
   const actualEndAt = latestValidDate(
     input.petition.approvedAt,
     input.petition.rejectedAt,
@@ -485,17 +493,23 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
   const header = buildHeaderTiming(startAt, actualEndAt, input.petition.status, now);
   const allTasks = buildRequiredTasks(input.petition, input.parameters, input.progressEntries, input.itemGroupIds);
   const tasks = input.itemSeq == null ? allTasks : allTasks.filter((task) => task.itemSeq === input.itemSeq);
+  const allFields = taskFieldTotals(allTasks);
+  const finalResultDone = input.petition.status === "approved";
+  const preResultDone = allFields.total > 0
+    && allFields.filled >= allFields.total
+    && (input.petition.status === "success" || finalResultDone || !!validDate(input.petition.qcCompletedAt));
+  const progressOptions = { received: !!receivedAt, preResultDone, finalResultDone };
   const rows = [
     ...buildMilestoneRows(input.petition),
-    ...buildAnalyzingRows(input.petition, now),
+    ...buildAnalyzingRows(input.petition, now, timelineStartAt),
     ...buildClosingRows(input.petition),
   ];
 
   return {
     header: { ...header, startKind: receivedAt ? "received" : "submitted" },
     items: buildItemTabs(input.petition),
-    progress: buildRequiredProgress(tasks, input.petition.status === "approved"),
-    overallProgress: buildRequiredProgress(allTasks, input.petition.status === "approved"),
+    progress: buildRequiredProgress(tasks, progressOptions),
+    overallProgress: buildRequiredProgress(allTasks, progressOptions),
     tasks,
     activities: normalizeTimelineActivities(input.auditLogs),
     timeline: {

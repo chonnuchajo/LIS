@@ -99,7 +99,17 @@ describe("buildTimelineDetailModel", () => {
     expect(result.timeline.days[1]?.rows.find((row) => row.key === "received-qc")).toMatchObject({ visible: false });
   });
 
-  it("counts only applicable required non-photo fields and caps unapproved completion at 99 percent", () => {
+  it("counts received work as the first progress step before required fields are filled", () => {
+    const result = model(
+      petition({ status: "inProgress", qcReceivedAt: at(13, 10) }),
+      [requiredParameter],
+      [{ itemSeq: 1, parameterId: "parameter-1", filledLabels: [] }],
+    );
+
+    expect(result.progress).toEqual({ filled: 1, total: 5, percent: 20 });
+  });
+
+  it("counts received work, required fields, and Pre Result before Final Result", () => {
     const result = model(
       petition({ status: "success", qcReceivedAt: at(13, 10) }),
       [requiredParameter],
@@ -107,10 +117,10 @@ describe("buildTimelineDetailModel", () => {
     );
 
     expect(result.tasks).toMatchObject([{ parameterName: "Required checks", total: 2, filled: 2, state: "recorded" }]);
-    expect(result.progress).toEqual({ filled: 2, total: 2, percent: 99 });
+    expect(result.progress).toEqual({ filled: 4, total: 5, percent: 80 });
   });
 
-  it("reports 100 percent after approval and formats parameter result activity", () => {
+  it("reports 100 percent only after Final Result approval and formats parameter result activity", () => {
     const result = model(
       petition({ status: "approved", qcReceivedAt: at(13, 10), approvedAt: at(13, 15) }),
       [requiredParameter],
@@ -126,7 +136,7 @@ describe("buildTimelineDetailModel", () => {
       }],
     );
 
-    expect(result.progress).toEqual({ filled: 2, total: 2, percent: 100 });
+    expect(result.progress).toEqual({ filled: 5, total: 5, percent: 100 });
     expect(result.activities[0]).toMatchObject({ actor: "Analyst", label: expect.stringContaining("Required checks") });
   });
 
@@ -226,7 +236,7 @@ describe("buildTimelineDetailModel", () => {
     expect(result.timeline.rows.map((row) => row.key)).toEqual(["submitted", "sample-sent", "received-qc", "qc-analyzing", "final"]);
   });
 
-  it("จุดส่งตัวอย่างขยายช่วง timeline ให้เริ่มก่อนวันรับตัวอย่าง แต่ header ยังนับจากเวลารับ", () => {
+  it("จุดยื่นคำขอขยายช่วง timeline ให้เริ่มก่อนวันรับตัวอย่าง แต่ header ยังนับจากเวลารับ", () => {
     const result = model(
       petition({
         submittedBy: { name: "Requester", submittedAt: at(12, 9) },
@@ -424,6 +434,48 @@ describe("buildTimelineDetailModel", () => {
     });
   });
 
+  it("QC มี qcCompletedAt แต่ไม่มีเวลารับตัวอย่าง → แท่ง QC วิเคราะห์ ใช้จุดเริ่มกราฟเป็น fallback", () => {
+    const result = model(
+      petition({ qcCompletedAt: at(13, 11) }),
+      [], [], [],
+      new Date(2026, 6, 13, 12),
+    );
+
+    expect(result.timeline.rows.find((row) => row.key === "qc-analyzing")).toMatchObject({
+      startAt: at(13, 9),
+      endAt: at(13, 11),
+      done: true,
+    });
+  });
+
+  it("Lab มี labCompletedAt แต่ไม่มี labReceivedAt → แท่ง Lab วิเคราะห์ เริ่มที่ assignedTo.assignedAt", () => {
+    const result = model(
+      petition({
+        items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+        assignedTo: { employeeId: "L001", name: "Lab Analyst", assignedAt: at(13, 10) },
+        labCompletedAt: at(13, 14),
+      }),
+      [], [], [],
+      new Date(2026, 6, 13, 16),
+    );
+
+    expect(result.timeline.rows.find((row) => row.key === "lab-analyzing")).toMatchObject({
+      startAt: at(13, 10),
+      endAt: at(13, 14),
+      done: true,
+    });
+  });
+
+  it("ยังไม่รับตัวอย่างและยังไม่จบฝั่ง QC (ไม่มีทั้ง receivedAt และ completedAt) → ไม่วาดแท่ง qc-analyzing แม้มี fallback", () => {
+    const result = model(petition(), [], [], [], new Date(2026, 6, 13, 12));
+
+    expect(result.timeline.rows.find((row) => row.key === "qc-analyzing")).toMatchObject({
+      startAt: null,
+      endAt: null,
+      done: false,
+    });
+  });
+
   it("ไม่มีแถวราย parameter ใน timeline อีกต่อไป", () => {
     const result = model(petition({ qcReceivedAt: at(13, 9) }), [requiredParameter], [], []);
 
@@ -508,6 +560,22 @@ describe("buildTimelineDetailModel", () => {
     });
   });
 
+  it("จุด ยื่นคำขอ นอกเวลาทำการ (18:30) ยัง visible ในแท็บวันนั้น ส่วนวันอื่นยัง hidden", () => {
+    const result = model(
+      petition({
+        submittedBy: { name: "Requester", submittedAt: at(13, 18, 30) },
+        createdAt: at(13, 18, 30),
+        qcReceivedAt: at(14, 9),
+      }),
+      [], [], [],
+      new Date(2026, 6, 14, 12),
+    );
+
+    expect(result.timeline.days.map((day) => day.label)).toEqual(["13 ก.ค.", "14 ก.ค."]);
+    expect(result.timeline.days[0]?.rows.find((row) => row.key === "submitted")).toMatchObject({ visible: true });
+    expect(result.timeline.days[1]?.rows.find((row) => row.key === "submitted")).toMatchObject({ visible: false });
+  });
+
   const twoItemPetition = () => petition({
     qcReceivedAt: at(13, 9),
     items: [
@@ -571,8 +639,8 @@ describe("buildTimelineDetailModel", () => {
       1,
     );
 
-    expect(result.progress).toEqual({ filled: 2, total: 2, percent: 99 });
-    expect(result.overallProgress).toEqual({ filled: 2, total: 4, percent: 50 });
+    expect(result.progress).toEqual({ filled: 3, total: 5, percent: 60 });
+    expect(result.overallProgress).toEqual({ filled: 3, total: 7, percent: 43 });
   });
 
   it("แถว timeline และแท็บวัน เหมือนกันทุกตัวอย่างที่เลือก", () => {
