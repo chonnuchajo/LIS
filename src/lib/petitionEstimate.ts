@@ -1,3 +1,6 @@
+import { hasLabTrack } from "@/lib/statusBadge";
+import type { Petition } from "@/types/petition.types";
+
 export const WORK_START_HOUR = 8;
 export const WORK_END_HOUR = 17;
 
@@ -49,4 +52,57 @@ export function addWorkingMinutes(from: Date, minutes: number): Date {
 
 export function endOfNextWorkingDay(from: Date): Date {
   return atHour(startOfNextWorkingDay(from), WORK_END_HOUR);
+}
+
+export const LAB_DEFAULT_MINUTES = 240;
+export const QC_MINUTES_PER_TASK = 60;
+
+export type PetitionEstimate = { at: string; kind: "unreceived" | "estimated" };
+
+function validDate(value?: string | null): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+// เครื่องรันคู่ขนานกันได้ -> เอาเครื่องที่นานที่สุด ไม่ใช่ผลรวม
+function labMinutes(petition: Petition): number {
+  const machines = petition.assignedMachines ?? [];
+  if (machines.length === 0) return LAB_DEFAULT_MINUTES;
+  return Math.max(...machines.map((machine) => {
+    const minutes = Number(machine.estimatedMinutes);
+    return Number.isFinite(minutes) && minutes > 0 ? minutes : LAB_DEFAULT_MINUTES;
+  }));
+}
+
+export function estimatePetitionEnd(input: { petition: Petition; qcTaskCount: number; now: Date }): PetitionEstimate {
+  const { petition } = input;
+  const qcReceivedAt = validDate(petition.qcReceivedAt) ?? validDate(petition.receivedAt);
+  const labReceivedAt = validDate(petition.labReceivedAt);
+
+  if (!qcReceivedAt && !labReceivedAt) {
+    const anchor = validDate(petition.sampleSentAt)
+      ?? validDate(petition.submittedBy?.submittedAt)
+      ?? validDate(petition.createdAt)
+      ?? input.now;
+    return { at: endOfNextWorkingDay(anchor).toISOString(), kind: "unreceived" };
+  }
+
+  // คิดเฉพาะฝั่งที่รับงานแล้วจริง — ฝั่งที่ยังไม่รับ ไม่ต้องเดา
+  const candidates: Date[] = [];
+  if (qcReceivedAt && input.qcTaskCount > 0) {
+    candidates.push(addWorkingMinutes(qcReceivedAt, input.qcTaskCount * QC_MINUTES_PER_TASK));
+  }
+  if (labReceivedAt && hasLabTrack(petition)) {
+    candidates.push(addWorkingMinutes(labReceivedAt, labMinutes(petition)));
+  }
+
+  if (candidates.length === 0) {
+    const receivedAt = [qcReceivedAt, labReceivedAt].filter((date): date is Date => !!date)
+      .reduce((earliest, date) => (date.getTime() < earliest.getTime() ? date : earliest));
+    return { at: endOfNextWorkingDay(receivedAt).toISOString(), kind: "estimated" };
+  }
+
+  const latest = new Date(Math.max(...candidates.map((date) => date.getTime())));
+  return { at: latest.toISOString(), kind: "estimated" };
 }

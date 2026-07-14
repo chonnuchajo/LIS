@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { addWorkingMinutes, endOfNextWorkingDay } from "./petitionEstimate";
+import { addWorkingMinutes, endOfNextWorkingDay, estimatePetitionEnd } from "./petitionEstimate";
+import type { Petition } from "@/types/petition.types";
 
 // ปฏิทินอ้างอิง: 13 ก.ค. 2026 = จันทร์, 18 ก.ค. = เสาร์, 19 ก.ค. = อาทิตย์
 const at = (day: number, hour: number, minute = 0) => new Date(2026, 6, day, hour, minute);
@@ -65,5 +66,155 @@ describe("endOfNextWorkingDay", () => {
 
   it("จากวันอาทิตย์ ไปจันทร์", () => {
     expect(endOfNextWorkingDay(at(19, 10))).toEqual(at(20, 17));
+  });
+});
+
+function petition(overrides: Partial<Petition> = {}): Petition {
+  return {
+    _id: "petition-1",
+    petitionNo: "P-2607-001",
+    dept: "production",
+    status: "inProgress",
+    submittedBy: { name: "Requester", submittedAt: at(13, 9).toISOString() },
+    items: [{ seq: 1, sampleName: "Sample A", batchNo: "BATCH-002", sampleId: "sample-1" }],
+    createdAt: at(13, 9).toISOString(),
+    updatedAt: at(13, 9).toISOString(),
+    ...overrides,
+  } as Petition;
+}
+
+// batchNo ลงท้าย 1 หรือ 6 = คำขอมีฝั่ง Lab (hasLabTrack)
+const labItem = { seq: 1, sampleName: "Sample A", batchNo: "BATCH-001", sampleId: "sample-1" };
+
+describe("estimatePetitionEnd", () => {
+  it("ยังไม่รับงานทั้งสองฝั่ง -> unreceived + 17:00 ของวันทำการถัดไปจากเวลายื่นคำขอ", () => {
+    const result = estimatePetitionEnd({ petition: petition(), qcTaskCount: 3, now: at(13, 12) });
+
+    expect(result.kind).toBe("unreceived");
+    expect(result.at).toBe(at(14, 17).toISOString());
+  });
+
+  it("ยังไม่รับงาน แต่มีเวลาส่งตัวอย่าง -> นับจากเวลาส่งตัวอย่าง", () => {
+    const result = estimatePetitionEnd({
+      petition: petition({ sampleSentAt: at(15, 9).toISOString() }),
+      qcTaskCount: 3,
+      now: at(15, 12),
+    });
+
+    expect(result.at).toBe(at(16, 17).toISOString());
+  });
+
+  it("QC รับงานแล้ว -> เวลารับ + (จำนวน task x 60 นาที)", () => {
+    const result = estimatePetitionEnd({
+      petition: petition({ qcReceivedAt: at(13, 9).toISOString() }),
+      qcTaskCount: 3,
+      now: at(13, 10),
+    });
+
+    expect(result.kind).toBe("estimated");
+    expect(result.at).toBe(at(13, 12).toISOString());
+  });
+
+  it("ใช้ receivedAt เป็น fallback ของ qcReceivedAt", () => {
+    const result = estimatePetitionEnd({
+      petition: petition({ receivedAt: at(13, 9).toISOString() }),
+      qcTaskCount: 2,
+      now: at(13, 10),
+    });
+
+    expect(result.at).toBe(at(13, 11).toISOString());
+  });
+
+  it("Lab รับงานแล้ว -> เวลารับ + standard time ของเครื่องที่นานที่สุด", () => {
+    const result = estimatePetitionEnd({
+      petition: petition({
+        items: [labItem],
+        labReceivedAt: at(13, 9).toISOString(),
+        assignedMachines: [
+          { machineId: "m1", code: "GC-01", name: "GC 1", estimatedMinutes: 90 },
+          { machineId: "m2", code: "GC-02", name: "GC 2", estimatedMinutes: 300 },
+        ],
+      }),
+      qcTaskCount: 0,
+      now: at(13, 10),
+    });
+
+    // 09:00 + 300 นาที = 14:00 (ไม่ใช่ผลรวม 390 นาที)
+    expect(result.at).toBe(at(13, 14).toISOString());
+  });
+
+  it("เครื่องที่ไม่มี standard time นับเป็น 240 นาที", () => {
+    const result = estimatePetitionEnd({
+      petition: petition({
+        items: [labItem],
+        labReceivedAt: at(13, 9).toISOString(),
+        assignedMachines: [{ machineId: "m1", code: "HPLC-01", name: "HPLC 1" }],
+      }),
+      qcTaskCount: 0,
+      now: at(13, 10),
+    });
+
+    expect(result.at).toBe(at(13, 13).toISOString());
+  });
+
+  it("Lab รับงานแล้วแต่ไม่มีเครื่อง -> 240 นาที", () => {
+    const result = estimatePetitionEnd({
+      petition: petition({ items: [labItem], labReceivedAt: at(13, 9).toISOString() }),
+      qcTaskCount: 0,
+      now: at(13, 10),
+    });
+
+    expect(result.at).toBe(at(13, 13).toISOString());
+  });
+
+  it("รับครบสองฝั่ง -> เอาฝั่งที่นานที่สุด", () => {
+    const result = estimatePetitionEnd({
+      petition: petition({
+        items: [labItem],
+        qcReceivedAt: at(13, 9).toISOString(),
+        labReceivedAt: at(13, 9).toISOString(),
+        assignedMachines: [{ machineId: "m1", code: "GC-01", name: "GC 1", estimatedMinutes: 60 }],
+      }),
+      qcTaskCount: 4, // QC = 4 ชม. -> 13:00 ; Lab = 1 ชม. -> 10:00
+      now: at(13, 10),
+    });
+
+    expect(result.at).toBe(at(13, 13).toISOString());
+  });
+
+  it("QC รับแล้วแต่ Lab ยังไม่รับ -> คิดจาก QC ฝั่งเดียว (ไม่เดาฝั่งที่ยังไม่รับ)", () => {
+    const result = estimatePetitionEnd({
+      petition: petition({
+        items: [labItem],
+        qcReceivedAt: at(13, 9).toISOString(),
+        assignedMachines: [{ machineId: "m1", code: "GC-01", name: "GC 1", estimatedMinutes: 600 }],
+      }),
+      qcTaskCount: 1,
+      now: at(13, 10),
+    });
+
+    expect(result.kind).toBe("estimated");
+    expect(result.at).toBe(at(13, 10).toISOString());
+  });
+
+  it("รับงานแล้วแต่ไม่มี parameter และไม่มีฝั่ง Lab -> 17:00 ของวันทำการถัดไปจากเวลารับงาน", () => {
+    const result = estimatePetitionEnd({
+      petition: petition({ qcReceivedAt: at(13, 10, 15).toISOString() }),
+      qcTaskCount: 0,
+      now: at(13, 12),
+    });
+
+    expect(result.kind).toBe("estimated");
+    expect(result.at).toBe(at(14, 17).toISOString());
+  });
+
+  it("รับงานนอกเวลาทำการ -> ดันไปเริ่ม 08:00 วันถัดไปก่อนบวก", () => {
+    const result = estimatePetitionEnd({
+      petition: petition({ qcReceivedAt: at(13, 19, 14).toISOString() }),
+      qcTaskCount: 2,
+      now: at(13, 19, 30),
+    });
+
+    expect(result.at).toBe(at(14, 10).toISOString());
   });
 });
