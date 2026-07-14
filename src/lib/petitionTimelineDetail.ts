@@ -50,8 +50,16 @@ export type TimelineDetailHeader = {
   endAt: string;
   endKind: "actual" | "estimated" | "ongoing";
 };
+export type TimelineDetailItemTab = {
+  seq: number;
+  label: string;
+  commonName: string;
+  batchNo: string;
+  sampleName: string;
+};
 export type TimelineDetailModel = {
   header: TimelineDetailHeader;
+  items: TimelineDetailItemTab[];
   progress: TimelineDetailProgress;
   tasks: TimelineDetailTask[];
   activities: TimelineDetailActivity[];
@@ -228,6 +236,20 @@ function buildTimelineDays(startAt: string, endAt: string, rows: TimelineDetailR
       atHour(start, WORK_END_HOUR).toISOString(),
     )),
   }];
+}
+
+function buildItemTabs(petition: Petition): TimelineDetailItemTab[] {
+  return (petition.items ?? []).map((item) => {
+    const commonName = item.commonName?.trim() ?? "";
+    const sampleName = item.sampleName?.trim() ?? "";
+    return {
+      seq: item.seq,
+      label: commonName || sampleName || `ตัวอย่างที่ ${item.seq}`,
+      commonName,
+      batchNo: item.batchNo?.trim() ?? "",
+      sampleName,
+    };
+  });
 }
 
 function buildRequiredTasks(
@@ -502,6 +524,7 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
 
   return {
     header: { ...header, startKind: receivedAt ? "received" : "submitted" },
+    items: buildItemTabs(input.petition),
     progress: buildRequiredProgress(tasks, input.petition.status === "approved"),
     tasks,
     activities: normalizeTimelineActivities(input.auditLogs),

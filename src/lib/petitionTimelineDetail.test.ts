@@ -492,4 +492,38 @@ describe("buildTimelineDetailModel", () => {
       segmentEndAt: null,
     });
   });
+
+  it("คืนรายการแท็บครบทุกตัวอย่าง โดยใช้ commonName เป็นป้ายแท็บ", () => {
+    const result = model(petition({
+      qcReceivedAt: at(13, 9),
+      items: [
+        { seq: 1, sampleName: "Sample A", commonName: "ABAMECTIN 1.8% EC", batchNo: "BATCH-002", sampleId: "sample-1" },
+        { seq: 2, sampleName: "Sample B", commonName: "EMAMECTIN 1.9% EC", batchNo: "BATCH-003", sampleId: "sample-2" },
+      ],
+    }));
+
+    expect(result.items).toEqual([
+      { seq: 1, label: "ABAMECTIN 1.8% EC", commonName: "ABAMECTIN 1.8% EC", batchNo: "BATCH-002", sampleName: "Sample A" },
+      { seq: 2, label: "EMAMECTIN 1.9% EC", commonName: "EMAMECTIN 1.9% EC", batchNo: "BATCH-003", sampleName: "Sample B" },
+    ]);
+  });
+
+  it("ป้ายแท็บถอยไปใช้ sampleName แล้วค่อย ตัวอย่างที่ N เมื่อไม่มี commonName", () => {
+    const result = model(petition({
+      qcReceivedAt: at(13, 9),
+      items: [
+        { seq: 1, sampleName: "Sample A", batchNo: "BATCH-002", sampleId: "sample-1" },
+        { seq: 2, sampleName: "", batchNo: "", sampleId: "sample-2" },
+      ],
+    }));
+
+    expect(result.items.map((item) => item.label)).toEqual(["Sample A", "ตัวอย่างที่ 2"]);
+    expect(result.items[1]).toMatchObject({ commonName: "", batchNo: "", sampleName: "" });
+  });
+
+  it("คำขอที่ไม่มีตัวอย่างเลย คืนรายการแท็บว่าง", () => {
+    const result = model(petition({ qcReceivedAt: at(13, 9), items: [] }));
+
+    expect(result.items).toEqual([]);
+  });
 });
