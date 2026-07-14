@@ -50,10 +50,14 @@ function taskStateClass(state: "pending" | "inProgress" | "recorded" | "approved
 }
 
 function barTrackClass(track: "qc" | "lab" | "stage", done: boolean) {
-  if (!done) return "bg-grey-200";
-  if (track === "lab") return "bg-amber-500";
-  if (track === "qc") return "bg-primary-500";
-  return "bg-grey-400";
+  if (done) {
+    if (track === "lab") return "bg-amber-500";
+    if (track === "qc") return "bg-primary-500";
+    return "bg-grey-400";
+  }
+  if (track === "lab") return "bg-amber-200";
+  if (track === "qc") return "bg-primary-200";
+  return "bg-grey-200";
 }
 
 function timelineTickVisibilityClass(index: number, total: number) {
@@ -63,7 +67,8 @@ function timelineTickVisibilityClass(index: number, total: number) {
 }
 
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return <div className="min-w-0 border-l border-black-50 pl-4 first:border-l-0 first:pl-0"><p className="text-xs text-grey-500">{label}</p><p className="mt-1 truncate text-sm font-semibold text-black-500" title={value}>{value}</p>{hint && <p className="mt-1 text-xs text-grey-500">{hint}</p>}</div>;
+  const visibleHint = label === "Progress" ? undefined : hint;
+  return <div className="min-w-0 border-l border-black-50 pl-4 first:border-l-0 first:pl-0"><p className="text-xs text-grey-500">{label}</p><p className="mt-1 truncate text-sm font-semibold text-black-500" title={value}>{value}</p>{visibleHint && <p className="mt-1 text-xs text-grey-500">{visibleHint}</p>}</div>;
 }
 
 export default function PetitionTimelineDetailPage() {
@@ -215,7 +220,7 @@ export default function PetitionTimelineDetailPage() {
   const sgParameter = findSgParameter(parameters);
   const canShowPreReport = canPrintPreReport(petition)
     && model.overallProgress.total > 0
-    && model.overallProgress.filled >= model.overallProgress.total;
+    && model.overallProgress.filled >= model.overallProgress.total - 1;
   const activeItem = model.items.find((item) => item.seq === selectedItemSeq) ?? null;
   const responsibleName = petition.assignedTo?.name || "ยังไม่มอบหมาย";
   const timelineDays = model.timeline.days.length
@@ -275,7 +280,7 @@ export default function PetitionTimelineDetailPage() {
           <Metric label="End time" value={formatDateTime(model.header.endAt)} hint={model.header.endKind === "actual" ? "เวลาจริง" : model.header.endKind === "estimated" ? "ค่าประมาณ" : "กำลังดำเนินการ"} />
           <Metric label="Progress" value={progressLabel} hint={model.progress.total ? `${model.progress.filled}/${model.progress.total} required fields` : "ไม่มี required parameter"} />
         </div>
-        {model.progress.percent != null && <div className="h-2 overflow-hidden rounded-full bg-grey-100"><div className="h-full bg-primary-500 transition-[width]" style={{ width: `${model.progress.percent}%` }} /></div>}
+        {model.progress.percent != null && <div role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={model.progress.percent} className="h-2 overflow-hidden rounded-full bg-grey-100"><div className="h-full bg-gradient-to-r from-red-500 via-amber-400 to-green-500 transition-[width]" style={{ width: `${model.progress.percent}%` }} /></div>}
       </div>
     </CardContent></Card>
 
@@ -302,7 +307,7 @@ export default function PetitionTimelineDetailPage() {
                 const start = row.visible && row.kind === "bar" ? timelinePercent(row.segmentStartAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const end = row.visible && row.kind === "bar" ? timelinePercent(row.segmentEndAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const width = start != null && end != null ? Math.max(1, end - start) : null;
-                return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", row.done ? "bg-primary-600" : "bg-grey-300")} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={row.continuesBefore || row.continuesAfter ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", barTrackClass(row.track, row.done), row.continuesBefore && "rounded-l-none", row.continuesAfter && "rounded-r-none")} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
+                return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", row.done ? "bg-primary-600" : "bg-grey-300")} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={row.continuesBefore || row.continuesAfter ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", barTrackClass(row.track, row.done), row.continuesBefore && "rounded-l-none", (row.continuesAfter || !row.done) && "rounded-r-none")} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
               })}
             </div>
           </CardContent>

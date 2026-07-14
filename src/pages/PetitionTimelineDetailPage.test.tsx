@@ -97,6 +97,7 @@ beforeEach(() => {
   Object.assign(mocks.petition, {
     status: "inProgress",
     approvedAt: null,
+    qcCompletedAt: undefined,
     qcReceivedBy: undefined,
     labReceivedBy: undefined,
     items: [{ seq: 1, sampleName: "Sample A", commonName: "ABAMECTIN 1.8% W/V EC", batchNo: "BATCH-002", lotNo: "LOT-88", sampleId: "sample-1" }],
@@ -314,6 +315,24 @@ describe("PetitionTimelineDetailPage", () => {
 
     const dot = await screen.findByLabelText("QC รับตัวอย่าง (จุด)");
     expect(dot.parentElement?.children).toHaveLength(1);
+  });
+
+  it("แท่งที่ยังทำไม่เสร็จใช้สีอ่อนและปลายขวาตรง", async () => {
+    renderDetail();
+
+    const bar = await screen.findByLabelText("QC กำลังวิเคราะห์ (ช่วงเวลา)");
+    expect(bar).toHaveClass("bg-primary-200");
+    expect(bar).toHaveClass("rounded-r-none");
+    expect(bar).not.toHaveClass("bg-primary-500");
+  });
+
+  it("แท่งที่ทำเสร็จแล้วใช้สีเข้มและปลายมน", async () => {
+    Object.assign(mocks.petition, { qcCompletedAt: "2026-07-13T06:00:00.000Z" });
+    renderDetail();
+
+    const bar = await screen.findByLabelText("QC กำลังวิเคราะห์ (ช่วงเวลา)");
+    expect(bar).toHaveClass("bg-primary-500");
+    expect(bar).not.toHaveClass("rounded-r-none");
   });
 
   const twoItems = [
