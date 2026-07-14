@@ -16,7 +16,7 @@ import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { useLabRequestsByPetition, usePetition, usePetitionAuditLog } from "@/hooks/usePetition";
 import { api, type ParameterItem, type QCProgressEntry } from "@/lib/api";
 import { findSgParameter } from "@/lib/formSpecificGravity";
-import { buildTimelineDetailModel, type TimelineDetailActivity, type TimelineDetailDayRow, type TimelineDetailRow, type TimelineDetailTick } from "@/lib/petitionTimelineDetail";
+import { buildTimelineDetailModel, type TimelineDetailActivity, type TimelineDetailDayRow, type TimelineDetailModel, type TimelineDetailRow, type TimelineDetailTick } from "@/lib/petitionTimelineDetail";
 import { timelineBarClass, timelineDotClass } from "@/lib/petitionTimelineColors";
 import { crosshairAt, formatCrosshairTime } from "@/lib/petitionTimelineCrosshair";
 import { canPrintPreReport } from "@/lib/petitionPrintability";
@@ -161,6 +161,20 @@ function continuesAcrossCalendarDay(row: TimelineDetailDayRow, dayStartAt: strin
 
 function earliestIso(values: string[]) {
   return values.reduce((earliest, value) => (new Date(value).getTime() < new Date(earliest).getTime() ? value : earliest));
+}
+
+function estimateMetric(header: TimelineDetailModel["header"]): { label: string; value: string; hint: string } {
+  if (header.endKind === "actual") {
+    return { label: "End time", value: formatDateTime(header.endAt), hint: "เวลาจริง" };
+  }
+  if (header.endKind === "unreceived") {
+    return { label: "Estimate Time", value: "คาดว่าผลจะออก 1-2 วัน", hint: "ยังไม่รับงาน" };
+  }
+  return {
+    label: "Estimate Time",
+    value: formatDateTime(header.endAt),
+    hint: header.overdue ? "เลยกำหนด" : "ค่าประมาณ",
+  };
 }
 
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -450,7 +464,7 @@ export default function PetitionTimelineDetailPage() {
           <Metric label="Common name" value={activeItem?.commonName || "-"} />
           <Metric label="เลข Batch" value={activeItem?.batchNo || "-"} />
           <Metric label={model.header.startKind === "received" ? "Start time" : "เวลายื่นคำร้อง"} value={formatDateTime(model.header.startAt)} />
-          <Metric label="End time" value={formatDateTime(model.header.endAt)} hint={model.header.endKind === "actual" ? "เวลาจริง" : model.header.endKind === "estimated" ? "ค่าประมาณ" : "กำลังดำเนินการ"} />
+          <Metric {...estimateMetric(model.header)} />
           <Metric label="Progress" value={progressLabel} />
         </div>
         {model.progress.percent != null && <div role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={model.progress.percent} className="h-2 overflow-hidden rounded-full bg-grey-100"><div className={cn("h-full transition-[width]", progressFillClass(model.progress.percent))} style={{ width: `${model.progress.percent}%` }} /></div>}
