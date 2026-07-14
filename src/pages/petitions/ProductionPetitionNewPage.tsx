@@ -19,7 +19,7 @@ import { isLabBatch, type Petition } from '@/types/petition.types';
 
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
 const ICP_LADDA_COMPANY = 'ICP Ladda Co., LTD.';
-const PRODUCTION_RETURN_URL = 'https://app-plant.icpladda.com/production/public/sample_analysis.php';
+const PRODUCTION_RETURN_URL = 'https://app-plant.icpladda.com/production-react/?tab=list';
 
 type StepKey = 'items' | 'lab';
 
@@ -57,20 +57,8 @@ function getQueryValue(searchParams: URLSearchParams, keys: string[]): string {
   return '';
 }
 
-function buildProductionReturnUrl(searchParams: URLSearchParams, createdPetition?: Petition | null): string {
-  const requestNo = getQueryValue(searchParams, ['requestNo', 'submissionNo']);
-  const url = new URL(PRODUCTION_RETURN_URL);
-  url.searchParams.set('status', '');
-  if (requestNo) {
-    url.searchParams.set('q', requestNo);
-    url.searchParams.set('requestNo', requestNo);
-  }
-  url.searchParams.set('lisStatus', 'sent');
-  url.searchParams.set('lisSent', '1');
-  if (createdPetition?.petitionNo) {
-    url.searchParams.set('lisPetitionNo', createdPetition.petitionNo);
-  }
-  return url.toString();
+function buildProductionReturnUrl(): string {
+  return PRODUCTION_RETURN_URL;
 }
 
 function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues | null {
@@ -777,7 +765,7 @@ export default function ProductionPetitionNewPage({
 
   function handlePageBack() {
     if (publicMode) {
-      window.location.href = buildProductionReturnUrl(searchParams, createdPetition);
+      window.location.href = buildProductionReturnUrl();
       return;
     }
     navigate('/petitions');
