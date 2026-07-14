@@ -116,11 +116,6 @@ beforeEach(() => {
   mocks.getQCProgress.mockResolvedValue({ "petition-1": [{ itemSeq: 1, parameterId: "parameter-1", filledLabels: ["Viscosity"] }] });
   mocks.getQCResults.mockResolvedValue([]);
   mocks.downloadPrintPdf.mockResolvedValue(new Blob(["pdf"], { type: "application/pdf" }));
-  Object.defineProperty(URL, "createObjectURL", { writable: true, value: vi.fn() });
-  Object.defineProperty(URL, "revokeObjectURL", { writable: true, value: vi.fn() });
-  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:petition-document");
-  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
-  vi.spyOn(window, "open").mockReturnValue({} as Window);
 });
 
 describe("PetitionTimelineDetailPage", () => {
@@ -132,7 +127,8 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.getByText("08:00")).toBeInTheDocument();
     expect(screen.getByText("17:00")).toBeInTheDocument();
     expect(screen.queryByText("20:00")).not.toBeInTheDocument();
-    expect(screen.getAllByText("Required checks").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByLabelText("Tasks")).toHaveTextContent("Required checks");
+    expect(screen.getByLabelText("petition timeline")).not.toHaveTextContent("Required checks");
   });
 
   it("shows petition and item details instead of requester and assignee metrics", async () => {
@@ -155,7 +151,7 @@ describe("PetitionTimelineDetailPage", () => {
     renderDetail();
 
     expect(await screen.findByRole("heading", { name: "P-2607-001" })).toBeInTheDocument();
-    const timelineCard = screen.getByLabelText("Project Timeline");
+    const timelineCard = screen.getByLabelText("petition timeline");
     const tasksCard = screen.getByLabelText("Tasks");
     const activityCard = screen.getByLabelText("Recent Activity");
     const documentsCard = screen.getByLabelText("Documents");
@@ -172,7 +168,7 @@ describe("PetitionTimelineDetailPage", () => {
   it("fits the project timeline panel without horizontal scrolling", async () => {
     renderDetail();
 
-    const timelineCard = await screen.findByLabelText("Project Timeline");
+    const timelineCard = await screen.findByLabelText("petition timeline");
     expect(timelineCard.querySelector(".overflow-x-auto")).not.toBeInTheDocument();
     expect(Array.from(timelineCard.querySelectorAll("[class]")).some((node) => (node.getAttribute("class") ?? "").includes("min-w-[760px]"))).toBe(false);
   });
@@ -270,8 +266,7 @@ describe("PetitionTimelineDetailPage", () => {
     expect(await screen.findByRole("button", { name: "ป้ายนำส่งตัวอย่าง" })).toBeInTheDocument();
   });
 
-  it("keeps document PDF actions disabled until document data is ready", async () => {
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  it("keeps document actions disabled until document data is ready", async () => {
     let resolveResults: ((value: []) => void) | undefined;
     mocks.getQCResults.mockReturnValue(new Promise((resolve) => { resolveResults = resolve; }));
     renderDetail();
@@ -279,7 +274,6 @@ describe("PetitionTimelineDetailPage", () => {
     const labelButton = await screen.findByRole("button", { name: "ป้ายนำส่งตัวอย่าง" });
     expect(mocks.getQCResults).toHaveBeenCalledOnce();
     expect(labelButton).toBeDisabled();
-    expect(mocks.downloadPrintPdf).not.toHaveBeenCalled();
 
     await act(async () => {
       resolveResults?.([]);
@@ -287,51 +281,32 @@ describe("PetitionTimelineDetailPage", () => {
     await waitFor(() => expect(labelButton).not.toBeDisabled());
 
     fireEvent.click(labelButton);
-    await waitFor(() => expect(mocks.downloadPrintPdf).toHaveBeenCalledOnce());
-    expect(clickSpy).toHaveBeenCalledOnce();
-    expect(window.open).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("print-preview")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("print-preview")).toBeInTheDocument();
   });
 
-  it("opens timeline document actions as PDF files instead of print previews", async () => {
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  it("opens timeline document actions in a print preview popup", async () => {
     renderDetail();
 
     const documentsCard = await screen.findByLabelText("Documents");
+    await waitFor(() => expect(screen.getByRole("button", { name: "ป้ายนำส่งตัวอย่าง" })).not.toBeDisabled());
+    expect(screen.queryByTestId("print-preview")).not.toBeInTheDocument();
+
     fireEvent.click(documentsCard.querySelector("button") as HTMLButtonElement);
 
-    await waitFor(() => expect(mocks.downloadPrintPdf).toHaveBeenCalledOnce());
-    expect(mocks.downloadPrintPdf).toHaveBeenCalledWith(expect.objectContaining({
-      docType: "sample-label",
-      html: expect.any(String),
-    }));
-    const pdfPayload = mocks.downloadPrintPdf.mock.calls[0][0];
-    expect(pdfPayload.html).toContain("P-2607-001");
-    expect(pdfPayload.html).toContain("Sample A");
-    expect(URL.createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
-    expect(clickSpy).toHaveBeenCalledOnce();
-    expect(window.open).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("print-preview")).not.toBeInTheDocument();
+    const preview = await screen.findByTestId("print-preview");
+    expect(preview).toHaveTextContent("P-2607-001");
+    expect(mocks.downloadPrintPdf).not.toHaveBeenCalled();
   });
 
   it("แสดงจุดรับตัวอย่างแยก QC/Lab และไม่มีแถวสถานะเก่าอีกต่อไป", async () => {
     renderDetail();
 
     expect(await screen.findByRole("heading", { name: "P-2607-001" })).toBeInTheDocument();
-    const timelineCard = screen.getByLabelText("Project Timeline");
+    const timelineCard = screen.getByLabelText("petition timeline");
     expect(timelineCard).toHaveTextContent("QC รับตัวอย่าง");
     expect(timelineCard).not.toHaveTextContent("QC ครบ");
     expect(timelineCard).not.toHaveTextContent("Lab ครบ");
     expect(timelineCard).not.toHaveTextContent("บันทึกผล");
-  });
-
-  it("วาดแท่ง parameter จากผลที่บันทึกไว้ใน QCTestResult ของคำร้องเก่า", async () => {
-    mocks.getQCResults.mockResolvedValue([
-      { petitionId: "petition-1", itemSeq: 1, parameterId: "parameter-1", values: {}, enteredAt: "2026-07-13T05:00:00.000Z" },
-    ]);
-    renderDetail();
-
-    expect(await screen.findByLabelText("Required checks (ช่วงเวลา)")).toBeInTheDocument();
   });
 
   it("จุด milestone ไม่ลากเส้นยาวมาจากขอบซ้ายของแถว", async () => {

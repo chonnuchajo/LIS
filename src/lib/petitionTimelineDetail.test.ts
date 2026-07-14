@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ParameterItem, QCProgressEntry } from "@/lib/api";
-import type { Petition, PetitionAuditLogEntry, QCTestResult } from "@/types/petition.types";
+import type { Petition, PetitionAuditLogEntry } from "@/types/petition.types";
 import { buildTimelineDetailModel } from "./petitionTimelineDetail";
 
 const at = (day: number, hour: number, minute = 0) => new Date(2026, 6, day, hour, minute).toISOString();
@@ -39,10 +39,9 @@ function model(
   progressEntries: QCProgressEntry[] = [],
   auditLogs: PetitionAuditLogEntry[] = [],
   now = new Date(2026, 6, 13, 12),
-  qcResults: QCTestResult[] = [],
   itemSeq: number | null = null,
 ) {
-  return buildTimelineDetailModel({ petition: petitionData, parameters, progressEntries, auditLogs, qcResults, itemSeq }, now);
+  return buildTimelineDetailModel({ petition: petitionData, parameters, progressEntries, auditLogs, itemSeq }, now);
 }
 
 describe("buildTimelineDetailModel", () => {
@@ -193,7 +192,7 @@ describe("buildTimelineDetailModel", () => {
       assignedTo: { employeeId: "L001", name: "Stray Lab Analyst", assignedAt: at(13, 11) },
     }));
 
-    expect(result.timeline.rows.map((row) => row.key)).toEqual(["submitted", "received-qc", "final"]);
+    expect(result.timeline.rows.map((row) => row.key)).toEqual(["submitted", "received-qc", "qc-analyzing", "final"]);
   });
 
   it("จุดส่งตัวอย่างขยายช่วง timeline ให้เริ่มก่อนวันรับตัวอย่าง แต่ header ยังนับจากเวลารับ", () => {
@@ -321,134 +320,93 @@ describe("buildTimelineDetailModel", () => {
     });
   });
 
-  const labParameter: ParameterItem = {
-    _id: "parameter-lab",
-    name: "Lab assay",
-    scope: "lab",
-    status: "active",
-    applyAll: true,
-    valueFields: [{ label: "Assay", type: "number", required: true }],
-  };
+  it("แท่ง QC กำลังวิเคราะห์ ลากจาก QC รับตัวอย่าง ถึงเวลาปัจจุบันเมื่อยังไม่จบ", () => {
+    const result = model(petition({ qcReceivedAt: at(13, 9) }), [], [], [], new Date(2026, 6, 13, 12));
 
-  const resultAudit = (id: string, parameterId: string, itemSeq: number, createdAt: string, event: "resultEntered" | "resultUpdated" = "resultEntered"): PetitionAuditLogEntry => ({
-    _id: id,
-    petitionId: "petition-1",
-    petitionNo: "P-2607-001",
-    event,
-    actor: "Analyst",
-    metadata: { parameterId, itemSeq },
-    createdAt,
-  });
-
-  it("ลากแท่ง parameter จาก QC รับตัวอย่าง ถึงเวลาที่ใส่ค่า", () => {
-    const result = model(
-      petition({ qcReceivedAt: at(13, 9) }),
-      [requiredParameter],
-      [],
-      [resultAudit("audit-1", "parameter-1", 1, at(13, 11))],
-    );
-
-    expect(result.timeline.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({
-      label: "Required checks",
+    expect(result.timeline.rows.find((row) => row.key === "qc-analyzing")).toMatchObject({
+      label: "QC กำลังวิเคราะห์",
       kind: "bar",
       track: "qc",
+      startAt: at(13, 9),
+      endAt: at(13, 12),
+      done: false,
+    });
+  });
+
+  it("แท่ง QC กำลังวิเคราะห์ จบที่ QC บันทึกครบ", () => {
+    const result = model(petition({ qcReceivedAt: at(13, 9), qcCompletedAt: at(13, 11) }), [], [], [], new Date(2026, 6, 13, 12));
+
+    expect(result.timeline.rows.find((row) => row.key === "qc-analyzing")).toMatchObject({
       startAt: at(13, 9),
       endAt: at(13, 11),
       done: true,
     });
   });
 
-  it("ยืดแท่ง parameter ไปถึงการแก้ค่าครั้งล่าสุด", () => {
-    const result = model(
-      petition({ qcReceivedAt: at(13, 9) }),
-      [requiredParameter],
-      [],
-      [
-        resultAudit("audit-1", "parameter-1", 1, at(13, 11)),
-        resultAudit("audit-2", "parameter-1", 1, at(13, 13), "resultUpdated"),
-      ],
-    );
+  it("แท่ง Lab กำลังวิเคราะห์ เริ่มที่ Lab รับตัวอย่าง และจบที่ Lab บันทึกครบ", () => {
+    const labPetition = petition({
+      items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+      qcReceivedAt: at(13, 9),
+      labReceivedAt: at(13, 10),
+    });
 
-    expect(result.timeline.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({ endAt: at(13, 13) });
-  });
-
-  it("แถว parameter ฝั่ง Lab เริ่มที่ Lab รับตัวอย่าง", () => {
-    const result = model(
-      petition({
-        items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
-        qcReceivedAt: at(13, 9),
-        labReceivedAt: at(13, 10),
-      }),
-      [labParameter],
-      [],
-      [resultAudit("audit-1", "parameter-lab", 1, at(13, 14))],
-    );
-
-    expect(result.timeline.rows.find((row) => row.key === "param::parameter-lab")).toMatchObject({
+    const open = model(labPetition, [], [], [], new Date(2026, 6, 13, 12));
+    expect(open.timeline.rows.find((row) => row.key === "lab-analyzing")).toMatchObject({
+      label: "Lab กำลังวิเคราะห์",
       track: "lab",
       startAt: at(13, 10),
+      endAt: at(13, 12),
+      done: false,
+    });
+
+    const done = model(
+      petition({
+        items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+        qcReceivedAt: at(13, 9),
+        labReceivedAt: at(13, 10),
+        labCompletedAt: at(13, 14),
+      }),
+      [], [], [],
+      new Date(2026, 6, 13, 16),
+    );
+    expect(done.timeline.rows.find((row) => row.key === "lab-analyzing")).toMatchObject({
+      startAt: at(13, 10),
       endAt: at(13, 14),
+      done: true,
     });
   });
 
-  it("รวมหลายตัวอย่างเป็นแถวเดียว และไม่วาดแท่งจนกว่าจะใส่ค่าครบทุกตัวอย่าง", () => {
-    const twoItems = petition({
-      qcReceivedAt: at(13, 9),
-      items: [
-        { seq: 1, sampleName: "Sample A", batchNo: "BATCH-002", sampleId: "sample-1" },
-        { seq: 2, sampleName: "Sample B", batchNo: "BATCH-003", sampleId: "sample-2" },
-      ],
-    });
-
-    const partial = model(twoItems, [requiredParameter], [], [resultAudit("audit-1", "parameter-1", 1, at(13, 11))]);
-    const paramRows = partial.timeline.rows.filter((row) => row.key.startsWith("param::"));
-    expect(paramRows).toHaveLength(1);
-    expect(paramRows[0]).toMatchObject({ startAt: null, endAt: null, done: false });
-
-    const complete = model(twoItems, [requiredParameter], [], [
-      resultAudit("audit-1", "parameter-1", 1, at(13, 11)),
-      resultAudit("audit-2", "parameter-1", 2, at(13, 15)),
-    ]);
-    expect(complete.timeline.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({
-      startAt: at(13, 9),
-      endAt: at(13, 15),
-    });
-  });
-
-  it("ใช้เวลาจาก QCTestResult เมื่อคำร้องเก่ายังไม่มี audit log ระดับ field", () => {
+  it("ยังไม่รับตัวอย่าง → ไม่วาดแท่งวิเคราะห์ของฝั่งนั้น", () => {
     const result = model(
-      petition({ qcReceivedAt: at(13, 9) }),
-      [requiredParameter],
-      [],
-      [],
+      petition({
+        items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+        qcReceivedAt: at(13, 9),
+      }),
+      [], [], [],
       new Date(2026, 6, 13, 12),
-      [{ petitionId: "petition-1", itemSeq: 1, parameterId: "parameter-1", values: {}, enteredAt: at(13, 10), updatedAt: at(13, 12) }],
     );
 
-    expect(result.timeline.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({ endAt: at(13, 12) });
+    expect(result.timeline.rows.find((row) => row.key === "lab-analyzing")).toMatchObject({
+      startAt: null,
+      endAt: null,
+      done: false,
+    });
   });
 
-  it("ใช้เวลาจาก audit log เป็นหลัก แม้ QCTestResult จะมีเวลาใหม่กว่า", () => {
-    const result = model(
-      petition({ qcReceivedAt: at(13, 9) }),
-      [requiredParameter],
-      [],
-      [resultAudit("audit-1", "parameter-1", 1, at(13, 11))],
-      new Date(2026, 6, 13, 12),
-      [{ petitionId: "petition-1", itemSeq: 1, parameterId: "parameter-1", values: {}, enteredAt: at(13, 10), updatedAt: at(13, 14) }],
-    );
+  it("ไม่มีแถวราย parameter ใน timeline อีกต่อไป", () => {
+    const result = model(petition({ qcReceivedAt: at(13, 9) }), [requiredParameter], [], []);
 
-    expect(result.timeline.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({ endAt: at(13, 11) });
+    expect(result.timeline.rows.some((row) => row.key.startsWith("param::"))).toBe(false);
+    expect(result.tasks).toHaveLength(1);
   });
 
-  it("เรียงแถว: milestone → parameter QC → parameter Lab → ออกผล Lab → Final Result", () => {
+  it("เรียงแถว: ส่ง → QC รับ → มอบหมาย → Lab รับ → QC วิเคราะห์ → Lab วิเคราะห์ → Pre Result → Final Result", () => {
     const result = model(
       petition({
         items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
         qcReceivedAt: at(13, 9),
         labReceivedAt: at(13, 10),
       }),
-      [labParameter, requiredParameter],
       [],
       [],
     );
@@ -458,8 +416,8 @@ describe("buildTimelineDetailModel", () => {
       "received-qc",
       "assigned",
       "received-lab",
-      "param::parameter-1",
-      "param::parameter-lab",
+      "qc-analyzing",
+      "lab-analyzing",
       "pre-result",
       "final",
     ]);
@@ -470,7 +428,7 @@ describe("buildTimelineDetailModel", () => {
       petition({ qcReceivedAt: at(12, 10), qcCompletedAt: at(13, 9) }),
       [requiredParameter],
       [],
-      [resultAudit("audit-1", "parameter-1", 1, at(13, 11))],
+      [],
       new Date(2026, 6, 13, 12),
     );
 
@@ -481,15 +439,14 @@ describe("buildTimelineDetailModel", () => {
 
   it("ตัดแท่งที่กินข้ามวันให้พอดีหน้าต่างของแต่ละวัน พร้อมบอกว่าต่อเนื่อง", () => {
     const result = model(
-      petition({ qcReceivedAt: at(12, 10) }),
-      [requiredParameter],
+      petition({ qcReceivedAt: at(12, 10), qcCompletedAt: at(13, 11) }),
       [],
-      [resultAudit("audit-1", "parameter-1", 1, at(13, 11))],
+      [],
+      [],
       new Date(2026, 6, 13, 12),
     );
 
-    const firstDay = result.timeline.days[0]?.rows.find((row) => row.key === "param::parameter-1");
-    expect(firstDay).toMatchObject({
+    expect(result.timeline.days[0]?.rows.find((row) => row.key === "qc-analyzing")).toMatchObject({
       visible: true,
       segmentStartAt: at(12, 10),
       segmentEndAt: at(12, 17),
@@ -497,8 +454,7 @@ describe("buildTimelineDetailModel", () => {
       continuesAfter: true,
     });
 
-    const secondDay = result.timeline.days[1]?.rows.find((row) => row.key === "param::parameter-1");
-    expect(secondDay).toMatchObject({
+    expect(result.timeline.days[1]?.rows.find((row) => row.key === "qc-analyzing")).toMatchObject({
       visible: true,
       segmentStartAt: at(13, 8),
       segmentEndAt: at(13, 11),
@@ -508,9 +464,12 @@ describe("buildTimelineDetailModel", () => {
   });
 
   it("แถวที่ไม่มีแท่งหรือจุดในวันนั้น ได้ visible = false", () => {
-    const result = model(petition({ qcReceivedAt: at(13, 9) }), [requiredParameter], [], []);
+    const result = model(petition({
+      items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+      qcReceivedAt: at(13, 9),
+    }));
 
-    expect(result.timeline.days[0]?.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({
+    expect(result.timeline.days[0]?.rows.find((row) => row.key === "lab-analyzing")).toMatchObject({
       visible: false,
       segmentStartAt: null,
       segmentEndAt: null,
@@ -525,9 +484,7 @@ describe("buildTimelineDetailModel", () => {
     ],
   });
 
-  it("กรอง tasks และแถว parameter เหลือเฉพาะตัวอย่างที่เลือก", () => {
-    // สองพารามิเตอร์คนละตัว ผูกกับคนละสาร (ไม่ใช่ applyAll) เพื่อให้ unfiltered ได้ 2 แถว param::
-    // และ filtered (itemSeq=2) เหลือแค่แถวของสารที่เลือกจริง ๆ
+  it("กรอง tasks เหลือเฉพาะตัวอย่างที่เลือก โดยไม่มีผลกับแถว timeline", () => {
     const parameterForA: ParameterItem = {
       _id: "parameter-a",
       name: "Assay A",
@@ -553,8 +510,8 @@ describe("buildTimelineDetailModel", () => {
       ],
     };
 
-    const unfiltered = model(twoItemPetition(), [parameterForA, parameterForB], [], [], new Date(2026, 6, 13, 12), [], null);
-    expect(unfiltered.timeline.rows.filter((row) => row.key.startsWith("param::"))).toHaveLength(2);
+    const unfiltered = model(twoItemPetition(), [parameterForA, parameterForB], [], [], new Date(2026, 6, 13, 12), null);
+    expect(unfiltered.tasks).toHaveLength(2);
 
     const result = model(
       twoItemPetition(),
@@ -562,30 +519,11 @@ describe("buildTimelineDetailModel", () => {
       [{ itemSeq: 2, parameterId: "parameter-b", filledLabels: ["Viscosity"] }],
       [],
       new Date(2026, 6, 13, 12),
-      [],
       2,
     );
 
     expect(result.tasks).toMatchObject([{ key: "2::parameter-b", itemSeq: 2, sampleName: "Sample B", filled: 1, total: 2 }]);
-    expect(result.timeline.rows.filter((row) => row.key.startsWith("param::"))).toHaveLength(1);
-  });
-
-  it("วาดแท่ง parameter ของตัวอย่างที่เลือกทันที แม้ตัวอย่างอื่นยังไม่ได้กรอก", () => {
-    const auditLogs = [resultAudit("audit-1", "parameter-1", 1, at(13, 11))];
-
-    const first = model(twoItemPetition(), [requiredParameter], [], auditLogs, new Date(2026, 6, 13, 12), [], 1);
-    expect(first.timeline.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({
-      startAt: at(13, 9),
-      endAt: at(13, 11),
-      done: true,
-    });
-
-    const second = model(twoItemPetition(), [requiredParameter], [], auditLogs, new Date(2026, 6, 13, 12), [], 2);
-    expect(second.timeline.rows.find((row) => row.key === "param::parameter-1")).toMatchObject({
-      startAt: null,
-      endAt: null,
-      done: false,
-    });
+    expect(result.timeline.rows.map((row) => row.key)).toEqual(unfiltered.timeline.rows.map((row) => row.key));
   });
 
   it("progress เป็นของตัวอย่างที่เลือก ส่วน overallProgress รวมทุกตัวอย่าง", () => {
@@ -598,7 +536,6 @@ describe("buildTimelineDetailModel", () => {
       ],
       [],
       new Date(2026, 6, 13, 12),
-      [],
       1,
     );
 
@@ -606,9 +543,8 @@ describe("buildTimelineDetailModel", () => {
     expect(result.overallProgress).toEqual({ filled: 2, total: 4, percent: 50 });
   });
 
-  it("จุด milestone แท่งปิดงาน และแท็บวัน เหมือนกันทุกตัวอย่างที่เลือก", () => {
-    // batchNo ลงท้าย 1/6 → hasLabTrack จริง เพื่อให้แถวฝั่ง Lab (received-lab, assigned, lab-approved)
-    // ถูกสร้างขึ้นมาจริง ไม่ใช่แค่ mock ที่ไม่เคยเกิดแถว
+  it("แถว timeline และแท็บวัน เหมือนกันทุกตัวอย่างที่เลือก", () => {
+    // batchNo ลงท้าย 1/6 → hasLabTrack จริง เพื่อให้แถวฝั่ง Lab ถูกสร้างขึ้นมาจริง
     const labTrackPetition = () => petition({
       status: "approved",
       items: [
@@ -630,24 +566,23 @@ describe("buildTimelineDetailModel", () => {
       [],
       [],
       new Date(2026, 6, 13, 12),
-      [],
       itemSeq,
     );
 
-    const expectedStageRows = [
+    const expectedRows = [
       { key: "submitted", label: "ส่งตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 9), startAt: null, endAt: null, done: true },
       { key: "received-qc", label: "QC รับตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 9), startAt: null, endAt: null, done: true },
       { key: "assigned", label: "มอบหมายงาน Lab", kind: "milestone", track: "stage", at: at(13, 11), startAt: null, endAt: null, done: true },
       { key: "received-lab", label: "Lab รับตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 10), startAt: null, endAt: null, done: true },
+      { key: "qc-analyzing", label: "QC กำลังวิเคราะห์", kind: "bar", track: "qc", at: null, startAt: at(13, 9), endAt: at(13, 13), done: true },
+      { key: "lab-analyzing", label: "Lab กำลังวิเคราะห์", kind: "bar", track: "lab", at: null, startAt: at(13, 10), endAt: at(13, 14), done: true },
       { key: "pre-result", label: "Pre Result", kind: "bar", track: "lab", at: null, startAt: at(13, 14), endAt: at(13, 15), done: true },
       { key: "final", label: "Final Result", kind: "bar", track: "stage", at: null, startAt: at(13, 15), endAt: at(13, 16), done: true },
     ];
 
-    const stageRows = (itemSeq: number | null) => build(itemSeq).timeline.rows.filter((row) => !row.key.startsWith("param::"));
-
-    expect(stageRows(1)).toEqual(expectedStageRows);
-    expect(stageRows(2)).toEqual(expectedStageRows);
-    expect(stageRows(null)).toEqual(expectedStageRows);
+    expect(build(1).timeline.rows).toEqual(expectedRows);
+    expect(build(2).timeline.rows).toEqual(expectedRows);
+    expect(build(null).timeline.rows).toEqual(expectedRows);
     expect(build(1).timeline.days.map((day) => day.key)).toEqual(build(2).timeline.days.map((day) => day.key));
   });
 

@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { flushSync } from "react-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { toast } from "sonner";
-import { Activity, CalendarClock, ChevronDown, ChevronUp, Download, FileCheck2, FileText, ImageIcon, ListTodo, RefreshCw, UserRound } from "lucide-react";
+import { Activity, CalendarClock, ChevronDown, ChevronUp, FileCheck2, FileText, ImageIcon, ListTodo, Printer, RefreshCw, UserRound } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
+import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
 import PetitionPrintTemplate from "@/components/petition/PetitionPrintTemplate";
 import ResultReportPrintTemplate from "@/components/petition/ResultReportPrintTemplate";
 import SampleLabelPrintTemplate from "@/components/petition/SampleLabelPrintTemplate";
@@ -19,8 +18,6 @@ import { findSgParameter } from "@/lib/formSpecificGravity";
 import { buildTimelineDetailModel } from "@/lib/petitionTimelineDetail";
 import { canPrintPreReport } from "@/lib/petitionPrintability";
 import { canSeePetition, isLabRole, petitionHasLabReadableItem } from "@/lib/petitionVisibility";
-import { openPrintPdf } from "@/lib/print";
-import type { PrintDocType } from "@/lib/printConfig";
 import { normalizeRoles } from "@/lib/roles";
 import { petitionStatusBadge } from "@/lib/statusBadge";
 import { cn } from "@/lib/utils";
@@ -69,8 +66,6 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
   return <div className="min-w-0 border-l border-black-50 pl-4 first:border-l-0 first:pl-0"><p className="text-xs text-grey-500">{label}</p><p className="mt-1 truncate text-sm font-semibold text-black-500" title={value}>{value}</p>{hint && <p className="mt-1 text-xs text-grey-500">{hint}</p>}</div>;
 }
 
-type TimelineDocumentKey = "sample-label" | "service-request" | "pre-report" | "final-report";
-
 export default function PetitionTimelineDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -88,13 +83,12 @@ export default function PetitionTimelineDetailPage() {
   const [qcResults, setQcResults] = useState<import("@/types/petition.types").QCTestResult[]>([]);
   const [documentLoading, setDocumentLoading] = useState(false);
   const [documentError, setDocumentError] = useState<string | null>(null);
-  const [pdfLoadingDoc, setPdfLoadingDoc] = useState<TimelineDocumentKey | null>(null);
+  const [labelPrintOpen, setLabelPrintOpen] = useState(false);
+  const [servicePrintOpen, setServicePrintOpen] = useState(false);
+  const [preReportOpen, setPreReportOpen] = useState(false);
+  const [finalReportOpen, setFinalReportOpen] = useState(false);
   const [activeTimelineDayKey, setActiveTimelineDayKey] = useState<string | null>(null);
   const [activeItemSeq, setActiveItemSeq] = useState<number | null>(null);
-  const labelDocumentRef = useRef<HTMLDivElement>(null);
-  const serviceDocumentRef = useRef<HTMLDivElement>(null);
-  const preReportDocumentRef = useRef<HTMLDivElement>(null);
-  const finalReportDocumentRef = useRef<HTMLDivElement>(null);
   const documentLoadVersion = useRef(0);
   const documentLoadState = useRef<{ loaded: boolean; promise: Promise<boolean> | null }>({ loaded: false, promise: null });
   const petitionId = petition?._id;
@@ -132,7 +126,10 @@ export default function PetitionTimelineDetailPage() {
   }, [petition?._id, taskReloadKey]);
 
   useEffect(() => {
-    setPdfLoadingDoc(null);
+    setLabelPrintOpen(false);
+    setServicePrintOpen(false);
+    setPreReportOpen(false);
+    setFinalReportOpen(false);
     setActiveTimelineDayKey(null);
     setActiveItemSeq(null);
   }, [id]);
@@ -157,9 +154,9 @@ export default function PetitionTimelineDetailPage() {
 
   const model = useMemo(
     () => petition && canViewPetition
-      ? buildTimelineDetailModel({ petition, parameters: visibleParameters, progressEntries, auditLogs, qcResults, itemGroupIds: groupMembership, itemSeq: selectedItemSeq })
+      ? buildTimelineDetailModel({ petition, parameters: visibleParameters, progressEntries, auditLogs, itemGroupIds: groupMembership, itemSeq: selectedItemSeq })
       : null,
-    [auditLogs, canViewPetition, groupMembership, petition, progressEntries, qcResults, selectedItemSeq, visibleParameters],
+    [auditLogs, canViewPetition, groupMembership, petition, progressEntries, selectedItemSeq, visibleParameters],
   );
 
   const loadDocumentData = useCallback(async (): Promise<boolean> => {
@@ -248,23 +245,8 @@ export default function PetitionTimelineDetailPage() {
     refreshTasks();
   }
 
-  function printableElement(ref: RefObject<HTMLDivElement>): HTMLElement | null {
-    return ref.current;
-  }
-
-  async function openDocumentPdf(key: TimelineDocumentKey, docType: PrintDocType, ref: RefObject<HTMLDivElement>, fileName: string) {
-    flushSync(() => setPdfLoadingDoc(key));
-    setDocumentError(null);
-    try {
-      if (!(await loadDocumentData())) return;
-      await openPrintPdf(docType, printableElement(ref), { fileName });
-    } catch (pdfError: unknown) {
-      const message = pdfError instanceof Error ? pdfError.message : "เปิด PDF ไม่สำเร็จ";
-      setDocumentError(message);
-      toast.error(message);
-    } finally {
-      setPdfLoadingDoc(null);
-    }
+  async function openDocument(setOpen: (open: boolean) => void) {
+    if (await loadDocumentData()) setOpen(true);
   }
 
   return <AppLayout title={`Timeline ${petition.petitionNo}`}><div className="space-y-4">
@@ -299,9 +281,9 @@ export default function PetitionTimelineDetailPage() {
 
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px] 2xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-4">
-        <Card aria-label="Project Timeline" className="border-black-50 shadow-none">
+        <Card aria-label="petition timeline" className="border-black-50 shadow-none">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base"><CalendarClock className="h-4 w-4 text-primary-500" />Project Timeline</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base"><CalendarClock className="h-4 w-4 text-primary-500" />Petition Timeline</CardTitle>
           </CardHeader>
           <CardContent>
             {timelineDays.length > 1 && <div role="tablist" aria-label="Timeline days" className="mb-3 flex flex-wrap gap-2">{timelineDays.map((day) => <button key={day.key} type="button" role="tab" aria-selected={day.key === activeTimelineDay.key} className={cn("rounded-[8px] border px-3 py-1.5 text-xs font-medium transition-colors", day.key === activeTimelineDay.key ? "border-primary-500 bg-primary-50 text-primary-600" : "border-black-50 bg-white text-grey-600 hover:bg-grey-50")} onClick={() => setActiveTimelineDayKey(day.key)}>{day.label}</button>)}</div>}
@@ -338,21 +320,19 @@ export default function PetitionTimelineDetailPage() {
       </CardContent></Card>
 
       <Card aria-label="Documents" className="border-black-50 shadow-none"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4 text-primary-500" />Documents</CardTitle></CardHeader><CardContent className="space-y-2">
-        <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading || pdfLoadingDoc !== null} onClick={() => { void openDocumentPdf("sample-label", "sample-label", labelDocumentRef, `${petition.petitionNo}-sample-label.pdf`); }}><Download className="h-4 w-4" />ป้ายนำส่งตัวอย่าง</Button>
-        {(labRequests?.length ?? 0) > 0 && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading || pdfLoadingDoc !== null} onClick={() => { void openDocumentPdf("service-request", "service-request", serviceDocumentRef, `${petition.petitionNo}-service-request.pdf`); }}><Download className="h-4 w-4" />ใบคำขอรับบริการ</Button>}
-        {canShowPreReport && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading || pdfLoadingDoc !== null} onClick={() => { void openDocumentPdf("pre-report", "coa", preReportDocumentRef, `${petition.petitionNo}-pre-report.pdf`); }}><Download className="h-4 w-4" />Pre Report</Button>}
-        {petition.status === "approved" && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading || pdfLoadingDoc !== null} onClick={() => { void openDocumentPdf("final-report", "coa", finalReportDocumentRef, `${petition.petitionNo}-final-report.pdf`); }}><FileCheck2 className="h-4 w-4" />Final Report</Button>}
+        <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading} onClick={() => { void openDocument(setLabelPrintOpen); }}><Printer className="h-4 w-4" />ป้ายนำส่งตัวอย่าง</Button>
+        {(labRequests?.length ?? 0) > 0 && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading} onClick={() => { void openDocument(setServicePrintOpen); }}><FileText className="h-4 w-4" />ใบคำขอรับบริการ</Button>}
+        {canShowPreReport && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading} onClick={() => { void openDocument(setPreReportOpen); }}><FileText className="h-4 w-4" />Pre Report</Button>}
+        {petition.status === "approved" && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading} onClick={() => { void openDocument(setFinalReportOpen); }}><FileCheck2 className="h-4 w-4" />Final Report</Button>}
         {documentLoading && <p className="text-xs text-grey-500">กำลังโหลดข้อมูลเอกสาร...</p>}
         {documentError && <p className="text-xs text-red-600">โหลดข้อมูลเอกสารไม่สำเร็จ: {documentError}</p>}
       </CardContent></Card>
       </div>
     </div>
 
-    {pdfLoadingDoc && <div className="fixed left-[-10000px] top-0 opacity-0 pointer-events-none" aria-hidden="true">
-      {pdfLoadingDoc === "sample-label" && <div ref={labelDocumentRef}><SampleLabelPrintTemplate petition={petition} /></div>}
-      {pdfLoadingDoc === "service-request" && labRequests?.[0] && <div ref={serviceDocumentRef}><PetitionPrintTemplate labRequest={labRequests[0]} petition={petition} qcResults={qcResults} sgParam={sgParameter} /></div>}
-      {pdfLoadingDoc === "pre-report" && <div ref={preReportDocumentRef}><ResultReportPrintTemplate kind="pre" petition={petition} labRequests={labRequests ?? []} qcResults={qcResults} /></div>}
-      {pdfLoadingDoc === "final-report" && <div ref={finalReportDocumentRef}><ResultReportPrintTemplate kind="final" petition={petition} labRequests={labRequests ?? []} qcResults={qcResults} /></div>}
-    </div>}
+    {labelPrintOpen && <PrintPreviewDialog open={labelPrintOpen} onOpenChange={setLabelPrintOpen} docType="sample-label"><SampleLabelPrintTemplate petition={petition} /></PrintPreviewDialog>}
+    {servicePrintOpen && labRequests?.[0] && <PrintPreviewDialog open={servicePrintOpen} onOpenChange={setServicePrintOpen} docType="service-request"><PetitionPrintTemplate labRequest={labRequests[0]} petition={petition} qcResults={qcResults} sgParam={sgParameter} /></PrintPreviewDialog>}
+    {preReportOpen && <PrintPreviewDialog open={preReportOpen} onOpenChange={setPreReportOpen} docType="coa"><ResultReportPrintTemplate kind="pre" petition={petition} labRequests={labRequests ?? []} qcResults={qcResults} /></PrintPreviewDialog>}
+    {finalReportOpen && <PrintPreviewDialog open={finalReportOpen} onOpenChange={setFinalReportOpen} docType="coa"><ResultReportPrintTemplate kind="final" petition={petition} labRequests={labRequests ?? []} qcResults={qcResults} /></PrintPreviewDialog>}
   </div></AppLayout>;
 }
