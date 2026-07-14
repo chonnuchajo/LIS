@@ -114,12 +114,15 @@ export type TimelineDetailHeader = {
 ### แกนเวลา
 
 ```ts
-const timelineEndAt = latestValidDate(header.endAt, now.toISOString());
+const timelineEndAt = header.endKind === "actual"
+  ? header.endAt
+  : latestValidDate(header.endAt, now.toISOString())!;
 ```
 
 `timeline.endAt` / `buildTicks()` / `buildTimelineDays()` ใช้ `timelineEndAt` (ไม่ใช่ `header.endAt` ตรง ๆ)
 
 **เหตุผล**: แท่งที่ยังทำอยู่ลากถึง "ตอนนี้" — ถ้างานเลยกำหนดแล้ว (`overdue`) แล้วแกนจบที่ค่าคาดการณ์ในอดีต แท่งจะทะลุขอบขวา
+**เหตุผลที่ยกเว้น `actual`**: คำขอที่ปิดไปแล้วต้องจบแกนที่เวลาจริง — ถ้า clamp ด้วย `now` ด้วย กราฟของงานที่ปิดไปเมื่อเดือนก่อนจะถูกลากมาถึงวันนี้
 **ผลข้างเคียงที่ยอมรับ**: แท็บวันในอนาคต (ที่ยังไม่มีกิจกรรม) จะโผล่มา — ตั้งใจให้เห็นเป้าหมายบนกราฟ
 
 ## UI — `PetitionTimelineDetailPage.tsx` (Metric ปัจจุบันบรรทัด 410)
