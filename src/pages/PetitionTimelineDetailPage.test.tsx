@@ -227,6 +227,19 @@ describe("PetitionTimelineDetailPage", () => {
     expect(Array.from(timelineCard.querySelectorAll("[class]")).some((node) => (node.getAttribute("class") ?? "").includes("min-w-[760px]"))).toBe(false);
   });
 
+  it("adds a moving glow marker to timeline bars that are still in progress", async () => {
+    renderDetail();
+
+    const timelineCard = await screen.findByLabelText("petition timeline");
+    const activeBar = Array.from(timelineCard.querySelectorAll("[aria-label]")).find((node) =>
+      node.getAttribute("aria-label")?.includes("(ช่วงเวลา)") && node.classList.contains("rounded-r-none"),
+    );
+
+    expect(activeBar).toHaveClass("timeline-active-bar");
+    expect(activeBar).toHaveClass("shadow-[0_0_14px_rgba(59,130,246,0.35)]");
+    expect(activeBar).toHaveClass("after:animate-[timeline-shimmer_1.4s_linear_infinite]");
+  });
+
   it("reduces dense timeline tick labels before the wide desktop breakpoint", async () => {
     renderDetail();
 
@@ -283,7 +296,7 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.getByText("13:18")).toHaveClass("right-1");
   });
 
-  it("hides most overview tick labels and lines across long multi-day timelines", async () => {
+  it("omits inactive overview tick labels and lines across long multi-day timelines", async () => {
     Object.assign(mocks.petition, {
       status: "success",
       submittedBy: { name: "Requester", submittedAt: "2026-06-24T01:00:00.000Z" },
@@ -295,10 +308,8 @@ describe("PetitionTimelineDetailPage", () => {
 
     expect(await screen.findByRole("tab", { name: "ภาพรวม" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("24 มิ.ย. 08:00")).not.toHaveClass("hidden");
-    expect(screen.getByText("25 มิ.ย. 08:00")).toHaveClass("hidden");
-    expect(screen.getByText("25 มิ.ย. 08:00").closest("div")).toHaveClass("hidden");
-    expect(screen.getByText("01 ก.ค. 08:00")).toHaveClass("hidden");
-    expect(screen.getByText("01 ก.ค. 08:00").closest("div")).toHaveClass("hidden");
+    expect(screen.queryByText("25 มิ.ย. 08:00")).not.toBeInTheDocument();
+    expect(screen.getByText("01 ก.ค. 08:00")).not.toHaveClass("hidden");
     expect(screen.getByText("16:39")).not.toHaveClass("hidden");
   });
 
@@ -317,6 +328,21 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.queryByText("27 มิ.ย. 08:00")).not.toBeInTheDocument();
     expect(screen.queryByText("30 มิ.ย. 08:00")).not.toBeInTheDocument();
     expect(screen.getByText("02 ก.ค. 08:00")).toBeInTheDocument();
+  });
+
+  it("stacks the final overview time under a same-day day tick so labels do not overlap", async () => {
+    Object.assign(mocks.petition, {
+      status: "success",
+      submittedBy: { name: "Requester", submittedAt: "2026-06-24T01:00:00.000Z" },
+      createdAt: "2026-06-24T01:00:00.000Z",
+      qcReceivedAt: "2026-06-24T01:00:00.000Z",
+      qcCompletedAt: "2026-07-02T09:39:00.000Z",
+    });
+    renderDetail();
+
+    expect(await screen.findByRole("tab", { name: "ภาพรวม" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("02 ก.ค. 08:00")).toHaveClass("top-0");
+    expect(screen.getByText("16:39")).toHaveClass("top-4");
   });
 
   it("retries activity loading without blanking header and task panels", async () => {

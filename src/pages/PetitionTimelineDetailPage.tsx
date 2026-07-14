@@ -15,7 +15,7 @@ import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { useLabRequestsByPetition, usePetition, usePetitionAuditLog } from "@/hooks/usePetition";
 import { api, type ParameterItem, type QCProgressEntry } from "@/lib/api";
 import { findSgParameter } from "@/lib/formSpecificGravity";
-import { buildTimelineDetailModel } from "@/lib/petitionTimelineDetail";
+import { buildTimelineDetailModel, type TimelineDetailRow, type TimelineDetailTick } from "@/lib/petitionTimelineDetail";
 import { timelineBarClass, timelineDotClass } from "@/lib/petitionTimelineColors";
 import { canPrintPreReport } from "@/lib/petitionPrintability";
 import { canSeePetition, isLabRole, petitionHasLabReadableItem } from "@/lib/petitionVisibility";
@@ -73,6 +73,67 @@ function timelineTickLineClass(index: number, total: number, overview: boolean) 
 
 function timelineTickPositionClass(left: number, overview: boolean) {
   return left > (overview ? 80 : 92) ? "right-1" : "left-1";
+}
+
+function timelineTickTopClass(ticks: TimelineDetailTick[], index: number, overview: boolean) {
+  if (!overview || index === 0) return "top-0";
+  const current = validTimelineDate(ticks[index]?.at);
+  const previous = validTimelineDate(ticks[index - 1]?.at);
+  if (current && previous && current.toDateString() === previous.toDateString()) return "top-4";
+  return "top-0";
+}
+
+function localWorkdayStart(value: Date) {
+  const result = new Date(value);
+  result.setHours(8, 0, 0, 0);
+  return result;
+}
+
+function formatOverviewDayTick(value: Date) {
+  return value.toLocaleDateString("th-TH", { day: "2-digit", month: "short" }) + " 08:00";
+}
+
+function formatOverviewHourTick(value: Date) {
+  return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
+}
+
+function validTimelineDate(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function buildOverviewTicks(rows: TimelineDetailRow[], timelineEndAt: string, includeExactEnd: boolean): TimelineDetailTick[] {
+  const actionTimes: Date[] = [];
+  for (const row of rows) {
+    if (row.kind === "milestone") {
+      const at = validTimelineDate(row.at);
+      if (at) actionTimes.push(at);
+      continue;
+    }
+    const startAt = validTimelineDate(row.startAt);
+    const endAt = row.done ? validTimelineDate(row.endAt) : null;
+    if (startAt) actionTimes.push(startAt);
+    if (endAt) actionTimes.push(endAt);
+  }
+
+  const ticks = new Map<string, TimelineDetailTick>();
+  for (const actionTime of actionTimes) {
+    const dayStart = localWorkdayStart(actionTime);
+    const key = dayStart.toISOString();
+    ticks.set(key, { key, at: key, label: formatOverviewDayTick(dayStart) });
+  }
+
+  const end = validTimelineDate(timelineEndAt);
+  const hasExactEndAction = end && actionTimes.some((actionTime) => actionTime.getTime() === end.getTime());
+  if (includeExactEnd && end && hasExactEndAction) {
+    const dayStart = localWorkdayStart(end);
+    if (end.getTime() !== dayStart.getTime()) {
+      ticks.set(timelineEndAt, { key: timelineEndAt, at: timelineEndAt, label: formatOverviewHourTick(end) });
+    }
+  }
+
+  return [...ticks.values()].sort((left, right) => new Date(left.at).getTime() - new Date(right.at).getTime());
 }
 
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -263,7 +324,7 @@ export default function PetitionTimelineDetailPage() {
         label: "ภาพรวม",
         startAt: model.timeline.startAt,
         endAt: model.timeline.endAt,
-        ticks: model.timeline.ticks,
+        ticks: buildOverviewTicks(model.timeline.rows, model.timeline.endAt, model.header.endKind === "actual"),
         rows: model.timeline.rows.map((row) => ({
           ...row,
           visible: true,
@@ -292,6 +353,7 @@ export default function PetitionTimelineDetailPage() {
   }
 
   return <AppLayout title={`Timeline ${petition.petitionNo}`}><div className="space-y-4">
+    <style>{`@keyframes timeline-shimmer{0%{transform:translateX(-120%)}100%{transform:translateX(220%)}}`}</style>
     <PageHeader title="" onBack={() => navigate("/petition-timeline")} actions={<Button variant="primary-outline" size="sm" onClick={refreshTimeline}><RefreshCw className="h-4 w-4" />รีเฟรช</Button>} />
 
     {model.items.length > 1 && <div role="tablist" aria-label="ตัวอย่างในคำขอ" className="flex flex-wrap gap-2">
@@ -332,11 +394,11 @@ export default function PetitionTimelineDetailPage() {
             <div className="space-y-3">
               <div className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-end gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3">
                 <div aria-hidden="true" />
-                <div className="relative min-w-0 border-b border-black-50 pb-5 text-xs text-grey-500">
+                <div className={cn("relative min-w-0 border-b border-black-50 text-xs text-grey-500", activeTimelineDay.key === "overview" ? "pb-9" : "pb-5")}>
                   {activeTimelineDay.ticks.map((tick, index) => {
                     const left = timelinePercent(tick.at, activeTimelineDay.startAt, activeTimelineDay.endAt);
                     const isOverview = activeTimelineDay.key === "overview";
-                    return left == null ? null : <div key={tick.key} className={cn("absolute top-0 h-full", timelineTickLineClass(index, activeTimelineDay.ticks.length, isOverview))} style={{ left: `${left}%` }}><span className={cn("absolute top-0 whitespace-nowrap", timelineTickPositionClass(left, isOverview), timelineTickVisibilityClass(index, activeTimelineDay.ticks.length, isOverview))}>{tick.label}</span></div>;
+                    return left == null ? null : <div key={tick.key} className={cn("absolute top-0 h-full", timelineTickLineClass(index, activeTimelineDay.ticks.length, isOverview))} style={{ left: `${left}%` }}><span className={cn("absolute whitespace-nowrap", timelineTickTopClass(activeTimelineDay.ticks, index, isOverview), timelineTickPositionClass(left, isOverview), timelineTickVisibilityClass(index, activeTimelineDay.ticks.length, isOverview))}>{tick.label}</span></div>;
                   })}
                 </div>
               </div>
@@ -345,7 +407,7 @@ export default function PetitionTimelineDetailPage() {
                 const start = row.visible && row.kind === "bar" ? timelinePercent(row.segmentStartAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const end = row.visible && row.kind === "bar" ? timelinePercent(row.segmentEndAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const width = start != null && end != null ? Math.max(1, end - start) : null;
-                return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", timelineDotClass(row.key, { done: row.done }))} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={row.continuesBefore || row.continuesAfter ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", timelineBarClass(row.key, { done: row.done, rejected: petition.status === "rejected" }), row.continuesBefore && "rounded-l-none", !row.done && "rounded-r-none")} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
+                return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", timelineDotClass(row.key, { done: row.done, rejected: petition.status === "rejected" }))} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={row.continuesBefore || row.continuesAfter ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", timelineBarClass(row.key, { done: row.done, rejected: petition.status === "rejected" }), row.continuesBefore && "rounded-l-none", !row.done && "rounded-r-none timeline-active-bar overflow-hidden shadow-[0_0_14px_rgba(59,130,246,0.35)] after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-1/2 after:rounded-full after:bg-gradient-to-r after:from-transparent after:via-white/70 after:to-transparent after:content-[''] after:animate-[timeline-shimmer_1.4s_linear_infinite]")} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
               })}
             </div>
           </CardContent>
