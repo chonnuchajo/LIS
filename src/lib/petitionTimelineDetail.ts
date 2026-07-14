@@ -1,5 +1,6 @@
 import type { ParameterItem, QCProgressEntry } from "@/lib/api";
 import { expandFieldForItem } from "@/lib/parameterValidation";
+import { estimatePetitionEnd } from "@/lib/petitionEstimate";
 import { getPetitionCategory, matchParametersForItem } from "@/lib/petitionTestItems";
 import { hasLabTrack } from "@/lib/statusBadge";
 import { PETITION_STATUS_CONFIG, type Petition, type PetitionAuditLogEntry, type PetitionStatus } from "@/types/petition.types";
@@ -48,7 +49,8 @@ export type TimelineDetailHeader = {
   startAt: string;
   startKind: "received" | "submitted";
   endAt: string;
-  endKind: "actual" | "estimated" | "ongoing";
+  endKind: "actual" | "estimated" | "unreceived";
+  overdue: boolean;
 };
 export type TimelineDetailItemTab = {
   seq: number;
@@ -126,18 +128,24 @@ function localDayKey(value: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function buildHeaderTiming(startAt: string, actualEndAt: string | null, status: PetitionStatus, now: Date): TimelineDetailHeader {
-  const start = new Date(startAt);
-  if (actualEndAt && FINISHED_STATUSES.has(status)) {
-    return { startAt, startKind: "received", endAt: actualEndAt, endKind: "actual" };
+function buildHeaderTiming(
+  petition: Petition,
+  startAt: string,
+  actualEndAt: string | null,
+  qcTaskCount: number,
+  now: Date,
+): TimelineDetailHeader {
+  if (actualEndAt && FINISHED_STATUSES.has(petition.status)) {
+    return { startAt, startKind: "received", endAt: actualEndAt, endKind: "actual", overdue: false };
   }
-  if (isSameLocalDay(start, now)) {
-    // ค่าประมาณ = เลิกงาน 17:00 ของวันนั้น แต่ห้ามย้อนไปก่อนเวลาเริ่มหรือก่อนตอนนี้
-    // (คำร้องที่รับตอน 19:14 แล้วเปิดดู 19:30 จะได้ช่วงกลับหัว Start 19:14 / End 17:00)
-    const estimatedEnd = Math.max(atHour(start, WORK_END_HOUR).getTime(), now.getTime());
-    return { startAt, startKind: "received", endAt: new Date(estimatedEnd).toISOString(), endKind: "estimated" };
-  }
-  return { startAt, startKind: "received", endAt: now.toISOString(), endKind: "ongoing" };
+  const estimate = estimatePetitionEnd({ petition, qcTaskCount, now });
+  return {
+    startAt,
+    startKind: "received",
+    endAt: estimate.at,
+    endKind: estimate.kind,
+    overdue: estimate.kind === "estimated" && new Date(estimate.at).getTime() < now.getTime(),
+  };
 }
 
 function buildTicks(startAt: string, endAt: string): TimelineDetailTick[] {
@@ -522,8 +530,12 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
     input.petition.labCompletedAt,
     input.petition.qcCompletedAt,
   );
-  const header = buildHeaderTiming(startAt, actualEndAt, input.petition.status, now);
   const allTasks = buildRequiredTasks(input.petition, input.parameters, input.progressEntries, input.itemGroupIds);
+  const header = buildHeaderTiming(input.petition, startAt, actualEndAt, allTasks.length, now);
+  // คำขอที่ปิดแล้วจบแกนที่เวลาจริง; ที่ยังเปิดอยู่ต้องลากอย่างน้อยถึง now (แท่ง in-progress ลากถึง now)
+  const timelineEndAt = header.endKind === "actual"
+    ? header.endAt
+    : latestValidDate(header.endAt, now.toISOString())!;
   const tasks = input.itemSeq == null ? allTasks : allTasks.filter((task) => task.itemSeq === input.itemSeq);
   const allFields = taskFieldTotals(allTasks);
   const finalResultDone = input.petition.status === "approved";
@@ -542,10 +554,10 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
     activities: normalizeTimelineActivities(input.auditLogs),
     timeline: {
       startAt: atHour(new Date(timelineStartAt), WORK_START_HOUR).toISOString(),
-      endAt: header.endAt,
-      ticks: buildTicks(timelineStartAt, header.endAt),
+      endAt: timelineEndAt,
+      ticks: buildTicks(timelineStartAt, timelineEndAt),
       rows,
-      days: buildTimelineDays(timelineStartAt, header.endAt, rows, now),
+      days: buildTimelineDays(timelineStartAt, timelineEndAt, rows, now),
     },
   };
 }
