@@ -15,12 +15,12 @@ import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { useLabRequestsByPetition, usePetition, usePetitionAuditLog } from "@/hooks/usePetition";
 import { api, type ParameterItem, type QCProgressEntry } from "@/lib/api";
 import { findSgParameter } from "@/lib/formSpecificGravity";
-import { buildTimelineDetailModel, type TimelineDetailRow, type TimelineDetailTick } from "@/lib/petitionTimelineDetail";
+import { buildTimelineDetailModel, type TimelineDetailDayRow, type TimelineDetailRow, type TimelineDetailTick } from "@/lib/petitionTimelineDetail";
 import { timelineBarClass, timelineDotClass } from "@/lib/petitionTimelineColors";
 import { canPrintPreReport } from "@/lib/petitionPrintability";
 import { canSeePetition, isLabRole, petitionHasLabReadableItem } from "@/lib/petitionVisibility";
 import { normalizeRoles } from "@/lib/roles";
-import { petitionStatusBadge } from "@/lib/statusBadge";
+import { hasLabTrack, petitionStatusBadge } from "@/lib/statusBadge";
 import { cn } from "@/lib/utils";
 
 function formatDateTime(value: string) {
@@ -134,6 +134,28 @@ function buildOverviewTicks(rows: TimelineDetailRow[], timelineEndAt: string, in
   }
 
   return [...ticks.values()].sort((left, right) => new Date(left.at).getTime() - new Date(right.at).getTime());
+}
+
+// แท่งที่ "กำลังทำอยู่" เท่านั้นที่วิ่ง shimmer — เงาเป็นสีกลาง ไม่ย้อมทับสีประจำแถวของแต่ละด่าน
+const ACTIVE_BAR_CLASS = "overflow-hidden shadow-[0_0_10px_rgba(0,0,0,0.18)] after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-1/2 after:rounded-full after:bg-gradient-to-r after:from-transparent after:via-white/70 after:to-transparent after:content-[''] after:animate-[timeline-shimmer_1.4s_linear_infinite]";
+
+function isSameCalendarDay(left: Date, right: Date) {
+  return left.toDateString() === right.toDateString();
+}
+
+// แท่งถูกตัดที่ขอบหน้าต่างของวัน ซึ่งอาจเป็นแค่ขอบเวลาทำการ (17:00) ของวันเดียวกัน —
+// จะบอกว่า "ต่อเนื่องข้ามวัน" ได้ต่อเมื่อปลายจริงของแท่งอยู่คนละวันปฏิทินกับแท็บที่กำลังดู
+function continuesAcrossCalendarDay(row: TimelineDetailDayRow, dayStartAt: string) {
+  const day = validTimelineDate(dayStartAt);
+  if (!day) return false;
+  const start = validTimelineDate(row.startAt);
+  const end = validTimelineDate(row.endAt);
+  return (row.continuesBefore && !!start && !isSameCalendarDay(start, day))
+    || (row.continuesAfter && !!end && !isSameCalendarDay(end, day));
+}
+
+function earliestIso(values: string[]) {
+  return values.reduce((earliest, value) => (new Date(value).getTime() < new Date(earliest).getTime() ? value : earliest));
 }
 
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -293,12 +315,18 @@ export default function PetitionTimelineDetailPage() {
   }
 
   const statusBadge = petitionStatusBadge(petition);
+  // คำร้องที่ปิดแล้ว: แท่งที่ไม่มีเวลาจบคือ "รูข้อมูล" ไม่ใช่งานที่ยังวิ่งอยู่ — ห้ามเรืองแสง/วิ่ง shimmer
+  const petitionClosed = petition.status === "approved" || petition.status === "rejected";
   const activities = showAllActivities ? model.activities : model.activities.slice(0, 5);
   const progressLabel = model.progress.percent == null ? "-" : `${model.progress.percent}%`;
   const sgParameter = findSgParameter(parameters);
+  // Pre Report ต้องมีผลบันทึกครบทุก track ที่คำร้องนี้มีจริง
+  // - มี Lab track: ต้องมีทั้ง qcCompletedAt และ labCompletedAt
+  // - ไม่มี Lab track: labCompletedAt ไม่มีวันถูกเขียน (server เขียนเฉพาะตอน Lab บันทึกผล) —
+  //   สัญญาณ "ครบ" ของคำร้องแบบนี้คือ qcCompletedAt แล้ว server flip status เป็น success ทันที (isPetitionComplete)
   const canShowPreReport = canPrintPreReport(petition)
     && Boolean(petition.qcCompletedAt)
-    && Boolean(petition.labCompletedAt);
+    && (hasLabTrack(petition) ? Boolean(petition.labCompletedAt) : petition.status === "success");
   const activeItem = model.items.find((item) => item.seq === selectedItemSeq) ?? null;
   const responsibleName = petition.assignedTo?.name || "ยังไม่มอบหมาย";
   const timelineDays = model.timeline.days.length
@@ -318,11 +346,14 @@ export default function PetitionTimelineDetailPage() {
           continuesAfter: false,
         })),
       }];
+  // แกนของแท็บภาพรวมต้องขยายแบบเดียวกับหน้าต่างของแต่ละวัน — ไม่งั้นกิจกรรมก่อน 08:00
+  // (เช่นเริ่ม 06:30) จะถูกหนีบเป็น 0% ไปกองที่ขอบซ้าย
+  const overviewStartAt = earliestIso([model.timeline.startAt, ...timelineDays.map((day) => day.startAt)]);
   const timelineTabs = timelineDays.length > 1
     ? [{
         key: "overview",
         label: "ภาพรวม",
-        startAt: model.timeline.startAt,
+        startAt: overviewStartAt,
         endAt: model.timeline.endAt,
         ticks: buildOverviewTicks(model.timeline.rows, model.timeline.endAt, model.header.endKind === "actual"),
         rows: model.timeline.rows.map((row) => ({
@@ -407,7 +438,9 @@ export default function PetitionTimelineDetailPage() {
                 const start = row.visible && row.kind === "bar" ? timelinePercent(row.segmentStartAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const end = row.visible && row.kind === "bar" ? timelinePercent(row.segmentEndAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const width = start != null && end != null ? Math.max(1, end - start) : null;
-                return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", timelineDotClass(row.key, { done: row.done, rejected: petition.status === "rejected" }))} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={row.continuesBefore || row.continuesAfter ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", timelineBarClass(row.key, { done: row.done, rejected: petition.status === "rejected" }), row.continuesBefore && "rounded-l-none", !row.done && "rounded-r-none timeline-active-bar overflow-hidden shadow-[0_0_14px_rgba(59,130,246,0.35)] after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-1/2 after:rounded-full after:bg-gradient-to-r after:from-transparent after:via-white/70 after:to-transparent after:content-[''] after:animate-[timeline-shimmer_1.4s_linear_infinite]")} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
+                // แท่งจะ "กำลังทำอยู่" ได้ก็ต่อเมื่อคำร้องยังไม่ปิด — ปลายขวาตรง/สีอ่อนยังคงอยู่ทุกกรณีที่ไม่มีเวลาจบ
+                const active = !row.done && !petitionClosed;
+                return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", timelineDotClass(row.key, { done: row.done, rejected: petition.status === "rejected" }))} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={continuesAcrossCalendarDay(row, activeTimelineDay.startAt) ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", timelineBarClass(row.key, { done: row.done, rejected: petition.status === "rejected" }), row.continuesBefore && "rounded-l-none", !row.done && "rounded-r-none", active && ACTIVE_BAR_CLASS)} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
               })}
             </div>
           </CardContent>

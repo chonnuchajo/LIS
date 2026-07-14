@@ -7,6 +7,11 @@ import type { Petition, PetitionAuditLogEntry } from "@/types/petition.types";
 import PetitionTimelineDetailPage from "./PetitionTimelineDetailPage";
 
 const at = (hour: number, minute = 0) => new Date(2026, 6, 13, hour, minute).toISOString();
+const atDay = (day: number, hour: number, minute = 0) => new Date(2026, 6, day, hour, minute).toISOString();
+
+// เอฟเฟกต์ของแท่งที่ "กำลังทำอยู่จริง" — เงาเป็นสีกลาง (ไม่ย้อมทับสีประจำแถว) + shimmer วิ่ง
+const ACTIVE_GLOW_CLASS = "shadow-[0_0_10px_rgba(0,0,0,0.18)]";
+const ACTIVE_SHIMMER_CLASS = "after:animate-[timeline-shimmer_1.4s_linear_infinite]";
 
 const mocks = vi.hoisted(() => {
   const petition: Petition = {
@@ -235,9 +240,63 @@ describe("PetitionTimelineDetailPage", () => {
       node.getAttribute("aria-label")?.includes("(ช่วงเวลา)") && node.classList.contains("rounded-r-none"),
     );
 
-    expect(activeBar).toHaveClass("timeline-active-bar");
-    expect(activeBar).toHaveClass("shadow-[0_0_14px_rgba(59,130,246,0.35)]");
-    expect(activeBar).toHaveClass("after:animate-[timeline-shimmer_1.4s_linear_infinite]");
+    // ต้อง assert เฉพาะ class ที่มีผลจริง (Tailwind สร้าง CSS ให้) ไม่ใช่ marker class ลอย ๆ
+    expect(activeBar).toHaveClass("overflow-hidden");
+    expect(activeBar).toHaveClass("after:bg-gradient-to-r");
+    expect(activeBar).toHaveClass(ACTIVE_SHIMMER_CLASS);
+    expect(activeBar).toHaveClass(ACTIVE_GLOW_CLASS);
+    expect(activeBar).not.toHaveClass("timeline-active-bar");
+    // เงาต้องเป็นสีกลาง ไม่ใช่น้ำเงินย้อมทับสีประจำแถว
+    expect(activeBar).not.toHaveClass("shadow-[0_0_14px_rgba(59,130,246,0.35)]");
+  });
+
+  it("คำร้องที่ปิดแล้วแต่มีรูข้อมูล (ไม่มี labApprovedAt): แท่งที่ไม่มีเวลาจบต้องไม่เรืองแสง/วิ่ง shimmer ตลอดกาล", async () => {
+    Object.assign(mocks.petition, {
+      status: "approved",
+      items: [{ seq: 1, sampleName: "Lab Sample", commonName: "ABAMECTIN 1.8% W/V EC", batchNo: "BATCH-001", lotNo: "LOT-88", sampleId: "sample-1" }],
+      qcCompletedAt: at(12),
+      labCompletedAt: at(13),
+      // ไม่มี labApprovedAt โดยตั้งใจ — คำร้องเก่าที่ปิดไปก่อนจะมีด่านนี้
+      approvedAt: at(15),
+    });
+    renderDetail();
+
+    const bar = await screen.findByLabelText("ออกผล Lab (ช่วงเวลา)");
+    // สีอ่อน + ปลายขวาตรง ยังคงอยู่ (แปลว่า "ไม่มีเวลาจบที่บันทึกไว้") แต่ไม่ใช่ "กำลังทำอยู่"
+    expect(bar).toHaveClass("bg-lime-200");
+    expect(bar).toHaveClass("rounded-r-none");
+    expect(bar).not.toHaveClass("overflow-hidden");
+    expect(bar).not.toHaveClass(ACTIVE_SHIMMER_CLASS);
+    expect(bar).not.toHaveClass(ACTIVE_GLOW_CLASS);
+  });
+
+  it("แท่งที่ถูกตัดที่ขอบเวลาทำการของวันเดียวกัน ไม่บอกว่าต่อเนื่องข้ามวัน", async () => {
+    // เปิดดูตอน 18:00 ของวันเดียวกัน — แท่ง QC ที่ยังไม่จบลากถึง "ตอนนี้" ซึ่งเลยขอบหน้าต่าง 17:00
+    renderDetail();
+
+    const bar = await screen.findByLabelText("QC กำลังวิเคราะห์ (ช่วงเวลา)");
+    expect(bar).not.toHaveAttribute("title");
+  });
+
+  it("แท่งที่ข้ามวันปฏิทินจริง ยังบอกว่าต่อเนื่องข้ามวัน", async () => {
+    Object.assign(mocks.petition, { qcReceivedAt: atDay(12, 10), qcCompletedAt: atDay(13, 11) });
+    renderDetail();
+
+    fireEvent.click(await screen.findByRole("tab", { name: "12 ก.ค." }));
+    expect(screen.getByLabelText("QC กำลังวิเคราะห์ (ช่วงเวลา)")).toHaveAttribute("title", "ต่อเนื่องข้ามวัน");
+  });
+
+  it("แท็บภาพรวมขยายแกนเวลาให้ครอบคลุมกิจกรรมก่อนเวลาทำการ (06:30) ไม่ดันแท่งไปติดขอบซ้าย", async () => {
+    vi.setSystemTime(new Date(2026, 6, 14, 12, 0, 0));
+    Object.assign(mocks.petition, {
+      submittedBy: { name: "Requester", submittedAt: atDay(13, 6, 30) },
+      createdAt: atDay(13, 6, 30),
+      qcReceivedAt: atDay(14, 10),
+    });
+    renderDetail();
+
+    expect(await screen.findByRole("tab", { name: "ภาพรวม" })).toHaveAttribute("aria-selected", "true");
+    expect((screen.getByLabelText("ยื่นคำขอ (ช่วงเวลา)") as HTMLElement).style.left).not.toBe("0%");
   });
 
   it("reduces dense timeline tick labels before the wide desktop breakpoint", async () => {
@@ -600,6 +659,30 @@ describe("PetitionTimelineDetailPage", () => {
 
     expect(await screen.findByRole("button", { name: "Pre Report" })).toBeInTheDocument();
   });
+
+  it("แสดงปุ่ม Pre Report ของคำร้องที่ไม่มี Lab track เมื่อ QC ตรวจครบและงานเสร็จสิ้น", async () => {
+    // BATCH-002 → ไม่มี Lab track → labCompletedAt ไม่มีวันถูกเขียน (server เขียนเฉพาะตอน Lab บันทึกผล)
+    // ถ้าไปบังคับรอ labCompletedAt คำร้องแบบนี้จะไม่มีวันได้ปุ่ม Pre Report เลย
+    Object.assign(mocks.petition, { status: "success", qcCompletedAt: at(13) });
+    mocks.getQCProgress.mockResolvedValue({
+      "petition-1": [{ itemSeq: 1, parameterId: "parameter-1", filledLabels: ["Viscosity", "Color"] }],
+    });
+    renderDetail();
+
+    expect(await screen.findByRole("button", { name: "Pre Report" })).toBeInTheDocument();
+  });
+
+  it("ไม่แสดงปุ่ม Pre Report ของคำร้องที่มี Lab track เมื่อ Lab ยังไม่บันทึกผล", async () => {
+    Object.assign(mocks.petition, {
+      status: "success",
+      items: [{ seq: 1, sampleName: "Lab Sample", commonName: "ABAMECTIN 1.8% W/V EC", batchNo: "BATCH-001", lotNo: "LOT-88", sampleId: "sample-1" }],
+      qcCompletedAt: at(13),
+    });
+    renderDetail();
+
+    expect(await screen.findByRole("heading", { name: "P-2607-001" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pre Report" })).not.toBeInTheDocument();
+  });
 });
 
 describe("สีประจำแถวของกราฟ timeline", () => {
@@ -627,7 +710,7 @@ describe("สีประจำแถวของกราฟ timeline", () => {
     const distinctBarColors = new Set(
       [submittedBar, sampleSentBar, qcBar, labBar].map((bar) => Array.from(bar.classList).find((cls) => cls.startsWith("bg-"))),
     );
-    expect(distinctBarColors.size).toBeGreaterThanOrEqual(3);
+    expect(distinctBarColors.size).toBe(4);
   });
 
   it("แท่ง Pre Result ไม่ใช้สีเดียวกับแท่ง Lab กำลังวิเคราะห์", async () => {

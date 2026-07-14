@@ -132,7 +132,10 @@ function buildHeaderTiming(startAt: string, actualEndAt: string | null, status: 
     return { startAt, startKind: "received", endAt: actualEndAt, endKind: "actual" };
   }
   if (isSameLocalDay(start, now)) {
-    return { startAt, startKind: "received", endAt: atHour(start, WORK_END_HOUR).toISOString(), endKind: "estimated" };
+    // ค่าประมาณ = เลิกงาน 17:00 ของวันนั้น แต่ห้ามย้อนไปก่อนเวลาเริ่มหรือก่อนตอนนี้
+    // (คำร้องที่รับตอน 19:14 แล้วเปิดดู 19:30 จะได้ช่วงกลับหัว Start 19:14 / End 17:00)
+    const estimatedEnd = Math.max(atHour(start, WORK_END_HOUR).getTime(), now.getTime());
+    return { startAt, startKind: "received", endAt: new Date(estimatedEnd).toISOString(), endKind: "estimated" };
   }
   return { startAt, startKind: "received", endAt: now.toISOString(), endKind: "ongoing" };
 }
@@ -245,8 +248,10 @@ function dayWindow(cursor: Date, rows: TimelineDetailRow[], timelineEnd: Date, n
     startCandidates.push(floorToHour(earliest).getTime());
     endCandidates.push(ceilToHour(latest).getTime());
   }
-  // วันสุดท้ายของกราฟ: ลากถึงเวลาจบจริงของ timeline เสมอ (กฎเดิมจาก task ก่อนหน้า)
-  if (isSameLocalDay(cursor, timelineEnd)) endCandidates.push(timelineEnd.getTime());
+  // วันสุดท้ายของกราฟ: ลากถึงเวลาจบจริงของ timeline
+  // แต่ถ้าเวลาจบนั้นคือ "ตอนนี้" (คำร้องที่ยังไม่ปิด) ห้ามขยาย — กฎเดียวกับ rowTimestampsOnDay
+  // มีแต่ timestamp ที่บันทึกไว้จริงเท่านั้นที่ขยายหน้าต่างวันได้
+  if (isSameLocalDay(cursor, timelineEnd) && timelineEnd.getTime() !== nowAt) endCandidates.push(timelineEnd.getTime());
 
   // กันกรณีกิจกรรมท้ายวัน (23:xx) ที่ ceil ชั่วโมงแล้วเลยข้ามเที่ยงคืนไปวันถัดไป — ห้ามให้หน้าต่างของ "วันนี้" ทะลุออกนอกปฏิทินวันนี้
   // ไม่งั้น buildTicks จะเห็น start/end คนละวันปฏิทิน แล้วสลับไปใช้สูตร ticks ข้ามวัน (label ผิดรูปแบบ) ทั้งที่ยังเป็นแท็บวันเดียว

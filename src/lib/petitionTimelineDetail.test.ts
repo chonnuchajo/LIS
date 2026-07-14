@@ -58,6 +58,16 @@ describe("buildTimelineDetailModel", () => {
     expect(result.timeline.days[0]).toMatchObject({ startAt: at(13, 8), endAt: at(13, 17) });
   });
 
+  it("คำร้องที่รับตัวอย่างนอกเวลาทำการ (19:14): เวลาจบประมาณต้องไม่ย้อนไปก่อนเวลาเริ่ม/เวลาปัจจุบัน", () => {
+    // ค่าประมาณ 17:00 ของวันนั้นย้อนหลังกว่าเวลาเริ่ม (19:14) — header จะโชว์ End ก่อน Start
+    const now = new Date(2026, 6, 13, 19, 30);
+    const result = model(petition({ qcReceivedAt: at(13, 19, 14) }), [], [], [], now);
+
+    expect(result.header.startAt).toBe(at(13, 19, 14));
+    expect(result.header.endAt).toBe(at(13, 19, 30));
+    expect(new Date(result.header.endAt).getTime()).toBeGreaterThanOrEqual(new Date(result.header.startAt).getTime());
+  });
+
   it("uses the current time and daily boundaries for open work that crosses dates", () => {
     const now = new Date(2026, 6, 13, 12, 30);
     const result = model(petition({ qcReceivedAt: at(12, 10, 15) }), [], [], [], now);
@@ -694,6 +704,23 @@ describe("buildTimelineDetailModel", () => {
       visible: true,
       segmentStartAt: at(13, 6, 30),
     });
+  });
+
+  it("งานที่ยังไม่ปิดและเปิดดูหลัง 17:00: แท็บวันสุดท้ายไม่ขยายตามเวลาปัจจุบัน (now ไม่ใช่ timestamp จริง)", () => {
+    // เวลาปัจจุบันไม่ใช่เหตุการณ์ที่บันทึกไว้ — ห้ามขยายหน้าต่างวัน (กฎเดียวกับ rowTimestampsOnDay)
+    // ไม่งั้นเปิดดูตอนไหน หน้าต่างของวันนี้ก็ยืดตามไปเรื่อย ๆ
+    const result = model(
+      petition({
+        submittedBy: { name: "Requester", submittedAt: at(12, 9) },
+        createdAt: at(12, 9),
+        qcReceivedAt: at(12, 10),
+      }),
+      [], [], [],
+      new Date(2026, 6, 13, 19, 30),
+    );
+
+    expect(result.timeline.endAt).toBe(at(13, 19, 30));
+    expect(result.timeline.days.at(-1)).toMatchObject({ startAt: at(13, 8), endAt: at(13, 17) });
   });
 
   it("วันที่กิจกรรมทั้งหมดอยู่ในเวลาทำการ ยังคงได้หน้าต่าง 08:00–17:00 พอดี (ไม่ regress)", () => {
