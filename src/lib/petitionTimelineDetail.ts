@@ -396,6 +396,7 @@ function makeBarRow(input: {
 
 function buildMilestoneRows(petition: Petition): TimelineDetailRow[] {
   const hasLab = hasLabTrack(petition);
+  const submittedAt = firstValidDate(petition.submittedBy?.submittedAt, petition.createdAt);
   const qcReceivedAt = petition.qcReceivedAt ?? petition.receivedAt ?? null;
   const labReceivedAt = petition.labReceivedAt ?? null;
   const assignedAt = petition.assignedTo?.assignedAt ?? null;
@@ -403,9 +404,10 @@ function buildMilestoneRows(petition: Petition): TimelineDetailRow[] {
     ({ key, label, kind: "milestone", track: "stage", at, startAt: null, endAt: null, done: !!validDate(at) });
 
   return [
+    milestone("submitted", "ส่งตัวอย่าง", submittedAt),
     milestone("received-qc", "QC รับตัวอย่าง", qcReceivedAt),
-    hasLab ? milestone("received-lab", "Lab รับตัวอย่าง", labReceivedAt) : null,
     hasLab ? milestone("assigned", "มอบหมายงาน Lab", assignedAt) : null,
+    hasLab ? milestone("received-lab", "Lab รับตัวอย่าง", labReceivedAt) : null,
   ].filter((row): row is TimelineDetailRow => row !== null);
 }
 
@@ -510,6 +512,8 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
   const submittedAt = firstValidDate(input.petition.submittedBy?.submittedAt, input.petition.createdAt) ?? now.toISOString();
   const receivedAt = firstValidDate(input.petition.qcReceivedAt, input.petition.labReceivedAt, input.petition.receivedAt);
   const startAt = receivedAt ?? submittedAt;
+  // กราฟเริ่มที่จุดส่งตัวอย่าง (เก่าสุด) ส่วน header ยังนับจากเวลารับตัวอย่างเหมือนเดิม
+  const timelineStartAt = firstValidDate(submittedAt, startAt) ?? startAt;
   const actualEndAt = latestValidDate(
     input.petition.approvedAt,
     input.petition.rejectedAt,
@@ -535,11 +539,11 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
     tasks,
     activities: normalizeTimelineActivities(input.auditLogs),
     timeline: {
-      startAt: atHour(new Date(startAt), WORK_START_HOUR).toISOString(),
+      startAt: atHour(new Date(timelineStartAt), WORK_START_HOUR).toISOString(),
       endAt: header.endAt,
-      ticks: buildTicks(startAt, header.endAt),
+      ticks: buildTicks(timelineStartAt, header.endAt),
       rows,
-      days: buildTimelineDays(startAt, header.endAt, rows),
+      days: buildTimelineDays(timelineStartAt, header.endAt, rows),
     },
   };
 }
