@@ -77,7 +77,12 @@ function labMinutes(petition: Petition): number {
 
 export function estimatePetitionEnd(input: { petition: Petition; qcTaskCount: number; now: Date }): PetitionEstimate {
   const { petition } = input;
-  const qcReceivedAt = validDate(petition.qcReceivedAt) ?? validDate(petition.receivedAt);
+  // receivedAt (legacy field) is written for whichever side scans first (server/routes/petitions.js,
+  // PATCH /:id/receive) — if Lab already has its own labReceivedAt, receivedAt is Lab's timestamp,
+  // not QC's. Only fall back to it when neither side timestamp exists (same rule as
+  // qcReceivedAtOf() in server/lib/qcParamBaseline.js).
+  const qcReceivedAt = validDate(petition.qcReceivedAt)
+    ?? (petition.labReceivedAt ? null : validDate(petition.receivedAt));
   const labReceivedAt = validDate(petition.labReceivedAt);
 
   if (!qcReceivedAt && !labReceivedAt) {

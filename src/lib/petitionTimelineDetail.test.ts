@@ -61,6 +61,7 @@ describe("buildTimelineDetailModel", () => {
 
     expect(result.header.endKind).toBe("unreceived");
     expect(result.header.endAt).toBe(at(14, 17));
+    expect(result.header.overdue).toBe(false);
   });
 
   it("QC รับตัวอย่างแล้ว -> คาดการณ์จากจำนวน task (1 task = 1 ชม.)", () => {
@@ -105,6 +106,8 @@ describe("buildTimelineDetailModel", () => {
     }));
 
     expect(result.header.endAt).toBe(at(13, 18, 30));
+    expect(result.header.endKind).toBe("actual");
+    expect(result.header.overdue).toBe(false);
     expect(result.timeline.endAt).toBe(at(13, 18, 30));
     expect(result.timeline.ticks.at(-1)).toMatchObject({ at: at(13, 18, 30), label: "18:30" });
     // แท็บวัน (ไม่ใช่ header/timeline โดยรวม) ขยายตามกฎ ceil ชั่วโมง: 18:30 -> 19:00
@@ -603,6 +606,39 @@ describe("buildTimelineDetailModel", () => {
       endAt: null,
       done: false,
     });
+  });
+
+  it("qcTaskCount ที่ใช้คาดการณ์ นับเฉพาะ parameter สโคป QC — สโคป lab ไม่ถูกนับซ้ำเข้า QC candidate", () => {
+    const labItem = { seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" };
+    const qcScopeParameter: ParameterItem = {
+      _id: "parameter-qc",
+      name: "QC check",
+      scope: "qc",
+      status: "active",
+      applyAll: true,
+      valueFields: [{ label: "Viscosity", type: "number", required: true }],
+    };
+    const labScopeParameter: ParameterItem = {
+      _id: "parameter-lab",
+      name: "Lab check",
+      scope: "lab",
+      status: "active",
+      applyAll: true,
+      valueFields: [{ label: "Assay", type: "number", required: true }],
+    };
+
+    const result = model(
+      petition({ items: [labItem], qcReceivedAt: at(13, 9) }),
+      [qcScopeParameter, labScopeParameter],
+      [],
+      [],
+      new Date(2026, 6, 13, 9, 30),
+    );
+
+    // progress ยังนับทั้งสอง scope เหมือนเดิม (ไม่แตะพฤติกรรมนี้)
+    expect(result.tasks).toHaveLength(2);
+    // ถ้านับผิดเป็น 2 task -> 09:00 + 2x60 = 11:00; ที่ถูกคือนับแค่ QC 1 task -> 09:00 + 60 = 10:00
+    expect(result.header.endAt).toBe(at(13, 10));
   });
 
   it("ไม่มีแถวราย parameter ใน timeline อีกต่อไป", () => {

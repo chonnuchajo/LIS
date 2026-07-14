@@ -1,6 +1,6 @@
-import type { ParameterItem, QCProgressEntry } from "@/lib/api";
+import type { ParameterItem, ParameterScope, QCProgressEntry } from "@/lib/api";
 import { expandFieldForItem } from "@/lib/parameterValidation";
-import { estimatePetitionEnd } from "@/lib/petitionEstimate";
+import { estimatePetitionEnd, WORK_END_HOUR, WORK_START_HOUR } from "@/lib/petitionEstimate";
 import { getPetitionCategory, matchParametersForItem } from "@/lib/petitionTestItems";
 import { hasLabTrack } from "@/lib/statusBadge";
 import { PETITION_STATUS_CONFIG, type Petition, type PetitionAuditLogEntry, type PetitionStatus } from "@/types/petition.types";
@@ -14,6 +14,7 @@ export type TimelineDetailTask = {
   filled: number;
   total: number;
   state: TimelineDetailTaskState;
+  scope: ParameterScope;
 };
 export type TimelineDetailProgress = { filled: number; total: number; percent: number | null };
 export type TimelineDetailActivity = { key: string; at: string; actor: string | null; label: string };
@@ -77,8 +78,6 @@ export type TimelineDetailInput = {
   itemSeq?: number | null;
 };
 
-const WORK_START_HOUR = 8;
-const WORK_END_HOUR = 17;
 const FINISHED_STATUSES = new Set<PetitionStatus>(["success", "approved", "rejected"]);
 
 function validDate(value?: string | null): Date | null {
@@ -348,6 +347,7 @@ function buildRequiredTasks(
         filled,
         total: requiredKeys.length,
         state,
+        scope: parameter.scope ?? "qc",
       });
     }
   }
@@ -531,7 +531,11 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
     input.petition.qcCompletedAt,
   );
   const allTasks = buildRequiredTasks(input.petition, input.parameters, input.progressEntries, input.itemGroupIds);
-  const header = buildHeaderTiming(input.petition, startAt, actualEndAt, allTasks.length, now);
+  // matchParametersForItem() deliberately keeps scope:"lab" parameters for lab-batch items (progress
+  // needs them) — but QC's estimate anchor (qcReceivedAt) only covers QC's own work, so lab-scope
+  // tasks must not add QC minutes on top of the Lab machine estimate (double counting).
+  const qcTaskCount = allTasks.filter((task) => task.scope !== "lab").length;
+  const header = buildHeaderTiming(input.petition, startAt, actualEndAt, qcTaskCount, now);
   // คำขอที่ปิดแล้วจบแกนที่เวลาจริง; ที่ยังเปิดอยู่ต้องลากอย่างน้อยถึง now (แท่ง in-progress ลากถึง now)
   const timelineEndAt = header.endKind === "actual"
     ? header.endAt

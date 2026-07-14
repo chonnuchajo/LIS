@@ -16,18 +16,15 @@ import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { useLabRequestsByPetition, usePetition, usePetitionAuditLog } from "@/hooks/usePetition";
 import { api, type ParameterItem, type QCProgressEntry } from "@/lib/api";
 import { findSgParameter } from "@/lib/formSpecificGravity";
-import { buildTimelineDetailModel, type TimelineDetailActivity, type TimelineDetailDayRow, type TimelineDetailModel, type TimelineDetailRow, type TimelineDetailTick } from "@/lib/petitionTimelineDetail";
+import { buildTimelineDetailModel, type TimelineDetailActivity, type TimelineDetailDayRow, type TimelineDetailRow, type TimelineDetailTick } from "@/lib/petitionTimelineDetail";
 import { timelineBarClass, timelineDotClass } from "@/lib/petitionTimelineColors";
 import { crosshairAt, formatCrosshairTime } from "@/lib/petitionTimelineCrosshair";
+import { estimateMetric, formatDateTime } from "@/lib/petitionTimelineMetric";
 import { canPrintPreReport } from "@/lib/petitionPrintability";
 import { canSeePetition, isLabRole, petitionHasLabReadableItem } from "@/lib/petitionVisibility";
 import { normalizeRoles } from "@/lib/roles";
 import { hasLabTrack, petitionStatusBadge } from "@/lib/statusBadge";
 import { cn } from "@/lib/utils";
-
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
-}
 
 function timelinePercent(value: string | null, startAt: string, endAt: string): number | null {
   if (!value) return null;
@@ -161,20 +158,6 @@ function continuesAcrossCalendarDay(row: TimelineDetailDayRow, dayStartAt: strin
 
 function earliestIso(values: string[]) {
   return values.reduce((earliest, value) => (new Date(value).getTime() < new Date(earliest).getTime() ? value : earliest));
-}
-
-export function estimateMetric(header: TimelineDetailModel["header"]): { label: string; value: string; hint: string } {
-  if (header.endKind === "actual") {
-    return { label: "End time", value: formatDateTime(header.endAt), hint: "เวลาจริง" };
-  }
-  if (header.endKind === "unreceived") {
-    return { label: "Estimate Time", value: "คาดว่าผลจะออก 1-2 วัน", hint: "ยังไม่รับงาน" };
-  }
-  return {
-    label: "Estimate Time",
-    value: formatDateTime(header.endAt),
-    hint: header.overdue ? "เลยกำหนด" : "ค่าประมาณ",
-  };
 }
 
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {

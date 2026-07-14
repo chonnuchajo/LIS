@@ -14,6 +14,10 @@ describe("addWorkingMinutes", () => {
     expect(addWorkingMinutes(at(13, 16), 180)).toEqual(at(14, 10));
   });
 
+  it("ตกพอดี 17:00 -> คืน 17:00 ของวันเดียวกัน ไม่ข้ามไปวันถัดไป (16:00 + 1 ชม.)", () => {
+    expect(addWorkingMinutes(at(13, 16), 60)).toEqual(at(13, 17));
+  });
+
   it("เริ่มก่อนเวลางาน ให้ดันไป 08:00 ของวันเดียวกันก่อน", () => {
     expect(addWorkingMinutes(at(13, 6, 30), 60)).toEqual(at(13, 9));
   });
@@ -115,7 +119,7 @@ describe("estimatePetitionEnd", () => {
     expect(result.at).toBe(at(13, 12).toISOString());
   });
 
-  it("ใช้ receivedAt เป็น fallback ของ qcReceivedAt", () => {
+  it("ใช้ receivedAt เป็น fallback ของ qcReceivedAt เมื่อไม่มี timestamp ฝั่งไหนเลย (ใบเก่าก่อนแยก Lab/QC)", () => {
     const result = estimatePetitionEnd({
       petition: petition({ receivedAt: at(13, 9).toISOString() }),
       qcTaskCount: 2,
@@ -123,6 +127,23 @@ describe("estimatePetitionEnd", () => {
     });
 
     expect(result.at).toBe(at(13, 11).toISOString());
+  });
+
+  it("Lab รับแล้วแต่ QC ยังไม่รับ -> คิดจาก Lab ฝั่งเดียว (receivedAt เป็นเวลาที่ Lab สแกน ไม่ใช่ QC ห้ามปั้น QC candidate)", () => {
+    const result = estimatePetitionEnd({
+      petition: petition({
+        items: [labItem],
+        labReceivedAt: at(13, 9).toISOString(),
+        receivedAt: at(13, 9).toISOString(),
+        assignedMachines: [{ machineId: "m1", code: "GC-01", name: "GC 1", estimatedMinutes: 90 }],
+      }),
+      qcTaskCount: 5, // ถ้า bug เดิมยังอยู่ receivedAt จะถูกใช้เป็น qcReceivedAt -> 5 x 60 = 300 นาที ผิด
+      now: at(13, 10),
+    });
+
+    expect(result.kind).toBe("estimated");
+    // Lab เท่านั้น: 09:00 + 90 นาที = 10:30 (ไม่ใช่ QC candidate ที่ 14:00)
+    expect(result.at).toBe(at(13, 10, 30).toISOString());
   });
 
   it("Lab รับงานแล้ว -> เวลารับ + standard time ของเครื่องที่นานที่สุด", () => {

@@ -4,8 +4,9 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ParameterItem, QCProgressMap } from "@/lib/api";
 import type { TimelineDetailHeader } from "@/lib/petitionTimelineDetail";
+import { estimateMetric, formatDateTime } from "@/lib/petitionTimelineMetric";
 import type { Petition, PetitionAuditLogEntry } from "@/types/petition.types";
-import PetitionTimelineDetailPage, { estimateMetric } from "./PetitionTimelineDetailPage";
+import PetitionTimelineDetailPage from "./PetitionTimelineDetailPage";
 
 const at = (hour: number, minute = 0) => new Date(2026, 6, 13, hour, minute).toISOString();
 const atDay = (day: number, hour: number, minute = 0) => new Date(2026, 6, day, hour, minute).toISOString();
@@ -841,12 +842,6 @@ describe("PetitionTimelineDetailPage crosshair", () => {
     expect(screen.queryByTestId("timeline-crosshair-line")).not.toBeInTheDocument();
   });
 });
-
-// สำเนาของ formatDateTime ใน PetitionTimelineDetailPage.tsx — ไม่ได้ export ออกมา
-// (ตั้งใจไม่แตะของเดิม) ใช้เป็น oracle เทียบค่าที่ estimateMetric คืนจริง
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
-}
 
 function buildTimelineDetailHeader(overrides: Partial<TimelineDetailHeader> = {}): TimelineDetailHeader {
   return {
