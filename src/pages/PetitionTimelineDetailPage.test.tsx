@@ -3,8 +3,9 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ParameterItem, QCProgressMap } from "@/lib/api";
+import type { TimelineDetailHeader } from "@/lib/petitionTimelineDetail";
 import type { Petition, PetitionAuditLogEntry } from "@/types/petition.types";
-import PetitionTimelineDetailPage from "./PetitionTimelineDetailPage";
+import PetitionTimelineDetailPage, { estimateMetric } from "./PetitionTimelineDetailPage";
 
 const at = (hour: number, minute = 0) => new Date(2026, 6, 13, hour, minute).toISOString();
 const atDay = (day: number, hour: number, minute = 0) => new Date(2026, 6, day, hour, minute).toISOString();
@@ -838,5 +839,64 @@ describe("PetitionTimelineDetailPage crosshair", () => {
     fireEvent.mouseMove(area, { clientX: 40, clientY: 40 });
 
     expect(screen.queryByTestId("timeline-crosshair-line")).not.toBeInTheDocument();
+  });
+});
+
+// สำเนาของ formatDateTime ใน PetitionTimelineDetailPage.tsx — ไม่ได้ export ออกมา
+// (ตั้งใจไม่แตะของเดิม) ใช้เป็น oracle เทียบค่าที่ estimateMetric คืนจริง
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
+}
+
+function buildTimelineDetailHeader(overrides: Partial<TimelineDetailHeader> = {}): TimelineDetailHeader {
+  return {
+    startAt: "2026-07-13T01:00:00.000Z",
+    startKind: "submitted",
+    endAt: "2026-07-13T08:00:00.000Z",
+    endKind: "actual",
+    overdue: false,
+    ...overrides,
+  };
+}
+
+describe("estimateMetric", () => {
+  it("endKind actual → End time เวลาจริง", () => {
+    const header = buildTimelineDetailHeader({ endKind: "actual", overdue: false });
+
+    expect(estimateMetric(header)).toEqual({
+      label: "End time",
+      value: formatDateTime(header.endAt),
+      hint: "เวลาจริง",
+    });
+  });
+
+  it("endKind estimated + ยังไม่เลยกำหนด → Estimate Time ค่าประมาณ", () => {
+    const header = buildTimelineDetailHeader({ endKind: "estimated", overdue: false });
+
+    expect(estimateMetric(header)).toEqual({
+      label: "Estimate Time",
+      value: formatDateTime(header.endAt),
+      hint: "ค่าประมาณ",
+    });
+  });
+
+  it("endKind estimated + เลยกำหนดแล้ว → Estimate Time เลยกำหนด", () => {
+    const header = buildTimelineDetailHeader({ endKind: "estimated", overdue: true });
+
+    expect(estimateMetric(header)).toEqual({
+      label: "Estimate Time",
+      value: formatDateTime(header.endAt),
+      hint: "เลยกำหนด",
+    });
+  });
+
+  it("endKind unreceived → Estimate Time ยังไม่รับงาน", () => {
+    const header = buildTimelineDetailHeader({ endKind: "unreceived", overdue: false });
+
+    expect(estimateMetric(header)).toEqual({
+      label: "Estimate Time",
+      value: "คาดว่าผลจะออก 1-2 วัน",
+      hint: "ยังไม่รับงาน",
+    });
   });
 });

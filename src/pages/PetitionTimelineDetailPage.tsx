@@ -163,7 +163,7 @@ function earliestIso(values: string[]) {
   return values.reduce((earliest, value) => (new Date(value).getTime() < new Date(earliest).getTime() ? value : earliest));
 }
 
-function estimateMetric(header: TimelineDetailModel["header"]): { label: string; value: string; hint: string } {
+export function estimateMetric(header: TimelineDetailModel["header"]): { label: string; value: string; hint: string } {
   if (header.endKind === "actual") {
     return { label: "End time", value: formatDateTime(header.endAt), hint: "เวลาจริง" };
   }
