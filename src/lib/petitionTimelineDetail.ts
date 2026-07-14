@@ -400,12 +400,16 @@ function buildMilestoneRows(petition: Petition): TimelineDetailRow[] {
   const submittedAt = firstValidDate(petition.submittedBy?.submittedAt, petition.createdAt);
   const qcReceivedAt = petition.qcReceivedAt ?? petition.receivedAt ?? null;
   const labReceivedAt = petition.labReceivedAt ?? null;
+  // คำร้องเก่า/เคสที่ข้ามการสแกนส่ง ยังต้องเห็นจุดส่ง — ถอยไปใช้เวลารับตัวอย่างที่เร็วสุดแทน
+  const sampleSentAt = petition.sampleSentAt
+    ?? firstValidDate(petition.qcReceivedAt, petition.receivedAt, petition.labReceivedAt);
   const assignedAt = petition.assignedTo?.assignedAt ?? null;
   const milestone = (key: string, label: string, at: string | null): TimelineDetailRow =>
     ({ key, label, kind: "milestone", track: "stage", at, startAt: null, endAt: null, done: !!validDate(at) });
 
   return [
-    milestone("submitted", "ส่งตัวอย่าง", submittedAt),
+    milestone("submitted", "ยื่นคำขอ", submittedAt),
+    milestone("sample-sent", "ส่งตัวอย่าง", sampleSentAt),
     milestone("received-qc", "QC รับตัวอย่าง", qcReceivedAt),
     hasLab ? milestone("assigned", "มอบหมายงาน Lab", assignedAt) : null,
     hasLab ? milestone("received-lab", "Lab รับตัวอย่าง", labReceivedAt) : null,

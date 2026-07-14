@@ -162,20 +162,51 @@ describe("buildTimelineDetailModel", () => {
     expect(result.activities[1]?.label).toContain("Analyst");
   });
 
-  it("แสดงจุด ส่งตัวอย่าง → QC รับ → มอบหมาย → Lab รับ ตามลำดับงานจริง", () => {
+  it("แสดงจุด ยื่นคำขอ → ส่งตัวอย่าง → QC รับ → มอบหมาย → Lab รับ ตามลำดับงานจริง", () => {
     const result = model(petition({
       items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
+      sampleSentAt: at(13, 8, 30),
       qcReceivedAt: at(13, 9),
       labReceivedAt: at(13, 10),
       assignedTo: { employeeId: "L001", name: "Lab Analyst", assignedAt: at(13, 11) },
     }));
 
     expect(result.timeline.rows.filter((row) => row.kind === "milestone")).toMatchObject([
-      { key: "submitted", label: "ส่งตัวอย่าง", at: at(13, 9), startAt: null, endAt: null, done: true },
+      { key: "submitted", label: "ยื่นคำขอ", at: at(13, 9), startAt: null, endAt: null, done: true },
+      { key: "sample-sent", label: "ส่งตัวอย่าง", at: at(13, 8, 30), startAt: null, endAt: null, done: true },
       { key: "received-qc", label: "QC รับตัวอย่าง", at: at(13, 9), startAt: null, endAt: null, done: true },
       { key: "assigned", label: "มอบหมายงาน Lab", at: at(13, 11), done: true },
       { key: "received-lab", label: "Lab รับตัวอย่าง", at: at(13, 10), done: true },
     ]);
+  });
+
+  it("จุด ส่งตัวอย่าง ใช้เวลาสแกนส่งจริงจาก sampleSentAt", () => {
+    const result = model(petition({ sampleSentAt: at(13, 8, 30), qcReceivedAt: at(13, 10) }));
+
+    expect(result.timeline.rows.find((row) => row.key === "sample-sent")).toMatchObject({
+      label: "ส่งตัวอย่าง",
+      kind: "milestone",
+      at: at(13, 8, 30),
+      done: true,
+    });
+  });
+
+  it("คำร้องที่ไม่ได้สแกนส่ง ให้จุด ส่งตัวอย่าง ตกไปที่เวลารับตัวอย่างที่เร็วสุด", () => {
+    const result = model(petition({ labReceivedAt: at(13, 11), qcReceivedAt: at(13, 10) }));
+
+    expect(result.timeline.rows.find((row) => row.key === "sample-sent")).toMatchObject({
+      at: at(13, 10),
+      done: true,
+    });
+  });
+
+  it("ยังไม่ส่งและยังไม่มีใครรับ → จุด ส่งตัวอย่าง ว่างและยังไม่ done", () => {
+    const result = model(petition());
+
+    expect(result.timeline.rows.find((row) => row.key === "sample-sent")).toMatchObject({
+      at: null,
+      done: false,
+    });
   });
 
   it("ตัดแถวสถานะเก่า (บันทึกผล / QC ครบ / Lab ครบ) ออกจาก timeline", () => {
@@ -192,7 +223,7 @@ describe("buildTimelineDetailModel", () => {
       assignedTo: { employeeId: "L001", name: "Stray Lab Analyst", assignedAt: at(13, 11) },
     }));
 
-    expect(result.timeline.rows.map((row) => row.key)).toEqual(["submitted", "received-qc", "qc-analyzing", "final"]);
+    expect(result.timeline.rows.map((row) => row.key)).toEqual(["submitted", "sample-sent", "received-qc", "qc-analyzing", "final"]);
   });
 
   it("จุดส่งตัวอย่างขยายช่วง timeline ให้เริ่มก่อนวันรับตัวอย่าง แต่ header ยังนับจากเวลารับ", () => {
@@ -400,7 +431,7 @@ describe("buildTimelineDetailModel", () => {
     expect(result.tasks).toHaveLength(1);
   });
 
-  it("เรียงแถว: ส่ง → QC รับ → มอบหมาย → Lab รับ → QC วิเคราะห์ → Lab วิเคราะห์ → Pre Result → Final Result", () => {
+  it("เรียงแถว: ยื่นคำขอ → ส่งตัวอย่าง → QC รับ → มอบหมาย → Lab รับ → QC วิเคราะห์ → Lab วิเคราะห์ → Pre Result → Final Result", () => {
     const result = model(
       petition({
         items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
@@ -413,6 +444,7 @@ describe("buildTimelineDetailModel", () => {
 
     expect(result.timeline.rows.map((row) => row.key)).toEqual([
       "submitted",
+      "sample-sent",
       "received-qc",
       "assigned",
       "received-lab",
@@ -570,7 +602,8 @@ describe("buildTimelineDetailModel", () => {
     );
 
     const expectedRows = [
-      { key: "submitted", label: "ส่งตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 9), startAt: null, endAt: null, done: true },
+      { key: "submitted", label: "ยื่นคำขอ", kind: "milestone", track: "stage", at: at(13, 9), startAt: null, endAt: null, done: true },
+      { key: "sample-sent", label: "ส่งตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 9), startAt: null, endAt: null, done: true },
       { key: "received-qc", label: "QC รับตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 9), startAt: null, endAt: null, done: true },
       { key: "assigned", label: "มอบหมายงาน Lab", kind: "milestone", track: "stage", at: at(13, 11), startAt: null, endAt: null, done: true },
       { key: "received-lab", label: "Lab รับตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 10), startAt: null, endAt: null, done: true },
