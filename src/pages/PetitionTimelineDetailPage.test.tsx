@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ParameterItem, QCProgressMap } from "@/lib/api";
 import type { Petition, PetitionAuditLogEntry } from "@/types/petition.types";
 import PetitionTimelineDetailPage from "./PetitionTimelineDetailPage";
@@ -91,7 +91,17 @@ function renderDetail() {
   );
 }
 
+function selectFirstTimelineDayTab() {
+  const timelineTablist = screen.queryByRole("tablist", { name: "Timeline days" });
+  const firstDayTab = timelineTablist
+    ? within(timelineTablist).queryAllByRole("tab").find((tab) => tab.textContent !== "ภาพรวม")
+    : null;
+  if (firstDayTab) fireEvent.click(firstDayTab);
+}
+
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 6, 13, 18, 0, 0));
   vi.clearAllMocks();
   mocks.user = { employeeId: "E001", name: "Analyst", roles: ["admin"] };
   mocks.activityError = null;
@@ -99,10 +109,18 @@ beforeEach(() => {
   Object.assign(mocks.petition, {
     status: "inProgress",
     approvedAt: null,
+    submittedBy: { name: "Requester", submittedAt: "2026-07-13T01:00:00.000Z" },
+    assignedTo: { employeeId: "E001", name: "Analyst", assignedAt: "2026-07-13T04:00:00.000Z" },
+    qcReceivedAt: "2026-07-13T03:00:00.000Z",
     qcCompletedAt: undefined,
     qcReceivedBy: undefined,
     labReceivedBy: undefined,
+    labCompletedAt: undefined,
+    labApprovedAt: undefined,
+    firstResultAt: undefined,
     items: [{ seq: 1, sampleName: "Sample A", commonName: "ABAMECTIN 1.8% W/V EC", batchNo: "BATCH-002", lotNo: "LOT-88", sampleId: "sample-1" }],
+    createdAt: "2026-07-13T01:00:00.000Z",
+    updatedAt: "2026-07-13T01:00:00.000Z",
   });
   mocks.parameter = {
     _id: "parameter-1",
@@ -123,6 +141,10 @@ beforeEach(() => {
   mocks.downloadPrintPdf.mockResolvedValue(new Blob(["pdf"], { type: "application/pdf" }));
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe("PetitionTimelineDetailPage", () => {
   it("renders one petition's header, required task progress, and same-day timeline", async () => {
     renderDetail();
@@ -133,6 +155,7 @@ describe("PetitionTimelineDetailPage", () => {
     const progressBar = screen.getByRole("progressbar", { name: "Progress" });
     expect(progressBar).toHaveAttribute("aria-valuenow", "40");
     expect(progressBar.firstElementChild).toHaveClass("bg-gradient-to-r", "from-red-500", "to-amber-400");
+    selectFirstTimelineDayTab();
     expect(screen.getByText("08:00")).toBeInTheDocument();
     expect(screen.getByText("17:00")).toBeInTheDocument();
     expect(screen.queryByText("20:00")).not.toBeInTheDocument();
@@ -207,6 +230,8 @@ describe("PetitionTimelineDetailPage", () => {
   it("reduces dense timeline tick labels before the wide desktop breakpoint", async () => {
     renderDetail();
 
+    expect(await screen.findByRole("heading", { name: "P-2607-001" })).toBeInTheDocument();
+    selectFirstTimelineDayTab();
     expect(await screen.findByText("16:00")).toHaveClass("hidden", "2xl:block");
     expect(screen.getByText("17:00")).not.toHaveClass("hidden");
   });
@@ -221,6 +246,77 @@ describe("PetitionTimelineDetailPage", () => {
     expect(await screen.findByRole("tab", { name: "12 ก.ค." })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "13 ก.ค." }));
     expect(screen.getByRole("tab", { name: "13 ก.ค." })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("shows an overview tab for multi-day timelines and hides inactive rows in daily tabs", async () => {
+    Object.assign(mocks.petition, {
+      submittedBy: { name: "Requester", submittedAt: "2026-07-12T01:00:00.000Z" },
+      createdAt: "2026-07-12T01:00:00.000Z",
+      qcReceivedAt: "2026-07-12T03:00:00.000Z",
+      qcCompletedAt: "2026-07-13T04:00:00.000Z",
+    });
+    renderDetail();
+
+    const timelineCard = await screen.findByLabelText("petition timeline");
+    expect(screen.getByRole("tab", { name: "ภาพรวม" })).toHaveAttribute("aria-selected", "true");
+    expect(timelineCard).toHaveTextContent("ยื่นคำขอ");
+
+    fireEvent.click(screen.getByRole("tab", { name: "13 ก.ค." }));
+
+    expect(screen.getByRole("tab", { name: "13 ก.ค." })).toHaveAttribute("aria-selected", "true");
+    expect(timelineCard).toHaveTextContent("QC กำลังวิเคราะห์");
+    expect(timelineCard).not.toHaveTextContent("ยื่นคำขอ");
+  });
+
+  it("right-aligns overview tick labels near the end so date and end time do not overlap", async () => {
+    Object.assign(mocks.petition, {
+      status: "success",
+      submittedBy: { name: "Requester", submittedAt: "2026-07-13T01:00:00.000Z" },
+      createdAt: "2026-07-13T01:00:00.000Z",
+      qcReceivedAt: "2026-07-13T03:00:00.000Z",
+      qcCompletedAt: "2026-07-14T06:18:00.000Z",
+    });
+    renderDetail();
+
+    expect(await screen.findByRole("tab", { name: "ภาพรวม" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("14 ก.ค. 08:00")).toHaveClass("right-1");
+    expect(screen.getByText("13:18")).toHaveClass("right-1");
+  });
+
+  it("hides most overview tick labels and lines across long multi-day timelines", async () => {
+    Object.assign(mocks.petition, {
+      status: "success",
+      submittedBy: { name: "Requester", submittedAt: "2026-06-24T01:00:00.000Z" },
+      createdAt: "2026-06-24T01:00:00.000Z",
+      qcReceivedAt: "2026-06-24T01:00:00.000Z",
+      qcCompletedAt: "2026-07-01T09:39:00.000Z",
+    });
+    renderDetail();
+
+    expect(await screen.findByRole("tab", { name: "ภาพรวม" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("24 มิ.ย. 08:00")).not.toHaveClass("hidden");
+    expect(screen.getByText("25 มิ.ย. 08:00")).toHaveClass("hidden");
+    expect(screen.getByText("25 มิ.ย. 08:00").closest("div")).toHaveClass("hidden");
+    expect(screen.getByText("01 ก.ค. 08:00")).toHaveClass("hidden");
+    expect(screen.getByText("01 ก.ค. 08:00").closest("div")).toHaveClass("hidden");
+    expect(screen.getByText("16:39")).not.toHaveClass("hidden");
+  });
+
+  it("shows overview day ticks only for days with timeline actions", async () => {
+    Object.assign(mocks.petition, {
+      status: "success",
+      submittedBy: { name: "Requester", submittedAt: "2026-06-24T01:00:00.000Z" },
+      createdAt: "2026-06-24T01:00:00.000Z",
+      qcReceivedAt: "2026-06-24T01:00:00.000Z",
+      qcCompletedAt: "2026-07-02T01:00:00.000Z",
+    });
+    renderDetail();
+
+    expect(await screen.findByRole("tab", { name: "ภาพรวม" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("24 มิ.ย. 08:00")).toBeInTheDocument();
+    expect(screen.queryByText("27 มิ.ย. 08:00")).not.toBeInTheDocument();
+    expect(screen.queryByText("30 มิ.ย. 08:00")).not.toBeInTheDocument();
+    expect(screen.getByText("02 ก.ค. 08:00")).toBeInTheDocument();
   });
 
   it("retries activity loading without blanking header and task panels", async () => {
@@ -286,7 +382,10 @@ describe("PetitionTimelineDetailPage", () => {
   });
 
   it("shows Pre Report with its own green border color", async () => {
-    Object.assign(mocks.petition, { status: "success" });
+    Object.assign(mocks.petition, {
+      qcCompletedAt: "2026-07-13T06:00:00.000Z",
+      labCompletedAt: "2026-07-13T07:00:00.000Z",
+    });
     mocks.labRequests = [{ _id: "lab-request-1" }];
     mocks.getQCProgress.mockResolvedValue({
       "petition-1": [{ itemSeq: 1, parameterId: "parameter-1", filledLabels: ["Viscosity", "Color"] }],
@@ -296,22 +395,22 @@ describe("PetitionTimelineDetailPage", () => {
     expect(await screen.findByRole("button", { name: "Pre Report" })).toHaveClass("border-green-500");
   });
 
-  it("does not show Pre Report before all required fields are recorded", async () => {
-    Object.assign(mocks.petition, { status: "success" });
+  it("does not show Pre Report while in progress before all required fields are recorded", async () => {
     renderDetail();
 
     expect(await screen.findByRole("heading", { name: "P-2607-001" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Pre Report" })).not.toBeInTheDocument();
   });
 
-  it("shows Pre Report after all required fields are recorded before final approval", async () => {
-    Object.assign(mocks.petition, { status: "success" });
+  it("does not show Pre Report after QC completion until Lab is complete", async () => {
+    Object.assign(mocks.petition, { qcCompletedAt: "2026-07-13T06:00:00.000Z" });
     mocks.getQCProgress.mockResolvedValue({
       "petition-1": [{ itemSeq: 1, parameterId: "parameter-1", filledLabels: ["Viscosity", "Color"] }],
     });
     renderDetail();
 
-    expect(await screen.findByRole("button", { name: "Pre Report" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "P-2607-001" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pre Report" })).not.toBeInTheDocument();
   });
 
   it("keeps the sample label document available after QC receives the sample", async () => {
@@ -434,7 +533,7 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.getByLabelText("Parameter ที่ต้องตรวจสอบ")).not.toHaveTextContent("Sample A");
   });
 
-  it("แสดงปุ่ม Pre Report เมื่อคำร้องทดสอบเสร็จสิ้น แม้ตัวอย่างอื่นยังไม่ครบ", async () => {
+  it("ไม่แสดงปุ่ม Pre Report เมื่อคำร้องทดสอบเสร็จสิ้น แต่ QC และ Lab ยังไม่ complete", async () => {
     Object.assign(mocks.petition, { status: "success", items: twoItems });
     mocks.getQCProgress.mockResolvedValue({
       "petition-1": [
@@ -445,10 +544,10 @@ describe("PetitionTimelineDetailPage", () => {
     renderDetail();
 
     expect(await screen.findByRole("tab", { name: "ABAMECTIN 1.8% W/V EC" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Pre Report" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pre Report" })).not.toBeInTheDocument();
   });
 
-  it("แสดงปุ่ม Pre Report เมื่อผล Lab ออกแล้วและรอ QC", async () => {
+  it("ไม่แสดงปุ่ม Pre Report เมื่อผล Lab ออกแล้วแต่ QC ยังไม่ complete", async () => {
     Object.assign(mocks.petition, {
       status: "inProgress",
       labApprovedAt: "2026-07-13T07:00:00.000Z",
@@ -456,6 +555,59 @@ describe("PetitionTimelineDetailPage", () => {
     });
     renderDetail();
 
+    expect(await screen.findByRole("heading", { name: "P-2607-001" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pre Report" })).not.toBeInTheDocument();
+  });
+
+  it("แสดงปุ่ม Pre Report เมื่อ QC และ Lab complete แล้ว", async () => {
+    Object.assign(mocks.petition, {
+      qcCompletedAt: "2026-07-13T06:00:00.000Z",
+      labCompletedAt: "2026-07-13T07:00:00.000Z",
+    });
+    renderDetail();
+
     expect(await screen.findByRole("button", { name: "Pre Report" })).toBeInTheDocument();
+  });
+});
+
+describe("สีประจำแถวของกราฟ timeline", () => {
+  it("จุด milestone แต่ละจุดมีสีของตัวเอง ไม่ซ้ำกัน", async () => {
+    Object.assign(mocks.petition, {
+      labReceivedAt: "2026-07-13T04:30:00.000Z",
+      qcCompletedAt: "2026-07-13T05:30:00.000Z",
+      labCompletedAt: "2026-07-13T06:00:00.000Z",
+      labApprovedAt: "2026-07-13T07:00:00.000Z",
+    });
+    renderDetail();
+
+    expect(await screen.findByLabelText("ยื่นคำขอ (จุด)")).toHaveClass("bg-violet-500");
+    expect(screen.getByLabelText("ส่งตัวอย่าง (จุด)")).toHaveClass("bg-orange-500");
+    expect(screen.getByLabelText("QC รับตัวอย่าง (จุด)")).toHaveClass("bg-sky-500");
+    expect(screen.getByLabelText("Lab รับตัวอย่าง (จุด)")).toHaveClass("bg-lime-600");
+  });
+
+  it("แท่ง Pre Result ไม่ใช้สีเดียวกับแท่ง Lab กำลังวิเคราะห์", async () => {
+    Object.assign(mocks.petition, {
+      labReceivedAt: "2026-07-13T04:30:00.000Z",
+      qcCompletedAt: "2026-07-13T05:30:00.000Z",
+      labCompletedAt: "2026-07-13T06:00:00.000Z",
+      labApprovedAt: "2026-07-13T07:00:00.000Z",
+    });
+    renderDetail();
+
+    expect(await screen.findByLabelText("Pre Result (ช่วงเวลา)")).toHaveClass("bg-cyan-500");
+    expect(screen.getByLabelText("Lab กำลังวิเคราะห์ (ช่วงเวลา)")).toHaveClass("bg-amber-500");
+  });
+
+  it("จุดที่ยังไม่ถึงยังเป็นสีเทา", async () => {
+    Object.assign(mocks.petition, {
+      qcReceivedAt: undefined,
+      receivedAt: undefined,
+      labReceivedAt: undefined,
+      assignedTo: undefined,
+    });
+    renderDetail();
+
+    expect(await screen.findByLabelText("QC รับตัวอย่าง (จุด)")).toHaveClass("bg-grey-300");
   });
 });

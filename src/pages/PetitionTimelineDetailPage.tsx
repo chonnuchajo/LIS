@@ -66,10 +66,23 @@ function progressFillClass(percent: number) {
   return "bg-gradient-to-r from-red-500 via-amber-400 to-green-500";
 }
 
-function timelineTickVisibilityClass(index: number, total: number) {
+function timelineTickVisibilityClass(index: number, total: number, overview: boolean) {
+  if (overview && total > 12) {
+    const compactVisible = index === 0 || index === total - 1 || (index % 6 === 0 && index < total - 2);
+    return compactVisible ? "" : "hidden";
+  }
   if (total <= 7) return "";
   const compactVisible = index === 0 || index === total - 1 || (index % 2 === 0 && index < total - 2);
   return compactVisible ? "" : "hidden 2xl:block";
+}
+
+function timelineTickLineClass(index: number, total: number, overview: boolean) {
+  if (overview && total > 12 && timelineTickVisibilityClass(index, total, overview) === "hidden") return "hidden";
+  return "border-l border-grey-200";
+}
+
+function timelineTickPositionClass(left: number, overview: boolean) {
+  return left > (overview ? 80 : 92) ? "right-1" : "left-1";
 }
 
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -232,11 +245,9 @@ export default function PetitionTimelineDetailPage() {
   const activities = showAllActivities ? model.activities : model.activities.slice(0, 5);
   const progressLabel = model.progress.percent == null ? "-" : `${model.progress.percent}%`;
   const sgParameter = findSgParameter(parameters);
-  const preReportReadyByStatus = petition.status === "success" || Boolean(petition.labApprovedAt);
-  const preReportReadyByRequiredFields = model.overallProgress.total > 0
-    && model.overallProgress.filled >= model.overallProgress.total - 1;
   const canShowPreReport = canPrintPreReport(petition)
-    && (preReportReadyByStatus || preReportReadyByRequiredFields);
+    && Boolean(petition.qcCompletedAt)
+    && Boolean(petition.labCompletedAt);
   const activeItem = model.items.find((item) => item.seq === selectedItemSeq) ?? null;
   const responsibleName = petition.assignedTo?.name || "ยังไม่มอบหมาย";
   const timelineDays = model.timeline.days.length
@@ -256,7 +267,27 @@ export default function PetitionTimelineDetailPage() {
           continuesAfter: false,
         })),
       }];
-  const activeTimelineDay = timelineDays.find((day) => day.key === activeTimelineDayKey) ?? timelineDays[0];
+  const timelineTabs = timelineDays.length > 1
+    ? [{
+        key: "overview",
+        label: "ภาพรวม",
+        startAt: model.timeline.startAt,
+        endAt: model.timeline.endAt,
+        ticks: model.timeline.ticks,
+        rows: model.timeline.rows.map((row) => ({
+          ...row,
+          visible: true,
+          segmentStartAt: row.startAt ?? row.at,
+          segmentEndAt: row.endAt ?? row.at,
+          continuesBefore: false,
+          continuesAfter: false,
+        })),
+      }, ...timelineDays]
+    : timelineDays;
+  const activeTimelineDay = timelineTabs.find((day) => day.key === activeTimelineDayKey) ?? timelineTabs[0];
+  const activeTimelineRows = activeTimelineDay.key === "overview"
+    ? activeTimelineDay.rows
+    : activeTimelineDay.rows.filter((row) => row.visible);
 
   const refreshTasks = () => setTaskReloadKey((value) => value + 1);
 
@@ -307,18 +338,19 @@ export default function PetitionTimelineDetailPage() {
             <CardTitle className="flex items-center gap-2 text-base"><CalendarClock className="h-4 w-4 text-primary-500" />Petition Timeline</CardTitle>
           </CardHeader>
           <CardContent>
-            {timelineDays.length > 1 && <div role="tablist" aria-label="Timeline days" className="mb-3 flex flex-wrap gap-2">{timelineDays.map((day) => <button key={day.key} type="button" role="tab" aria-selected={day.key === activeTimelineDay.key} className={cn("rounded-[8px] border px-3 py-1.5 text-xs font-medium transition-colors", day.key === activeTimelineDay.key ? "border-primary-500 bg-primary-50 text-primary-600" : "border-black-50 bg-white text-grey-600 hover:bg-grey-50")} onClick={() => setActiveTimelineDayKey(day.key)}>{day.label}</button>)}</div>}
+            {timelineTabs.length > 1 && <div role="tablist" aria-label="Timeline days" className="mb-3 flex flex-wrap gap-2">{timelineTabs.map((day) => <button key={day.key} type="button" role="tab" aria-selected={day.key === activeTimelineDay.key} className={cn("rounded-[8px] border px-3 py-1.5 text-xs font-medium transition-colors", day.key === activeTimelineDay.key ? "border-primary-500 bg-primary-50 text-primary-600" : "border-black-50 bg-white text-grey-600 hover:bg-grey-50")} onClick={() => setActiveTimelineDayKey(day.key)}>{day.label}</button>)}</div>}
             <div className="space-y-3">
               <div className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-end gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3">
                 <div aria-hidden="true" />
                 <div className="relative min-w-0 border-b border-black-50 pb-5 text-xs text-grey-500">
                   {activeTimelineDay.ticks.map((tick, index) => {
                     const left = timelinePercent(tick.at, activeTimelineDay.startAt, activeTimelineDay.endAt);
-                    return left == null ? null : <div key={tick.key} className="absolute top-0 h-full border-l border-grey-200" style={{ left: `${left}%` }}><span className={cn("absolute top-0 whitespace-nowrap", left > 92 ? "right-1" : "left-1", timelineTickVisibilityClass(index, activeTimelineDay.ticks.length))}>{tick.label}</span></div>;
+                    const isOverview = activeTimelineDay.key === "overview";
+                    return left == null ? null : <div key={tick.key} className={cn("absolute top-0 h-full", timelineTickLineClass(index, activeTimelineDay.ticks.length, isOverview))} style={{ left: `${left}%` }}><span className={cn("absolute top-0 whitespace-nowrap", timelineTickPositionClass(left, isOverview), timelineTickVisibilityClass(index, activeTimelineDay.ticks.length, isOverview))}>{tick.label}</span></div>;
                   })}
                 </div>
               </div>
-              {activeTimelineDay.rows.map((row) => {
+              {activeTimelineRows.map((row) => {
                 const progress = row.visible && row.kind === "milestone" ? timelinePercent(row.at, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const start = row.visible && row.kind === "bar" ? timelinePercent(row.segmentStartAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const end = row.visible && row.kind === "bar" ? timelinePercent(row.segmentEndAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
