@@ -492,8 +492,8 @@ function buildClosingRows(petition: Petition): TimelineDetailRow[] {
 
   return [
     hasLab ? makeBarRow({
-      key: "lab-approved",
-      label: "ออกผล Lab",
+      key: "pre-result",
+      label: "Pre Result",
       track: "lab",
       startAt: petition.labCompletedAt ?? null,
       endAt: labApprovedAt,

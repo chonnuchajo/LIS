@@ -217,7 +217,7 @@ describe("buildTimelineDetailModel", () => {
     expect(result.timeline.rows.find((row) => row.key === "submitted")).toMatchObject({ at: at(12, 9), done: true });
   });
 
-  it("ลากแท่ง ออกผล Lab จาก Lab บันทึกครบ ถึง Lab อนุมัติ", () => {
+  it("ลากแท่ง Pre Result จาก Lab บันทึกครบ ถึง Lab อนุมัติ", () => {
     const result = model(petition({
       items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
       qcReceivedAt: at(13, 9),
@@ -225,8 +225,8 @@ describe("buildTimelineDetailModel", () => {
       labApprovedAt: at(13, 15),
     }));
 
-    expect(result.timeline.rows.find((row) => row.key === "lab-approved")).toMatchObject({
-      label: "ออกผล Lab",
+    expect(result.timeline.rows.find((row) => row.key === "pre-result")).toMatchObject({
+      label: "Pre Result",
       kind: "bar",
       track: "lab",
       startAt: at(13, 14),
@@ -235,14 +235,14 @@ describe("buildTimelineDetailModel", () => {
     });
   });
 
-  it("ไม่วาดแท่ง ออกผล Lab เมื่อยังไม่อนุมัติ", () => {
+  it("ไม่วาดแท่ง Pre Result เมื่อยังไม่อนุมัติ", () => {
     const result = model(petition({
       items: [{ seq: 1, sampleName: "Lab Sample", batchNo: "BATCH-001", sampleId: "sample-1" }],
       qcReceivedAt: at(13, 9),
       labCompletedAt: at(13, 14),
     }));
 
-    expect(result.timeline.rows.find((row) => row.key === "lab-approved")).toMatchObject({
+    expect(result.timeline.rows.find((row) => row.key === "pre-result")).toMatchObject({
       startAt: null,
       endAt: null,
       done: false,
@@ -460,7 +460,7 @@ describe("buildTimelineDetailModel", () => {
       "received-lab",
       "param::parameter-1",
       "param::parameter-lab",
-      "lab-approved",
+      "pre-result",
       "final",
     ]);
   });
@@ -639,7 +639,7 @@ describe("buildTimelineDetailModel", () => {
       { key: "received-qc", label: "QC รับตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 9), startAt: null, endAt: null, done: true },
       { key: "assigned", label: "มอบหมายงาน Lab", kind: "milestone", track: "stage", at: at(13, 11), startAt: null, endAt: null, done: true },
       { key: "received-lab", label: "Lab รับตัวอย่าง", kind: "milestone", track: "stage", at: at(13, 10), startAt: null, endAt: null, done: true },
-      { key: "lab-approved", label: "ออกผล Lab", kind: "bar", track: "lab", at: null, startAt: at(13, 14), endAt: at(13, 15), done: true },
+      { key: "pre-result", label: "Pre Result", kind: "bar", track: "lab", at: null, startAt: at(13, 14), endAt: at(13, 15), done: true },
       { key: "final", label: "Final Result", kind: "bar", track: "stage", at: null, startAt: at(13, 15), endAt: at(13, 16), done: true },
     ];
 
