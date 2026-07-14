@@ -61,6 +61,7 @@ export type TimelineDetailModel = {
   header: TimelineDetailHeader;
   items: TimelineDetailItemTab[];
   progress: TimelineDetailProgress;
+  overallProgress: TimelineDetailProgress;
   tasks: TimelineDetailTask[];
   activities: TimelineDetailActivity[];
   timeline: { startAt: string; endAt: string; ticks: TimelineDetailTick[]; rows: TimelineDetailRow[]; days: TimelineDetailDay[] };
@@ -72,6 +73,7 @@ export type TimelineDetailInput = {
   auditLogs: PetitionAuditLogEntry[];
   qcResults: QCTestResult[];
   itemGroupIds?: Map<string, string[]>;
+  itemSeq?: number | null;
 };
 
 const WORK_START_HOUR = 8;
@@ -438,11 +440,13 @@ function buildParameterRows(
   qcResults: QCTestResult[],
   itemGroupIds: Map<string, string[]> | undefined,
   fallbackStartAt: string,
+  itemSeq: number | null | undefined,
 ): TimelineDetailRow[] {
   const touches = buildParameterTouches(auditLogs, qcResults);
   const groups = new Map<string, { parameter: ParameterItem; pairKeys: string[] }>();
 
   for (const item of petition.items ?? []) {
+    if (itemSeq != null && item.seq !== itemSeq) continue;
     const groupIds = itemGroupIds?.get(String(item.sampleId ?? "").trim()) ?? [];
     for (const parameter of matchParametersForItem(item, parameters, groupIds)) {
       const parameterId = parameter._id;
@@ -515,10 +519,11 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
     input.petition.qcCompletedAt,
   );
   const header = buildHeaderTiming(startAt, actualEndAt, input.petition.status, now);
-  const tasks = buildRequiredTasks(input.petition, input.parameters, input.progressEntries, input.itemGroupIds);
+  const allTasks = buildRequiredTasks(input.petition, input.parameters, input.progressEntries, input.itemGroupIds);
+  const tasks = input.itemSeq == null ? allTasks : allTasks.filter((task) => task.itemSeq === input.itemSeq);
   const rows = [
     ...buildMilestoneRows(input.petition),
-    ...buildParameterRows(input.petition, input.parameters, input.auditLogs, input.qcResults ?? [], input.itemGroupIds, startAt),
+    ...buildParameterRows(input.petition, input.parameters, input.auditLogs, input.qcResults ?? [], input.itemGroupIds, startAt, input.itemSeq),
     ...buildClosingRows(input.petition),
   ];
 
@@ -526,6 +531,7 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
     header: { ...header, startKind: receivedAt ? "received" : "submitted" },
     items: buildItemTabs(input.petition),
     progress: buildRequiredProgress(tasks, input.petition.status === "approved"),
+    overallProgress: buildRequiredProgress(allTasks, input.petition.status === "approved"),
     tasks,
     activities: normalizeTimelineActivities(input.auditLogs),
     timeline: {
