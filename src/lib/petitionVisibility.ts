@@ -84,6 +84,5 @@ export function canUserCreatePetition(
   canAccessNewPetition: boolean,
 ): boolean {
   if (!canAccessNewPetition) return false;
-  const roles = normalizeRoles(user).map((role) => role.toLowerCase());
-  return roles.length > 0 && roles.some((role) => role !== 'viewer');
+  return normalizeRoles(user).length > 0;
 }

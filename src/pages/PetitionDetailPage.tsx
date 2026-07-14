@@ -35,7 +35,6 @@ import PetitionPrintTemplate from '@/components/petition/PetitionPrintTemplate';
 import ResultReportPrintTemplate from '@/components/petition/ResultReportPrintTemplate';
 import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
-import ReviewHistory from '@/components/review/ReviewHistory';
 import {
   usePetition,
   deletePetition,
@@ -44,7 +43,6 @@ import {
 import {
   PETITION_DEPT_LABELS,
   type Petition,
-  type ReviewEntry,
 } from '@/types/petition.types';
 import { useAuth } from '@/hooks/useAuth';
 import { useSamples } from '@/context/SampleContext';
@@ -57,7 +55,6 @@ import { buildApprovalGroups } from '@/lib/qcApprovalRows';
 import { buildLaLisAssistant, type LaLisIssue } from '@/lib/laLisAssistant';
 import { canPrintSampleLabel, canPrintPreReport } from '@/lib/petitionPrintability';
 import { cn } from '@/lib/utils';
-import StickyActionBar from '@/components/lis/StickyActionBar';
 
 function detailBannerText(petition: Petition) {
   if (petition.status === 'rejected') return 'คำร้องนี้ถูกส่งกลับเพื่อแก้ไข';
@@ -86,74 +83,6 @@ function detailBannerTone(petition: Petition) {
 function displayPerson(name?: string | null) {
   const value = (name ?? '').trim();
   return value || 'ยังไม่มี';
-}
-
-function QcNoteSection({ petition }: { petition: Petition }) {
-  const qcNote = (petition.reviewHistory ?? []).find((e) => e.action === 'note') ?? null;
-  const qcItems = petition.items.filter((item) => item.sampleId || item.condition);
-
-  return (
-    <div>
-      <p className="text-sm font-semibold text-black-700 mb-2">QC บันทึก</p>
-      {qcNote ? (
-        <div className="rounded-[10px] border border-primary-200 bg-primary-50 p-4 space-y-3">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-            <span className="text-sm font-semibold text-primary-600">บันทึก QC</span>
-            <span className="text-xs text-grey-500">
-              โดย {qcNote.reviewedBy} ·{' '}
-              {new Date(qcNote.reviewedAt).toLocaleString('th-TH', {
-                dateStyle: 'medium',
-                timeStyle: 'short',
-              })}
-            </span>
-          </div>
-          {qcNote.note && (
-            <p className="text-sm text-black-500 whitespace-pre-wrap">{qcNote.note}</p>
-          )}
-          {qcItems.length > 0 && (
-            <div className="space-y-1.5">
-              {qcItems.map((item) => (
-                <p key={item.seq} className="text-xs text-grey-500">
-                  <span className="font-semibold text-black-500">
-                    {item.seq}. {item.sampleName}
-                  </span>
-                  {item.sampleId && (
-                    <span> · เลขตัวอย่าง: <span className="text-black-500">{item.sampleId}</span></span>
-                  )}
-                  {item.condition && (
-                    <span>
-                      {' '}· สภาพ:{' '}
-                      <span
-                        className={
-                          item.condition === 'normal'
-                            ? 'text-green-500 font-medium'
-                            : 'text-red-500 font-medium'
-                        }
-                      >
-                        {item.condition === 'normal' ? 'ปกติ' : 'ไม่ปกติ'}
-                      </span>
-                    </span>
-                  )}
-                </p>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <p className="text-sm text-grey-500">ยังไม่มีการบันทึก QC</p>
-      )}
-    </div>
-  );
-}
-
-function DecisionSection({ history }: { history: ReviewEntry[] }) {
-  if (history.length === 0) return null;
-  return (
-    <div className="border-t border-black-50 pt-4">
-      <p className="text-sm font-semibold text-black-700 mb-3">ผลการพิจารณา</p>
-      <ReviewHistory history={history} />
-    </div>
-  );
 }
 
 function IssueList({ items }: { items: LaLisIssue[] }) {
@@ -561,39 +490,6 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
 
                 <PetitionView petition={data} />
 
-                <StickyActionBar
-                  onCancel={() => navigate(isResultMode ? '/record-results' : '/petitions')}
-                  cancelLabel="กลับไปรายการคำร้อง"
-                  saveLabel={!data.assignedTo && (data.status === 'sampleSent' || data.status === 'pendingReview')
-                    ? 'Assign ผู้รับงาน'
-                    : canEdit
-                      ? 'แก้ไขคำร้อง'
-                      : 'กลับไปรายการคำร้อง'}
-                  onSave={() => {
-                    if (!data.assignedTo && (data.status === 'sampleSent' || data.status === 'pendingReview')) {
-                      navigate('/petitions/assign');
-                      return;
-                    }
-                    if (canEdit) {
-                      navigate(`/petitions/${data._id}/edit`);
-                      return;
-                    }
-                    navigate(isResultMode ? '/record-results' : '/petitions');
-                  }}
-                  extra={<span className="text-xs text-grey-500">{detailBannerText(data)}</span>}
-                />
-
-                {(data.reviewHistory?.length ?? 0) > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>บันทึก QC / ผลการพิจารณา</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <QcNoteSection petition={data} />
-                      <DecisionSection history={data.reviewHistory ?? []} />
-                    </CardContent>
-                  </Card>
-                )}
               </div>
 
               {hasLabRequests && (

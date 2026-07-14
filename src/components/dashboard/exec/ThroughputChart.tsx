@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ExecSummary } from "@/lib/execSummary";
 
 const CONFIG = {
-  created: { label: "งานเข้า", color: "hsl(217,91%,55%)" },
-  completed: { label: "งานปิด", color: "hsl(142,71%,45%)" },
+  created: { label: "คำขอใหม่", color: "hsl(217,91%,55%)" },
+  completed: { label: "คำขอเสร็จสิ้น", color: "hsl(142,71%,45%)" },
 };
 
 export default function ThroughputChart({ rows }: { rows: ExecSummary["stats"]["throughput"] }) {
@@ -15,7 +15,7 @@ export default function ThroughputChart({ rows }: { rows: ExecSummary["stats"]["
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">งานเข้า vs งานปิด</CardTitle>
+        <CardTitle className="text-base">คำขอใหม่ / คำขอเสร็จสิ้น</CardTitle>
       </CardHeader>
       <CardContent>
         {isEmpty ? (

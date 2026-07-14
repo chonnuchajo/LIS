@@ -20,7 +20,7 @@ export default function TurnaroundChart({ rows }: { rows: ExecSummary["stats"]["
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">เวลาที่ใช้ต่อด่าน (ชั่วโมง)</CardTitle>
+        <CardTitle className="text-base">เวลาที่ใช้ต่อสถานะ (ชั่วโมง)</CardTitle>
       </CardHeader>
       <CardContent>
         {data.length === 0 ? (

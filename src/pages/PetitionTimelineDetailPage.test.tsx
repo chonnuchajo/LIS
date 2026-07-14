@@ -30,6 +30,8 @@ const mocks = vi.hoisted(() => {
     valueFields: [
       { label: "Viscosity", type: "number", required: true },
       { label: "Color", type: "text", required: true },
+      { label: "Photo evidence", type: "photo", required: true },
+      { label: "Optional note", type: "text", required: false },
     ],
   };
   return {
@@ -111,6 +113,8 @@ beforeEach(() => {
     valueFields: [
       { label: "Viscosity", type: "number", required: true },
       { label: "Color", type: "text", required: true },
+      { label: "Photo evidence", type: "photo", required: true },
+      { label: "Optional note", type: "text", required: false },
     ],
   };
   mocks.getParameters.mockResolvedValue([mocks.parameter]);
@@ -124,12 +128,38 @@ describe("PetitionTimelineDetailPage", () => {
     renderDetail();
 
     expect(await screen.findByRole("heading", { name: "P-2607-001" })).toBeInTheDocument();
-    expect(await screen.findByText("50%")).toBeInTheDocument();
+    expect(await screen.findByText("40%")).toBeInTheDocument();
+    expect(screen.queryByText(/required fields/i)).not.toBeInTheDocument();
+    const progressBar = screen.getByRole("progressbar", { name: "Progress" });
+    expect(progressBar).toHaveAttribute("aria-valuenow", "40");
+    expect(progressBar.firstElementChild).toHaveClass("bg-gradient-to-r", "from-red-500", "to-amber-400");
     expect(screen.getByText("08:00")).toBeInTheDocument();
     expect(screen.getByText("17:00")).toBeInTheDocument();
     expect(screen.queryByText("20:00")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Tasks")).toHaveTextContent("Required checks");
+    expect(screen.getByLabelText("Parameter ที่ต้องตรวจสอบ")).toHaveTextContent("Required checks");
+    expect(screen.getByLabelText("Parameter ที่ต้องตรวจสอบ")).toHaveTextContent("1/2");
     expect(screen.getByLabelText("petition timeline")).not.toHaveTextContent("Required checks");
+  });
+
+  it("shows a red progress bar up to 33 percent", async () => {
+    mocks.getQCProgress.mockResolvedValue({ "petition-1": [{ itemSeq: 1, parameterId: "parameter-1", filledLabels: [] }] });
+    renderDetail();
+
+    expect(await screen.findByText("20%")).toBeInTheDocument();
+    const progressBar = screen.getByRole("progressbar", { name: "Progress" });
+    expect(progressBar).toHaveAttribute("aria-valuenow", "20");
+    expect(progressBar.firstElementChild).toHaveClass("bg-red-500");
+    expect(progressBar.firstElementChild).not.toHaveClass("bg-gradient-to-r");
+  });
+
+  it("shows a progress gradient ending in green at 100 percent", async () => {
+    Object.assign(mocks.petition, { status: "approved", approvedAt: "2026-07-13T08:00:00.000Z" });
+    renderDetail();
+
+    expect(await screen.findByText("100%")).toBeInTheDocument();
+    const progressBar = screen.getByRole("progressbar", { name: "Progress" });
+    expect(progressBar).toHaveAttribute("aria-valuenow", "100");
+    expect(progressBar.firstElementChild).toHaveClass("bg-gradient-to-r", "from-red-500", "via-amber-400", "to-green-500");
   });
 
   it("shows petition and item details instead of requester and assignee metrics", async () => {
@@ -153,7 +183,7 @@ describe("PetitionTimelineDetailPage", () => {
 
     expect(await screen.findByRole("heading", { name: "P-2607-001" })).toBeInTheDocument();
     const timelineCard = screen.getByLabelText("petition timeline");
-    const tasksCard = screen.getByLabelText("Tasks");
+    const tasksCard = screen.getByLabelText("Parameter ที่ต้องตรวจสอบ");
     const activityCard = screen.getByLabelText("Recent Activity");
     const documentsCard = screen.getByLabelText("Documents");
 
@@ -209,7 +239,7 @@ describe("PetitionTimelineDetailPage", () => {
       .mockResolvedValueOnce([mocks.parameter]);
     renderDetail();
 
-    expect(await screen.findByText(/โหลดข้อมูลงานไม่สำเร็จ/)).toBeInTheDocument();
+    expect(await screen.findByText(/โหลดข้อมูล parameter ไม่สำเร็จ/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "ลองใหม่" }));
 
     await waitFor(() => expect(mocks.getParameters).toHaveBeenCalledTimes(2));
@@ -240,6 +270,30 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.getByRole("button", { name: "ใบคำขอรับบริการ" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Final Report" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Pre Report" })).not.toBeInTheDocument();
+  });
+
+  it("shows approved document actions with distinct border colors", async () => {
+    Object.assign(mocks.petition, { status: "approved", approvedAt: "2026-07-13T08:00:00.000Z" });
+    mocks.labRequests = [{ _id: "lab-request-1" }];
+    renderDetail();
+
+    await screen.findByRole("button", { name: "Final Report" });
+    const documentButtons = Array.from(screen.getByLabelText("Documents").querySelectorAll("button"));
+    expect(documentButtons).toHaveLength(3);
+    expect(documentButtons[0]).toHaveClass("border-primary-500");
+    expect(documentButtons[1]).toHaveClass("border-yellow-500");
+    expect(documentButtons[2]).toHaveClass("border-red-500");
+  });
+
+  it("shows Pre Report with its own green border color", async () => {
+    Object.assign(mocks.petition, { status: "success" });
+    mocks.labRequests = [{ _id: "lab-request-1" }];
+    mocks.getQCProgress.mockResolvedValue({
+      "petition-1": [{ itemSeq: 1, parameterId: "parameter-1", filledLabels: ["Viscosity", "Color"] }],
+    });
+    renderDetail();
+
+    expect(await screen.findByRole("button", { name: "Pre Report" })).toHaveClass("border-green-500");
   });
 
   it("does not show Pre Report before all required fields are recorded", async () => {
@@ -355,7 +409,7 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.getByRole("tab", { name: "EMAMECTIN 1.9% EC" })).toHaveAttribute("aria-selected", "false");
   });
 
-  it("สลับแท็บแล้ว Metric และการ์ด Tasks เปลี่ยนตามตัวอย่างที่เลือก", async () => {
+  it("สลับแท็บแล้ว Metric และการ์ด Parameter ที่ต้องตรวจสอบเปลี่ยนตามตัวอย่างที่เลือก", async () => {
     Object.assign(mocks.petition, { items: twoItems });
     mocks.getQCProgress.mockResolvedValue({
       "petition-1": [
@@ -368,19 +422,19 @@ describe("PetitionTimelineDetailPage", () => {
     // อย่าใช้ getByText(commonName) — ชื่อสารโผล่ทั้งในปุ่มแท็บและใน Metric จะได้ 2 element
     expect(await screen.findByRole("tab", { name: "ABAMECTIN 1.8% W/V EC" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("BATCH-002")).toBeInTheDocument();
-    expect(screen.getByLabelText("Tasks")).toHaveTextContent("Sample A");
-    expect(screen.getByLabelText("Tasks")).not.toHaveTextContent("Sample B");
+    expect(screen.getByLabelText("Parameter ที่ต้องตรวจสอบ")).toHaveTextContent("Sample A");
+    expect(screen.getByLabelText("Parameter ที่ต้องตรวจสอบ")).not.toHaveTextContent("Sample B");
 
     fireEvent.click(screen.getByRole("tab", { name: "EMAMECTIN 1.9% EC" }));
 
     expect(screen.getByRole("tab", { name: "EMAMECTIN 1.9% EC" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("BATCH-003")).toBeInTheDocument();
     expect(screen.queryByText("BATCH-002")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Tasks")).toHaveTextContent("Sample B");
-    expect(screen.getByLabelText("Tasks")).not.toHaveTextContent("Sample A");
+    expect(screen.getByLabelText("Parameter ที่ต้องตรวจสอบ")).toHaveTextContent("Sample B");
+    expect(screen.getByLabelText("Parameter ที่ต้องตรวจสอบ")).not.toHaveTextContent("Sample A");
   });
 
-  it("ยังไม่ให้ปุ่ม Pre Report เมื่อตัวอย่างที่เลือกกรอกครบ แต่ตัวอย่างอื่นยังไม่ครบ", async () => {
+  it("แสดงปุ่ม Pre Report เมื่อคำร้องทดสอบเสร็จสิ้น แม้ตัวอย่างอื่นยังไม่ครบ", async () => {
     Object.assign(mocks.petition, { status: "success", items: twoItems });
     mocks.getQCProgress.mockResolvedValue({
       "petition-1": [
@@ -391,6 +445,17 @@ describe("PetitionTimelineDetailPage", () => {
     renderDetail();
 
     expect(await screen.findByRole("tab", { name: "ABAMECTIN 1.8% W/V EC" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Pre Report" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pre Report" })).toBeInTheDocument();
+  });
+
+  it("แสดงปุ่ม Pre Report เมื่อผล Lab ออกแล้วและรอ QC", async () => {
+    Object.assign(mocks.petition, {
+      status: "inProgress",
+      labApprovedAt: "2026-07-13T07:00:00.000Z",
+      labCompletedAt: "2026-07-13T06:00:00.000Z",
+    });
+    renderDetail();
+
+    expect(await screen.findByRole("button", { name: "Pre Report" })).toBeInTheDocument();
   });
 });

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { RouteLoading } from "./RouteLoading";
 
 const loadingLabel = "กำลังเตรียมสาร…";
+const loadingText = loadingLabel.replace(/\u2026$/, "");
 
 const cssPath = resolve(process.cwd(), "src/components/RouteLoading.css");
 
@@ -13,13 +14,15 @@ describe("RouteLoading", () => {
     render(<RouteLoading />);
 
     expect(screen.getByRole("status", { name: loadingLabel })).toBeInTheDocument();
-    expect(screen.getByText(loadingLabel)).toHaveTextContent(loadingLabel);
+    expect(screen.getByText(loadingText)).toHaveTextContent(loadingText);
+    expect(screen.getByTestId("route-loading-dots")).toBeInTheDocument();
     expect(screen.getByTestId("route-loading-artwork")).toHaveAttribute(
       "src",
       expect.stringContaining("route-loading-lab.svg"),
     );
     expect(screen.getByTestId("route-loading-scan")).toBeInTheDocument();
   });
+
   it("uses a white page background", () => {
     const css = readFileSync(cssPath, "utf8");
 
@@ -31,5 +34,21 @@ describe("RouteLoading", () => {
 
     expect(css).toContain("route-loading-svg-motion");
     expect(css).toContain("@keyframes route-loading-svg-motion");
+  });
+
+  it("uses a readable loading label size", () => {
+    const css = readFileSync(cssPath, "utf8");
+
+    expect(css).toContain("font-size: 1.125rem;");
+  });
+
+  it("cycles loading dots after the label", () => {
+    const css = readFileSync(cssPath, "utf8");
+
+    expect(css).toContain("route-loading-dots");
+    expect(css).toContain("@keyframes route-loading-dots");
+    expect(css).toContain('content: ".";');
+    expect(css).toContain('content: "..";');
+    expect(css).toContain('content: "...";');
   });
 });

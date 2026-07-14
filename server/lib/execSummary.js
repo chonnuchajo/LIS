@@ -203,9 +203,31 @@ function uniqueIds(ids) {
   return result;
 }
 
-function buildLiveSection(petitions, { now, qcBaseline, abnormalFlags = {} }) {
-  const units = openWorkUnits(petitions, { now, qcBaseline });
-  const openPetitions = (petitions || []).filter(isOpen);
+/**
+ * "งานเข้ามาเมื่อไหร่" = วันที่นำส่งตัวอย่าง (sampleSentAt) — นั่นคือจังหวะที่งานถึงแล็บจริง
+ * ไม่ใช่วันที่กรอกฟอร์ม · fallback เป็น createdAt เฉพาะกรณีไม่มี sampleSentAt เพื่อไม่ให้
+ * ใบที่ข้อมูลขาดหายไปจากแดชบอร์ดเงียบ ๆ (throughput ใช้ sampleSentAt ล้วน — ดู buildStatsSection)
+ */
+function arrivalAt(petition) {
+  return toDate((petition || {}).sampleSentAt) || toDate((petition || {}).createdAt);
+}
+
+/** งานค้างที่ "ยื่นในช่วงที่เลือก" — ใบที่ไม่มีทั้ง sampleSentAt/createdAt ถือว่าอยู่ในช่วงเสมอ */
+function submittedWithin(petition, windowStart) {
+  if (windowStart == null) return true;
+  const arrived = arrivalAt(petition);
+  if (!arrived) return true;
+  return arrived.getTime() >= windowStart;
+}
+
+// windowStart คุมเฉพาะ "ตัวเลขสรุป" (counts/ids/bottleneck) ให้ตรงกับช่วงวันที่หัวหน้าเลือก
+// ส่วน actionQueue เจตนาเป็น all-time — ใบเก่าที่ยังค้างคืองานที่ห้ามหลุดสายตา แค่เพราะ
+// ย่อช่วงเหลือ 1 วัน
+function buildLiveSection(petitions, { now, qcBaseline, abnormalFlags = {}, windowStart = null }) {
+  const allUnits = openWorkUnits(petitions, { now, qcBaseline });
+  const openPetitions = (petitions || []).filter(isOpen).filter((p) => submittedWithin(p, windowStart));
+  const scopedIds = new Set(openPetitions.map((p) => String(p._id)));
+  const units = allUnits.filter((u) => scopedIds.has(u.petitionId));
 
   // แหล่งเดียวกันสำหรับทั้ง counts และ ids — เพื่อไม่ให้ตัวเลขกับ id ที่ลิงก์ไปเพี้ยนกัน
   const urgentPetitions = openPetitions.filter((p) => p.priority === 1);
@@ -219,6 +241,7 @@ function buildLiveSection(petitions, { now, qcBaseline, abnormalFlags = {} }) {
   // highlight ตรงกันโดยโครงสร้าง (ไม่ใช่บังเอิญ) แม้ใบเดียวจะมีหลาย work unit
   // (เช่น lab-batch ที่เกินเวลาทั้งราง Lab และ QC พร้อมกัน) ก็ต้องนับครั้งเดียว
   const ids = {
+    total: uniqueIds(openPetitions.map((p) => String(p._id))),
     urgent: uniqueIds(urgentPetitions.map((p) => String(p._id))),
     overdue: uniqueIds(overdueUnits.map((u) => u.petitionId)),
     atRisk: uniqueIds(atRiskUnits.map((u) => u.petitionId)),
@@ -235,7 +258,7 @@ function buildLiveSection(petitions, { now, qcBaseline, abnormalFlags = {} }) {
 
   // เรียง: เกินเวลามากสุด → ค้างไม่มี assign → เสี่ยงเลท → ที่เหลือตามอายุ
   const rank = { overdue: 0, unassigned: 1, atRisk: 2, noBaseline: 3, ok: 4 };
-  const actionQueue = [...units]
+  const actionQueue = [...allUnits]
     .filter((u) => u.state !== 'ok' || QUEUE_STAGES.has(u.stage))
     .sort((a, b) => {
       const byState = rank[a.state] - rank[b.state];
@@ -344,9 +367,11 @@ function buildStatsSection(closedPetitions, createdPetitions, { now, days, abnor
   for (let i = days - 1; i >= 0; i -= 1) {
     buckets.set(localDateKey(now - i * 86400000), { created: 0, completed: 0 });
   }
+  // "คำขอใหม่" นับจากวันที่นำส่งตัวอย่าง — ใบที่ยังไม่ได้ส่งตัวอย่างยังไม่ถือว่าเข้ามา
+  // (ต่างจาก arrivalAt ที่ fallback ให้ createdAt: เส้น inflow ต้องนับ "ของมาถึงจริง" เท่านั้น)
   for (const petition of createdSource) {
-    const createdKey = petition.createdAt ? localDateKey(new Date(petition.createdAt).getTime()) : null;
-    if (createdKey && buckets.has(createdKey)) buckets.get(createdKey).created += 1;
+    const sentKey = petition.sampleSentAt ? localDateKey(new Date(petition.sampleSentAt).getTime()) : null;
+    if (sentKey && buckets.has(sentKey)) buckets.get(sentKey).created += 1;
   }
   for (const petition of petitions) {
     const doneKey = petition.approvedAt ? localDateKey(new Date(petition.approvedAt).getTime()) : null;

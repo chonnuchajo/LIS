@@ -2,6 +2,7 @@ import routeLoadingLab from "@/assets/route-loading-lab.svg";
 import "./RouteLoading.css";
 
 const loadingLabel = "กำลังเตรียมสาร…";
+const loadingText = loadingLabel.replace(/\u2026$/, "");
 
 export function RouteLoading(): JSX.Element {
   return (
@@ -30,7 +31,14 @@ export function RouteLoading(): JSX.Element {
           alt=""
           aria-hidden="true"
         />
-        <p className="route-loading__label">{loadingLabel}</p>
+        <p className="route-loading__label">
+          <span>{loadingText}</span>
+          <span
+            className="route-loading__dots"
+            data-testid="route-loading-dots"
+            aria-hidden="true"
+          />
+        </p>
       </div>
     </div>
   );

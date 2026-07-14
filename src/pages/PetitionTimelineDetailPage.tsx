@@ -60,6 +60,12 @@ function barTrackClass(track: "qc" | "lab" | "stage", done: boolean) {
   return "bg-grey-200";
 }
 
+function progressFillClass(percent: number) {
+  if (percent <= 33) return "bg-red-500";
+  if (percent <= 66) return "bg-gradient-to-r from-red-500 to-amber-400";
+  return "bg-gradient-to-r from-red-500 via-amber-400 to-green-500";
+}
+
 function timelineTickVisibilityClass(index: number, total: number) {
   if (total <= 7) return "";
   const compactVisible = index === 0 || index === total - 1 || (index % 2 === 0 && index < total - 2);
@@ -70,6 +76,14 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
   const visibleHint = label === "Progress" ? undefined : hint;
   return <div className="min-w-0 border-l border-black-50 pl-4 first:border-l-0 first:pl-0"><p className="text-xs text-grey-500">{label}</p><p className="mt-1 truncate text-sm font-semibold text-black-500" title={value}>{value}</p>{visibleHint && <p className="mt-1 text-xs text-grey-500">{visibleHint}</p>}</div>;
 }
+
+const documentButtonClass = "w-full justify-start";
+const documentButtonColors = {
+  sampleLabel: "border-primary-500 text-primary-500 hover:bg-primary-50",
+  serviceRequest: "border-yellow-500 text-yellow-500 hover:bg-yellow-50",
+  preReport: "border-green-500 text-green-500 hover:bg-green-50",
+  finalReport: "border-red-500 text-red-500 hover:bg-red-50",
+} as const;
 
 export default function PetitionTimelineDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -120,7 +134,7 @@ export default function PetitionTimelineDetailPage() {
         setProgressEntries(progress[petition._id] ?? []);
       })
       .catch((loadError: Error) => {
-        if (alive) setTaskError(loadError.message || "โหลดข้อมูลงานไม่สำเร็จ");
+        if (alive) setTaskError(loadError.message || "โหลดข้อมูล parameter ไม่สำเร็จ");
       })
       .finally(() => {
         if (alive) setParametersLoaded(true);
@@ -218,9 +232,11 @@ export default function PetitionTimelineDetailPage() {
   const activities = showAllActivities ? model.activities : model.activities.slice(0, 5);
   const progressLabel = model.progress.percent == null ? "-" : `${model.progress.percent}%`;
   const sgParameter = findSgParameter(parameters);
-  const canShowPreReport = canPrintPreReport(petition)
-    && model.overallProgress.total > 0
+  const preReportReadyByStatus = petition.status === "success" || Boolean(petition.labApprovedAt);
+  const preReportReadyByRequiredFields = model.overallProgress.total > 0
     && model.overallProgress.filled >= model.overallProgress.total - 1;
+  const canShowPreReport = canPrintPreReport(petition)
+    && (preReportReadyByStatus || preReportReadyByRequiredFields);
   const activeItem = model.items.find((item) => item.seq === selectedItemSeq) ?? null;
   const responsibleName = petition.assignedTo?.name || "ยังไม่มอบหมาย";
   const timelineDays = model.timeline.days.length
@@ -278,9 +294,9 @@ export default function PetitionTimelineDetailPage() {
           <Metric label="เลข Batch" value={activeItem?.batchNo || "-"} />
           <Metric label={model.header.startKind === "received" ? "Start time" : "เวลายื่นคำร้อง"} value={formatDateTime(model.header.startAt)} />
           <Metric label="End time" value={formatDateTime(model.header.endAt)} hint={model.header.endKind === "actual" ? "เวลาจริง" : model.header.endKind === "estimated" ? "ค่าประมาณ" : "กำลังดำเนินการ"} />
-          <Metric label="Progress" value={progressLabel} hint={model.progress.total ? `${model.progress.filled}/${model.progress.total} required fields` : "ไม่มี required parameter"} />
+          <Metric label="Progress" value={progressLabel} />
         </div>
-        {model.progress.percent != null && <div role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={model.progress.percent} className="h-2 overflow-hidden rounded-full bg-grey-100"><div className="h-full bg-gradient-to-r from-red-500 via-amber-400 to-green-500 transition-[width]" style={{ width: `${model.progress.percent}%` }} /></div>}
+        {model.progress.percent != null && <div role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={model.progress.percent} className="h-2 overflow-hidden rounded-full bg-grey-100"><div className={cn("h-full transition-[width]", progressFillClass(model.progress.percent))} style={{ width: `${model.progress.percent}%` }} /></div>}
       </div>
     </CardContent></Card>
 
@@ -307,14 +323,14 @@ export default function PetitionTimelineDetailPage() {
                 const start = row.visible && row.kind === "bar" ? timelinePercent(row.segmentStartAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const end = row.visible && row.kind === "bar" ? timelinePercent(row.segmentEndAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const width = start != null && end != null ? Math.max(1, end - start) : null;
-                return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", row.done ? "bg-primary-600" : "bg-grey-300")} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={row.continuesBefore || row.continuesAfter ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", barTrackClass(row.track, row.done), row.continuesBefore && "rounded-l-none", (row.continuesAfter || !row.done) && "rounded-r-none")} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
+                return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", row.done ? "bg-primary-600" : "bg-grey-300")} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={row.continuesBefore || row.continuesAfter ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", barTrackClass(row.track, row.done), row.continuesBefore && "rounded-l-none", !row.done && "rounded-r-none")} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
               })}
             </div>
           </CardContent>
         </Card>
 
-        <Card aria-label="Tasks" className="border-black-50 shadow-none"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><ListTodo className="h-4 w-4 text-primary-500" />Tasks</CardTitle></CardHeader><CardContent className="space-y-3">
-          {taskError ? <div className="flex items-center justify-between gap-3 rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-600"><span>โหลดข้อมูลงานไม่สำเร็จ: {taskError}</span><Button variant="danger-outline" size="sm" onClick={refreshTasks}>ลองใหม่</Button></div> : model.tasks.length === 0 ? <p className="py-4 text-center text-sm text-grey-500">ไม่มี parameter ที่ require สำหรับคำร้องนี้</p> : model.tasks.map((task) => <div key={task.key} className="grid gap-2 border-b border-black-50 pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_110px_100px]"><div className="min-w-0"><p className="truncate text-sm font-medium text-black-500">{task.parameterName}</p><p className="mt-1 text-xs text-grey-500">{task.sampleName}</p></div><div className="self-center"><div className="h-2 overflow-hidden rounded-full bg-grey-100"><div className="h-full bg-primary-500" style={{ width: `${(task.filled / task.total) * 100}%` }} /></div><p className="mt-1 text-xs text-grey-500">{task.filled}/{task.total}</p></div><span className={cn("self-center justify-self-start rounded px-2 py-1 text-xs font-medium", taskStateClass(task.state))}>{taskStateLabel(task.state)}</span></div>)}
+        <Card aria-label="Parameter ที่ต้องตรวจสอบ" className="border-black-50 shadow-none"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><ListTodo className="h-4 w-4 text-primary-500" />Parameter ที่ต้องตรวจสอบ</CardTitle></CardHeader><CardContent className="space-y-3">
+          {taskError ? <div className="flex items-center justify-between gap-3 rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-600"><span>โหลดข้อมูล parameter ไม่สำเร็จ: {taskError}</span><Button variant="danger-outline" size="sm" onClick={refreshTasks}>ลองใหม่</Button></div> : model.tasks.length === 0 ? <p className="py-4 text-center text-sm text-grey-500">ไม่มี parameter ที่ require สำหรับคำร้องนี้</p> : model.tasks.map((task) => <div key={task.key} className="grid gap-2 border-b border-black-50 pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_110px_100px]"><div className="min-w-0"><p className="truncate text-sm font-medium text-black-500">{task.parameterName}</p><p className="mt-1 text-xs text-grey-500">{task.sampleName}</p></div><div className="self-center"><div className="h-2 overflow-hidden rounded-full bg-grey-100"><div className="h-full bg-primary-500" style={{ width: `${(task.filled / task.total) * 100}%` }} /></div><p className="mt-1 text-xs text-grey-500">{task.filled}/{task.total}</p></div><span className={cn("self-center justify-self-start rounded px-2 py-1 text-xs font-medium", taskStateClass(task.state))}>{taskStateLabel(task.state)}</span></div>)}
         </CardContent></Card>
       </div>
 
@@ -325,10 +341,10 @@ export default function PetitionTimelineDetailPage() {
       </CardContent></Card>
 
       <Card aria-label="Documents" className="border-black-50 shadow-none"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4 text-primary-500" />Documents</CardTitle></CardHeader><CardContent className="space-y-2">
-        <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading} onClick={() => { void openDocument(setLabelPrintOpen); }}><Printer className="h-4 w-4" />ป้ายนำส่งตัวอย่าง</Button>
-        {(labRequests?.length ?? 0) > 0 && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading} onClick={() => { void openDocument(setServicePrintOpen); }}><FileText className="h-4 w-4" />ใบคำขอรับบริการ</Button>}
-        {canShowPreReport && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading} onClick={() => { void openDocument(setPreReportOpen); }}><FileText className="h-4 w-4" />Pre Report</Button>}
-        {petition.status === "approved" && <Button variant="primary-outline" className="w-full justify-start" disabled={documentLoading} onClick={() => { void openDocument(setFinalReportOpen); }}><FileCheck2 className="h-4 w-4" />Final Report</Button>}
+        <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.sampleLabel)} disabled={documentLoading} onClick={() => { void openDocument(setLabelPrintOpen); }}><Printer className="h-4 w-4" />ป้ายนำส่งตัวอย่าง</Button>
+        {(labRequests?.length ?? 0) > 0 && <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.serviceRequest)} disabled={documentLoading} onClick={() => { void openDocument(setServicePrintOpen); }}><FileText className="h-4 w-4" />ใบคำขอรับบริการ</Button>}
+        {canShowPreReport && <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.preReport)} disabled={documentLoading} onClick={() => { void openDocument(setPreReportOpen); }}><FileText className="h-4 w-4" />Pre Report</Button>}
+        {petition.status === "approved" && <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.finalReport)} disabled={documentLoading} onClick={() => { void openDocument(setFinalReportOpen); }}><FileCheck2 className="h-4 w-4" />Final Report</Button>}
         {documentLoading && <p className="text-xs text-grey-500">กำลังโหลดข้อมูลเอกสาร...</p>}
         {documentError && <p className="text-xs text-red-600">โหลดข้อมูลเอกสารไม่สำเร็จ: {documentError}</p>}
       </CardContent></Card>

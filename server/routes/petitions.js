@@ -147,7 +147,7 @@ const { buildLiveSection, buildStatsSection } = require('../lib/execSummary');
 const { buildQcParamBaseline } = require('../lib/qcParamBaseline');
 const { computeAbnormalFlags } = require('../lib/abnormalFlags');
 
-const EXEC_DAYS_ALLOWED = [7, 30, 90];
+const EXEC_DAYS_ALLOWED = [1, 7, 30];
 const EXEC_CACHE_MS = 60 * 1000;
 const QC_BASELINE_CACHE_MS = 10 * 60 * 1000;
 const QC_BASELINE_LOOKBACK_DAYS = 180;
@@ -176,7 +176,7 @@ async function loadQcBaseline(now) {
   return value;
 }
 
-// GET /api/petitions/exec-summary?days=7|30|90 — ตัวเลขสำหรับแดชบอร์ดผู้บริหาร
+// GET /api/petitions/exec-summary?days=1|7|30 — ตัวเลขสำหรับแดชบอร์ดผู้บริหาร
 router.get('/exec-summary', async (req, res) => {
   try {
     const requested = Number(req.query.days);
@@ -189,16 +189,19 @@ router.get('/exec-summary', async (req, res) => {
     const windowStart = new Date(now - days * 86400000);
 
     const [openDocs, closedDocs, createdDocs, qcBaseline] = await Promise.all([
-      // งานที่ยังไม่ปิด — ไม่จำกัดช่วงเวลา เพราะงานค้างเก่าคือสิ่งที่หัวหน้าต้องเห็นที่สุด
+      // งานที่ยังไม่ปิด — query ไม่จำกัดช่วงเวลา เพราะงานค้างเก่าคือสิ่งที่หัวหน้าต้องเห็นที่สุด
+      // (ตัวเลขสรุป/แถบด่านถูกย่อให้เหลือเฉพาะใบที่ยื่นในช่วงโดย buildLiveSection · คิว
+      // "งานที่ต้องจัดการ" ยังกินทั้งหมด)
       Petition.find({ approvedAt: null, status: { $nin: ['approved', 'rejected'] } }).lean(),
       Petition.find({ approvedAt: { $gte: windowStart } }).lean(),
       // "created" series for throughput: a dedicated, provably-complete query on
-      // createdAt alone. Rejected petitions (status 'rejected', approvedAt null) sit
-      // in neither openDocs (excluded by status) nor closedDocs (approvedAt never
-      // set) — they arrived and were later sent back, but they DID arrive, and the
-      // inflow line must show that. Project only createdAt, the one field the
-      // throughput bucketing reads (see buildStatsSection).
-      Petition.find({ createdAt: { $gte: windowStart } }, { createdAt: 1 }).lean(),
+      // sampleSentAt alone — งานเข้ามาตอนตัวอย่างถูกนำส่ง ไม่ใช่ตอนกรอกฟอร์ม. Rejected
+      // petitions (status 'rejected', approvedAt null) sit in neither openDocs
+      // (excluded by status) nor closedDocs (approvedAt never set) — they arrived and
+      // were later sent back, but they DID arrive, and the inflow line must show that.
+      // Project only sampleSentAt, the one field the throughput bucketing reads
+      // (see buildStatsSection).
+      Petition.find({ sampleSentAt: { $gte: windowStart } }, { sampleSentAt: 1 }).lean(),
       loadQcBaseline(now),
     ]);
 
@@ -240,7 +243,9 @@ router.get('/exec-summary', async (req, res) => {
     const payload = {
       generatedAt: new Date(now).toISOString(),
       days,
-      live: buildLiveSection(openDocs, { now, qcBaseline, abnormalFlags }),
+      live: buildLiveSection(openDocs, {
+        now, qcBaseline, abnormalFlags, windowStart: windowStart.getTime(),
+      }),
       // createdDocs is its own query (createdAt >= windowStart), independent of
       // open/closed status — see buildStatsSection's throughput "created" bucket.
       stats: buildStatsSection(closedDocs, createdDocs, { now, days, abnormalFlags, qcTesterNames }),

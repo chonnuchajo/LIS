@@ -164,4 +164,16 @@ describe("QCApprovalReviewPage reject dialog", () => {
     );
     expect(navigateMock).toHaveBeenCalledWith("/qc-approval");
   });
+
+  it("keeps the fixed decision bar above TV overscan at the viewport bottom", async () => {
+    renderPage();
+
+    const approveButton = await screen.findByRole("button", { name: /^อนุมัติ$/ });
+    const actionBar = approveButton.closest(".fixed");
+
+    expect(actionBar).not.toBeNull();
+    expect(actionBar).toHaveClass("bottom-3");
+    expect(actionBar).not.toHaveClass("bottom-0");
+    expect(actionBar).toHaveClass("pb-[calc(env(safe-area-inset-bottom)+0.75rem)]");
+  });
 });

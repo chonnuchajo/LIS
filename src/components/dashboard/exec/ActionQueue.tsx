@@ -1,7 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PETITION_DEPT_LABELS, type PetitionDept } from "@/types/petition.types";
 import { formatMinutes, highlightPath, type ExecWorkUnit } from "@/lib/execSummary";
 
 const REASON: Record<ExecWorkUnit["state"], (u: ExecWorkUnit) => string> = {
@@ -36,10 +35,9 @@ export default function ActionQueue({ units }: { units: ExecWorkUnit[] }) {
             <thead>
               <tr className="border-b text-left text-xs text-muted-foreground">
                 <th className="py-2">เลขคำขอ</th>
-                <th>แผนก</th>
-                <th>ด่านที่ติด</th>
+                <th>สถานะ</th>
                 <th>ผู้รับผิดชอบ</th>
-                <th>สถานะเวลา</th>
+                <th>เวลา</th>
               </tr>
             </thead>
             <tbody>
@@ -57,7 +55,6 @@ export default function ActionQueue({ units }: { units: ExecWorkUnit[] }) {
                       </Link>
                       {u.priority === 1 ? <Badge variant="destructive" className="ml-2">ด่วน</Badge> : null}
                     </td>
-                    <td>{PETITION_DEPT_LABELS[u.dept as PetitionDept] ?? u.dept}</td>
                     <td>{u.stageLabel}</td>
                     <td>{u.assigneeName || "—"}</td>
                     <td className={REASON_TONE[u.state]}>{REASON[u.state](u)}</td>
