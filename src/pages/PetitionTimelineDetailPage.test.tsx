@@ -599,7 +599,12 @@ describe("สีประจำแถวของกราฟ timeline", () => {
     expect(screen.getByLabelText("Lab กำลังวิเคราะห์ (ช่วงเวลา)")).toHaveClass("bg-amber-500");
   });
 
-  it("จุดที่ยังไม่ถึงยังเป็นสีเทา", async () => {
+  it("จุดที่ยังไม่ถึงไม่ค้างแสดงด้วยสีเดิม (ด่านที่ยังไม่มี timestamp ไม่วาดจุด)", async () => {
+    // หมายเหตุ: buildMilestoneRows/clipRowToDay (petitionTimelineDetail.ts) ผูก `done`
+    // กับการมี timestamp แบบ 1:1 เสมอ — ด่านที่ "ยังไม่ถึง" จึงไม่เคย render จุดค้างสีเก่า
+    // (ไม่ใช่จุดสีเทาแบบ visible) เคสสีเทาจริง ๆ (`timelineDotClass(key, { done: false })`)
+    // ครอบคลุมแล้วที่ src/lib/petitionTimelineColors.test.ts — เทสต์นี้ยืนยันแค่ว่าด่านที่ยังไม่มี
+    // ข้อมูลจะไม่โผล่มาเป็นจุดค้างสีผิด ๆ
     Object.assign(mocks.petition, {
       qcReceivedAt: undefined,
       receivedAt: undefined,
@@ -608,6 +613,7 @@ describe("สีประจำแถวของกราฟ timeline", () => {
     });
     renderDetail();
 
-    expect(await screen.findByLabelText("QC รับตัวอย่าง (จุด)")).toHaveClass("bg-grey-300");
+    await screen.findByLabelText("ยื่นคำขอ (จุด)");
+    expect(screen.queryByLabelText("QC รับตัวอย่าง (จุด)")).not.toBeInTheDocument();
   });
 });

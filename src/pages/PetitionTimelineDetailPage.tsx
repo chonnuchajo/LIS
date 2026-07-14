@@ -16,6 +16,7 @@ import { useLabRequestsByPetition, usePetition, usePetitionAuditLog } from "@/ho
 import { api, type ParameterItem, type QCProgressEntry } from "@/lib/api";
 import { findSgParameter } from "@/lib/formSpecificGravity";
 import { buildTimelineDetailModel } from "@/lib/petitionTimelineDetail";
+import { timelineBarClass, timelineDotClass } from "@/lib/petitionTimelineColors";
 import { canPrintPreReport } from "@/lib/petitionPrintability";
 import { canSeePetition, isLabRole, petitionHasLabReadableItem } from "@/lib/petitionVisibility";
 import { normalizeRoles } from "@/lib/roles";
@@ -47,17 +48,6 @@ function taskStateClass(state: "pending" | "inProgress" | "recorded" | "approved
   if (state === "recorded") return "bg-blue-100 text-blue-700";
   if (state === "inProgress") return "bg-amber-100 text-amber-700";
   return "bg-grey-100 text-grey-700";
-}
-
-function barTrackClass(track: "qc" | "lab" | "stage", done: boolean) {
-  if (done) {
-    if (track === "lab") return "bg-amber-500";
-    if (track === "qc") return "bg-primary-500";
-    return "bg-grey-400";
-  }
-  if (track === "lab") return "bg-amber-200";
-  if (track === "qc") return "bg-primary-200";
-  return "bg-grey-200";
 }
 
 function progressFillClass(percent: number) {
@@ -355,7 +345,7 @@ export default function PetitionTimelineDetailPage() {
                 const start = row.visible && row.kind === "bar" ? timelinePercent(row.segmentStartAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const end = row.visible && row.kind === "bar" ? timelinePercent(row.segmentEndAt, activeTimelineDay.startAt, activeTimelineDay.endAt) : null;
                 const width = start != null && end != null ? Math.max(1, end - start) : null;
-                return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", row.done ? "bg-primary-600" : "bg-grey-300")} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={row.continuesBefore || row.continuesAfter ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", barTrackClass(row.track, row.done), row.continuesBefore && "rounded-l-none", !row.done && "rounded-r-none")} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
+                return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", timelineDotClass(row.key, { done: row.done }))} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={row.continuesBefore || row.continuesAfter ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", timelineBarClass(row.key, { done: row.done, rejected: petition.status === "rejected" }), row.continuesBefore && "rounded-l-none", !row.done && "rounded-r-none")} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
               })}
             </div>
           </CardContent>
