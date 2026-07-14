@@ -200,9 +200,78 @@ function clipRowToDay(row: TimelineDetailRow, dayStartAt: string, dayEndAt: stri
   };
 }
 
-function buildTimelineDays(startAt: string, endAt: string, rows: TimelineDetailRow[]): TimelineDetailDay[] {
+function floorToHour(value: Date): Date {
+  const result = new Date(value);
+  result.setMinutes(0, 0, 0);
+  return result;
+}
+
+function ceilToHour(value: Date): Date {
+  const floored = floorToHour(value);
+  return floored.getTime() === value.getTime() ? floored : new Date(floored.getTime() + 60 * 60 * 1000);
+}
+
+// เก็บ timestamp ของแถวที่ตกวันปฏิทินเดียวกับ day (milestone.at, bar.startAt/endAt)
+// ไม่นับ endAt ของแท่งที่ยังไม่จบ (done=false) ที่เท่ากับ "ตอนนี้" (nowAt) — มันคือตำแหน่งเคอร์เซอร์ตอนเปิดหน้า
+// ไม่ใช่เหตุการณ์จริงที่บันทึกไว้ ถ้านับ จะทำให้หน้าต่างขยายเลื่อนตามเวลาจริงไปเรื่อย ๆ ทุกครั้งที่เปิดดูหลัง 17:00
+function rowTimestampsOnDay(rows: TimelineDetailRow[], day: Date, nowAt: number): Date[] {
+  const result: Date[] = [];
+  for (const row of rows) {
+    if (row.kind === "milestone") {
+      const at = validDate(row.at);
+      if (at && isSameLocalDay(at, day)) result.push(at);
+      continue;
+    }
+    const rowStart = validDate(row.startAt);
+    if (rowStart && isSameLocalDay(rowStart, day)) result.push(rowStart);
+    const rowEnd = validDate(row.endAt);
+    if (rowEnd && isSameLocalDay(rowEnd, day) && (row.done || rowEnd.getTime() !== nowAt)) result.push(rowEnd);
+  }
+  return result;
+}
+
+// วันที่มีกิจกรรมนอกเวลาทำการ (ก่อน 08:00 หรือหลัง 17:00) ต้องขยายหน้าต่างของวันนั้นให้ครอบคลุมกิจกรรมจริง
+// ปัดเวลาเริ่มลง / เวลาจบขึ้น ให้ตรงชั่วโมง เพื่อให้ ticks (เดินทีละชั่วโมง) ยังคงลงตัวเป็นเลขกลม
+function dayWindow(cursor: Date, rows: TimelineDetailRow[], timelineEnd: Date, nowAt: number): { start: Date; end: Date } {
+  const defaultStart = atHour(cursor, WORK_START_HOUR);
+  const defaultEnd = atHour(cursor, WORK_END_HOUR);
+  const timestamps = rowTimestampsOnDay(rows, cursor, nowAt);
+
+  const startCandidates = [defaultStart.getTime()];
+  const endCandidates = [defaultEnd.getTime()];
+  if (timestamps.length) {
+    const earliest = new Date(Math.min(...timestamps.map((value) => value.getTime())));
+    const latest = new Date(Math.max(...timestamps.map((value) => value.getTime())));
+    startCandidates.push(floorToHour(earliest).getTime());
+    endCandidates.push(ceilToHour(latest).getTime());
+  }
+  // วันสุดท้ายของกราฟ: ลากถึงเวลาจบจริงของ timeline เสมอ (กฎเดิมจาก task ก่อนหน้า)
+  if (isSameLocalDay(cursor, timelineEnd)) endCandidates.push(timelineEnd.getTime());
+
+  // กันกรณีกิจกรรมท้ายวัน (23:xx) ที่ ceil ชั่วโมงแล้วเลยข้ามเที่ยงคืนไปวันถัดไป — ห้ามให้หน้าต่างของ "วันนี้" ทะลุออกนอกปฏิทินวันนี้
+  // ไม่งั้น buildTicks จะเห็น start/end คนละวันปฏิทิน แล้วสลับไปใช้สูตร ticks ข้ามวัน (label ผิดรูปแบบ) ทั้งที่ยังเป็นแท็บวันเดียว
+  const endOfDay = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), 23, 59, 0, 0).getTime();
+  const end = Math.min(Math.max(...endCandidates), endOfDay);
+
+  return { start: new Date(Math.min(...startCandidates)), end: new Date(end) };
+}
+
+function buildTimelineDay(cursor: Date, rows: TimelineDetailRow[], timelineEnd: Date, nowAt: number): TimelineDetailDay {
+  const { start: dayStart, end: dayEnd } = dayWindow(cursor, rows, timelineEnd, nowAt);
+  return {
+    key: localDayKey(cursor),
+    label: formatDayLabel(cursor),
+    startAt: dayStart.toISOString(),
+    endAt: dayEnd.toISOString(),
+    ticks: buildTicks(dayStart.toISOString(), dayEnd.toISOString()),
+    rows: rows.map((row) => clipRowToDay(row, dayStart.toISOString(), dayEnd.toISOString())),
+  };
+}
+
+function buildTimelineDays(startAt: string, endAt: string, rows: TimelineDetailRow[], now: Date): TimelineDetailDay[] {
   const start = new Date(startAt);
   const end = new Date(endAt);
+  const nowAt = now.getTime();
   const days: TimelineDetailDay[] = [];
 
   for (
@@ -210,33 +279,10 @@ function buildTimelineDays(startAt: string, endAt: string, rows: TimelineDetailR
     cursor.getTime() <= end.getTime();
     cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1, WORK_START_HOUR)
   ) {
-    const dayStart = atHour(cursor, WORK_START_HOUR);
-    const defaultDayEnd = atHour(cursor, WORK_END_HOUR);
-    const dayEnd = isSameLocalDay(cursor, end) && end.getTime() > defaultDayEnd.getTime()
-      ? end
-      : defaultDayEnd;
-    days.push({
-      key: localDayKey(cursor),
-      label: formatDayLabel(cursor),
-      startAt: dayStart.toISOString(),
-      endAt: dayEnd.toISOString(),
-      ticks: buildTicks(dayStart.toISOString(), dayEnd.toISOString()),
-      rows: rows.map((row) => clipRowToDay(row, dayStart.toISOString(), dayEnd.toISOString())),
-    });
+    days.push(buildTimelineDay(cursor, rows, end, nowAt));
   }
 
-  return days.length ? days : [{
-    key: localDayKey(start),
-    label: formatDayLabel(start),
-    startAt: atHour(start, WORK_START_HOUR).toISOString(),
-    endAt: atHour(start, WORK_END_HOUR).toISOString(),
-    ticks: buildTicks(atHour(start, WORK_START_HOUR).toISOString(), atHour(start, WORK_END_HOUR).toISOString()),
-    rows: rows.map((row) => clipRowToDay(
-      row,
-      atHour(start, WORK_START_HOUR).toISOString(),
-      atHour(start, WORK_END_HOUR).toISOString(),
-    )),
-  }];
+  return days.length ? days : [buildTimelineDay(start, rows, end, nowAt)];
 }
 
 function buildItemTabs(petition: Petition): TimelineDetailItemTab[] {
@@ -494,7 +540,7 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
       endAt: header.endAt,
       ticks: buildTicks(timelineStartAt, header.endAt),
       rows,
-      days: buildTimelineDays(timelineStartAt, header.endAt, rows),
+      days: buildTimelineDays(timelineStartAt, header.endAt, rows, now),
     },
   };
 }

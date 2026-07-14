@@ -77,7 +77,8 @@ describe("buildTimelineDetailModel", () => {
     expect(result.header.endAt).toBe(at(13, 18, 30));
     expect(result.timeline.endAt).toBe(at(13, 18, 30));
     expect(result.timeline.ticks.at(-1)).toMatchObject({ at: at(13, 18, 30), label: "18:30" });
-    expect(result.timeline.days[0]).toMatchObject({ startAt: at(13, 8), endAt: at(13, 18, 30) });
+    // แท็บวัน (ไม่ใช่ header/timeline โดยรวม) ขยายตามกฎ ceil ชั่วโมง: 18:30 -> 19:00
+    expect(result.timeline.days[0]).toMatchObject({ startAt: at(13, 8), endAt: at(13, 19) });
   });
 
   it("splits multi-day timelines into local day windows", () => {
@@ -633,7 +634,7 @@ describe("buildTimelineDetailModel", () => {
     });
   });
 
-  it("แท่ง ยื่นคำขอ ที่เริ่มนอกเวลาทำการ (18:30) ไม่หายไป แต่โผล่ในแท็บวันถัดไปที่บาร์ทับช่วงเวลาทำการจริง", () => {
+  it("แท่ง ยื่นคำขอ ที่เริ่มนอกเวลาทำการ (18:30) ไม่หายไป — วันนั้นขยายหน้าต่างให้ครอบคลุม แล้วยังต่อเนื่องไปแท็บวันถัดไปด้วย", () => {
     const result = model(
       petition({
         submittedBy: { name: "Requester", submittedAt: at(13, 18, 30) },
@@ -645,9 +646,60 @@ describe("buildTimelineDetailModel", () => {
     );
 
     expect(result.timeline.days.map((day) => day.label)).toEqual(["13 ก.ค.", "14 ก.ค."]);
-    // วันที่ 13 หน้าต่างเวลาทำการหยุดที่ 17:00 (ไม่ใช่วันสุดท้ายของกราฟ จึงไม่ขยาย) แท่งเริ่ม 18:30 เลยไม่ทับช่วงนั้นเลย
-    expect(result.timeline.days[0]?.rows.find((row) => row.key === "submitted")).toMatchObject({ visible: false });
+    // วันที่ 13 มีกิจกรรมนอกเวลาทำการ (เริ่ม 18:30) หน้าต่างของวันนั้นจึงขยายถึง 19:00 (ceil ชั่วโมง)
+    // แท่งเลยโผล่ในวันที่ 13 เอง (ไม่ใช่แค่วันถัดไป) และยังลากต่อเนื่องข้ามไปวันที่ 14 ด้วย
+    expect(result.timeline.days[0]).toMatchObject({ endAt: at(13, 19) });
+    expect(result.timeline.days[0]?.rows.find((row) => row.key === "submitted")).toMatchObject({
+      visible: true,
+      segmentStartAt: at(13, 18, 30),
+      segmentEndAt: at(13, 19),
+      continuesBefore: false,
+      continuesAfter: true,
+    });
     expect(result.timeline.days[1]?.rows.find((row) => row.key === "submitted")).toMatchObject({ visible: true });
+  });
+
+  it("วันที่มีกิจกรรมนอกเวลาทำการตอนเย็น (19:14) หน้าต่างของวันนั้นขยายไปถึง 20:00 พร้อม ticks 19:00/20:00", () => {
+    const result = model(
+      petition({
+        submittedBy: { name: "Requester", submittedAt: at(13, 19, 14) },
+        createdAt: at(13, 19, 14),
+        qcReceivedAt: at(14, 9),
+      }),
+      [], [], [],
+      new Date(2026, 6, 14, 12),
+    );
+
+    expect(result.timeline.days[0]).toMatchObject({ endAt: at(13, 20) });
+    expect(result.timeline.days[0]?.ticks.map((tick) => tick.label)).toEqual(expect.arrayContaining(["19:00", "20:00"]));
+    expect(result.timeline.days[0]?.rows.find((row) => row.key === "submitted")).toMatchObject({
+      visible: true,
+      segmentStartAt: at(13, 19, 14),
+    });
+  });
+
+  it("วันที่มีกิจกรรมเช้ามืดก่อนเวลาทำการ (06:30) หน้าต่างของวันนั้นขยายให้เริ่มที่ 06:00", () => {
+    const result = model(
+      petition({
+        submittedBy: { name: "Requester", submittedAt: at(13, 6, 30) },
+        createdAt: at(13, 6, 30),
+        qcReceivedAt: at(13, 9),
+      }),
+      [], [], [],
+      new Date(2026, 6, 13, 12),
+    );
+
+    expect(result.timeline.days[0]).toMatchObject({ startAt: at(13, 6) });
+    expect(result.timeline.days[0]?.rows.find((row) => row.key === "submitted")).toMatchObject({
+      visible: true,
+      segmentStartAt: at(13, 6, 30),
+    });
+  });
+
+  it("วันที่กิจกรรมทั้งหมดอยู่ในเวลาทำการ ยังคงได้หน้าต่าง 08:00–17:00 พอดี (ไม่ regress)", () => {
+    const result = model(petition({ qcReceivedAt: at(13, 10) }), [], [], [], new Date(2026, 6, 13, 12));
+
+    expect(result.timeline.days[0]).toMatchObject({ startAt: at(13, 8), endAt: at(13, 17) });
   });
 
   const twoItemPetition = () => petition({
