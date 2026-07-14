@@ -104,6 +104,21 @@ function selectFirstTimelineDayTab() {
   if (firstDayTab) fireEvent.click(firstDayTab);
 }
 
+// jsdom คืน getBoundingClientRect() เป็นศูนย์หมด — ต้อง mock ขนาดรางเอง ไม่งั้น crosshairAt คืน null เสมอ
+function mockRect(element: HTMLElement, rect: { left: number; width: number }) {
+  vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+    left: rect.left,
+    right: rect.left + rect.width,
+    width: rect.width,
+    top: 0,
+    bottom: 200,
+    height: 200,
+    x: rect.left,
+    y: 0,
+    toJSON: () => ({}),
+  } as DOMRect);
+}
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(2026, 6, 13, 18, 0, 0));
@@ -111,6 +126,15 @@ beforeEach(() => {
   mocks.user = { employeeId: "E001", name: "Analyst", roles: ["admin"] };
   mocks.activityError = null;
   mocks.labRequests = [];
+  mocks.auditLogs = [{
+    _id: "audit-1",
+    petitionId: "petition-1",
+    petitionNo: "P-2607-001",
+    event: "resultEntered",
+    actor: "Analyst",
+    metadata: { parameterName: "Required checks" },
+    createdAt: "2026-07-13T05:00:00.000Z",
+  }];
   Object.assign(mocks.petition, {
     status: "inProgress",
     approvedAt: null,
@@ -412,6 +436,42 @@ describe("PetitionTimelineDetailPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "ลองใหม่" }));
     expect(mocks.refreshAudit).toHaveBeenCalledOnce();
     expect(screen.getByRole("heading", { name: "P-2607-001" })).toBeInTheDocument();
+  });
+
+  it("opens all recent activity in a paged popup with six entries per page", async () => {
+    mocks.auditLogs = Array.from({ length: 13 }, (_, index) => {
+      const number = index + 1;
+      return {
+        _id: `audit-${number}`,
+        petitionId: "petition-1",
+        petitionNo: "P-2607-001",
+        event: "resultEntered",
+        actor: `Actor ${number}`,
+        metadata: { parameterName: `Parameter ${number}` },
+        createdAt: new Date(2026, 6, 13, 5, number).toISOString(),
+      } satisfies PetitionAuditLogEntry;
+    });
+    renderDetail();
+
+    const activityCard = await screen.findByLabelText("Recent Activity");
+    expect(activityCard).toHaveTextContent("Actor 13");
+    expect(activityCard).toHaveTextContent("Actor 9");
+    expect(activityCard).not.toHaveTextContent("Actor 8");
+
+    fireEvent.click(within(activityCard).getByRole("button", { name: "ดูทั้งหมด" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Recent Activity" });
+    expect(dialog).toHaveTextContent("หน้า 1 / 3");
+    expect(dialog).toHaveTextContent("Actor 13");
+    expect(dialog).toHaveTextContent("Actor 8");
+    expect(dialog).not.toHaveTextContent("Actor 7");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "ถัดไป" }));
+
+    expect(dialog).toHaveTextContent("หน้า 2 / 3");
+    expect(dialog).toHaveTextContent("Actor 7");
+    expect(dialog).toHaveTextContent("Actor 2");
+    expect(dialog).not.toHaveTextContent("Actor 8");
   });
 
   it("reloads task data when its retry action is selected", async () => {
@@ -744,5 +804,37 @@ describe("สีประจำแถวของกราฟ timeline", () => {
     expect(screen.queryByLabelText("ส่งตัวอย่าง (ช่วงเวลา)")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("QC กำลังวิเคราะห์ (ช่วงเวลา)")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Final Result (จุด)")).not.toBeInTheDocument();
+  });
+});
+
+describe("PetitionTimelineDetailPage crosshair", () => {
+  it("hover ในกราฟแล้วเห็นเส้นตั้ง + ป้ายวันเวลา และหายเมื่อเมาส์ออก", async () => {
+    renderDetail();
+
+    const area = await screen.findByTestId("timeline-area");
+    mockRect(area, { left: 0, width: 500 });
+    mockRect(screen.getByTestId("timeline-axis"), { left: 100, width: 400 });
+
+    fireEvent.mouseMove(area, { clientX: 300, clientY: 40 });
+
+    expect(screen.getByTestId("timeline-crosshair-line")).toHaveStyle({ left: "50%" });
+    expect(screen.getByTestId("timeline-crosshair-label")).toHaveTextContent(/13 ก\.ค\. \d{2}:\d{2}/);
+
+    fireEvent.mouseLeave(area);
+
+    expect(screen.queryByTestId("timeline-crosshair-line")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("timeline-crosshair-label")).not.toBeInTheDocument();
+  });
+
+  it("hover ฝั่งคอลัมน์ชื่อด่าน (นอกราง) ไม่ขึ้น crosshair", async () => {
+    renderDetail();
+
+    const area = await screen.findByTestId("timeline-area");
+    mockRect(area, { left: 0, width: 500 });
+    mockRect(screen.getByTestId("timeline-axis"), { left: 100, width: 400 });
+
+    fireEvent.mouseMove(area, { clientX: 40, clientY: 40 });
+
+    expect(screen.queryByTestId("timeline-crosshair-line")).not.toBeInTheDocument();
   });
 });

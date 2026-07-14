@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Activity, CalendarClock, ChevronDown, ChevronUp, FileCheck2, FileText, ImageIcon, ListTodo, Printer, RefreshCw, UserRound } from "lucide-react";
+import { Activity, CalendarClock, ChevronDown, ChevronLeft, ChevronRight, FileCheck2, FileText, ImageIcon, ListTodo, Printer, RefreshCw, UserRound } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
@@ -10,13 +10,15 @@ import SampleLabelPrintTemplate from "@/components/petition/SampleLabelPrintTemp
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { useLabRequestsByPetition, usePetition, usePetitionAuditLog } from "@/hooks/usePetition";
 import { api, type ParameterItem, type QCProgressEntry } from "@/lib/api";
 import { findSgParameter } from "@/lib/formSpecificGravity";
-import { buildTimelineDetailModel, type TimelineDetailDayRow, type TimelineDetailRow, type TimelineDetailTick } from "@/lib/petitionTimelineDetail";
+import { buildTimelineDetailModel, type TimelineDetailActivity, type TimelineDetailDayRow, type TimelineDetailRow, type TimelineDetailTick } from "@/lib/petitionTimelineDetail";
 import { timelineBarClass, timelineDotClass } from "@/lib/petitionTimelineColors";
+import { crosshairAt, formatCrosshairTime } from "@/lib/petitionTimelineCrosshair";
 import { canPrintPreReport } from "@/lib/petitionPrintability";
 import { canSeePetition, isLabRole, petitionHasLabReadableItem } from "@/lib/petitionVisibility";
 import { normalizeRoles } from "@/lib/roles";
@@ -139,6 +141,9 @@ function buildOverviewTicks(rows: TimelineDetailRow[], timelineEndAt: string, in
 // แท่งที่ "กำลังทำอยู่" เท่านั้นที่วิ่ง shimmer — เงาเป็นสีกลาง ไม่ย้อมทับสีประจำแถวของแต่ละด่าน
 const ACTIVE_BAR_CLASS = "overflow-hidden shadow-[0_0_10px_rgba(0,0,0,0.18)] after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-1/2 after:rounded-full after:bg-gradient-to-r after:from-transparent after:via-white/70 after:to-transparent after:content-[''] after:animate-[timeline-shimmer_1.4s_linear_infinite]";
 
+// ป้ายกว้างสุดราว 110px — ถ้าเหลือที่ทางขวาไม่พอ ให้พลิกไปโผล่ฝั่งซ้ายของเมาส์แทน
+const CROSSHAIR_LABEL_SPACE = 120;
+
 function isSameCalendarDay(left: Date, right: Date) {
   return left.toDateString() === right.toDateString();
 }
@@ -163,7 +168,13 @@ function Metric({ label, value, hint }: { label: string; value: string; hint?: s
   return <div className="min-w-0 border-l border-black-50 pl-4 first:border-l-0 first:pl-0"><p className="text-xs text-grey-500">{label}</p><p className="mt-1 truncate text-sm font-semibold text-black-500" title={value}>{value}</p>{visibleHint && <p className="mt-1 text-xs text-grey-500">{visibleHint}</p>}</div>;
 }
 
+function ActivityEntries({ activities }: { activities: TimelineDetailActivity[] }) {
+  return <div className="space-y-3">{activities.map((activity) => <div key={activity.key} className="border-b border-black-50 pb-3 last:border-b-0 last:pb-0"><p className="text-sm font-medium text-black-500">{activity.label}</p><div className="mt-1 flex items-center gap-2 text-xs text-grey-500"><UserRound className="h-3.5 w-3.5" /><span>{activity.actor || "ระบบ"}</span><span>{formatDateTime(activity.at)}</span></div></div>)}</div>;
+}
+
 const documentButtonClass = "w-full justify-start";
+const activityPreviewLimit = 5;
+const activityPageSize = 6;
 const documentButtonColors = {
   sampleLabel: "border-primary-500 text-primary-500 hover:bg-primary-50",
   serviceRequest: "border-yellow-500 text-yellow-500 hover:bg-yellow-50",
@@ -184,7 +195,8 @@ export default function PetitionTimelineDetailPage() {
   const [parametersLoaded, setParametersLoaded] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
   const [taskReloadKey, setTaskReloadKey] = useState(0);
-  const [showAllActivities, setShowAllActivities] = useState(false);
+  const [activityDialogOpen, setActivityDialogOpen] = useState(false);
+  const [activityPage, setActivityPage] = useState(1);
   const [qcResults, setQcResults] = useState<import("@/types/petition.types").QCTestResult[]>([]);
   const [documentLoading, setDocumentLoading] = useState(false);
   const [documentError, setDocumentError] = useState<string | null>(null);
@@ -194,6 +206,9 @@ export default function PetitionTimelineDetailPage() {
   const [finalReportOpen, setFinalReportOpen] = useState(false);
   const [activeTimelineDayKey, setActiveTimelineDayKey] = useState<string | null>(null);
   const [activeItemSeq, setActiveItemSeq] = useState<number | null>(null);
+  const [crosshair, setCrosshair] = useState<{ percent: number; label: string; x: number; y: number; flip: boolean } | null>(null);
+  const timelineAreaRef = useRef<HTMLDivElement | null>(null);
+  const timelineTrackRef = useRef<HTMLDivElement | null>(null);
   const documentLoadVersion = useRef(0);
   const documentLoadState = useRef<{ loaded: boolean; promise: Promise<boolean> | null }>({ loaded: false, promise: null });
   const petitionId = petition?._id;
@@ -237,6 +252,9 @@ export default function PetitionTimelineDetailPage() {
     setFinalReportOpen(false);
     setActiveTimelineDayKey(null);
     setActiveItemSeq(null);
+    setActivityDialogOpen(false);
+    setActivityPage(1);
+    setCrosshair(null);
   }, [id]);
 
   const visibleParameters = useMemo(
@@ -317,7 +335,11 @@ export default function PetitionTimelineDetailPage() {
   const statusBadge = petitionStatusBadge(petition);
   // คำร้องที่ปิดแล้ว: แท่งที่ไม่มีเวลาจบคือ "รูข้อมูล" ไม่ใช่งานที่ยังวิ่งอยู่ — ห้ามเรืองแสง/วิ่ง shimmer
   const petitionClosed = petition.status === "approved" || petition.status === "rejected";
-  const activities = showAllActivities ? model.activities : model.activities.slice(0, 5);
+  const activities = model.activities.slice(0, activityPreviewLimit);
+  const activityTotalPages = Math.max(1, Math.ceil(model.activities.length / activityPageSize));
+  const currentActivityPage = Math.min(activityPage, activityTotalPages);
+  const activityPageStart = (currentActivityPage - 1) * activityPageSize;
+  const pagedActivities = model.activities.slice(activityPageStart, activityPageStart + activityPageSize);
   const progressLabel = model.progress.percent == null ? "-" : `${model.progress.percent}%`;
   const sgParameter = findSgParameter(parameters);
   // Pre Report ต้องมีผลบันทึกครบทุก track ที่คำร้องนี้มีจริง
@@ -379,6 +401,27 @@ export default function PetitionTimelineDetailPage() {
     refreshTasks();
   }
 
+  function handleTimelineMouseMove(event: React.MouseEvent<HTMLDivElement>) {
+    const area = timelineAreaRef.current;
+    const track = timelineTrackRef.current;
+    if (!area || !track) return;
+
+    const point = crosshairAt(event.clientX, track.getBoundingClientRect(), activeTimelineDay.startAt, activeTimelineDay.endAt);
+    if (!point) {
+      setCrosshair(null);
+      return;
+    }
+
+    const areaRect = area.getBoundingClientRect();
+    setCrosshair({
+      percent: point.percent,
+      label: formatCrosshairTime(point.at),
+      x: event.clientX - areaRect.left,
+      y: event.clientY - areaRect.top,
+      flip: event.clientX + CROSSHAIR_LABEL_SPACE > areaRect.right,
+    });
+  }
+
   async function openDocument(setOpen: (open: boolean) => void) {
     if (await loadDocumentData()) setOpen(true);
   }
@@ -422,10 +465,20 @@ export default function PetitionTimelineDetailPage() {
           </CardHeader>
           <CardContent>
             {timelineTabs.length > 1 && <div role="tablist" aria-label="Timeline days" className="mb-3 flex flex-wrap gap-2">{timelineTabs.map((day) => <button key={day.key} type="button" role="tab" aria-selected={day.key === activeTimelineDay.key} className={cn("rounded-[8px] border px-3 py-1.5 text-xs font-medium transition-colors", day.key === activeTimelineDay.key ? "border-primary-500 bg-primary-50 text-primary-600" : "border-black-50 bg-white text-grey-600 hover:bg-grey-50")} onClick={() => setActiveTimelineDayKey(day.key)}>{day.label}</button>)}</div>}
-            <div className="space-y-3">
+            <div
+              ref={timelineAreaRef}
+              data-testid="timeline-area"
+              className="relative space-y-3"
+              onMouseMove={handleTimelineMouseMove}
+              onMouseLeave={() => setCrosshair(null)}
+            >
               <div className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-end gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3">
                 <div aria-hidden="true" />
-                <div className={cn("relative min-w-0 border-b border-black-50 text-xs text-grey-500", activeTimelineDay.key === "overview" ? "pb-9" : "pb-5")}>
+                <div
+                  ref={timelineTrackRef}
+                  data-testid="timeline-axis"
+                  className={cn("relative min-w-0 border-b border-black-50 text-xs text-grey-500", activeTimelineDay.key === "overview" ? "pb-9" : "pb-5")}
+                >
                   {activeTimelineDay.ticks.map((tick, index) => {
                     const left = timelinePercent(tick.at, activeTimelineDay.startAt, activeTimelineDay.endAt);
                     const isOverview = activeTimelineDay.key === "overview";
@@ -442,6 +495,19 @@ export default function PetitionTimelineDetailPage() {
                 const active = !row.done && !petitionClosed;
                 return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", timelineDotClass(row.key, { done: row.done, rejected: petition.status === "rejected" }))} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={continuesAcrossCalendarDay(row, activeTimelineDay.startAt) ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", timelineBarClass(row.key, { done: row.done, rejected: petition.status === "rejected" }), row.continuesBefore && "rounded-l-none", !row.done && "rounded-r-none", active && ACTIVE_BAR_CLASS)} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
               })}
+              {crosshair && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10">
+                <div className="grid h-full grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3">
+                  <div />
+                  <div className="relative h-full">
+                    <span data-testid="timeline-crosshair-line" className="absolute inset-y-0 w-px -translate-x-1/2 bg-primary-500/60" style={{ left: `${crosshair.percent}%` }} />
+                  </div>
+                </div>
+                <span
+                  data-testid="timeline-crosshair-label"
+                  className={cn("absolute whitespace-nowrap rounded bg-black-500 px-1.5 py-0.5 text-[11px] font-medium text-white shadow", crosshair.flip && "-translate-x-full")}
+                  style={{ left: `${crosshair.x + (crosshair.flip ? -12 : 12)}px`, top: `${crosshair.y + 12}px` }}
+                >{crosshair.label}</span>
+              </div>}
             </div>
           </CardContent>
         </Card>
@@ -454,8 +520,25 @@ export default function PetitionTimelineDetailPage() {
       <div className="space-y-4">
       <Card aria-label="Recent Activity" className="border-black-50 shadow-none"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><Activity className="h-4 w-4 text-primary-500" />Recent Activity</CardTitle></CardHeader><CardContent className="space-y-3">
         {activityError ? <div className="space-y-2 rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-600"><p>โหลดกิจกรรมไม่สำเร็จ: {activityError}</p><Button variant="danger-outline" size="sm" onClick={refreshActivity}>ลองใหม่</Button></div> : activityLoading ? <p className="py-4 text-center text-sm text-grey-500">กำลังโหลดกิจกรรม...</p> : activities.length === 0 ? <p className="py-4 text-center text-sm text-grey-500">ยังไม่มีกิจกรรมของคำร้องนี้</p> : <div className="space-y-3">{activities.map((activity) => <div key={activity.key} className="border-b border-black-50 pb-3 last:border-b-0 last:pb-0"><p className="text-sm font-medium text-black-500">{activity.label}</p><div className="mt-1 flex items-center gap-2 text-xs text-grey-500"><UserRound className="h-3.5 w-3.5" /><span>{activity.actor || "ระบบ"}</span><span>{formatDateTime(activity.at)}</span></div></div>)}</div>}
-        {model.activities.length > 5 && !activityError && <Button variant="ghost" size="sm" className="w-full" onClick={() => setShowAllActivities((value) => !value)}>{showAllActivities ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}{showAllActivities ? "แสดงน้อยลง" : "ดูทั้งหมด"}</Button>}
+        {model.activities.length > activityPreviewLimit && !activityError && <Button variant="ghost" size="sm" className="w-full" onClick={() => { setActivityPage(1); setActivityDialogOpen(true); }}><ChevronDown className="h-4 w-4" />ดูทั้งหมด</Button>}
       </CardContent></Card>
+
+      <Dialog open={activityDialogOpen} onOpenChange={(open) => { setActivityDialogOpen(open); if (!open) setActivityPage(1); }}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Activity className="h-4 w-4 text-primary-500" />Recent Activity</DialogTitle>
+            <DialogDescription>แสดงสูงสุด {activityPageSize} รายการต่อหน้า จากทั้งหมด {model.activities.length} รายการ</DialogDescription>
+          </DialogHeader>
+          {pagedActivities.length === 0 ? <p className="py-4 text-center text-sm text-grey-500">ยังไม่มีกิจกรรมของคำร้องนี้</p> : <ActivityEntries activities={pagedActivities} />}
+          <DialogFooter className="items-center gap-3 sm:justify-between sm:space-x-0">
+            <p className="text-xs text-grey-500">หน้า {currentActivityPage} / {activityTotalPages}</p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" disabled={currentActivityPage <= 1} onClick={() => setActivityPage((page) => Math.max(1, page - 1))}><ChevronLeft className="h-4 w-4" />ก่อนหน้า</Button>
+              <Button variant="outline" size="sm" disabled={currentActivityPage >= activityTotalPages} onClick={() => setActivityPage((page) => Math.min(activityTotalPages, page + 1))}>ถัดไป<ChevronRight className="h-4 w-4" /></Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Card aria-label="Documents" className="border-black-50 shadow-none"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4 text-primary-500" />Documents</CardTitle></CardHeader><CardContent className="space-y-2">
         <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.sampleLabel)} disabled={documentLoading} onClick={() => { void openDocument(setLabelPrintOpen); }}><Printer className="h-4 w-4" />ป้ายนำส่งตัวอย่าง</Button>
