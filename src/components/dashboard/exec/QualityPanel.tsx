@@ -24,19 +24,19 @@ export default function QualityPanel({ quality }: { quality: ExecSummary["stats"
             <div>
               <div className="text-3xl font-semibold text-emerald-600">{pct(normalRate)}</div>
               <div className="text-xs text-muted-foreground">
-                ปกติ · {normal} จาก {quality.closed} ใบ
+                ปกติ · {normal} จาก {quality.closed} คำขอ
               </div>
             </div>
             <div>
               <div className="text-3xl font-semibold text-red-600">{pct(quality.abnormalRate)}</div>
               <div className="text-xs text-muted-foreground">
-                ผลผิดปกติ · {quality.abnormal} จาก {quality.closed} ใบ
+                ผลผิดปกติ · {quality.abnormal} จาก {quality.closed} คำขอ
               </div>
             </div>
             <div>
               <div className="text-3xl font-semibold text-amber-600">{pct(quality.reworkRate)}</div>
               <div className="text-xs text-muted-foreground">
-                งานตีกลับ/ทำใหม่ · {quality.reworked} จาก {quality.closed} ใบ
+                งานตีกลับ/ทำใหม่ · {quality.reworked} จาก {quality.closed} คำขอ
               </div>
             </div>
           </div>

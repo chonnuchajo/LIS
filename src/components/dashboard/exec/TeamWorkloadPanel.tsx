@@ -13,7 +13,7 @@ export default function TeamWorkloadPanel({ workload }: { workload: ExecSummary[
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-base">ภาระงานทีม</CardTitle>
+        <CardTitle className="text-base">ปริมาณงาน</CardTitle>
         <div className="flex gap-1">
           {(["lab", "qc"] as Side[]).map((s) => (
             <Button key={s} size="sm" variant={s === side ? "default" : "outline"} onClick={() => setSide(s)}>
