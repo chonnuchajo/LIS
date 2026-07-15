@@ -16,6 +16,6 @@ describe("AlertStrip", () => {
 
   it("links the overdue tile to the petition list with those ids highlighted", () => {
     render(<MemoryRouter><AlertStrip counts={counts} overdueIds={["a", "b"]} /></MemoryRouter>);
-    expect(screen.getByText("เกินเวลา").closest("a")).toHaveAttribute("href", "/petitions?highlight=a,b");
+    expect(screen.getByText("เกินเวลา").closest("a")).toHaveAttribute("href", "/petition?highlight=a,b");
   });
 });

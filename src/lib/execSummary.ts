@@ -68,5 +68,5 @@ export function formatMinutes(minutes: number | null | undefined): string {
 }
 
 export function highlightPath(ids: string[]): string {
-  return ids.length ? `/petitions?highlight=${ids.join(",")}` : "/petitions";
+  return ids.length ? `/petition?highlight=${ids.join(",")}` : "/petition";
 }
