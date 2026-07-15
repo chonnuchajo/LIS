@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FlaskConical, Loader2, AlertTriangle, CheckCircle2, RotateCcw, ClipboardCheck } from "lucide-react";
+import { FlaskConical, Loader2, AlertTriangle, CheckCircle2, ClipboardCheck } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,6 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useConfirm, releaseBodyPointerLock } from "@/context/ConfirmDialog";
 import { useCanAccessPath } from "@/hooks/useCanAccessPath";
-import { RevisionRequestDialog } from "@/components/petition/RevisionRequestDialog";
 import LabAgreementReviewDialog from "@/components/review/LabAgreementReviewDialog";
 import LabAgreementReviewView from "@/components/review/LabAgreementReviewView";
 import { isReviewFilled } from "@/lib/labAgreementReview";
@@ -31,7 +30,6 @@ export default function LabApprovalReviewPage() {
   const canAccessPath = useCanAccessPath();
   const canApproveLab = canAccessPath("/lab-approval");
   const [submitting, setSubmitting] = useState(false);
-  const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
   const pendingApproveRef = useRef(false); // review dialog opened via the Approve button (vs the standalone edit button)
   const approveAfterSaveRef = useRef(false);
 
@@ -89,22 +87,6 @@ export default function LabApprovalReviewPage() {
       setSubmitting(false);
     }
   }, [petition, user, confirm, navigate]);
-
-  const handleReject = useCallback(async (note: string) => {
-    if (!petition) return;
-    setSubmitting(true);
-    try {
-      await api.labRejectPetition(petition._id, user?.name ?? "system", note);
-      toast.success("ส่งกลับให้ผู้ทดสอบ Lab แก้ไขเรียบร้อย");
-      setRejectDialogOpen(false);
-      navigate("/lab-approval");
-    } catch {
-      toast.error("ส่งกลับไม่สำเร็จ");
-      throw new Error("reject failed");
-    } finally {
-      setSubmitting(false);
-    }
-  }, [petition, user, navigate]);
 
   const handleSaveReview = useCallback(async (draft) => {
     if (!petition) return;
@@ -238,22 +220,10 @@ export default function LabApprovalReviewPage() {
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                 ออกผล Lab
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setRejectDialogOpen(true)} disabled={submitting} className="gap-2">
-                <RotateCcw className="h-4 w-4" /> ส่งกลับให้แก้
-              </Button>
             </div>
           </div>
         )}
 
-        <RevisionRequestDialog
-          open={rejectDialogOpen}
-          onOpenChange={setRejectDialogOpen}
-          petitionNo={petition.petitionNo}
-          submitterName={petition.submittedBy?.name ?? "ผู้ทดสอบ Lab"}
-          recipientLabel="ผู้ทดสอบ Lab"
-          warning="คำร้องจะถูกส่งกลับให้ผู้ทดสอบ Lab แก้ไข/ทดสอบใหม่ (ไม่ปิดคำร้อง)"
-          onConfirm={handleReject}
-        />
         <LabAgreementReviewDialog
           open={reviewDialogOpen}
           onOpenChange={handleReviewDialogChange}

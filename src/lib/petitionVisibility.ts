@@ -70,6 +70,7 @@ export function canSeePetition(
 ): boolean {
   if (!user) return false;
   const roles = normalizeRoles(user);
+  if (roles.includes('admin')) return true;
   if (isOwnSubmission(petition, user)) return true;
   if (isAssignedTo(petition.assignedTo, user)) return true;
   if (RECEIVED_STATUSES.has(petition.status)) {

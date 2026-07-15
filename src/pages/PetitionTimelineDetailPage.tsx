@@ -20,7 +20,7 @@ import { findSgParameter } from "@/lib/formSpecificGravity";
 import { buildTimelineDetailModel, type TimelineDetailActivity, type TimelineDetailDayRow, type TimelineDetailRow, type TimelineDetailTick } from "@/lib/petitionTimelineDetail";
 import { timelineBarClass, timelineDotClass } from "@/lib/petitionTimelineColors";
 import { crosshairAt, formatCrosshairTime } from "@/lib/petitionTimelineCrosshair";
-import { estimateMetric, formatDateTime } from "@/lib/petitionTimelineMetric";
+import { estimateMetric, formatDateTime, type TimelineMetricTone } from "@/lib/petitionTimelineMetric";
 import { canPrintPreReport, canPrintSampleLabel, canPrintLabResult } from "@/lib/petitionPrintability";
 import { buildLabResultReportPages } from "@/lib/labResultReport";
 import { canSeePetition, isLabRole, petitionHasLabReadableItem } from "@/lib/petitionVisibility";
@@ -142,9 +142,15 @@ function earliestIso(values: string[]) {
   return values.reduce((earliest, value) => (new Date(value).getTime() < new Date(earliest).getTime() ? value : earliest));
 }
 
-function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function metricHintClass(tone: TimelineMetricTone = "default") {
+  if (tone === "danger") return "text-base font-bold text-red-600";
+  if (tone === "warning") return "text-base font-bold text-orange-600";
+  return "text-xs text-grey-500";
+}
+
+function Metric({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: TimelineMetricTone }) {
   const visibleHint = label === "Progress" ? undefined : hint;
-  return <div className="min-w-0 border-l border-black-50 pl-4 first:border-l-0 first:pl-0"><p className="text-xs text-grey-500">{label}</p><p className="mt-1 truncate text-sm font-semibold text-black-500" title={value}>{value}</p>{visibleHint && <p className="mt-1 text-xs text-grey-500">{visibleHint}</p>}</div>;
+  return <div className="min-w-0 border-l border-black-50 pl-4 first:border-l-0 first:pl-0"><p className="text-xs text-grey-500">{label}</p><p className="mt-1 truncate text-sm font-semibold text-black-500" title={value}>{value}</p>{visibleHint && <p className={cn("mt-1", metricHintClass(tone))}>{visibleHint}</p>}</div>;
 }
 
 function ActivityEntries({ activities }: { activities: TimelineDetailActivity[] }) {
@@ -240,10 +246,10 @@ export default function PetitionTimelineDetailPage() {
   }, [id]);
 
   const visibleParameters = useMemo(
-    () => isLabUser
+    () => !isAdmin && isLabUser
       ? parameters.filter((parameter) => parameter.scope === "lab" || (parameter.scope === "qc" && parameter.shareWithLab === true))
       : parameters,
-    [isLabUser, parameters],
+    [isAdmin, isLabUser, parameters],
   );
 
   const canViewPetition = useMemo(() => {

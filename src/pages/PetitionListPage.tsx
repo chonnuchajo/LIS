@@ -222,10 +222,10 @@ export default function PetitionListPage({
   const isLabUser = normalizeRoles(user).some(isLabRole);
   const displayParameters = useMemo<ParameterItem[]>(
     () =>
-      isLabUser
+      !canViewAll && isLabUser
         ? parameters.filter((p) => p.scope === 'lab' || (p.scope === 'qc' && p.shareWithLab === true))
         : parameters,
-    [isLabUser, parameters],
+    [canViewAll, isLabUser, parameters],
   );
 
   // Single source of truth for "can this user see this petition" — reused for both
@@ -234,7 +234,7 @@ export default function PetitionListPage({
   const applyVisibilityFilter = useCallback(
     (items: Petition[]) => {
       let result = canViewAll ? items : items.filter((petition) => canSeePetition(petition, user));
-      if (isLabUser && paramsLoaded) {
+      if (!canViewAll && isLabUser && paramsLoaded) {
         result = result.filter((petition) =>
           petitionHasLabReadableItem(petition, displayParameters, groupMembership),
         );
