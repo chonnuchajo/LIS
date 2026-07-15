@@ -29,7 +29,7 @@ function toAppRedirectPath(raw: string | null): string {
   }
 }
 
-function firstSearchValue(searchParams: URLSearchParams, keys: string[]): string | null {
+export function firstSearchValue(searchParams: URLSearchParams, keys: string[]): string | null {
   for (const key of keys) {
     const value = searchParams.get(key)?.trim();
     if (value) return value;
@@ -37,7 +37,13 @@ function firstSearchValue(searchParams: URLSearchParams, keys: string[]): string
   return null;
 }
 
-function productionRequestRedirect(searchParams: URLSearchParams): string {
+export function isDifferentRequester(userEmail: string | undefined, requesterEmail: string | null): boolean {
+  return Boolean(userEmail && requesterEmail && userEmail.toLowerCase() !== requesterEmail.toLowerCase());
+}
+
+export function productionRequestRedirect(searchParams: URLSearchParams): string {
+  const petitionNo = firstSearchValue(searchParams, ["petitions_no", "petitionNo", "petition_no"]);
+  if (petitionNo) return `/petitions?${searchParams.toString()}`;
   const requestNo = firstSearchValue(searchParams, ["requestNo", "request_no", "submissionNo"]);
   return requestNo ? `/petitions/ProductionIntegrationPetitionNewPage?${searchParams.toString()}` : "";
 }
@@ -52,6 +58,8 @@ const Login = () => {
   const [error, setError] = useState("");
 
   const fromState = (location.state as { from?: Location } | null)?.from;
+  const stateSearchParams = new URLSearchParams(fromState?.search ?? "");
+  const hintSearchParams = searchParams.toString() ? searchParams : stateSearchParams;
   const redirectTarget =
     (fromState ? `${fromState.pathname}${fromState.search}${fromState.hash}` : "") ||
     sessionStorage.getItem("lis_login_redirect") ||
@@ -59,7 +67,8 @@ const Login = () => {
     "/";
 
   const ssoToken = searchParams.get("token");
-  const loginHint = firstSearchValue(searchParams, ["login_hint", "requesterEmail", "requester_email", "email"]);
+  const loginHint = firstSearchValue(hintSearchParams, ["login_hint", "requesterEmail", "requester_email", "email"]);
+  const mustSwitchRequester = isDifferentRequester(user?.email, loginHint);
   const ret = searchParams.get("ret");
   const ssoRedirectTarget = ret ? toAppRedirectPath(ret) : redirectTarget;
 
@@ -67,11 +76,11 @@ const Login = () => {
   // silent Microsoft sign-in, falling back to a pre-filled redirect. Skipped
   // when a production JWT (token) is present or the user is already signed in.
   useEffect(() => {
-    if (!loginHint || ssoToken || isAuthenticated || user) return;
+    if (!loginHint || ssoToken || (!mustSwitchRequester && (isAuthenticated || user))) return;
     let active = true;
     setError("");
     setLoading(true);
-    loginWithHint(loginHint, ssoRedirectTarget)
+    loginWithHint(loginHint, ssoRedirectTarget, { force: mustSwitchRequester })
       .catch((e: unknown) => {
         if (!active) return;
         const msg = e instanceof Error ? e.message : "Microsoft login failed";
@@ -85,7 +94,7 @@ const Login = () => {
     return () => {
       active = false;
     };
-  }, [loginHint, ssoToken, isAuthenticated, user, ssoRedirectTarget, loginWithHint]);
+  }, [loginHint, ssoToken, isAuthenticated, user, mustSwitchRequester, ssoRedirectTarget, loginWithHint]);
 
   useEffect(() => {
     if (!ssoToken) return;
@@ -110,7 +119,7 @@ const Login = () => {
     };
   }, [ssoToken, ssoRedirectTarget, loginWithProductionToken, navigate]);
 
-  if (!ssoToken && (isAuthenticated || user)) {
+  if (!ssoToken && !mustSwitchRequester && (isAuthenticated || user)) {
     sessionStorage.removeItem("lis_login_redirect");
     return <Navigate to={redirectTarget} replace />;
   }

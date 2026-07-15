@@ -33,7 +33,7 @@ interface AuthContextType {
   // Seamless SSO when another system forwards ?login_hint=<email>: try a silent
   // sign-in against any existing Microsoft session first, falling back to a full
   // redirect (still pre-filled with the hint) if silent auth isn't possible.
-  loginWithHint: (loginHint: string, redirectTo?: string) => Promise<void>;
+  loginWithHint: (loginHint: string, redirectTo?: string, options?: { force?: boolean }) => Promise<void>;
   loginWithProductionToken: (token: string) => Promise<AuthUser>;
   logout: () => void;
   // Self-service link of the current user to an HR employee record. Used by the
@@ -312,9 +312,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const loginWithHint = useCallback(
-    async (loginHint: string, redirectTo?: string) => {
+    async (loginHint: string, redirectTo?: string, options?: { force?: boolean }) => {
       if (redirectTo && redirectTo !== "/login") {
         sessionStorage.setItem("lis_login_redirect", redirectTo);
+      }
+      localStorage.removeItem("lis_production_sso_user");
+      setProductionUser(null);
+      if (options?.force) {
+        await instance.loginRedirect({
+          ...loginRequest,
+          loginHint,
+          prompt: "login",
+          redirectStartPage: window.location.href,
+        });
+        return;
       }
       try {
         // Silent SSO: reuses an existing Microsoft browser session for this

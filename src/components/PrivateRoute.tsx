@@ -14,6 +14,11 @@ import {
 
 type AccessControlState = AccessControlPayload;
 
+function requesterEmailFromSearch(search: string): string | null {
+  const params = new URLSearchParams(search);
+  return params.get("requesterEmail")?.trim() || params.get("requester_email")?.trim() || params.get("email")?.trim() || null;
+}
+
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const isAuthenticated = useIsAuthenticated();
   const { inProgress } = useMsal();
@@ -67,6 +72,11 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!isAuthenticated && !user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  const requesterEmail = requesterEmailFromSearch(location.search);
+  if (user?.email && requesterEmail && user.email.toLowerCase() !== requesterEmail.toLowerCase()) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
