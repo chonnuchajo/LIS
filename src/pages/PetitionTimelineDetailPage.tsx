@@ -74,14 +74,6 @@ function timelineTickPositionClass(left: number, overview: boolean) {
   return left > (overview ? 80 : 92) ? "right-1" : "left-1";
 }
 
-function timelineTickTopClass(ticks: TimelineDetailTick[], index: number, overview: boolean) {
-  if (!overview || index === 0) return "top-0";
-  const current = validTimelineDate(ticks[index]?.at);
-  const previous = validTimelineDate(ticks[index - 1]?.at);
-  if (current && previous && current.toDateString() === previous.toDateString()) return "top-4";
-  return "top-0";
-}
-
 function localWorkdayStart(value: Date) {
   const result = new Date(value);
   result.setHours(8, 0, 0, 0);
@@ -89,11 +81,7 @@ function localWorkdayStart(value: Date) {
 }
 
 function formatOverviewDayTick(value: Date) {
-  return value.toLocaleDateString("th-TH", { day: "2-digit", month: "short" }) + " 08:00";
-}
-
-function formatOverviewHourTick(value: Date) {
-  return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
+  return value.toLocaleDateString("th-TH", { day: "2-digit", month: "short" });
 }
 
 function validTimelineDate(value?: string | null) {
@@ -102,7 +90,8 @@ function validTimelineDate(value?: string | null) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function buildOverviewTicks(rows: TimelineDetailRow[], timelineEndAt: string, includeExactEnd: boolean): TimelineDetailTick[] {
+// แกนภาพรวมมาร์กเฉพาะ "วันที่" ที่มีกิจกรรมจริง (anchor ที่ 08:00 ตามหลักการเดิม) — ไม่โชว์เวลา
+function buildOverviewTicks(rows: TimelineDetailRow[]): TimelineDetailTick[] {
   const actionTimes: Date[] = [];
   for (const row of rows) {
     if (row.kind === "milestone") {
@@ -121,15 +110,6 @@ function buildOverviewTicks(rows: TimelineDetailRow[], timelineEndAt: string, in
     const dayStart = localWorkdayStart(actionTime);
     const key = dayStart.toISOString();
     ticks.set(key, { key, at: key, label: formatOverviewDayTick(dayStart) });
-  }
-
-  const end = validTimelineDate(timelineEndAt);
-  const hasExactEndAction = end && actionTimes.some((actionTime) => actionTime.getTime() === end.getTime());
-  if (includeExactEnd && end && hasExactEndAction) {
-    const dayStart = localWorkdayStart(end);
-    if (end.getTime() !== dayStart.getTime()) {
-      ticks.set(timelineEndAt, { key: timelineEndAt, at: timelineEndAt, label: formatOverviewHourTick(end) });
-    }
   }
 
   return [...ticks.values()].sort((left, right) => new Date(left.at).getTime() - new Date(right.at).getTime());
@@ -338,6 +318,7 @@ export default function PetitionTimelineDetailPage() {
   const activityPageStart = (currentActivityPage - 1) * activityPageSize;
   const pagedActivities = model.activities.slice(activityPageStart, activityPageStart + activityPageSize);
   const progressLabel = model.progress.percent == null ? "-" : `${model.progress.percent}%`;
+  const progressComplete = model.progress.percent === 100;
   const sgParameter = findSgParameter(parameters);
   // Pre Report ต้องมีผลบันทึกครบทุก track ที่คำร้องนี้มีจริง
   // - มี Lab track: ต้องมีทั้ง qcCompletedAt และ labCompletedAt
@@ -374,7 +355,7 @@ export default function PetitionTimelineDetailPage() {
         label: "ภาพรวม",
         startAt: overviewStartAt,
         endAt: model.timeline.endAt,
-        ticks: buildOverviewTicks(model.timeline.rows, model.timeline.endAt, model.header.endKind === "actual"),
+        ticks: buildOverviewTicks(model.timeline.rows),
         rows: model.timeline.rows.map((row) => ({
           ...row,
           visible: true,
@@ -427,10 +408,6 @@ export default function PetitionTimelineDetailPage() {
     <style>{`@keyframes timeline-shimmer{0%{transform:translateX(-120%)}100%{transform:translateX(220%)}}`}</style>
     <PageHeader title="" onBack={() => navigate("/petition-timeline")} actions={<Button variant="primary-outline" size="sm" onClick={refreshTimeline}><RefreshCw className="h-4 w-4" />รีเฟรช</Button>} />
 
-    {model.items.length > 1 && <div role="tablist" aria-label="ตัวอย่างในคำขอ" className="flex flex-wrap gap-2">
-      {model.items.map((item) => <button key={item.seq} type="button" role="tab" aria-selected={item.seq === selectedItemSeq} title={item.label} className={cn("max-w-[240px] truncate rounded-[8px] border px-3 py-1.5 text-xs font-medium transition-colors", item.seq === selectedItemSeq ? "border-primary-500 bg-primary-50 text-primary-600" : "border-black-50 bg-white text-grey-600 hover:bg-grey-50")} onClick={() => setActiveItemSeq(item.seq)}>{item.label}</button>)}
-    </div>}
-
     <Card className="border-black-50 shadow-none"><CardContent className="grid gap-5 p-5 xl:grid-cols-[112px_minmax(0,1fr)]">
       <div className="flex aspect-square items-center justify-center rounded-[8px] border border-dashed border-grey-300 bg-grey-50 text-grey-400" aria-label="พื้นที่รูปตัวอย่าง"><ImageIcon className="h-8 w-8" /></div>
       <div className="min-w-0 space-y-4">
@@ -450,12 +427,18 @@ export default function PetitionTimelineDetailPage() {
           <Metric {...estimateMetric(model.header)} />
           <Metric label="Progress" value={progressLabel} />
         </div>
-        {model.progress.percent != null && <div role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={model.progress.percent} className="h-2 overflow-hidden rounded-full bg-grey-100"><div className={cn("h-full transition-[width]", progressFillClass(model.progress.percent))} style={{ width: `${model.progress.percent}%` }} /></div>}
+        {model.progress.percent != null && <div className={cn("relative", progressComplete && "pt-5")}>
+          {progressComplete && <span role="status" aria-label="Progress complete" className="absolute right-0 top-0 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[11px] font-semibold leading-none text-green-700 shadow-sm after:absolute after:-bottom-1 after:right-3 after:h-2 after:w-2 after:rotate-45 after:border-b after:border-r after:border-green-200 after:bg-green-50 after:content-['']">Complete</span>}
+          <div role="progressbar" aria-label="Progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={model.progress.percent} className="h-2 overflow-hidden rounded-full bg-grey-100"><div className={cn("h-full transition-[width]", progressFillClass(model.progress.percent))} style={{ width: `${model.progress.percent}%` }} /></div>
+        </div>}
       </div>
     </CardContent></Card>
 
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px] 2xl:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-4">
+        {model.items.length > 1 && <div role="tablist" aria-label="ตัวอย่างในคำขอ" className="flex flex-wrap gap-2">
+          {model.items.map((item) => <button key={item.seq} type="button" role="tab" aria-selected={item.seq === selectedItemSeq} title={item.label} className={cn("max-w-[240px] truncate rounded-[8px] border px-3 py-1.5 text-xs font-medium transition-colors", item.seq === selectedItemSeq ? "border-primary-500 bg-primary-50 text-primary-600" : "border-black-50 bg-white text-grey-600 hover:bg-grey-50")} onClick={() => setActiveItemSeq(item.seq)}>{item.label}</button>)}
+        </div>}
         <Card aria-label="petition timeline" className="border-black-50 shadow-none">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base"><CalendarClock className="h-4 w-4 text-primary-500" />Petition Timeline</CardTitle>
@@ -475,12 +458,12 @@ export default function PetitionTimelineDetailPage() {
                   <div
                     ref={timelineTrackRef}
                     data-testid="timeline-axis"
-                    className={cn("relative min-w-0 border-b border-black-50 text-xs text-grey-500", activeTimelineDay.key === "overview" ? "pb-9" : "pb-5")}
+                    className="relative min-w-0 border-b border-black-50 text-xs text-grey-500 pb-5"
                   >
                     {activeTimelineDay.ticks.map((tick, index) => {
                       const left = timelinePercent(tick.at, activeTimelineDay.startAt, activeTimelineDay.endAt);
                       const isOverview = activeTimelineDay.key === "overview";
-                      return left == null ? null : <div key={tick.key} className={cn("absolute top-0 h-full", timelineTickLineClass(index, activeTimelineDay.ticks.length, isOverview))} style={{ left: `${left}%` }}><span className={cn("absolute whitespace-nowrap", timelineTickTopClass(activeTimelineDay.ticks, index, isOverview), timelineTickPositionClass(left, isOverview), timelineTickVisibilityClass(index, activeTimelineDay.ticks.length, isOverview))}>{tick.label}</span></div>;
+                      return left == null ? null : <div key={tick.key} className={cn("absolute top-0 h-full", timelineTickLineClass(index, activeTimelineDay.ticks.length, isOverview))} style={{ left: `${left}%` }}><span className={cn("absolute top-0 whitespace-nowrap", timelineTickPositionClass(left, isOverview), timelineTickVisibilityClass(index, activeTimelineDay.ticks.length, isOverview))}>{tick.label}</span></div>;
                     })}
                   </div>
                 </div>

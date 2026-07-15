@@ -186,6 +186,7 @@ describe("PetitionTimelineDetailPage", () => {
     const progressBar = screen.getByRole("progressbar", { name: "Progress" });
     expect(progressBar).toHaveAttribute("aria-valuenow", "40");
     expect(progressBar.firstElementChild).toHaveClass("bg-gradient-to-r", "from-red-500", "to-amber-400");
+    expect(screen.queryByRole("status", { name: "Progress complete" })).not.toBeInTheDocument();
     selectFirstTimelineDayTab();
     expect(screen.getByText("08:00")).toBeInTheDocument();
     expect(screen.getByText("17:00")).toBeInTheDocument();
@@ -214,6 +215,9 @@ describe("PetitionTimelineDetailPage", () => {
     const progressBar = screen.getByRole("progressbar", { name: "Progress" });
     expect(progressBar).toHaveAttribute("aria-valuenow", "100");
     expect(progressBar.firstElementChild).toHaveClass("bg-gradient-to-r", "from-red-500", "via-amber-400", "to-green-500");
+    const completeBubble = screen.getByRole("status", { name: "Progress complete" });
+    expect(completeBubble).toHaveTextContent("Complete");
+    expect(completeBubble).toHaveClass("after:rotate-45", "after:content-['']");
   });
 
   it("shows petition and item details instead of requester and assignee metrics", async () => {
@@ -366,7 +370,7 @@ describe("PetitionTimelineDetailPage", () => {
     expect(timelineCard).not.toHaveTextContent("ยื่นคำขอ");
   });
 
-  it("right-aligns overview tick labels near the end so date and end time do not overlap", async () => {
+  it("right-aligns the final overview date tick near the end so it does not overflow", async () => {
     Object.assign(mocks.petition, {
       status: "success",
       submittedBy: { name: "Requester", submittedAt: "2026-07-13T01:00:00.000Z" },
@@ -377,8 +381,9 @@ describe("PetitionTimelineDetailPage", () => {
     renderDetail();
 
     expect(await screen.findByRole("tab", { name: "ภาพรวม" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("14 ก.ค. 08:00")).toHaveClass("right-1");
-    expect(screen.getByText("13:18")).toHaveClass("right-1");
+    const axis = within(screen.getByTestId("timeline-axis"));
+    expect(axis.getByText("14 ก.ค.")).toHaveClass("right-1");
+    expect(axis.queryByText("13:18")).not.toBeInTheDocument();
   });
 
   it("omits inactive overview tick labels and lines across long multi-day timelines", async () => {
@@ -392,10 +397,11 @@ describe("PetitionTimelineDetailPage", () => {
     renderDetail();
 
     expect(await screen.findByRole("tab", { name: "ภาพรวม" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("24 มิ.ย. 08:00")).not.toHaveClass("hidden");
-    expect(screen.queryByText("25 มิ.ย. 08:00")).not.toBeInTheDocument();
-    expect(screen.getByText("01 ก.ค. 08:00")).not.toHaveClass("hidden");
-    expect(screen.getByText("16:39")).not.toHaveClass("hidden");
+    const axis = within(screen.getByTestId("timeline-axis"));
+    expect(axis.getByText("24 มิ.ย.")).not.toHaveClass("hidden");
+    expect(axis.queryByText("25 มิ.ย.")).not.toBeInTheDocument();
+    expect(axis.getByText("01 ก.ค.")).not.toHaveClass("hidden");
+    expect(axis.queryByText("16:39")).not.toBeInTheDocument();
   });
 
   it("shows overview day ticks only for days with timeline actions", async () => {
@@ -409,25 +415,11 @@ describe("PetitionTimelineDetailPage", () => {
     renderDetail();
 
     expect(await screen.findByRole("tab", { name: "ภาพรวม" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("24 มิ.ย. 08:00")).toBeInTheDocument();
-    expect(screen.queryByText("27 มิ.ย. 08:00")).not.toBeInTheDocument();
-    expect(screen.queryByText("30 มิ.ย. 08:00")).not.toBeInTheDocument();
-    expect(screen.getByText("02 ก.ค. 08:00")).toBeInTheDocument();
-  });
-
-  it("stacks the final overview time under a same-day day tick so labels do not overlap", async () => {
-    Object.assign(mocks.petition, {
-      status: "success",
-      submittedBy: { name: "Requester", submittedAt: "2026-06-24T01:00:00.000Z" },
-      createdAt: "2026-06-24T01:00:00.000Z",
-      qcReceivedAt: "2026-06-24T01:00:00.000Z",
-      qcCompletedAt: "2026-07-02T09:39:00.000Z",
-    });
-    renderDetail();
-
-    expect(await screen.findByRole("tab", { name: "ภาพรวม" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("02 ก.ค. 08:00")).toHaveClass("top-0");
-    expect(screen.getByText("16:39")).toHaveClass("top-4");
+    const axis = within(screen.getByTestId("timeline-axis"));
+    expect(axis.getByText("24 มิ.ย.")).toBeInTheDocument();
+    expect(axis.queryByText("27 มิ.ย.")).not.toBeInTheDocument();
+    expect(axis.queryByText("30 มิ.ย.")).not.toBeInTheDocument();
+    expect(axis.getByText("02 ก.ค.")).toBeInTheDocument();
   });
 
   it("retries activity loading without blanking header and task panels", async () => {
@@ -659,6 +651,20 @@ describe("PetitionTimelineDetailPage", () => {
 
     expect(await screen.findByRole("tab", { name: "ABAMECTIN 1.8% W/V EC" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "EMAMECTIN 1.9% EC" })).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("แท็บตัวอย่างอยู่เหนือการ์ด Petition Timeline (ไม่ใช่บนสุดของหน้า)", async () => {
+    Object.assign(mocks.petition, { items: twoItems });
+    renderDetail();
+
+    const tablist = await screen.findByRole("tablist", { name: "ตัวอย่างในคำขอ" });
+    const heading = screen.getByRole("heading", { name: "P-2607-001" });
+    const timelineCard = screen.getByLabelText("petition timeline");
+    // อยู่หลังการ์ดข้อมูล (heading คำขอ) แต่ต้องมาก่อนการ์ด Petition Timeline
+    expect(heading.compareDocumentPosition(tablist) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(tablist.compareDocumentPosition(timelineCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // ต้องไม่อยู่ในการ์ด Timeline (อยู่เหนือ ไม่ใช่ข้างใน)
+    expect(timelineCard).not.toContainElement(tablist);
   });
 
   it("สลับแท็บแล้ว Metric และการ์ด Parameter ที่ต้องตรวจสอบเปลี่ยนตามตัวอย่างที่เลือก", async () => {
