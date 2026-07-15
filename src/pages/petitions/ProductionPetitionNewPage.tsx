@@ -26,7 +26,6 @@ import { isLabBatch, type Petition } from '@/types/petition.types';
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
 const ICP_LADDA_COMPANY = 'ICP Ladda Co., LTD.';
 const PRODUCTION_RETURN_URL = 'https://app-plant.icpladda.com/production-react/?tab=list';
-const PRODUCTION_DETAIL_RETURN_URL = 'http://app-plant.icpladda.com/production-react/api/lis_sso.php';
 
 type StepKey = 'items' | 'lab';
 
@@ -64,13 +63,20 @@ function getQueryValue(searchParams: URLSearchParams, keys: string[]): string {
   return '';
 }
 
-function buildProductionReturnUrl(searchParams: URLSearchParams, createdPetition?: Petition | null): string {
+export function buildProductionReturnUrl(searchParams: URLSearchParams, createdPetition?: Pick<Petition, 'petitionNo'> | null): string {
   const petitionNo = createdPetition?.petitionNo;
-  const url = new URL(petitionNo ? PRODUCTION_DETAIL_RETURN_URL : PRODUCTION_RETURN_URL);
+  const requestNo = getQueryValue(searchParams, ['requestNo', 'request_no', 'submissionNo']);
+  const url = new URL(PRODUCTION_RETURN_URL);
   const requesterEmail = getQueryValue(searchParams, ['requesterEmail', 'requester_email', 'email']);
+  if (requestNo) {
+    url.searchParams.set('requestNo', requestNo);
+    url.searchParams.set('request_no', requestNo);
+  }
   if (petitionNo) {
-    url.searchParams.set('petitions_no', petitionNo);
-    url.searchParams.set('request_no', petitionNo);
+    url.searchParams.set('lisPetitionNo', petitionNo);
+    url.searchParams.set('petitionNo', petitionNo);
+    url.searchParams.set('lisStatus', 'sent');
+    url.searchParams.set('lisSent', '1');
   }
   if (requesterEmail) {
     url.searchParams.set('requesterEmail', requesterEmail);
