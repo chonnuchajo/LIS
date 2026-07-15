@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-const buildApprovalGroups = vi.fn(() => [{ seq: 1 }]);
-const buildLabReportPages = vi.fn(() => [{ reportNo: 'LR-1' }]);
+const buildApprovalGroups = vi.fn<(...args: unknown[]) => Array<{ seq: number }>>(() => [{ seq: 1 }]);
+const buildLabReportPages = vi.fn<(...args: unknown[]) => Array<{ reportNo: string }>>(() => [{ reportNo: 'LR-1' }]);
 vi.mock('@/lib/qcApprovalRows', () => ({ buildApprovalGroups: (...a: unknown[]) => buildApprovalGroups(...a) }));
 vi.mock('@/lib/labReport', () => ({ buildLabReportPages: (...a: unknown[]) => buildLabReportPages(...a) }));
 
