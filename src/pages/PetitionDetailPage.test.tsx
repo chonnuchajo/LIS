@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import PetitionDetailPage from './PetitionDetailPage';
@@ -129,6 +129,12 @@ vi.mock('@/lib/laLisAssistant', () => ({
 vi.mock('@/lib/petitionPrintability', () => ({
   canPrintPreReport: () => false,
   canPrintSampleLabel: () => false,
+  canPrintLabResult: (petition: { labApprovedAt?: string; labCompletedAt?: string }) =>
+    !!(petition?.labApprovedAt || petition?.labCompletedAt),
+}));
+
+vi.mock('@/lib/labResultReport', () => ({
+  buildLabResultReportPages: () => [{ reportNo: 'LR-1' }],
 }));
 
 function renderPage() {
@@ -154,5 +160,15 @@ describe('PetitionDetailPage request summary', () => {
     expect(screen.getByText('ผู้นำส่ง')).toBeInTheDocument();
     expect(screen.getByText('มาลี นำส่ง')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'รายการตัวอย่าง (1)' })).toBeInTheDocument();
+  });
+
+  it('shows the print lab-result action when Lab has issued results', async () => {
+    mocks.petition.labApprovedAt = '2026-07-14T00:00:00.000Z';
+    try {
+      renderPage();
+      await waitFor(() => expect(screen.getByRole('button', { name: /พิมพ์ผลวิเคราะห์ Lab/ })).toBeInTheDocument());
+    } finally {
+      delete (mocks.petition as { labApprovedAt?: string }).labApprovedAt;
+    }
   });
 });

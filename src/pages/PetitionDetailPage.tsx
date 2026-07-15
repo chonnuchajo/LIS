@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   FileCheck2,
   FileText,
+  FlaskConical,
   Pencil,
   Printer,
   RotateCcw,
@@ -35,6 +36,7 @@ import PetitionPrintTemplate from '@/components/petition/PetitionPrintTemplate';
 import ResultReportPrintTemplate from '@/components/petition/ResultReportPrintTemplate';
 import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
 import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
+import LabResultReportTemplate, { LAB_REPORT_CSS } from '@/components/petition/LabResultReportTemplate';
 import {
   usePetition,
   deletePetition,
@@ -53,7 +55,8 @@ import type { QCTestResult } from '@/types/petition.types';
 import { findSgParameter, type SgParameter } from '@/lib/formSpecificGravity';
 import { buildApprovalGroups } from '@/lib/qcApprovalRows';
 import { buildLaLisAssistant, type LaLisIssue } from '@/lib/laLisAssistant';
-import { canPrintSampleLabel, canPrintPreReport } from '@/lib/petitionPrintability';
+import { buildLabResultReportPages } from '@/lib/labResultReport';
+import { canPrintSampleLabel, canPrintPreReport, canPrintLabResult } from '@/lib/petitionPrintability';
 import { cn } from '@/lib/utils';
 
 function detailBannerText(petition: Petition) {
@@ -165,6 +168,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
   const [labelPrintOpen, setLabelPrintOpen] = useState(false);
   const [preReportOpen, setPreReportOpen] = useState(false);
   const [finalReportOpen, setFinalReportOpen] = useState(false);
+  const [labResultOpen, setLabResultOpen] = useState(false);
   // ค่า ถ.พ. บนใบคำขอรับบริการ ดึงจากผล QC + พารามิเตอร์ ถพ. — โหลดแบบ lazy ตอนเปิดพิมพ์
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const [qcResults, setQcResults] = useState<QCTestResult[]>([]);
@@ -197,6 +201,10 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
   const laLisSummary = useMemo(
     () => data ? buildLaLisAssistant(data, labRequests, assistantGroups) : null,
     [data, labRequests, assistantGroups],
+  );
+  const labReportPages = useMemo(
+    () => data ? buildLabResultReportPages({ petition: data, labRequests: labRequests ?? [], parameters, qcResults, groupMembership }) : [],
+    [data, labRequests, parameters, qcResults, groupMembership],
   );
 
   useEffect(() => {
@@ -327,6 +335,12 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                         >
                           <FileCheck2 className="h-4 w-4" />
                           Final Report
+                        </Button>
+                      )}
+                      {canPrintLabResult(data) && labReportPages.length > 0 && (
+                        <Button variant="primary-outline" size="sm" onClick={() => setLabResultOpen(true)}>
+                          <FlaskConical className="h-4 w-4" />
+                          พิมพ์ผลวิเคราะห์ Lab
                         </Button>
                       )}
                       {!isResultMode && canEdit && (
@@ -507,6 +521,9 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
               </PrintPreviewDialog>
               <PrintPreviewDialog open={finalReportOpen} onOpenChange={setFinalReportOpen} docType="coa">
                 <ResultReportPrintTemplate kind="final" petition={data} labRequests={labRequests ?? []} qcResults={qcResults} />
+              </PrintPreviewDialog>
+              <PrintPreviewDialog open={labResultOpen} onOpenChange={setLabResultOpen} docType="coa" css={LAB_REPORT_CSS}>
+                <LabResultReportTemplate pages={labReportPages} />
               </PrintPreviewDialog>
             </div>
           );
