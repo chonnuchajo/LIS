@@ -9,7 +9,7 @@ import { api, type ParameterItem } from "@/lib/api";
 import { usePetition, useLabRequestsByPetition } from "@/hooks/usePetition";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { buildApprovalGroups } from "@/lib/qcApprovalRows";
-import { buildLabReportPages } from "@/lib/labReport";
+import { buildLabResultReportPages } from "@/lib/labResultReport";
 import LabResultGroups from "@/components/petition/LabResultGroups";
 import LabResultReportTemplate, { LAB_REPORT_CSS } from "@/components/petition/LabResultReportTemplate";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
@@ -47,10 +47,10 @@ export default function LabResultDetailPage() {
     return buildApprovalGroups(petition, parameters, results, groupMembership);
   }, [petition, parameters, results, groupMembership]);
 
-  const pages = useMemo(() => {
-    if (!petition) return [];
-    return buildLabReportPages(petition, labRequests ?? [], groups);
-  }, [petition, labRequests, groups]);
+  const pages = useMemo(
+    () => (petition ? buildLabResultReportPages({ petition, labRequests: labRequests ?? [], parameters, qcResults: results, groupMembership }) : []),
+    [petition, labRequests, parameters, results, groupMembership],
+  );
 
   const report = <LabResultReportTemplate pages={pages} />;
 
