@@ -37,27 +37,27 @@ test('tolerates groups with missing or null paths arrays', () => {
   ]);
 });
 
-test('findOrphanBackfillPaths detects petition timeline paths only when unclaimed', () => {
-  const groups = [{ id: 'samples', paths: ['/petitions'] }];
-  assert.deepStrictEqual(findOrphanBackfillPaths(groups, ['/petition-timeline', '/petition-timeline/:id']), [
-    '/petition-timeline',
-    '/petition-timeline/:id',
+test('findOrphanBackfillPaths detects petition list paths only when unclaimed', () => {
+  const groups = [{ id: 'samples', paths: ['/petitions-old'] }];
+  assert.deepStrictEqual(findOrphanBackfillPaths(groups, ['/petition', '/petition/:id']), [
+    '/petition',
+    '/petition/:id',
   ]);
 });
 
-test('findOrphanBackfillPaths adds only the missing timeline detail path', () => {
-  const groups = [{ id: 'samples', paths: ['/petition-timeline'] }];
-  assert.deepStrictEqual(findOrphanBackfillPaths(groups, ['/petition-timeline', '/petition-timeline/:id']), [
-    '/petition-timeline/:id',
+test('findOrphanBackfillPaths adds only the missing list detail path', () => {
+  const groups = [{ id: 'samples', paths: ['/petition'] }];
+  assert.deepStrictEqual(findOrphanBackfillPaths(groups, ['/petition', '/petition/:id']), [
+    '/petition/:id',
   ]);
 });
 
 test('findGroupForBackfill prefers the anchor path owner and falls back to a group id', () => {
   const groups = [
-    { id: 'legacy-home', paths: ['/home', '/petitions'] },
+    { id: 'legacy-home', paths: ['/home', '/petition'] },
     { id: 'stock', paths: ['/stock'] },
     { id: 'samples', paths: ['/physical-inspection'] },
   ];
-  assert.strictEqual(findGroupForBackfill(groups, 'samples', '/petitions'), 'legacy-home');
+  assert.strictEqual(findGroupForBackfill(groups, 'samples', '/petition'), 'legacy-home');
   assert.strictEqual(findGroupForBackfill(groups, 'stock', '/missing-anchor'), 'stock');
 });
