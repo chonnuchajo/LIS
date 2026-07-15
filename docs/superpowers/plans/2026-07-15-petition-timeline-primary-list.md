@@ -621,18 +621,14 @@ test('findGroupForBackfill prefers the anchor path owner and falls back to a gro
 });
 ```
 
-- [ ] **Step 2: รัน → fail**
+- [ ] **Step 2: รัน → pass ทันที (helper generic ไม่ต้องแก้ logic)**
 
 Run: `node --test server/lib/accessGroups.test.js`
-Expected: FAIL (2 เคสแรกยัง assert `/petition-timeline`)
+Expected: PASS — `accessGroups.js` รับ `candidatePaths` เป็น argument ไม่ hardcode path ใดๆ
+การอัปเดต fixture ในไฟล์ test แค่ทำให้ test สะท้อน scheme ใหม่ (ไม่มี red→green cycle เพราะ
+ไม่ได้เปลี่ยน production logic — นี่คือการ refresh fixture ให้เอกสารตรงกับความจริง)
 
-> `accessGroups.js` เป็น helper generic (รับ candidatePaths เป็น argument) — **ไม่ต้องแก้** logic
-> ตัวมันเอง test ผ่านได้ทันทีที่ปรับ fixture เพราะ helper ไม่ hardcode timeline path
-
-- [ ] **Step 3: รัน → pass** (ยืนยัน helper ไม่ต้องแก้)
-
-Run: `node --test server/lib/accessGroups.test.js`
-Expected: PASS
+> ถ้ารันแล้ว **fail** แปลว่าแก้ fixture ผิด (เช่น expected array ไม่ตรงลำดับ/ค่า) ให้ทบทวน Step 1
 
 - [ ] **Step 4: แก้ `accessControl.js` DEFAULT_GROUPS (บรรทัด 26, 29)**
 
