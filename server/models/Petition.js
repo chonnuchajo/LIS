@@ -93,6 +93,19 @@ const DeliveredBySchema = new mongoose.Schema(
   { _id: false },
 );
 
+const ProductionWorkflowSchema = new mongoose.Schema(
+  {
+    requestNo: { type: String, index: true },
+    requesterEmail: String,
+    lisPetitionNo: String,
+    petitionNo: String,
+    lisStatus: String,
+    lisSent: Boolean,
+    sentAt: Date,
+  },
+  { _id: false },
+);
+
 const PetitionSchema = new mongoose.Schema(
   {
     petitionNo: { type: String, required: true, index: true },
@@ -153,6 +166,7 @@ const PetitionSchema = new mongoose.Schema(
     assignedTo: PetitionAssigneeSchema,
     assignedMachines: { type: [PetitionAssignedMachineSchema], default: [] },
     prodOrderNos: { type: [String], default: [], index: true },
+    productionWorkflow: ProductionWorkflowSchema,
 
     // 2-phase testing — used when at least one parameter on this petition has hasPhases=true
     currentPhase: { type: Number, enum: [1, 2], default: 1, index: true },
