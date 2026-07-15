@@ -89,6 +89,9 @@ vi.mock("@/lib/api", () => ({
     downloadPrintPdf: mocks.downloadPrintPdf,
   },
 }));
+vi.mock("@/lib/labResultReport", () => ({
+  buildLabResultReportPages: () => [{ reportNo: "LR-1" }],
+}));
 
 function renderDetail() {
   return render(
@@ -518,6 +521,19 @@ describe("PetitionTimelineDetailPage", () => {
     expect(documentButtons[0]).toHaveClass("border-primary-500");
     expect(documentButtons[1]).toHaveClass("border-yellow-500");
     expect(documentButtons[2]).toHaveClass("border-red-500");
+  });
+
+  it("shows the lab-result print button when Lab has issued results", async () => {
+    mocks.petition.labApprovedAt = "2026-07-14T00:00:00.000Z";
+    renderDetail();
+    await screen.findByRole("heading", { name: "P-2607-001" });
+    expect(screen.getByRole("button", { name: /พิมพ์ผลวิเคราะห์ Lab/ })).toBeInTheDocument();
+  });
+
+  it("hides the lab-result print button when Lab is not finished", async () => {
+    renderDetail();
+    await screen.findByRole("heading", { name: "P-2607-001" });
+    expect(screen.queryByRole("button", { name: /พิมพ์ผลวิเคราะห์ Lab/ })).not.toBeInTheDocument();
   });
 
   it("shows Pre Report with its own green border color", async () => {
