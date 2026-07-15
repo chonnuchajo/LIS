@@ -32,7 +32,7 @@ const EmployeeLinkGate = () => {
   const location = useLocation();
 
   const isAdmin = (user?.roles ?? (user?.role ? [user.role] : [])).includes("admin");
-  const isPublicProductionRequest = location.pathname === "/petitions/ProductionIntegrationPetitionNewPage";
+  const isPublicProductionRequest = location.pathname === "/petitions-old/ProductionIntegrationPetitionNewPage";
   const isLogout = location.pathname === "/logout";
   const needsLink = !!user?.id && !user.employeeId && !isAdmin && !isPublicProductionRequest && !isLogout;
 

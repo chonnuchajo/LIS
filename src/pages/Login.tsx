@@ -43,9 +43,9 @@ export function isDifferentRequester(userEmail: string | undefined, requesterEma
 
 export function productionRequestRedirect(searchParams: URLSearchParams): string {
   const petitionNo = firstSearchValue(searchParams, ["petitions_no", "petitionNo", "petition_no"]);
-  if (petitionNo) return `/petitions?${searchParams.toString()}`;
+  if (petitionNo) return `/petition?${searchParams.toString()}`;
   const requestNo = firstSearchValue(searchParams, ["requestNo", "request_no", "submissionNo"]);
-  return requestNo ? `/petitions/ProductionIntegrationPetitionNewPage?${searchParams.toString()}` : "";
+  return requestNo ? `/petitions-old/ProductionIntegrationPetitionNewPage?${searchParams.toString()}` : "";
 }
 
 const Login = () => {

@@ -8,7 +8,7 @@ describe("productionRequestRedirect", () => {
     );
 
     expect(productionRequestRedirect(params)).toBe(
-      "/petitions?request_no=P260715001&petitions_no=P260715001&requesterEmail=chonnucha.p%40icpladda.com",
+      "/petition?request_no=P260715001&petitions_no=P260715001&requesterEmail=chonnucha.p%40icpladda.com",
     );
   });
 
@@ -16,7 +16,7 @@ describe("productionRequestRedirect", () => {
     const params = new URLSearchParams("request_no=P260715001");
 
     expect(productionRequestRedirect(params)).toBe(
-      "/petitions/ProductionIntegrationPetitionNewPage?request_no=P260715001",
+      "/petitions-old/ProductionIntegrationPetitionNewPage?request_no=P260715001",
     );
   });
 });
