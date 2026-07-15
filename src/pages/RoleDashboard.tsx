@@ -99,11 +99,11 @@ const LAB_HEAD_ACTION_LABEL: Record<LabHeadWorklistFilter, string> = {
 };
 
 const LAB_HEAD_ACTION_PATH_PREFIX: Record<LabHeadWorklistFilter, string> = {
-  all: "/petitions",
-  waitingReceive: "/petitions",
-  pendingAssign: "/petitions",
+  all: "/petition",
+  waitingReceive: "/petition",
+  pendingAssign: "/petition",
   pendingApproval: "/lab-approval",
-  completedToday: "/petitions",
+  completedToday: "/petition",
 };
 
 function isQcStaffFilter(id: KpiId): id is QcStaffWorklistFilter {
@@ -394,7 +394,7 @@ export default function RoleDashboard() {
             title={isLabAnalyze ? "งานที่กำลังดำเนินการ" : isQcStaff ? QC_STAFF_TABLE_TITLE[qcStaffFilter] : undefined}
             emptyMessage={isLabAnalyze ? "ไม่มีงานในหมวดนี้" : isQcStaff ? "ไม่มีงานในหมวดนี้" : undefined}
             actionLabel={ACTION_LABEL[profileId] ?? "ดูรายละเอียด"}
-            actionPathPrefix={isLabAnalyze ? "/lab-testing" : isQcStaff ? "/qc-testing" : "/petitions"}
+            actionPathPrefix={isLabAnalyze ? "/lab-testing" : isQcStaff ? "/qc-testing" : "/petition"}
             urgentIds={urgentIds}
             sortRows={!isLabAnalyze && !isQcStaff}
             statusBadge={isLabAnalyze ? labTrackStatusBadge : isQcStaff ? qcTrackStatusBadge : undefined}

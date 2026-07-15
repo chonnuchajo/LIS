@@ -34,7 +34,7 @@ describe("ActionQueue", () => {
   it("links each row to the petition list highlighting that petition", () => {
     render(<MemoryRouter><ActionQueue units={[unit({ petitionId: "x1" })]} /></MemoryRouter>);
     const row = screen.getByText("P-1").closest("tr")!;
-    expect(within(row).getByRole("link")).toHaveAttribute("href", "/petitions?highlight=x1");
+    expect(within(row).getByRole("link")).toHaveAttribute("href", "/petition?highlight=x1");
   });
 
   it("navigates from a click anywhere on the row, not just the petition number", () => {
@@ -51,7 +51,7 @@ describe("ActionQueue", () => {
 
     fireEvent.click(screen.getByText("Lab กำลังทดสอบ"));
 
-    expect(screen.getByTestId("location")).toHaveTextContent("/petitions?highlight=x1");
+    expect(screen.getByTestId("location")).toHaveTextContent("/petition?highlight=x1");
   });
 
   it("drops the redundant view button now that the whole row is the link", () => {

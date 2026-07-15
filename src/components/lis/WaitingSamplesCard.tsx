@@ -28,7 +28,7 @@ export default function WaitingSamplesCard({ petitions }: { petitions: Petition[
           {petitions.length > 0 ? (
             <button
               type="button"
-              onClick={() => navigate("/petitions?status=sampleSent")}
+              onClick={() => navigate("/petition?status=sampleSent")}
               className="text-xs font-medium text-primary hover:underline"
             >
               รับเข้าทั้งหมด →
@@ -56,7 +56,7 @@ export default function WaitingSamplesCard({ petitions }: { petitions: Petition[
                   <li key={petition._id}>
                     <button
                       type="button"
-                      onClick={() => navigate(`/petitions/${petition._id}`)}
+                      onClick={() => navigate(`/petition/${petition._id}`)}
                       className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:bg-muted/40"
                     >
                       <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
@@ -77,7 +77,7 @@ export default function WaitingSamplesCard({ petitions }: { petitions: Petition[
             {remaining > 0 ? (
               <button
                 type="button"
-                onClick={() => navigate("/petitions?status=sampleSent")}
+                onClick={() => navigate("/petition?status=sampleSent")}
                 className="block w-full border-t border-border px-4 py-2.5 text-center text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground"
               >
                 + อีก {remaining} รายการ

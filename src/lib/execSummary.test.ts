@@ -45,10 +45,10 @@ describe("formatMinutes", () => {
 
 describe("highlightPath", () => {
   it("builds a petition-list link carrying every id", () => {
-    expect(highlightPath(["a", "b"])).toBe("/petitions?highlight=a,b");
+    expect(highlightPath(["a", "b"])).toBe("/petition?highlight=a,b");
   });
 
   it("returns the plain list when there is nothing to highlight", () => {
-    expect(highlightPath([])).toBe("/petitions");
+    expect(highlightPath([])).toBe("/petition");
   });
 });
