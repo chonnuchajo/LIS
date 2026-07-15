@@ -20,7 +20,7 @@ import { buildTimelineDetailModel, type TimelineDetailActivity, type TimelineDet
 import { timelineBarClass, timelineDotClass } from "@/lib/petitionTimelineColors";
 import { crosshairAt, formatCrosshairTime } from "@/lib/petitionTimelineCrosshair";
 import { estimateMetric, formatDateTime } from "@/lib/petitionTimelineMetric";
-import { canPrintPreReport } from "@/lib/petitionPrintability";
+import { canPrintPreReport, canPrintSampleLabel } from "@/lib/petitionPrintability";
 import { canSeePetition, isLabRole, petitionHasLabReadableItem } from "@/lib/petitionVisibility";
 import { normalizeRoles } from "@/lib/roles";
 import { hasLabTrack, petitionStatusBadge } from "@/lib/statusBadge";
@@ -523,7 +523,7 @@ export default function PetitionTimelineDetailPage() {
       </Dialog>
 
       <Card aria-label="Documents" className="border-black-50 shadow-none"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4 text-primary-500" />Documents</CardTitle></CardHeader><CardContent className="space-y-2">
-        <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.sampleLabel)} disabled={documentLoading} onClick={() => { void openDocument(setLabelPrintOpen); }}><Printer className="h-4 w-4" />ป้ายนำส่งตัวอย่าง</Button>
+        {canPrintSampleLabel(petition) && <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.sampleLabel)} disabled={documentLoading} onClick={() => { void openDocument(setLabelPrintOpen); }}><Printer className="h-4 w-4" />ป้ายนำส่งตัวอย่าง</Button>}
         {(labRequests?.length ?? 0) > 0 && <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.serviceRequest)} disabled={documentLoading} onClick={() => { void openDocument(setServicePrintOpen); }}><FileText className="h-4 w-4" />ใบคำขอรับบริการ</Button>}
         {canShowPreReport && <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.preReport)} disabled={documentLoading} onClick={() => { void openDocument(setPreReportOpen); }}><FileText className="h-4 w-4" />Pre Report</Button>}
         {petition.status === "approved" && <Button variant="primary-outline" className={cn(documentButtonClass, documentButtonColors.finalReport)} disabled={documentLoading} onClick={() => { void openDocument(setFinalReportOpen); }}><FileCheck2 className="h-4 w-4" />Final Report</Button>}

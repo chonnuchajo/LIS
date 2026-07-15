@@ -552,11 +552,17 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.queryByRole("button", { name: "Pre Report" })).not.toBeInTheDocument();
   });
 
-  it("keeps the sample label document available after QC receives the sample", async () => {
-    Object.assign(mocks.petition, { qcReceivedBy: "QC Receiver" });
+  it('hides the sample-label button once QC has received the sample', async () => {
+    mocks.petition.qcReceivedBy = 'QC Staff';
     renderDetail();
+    await screen.findByRole('heading', { name: 'P-2607-001' });
+    expect(screen.queryByRole('button', { name: /ป้ายนำส่งตัวอย่าง/ })).not.toBeInTheDocument();
+  });
 
-    expect(await screen.findByRole("button", { name: "ป้ายนำส่งตัวอย่าง" })).toBeInTheDocument();
+  it('shows the sample-label button when not yet received', async () => {
+    renderDetail();
+    await screen.findByRole('heading', { name: 'P-2607-001' });
+    expect(screen.getByRole('button', { name: /ป้ายนำส่งตัวอย่าง/ })).toBeInTheDocument();
   });
 
   it("keeps document actions disabled until document data is ready", async () => {
