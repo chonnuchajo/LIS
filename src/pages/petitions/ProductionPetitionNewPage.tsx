@@ -25,7 +25,8 @@ import { isLabBatch, type Petition } from '@/types/petition.types';
 
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
 const ICP_LADDA_COMPANY = 'ICP Ladda Co., LTD.';
-const PRODUCTION_RETURN_URL = 'https://app-plant.icpladda.com/production/public/sample_analysis.php';
+const PRODUCTION_RETURN_URL = 'https://app-plant.icpladda.com/production-react/?tab=list';
+const PRODUCTION_DETAIL_RETURN_URL = 'http://app-plant.icpladda.com/production-react/api/lis_sso.php';
 
 type StepKey = 'items' | 'lab';
 
@@ -64,17 +65,16 @@ function getQueryValue(searchParams: URLSearchParams, keys: string[]): string {
 }
 
 function buildProductionReturnUrl(searchParams: URLSearchParams, createdPetition?: Petition | null): string {
-  const requestNo = getQueryValue(searchParams, ['requestNo', 'submissionNo']);
-  const url = new URL(PRODUCTION_RETURN_URL);
-  url.searchParams.set('status', '');
-  if (requestNo) {
-    url.searchParams.set('q', requestNo);
-    url.searchParams.set('requestNo', requestNo);
+  const petitionNo = createdPetition?.petitionNo;
+  const url = new URL(petitionNo ? PRODUCTION_DETAIL_RETURN_URL : PRODUCTION_RETURN_URL);
+  const requesterEmail = getQueryValue(searchParams, ['requesterEmail', 'requester_email', 'email']);
+  if (petitionNo) {
+    url.searchParams.set('petitions_no', petitionNo);
+    url.searchParams.set('request_no', petitionNo);
   }
-  url.searchParams.set('lisStatus', 'sent');
-  url.searchParams.set('lisSent', '1');
-  if (createdPetition?.petitionNo) {
-    url.searchParams.set('lisPetitionNo', createdPetition.petitionNo);
+  if (requesterEmail) {
+    url.searchParams.set('requesterEmail', requesterEmail);
+    url.searchParams.set('requester_email', requesterEmail);
   }
   return url.toString();
 }
@@ -86,7 +86,7 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
   const commonName = getQueryValue(searchParams, ['commonName', 'activeIngredient']);
   const productionDate = getQueryValue(searchParams, ['productionDate', 'requestDate', 'mfgDate']);
   const packageUnit = getQueryValue(searchParams, ['quantity', 'packageUnit', 'packSize']);
-  const submissionNo = getQueryValue(searchParams, ['submissionNo', 'requestNo']);
+  const submissionNo = getQueryValue(searchParams, ['submissionNo', 'requestNo', 'request_no']);
   const testItems = getQueryValue(searchParams, ['testItems', 'tests']);
   const itemNo = getQueryValue(searchParams, ['itemNo']);
   const mfNo = getQueryValue(searchParams, ['mfNo']);
@@ -532,8 +532,8 @@ export default function ProductionPetitionNewPage({
   const integrationActor = useMemo(() => {
     const department = getQueryValue(searchParams, ['department']);
     const requesterName = getQueryValue(searchParams, ['requesterName', 'submittedBy', 'submitterName', 'employeeName']);
-    const requesterEmail = getQueryValue(searchParams, ['requesterEmail', 'email', 'requesterMail', 'mail']);
-    const requestNo = getQueryValue(searchParams, ['requestNo']);
+    const requesterEmail = getQueryValue(searchParams, ['requesterEmail', 'requester_email', 'email', 'requesterMail', 'mail']);
+    const requestNo = getQueryValue(searchParams, ['requestNo', 'request_no']);
     const mfNo = getQueryValue(searchParams, ['mfNo']);
     const ref = requestNo || mfNo;
     return {
@@ -694,11 +694,11 @@ export default function ProductionPetitionNewPage({
         setStepError('ต้องมีตัวอย่างอย่างน้อย 1 รายการ');
         return false;
       }
-      if (masterItemsLoading) {
+      if (!integrationMode && masterItemsLoading) {
         setStepError('กำลังโหลด Master Item กรุณารอสักครู่');
         return false;
       }
-      if (masterItemsError || masterItemOptions.length === 0) {
+      if (!integrationMode && (masterItemsError || masterItemOptions.length === 0)) {
         setStepError('โหลด Master Item ไม่สำเร็จ กรุณาลองใหม่');
         return false;
       }
@@ -707,7 +707,7 @@ export default function ProductionPetitionNewPage({
           setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกชื่อตัวอย่าง`);
           return false;
         }
-        if (!findMatchingPetitionMasterItem(masterItemOptions, it)) {
+        if (!integrationMode && !findMatchingPetitionMasterItem(masterItemOptions, it)) {
           setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณาเลือกชื่อตัวอย่างจาก Master Item`);
           return false;
         }

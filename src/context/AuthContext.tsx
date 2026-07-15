@@ -379,6 +379,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = () => {
     localStorage.removeItem("lis_production_sso_user");
+    sessionStorage.removeItem("lis_login_redirect");
     setProductionUser(null);
     if (!account) {
       window.location.href = window.location.origin + import.meta.env.BASE_URL;
