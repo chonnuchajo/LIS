@@ -30,8 +30,7 @@ export type NavItem = {
 
 export const NAV_ITEMS: NavItem[] = [
   { icon: Home, label: "หน้าแรก", path: "/home" },
-  { icon: FileText, label: "รายการคำร้อง", path: "/petitions" },
-  { icon: Clock, label: "Timeline คำร้อง", path: "/petition-timeline" },
+  { icon: FileText, label: "รายการคำร้อง", path: "/petition" },
   { icon: ClipboardList, label: "ผลวิเคราะห์", path: "/record-results" },
   { icon: ClipboardList, label: "ผลวิเคราะห์ Lab", path: "/lab-results" },
   { icon: ClipboardList, label: "การเบิก stock", path: "/stock-deduction" },
@@ -44,7 +43,7 @@ export const NAV_ITEMS: NavItem[] = [
   { icon: FlaskConical, label: "การทดสอบ QC", path: "/qc-testing" },
   { icon: FlaskConical, label: "การทดสอบ Lab", path: "/lab-testing" },
   { icon: Gauge, label: "ผล Density", path: "/density-results" },
-  { icon: UserCheck, label: "Assign คำร้อง", path: "/petitions/assign" },
+  { icon: UserCheck, label: "Assign คำร้อง", path: "/petitions-old/assign" },
   { icon: Package, label: "Stock Management", path: "/stock" },
   { icon: Database, label: "Master Item", path: "/master-items" },
   { icon: FlaskConical, label: "Simple Method", path: "/simple-method" },
@@ -57,9 +56,10 @@ export const NAV_ITEMS: NavItem[] = [
 
 export const PAGE_ITEMS: NavItem[] = [
   ...NAV_ITEMS,
-  { icon: FileText, label: "New Petition", path: "/petitions/new" },
-  { icon: FileText, label: "Petition Detail", path: "/petitions/:id" },
-  { icon: Pencil, label: "Edit Petition", path: "/petitions/:id/edit" },
+  { icon: FileText, label: "รายการคำร้อง (เดิม)", path: "/petitions-old" },
+  { icon: FileText, label: "New Petition", path: "/petitions-old/new" },
+  { icon: FileText, label: "Petition Detail", path: "/petitions-old/:id" },
+  { icon: Pencil, label: "Edit Petition", path: "/petitions-old/:id/edit" },
   { icon: ClipboardList, label: "Analysis Result Detail", path: "/record-results/:id" },
   { icon: ClipboardList, label: "รายละเอียดผล Lab", path: "/lab-results/:id" },
   { icon: ScanLine, label: "Scanner", path: "/scanner" },
