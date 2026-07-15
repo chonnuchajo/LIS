@@ -4,6 +4,8 @@ type PrintabilityInput = {
   status: PetitionStatus;
   qcReceivedBy?: string;
   labReceivedBy?: string;
+  labCompletedAt?: string | null;
+  labApprovedAt?: string | null;
 };
 
 const received = (name?: string) => !!name?.trim();
@@ -19,4 +21,9 @@ export function canPrintSampleLabel(petition: PrintabilityInput): boolean {
 /** Pre Report ใช้ได้จนกว่าหัวหน้า QC จะออก Final Result — หลังจากนั้นใช้ Final Report แทน */
 export function canPrintPreReport(petition: PrintabilityInput): boolean {
   return petition.status !== 'approved';
+}
+
+/** ผลวิเคราะห์ Lab พิมพ์ได้เมื่อ Lab ตรวจเสร็จ (labCompletedAt) หรือหัวหน้า Lab ออกผลแล้ว (labApprovedAt) */
+export function canPrintLabResult(petition: PrintabilityInput): boolean {
+  return !!(petition.labCompletedAt || petition.labApprovedAt);
 }

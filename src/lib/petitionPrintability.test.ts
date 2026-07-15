@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canPrintSampleLabel, canPrintPreReport } from './petitionPrintability';
+import { canPrintSampleLabel, canPrintPreReport, canPrintLabResult } from './petitionPrintability';
 import type { PetitionStatus } from '@/types/petition.types';
 
 const pet = (over: Partial<Parameters<typeof canPrintSampleLabel>[0]> = {}) => ({
@@ -35,5 +35,20 @@ describe('canPrintPreReport', () => {
 
   it('พิมพ์ไม่ได้เมื่อหัวหน้า QC ออก Final Result แล้ว (ใช้ Final Report แทน)', () => {
     expect(canPrintPreReport(pet({ status: 'approved' }))).toBe(false);
+  });
+});
+
+describe('canPrintLabResult', () => {
+  it('false when Lab has neither completed nor issued results', () => {
+    expect(canPrintLabResult({ status: 'inProgress' })).toBe(false);
+  });
+  it('true when labCompletedAt is set', () => {
+    expect(canPrintLabResult({ status: 'inProgress', labCompletedAt: '2026-07-15T00:00:00.000Z' })).toBe(true);
+  });
+  it('true when labApprovedAt is set', () => {
+    expect(canPrintLabResult({ status: 'success', labApprovedAt: '2026-07-15T00:00:00.000Z' })).toBe(true);
+  });
+  it('false for null/empty timestamps', () => {
+    expect(canPrintLabResult({ status: 'inProgress', labCompletedAt: null, labApprovedAt: null })).toBe(false);
   });
 });
