@@ -297,12 +297,24 @@ describe("PetitionTimelineDetailPage", () => {
 
     // ต้อง assert เฉพาะ class ที่มีผลจริง (Tailwind สร้าง CSS ให้) ไม่ใช่ marker class ลอย ๆ
     expect(activeBar).toHaveClass("overflow-hidden");
+    expect(activeBar).toHaveClass("h-5");
     expect(activeBar).toHaveClass("after:bg-gradient-to-r");
     expect(activeBar).toHaveClass(ACTIVE_SHIMMER_CLASS);
     expect(activeBar).toHaveClass(ACTIVE_GLOW_CLASS);
     expect(activeBar).not.toHaveClass("timeline-active-bar");
     // เงาต้องเป็นสีกลาง ไม่ใช่น้ำเงินย้อมทับสีประจำแถว
     expect(activeBar).not.toHaveClass("shadow-[0_0_14px_rgba(59,130,246,0.35)]");
+  });
+
+  it("shows an in-progress bubble at the current active timeline position", async () => {
+    renderDetail();
+
+    const timelineCard = await screen.findByLabelText("petition timeline");
+    const activeBubble = within(timelineCard).getByRole("status", { name: /กำลังดำเนินการ/ });
+
+    expect(activeBubble).toHaveTextContent("กำลังดำเนินการ");
+    expect(activeBubble).toHaveClass("bg-amber-50", "text-amber-700", "after:rotate-45");
+    expect((activeBubble as HTMLElement).style.left).toBe("100%");
   });
 
   it("คำร้องที่ปิดแล้วแต่มีรูข้อมูล (ไม่มี labApprovedAt): แท่งที่ไม่มีเวลาจบต้องไม่เรืองแสง/วิ่ง shimmer ตลอดกาล", async () => {
@@ -323,6 +335,7 @@ describe("PetitionTimelineDetailPage", () => {
     expect(bar).not.toHaveClass("overflow-hidden");
     expect(bar).not.toHaveClass(ACTIVE_SHIMMER_CLASS);
     expect(bar).not.toHaveClass(ACTIVE_GLOW_CLASS);
+    expect(screen.queryByText("กำลังดำเนินการ")).not.toBeInTheDocument();
   });
 
   it("แท่งที่ถูกตัดที่ขอบเวลาทำการของวันเดียวกัน ไม่บอกว่าต่อเนื่องข้ามวัน", async () => {

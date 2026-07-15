@@ -386,6 +386,7 @@ export default function PetitionTimelineDetailPage() {
   const activeTimelineRows = activeTimelineDay.key === "overview"
     ? activeTimelineDay.rows
     : activeTimelineDay.rows.filter((row) => row.visible);
+  const latestTimelineDayKey = timelineDays[timelineDays.length - 1]?.key ?? null;
 
   const refreshTasks = () => setTaskReloadKey((value) => value + 1);
 
@@ -490,7 +491,14 @@ export default function PetitionTimelineDetailPage() {
                   const width = start != null && end != null ? Math.max(1, end - start) : null;
                   // แท่งจะ "กำลังทำอยู่" ได้ก็ต่อเมื่อคำร้องยังไม่ปิด — ปลายขวาตรง/สีอ่อนยังคงอยู่ทุกกรณีที่ไม่มีเวลาจบ
                   const active = !row.done && !petitionClosed;
-                  return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-6 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-1 h-4 w-4 -translate-x-1/2 rounded-full border-2 border-white", timelineDotClass(row.key, { done: row.done, rejected: petition.status === "rejected" }))} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={continuesAcrossCalendarDay(row, activeTimelineDay.startAt) ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-2 h-2 rounded-full", timelineBarClass(row.key, { done: row.done, rejected: petition.status === "rejected" }), row.continuesBefore && "rounded-l-none", !row.done && "rounded-r-none", active && ACTIVE_BAR_CLASS)} style={{ left: `${start}%`, width: `${width}%` }} />}</div></div>;
+                  const activeBubbleLeft = active
+                    && row.visible
+                    && row.kind === "bar"
+                    && end != null
+                    && (!row.continuesAfter || activeTimelineDay.key === "overview" || activeTimelineDay.key === latestTimelineDayKey)
+                    ? end
+                    : null;
+                  return <div key={row.key} className="grid grid-cols-[minmax(5.75rem,7rem)_minmax(0,1fr)] items-center gap-2 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-3"><span className="min-w-0 truncate text-sm text-grey-700" title={row.label}>{row.label}</span><div className="relative min-w-0 h-14 rounded bg-grey-50">{row.visible && row.kind === "milestone" && progress != null && <span aria-label={`${row.label} (จุด)`} className={cn("absolute top-6 h-6 w-6 -translate-x-1/2 rounded-full border-2 border-white", timelineDotClass(row.key, { done: row.done, rejected: petition.status === "rejected" }))} style={{ left: `${progress}%` }} />}{row.visible && row.kind === "bar" && start != null && width != null && <div aria-label={`${row.label} (ช่วงเวลา)`} title={continuesAcrossCalendarDay(row, activeTimelineDay.startAt) ? "ต่อเนื่องข้ามวัน" : undefined} className={cn("absolute top-7 h-5 rounded-full", timelineBarClass(row.key, { done: row.done, rejected: petition.status === "rejected" }), row.continuesBefore && "rounded-l-none", !row.done && "rounded-r-none", active && ACTIVE_BAR_CLASS)} style={{ left: `${start}%`, width: `${width}%` }} />}{activeBubbleLeft != null && <span role="status" aria-label={`กำลังดำเนินการ: ${row.label}`} className={cn("absolute top-0 z-[1] whitespace-nowrap rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold leading-none text-amber-700 shadow-sm after:absolute after:top-full after:h-2 after:w-2 after:rotate-45 after:border-b after:border-r after:border-amber-200 after:bg-amber-50 after:content-['']", activeBubbleLeft > 82 ? "-translate-x-full after:right-3" : activeBubbleLeft < 18 ? "after:left-3" : "-translate-x-1/2 after:left-1/2 after:-translate-x-1/2")} style={{ left: `${activeBubbleLeft}%` }}>กำลังดำเนินการ</span>}</div></div>;
                 })}
               </div>
               {crosshair && <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-10">
