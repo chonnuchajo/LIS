@@ -89,36 +89,36 @@ describe("userCanAccessPath", () => {
   describe("implied sub-pages", () => {
     // Granting a parent nav page should ride along to its detail/sub pages.
     const navGroups = [
-      { id: "petitions", paths: ["/petitions"] },
+      { id: "petitions", paths: ["/petition"] },
       { id: "results", paths: ["/record-results"] },
-      { id: "lab", paths: ["/petitions/assign", "/lab-testing"] },
+      { id: "lab", paths: ["/petitions-old/assign", "/lab-testing"] },
       { id: "others", paths: [] },
     ];
 
-    it("grants the petition detail page when /petitions is granted", () => {
-      const user = { role: "lab", status: "active" as const, permissions: ["/petitions"] };
-      expect(userCanAccessPath(user, "/petitions/123", navGroups)).toBe(true);
+    it("grants the classic petition detail page when /petition is granted", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/petition"] };
+      expect(userCanAccessPath(user, "/petitions-old/123", navGroups)).toBe(true);
     });
 
-    it("grants new/edit petition sub-pages when /petitions is granted", () => {
-      const user = { role: "lab", status: "active" as const, permissions: ["/petitions"] };
-      expect(userCanAccessPath(user, "/petitions/new", navGroups)).toBe(true);
-      expect(userCanAccessPath(user, "/petitions/123/edit", navGroups)).toBe(true);
+    it("grants new/edit petition sub-pages when /petition is granted", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/petition"] };
+      expect(userCanAccessPath(user, "/petitions-old/new", navGroups)).toBe(true);
+      expect(userCanAccessPath(user, "/petitions-old/123/edit", navGroups)).toBe(true);
     });
 
     it("grants sub-pages through a legacy group-id entry", () => {
       const user = { role: "lab", status: "active" as const, permissions: ["petitions"] };
-      expect(userCanAccessPath(user, "/petitions/123", navGroups)).toBe(true);
+      expect(userCanAccessPath(user, "/petitions-old/123", navGroups)).toBe(true);
     });
 
-    it("does NOT grant /petitions/assign (a separately-managed nav page) via /petitions", () => {
-      const user = { role: "lab", status: "active" as const, permissions: ["/petitions"] };
-      expect(userCanAccessPath(user, "/petitions/assign", navGroups)).toBe(false);
+    it("does NOT grant /petitions-old/assign (a separately-managed nav page) via /petition", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/petition"] };
+      expect(userCanAccessPath(user, "/petitions-old/assign", navGroups)).toBe(false);
     });
 
-    it("does NOT grant /petitions/assign through the dynamic petition detail route", () => {
-      const user = { role: "lab", status: "active" as const, permissions: ["/petitions/:id"] };
-      expect(userCanAccessPath(user, "/petitions/assign", navGroups)).toBe(false);
+    it("does NOT grant /petitions-old/assign through the dynamic petition detail route", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/petitions-old/:id"] };
+      expect(userCanAccessPath(user, "/petitions-old/assign", navGroups)).toBe(false);
     });
 
     it("grants the lab testing detail page when /lab-testing is granted", () => {
@@ -126,20 +126,20 @@ describe("userCanAccessPath", () => {
       expect(userCanAccessPath(user, "/lab-testing/abc", navGroups)).toBe(true);
     });
 
-    it("grants the petition timeline detail page when /petition-timeline is granted", () => {
-      const user = { role: "lab", status: "active" as const, permissions: ["/petition-timeline"] };
-      expect(userCanAccessPath(user, "/petition-timeline/abc", navGroups)).toBe(true);
+    it("grants the petition timeline detail page when /petition is granted", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/petition"] };
+      expect(userCanAccessPath(user, "/petition/abc", navGroups)).toBe(true);
     });
 
     it("grants result detail from /record-results without granting petition detail", () => {
       const user = { role: "lab", status: "active" as const, permissions: ["/record-results"] };
       expect(userCanAccessPath(user, "/record-results/abc", navGroups)).toBe(true);
-      expect(userCanAccessPath(user, "/petitions/abc", navGroups)).toBe(false);
+      expect(userCanAccessPath(user, "/petitions-old/abc", navGroups)).toBe(false);
     });
 
     it("'others' does not grant a sub-page already covered by its parent's group", () => {
       const user = { role: "lab", status: "active" as const, permissions: ["others"] };
-      expect(userCanAccessPath(user, "/petitions/123", navGroups)).toBe(false);
+      expect(userCanAccessPath(user, "/petitions-old/123", navGroups)).toBe(false);
     });
   });
 

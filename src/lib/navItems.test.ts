@@ -7,8 +7,14 @@ describe("NAV_ITEMS", () => {
     expect(NAV_ITEMS.map((item) => item.path)).not.toContain("/dashboard/qc");
   });
 
-  it("exposes the petition timeline page in the main nav", () => {
-    expect(NAV_ITEMS.map((item) => item.path)).toContain("/petition-timeline");
+  it("exposes the petition list page in the main nav", () => {
+    expect(NAV_ITEMS.map((item) => item.path)).toContain("/petition");
+  });
+
+  it("no longer exposes the retired /petitions list or timeline path in the main nav", () => {
+    const paths = NAV_ITEMS.map((item) => item.path);
+    expect(paths).not.toContain("/petitions");
+    expect(paths).not.toContain("/petition-timeline");
   });
 
   it("restores the prior labels for the approval queues", () => {

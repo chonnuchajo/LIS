@@ -69,9 +69,9 @@ describe("accessibleModules", () => {
     { id: "g-lab", name: "Lab", description: "", paths: ["/lab-testing"] },
   ];
   it("maps group ids to group names, paths to nav labels, dedupes, drops unknown-empty", () => {
-    const mods = accessibleModules({ r: ["g-qc", "/petitions", "g-qc"] }, "r", groups);
+    const mods = accessibleModules({ r: ["g-qc", "/petition", "g-qc"] }, "r", groups);
     expect(mods).toContain("QC");
-    expect(mods).toContain("รายการคำร้อง"); // NAV_ITEMS label for /petitions
+    expect(mods).toContain("รายการคำร้อง"); // NAV_ITEMS label for /petition
     expect(mods.filter((m) => m === "QC").length).toBe(1); // deduped
   });
   it("maps the 'others' token to อื่นๆ and returns [] for a role with no perms", () => {

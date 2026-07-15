@@ -4,15 +4,15 @@ import { getAccessibleNavItemsForRoles } from "./accessNav";
 describe("getAccessibleNavItemsForRoles", () => {
   it("derives homepage nav from all held roles in the access matrix and de-dupes repeated paths", () => {
     const items = getAccessibleNavItemsForRoles(["lab", "qc"], {
-      groups: [{ id: "work", paths: ["/petitions", "/lab-testing"] }],
+      groups: [{ id: "work", paths: ["/petition", "/lab-testing"] }],
       permissions: {
         lab: ["work"],
-        qc: ["/petitions", "/qc-testing"],
+        qc: ["/petition", "/qc-testing"],
       },
     });
 
     expect(items.map((item) => item.path)).toEqual([
-      "/petitions",
+      "/petition",
       "/qc-testing",
       "/lab-testing",
     ]);
@@ -21,10 +21,10 @@ describe("getAccessibleNavItemsForRoles", () => {
   it("does not include the current home page in the header nav", () => {
     const items = getAccessibleNavItemsForRoles(["viewer"], {
       groups: [],
-      permissions: { viewer: ["/home", "/petitions"] },
+      permissions: { viewer: ["/home", "/petition"] },
     });
 
-    expect(items.map((item) => item.path)).toEqual(["/petitions"]);
+    expect(items.map((item) => item.path)).toEqual(["/petition"]);
   });
 
   it("returns an empty nav while the access matrix is not loaded", () => {
