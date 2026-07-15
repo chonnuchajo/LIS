@@ -199,6 +199,28 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.getByLabelText("petition timeline")).not.toHaveTextContent("Required checks");
   });
 
+  it("highlights unreceived estimate status in large orange text", async () => {
+    Object.assign(mocks.petition, {
+      assignedTo: undefined,
+      qcReceivedAt: undefined,
+      receivedAt: undefined,
+      labReceivedAt: undefined,
+    });
+    renderDetail();
+
+    const unreceived = await screen.findByText("ยังไม่รับงาน");
+
+    expect(unreceived).toHaveClass("text-base", "font-bold", "text-orange-600");
+  });
+
+  it("highlights overdue estimate status in large red text", async () => {
+    renderDetail();
+
+    const overdue = await screen.findByText("เลยกำหนด");
+
+    expect(overdue).toHaveClass("text-base", "font-bold", "text-red-600");
+  });
+
   it("shows a red progress bar up to 33 percent", async () => {
     mocks.getQCProgress.mockResolvedValue({ "petition-1": [{ itemSeq: 1, parameterId: "parameter-1", filledLabels: [] }] });
     renderDetail();
@@ -898,13 +920,12 @@ function buildTimelineDetailHeader(overrides: Partial<TimelineDetailHeader> = {}
 }
 
 describe("estimateMetric", () => {
-  it("endKind actual → End time เวลาจริง", () => {
+  it("endKind actual → End time ไม่มีป้าย hint", () => {
     const header = buildTimelineDetailHeader({ endKind: "actual", overdue: false });
 
     expect(estimateMetric(header)).toEqual({
       label: "End time",
       value: formatDateTime(header.endAt),
-      hint: "เวลาจริง",
     });
   });
 
@@ -915,6 +936,7 @@ describe("estimateMetric", () => {
       label: "Estimate Time",
       value: formatDateTime(header.endAt),
       hint: "ค่าประมาณ",
+      tone: "default",
     });
   });
 
@@ -925,6 +947,7 @@ describe("estimateMetric", () => {
       label: "Estimate Time",
       value: formatDateTime(header.endAt),
       hint: "เลยกำหนด",
+      tone: "danger",
     });
   });
 
@@ -935,6 +958,7 @@ describe("estimateMetric", () => {
       label: "Estimate Time",
       value: "คาดว่าผลจะออก 1-2 วัน",
       hint: "ยังไม่รับงาน",
+      tone: "warning",
     });
   });
 });

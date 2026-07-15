@@ -109,5 +109,6 @@ describe("LabApprovalReviewPage action bar", () => {
     expect(actionBar).toHaveClass("bottom-3");
     expect(actionBar).not.toHaveClass("bottom-0");
     expect(actionBar).toHaveClass("pb-[calc(env(safe-area-inset-bottom)+0.75rem)]");
+    expect(screen.queryByRole("button", { name: /ส่งกลับให้แก้/ })).not.toBeInTheDocument();
   });
 });
