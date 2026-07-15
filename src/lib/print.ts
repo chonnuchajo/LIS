@@ -3,20 +3,17 @@ import {
   getPrintFontFamilyForDocType,
   getPrintFontSizeForDocType,
   getPrintHeadingFontWeightForDocType,
+  getPrintOutputModeForDocType,
   type PrintDocType,
+  type PrintOutputMode,
 } from "@/lib/printConfig";
 
-// แปลง DOM node เป็น HTML string สำหรับส่งไป server.
-// node ควรมี <style> ของตัวเองฝังอยู่แล้ว (บาง template ทำ); ที่เหลือใช้ Tailwind
-// ซึ่งต้องส่ง CSS ของแอปไปด้วย (ดู collectDocumentCss)
 export function serializeForPrint(el: HTMLElement | null, css?: string): string {
   if (!el) throw new Error("ไม่พบเนื้อหาสำหรับพิมพ์");
   const body = el.outerHTML;
   return css ? `<style>${css}</style>${body}` : body;
 }
 
-// รวบรวม CSS ทั้งหมดจาก stylesheet ของหน้า (Tailwind + global) เพื่อให้ PDF ฝั่ง server
-// หน้าตาตรงกับ preview ในแอป. ข้าม sheet ที่อ่านไม่ได้ (cross-origin เช่น Google Fonts).
 export function collectDocumentCss(): string {
   let css = "";
   if (typeof document === "undefined") return css;
@@ -25,7 +22,7 @@ export function collectDocumentCss(): string {
     try {
       rules = sheet.cssRules;
     } catch {
-      continue; // cross-origin stylesheet — not readable; server links fonts itself
+      continue;
     }
     if (!rules) continue;
     for (const rule of Array.from(rules)) {
@@ -56,13 +53,93 @@ export interface PrintResult {
   copies: number;
 }
 
+function localPrintPageCss(docType: PrintDocType): string {
+  if (docType === "sample-label") {
+    return "@page { size: 100mm 50mm; margin: 0; } html, body { margin: 0; padding: 0; background: #fff; }";
+  }
+  if (docType === "stock-label") {
+    return "@page { size: 152.4mm 101.6mm; margin: 0; } html, body { margin: 0; padding: 0; background: #fff; }";
+  }
+  return "@page { size: A4; margin: 0; } html, body { margin: 0; padding: 0; background: #fff; }";
+}
+
+function localPrintDocument(title: string, html: string, docType: PrintDocType): string {
+  return `<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>${localPrintPageCss(docType)}</style>
+  </head>
+  <body>${html}</body>
+</html>`;
+}
+
+function openLocalPrintWindow(title: string, html: string, docType: PrintDocType): void {
+  const iframe = document.createElement("iframe");
+  iframe.title = title;
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.setAttribute("aria-hidden", "true");
+
+  const cleanup = () => {
+    window.setTimeout(() => iframe.remove(), 500);
+  };
+
+  iframe.onload = () => {
+    const printWindow = iframe.contentWindow;
+    if (!printWindow) {
+      cleanup();
+      throw new Error("เปิด print dialog ของเครื่องนี้ไม่สำเร็จ");
+    }
+    printWindow.onafterprint = cleanup;
+    printWindow.focus();
+    window.setTimeout(() => {
+      printWindow.print();
+      window.setTimeout(cleanup, 60_000);
+    }, 50);
+  };
+
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument;
+  if (!doc) {
+    cleanup();
+    throw new Error("เตรียมเอกสารสำหรับพิมพ์จากเครื่องนี้ไม่สำเร็จ");
+  }
+  doc.open();
+  doc.write(localPrintDocument(title, html, docType));
+  doc.close();
+}
+
 export async function printDocument(
   docType: PrintDocType,
   el: HTMLElement | null,
-  opts?: { css?: string; copies?: number },
+  opts?: { css?: string; copies?: number; outputMode?: PrintOutputMode },
 ): Promise<PrintResult> {
-  // prepend the app's stylesheet first, then any per-call css (per-call wins on conflict)
   const html = documentHtml(docType, el, opts?.css);
+  if ((opts?.outputMode ?? getPrintOutputModeForDocType(docType)) === "local") {
+    openLocalPrintWindow(docType, html, docType);
+    return { printer: "เครื่องนี้", copies: opts?.copies ?? 1 };
+  }
+  return api.printDocument({ docType, html, copies: opts?.copies });
+}
+
+export async function printRawHtmlDocument(
+  docType: PrintDocType,
+  html: string,
+  opts?: { copies?: number; outputMode?: PrintOutputMode },
+): Promise<PrintResult> {
+  if ((opts?.outputMode ?? getPrintOutputModeForDocType(docType)) === "local") {
+    openLocalPrintWindow(docType, html, docType);
+    return { printer: "เครื่องนี้", copies: opts?.copies ?? 1 };
+  }
   return api.printDocument({ docType, html, copies: opts?.copies });
 }
 
@@ -93,44 +170,4 @@ export async function openPrintPdf(
     }
   }
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
-
-export function openBrowserPrintPreview(
-  title: string,
-  el: HTMLElement | null,
-  opts?: { css?: string; docType?: PrintDocType },
-) {
-  const combinedCss = [
-    collectDocumentCss(),
-    opts?.docType ? printBaseCss(opts.docType) : "",
-    opts?.css,
-  ].filter(Boolean).join("\n");
-  const html = serializeForPrint(el, combinedCss || undefined);
-  // NOTE: ห้ามใส่ noopener/noreferrer — ถ้าใส่ window.open จะคืนค่า null เสมอ
-  // ทำให้เขียนเนื้อหาลงหน้าต่างไม่ได้ (preview จะว่างเปล่า)
-  const preview = window.open("", "_blank");
-  if (!preview) {
-    throw new Error("เปิดหน้าต่าง print preview ไม่สำเร็จ (ป๊อปอัปอาจถูกบล็อก)");
-  }
-
-  preview.document.open();
-  preview.document.write(`<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${title}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-      html, body { margin: 0; padding: 0; background: #fff; font-family: "Kanit", sans-serif; }
-    </style>
-  </head>
-  <body>${html}</body>
-</html>`);
-  preview.document.close();
-
-  preview.onload = () => {
-    preview.focus();
-    preview.print();
-  };
 }

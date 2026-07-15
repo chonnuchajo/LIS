@@ -60,7 +60,7 @@
     transparent
   );
   filter: blur(0.1rem);
-  animation: route-loading-scan 3.8s ease-in-out infinite;
+  animation: route-loading-scan 1.5s ease-in-out infinite;
 }
 
 .route-loading__artwork {

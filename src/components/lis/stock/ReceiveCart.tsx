@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/command";
 
 import { api } from "@/lib/api";
+import { printRawHtmlDocument } from "@/lib/print";
 import { cn } from "@/lib/utils";
 import { buildStockLabelHtml, buildSolventLabelHtml } from "@/lib/stockLabel";
 import {
@@ -140,7 +141,7 @@ export default function ReceiveCart() {
       // ปริ้นท้ายสุด — print fail ไม่ถือว่า receive ล้ม
       for (const html of labels) {
         try {
-          await api.printDocument({ docType: "stock-label", html });
+          await printRawHtmlDocument("stock-label", html);
         } catch (err) {
           toast.error(`ปริ้นลาเบลไม่สำเร็จ: ${(err as Error).message}`);
         }

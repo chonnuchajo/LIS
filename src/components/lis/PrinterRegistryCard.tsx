@@ -1,10 +1,19 @@
 import { useState } from "react";
-import { Pencil, Plus, Star, Trash2 } from "lucide-react";
+import { Monitor, Pencil, Plus, Server, Star, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PRINTER_KINDS, validatePrinterUrl, type PrinterConfig, type PrinterConfigInput, type PrinterKind } from "@/lib/printConfig";
+import {
+  PRINTER_KINDS,
+  getPrintOutputMode,
+  setPrintOutputMode,
+  validatePrinterUrl,
+  type PrintOutputMode,
+  type PrinterConfig,
+  type PrinterConfigInput,
+  type PrinterKind,
+} from "@/lib/printConfig";
 import { toast } from "sonner";
 
 type Draft = {
@@ -37,6 +46,10 @@ export default function PrinterRegistryCard({
   const [addDraft, setAddDraft] = useState<Draft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Draft>(emptyDraft);
+  const [outputModes, setOutputModes] = useState<Record<PrinterKind, PrintOutputMode>>(() => ({
+    a4: getPrintOutputMode("a4"),
+    sticker: getPrintOutputMode("sticker"),
+  }));
 
   function startAdd(kind: PrinterKind) {
     setAddingKind(kind);
@@ -58,6 +71,12 @@ export default function PrinterRegistryCard({
       return false;
     }
     return true;
+  }
+
+  function handleOutputModeChange(kind: PrinterKind, mode: PrintOutputMode) {
+    setPrintOutputMode(kind, mode);
+    setOutputModes((prev) => ({ ...prev, [kind]: mode }));
+    toast.success(mode === "local" ? "ตั้งค่าให้พิมพ์จากเครื่องนี้แล้ว" : "ตั้งค่าให้พิมพ์ผ่าน Server/CUPS แล้ว");
   }
 
   async function handleCreate(kind: PrinterKind) {
@@ -119,6 +138,34 @@ export default function PrinterRegistryCard({
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
+              <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium">แหล่งพิมพ์เริ่มต้น</p>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant={outputModes[meta.kind] === "server" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleOutputModeChange(meta.kind, "server")}
+                    >
+                      <Server className="h-4 w-4" />
+                      Server/CUPS
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={outputModes[meta.kind] === "local" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handleOutputModeChange(meta.kind, "local")}
+                    >
+                      <Monitor className="h-4 w-4" />
+                      เครื่องนี้
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  โหมดเครื่องนี้จะเปิด print dialog ของ Windows/Browser ทันที โดยรายชื่อ printer local จะแสดงใน dialog นั้น
+                </p>
+              </div>
               {group.length === 0 ? (
                 <div className="rounded-md border border-dashed px-4 py-5 text-sm text-muted-foreground">
                   ยังไม่มีเครื่องพิมพ์ในกลุ่มนี้

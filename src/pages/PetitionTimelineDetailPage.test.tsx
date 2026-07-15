@@ -530,6 +530,21 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.getByRole("button", { name: /พิมพ์ผลวิเคราะห์ Lab/ })).toBeInTheDocument();
   });
 
+  it("เรียงปุ่มพิมพ์ผลวิเคราะห์ Lab ไว้ก่อน Final Report (Lab ออกผลก่อน แล้วหัวหน้า QC ค่อยออก Final)", async () => {
+    Object.assign(mocks.petition, {
+      status: "approved",
+      approvedAt: "2026-07-13T08:00:00.000Z",
+      labApprovedAt: "2026-07-14T00:00:00.000Z",
+    });
+    renderDetail();
+    await screen.findByRole("button", { name: "Final Report" });
+    const buttons = Array.from(screen.getByLabelText("Documents").querySelectorAll("button"));
+    const labIndex = buttons.findIndex((button) => /พิมพ์ผลวิเคราะห์ Lab/.test(button.textContent ?? ""));
+    const finalIndex = buttons.findIndex((button) => button.textContent === "Final Report");
+    expect(labIndex).toBeGreaterThanOrEqual(0);
+    expect(finalIndex).toBeGreaterThan(labIndex);
+  });
+
   it("hides the lab-result print button when Lab is not finished", async () => {
     renderDetail();
     await screen.findByRole("heading", { name: "P-2607-001" });

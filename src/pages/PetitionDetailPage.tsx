@@ -327,6 +327,12 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                           Pre Report
                         </Button>
                       )}
+                      {canPrintLabResult(data) && labReportPages.length > 0 && (
+                        <Button variant="primary-outline" size="sm" onClick={() => setLabResultOpen(true)}>
+                          <FlaskConical className="h-4 w-4" />
+                          พิมพ์ผลวิเคราะห์ Lab
+                        </Button>
+                      )}
                       {data.status === 'approved' && (
                         <Button
                           variant="primary-outline"
@@ -335,12 +341,6 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                         >
                           <FileCheck2 className="h-4 w-4" />
                           Final Report
-                        </Button>
-                      )}
-                      {canPrintLabResult(data) && labReportPages.length > 0 && (
-                        <Button variant="primary-outline" size="sm" onClick={() => setLabResultOpen(true)}>
-                          <FlaskConical className="h-4 w-4" />
-                          พิมพ์ผลวิเคราะห์ Lab
                         </Button>
                       )}
                       {!isResultMode && canEdit && (

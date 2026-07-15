@@ -536,10 +536,12 @@ export function buildTimelineDetailModel(input: TimelineDetailInput, now = new D
   // tasks must not add QC minutes on top of the Lab machine estimate (double counting).
   const qcTaskCount = allTasks.filter((task) => task.scope !== "lab").length;
   const header = buildHeaderTiming(input.petition, startAt, actualEndAt, qcTaskCount, now);
-  // คำขอที่ปิดแล้วจบแกนที่เวลาจริง; ที่ยังเปิดอยู่ต้องลากอย่างน้อยถึง now (แท่ง in-progress ลากถึง now)
+  // คำขอที่ปิดแล้วจบแกนที่เวลาจริง; ที่ยังเปิดอยู่ลากถึงแค่กิจกรรมจริงล่าสุด/ตอนนี้ (แท่ง in-progress ลากถึง now)
+  // ห้ามลากแกนไปถึง "เวลาคาดการณ์" (header.endAt) — กราฟต้องสะท้อนของจริง ไม่ใช่ดันแท็บวันไปวันอนาคต
+  // ที่ยังไม่มีกิจกรรม (คำร้องเพิ่งสร้าง/ยังไม่รับ จะได้ +1 วันเสมอ). Estimate Time ยังโชว์แยกใน header
   const timelineEndAt = header.endKind === "actual"
     ? header.endAt
-    : latestValidDate(header.endAt, now.toISOString())!;
+    : latestValidDate(actualEndAt, now.toISOString())!;
   const tasks = input.itemSeq == null ? allTasks : allTasks.filter((task) => task.itemSeq === input.itemSeq);
   const allFields = taskFieldTotals(allTasks);
   const finalResultDone = input.petition.status === "approved";

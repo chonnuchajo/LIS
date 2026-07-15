@@ -204,7 +204,7 @@ export default function DensityResultPage() {
             <tr>
               <th className="px-4 py-3 text-left">#</th>
               <th className="px-4 py-3 text-left">Sample ID</th>
-              <th className="px-4 py-3 text-left">Sample Name</th>
+              <th className="px-4 py-3 text-left">Batch</th>
               <th className="px-4 py-3 text-left">Product</th>
               <th className="px-4 py-3 text-right">Density [g/cm³]</th>
               <th className="px-4 py-3 text-right">T(block) [°C]</th>

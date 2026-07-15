@@ -32,6 +32,12 @@ const page: LabReportPage = {
 };
 
 describe("LabResultReportTemplate", () => {
+  it("does not print the legacy end marker", () => {
+    render(<LabResultReportTemplate pages={[page]} />);
+
+    expect(screen.queryByText("End of Report")).not.toBeInTheDocument();
+  });
+
   it("prints a dotted blank remark line when no remark is provided", () => {
     render(<LabResultReportTemplate pages={[page]} />);
 

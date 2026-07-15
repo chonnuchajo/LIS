@@ -1,8 +1,8 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Laptop, Minus, Plus, Printer } from "lucide-react";
+import { Maximize2, Minus, Plus, Printer, ZoomIn, ZoomOut } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,12 +14,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
-import { openBrowserPrintPreview, printDocument } from "@/lib/print";
+import { printDocument } from "@/lib/print";
 import {
   defaultPrinterFor,
   docTypeToKind,
   getPrintDocType,
+  getPrintOutputModeForDocType,
   type PrintDocType,
+  type PrintOutputMode,
 } from "@/lib/printConfig";
 
 interface Props {
@@ -31,6 +33,32 @@ interface Props {
 }
 
 const BOX_CHROME = 18;
+const MIN_PREVIEW_HEIGHT = 180;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 2;
+const ZOOM_STEP = 0.1;
+
+function clampZoom(value: number): number {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Number(value.toFixed(2))));
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT")
+  );
+}
+
+function getSheetSize(printEl: HTMLDivElement | null, contentEl: HTMLDivElement) {
+  const firstSheet = printEl?.querySelector<HTMLElement>(
+    "section, .label-page, .lr-page, .pr-page1, .pr-page2, .rr-page",
+  );
+  const target = firstSheet ?? printEl ?? contentEl;
+  return {
+    width: target.scrollWidth || target.offsetWidth || contentEl.scrollWidth,
+    height: target.scrollHeight || target.offsetHeight || contentEl.scrollHeight,
+  };
+}
 
 function ScaledPreview({
   printRef,
@@ -41,9 +69,11 @@ function ScaledPreview({
 }) {
   const outerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  const [fitScale, setFitScale] = useState(1);
+  const [zoom, setZoom] = useState(1);
   const [naturalHeight, setNaturalHeight] = useState(0);
   const [naturalWidth, setNaturalWidth] = useState(0);
+  const scale = fitScale * zoom;
 
   useLayoutEffect(() => {
     const outer = outerRef.current;
@@ -51,23 +81,108 @@ function ScaledPreview({
     if (!outer || !content) return;
 
     const measure = () => {
-      const avail = outer.clientWidth - BOX_CHROME;
+      const availW = outer.clientWidth - BOX_CHROME;
+      const availH = Math.max(MIN_PREVIEW_HEIGHT, outer.clientHeight - BOX_CHROME);
       const natW = content.scrollWidth;
-      setScale(natW > 0 ? avail / natW : 1);
+      const natH = content.scrollHeight;
+      const sheet = getSheetSize(printRef.current, content);
+      const widthScale = sheet.width > 0 ? availW / sheet.width : 1;
+      const heightScale = sheet.height > 0 ? availH / sheet.height : 1;
+      setFitScale(Math.min(widthScale, heightScale));
       setNaturalWidth(natW);
-      setNaturalHeight(content.scrollHeight);
+      setNaturalHeight(natH);
     };
 
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(outer);
-    return () => ro.disconnect();
-  }, [children]);
+    ro.observe(content);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [children, printRef]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isShortcut = event.ctrlKey || event.metaKey;
+      const activeEditable = isEditableTarget(document.activeElement);
+      if (!isShortcut && activeEditable) return;
+
+      if (event.key === "+" || (isShortcut && event.key === "=")) {
+        event.preventDefault();
+        setZoom((value) => clampZoom(value + ZOOM_STEP));
+        return;
+      }
+
+      if (event.key === "-" || event.key === "_") {
+        event.preventDefault();
+        setZoom((value) => clampZoom(value - ZOOM_STEP));
+        return;
+      }
+
+      if (event.key === "0") {
+        event.preventDefault();
+        setZoom(1);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    const outer = outerRef.current;
+    if (!outer) return;
+
+    const handleWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      setZoom((value) => clampZoom(value + (event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)));
+    };
+
+    outer.addEventListener("wheel", handleWheel, { passive: false });
+    return () => outer.removeEventListener("wheel", handleWheel);
+  }, []);
+
+  const zoomPercent = Math.round(zoom * 100);
 
   return (
-    <div ref={outerRef} className="flex justify-center">
-      <div className="overflow-hidden rounded border bg-white p-2">
-        <div style={{ width: naturalWidth * scale, height: naturalHeight * scale }}>
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <div className="flex shrink-0 items-center justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setZoom((value) => clampZoom(value - ZOOM_STEP))}
+          disabled={zoom <= MIN_ZOOM}
+          aria-label="ย่อ"
+          title="ย่อ"
+        >
+          <ZoomOut className="h-4 w-4" />
+        </Button>
+        <span className="w-12 text-center text-sm tabular-nums text-muted-foreground">{zoomPercent}%</span>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setZoom((value) => clampZoom(value + ZOOM_STEP))}
+          disabled={zoom >= MAX_ZOOM}
+          aria-label="ขยาย"
+          title="ขยาย"
+        >
+          <ZoomIn className="h-4 w-4" />
+        </Button>
+        <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setZoom(1)}>
+          <Maximize2 className="h-3.5 w-3.5" />
+          พอดีหน้า
+        </Button>
+      </div>
+      <div ref={outerRef} className="min-h-0 flex-1 overflow-auto rounded border bg-neutral-100 p-3">
+        <div className="mx-auto" style={{ width: naturalWidth * scale, height: naturalHeight * scale }}>
           <div
             ref={contentRef}
             style={{
@@ -96,6 +211,7 @@ export default function PrintPreviewDialog({
   const [printing, setPrinting] = useState(false);
   const meta = getPrintDocType(docType);
   const widthClass = docType === "sample-label" ? "sm:max-w-2xl" : "sm:max-w-4xl";
+  const outputMode = getPrintOutputModeForDocType(docType);
 
   const { data: configs } = useQuery({
     queryKey: ["printer-configs"],
@@ -104,15 +220,24 @@ export default function PrintPreviewDialog({
   });
 
   const cfg = defaultPrinterFor(configs, docTypeToKind(docType));
-  const configured = Boolean(cfg?.cupsPrinterUrl?.trim());
-  const printerTarget = cfg?.label?.trim() || cfg?.cupsPrinterUrl?.trim();
+  const serverConfigured = Boolean(cfg?.cupsPrinterUrl?.trim());
+  const configured = outputMode === "local" || serverConfigured;
+  const printerTarget = outputMode === "local" ? "เครื่องนี้" : (cfg?.label?.trim() || cfg?.cupsPrinterUrl?.trim());
 
-  async function handlePrint() {
+  async function handlePrint(mode: PrintOutputMode = outputMode) {
+    if (mode === "server" && !serverConfigured) {
+      toast.error("ยังไม่ได้ตั้งค่าเครื่องพิมพ์ Server สำหรับเอกสารนี้");
+      return;
+    }
     setPrinting(true);
     try {
-      const res = await printDocument(docType, printRef.current, { css, copies });
-      toast.success(`ส่งพิมพ์ไปยัง ${res.printer} (${res.copies} ชุด)`);
-      onOpenChange(false);
+      const res = await printDocument(docType, printRef.current, { css, copies, outputMode: mode });
+      if (mode === "local") {
+        toast.success("เปิด print dialog ของเครื่องนี้แล้ว");
+      } else {
+        toast.success(`ส่งพิมพ์ไปยัง ${res.printer} (${res.copies} ชุด)`);
+      }
+      if (mode === "server") onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "พิมพ์ไม่สำเร็จ");
     } finally {
@@ -120,25 +245,17 @@ export default function PrintPreviewDialog({
     }
   }
 
-  function handleBrowserPreview() {
-    try {
-      openBrowserPrintPreview(meta?.label ?? docType, printRef.current, { css, docType });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "เปิด print preview ไม่สำเร็จ");
-    }
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`${widthClass} max-h-[90vh] overflow-y-auto overflow-x-hidden`}>
-        <DialogHeader>
+      <DialogContent className={`${widthClass} flex max-h-[90vh] min-h-[70vh] flex-col overflow-hidden`}>
+        <DialogHeader className="shrink-0">
           <DialogTitle>ตัวอย่างก่อนพิมพ์ — {meta?.label ?? docType}</DialogTitle>
         </DialogHeader>
 
         <ScaledPreview printRef={printRef}>{children}</ScaledPreview>
 
         {!configured && (
-          <p className="text-sm text-red-600">
+          <p className="shrink-0 text-sm text-red-600">
             ยังไม่ได้ตั้งค่าเครื่องพิมพ์สำหรับเอกสารนี้{" "}
             <Link to="/settings" className="underline" onClick={() => onOpenChange(false)}>
               ไปหน้าตั้งค่าระบบ
@@ -146,7 +263,7 @@ export default function PrintPreviewDialog({
           </p>
         )}
 
-        <DialogFooter className="items-center gap-3 sm:justify-between">
+        <DialogFooter className="shrink-0 items-center gap-3 sm:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <Label htmlFor="print-copies" className="text-sm">
               จำนวนชุด
@@ -192,13 +309,9 @@ export default function PrintPreviewDialog({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               ปิด
             </Button>
-            <Button variant="outline" onClick={handleBrowserPreview} className="gap-2">
-              <Laptop className="h-4 w-4" />
-              Windows Preview
-            </Button>
-            <Button onClick={handlePrint} disabled={!configured || printing} className="gap-2">
+            <Button onClick={() => void handlePrint()} disabled={!configured || printing} className="gap-2">
               <Printer className="h-4 w-4" />
-              {printing ? "กำลังพิมพ์..." : "พิมพ์"}
+              {printing ? "กำลังพิมพ์..." : outputMode === "local" ? "พิมพ์จากเครื่องนี้" : "พิมพ์ผ่าน Server"}
             </Button>
           </div>
         </DialogFooter>

@@ -398,10 +398,9 @@ function LabelPreview({ petition }: { petition: Petition }) {
                 <div className="text-sm">
                   <PreviewField label="วัน เดือน ปี ที่ผลิต/นำเข้า" value={toBuddhistShort(item.productionDate)} />
                 </div>
-                <div className="grid gap-2 text-sm sm:grid-cols-2">
-                  <PreviewField label="Lot No." value={item.lotNo} />
+                <div className="text-sm">
                   <PreviewField
-                    label="แบชนัมเบอร์"
+                    label="Batch No."
                     value={item.batchNo}
                     valueClassName="text-xs leading-tight"
                     multiline

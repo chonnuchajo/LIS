@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { printRawHtmlDocument } from "@/lib/print";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
 import { unitDerivedStatus, visibleBottles } from "@/lib/stockUnit";
 import type { StockStandardItem, StockUnitItem } from "@/types/stock";
@@ -50,7 +51,7 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
   const reprint = async (u: StockUnitItem) => {
     try {
       const html = await buildStockLabelHtml(u);
-      await api.printDocument({ docType: "stock-label", html });
+      await printRawHtmlDocument("stock-label", html);
       toast.success("ส่งปริ้นแล้ว");
     } catch (err) {
       toast.error((err as Error).message);

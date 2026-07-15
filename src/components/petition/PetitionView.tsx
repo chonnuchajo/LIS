@@ -154,7 +154,6 @@ export default function PetitionView({ petition: p }: Props) {
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <Field label="Batch No." value={item.batchNo} />
-                  <Field label="Lot No." value={item.lotNo} />
                   <Field label="วันที่ผลิต" value={item.productionDate} />
                   <Field label="ขนาดบรรจุ" value={item.packageUnit} />
                   <Field label="ชื่อสามัญ" value={item.commonName} />

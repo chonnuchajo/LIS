@@ -176,7 +176,7 @@ const SettingsPage = () => {
 
         <TabsContent value="printers" className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            จัดการปลายทางเครื่องพิมพ์แยกตามชนิด A4 และ Sticker โดยใช้ CUPS printer URL จาก https://192.168.0.237:631/
+            จัดการปลายทางเครื่องพิมพ์แยกตามชนิด A4 และ Sticker เลือกได้ว่าจะพิมพ์ผ่าน Server/CUPS หรือเปิดรายชื่อ printer local ใน print dialog ของเครื่องนี้
           </p>
           <PrinterRegistryCard
             configs={printerConfigs}

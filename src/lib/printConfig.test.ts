@@ -11,6 +11,9 @@ import {
   getPrintHeadingFontWeightForDocType,
   docTypeToKind,
   defaultPrinterFor,
+  getPrintOutputMode,
+  getPrintOutputModeForDocType,
+  setPrintOutputMode,
   validatePrinterUrl,
   type PrinterConfig,
 } from "./printConfig";
@@ -38,6 +41,20 @@ describe("docTypeToKind", () => {
     expect(docTypeToKind("coa")).toBe("a4");
     expect(docTypeToKind("service-request")).toBe("a4");
     expect(docTypeToKind("daily-check-report")).toBe("a4");
+  });
+});
+
+describe("print output mode", () => {
+  it("defaults to server and can store local per printer kind", () => {
+    localStorage.clear();
+    expect(getPrintOutputMode("a4")).toBe("server");
+    expect(getPrintOutputModeForDocType("coa")).toBe("server");
+
+    setPrintOutputMode("a4", "local");
+
+    expect(getPrintOutputMode("a4")).toBe("local");
+    expect(getPrintOutputModeForDocType("service-request")).toBe("local");
+    expect(getPrintOutputModeForDocType("sample-label")).toBe("server");
   });
 });
 

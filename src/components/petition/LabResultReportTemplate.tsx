@@ -165,7 +165,6 @@ export default function LabResultReportTemplate({ pages }: { pages: LabReportPag
 
           <div className="lr-foot">
             <span>F-CHM-01-03 Rev 00 16/01/69</span>
-            <span>End of Report</span>
           </div>
         </section>
       ))}

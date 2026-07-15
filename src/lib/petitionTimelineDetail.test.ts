@@ -46,14 +46,16 @@ function model(
 
 describe("buildTimelineDetailModel", () => {
   it("รับตัวอย่างแล้วแต่ยังไม่มี parameter/Lab -> คาดการณ์ 17:00 ของวันทำการถัดไป", () => {
-    const result = model(petition({ qcReceivedAt: at(13, 10, 15) }), [], [], [], new Date(2026, 6, 13, 12));
+    const now = new Date(2026, 6, 13, 12);
+    const result = model(petition({ qcReceivedAt: at(13, 10, 15) }), [], [], [], now);
 
     expect(result.header.startAt).toBe(at(13, 10, 15));
     expect(result.header.endAt).toBe(at(14, 17));
     expect(result.header.endKind).toBe("estimated");
     expect(result.header.overdue).toBe(false);
-    expect(result.timeline.endAt).toBe(at(14, 17));
-    expect(result.timeline.days.map((day) => day.label)).toEqual(["13 ก.ค.", "14 ก.ค."]);
+    // header คาดการณ์ไปวันถัดไปได้ แต่กราฟลากถึงแค่ตอนนี้ — ไม่ดันแท็บวันไปวันที่ยังไม่มีกิจกรรม
+    expect(result.timeline.endAt).toBe(now.toISOString());
+    expect(result.timeline.days.map((day) => day.label)).toEqual(["13 ก.ค."]);
   });
 
   it("ยังไม่รับตัวอย่าง -> endKind = unreceived", () => {
@@ -62,6 +64,18 @@ describe("buildTimelineDetailModel", () => {
     expect(result.header.endKind).toBe("unreceived");
     expect(result.header.endAt).toBe(at(14, 17));
     expect(result.header.overdue).toBe(false);
+  });
+
+  it("คำร้องที่เพิ่งสร้าง (ยังไม่รับ) แกนกราฟต้องไม่ดันไปวันคาดการณ์ +1 — ลากถึงแค่ตอนนี้", () => {
+    const now = new Date(2026, 6, 13, 12);
+    const result = model(petition(), [requiredParameter], [], [], now);
+
+    // header ยังโชว์เวลาคาดการณ์ (จบวันทำการถัดไป) ได้ตามเดิม — มันมี label "ค่าประมาณ" กำกับ
+    expect(result.header.endKind).toBe("unreceived");
+    expect(result.header.endAt).toBe(at(14, 17));
+    // แต่กราฟ (แท็บวัน) ต้องสะท้อนของจริง = วันนี้วันเดียว ไม่มีแท็บวัน +1 ที่ยังไม่มีกิจกรรม
+    expect(result.timeline.endAt).toBe(now.toISOString());
+    expect(result.timeline.days.map((day) => day.label)).toEqual(["13 ก.ค."]);
   });
 
   it("QC รับตัวอย่างแล้ว -> คาดการณ์จากจำนวน task (1 task = 1 ชม.)", () => {
@@ -483,8 +497,8 @@ describe("buildTimelineDetailModel", () => {
     expect(result.header.startAt).toBe(at(13, 10));
     expect(result.header.startKind).toBe("received");
     expect(result.timeline.startAt).toBe(at(12, 8));
-    // ไม่มี parameter ผูกกับตัวอย่าง -> ยังไม่มี task ให้คาดการณ์ -> เอสติเมตดันไปจบวันทำการถัดไป (14) จึงมี 3 วันในแกน
-    expect(result.timeline.days.map((day) => day.label)).toEqual(["12 ก.ค.", "13 ก.ค.", "14 ก.ค."]);
+    // กราฟลากถึงแค่ตอนนี้ (13 12:00) ไม่ดันไปวันคาดการณ์ (14) — จึงมีแค่ 12 กับ 13
+    expect(result.timeline.days.map((day) => day.label)).toEqual(["12 ก.ค.", "13 ก.ค."]);
     expect(result.timeline.days[0]?.rows.find((row) => row.key === "submitted")).toMatchObject({ visible: true });
     expect(result.timeline.rows.find((row) => row.key === "submitted")).toMatchObject({
       startAt: at(12, 9),
@@ -712,8 +726,8 @@ describe("buildTimelineDetailModel", () => {
       new Date(2026, 6, 14, 12),
     );
 
-    // ไม่มี parameter ผูกกับตัวอย่าง -> ยังไม่มี task ให้คาดการณ์ -> เอสติเมตดันไปจบวันทำการถัดไป (15) จึงมี 3 วันในแกน
-    expect(result.timeline.days.map((day) => day.label)).toEqual(["13 ก.ค.", "14 ก.ค.", "15 ก.ค."]);
+    // กราฟลากถึงแค่ตอนนี้ (14 12:00) ไม่ดันไปวันคาดการณ์ (15) — จึงมีแค่ 13 กับ 14
+    expect(result.timeline.days.map((day) => day.label)).toEqual(["13 ก.ค.", "14 ก.ค."]);
     // วันที่ 13 มีกิจกรรมนอกเวลาทำการ (เริ่ม 18:30) หน้าต่างของวันนั้นจึงขยายถึง 19:00 (ceil ชั่วโมง)
     // แท่งเลยโผล่ในวันที่ 13 เอง (ไม่ใช่แค่วันถัดไป) และยังลากต่อเนื่องข้ามไปวันที่ 14 ด้วย
     expect(result.timeline.days[0]).toMatchObject({ endAt: at(13, 19) });

@@ -188,10 +188,9 @@ function LabelCard({
           <div>
             <Field label="วัน เดือน ปี ที่ผลิต/นำเข้า" value={toBuddhistShort(item.productionDate)} />
           </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            <Field label="Lot No." value={item.lotNo} />
+          <div>
             <Field
-              label="แบชนัมเบอร์"
+              label="Batch No."
               value={item.batchNo}
               valueClassName="text-[8px] leading-tight"
               valueTestId="sample-label-batch-number-value"

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
+import { printRawHtmlDocument } from "@/lib/print";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
 import type { StockStandardItem, StockUnitItem } from "@/types/stock";
 
@@ -42,7 +43,7 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved }: Pro
     for (const u of units) {
       try {
         const html = await buildStockLabelHtml(u);
-        await api.printDocument({ docType: "stock-label", html });
+        await printRawHtmlDocument("stock-label", html);
       } catch (err) {
         toast.error(`ปริ้นลาเบล ${u.qrId} ไม่สำเร็จ: ${(err as Error).message}`);
       }

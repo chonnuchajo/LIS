@@ -132,7 +132,7 @@ export default function QCTestingPage() {
                 รับโดย {qcReceivedBy(p) ?? '-'}
               </Badge>
             ) : (
-              <Badge variant="gray-soft" className="font-normal">ยังไม่รับ QC</Badge>
+              <Badge variant="gray-soft" className="font-normal">QC ยังไม่รับ</Badge>
             )}
           </div>
         );

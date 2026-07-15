@@ -28,9 +28,9 @@ router.get('/products', async (req, res) => {
   }
 });
 
-// GET /api/result-densities/by-batch/:batch — rows whose Sample name trailing
-// batch number matches :batch. Matching is done in JS via batchMatches so the
-// rule is identical to the unit-tested helper (009 == 9, suffix-tolerant).
+// GET /api/result-densities/by-batch/:batch — rows whose Sample name exactly
+// matches :batch. Matching is done in JS via batchMatches so the rule is
+// identical to the unit-tested helper.
 router.get('/by-batch/:batch', async (req, res) => {
   try {
     const batch = String(req.params.batch || '').trim();
