@@ -21,6 +21,7 @@ import { StartupLoadingGate } from "@/components/StartupLoadingGate";
 const Home = lazy(() => import("./pages/Home"));
 const QueueDisplay = lazy(() => import("./pages/QueueDisplay"));
 const Login = lazy(() => import("./pages/Login"));
+const Logout = lazy(() => import("./pages/Logout"));
 const AnalysisResults = lazy(() => import("./pages/AnalysisResults"));
 const LabResults = lazy(() => import("./pages/LabResults"));
 const LabResultDetailPage = lazy(() => import("./pages/LabResultDetailPage"));
@@ -102,6 +103,7 @@ const App = () => (
               <Suspense fallback={<RouteLoading />}>
               <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/logout" element={<Logout />} />
               <Route path="/scanner" element={<ScannerPage />} />
               <Route path="/" element={<PrivateRoute><Home /></PrivateRoute>} />
               <Route path="/dashboard/lab" element={<PrivateRoute><Navigate to="/home" replace /></PrivateRoute>} />

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
@@ -28,9 +29,12 @@ interface DirectoryEntry {
  */
 const EmployeeLinkGate = () => {
   const { user, linkSelfEmployee } = useAuth();
+  const location = useLocation();
 
   const isAdmin = (user?.roles ?? (user?.role ? [user.role] : [])).includes("admin");
-  const needsLink = !!user?.id && !user.employeeId && !isAdmin;
+  const isPublicProductionRequest = location.pathname === "/petitions/ProductionIntegrationPetitionNewPage";
+  const isLogout = location.pathname === "/logout";
+  const needsLink = !!user?.id && !user.employeeId && !isAdmin && !isPublicProductionRequest && !isLogout;
 
   const [directory, setDirectory] = useState<DirectoryEntry[]>([]);
   const [search, setSearch] = useState("");

@@ -29,6 +29,19 @@ function toAppRedirectPath(raw: string | null): string {
   }
 }
 
+function firstSearchValue(searchParams: URLSearchParams, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = searchParams.get(key)?.trim();
+    if (value) return value;
+  }
+  return null;
+}
+
+function productionRequestRedirect(searchParams: URLSearchParams): string {
+  const requestNo = firstSearchValue(searchParams, ["requestNo", "request_no", "submissionNo"]);
+  return requestNo ? `/petitions/ProductionIntegrationPetitionNewPage?${searchParams.toString()}` : "";
+}
+
 const Login = () => {
   const isAuthenticated = useIsAuthenticated();
   const { user, login, loginWithHint, loginWithProductionToken } = useAuth();
@@ -42,11 +55,13 @@ const Login = () => {
   const redirectTarget =
     (fromState ? `${fromState.pathname}${fromState.search}${fromState.hash}` : "") ||
     sessionStorage.getItem("lis_login_redirect") ||
+    productionRequestRedirect(searchParams) ||
     "/";
 
   const ssoToken = searchParams.get("token");
-  const loginHint = searchParams.get("login_hint");
-  const ssoRedirectTarget = toAppRedirectPath(searchParams.get("ret"));
+  const loginHint = firstSearchValue(searchParams, ["login_hint", "requesterEmail", "requester_email", "email"]);
+  const ret = searchParams.get("ret");
+  const ssoRedirectTarget = ret ? toAppRedirectPath(ret) : redirectTarget;
 
   // Seamless SSO from another system: it forwards ?login_hint=<email>. Try a
   // silent Microsoft sign-in, falling back to a pre-filled redirect. Skipped

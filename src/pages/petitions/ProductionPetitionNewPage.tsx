@@ -63,8 +63,20 @@ function getQueryValue(searchParams: URLSearchParams, keys: string[]): string {
   return '';
 }
 
-function buildProductionReturnUrl(): string {
-  return PRODUCTION_RETURN_URL;
+function buildProductionReturnUrl(searchParams: URLSearchParams, createdPetition?: Petition | null): string {
+  const url = new URL(PRODUCTION_RETURN_URL);
+  const requestNo = getQueryValue(searchParams, ['requestNo', 'request_no', 'submissionNo']);
+  if (requestNo) {
+    url.searchParams.set('requestNo', requestNo);
+    url.searchParams.set('request_no', requestNo);
+  }
+  if (createdPetition?.petitionNo) {
+    url.searchParams.set('lisPetitionNo', createdPetition.petitionNo);
+    url.searchParams.set('petitionNo', createdPetition.petitionNo);
+  }
+  url.searchParams.set('lisStatus', 'sent');
+  url.searchParams.set('lisSent', '1');
+  return url.toString();
 }
 
 function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues | null {
@@ -74,7 +86,7 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
   const commonName = getQueryValue(searchParams, ['commonName', 'activeIngredient']);
   const productionDate = getQueryValue(searchParams, ['productionDate', 'requestDate', 'mfgDate']);
   const packageUnit = getQueryValue(searchParams, ['quantity', 'packageUnit', 'packSize']);
-  const submissionNo = getQueryValue(searchParams, ['submissionNo', 'requestNo']);
+  const submissionNo = getQueryValue(searchParams, ['submissionNo', 'requestNo', 'request_no']);
   const testItems = getQueryValue(searchParams, ['testItems', 'tests']);
   const itemNo = getQueryValue(searchParams, ['itemNo']);
   const mfNo = getQueryValue(searchParams, ['mfNo']);
@@ -521,8 +533,8 @@ export default function ProductionPetitionNewPage({
   const integrationActor = useMemo(() => {
     const department = getQueryValue(searchParams, ['department']);
     const requesterName = getQueryValue(searchParams, ['requesterName', 'submittedBy', 'submitterName', 'employeeName']);
-    const requesterEmail = getQueryValue(searchParams, ['requesterEmail', 'email', 'requesterMail', 'mail']);
-    const requestNo = getQueryValue(searchParams, ['requestNo']);
+    const requesterEmail = getQueryValue(searchParams, ['requesterEmail', 'requester_email', 'email', 'requesterMail', 'mail']);
+    const requestNo = getQueryValue(searchParams, ['requestNo', 'request_no']);
     const mfNo = getQueryValue(searchParams, ['mfNo']);
     const ref = requestNo || mfNo;
     return {
@@ -683,11 +695,11 @@ export default function ProductionPetitionNewPage({
         setStepError('ต้องมีตัวอย่างอย่างน้อย 1 รายการ');
         return false;
       }
-      if (masterItemsLoading) {
+      if (!integrationMode && masterItemsLoading) {
         setStepError('กำลังโหลด Master Item กรุณารอสักครู่');
         return false;
       }
-      if (masterItemsError || masterItemOptions.length === 0) {
+      if (!integrationMode && (masterItemsError || masterItemOptions.length === 0)) {
         setStepError('โหลด Master Item ไม่สำเร็จ กรุณาลองใหม่');
         return false;
       }
@@ -696,7 +708,7 @@ export default function ProductionPetitionNewPage({
           setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกชื่อตัวอย่าง`);
           return false;
         }
-        if (!findMatchingPetitionMasterItem(masterItemOptions, it)) {
+        if (!integrationMode && !findMatchingPetitionMasterItem(masterItemOptions, it)) {
           setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณาเลือกชื่อตัวอย่างจาก Master Item`);
           return false;
         }
@@ -794,7 +806,7 @@ export default function ProductionPetitionNewPage({
 
   function handlePageBack() {
     if (publicMode) {
-      window.location.href = buildProductionReturnUrl();
+      window.location.href = buildProductionReturnUrl(searchParams, createdPetition);
       return;
     }
     navigate('/petitions');
