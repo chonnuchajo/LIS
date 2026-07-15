@@ -12,14 +12,14 @@ vi.mock("./PetitionListPage", () => ({
 }));
 
 describe("PetitionTimelinePage", () => {
-  it("uses the petition list with Timeline copy and Timeline detail destinations", () => {
+  it("uses the petition list with รายการคำร้อง copy and timeline detail destinations", () => {
     render(<PetitionTimelinePage />);
 
     expect(screen.getByTestId("petition-list-page")).toBeInTheDocument();
     expect(mocks.props).toMatchObject({
-      title: "Timeline คำร้อง",
+      title: "รายการคำร้อง",
       description: "เลือกคำร้องเพื่อติดตามเวลา ความคืบหน้า กิจกรรม และเอกสาร",
     });
-    expect((mocks.props as { petitionDetailPath: (petition: { _id: string }) => string }).petitionDetailPath({ _id: "petition-1" })).toBe("/petition-timeline/petition-1");
+    expect((mocks.props as { petitionDetailPath: (petition: { _id: string }) => string }).petitionDetailPath({ _id: "petition-1" })).toBe("/petition/petition-1");
   });
 });

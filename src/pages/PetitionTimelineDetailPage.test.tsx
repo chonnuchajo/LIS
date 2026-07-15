@@ -95,8 +95,8 @@ vi.mock("@/lib/labResultReport", () => ({
 
 function renderDetail() {
   return render(
-    <MemoryRouter initialEntries={["/petition-timeline/petition-1"]} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-      <Routes><Route path="/petition-timeline/:id" element={<PetitionTimelineDetailPage />} /></Routes>
+    <MemoryRouter initialEntries={["/petition/petition-1"]} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+      <Routes><Route path="/petition/:id" element={<PetitionTimelineDetailPage />} /></Routes>
     </MemoryRouter>,
   );
 }

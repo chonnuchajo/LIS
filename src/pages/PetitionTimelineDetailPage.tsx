@@ -423,7 +423,7 @@ export default function PetitionTimelineDetailPage() {
 
   return <AppLayout title={`Timeline ${petition.petitionNo}`}><div className="space-y-4">
     <style>{`@keyframes timeline-shimmer{0%{transform:translateX(-120%)}100%{transform:translateX(220%)}}`}</style>
-    <PageHeader title="" onBack={() => navigate("/petition-timeline")} actions={<Button variant="primary-outline" size="sm" onClick={refreshTimeline}><RefreshCw className="h-4 w-4" />รีเฟรช</Button>} />
+    <PageHeader title="" onBack={() => navigate("/petition")} actions={<Button variant="primary-outline" size="sm" onClick={refreshTimeline}><RefreshCw className="h-4 w-4" />รีเฟรช</Button>} />
 
     <Card className="border-black-50 shadow-none"><CardContent className="grid gap-5 p-5 xl:grid-cols-[112px_minmax(0,1fr)]">
       <div className="flex aspect-square items-center justify-center rounded-[8px] border border-dashed border-grey-300 bg-grey-50 text-grey-400" aria-label="พื้นที่รูปตัวอย่าง"><ImageIcon className="h-8 w-8" /></div>

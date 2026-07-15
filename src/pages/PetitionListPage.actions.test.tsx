@@ -154,11 +154,11 @@ describe('PetitionListPage action cues', () => {
   });
 
   it('uses a configured destination when a petition row is opened', async () => {
-    renderPage({ petitionDetailPath: (petition) => `/petition-timeline/${petition._id}` });
+    renderPage({ petitionDetailPath: (petition) => `/petition/${petition._id}` });
 
     fireEvent.click(await screen.findByText('P-2607-0001'));
 
-    expect(screen.getByTestId('location')).toHaveTextContent('/petition-timeline/P-2607-0001');
+    expect(screen.getByTestId('location')).toHaveTextContent('/petition/P-2607-0001');
   });
 
   it('shows approved petitions as completed instead of final-result wording', async () => {
