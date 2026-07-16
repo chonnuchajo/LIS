@@ -611,7 +611,7 @@ export default function ProductionPetitionNewPage({
         if (!alive) return;
         if (source.status !== 'rejected') {
           toast.error('คำร้องต้นทางไม่ได้ถูกส่งกลับให้แก้ไข');
-          navigate('/petitions');
+          navigate('/petition');
           return;
         }
         if (
@@ -620,7 +620,7 @@ export default function ProductionPetitionNewPage({
           user.employeeId !== source.submittedBy.employeeId
         ) {
           toast.error('คุณไม่ใช่ผู้ยื่นของคำร้องต้นทาง');
-          navigate('/petitions');
+          navigate('/petition');
           return;
         }
         setRevisionSource(source);
@@ -644,7 +644,7 @@ export default function ProductionPetitionNewPage({
       .catch(() => {
         if (alive) {
           toast.error('โหลดคำร้องต้นทางไม่สำเร็จ');
-          navigate('/petitions');
+          navigate('/petition');
         }
       });
     return () => { alive = false; };
@@ -806,7 +806,7 @@ export default function ProductionPetitionNewPage({
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
-      navigate(`/petitions/${created._id}`);
+      navigate(`/petitions-old/${created._id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'บันทึกคำร้องไม่สำเร็จ';
       setError(message);
@@ -820,7 +820,7 @@ export default function ProductionPetitionNewPage({
       window.location.href = buildProductionReturnUrl(searchParams, createdPetition);
       return;
     }
-    navigate('/petitions');
+    navigate('/petition');
   }
 
   function printCreatedLabels() {

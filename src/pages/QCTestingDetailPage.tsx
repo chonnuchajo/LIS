@@ -1057,7 +1057,7 @@ export default function QCTestingDetailPage() {
             คำร้องนี้ใช้เลขแบชเดียวกับคำร้อง{' '}
             <button
               type="button"
-              onClick={() => navigate(`/petitions/${implicitPredecessorNo}`)}
+              onClick={() => navigate(`/petitions-old/${implicitPredecessorNo}`)}
               className="font-semibold underline hover:text-orange-900"
             >
               {implicitPredecessorNo}
