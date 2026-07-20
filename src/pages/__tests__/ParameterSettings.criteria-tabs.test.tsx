@@ -213,6 +213,57 @@ describe("ParameterSettings criteria tabs", () => {
     );
   });
 
+  it("shows master item context in the substance criteria tab", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      {
+        _id: "p-item-context",
+        name: "Item Context Parameter",
+        scope: "qc",
+        status: "active",
+        applyAll: true,
+        valueFields: [
+          {
+            label: "Purity",
+            type: "number",
+            unit: "%",
+            substanceMode: true,
+            substanceStandards: [
+              {
+                substance: "ABAMECTIN",
+                operator: "gte",
+                value: 95,
+                itemNo: "RM-001",
+                packSize: "100 ml",
+                masterItemName: "ABAMECTIN A",
+                masterCommonName: "ABAMECTIN 1.8 EC",
+                masterRaw: { item_no: "RM-001", desc2: "100 ml" },
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    renderPage();
+
+    const criteriaTabList = await waitFor(() => screen.getAllByRole("tablist")[1]);
+    const substancesTab = within(criteriaTabList).getAllByRole("tab")[1];
+    fireEvent.mouseDown(substancesTab);
+    fireEvent.click(substancesTab);
+
+    expect(await screen.findByText("ABAMECTIN")).toBeInTheDocument();
+    expect(screen.getByText("RM-001")).toBeInTheDocument();
+    expect(screen.getByText("100 ml")).toBeInTheDocument();
+    expect(screen.getByText("ABAMECTIN A")).toBeInTheDocument();
+    expect(screen.getByText("item_no: RM-001 | desc2: 100 ml")).toBeInTheDocument();
+
+    const searchBox = screen.getAllByRole("textbox")[0];
+    fireEvent.change(searchBox, { target: { value: "RM-001" } });
+
+    expect(screen.getByText("ABAMECTIN")).toBeInTheDocument();
+    expect(screen.getByText("RM-001")).toBeInTheDocument();
+  });
+
   it("filters the parameter list by substance names saved in criteria", async () => {
     api.getParameters.mockResolvedValueOnce([
       {
