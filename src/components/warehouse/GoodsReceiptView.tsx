@@ -81,10 +81,19 @@ export default function GoodsReceiptView({ doc }: { doc: GoodsReceipt }) {
         <Line label="ฉลากปิด" value={i.labelStatus ? PRESENCE_LABELS[i.labelStatus] : undefined} />
         <Line label="ซีลปิ๊งมาร์ค" value={i.sealMarkStatus ? PRESENCE_LABELS[i.sealMarkStatus] : undefined} />
         <Line label="ถพ." value={i.specificGravity} />
-        <Line label="Gross weight" value={i.grossWeight} />
+        <Line label="Gross weight" value={i.grossWeight != null
+          ? `${i.grossWeight} ${i.grossWeightUnit ? WEIGHT_UNIT_LABELS[i.grossWeightUnit] : ''}`.trim()
+          : undefined} />
         <Line label="Net weight (ลิตร)" value={i.netWeightLitre} />
         <Line label="Net weight (กก.)" value={i.netWeightKg} />
         <Line label="ช่วงยอมรับ (กก.)" value={i.toleranceKg} />
+        {i.weighBatches?.length ? i.weighBatches.map((b, idx) => (
+          <Line key={`w-${idx}`} label={`แบชชั่ง ${b.batchNo ?? ''}`}
+            value={[
+              b.quantity != null ? `${b.quantity} ${b.quantityUnit ? QUANTITY_UNIT_LABELS[b.quantityUnit] : ''}`.trim() : null,
+              b.weightKg != null ? `${b.weightKg} กก.` : null,
+            ].filter(Boolean).join(' / ') || undefined} />
+        )) : null}
         <Line label="สรุปข้อ 1-4" value={i.summary14?.accepted === undefined ? undefined
           : i.summary14.accepted ? `ยอมรับได้ ${i.summary14.note ?? ''}`.trim()
           : `ยอมรับไม่ได้ เพราะ ${i.summary14.rejectReason ?? ''}`.trim()} />

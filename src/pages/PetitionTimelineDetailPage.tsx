@@ -237,8 +237,8 @@ export default function PetitionTimelineDetailPage() {
 
   // ใบรับสินค้า/ใบตรวจสอบวัตถุดิบ (F-WAR-03-01,02) มีเฉพาะคำร้องแผนก RM — ไม่ยิง fetch เลยสำหรับแผนกอื่น
   useEffect(() => {
+    setGoodsReceipt(null);
     if (!petition?._id || petition.dept !== "rm") {
-      setGoodsReceipt(null);
       return;
     }
     let alive = true;
