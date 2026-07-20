@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const DocumentNumberConfigSchema = new mongoose.Schema({
   docType: {
     type: String,
-    enum: ['petition', 'sampleReceipt', 'labRequest'],
+    enum: ['petition', 'sampleReceipt', 'labRequest', 'goodsReceipt', 'rawMaterialInspection'],
     required: true,
     unique: true,
     index: true,

@@ -6,6 +6,9 @@ const DEFAULTS = {
   petition:      { docType: 'petition',      prefix: 'P',   yearFormat: 'yy',   includeMonth: true,  seqPadding: 4, separator: '-' },
   sampleReceipt: { docType: 'sampleReceipt', prefix: 'RCV', yearFormat: 'yyyy', includeMonth: false, seqPadding: 4, separator: '-' },
   labRequest:    { docType: 'labRequest',    prefix: 'L',   yearFormat: 'yy',   includeMonth: true,  seqPadding: 4, separator: '-' },
+  // ฟอร์ม F-WAR-03-01,02 — ใบรับสินค้า / ใบตรวจสอบวัตถุดิบ ของแผนก RM
+  goodsReceipt:  { docType: 'goodsReceipt',  prefix: 'GR',  yearFormat: 'yy',   includeMonth: true,  seqPadding: 4, separator: '-' },
+  rawMaterialInspection: { docType: 'rawMaterialInspection', prefix: 'RMI', yearFormat: 'yy', includeMonth: true, seqPadding: 4, separator: '-' },
 };
 
 const DOC_TYPES = Object.keys(DEFAULTS);
