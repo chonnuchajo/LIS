@@ -35,17 +35,18 @@ export function buildRmPetitionItems(
   return selected.map((batch, index) => {
     const batchNo = String(batch.batchNo).trim();
     const pick = byBatch.get(batchNo);
-    // เช็ค testItems ก่อน commonName: แบชที่ไม่มี selection เลยถือว่า "ยังไม่ได้เลือกรายการทดสอบ"
-    // (ไม่ใช่ "ยังไม่ได้เลือกรายการสินค้าอ้างอิง") ส่วนแบชที่มี selection แต่ commonName ว่างเปล่า
-    // ให้ฟ้อง error รายการสินค้าอ้างอิงแทน
-    const testItems = String(pick?.testItems ?? '').trim();
-    if (!testItems) {
-      throw new Error(`ยังไม่ได้เลือกรายการทดสอบของแบช ${batchNo}`);
-    }
-    // commonName เป็นตัวขับการจับคู่ simple-method ตอน assign เครื่องมือ — ขาดไม่ได้
+    // เช็ค commonName ก่อน testItems: ใน wizard ผู้ใช้เลือก Master Item ก่อนแล้วค่อยกรอกรายการทดสอบ
+    // ดังนั้นแบชที่ไม่มี selection เลย (หรือยังไม่ได้เลือก Master Item) ควรฟ้อง
+    // "ยังไม่ได้เลือกรายการสินค้าอ้างอิง" เพราะนั่นคือขั้นแรกที่ค้างจริง ๆ — ช่อง testItems
+    // ยังไม่มีความหมายจนกว่าจะเลือก Master Item แล้ว commonName เป็นตัวขับการจับคู่
+    // simple-method ตอน assign เครื่องมือด้วย — ขาดไม่ได้
     const commonName = String(pick?.commonName ?? '').trim();
     if (!commonName) {
       throw new Error(`ยังไม่ได้เลือกรายการสินค้าอ้างอิงของแบช ${batchNo}`);
+    }
+    const testItems = String(pick?.testItems ?? '').trim();
+    if (!testItems) {
+      throw new Error(`ยังไม่ได้เลือกรายการทดสอบของแบช ${batchNo}`);
     }
     return {
       seq: index + 1,
