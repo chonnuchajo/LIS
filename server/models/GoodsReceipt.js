@@ -132,14 +132,17 @@ const InspectionSchema = new mongoose.Schema({
 }, { _id: false });
 
 const GoodsReceiptSchema = new mongoose.Schema({
-  receiptNo: { type: String, index: true },
-  inspectionNo: { type: String, index: true },
+  receiptNo: String,
+  inspectionNo: String,
   warehouse: String,
   petitionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Petition', required: true, index: true },
   petitionNo: { type: String, index: true },
   receipt: ReceiptSchema,
   inspection: InspectionSchema,
 }, { timestamps: true });
+
+GoodsReceiptSchema.index({ receiptNo: 1, deletedAt: 1 }, { unique: true });
+GoodsReceiptSchema.index({ inspectionNo: 1, deletedAt: 1 }, { unique: true });
 
 GoodsReceiptSchema.plugin(softDeletePlugin);
 
