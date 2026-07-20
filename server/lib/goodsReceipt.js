@@ -22,4 +22,30 @@ function validateGoodsReceiptInput(body) {
   return null;
 }
 
-module.exports = { sendToLabBatches, validateGoodsReceiptInput };
+// หา field ที่ชนกันจาก MongoDB duplicate-key error โดยตัด deletedAt ออก
+// (ทุก unique index ของโมเดลนี้เป็น compound คู่กับ deletedAt สำหรับ soft delete)
+function primaryDuplicateKey(err) {
+  const pattern = (err && err.keyPattern) || (err && err.keyValue) || {};
+  const keys = Object.keys(pattern).filter((k) => k !== 'deletedAt');
+  return keys[0] || Object.keys(pattern)[0] || '';
+}
+
+// แปล error ที่ throw จาก create/save เป็นข้อความไทย + HTTP status สำหรับ route
+// PURE — รับ error (หรือ object หน้าตาเหมือน MongoDB duplicate-key error) คืน { status, message }
+// ไม่รู้จัก mongoose/express เอง route เป็นคนเรียก res.status(status).json({ error: { message } })
+function mapGoodsReceiptError(err) {
+  const e = err || {};
+  if (e.code === 11000) {
+    const key = primaryDuplicateKey(e);
+    if (key === 'petitionId') {
+      return { status: 409, message: 'คำร้องนี้มีใบรับสินค้าอยู่แล้ว' };
+    }
+    if (key === 'receiptNo' || key === 'inspectionNo') {
+      return { status: 409, message: 'เลขที่เอกสารชนกัน กรุณาลองบันทึกใหม่อีกครั้ง' };
+    }
+    return { status: 409, message: 'ข้อมูลซ้ำกับที่มีอยู่แล้ว' };
+  }
+  return { status: 400, message: e.message };
+}
+
+module.exports = { sendToLabBatches, validateGoodsReceiptInput, mapGoodsReceiptError };

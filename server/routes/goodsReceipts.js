@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const GoodsReceipt = require('../models/GoodsReceipt');
 const Petition = require('../models/Petition');
 const { nextDocumentNumber } = require('../lib/documentNumber');
-const { validateGoodsReceiptInput } = require('../lib/goodsReceipt');
+const { validateGoodsReceiptInput, mapGoodsReceiptError } = require('../lib/goodsReceipt');
 
 function badRequest(res, message) {
   return res.status(400).json({ error: { message } });
@@ -69,7 +69,8 @@ router.post('/', async (req, res) => {
     });
     res.status(201).json(doc);
   } catch (err) {
-    res.status(400).json({ error: { message: err.message } });
+    const { status, message } = mapGoodsReceiptError(err);
+    res.status(status).json({ error: { message } });
   }
 });
 

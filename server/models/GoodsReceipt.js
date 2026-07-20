@@ -143,6 +143,8 @@ const GoodsReceiptSchema = new mongoose.Schema({
 
 GoodsReceiptSchema.index({ receiptNo: 1, deletedAt: 1 }, { unique: true });
 GoodsReceiptSchema.index({ inspectionNo: 1, deletedAt: 1 }, { unique: true });
+// 1 petition → 1 ใบรับสินค้า — backstop กัน race ของ check-then-create ใน routes/goodsReceipts.js
+GoodsReceiptSchema.index({ petitionId: 1, deletedAt: 1 }, { unique: true });
 
 GoodsReceiptSchema.plugin(softDeletePlugin);
 

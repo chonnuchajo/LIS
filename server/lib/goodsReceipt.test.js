@@ -1,4 +1,5 @@
-const { validateGoodsReceiptInput, sendToLabBatches } = require('./goodsReceipt');
+const { validateGoodsReceiptInput, sendToLabBatches, mapGoodsReceiptError } = require('./goodsReceipt');
+const GoodsReceipt = require('../models/GoodsReceipt');
 
 describe('sendToLabBatches', () => {
   it('คืนเฉพาะแบชที่ติ๊กส่งตรวจ', () => {
@@ -55,5 +56,58 @@ describe('validateGoodsReceiptInput', () => {
 
   it('body เป็น null → error ไม่ throw', () => {
     expect(validateGoodsReceiptInput(null)).toBe('ต้องระบุ petitionId');
+  });
+});
+
+describe('mapGoodsReceiptError', () => {
+  it('duplicate petitionId (E11000) → 409 ข้อความคำร้องมีใบรับสินค้าอยู่แล้ว', () => {
+    const err = { code: 11000, keyPattern: { petitionId: 1, deletedAt: 1 } };
+    expect(mapGoodsReceiptError(err)).toEqual({
+      status: 409,
+      message: 'คำร้องนี้มีใบรับสินค้าอยู่แล้ว',
+    });
+  });
+
+  it('duplicate receiptNo (E11000) → 409 ข้อความเลขที่เอกสารชนกัน', () => {
+    const err = { code: 11000, keyPattern: { receiptNo: 1, deletedAt: 1 } };
+    const result = mapGoodsReceiptError(err);
+    expect(result.status).toBe(409);
+    expect(result.message).toMatch(/เลขที่เอกสาร/);
+  });
+
+  it('duplicate inspectionNo (E11000) → 409 ข้อความเลขที่เอกสารชนกัน', () => {
+    const err = { code: 11000, keyPattern: { inspectionNo: 1, deletedAt: 1 } };
+    const result = mapGoodsReceiptError(err);
+    expect(result.status).toBe(409);
+    expect(result.message).toMatch(/เลขที่เอกสาร/);
+  });
+
+  it('error อื่นที่ไม่ใช่ duplicate key → ตกไปพฤติกรรมเดิม (400 + err.message)', () => {
+    const err = { message: 'ข้อมูลไม่ถูกต้อง' };
+    expect(mapGoodsReceiptError(err)).toEqual({
+      status: 400,
+      message: 'ข้อมูลไม่ถูกต้อง',
+    });
+  });
+});
+
+describe('GoodsReceipt model — receiptNo/inspectionNo required (validateSync, no DB)', () => {
+  it('ขาด receiptNo และ inspectionNo → validateSync คืน error ทั้งสอง field', () => {
+    const doc = new GoodsReceipt({ petitionId: '000000000000000000000001' });
+    const err = doc.validateSync();
+    expect(err).toBeDefined();
+    expect(err.errors.receiptNo).toBeDefined();
+    expect(err.errors.inspectionNo).toBeDefined();
+  });
+
+  it('มี receiptNo, inspectionNo, petitionId ครบ → ไม่มี validate error ที่ field เหล่านี้', () => {
+    const doc = new GoodsReceipt({
+      receiptNo: 'GR-2607-0001',
+      inspectionNo: 'RMI-2607-0001',
+      petitionId: '000000000000000000000001',
+    });
+    const err = doc.validateSync();
+    expect(err === undefined || err.errors.receiptNo === undefined).toBe(true);
+    expect(err === undefined || err.errors.inspectionNo === undefined).toBe(true);
   });
 });
