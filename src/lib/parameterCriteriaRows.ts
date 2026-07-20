@@ -28,6 +28,11 @@ export type SubstanceCriteriaRow = CriteriaRowOwner & {
   rowId: string;
   ruleIndex: number | null;
   substance: string;
+  itemNo: string;
+  packSize: string;
+  masterItemName: string;
+  masterCommonName: string;
+  rawMasterText: string;
   operator: string;
   value: number | null;
   value2: number | null;
@@ -221,6 +226,23 @@ const categoryText = (values: string[] | undefined) => {
   return text || "-";
 };
 
+const itemScopedRowId = (base: CriteriaRowOwner, fieldIndex: number, ruleIndex: number, standard: SubstanceStandard) => {
+  const parts = [`${base.parameterId}:${fieldIndex}:${ruleIndex}`];
+  if (standard.itemNo || standard.packSize) {
+    parts.push(standard.itemNo ?? "", standard.packSize ?? "");
+  }
+  return parts.join(":");
+};
+
+const rawMasterText = (raw: Record<string, unknown> | undefined) => {
+  if (!raw) return "";
+  return Object.entries(raw)
+    .filter(([, value]) => value != null && (typeof value === "string" || typeof value === "number" || typeof value === "boolean"))
+    .slice(0, 8)
+    .map(([key, value]) => `${key}: ${String(value)}`)
+    .join(" | ");
+};
+
 export function buildSubstanceCriteriaRows(
   parameters: ParameterItem[],
   scope: ParameterScope,
@@ -239,6 +261,11 @@ export function buildSubstanceCriteriaRows(
           rowId: `${base.parameterId}:${fieldIndex}:setup`,
           ruleIndex: null,
           substance: "-",
+          itemNo: "",
+          packSize: "",
+          masterItemName: "",
+          masterCommonName: "",
+          rawMasterText: "",
           operator: "-",
           value: null,
           value2: null,
@@ -256,12 +283,18 @@ export function buildSubstanceCriteriaRows(
       standards.forEach((standard: SubstanceStandard & { headOnly?: boolean }, ruleIndex) => {
         const productText = regulatoryTypeText(standard.regulatoryTypes) || productTypeText(standard.productTypes);
         const catText = categoryText(standard.categories);
+        const rawText = rawMasterText(standard.masterRaw);
         rows.push({
           ...base,
           mode: "substance",
-          rowId: `${base.parameterId}:${fieldIndex}:${ruleIndex}`,
+          rowId: itemScopedRowId(base, fieldIndex, ruleIndex, standard),
           ruleIndex,
           substance: standard.substance,
+          itemNo: standard.itemNo ?? "",
+          packSize: standard.packSize ?? "",
+          masterItemName: standard.masterItemName ?? "",
+          masterCommonName: standard.masterCommonName ?? "",
+          rawMasterText: rawText,
           operator: standard.operator,
           value: standard.value,
           value2: standard.value2 ?? null,
@@ -278,6 +311,11 @@ export function buildSubstanceCriteriaRows(
             standard.operator,
             standard.value,
             standard.value2,
+            standard.itemNo,
+            standard.packSize,
+            standard.masterItemName,
+            standard.masterCommonName,
+            rawText,
             productTypeSearchTokens(standard.productTypes),
             standard.regulatoryTypes,
             standard.categories,

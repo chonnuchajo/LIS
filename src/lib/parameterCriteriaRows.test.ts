@@ -171,6 +171,68 @@ describe("parameter criteria row builders", () => {
     });
   });
 
+  it("keeps same-substance criteria separate by master item and package size", () => {
+    const rows = buildSubstanceCriteriaRows(
+      [
+        {
+          _id: "p-item",
+          name: "Active ingredient",
+          scope: "qc",
+          status: "active",
+          applyAll: true,
+          valueFields: [
+            {
+              label: "Purity",
+              type: "number",
+              unit: "%",
+              substanceMode: true,
+              substanceStandards: [
+                {
+                  substance: "ABAMECTIN",
+                  operator: "gte",
+                  value: 95,
+                  itemNo: "RM-001",
+                  packSize: "100 ml",
+                  masterItemName: "ABAMECTIN A",
+                  masterCommonName: "ABAMECTIN 1.8 EC",
+                  masterRaw: { item_no: "RM-001", desc2: "100 ml" },
+                },
+                {
+                  substance: "ABAMECTIN",
+                  operator: "gte",
+                  value: 97,
+                  itemNo: "RM-002",
+                  packSize: "500 ml",
+                  masterItemName: "ABAMECTIN B",
+                  masterCommonName: "ABAMECTIN 1.8 EC",
+                  masterRaw: { item_no: "RM-002", desc2: "500 ml" },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      "qc",
+    );
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      rowId: "p-item:0:0:RM-001:100 ml",
+      substance: "ABAMECTIN",
+      itemNo: "RM-001",
+      packSize: "100 ml",
+      masterItemName: "ABAMECTIN A",
+      masterCommonName: "ABAMECTIN 1.8 EC",
+      rawMasterText: "item_no: RM-001 | desc2: 100 ml",
+    });
+    expect(rows[1]).toMatchObject({
+      rowId: "p-item:0:1:RM-002:500 ml",
+      value: 97,
+      itemNo: "RM-002",
+      packSize: "500 ml",
+    });
+  });
+
   it("buildConditionalCriteriaRows formats conditions and standard result", () => {
     const rows = buildConditionalCriteriaRows(parameters, "qc");
     expect(rows).toHaveLength(3);

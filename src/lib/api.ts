@@ -1035,6 +1035,11 @@ export type SubstanceStandard = {
   substance: string;      // เก็บแบบ extractSubstanceName เช่น "ABAMECTIN"
   operator: StandardOperator;
   value: number | null;
+  itemNo?: string;
+  packSize?: string;
+  masterItemName?: string;
+  masterCommonName?: string;
+  masterRaw?: Record<string, unknown>;
   productTypes?: ("water" | "sand" | "powder")[];
   regulatoryTypes?: ("GMP" | "BIO" | "LS")[];
   categories?: ("RM" | "FG")[];
