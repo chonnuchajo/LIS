@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Plus, Search, Trash2 } from "lucide-react";
 import { api, type ParameterValueField, type StandardOperator, type SubstanceStandard } from "@/lib/api";
-import { tradeNameKeys } from "@/lib/masterItemFields";
+import { getItemNo, getPackSize, getSampleName, getTradeName, tradeNameKeys } from "@/lib/masterItemFields";
 import { OPERATOR_OPTIONS } from "@/lib/standardOperators";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -46,9 +46,33 @@ function standardKey(value: string): string {
   return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function standardIdentity(substance: string, itemNo?: string, packSize?: string): string {
+  return [substance, itemNo ?? "", packSize ?? ""].map(standardKey).join("|");
+}
+
+function standardIdentityFromStandard(std: Pick<SubstanceStandard, "substance" | "itemNo" | "packSize">): string {
+  return standardIdentity(std.substance, std.itemNo, std.packSize);
+}
+
 function buildCommonNameOptions(commonNames: string[]): string[] {
   return [...new Set(commonNames.map((v) => String(v).trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, ["th", "en"]));
+}
+
+function buildMasterItemContext(row: Record<string, unknown>) {
+  const commonName = pickField(row, COMMON_NAME_KEYS);
+  const itemNo = getItemNo(row);
+  const packSize = getPackSize(row);
+  const itemName = getSampleName(row) || getTradeName(row);
+  return { commonName, itemNo, packSize, itemName };
+}
+
+function rowMatchesSearch(row: Record<string, unknown>, query: string): boolean {
+  if (!query) return true;
+  const ctx = buildMasterItemContext(row);
+  return [ctx.commonName, ctx.itemNo, ctx.packSize, ctx.itemName].some((value) =>
+    value.toLowerCase().includes(query),
+  );
 }
 
 function readRowCategories(row: Record<string, unknown>): ("RM" | "FG")[] {
@@ -122,10 +146,17 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
 
   const commonNameOptions = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const commonNames = categoryRows
-      .map((row) => pickField(row, COMMON_NAME_KEYS))
-      .filter((commonName) => !q || commonName.toLowerCase().includes(q));
-    return buildCommonNameOptions(commonNames);
+    return categoryRows
+      .filter((row) => pickField(row, COMMON_NAME_KEYS) && rowMatchesSearch(row, q))
+      .sort((a, b) => {
+        const aCtx = buildMasterItemContext(a);
+        const bCtx = buildMasterItemContext(b);
+        return (
+          aCtx.commonName.localeCompare(bCtx.commonName, ["th", "en"]) ||
+          aCtx.itemNo.localeCompare(bCtx.itemNo, ["th", "en"], { numeric: true }) ||
+          aCtx.packSize.localeCompare(bCtx.packSize, ["th", "en"], { numeric: true })
+        );
+      });
   }, [categoryRows, search]);
 
   const tradeNameOptions = useMemo(() => {
@@ -161,13 +192,17 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
     return categoryNames.filter((commonName) => groupMatches || commonName.toLowerCase().includes(q));
   };
 
-  const selectedKeys = useMemo(() => new Set(list.map((s) => standardKey(s.substance)).filter(Boolean)), [list]);
+  const selectedKeys = useMemo(() => new Set(list.map(standardIdentityFromStandard).filter(Boolean)), [list]);
 
   const visibleStandards = useMemo(() => {
     const q = standardKey(listSearch);
     const all = list.map((std, index) => ({ std, index }));
     if (!q) return all;
-    return all.filter(({ std }) => standardKey(std.substance).includes(q));
+    return all.filter(({ std }) =>
+      [std.substance, std.itemNo ?? "", std.packSize ?? "", std.masterItemName ?? "", std.masterCommonName ?? ""].some((value) =>
+        standardKey(value).includes(q),
+      ),
+    );
   }, [list, listSearch]);
 
   const addStandard = (name: string) => {
@@ -175,8 +210,33 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
     const key = standardKey(substance);
     if (!key) return;
     setList((prev) => {
-      if (prev.some((std) => standardKey(std.substance) === key)) return prev;
+      if (prev.some((std) => standardIdentityFromStandard(std) === standardIdentity(substance))) return prev;
       return [...prev, { substance, operator: "gte", value: null, value2: null, headOnly: false }];
+    });
+  };
+
+  const addStandardFromRow = (row: Record<string, unknown>) => {
+    const { commonName, itemNo, packSize, itemName } = buildMasterItemContext(row);
+    const substance = commonName.trim();
+    if (!substance) return;
+    const key = standardIdentity(substance, itemNo, packSize);
+    setList((prev) => {
+      if (prev.some((std) => standardIdentityFromStandard(std) === key)) return prev;
+      return [
+        ...prev,
+        {
+          substance,
+          operator: "gte",
+          value: null,
+          value2: null,
+          headOnly: false,
+          itemNo,
+          packSize,
+          masterItemName: itemName,
+          masterCommonName: commonName,
+          masterRaw: row,
+        },
+      ];
     });
   };
 
@@ -196,23 +256,32 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
   const patchAt = (i: number, patch: Partial<EditableSubstanceStandard>) =>
     setList((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
 
-  const commonNameList = (names: string[]) => (
+  const commonNameList = (rows: Record<string, unknown>[]) => (
     <div className="max-h-[34rem] overflow-y-auto rounded border divide-y">
-      {names.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="p-3 text-xs text-muted-foreground">ไม่พบ common name</p>
       ) : (
-        names.map((commonName) => {
-          const picked = selectedKeys.has(standardKey(commonName));
+        rows.map((row) => {
+          const { commonName, itemNo, packSize, itemName } = buildMasterItemContext(row);
+          const picked = selectedKeys.has(standardIdentity(commonName, itemNo, packSize));
+          const title = [commonName, itemNo, packSize, itemName].filter(Boolean).join(" · ");
           return (
             <button
-              key={commonName}
+              key={standardIdentity(commonName, itemNo, packSize)}
               type="button"
               disabled={picked}
-              onClick={() => addStandard(commonName)}
+              onClick={() => addStandardFromRow(row)}
               className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-40"
-              title={commonName}
+              title={title}
             >
-              <span className="min-w-0 break-words font-medium text-foreground">{commonName}</span>
+              <span className="min-w-0">
+                <span className="block break-words font-medium text-foreground">{commonName}</span>
+                {[itemNo, packSize, itemName].filter(Boolean).length > 0 ? (
+                  <span className="mt-1 block break-words text-xs text-muted-foreground">
+                    {[itemNo, packSize, itemName].filter(Boolean).join(" · ")}
+                  </span>
+                ) : null}
+              </span>
               {!picked && <Plus className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
             </button>
           );
@@ -227,7 +296,7 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
         <p className="p-3 text-xs text-muted-foreground">ไม่พบ trade name</p>
       ) : (
         items.map(({ tradeName, commonNames }) => {
-          const allAdded = commonNames.length > 0 && commonNames.every((n) => selectedKeys.has(standardKey(n)));
+          const allAdded = commonNames.length > 0 && commonNames.every((n) => selectedKeys.has(standardIdentity(n)));
           return (
             <button
               key={tradeName}
@@ -311,7 +380,7 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                   ) : (
                     safeGroups.map((g) => {
                       const commonNames = buildCommonNameOptions(filterVisibleGroupCommonNames(g.commonNames ?? [], g.name));
-                      const allAdded = commonNames.length > 0 && commonNames.every((n) => selectedKeys.has(standardKey(n)));
+                      const allAdded = commonNames.length > 0 && commonNames.every((n) => selectedKeys.has(standardIdentity(n)));
                       return (
                         <button
                           key={g._id}
@@ -369,7 +438,7 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
               ) : (
                 visibleStandards.map(({ std, index: i }) => (
                   <div
-                    key={`${standardKey(std.substance)}-${i}`}
+                    key={`${standardIdentityFromStandard(std)}-${i}`}
                     className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded border px-2 py-1.5"
                   >
                     <span
@@ -377,6 +446,11 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                       title={std.substance}
                     >
                       {std.substance}
+                      {[std.itemNo, std.packSize, std.masterItemName].filter(Boolean).length > 0 ? (
+                        <span className="mt-0.5 block truncate text-xs font-normal text-muted-foreground">
+                          {[std.itemNo, std.packSize, std.masterItemName].filter(Boolean).join(" · ")}
+                        </span>
+                      ) : null}
                     </span>
                     <NativeSelect
                       aria-label={`เงื่อนไข ${std.substance}`}

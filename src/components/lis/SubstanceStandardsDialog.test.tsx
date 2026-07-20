@@ -84,6 +84,102 @@ describe("SubstanceStandardsDialog", () => {
     ]);
   });
 
+  it("adds same-substance master items separately when item code or pack size differs", async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === "/master-items") {
+        return {
+          data: {
+            data: [
+              {
+                item_no: "RM-001",
+                common_name: "ABAMECTIN 1.8% EC",
+                trade_name: "ABAMECTIN A",
+                desc2: "100 ml",
+                inventory_posting_group: "RM",
+              },
+              {
+                item_no: "RM-002",
+                common_name: "ABAMECTIN 1.8% EC",
+                trade_name: "ABAMECTIN B",
+                desc2: "500 ml",
+                inventory_posting_group: "RM",
+              },
+            ],
+          },
+        } as any;
+      }
+      if (path === "/item-groups") return { data: { data: [] } } as any;
+      return { data: { data: [] } } as any;
+    });
+    const { onSave } = renderDialog();
+
+    const abamectinOptions = await screen.findAllByRole("button", { name: /ABAMECTIN 1\.8% EC/ });
+    expect(abamectinOptions).toHaveLength(2);
+    fireEvent.click(abamectinOptions[0]);
+    fireEvent.click(abamectinOptions[1]);
+
+    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledWith([
+      expect.objectContaining({
+        substance: "ABAMECTIN 1.8% EC",
+        itemNo: "RM-001",
+        packSize: "100 ml",
+        masterItemName: "ABAMECTIN A",
+        masterCommonName: "ABAMECTIN 1.8% EC",
+        masterRaw: expect.objectContaining({ item_no: "RM-001", desc2: "100 ml" }),
+      }),
+      expect.objectContaining({
+        substance: "ABAMECTIN 1.8% EC",
+        itemNo: "RM-002",
+        packSize: "500 ml",
+        masterItemName: "ABAMECTIN B",
+        masterCommonName: "ABAMECTIN 1.8% EC",
+        masterRaw: expect.objectContaining({ item_no: "RM-002", desc2: "500 ml" }),
+      }),
+    ]);
+  });
+
+  it("dedupes selected standards by substance item code and pack size together", async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === "/master-items") {
+        return {
+          data: {
+            data: [
+              {
+                item_no: "RM-001",
+                common_name: "ABAMECTIN 1.8% EC",
+                trade_name: "ABAMECTIN A",
+                desc2: "100 ml",
+                inventory_posting_group: "RM",
+              },
+            ],
+          },
+        } as any;
+      }
+      if (path === "/item-groups") return { data: { data: [] } } as any;
+      return { data: { data: [] } } as any;
+    });
+    const { onSave } = renderDialog(undefined, [
+      {
+        substance: "ABAMECTIN 1.8% EC",
+        operator: "gte",
+        value: 95,
+        itemNo: "RM-001",
+        packSize: "100 ml",
+      },
+    ]);
+
+    const pickedOption = await screen.findByTitle("ABAMECTIN 1.8% EC · RM-001 · 100 ml · ABAMECTIN A");
+    expect(pickedOption).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0][0]).toHaveLength(1);
+  });
+
   it("filters selectable commonNames by category dropdown and typed search", async () => {
     renderDialog();
 
