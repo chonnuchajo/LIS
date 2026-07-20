@@ -25,6 +25,7 @@ import type { LineGroup, LineGroupInput, LineHealth } from "@/lib/lineConfig";
 import type { DashboardId, StoredLayout, DashboardLayout } from "@/lib/dashboardLayout";
 import type { MethodDoc, MethodInput } from './methodRegistry';
 import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
+import type { GoodsReceipt, GoodsReceiptInput } from "@/types/goodsReceipt.types";
 
 export type ApiRouteInfo = { method: string; path: string };
 type StockUserPayload = { _user?: { email?: string; name?: string } };
@@ -574,7 +575,7 @@ export const api = {
     request<{ data: PrinterConfig[] }>("/print/printers-config").then((r) => r.data),
   getPrintConfigs: () =>
     request<{ data: PrinterConfig[] }>("/print/printers-config").then((r) =>
-      (["sample-label", "coa", "service-request", "stock-label", "daily-check-report"] as PrintDocType[]).map((docType) =>
+      (["sample-label", "coa", "service-request", "stock-label", "daily-check-report", "goods-receipt"] as PrintDocType[]).map((docType) =>
         toLegacyPrintConfig(docType, r.data),
       ),
     ),
@@ -748,6 +749,16 @@ export const api = {
     request<MethodDoc>(`/methods/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteMethod: (id: string) =>
     request<{ ok: true }>(`/methods/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // Goods receipts (ฟอร์ม F-WAR-03-01,02 ของแผนก RM)
+  getGoodsReceiptsByPetition: (petitionId: string) =>
+    request<{ items: GoodsReceipt[] }>(`/goods-receipts?petitionId=${encodeURIComponent(petitionId)}`)
+      .then((r) => r.items),
+  createGoodsReceipt: (input: GoodsReceiptInput) =>
+    request<GoodsReceipt>("/goods-receipts", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 };
 
 export type QCProgressEntry = {

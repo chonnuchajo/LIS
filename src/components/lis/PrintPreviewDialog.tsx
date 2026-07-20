@@ -51,7 +51,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 function getSheetSize(printEl: HTMLDivElement | null, contentEl: HTMLDivElement) {
   const firstSheet = printEl?.querySelector<HTMLElement>(
-    "section, .label-page, .lr-page, .pr-page1, .pr-page2, .rr-page",
+    "section, .label-page, .lr-page, .pr-page1, .pr-page2, .rr-page, .gr-page1",
   );
   const target = firstSheet ?? printEl ?? contentEl;
   return {

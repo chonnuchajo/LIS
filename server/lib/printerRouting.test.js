@@ -14,13 +14,14 @@ describe('printerRouting kinds/map', () => {
   });
   test('all five doc types map to a kind', () => {
     expect(PRINT_DOC_TYPES).toEqual([
-      'sample-label', 'stock-label', 'coa', 'service-request', 'daily-check-report',
+      'sample-label', 'stock-label', 'coa', 'service-request', 'daily-check-report', 'goods-receipt',
     ]);
     expect(kindForDocType('sample-label')).toBe('sticker');
     expect(kindForDocType('stock-label')).toBe('sticker');
     expect(kindForDocType('coa')).toBe('a4');
     expect(kindForDocType('service-request')).toBe('a4');
     expect(kindForDocType('daily-check-report')).toBe('a4');
+    expect(kindForDocType('goods-receipt')).toBe('a4');
     expect(kindForDocType('nope')).toBeNull();
   });
   test('paper size derives from slug', () => {

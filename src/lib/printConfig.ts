@@ -1,4 +1,4 @@
-export type PrintDocType = "sample-label" | "coa" | "service-request" | "stock-label" | "daily-check-report";
+export type PrintDocType = "sample-label" | "coa" | "service-request" | "stock-label" | "daily-check-report" | "goods-receipt";
 export type PaperSize = "A4" | "label-100x50" | "label-6x4";
 export type PrinterKind = "a4" | "sticker";
 export type PrintOutputMode = "server" | "local";
@@ -56,6 +56,7 @@ const DOC_TYPE_KIND: Record<PrintDocType, PrinterKind> = {
   "coa": "a4",
   "service-request": "a4",
   "daily-check-report": "a4",
+  "goods-receipt": "a4",
 };
 
 export function docTypeToKind(docType: PrintDocType): PrinterKind {
@@ -118,6 +119,7 @@ export const PRINT_DOC_TYPES: PrintDocTypeMeta[] = [
   { slug: "service-request", label: "ใบคำขอ (Petition)",            defaultPaper: "A4" },
   { slug: "stock-label",     label: "ฉลากขวด Standard (sticker)", defaultPaper: "label-6x4" },
   { slug: "daily-check-report", label: "รายงานเช็กเครื่องมือ (Daily Check)", defaultPaper: "A4" },
+  { slug: "goods-receipt", label: "ใบรับสินค้า/ใบตรวจสอบวัตถุดิบ (RM)", defaultPaper: "A4" },
 ];
 
 export function getPrintDocType(slug: PrintDocType): PrintDocTypeMeta | undefined {
