@@ -34,6 +34,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -1812,6 +1813,11 @@ function ParameterDialog({
   const [busy, setBusy] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
+  const baselineRef = useRef("");
+  const serializeDialogState = (nextForm: ParameterItem, nextAiPrompt: string) =>
+    JSON.stringify({ form: nextForm, aiPrompt: nextAiPrompt });
+  const isDirty = open && serializeDialogState(form, aiPrompt) !== baselineRef.current;
 
   const runAi = async () => {
     const desc = aiPrompt.trim();
@@ -1849,7 +1855,11 @@ function ParameterDialog({
 
   useEffect(() => {
     if (open) {
-      setForm(item ? { ...emptyForm(defaultScope), ...item, scope: item.scope ?? defaultScope } : emptyForm(defaultScope));
+      const initialForm = item ? { ...emptyForm(defaultScope), ...item, scope: item.scope ?? defaultScope } : emptyForm(defaultScope);
+      setForm(initialForm);
+      setAiPrompt("");
+      setCloseConfirmOpen(false);
+      baselineRef.current = serializeDialogState(initialForm, "");
     }
   }, [open, item, defaultScope]);
 
@@ -1877,7 +1887,7 @@ function ParameterDialog({
   };
 
   const addField = () => {
-    set("valueFields", [...(form.valueFields ?? []), emptyValueField()]);
+    set("valueFields", [emptyValueField(), ...(form.valueFields ?? [])]);
   };
 
   const validate = (): string | null => {
@@ -1973,12 +1983,11 @@ function ParameterDialog({
     return null;
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const saveForm = async (): Promise<boolean> => {
     const err = validate();
     if (err) {
       toast.error(err);
-      return;
+      return false;
     }
     setBusy(true);
     const scope = form.scope ?? "qc";
@@ -2010,15 +2019,31 @@ function ParameterDialog({
       }
       onSaved();
       onClose();
+      return true;
     } catch (err) {
       toast.error((err as Error).message || "บันทึกไม่สำเร็จ");
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await saveForm();
+  };
+
+  const requestClose = () => {
+    if (busy) return;
+    if (isDirty) {
+      setCloseConfirmOpen(true);
+      return;
+    }
+    onClose();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && !busy && onClose()}>
+    <Dialog open={open} onOpenChange={(v) => !v && requestClose()}>
       <DialogContent className="max-h-[92vh] w-[95vw] sm:max-w-[1400px] overflow-y-auto p-6 sm:p-8">
         <DialogHeader className="mb-2">
           <DialogTitle className="text-xl">
@@ -2350,7 +2375,7 @@ function ParameterDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              onClick={requestClose}
               disabled={busy}
               className="h-11 px-6"
             >
@@ -2361,6 +2386,41 @@ function ParameterDialog({
             </Button>
           </DialogFooter>
         </form>
+        <Dialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>บันทึกหรือไม่บันทึกสิ่งที่เปลี่ยนแปลง</DialogTitle>
+              <DialogDescription>
+                มีการแก้ไขข้อมูลพารามิเตอร์ที่ยังไม่ได้บันทึก เลือกบันทึกก่อนออกหรือออกโดยไม่บันทึก
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setCloseConfirmOpen(false)}>
+                กลับไปแก้ไข
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setCloseConfirmOpen(false);
+                  onClose();
+                }}
+              >
+                ไม่บันทึก
+              </Button>
+              <Button
+                type="button"
+                disabled={busy}
+                onClick={async () => {
+                  const saved = await saveForm();
+                  if (!saved) setCloseConfirmOpen(false);
+                }}
+              >
+                บันทึก
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );
