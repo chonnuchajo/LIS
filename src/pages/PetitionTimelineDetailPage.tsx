@@ -8,6 +8,7 @@ import LabResultReportTemplate, { LAB_REPORT_CSS } from "@/components/petition/L
 import PetitionPrintTemplate from "@/components/petition/PetitionPrintTemplate";
 import ResultReportPrintTemplate from "@/components/petition/ResultReportPrintTemplate";
 import SampleLabelPrintTemplate from "@/components/petition/SampleLabelPrintTemplate";
+import GoodsReceiptView from "@/components/warehouse/GoodsReceiptView";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { useLabRequestsByPetition, usePetition, usePetitionAuditLog } from "@/hooks/usePetition";
 import { api, type ParameterItem, type QCProgressEntry } from "@/lib/api";
+import type { GoodsReceipt } from "@/types/goodsReceipt.types";
 import { findSgParameter } from "@/lib/formSpecificGravity";
 import { buildTimelineDetailModel, type TimelineDetailActivity, type TimelineDetailDayRow, type TimelineDetailRow, type TimelineDetailTick } from "@/lib/petitionTimelineDetail";
 import { timelineBarClass, timelineDotClass } from "@/lib/petitionTimelineColors";
@@ -184,6 +186,7 @@ export default function PetitionTimelineDetailPage() {
   const [activityDialogOpen, setActivityDialogOpen] = useState(false);
   const [activityPage, setActivityPage] = useState(1);
   const [qcResults, setQcResults] = useState<import("@/types/petition.types").QCTestResult[]>([]);
+  const [goodsReceipt, setGoodsReceipt] = useState<GoodsReceipt | null>(null);
   const [documentLoading, setDocumentLoading] = useState(false);
   const [documentError, setDocumentError] = useState<string | null>(null);
   const [labelPrintOpen, setLabelPrintOpen] = useState(false);
@@ -231,6 +234,26 @@ export default function PetitionTimelineDetailPage() {
       alive = false;
     };
   }, [petition?._id, taskReloadKey]);
+
+  // ใบรับสินค้า/ใบตรวจสอบวัตถุดิบ (F-WAR-03-01,02) มีเฉพาะคำร้องแผนก RM — ไม่ยิง fetch เลยสำหรับแผนกอื่น
+  useEffect(() => {
+    if (!petition?._id || petition.dept !== "rm") {
+      setGoodsReceipt(null);
+      return;
+    }
+    let alive = true;
+    api.getGoodsReceiptsByPetition(petition._id)
+      .then((list) => {
+        if (!alive) return;
+        setGoodsReceipt(list[0] ?? null);
+      })
+      .catch(() => {
+        if (alive) setGoodsReceipt(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [petition?._id, petition?.dept]);
 
   useEffect(() => {
     setLabelPrintOpen(false);
@@ -521,6 +544,15 @@ export default function PetitionTimelineDetailPage() {
         <Card aria-label="Parameter ที่ต้องตรวจสอบ" className="border-black-50 shadow-none"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-base"><ListTodo className="h-4 w-4 text-primary-500" />Parameter ที่ต้องตรวจสอบ</CardTitle></CardHeader><CardContent className="space-y-3">
           {taskError ? <div className="flex items-center justify-between gap-3 rounded-[8px] border border-red-200 bg-red-50 p-3 text-sm text-red-600"><span>โหลดข้อมูล parameter ไม่สำเร็จ: {taskError}</span><Button variant="danger-outline" size="sm" onClick={refreshTasks}>ลองใหม่</Button></div> : model.tasks.length === 0 ? <p className="py-4 text-center text-sm text-grey-500">ไม่มี parameter ที่ require สำหรับคำร้องนี้</p> : model.tasks.map((task) => <div key={task.key} className="grid gap-2 border-b border-black-50 pb-3 last:border-b-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_110px_100px]"><div className="min-w-0"><p className="truncate text-sm font-medium text-black-500">{task.parameterName}</p><p className="mt-1 text-xs text-grey-500">{task.sampleName}</p></div><div className="self-center"><div className="h-2 overflow-hidden rounded-full bg-grey-100"><div className="h-full bg-primary-500" style={{ width: `${(task.filled / task.total) * 100}%` }} /></div><p className="mt-1 text-xs text-grey-500">{task.filled}/{task.total}</p></div><span className={cn("self-center justify-self-start rounded px-2 py-1 text-xs font-medium", taskStateClass(task.state))}>{taskStateLabel(task.state)}</span></div>)}
         </CardContent></Card>
+
+        {petition.dept === "rm" && goodsReceipt && (
+          <Card aria-label="ใบรับสินค้า / ใบตรวจสอบวัตถุดิบ" className="border-black-50 shadow-none">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4 text-primary-500" />ใบรับสินค้า / ใบตรวจสอบวัตถุดิบ</CardTitle>
+            </CardHeader>
+            <CardContent><GoodsReceiptView doc={goodsReceipt} /></CardContent>
+          </Card>
+        )}
       </div>
 
       <div className="space-y-4">
