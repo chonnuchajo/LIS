@@ -70,4 +70,30 @@ describe('buildRmPetitionItems', () => {
     expect(() => buildRmPetitionItems(receipt, bad))
       .toThrow('ยังไม่ได้เลือกรายการสินค้าอ้างอิงของแบช B-004');
   });
+
+  it('ติ๊กส่งตรวจ 2 แบชด้วยแบชนัมเบอร์เดียวกัน → โยน error ระบุแบชนัมเบอร์ที่ซ้ำ', () => {
+    const dupReceipt: GoodsReceiptReceipt = {
+      productName: 'Glyphosate 48% SL',
+      productBatches: [
+        { batchNo: 'B-001', sendToLab: true },
+        { batchNo: 'B-001', sendToLab: true },
+        { batchNo: 'B-002', sendToLab: true },
+      ],
+    };
+    const dupSelections = [
+      { batchNo: 'B-001', commonName: 'Glyphosate', testItems: 'Active Ingredient' },
+      { batchNo: 'B-002', commonName: 'Glyphosate', testItems: 'pH' },
+    ];
+    expect(() => buildRmPetitionItems(dupReceipt, dupSelections)).toThrow('B-001');
+  });
+
+  it('แบชที่ไม่ได้ติ๊กมีแบชนัมเบอร์ซ้ำกับแบชที่ติ๊ก → ไม่โยน error (นับเฉพาะแบชที่ติ๊ก)', () => {
+    const withUntickedDup: GoodsReceiptReceipt = {
+      ...receipt,
+      productBatches: [...receipt.productBatches, { batchNo: 'B-001', sendToLab: false }],
+    };
+    const items = buildRmPetitionItems(withUntickedDup, selections);
+    expect(items).toHaveLength(3);
+    expect(items.map((i) => i.batchNo)).toEqual(['B-001', 'B-003', 'B-004']);
+  });
 });

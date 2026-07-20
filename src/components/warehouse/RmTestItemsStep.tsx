@@ -51,7 +51,8 @@ const MasterItemPicker = ({ options, loading, commonName, onPick }: {
               {options.map((option) => (
                 <CommandItem
                   key={`${option.itemNo}-${option.sampleName}-${option.commonName}-${option.packageUnit}`}
-                  value={[option.sampleName, option.commonName, option.itemNo].filter(Boolean).join(' ')}
+                  value={[option.sampleName, option.commonName, option.packageUnit, option.itemNo]
+                    .filter(Boolean).join(' ')}
                   onSelect={() => { onPick(option); setOpen(false); }}>
                   <div className="flex flex-col">
                     <span>{option.sampleName}</span>

@@ -30,6 +30,19 @@ export function buildRmPetitionItems(
     throw new Error('แบชที่ส่งตรวจต้องระบุแบชนัมเบอร์');
   }
 
+  // แบชนัมเบอร์พิมพ์เองในขั้นตอนใบรับสินค้า ไม่มีอะไรกันติ๊กส่งตรวจ 2 แบชด้วยเลขเดียวกัน
+  // ถ้าปล่อยผ่านจะจับคู่ selection ตัวเดียวกันซ้ำ กลายเป็น item ซ้ำ commonName/testItems เหมือนกันทุกอย่าง
+  // ต้องเช็คก่อนเช็ค selection รายแบช เพราะนี่คือปัญหาเชิงโครงสร้างที่ต้องแก้ก่อน
+  const batchNoCounts = new Map<string, number>();
+  for (const b of selected) {
+    const batchNo = String(b.batchNo).trim();
+    batchNoCounts.set(batchNo, (batchNoCounts.get(batchNo) ?? 0) + 1);
+  }
+  const duplicateBatchNo = [...batchNoCounts.entries()].find(([, count]) => count > 1)?.[0];
+  if (duplicateBatchNo) {
+    throw new Error(`แบชที่ส่งตรวจมีแบชนัมเบอร์ซ้ำกัน: ${duplicateBatchNo}`);
+  }
+
   const byBatch = new Map(selections.map((s) => [String(s.batchNo ?? '').trim(), s]));
 
   return selected.map((batch, index) => {
