@@ -115,8 +115,8 @@ export interface RawMaterialInspection {
 
 export interface GoodsReceipt {
   _id?: string;
-  receiptNo?: string;
-  inspectionNo?: string;
+  receiptNo: string;
+  inspectionNo: string;
   warehouse?: string;
   petitionId: string;
   petitionNo?: string;

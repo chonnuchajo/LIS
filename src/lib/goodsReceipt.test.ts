@@ -3,53 +3,108 @@ import {
   QUANTITY_UNIT_LABELS, WEIGHT_UNIT_LABELS, RECEIPT_REFERENCE_LABELS,
   TOLERANCE_RESULT_LABELS, LATE_DELIVERY_LABELS, CONTAINER_TYPE_LABELS,
   CONTAINER_CONDITION_LABELS, PRESENCE_LABELS, APPEARANCE_LABELS,
-  isReceiptFilled, isInspectionFilled,
+  joinLabels, isReceiptFilled, isInspectionFilled,
 } from './goodsReceipt';
 
-// label map ต้องครอบทุกค่า enum — กันลืมเวลาเพิ่มตัวเลือกใหม่
-describe('label maps ครอบทุกค่า enum', () => {
-  it('หน่วยจำนวน 4 ค่า', () => {
-    expect(Object.keys(QUANTITY_UNIT_LABELS).sort())
-      .toEqual(['box', 'can', 'drum', 'sack']);
+// pin ข้อความไทยทั้ง map — กันแก้/พิมพ์ผิดคำแปลของฟอร์ม F-WAR-03-01,02
+// (Record<Enum, string> คุม key set ครบ/ขาดให้แล้วที่ compile time; ที่นี่คุมแค่ค่า string)
+describe('label maps ข้อความไทยตรงกับฟอร์ม', () => {
+  it('หน่วยจำนวน', () => {
+    expect(QUANTITY_UNIT_LABELS).toEqual({
+      drum: 'ถัง',
+      sack: 'กส',
+      box: 'กล่อง',
+      can: 'กป',
+    });
   });
 
-  it('หน่วยน้ำหนัก 3 ค่า', () => {
-    expect(Object.keys(WEIGHT_UNIT_LABELS).sort())
-      .toEqual(['kg', 'litre', 'piece']);
+  it('หน่วยน้ำหนัก', () => {
+    expect(WEIGHT_UNIT_LABELS).toEqual({
+      litre: 'ลิตร',
+      kg: 'กก.',
+      piece: 'ชิ้น',
+    });
   });
 
-  it('อ้างถึง 3 ค่า', () => {
-    expect(Object.keys(RECEIPT_REFERENCE_LABELS).sort())
-      .toEqual(['deliveryNote', 'domestic', 'foreign']);
+  it('อ้างถึง', () => {
+    expect(RECEIPT_REFERENCE_LABELS).toEqual({
+      foreign: 'รายงานสินค้าต่างประเทศเข้าโรงงาน',
+      domestic: 'รายงานสินค้าในประเทศเข้าโรงงาน',
+      deliveryNote: 'เลขที่ใบส่งของ',
+    });
   });
 
-  it('เกณฑ์สารออกฤทธิ์ 2 ค่า', () => {
-    expect(Object.keys(TOLERANCE_RESULT_LABELS).sort()).toEqual(['outside', 'within']);
+  it('เกณฑ์สารออกฤทธิ์', () => {
+    expect(TOLERANCE_RESULT_LABELS).toEqual({
+      within: 'อยู่ในเกณฑ์',
+      outside: 'ไม่อยู่ในเกณฑ์',
+    });
   });
 
-  it('การส่งมอบล่าช้า 2 ค่า', () => {
-    expect(Object.keys(LATE_DELIVERY_LABELS).sort())
-      .toEqual(['vsPurchaseOrder', 'vsReport']);
+  it('การส่งมอบล่าช้า', () => {
+    expect(LATE_DELIVERY_LABELS).toEqual({
+      vsReport: 'ส่งมอบล่าช้าเมื่อเปรียบเทียบกับรายงานสินค้าในประเทศ หรือรายงานสินค้าต่างประเทศเข้าโรงงาน',
+      vsPurchaseOrder: 'ส่งมอบล่าช้าเมื่อเปรียบเทียบกับใบสั่งซื้อ (กรณีรับที่สำนักงาน)',
+    });
   });
 
-  it('ลักษณะภาชนะ 8 ค่า', () => {
-    expect(Object.keys(CONTAINER_TYPE_LABELS)).toHaveLength(8);
-    expect(CONTAINER_TYPE_LABELS.paperDrum).toBe('ถังกระดาษ');
-    expect(CONTAINER_TYPE_LABELS.jar).toBe('กระปุก');
+  it('ลักษณะภาชนะ', () => {
+    expect(CONTAINER_TYPE_LABELS).toEqual({
+      paperDrum: 'ถังกระดาษ',
+      steelDrum: 'ถังเหล็ก',
+      plasticDrum: 'ถังพลาสติก',
+      paperSack: 'กระสอบกระดาษ',
+      plasticSack: 'กระสอบพลาสติก',
+      paperBox: 'กล่องกระดาษ',
+      jar: 'กระปุก',
+      other: 'อื่นๆ',
+    });
   });
 
-  it('สภาพภาชนะ 2 ค่า', () => {
-    expect(Object.keys(CONTAINER_CONDITION_LABELS).sort())
-      .toEqual(['leakOrBroken', 'normal']);
+  it('สภาพภาชนะ', () => {
+    expect(CONTAINER_CONDITION_LABELS).toEqual({
+      normal: 'ปกติ',
+      leakOrBroken: 'รั่วซึม/แตก',
+    });
   });
 
-  it('มี/ไม่มี 2 ค่า', () => {
-    expect(Object.keys(PRESENCE_LABELS).sort()).toEqual(['has', 'none']);
+  it('มี/ไม่มี', () => {
+    expect(PRESENCE_LABELS).toEqual({
+      has: 'มี',
+      none: 'ไม่มี',
+    });
   });
 
-  it('ลักษณะสินค้า 9 ค่า', () => {
-    expect(Object.keys(APPEARANCE_LABELS)).toHaveLength(9);
-    expect(APPEARANCE_LABELS.viscousLiquid).toBe('ของเหลวข้น');
+  it('ลักษณะสินค้า', () => {
+    expect(APPEARANCE_LABELS).toEqual({
+      powder: 'ผง',
+      flake: 'เกร็ด',
+      granule: 'เม็ด',
+      lump: 'ก้อน',
+      fine: 'ละเอียด',
+      coarse: 'หยาบ',
+      viscousLiquid: 'ของเหลวข้น',
+      clearLiquid: 'ของเหลวใส',
+      other: 'อื่นๆ',
+    });
+  });
+});
+
+describe('joinLabels', () => {
+  it('หลายค่า → คั่นด้วย ", "', () => {
+    expect(joinLabels(['drum', 'sack'], QUANTITY_UNIT_LABELS)).toBe('ถัง, กส');
+  });
+
+  it('array ว่าง → string ว่าง', () => {
+    expect(joinLabels([], QUANTITY_UNIT_LABELS)).toBe('');
+  });
+
+  it('undefined → string ว่าง', () => {
+    expect(joinLabels(undefined, QUANTITY_UNIT_LABELS)).toBe('');
+  });
+
+  it('มี key ที่ไม่อยู่ใน map ปน → key นั้นถูกกรองทิ้ง (ไม่ throw)', () => {
+    expect(joinLabels(['drum', 'unknown' as 'drum'], QUANTITY_UNIT_LABELS)).toBe('ถัง');
   });
 });
 
