@@ -132,8 +132,8 @@ const InspectionSchema = new mongoose.Schema({
 }, { _id: false });
 
 const GoodsReceiptSchema = new mongoose.Schema({
-  receiptNo: String,
-  inspectionNo: String,
+  receiptNo: { type: String, required: true },
+  inspectionNo: { type: String, required: true },
   warehouse: String,
   petitionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Petition', required: true, index: true },
   petitionNo: { type: String, index: true },
