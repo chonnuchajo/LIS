@@ -14,9 +14,9 @@ const receipt: GoodsReceiptReceipt = {
 };
 
 const selections = [
-  { batchNo: 'B-001', commonName: 'Glyphosate', testItems: 'Active Ingredient' },
-  { batchNo: 'B-003', commonName: 'Glyphosate', testItems: 'Active Ingredient, pH' },
-  { batchNo: 'B-004', commonName: 'Glyphosate', testItems: 'pH' },
+  { batchNo: 'B-001', commonName: 'Glyphosate' },
+  { batchNo: 'B-003', commonName: 'Glyphosate' },
+  { batchNo: 'B-004', commonName: 'Glyphosate' },
 ];
 
 describe('buildRmPetitionItems', () => {
@@ -32,10 +32,14 @@ describe('buildRmPetitionItems', () => {
     expect(items.every((i) => i.sampleName === 'Glyphosate 48% SL')).toBe(true);
   });
 
-  it('commonName กับ testItems มาจาก selection ของแบชนั้น', () => {
+  it('commonName มาจาก selection ของแบชนั้น', () => {
     const items = buildRmPetitionItems(receipt, selections);
     expect(items[1].commonName).toBe('Glyphosate');
-    expect(items[1].testItems).toBe('Active Ingredient, pH');
+  });
+
+  it('testItems ว่างเสมอ — RM ใช้ classification-based matching เหมือน production (ไม่ exact-match ชื่อพารามิเตอร์)', () => {
+    const items = buildRmPetitionItems(receipt, selections);
+    expect(items.every((i) => i.testItems === '')).toBe(true);
   });
 
   it('ไม่ติ๊กแบชเลย → โยน error', () => {
@@ -54,19 +58,13 @@ describe('buildRmPetitionItems', () => {
       .toThrow('แบชที่ส่งตรวจต้องระบุแบชนัมเบอร์');
   });
 
-  it('แบชที่ติ๊กแต่ไม่มี selection เลย → โยน error รายการสินค้าอ้างอิงก่อน (เช็ค commonName ก่อน testItems)', () => {
+  it('แบชที่ติ๊กแต่ไม่มี selection เลย → โยน error รายการสินค้าอ้างอิง', () => {
     expect(() => buildRmPetitionItems(receipt, selections.slice(0, 2)))
       .toThrow('ยังไม่ได้เลือกรายการสินค้าอ้างอิงของแบช B-004');
   });
 
-  it('เลือกรายการทดสอบเป็นข้อความว่าง → โยน error ระบุแบช', () => {
-    const bad = [...selections.slice(0, 2), { batchNo: 'B-004', commonName: 'Glyphosate', testItems: '  ' }];
-    expect(() => buildRmPetitionItems(receipt, bad))
-      .toThrow('ยังไม่ได้เลือกรายการทดสอบของแบช B-004');
-  });
-
-  it('แบชที่ติ๊กแต่ยังไม่เลือก master item → โยน error ระบุแบช', () => {
-    const bad = [...selections.slice(0, 2), { batchNo: 'B-004', commonName: '', testItems: 'pH' }];
+  it('แบชที่ติ๊กแต่ยังไม่เลือก master item (commonName ว่าง) → โยน error ระบุแบช', () => {
+    const bad = [...selections.slice(0, 2), { batchNo: 'B-004', commonName: '' }];
     expect(() => buildRmPetitionItems(receipt, bad))
       .toThrow('ยังไม่ได้เลือกรายการสินค้าอ้างอิงของแบช B-004');
   });
@@ -81,8 +79,8 @@ describe('buildRmPetitionItems', () => {
       ],
     };
     const dupSelections = [
-      { batchNo: 'B-001', commonName: 'Glyphosate', testItems: 'Active Ingredient' },
-      { batchNo: 'B-002', commonName: 'Glyphosate', testItems: 'pH' },
+      { batchNo: 'B-001', commonName: 'Glyphosate' },
+      { batchNo: 'B-002', commonName: 'Glyphosate' },
     ];
     expect(() => buildRmPetitionItems(dupReceipt, dupSelections)).toThrow('B-001');
   });

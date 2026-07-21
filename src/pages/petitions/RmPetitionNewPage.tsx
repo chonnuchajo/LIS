@@ -19,7 +19,7 @@ import RawMaterialInspectionStep from '@/components/warehouse/RawMaterialInspect
 import RmTestItemsStep from '@/components/warehouse/RmTestItemsStep';
 import SubmitterPicker, { type SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
 
-const STEPS = ['ใบรับสินค้า', 'ใบตรวจสอบวัตถุดิบ', 'รายการทดสอบ', 'ตรวจทาน'];
+const STEPS = ['ใบรับสินค้า', 'ใบตรวจสอบวัตถุดิบ', 'สินค้าอ้างอิง', 'ตรวจทาน'];
 
 export default function RmPetitionNewPage() {
   const navigate = useNavigate();

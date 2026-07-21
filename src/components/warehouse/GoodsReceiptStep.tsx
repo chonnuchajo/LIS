@@ -37,6 +37,16 @@ export default function GoodsReceiptStep({ value, onChange, warehouse, onWarehou
     set('productBatches', rows);
   };
 
+  // productName ↔ Petition.items[].sampleName และ productBatches[].batchNo ↔ Petition.items[].batchNo
+  // เป็น key เดียวที่ผูกใบรับสินค้ากับ petition (ดูทั้งสองแก้ไม่ได้หลัง submit) — rmPetitionMapping.ts
+  // trim ค่าทั้งสองตอนสร้าง petition item อยู่แล้ว ฝั่งฟอร์มนี้ต้อง trim ตอน commit ค่า (blur) ให้ตรงกัน
+  // ไม่ trim ทุก keystroke (onChange) เพราะจะพิมพ์คำที่มีเว้นวรรคต่อท้ายไม่ได้
+  const commitTrimmed = (raw: string | undefined, save: (trimmed: string) => void) => {
+    if (typeof raw !== 'string') return;
+    const trimmed = raw.trim();
+    if (trimmed !== raw) save(trimmed);
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -80,7 +90,8 @@ export default function GoodsReceiptStep({ value, onChange, warehouse, onWarehou
               <Input value={value.productCode ?? ''} onChange={(e) => set('productCode', e.target.value)} />
             </Field>
             <Field label="ชื่อสินค้า">
-              <Input value={value.productName ?? ''} onChange={(e) => set('productName', e.target.value)} />
+              <Input value={value.productName ?? ''} onChange={(e) => set('productName', e.target.value)}
+                onBlur={() => commitTrimmed(value.productName, (v) => set('productName', v))} />
             </Field>
             <Field label="% สารออกฤทธิ์">
               <Input value={value.activeIngredientPercent ?? ''} onChange={(e) => set('activeIngredientPercent', e.target.value)} />
@@ -179,7 +190,8 @@ export default function GoodsReceiptStep({ value, onChange, warehouse, onWarehou
           {(value.productBatches ?? []).map((b, i) => (
             <div key={i} className="flex gap-2 items-end">
               <Field label="แบชนัมเบอร์" className="flex-1">
-                <Input value={b.batchNo ?? ''} onChange={(e) => setProductBatch(i, { batchNo: e.target.value })} />
+                <Input value={b.batchNo ?? ''} onChange={(e) => setProductBatch(i, { batchNo: e.target.value })}
+                  onBlur={() => commitTrimmed(b.batchNo, (v) => setProductBatch(i, { batchNo: v }))} />
               </Field>
               <Field label="จำนวน" className="w-28">
                 <Input type="number" value={b.amount ?? ''} onChange={(e) => setProductBatch(i, { amount: num(e.target.value) })} />
