@@ -8,6 +8,7 @@ import LabResultReportTemplate, { LAB_REPORT_CSS } from "@/components/petition/L
 import PetitionPrintTemplate from "@/components/petition/PetitionPrintTemplate";
 import ResultReportPrintTemplate from "@/components/petition/ResultReportPrintTemplate";
 import SampleLabelPrintTemplate from "@/components/petition/SampleLabelPrintTemplate";
+import GoodsReceiptPrintTemplate, { GOODS_RECEIPT_CSS } from "@/components/warehouse/GoodsReceiptPrintTemplate";
 import GoodsReceiptView from "@/components/warehouse/GoodsReceiptView";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -194,6 +195,7 @@ export default function PetitionTimelineDetailPage() {
   const [preReportOpen, setPreReportOpen] = useState(false);
   const [finalReportOpen, setFinalReportOpen] = useState(false);
   const [labResultOpen, setLabResultOpen] = useState(false);
+  const [grPrintOpen, setGrPrintOpen] = useState(false);
   const [activeTimelineDayKey, setActiveTimelineDayKey] = useState<string | null>(null);
   const [activeItemSeq, setActiveItemSeq] = useState<number | null>(null);
   const [crosshair, setCrosshair] = useState<{ percent: number; label: string; x: number; y: number; flip: boolean } | null>(null);
@@ -547,8 +549,11 @@ export default function PetitionTimelineDetailPage() {
 
         {petition.dept === "rm" && goodsReceipt && (
           <Card aria-label="ใบรับสินค้า / ใบตรวจสอบวัตถุดิบ" className="border-black-50 shadow-none">
-            <CardHeader className="pb-3">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
               <CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4 text-primary-500" />ใบรับสินค้า / ใบตรวจสอบวัตถุดิบ</CardTitle>
+              <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => setGrPrintOpen(true)}>
+                <Printer className="h-3.5 w-3.5" />พิมพ์ฟอร์ม
+              </Button>
             </CardHeader>
             <CardContent><GoodsReceiptView doc={goodsReceipt} /></CardContent>
           </Card>
@@ -595,5 +600,10 @@ export default function PetitionTimelineDetailPage() {
     {preReportOpen && <PrintPreviewDialog open={preReportOpen} onOpenChange={setPreReportOpen} docType="coa"><ResultReportPrintTemplate kind="pre" petition={petition} labRequests={labRequests ?? []} qcResults={qcResults} /></PrintPreviewDialog>}
     {finalReportOpen && <PrintPreviewDialog open={finalReportOpen} onOpenChange={setFinalReportOpen} docType="coa"><ResultReportPrintTemplate kind="final" petition={petition} labRequests={labRequests ?? []} qcResults={qcResults} /></PrintPreviewDialog>}
     {labResultOpen && <PrintPreviewDialog open={labResultOpen} onOpenChange={setLabResultOpen} docType="coa" css={LAB_REPORT_CSS}><LabResultReportTemplate pages={labReportPages} /></PrintPreviewDialog>}
+    {grPrintOpen && goodsReceipt && (
+      <PrintPreviewDialog open={grPrintOpen} onOpenChange={setGrPrintOpen} docType="goods-receipt" css={GOODS_RECEIPT_CSS}>
+        <GoodsReceiptPrintTemplate doc={goodsReceipt} />
+      </PrintPreviewDialog>
+    )}
   </div></AppLayout>;
 }
