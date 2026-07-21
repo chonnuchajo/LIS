@@ -2,6 +2,7 @@
 // primitive CB/RD/Line + แนวคิด CSS ยกมาจาก PetitionPrintTemplate แล้วเปลี่ยน prefix เป็น .gr-
 import { A4_PRINT_FONT_FAMILY, A4_PRINT_FONT_SIZE } from '@/lib/printConfig';
 import FitToBox from '@/components/petition/FitToBox';
+import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
 import type {
   Appearance, ContainerType, GoodsReceipt, GrossWeightUnit, QuantityUnit, WeightUnit,
 } from '@/types/goodsReceipt.types';
@@ -66,6 +67,9 @@ function PageOne({ doc }: { doc: GoodsReceipt }) {
   return (
     <section className="gr-page1">
       <FitToBox className="gr-fit-outer" contentClassName="gr-fit-col">
+        <div className="gr-logo">
+          <img src={ICP_LADDA_LOGO_URL} alt="ICP Ladda" />
+        </div>
         <div className="gr-title">ใบรับสินค้า (ลัดดา)</div>
         <p>คลังสินค้า <Line value={doc.warehouse} width="4cm" />
            {' '}เลขที่ <Line value={doc.receiptNo} width="4cm" /></p>
@@ -344,6 +348,13 @@ export default function GoodsReceiptPrintTemplate({ doc }: { doc: GoodsReceipt }
 
 export const GOODS_RECEIPT_CSS = `
 @page { size: A4; margin: 0 }
+/* .gr-root ตั้งใจเป็น selector เดี่ยว ไม่ nest ลูก (ไม่ใช่ ".gr-root *") — ใช้ได้เพราะ JSX ในไฟล์นี้
+   มีแต่ classNames prefix gr-* เท่านั้น และ Tailwind preflight ไม่ตั้ง typography ให้ p/span/td/div เปล่าๆ
+   เลย inherit font/size ลงมาได้เนียนทั้งซับทรี แต่ collectDocumentCss() (src/lib/print.ts) inline
+   stylesheet ทั้งหมดในหน้า (รวม Tailwind) ลงไปในหน้าปริ้นด้วย — ถ้าใครเพิ่ม Tailwind utility class
+   (เช่น className="text-sm") หรือ reuse shared UI primitive ที่มี utility class ติดมาไว้ใน subtree นี้
+   utility นั้นจะ override typography ของฟอร์มตอนปริ้นทันที (เพราะ .gr-root เป็นแค่ selector เดี่ยว
+   ไม่ได้บังคับ !important ทับลูกทุกตัว) ห้ามใช้ className อื่นนอกจาก gr-* ในไฟล์นี้ */
 .gr-root { font-family: ${A4_PRINT_FONT_FAMILY} !important;
            font-size: ${A4_PRINT_FONT_SIZE} !important; color: #000 !important; line-height: 1.2 }
 .gr-root, .gr-root * { box-sizing: border-box }
@@ -362,6 +373,8 @@ export const GOODS_RECEIPT_CSS = `
            padding: 0 2pt; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: baseline }
 
 .gr-footer { margin-top: auto; font-size: 9pt; padding-top: 3pt }
+.gr-logo { margin-bottom: 2mm }
+.gr-logo img { height: 14mm; width: auto; display: block }
 .gr-title { text-align: center; font-weight: 700; font-size: 18pt; margin-bottom: 4mm }
 .gr-ind2 { margin-left: 0.5cm }
 
