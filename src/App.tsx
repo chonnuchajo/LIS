@@ -150,6 +150,7 @@ const App = () => (
               <Route path="/petitions-old/assign" element={<PrivateRoute><PetitionAssignPage /></PrivateRoute>} />
               <Route path="/petitions-old/new" element={<PrivateRoute><PetitionNewPage /></PrivateRoute>} />
               <Route path="/petitions-old/production/new" element={<PrivateRoute><ProductionIntegrationPetitionNewPage /></PrivateRoute>} />
+              <Route path="/petitions/ProductionIntegrationPetitionNewPage" element={<ProductionIntegrationPetitionNewPage />} />
               <Route path="/petitions-old/ProductionIntegrationPetitionNewPage" element={<ProductionIntegrationPetitionNewPage />} />
               <Route path="/petitions-old/:id" element={<PrivateRoute><PetitionDetailPage /></PrivateRoute>} />
               <Route path="/petitions-old/:id/edit" element={<PrivateRoute><PetitionEditPage /></PrivateRoute>} />
