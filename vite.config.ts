@@ -5,6 +5,13 @@ import { componentTagger } from "lovable-tagger";
 
 export default defineConfig(({ mode }) => ({
   base: "/LIS/",
+  experimental: {
+    renderBuiltUrl(filename) {
+      if (filename.startsWith("assets/")) {
+        return { relative: true };
+      }
+    },
+  },
 
   server: {
     host: "0.0.0.0",
