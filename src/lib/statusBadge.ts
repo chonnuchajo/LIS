@@ -1,5 +1,8 @@
 import type { BadgeProps } from "@/components/ui/badge";
 import { PETITION_STATUS_CONFIG, type Petition } from "@/types/petition.types";
+import { hasLabTrack, requiresQcTrack } from "./petitionRouting";
+
+export { hasLabTrack } from "./petitionRouting";
 
 export type BadgeVariant = NonNullable<BadgeProps["variant"]>;
 
@@ -40,38 +43,33 @@ export function petitionStatusBadge(petition: Petition): StatusBadge {
   if (["success", "approved", "rejected"].includes(petition.status)) {
     return statusBadge(petition.status);
   }
+  const hasQc = requiresQcTrack(petition);
   // ทั้ง QC และ Lab บันทึกผลครบแล้ว เหลือเพียงหัวหน้า Lab ออกผล — ต้องมาก่อน
   // สาขา qcCompletedAt ด้านล่าง ไม่งั้นจะถูกกลืนเป็น "รอส่วนอื่น" ทั้งที่ Lab ตรวจครบแล้ว
   // (เช่น P-2606-0018: qcCompletedAt + labCompletedAt แต่ยังไม่ labApprovedAt)
-  if (petition.qcCompletedAt && petition.labCompletedAt && !petition.labApprovedAt) {
+  if (hasQc && petition.qcCompletedAt && petition.labCompletedAt && !petition.labApprovedAt) {
     return toneBadge("warning", "รอตรวจ");
   }
-  if (petition.qcCompletedAt) return toneBadge("warning", "QC ตรวจครบ · รอส่วนอื่น");
-  if (petition.labApprovedAt) return toneBadge("warning", "ผล Lab ออกแล้ว · รอ QC");
+  if (hasQc && petition.qcCompletedAt) return toneBadge("warning", "QC ตรวจครบ · รอส่วนอื่น");
+  if (petition.labApprovedAt) return toneBadge("warning", hasQc ? "ผล Lab ออกแล้ว · รอ QC" : "ผล Lab ออกแล้ว · รอ Final Result");
   if (petition.labCompletedAt) return toneBadge("warning", "รอออกผล");
   return statusBadge(petition.status);
-}
-
-export function hasLabTrack(petition: Petition): boolean {
-  return Boolean(
-    petition.labReceivedAt ||
-      petition.labCompletedAt ||
-      petition.labApprovedAt ||
-      petition.items?.some((item) => /[16]$/.test(String(item.batchNo ?? "").trim())),
-  );
 }
 
 export function petitionStatusSteps(petition: Petition): PetitionStatusStep[] {
   const closed = ["success", "approved", "rejected"].includes(petition.status);
   const hasLab = hasLabTrack(petition);
-  const qcDone = !!petition.qcCompletedAt || closed;
+  const hasQc = requiresQcTrack(petition);
+  const qcDone = !hasQc || !!petition.qcCompletedAt || closed;
   const labDone = !hasLab || !!petition.labCompletedAt || closed;
   const labApproved = !hasLab || !!petition.labApprovedAt || closed;
   const steps: PetitionStatusStep[] = [
     { key: "received", label: "รับตัวอย่าง", done: !!(petition.qcReceivedAt || petition.labReceivedAt || petition.receivedAt) || closed },
     { key: "assigned", label: "Assign", done: !!petition.assignedTo || closed },
-    { key: "qc", label: "QC", done: qcDone },
   ];
+  if (hasQc) {
+    steps.push({ key: "qc", label: "QC", done: qcDone });
+  }
   if (hasLab) {
     steps.push(
       { key: "lab", label: "Lab", done: labDone },

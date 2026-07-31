@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NAV_ITEMS } from "./navItems";
+import { NAV_ITEMS, PAGE_ITEMS } from "./navItems";
 
 describe("NAV_ITEMS", () => {
   it("does not expose separate lab or qc dashboard links in the main nav", () => {
@@ -15,6 +15,15 @@ describe("NAV_ITEMS", () => {
     const paths = NAV_ITEMS.map((item) => item.path);
     expect(paths).not.toContain("/petitions");
     expect(paths).not.toContain("/petition-timeline");
+  });
+
+  it("uses /petitions/new as the canonical new petition page path", () => {
+    const pagePaths = PAGE_ITEMS.map((item) => item.path);
+    expect(pagePaths).toContain("/petitions/new");
+    expect(pagePaths).not.toContain("/petitions-old");
+    expect(pagePaths).not.toContain("/petitions-old/new");
+    expect(pagePaths).not.toContain("/petitions-old/:id");
+    expect(pagePaths).not.toContain("/petitions-old/:id/edit");
   });
 
   it("restores the prior labels for the approval queues", () => {

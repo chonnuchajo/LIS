@@ -12,10 +12,11 @@ const QCTestResult = require('../models/QCTestResult');
 const Parameter = require('../models/Parameter');
 const LabRequest = require('../models/LabRequest');
 const StandardTime = require('../models/StandardTime');
-const { buildStatusLog, isLabBatch, isPetitionComplete } = require('../lib/petitionStatusLog');
+const { buildStatusLog, hasLabTrack, isLabBatch, isPetitionComplete } = require('../lib/petitionStatusLog');
 const { notifyPetitionEvent } = require('../lib/lineNotify');
 const { normalizeAnalysisName, canonicalAnalysisName } = require('../lib/analysisName');
 const { buildProductionWorkflow } = require('../lib/productionWorkflow');
+const { isResearchAndDevelopmentDepartment, requiresDeliveryAndBatch, requiresQcTrack } = require('../lib/petitionSubmissionRules');
 
 function sampleIdsFromPetition(petition) {
   if (!petition || !Array.isArray(petition.items)) return [];
@@ -437,11 +438,12 @@ router.get('/status-log/:id', async (req, res) => {
 
     // labDone: Lab track finished — explicit completion flag, or (legacy) every lab
     // sampleId has a completed PhysicalResult.
+    const isResearchRequest = isResearchAndDevelopmentDepartment(petition.submittedBy?.department);
     const labSampleIds = (petition.items || [])
-      .filter((it) => isLabBatch(it.batchNo || ''))
+      .filter((it) => isResearchRequest || isLabBatch(it.batchNo || ''))
       .map((it) => it.sampleId || `${petition.petitionNo}-${it.seq}`)
       .filter(Boolean);
-    let labDone = true;
+    let labDone = !hasLabTrack(petition);
     if (labSampleIds.length > 0) {
       if (petition.labCompletedAt) {
         labDone = true;
@@ -478,6 +480,7 @@ router.post('/:id/complete', async (req, res) => {
     const now = new Date();
     const redoExplanation = String(req.body?.redoExplanation || '').trim();
     if (side === 'qc') {
+      if (!requiresQcTrack(doc)) return badRequest(res, 'คำขอ R&D ไม่ต้องส่ง QC');
       if (doc.qcReturnNote && !redoExplanation) {
         return badRequest(res, 'กรุณาอธิบายว่าทำใหม่อย่างไร (ถูกส่งกลับให้แก้)');
       }
@@ -495,6 +498,7 @@ router.post('/:id/complete', async (req, res) => {
 
     const prevStatus = doc.status;
     const sideLabel = side === 'qc' ? 'QC' : 'Lab';
+    const finalWaitNote = requiresQcTrack(doc) ? 'รอหัวหน้า QC ยืนยัน' : 'รอ Final Result';
     if (isPetitionComplete(doc)) {
       if (doc.status !== 'success') doc.status = 'success';
       if (!doc.completedAt) doc.completedAt = now;
@@ -504,7 +508,7 @@ router.post('/:id/complete', async (req, res) => {
         fromStatus: prevStatus,
         toStatus: 'success',
         actor,
-        note: `${sideLabel} บันทึกผลเสร็จ — ครบทุกส่วน รอหัวหน้า QC ยืนยัน`,
+        note: `${sideLabel} บันทึกผลเสร็จ — ครบทุกส่วน ${finalWaitNote}`,
         metadata: { side },
       });
     } else {
@@ -541,13 +545,14 @@ router.post('/:id/lab-approve', async (req, res) => {
     doc.reviewHistory.push({ action: 'lab-approve', reviewedBy: actor, reviewedAt: now });
 
     const prevStatus = doc.status;
+    const finalWaitNote = requiresQcTrack(doc) ? 'รอหัวหน้า QC ออก Final Result' : 'รอ Final Result';
     if (isPetitionComplete(doc)) {
       if (doc.status !== 'success') doc.status = 'success';
       if (!doc.completedAt) doc.completedAt = now;
       await doc.save();
       logAudit(doc, {
         event: 'statusChanged', fromStatus: prevStatus, toStatus: 'success', actor,
-        note: 'หัวหน้า Lab ออกผล — ครบทุกส่วน รอหัวหน้า QC ออก Final Result', metadata: { side: 'lab' },
+        note: `หัวหน้า Lab ออกผล — ครบทุกส่วน ${finalWaitNote}`, metadata: { side: 'lab' },
       });
     } else {
       await doc.save();
@@ -663,7 +668,8 @@ router.post('/', async (req, res) => {
     if (!body.submittedBy?.name) {
       return badRequest(res, 'กรุณาระบุผู้ยื่นคำขอ');
     }
-    if (!body.deliveredBy?.name) {
+    const deliveryAndBatchRequired = requiresDeliveryAndBatch(body);
+    if (deliveryAndBatchRequired && !body.deliveredBy?.name) {
       return badRequest(res, 'กรุณาระบุผู้นำส่ง');
     }
     if (!Array.isArray(body.items) || body.items.length === 0) {
@@ -671,7 +677,7 @@ router.post('/', async (req, res) => {
     }
     for (const item of body.items) {
       const batch = String(item.batchNo || '').trim();
-      if (!batch) return badRequest(res, `ตัวอย่าง "${item.sampleName || item.seq}": กรุณากรอกเลขแบช`);
+      if (deliveryAndBatchRequired && !batch) return badRequest(res, `ตัวอย่าง "${item.sampleName || item.seq}": กรุณากรอกเลขแบช`);
     }
     let revisionOf = null;
     if (body.revisionOf) {
@@ -757,6 +763,7 @@ router.patch('/:id/receive', async (req, res) => {
     }
     const actor = req.body?.actor || 'system';
     const side = req.body?.side === 'lab' ? 'lab' : 'qc';
+    if (side === 'qc' && !requiresQcTrack(before)) return badRequest(res, 'คำขอ R&D ไม่ต้องส่ง QC');
     const now = new Date();
     const update = {
       [`${side}ReceivedBy`]: actor,

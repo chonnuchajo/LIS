@@ -61,7 +61,7 @@ const LabRequestSchema = new mongoose.Schema(
     labRequestNo: { type: String, required: true, index: true },
     petitionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Petition', required: true, index: true },
     petitionNo: { type: String, required: true, index: true },
-    batchNo: { type: String, required: true, index: true },
+    batchNo: { type: String, index: true },
     sampleSeq: { type: Number, required: true },
     requester: RequesterSchema,
     serviceAgreement: { type: ServiceAgreementSchema, required: true },

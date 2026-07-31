@@ -69,3 +69,22 @@ test('validate: rejects separator longer than 3', () => {
 test('validate: rejects month-only (no year + includeMonth)', () => {
   assert.match(validateDocNumberConfig({ prefix: 'P', yearFormat: 'none', includeMonth: true, separator: '-', seqPadding: 4 }), /ใส่เดือน ต้องเลือกปีด้วย/);
 });
+
+describe('docType ใหม่ของฟอร์ม F-WAR-03', () => {
+  const { DEFAULTS, DOC_TYPES, buildScanPrefix } = require('./documentNumber');
+
+  it('มี goodsReceipt และ rawMaterialInspection อยู่ใน DOC_TYPES', () => {
+    expect(DOC_TYPES).toContain('goodsReceipt');
+    expect(DOC_TYPES).toContain('rawMaterialInspection');
+  });
+
+  it('ใบรับสินค้าเดินเลขเป็น GR-YYMM-####', () => {
+    const prefix = buildScanPrefix(DEFAULTS.goodsReceipt, new Date(2026, 6, 20));
+    expect(prefix).toBe('GR-2607-');
+  });
+
+  it('ใบตรวจสอบวัตถุดิบเดินเลขเป็น RMI-YYMM-####', () => {
+    const prefix = buildScanPrefix(DEFAULTS.rawMaterialInspection, new Date(2026, 6, 20));
+    expect(prefix).toBe('RMI-2607-');
+  });
+});

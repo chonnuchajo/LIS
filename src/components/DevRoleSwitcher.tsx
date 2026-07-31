@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { DEV_MODE } from "@/config/dev";
+import { DEV_MODE, DEV_DEPARTMENTS } from "@/config/dev";
 import { useAuth } from "@/context/AuthContext";
 
 const STORAGE_KEY = "dev-role-switcher-pos";
+const COLLAPSED_KEY = "dev-role-switcher-collapsed";
 const DRAG_THRESHOLD = 4;
 
 type Pos = { x: number; y: number };
@@ -23,9 +24,12 @@ const clamp = (val: number, min: number, max: number) =>
   Math.min(Math.max(val, min), max);
 
 export const DevRoleSwitcher = () => {
-  const { devRoleIds, devRoles, toggleDevRole } = useAuth();
+  const { devRoleIds, devRoles, toggleDevRole, devDepartment, setDevDepartment } = useAuth();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<Pos | null>(() => loadPos());
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem(COLLAPSED_KEY) === "1",
+  );
   const dragState = useRef<{
     startX: number;
     startY: number;
@@ -72,7 +76,9 @@ export const DevRoleSwitcher = () => {
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     stopOutside(e);
-    if ((e.target as HTMLElement).closest("button")) return;
+    // ปุ่ม/ช่องเลือกแผนกต้องกดได้ปกติ — ถ้าจับ pointer capture ตรงนี้
+    // native dropdown ของ <select> จะไม่เปิด
+    if ((e.target as HTMLElement).closest("button, select, label")) return;
     const el = containerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -126,6 +132,18 @@ export const DevRoleSwitcher = () => {
     ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
     : { right: 16, bottom: 16 };
 
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
   return (
     <div
       ref={containerRef}
@@ -146,28 +164,58 @@ export const DevRoleSwitcher = () => {
     >
       <div
         title="ลากเพื่อย้ายตำแหน่ง"
-        className="rounded-md border border-orange-400 bg-orange-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-orange-600 shadow"
+        className="flex items-center gap-1 rounded-md border border-orange-400 bg-orange-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-orange-600 shadow"
       >
         DEV MODE
+        <button
+          onClick={toggleCollapsed}
+          title={collapsed ? "แสดงตัวสลับบทบาท" : "ซ่อนตัวสลับบทบาท"}
+          aria-label={collapsed ? "แสดงตัวสลับบทบาท" : "ซ่อนตัวสลับบทบาท"}
+          aria-expanded={!collapsed}
+          className="rounded px-1 leading-none text-orange-600 hover:bg-orange-200"
+        >
+          {collapsed ? "▲" : "▼"}
+        </button>
       </div>
-      <div className="flex flex-wrap gap-1 rounded-md border border-orange-300 bg-white p-1 shadow-md">
-        {devRoles.map((role) => {
-          const active = devRoleIds.includes(role.id);
-          return (
-            <button
-              key={role.id}
-              onClick={() => toggleDevRole(role.id)}
-              className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
-                active
-                  ? "bg-orange-500 text-white"
-                  : "text-gray-600 hover:bg-orange-100"
-              }`}
-            >
-              {role.name}
-            </button>
-          );
-        })}
-      </div>
+      {!collapsed && (
+        <>
+          <div className="flex flex-wrap gap-1 rounded-md border border-orange-300 bg-white p-1 shadow-md">
+            {devRoles.map((role) => {
+              const active = devRoleIds.includes(role.id);
+              return (
+                <button
+                  key={role.id}
+                  onClick={() => toggleDevRole(role.id)}
+                  className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+                    active
+                      ? "bg-orange-500 text-white"
+                      : "text-gray-600 hover:bg-orange-100"
+                  }`}
+                >
+                  {role.name}
+                </button>
+              );
+            })}
+          </div>
+          {setDevDepartment && (
+            <label className="flex items-center gap-1 rounded-md border border-orange-300 bg-white p-1 text-xs shadow-md">
+              <span className="pl-1 text-gray-500">แผนก</span>
+              <select
+                value={devDepartment ?? ""}
+                onChange={(e) => setDevDepartment(e.target.value)}
+                className="rounded border border-gray-200 bg-white px-1 py-0.5 text-xs text-gray-700"
+              >
+                <option value="">ตามบทบาท</option>
+                {DEV_DEPARTMENTS.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </>
+      )}
     </div>
   );
 };

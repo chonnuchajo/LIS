@@ -11,6 +11,7 @@ const DOC_TYPE_KIND = {
   'coa': 'a4',
   'service-request': 'a4',
   'daily-check-report': 'a4',
+  'goods-receipt': 'a4',
 };
 
 const PRINT_DOC_TYPES = Object.keys(DOC_TYPE_KIND);

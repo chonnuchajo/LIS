@@ -67,4 +67,49 @@ describe('ItemsStep master item selection', () => {
     expect(screen.queryByText(/Lot No\./)).not.toBeInTheDocument();
     expect(screen.queryByText(/ใบนำส่ง/)).not.toBeInTheDocument();
   });
+
+  it('lets R&D type a sample name and fills empty fields from a matching master item', () => {
+    const { onChange } = renderStep({
+      allowManualItemFields: true,
+      requireDeliveryAndBatch: false,
+    });
+
+    fireEvent.change(screen.getAllByRole('textbox')[0], {
+      target: { value: 'Product A 1.8 EC' },
+    });
+
+    expect(onChange).toHaveBeenCalledWith([
+      {
+        ...baseItem,
+        sampleName: 'Product A 1.8 EC',
+        commonName: 'ABAMECTIN 1.8% W/V EC',
+        packageUnit: '1 L x 12 bottles',
+      },
+    ]);
+  });
+
+  it('does not overwrite R&D item fields that were already typed when selecting a master item', () => {
+    const { onChange } = renderStep({
+      value: [{
+        ...baseItem,
+        sampleName: 'Typed sample',
+        commonName: 'Typed common',
+        packageUnit: 'Typed package',
+      }],
+      allowManualItemFields: true,
+      requireDeliveryAndBatch: false,
+    });
+
+    fireEvent.click(screen.getByText('Master'));
+    fireEvent.click(screen.getByText('Product A 1.8 EC'));
+
+    expect(onChange).toHaveBeenCalledWith([
+      {
+        ...baseItem,
+        sampleName: 'Typed sample',
+        commonName: 'Typed common',
+        packageUnit: 'Typed package',
+      },
+    ]);
+  });
 });

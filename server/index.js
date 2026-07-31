@@ -37,6 +37,7 @@ mountApi('/stock', require('./routes/stock'));
 mountApi('/access-control', require('./routes/accessControl'));
 mountApi('/petitions', require('./routes/petitions'));
 mountApi('/lab-requests', require('./routes/labRequests'));
+mountApi('/goods-receipts', require('./routes/goodsReceipts'));
 mountApi('/sample-receipts', require('./routes/sampleReceipts'));
 mountApi('/employees', require('./routes/employees'));
 mountApi('/master-items', require('./routes/masterItems'));

@@ -31,16 +31,27 @@ import LabScanAcceptModal from '@/components/petition/LabScanAcceptModal';
 import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
+import { isLabBatchNo, isResearchAndDevelopmentPetition } from '@/lib/petitionRouting';
 
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
 
-const isLabBatchNo = (batchNo?: string | null) => /[16]$/.test(String(batchNo ?? '').trim());
 const isLabReadableItem = (
   it: PetitionItem,
   params: ParameterItem[],
   itemGroupIds: string[] = [],
 ) =>
   isLabBatchNo(it.batchNo) && matchParametersForItem(it, params, itemGroupIds).length > 0;
+
+const isResearchLabReadableItem = (
+  it: PetitionItem,
+  params: ParameterItem[],
+  itemGroupIds: string[] = [],
+) => params.length === 0 || matchParametersForItem(it, params, itemGroupIds, { forceLabTrack: true }).length > 0;
+
+const labParametersForPetition = (petition: Petition, params: ParameterItem[]) =>
+  isResearchAndDevelopmentPetition(petition)
+    ? params.filter((p) => p.scope === 'lab')
+    : params;
 
 export default function LabTestingPage() {
   const navigate = useNavigate();
@@ -78,9 +89,13 @@ export default function LabTestingPage() {
 
   const petitions: Petition[] = (data?.items ?? [])
     .filter((p) =>
-      paramsLoaded
-        ? (p.items ?? []).some((it) => isLabReadableItem(it, labParams, idsFor(it)))
-        : (p.items ?? []).some((it) => isLabBatchNo(it.batchNo)),
+      isResearchAndDevelopmentPetition(p)
+        ? (p.items ?? []).some((it) =>
+          paramsLoaded ? isResearchLabReadableItem(it, labParametersForPetition(p, labParams), idsFor(it)) : true,
+        )
+        : (paramsLoaded
+          ? (p.items ?? []).some((it) => isLabReadableItem(it, labParams, idsFor(it)))
+          : (p.items ?? []).some((it) => isLabBatchNo(it.batchNo))),
     )
     .filter((p) => isFullAccess || isAssignedTo(p.assignedTo, user));
 
@@ -113,7 +128,9 @@ export default function LabTestingPage() {
       className: 'align-top',
       cell: (p) => {
         const labItems = (p.items ?? []).filter((it) =>
-          paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it)) : isLabBatchNo(it.batchNo),
+          isResearchAndDevelopmentPetition(p)
+            ? (paramsLoaded ? isResearchLabReadableItem(it, labParametersForPetition(p, labParams), idsFor(it)) : true)
+            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it)) : isLabBatchNo(it.batchNo)),
         );
         return (
           <>
@@ -143,7 +160,9 @@ export default function LabTestingPage() {
       className: 'max-w-[280px] text-sm text-grey-600 align-top',
       cell: (p) => {
         const labItems = (p.items ?? []).filter((it) =>
-          paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it)) : isLabBatchNo(it.batchNo),
+          isResearchAndDevelopmentPetition(p)
+            ? (paramsLoaded ? isResearchLabReadableItem(it, labParametersForPetition(p, labParams), idsFor(it)) : true)
+            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it)) : isLabBatchNo(it.batchNo)),
         );
         return labItems.length > 0 ? (
           <div className="space-y-1">

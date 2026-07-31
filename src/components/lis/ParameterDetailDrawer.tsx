@@ -94,7 +94,15 @@ function ApplyToSection({
   parameter: ParameterItem;
   groupNameById: Map<string, string>;
 }) {
-  if (parameter.applyAll) {
+  const hasExcludes =
+    (parameter.excludeItemNames?.length ?? 0) +
+      (parameter.excludeCommonNames?.length ?? 0) +
+      (parameter.excludeProductTypes?.length ?? 0) +
+      (parameter.excludeCategories?.length ?? 0) +
+      (parameter.excludeSubCategories?.length ?? 0) +
+      (parameter.excludeItemGroups?.length ?? 0) >
+    0;
+  if (parameter.applyAll && !hasExcludes) {
     return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">ทั้งหมด</Badge>;
   }
   const groups: { label: string; values: string[]; color: string }[] = [
@@ -113,8 +121,25 @@ function ApplyToSection({
       color: "bg-rose-50 text-rose-700",
     },
   ].filter((g) => g.values.length > 0);
+  if (parameter.applyAll) {
+    groups.unshift({ label: "ทั้งหมด", values: ["ทั้งหมด"], color: "bg-amber-100 text-amber-800" });
+  }
+  const excludes: { label: string; values: string[] }[] = [
+    { label: "Item", values: parameter.excludeItemNames ?? [] },
+    { label: "Common", values: parameter.excludeCommonNames ?? [] },
+    {
+      label: "ประเภท",
+      values: (parameter.excludeProductTypes ?? []).map((v) => productTypeLabels[v] ?? v),
+    },
+    { label: "หมวดหมู่", values: parameter.excludeCategories ?? [] },
+    { label: "หมวดย่อย", values: parameter.excludeSubCategories ?? [] },
+    {
+      label: "กลุ่ม",
+      values: (parameter.excludeItemGroups ?? []).map((id) => groupNameById.get(id) ?? id),
+    },
+  ].filter((g) => g.values.length > 0);
 
-  if (groups.length === 0) {
+  if (groups.length === 0 && excludes.length === 0) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
   return (
@@ -129,6 +154,20 @@ function ApplyToSection({
           ))}
         </div>
       ))}
+      {excludes.length > 0 ? (
+        <div className="space-y-1 border-t border-border pt-2">
+          {excludes.map((g) => (
+            <div key={g.label} className="flex flex-wrap items-baseline gap-1">
+              <span className="text-xs font-semibold text-red-700">ยกเว้น {g.label}:</span>
+              {g.values.map((v) => (
+                <span key={v} className="rounded-md bg-red-50 px-2 py-0.5 text-xs text-red-700">
+                  {v}
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

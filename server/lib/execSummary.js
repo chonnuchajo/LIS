@@ -1,4 +1,5 @@
-const { isLabBatch, isPetitionComplete } = require('./petitionStatusLog');
+const { hasLabTrack, isPetitionComplete } = require('./petitionStatusLog');
+const { requiresQcTrack } = require('./petitionSubmissionRules');
 const { qcBaselineMinutes, qcReceivedAtOf, qcDurationMinutes } = require('./qcParamBaseline');
 
 const MS_PER_MIN = 60000;
@@ -28,10 +29,6 @@ function toDate(value) {
 function minutesSince(value, now) {
   const d = toDate(value);
   return d ? Math.max(0, (now - d.getTime()) / MS_PER_MIN) : null;
-}
-
-function hasLabTrack(petition) {
-  return ((petition || {}).items || []).some((item) => isLabBatch(item.batchNo || ''));
 }
 
 /** เวลามาตรฐานของงาน Lab = ผลรวมของทุกเครื่องที่ assign (สมมติทำเรียงกัน ไม่ใช่ขนาน) */
@@ -96,6 +93,7 @@ function openWorkUnits(petitions, { now, qcBaseline }) {
     if (!isOpen(petition)) continue;
 
     const labTrack = hasLabTrack(petition);
+    const qcTrack = requiresQcTrack(petition);
     const qcReceived = qcReceivedAtOf(petition);
     const labReceived = toDate(petition.labReceivedAt);
     const assignedAt = toDate(petition.assignedTo?.assignedAt);
@@ -144,21 +142,23 @@ function openWorkUnits(petitions, { now, qcBaseline }) {
 
     // ── QC track — same furthest-progress principle: qcCompletedAt wins over a
     // missing qcReceivedAt (a receive scan that was never recorded).
-    if (qcCompleted) {
-      // QC track done — nothing to emit.
-    } else if (qcReceived) {
-      const elapsed = minutesSince(qcReceived, now);
-      units.push(unit(petition, 'qc', 'qcTesting', elapsed, qcBaselineMinutes(petition, qcBaseline)));
-    } else {
-      // The "nobody has received it yet" wait is shared across tracks — suppress the
-      // QC copy only when Lab's own branch ABOVE actually emitted that shared unit
-      // (labEmittedWaitingReceive). Any other Lab stage (labTesting, waitingLabApprove,
-      // or Lab already fully approved) means Lab did NOT report this wait, so QC's
-      // receive lag is a distinct, QC-only lag (Lab and QC receive independently via
-      // PATCH /petitions/:id/receive side=lab|qc) and must get its own unit —
-      // otherwise a stuck QC receive is invisible.
-      const elapsed = minutesSince(petition.sampleSentAt, now);
-      if (elapsed != null && !labEmittedWaitingReceive) units.push(unit(petition, 'qc', 'waitingReceive', elapsed, null, 'ok'));
+    if (qcTrack) {
+      if (qcCompleted) {
+        // QC track done — nothing to emit.
+      } else if (qcReceived) {
+        const elapsed = minutesSince(qcReceived, now);
+        units.push(unit(petition, 'qc', 'qcTesting', elapsed, qcBaselineMinutes(petition, qcBaseline)));
+      } else {
+        // The "nobody has received it yet" wait is shared across tracks — suppress the
+        // QC copy only when Lab's own branch ABOVE actually emitted that shared unit
+        // (labEmittedWaitingReceive). Any other Lab stage (labTesting, waitingLabApprove,
+        // or Lab already fully approved) means Lab did NOT report this wait, so QC's
+        // receive lag is a distinct, QC-only lag (Lab and QC receive independently via
+        // PATCH /petitions/:id/receive side=lab|qc) and must get its own unit —
+        // otherwise a stuck QC receive is invisible.
+        const elapsed = minutesSince(petition.sampleSentAt, now);
+        if (elapsed != null && !labEmittedWaitingReceive) units.push(unit(petition, 'qc', 'waitingReceive', elapsed, null, 'ok'));
+      }
     }
 
     // ── รอ Final Result (ทุกรางที่ใบนี้มี ทดสอบครบแล้ว)
@@ -168,12 +168,14 @@ function openWorkUnits(petitions, { now, qcBaseline }) {
     // must be measured from qcCompletedAt alone, or the live tile and the stats bar
     // disagree on the same petition (Finding 2).
     if (isPetitionComplete(petition)) {
-      const startedAt = labTrack
+      const startedAt = labTrack && qcTrack
         ? Math.max(
           qcCompleted ? qcCompleted.getTime() : 0,
           labApproved ? labApproved.getTime() : 0,
         )
-        : (qcCompleted ? qcCompleted.getTime() : 0);
+        : labTrack
+          ? (labApproved ? labApproved.getTime() : 0)
+          : (qcCompleted ? qcCompleted.getTime() : 0);
       if (startedAt > 0) {
         units.push(unit(petition, 'final', 'waitingFinal', (now - startedAt) / MS_PER_MIN, null, 'ok'));
       }
@@ -298,7 +300,8 @@ function localDateKey(ms) {
 // กัน ใบที่มีราง Lab อาจตรวจ QC เสร็จหลังหัวหน้า Lab เซ็นแล้วก็ได้ ถ้ายังตรึงจุด
 // เริ่มไว้ที่ labApprovedAt เฉย ๆ แถบนี้จะกลืนเวลาตรวจ QC ที่เหลือเข้ามาโดยไม่รู้ตัว
 // ต้อง mirror สูตรเดียวกับ openWorkUnits (max ของ qcCompletedAt/labApprovedAt)
-function finalResultStart(petition, labTrack) {
+function finalResultStart(petition, labTrack, qcTrack) {
+  if (labTrack && !qcTrack) return petition.labApprovedAt ?? null;
   if (!labTrack) return petition.qcCompletedAt ?? null;
   const qc = toDate(petition.qcCompletedAt);
   const lab = toDate(petition.labApprovedAt);
@@ -311,13 +314,14 @@ function finalResultStart(petition, labTrack) {
 function stageDurations(petition) {
   const qcReceived = qcReceivedAtOf(petition);
   const labTrack = hasLabTrack(petition);
+  const qcTrack = requiresQcTrack(petition);
   return {
     waitingReceive: diffMinutes(petition.sampleSentAt, labTrack ? petition.labReceivedAt : qcReceived),
     pendingAssign: labTrack ? diffMinutes(petition.labReceivedAt, petition.assignedTo?.assignedAt) : null,
     labTesting: labTrack ? diffMinutes(petition.labReceivedAt, petition.labCompletedAt) : null,
-    qcTesting: qcDurationMinutes(petition),
+    qcTesting: qcTrack ? qcDurationMinutes(petition) : null,
     waitingLabApprove: labTrack ? diffMinutes(petition.labCompletedAt, petition.labApprovedAt) : null,
-    waitingFinal: diffMinutes(finalResultStart(petition, labTrack), petition.approvedAt),
+    waitingFinal: diffMinutes(finalResultStart(petition, labTrack, qcTrack), petition.approvedAt),
   };
 }
 
@@ -407,8 +411,10 @@ function buildStatsSection(closedPetitions, createdPetitions, { now, days, abnor
     if (hasLabTrack(petition)) {
       push(labByName, petition.assignedTo?.name, totalMinutes(petition));
     }
-    for (const name of qcTesterNames[String(petition._id)] || []) {
-      push(qcByName, name, qcDurationMinutes(petition));
+    if (requiresQcTrack(petition)) {
+      for (const name of qcTesterNames[String(petition._id)] || []) {
+        push(qcByName, name, qcDurationMinutes(petition));
+      }
     }
   }
   const toWorkloadRows = (map) => Array.from(map, ([name, samples]) => ({

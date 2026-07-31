@@ -47,6 +47,11 @@ type SortableCriteriaRow = {
   ruleIndex: number | null;
   searchText: string;
   substance?: string;
+  itemNo?: string;
+  packSize?: string;
+  masterItemName?: string;
+  masterCommonName?: string;
+  rawMasterText?: string;
   value?: number | null;
   value2?: number | null;
   drugPercent?: string;
@@ -232,11 +237,14 @@ export function ParameterCriteriaTabs({
 
       <TabsContent value="substance" className="mt-0">
         <TableShell empty={visibleSubstanceRows.length === 0}>
-          <Table className="min-w-[720px]">
+          <Table className="min-w-[980px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Parameter</TableHead>
                 <TableHead>สาร</TableHead>
+                <TableHead>รหัสสินค้า</TableHead>
+                <TableHead>ขนาดบรรจุ</TableHead>
+                <TableHead>Master item</TableHead>
                 <TableHead>ค่าต่ำสุด</TableHead>
                 <TableHead>ค่าต่ำสุด 2</TableHead>
                 <TableHead className="text-right">แก้ไข</TableHead>
@@ -251,6 +259,23 @@ export function ParameterCriteriaTabs({
                 >
                   <TableCell className="font-medium">{row.parameterName}</TableCell>
                   <TableCell>{row.substance}</TableCell>
+                  <TableCell>{row.itemNo || "-"}</TableCell>
+                  <TableCell>{row.packSize || "-"}</TableCell>
+                  <TableCell>
+                    {row.masterItemName || row.masterCommonName || row.rawMasterText ? (
+                      <div className="min-w-0 space-y-0.5 text-xs">
+                        {row.masterItemName ? <div className="font-medium text-foreground">{row.masterItemName}</div> : null}
+                        {row.masterCommonName ? <div className="text-muted-foreground">{row.masterCommonName}</div> : null}
+                        {row.rawMasterText ? (
+                          <div className="max-w-[280px] truncate font-mono text-[11px] text-muted-foreground" title={row.rawMasterText}>
+                            {row.rawMasterText}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
                   <TableCell>{row.value ?? "-"}</TableCell>
                   <TableCell>{row.value2 ?? "-"}</TableCell>
                   <TableCell className="text-right">

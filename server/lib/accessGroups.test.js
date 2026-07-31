@@ -38,7 +38,7 @@ test('tolerates groups with missing or null paths arrays', () => {
 });
 
 test('findOrphanBackfillPaths detects petition list paths only when unclaimed', () => {
-  const groups = [{ id: 'samples', paths: ['/petitions-old'] }];
+  const groups = [{ id: 'samples', paths: [] }];
   assert.deepStrictEqual(findOrphanBackfillPaths(groups, ['/petition', '/petition/:id']), [
     '/petition',
     '/petition/:id',

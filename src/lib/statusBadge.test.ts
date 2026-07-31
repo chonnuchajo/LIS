@@ -86,6 +86,16 @@ describe("hasLabTrack", () => {
       hasLabTrack({ status: "inProgress", labReceivedAt: "2026-07-13T00:00:00.000Z" } as Petition),
     ).toBe(true);
   });
+
+  it("returns true for R&D petitions even without a Lab batch", () => {
+    expect(
+      hasLabTrack({
+        status: "sampleSent",
+        submittedBy: { department: "R & D" },
+        items: [{ seq: 1, sampleName: "R&D sample", batchNo: "" }],
+      } as Petition),
+    ).toBe(true);
+  });
 });
 
 describe("petitionStatusSteps", () => {
@@ -107,5 +117,14 @@ describe("petitionStatusSteps", () => {
     } as Petition);
     const normal = petitionExceptionScore({ status: "inProgress" } as Petition);
     expect(stuck).toBeGreaterThan(normal);
+  });
+
+  it("omits the QC step for R&D petitions", () => {
+    const steps = petitionStatusSteps({
+      status: "inProgress",
+      submittedBy: { department: "R & D" },
+      items: [{ seq: 1, sampleName: "R&D sample", batchNo: "" }],
+    } as Petition);
+    expect(steps.map((s) => s.key)).toEqual(["received", "assigned", "lab", "lab-approval", "qc-approval"]);
   });
 });

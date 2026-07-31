@@ -19,9 +19,9 @@ import {
 } from "./printConfig";
 
 describe("PRINT_DOC_TYPES", () => {
-  it("lists the five doc types with paper defaults", () => {
+  it("lists the six doc types with paper defaults", () => {
     expect(PRINT_DOC_TYPES.map((d) => d.slug)).toEqual([
-      "sample-label", "coa", "service-request", "stock-label", "daily-check-report",
+      "sample-label", "coa", "service-request", "stock-label", "daily-check-report", "goods-receipt",
     ]);
     expect(getPrintDocType("daily-check-report")?.defaultPaper).toBe("A4");
     expect(getPrintDocType("sample-label")?.defaultPaper).toBe("label-100x50");
@@ -41,6 +41,7 @@ describe("docTypeToKind", () => {
     expect(docTypeToKind("coa")).toBe("a4");
     expect(docTypeToKind("service-request")).toBe("a4");
     expect(docTypeToKind("daily-check-report")).toBe("a4");
+    expect(docTypeToKind("goods-receipt")).toBe("a4");
   });
 });
 

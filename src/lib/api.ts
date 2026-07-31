@@ -25,6 +25,7 @@ import type { LineGroup, LineGroupInput, LineHealth } from "@/lib/lineConfig";
 import type { DashboardId, StoredLayout, DashboardLayout } from "@/lib/dashboardLayout";
 import type { MethodDoc, MethodInput } from './methodRegistry';
 import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
+import type { GoodsReceipt, GoodsReceiptInput } from "@/types/goodsReceipt.types";
 
 export type ApiRouteInfo = { method: string; path: string };
 type StockUserPayload = { _user?: { email?: string; name?: string } };
@@ -574,7 +575,7 @@ export const api = {
     request<{ data: PrinterConfig[] }>("/print/printers-config").then((r) => r.data),
   getPrintConfigs: () =>
     request<{ data: PrinterConfig[] }>("/print/printers-config").then((r) =>
-      (["sample-label", "coa", "service-request", "stock-label", "daily-check-report"] as PrintDocType[]).map((docType) =>
+      (["sample-label", "coa", "service-request", "stock-label", "daily-check-report", "goods-receipt"] as PrintDocType[]).map((docType) =>
         toLegacyPrintConfig(docType, r.data),
       ),
     ),
@@ -748,6 +749,16 @@ export const api = {
     request<MethodDoc>(`/methods/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteMethod: (id: string) =>
     request<{ ok: true }>(`/methods/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // Goods receipts (ฟอร์ม F-WAR-03-01,02 ของแผนก RM)
+  getGoodsReceiptsByPetition: (petitionId: string) =>
+    request<{ items: GoodsReceipt[] }>(`/goods-receipts?petitionId=${encodeURIComponent(petitionId)}`)
+      .then((r) => r.items),
+  createGoodsReceipt: (input: GoodsReceiptInput) =>
+    request<GoodsReceipt>("/goods-receipts", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 };
 
 export type QCProgressEntry = {
@@ -1035,6 +1046,11 @@ export type SubstanceStandard = {
   substance: string;      // เก็บแบบ extractSubstanceName เช่น "ABAMECTIN"
   operator: StandardOperator;
   value: number | null;
+  itemNo?: string;
+  packSize?: string;
+  masterItemName?: string;
+  masterCommonName?: string;
+  masterRaw?: Record<string, unknown>;
   productTypes?: ("water" | "sand" | "powder")[];
   regulatoryTypes?: ("GMP" | "BIO" | "LS")[];
   categories?: ("RM" | "FG")[];
@@ -1053,6 +1069,11 @@ export type LabelToleranceRule = LabelToleranceStandard & {
   autoMode?: "none" | "percent" | "abs" | "range";
   headMode?: "none" | "percent" | "abs" | "range";
   labelPercent?: number | null;
+  itemNo?: string;
+  packSize?: string;
+  masterItemName?: string;
+  masterCommonName?: string;
+  masterRaw?: Record<string, unknown>;
   productTypes?: ("water" | "sand" | "powder")[];
   // autoMode = "percent" => autoPct เป็น % ที่เว้นจากขอบช่วงหัวหน้าตรวจสอบเข้าด้านใน
   // headMode = "percent" => headPct เป็น % ของค่ากลางจาก %ฉลาก
@@ -1163,6 +1184,12 @@ export type ParameterItem = {
   categories?: string[];
   subCategories?: string[];
   itemGroups?: string[];
+  excludeCommonNames?: string[];
+  excludeItemNames?: string[];
+  excludeProductTypes?: string[];
+  excludeCategories?: string[];
+  excludeSubCategories?: string[];
+  excludeItemGroups?: string[];
   valueFields?: ParameterValueField[];
   sortOrder?: number;
   note?: string;

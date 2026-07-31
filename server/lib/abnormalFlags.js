@@ -29,12 +29,25 @@ function parseLabelPercentJS(raw) {
 }
 
 const CLASSIFICATION_CODES = [
+  ['SG', 'sand'],
   ['ULV', 'water'], ['EC', 'water'], ['EW', 'water'], ['SC', 'water'], ['SL', 'water'], ['ME', 'water'], ['ZC', 'water'], ['W/V', 'water'],
   ['W/W', 'sand'], ['WP', 'powder'], ['WDG', 'powder'], ['WG', 'powder'], ['GR', 'sand'], ['ST', 'sand'], ['GB', 'sand'], ['SP', 'powder'], ['DS', 'powder'], ['DP', 'powder'],
 ];
 
+const CLASSIFICATION_ALIASES = [
+  ['SAND GRANULE', 'SG'],
+];
+
 function productTypeFromSpecJS(raw) {
   const upperValue = String(raw || "").trim().toUpperCase();
+  for (const [phrase, code] of CLASSIFICATION_ALIASES) {
+    const words = phrase.trim().split(/\s+/).map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+");
+    const pattern = new RegExp(`(^|[^A-Z0-9])${words}([^A-Z0-9]|$)`);
+    if (pattern.test(upperValue)) {
+      const found = CLASSIFICATION_CODES.find(([c]) => c === code);
+      if (found) return found[1];
+    }
+  }
   for (const [code, group] of CLASSIFICATION_CODES.sort((a, b) => b[0].length - a[0].length)) {
     const pattern = new RegExp(`(^|[^A-Z0-9])${code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^A-Z0-9]|$)`);
     if (pattern.test(upperValue)) return group;

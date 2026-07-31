@@ -25,6 +25,7 @@ import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
 import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
 import { qcReceivedAt, qcReceivedBy, qcTrackStatusBadge } from '@/lib/receiveStatus';
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
+import { requiresQcTrack } from '@/lib/petitionRouting';
 
 
 export default function QCTestingPage() {
@@ -41,7 +42,7 @@ export default function QCTestingPage() {
     limit: 50,
   });
 
-  const petitions: Petition[] = data?.items ?? [];
+  const petitions: Petition[] = (data?.items ?? []).filter((p) => requiresQcTrack(p));
 
   // Bulk-fetch abnormal flag for petitions that may have results
   // (sampleSent has no results yet, so skip it)
@@ -169,7 +170,7 @@ export default function QCTestingPage() {
             การทดสอบ QC
           </span>
         }
-        description={`${data?.total ?? 0} รายการ`}
+        description={`${petitions.length} รายการ`}
         actions={
           <Button variant="primary" className="gap-2" onClick={() => setScanOpen(true)}>
             <QrCode className="h-4 w-4" />

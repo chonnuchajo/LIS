@@ -3,7 +3,9 @@ import {
   synthesizeDevUser,
   synthesizeDevAssignees,
   normalizeDevRoleSelection,
+  normalizeDevDepartment,
   toggleDevRoleSelection,
+  DEV_DEPARTMENTS,
   type DevRoleOption,
 } from "./dev";
 
@@ -55,6 +57,39 @@ describe("synthesizeDevUser", () => {
     expect(user.roles).toEqual(["lab", "qc"]);
     expect(user.id).toBe("dev-lab");
     expect(user.name).toBe("Dev Lab");
+  });
+});
+
+describe("dev department override", () => {
+  it("offers R&D, คลังสินค้า RM and ผลิต 1–5", () => {
+    expect([...DEV_DEPARTMENTS]).toEqual([
+      "R&D",
+      "คลังสินค้า RM",
+      "ผลิต 1",
+      "ผลิต 2",
+      "ผลิต 3",
+      "ผลิต 4",
+      "ผลิต 5",
+    ]);
+  });
+
+  it("replaces the role-derived department when a known department is picked", () => {
+    const user = synthesizeDevUser([{ id: "admin", name: "Admin" }], "R&D");
+
+    expect(user.department).toBe("R&D");
+    expect(user.role).toBe("admin"); // เลือกแผนกแล้วบทบาทไม่เปลี่ยน
+  });
+
+  it("keeps the role-derived department when no override is given", () => {
+    expect(synthesizeDevUser([{ id: "admin", name: "Admin" }]).department).toBe("IT");
+    expect(synthesizeDevUser([{ id: "admin", name: "Admin" }], "").department).toBe("IT");
+  });
+
+  it("ignores a department outside the offered list", () => {
+    expect(synthesizeDevUser([{ id: "admin", name: "Admin" }], "ผลิต 9").department).toBe("IT");
+    expect(normalizeDevDepartment("ผลิต 9")).toBe("");
+    expect(normalizeDevDepartment(null)).toBe("");
+    expect(normalizeDevDepartment(" ผลิต 3 ")).toBe("ผลิต 3");
   });
 });
 

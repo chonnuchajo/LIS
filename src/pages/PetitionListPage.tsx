@@ -114,7 +114,7 @@ function petitionNextStepText(petition: Petition) {
 }
 
 export default function PetitionListPage({
-  petitionDetailPath = (petition) => `/petitions-old/${petition._id}`,
+  petitionDetailPath = (petition) => `/petition/${petition._id}`,
   title = 'รายการคำร้อง',
   description = 'ดูคำร้องทั้งหมดและงานที่ต้องดำเนินการต่อ',
 }: PetitionListPageProps) {
@@ -200,7 +200,7 @@ export default function PetitionListPage({
         title: `คำร้อง ${petition.petitionNo} ถูกส่งกลับให้แก้ไข`,
         message: rejectEntry.note,
         level: 'warning',
-        link: `/petitions-old/${petition._id}`,
+        link: `/petition/${petition._id}`,
         persistent: true,
       });
     }

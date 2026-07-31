@@ -729,7 +729,7 @@ export default function PetitionAssignPage() {
                 methodByCode={methodByCode}
                 machineById={machineById}
                 onDropPetition={(petitionId, employeeId) => setDropTarget({ petitionId, employeeId })}
-                onPetitionClick={(id) => navigate(`/petitions-old/${id}`)}
+                onPetitionClick={(id) => navigate(`/petition/${id}`)}
                 emptyPoolText="ไม่มีคำร้องที่รอ assign"
               />
             </TabsContent>
@@ -747,7 +747,7 @@ export default function PetitionAssignPage() {
                 methodByCode={methodByCode}
                 machineById={machineById}
                 onDropPetition={(petitionId, employeeId) => setDropTarget({ petitionId, employeeId })}
-                onPetitionClick={(id) => navigate(`/petitions-old/${id}`)}
+                onPetitionClick={(id) => navigate(`/petition/${id}`)}
                 emptyPoolText="ยังไม่มีคำร้อง Phase 2 ที่รอเลือก"
                 showPhase2Badge
               />

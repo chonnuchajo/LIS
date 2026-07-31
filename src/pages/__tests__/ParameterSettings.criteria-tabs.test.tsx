@@ -213,6 +213,57 @@ describe("ParameterSettings criteria tabs", () => {
     );
   });
 
+  it("shows master item context in the substance criteria tab", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      {
+        _id: "p-item-context",
+        name: "Item Context Parameter",
+        scope: "qc",
+        status: "active",
+        applyAll: true,
+        valueFields: [
+          {
+            label: "Purity",
+            type: "number",
+            unit: "%",
+            substanceMode: true,
+            substanceStandards: [
+              {
+                substance: "ABAMECTIN",
+                operator: "gte",
+                value: 95,
+                itemNo: "RM-001",
+                packSize: "100 ml",
+                masterItemName: "ABAMECTIN A",
+                masterCommonName: "ABAMECTIN 1.8 EC",
+                masterRaw: { item_no: "RM-001", desc2: "100 ml" },
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    renderPage();
+
+    const criteriaTabList = await waitFor(() => screen.getAllByRole("tablist")[1]);
+    const substancesTab = within(criteriaTabList).getAllByRole("tab")[1];
+    fireEvent.mouseDown(substancesTab);
+    fireEvent.click(substancesTab);
+
+    expect(await screen.findByText("ABAMECTIN")).toBeInTheDocument();
+    expect(screen.getByText("RM-001")).toBeInTheDocument();
+    expect(screen.getByText("100 ml")).toBeInTheDocument();
+    expect(screen.getByText("ABAMECTIN A")).toBeInTheDocument();
+    expect(screen.getByText("item_no: RM-001 | desc2: 100 ml")).toBeInTheDocument();
+
+    const searchBox = screen.getAllByRole("textbox")[0];
+    fireEvent.change(searchBox, { target: { value: "RM-001" } });
+
+    expect(screen.getByText("ABAMECTIN")).toBeInTheDocument();
+    expect(screen.getByText("RM-001")).toBeInTheDocument();
+  });
+
   it("filters the parameter list by substance names saved in criteria", async () => {
     api.getParameters.mockResolvedValueOnce([
       {
@@ -317,6 +368,69 @@ describe("ParameterSettings criteria tabs", () => {
     expect(within(dialog).queryByText(/ABAMECTIN.*95%/)).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/Rule A.*Source.*20%/)).not.toBeInTheDocument();
     expect(within(dialog).queryByText(/GLYPHOSATE.*25%/)).not.toBeInTheDocument();
+  });
+
+  it("inserts a newly added value field at the top of the dialog", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      {
+        _id: "p-field-order",
+        name: "Field Order Parameter",
+        scope: "qc",
+        status: "active",
+        applyAll: true,
+        valueFields: [{ label: "Existing Field", type: "text" }],
+      },
+    ]);
+
+    renderPage();
+
+    const parameterName = await screen.findByText("Field Order Parameter");
+    const row = parameterName.closest("tr");
+    expect(row).not.toBeNull();
+    fireEvent.click(within(row as HTMLTableRowElement).getByTitle("แก้ไข"));
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /เพิ่มช่อง/ }));
+
+    const dialogText = dialog.textContent ?? "";
+    expect(dialogText.indexOf("ยังไม่ได้ตั้งชื่อ")).toBeGreaterThanOrEqual(0);
+    expect(dialogText.indexOf("Existing Field")).toBeGreaterThanOrEqual(0);
+    expect(dialogText.indexOf("ยังไม่ได้ตั้งชื่อ")).toBeLessThan(dialogText.indexOf("Existing Field"));
+  });
+
+  it("confirms before discarding unsaved parameter dialog changes", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      {
+        _id: "p-dirty",
+        name: "Dirty Parameter",
+        scope: "qc",
+        status: "active",
+        applyAll: true,
+        valueFields: [{ label: "Result", type: "text" }],
+      },
+    ]);
+
+    renderPage();
+
+    const parameterName = await screen.findByText("Dirty Parameter");
+    const row = parameterName.closest("tr");
+    expect(row).not.toBeNull();
+    fireEvent.click(within(row as HTMLTableRowElement).getByTitle("แก้ไข"));
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getAllByRole("textbox")[0], { target: { value: "Changed Parameter" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "ยกเลิก" }));
+
+    expect(await screen.findByText("บันทึกหรือไม่บันทึกสิ่งที่เปลี่ยนแปลง")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "กลับไปแก้ไข" }));
+    expect(screen.getByText("แก้ไขพารามิเตอร์")).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "ยกเลิก" }));
+    fireEvent.click(await screen.findByRole("button", { name: "ไม่บันทึก" }));
+
+    expect(screen.queryByText("แก้ไขพารามิเตอร์")).not.toBeInTheDocument();
+    expect(api.updateParameter).not.toHaveBeenCalled();
   });
 
   it("shows head criteria columns for admin in label tolerance tab", async () => {

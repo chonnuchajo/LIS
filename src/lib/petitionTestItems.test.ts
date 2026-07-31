@@ -54,6 +54,17 @@ describe('matchParametersForItem — lab-scope gating', () => {
     const param = makeParam({ scope: undefined });
     expect(matchParametersForItem(makeItem({ batchNo: 'AB-2502' }), [param])).toHaveLength(1);
   });
+
+  it('includes lab params for an explicit lab-track item without a lab batch', () => {
+    const labParam = makeParam({ scope: 'lab' });
+    const qcParam = makeParam({ scope: 'qc' });
+    const item = makeItem({ batchNo: '' });
+
+    expect(matchParametersForItem(item, [labParam, qcParam], [], { forceLabTrack: true })).toEqual([
+      labParam,
+      qcParam,
+    ]);
+  });
 });
 
 describe('getItemProductType', () => {
@@ -81,6 +92,31 @@ describe('getItemSubCategory', () => {
 
   it('returns empty string when sampleId missing', () => {
     expect(getItemSubCategory(makeItem({ sampleId: undefined }))).toBe('');
+  });
+});
+
+describe('parameter exclusions', () => {
+  it('excludes a commonName even when the item matches the included product type', () => {
+    const param = makeParam({
+      applyAll: false,
+      productTypes: ['water'],
+      excludeCommonNames: ['EC'],
+      scope: 'qc',
+    });
+
+    expect(matchParametersForItem(makeItem({ commonName: 'EC', sampleName: 'Foo EC' }), [param])).toHaveLength(0);
+    expect(matchParametersForItem(makeItem({ commonName: 'SC', sampleName: 'Foo SC' }), [param])).toHaveLength(1);
+  });
+
+  it('exclusions also apply to applyAll parameters', () => {
+    const param = makeParam({
+      applyAll: true,
+      excludeCommonNames: ['EC'],
+      scope: 'qc',
+    });
+
+    expect(matchParametersForItem(makeItem({ commonName: 'EC', sampleName: 'Foo EC' }), [param])).toHaveLength(0);
+    expect(matchParametersForItem(makeItem({ commonName: 'SC', sampleName: 'Foo SC' }), [param])).toHaveLength(1);
   });
 });
 

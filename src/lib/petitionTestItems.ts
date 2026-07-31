@@ -28,6 +28,59 @@ export function getPetitionCategory(petition?: Pick<Petition, 'dept'> | null): '
   return '';
 }
 
+function hasAnyCriteria(criteria: {
+  itemNames?: string[];
+  commonNames?: string[];
+  productTypes?: string[];
+  subCategories?: string[];
+  itemGroups?: string[];
+}): boolean {
+  return (
+    (criteria.itemNames?.length ?? 0) +
+      (criteria.commonNames?.length ?? 0) +
+      (criteria.productTypes?.length ?? 0) +
+      (criteria.subCategories?.length ?? 0) +
+      (criteria.itemGroups?.length ?? 0) >
+    0
+  );
+}
+
+function criteriaMatchesItem(
+  criteria: {
+    itemNames?: string[];
+    commonNames?: string[];
+    productTypes?: string[];
+    subCategories?: string[];
+    itemGroups?: string[];
+  },
+  item: PetitionItem,
+  itemGroupIds: string[] = [],
+): boolean {
+  const sampleName = item.sampleName?.trim() ?? '';
+  if (sampleName && (criteria.itemNames ?? []).some((n) => n.trim() === sampleName)) return true;
+
+  const itemCommonName = (
+    item.commonName?.trim() || getCommonName(item.sampleName)
+  ).toUpperCase();
+  if (
+    itemCommonName &&
+    (criteria.commonNames ?? []).some((c) => c.toUpperCase() === itemCommonName)
+  ) {
+    return true;
+  }
+
+  const productType = getItemProductType(item);
+  if (productType && (criteria.productTypes ?? []).includes(productType)) return true;
+
+  const subCat = getItemSubCategory(item);
+  if (subCat && (criteria.subCategories ?? []).includes(subCat)) return true;
+
+  const itemGroups = criteria.itemGroups ?? [];
+  if (itemGroups.length > 0 && itemGroups.some((g) => itemGroupIds.includes(g))) return true;
+
+  return false;
+}
+
 // Returns true when the parameter's "ใช้กับ" criteria fit this petition item.
 // applyAll → match unconditionally. Otherwise it's an OR across the five
 // dimensions we can derive from a PetitionItem (itemName / commonName /
@@ -39,58 +92,42 @@ export function parameterAppliesToItem(
   item: PetitionItem,
   itemGroupIds: string[] = [],
 ): boolean {
-  if (param.applyAll) return true;
-
-  const itemNames = param.itemNames ?? [];
-  const commonNames = param.commonNames ?? [];
-  const productTypes = param.productTypes ?? [];
-  const subCategories = param.subCategories ?? [];
-  const itemGroups = param.itemGroups ?? [];
-
-  if (
-    itemNames.length === 0 &&
-    commonNames.length === 0 &&
-    productTypes.length === 0 &&
-    subCategories.length === 0 &&
-    itemGroups.length === 0
-  ) {
+  const excludeCriteria = {
+    itemNames: param.excludeItemNames,
+    commonNames: param.excludeCommonNames,
+    productTypes: param.excludeProductTypes,
+    subCategories: param.excludeSubCategories,
+    itemGroups: param.excludeItemGroups,
+  };
+  if (hasAnyCriteria(excludeCriteria) && criteriaMatchesItem(excludeCriteria, item, itemGroupIds)) {
     return false;
   }
 
-  const sampleName = item.sampleName?.trim() ?? '';
-  if (sampleName && itemNames.some((n) => n.trim() === sampleName)) return true;
+  if (param.applyAll) return true;
 
-  const itemCommonName = (
-    item.commonName?.trim() || getCommonName(item.sampleName)
-  ).toUpperCase();
-  if (
-    itemCommonName &&
-    commonNames.some((c) => c.toUpperCase() === itemCommonName)
-  ) {
-    return true;
-  }
+  const includeCriteria = {
+    itemNames: param.itemNames,
+    commonNames: param.commonNames,
+    productTypes: param.productTypes,
+    subCategories: param.subCategories,
+    itemGroups: param.itemGroups,
+  };
+  if (!hasAnyCriteria(includeCriteria)) return false;
 
-  const productType = getItemProductType(item);
-  if (productType && productTypes.includes(productType)) return true;
-
-  const subCat = getItemSubCategory(item);
-  if (subCat && subCategories.includes(subCat)) return true;
-
-  if (itemGroups.length > 0 && itemGroups.some((g) => itemGroupIds.includes(g))) return true;
-
-  return false;
+  return criteriaMatchesItem(includeCriteria, item, itemGroupIds);
 }
 
 export function matchParametersForItem(
   item: PetitionItem,
   params: ParameterItem[],
   itemGroupIds: string[] = [],
+  options: { forceLabTrack?: boolean } = {},
 ): ParameterItem[] {
   // Lab-scope parameters only apply to items actually sent to lab
   // (lab batch = batchNo ending in 1/6). This gate is independent of the
   // param's "ใช้กับ" classification — applyAll must not leak a lab param
   // onto non-lab items. QC params are unaffected.
-  const itemIsLab = item.batchNo ? isLabBatch(item.batchNo) : false;
+  const itemIsLab = options.forceLabTrack || (item.batchNo ? isLabBatch(item.batchNo) : false);
   const active = params.filter(
     (p) =>
       p.status !== 'inactive' &&

@@ -1,11 +1,17 @@
 // Derives a human-readable status_log ({ current, timeline }) for a petition.
 // Pure functions — NO DB access. The route loads inputs and calls buildStatusLog.
+const { isResearchAndDevelopmentDepartment, requiresQcTrack } = require('./petitionSubmissionRules');
 
 // Lab batch rule (mirrors src/types/petition.types.ts isLabBatch):
 // last char of trimmed batchNo is '1' or '6'.
 function isLabBatch(batchNo) {
   const last = String(batchNo ?? '').trim().slice(-1);
   return last === '1' || last === '6';
+}
+
+function hasLabTrack(petition) {
+  if (isResearchAndDevelopmentDepartment(petition?.submittedBy?.department)) return true;
+  return ((petition ?? {}).items ?? []).some((it) => isLabBatch(it.batchNo ?? ''));
 }
 
 // True if a QCTestResult.values object has at least one non-empty field value.
@@ -18,12 +24,18 @@ function hasFilledValue(values) {
 // productType / subCategory / itemGroup / simple-method dimensions that the
 // frontend matchParametersForItem uses).
 function qcParamAppliesToItem(param, item) {
-  if (param.applyAll) return true;
   const commonName = String(item.commonName ?? '').trim().toUpperCase();
+  if (commonName && (param.excludeCommonNames ?? []).some((c) => String(c).trim().toUpperCase() === commonName)) {
+    return false;
+  }
+  const sampleName = String(item.sampleName ?? '').trim();
+  if (sampleName && (param.excludeItemNames ?? []).some((n) => String(n).trim() === sampleName)) {
+    return false;
+  }
   if (commonName && (param.commonNames ?? []).some((c) => String(c).trim().toUpperCase() === commonName)) {
     return true;
   }
-  const sampleName = String(item.sampleName ?? '').trim();
+  if (param.applyAll) return true;
   if (sampleName && (param.itemNames ?? []).some((n) => String(n).trim() === sampleName)) {
     return true;
   }
@@ -110,12 +122,21 @@ function buildCurrent(petition, qc, fieldLabels, labDone) {
   const qcReceived = !!petition.qcReceivedAt;
   const labReceived = !!petition.labReceivedAt;
   if (!qcReceived && !labReceived) {
-    if (status === 'sampleSent') return { label: 'ส่งตัวอย่างแล้ว — รอรับ' };
-    return { label: 'กำลังนำส่ง QC' };
+    if (status === 'sampleSent' && !isResearchAndDevelopmentDepartment(petition?.submittedBy?.department)) {
+      return { label: 'ส่งตัวอย่างแล้ว — รอรับ' };
+    }
+    if (status !== 'sampleSent') {
+      return {
+        label: isResearchAndDevelopmentDepartment(petition?.submittedBy?.department)
+          ? 'กำลังนำส่ง Lab'
+          : 'กำลังนำส่ง QC',
+      };
+    }
   }
 
   // --- dual-track: QC and Lab advance independently ---
-  const hasLabItem = (petition.items ?? []).some((it) => isLabBatch(it.batchNo ?? ''));
+  const hasLabItem = hasLabTrack(petition);
+  const hasQcTrack = requiresQcTrack(petition);
   const assignee = petition.assignedTo;
   const assigneeSide = assigneeSideOf(assignee); // 'lab' | 'qc' | null — assignment belongs to ONE side
   // "รับงาน" (job accepted) signal — single, per-petition (model has no per-side accept):
@@ -125,10 +146,12 @@ function buildCurrent(petition, qc, fieldLabels, labDone) {
     !!petition.firstResultAt ||
     qc.filled > 0;
 
-  const qcTrack = buildQcTrack({
-    qcReceived, isAssignee: assigneeSide === 'qc', assignee, started, qc, fieldLabels,
-    qcCompleted: !!petition.qcCompletedAt,
-  });
+  const qcTrack = hasQcTrack
+    ? buildQcTrack({
+      qcReceived, isAssignee: assigneeSide === 'qc', assignee, started, qc, fieldLabels,
+      qcCompleted: !!petition.qcCompletedAt,
+    })
+    : null;
   const labTrack = hasLabItem
     ? buildLabTrack({ labReceived, isAssignee: assigneeSide === 'lab', assignee, started, labDone })
     : null;
@@ -242,11 +265,10 @@ function buildTimeline(auditLogs, petition) {
 // lab-batch item. A petition may transition to `success` only when this holds —
 // so a single track finishing (Lab OR QC) never completes the petition alone.
 function isPetitionComplete(petition) {
-  const items = (petition ?? {}).items ?? [];
-  const hasLabItem = items.some((it) => isLabBatch(it.batchNo ?? ''));
+  const hasLabItem = hasLabTrack(petition);
   const qcDone = !!(petition ?? {}).qcCompletedAt;
   const labDone = !hasLabItem || !!(petition ?? {}).labApprovedAt;
-  return qcDone && labDone;
+  return (!requiresQcTrack(petition) || qcDone) && labDone;
 }
 
 // Top-level: assemble { current, timeline } from route-loaded inputs.
@@ -260,6 +282,7 @@ function buildStatusLog(petition, auditLogs, qcResults, parameters, labDone) {
 
 module.exports = {
   isLabBatch,
+  hasLabTrack,
   hasFilledValue,
   qcParamAppliesToItem,
   countableFields,

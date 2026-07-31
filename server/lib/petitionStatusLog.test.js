@@ -468,3 +468,43 @@ test('isPetitionComplete: null-safe', () => {
   assert.strictEqual(isPetitionComplete(null), false);
   assert.strictEqual(isPetitionComplete({}), false);
 });
+
+test('isPetitionComplete: R&D requires Lab approval but not QC completion', () => {
+  assert.strictEqual(
+    isPetitionComplete({
+      submittedBy: { department: 'R & D' },
+      items: [{ batchNo: '' }],
+      labApprovedAt: 'T',
+    }),
+    true,
+  );
+  assert.strictEqual(
+    isPetitionComplete({
+      submittedBy: { department: 'R & D' },
+      items: [{ batchNo: '' }],
+      qcCompletedAt: 'T',
+    }),
+    false,
+  );
+});
+
+test('buildStatusLog: R&D has a Lab track and no QC track', () => {
+  const out = buildStatusLog(
+    {
+      status: 'sampleSent',
+      submittedBy: { department: 'R & D' },
+      items: [{ seq: 1, sampleName: 'R&D sample', batchNo: '' }],
+    },
+    [],
+    [],
+    [],
+    false,
+  );
+  assert.strictEqual(out.current.tracks.lab.side, 'lab');
+  assert.strictEqual(out.current.tracks.qc, undefined);
+});
+
+test('qcParamAppliesToItem: excluded commonName wins over applyAll', () => {
+  assert.strictEqual(qcParamAppliesToItem({ applyAll: true, excludeCommonNames: ['EC'] }, { commonName: 'ec' }), false);
+  assert.strictEqual(qcParamAppliesToItem({ applyAll: true, excludeCommonNames: ['EC'] }, { commonName: 'SC' }), true);
+});

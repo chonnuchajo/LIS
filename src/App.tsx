@@ -154,6 +154,7 @@ const App = () => (
               <Route path="/petitions-old/ProductionIntegrationPetitionNewPage" element={<ProductionIntegrationPetitionNewPage />} />
               <Route path="/petitions-old/:id" element={<PrivateRoute><PetitionDetailPage /></PrivateRoute>} />
               <Route path="/petitions-old/:id/edit" element={<PrivateRoute><PetitionEditPage /></PrivateRoute>} />
+              <Route path="/petitions/new" element={<PrivateRoute><PetitionNewPage /></PrivateRoute>} />
               <Route path="/qc-testing" element={<PrivateRoute><QCTestingPage /></PrivateRoute>} />
               <Route path="/qc-testing/:id" element={<PrivateRoute><QCTestingDetailPage /></PrivateRoute>} />
               <Route path="/lab-testing" element={<PrivateRoute><LabTestingPage /></PrivateRoute>} />

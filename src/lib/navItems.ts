@@ -11,13 +11,11 @@ import {
   Monitor,
   Network,
   Package,
-  Pencil,
   Scale,
   ScanLine,
   Settings,
   SlidersHorizontal,
   ShieldCheck,
-  UserCheck,
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -43,7 +41,6 @@ export const NAV_ITEMS: NavItem[] = [
   { icon: FlaskConical, label: "การทดสอบ QC", path: "/qc-testing" },
   { icon: FlaskConical, label: "การทดสอบ Lab", path: "/lab-testing" },
   { icon: Gauge, label: "ผล Density", path: "/density-results" },
-  { icon: UserCheck, label: "Assign คำร้อง", path: "/petitions-old/assign" },
   { icon: Package, label: "Stock Management", path: "/stock" },
   { icon: Database, label: "Master Item", path: "/master-items" },
   { icon: FlaskConical, label: "Simple Method", path: "/simple-method" },
@@ -56,10 +53,7 @@ export const NAV_ITEMS: NavItem[] = [
 
 export const PAGE_ITEMS: NavItem[] = [
   ...NAV_ITEMS,
-  { icon: FileText, label: "รายการคำร้อง (เดิม)", path: "/petitions-old" },
-  { icon: FileText, label: "New Petition", path: "/petitions-old/new" },
-  { icon: FileText, label: "Petition Detail", path: "/petitions-old/:id" },
-  { icon: Pencil, label: "Edit Petition", path: "/petitions-old/:id/edit" },
+  { icon: FileText, label: "New Petition", path: "/petitions/new" },
   { icon: ClipboardList, label: "Analysis Result Detail", path: "/record-results/:id" },
   { icon: ClipboardList, label: "รายละเอียดผล Lab", path: "/lab-results/:id" },
   { icon: ScanLine, label: "Scanner", path: "/scanner" },
