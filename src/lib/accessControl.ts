@@ -10,18 +10,11 @@ export interface AccessUser {
 
 // Detail/sub pages that aren't in the sidebar and ride along with their parent
 // nav page's permission: granting the parent grants these too. They are never
-// granted on their own. A nav page that is managed separately (e.g.
-// /petitions/assign) is intentionally NOT listed and stays independently
-// controlled — see the guard in `grantMatches`.
+// granted on their own.
 const IMPLIED_CHILD_PATHS: Record<string, string[]> = {
   "/petition": [
     "/petition/:id",
-    "/petitions-old",
-    "/petitions-old/new",
-    "/petitions-old/production/new",
-    "/petitions-old/ProductionIntegrationPetitionNewPage",
-    "/petitions-old/:id",
-    "/petitions-old/:id/edit",
+    "/petitions/new",
   ],
   "/record-results": ["/record-results/:id"],
   "/qc-testing": ["/qc-testing/:id"],

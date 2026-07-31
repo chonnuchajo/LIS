@@ -6,7 +6,8 @@
 // (never throws — callers in routes/petitions.js don't await it).
 const LineGroup = require('../models/LineGroup');
 const line = require('./line');
-const { isLabBatch } = require('./petitionStatusLog');
+const { hasLabTrack, isLabBatch } = require('./petitionStatusLog');
+const { requiresQcTrack } = require('./petitionSubmissionRules');
 
 const DEPT_LABELS = { production: 'แผนกผลิต', rm: 'แผนก RM', fg: 'แผนก FG' };
 
@@ -43,7 +44,7 @@ function petitionStatusText(petition) {
     return 'รอตรวจ';
   }
   if (petition?.qcCompletedAt) return 'QC ตรวจครบ · รอส่วนอื่น';
-  if (petition?.labApprovedAt) return 'ผล Lab ออกแล้ว · รอ QC';
+  if (petition?.labApprovedAt) return requiresQcTrack(petition) ? 'ผล Lab ออกแล้ว · รอ QC' : 'ผล Lab ออกแล้ว · รอ Final Result';
   if (petition?.labCompletedAt) return 'รอออกผล';
   if (s === 'inProgress') return 'กำลังตรวจ';
   if (s === 'pendingReview') return 'รับตัวอย่างแล้ว';
@@ -55,10 +56,12 @@ function petitionStatusText(petition) {
 // Audiences (LineGroup.audience keys) that should hear about an audit event.
 // Empty array = do not notify.
 function audiencesForEvent(petition, payload) {
-  const bothSides = hasLabItem(petition) ? ['qc', 'lab'] : ['qc'];
+  const qcTrack = requiresQcTrack(petition);
+  const labTrack = hasLabTrack(petition);
+  const bothSides = [qcTrack ? 'qc' : null, labTrack ? 'lab' : null].filter(Boolean);
   switch (payload?.event) {
     case 'created':
-      return ['qc'];
+      return qcTrack ? ['qc'] : ['lab'];
     case 'assigned': {
       const side = assigneeSide(payload?.metadata?.assignee || petition?.assignedTo);
       return side ? [side] : bothSides;
@@ -68,7 +71,7 @@ function audiencesForEvent(petition, payload) {
         case 'sampleSent': return bothSides;
         // ผลออก/ปิดงาน → แจ้งฝ่ายตรวจ + แจ้งกลับแผนกผู้ยื่นคำขอ (petition.dept ตรงกับ audience key)
         case 'success':    return [...bothSides, petition?.dept].filter(Boolean);
-        case 'approved':   return ['qc', petition?.dept].filter(Boolean);
+        case 'approved':   return [qcTrack ? 'qc' : null, petition?.dept].filter(Boolean);
         case 'rejected':   return bothSides;
         default:           return [];
       }

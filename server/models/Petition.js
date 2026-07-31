@@ -6,7 +6,7 @@ const PetitionItemSchema = new mongoose.Schema(
     seq: { type: Number, required: true },
     sampleName: { type: String, required: true },
     commonName: String,
-    batchNo: { type: String, required: true },
+    batchNo: String,
     lotNo: String,
     productionDate: String,
     submissionNo: String,

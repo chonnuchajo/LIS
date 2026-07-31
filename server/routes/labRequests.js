@@ -3,6 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const LabRequest = require('../models/LabRequest');
 const Petition = require('../models/Petition');
+const { requiresDeliveryAndBatch } = require('../lib/petitionSubmissionRules');
 
 // Generate next lab-request number from DocumentNumberConfig (default: L-YYMM-####).
 const { nextDocumentNumber } = require('../lib/documentNumber');
@@ -52,14 +53,18 @@ router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
     if (!body.petitionId) return badRequest(res, 'ต้องระบุ petitionId');
-    if (!body.batchNo) return badRequest(res, 'ต้องระบุ batchNo');
     if (!body.serviceAgreement) return badRequest(res, 'ต้องระบุข้อตกลงการบริการ');
 
     const petition = await Petition.findById(body.petitionId).lean();
     if (!petition) return badRequest(res, 'ไม่พบคำร้องอ้างอิง');
-    const matchItem = petition.items.find((it) => String(it.batchNo).trim() === String(body.batchNo).trim());
-    if (!matchItem) return badRequest(res, `ไม่พบ batch ${body.batchNo} ในคำร้องอ้างอิง`);
-    if (!/[16]$/.test(String(body.batchNo).trim())) {
+    const deliveryAndBatchRequired = requiresDeliveryAndBatch(petition);
+    if (deliveryAndBatchRequired && !body.batchNo) return badRequest(res, 'ต้องระบุ batchNo');
+    const requestBatchNo = String(body.batchNo || '').trim();
+    const matchItem = requestBatchNo
+      ? petition.items.find((it) => String(it.batchNo || '').trim() === requestBatchNo)
+      : petition.items.find((it) => Number(it.seq) === Number(body.sampleSeq));
+    if (!matchItem) return badRequest(res, requestBatchNo ? `ไม่พบ batch ${body.batchNo} ในคำร้องอ้างอิง` : 'ไม่พบตัวอย่างอ้างอิง');
+    if (deliveryAndBatchRequired && !/[16]$/.test(requestBatchNo)) {
       return badRequest(res, 'batch นี้ไม่ต้องสร้างใบคำขอรับบริการ (ต้องลงท้าย 1 หรือ 6)');
     }
 

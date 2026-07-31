@@ -11,11 +11,11 @@ test('renames the timeline list + detail to /petition', () => {
   assert.strictEqual(renamePath('/petition-timeline/:id'), '/petition/:id');
 });
 
-test('renames /petitions sub-routes to /petitions-old', () => {
-  assert.strictEqual(renamePath('/petitions/assign'), '/petitions-old/assign');
-  assert.strictEqual(renamePath('/petitions/new'), '/petitions-old/new');
-  assert.strictEqual(renamePath('/petitions/:id'), '/petitions-old/:id');
-  assert.strictEqual(renamePath('/petitions/:id/edit'), '/petitions-old/:id/edit');
+test('drops retired /petitions sub-routes except the canonical new form', () => {
+  assert.strictEqual(renamePath('/petitions/assign'), null);
+  assert.strictEqual(renamePath('/petitions/new'), '/petitions/new');
+  assert.strictEqual(renamePath('/petitions/:id'), null);
+  assert.strictEqual(renamePath('/petitions/:id/edit'), null);
 });
 
 test('leaves group ids and unrelated paths untouched', () => {
@@ -27,7 +27,7 @@ test('leaves group ids and unrelated paths untouched', () => {
 
 test('is idempotent (re-running does not double-rename)', () => {
   assert.strictEqual(renamePath('/petition'), '/petition');
-  assert.strictEqual(renamePath('/petitions-old/:id'), '/petitions-old/:id');
+  assert.strictEqual(renamePath('/petitions-old/:id'), null);
   assert.strictEqual(renamePath('/petition/:id'), '/petition/:id');
 });
 
@@ -35,7 +35,7 @@ test('renamePaths maps and dedupes preserving order', () => {
   assert.deepStrictEqual(renamePaths(['/petitions', '/petition-timeline']), ['/petition']);
   assert.deepStrictEqual(
     renamePaths(['/petitions/:id', '/petitions', '/petition-timeline/:id']),
-    ['/petitions-old/:id', '/petition', '/petition/:id'],
+    ['/petition', '/petition/:id'],
   );
 });
 

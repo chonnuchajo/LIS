@@ -46,7 +46,7 @@ export const KPI_META: Record<KpiId, KpiMeta> = {
   petitionsTotal:    { label: "คำขอทั้งหมด",   icon: ClipboardList, variant: "neutral", drilldownPath: "/petition" },
   inProgress:        { label: "กำลังดำเนินการ", icon: FlaskConical,  variant: "blue",    drilldownPath: "/petition?status=inProgress" },
   waitingReceive:    { label: "งานรอรับ",       icon: Hourglass,     variant: "amber",   drilldownPath: "/petition?status=sampleSent" },
-  pendingAssign:     { label: "รอ assign",      icon: UserCheck,     variant: "blue",    drilldownPath: "/petitions-old/assign" },
+  pendingAssign:     { label: "รอ assign",      icon: UserCheck,     variant: "blue",    drilldownPath: "/petition" },
   waitingSendLab:    { label: "รอส่ง Lab",       icon: ClipboardList, variant: "amber",   drilldownPath: "/petition?status=pendingReview" },
   waitingReview:     { label: "รอตรวจ",          icon: ShieldCheck,   variant: "amber",   drilldownPath: "/qc-approval" },
   completedTotal:    { label: "เสร็จสิ้น",       icon: CheckCircle2,  variant: "green",   drilldownPath: "/petition?status=success" },

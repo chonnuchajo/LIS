@@ -8,6 +8,7 @@ import {
   DEV_DEFAULT_ROLE,
   synthesizeDevUser,
   normalizeDevRoleSelection,
+  normalizeDevDepartment,
   toggleDevRoleSelection,
   type DevRoleOption,
 } from "@/config/dev";
@@ -43,6 +44,9 @@ interface AuthContextType {
   devRoleIds?: string[];
   devRoles?: DevRoleOption[];
   toggleDevRole?: (role: string) => void;
+  // "" = ตามบทบาท (role-derived department)
+  devDepartment?: string;
+  setDevDepartment?: (department: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -83,6 +87,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   });
   const [devPermissions, setDevPermissions] = useState<Record<string, string[]>>({});
   const [devRoles, setDevRoles] = useState<DevRoleOption[]>([]);
+  const [devDepartment, setDevDepartmentState] = useState<string>(() =>
+    normalizeDevDepartment(localStorage.getItem("dev_department")),
+  );
+
+  // Override the role-derived department so dev can exercise department-gated
+  // flows (R&D skips ผู้นำส่ง/เลขแบช, ผลิต 1–5 / RM change รหัสลูกค้า).
+  const setDevDepartment = (department: string) => {
+    const next = normalizeDevDepartment(department);
+    if (next) localStorage.setItem("dev_department", next);
+    else localStorage.removeItem("dev_department");
+    setDevDepartmentState(next);
+  };
 
   const sameRoleSelection = (a: string[], b: string[]) =>
     a.length === b.length && a.every((id, index) => id === b[index]);
@@ -144,7 +160,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           ? selected
           : devRoles.filter((r) => r.id === DEV_DEFAULT_ROLE);
         if (roleObjs.length === 0) return null;
-        const base = synthesizeDevUser(roleObjs);
+        const base = synthesizeDevUser(roleObjs, devDepartment);
         return {
           ...base,
           permissions: unionPermissions(base.roles, devPermissions),
@@ -413,6 +429,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         devRoleIds: DEV_MODE ? devRoleIds : undefined,
         devRoles: DEV_MODE ? devRoles : undefined,
         toggleDevRole: DEV_MODE ? toggleDevRole : undefined,
+        devDepartment: DEV_MODE ? devDepartment : undefined,
+        setDevDepartment: DEV_MODE ? setDevDepartment : undefined,
       }}
     >
       {children}

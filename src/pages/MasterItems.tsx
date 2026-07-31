@@ -454,6 +454,13 @@ function getItemCategory(item: MasterItem) {
   return String(firstValue(item, categoryKeys)).trim();
 }
 
+function getItemSubCategory(item: MasterItem) {
+  const cleaned = String(firstValue(item, codeKeys)).trim();
+  if (!cleaned) return "";
+  const dashIdx = cleaned.indexOf("-");
+  return (dashIdx > 0 ? cleaned.slice(0, dashIdx) : cleaned).toUpperCase();
+}
+
 function getProductTypeGroup(item: MasterItem) {
   const source = [
     firstValue(item, typeKeys),
@@ -487,15 +494,23 @@ function getParametersFor(
   const itemName = getItemNameForParam(item);
   const productType = getProductTypeGroup(item);
   const category = getItemCategory(item);
+  const subCategory = getItemSubCategory(item);
   const commonName = getCommonName(firstValue(item, commonNameKeys))
     || getCommonName(firstValue(item, nameKeys));
 
   return parameters.filter((parameter) => {
     if ((parameter.status ?? "active") !== "active") return false;
+    if (itemName && parameter.excludeItemNames?.includes(itemName)) return false;
+    if (productType && parameter.excludeProductTypes?.includes(productType)) return false;
+    if (category && parameter.excludeCategories?.includes(category)) return false;
+    if (subCategory && parameter.excludeSubCategories?.includes(subCategory)) return false;
+    if (commonName && parameter.excludeCommonNames?.some((name) => name.toUpperCase() === commonName.toUpperCase())) return false;
+    if (itemGroupIds.length > 0 && (parameter.excludeItemGroups ?? []).some((g) => itemGroupIds.includes(g))) return false;
     if (parameter.applyAll) return true;
     if (itemName && parameter.itemNames?.includes(itemName)) return true;
     if (productType && parameter.productTypes?.includes(productType)) return true;
     if (category && parameter.categories?.includes(category)) return true;
+    if (subCategory && parameter.subCategories?.includes(subCategory)) return true;
     if (commonName && parameter.commonNames?.includes(commonName)) return true;
     if (itemGroupIds.length > 0 && (parameter.itemGroups ?? []).some((g) => itemGroupIds.includes(g))) return true;
     return false;

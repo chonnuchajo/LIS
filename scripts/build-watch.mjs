@@ -18,30 +18,45 @@ function stamp() {
   return new Date().toLocaleTimeString();
 }
 
+function runStep(label, script, args = []) {
+  return new Promise((resolveStep) => {
+    console.log(`[${stamp()}] ${label}`);
+    const proc = spawn(process.execPath, [script, ...args], {
+      stdio: "inherit",
+      shell: false,
+      windowsHide: true,
+      cwd: root,
+    });
+    proc.on("close", (code) => resolveStep(code));
+  });
+}
+
 function runBuild() {
   if (building) {
     pending = true;
     return;
   }
+
   building = true;
-  console.log(`\n[${stamp()}] 🔨 Building...`);
-  const proc = spawn("npm", ["run", "build"], {
-    stdio: "inherit",
-    shell: true,
-    cwd: root,
-  });
-  proc.on("close", (code) => {
-    building = false;
-    if (code === 0) {
-      console.log(`[${stamp()}] ✅ Build done. Watching for changes...`);
-    } else {
-      console.log(`[${stamp()}] ❌ Build failed (exit ${code}). Waiting for next change...`);
-    }
-    if (pending) {
-      pending = false;
-      runBuild();
-    }
-  });
+  console.log(`\n[${stamp()}] Building...`);
+
+  Promise.resolve()
+    .then(() => runStep("Restoring entry files...", resolve(root, "scripts/restore-index.mjs")))
+    .then((code) => (code === 0 ? runStep("Running Vite build...", resolve(root, "node_modules/vite/bin/vite.js"), ["build"]) : code))
+    .then((code) => (code === 0 ? runStep("Deploying build output...", resolve(root, "scripts/deploy-dist-to-root.mjs")) : code))
+    .then((code) => (code === 0 ? runStep("Restarting server...", resolve(root, "scripts/restart-server.mjs")) : code))
+    .then((code) => {
+      building = false;
+      if (code === 0) {
+        console.log(`[${stamp()}] Build done. Watching for changes...`);
+      } else {
+        console.log(`[${stamp()}] Build failed (exit ${code}). Waiting for next change...`);
+      }
+      if (pending) {
+        pending = false;
+        runBuild();
+      }
+    });
 }
 
 function scheduleBuild() {
@@ -61,5 +76,5 @@ for (const file of watchedFiles) {
   watch(p, () => scheduleBuild());
 }
 
-console.log(`👀 Watching ${watchedDirs.join(", ")} and config files. Press Ctrl+C to stop.`);
+console.log(`Watching ${watchedDirs.join(", ")} and config files. Press Ctrl+C to stop.`);
 runBuild();

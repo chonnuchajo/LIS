@@ -215,7 +215,7 @@ export default function PetitionAuditLogPage() {
                     <TableRow
                       key={entry._id}
                       className="cursor-pointer"
-                      onClick={() => navigate(`/petitions-old/${entry.petitionId}`)}
+                      onClick={() => navigate(`/petition/${entry.petitionId}`)}
                     >
                       <TableCell className="text-grey-500 whitespace-nowrap">
                         {new Date(entry.createdAt).toLocaleString('th-TH', {

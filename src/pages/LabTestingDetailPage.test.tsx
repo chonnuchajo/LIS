@@ -71,6 +71,60 @@ const fixtures = vi.hoisted(() => {
   return { petition, parameters, results };
 });
 
+const researchFixtures = vi.hoisted(() => {
+  const petition: Petition = {
+    _id: "petition-rd",
+    petitionNo: "LIS-RD-001",
+    dept: "production",
+    status: "inProgress",
+    submittedBy: {
+      name: "นักวิจัย",
+      department: "R & D",
+      submittedAt: "2026-07-13T01:00:00.000Z",
+    },
+    assignedTo: {
+      employeeId: "11650",
+      name: "พรหมพิริยะ ทองรุ่งรัตนกุล",
+    },
+    labReceivedAt: "2026-07-13T01:30:00.000Z",
+    labReceivedBy: "พรหมพิริยะ ทองรุ่งรัตนกุล",
+    items: [
+      {
+        seq: 1,
+        sampleName: "R&D Sample",
+        commonName: "R&D Active",
+        batchNo: "",
+      },
+    ],
+    createdAt: "2026-07-13T01:00:00.000Z",
+    updatedAt: "2026-07-13T02:42:00.000Z",
+  };
+
+  const parameters: ParameterItem[] = [
+    {
+      _id: "lab-param",
+      name: "Lab Assay",
+      scope: "lab",
+      applyAll: true,
+      valueFields: [{ label: "Lab value", type: "text" }],
+    },
+    {
+      _id: "qc-param",
+      name: "QC Shared",
+      scope: "qc",
+      shareWithLab: true,
+      applyAll: true,
+      valueFields: [{ label: "QC value", type: "text" }],
+    },
+  ];
+
+  return { petition, parameters, results: [] as QCTestResult[] };
+});
+
+const mockState = vi.hoisted(() => ({
+  activeFixtures: fixtures,
+}));
+
 vi.mock("react-router-dom", () => ({
   useParams: () => ({ id: "petition-1" }),
   useNavigate: () => mockNavigate,
@@ -114,7 +168,7 @@ vi.mock("@/hooks/useItemGroupMembership", () => ({
 }));
 
 vi.mock("@/hooks/usePetition", () => ({
-  usePetition: () => ({ data: fixtures.petition, loading: false, error: null }),
+  usePetition: () => ({ data: mockState.activeFixtures.petition, loading: false, error: null }),
   usePetitionList: () => ({ data: { items: [] }, loading: false, error: null }),
 }));
 
@@ -124,11 +178,11 @@ vi.mock("@/lib/api", async (importOriginal) => {
     ...actual,
     api: {
       ...actual.api,
-      getParameters: vi.fn().mockResolvedValue(fixtures.parameters),
+      getParameters: vi.fn().mockImplementation(() => Promise.resolve(mockState.activeFixtures.parameters)),
       getInstrumentSources: vi.fn().mockResolvedValue([]),
-      getQCResults: vi.fn().mockResolvedValue(fixtures.results),
+      getQCResults: vi.fn().mockImplementation(() => Promise.resolve(mockState.activeFixtures.results)),
       getReturnedFlags: vi.fn().mockResolvedValue({}),
-      patch: vi.fn().mockResolvedValue({ data: { data: fixtures.petition } }),
+      patch: vi.fn().mockResolvedValue({ data: { data: mockState.activeFixtures.petition } }),
     },
   };
 });
@@ -136,6 +190,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 describe("LabTestingDetailPage", () => {
   beforeEach(() => {
     mockNavigate.mockClear();
+    mockState.activeFixtures = fixtures;
   });
 
   it("shows label-tolerance criteria and saved-by metadata beside the parameter field name", async () => {
@@ -152,5 +207,14 @@ describe("LabTestingDetailPage", () => {
     expect(within(headerRow as HTMLElement).getByText(/เกณฑ์กลาง 1\.7100–1\.8900 %/)).toBeInTheDocument();
     expect(within(headerRow as HTMLElement).getByText(/กรอกโดย พรหมพิริยะ ทองรุ่งรัตนกุล เมื่อ/)).toBeInTheDocument();
     expect(screen.queryByText(/หัวหน้าตรวจสอบ 1\.7100–1\.8900 %/)).not.toBeInTheDocument();
+  });
+
+  it("shows only Lab-scope parameters for R&D petitions", async () => {
+    mockState.activeFixtures = researchFixtures;
+
+    render(<LabTestingDetailPage />);
+
+    expect(await screen.findByText("Lab value")).toBeInTheDocument();
+    expect(screen.queryByText("QC value")).not.toBeInTheDocument();
   });
 });

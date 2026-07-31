@@ -141,6 +141,116 @@ describe("SubstanceStandardsDialog", () => {
     ]);
   });
 
+  it("focuses and scrolls to a newly added standard so users can type continuously", async () => {
+    const scrollIntoView = vi.fn();
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      renderDialog(undefined, [
+        { substance: "EXISTING", operator: "gte", value: 95, value2: null },
+      ]);
+
+      fireEvent.click(await screen.findByRole("button", { name: /CYPERMETHRIN 25% W\/V BIO EC\(LIVE STOCK\)/ }));
+
+      const newValueInput = (await screen.findAllByLabelText(/CYPERMETHRIN 25% W\/V BIO EC\(LIVE STOCK\)/))
+        .find((element) => element instanceof HTMLInputElement && element.type === "number");
+      expect(newValueInput).toBeDefined();
+      await waitFor(() => expect(document.activeElement).toBe(newValueInput));
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
+    } finally {
+      HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+    }
+  });
+
+  it("can add a duplicate master item set as one commonName row", async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === "/master-items") {
+        return {
+          data: {
+            data: [
+              {
+                item_no: "RM-001",
+                common_name: "ABAMECTIN 1.8% EC",
+                trade_name: "ABAMECTIN A",
+                desc2: "100 ml",
+                inventory_posting_group: "RM",
+              },
+              {
+                item_no: "RM-002",
+                common_name: "ABAMECTIN 1.8% EC",
+                trade_name: "ABAMECTIN B",
+                desc2: "500 ml",
+                inventory_posting_group: "RM",
+              },
+            ],
+          },
+        } as any;
+      }
+      if (path === "/item-groups") return { data: { data: [] } } as any;
+      return { data: { data: [] } } as any;
+    });
+    const { onSave } = renderDialog();
+
+    fireEvent.change(await screen.findByLabelText("วิธีเพิ่มสาร"), { target: { value: "commonName" } });
+    fireEvent.click(screen.getAllByRole("button", { name: /ABAMECTIN 1\.8% EC/ })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const saved = onSave.mock.calls[0][0];
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ substance: "ABAMECTIN 1.8% EC" });
+    expect(saved[0]).not.toHaveProperty("itemNo");
+    expect(saved[0]).not.toHaveProperty("packSize");
+  });
+
+  it("can add every duplicate master item for the selected commonName", async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === "/master-items") {
+        return {
+          data: {
+            data: [
+              {
+                item_no: "RM-001",
+                common_name: "ABAMECTIN 1.8% EC",
+                trade_name: "ABAMECTIN A",
+                desc2: "100 ml",
+                inventory_posting_group: "RM",
+              },
+              {
+                item_no: "RM-002",
+                common_name: "ABAMECTIN 1.8% EC",
+                trade_name: "ABAMECTIN B",
+                desc2: "500 ml",
+                inventory_posting_group: "RM",
+              },
+              {
+                item_no: "RM-003",
+                common_name: "DIQUAT",
+                trade_name: "DIQUAT A",
+                desc2: "1 L",
+                inventory_posting_group: "RM",
+              },
+            ],
+          },
+        } as any;
+      }
+      if (path === "/item-groups") return { data: { data: [] } } as any;
+      return { data: { data: [] } } as any;
+    });
+    const { onSave } = renderDialog();
+
+    fireEvent.change(await screen.findByLabelText("วิธีเพิ่มสาร"), { target: { value: "duplicates" } });
+    fireEvent.click(screen.getAllByRole("button", { name: /ABAMECTIN 1\.8% EC/ })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledWith([
+      expect.objectContaining({ substance: "ABAMECTIN 1.8% EC", itemNo: "RM-001", packSize: "100 ml" }),
+      expect.objectContaining({ substance: "ABAMECTIN 1.8% EC", itemNo: "RM-002", packSize: "500 ml" }),
+    ]);
+  });
+
   it("dedupes selected standards by substance item code and pack size together", async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === "/master-items") {
@@ -221,6 +331,23 @@ describe("SubstanceStandardsDialog", () => {
     expect(screen.getByText("MANCOZEB 80% WP")).toBeInTheDocument();
     expect(screen.queryByText("CYPERMETHRIN 25% W/V BIO EC(LIVE STOCK)")).not.toBeInTheDocument();
     expect(screen.queryByText("CYPERMETHRIN 25% W/V EC(GMP)")).not.toBeInTheDocument();
+  });
+
+  it("adds standards by formulation common name code", async () => {
+    const { onSave } = renderDialog();
+
+    const formulationTab = await screen.findByRole("tab", { name: "CN" });
+    fireEvent.mouseDown(formulationTab);
+    fireEvent.click(formulationTab);
+    fireEvent.click(await screen.findByRole("button", { name: /EC/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: /บันทึก/ }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledWith([
+      expect.objectContaining({ substance: "CYPERMETHRIN 25% W/V BIO EC(LIVE STOCK)" }),
+      expect.objectContaining({ substance: "CYPERMETHRIN 25% W/V EC(GMP)" }),
+    ]);
   });
 
   const compactStandards: SubstanceStandard[] = [

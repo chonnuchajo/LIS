@@ -50,6 +50,7 @@ const META_SNAKE_ALIASES = {
 };
 
 const CLASSIFICATION_TYPES = [
+  { code: 'SG', group: 'sand' },
   { code: 'ULV', group: 'water' },
   { code: 'EC', group: 'water' },
   { code: 'EW', group: 'water' },
@@ -68,6 +69,10 @@ const CLASSIFICATION_TYPES = [
   { code: 'SP', group: 'powder' },
   { code: 'DS', group: 'powder' },
   { code: 'DP', group: 'powder' },
+];
+
+const CLASSIFICATION_ALIASES = [
+  { phrase: 'SAND GRANULE', code: 'SG' },
 ];
 
 function normalizeItems(payload) {
@@ -93,6 +98,13 @@ function escapeRegExp(value) {
 
 function getClassification(value) {
   const text = String(value ?? '').trim().toUpperCase();
+  const alias = CLASSIFICATION_ALIASES.find((item) => {
+    const words = item.phrase.trim().split(/\s+/).map(escapeRegExp).join('\\s+');
+    const pattern = new RegExp(`(^|[^A-Z0-9])${words}([^A-Z0-9]|$)`);
+    return pattern.test(text);
+  });
+  if (alias) return CLASSIFICATION_TYPES.find((item) => item.code === alias.code);
+
   return CLASSIFICATION_TYPES
     .slice()
     .sort((a, b) => b.code.length - a.code.length)

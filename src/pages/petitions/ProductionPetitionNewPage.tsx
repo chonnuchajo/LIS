@@ -85,6 +85,32 @@ export function buildProductionReturnUrl(searchParams: URLSearchParams, createdP
   return url.toString();
 }
 
+export function isResearchAndDevelopmentDepartment(department?: string | null): boolean {
+  return String(department || '').replace(/\s+/g, '').toLowerCase() === 'r&d';
+}
+
+export function requiresDeliveryAndBatch(department?: string | null): boolean {
+  return !isResearchAndDevelopmentDepartment(department);
+}
+
+export function requiresMasterItemSelection({
+  department,
+  integrationMode,
+}: {
+  department?: string | null;
+  integrationMode: boolean;
+}): boolean {
+  return !integrationMode && !isResearchAndDevelopmentDepartment(department);
+}
+
+export function hasRequiredLabRequestStep(
+  department: string | null | undefined,
+  items: Array<Pick<ItemRowValues, 'batchNo' | 'testItems'>>,
+): boolean {
+  if (isResearchAndDevelopmentDepartment(department)) return items.length > 0;
+  return items.some((it) => it.batchNo && isLabBatch(it.batchNo));
+}
+
 function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues | null {
   const sampleName = getQueryValue(searchParams, ['sampleName', 'itemName', 'productName']);
   const batchNo = getQueryValue(searchParams, ['batchNo', 'batch']);
@@ -93,7 +119,7 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
   const productionDate = getQueryValue(searchParams, ['productionDate', 'requestDate', 'mfgDate']);
   const packageUnit = getQueryValue(searchParams, ['quantity', 'packageUnit', 'packSize']);
   const submissionNo = getQueryValue(searchParams, ['submissionNo', 'requestNo', 'request_no']);
-  const testItems = getQueryValue(searchParams, ['testItems', 'tests']);
+  const testItems = getQueryValue(searchParams, ['testItems', 'tests', 'lab']);
   const itemNo = getQueryValue(searchParams, ['itemNo']);
   const mfNo = getQueryValue(searchParams, ['mfNo']);
   const priority = getQueryValue(searchParams, ['priority']);
@@ -205,7 +231,7 @@ function getSampleOrQueryValues(
   return nested.length ? nested : getQueryValues(searchParams, keys, options);
 }
 
-function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRowValues[] {
+export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRowValues[] {
   const singleItem = makeInitialItemFromQuery(searchParams);
   const sampleNames = getSampleOrQueryValues(searchParams, ['sampleName', 'itemName', 'productName'], { splitComma: true });
   const batchNos = getSampleOrQueryValues(searchParams, ['batchNo', 'batch'], { splitComma: true });
@@ -215,7 +241,7 @@ function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRowValues
   const packageUnits = getSampleOrQueryValues(searchParams, ['quantity', 'packageUnit', 'packSize', 'packsize']);
   const quantities = getSampleOrQueryValues(searchParams, ['qty', 'quantityValue', 'amount'], { splitComma: true });
   const quantityUnits = getSampleOrQueryValues(searchParams, ['unit', 'qtyUnit', 'quantityUnit'], { splitComma: true });
-  const testItems = getSampleOrQueryValues(searchParams, ['testItems', 'tests']);
+  const testItems = getSampleOrQueryValues(searchParams, ['testItems', 'tests', 'lab']);
   const notes = getSampleOrQueryValues(searchParams, ['note']);
   const itemNos = getSampleOrQueryValues(searchParams, ['itemNo'], { splitComma: true });
   const mfNos = getSampleOrQueryValues(searchParams, ['mfNo'], { splitComma: true });
@@ -552,6 +578,11 @@ export default function ProductionPetitionNewPage({
   const submitterDepartment = integrationMode
     ? integrationActor.department
     : user?.department;
+  const deliveryAndBatchRequired = requiresDeliveryAndBatch(submitterDepartment);
+  const masterItemSelectionRequired = requiresMasterItemSelection({
+    department: submitterDepartment,
+    integrationMode,
+  });
   const revisionOfId = searchParams.get('revisionOf');
   const [revisionSource, setRevisionSource] = useState<Petition | null>(null);
   const {
@@ -649,16 +680,21 @@ export default function ProductionPetitionNewPage({
   }, [revisionOfId, navigate, user?.employeeId]);
 
   const labBatches = useMemo(
-    () => items.filter((it) => it.batchNo && isLabBatch(it.batchNo)),
-    [items],
+    () => (
+      isResearchAndDevelopmentDepartment(submitterDepartment)
+        ? items
+        : items.filter((it) => it.batchNo && isLabBatch(it.batchNo))
+    ),
+    [items, submitterDepartment],
   );
 
   const [labRequest, setLabRequest] = useState<LabRequestRowValues | null>(null);
 
   // sync labRequest with items
   useEffect(() => {
-    const validItems = items.filter((it) => it.batchNo);
-    const labItems = validItems.filter((it) => isLabBatch(it.batchNo));
+    const labItems = isResearchAndDevelopmentDepartment(submitterDepartment)
+      ? items
+      : items.filter((it) => it.batchNo && isLabBatch(it.batchNo));
     if (labItems.length > 0) {
       setLabRequest((prev) => {
         if (!prev) {
@@ -692,7 +728,7 @@ export default function ProductionPetitionNewPage({
         setStepError('ไม่พบชื่อผู้ยื่นคำขอ กรุณาเข้าสู่ระบบใหม่');
         return false;
       }
-      if (!deliverer.name.trim()) {
+      if (deliveryAndBatchRequired && !deliverer.name.trim()) {
         setStepError('กรุณาเลือกผู้นำส่ง');
         return false;
       }
@@ -700,11 +736,11 @@ export default function ProductionPetitionNewPage({
         setStepError('ต้องมีตัวอย่างอย่างน้อย 1 รายการ');
         return false;
       }
-      if (!integrationMode && masterItemsLoading) {
+      if (masterItemSelectionRequired && masterItemsLoading) {
         setStepError('กำลังโหลด Master Item กรุณารอสักครู่');
         return false;
       }
-      if (!integrationMode && (masterItemsError || masterItemOptions.length === 0)) {
+      if (masterItemSelectionRequired && (masterItemsError || masterItemOptions.length === 0)) {
         setStepError('โหลด Master Item ไม่สำเร็จ กรุณาลองใหม่');
         return false;
       }
@@ -713,11 +749,11 @@ export default function ProductionPetitionNewPage({
           setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกชื่อตัวอย่าง`);
           return false;
         }
-        if (!integrationMode && !findMatchingPetitionMasterItem(masterItemOptions, it)) {
+        if (masterItemSelectionRequired && !findMatchingPetitionMasterItem(masterItemOptions, it)) {
           setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณาเลือกชื่อตัวอย่างจาก Master Item`);
           return false;
         }
-        if (!it.batchNo.trim()) {
+        if (deliveryAndBatchRequired && !it.batchNo.trim()) {
           setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกเลขแบช`);
           return false;
         }
@@ -737,6 +773,7 @@ export default function ProductionPetitionNewPage({
       const seen = new Set<string>();
       for (const it of items) {
         const key = it.batchNo.trim();
+        if (!key) continue;
         if (seen.has(key)) {
           setStepError(`พบ batch ซ้ำ: ${key}`);
           return false;
@@ -776,16 +813,20 @@ export default function ProductionPetitionNewPage({
           name: submitter.name,
           department: submitterDepartment || undefined,
         },
-        deliveredBy: {
-          employeeId: deliverer.employeeId || undefined,
-          name: deliverer.name,
-        },
         items: items.map((it, idx) => ({ ...it, seq: idx + 1 })),
         labRequests: [],
         prodOrderNos,
         cause: '',
         revisionOf: revisionOfId || undefined,
       };
+      if (deliveryAndBatchRequired) {
+        Object.assign(payload, {
+          deliveredBy: {
+            employeeId: deliverer.employeeId || undefined,
+            name: deliverer.name,
+          },
+        });
+      }
       const created = await createPetition(payload as Parameters<typeof createPetition>[0]);
 
       if (labBatches.length > 0 && labRequest) {
@@ -800,7 +841,7 @@ export default function ProductionPetitionNewPage({
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
-      navigate(`/petitions-old/${created._id}`);
+      navigate(`/petition/${created._id}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'บันทึกคำร้องไม่สำเร็จ';
       setError(message);
@@ -959,7 +1000,9 @@ export default function ProductionPetitionNewPage({
                   setDelivererTouched(true);
                   setDeliverer(v);
                 }}
+                requireDeliveryAndBatch={deliveryAndBatchRequired}
                 itemsReadOnly={integrationMode}
+                allowManualItemFields={!masterItemSelectionRequired}
                 masterItemOptions={masterItemOptions}
                 masterItemsLoading={masterItemsLoading}
               />

@@ -274,7 +274,7 @@ export default function PetitionEditPage() {
           await createLabRequest({ ...labRequest, petitionId: id });
         }
       }
-      navigate(`/petitions-old/${id}`);
+      navigate(`/petition/${id}`);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ');
     } finally {
@@ -305,7 +305,7 @@ export default function PetitionEditPage() {
       <div className="space-y-4">
         <PageHeader
           title={`แก้ไขคำร้อง ${data.petitionNo}`}
-          onBack={() => navigate(`/petitions-old/${id}`)}
+          onBack={() => navigate(`/petition/${id}`)}
           backLabel="กลับไปหน้ารายละเอียด"
         />
 

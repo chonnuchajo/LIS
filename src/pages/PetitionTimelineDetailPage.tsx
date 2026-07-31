@@ -26,6 +26,7 @@ import { crosshairAt, formatCrosshairTime } from "@/lib/petitionTimelineCrosshai
 import { estimateMetric, formatDateTime, type TimelineMetricTone } from "@/lib/petitionTimelineMetric";
 import { canPrintPreReport, canPrintSampleLabel, canPrintLabResult } from "@/lib/petitionPrintability";
 import { buildLabResultReportPages } from "@/lib/labResultReport";
+import { isResearchAndDevelopmentPetition } from "@/lib/petitionRouting";
 import { canSeePetition, isLabRole, petitionHasLabReadableItem } from "@/lib/petitionVisibility";
 import { normalizeRoles } from "@/lib/roles";
 import { hasLabTrack, petitionStatusBadge } from "@/lib/statusBadge";
@@ -270,12 +271,14 @@ export default function PetitionTimelineDetailPage() {
     setCrosshair(null);
   }, [id]);
 
-  const visibleParameters = useMemo(
-    () => !isAdmin && isLabUser
+  const visibleParameters = useMemo(() => {
+    if (petition && isResearchAndDevelopmentPetition(petition)) {
+      return parameters.filter((parameter) => parameter.scope === "lab");
+    }
+    return !isAdmin && isLabUser
       ? parameters.filter((parameter) => parameter.scope === "lab" || (parameter.scope === "qc" && parameter.shareWithLab === true))
-      : parameters,
-    [isAdmin, isLabUser, parameters],
-  );
+      : parameters;
+  }, [isAdmin, isLabUser, parameters, petition]);
 
   const canViewPetition = useMemo(() => {
     if (!petition || !parametersLoaded) return false;

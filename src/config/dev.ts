@@ -138,8 +138,31 @@ const devDepartment = (roleId: string): string => {
   return roleId;
 };
 
+// Departments a dev can impersonate from the DevRoleSwitcher. Department is
+// free-text from HR in prod, but these are the values that actually change
+// behaviour — R&D skips ผู้นำส่ง/เลขแบช on the production petition form
+// (requiresDeliveryAndBatch), and ผลิต 1–5 / RM drive customerCodeFromDepartment.
+export const DEV_DEPARTMENTS = [
+  "R&D",
+  "คลังสินค้า RM",
+  "ผลิต 1",
+  "ผลิต 2",
+  "ผลิต 3",
+  "ผลิต 4",
+  "ผลิต 5",
+] as const;
+
+export type DevDepartment = (typeof DEV_DEPARTMENTS)[number];
+
+// "" (or anything unknown) = ตามบทบาท — keep the role-derived department.
+export function normalizeDevDepartment(value: unknown): string {
+  const dept = String(value ?? "").trim();
+  return (DEV_DEPARTMENTS as readonly string[]).includes(dept) ? dept : "";
+}
+
 export const synthesizeDevUser = (
   roles: DevRoleOption[],
+  departmentOverride?: string | null,
 ): DevAuthUser => {
   const ids = roles.map((r) => r.id);
   const primaryId = primaryRole(ids);
@@ -151,7 +174,7 @@ export const synthesizeDevUser = (
     role: primary.id,
     roles: ids,
     permissions: [],
-    department: devDepartment(primary.id),
+    department: normalizeDevDepartment(departmentOverride) || devDepartment(primary.id),
     position: primary.name,
     employeeId: `DEV-${primary.id}`,
     status: "active",

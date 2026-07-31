@@ -1,4 +1,4 @@
-const { computeAbnormalFlags, ensureRequestedIdsPresent } = require('./abnormalFlags');
+const { computeAbnormalFlags, ensureRequestedIdsPresent, productTypeFromSpecJS } = require('./abnormalFlags');
 
 const petition = { _id: 'p1', dept: 'fg', items: [{ seq: 1 }] };
 const numberParam = {
@@ -7,6 +7,10 @@ const numberParam = {
 };
 
 describe('computeAbnormalFlags', () => {
+  it('maps SAND GRANULE to sand through SG', () => {
+    expect(productTypeFromSpecJS('BROMADIOLONE 0.005% W/W SAND GRANULE')).toBe('sand');
+  });
+
   it('flags a petition whose numeric value breaks the standard', () => {
     const docs = [{ petitionId: 'p1', parameterId: 'par1', itemSeq: 1, values: { 'ค่า': 12 } }];
     expect(computeAbnormalFlags({ docs, params: [numberParam], petitions: [petition] }))

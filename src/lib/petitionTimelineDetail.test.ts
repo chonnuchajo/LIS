@@ -655,6 +655,42 @@ describe("buildTimelineDetailModel", () => {
     expect(result.header.endAt).toBe(at(13, 10));
   });
 
+  it("R&D timeline tasks show lab parameters only and still match items without lab batch numbers", () => {
+    const researchItem = { seq: 1, sampleName: "Research Sample", batchNo: "", sampleId: "sample-rd" };
+    const labScopeParameter: ParameterItem = {
+      _id: "parameter-lab",
+      name: "Lab assay",
+      scope: "lab",
+      status: "active",
+      applyAll: true,
+      valueFields: [{ label: "Assay", type: "number", required: true }],
+    };
+    const qcSharedParameter: ParameterItem = {
+      _id: "parameter-qc",
+      name: "กายภาพ",
+      scope: "qc",
+      shareWithLab: true,
+      status: "active",
+      applyAll: true,
+      valueFields: [{ label: "Appearance", type: "text", required: true }],
+    };
+
+    const result = model(
+      petition({
+        submittedBy: { name: "R&D Requester", department: "R & D", submittedAt: at(13, 9) },
+        items: [researchItem],
+        labReceivedAt: at(13, 10),
+      }),
+      [labScopeParameter, qcSharedParameter],
+      [],
+      [],
+      new Date(2026, 6, 13, 10, 30),
+    );
+
+    expect(result.tasks.map((task) => task.parameterName)).toEqual(["Lab assay"]);
+    expect(result.tasks[0]).toMatchObject({ scope: "lab", itemSeq: 1, total: 1 });
+  });
+
   it("ไม่มีแถวราย parameter ใน timeline อีกต่อไป", () => {
     const result = model(petition({ qcReceivedAt: at(13, 9) }), [requiredParameter], [], []);
 

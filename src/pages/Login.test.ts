@@ -12,11 +12,11 @@ describe("productionRequestRedirect", () => {
     );
   });
 
-  it("keeps new production requests on the integration page", () => {
+  it("keeps new production requests on the canonical new petition page", () => {
     const params = new URLSearchParams("request_no=P260715001");
 
     expect(productionRequestRedirect(params)).toBe(
-      "/petitions-old/ProductionIntegrationPetitionNewPage?request_no=P260715001",
+      "/petitions/new?request_no=P260715001",
     );
   });
 });

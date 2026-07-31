@@ -204,6 +204,19 @@ describe('openWorkUnits', () => {
     expect(units[0].stage).toBe('waitingReceive');
   });
 
+  it('routes R&D open work to Lab only and does not emit a QC unit', () => {
+    const petition = {
+      _id: 'rnd1', petitionNo: 'P-RND1', dept: 'fg', status: 'sampleSent',
+      submittedBy: { department: 'R & D' },
+      items: [{ seq: 1, sampleName: 'R&D sample', batchNo: '' }],
+      sampleSentAt: hoursAgo(2),
+    };
+    const units = openWorkUnits([petition], { now: NOW, qcBaseline: EMPTY_BASELINE });
+    expect(units).toHaveLength(1);
+    expect(units[0].track).toBe('lab');
+    expect(units[0].stage).toBe('waitingReceive');
+  });
+
   // --- Real-data bug: stage must come from the FURTHEST progress reached, not
   // the first missing timestamp. Real petitions have gaps (a receive scan that
   // was never recorded) even after later milestones completed — see P-2606-0010.

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Copy, Plus, Search, Trash2 } from "lucide-react";
 import { api, type ParameterValueField, type StandardOperator, type SubstanceStandard } from "@/lib/api";
 import { getItemNo, getPackSize, getSampleName, getTradeName, tradeNameKeys } from "@/lib/masterItemFields";
+import { formatClassificationOption, getCommonName } from "@/lib/productClassification";
 import { OPERATOR_OPTIONS } from "@/lib/standardOperators";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -24,6 +25,13 @@ const PICKER_CATEGORY_OPTIONS = [
 ] as const;
 
 type PickerCategory = (typeof PICKER_CATEGORY_OPTIONS)[number]["value"];
+type AddMode = "selected" | "commonName" | "duplicates";
+
+const ADD_MODE_OPTIONS: Array<{ value: AddMode; label: string }> = [
+  { value: "selected", label: "เฉพาะรายการที่เลือก" },
+  { value: "commonName", label: "รวมเป็น commonName เดียว" },
+  { value: "duplicates", label: "เพิ่มตัวซ้ำทั้งหมด" },
+];
 
 type Props = {
   open: boolean;
@@ -102,15 +110,23 @@ function rowMatchesPickerCategory(row: Record<string, unknown>, category: Picker
 export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props) {
   const [list, setList] = useState<EditableSubstanceStandard[]>(field.substanceStandards ?? []);
   const [pickerCategory, setPickerCategory] = useState<PickerCategory>("all");
+  const [addMode, setAddMode] = useState<AddMode>("selected");
   const [search, setSearch] = useState("");
   const [listSearch, setListSearch] = useState("");
+  const pendingFocusIndexRef = useRef<number | null>(null);
+  const rowRefs = useRef(new Map<number, HTMLDivElement>());
+  const valueInputRefs = useRef(new Map<number, HTMLInputElement>());
 
   useEffect(() => {
     if (open) {
       setList((field.substanceStandards ?? []) as EditableSubstanceStandard[]);
       setPickerCategory("all");
+      setAddMode("selected");
       setSearch("");
       setListSearch("");
+      pendingFocusIndexRef.current = null;
+      rowRefs.current.clear();
+      valueInputRefs.current.clear();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -181,6 +197,31 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
       .sort((a, b) => a.tradeName.localeCompare(b.tradeName, ["th", "en"]));
   }, [categoryRows, search]);
 
+  const formulationCommonNameOptions = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const byCode = new Map<string, Record<string, unknown>[]>();
+    for (const row of categoryRows) {
+      const ctx = buildMasterItemContext(row);
+      const code = getCommonName(ctx.commonName || ctx.itemName);
+      if (!code) continue;
+      if (
+        q &&
+        !code.toLowerCase().includes(q) &&
+        !formatClassificationOption(code).toLowerCase().includes(q) &&
+        !ctx.commonName.toLowerCase().includes(q) &&
+        !ctx.itemName.toLowerCase().includes(q)
+      ) {
+        continue;
+      }
+      const rows = byCode.get(code) ?? [];
+      rows.push(row);
+      byCode.set(code, rows);
+    }
+    return [...byCode.entries()]
+      .map(([code, rows]) => ({ code, rows }))
+      .sort((a, b) => a.code.localeCompare(b.code, ["th", "en"]));
+  }, [categoryRows, search]);
+
   const filterVisibleGroupCommonNames = (commonNames: string[] = [], groupName = "") => {
     const q = search.trim().toLowerCase();
     const categoryNames =
@@ -205,13 +246,66 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
     );
   }, [list, listSearch]);
 
+  useEffect(() => {
+    const pendingIndex = pendingFocusIndexRef.current;
+    if (pendingIndex == null) return;
+
+    const row = rowRefs.current.get(pendingIndex);
+    const valueInput = valueInputRefs.current.get(pendingIndex);
+    if (!row || !valueInput) return;
+
+    row.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    valueInput.focus();
+    pendingFocusIndexRef.current = null;
+  }, [list, visibleStandards]);
+
   const addStandard = (name: string) => {
     const substance = String(name ?? "").trim();
     const key = standardKey(substance);
     if (!key) return;
     setList((prev) => {
       if (prev.some((std) => standardIdentityFromStandard(std) === standardIdentity(substance))) return prev;
+      pendingFocusIndexRef.current = prev.length;
       return [...prev, { substance, operator: "gte", value: null, value2: null, headOnly: false }];
+    });
+  };
+
+  const addStandardsFromRows = (rows: Record<string, unknown>[]) => {
+    const nextStandards = rows
+      .map((row): EditableSubstanceStandard | null => {
+        const { commonName, itemNo, packSize, itemName } = buildMasterItemContext(row);
+        const substance = commonName.trim();
+        if (!substance) return null;
+        return {
+          substance,
+          operator: "gte" as const,
+          value: null,
+          value2: null,
+          headOnly: false,
+          itemNo,
+          packSize,
+          masterItemName: itemName,
+          masterCommonName: commonName,
+          masterRaw: row,
+        };
+      })
+      .filter((std): std is EditableSubstanceStandard => std != null);
+
+    if (nextStandards.length === 0) return;
+
+    setList((prev) => {
+      const existingKeys = new Set(prev.map(standardIdentityFromStandard));
+      const added: EditableSubstanceStandard[] = [];
+      const addedKeys = new Set<string>();
+      for (const std of nextStandards) {
+        const key = standardIdentityFromStandard(std);
+        if (existingKeys.has(key) || addedKeys.has(key)) continue;
+        added.push(std);
+        addedKeys.add(key);
+      }
+      if (added.length === 0) return prev;
+      pendingFocusIndexRef.current = prev.length;
+      return [...prev, ...added];
     });
   };
 
@@ -219,9 +313,18 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
     const { commonName, itemNo, packSize, itemName } = buildMasterItemContext(row);
     const substance = commonName.trim();
     if (!substance) return;
+    if (addMode === "commonName") {
+      addStandard(substance);
+      return;
+    }
+    if (addMode === "duplicates") {
+      addStandardsFromRows(categoryRows.filter((candidate) => standardKey(pickField(candidate, COMMON_NAME_KEYS)) === standardKey(substance)));
+      return;
+    }
     const key = standardIdentity(substance, itemNo, packSize);
     setList((prev) => {
       if (prev.some((std) => standardIdentityFromStandard(std) === key)) return prev;
+      pendingFocusIndexRef.current = prev.length;
       return [
         ...prev,
         {
@@ -240,6 +343,16 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
     });
   };
 
+  const addCommonNameByMode = (name: string) => {
+    const substance = String(name ?? "").trim();
+    if (!substance) return;
+    if (addMode === "duplicates") {
+      addStandardsFromRows(categoryRows.filter((row) => standardKey(pickField(row, COMMON_NAME_KEYS)) === standardKey(substance)));
+      return;
+    }
+    addStandard(substance);
+  };
+
   const removeAt = (i: number) => setList((prev) => prev.filter((_, idx) => idx !== i));
   const cloneAt = (i: number) =>
     setList((prev) => {
@@ -251,6 +364,7 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
         regulatoryTypes: [...(current.regulatoryTypes ?? [])],
         categories: [...(current.categories ?? [])],
       };
+      pendingFocusIndexRef.current = i + 1;
       return [...prev.slice(0, i + 1), clone, ...prev.slice(i + 1)];
     });
   const patchAt = (i: number, patch: Partial<EditableSubstanceStandard>) =>
@@ -302,7 +416,7 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
               key={tradeName}
               type="button"
               disabled={commonNames.length === 0 || allAdded}
-              onClick={() => commonNames.forEach(addStandard)}
+              onClick={() => commonNames.forEach(addCommonNameByMode)}
               className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-40"
               title={tradeName}
             >
@@ -313,6 +427,36 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                 ) : null}
               </div>
               {!allAdded && commonNames.length > 0 && <Plus className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
+            </button>
+          );
+        })
+      )}
+    </div>
+  );
+
+  const formulationCommonNameList = (items: { code: string; rows: Record<string, unknown>[] }[]) => (
+    <div className="max-h-[34rem] overflow-y-auto rounded border divide-y">
+      {items.length === 0 ? (
+        <p className="p-3 text-xs text-muted-foreground">ไม่พบ Common Name</p>
+      ) : (
+        items.map(({ code, rows }) => {
+          const standards = rows.map(buildMasterItemContext).filter((ctx) => ctx.commonName);
+          const allAdded =
+            standards.length > 0 &&
+            standards.every((ctx) => selectedKeys.has(standardIdentity(ctx.commonName, ctx.itemNo, ctx.packSize)));
+          return (
+            <button
+              key={code}
+              type="button"
+              disabled={standards.length === 0 || allAdded}
+              onClick={() => addStandardsFromRows(rows)}
+              className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-40"
+              title={`${code} - ${standards.length} รายการ`}
+            >
+              <div className="min-w-0">
+                <div className="break-words font-medium text-foreground">{formatClassificationOption(code)}</div>
+              </div>
+              {!allAdded && standards.length > 0 && <Plus className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
             </button>
           );
         })
@@ -364,14 +508,34 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                 ))}
               </NativeSelect>
             </div>
+            <div className="mb-2">
+              <Label htmlFor="substance-add-mode" className="sr-only">วิธีเพิ่มสาร</Label>
+              <NativeSelect
+                id="substance-add-mode"
+                value={addMode}
+                onChange={(e) => setAddMode(e.target.value as AddMode)}
+                aria-label="วิธีเพิ่มสาร"
+                className="h-9"
+              >
+                {ADD_MODE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
             <Tabs defaultValue="common">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="common">commonName</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="common">ชื่อสามัญ</TabsTrigger>
+                <TabsTrigger value="formulation">CN</TabsTrigger>
                 <TabsTrigger value="group">กลุ่ม</TabsTrigger>
                 <TabsTrigger value="trade">trade name</TabsTrigger>
               </TabsList>
               <TabsContent value="common">
                 {commonNameList(commonNameOptions)}
+              </TabsContent>
+              <TabsContent value="formulation">
+                {formulationCommonNameList(formulationCommonNameOptions)}
               </TabsContent>
               <TabsContent value="group">
                 <div className="max-h-[34rem] overflow-y-auto rounded border divide-y">
@@ -386,7 +550,7 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                           key={g._id}
                           type="button"
                           disabled={commonNames.length === 0 || allAdded}
-                          onClick={() => commonNames.forEach(addStandard)}
+                          onClick={() => commonNames.forEach(addCommonNameByMode)}
                           className="flex w-full items-center justify-between px-3 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-40"
                         >
                           <span className="truncate">{g.name}</span>
@@ -439,6 +603,10 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                 visibleStandards.map(({ std, index: i }) => (
                   <div
                     key={`${standardIdentityFromStandard(std)}-${i}`}
+                    ref={(node) => {
+                      if (node) rowRefs.current.set(i, node);
+                      else rowRefs.current.delete(i);
+                    }}
                     className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded border px-2 py-1.5"
                   >
                     <span
@@ -465,6 +633,10 @@ export function SubstanceStandardsDialog({ open, field, onClose, onSave }: Props
                     <Input
                       type="number"
                       aria-label={`ค่า ${std.substance}`}
+                      ref={(node) => {
+                        if (node) valueInputRefs.current.set(i, node);
+                        else valueInputRefs.current.delete(i);
+                      }}
                       value={std.value ?? ""}
                       onChange={(e) => patchAt(i, { value: e.target.value === "" || !Number.isFinite(Number(e.target.value)) ? null : Number(e.target.value) })}
                       placeholder={std.operator === "tolerance" ? "ค่ามาตรฐาน" : std.operator === "between" ? "ตั้งแต่" : "ค่า"}

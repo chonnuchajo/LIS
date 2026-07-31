@@ -45,7 +45,7 @@ export function productionRequestRedirect(searchParams: URLSearchParams): string
   const petitionNo = firstSearchValue(searchParams, ["petitions_no", "petitionNo", "petition_no"]);
   if (petitionNo) return `/petition?${searchParams.toString()}`;
   const requestNo = firstSearchValue(searchParams, ["requestNo", "request_no", "submissionNo"]);
-  return requestNo ? `/petitions-old/ProductionIntegrationPetitionNewPage?${searchParams.toString()}` : "";
+  return requestNo ? `/petitions/new?${searchParams.toString()}` : "";
 }
 
 const Login = () => {

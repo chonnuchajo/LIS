@@ -1069,6 +1069,11 @@ export type LabelToleranceRule = LabelToleranceStandard & {
   autoMode?: "none" | "percent" | "abs" | "range";
   headMode?: "none" | "percent" | "abs" | "range";
   labelPercent?: number | null;
+  itemNo?: string;
+  packSize?: string;
+  masterItemName?: string;
+  masterCommonName?: string;
+  masterRaw?: Record<string, unknown>;
   productTypes?: ("water" | "sand" | "powder")[];
   // autoMode = "percent" => autoPct เป็น % ที่เว้นจากขอบช่วงหัวหน้าตรวจสอบเข้าด้านใน
   // headMode = "percent" => headPct เป็น % ของค่ากลางจาก %ฉลาก
@@ -1179,6 +1184,12 @@ export type ParameterItem = {
   categories?: string[];
   subCategories?: string[];
   itemGroups?: string[];
+  excludeCommonNames?: string[];
+  excludeItemNames?: string[];
+  excludeProductTypes?: string[];
+  excludeCategories?: string[];
+  excludeSubCategories?: string[];
+  excludeItemGroups?: string[];
   valueFields?: ParameterValueField[];
   sortOrder?: number;
   note?: string;

@@ -1,8 +1,9 @@
 // Migrate access-control paths after the /petition rename:
 //   /petitions          -> /petition            (main list moved to timeline)
+//   /petitions/new      -> /petitions/new       (canonical new petition form)
 //   /petition-timeline   -> /petition
 //   /petition-timeline/* -> /petition/*
-//   /petitions/*         -> /petitions-old/*     (classic pages, hidden)
+//   /petitions/*         -> removed, except /petitions/new
 // Targets Role.permissions[] (collection `roles`) and AccessGroup.paths[]
 // (collection `accessgroups`). Idempotent — safe to re-run.
 //
@@ -19,12 +20,14 @@ const URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/LIS-DB';
 function renamePath(entry) {
   if (typeof entry !== 'string') return entry;
   if (entry === '/petitions') return '/petition';
+  if (entry === '/petitions/new') return '/petitions/new';
   if (entry === '/petition-timeline') return '/petition';
   if (entry.startsWith('/petition-timeline/')) {
     return '/petition/' + entry.slice('/petition-timeline/'.length);
   }
+  if (entry.startsWith('/petitions-old')) return null;
   if (entry.startsWith('/petitions/')) {
-    return '/petitions-old/' + entry.slice('/petitions/'.length);
+    return null;
   }
   return entry;
 }
@@ -34,6 +37,7 @@ function renamePaths(arr) {
   const seen = new Set();
   for (const entry of arr || []) {
     const renamed = renamePath(entry);
+    if (renamed == null) continue;
     if (!seen.has(renamed)) {
       seen.add(renamed);
       out.push(renamed);

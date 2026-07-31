@@ -11,6 +11,7 @@ import { api, type ParameterItem } from '@/lib/api';
 import { normalizeRoles } from "@/lib/roles";
 import { getPetitionCategory, matchParametersForItem } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
+import { isResearchAndDevelopmentPetition } from '@/lib/petitionRouting';
 import {
   expandFieldForItem,
   fieldValueList,
@@ -48,6 +49,7 @@ export default function PetitionView({ petition: p }: Props) {
   const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
   const canSeeRestrictedStandards = roles.some((r) => r === 'admin' || r === 'qc-head');
   const petitionCategory = getPetitionCategory(p);
+  const isResearchPetition = isResearchAndDevelopmentPetition(p);
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const groupMembership = useItemGroupMembership();
   const idsFor = (it: { sampleId?: string }) =>
@@ -72,6 +74,10 @@ export default function PetitionView({ petition: p }: Props) {
     for (const p of parameters) if (p._id) map.set(String(p._id), p);
     return map;
   }, [parameters]);
+  const visibleParameters = useMemo(
+    () => isResearchPetition ? parameters.filter((param) => param.scope === 'lab') : parameters,
+    [isResearchPetition, parameters],
+  );
 
   const resultRowsFor = (
     item: Petition['items'][number],
@@ -139,8 +145,10 @@ export default function PetitionView({ petition: p }: Props) {
         </CardHeader>
         <CardContent className="space-y-3">
           {p.items.map((item) => {
-            const lab = item.batchNo && isLabBatch(item.batchNo);
-            const matchedParams = canSeeTestItems ? matchParametersForItem(item, parameters, idsFor(item)) : [];
+            const lab = isResearchPetition || (item.batchNo && isLabBatch(item.batchNo));
+            const matchedParams = canSeeTestItems
+              ? matchParametersForItem(item, visibleParameters, idsFor(item), { forceLabTrack: isResearchPetition })
+              : [];
             return (
               <div key={item.seq} className="rounded-[10px] border border-black-50 p-4 space-y-3">
                 <div className="flex flex-wrap items-baseline gap-2">

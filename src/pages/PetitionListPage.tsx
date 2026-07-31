@@ -114,7 +114,7 @@ function petitionNextStepText(petition: Petition) {
 }
 
 export default function PetitionListPage({
-  petitionDetailPath = (petition) => `/petitions-old/${petition._id}`,
+  petitionDetailPath = (petition) => `/petition/${petition._id}`,
   title = 'รายการคำร้อง',
   description = 'ดูคำร้องทั้งหมดและงานที่ต้องดำเนินการต่อ',
 }: PetitionListPageProps) {
@@ -127,7 +127,7 @@ export default function PetitionListPage({
   const createdNo = (location.state as { createdNo?: string } | null)?.createdNo;
   const roles = normalizeRoles(user);
   const canViewAll = roles.includes('admin');
-  const canCreatePetition = canUserCreatePetition(user, canAccess('/petitions-old/new'));
+  const canCreatePetition = canUserCreatePetition(user, canAccess('/petitions/new'));
   const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
   const groupMembership = useItemGroupMembership();
 
@@ -200,7 +200,7 @@ export default function PetitionListPage({
         title: `คำร้อง ${petition.petitionNo} ถูกส่งกลับให้แก้ไข`,
         message: rejectEntry.note,
         level: 'warning',
-        link: `/petitions-old/${petition._id}`,
+        link: `/petition/${petition._id}`,
         persistent: true,
       });
     }
@@ -404,7 +404,7 @@ export default function PetitionListPage({
           description={description}
           actions={
             canCreatePetition ? (
-              <Button onClick={() => navigate('/petitions-old/new')}>
+              <Button onClick={() => navigate('/petitions/new')}>
                 <FilePlus2 className="h-4 w-4" />
                 ยื่นคำร้องใหม่
               </Button>

@@ -1,0 +1,1 @@
+function i(t,a){let s;Array.isArray(t.methods)?s=t.methods.map(r=>Array.isArray(r)?r.filter(Boolean):[]):Array.isArray(t.instruments)?s=t.instruments.map(r=>{const e=String(r||"").trim().toUpperCase();return e&&e!=="BOTH"?[e]:[]}):s=[];const o=[];for(let r=0;r<a;r+=1)o.push(s[r]??[]);return o}export{i as r};

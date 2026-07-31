@@ -60,6 +60,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { applyCriteriaMode, type CriteriaMode } from "@/lib/parameterFieldMode";
 import { useAuth } from "@/context/AuthContext";
 import {
   api,
@@ -90,6 +91,14 @@ import { generateParameter } from "@/lib/aiApi";
 import { ParameterCriteriaTabs, type ParameterCriteriaTab } from "@/components/lis/ParameterCriteriaTabs";
 import type { AdvancedCriteriaMode } from "@/lib/parameterCriteriaRows";
 import { normalizeRoles } from "@/lib/roles";
+import { buildItemGroupIndex } from "@/lib/itemGroups";
+import {
+  buildParameterExcludeOptions,
+  getParameterOptionCommonName,
+  getParameterOptionItemName,
+  getParameterOptionItemNo,
+  type MasterItemRecord as ParameterMasterItemRecord,
+} from "@/lib/parameterExcludeOptions";
 import {
   partsToSec,
   secToParts,
@@ -262,6 +271,12 @@ const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
   categories: [],
   subCategories: [],
   itemGroups: [],
+  excludeCommonNames: [],
+  excludeItemNames: [],
+  excludeProductTypes: [],
+  excludeCategories: [],
+  excludeSubCategories: [],
+  excludeItemGroups: [],
   valueFields: [],
   sortOrder: 0,
   note: "",
@@ -1174,24 +1189,11 @@ function ValueFieldEditor({
             <div className="space-y-3">
               {/* โหมดเกณฑ์ */}
               {(() => {
-                const mode: "single" | "substance" | "conditional" | "labelTolerance" =
+                const mode: CriteriaMode =
                   field.labelToleranceMode ? "labelTolerance"
                   : field.conditionalMode ? "conditional"
                   : field.substanceMode ? "substance" : "single";
-                const setMode = (m: "single" | "substance" | "conditional" | "labelTolerance") =>
-                  onChange({
-                    ...field,
-                    substanceMode: m === "substance",
-                    conditionalMode: m === "conditional",
-                    labelToleranceMode: m === "labelTolerance",
-                    substanceStandards: m === "substance" ? field.substanceStandards ?? [] : field.substanceStandards,
-                    conditionalStandards: m === "conditional" ? field.conditionalStandards ?? [] : field.conditionalStandards,
-                    labelToleranceStandards: m === "labelTolerance" ? field.labelToleranceStandards ?? [] : field.labelToleranceStandards,
-                    standardOperator: m === "single" ? field.standardOperator : undefined,
-                    standardValue: m === "single" ? field.standardValue : null,
-                    standardValue2: m === "single" ? field.standardValue2 : null,
-                    conditionalResult: m === "conditional" ? (field.conditionalResult ?? "standard") : "standard",
-                  });
+                const setMode = (m: CriteriaMode) => onChange(applyCriteriaMode(field, m));
                 return (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                     <span className="text-muted-foreground">โหมดเกณฑ์:</span>
@@ -1779,6 +1781,8 @@ type DialogProps = {
   open: boolean;
   item: ParameterItem | null;
   defaultScope: ParameterScope;
+  masterItems: MasterItemRecord[];
+  itemGroupMembership: Map<string, string[]>;
   itemNameOptions: string[];
   commonNameOptions: string[];
   productTypeOptions: string[];
@@ -1796,6 +1800,8 @@ function ParameterDialog({
   open,
   item,
   defaultScope,
+  masterItems,
+  itemGroupMembership,
   itemNameOptions,
   commonNameOptions,
   productTypeOptions,
@@ -1818,6 +1824,16 @@ function ParameterDialog({
   const serializeDialogState = (nextForm: ParameterItem, nextAiPrompt: string) =>
     JSON.stringify({ form: nextForm, aiPrompt: nextAiPrompt });
   const isDirty = open && serializeDialogState(form, aiPrompt) !== baselineRef.current;
+  const contextualExcludeOptions = useMemo(
+    () =>
+      buildParameterExcludeOptions({
+        form,
+        masterItems: masterItems as ParameterMasterItemRecord[],
+        groupMembership: itemGroupMembership,
+      }),
+    [form, itemGroupMembership, masterItems],
+  );
+  const hasContextualExcludeOptions = Object.values(contextualExcludeOptions).some((set) => set.show);
 
   const runAi = async () => {
     const desc = aiPrompt.trim();
@@ -1991,6 +2007,8 @@ function ParameterDialog({
     }
     setBusy(true);
     const scope = form.scope ?? "qc";
+    const keepVisible = (values: string[] | undefined, visible: { show: boolean; values: string[] }) =>
+      visible.show ? (values ?? []).filter((value) => visible.values.includes(value)) : [];
     const payload: Partial<ParameterItem> = {
       name: form.name.trim(),
       scope,
@@ -2003,6 +2021,12 @@ function ParameterDialog({
       categories: form.applyAll ? [] : form.categories ?? [],
       subCategories: form.applyAll ? [] : form.subCategories ?? [],
       itemGroups: form.applyAll ? [] : form.itemGroups ?? [],
+      excludeCommonNames: keepVisible(form.excludeCommonNames, contextualExcludeOptions.commonNames),
+      excludeItemNames: keepVisible(form.excludeItemNames, contextualExcludeOptions.itemNames),
+      excludeProductTypes: keepVisible(form.excludeProductTypes, contextualExcludeOptions.productTypes),
+      excludeCategories: keepVisible(form.excludeCategories, contextualExcludeOptions.categories),
+      excludeSubCategories: keepVisible(form.excludeSubCategories, contextualExcludeOptions.subCategories),
+      excludeItemGroups: keepVisible(form.excludeItemGroups, contextualExcludeOptions.itemGroups),
       valueFields: form.valueFields ?? [],
       sortOrder: form.sortOrder ?? 0,
       note: form.note?.trim() || "",
@@ -2312,6 +2336,82 @@ function ParameterDialog({
                 );
               })()}
             </div>
+
+            {hasContextualExcludeOptions ? (
+              <div className="mt-5 rounded-lg border border-dashed bg-muted/20 p-4">
+                <div>
+                  <h4 className="text-sm font-semibold">ยกเว้น</h4>
+                  <p className="text-xs text-muted-foreground">
+                    แสดงเฉพาะตัวเลือกที่อยู่ในขอบเขต "ใช้กับ" ตอนนี้ ถ้า item ตรงเงื่อนไขยกเว้น จะไม่แสดง parameter นี้
+                  </p>
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-5 md:grid-cols-2">
+                  {contextualExcludeOptions.itemNames.show ? (
+                    <MultiSelectPopover
+                      label="Item Name"
+                      placeholder="เลือก item name ที่ไม่ต้องใช้ parameter นี้"
+                      values={form.excludeItemNames ?? []}
+                      onChange={(v) => set("excludeItemNames", v)}
+                      options={contextualExcludeOptions.itemNames.values}
+                      emptyText="ไม่มี item name ในขอบเขตนี้"
+                    />
+                  ) : null}
+                  {contextualExcludeOptions.commonNames.show ? (
+                    <MultiSelectPopover
+                      label="Common Name"
+                      placeholder="เลือก common name ที่ไม่ต้องใช้ parameter นี้"
+                      values={form.excludeCommonNames ?? []}
+                      onChange={(v) => set("excludeCommonNames", v)}
+                      options={contextualExcludeOptions.commonNames.values}
+                      labelFor={formatClassificationOption}
+                      emptyText="ไม่มี common name ในขอบเขตนี้"
+                    />
+                  ) : null}
+                  {contextualExcludeOptions.itemGroups.show ? (
+                    <MultiSelectPopover
+                      label="กลุ่ม Item"
+                      placeholder="เลือกกลุ่ม item ที่ไม่ต้องใช้ parameter นี้"
+                      values={form.excludeItemGroups ?? []}
+                      onChange={(v) => set("excludeItemGroups", v)}
+                      options={contextualExcludeOptions.itemGroups.values}
+                      labelFor={(id) => groupNameById.get(id) ?? id}
+                      emptyText="ไม่มีกลุ่ม item ในขอบเขตนี้"
+                    />
+                  ) : null}
+                  {contextualExcludeOptions.productTypes.show ? (
+                    <MultiSelectPopover
+                      label="ประเภท"
+                      placeholder="เลือกประเภทสินค้าที่ไม่ต้องใช้ parameter นี้"
+                      values={form.excludeProductTypes ?? []}
+                      onChange={(v) => set("excludeProductTypes", v)}
+                      options={contextualExcludeOptions.productTypes.values}
+                      labelFor={formatProductTypeOption}
+                      emptyText="ไม่มีประเภทสินค้าในขอบเขตนี้"
+                    />
+                  ) : null}
+                  {contextualExcludeOptions.categories.show ? (
+                    <MultiSelectPopover
+                      label="หมวดหมู่"
+                      placeholder="เลือกหมวดหมู่ที่ไม่ต้องใช้ parameter นี้"
+                      values={form.excludeCategories ?? []}
+                      onChange={(v) => set("excludeCategories", v)}
+                      options={contextualExcludeOptions.categories.values}
+                      emptyText="ไม่มีหมวดหมู่ในขอบเขตนี้"
+                    />
+                  ) : null}
+                  {contextualExcludeOptions.subCategories.show ? (
+                    <MultiSelectPopover
+                      label="หมวดย่อย"
+                      placeholder="เลือก prefix ที่ไม่ต้องใช้ parameter นี้"
+                      values={form.excludeSubCategories ?? []}
+                      onChange={(v) => set("excludeSubCategories", v)}
+                      options={contextualExcludeOptions.subCategories.values}
+                      emptyText="ไม่มี prefix ในขอบเขตนี้"
+                    />
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-lg border p-5">
@@ -2521,6 +2621,18 @@ export default function ParameterSettings() {
     for (const g of itemGroups) map.set(g._id, g.name);
     return map;
   }, [itemGroups]);
+  const itemGroupMembership = useMemo(
+    () =>
+      buildItemGroupIndex(
+        masterItems.map((item) => ({
+          itemNo: getParameterOptionItemNo(item),
+          commonName: getParameterOptionCommonName(item),
+          tradeName: getParameterOptionItemName(item),
+        })),
+        itemGroups,
+      ),
+    [itemGroups, masterItems],
+  );
 
   const scopedParameters = useMemo(
     () => parameters.filter((p) => (p.scope ?? "qc") === scopeTab),
@@ -2541,6 +2653,12 @@ export default function ParameterSettings() {
         ...(p.productTypes ?? []),
         ...(p.categories ?? []),
         ...(p.subCategories ?? []),
+        ...(p.excludeCommonNames ?? []),
+        ...(p.excludeItemNames ?? []),
+        ...(p.excludeProductTypes ?? []),
+        ...(p.excludeCategories ?? []),
+        ...(p.excludeSubCategories ?? []),
+        ...(p.excludeItemGroups ?? []),
         ...(p.valueFields ?? []).flatMap((f) => [
           f.label,
           ...(f.substanceStandards ?? []).map((standard) => standard.substance),
@@ -2867,6 +2985,8 @@ export default function ParameterSettings() {
         open={creating || !!editing}
         item={editing}
         defaultScope={scopeTab}
+        masterItems={masterItems}
+        itemGroupMembership={itemGroupMembership}
         itemNameOptions={itemNameOptions}
         commonNameOptions={commonNameOptions}
         productTypeOptions={productTypeOptions}
@@ -2998,7 +3118,15 @@ function ApplyToBadges({
   item: ParameterItem;
   groupNameById: Map<string, string>;
 }) {
-  if (item.applyAll) {
+  const hasExcludes =
+    (item.excludeItemNames?.length ?? 0) +
+      (item.excludeCommonNames?.length ?? 0) +
+      (item.excludeProductTypes?.length ?? 0) +
+      (item.excludeCategories?.length ?? 0) +
+      (item.excludeSubCategories?.length ?? 0) +
+      (item.excludeItemGroups?.length ?? 0) >
+    0;
+  if (item.applyAll && !hasExcludes) {
     return (
       <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
         ทั้งหมด
@@ -3037,12 +3165,28 @@ function ApplyToBadges({
       color: "bg-rose-50 text-rose-700",
     },
   ].filter((g) => g.values.length > 0);
+  if (item.applyAll) {
+    groups.unshift({
+      label: "ทั้งหมด",
+      values: ["ทั้งหมด"],
+      color: "bg-amber-100 text-amber-800",
+    });
+  }
+  const excludes: { label: string; values: string[] }[] = [
+    { label: "Item", values: item.excludeItemNames ?? [] },
+    { label: "Common", values: item.excludeCommonNames ?? [] },
+    { label: "ประเภท", values: (item.excludeProductTypes ?? []).map(formatProductTypeOption) },
+    { label: "หมวดหมู่", values: item.excludeCategories ?? [] },
+    { label: "หมวดย่อย", values: item.excludeSubCategories ?? [] },
+    { label: "กลุ่ม", values: (item.excludeItemGroups ?? []).map((id) => groupNameById.get(id) ?? id) },
+  ].filter((g) => g.values.length > 0);
 
-  if (groups.length === 0) {
+  if (groups.length === 0 && excludes.length === 0) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="space-y-1">
+      <div className="flex flex-wrap gap-1">
       {groups.map((g) => (
         <span
           key={g.label}
@@ -3059,6 +3203,24 @@ function ApplyToBadges({
           </span>
         </span>
       ))}
+      </div>
+      {excludes.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {excludes.map((g) => (
+            <span
+              key={g.label}
+              className="inline-flex items-center gap-1 rounded-md bg-red-50 px-2 py-0.5 text-xs text-red-700"
+              title={g.values.join(", ")}
+            >
+              <span className="font-semibold">ยกเว้น {g.label}:</span>
+              <span className="truncate max-w-[180px]">
+                {g.values.slice(0, 2).join(", ")}
+                {g.values.length > 2 ? ` +${g.values.length - 2}` : ""}
+              </span>
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -293,7 +293,7 @@ const AdminData = () => {
                           <TableRow
                             key={entry._id}
                             className="cursor-pointer"
-                            onClick={() => navigate(`/petitions-old/${entry.petitionId}`)}
+                            onClick={() => navigate(`/petition/${entry.petitionId}`)}
                           >
                             <TableCell className="hidden md:table-cell text-muted-foreground whitespace-nowrap text-xs">
                               {new Date(entry.createdAt).toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" })}

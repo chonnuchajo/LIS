@@ -33,6 +33,7 @@ import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
 import { getPetitionCategory, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
+import { isResearchAndDevelopmentPetition, isLabBatchNo } from '@/lib/petitionRouting';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -74,6 +75,26 @@ const isLabBatchNo = (batchNo?: string | null) => /[16]$/.test(String(batchNo ??
 
 function resultKey(itemSeq: number, parameterId: string) {
   return `${itemSeq}__${parameterId}`;
+}
+
+function labParametersForPetition(petition: Petition, params: ParameterItem[]): ParameterItem[] {
+  return isResearchAndDevelopmentPetition(petition)
+    ? params.filter((p) => p.scope === 'lab')
+    : params;
+}
+
+function matchLabParametersForItem(
+  petition: Petition,
+  item: PetitionItem,
+  params: ParameterItem[],
+  itemGroupIds: string[] = [],
+): ParameterItem[] {
+  return matchParametersForItem(
+    item,
+    labParametersForPetition(petition, params),
+    itemGroupIds,
+    { forceLabTrack: isResearchAndDevelopmentPetition(petition) },
+  );
 }
 
 const noteLabelFor = (mainLabel: string) => `${mainLabel}__note`;
@@ -654,16 +675,18 @@ export default function LabTestingDetailPage() {
   // Show only Lab items: lab-batch (batchNo 1/6) AND have at least one
   // lab-scope or QC-shared-with-lab parameter matching the item's classification.
   // Items with no Lab-readable params should not appear here.
-  const allLabBatchItems = (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
+  const allLabBatchItems = isResearchAndDevelopmentPetition(petition)
+    ? (petition.items ?? [])
+    : (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
   const labItems = paramsLoaded
     ? allLabBatchItems.filter(
-        (it) => matchParametersForItem(it, allParameters, idsFor(it)).length > 0,
+        (it) => matchLabParametersForItem(petition, it, allParameters, idsFor(it)).length > 0,
       )
     : allLabBatchItems;
 
   // 2-phase support: does any matched parameter use hasPhases?
   const hasAnyPhasedParam = labItems.some((item) =>
-    matchParametersForItem(item, allParameters, idsFor(item)).some((p) => p.hasPhases),
+    matchLabParametersForItem(petition, item, allParameters, idsFor(item)).some((p) => p.hasPhases),
   );
   const currentPhase: PetitionPhase = (petition.currentPhase ?? 1) as PetitionPhase;
   // If user hasn't picked a tab, default to current phase
@@ -733,7 +756,7 @@ export default function LabTestingDetailPage() {
   const countAbnormal = (): number => {
     let count = 0;
     labItems.forEach((item) => {
-      const matched = matchParametersForItem(item, allParameters, idsFor(item));
+      const matched = matchLabParametersForItem(petition, item, allParameters, idsFor(item));
       matched.forEach((param) => {
         if (param.scope !== 'lab') return; // skip read-only shared QC params
         const k = resultKey(item.seq, param._id!);
@@ -763,7 +786,7 @@ export default function LabTestingDetailPage() {
     const missing: string[] = [];
     const phaseValues = valuesForPhase(phaseToCheck);
     labItems.forEach((item) => {
-      const matched = matchParametersForItem(item, allParameters, idsFor(item));
+      const matched = matchLabParametersForItem(petition, item, allParameters, idsFor(item));
       matched.forEach((param) => {
         if (param.scope !== 'lab') return; // only validate Lab-owned params
         const k = resultKey(item.seq, param._id!);
@@ -872,8 +895,8 @@ export default function LabTestingDetailPage() {
   const switchablePetitions = (worklistData?.items ?? []).filter((p) =>
     !!labReceivedAt(p) && (p.items ?? []).some(
       (it) =>
-        isLabBatchNo(it.batchNo) &&
-        matchParametersForItem(it, allParameters, idsFor(it)).length > 0,
+        (isResearchAndDevelopmentPetition(p) || isLabBatchNo(it.batchNo)) &&
+        matchLabParametersForItem(p, it, allParameters, idsFor(it)).length > 0,
     ),
   );
 
@@ -971,7 +994,7 @@ export default function LabTestingDetailPage() {
 
         {/* Each Lab item */}
         {labItems.map((item) => {
-          const matchedParams = matchParametersForItem(item, allParameters, idsFor(item));
+          const matchedParams = matchLabParametersForItem(petition, item, allParameters, idsFor(item));
           const labOwnedParams = matchedParams.filter((p) => p.scope === 'lab');
           const sharedQcParams = matchedParams.filter((p) => p.scope === 'qc' && p.shareWithLab);
           const phaseValues = valuesForPhase(effectivePhase);

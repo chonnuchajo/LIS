@@ -479,3 +479,56 @@ test('rejects custom range labelTolerance rule with unsorted bounds', async () =
   });
   await assert.rejects(() => doc.validate(), /failLow/);
 });
+
+test('persists master item context on substance and labelTolerance standards', async () => {
+  const doc = new Parameter({
+    name: 'master item context',
+    valueFields: [
+      {
+        label: 'AI content', type: 'number', unit: '%',
+        substanceMode: true,
+        substanceStandards: [{
+          substance: 'ABAMECTIN 1.8% EC',
+          operator: 'gte',
+          value: 95,
+          itemNo: 'RM-001',
+          packSize: '100 ml',
+          masterItemName: 'ABAMECTIN A',
+          masterCommonName: 'ABAMECTIN 1.8% EC',
+          masterRaw: { item_no: 'RM-001', desc2: '100 ml' },
+        }],
+      },
+      {
+        label: '%AI', type: 'number', unit: '%',
+        labelToleranceMode: true,
+        labelToleranceStandards: [{
+          substance: 'ABAMECTIN 1.8% EC',
+          labelPercent: 1.8,
+          autoPct: 25,
+          headPct: 30,
+          itemNo: 'RM-001',
+          packSize: '100 ml',
+          masterItemName: 'ABAMECTIN A',
+          masterCommonName: 'ABAMECTIN 1.8% EC',
+          masterRaw: { item_no: 'RM-001', desc2: '100 ml' },
+        }],
+      },
+    ],
+  });
+
+  await doc.validate();
+
+  const substanceStd = doc.valueFields[0].substanceStandards[0];
+  assert.strictEqual(substanceStd.itemNo, 'RM-001');
+  assert.strictEqual(substanceStd.packSize, '100 ml');
+  assert.strictEqual(substanceStd.masterItemName, 'ABAMECTIN A');
+  assert.strictEqual(substanceStd.masterCommonName, 'ABAMECTIN 1.8% EC');
+  assert.strictEqual(substanceStd.masterRaw.item_no, 'RM-001');
+
+  const labelStd = doc.valueFields[1].labelToleranceStandards[0];
+  assert.strictEqual(labelStd.itemNo, 'RM-001');
+  assert.strictEqual(labelStd.packSize, '100 ml');
+  assert.strictEqual(labelStd.masterItemName, 'ABAMECTIN A');
+  assert.strictEqual(labelStd.masterCommonName, 'ABAMECTIN 1.8% EC');
+  assert.strictEqual(labelStd.masterRaw.item_no, 'RM-001');
+});

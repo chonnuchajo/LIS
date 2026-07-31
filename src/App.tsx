@@ -53,14 +53,10 @@ const VirtualLabPage = lazy(() => import("./pages/VirtualLabPage"));
 const StandardTimePage = lazy(() => import("./pages/StandardTimePage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ScannerPage = lazy(() => import("./pages/ScannerPage"));
-const PetitionListPage = lazy(() => import("./pages/PetitionListPage"));
 const PetitionTimelinePage = lazy(() => import("./pages/PetitionTimelinePage"));
 const PetitionTimelineDetailPage = lazy(() => import("./pages/PetitionTimelineDetailPage"));
 const PetitionNewPage = lazy(() => import("./pages/PetitionNewPage"));
-const ProductionIntegrationPetitionNewPage = lazy(() => import("./pages/petitions/ProductionIntegrationPetitionNewPage"));
 const PetitionDetailPage = lazy(() => import("./pages/PetitionDetailPage"));
-const PetitionEditPage = lazy(() => import("./pages/PetitionEditPage"));
-const PetitionAssignPage = lazy(() => import("./pages/PetitionAssignPage"));
 const PetitionAuditLogPage = lazy(() => import("./pages/PetitionAuditLogPage"));
 const QCTestingPage = lazy(() => import("./pages/QCTestingPage"));
 const QCTestingDetailPage = lazy(() => import("./pages/QCTestingDetailPage"));
@@ -142,17 +138,11 @@ const App = () => (
               <Route path="/access-control" element={<PrivateRoute><AccessControl /></PrivateRoute>} />
               <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
               <Route path="/parameter-settings" element={<PrivateRoute><ParameterSettings /></PrivateRoute>} />
-              <Route path="/petitions-old" element={<PrivateRoute><PetitionListPage /></PrivateRoute>} />
               <Route path="/petition" element={<PrivateRoute><PetitionTimelinePage /></PrivateRoute>} />
               <Route path="/petition/:id" element={<PrivateRoute><PetitionTimelineDetailPage /></PrivateRoute>} />
               <Route path="/adutuilog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
               <Route path="/auditlog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
-              <Route path="/petitions-old/assign" element={<PrivateRoute><PetitionAssignPage /></PrivateRoute>} />
-              <Route path="/petitions-old/new" element={<PrivateRoute><PetitionNewPage /></PrivateRoute>} />
-              <Route path="/petitions-old/production/new" element={<PrivateRoute><ProductionIntegrationPetitionNewPage /></PrivateRoute>} />
-              <Route path="/petitions-old/ProductionIntegrationPetitionNewPage" element={<ProductionIntegrationPetitionNewPage />} />
-              <Route path="/petitions-old/:id" element={<PrivateRoute><PetitionDetailPage /></PrivateRoute>} />
-              <Route path="/petitions-old/:id/edit" element={<PrivateRoute><PetitionEditPage /></PrivateRoute>} />
+              <Route path="/petitions/new" element={<PrivateRoute><PetitionNewPage /></PrivateRoute>} />
               <Route path="/qc-testing" element={<PrivateRoute><QCTestingPage /></PrivateRoute>} />
               <Route path="/qc-testing/:id" element={<PrivateRoute><QCTestingDetailPage /></PrivateRoute>} />
               <Route path="/lab-testing" element={<PrivateRoute><LabTestingPage /></PrivateRoute>} />
