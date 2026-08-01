@@ -1,10 +1,15 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Check, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useNotifications, type NotificationLevel } from "@/context/NotificationContext";
+import { useAuth } from "@/context/AuthContext";
+import { normalizeRoles } from "@/lib/roles";
+import { readSeeAll, writeSeeAll } from "@/lib/petitionAudience";
 
 const levelColor: Record<NotificationLevel, string> = {
   info: "bg-blue-500",
@@ -34,6 +39,9 @@ interface NotificationBellProps {
 const NotificationBell = ({ className, iconClassName }: NotificationBellProps) => {
   const navigate = useNavigate();
   const { notifications, unreadCount, markRead, markAllRead, dismiss, clearAll } = useNotifications();
+  const { user } = useAuth();
+  const isAdmin = normalizeRoles(user).includes("admin");
+  const [seeAll, setSeeAll] = useState(() => readSeeAll());
 
   return (
     <Popover>
@@ -71,6 +79,19 @@ const NotificationBell = ({ className, iconClassName }: NotificationBellProps) =
             )}
           </div>
         </div>
+
+        {isAdmin && (
+          <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+            <label htmlFor="notify-see-all" className="text-xs text-muted-foreground">
+              ดูแจ้งเตือนทั้งระบบ (ไม่จำกัดแผนก)
+            </label>
+            <Switch
+              id="notify-see-all"
+              checked={seeAll}
+              onCheckedChange={(value) => { setSeeAll(value); writeSeeAll(value); }}
+            />
+          </div>
+        )}
 
         {notifications.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted-foreground">

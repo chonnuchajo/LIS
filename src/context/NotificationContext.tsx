@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { capPersisted } from "./notificationStorage";
 
 export type NotificationLevel = "info" | "warning" | "success" | "error";
 
@@ -15,6 +16,8 @@ export interface AppNotification {
    * (เช่น แจ้งเตือน 8:00 ของ daily check)
    */
   persistent?: boolean;
+  /** จัดกลุ่มเพื่อจำกัดจำนวนที่เก็บลง localStorage แยกกัน (เช่น "petition") */
+  group?: string;
 }
 
 interface NotificationContextType {
@@ -50,9 +53,8 @@ const loadPersisted = (): AppNotification[] => {
 };
 
 const persist = (list: AppNotification[]) => {
-  const persistent = list.filter(n => n.persistent);
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(persistent));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(capPersisted(list)));
   } catch {
     // ignore quota errors
   }
