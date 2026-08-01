@@ -126,8 +126,10 @@ log ที่หา petition ไม่เจอ (ถูกลบ/soft delete) �
 
 ### แก้ของเดิม
 
-- **`NotificationContext`** — จุดเดียว: ตอน `persist()` เก็บเฉพาะ 50 รายการล่าสุด กันบวมข้ามวัน
-  (ตอนนี้เก็บทุกอันที่ `persistent` ไม่มีเพดาน)
+- **`NotificationContext`** — เพิ่ม field `group?: string` บน `AppNotification` แล้วตอน `persist()`
+  เก็บอันที่ไม่มี group ครบทุกอัน (เช่น เตือน Daily Check ที่มีอันเดียวและห้ามหาย) ส่วนอันที่มี group
+  เก็บ 50 อันใหม่สุดของ group นั้น — watcher ยิงเข้ามาด้วย `group: "petition"`
+  (ตอนนี้เก็บทุกอันที่ `persistent` ไม่มีเพดาน จึงบวมข้ามวัน)
 - **`NotificationBell`** — เพิ่มสวิตช์ "ดูทั้งระบบ" ในหัว popover **แสดงเฉพาะ admin**
   เก็บสถานะที่ `localStorage['lis.petitionNotify.seeAll']`
 - **`src/lib/api.ts`** — `getPetitionNotifications(params)`
@@ -156,6 +158,9 @@ log ที่หา petition ไม่เจอ (ถูกลบ/soft delete) �
 - role → audience (qc/lab, หลาย role รวมกัน)
 - department → audience (อังกฤษ/ไทย, case-insensitive)
 - `admin` ล้วน ๆ ไม่มี department → `[]` (ไม่ bypass)
+
+**`src/context/notificationStorage.test.ts`** (vitest)
+- `capPersisted`: ทิ้งอันที่ไม่ persistent / เก็บอันไม่มี group ครบ / ตัดเหลือ 50 อันใหม่สุดต่อ group / รักษาลำดับเดิม
 
 ไม่ทำ e2e — watcher เป็น glue ล้วน ตรรกะที่มีความหมายอยู่ในสองไฟล์ pure ข้างบนหมดแล้ว
 
