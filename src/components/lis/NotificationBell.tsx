@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Check, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { useNotifications, type NotificationLevel } from "@/context/NotificationContext";
 import { useAuth } from "@/context/AuthContext";
 import { normalizeRoles } from "@/lib/roles";
-import { readSeeAll, writeSeeAll } from "@/lib/petitionAudience";
+import { readSeeAll, writeSeeAll, SEE_ALL_EVENT } from "@/lib/petitionAudience";
 
 const levelColor: Record<NotificationLevel, string> = {
   info: "bg-blue-500",
@@ -42,6 +42,14 @@ const NotificationBell = ({ className, iconClassName }: NotificationBellProps) =
   const { user } = useAuth();
   const isAdmin = normalizeRoles(user).includes("admin");
   const [seeAll, setSeeAll] = useState(() => readSeeAll());
+
+  // สองอินสแตนซ์ของ bell (มือถือ + desktop) mount พร้อมกันเสมอ (แค่ CSS ซ่อน) — ต้อง
+  // ฟัง SEE_ALL_EVENT เพื่อ sync สถานะสวิตช์ข้ามกันเมื่ออีกฝั่งกดสลับ
+  useEffect(() => {
+    const onSeeAllChange = () => setSeeAll(readSeeAll());
+    window.addEventListener(SEE_ALL_EVENT, onSeeAllChange);
+    return () => window.removeEventListener(SEE_ALL_EVENT, onSeeAllChange);
+  }, []);
 
   return (
     <Popover>
