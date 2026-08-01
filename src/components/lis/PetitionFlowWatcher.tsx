@@ -21,6 +21,21 @@ const readCursor = (employeeId?: string): string => {
 };
 
 /**
+ * ตัดสินใจว่า cursor ที่จะเขียนลง localStorage ควรเป็นค่าไหน — ต้องเดินหน้าอย่างเดียว
+ * (never regress) เพราะ query cache หลายคีย์ (เช่น สลับ see-all on/off) แชร์ cursor slot
+ * เดียวกันตาม employeeId เฉยๆ — ถ้าปล่อยให้ response เก่าที่ React Query serve แบบ stale
+ * เขียนทับ cursor ใหม่กว่าได้ notification ที่ผู้ใช้ลบไปแล้วจะโผล่กลับมาซ้ำ
+ */
+export const nextCursor = (stored: string | null | undefined, serverTime: string): string => {
+  if (!stored) return serverTime;
+  const storedMs = Date.parse(stored);
+  if (Number.isNaN(storedMs)) return serverTime;
+  const serverMs = Date.parse(serverTime);
+  if (Number.isNaN(serverMs)) return stored;
+  return serverMs > storedMs ? serverTime : stored;
+};
+
+/**
  * Poll ความเคลื่อนไหวของคำขอทุกนาทีแล้วยิงเข้ากระดิ่ง
  * cursor เดินหน้าเฉพาะตอน query สำเร็จ — เน็ตกระตุกแล้วต้องไม่กลืน event ที่ยังไม่เคยแสดง
  */
@@ -68,7 +83,9 @@ const PetitionFlowWatcher = () => {
       });
     }
     try {
-      localStorage.setItem(cursorKey(employeeId), data.serverTime);
+      const key = cursorKey(employeeId);
+      const stored = localStorage.getItem(key);
+      localStorage.setItem(key, nextCursor(stored, data.serverTime));
     } catch {
       // private mode — รอบหน้าจะดึงย้อนหลัง 24 ชม.ใหม่ ซึ่ง push กันซ้ำด้วย id อยู่แล้ว
     }
