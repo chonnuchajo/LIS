@@ -34,7 +34,6 @@ export const TAB_REGISTRY: Record<string, TabDef[]> = {
     { key: "instruments", label: "เครื่องมือ/API" },
     { key: "dashboard", label: "แดชบอร์ด" },
     { key: "line", label: "LINE", adminOnly: true },
-    { key: "api", label: "API", adminOnly: true },
   ],
   "/report": [
     { key: "dashboard", label: "Dashboard ภาพรวม", icon: LayoutDashboard },

@@ -70,12 +70,19 @@ mountApi('/dev', require('./routes/dev')); // dev-only helpers (gated by ALLOW_D
 app.get('/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
 app.get('/LIS/api/health', (req, res) => res.json({ status: 'ok', db: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected' }));
 
-// Admin "API" settings tab: list all mounted API endpoints (read-only introspection).
-// Must register before the SPA fallback so /LIS/api/_routes isn't swallowed by /LIS/*.
+// GET /api/list — browsable page of every mounted API endpoint (read-only introspection).
+// ?format=json returns the raw list instead. Rendered server-side because /LIS/api/* is
+// always proxied to the backend, so this can't be a React route.
+// Must register before the SPA fallback so /LIS/api/list isn't swallowed by /LIS/*.
 const { extractRoutes } = require('./lib/listRoutes');
-const listRoutesHandler = (req, res) => res.json({ data: extractRoutes(app) });
-app.get('/api/_routes', listRoutesHandler);
-app.get('/LIS/api/_routes', listRoutesHandler);
+const { renderRoutesPage } = require('./lib/routesPage');
+const listRoutesHandler = (req, res) => {
+  const routes = extractRoutes(app);
+  if (req.query.format === 'json') return res.json({ data: routes });
+  res.type('html').send(renderRoutesPage(routes));
+};
+app.get('/api/list', listRoutesHandler);
+app.get('/LIS/api/list', listRoutesHandler);
 
 // Serve React build if dist folder exists
 const fs = require('fs');

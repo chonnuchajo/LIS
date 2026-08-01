@@ -17,7 +17,6 @@ describe("tabRegistry", () => {
     const keys = configurableTabsFor("/settings").map((t) => t.key);
     expect(keys).toContain("dashboard");
     expect(keys).not.toContain("line");
-    expect(keys).not.toContain("api");
   });
 
   it("tabsFor keeps adminOnly tabs", () => {

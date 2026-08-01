@@ -1,5 +1,5 @@
 // Introspect a mounted Express 4 app and list its API endpoints.
-// Used by GET /api/_routes for the admin "API" settings tab.
+// Used by GET /api/list (see routesPage.js) to render the endpoint list page.
 
 function extractMountPath(layer) {
   const re = layer && layer.regexp;

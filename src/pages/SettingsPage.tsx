@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 import { toast } from "sonner";
-import ApiRoutesCard from "@/components/lis/ApiRoutesCard";
 import AppLayout from "@/components/lis/AppLayout";
 import DashboardLayoutConfigCard from "@/components/lis/DashboardLayoutConfigCard";
 import DocumentNumberConfigCard from "@/components/lis/DocumentNumberConfigCard";
@@ -230,12 +229,6 @@ const SettingsPage = () => {
             <div className="max-w-2xl">
               <LineConfigCard />
             </div>
-          </TabsContent>
-        )}
-
-        {isAdmin && (
-          <TabsContent value="api" className="space-y-3">
-            <ApiRoutesCard />
           </TabsContent>
         )}
       </Tabs>

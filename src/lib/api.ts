@@ -27,7 +27,6 @@ import type { MethodDoc, MethodInput } from './methodRegistry';
 import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
 import type { GoodsReceipt, GoodsReceiptInput } from "@/types/goodsReceipt.types";
 
-export type ApiRouteInfo = { method: string; path: string };
 type StockUserPayload = { _user?: { email?: string; name?: string } };
 export interface StockTransactionParams {
   itemType?: string;
@@ -530,10 +529,6 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(input),
     }).then((r) => r.data),
-
-  // ── API route introspection ──
-  getApiRoutes: () =>
-    request<{ data: ApiRouteInfo[] }>("/_routes").then((r) => r.data),
 
   // ── Document number config (petition / sampleReceipt / labRequest formats) ──
   getDocumentNumberConfigs: () =>
