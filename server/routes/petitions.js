@@ -355,7 +355,7 @@ router.get('/notifications', async (req, res) => {
       .limit(200)
       .lean();
 
-    const petitionIds = [...new Set(logs.map((l) => String(l.petitionId)).filter(Boolean))];
+    const petitionIds = [...new Set(logs.filter((l) => l.petitionId).map((l) => String(l.petitionId)))];
     const petitions = petitionIds.length
       ? await Petition.find({ _id: { $in: petitionIds } })
           .select(
