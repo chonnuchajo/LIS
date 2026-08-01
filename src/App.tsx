@@ -9,6 +9,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { ConfirmProvider } from "@/context/ConfirmDialog";
 import DailyCheckReminderWatcher from "@/components/lis/DailyCheckReminderWatcher";
+import PetitionFlowWatcher from "@/components/lis/PetitionFlowWatcher";
 import PrivateRoute from "@/components/PrivateRoute";
 import RoutePointerLockGuard from "@/components/RoutePointerLockGuard";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
@@ -94,6 +95,7 @@ const App = () => (
           <EmployeeLinkGate />
           <NotificationProvider>
             <DailyCheckReminderWatcher />
+            <PetitionFlowWatcher />
             <SampleProvider>
               <StartupLoadingGate minimumDurationMs={1500}>
               <Suspense fallback={<RouteLoading />}>

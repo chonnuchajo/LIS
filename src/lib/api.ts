@@ -38,6 +38,16 @@ export interface StockTransactionParams {
   skip?: number;
 }
 
+export interface PetitionFlowNotification {
+  id: string;
+  petitionNo: string;
+  title: string;
+  message?: string;
+  level: "info" | "warning" | "success" | "error";
+  link: string;
+  createdAt: string;
+}
+
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
 function normalizeBaseUrl(value: string | undefined) {
@@ -473,6 +483,24 @@ export const api = {
     }).then(r => r.data),
   getDailyCheckTodaySummary: () =>
     request<{ data: DailyCheckTodaySummary }>("/daily-checks/summary/today").then(r => r.data),
+
+  // แจ้งเตือน petition flow สำหรับกระดิ่ง — server กรอง audience ให้แล้ว
+  getPetitionNotifications: (params: {
+    since: string;
+    audiences: string[];
+    employeeId?: string;
+    all?: boolean;
+    limit?: number;
+  }) => {
+    const qs = new URLSearchParams({ since: params.since });
+    if (params.audiences.length) qs.set("audiences", params.audiences.join(","));
+    if (params.employeeId) qs.set("employeeId", params.employeeId);
+    if (params.all) qs.set("all", "1");
+    if (params.limit) qs.set("limit", String(params.limit));
+    return request<{ items: PetitionFlowNotification[]; serverTime: string }>(
+      `/petitions/notifications?${qs.toString()}`,
+    );
+  },
 
   // Env Check (อุณหภูมิ/ความชื้น ประจำวัน)
   getEnvChecks: (params?: {
