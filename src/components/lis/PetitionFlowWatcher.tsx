@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
+import { normalizeRoles } from "@/lib/roles";
 import { audiencesForUser, readSeeAll, SEE_ALL_EVENT } from "@/lib/petitionAudience";
 
 const CURSOR_PREFIX = "lis.petitionNotify.cursor.";
@@ -19,6 +20,16 @@ const readCursor = (employeeId?: string): string => {
     return fallback;
   }
 };
+
+/**
+ * Whether this poll should actually ask the API for every department's notifications.
+ * NotificationBell only *renders* the see-all switch for admins, but its localStorage
+ * flag is global and never cleared — so a browser that was ever an admin (DevRoleSwitcher,
+ * or a past real role change) would otherwise keep sending all=1 forever with no visible
+ * control left to turn it off. Gate it here too, using the same admin check the bell uses.
+ */
+export const effectiveSeeAll = (user: Parameters<typeof normalizeRoles>[0], seeAllRaw: boolean): boolean =>
+  seeAllRaw && normalizeRoles(user).includes("admin");
 
 /**
  * ตัดสินใจว่า cursor ที่จะเขียนลง localStorage ควรเป็นค่าไหน — ต้องเดินหน้าอย่างเดียว
@@ -42,10 +53,11 @@ export const nextCursor = (stored: string | null | undefined, serverTime: string
 const PetitionFlowWatcher = () => {
   const { user } = useAuth();
   const { push } = useNotifications();
-  const [seeAll, setSeeAll] = useState(() => readSeeAll());
+  const [seeAllRaw, setSeeAllRaw] = useState(() => readSeeAll());
+  const seeAll = effectiveSeeAll(user, seeAllRaw);
 
   useEffect(() => {
-    const sync = () => setSeeAll(readSeeAll());
+    const sync = () => setSeeAllRaw(readSeeAll());
     window.addEventListener(SEE_ALL_EVENT, sync);
     return () => window.removeEventListener(SEE_ALL_EVENT, sync);
   }, []);

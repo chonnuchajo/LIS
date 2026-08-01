@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   bellDescribe,
+  isCollapsibleDuplicate,
   isRelevant,
   levelForEvent,
   toNotification,
@@ -53,6 +54,48 @@ test('bellDescribe: reviewed → null', () => {
   assert.strictEqual(bellDescribe(petition, { event: 'reviewed' }), null);
 });
 
+// Finding 3: หัวหน้า QC ส่งกลับ Lab/QC ทดสอบใหม่ — describeEvent ไม่รู้จัก (audiencesForEvent
+// map ธรรมดา 'inProgress' เป็น []) จึงต้องมี bell-only fallback เอง
+test('bellDescribe: statusChanged toStatus=inProgress ไม่มี metadata.returnTo (ธรรมดา) → null', () => {
+  assert.strictEqual(
+    bellDescribe(petition, { event: 'statusChanged', toStatus: 'inProgress' }),
+    null,
+  );
+});
+
+test('bellDescribe: statusChanged toStatus=inProgress + returnTo=lab → แจ้งฝั่ง lab ด้วย note เดิม', () => {
+  const log = {
+    event: 'statusChanged',
+    toStatus: 'inProgress',
+    note: 'หัวหน้า QC ส่งกลับฝั่ง Labทดสอบใหม่: กลิ่นผิดปกติ',
+    metadata: { returnTo: 'lab' },
+  };
+  const d = bellDescribe(petition, log);
+  assert.deepStrictEqual(d.audiences, ['lab']);
+  assert.strictEqual(d.title, '🔁 ส่งกลับทดสอบใหม่ P-2606-0018');
+  assert.strictEqual(d.message, log.note);
+});
+
+test('bellDescribe: statusChanged toStatus=inProgress + returnTo=qc → แจ้งฝั่ง qc', () => {
+  const log = {
+    event: 'statusChanged',
+    toStatus: 'inProgress',
+    note: 'หัวหน้า QC ส่งกลับฝั่ง QCทดสอบใหม่: ค่าคลาดเคลื่อน',
+    metadata: { returnTo: 'qc' },
+  };
+  assert.deepStrictEqual(bellDescribe(petition, log).audiences, ['qc']);
+});
+
+test('bellDescribe: statusChanged toStatus=inProgress + returnTo=both → แจ้งทั้งสองฝั่งที่งานนี้มี', () => {
+  const log = {
+    event: 'statusChanged',
+    toStatus: 'inProgress',
+    note: 'หัวหน้า QC ส่งกลับทั้ง Lab และ QCทดสอบใหม่: ทวนซ้ำทั้งหมด',
+    metadata: { returnTo: 'both' },
+  };
+  assert.deepStrictEqual(bellDescribe(petition, log).audiences, ['qc', 'lab']);
+});
+
 test('isRelevant: audience ตัดกัน → true', () => {
   const desc = { audiences: ['qc'], title: 't' };
   assert.strictEqual(isRelevant(desc, petition, { audiences: ['qc'], employeeId: 'E999' }), true);
@@ -84,6 +127,17 @@ test('levelForEvent: rejected/success/approved/ผิดปกติ/อื่�
   assert.strictEqual(levelForEvent({ event: 'created' }), 'info');
 });
 
+test('levelForEvent: statusChanged toStatus=inProgress + returnTo → warning (ถูกสั่งให้ทำใหม่)', () => {
+  assert.strictEqual(
+    levelForEvent({ event: 'statusChanged', toStatus: 'inProgress', metadata: { returnTo: 'lab' } }),
+    'warning',
+  );
+});
+
+test('levelForEvent: statusChanged toStatus=inProgress ไม่มี returnTo → info เหมือนเดิม (ไม่ถูกรบกวน)', () => {
+  assert.strictEqual(levelForEvent({ event: 'statusChanged', toStatus: 'inProgress' }), 'info');
+});
+
 test('toNotification: id = audit log id, link ชี้หน้า timeline ของคำขอ', () => {
   const log = { _id: 'log1', event: 'created', createdAt: '2026-08-01T02:00:00.000Z' };
   const desc = { audiences: ['qc'], title: 'T', message: 'M' };
@@ -96,4 +150,46 @@ test('toNotification: id = audit log id, link ชี้หน้า timeline ข
     link: '/petition/p1',
     createdAt: '2026-08-01T02:00:00.000Z',
   });
+});
+
+// Finding 1: resultEntered fires once per form field (qcResultAuditEvent logs every
+// field), so a burst of rows for one petition must collapse to just the newest — or
+// it fills the capped /notifications response and crowds out real milestones.
+test('isCollapsibleDuplicate: first resultEntered for a petition → not a duplicate, marks it seen', () => {
+  const seen = new Set();
+  assert.strictEqual(isCollapsibleDuplicate({ event: 'resultEntered', petitionId: 'p1' }, seen), false);
+  assert.ok(seen.has('p1'));
+});
+
+test('isCollapsibleDuplicate: second+ resultEntered for the same petition → duplicate', () => {
+  const seen = new Set(['p1']);
+  assert.strictEqual(isCollapsibleDuplicate({ event: 'resultEntered', petitionId: 'p1' }, seen), true);
+});
+
+test('isCollapsibleDuplicate: resultEntered for a different petition → not a duplicate', () => {
+  const seen = new Set(['p1']);
+  assert.strictEqual(isCollapsibleDuplicate({ event: 'resultEntered', petitionId: 'p2' }, seen), false);
+  assert.ok(seen.has('p2'));
+});
+
+test('isCollapsibleDuplicate: non-resultEntered events are never collapsed, even for a seen petition', () => {
+  const seen = new Set(['p1']);
+  assert.strictEqual(
+    isCollapsibleDuplicate({ event: 'statusChanged', toStatus: 'rejected', petitionId: 'p1' }, seen),
+    false,
+  );
+});
+
+test('isCollapsibleDuplicate: newest-first loop keeps only the first resultEntered and reaches an older rejected row', () => {
+  // Simulates the exact scenario from the finding: 30 resultEntered rows for one
+  // petition (newest-first) followed by an older 'rejected' row for the same petition.
+  const logs = [
+    ...Array.from({ length: 30 }, (_, i) => ({ event: 'resultEntered', petitionId: 'p1', seq: i })),
+    { event: 'statusChanged', toStatus: 'rejected', petitionId: 'p1', seq: 30 },
+  ];
+  const seen = new Set();
+  const survivors = logs.filter((log) => !isCollapsibleDuplicate(log, seen));
+  assert.strictEqual(survivors.length, 2); // 1 newest resultEntered + the rejected row
+  assert.strictEqual(survivors[0].event, 'resultEntered');
+  assert.strictEqual(survivors[1].event, 'statusChanged');
 });

@@ -9,6 +9,7 @@ const RealtimeDensity = require('../models/RealtimeDensity');
 const PetitionAuditLog = require('../models/PetitionAuditLog');
 const {
   bellDescribe,
+  isCollapsibleDuplicate,
   isRelevant,
   toNotification,
 } = require('../lib/petitionNotifications');
@@ -367,10 +368,16 @@ router.get('/notifications', async (req, res) => {
     const byId = new Map(petitions.map((p) => [String(p._id), p]));
 
     const items = [];
+    // resultEntered fires once per form field, so a burst for one petition must
+    // collapse to its single newest row BEFORE the limit cap below — otherwise the
+    // burst alone can fill the cap and crowd out older, more important events
+    // (e.g. ⛔ ถูกส่งกลับ) that never get re-fetched once the cursor moves past them.
+    const seenResultEntered = new Set();
     for (const log of logs) {
       if (items.length >= limit) break;
       const petition = byId.get(String(log.petitionId));
       if (!petition) continue; // ถูกลบ/soft delete แล้ว
+      if (isCollapsibleDuplicate(log, seenResultEntered)) continue;
       const desc = bellDescribe(petition, log);
       if (!desc) continue;
       if (!isRelevant(desc, petition, viewer)) continue;
