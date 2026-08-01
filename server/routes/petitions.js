@@ -7,6 +7,11 @@ const PhysicalResult = require('../models/PhysicalResult');
 const Approval = require('../models/Approval');
 const RealtimeDensity = require('../models/RealtimeDensity');
 const PetitionAuditLog = require('../models/PetitionAuditLog');
+const {
+  bellDescribe,
+  isRelevant,
+  toNotification,
+} = require('../lib/petitionNotifications');
 const { maybeAdvancePhase } = require('../lib/phaseAdvance');
 const QCTestResult = require('../models/QCTestResult');
 const Parameter = require('../models/Parameter');
@@ -316,6 +321,64 @@ router.get('/audit-logs', async (req, res) => {
       PetitionAuditLog.countDocuments(q),
     ]);
     res.json({ items, total, page, limit });
+  } catch (err) {
+    res.status(500).json({ error: { message: err.message } });
+  }
+});
+
+// GET /api/petitions/notifications?since=<ISO>&audiences=qc,lab&employeeId=E1&all=0&limit=30
+// In-app bell feed: audit log + petition → notifications this viewer should see.
+// Unauthenticated like the rest of this API — the client states who it is, same as
+// the `actor` field other routes accept.
+const NOTIFY_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+
+router.get('/notifications', async (req, res) => {
+  try {
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 30));
+    const audiences = String(req.query.audiences || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const viewer = {
+      audiences,
+      employeeId: String(req.query.employeeId || '').trim(),
+      seeAll: String(req.query.all || '') === '1',
+    };
+
+    // Hard 24h ceiling no matter how stale the client's cursor is.
+    const floor = new Date(Date.now() - NOTIFY_LOOKBACK_MS);
+    const since = new Date(String(req.query.since || ''));
+    const window = !Number.isNaN(since.getTime()) && since > floor ? since : floor;
+
+    const logs = await PetitionAuditLog.find({ createdAt: { $gte: window } })
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+
+    const petitionIds = [...new Set(logs.map((l) => String(l.petitionId)).filter(Boolean))];
+    const petitions = petitionIds.length
+      ? await Petition.find({ _id: { $in: petitionIds } })
+          .select(
+            'petitionNo dept status items.batchNo items.sampleName items.commonName ' +
+            'submittedBy assignedTo qcCompletedAt labCompletedAt labApprovedAt',
+          )
+          .lean()
+      : [];
+    const byId = new Map(petitions.map((p) => [String(p._id), p]));
+
+    const items = [];
+    for (const log of logs) {
+      if (items.length >= limit) break;
+      const petition = byId.get(String(log.petitionId));
+      if (!petition) continue; // ถูกลบ/soft delete แล้ว
+      const desc = bellDescribe(petition, log);
+      if (!desc) continue;
+      if (!isRelevant(desc, petition, viewer)) continue;
+      items.push(toNotification(petition, log, desc));
+    }
+
+    // Client uses serverTime as its next cursor — avoids client/server clock skew.
+    res.json({ items, serverTime: new Date().toISOString() });
   } catch (err) {
     res.status(500).json({ error: { message: err.message } });
   }
