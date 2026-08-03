@@ -99,6 +99,9 @@ const StockDeduction = () => {
     queryClient.invalidateQueries({ queryKey: ["stock-deductions"] });
     queryClient.invalidateQueries({ queryKey: ["stock", "transactions"] });
     queryClient.invalidateQueries({ queryKey: ["stock", "units"] });
+    // แถวนี้อาจเป็น standard ที่กำลังใช้งานอยู่ — ปิดจาก history tab ก็ต้องหลุดจากแท็บ
+    // "กำลังใช้งานอยู่" และกระดิ่งของทุกคนด้วย ไม่งั้นค้างโชว์ได้ถึง 60 วิ
+    queryClient.invalidateQueries({ queryKey: ["stock", "in-use"] });
   };
 
   return (
