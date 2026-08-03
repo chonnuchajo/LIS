@@ -35,7 +35,8 @@ const STATUS_CLASS: Record<InUseStatus, string> = {
 export default function StandardsInUseTable() {
   const qc = useQueryClient();
   const { user } = useAuth();
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  // ชุด id ที่กำลังยิง resolve อยู่ (ไม่ใช่ scalar เดียว) — กันแถวอื่นที่กดพร้อมกันไปเคลียร์สถานะ pending ของแถวนี้ทับกัน
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["stock", "in-use"],
@@ -49,8 +50,14 @@ export default function StandardsInUseTable() {
         reason: "expired",
         _user: { email: user?.email, name: user?.name },
       }),
-    onMutate: (row: StandardInUseItem) => setPendingId(row._id),
-    onSettled: () => setPendingId(null),
+    onMutate: (row: StandardInUseItem) =>
+      setPendingIds((prev) => new Set(prev).add(row._id)),
+    onSettled: (_data, _error, row: StandardInUseItem) =>
+      setPendingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(row._id);
+        return next;
+      }),
     onSuccess: () => {
       toast.success("รับทราบแล้ว");
       qc.invalidateQueries({ queryKey: ["stock", "in-use"] });
@@ -117,13 +124,14 @@ export default function StandardsInUseTable() {
       className: "text-right",
       cell: (r) => {
         if (canAcknowledge(r, user, now)) {
+          const isPending = pendingIds.has(r._id);
           return (
             <Button
               size="sm"
-              disabled={pendingId === r._id}
+              disabled={isPending}
               onClick={(e) => { e.stopPropagation(); ack.mutate(r); }}
             >
-              {pendingId === r._id ? "กำลังบันทึก..." : "รับทราบ"}
+              {isPending ? "กำลังบันทึก..." : "รับทราบ"}
             </Button>
           );
         }

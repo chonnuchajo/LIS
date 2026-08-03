@@ -91,4 +91,44 @@ describe("StandardsInUseTable", () => {
     expect(await screen.findByText("รอ สมหญิง รับทราบ")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "รับทราบ" })).not.toBeInTheDocument();
   });
+
+  it("กดรับทราบแถว A ค้างอยู่ แล้วกดแถว B ต้องไม่ทำให้ A หลุดสถานะกำลังบันทึก", async () => {
+    apiMock.getStandardsInUse.mockResolvedValue({
+      serverTime: NOW,
+      items: [
+        item({ _id: "a", dueAt: new Date(Date.parse(NOW) - DAY).toISOString() }),
+        item({ _id: "b", dueAt: new Date(Date.parse(NOW) - DAY).toISOString() }),
+      ],
+    });
+
+    // ควบคุมจังหวะ resolve ของแต่ละแถวเอง — แถว a ค้างไม่ resolve จนกว่าจะเรียก resolveA()
+    let resolveA: (value?: unknown) => void = () => {};
+    const pendingA = new Promise((resolve) => { resolveA = resolve; });
+    let resolveB: (value?: unknown) => void = () => {};
+    const pendingB = new Promise((resolve) => { resolveB = resolve; });
+    apiMock.resolveStockDeduction.mockImplementation((id: string) =>
+      id === "a" ? pendingA : pendingB,
+    );
+
+    renderTable();
+
+    const [buttonA, buttonB] = await screen.findAllByRole("button", { name: "รับทราบ" });
+    fireEvent.click(buttonA);
+
+    await waitFor(() => expect(buttonA).toHaveTextContent("กำลังบันทึก..."));
+    expect(buttonA).toBeDisabled();
+    expect(buttonB).toHaveTextContent("รับทราบ");
+
+    fireEvent.click(buttonB);
+
+    await waitFor(() => expect(buttonB).toHaveTextContent("กำลังบันทึก..."));
+    // regression: กดแถว B ต้องไม่ไปเคลียร์สถานะ pending ของแถว A ที่ยังค้าง (bug เดิม = scalar เดียวถูกทับ)
+    expect(buttonA).toHaveTextContent("กำลังบันทึก...");
+    expect(buttonA).toBeDisabled();
+
+    resolveA({});
+    resolveB({});
+    await waitFor(() => expect(buttonA).toHaveTextContent("รับทราบ"));
+    await waitFor(() => expect(buttonB).toHaveTextContent("รับทราบ"));
+  });
 });
