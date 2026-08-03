@@ -75,6 +75,10 @@ dueAtFor(withdrawnAt, frequency) → Date | null   // ใช้ parseFrequencyIn
 - `reason === 'expired'` → อีเมลผู้กด (`userMeta(req)`) ต้องตรง `tx.userEmail` (เทียบแบบ trim + lowercase)
   ไม่ตรง → `403 { error: 'รับทราบได้เฉพาะคนที่เบิก' }`; `tx.userEmail` ว่าง → 403 เช่นกัน
 - reason อื่นคงพฤติกรรมเดิมทุกอย่าง (ใครก็แจ้งปิดได้ — flow เบิกซ้ำต้องพึ่ง)
+- **`expired` ต้องไม่แตะขวดต้นทาง**: `applyUnitResolutionFromTransaction()` ปัจจุบันตีความ reason เป็นเรื่องของ
+  *ขวด* — `empty` → ขวดเป็น `empty`, reason อื่น → **ขวดถูก `discarded`** ถ้าปล่อยไว้ "รับทราบหมดอายุ"
+  จะไปทิ้งขวดแม่ที่ยังมีสารเหลือ ซึ่งผิด → เพิ่ม early-return ที่บรรทัดแรกของฟังก์ชัน:
+  `if (resolution.reason === 'expired') return null;` (สารละลายที่เตรียมไว้หมดอายุ ≠ ขวดต้นทางมีปัญหา)
 
 ### 4.3 สถานะ — คำนวณที่ FE ที่เดียว
 
@@ -169,8 +173,11 @@ canAcknowledge(row, user): boolean // status === 'expired' && email ตรง ro
   `now === dueAt` → `expired`, ลำดับ `sortInUse`, `canAcknowledge` (ตรง/ไม่ตรง/อีเมลว่าง/ยังไม่หมดอายุ)
 - `server/lib/workingLifecycle.test.js` — `dueAtFor`: `1/1 Week` ตัวใหญ่, `1/2 month`, ค่าว่าง → null, ค่าแปลก → null
 - `server/lib/deductionResolution.test.js` — `expired` ผ่านโดยไม่มีโน้ต; reason นอก enum ยัง error เหมือนเดิม
-- `src/components/lis/__tests__/StandardExpiryWatcher.test.tsx` — 2 แถว → push 2; รอบถัดไปเหลือ 1 → `dismiss`
-  เฉพาะอันที่หาย และไม่แตะ notification กลุ่มอื่น
+- ตรรกะ push/reconcile ของ watcher แยกเป็น pure `planInUseNotifications(items, now, existingIds)`
+  ใน `standardInUse.ts` แล้วเทสต์ที่นั่น (2 แถว → push 2; รอบถัดไปเหลือ 1 → `dismiss` เฉพาะอันที่หาย,
+  ไม่แตะ id กลุ่มอื่น) — watcher เหลือเป็น wrapper บาง ๆ ที่ไม่ต้องเทสต์แยก
+- `src/components/lis/stock/__tests__/StandardsInUseTable.test.tsx` — badge สถานะ, ปุ่มรับทราบของเจ้าของ
+  (ยิง `reason: 'expired'`), และคนอื่นเห็น "รอ … รับทราบ" แทนปุ่ม
 - ทั้งชุด: `npm run test`, `npx tsc -p tsconfig.app.json --noEmit`, `node --test server/lib/*.test.js`
 
 ## 7. ไม่อยู่ในขอบเขต
