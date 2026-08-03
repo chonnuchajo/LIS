@@ -12,6 +12,7 @@ const {
   buildPendingDeductionFilter,
   normalizeDeductionResolutionInput,
 } = require('../lib/deductionResolution');
+const { buildInUseItems, canAcknowledgeDeduction } = require('../lib/standardsInUse');
 
 async function genUniqueQrId() {
   for (let i = 0; i < 5; i++) {
@@ -57,6 +58,8 @@ const RESOLUTION_REASON_LABELS = {
 };
 
 async function applyUnitResolutionFromTransaction(tx, resolution, req) {
+  // "รับทราบหมดอายุ" = สารละลายที่เตรียมไว้ครบกำหนด ไม่ใช่ขวดต้นทางมีปัญหา → ห้ามแตะขวด
+  if (resolution.reason === 'expired') return null;
   if (tx.itemType !== 'standard' || !tx.qrId) return null;
 
   const unit = await StockUnit.findOne({ qrId: tx.qrId });
@@ -140,6 +143,26 @@ async function deductMgFromUnit(qrId, mg, meta = {}) {
 router.get('/standards', async (req, res) => {
   try {
     res.json(await StockStandard.find().sort({ code: 1 }).collation({ locale: 'en', numericOrdering: true }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// standard ที่เบิกไปแล้วยังไม่ปิด + วันครบกำหนดตามความถี่ (แท็บ "กำลังใช้งานอยู่")
+// ต้องอยู่เหนือ '/standards/:id' ไม่งั้นจะถูกจับเป็น id
+router.get('/standards/in-use', async (req, res) => {
+  try {
+    const built = buildPendingDeductionFilter({ itemType: 'standard' });
+    if (built.error) return res.status(400).json({ error: built.error });
+    const txs = await StockTransaction.find(built.value)
+      .sort({ createdAt: -1 })
+      .limit(500)
+      .lean();
+    const codes = [...new Set(txs.map((t) => t.itemCode).filter(Boolean))];
+    const standards = codes.length
+      ? await StockStandard.find({ code: { $in: codes } }).select('code frequency').lean()
+      : [];
+    res.json({ serverTime: new Date().toISOString(), items: buildInUseItems(txs, standards) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -753,8 +776,12 @@ router.post('/transactions/:id/resolve-deduction', async (req, res) => {
       return res.status(400).json({ error: 'รองรับเฉพาะรายการเบิก Standard และสารเคมี' });
     }
 
-    await applyUnitResolutionFromTransaction(tx, norm.value, req);
     const actor = await userMeta(req);
+    if (norm.value.reason === 'expired' && !canAcknowledgeDeduction(tx, actor.userEmail)) {
+      return res.status(403).json({ error: 'รับทราบได้เฉพาะคนที่เบิก' });
+    }
+
+    await applyUnitResolutionFromTransaction(tx, norm.value, req);
     tx.deductionResolution = {
       ...norm.value,
       resolvedAt: new Date(),
