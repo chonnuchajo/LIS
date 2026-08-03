@@ -7,6 +7,9 @@
 //   node scripts/close-stale-standard-deductions.js --before=2026-08-03   # กำหนดวันตัด (ดีฟอลต์ = วันนี้)
 //   node scripts/close-stale-standard-deductions.js --commit              # เขียนจริง
 //
+// ⚠️ ดีฟอลต์ของ --before คือ "ตอนนี้" — ถ้ารัน --commit เปล่าๆ (ไม่ระบุ --before) จะปิดแม้แต่
+// รายการที่เพิ่งเบิกไปเมื่อกี้นี้ด้วย ในทางปฏิบัติควรระบุ --before=YYYY-MM-DD เจาะจงวันเปิดใช้ฟีเจอร์เสมอ
+//
 // Note: This script loads server/.env automatically. MONGODB_URI in the environment overrides it.
 'use strict';
 
@@ -27,7 +30,7 @@ async function main() {
     process.exit(1);
   }
   await mongoose.connect(URI);
-  console.log(`ต่ออ database: ${mongoose.connection.host}/${mongoose.connection.name}`);
+  console.log(`ต่อ database: ${mongoose.connection.host}/${mongoose.connection.name}`);
 
   const col = mongoose.connection.collection('stocktransactions');
 

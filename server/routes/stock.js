@@ -155,7 +155,9 @@ router.get('/standards/in-use', async (req, res) => {
     const built = buildPendingDeductionFilter({ itemType: 'standard' });
     if (built.error) return res.status(400).json({ error: built.error });
     const txs = await StockTransaction.find(built.value)
-      .sort({ createdAt: -1 })
+      .select('itemCode itemName qrId weights volumeDelta instrumentGroup note createdAt userEmail userName')
+      // เก่าสุดก่อน — ถ้าเกิน limit แถวที่หลุดต้องเป็นแถวใหม่สุด ไม่ใช่แถวที่เกินกำหนดนานสุด
+      .sort({ createdAt: 1 })
       .limit(500)
       .lean();
     const codes = [...new Set(txs.map((t) => t.itemCode).filter(Boolean))];
