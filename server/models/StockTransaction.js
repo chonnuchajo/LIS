@@ -6,7 +6,7 @@ const PersonSchema = new mongoose.Schema({
 }, { _id: false });
 
 const DeductionResolutionSchema = new mongoose.Schema({
-  reason: { type: String, enum: ['empty', 'ineffective', 'other'] },
+  reason: { type: String, enum: ['empty', 'ineffective', 'other', 'expired'] },
   note: { type: String, default: '' },
   resolvedAt: Date,
   resolvedBy: { type: PersonSchema, default: undefined },

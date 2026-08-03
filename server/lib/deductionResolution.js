@@ -1,5 +1,5 @@
 const VALID_ITEM_TYPES = new Set(['standard', 'solvent']);
-const VALID_REASONS = new Set(['empty', 'ineffective', 'other']);
+const VALID_REASONS = new Set(['empty', 'ineffective', 'other', 'expired']);
 
 function cleanString(value) {
   return String(value || '').trim();

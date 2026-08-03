@@ -59,4 +59,16 @@ describe('deduction resolution helpers', () => {
       },
     });
   });
+
+  test('accepts expired without a note (acknowledge flow)', () => {
+    expect(normalizeDeductionResolutionInput({ reason: 'expired' })).toEqual({
+      value: { reason: 'expired', note: '' },
+    });
+  });
+
+  test('still rejects an unknown reason', () => {
+    expect(normalizeDeductionResolutionInput({ reason: 'expire' })).toEqual({
+      error: 'กรุณาเลือกเหตุผล',
+    });
+  });
 });
