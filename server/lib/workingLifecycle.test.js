@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { parseFrequencyInterval, addInterval, computeWorkingLifecycle } = require('./workingLifecycle');
+const { parseFrequencyInterval, addInterval, computeWorkingLifecycle, dueAtFor } = require('./workingLifecycle');
 
 test('parseFrequencyInterval reads denominator + unit', () => {
   assert.deepStrictEqual(parseFrequencyInterval('1/1 week'), { count: 1, unit: 'week' });
@@ -52,4 +52,25 @@ test('computeWorkingLifecycle: caps both at parentExp', () => {
   });
   assert.deepStrictEqual(exp, new Date('2026-02-01'));
   assert.deepStrictEqual(frequencyDue, new Date('2026-02-01'));
+});
+
+test('dueAtFor: วันเบิก + ช่วงความถี่', () => {
+  assert.deepStrictEqual(dueAtFor(new Date('2026-01-01'), '1/1 week'), new Date('2026-01-08'));
+  assert.deepStrictEqual(dueAtFor(new Date('2026-01-01'), '1/2 month'), new Date('2026-03-01'));
+});
+
+test('dueAtFor: รองรับข้อมูลเดิมที่เป็นตัวใหญ่', () => {
+  assert.deepStrictEqual(dueAtFor(new Date('2026-01-01'), '1/1 Week'), new Date('2026-01-08'));
+  assert.deepStrictEqual(dueAtFor(new Date('2026-01-01'), '1/1 Day'), new Date('2026-01-02'));
+});
+
+test('dueAtFor: รับ ISO string ได้', () => {
+  assert.deepStrictEqual(dueAtFor('2026-01-01T00:00:00.000Z', '1/1 day'), new Date('2026-01-02'));
+});
+
+test('dueAtFor: ไม่มี/parse ไม่ได้/วันเบิกเสีย → null', () => {
+  assert.strictEqual(dueAtFor(new Date('2026-01-01'), ''), null);
+  assert.strictEqual(dueAtFor(new Date('2026-01-01'), 'weekly'), null);
+  assert.strictEqual(dueAtFor(null, '1/1 week'), null);
+  assert.strictEqual(dueAtFor('ไม่ใช่วันที่', '1/1 week'), null);
 });

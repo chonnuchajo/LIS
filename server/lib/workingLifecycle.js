@@ -46,4 +46,17 @@ function computeWorkingLifecycle({ withdrawnAt, frequency, shelf, parentExp }) {
   return { exp, frequencyDue };
 }
 
-module.exports = { parseFrequencyInterval, addInterval, computeWorkingLifecycle };
+/**
+ * วันครบกำหนดของสารละลายที่เตรียมจากการเบิก 1 ครั้ง = วันเบิก + ช่วง "ความถี่/1 ครั้ง"
+ * ไม่ cap ด้วย EXP ขวด (ต่างจาก computeWorkingLifecycle) — แท็บ "กำลังใช้งานอยู่" คุมด้วยความถี่ล้วน
+ * ไม่มีความถี่ / parse ไม่ได้ / วันเบิกไม่ถูกต้อง → null (= ไม่มีวันครบกำหนด)
+ */
+function dueAtFor(withdrawnAt, frequency) {
+  const fi = parseFrequencyInterval(frequency);
+  if (!fi || !withdrawnAt) return null;
+  const from = new Date(withdrawnAt);
+  if (Number.isNaN(from.getTime())) return null;
+  return addInterval(from, fi.count, fi.unit);
+}
+
+module.exports = { parseFrequencyInterval, addInterval, computeWorkingLifecycle, dueAtFor };
