@@ -28,6 +28,22 @@ vi.mock("@/components/lis/stock/StockRequisitionButton", () => ({
   default: () => null,
 }));
 
+vi.mock("@/hooks/useAccessibleTabs", () => ({
+  useAccessibleTabs: () => ({
+    tabs: [
+      { key: "in-use", label: "กำลังใช้งานอยู่" },
+      { key: "history", label: "ประวัติการตัด stock" },
+    ],
+    isVisible: () => true,
+    visibleKeys: ["in-use", "history"],
+    defaultKey: "in-use",
+  }),
+}));
+
+vi.mock("@/components/lis/stock/StandardsInUseTable", () => ({
+  default: () => <div>in-use-table</div>,
+}));
+
 function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -60,12 +76,20 @@ describe("StockDeduction item display", () => {
   it("shows the substance name in the item column without showing the stock code", async () => {
     renderPage();
 
+    const historyTab = await screen.findByRole("tab", { name: "ประวัติการตัด stock" });
+    fireEvent.mouseDown(historyTab);
+    fireEvent.click(historyTab);
+
     expect(await screen.findByText("ABAMECTIN")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText("STD-001")).not.toBeInTheDocument());
   });
 
   it("opens deduction details from a clicked row and shows the resolution action", async () => {
     renderPage();
+
+    const historyTab = await screen.findByRole("tab", { name: "ประวัติการตัด stock" });
+    fireEvent.mouseDown(historyTab);
+    fireEvent.click(historyTab);
 
     fireEvent.click(await screen.findByText("ABAMECTIN"));
 
