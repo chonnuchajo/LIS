@@ -4,6 +4,7 @@ export const DEDUCTION_RESOLUTION_LABELS: Record<DeductionResolutionReason, stri
   empty: "หมด",
   ineffective: "ไม่มีประสิทธิภาพ",
   other: "อื่นๆ",
+  expired: "รับทราบหมดอายุ",
 };
 
 export const DEDUCTION_RESOLUTION_OPTIONS: DeductionResolutionReason[] = [

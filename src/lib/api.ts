@@ -8,6 +8,7 @@ import type {
   StockTier,
   StockUnitItem,
   DeductionResolutionReason,
+  StandardsInUseResponse,
 } from "@/types/stock";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import {
@@ -363,6 +364,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  getStandardsInUse: () => request<StandardsInUseResponse>("/stock/standards/in-use"),
 
   // Stock — Units (per-bottle)
   getStockUnits: (params?: { itemCode?: string; status?: string; kind?: string }) => {

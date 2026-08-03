@@ -53,7 +53,7 @@ export interface StockGlasswareItem {
 
 export type StockItemType = "standard" | "solvent" | "glassware";
 export type StockAction = "create" | "update" | "delete" | "deduct" | "receive" | "withdraw" | "discard";
-export type DeductionResolutionReason = "empty" | "ineffective" | "other";
+export type DeductionResolutionReason = "empty" | "ineffective" | "other" | "expired";
 
 export interface DeductionResolution {
   reason: DeductionResolutionReason;
@@ -126,4 +126,27 @@ export interface StockUnitItem {
   createdBy?: { email?: string; name?: string };
   createdAt?: string;
   updatedAt?: string;
+}
+
+/** 1 แถวของแท็บ "กำลังใช้งานอยู่" — การเบิก standard ที่ยังไม่ปิด (มาจาก GET /stock/standards/in-use) */
+export interface StandardInUseItem {
+  _id: string;
+  itemCode: string;
+  itemName: string;
+  qrId: string;
+  weights: number[];
+  totalMg: number;
+  instrumentGroup: "gc" | "hplc" | null;
+  note: string;
+  withdrawnAt: string;
+  frequency: string;
+  /** null = สารนี้ยังไม่ได้ตั้งความถี่ (ไม่มีวันครบกำหนด, ไม่แจ้งเตือน) */
+  dueAt: string | null;
+  userEmail: string;
+  userName: string;
+}
+
+export interface StandardsInUseResponse {
+  serverTime: string;
+  items: StandardInUseItem[];
 }
