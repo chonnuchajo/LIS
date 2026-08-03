@@ -6,7 +6,12 @@
 //   node scripts/close-stale-standard-deductions.js                       # dry-run (นับอย่างเดียว)
 //   node scripts/close-stale-standard-deductions.js --before=2026-08-03   # กำหนดวันตัด (ดีฟอลต์ = วันนี้)
 //   node scripts/close-stale-standard-deductions.js --commit              # เขียนจริง
+//
+// Note: This script loads server/.env automatically. MONGODB_URI in the environment overrides it.
 'use strict';
+
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const mongoose = require('mongoose');
 require('../models/StockTransaction');
@@ -22,6 +27,8 @@ async function main() {
     process.exit(1);
   }
   await mongoose.connect(URI);
+  console.log(`ต่ออ database: ${mongoose.connection.host}/${mongoose.connection.name}`);
+
   const col = mongoose.connection.collection('stocktransactions');
 
   const filter = {
