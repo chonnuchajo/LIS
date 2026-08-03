@@ -15,6 +15,7 @@ const COMMON_NAME_KEYS = ['common_name', 'commonname', 'commonName', 'item_name2
 const PACK_SIZE_KEYS = ['packSize', 'pack_size', 'desc2', 'description2', 'item_name3'];
 const CATEGORY_KEYS = ['inventory_posting_group', 'category', 'type', 'group', 'itemGroup', 'item_group'];
 const UNIT_KEYS = ['base_unit_of_mea', 'unit', 'uom', 'UOM', 'unitName'];
+const UNIT_COST_KEYS = ['unit_cost', 'unitCost', 'unit_cost_lcy', 'Unit Cost', 'UNIT_COST'];
 const META_STRING_FIELDS = ['itemCode', 'itemName', 'itemType', 'category', 'unit', 'status', 'description'];
 const META_KEYS = [
   'kgPerCarton',
@@ -119,6 +120,7 @@ function addItemTypeAliases(item) {
   ].filter(Boolean).join(' ');
   const classification = getClassification(source);
 
+  const unitCost = firstValue(item, UNIT_COST_KEYS);
   return {
     ...item,
     itemCode: item.itemCode || firstValue(item, MASTER_ITEM_KEYS),
@@ -127,6 +129,7 @@ function addItemTypeAliases(item) {
     itemType: item.itemType || classification?.code || firstValue(item, COMMON_NAME_KEYS),
     category: item.category || firstValue(item, CATEGORY_KEYS),
     unit: item.unit || firstValue(item, UNIT_KEYS),
+    ...(unitCost ? { unit_cost: item.unit_cost || unitCost, unitCost: item.unitCost || unitCost } : {}),
     productType: item.productType || classification?.group || '',
   };
 }
