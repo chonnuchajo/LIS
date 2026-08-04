@@ -3,6 +3,7 @@ import {
   Clock,
   Database,
   FileBarChart,
+  FileCheck2,
   FileText,
   FlaskConical,
   Gauge,
@@ -31,6 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   { icon: FileText, label: "รายการคำร้อง", path: "/petition" },
   { icon: ClipboardList, label: "ผลวิเคราะห์", path: "/record-results" },
   { icon: ClipboardList, label: "ผลวิเคราะห์ Lab", path: "/lab-results" },
+  { icon: FileCheck2, label: "ออกเอกสาร COA", path: "/coa" },
   { icon: ClipboardList, label: "การเบิก stock", path: "/stock-deduction" },
   { icon: Scale, label: "Daily Check", path: "/daily-check" },
   { icon: Network, label: "Virtual Lab", path: "/virtual-lab" },
@@ -61,4 +63,5 @@ export const PAGE_ITEMS: NavItem[] = [
   { icon: FlaskConical, label: "Lab Testing Detail", path: "/lab-testing/:id" },
   { icon: Monitor, label: "Lab Queue TV", path: "/queue/lab" },
   { icon: Monitor, label: "QC Queue TV", path: "/queue/qc" },
+  { icon: FileCheck2, label: "รายละเอียด COA", path: "/coa/:id" },
 ];
