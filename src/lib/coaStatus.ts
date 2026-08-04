@@ -1,16 +1,16 @@
 import type { CoaStatus } from "@/types/coa.types";
 
 export const COA_STATUS_LABELS: Record<CoaStatus, string> = {
-  draft: "เธฃเนเธฒเธ",
-  pendingApproval: "เธฃเธญ QC Head เธญเธเธธเธกเธฑเธ•เธด",
-  approved: "เธญเธเธธเธกเธฑเธ•เธดเนเธฅเนเธง",
-  printed: "เธเธดเธกเธเนเนเธฅเนเธง",
-  revisionDraft: "เธฃเนเธฒเธเนเธเนเนเธ",
-  pendingRevisionApproval: "เธฃเธญเธญเธเธธเธกเธฑเธ•เธดเธเธเธฑเธเนเธเนเนเธ",
-  reissued: "เธญเธญเธเนเธซเธกเนเนเธฅเนเธง",
-  cancelled: "เธขเธเน€เธฅเธดเธ",
-  superseded: "เธ–เธนเธเนเธ—เธเธ—เธตเน",
-  rejected: "เนเธกเนเธญเธเธธเธกเธฑเธ•เธด",
+  draft: "ร่าง",
+  pendingApproval: "รอ QC Head อนุมัติ",
+  approved: "อนุมัติแล้ว",
+  printed: "พิมพ์แล้ว",
+  revisionDraft: "ร่างฉบับแก้ไข",
+  pendingRevisionApproval: "รออนุมัติฉบับแก้ไข",
+  reissued: "ออกใหม่แล้ว",
+  cancelled: "ยกเลิก",
+  superseded: "ถูกแทนที่",
+  rejected: "ไม่อนุมัติ",
 };
 
 export function coaStatusLabel(status: CoaStatus): string {

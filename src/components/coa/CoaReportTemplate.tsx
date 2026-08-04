@@ -74,7 +74,7 @@ export default function CoaReportTemplate({ pages }: { pages: CoaReportPage[] })
           <div className="coa-sign">
             <span className="coa-line" />
             <div>QC Head</div>
-            <div>{page.approvedBy} · {page.approvedAt}</div>
+            <div>{page.approvedBy} - {page.approvedAt}</div>
           </div>
         </section>
       ))}

@@ -40,8 +40,8 @@ describe("CoaCenterPage", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByText("เธญเธญเธเน€เธญเธเธชเธฒเธฃ COA")).toBeInTheDocument();
+    expect(await screen.findByText("ออกเอกสาร COA")).toBeInTheDocument();
     expect(await screen.findByText("00012026")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /เธชเธฃเนเธฒเธ COA/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /สร้าง COA/ })).toBeInTheDocument();
   });
 });

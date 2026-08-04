@@ -19,7 +19,7 @@ export default function CoaCreateDialog({
   const [petitionId, setPetitionId] = useState("");
   const [selectedSeqs, setSelectedSeqs] = useState<number[]>([]);
   const { data } = useQuery({ queryKey: ["coa", "eligible-petitions"], queryFn: api.getEligibleCoaPetitions, enabled: open });
-  const petitions = data?.items ?? [];
+  const petitions = useMemo(() => data?.items ?? [], [data]);
   const selectedPetition = useMemo(
     () => petitions.find((petition: EligibleCoaPetition) => petition._id === petitionId),
     [petitions, petitionId],
@@ -40,7 +40,7 @@ export default function CoaCreateDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>เธชเธฃเนเธฒเธ COA</DialogTitle>
+          <DialogTitle>สร้าง COA</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 md:grid-cols-[260px_1fr]">
           <div className="max-h-80 overflow-auto rounded-md border">
@@ -55,29 +55,29 @@ export default function CoaCreateDialog({
                 }}
               >
                 <div className="font-medium">{petition.petitionNo}</div>
-                <div className="text-xs text-muted-foreground">{petition.items.length} เธฃเธฒเธขเธเธฒเธฃ</div>
+                <div className="text-xs text-muted-foreground">{petition.items.length} รายการ</div>
               </button>
             ))}
           </div>
           <div className="max-h-80 overflow-auto rounded-md border">
-            {!selectedPetition && <div className="p-6 text-center text-sm text-muted-foreground">เน€เธฅเธทเธญเธเธเธณเธฃเนเธญเธเธ—เธตเนเธญเธเธธเธกเธฑเธ•เธดเธเธฅ Lab เนเธฅเนเธง</div>}
+            {!selectedPetition && <div className="p-6 text-center text-sm text-muted-foreground">เลือกคำร้องที่อนุมัติผล Lab แล้ว</div>}
             {selectedPetition?.items.map((item) => (
               <label key={item.seq} className="flex items-start gap-3 border-b p-3 text-sm">
                 <Checkbox checked={selectedSeqs.includes(item.seq)} onCheckedChange={() => toggleSeq(item.seq)} />
                 <span>
                   <span className="block font-medium">{item.sampleName || item.commonName || `Sample ${item.seq}`}</span>
                   <span className="block text-xs text-muted-foreground">{item.batchNo || item.lotNo || "-"}</span>
-                  {item.activeCoa && <span className="mt-1 block text-xs text-amber-600">เธกเธต COA เนเธฅเนเธง: {item.activeCoa.coaNo}</span>}
+                  {item.activeCoa && <span className="mt-1 block text-xs text-amber-600">มี COA แล้ว: {item.activeCoa.coaNo}</span>}
                 </span>
               </label>
             ))}
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>เธเธดเธ”</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>ปิด</Button>
           <Button className="gap-2" disabled={!petitionId || selectedSeqs.length === 0 || create.isPending} onClick={() => create.mutate()}>
             <FilePlus2 className="h-4 w-4" />
-            เธชเธฃเนเธฒเธเธฃเนเธฒเธ COA
+            สร้างร่าง COA
           </Button>
         </DialogFooter>
       </DialogContent>

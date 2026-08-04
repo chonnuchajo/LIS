@@ -3,8 +3,8 @@ import { allowedCoaActions, canPrintCoa, coaStatusLabel } from "./coaStatus";
 
 describe("coaStatus", () => {
   it("labels statuses for COA Center", () => {
-    expect(coaStatusLabel("pendingApproval")).toBe("เธฃเธญ QC Head เธญเธเธธเธกเธฑเธ•เธด");
-    expect(coaStatusLabel("superseded")).toBe("เธ–เธนเธเนเธ—เธเธ—เธตเน");
+    expect(coaStatusLabel("pendingApproval")).toBe("รอ QC Head อนุมัติ");
+    expect(coaStatusLabel("superseded")).toBe("ถูกแทนที่");
   });
 
   it("allows printing only for active approved document states", () => {
