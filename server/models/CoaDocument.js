@@ -42,6 +42,22 @@ const PrintEventSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const CancelSchema = new mongoose.Schema(
+  {
+    cancelledBy: PersonSchema,
+    cancelledAt: Date,
+    reason: {
+      type: String,
+      required: true,
+      validate: {
+        validator: (value) => typeof value === 'string' && value.trim().length > 0,
+        message: 'COA cancellation reason is required',
+      },
+    },
+  },
+  { _id: false },
+);
+
 const STATUS = [
   'draft',
   'pendingApproval',
@@ -81,7 +97,7 @@ const CoaDocumentSchema = new mongoose.Schema(
       rejectedAt: Date,
       rejectReason: String,
     },
-    cancel: { cancelledBy: PersonSchema, cancelledAt: Date, reason: String },
+    cancel: CancelSchema,
     print: {
       printCount: { type: Number, default: 0 },
       lastPrintedAt: Date,

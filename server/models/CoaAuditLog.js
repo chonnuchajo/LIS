@@ -1,5 +1,22 @@
 const mongoose = require('mongoose');
 
+const ActorSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      validate: { validator: (value) => typeof value === 'string' && value.trim().length > 0, message: 'COA audit actor name is required' },
+    },
+    email: {
+      type: String,
+      required: true,
+      validate: { validator: (value) => typeof value === 'string' && value.trim().length > 0, message: 'COA audit actor email is required' },
+    },
+    role: String,
+  },
+  { _id: false },
+);
+
 const CoaAuditLogSchema = new mongoose.Schema(
   {
     coaId: { type: mongoose.Schema.Types.ObjectId, ref: 'CoaDocument', required: true, index: true },
@@ -24,7 +41,7 @@ const CoaAuditLogSchema = new mongoose.Schema(
       ],
       index: true,
     },
-    actor: { name: String, email: String, role: String },
+    actor: { type: ActorSchema, required: true },
     note: String,
     metadata: mongoose.Schema.Types.Mixed,
   },
