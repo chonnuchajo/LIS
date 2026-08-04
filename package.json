@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "predev": "node scripts/restore-index.mjs",
-    "dev": "vite",
+    "dev": "node scripts/dev-all.mjs",
+    "dev:frontend": "vite",
+    "dev:server": "npm --prefix server run dev",
     "prebuild": "node scripts/restore-index.mjs",
     "build": "vite build",
     "postbuild": "node scripts/deploy-dist-to-root.mjs && node scripts/restart-server.mjs",
