@@ -30,6 +30,7 @@ interface Props {
   docType: PrintDocType;
   css?: string;
   children: React.ReactNode;
+  onPrinted?: (meta: { copies: number; outputMode: PrintOutputMode }) => void;
 }
 
 const BOX_CHROME = 18;
@@ -205,6 +206,7 @@ export default function PrintPreviewDialog({
   docType,
   css,
   children,
+  onPrinted,
 }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
   const [copies, setCopies] = useState(1);
@@ -232,6 +234,7 @@ export default function PrintPreviewDialog({
     setPrinting(true);
     try {
       const res = await printDocument(docType, printRef.current, { css, copies, outputMode: mode });
+      onPrinted?.({ copies, outputMode: mode });
       if (mode === "local") {
         toast.success("เปิด print dialog ของเครื่องนี้แล้ว");
       } else {
