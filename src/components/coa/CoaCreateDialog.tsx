@@ -5,6 +5,8 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useAuth } from "@/hooks/useAuth";
+import { normalizeRoles, primaryRole } from "@/lib/roles";
 import type { EligibleCoaPetition } from "@/types/coa.types";
 
 export default function CoaCreateDialog({
@@ -16,6 +18,7 @@ export default function CoaCreateDialog({
   onOpenChange: (open: boolean) => void;
   onCreated: (id: string) => void;
 }) {
+  const { user } = useAuth();
   const [petitionId, setPetitionId] = useState("");
   const [selectedSeqs, setSelectedSeqs] = useState<number[]>([]);
   const { data } = useQuery({ queryKey: ["coa", "eligible-petitions"], queryFn: api.getEligibleCoaPetitions, enabled: open });
@@ -24,8 +27,18 @@ export default function CoaCreateDialog({
     () => petitions.find((petition: EligibleCoaPetition) => petition._id === petitionId),
     [petitions, petitionId],
   );
+  const actor = useMemo(() => {
+    const roles = normalizeRoles(user);
+    const activeRole = user?.role || primaryRole(roles);
+    return {
+      name: user?.name,
+      email: user?.email,
+      role: activeRole,
+      activeRole,
+    };
+  }, [user]);
   const create = useMutation({
-    mutationFn: () => api.createCoaDocument({ petitionId, selectedItemSeqs: selectedSeqs }),
+    mutationFn: () => api.createCoaDocument({ petitionId, selectedItemSeqs: selectedSeqs, _user: actor }),
     onSuccess: (doc) => {
       onOpenChange(false);
       onCreated(doc._id);

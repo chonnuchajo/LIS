@@ -7,6 +7,17 @@ import CoaCenterPage from "../CoaCenterPage";
 vi.mock("@/components/lis/AppLayout", () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({
+    user: {
+      name: "Lab User",
+      email: "lab@example.com",
+      role: "lab-staff",
+      roles: ["lab-staff"],
+      permissions: [],
+    },
+  }),
+}));
 vi.mock("@/lib/api", () => ({
   api: {
     getCoaDocuments: vi.fn().mockResolvedValue({

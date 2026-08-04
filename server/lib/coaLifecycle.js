@@ -74,6 +74,37 @@ function isQcHead(user = {}) {
   );
 }
 
+function valueText(value) {
+  if (value == null || String(value).trim() === '') return '-';
+  if (Array.isArray(value)) return value.map(valueText).join(', ');
+  if (typeof value === 'object') {
+    const file = value || {};
+    if (typeof file.name === 'string') return file.name;
+    if (typeof file.url === 'string') return file.url;
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+function visibleResultEntries(result = {}) {
+  const valueRows = Array.isArray(result.entries) && result.entries.length
+    ? result.entries
+    : [result.values || {}];
+  const phase2Rows = result.valuesPhase2 && Object.keys(result.valuesPhase2).length
+    ? [result.valuesPhase2]
+    : [];
+  return [...valueRows, ...phase2Rows];
+}
+
+function isVisibleResultField(key) {
+  return (
+    !String(key).startsWith('__') &&
+    !String(key).endsWith('__note') &&
+    !String(key).endsWith('__source') &&
+    !String(key).endsWith('__provenance')
+  );
+}
+
 function assertCanTransition(fromStatus, action, actor) {
   const allowed = transitions[action];
   if (!allowed) throw new Error(`Unknown COA action ${action}`);
@@ -438,15 +469,19 @@ function buildCoaSnapshots({
     if (!selectedSeqs.has(Number(result.itemSeq))) continue;
     const parameter = parameterById.get(String(result.parameterId));
     if ((parameter?.scope || 'qc') !== 'lab') continue;
-    for (const [testItem, value] of Object.entries(result.values || {})) {
-      resultSnapshots.push({
-        itemSeq: result.itemSeq,
-        testItem,
-        result: value == null || String(value).trim() === '' ? '-' : String(value),
-        criteria: '-',
-        method: '-',
-        unit: '',
-      });
+    for (const [rowIndex, row] of visibleResultEntries(result).entries()) {
+      for (const [field, value] of Object.entries(row || {}).filter(([key]) => isVisibleResultField(key))) {
+        resultSnapshots.push({
+          itemSeq: result.itemSeq,
+          testItem: result.parameterName && result.parameterName !== field
+            ? `${result.parameterName} - ${field}`
+            : (result.parameterName || field),
+          result: valueText(value),
+          criteria: '-',
+          method: '-',
+          unit: '',
+        });
+      }
     }
   }
 
@@ -483,4 +518,6 @@ module.exports = {
   actorFromBody,
   selectedItemsFromPetition,
   buildCoaSnapshots,
+  visibleResultEntries,
+  isVisibleResultField,
 };

@@ -6,7 +6,10 @@ const Petition = require('../models/Petition');
 const LabRequest = require('../models/LabRequest');
 const QCTestResult = require('../models/QCTestResult');
 const Parameter = require('../models/Parameter');
+const User = require('../models/User');
+const Role = require('../models/Role');
 const { nextCoaNumber } = require('../lib/coaNumber');
+const { normalizeRoles, primaryRole, unionPermissions } = require('../lib/roles');
 const {
   actorFromBody,
   applyCoaLifecycleAction,
@@ -25,25 +28,77 @@ function objectId(id) {
   return new mongoose.Types.ObjectId(id);
 }
 
-function actorFromRequest(body = {}) {
-  const actor = actorFromBody(body);
-  const user = body._user || body.actor || {};
-  return {
-    ...actor,
-    role: actor.role || String(user.activeRole || user.position || '').trim(),
-    activeRole: user.activeRole,
-    permissions: user.permissions,
-  };
+function errorWithStatus(message, status) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
 }
 
 function errorStatus(error) {
+  if (error.status) return error.status;
   return error.message.startsWith('QC Head required') ? 403 : 400;
 }
 
-async function freezeSnapshots(petitionId, selectedItemSeqs) {
+async function permissionsForRoles(roles) {
+  const roleDocs = roles.length ? await Role.find({ id: { $in: roles } }).lean() : [];
+  const permissions = unionPermissions(roles, Object.fromEntries(roleDocs.map((role) => [role.id, role.permissions || []])));
+  return permissions;
+}
+
+async function actorFromRequest(body = {}) {
+  const requested = body._user || body.actor || {};
+  const requestedActor = actorFromBody(body);
+  const email = String(requestedActor.email || requested.email || '').trim().toLowerCase();
+  if (!email) throw errorWithStatus('COA actor email is required', 400);
+
+  const user = await User.findOne({ email }).lean();
+  if (!user) throw errorWithStatus('COA actor must match an active user', 401);
+  if (user.status && user.status !== 'active') throw errorWithStatus('Inactive users cannot issue COA documents', 403);
+
+  const roles = normalizeRoles(user);
+  const requestedRole = String(requested.activeRole || requested.role || '').trim();
+  const activeRole = roles.includes(requestedRole) ? requestedRole : primaryRole(roles);
+  const permissions = await permissionsForRoles(roles);
+
+  return {
+    name: String(user.name || requestedActor.name || email).trim(),
+    email,
+    role: activeRole,
+    activeRole,
+    roles,
+    permissions,
+    position: user.position,
+  };
+}
+
+async function assertLabApprovedPetition(petitionId) {
   const petition = await Petition.findById(petitionId).lean();
-  if (!petition) throw new Error('ไม่พบคำร้อง');
+  if (!petition) throw errorWithStatus('ไม่พบคำร้อง', 404);
+  if (!petition.labApprovedAt) throw errorWithStatus('คำร้องนี้ยังไม่ได้อนุมัติผล Lab', 400);
+  return petition;
+}
+
+async function labRequestsForPetitionIds(petitionIds) {
+  if (!petitionIds.length) return [];
+  return LabRequest.find({ petitionId: { $in: petitionIds } }).lean();
+}
+
+function labSeqSet(labRequests = []) {
+  const seqs = new Set();
+  for (const request of labRequests) {
+    if (request.sampleSeq != null) seqs.add(Number(request.sampleSeq));
+  }
+  return seqs;
+}
+
+async function freezeSnapshots(petitionId, selectedItemSeqs) {
+  const petition = await assertLabApprovedPetition(petitionId);
   const labRequests = await LabRequest.find({ petitionId: petition._id }).lean();
+  const labSeqs = labSeqSet(labRequests);
+  if (labSeqs.size) {
+    const nonLabSeqs = selectedItemSeqs.map(Number).filter((seq) => !labSeqs.has(seq));
+    if (nonLabSeqs.length) throw errorWithStatus(`COA can include only Lab-approved samples: ${nonLabSeqs.join(', ')}`, 400);
+  }
   const qcResults = await QCTestResult.find({
     petitionId: String(petition._id),
     itemSeq: { $in: selectedItemSeqs.map(Number) },
@@ -53,6 +108,33 @@ async function freezeSnapshots(petitionId, selectedItemSeqs) {
     ? await Parameter.find({ _id: { $in: parameterIds } }).lean()
     : [];
   return buildCoaSnapshots({ petition, labRequests, parameters, qcResults, selectedItemSeqs });
+}
+
+async function createCoaDocument(payload, session) {
+  if (session) {
+    const docs = await CoaDocument.create([payload], { session });
+    return docs[0];
+  }
+  return CoaDocument.create(payload);
+}
+
+async function withCoaTransaction(callback) {
+  if (mongoose.connection.readyState !== 1) return callback(undefined);
+  if (typeof CoaDocument.startSession !== 'function') return callback(undefined);
+  const session = await CoaDocument.startSession();
+  if (!session || typeof session.withTransaction !== 'function') {
+    if (session && typeof session.endSession === 'function') await session.endSession();
+    return callback(undefined);
+  }
+  try {
+    let result;
+    await session.withTransaction(async () => {
+      result = await callback(session);
+    });
+    return result;
+  } finally {
+    await session.endSession();
+  }
 }
 
 router.get('/', async (req, res) => {
@@ -78,10 +160,13 @@ router.get('/eligible-petitions', async (_req, res) => {
       .limit(100)
       .lean();
     const petitionIds = petitions.map((petition) => petition._id);
-    const coas = await CoaDocument.find({
-      petitionId: { $in: petitionIds },
-      status: { $in: ['approved', 'printed', 'reissued'] },
-    }).lean();
+    const [coas, labRequests] = await Promise.all([
+      CoaDocument.find({
+        petitionId: { $in: petitionIds },
+        status: { $in: ['approved', 'printed', 'reissued'] },
+      }).lean(),
+      labRequestsForPetitionIds(petitionIds),
+    ]);
     const activeByPetitionSeq = new Map();
     for (const coa of coas) {
       for (const seq of coa.selectedItemSeqs || []) {
@@ -92,21 +177,32 @@ router.get('/eligible-petitions', async (_req, res) => {
         });
       }
     }
+    const labSeqsByPetition = new Map();
+    for (const labRequest of labRequests) {
+      const key = String(labRequest.petitionId);
+      if (!labSeqsByPetition.has(key)) labSeqsByPetition.set(key, new Set());
+      if (labRequest.sampleSeq != null) labSeqsByPetition.get(key).add(Number(labRequest.sampleSeq));
+    }
     res.json({
-      items: petitions.map((petition) => ({
-        _id: petition._id,
-        petitionNo: petition.petitionNo,
-        labApprovedAt: petition.labApprovedAt,
-        submittedBy: petition.submittedBy,
-        items: (petition.items || []).map((item) => ({
-          seq: item.seq,
-          sampleName: item.sampleName,
-          commonName: item.commonName,
-          batchNo: item.batchNo,
-          lotNo: item.lotNo,
-          activeCoa: activeByPetitionSeq.get(`${petition._id}:${item.seq}`) || null,
-        })),
-      })),
+      items: petitions.map((petition) => {
+        const labSeqs = labSeqsByPetition.get(String(petition._id)) || new Set();
+        return {
+          _id: petition._id,
+          petitionNo: petition.petitionNo,
+          labApprovedAt: petition.labApprovedAt,
+          submittedBy: petition.submittedBy,
+          items: (petition.items || [])
+            .filter((item) => labSeqs.size === 0 || labSeqs.has(Number(item.seq)))
+            .map((item) => ({
+              seq: item.seq,
+              sampleName: item.sampleName,
+              commonName: item.commonName,
+              batchNo: item.batchNo,
+              lotNo: item.lotNo,
+              activeCoa: activeByPetitionSeq.get(`${petition._id}:${item.seq}`) || null,
+            })),
+        };
+      }),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -115,26 +211,30 @@ router.get('/eligible-petitions', async (_req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const actor = actorFromRequest(req.body);
-    const petition = await Petition.findById(req.body.petitionId).lean();
-    if (!petition) return res.status(404).json({ error: 'ไม่พบคำร้อง' });
-    if (!petition.labApprovedAt) return res.status(400).json({ error: 'คำร้องนี้ยังไม่ได้อนุมัติผล Lab' });
+    const actor = await actorFromRequest(req.body);
+    const petition = await assertLabApprovedPetition(req.body.petitionId);
     const selectedItems = selectedItemsFromPetition(petition, req.body.selectedItemSeqs);
-    const doc = await CoaDocument.create({
-      petitionId: petition._id,
-      petitionNoSnapshot: petition.petitionNo,
-      selectedItemSeqs: selectedItems.map((item) => item.seq),
-      remark: String(req.body.remark || ''),
-      status: 'draft',
-      createdBy: actor,
-      updatedBy: actor,
+    const selectedItemSeqs = selectedItems.map((item) => item.seq);
+    const snapshots = await freezeSnapshots(petition._id, selectedItemSeqs);
+    const doc = await withCoaTransaction(async (session) => {
+      const created = await createCoaDocument({
+        petitionId: petition._id,
+        petitionNoSnapshot: petition.petitionNo,
+        selectedItemSeqs,
+        ...snapshots,
+        remark: String(req.body.remark || ''),
+        status: 'draft',
+        createdBy: actor,
+        updatedBy: actor,
+      }, session);
+      await writeCoaAuditEvent(created, 'created', actor, 'สร้างร่าง COA', {
+        selectedItemSeqs: created.selectedItemSeqs,
+      }, CoaAuditLog, session);
+      return created;
     });
-    await writeCoaAuditEvent(doc, 'created', actor, 'สร้างร่าง COA', {
-      selectedItemSeqs: doc.selectedItemSeqs,
-    }, CoaAuditLog);
     res.status(201).json(doc);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(errorStatus(error)).json({ error: error.message });
   }
 });
 
@@ -151,21 +251,25 @@ router.get('/:id', async (req, res) => {
 
 router.patch('/:id', async (req, res) => {
   try {
-    const actor = actorFromRequest(req.body);
+    const actor = await actorFromRequest(req.body);
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
     assertCanTransition(doc.status, 'update', actor);
     if (req.body.selectedItemSeqs) {
-      const petition = await Petition.findById(doc.petitionId).lean();
-      if (!petition) return res.status(404).json({ error: 'ไม่พบคำร้อง' });
+      const petition = await assertLabApprovedPetition(doc.petitionId);
       doc.selectedItemSeqs = selectedItemsFromPetition(petition, req.body.selectedItemSeqs)
         .map((item) => item.seq);
+      const snapshots = await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs);
+      doc.set(snapshots);
     }
     if (typeof req.body.remark === 'string') doc.remark = req.body.remark;
     doc.updatedBy = actor;
-    await doc.save();
-    await writeCoaAuditEvent(doc, 'updated', actor, 'แก้ไขร่าง COA', {}, CoaAuditLog);
-    res.json(doc);
+    const updated = await withCoaTransaction(async (session) => {
+      await doc.save(session ? { session } : undefined);
+      await writeCoaAuditEvent(doc, 'updated', actor, 'แก้ไขร่าง COA', {}, CoaAuditLog, session);
+      return doc;
+    });
+    res.json(updated);
   } catch (error) {
     res.status(errorStatus(error)).json({ error: error.message });
   }
@@ -173,17 +277,20 @@ router.patch('/:id', async (req, res) => {
 
 router.post('/:id/submit', async (req, res) => {
   try {
-    const actor = actorFromRequest(req.body);
+    const actor = await actorFromRequest(req.body);
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
-    const { doc: updated } = await applyCoaLifecycleAction({
+    const snapshots = await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs);
+    doc.$locals.allowIssuedSnapshotMutation = true;
+    const { doc: updated } = await withCoaTransaction((session) => applyCoaLifecycleAction({
       doc,
       action: 'submit',
       actor,
       note: 'ส่งอนุมัติ COA',
       CoaAuditLogModel: CoaAuditLog,
-      update: { approval: { ...doc.approval, submittedBy: actor, submittedAt: new Date() } },
-    });
+      session,
+      update: { ...snapshots, approval: { ...doc.approval, submittedBy: actor, submittedAt: new Date() } },
+    }));
     res.json(updated);
   } catch (error) {
     res.status(errorStatus(error)).json({ error: error.message });
@@ -192,12 +299,14 @@ router.post('/:id/submit', async (req, res) => {
 
 router.post('/:id/approve', async (req, res) => {
   try {
-    const actor = actorFromRequest(req.body);
+    const actor = await actorFromRequest(req.body);
     if (!isQcHead(actor)) return res.status(403).json({ error: 'อนุมัติ COA ได้เฉพาะ QC Head' });
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
     assertCanTransition(doc.status, 'approve', actor);
-    const snapshots = await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs);
+    await assertLabApprovedPetition(doc.petitionId);
+    const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length;
+    const snapshots = missingSnapshots ? await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs) : {};
     const update = {
       ...snapshots,
       approval: { ...doc.approval, approvedBy: actor, approvedAt: new Date() },
@@ -233,7 +342,7 @@ router.post('/:id/approve', async (req, res) => {
         await session.endSession();
       }
     } else {
-      ({ doc: updated } = await applyCoaLifecycleAction(action));
+      ({ doc: updated } = await withCoaTransaction((session) => applyCoaLifecycleAction({ ...action, session })));
     }
     res.json(updated);
   } catch (error) {
@@ -243,20 +352,21 @@ router.post('/:id/approve', async (req, res) => {
 
 router.post('/:id/reject', async (req, res) => {
   try {
-    const actor = actorFromRequest(req.body);
+    const actor = await actorFromRequest(req.body);
     if (!isQcHead(actor)) return res.status(403).json({ error: 'ปฏิเสธ COA ได้เฉพาะ QC Head' });
     const reason = String(req.body.reason || '').trim();
     if (!reason) return res.status(400).json({ error: 'ต้องระบุเหตุผลการปฏิเสธ' });
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
-    const { doc: updated } = await applyCoaLifecycleAction({
+    const { doc: updated } = await withCoaTransaction((session) => applyCoaLifecycleAction({
       doc,
       action: 'reject',
       actor,
       note: reason,
       CoaAuditLogModel: CoaAuditLog,
+      session,
       update: { approval: { ...doc.approval, rejectedBy: actor, rejectedAt: new Date(), rejectReason: reason } },
-    });
+    }));
     res.json(updated);
   } catch (error) {
     res.status(errorStatus(error)).json({ error: error.message });
@@ -265,27 +375,33 @@ router.post('/:id/reject', async (req, res) => {
 
 router.post('/:id/revise', async (req, res) => {
   try {
-    const actor = actorFromRequest(req.body);
+    const actor = await actorFromRequest(req.body);
     const source = await CoaDocument.findById(objectId(req.params.id)).lean();
     if (!source) return res.status(404).json({ error: 'ไม่พบ COA' });
     assertCanTransition(source.status, 'revise', actor);
-    const doc = await CoaDocument.create({
-      coaNo: source.coaNo,
-      coaYear: source.coaYear,
-      sequence: source.sequence,
-      revision: Number(source.revision || 0) + 1,
-      status: 'revisionDraft',
-      petitionId: source.petitionId,
-      petitionNoSnapshot: source.petitionNoSnapshot,
-      selectedItemSeqs: source.selectedItemSeqs,
-      sourceCoaId: source._id,
-      remark: source.remark,
-      createdBy: actor,
-      updatedBy: actor,
+    const doc = await withCoaTransaction(async (session) => {
+      const created = await createCoaDocument({
+        coaNo: source.coaNo,
+        coaYear: source.coaYear,
+        sequence: source.sequence,
+        revision: Number(source.revision || 0) + 1,
+        status: 'revisionDraft',
+        petitionId: source.petitionId,
+        petitionNoSnapshot: source.petitionNoSnapshot,
+        selectedItemSeqs: source.selectedItemSeqs,
+        customerSnapshot: source.customerSnapshot,
+        sampleSnapshots: source.sampleSnapshots,
+        resultSnapshots: source.resultSnapshots,
+        sourceCoaId: source._id,
+        remark: source.remark,
+        createdBy: actor,
+        updatedBy: actor,
+      }, session);
+      await writeCoaAuditEvent(created, 'revisionCreated', actor, 'สร้างร่างแก้ไข COA', {
+        sourceCoaId: source._id,
+      }, CoaAuditLog, session);
+      return created;
     });
-    await writeCoaAuditEvent(doc, 'revisionCreated', actor, 'สร้างร่างแก้ไข COA', {
-      sourceCoaId: source._id,
-    }, CoaAuditLog);
     res.status(201).json(doc);
   } catch (error) {
     res.status(errorStatus(error)).json({ error: error.message });
@@ -294,20 +410,21 @@ router.post('/:id/revise', async (req, res) => {
 
 router.post('/:id/cancel', async (req, res) => {
   try {
-    const actor = actorFromRequest(req.body);
+    const actor = await actorFromRequest(req.body);
     if (!isQcHead(actor)) return res.status(403).json({ error: 'ยกเลิก COA ได้เฉพาะ QC Head' });
     const reason = String(req.body.reason || '').trim();
     if (!reason) return res.status(400).json({ error: 'ต้องระบุเหตุผลการยกเลิก' });
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
-    const { doc: updated } = await applyCoaLifecycleAction({
+    const { doc: updated } = await withCoaTransaction((session) => applyCoaLifecycleAction({
       doc,
       action: 'cancel',
       actor,
       note: reason,
       CoaAuditLogModel: CoaAuditLog,
+      session,
       update: { cancel: { cancelledBy: actor, cancelledAt: new Date(), reason } },
-    });
+    }));
     res.json(updated);
   } catch (error) {
     res.status(errorStatus(error)).json({ error: error.message });
@@ -316,16 +433,17 @@ router.post('/:id/cancel', async (req, res) => {
 
 router.post('/:id/print-event', async (req, res) => {
   try {
-    const actor = actorFromRequest(req.body);
+    const actor = await actorFromRequest(req.body);
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
     const printedAt = new Date();
-    const { doc: updated } = await applyCoaLifecycleAction({
+    const { doc: updated } = await withCoaTransaction((session) => applyCoaLifecycleAction({
       doc,
       action: 'print',
       actor,
       note: 'บันทึกการพิมพ์ COA',
       CoaAuditLogModel: CoaAuditLog,
+      session,
       metadata: { copies: req.body.copies, outputMode: req.body.outputMode },
       update: {
         print: {
@@ -345,7 +463,7 @@ router.post('/:id/print-event', async (req, res) => {
           ],
         },
       },
-    });
+    }));
     res.json(updated);
   } catch (error) {
     res.status(errorStatus(error)).json({ error: error.message });
@@ -354,3 +472,5 @@ router.post('/:id/print-event', async (req, res) => {
 
 module.exports = router;
 module.exports.freezeSnapshots = freezeSnapshots;
+module.exports.actorFromRequest = actorFromRequest;
+module.exports.withCoaTransaction = withCoaTransaction;

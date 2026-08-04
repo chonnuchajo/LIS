@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const {
   selectedItemsFromPetition,
   buildCoaSnapshots,
+  isQcHead,
 } = require('../lib/coaLifecycle');
 const router = require('./coaDocuments');
 const CoaDocument = require('../models/CoaDocument');
@@ -11,6 +12,8 @@ const Petition = require('../models/Petition');
 const LabRequest = require('../models/LabRequest');
 const QCTestResult = require('../models/QCTestResult');
 const Parameter = require('../models/Parameter');
+const User = require('../models/User');
+const Role = require('../models/Role');
 
 function handler(path, method) {
   const layer = router.stack.find((entry) => entry.route
@@ -38,6 +41,20 @@ async function invoke(path, method, { body = {}, params = {}, query = {} } = {})
   const res = response();
   await handler(path, method)({ body, params, query }, res);
   return res;
+}
+
+function stubActorLookup({
+  user = { name: 'QC Head', email: 'qc@example.com', role: 'qc-head', roles: ['qc-head'], status: 'active', position: 'QC Head' },
+  rolePermissions = [],
+} = {}) {
+  const originalUserFindOne = User.findOne;
+  const originalRoleFind = Role.find;
+  User.findOne = () => ({ lean: async () => user });
+  Role.find = () => ({ lean: async () => [{ id: user.role, permissions: rolePermissions }] });
+  return () => {
+    User.findOne = originalUserFindOne;
+    Role.find = originalRoleFind;
+  };
 }
 
 test('selectedItemsFromPetition returns only requested item seqs in petition order', () => {
@@ -119,7 +136,70 @@ test('buildCoaSnapshots freezes selected sample and lab result data', () => {
   ]);
 });
 
+test('buildCoaSnapshots includes multi-entry and phase-two lab values without internal fields', () => {
+  const snapshots = buildCoaSnapshots({
+    petition: {
+      petitionNo: 'P-2608-0002',
+      items: [{ seq: 1, sampleName: 'Sample' }],
+    },
+    parameters: [{ _id: 'lab-parameter', scope: 'lab' }],
+    qcResults: [{
+      itemSeq: 1,
+      parameterId: 'lab-parameter',
+      parameterName: 'Density',
+      values: { Density: 1.1 },
+      entries: [
+        { Temperature: 25, Temperature__source: { instrument: 'DMA' }, __note: 'internal' },
+        { Temperature: 26 },
+      ],
+      valuesPhase2: { After: 27, After__source: { instrument: 'DMA' } },
+    }],
+    selectedItemSeqs: [1],
+  });
+
+  assert.deepEqual(snapshots.resultSnapshots, [
+    { itemSeq: 1, testItem: 'Density - Temperature', result: '25', criteria: '-', method: '-', unit: '' },
+    { itemSeq: 1, testItem: 'Density - Temperature', result: '26', criteria: '-', method: '-', unit: '' },
+    { itemSeq: 1, testItem: 'Density - After', result: '27', criteria: '-', method: '-', unit: '' },
+  ]);
+});
+
+test('actorFromRequest uses stored active user roles instead of caller supplied privileges', async () => {
+  const restore = stubActorLookup({
+    user: { name: 'Stored Staff', email: 'staff@example.com', role: 'qc-staff', roles: ['qc-staff'], status: 'active', position: 'QC Staff' },
+  });
+  try {
+    const actor = await router.actorFromRequest({
+      _user: { name: 'Fake Head', email: 'staff@example.com', role: 'qc-head', permissions: ['coa.approve'] },
+    });
+    assert.equal(actor.name, 'Stored Staff');
+    assert.equal(actor.role, 'qc-staff');
+    assert.deepEqual(actor.permissions, []);
+    assert.equal(isQcHead(actor), false);
+  } finally {
+    restore();
+  }
+});
+
+test('actorFromRequest rejects inactive users', async () => {
+  const restore = stubActorLookup({
+    user: { name: 'Inactive', email: 'inactive@example.com', role: 'qc-head', roles: ['qc-head'], status: 'inactive' },
+  });
+  try {
+    await assert.rejects(
+      () => router.actorFromRequest({ _user: { name: 'Inactive', email: 'inactive@example.com', role: 'qc-head' } }),
+      /Inactive users cannot issue COA documents/,
+    );
+  } finally {
+    restore();
+  }
+});
+
 test('approve route rejects non-QC Head actors before reading the document', async () => {
+  const restore = stubActorLookup({
+    user: { name: 'Lab User', email: 'lab@example.com', role: 'lab-staff', roles: ['lab-staff'], status: 'active' },
+  });
+  try {
   const res = await invoke('/:id/approve', 'post', {
     params: { id: '507f1f77bcf86cd799439011' },
     body: { _user: { name: 'Lab User', email: 'lab@example.com', role: 'lab_staff' } },
@@ -127,11 +207,15 @@ test('approve route rejects non-QC Head actors before reading the document', asy
 
   assert.equal(res.statusCode, 403);
   assert.match(res.body.error, /QC Head/);
+  } finally {
+    restore();
+  }
 });
 
 test('approve route validates transition before snapshot work', async () => {
   const originalFindById = CoaDocument.findById;
   const originalPetitionFindById = Petition.findById;
+  const restoreActor = stubActorLookup();
   try {
     CoaDocument.findById = async () => ({
       _id: 'coa-id',
@@ -152,11 +236,13 @@ test('approve route validates transition before snapshot work', async () => {
   } finally {
     CoaDocument.findById = originalFindById;
     Petition.findById = originalPetitionFindById;
+    restoreActor();
   }
 });
 
 test('print-event route rejects non-printable pending COAs', async () => {
   const originalFindById = CoaDocument.findById;
+  const restoreActor = stubActorLookup();
   try {
     CoaDocument.findById = async () => ({
       _id: 'coa-id',
@@ -172,12 +258,14 @@ test('print-event route rejects non-printable pending COAs', async () => {
     assert.match(res.body.error, /Cannot print COA from pendingApproval/);
   } finally {
     CoaDocument.findById = originalFindById;
+    restoreActor();
   }
 });
 
 test('cancel route requires a reason and records the cancellation history', async () => {
   const originalFindById = CoaDocument.findById;
   const originalCreate = CoaAuditLog.create;
+  const restoreActor = stubActorLookup();
   const audits = [];
   const doc = {
     _id: 'coa-id',
@@ -210,6 +298,65 @@ test('cancel route requires a reason and records the cancellation history', asyn
   } finally {
     CoaDocument.findById = originalFindById;
     CoaAuditLog.create = originalCreate;
+    restoreActor();
+  }
+});
+
+test('create route validates actor before insert and stores review snapshots', async () => {
+  const originals = {
+    create: CoaDocument.create,
+    auditCreate: CoaAuditLog.create,
+    petitionFindById: Petition.findById,
+    labRequestFind: LabRequest.find,
+    qcResultFind: QCTestResult.find,
+    parameterFind: Parameter.find,
+  };
+  const restoreActor = stubActorLookup({
+    user: { name: 'Lab User', email: 'lab@example.com', role: 'lab-staff', roles: ['lab-staff'], status: 'active' },
+  });
+  const writes = [];
+  try {
+    Petition.findById = () => ({ lean: async () => ({
+      _id: '507f1f77bcf86cd799439031',
+      petitionNo: 'P-1',
+      labApprovedAt: new Date(),
+      items: [{ seq: 1, sampleName: 'Sample' }],
+    }) });
+    LabRequest.find = () => ({ lean: async () => [{ petitionId: '507f1f77bcf86cd799439031', sampleSeq: 1 }] });
+    QCTestResult.find = () => ({ lean: async () => [{ itemSeq: 1, parameterId: 'lab-param', parameterName: 'Assay', values: { Assay: 99 } }] });
+    Parameter.find = () => ({ lean: async () => [{ _id: 'lab-param', scope: 'lab' }] });
+    CoaDocument.create = async (payload) => {
+      writes.push(payload);
+      return { _id: 'coa-id', ...payload };
+    };
+    CoaAuditLog.create = async () => {};
+
+    const missingActor = await invoke('/', 'post', {
+      body: { petitionId: '507f1f77bcf86cd799439031', selectedItemSeqs: [1] },
+    });
+    assert.equal(missingActor.statusCode, 400);
+    assert.equal(writes.length, 0);
+
+    const res = await invoke('/', 'post', {
+      body: {
+        petitionId: '507f1f77bcf86cd799439031',
+        selectedItemSeqs: [1],
+        _user: { name: 'Lab User', email: 'lab@example.com', role: 'lab-staff' },
+      },
+    });
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.sampleSnapshots.length, 1);
+    assert.deepEqual(res.body.resultSnapshots, [
+      { itemSeq: 1, testItem: 'Assay', result: '99', criteria: '-', method: '-', unit: '' },
+    ]);
+  } finally {
+    CoaDocument.create = originals.create;
+    CoaAuditLog.create = originals.auditCreate;
+    Petition.findById = originals.petitionFindById;
+    LabRequest.find = originals.labRequestFind;
+    QCTestResult.find = originals.qcResultFind;
+    Parameter.find = originals.parameterFind;
+    restoreActor();
   }
 });
 
@@ -224,6 +371,7 @@ test('revision approval saves, supersedes, and audits in one transaction session
     qcResultFind: QCTestResult.find,
     parameterFind: Parameter.find,
   };
+  const restoreActor = stubActorLookup();
   const revisionId = '507f1f77bcf86cd799439011';
   const sourceId = '507f1f77bcf86cd799439012';
   const session = {
@@ -272,8 +420,8 @@ test('revision approval saves, supersedes, and audits in one transaction session
       return { acknowledged: true, matchedCount: 1, modifiedCount: 1 };
     };
     CoaAuditLog.create = async (...args) => audits.push(args);
-    Petition.findById = () => ({ lean: async () => ({ petitionNo: 'P-1', items: [{ seq: 1, sampleName: 'Sample' }] }) });
-    LabRequest.find = () => ({ lean: async () => [] });
+    Petition.findById = () => ({ lean: async () => ({ petitionNo: 'P-1', labApprovedAt: new Date(), items: [{ seq: 1, sampleName: 'Sample' }] }) });
+    LabRequest.find = () => ({ lean: async () => [{ petitionId: 'petition-id', sampleSeq: 1 }] });
     QCTestResult.find = () => ({ lean: async () => [] });
     Parameter.find = () => ({ lean: async () => [] });
 
@@ -285,7 +433,13 @@ test('revision approval saves, supersedes, and audits in one transaction session
     assert.equal(res.statusCode, 200);
     assert.deepEqual(saveOptions, [{ session }]);
     assert.deepEqual(updates[0].update.$set.updatedBy, {
-      name: 'QC Head', email: 'qc@example.com', role: 'qc_head', activeRole: undefined, permissions: undefined,
+      name: 'QC Head',
+      email: 'qc@example.com',
+      role: 'qc-head',
+      activeRole: 'qc-head',
+      roles: ['qc-head'],
+      permissions: [],
+      position: 'QC Head',
     });
     assert.deepEqual(updates[0].options.session, session);
     assert.deepEqual(audits.map((args) => args[0].event).sort(), ['revisionApproved', 'superseded']);
@@ -299,6 +453,7 @@ test('revision approval saves, supersedes, and audits in one transaction session
     LabRequest.find = originals.labRequestFind;
     QCTestResult.find = originals.qcResultFind;
     Parameter.find = originals.parameterFind;
+    restoreActor();
   }
 });
 
@@ -313,6 +468,7 @@ test('revision approval aborts without activating the revision when supersession
     qcResultFind: QCTestResult.find,
     parameterFind: Parameter.find,
   };
+  const restoreActor = stubActorLookup();
   const revisionId = '507f1f77bcf86cd799439021';
   const sourceId = '507f1f77bcf86cd799439022';
   const persistedRevision = { status: 'pendingRevisionApproval' };
@@ -369,8 +525,8 @@ test('revision approval aborts without activating the revision when supersession
       throw new Error('source supersession failed');
     };
     CoaAuditLog.create = async () => {};
-    Petition.findById = () => ({ lean: async () => ({ petitionNo: 'P-1', items: [{ seq: 1, sampleName: 'Sample' }] }) });
-    LabRequest.find = () => ({ lean: async () => [] });
+    Petition.findById = () => ({ lean: async () => ({ petitionNo: 'P-1', labApprovedAt: new Date(), items: [{ seq: 1, sampleName: 'Sample' }] }) });
+    LabRequest.find = () => ({ lean: async () => [{ petitionId: 'petition-id', sampleSeq: 1 }] });
     QCTestResult.find = () => ({ lean: async () => [] });
     Parameter.find = () => ({ lean: async () => [] });
 
@@ -393,5 +549,6 @@ test('revision approval aborts without activating the revision when supersession
     LabRequest.find = originals.labRequestFind;
     QCTestResult.find = originals.qcResultFind;
     Parameter.find = originals.parameterFind;
+    restoreActor();
   }
 });

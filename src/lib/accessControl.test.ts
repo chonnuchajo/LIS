@@ -117,6 +117,11 @@ describe("userCanAccessPath", () => {
       expect(userCanAccessPath(user, "/lab-testing/abc", navGroups)).toBe(true);
     });
 
+    it("grants the COA detail page when /coa is granted", () => {
+      const user = { role: "qc-head", status: "active" as const, permissions: ["/coa"] };
+      expect(userCanAccessPath(user, "/coa/abc", navGroups)).toBe(true);
+    });
+
     it("grants the petition timeline detail page when /petition is granted", () => {
       const user = { role: "lab", status: "active" as const, permissions: ["/petition"] };
       expect(userCanAccessPath(user, "/petition/abc", navGroups)).toBe(true);
