@@ -41,6 +41,16 @@ const COA_AUDIT_EVENTS = [
   'printed',
 ];
 
+const lifecycleActionEvents = {
+  submit: (status) => (status === 'revisionDraft' ? 'revisionSubmitted' : 'submitted'),
+  approve: (status) => (status === 'pendingRevisionApproval' ? 'revisionApproved' : 'approved'),
+  reject: () => 'rejected',
+  revise: () => 'revisionCreated',
+  cancel: () => 'cancelled',
+  print: () => 'printed',
+  update: () => 'updated',
+};
+
 function normalizeRole(value) {
   return String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
 }
@@ -111,6 +121,32 @@ async function writeCoaAuditEvent(doc, event, actor, note, metadata, CoaAuditLog
   }));
 }
 
+async function recordCoaLifecycleAction({
+  doc,
+  action,
+  actor,
+  note,
+  metadata,
+  CoaAuditLogModel,
+} = {}) {
+  if (!doc || !doc._id) {
+    throw new Error('COA lifecycle action requires a COA document');
+  }
+  assertCanTransition(doc.status, action, actor);
+  const eventForAction = lifecycleActionEvents[action];
+  if (!eventForAction) {
+    throw new Error(`Unknown COA action ${action}`);
+  }
+  return writeCoaAuditEvent(
+    doc,
+    eventForAction(doc.status),
+    actor,
+    note,
+    { action, ...(metadata || {}) },
+    CoaAuditLogModel,
+  );
+}
+
 function assertCanEditSnapshots(status) {
   if (!editableSnapshotStatuses.has(status)) {
     throw new Error(`Cannot edit COA snapshots from ${status}`);
@@ -134,29 +170,76 @@ function buildSupersessionUpdate({ sourceCoaId, replacementCoaId, sourceStatus }
   };
 }
 
-async function applySupersession({ sourceCoaId, revisionCoaId, CoaDocumentModel } = {}) {
+function resolveQuerySession(query, session) {
+  return session && typeof query.session === 'function' ? query.session(session) : query;
+}
+
+async function applySupersession({ sourceCoaId, revisionCoaId, CoaDocumentModel, session } = {}) {
   const DocumentModel = CoaDocumentModel || require('../models/CoaDocument');
   if (!sourceCoaId || !revisionCoaId) {
     throw new Error('COA supersession requires source and revision IDs');
   }
-  const sourceDoc = await DocumentModel.findById(sourceCoaId).select('status').lean();
-  if (!sourceDoc) {
-    throw new Error('Source COA not found for supersession');
+  const ownedSession = session ? null : await startSupersessionSession(DocumentModel);
+  const activeSession = session || ownedSession;
+  if (!activeSession) {
+    throw new Error('COA supersession requires a transaction session');
   }
-  const updates = buildSupersessionUpdate({
-    sourceCoaId,
-    replacementCoaId: revisionCoaId,
-    sourceStatus: sourceDoc.status,
-  });
-  const source = await DocumentModel.updateOne(
-    { _id: sourceCoaId },
-    { $set: updates.source },
-  );
-  const revision = await DocumentModel.updateOne(
-    { _id: revisionCoaId },
-    { $set: updates.replacement },
-  );
-  return { source, revision };
+
+  const runUpdates = async () => {
+    const sourceDoc = await resolveQuerySession(DocumentModel.findById(sourceCoaId), activeSession)
+      .select('status')
+      .lean();
+    if (!sourceDoc) {
+      throw new Error('Source COA not found for supersession');
+    }
+    const updates = buildSupersessionUpdate({
+      sourceCoaId,
+      replacementCoaId: revisionCoaId,
+      sourceStatus: sourceDoc.status,
+    });
+    const options = { session: activeSession, allowCoaIssuedSnapshotMutation: true };
+    const source = await DocumentModel.updateOne(
+      { _id: sourceCoaId },
+      { $set: updates.source },
+      options,
+    );
+    const revision = await DocumentModel.updateOne(
+      { _id: revisionCoaId },
+      { $set: updates.replacement },
+      options,
+    );
+    return { source, revision };
+  };
+
+  try {
+    if (typeof activeSession.withTransaction === 'function') {
+      return await activeSession.withTransaction(runUpdates);
+    }
+    const result = await runUpdates();
+    if (typeof activeSession.commitTransaction === 'function') {
+      await activeSession.commitTransaction();
+    }
+    return result;
+  } catch (error) {
+    if (typeof activeSession.abortTransaction === 'function') {
+      await activeSession.abortTransaction();
+    }
+    throw error;
+  } finally {
+    if (ownedSession && typeof ownedSession.endSession === 'function') {
+      await ownedSession.endSession();
+    }
+  }
+}
+
+async function startSupersessionSession(DocumentModel) {
+  if (typeof DocumentModel.startSession === 'function') {
+    return DocumentModel.startSession();
+  }
+  if (DocumentModel.db && typeof DocumentModel.db.startSession === 'function') {
+    return DocumentModel.db.startSession();
+  }
+  return null;
 }
 
 function canPrintStatus(status) {
@@ -182,6 +265,7 @@ module.exports = {
   assertValidCancellation,
   buildCoaAuditEvent,
   writeCoaAuditEvent,
+  recordCoaLifecycleAction,
   assertCanEditSnapshots,
   assertCanSupersede,
   buildSupersessionUpdate,

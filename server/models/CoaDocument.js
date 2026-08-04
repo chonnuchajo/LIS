@@ -74,6 +74,68 @@ const STATUS = [
 const ISSUED_SNAPSHOT_STATUSES = new Set(['approved', 'printed', 'reissued', 'cancelled', 'superseded']);
 const SNAPSHOT_PATHS = ['customerSnapshot', 'sampleSnapshots', 'resultSnapshots'];
 
+function getUpdateValue(update = {}, path) {
+  const operators = ['$set', '$setOnInsert'];
+  if (Object.prototype.hasOwnProperty.call(update, path)) return update[path];
+  for (const operator of operators) {
+    if (update[operator] && Object.prototype.hasOwnProperty.call(update[operator], path)) {
+      return update[operator][path];
+    }
+  }
+  return undefined;
+}
+
+function hasNonEmptyUpdateValue(update, path) {
+  const value = getUpdateValue(update, path);
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function updateSetsStatus(update, status) {
+  return getUpdateValue(update, 'status') === status;
+}
+
+function filterTargetsIssuedStatus(filter = {}) {
+  const status = filter.status;
+  if (ISSUED_SNAPSHOT_STATUSES.has(status)) return true;
+  if (status && Array.isArray(status.$in)) {
+    return status.$in.some((value) => ISSUED_SNAPSHOT_STATUSES.has(value));
+  }
+  if (status && Array.isArray(status.$eq)) {
+    return status.$eq.some((value) => ISSUED_SNAPSHOT_STATUSES.has(value));
+  }
+  if (status && ISSUED_SNAPSHOT_STATUSES.has(status.$eq)) return true;
+  return false;
+}
+
+function updateTouchesSnapshot(update = {}) {
+  const updateBuckets = [update];
+  for (const [key, value] of Object.entries(update)) {
+    if (key.startsWith('$') && value && typeof value === 'object') {
+      updateBuckets.push(value);
+    }
+  }
+  return updateBuckets.some((bucket) => Object.keys(bucket).some((key) => (
+    SNAPSHOT_PATHS.some((path) => key === path || key.startsWith(`${path}.`))
+  )));
+}
+
+function validateCoaQueryUpdate(filter = {}, update = {}, options = {}) {
+  if (updateSetsStatus(update, 'cancelled') && !hasNonEmptyUpdateValue(update, 'cancel.reason')) {
+    const cancel = getUpdateValue(update, 'cancel');
+    if (!cancel || typeof cancel.reason !== 'string' || cancel.reason.trim().length === 0) {
+      throw new Error('COA cancellation reason is required');
+    }
+  }
+
+  if (
+    filterTargetsIssuedStatus(filter) &&
+    updateTouchesSnapshot(update) &&
+    !options.allowCoaIssuedSnapshotMutation
+  ) {
+    throw new Error('Cannot edit issued COA snapshots');
+  }
+}
+
 const CoaDocumentSchema = new mongoose.Schema(
   {
     coaNo: { type: String, default: null, index: true },
@@ -141,5 +203,18 @@ CoaDocumentSchema.pre('validate', function validateCancellationAndSnapshots(next
   next();
 });
 
+function validateCoaQueryUpdateMiddleware(next) {
+  try {
+    validateCoaQueryUpdate(this.getFilter(), this.getUpdate(), this.getOptions());
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
+CoaDocumentSchema.pre('updateOne', validateCoaQueryUpdateMiddleware);
+CoaDocumentSchema.pre('findOneAndUpdate', validateCoaQueryUpdateMiddleware);
+
 module.exports = mongoose.model('CoaDocument', CoaDocumentSchema);
 module.exports.COA_STATUSES = STATUS;
+module.exports.validateCoaQueryUpdate = validateCoaQueryUpdate;

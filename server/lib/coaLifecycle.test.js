@@ -12,6 +12,7 @@ const {
   assertValidCancellation,
   buildCoaAuditEvent,
   writeCoaAuditEvent,
+  recordCoaLifecycleAction,
   assertCanEditSnapshots,
   assertCanSupersede,
   buildSupersessionUpdate,
@@ -175,16 +176,77 @@ test('writeCoaAuditEvent persists a validated audit event', async () => {
   );
 });
 
+test('recordCoaLifecycleAction validates transition, actor, and persists audit event', async () => {
+  const createdRows = [];
+  const stubAuditModel = {
+    create: async (payload) => {
+      createdRows.push(payload);
+      return { _id: 'audit-id', ...payload };
+    },
+  };
+  const doc = {
+    _id: 'coa-id',
+    status: 'pendingApproval',
+    coaNo: '00012026',
+    petitionId: 'petition-id',
+    petitionNoSnapshot: 'P-001',
+  };
+
+  await assert.rejects(
+    () => recordCoaLifecycleAction({
+      doc,
+      action: 'approve',
+      actor: { role: 'lab-staff', name: 'Lab Staff', email: 'lab@example.com' },
+      CoaAuditLogModel: stubAuditModel,
+    }),
+    /QC Head required to approve COA/,
+  );
+  assert.equal(createdRows.length, 0);
+
+  const row = await recordCoaLifecycleAction({
+    doc,
+    action: 'approve',
+    actor: { role: 'qc-head', name: 'QC Head', email: 'qc@example.com' },
+    note: 'Approved',
+    metadata: { nextStatus: 'approved' },
+    CoaAuditLogModel: stubAuditModel,
+  });
+
+  assert.equal(row.event, 'approved');
+  assert.equal(createdRows.length, 1);
+  assert.equal(createdRows[0].event, 'approved');
+  assert.equal(createdRows[0].actor.email, 'qc@example.com');
+});
+
 test('applySupersession performs reciprocal source and revision updates', async () => {
   const calls = [];
+  const sessionCalls = [];
+  const session = {
+    withTransaction: async (callback) => {
+      sessionCalls.push('begin');
+      const result = await callback();
+      sessionCalls.push('commit');
+      return result;
+    },
+    endSession: async () => sessionCalls.push('end'),
+  };
   const stubCoaDocumentModel = {
     findById: (id) => ({
+      session: (receivedSession) => {
+        calls.push({ findById: id, session: receivedSession });
+        return {
+          select: () => ({
+            lean: async () => ({ _id: id, status: 'printed' }),
+          }),
+        };
+      },
       select: () => ({
         lean: async () => ({ _id: id, status: 'printed' }),
       }),
     }),
-    updateOne: async (filter, update) => {
-      calls.push({ filter, update });
+    startSession: async () => session,
+    updateOne: async (filter, update, options) => {
+      calls.push({ filter, update, options });
       return { acknowledged: true, modifiedCount: 1 };
     },
   };
@@ -196,14 +258,18 @@ test('applySupersession performs reciprocal source and revision updates', async 
   });
 
   assert.deepEqual(result.source, { acknowledged: true, modifiedCount: 1 });
+  assert.deepEqual(sessionCalls, ['begin', 'commit', 'end']);
   assert.deepEqual(calls, [
+    { findById: 'source-id', session },
     {
       filter: { _id: 'source-id' },
       update: { $set: { status: 'superseded', supersededByCoaId: 'revision-id' } },
+      options: { session, allowCoaIssuedSnapshotMutation: true },
     },
     {
       filter: { _id: 'revision-id' },
       update: { $set: { status: 'reissued', supersedesCoaId: 'source-id' } },
+      options: { session, allowCoaIssuedSnapshotMutation: true },
     },
   ]);
 
@@ -213,6 +279,7 @@ test('applySupersession performs reciprocal source and revision updates', async 
         lean: async () => ({ status: 'draft' }),
       }),
     }),
+    startSession: async () => session,
     updateOne: async () => {
       throw new Error('updateOne should not be called for draft supersession source');
     },
@@ -225,6 +292,92 @@ test('applySupersession performs reciprocal source and revision updates', async 
     }),
     /Cannot supersede COA from draft/,
   );
+
+  const failingSessionCalls = [];
+  const failingSession = {
+    withTransaction: async (callback) => {
+      failingSessionCalls.push('begin');
+      try {
+        return await callback();
+      } catch (error) {
+        failingSessionCalls.push('abort');
+        throw error;
+      }
+    },
+    endSession: async () => failingSessionCalls.push('end'),
+  };
+  const failingModel = {
+    findById: () => ({
+      session: () => ({
+        select: () => ({
+          lean: async () => ({ status: 'approved' }),
+        }),
+      }),
+    }),
+    startSession: async () => failingSession,
+    updateOne: async () => {
+      throw new Error('database write failed');
+    },
+  };
+  await assert.rejects(
+    () => applySupersession({
+      sourceCoaId: 'source-id',
+      revisionCoaId: 'revision-id',
+      CoaDocumentModel: failingModel,
+    }),
+    /database write failed/,
+  );
+  assert.deepEqual(failingSessionCalls, ['begin', 'abort', 'end']);
+
+  await assert.rejects(
+    () => applySupersession({
+      sourceCoaId: 'source-id',
+      revisionCoaId: 'revision-id',
+      CoaDocumentModel: { findById: stubCoaDocumentModel.findById, updateOne: stubCoaDocumentModel.updateOne },
+    }),
+    /COA supersession requires a transaction session/,
+  );
+});
+
+test('COA query update guard rejects cancellation without non-empty reason', () => {
+  assert.throws(
+    () => CoaDocument.validateCoaQueryUpdate({}, { $set: { status: 'cancelled' } }),
+    /COA cancellation reason is required/,
+  );
+  assert.throws(
+    () => CoaDocument.validateCoaQueryUpdate({}, { status: 'cancelled', 'cancel.reason': '  ' }),
+    /COA cancellation reason is required/,
+  );
+  assert.doesNotThrow(() => CoaDocument.validateCoaQueryUpdate(
+    {},
+    { status: 'cancelled', 'cancel.reason': 'Corrected customer details' },
+  ));
+  assert.doesNotThrow(() => CoaDocument.validateCoaQueryUpdate(
+    {},
+    { $set: { status: 'cancelled', 'cancel.reason': 'QC requested cancellation' } },
+  ));
+});
+
+test('COA query update guard rejects issued snapshot edits unless override is set', () => {
+  assert.throws(
+    () => CoaDocument.validateCoaQueryUpdate(
+      { status: 'approved' },
+      { $set: { 'customerSnapshot.name': 'Edited Customer' } },
+    ),
+    /Cannot edit issued COA snapshots/,
+  );
+  assert.throws(
+    () => CoaDocument.validateCoaQueryUpdate(
+      { status: { $in: ['draft', 'reissued'] } },
+      { sampleSnapshots: [{ itemSeq: 1, sampleName: 'Edited Sample' }] },
+    ),
+    /Cannot edit issued COA snapshots/,
+  );
+  assert.doesNotThrow(() => CoaDocument.validateCoaQueryUpdate(
+    { status: 'approved' },
+    { $set: { resultSnapshots: [{ itemSeq: 1, testItem: 'Assay' }] } },
+    { allowCoaIssuedSnapshotMutation: true },
+  ));
 });
 
 test('printable statuses exclude pending, cancelled, and superseded documents', () => {
