@@ -12,36 +12,57 @@ import CoaReportTemplate, { COA_REPORT_CSS } from "@/components/coa/CoaReportTem
 import CoaStatusBadge from "@/components/coa/CoaStatusBadge";
 import { api } from "@/lib/api";
 import { buildCoaReportPages } from "@/lib/coaReport";
-import { canPrintCoa } from "@/lib/coaStatus";
+import { allowedCoaActions, canPrintCoa } from "@/lib/coaStatus";
+import { useAuth } from "@/hooks/useAuth";
+import { normalizeRoles, primaryRole } from "@/lib/roles";
 
 export default function CoaDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [printOpen, setPrintOpen] = useState(false);
   const [reason, setReason] = useState("");
-  const { data: doc, isLoading } = useQuery({
+  const { data: doc, isLoading, isError, error } = useQuery({
     queryKey: ["coa", id],
     queryFn: () => api.getCoaDocument(id),
     enabled: Boolean(id),
   });
+  const roles = normalizeRoles(user);
+  const activeRole = user?.role || primaryRole(roles);
+  const actor = {
+    name: user?.name,
+    email: user?.email,
+    role: activeRole,
+    activeRole,
+    roles,
+    permissions: user?.permissions ?? [],
+    position: user?.position,
+  };
+  const isQcHead = [user?.role, ...roles, user?.position]
+    .some((value) => String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_") === "qc_head")
+    || actor.permissions.includes("coa.approve");
   const pages = useMemo(() => (doc ? buildCoaReportPages(doc) : []), [doc]);
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["coa", id] });
-  const submit = useMutation({ mutationFn: () => api.submitCoaDocument(id, {}), onSuccess: invalidate });
-  const approve = useMutation({ mutationFn: () => api.approveCoaDocument(id, { _user: { role: "qc-head" } }), onSuccess: invalidate });
-  const reject = useMutation({ mutationFn: () => api.rejectCoaDocument(id, { reason, _user: { role: "qc-head" } }), onSuccess: invalidate });
-  const revise = useMutation({ mutationFn: () => api.reviseCoaDocument(id, {}), onSuccess: (next) => navigate(`/coa/${next._id}`) });
-  const cancel = useMutation({ mutationFn: () => api.cancelCoaDocument(id, { reason }), onSuccess: invalidate });
+  const submit = useMutation({ mutationFn: () => api.submitCoaDocument(id, { _user: actor }), onSuccess: invalidate });
+  const approve = useMutation({ mutationFn: () => api.approveCoaDocument(id, { _user: actor }), onSuccess: invalidate });
+  const reject = useMutation({ mutationFn: () => api.rejectCoaDocument(id, { reason, _user: actor }), onSuccess: invalidate });
+  const revise = useMutation({ mutationFn: () => api.reviseCoaDocument(id, { _user: actor }), onSuccess: (next) => navigate(`/coa/${next._id}`) });
+  const cancel = useMutation({ mutationFn: () => api.cancelCoaDocument(id, { reason, _user: actor }), onSuccess: invalidate });
   const recordPrint = useMutation({
-    mutationFn: (meta: { copies: number; outputMode: string }) => api.recordCoaPrintEvent(id, { event: "printDialogOpened", ...meta }),
+    mutationFn: (meta: { copies: number; outputMode: string }) => api.recordCoaPrintEvent(id, { event: "printDialogOpened", ...meta, _user: actor }),
     onSuccess: invalidate,
   });
 
   if (isLoading || !doc) {
+    if (isError) {
+      return <AppLayout><div className="p-6 text-destructive">{error instanceof Error ? error.message : "ไม่สามารถโหลด COA ได้"}</div></AppLayout>;
+    }
     return <AppLayout><div className="p-6 text-muted-foreground">กำลังโหลด...</div></AppLayout>;
   }
 
-  const printable = canPrintCoa(doc.status);
+  const actions = allowedCoaActions(doc.status, isQcHead);
+  const printable = actions.includes("print") && canPrintCoa(doc.status);
 
   return (
     <AppLayout title={doc.coaNo || "COA"}>
@@ -57,17 +78,17 @@ export default function CoaDetailPage() {
           {doc.revision > 0 && <span className="text-sm text-muted-foreground">Rev.{doc.revision}</span>}
         </div>
         <div className="flex flex-wrap gap-2">
-          {(doc.status === "draft" || doc.status === "revisionDraft") && <Button onClick={() => submit.mutate()}>ส่งอนุมัติ</Button>}
-          {(doc.status === "pendingApproval" || doc.status === "pendingRevisionApproval") && (
+          {actions.includes("submit") && <Button onClick={() => submit.mutate()}>ส่งอนุมัติ</Button>}
+          {actions.includes("approve") && (
             <>
               <Button onClick={() => approve.mutate()}>QC Head อนุมัติ</Button>
               <Button variant="destructive" disabled={!reason.trim()} onClick={() => reject.mutate()}>ไม่อนุมัติ</Button>
             </>
           )}
-          {printable && (
+          {actions.includes("revise") && (
             <>
               <Button variant="outline" onClick={() => revise.mutate()}>สร้างฉบับแก้ไข</Button>
-              <Button variant="destructive" disabled={!reason.trim()} onClick={() => cancel.mutate()}>ยกเลิก COA</Button>
+              {isQcHead && <Button variant="destructive" disabled={!reason.trim()} onClick={() => cancel.mutate()}>ยกเลิก COA</Button>}
             </>
           )}
         </div>
