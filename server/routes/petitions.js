@@ -21,6 +21,7 @@ const StandardTime = require('../models/StandardTime');
 const { buildStatusLog, hasLabTrack, isLabBatch, isPetitionComplete } = require('../lib/petitionStatusLog');
 const { notifyPetitionEvent } = require('../lib/lineNotify');
 const { normalizeAnalysisName, canonicalAnalysisName } = require('../lib/analysisName');
+const { buildProductionWorkflow } = require('../lib/productionWorkflow');
 const { isResearchAndDevelopmentDepartment, requiresDeliveryAndBatch, requiresQcTrack } = require('../lib/petitionSubmissionRules');
 
 function sampleIdsFromPetition(petition) {
@@ -95,6 +96,8 @@ router.get('/', async (req, res) => {
       q.$or = [
         { petitionNo: rx },
         { prodOrderNos: rx },
+        { 'productionWorkflow.requestNo': rx },
+        { 'productionWorkflow.lisPetitionNo': rx },
         { 'submittedBy.name': rx },
         { 'items.batchNo': rx },
       ];
@@ -777,6 +780,7 @@ router.post('/', async (req, res) => {
       petitionNo,
       status: 'deliveringQC',
       revisionOf,
+      productionWorkflow: buildProductionWorkflow(body.productionWorkflow, petitionNo),
     });
     logAudit(doc, {
       event: 'created',

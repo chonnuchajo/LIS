@@ -127,7 +127,7 @@ export default function PetitionListPage({
   const createdNo = (location.state as { createdNo?: string } | null)?.createdNo;
   const roles = normalizeRoles(user);
   const canViewAll = roles.includes('admin');
-  const canCreatePetition = canUserCreatePetition(user, canAccess('/petitions/new'));
+  const canCreatePetition = canUserCreatePetition(user, canAccess('/petitions-old/new'));
   const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
   const groupMembership = useItemGroupMembership();
 
@@ -404,7 +404,7 @@ export default function PetitionListPage({
           description={description}
           actions={
             canCreatePetition ? (
-              <Button onClick={() => navigate('/petitions/new')}>
+              <Button onClick={() => navigate('/petitions-old/new')}>
                 <FilePlus2 className="h-4 w-4" />
                 ยื่นคำร้องใหม่
               </Button>

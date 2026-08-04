@@ -79,22 +79,23 @@ describe("LabelToleranceDialog", () => {
     });
   });
 
-  it("creates label-percent rules from selected master items with item context", async () => {
+  it("creates a label-percent rule from typed master item text with item context", async () => {
     const { onSave } = renderDialog();
 
-    const options = await screen.findAllByRole("button", { name: /ABAMECTIN 1\.8% EC/ });
-    fireEvent.click(options[0]);
-    fireEvent.click(options[1]);
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith("/master-items"));
+    fireEvent.click(screen.getAllByRole("button")[0]);
 
+    const substanceInput = screen.getAllByRole("combobox")[0];
+    fireEvent.change(substanceInput, { target: { value: "ABAMECTIN 1.8% EC" } });
+    fireEvent.blur(substanceInput);
+
+    await waitFor(() => expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(1.8));
     const spinButtons = screen.getAllByRole("spinbutton");
     expect(spinButtons[0]).toHaveValue(1.8);
-    expect(spinButtons[3]).toHaveValue(1.8);
     fireEvent.change(spinButtons[1], { target: { value: "25" } });
     fireEvent.change(spinButtons[2], { target: { value: "30" } });
-    fireEvent.change(spinButtons[4], { target: { value: "25" } });
-    fireEvent.change(spinButtons[5], { target: { value: "30" } });
 
-    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
+    fireEvent.click(screen.getAllByRole("button").at(-2)!);
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(onSave).toHaveBeenCalledWith([
@@ -107,19 +108,10 @@ describe("LabelToleranceDialog", () => {
         masterCommonName: "ABAMECTIN 1.8% EC",
         masterRaw: expect.objectContaining({ item_no: "RM-001", desc2: "100 ml" }),
       }),
-      expect.objectContaining({
-        substance: "ABAMECTIN 1.8% EC",
-        labelPercent: 1.8,
-        itemNo: "RM-002",
-        packSize: "500 ml",
-        masterItemName: "ABAMECTIN B",
-        masterCommonName: "ABAMECTIN 1.8% EC",
-        masterRaw: expect.objectContaining({ item_no: "RM-002", desc2: "500 ml" }),
-      }),
     ]);
   });
 
-  it("does not add an existing master item rule twice", async () => {
+  it("opens existing rules collapsed", async () => {
     renderDialog(undefined, [
       {
         substance: "ABAMECTIN 1.8% EC",
@@ -131,11 +123,10 @@ describe("LabelToleranceDialog", () => {
       } as LabelToleranceRule,
     ]);
 
-    const pickedOption = await screen.findByTitle("ABAMECTIN 1.8% EC · RM-001 · 100 ml · ABAMECTIN A");
-    expect(pickedOption).toBeDisabled();
+    expect(screen.queryByRole("spinbutton")).not.toBeInTheDocument();
   });
 
-  it("scrolls to a newly added rule so users can continue editing at the bottom", async () => {
+  it("opens and scrolls to a newly added rule at the top", async () => {
     const scrollIntoView = vi.fn();
     const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
     HTMLElement.prototype.scrollIntoView = scrollIntoView;
@@ -153,9 +144,9 @@ describe("LabelToleranceDialog", () => {
         } as LabelToleranceRule,
       ]);
 
-      fireEvent.click(screen.getByRole("button", { name: /เพิ่มกฎ/ }));
+    fireEvent.click(screen.getAllByRole("button")[0]);
 
-      await screen.findByText("กฎที่ 2");
+      expect(screen.getAllByRole("combobox")[0]).toHaveValue("");
       await waitFor(() => {
         expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", behavior: "smooth" });
       });

@@ -182,6 +182,16 @@ export interface PhaseTriggerInfo {
 
 export type PetitionPhase = 1 | 2;
 
+export interface ProductionWorkflow {
+  requestNo?: string;
+  requesterEmail?: string;
+  lisPetitionNo?: string;
+  petitionNo?: string;
+  lisStatus?: string;
+  lisSent?: boolean;
+  sentAt?: string | null;
+}
+
 // ===== Petition (discriminated by dept) =====
 interface PetitionBase {
   _id: string;
@@ -197,6 +207,7 @@ interface PetitionBase {
   assignedTo?: PetitionAssignee | null;
   assignedMachines?: PetitionAssignedMachine[];
   prodOrderNos?: string[];
+  productionWorkflow?: ProductionWorkflow;
   sampleSentAt?: string | null;
   receivedAt?: string | null;
   receivedBy?: string;

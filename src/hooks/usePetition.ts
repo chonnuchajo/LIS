@@ -244,7 +244,7 @@ export function usePetitionAuditLogList(params: PetitionAuditLogListParams, poll
 
 // ===== Petition mutations =====
 type CreatePetitionPayload =
-  | (ProductionPetitionFormValues & { prodOrderNos?: string[] })
+  | (ProductionPetitionFormValues & { prodOrderNos?: string[]; productionWorkflow?: { requestNo?: string; requesterEmail?: string } })
   | (RmPetitionFormValues & { prodOrderNos?: string[] })
   | (FgPetitionFormValues & { prodOrderNos?: string[] });
 

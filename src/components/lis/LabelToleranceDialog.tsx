@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, Plus, Trash2 } from "lucide-react";
 import { api, type LabelToleranceRule, type ParameterValueField } from "@/lib/api";
 import { getItemNo, getPackSize, getRawCommonName, getSampleName, getTradeName } from "@/lib/masterItemFields";
 import { productTypeLabels } from "@/lib/productClassification";
@@ -52,14 +52,6 @@ function buildMasterItemContext(row: MasterItemRow) {
   const packSize = getPackSize(row);
   const itemName = getSampleName(row) || getTradeName(row);
   return { commonName, itemNo, packSize, itemName };
-}
-
-function rowMatchesSearch(row: MasterItemRow, query: string): boolean {
-  if (!query) return true;
-  const context = buildMasterItemContext(row);
-  return [context.commonName, context.itemNo, context.packSize, context.itemName].some((value) =>
-    standardKey(value).includes(query),
-  );
 }
 
 function normalizeRuleModes(rule: LabelToleranceRule) {
@@ -250,7 +242,6 @@ type Props = {
 export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
   const [list, setList] = useState<LabelToleranceRule[]>(field.labelToleranceStandards ?? []);
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
-  const [masterSearch, setMasterSearch] = useState("");
   const ruleRefs = useRef<Array<HTMLDivElement | null>>([]);
   const pendingScrollIndex = useRef<number | null>(null);
   const { user } = useAuth();
@@ -262,9 +253,9 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
 
   useEffect(() => {
     if (open) {
-      setList(field.labelToleranceStandards ?? []);
-      setCollapsed({});
-      setMasterSearch("");
+      const initialList = field.labelToleranceStandards ?? [];
+      setList(initialList);
+      setCollapsed(Object.fromEntries(initialList.map((_, index) => [index, true])));
       pendingScrollIndex.current = null;
     }
   }, [field.labelToleranceStandards, open]);
@@ -278,12 +269,10 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
     },
     enabled: open,
   });
-  const selectedMasterKeys = useMemo(() => new Set(list.map(masterRuleIdentity)), [list]);
-  const visibleMasterRows = useMemo(() => {
-    const query = standardKey(masterSearch);
+  const masterOptions = useMemo(() => {
+    const seen = new Set<string>();
     return (Array.isArray(masterRows) ? masterRows : [])
       .filter((row) => buildMasterItemContext(row).commonName)
-      .filter((row) => rowMatchesSearch(row, query))
       .sort((a, b) => {
         const aCtx = buildMasterItemContext(a);
         const bCtx = buildMasterItemContext(b);
@@ -292,8 +281,19 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
           aCtx.itemNo.localeCompare(bCtx.itemNo, ["th", "en"], { numeric: true }) ||
           aCtx.packSize.localeCompare(bCtx.packSize, ["th", "en"], { numeric: true })
         );
+      })
+      .flatMap((row) => {
+        const context = buildMasterItemContext(row);
+        const key = masterRuleIdentity({
+          substance: context.commonName,
+          itemNo: context.itemNo,
+          packSize: context.packSize,
+        });
+        if (seen.has(key)) return [];
+        seen.add(key);
+        return [{ row, ...context, key }];
       });
-  }, [masterRows, masterSearch]);
+  }, [masterRows]);
 
   useEffect(() => {
     if (pendingScrollIndex.current == null) return;
@@ -307,30 +307,43 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
   };
 
   const addRule = () => setList((prev) => {
-    pendingScrollIndex.current = prev.length;
-    return [...prev, emptyRule()];
+    pendingScrollIndex.current = 0;
+    setCollapsed((current) => {
+      const next: Record<number, boolean> = { 0: false };
+      for (const [key, value] of Object.entries(current)) {
+        next[Number(key) + 1] = value;
+      }
+      return next;
+    });
+    return [emptyRule(), ...prev];
   });
 
-  const addRuleFromMasterItem = (row: MasterItemRow) => {
-    const { commonName, itemNo, packSize, itemName } = buildMasterItemContext(row);
-    const substance = commonName.trim();
-    if (!substance) return;
-    const nextRule: LabelToleranceRule = {
-      ...emptyRule(),
-      substance,
-      labelPercent: parseLabelPercent(substance),
-      itemNo,
-      packSize,
-      masterItemName: itemName,
-      masterCommonName: commonName,
-      masterRaw: row,
-    };
-    const key = masterRuleIdentity(nextRule);
-    setList((prev) => {
-      if (prev.some((rule) => masterRuleIdentity(rule) === key)) return prev;
-      pendingScrollIndex.current = prev.length;
-      return [...prev, nextRule];
-    });
+  const applyMasterItemAt = (index: number, value: string) => {
+    const picked = masterOptions.find((option) => standardKey(option.commonName) === standardKey(value));
+    setList((prev) => prev.map((rule, i) => {
+      if (i !== index) return rule;
+      if (!picked) {
+        return {
+          ...rule,
+          substance: value,
+          itemNo: "",
+          packSize: "",
+          masterItemName: "",
+          masterCommonName: "",
+          masterRaw: undefined,
+        };
+      }
+      return {
+        ...rule,
+        substance: picked.commonName,
+        labelPercent: rule.labelPercent ?? parseLabelPercent(picked.commonName),
+        itemNo: picked.itemNo,
+        packSize: picked.packSize,
+        masterItemName: picked.itemName,
+        masterCommonName: picked.commonName,
+        masterRaw: picked.row,
+      };
+    }));
   };
 
   const removeRule = (index: number) => {
@@ -361,7 +374,8 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
         </DialogHeader>
 
         <div className="space-y-3 pr-1">
-          <div className="rounded-lg border bg-muted/20 p-3">
+          {/*
+          <div>
             <Label className="mb-2 block text-sm">เลือกสารจาก master item</Label>
             <div className="relative mb-2">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -406,6 +420,7 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
               )}
             </div>
           </div>
+          */}
           <div className="flex items-center justify-between">
             <Label className="text-sm">กฎ ({list.length})</Label>
             <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={addRule}>
@@ -452,10 +467,21 @@ export function LabelToleranceDialog({ open, field, onClose, onSave }: Props) {
                       <div className="space-y-1.5">
                         <Label className="text-sm">สาร (ไม่บังคับ)</Label>
                         <Input
+                          list={`label-tolerance-master-substances-${index}`}
                           value={rule.substance ?? ""}
                           onChange={(e) => patchAt(index, { substance: e.target.value })}
+                          onBlur={(e) => applyMasterItemAt(index, e.target.value)}
                           placeholder="เช่น ABAMECTIN"
                         />
+                        <datalist id={`label-tolerance-master-substances-${index}`}>
+                          {masterOptions.slice(0, 300).map((option) => (
+                            <option
+                              key={option.key}
+                              value={option.commonName}
+                              label={[option.itemNo, option.packSize, option.itemName].filter(Boolean).join(" ยท ")}
+                            />
+                          ))}
+                        </datalist>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-sm">% ฉลาก (ไม่บังคับ)</Label>

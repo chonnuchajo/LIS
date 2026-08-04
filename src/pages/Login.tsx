@@ -72,9 +72,6 @@ const Login = () => {
   const ret = searchParams.get("ret");
   const ssoRedirectTarget = ret ? toAppRedirectPath(ret) : redirectTarget;
 
-  // Seamless SSO from another system: it forwards ?login_hint=<email>. Try a
-  // silent Microsoft sign-in, falling back to a pre-filled redirect. Skipped
-  // when a production JWT (token) is present or the user is already signed in.
   useEffect(() => {
     if (!loginHint || ssoToken || (!mustSwitchRequester && (isAuthenticated || user))) return;
     let active = true;
@@ -141,7 +138,6 @@ const Login = () => {
 
   return (
     <div className="flex min-h-screen">
-      {/* Left - Cover Image */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <picture>
           <source srcSet={labCoverWebp} type="image/webp" />
@@ -171,10 +167,8 @@ const Login = () => {
         </div>
       </div>
 
-      {/* Right - Login */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-background">
         <div className="w-full max-w-md space-y-6 sm:space-y-8">
-          {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 justify-center mb-4">
             <img src={ICP_LADDA_LOGO_URL} alt="ICP Logo" className="w-12 h-12 rounded-full object-contain" />
             <div>

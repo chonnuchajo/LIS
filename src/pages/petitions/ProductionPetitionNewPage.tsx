@@ -560,6 +560,8 @@ export default function ProductionPetitionNewPage({
     return [...plural, ...singular, ...mfNo];
   }, [searchParams]);
   const prodOrderNos = prodOrderNosFromState?.length ? prodOrderNosFromState : prodOrderNosFromQuery;
+  const productionRequestNo = getQueryValue(searchParams, ['requestNo', 'request_no', 'submissionNo']);
+  const productionRequesterEmail = getQueryValue(searchParams, ['requesterEmail', 'requester_email', 'email']);
   const initialQueryItems = useMemo(() => makeInitialItemsFromQuery(searchParams), [searchParams]);
   const integrationActor = useMemo(() => {
     const department = getQueryValue(searchParams, ['department']);
@@ -816,6 +818,10 @@ export default function ProductionPetitionNewPage({
         items: items.map((it, idx) => ({ ...it, seq: idx + 1 })),
         labRequests: [],
         prodOrderNos,
+        productionWorkflow: productionRequestNo ? {
+          requestNo: productionRequestNo,
+          requesterEmail: productionRequesterEmail || undefined,
+        } : undefined,
         cause: '',
         revisionOf: revisionOfId || undefined,
       };

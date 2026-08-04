@@ -286,7 +286,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                         <Button
                           variant="primary"
                           size="sm"
-                          onClick={() => navigate(`/petitions/new?revisionOf=${data._id}`)}
+                          onClick={() => navigate(`/petitions-old/new?revisionOf=${data._id}`)}
                           className="gap-2"
                         >
                           <RotateCcw className="h-4 w-4" />
@@ -347,7 +347,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                         <Button
                           variant="primary-outline"
                           size="sm"
-                          onClick={() => navigate(`/petition/${data._id}`)}
+                          onClick={() => navigate(`/petitions-old/${data._id}/edit`)}
                         >
                           <Pencil className="h-4 w-4" />
                           แก้ไข
@@ -437,7 +437,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                         <p>ผู้รับผิดชอบ Lab: <span className="font-medium text-black-500">{displayPerson(data.labReceivedBy)}</span></p>
                       </div>
                       {!isResultMode && !data.assignedTo && (data.status === 'sampleSent' || data.status === 'pendingReview') && (
-                        <Button className="w-full" onClick={() => navigate('/petition')}>
+                        <Button className="w-full" onClick={() => navigate('/petitions-old/assign')}>
                           <UserCheck className="h-4 w-4" />
                           Assign ผู้รับงาน
                         </Button>
@@ -446,7 +446,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                         <Button
                           variant="primary-outline"
                           className="w-full"
-                          onClick={() => navigate(`/petition/${data._id}`)}
+                          onClick={() => navigate(`/petitions-old/${data._id}/edit`)}
                         >
                           <Pencil className="h-4 w-4" />
                           แก้ไขคำร้อง
