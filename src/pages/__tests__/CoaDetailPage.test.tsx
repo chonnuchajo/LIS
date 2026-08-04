@@ -107,6 +107,21 @@ describe("CoaDetailPage", () => {
     expect(screen.queryByRole("button", { name: /QC Head อนุมัติ/ })).not.toBeInTheDocument();
   });
 
+  it("does not treat a QC Head position without an approval signal as an approval grant", async () => {
+    mocks.user = { name: "QC Staff", email: "staff@example.com", role: "qc-staff", roles: ["qc-staff"], permissions: [], position: "QC Head" };
+    renderPage();
+
+    await screen.findByText("P-2608-0001");
+    expect(screen.queryByRole("button", { name: /QC Head อนุมัติ/ })).not.toBeInTheDocument();
+  });
+
+  it("shows approval actions for the coa.approve permission", async () => {
+    mocks.user = { name: "QC Approver", email: "approver@example.com", role: "qc-staff", roles: ["qc-staff"], permissions: ["coa.approve"], position: "QC Staff" };
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: /QC Head อนุมัติ/ })).toBeInTheDocument();
+  });
+
   it("shows QC Head approval actions and sends the authenticated actor", async () => {
     mocks.user = qcHead;
     renderPage();
