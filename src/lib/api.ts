@@ -27,6 +27,7 @@ import type { DashboardId, StoredLayout, DashboardLayout } from "@/lib/dashboard
 import type { MethodDoc, MethodInput } from './methodRegistry';
 import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
 import type { GoodsReceipt, GoodsReceiptInput } from "@/types/goodsReceipt.types";
+import type { CoaDocument, EligibleCoaPetition } from "@/types/coa.types";
 
 type StockUserPayload = { _user?: { email?: string; name?: string } };
 export interface StockTransactionParams {
@@ -774,6 +775,34 @@ export const api = {
     request<MethodDoc>(`/methods/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteMethod: (id: string) =>
     request<{ ok: true }>(`/methods/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // COA Center
+  getCoaDocuments: (params?: { status?: string; petitionNo?: string; coaNo?: string; needsApproval?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set("status", params.status);
+    if (params?.petitionNo) q.set("petitionNo", params.petitionNo);
+    if (params?.coaNo) q.set("coaNo", params.coaNo);
+    if (params?.needsApproval) q.set("needsApproval", "1");
+    return request<{ items: CoaDocument[] }>(`/coa-documents${q.toString() ? `?${q}` : ""}`);
+  },
+  getEligibleCoaPetitions: () => request<{ items: EligibleCoaPetition[] }>("/coa-documents/eligible-petitions"),
+  createCoaDocument: (body: { petitionId: string; selectedItemSeqs: number[]; remark?: string; _user?: unknown }) =>
+    request<CoaDocument>("/coa-documents", { method: "POST", body: JSON.stringify(body) }),
+  getCoaDocument: (id: string) => request<CoaDocument>(`/coa-documents/${id}`),
+  updateCoaDocument: (id: string, body: { selectedItemSeqs?: number[]; remark?: string; _user?: unknown }) =>
+    request<CoaDocument>(`/coa-documents/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  submitCoaDocument: (id: string, body: { _user?: unknown }) =>
+    request<CoaDocument>(`/coa-documents/${id}/submit`, { method: "POST", body: JSON.stringify(body) }),
+  approveCoaDocument: (id: string, body: { _user?: unknown }) =>
+    request<CoaDocument>(`/coa-documents/${id}/approve`, { method: "POST", body: JSON.stringify(body) }),
+  rejectCoaDocument: (id: string, body: { reason: string; _user?: unknown }) =>
+    request<CoaDocument>(`/coa-documents/${id}/reject`, { method: "POST", body: JSON.stringify(body) }),
+  reviseCoaDocument: (id: string, body: { _user?: unknown }) =>
+    request<CoaDocument>(`/coa-documents/${id}/revise`, { method: "POST", body: JSON.stringify(body) }),
+  cancelCoaDocument: (id: string, body: { reason: string; _user?: unknown }) =>
+    request<CoaDocument>(`/coa-documents/${id}/cancel`, { method: "POST", body: JSON.stringify(body) }),
+  recordCoaPrintEvent: (id: string, body: { event: string; copies: number; outputMode: string; _user?: unknown }) =>
+    request<CoaDocument>(`/coa-documents/${id}/print-event`, { method: "POST", body: JSON.stringify(body) }),
 
   // Goods receipts (ฟอร์ม F-WAR-03-01,02 ของแผนก RM)
   getGoodsReceiptsByPetition: (petitionId: string) =>
