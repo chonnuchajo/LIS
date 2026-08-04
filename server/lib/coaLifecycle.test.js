@@ -13,6 +13,7 @@ const {
   buildCoaAuditEvent,
   writeCoaAuditEvent,
   recordCoaLifecycleAction,
+  applyCoaLifecycleAction,
   assertCanEditSnapshots,
   assertCanSupersede,
   buildSupersessionUpdate,
@@ -218,6 +219,74 @@ test('recordCoaLifecycleAction validates transition, actor, and persists audit e
   assert.equal(createdRows[0].actor.email, 'qc@example.com');
 });
 
+test('applyCoaLifecycleAction saves the transition and persists its audit event', async () => {
+  const createdRows = [];
+  const savedDocs = [];
+  const doc = {
+    _id: 'coa-id',
+    status: 'pendingApproval',
+    coaNo: '00012026',
+    petitionId: 'petition-id',
+    petitionNoSnapshot: 'P-001',
+    set(update) {
+      Object.assign(this, update);
+    },
+    async save() {
+      savedDocs.push({ status: this.status, remark: this.remark });
+      return this;
+    },
+  };
+  const stubAuditModel = {
+    create: async (payload) => {
+      createdRows.push(payload);
+      return { _id: 'audit-id', ...payload };
+    },
+  };
+
+  const result = await applyCoaLifecycleAction({
+    doc,
+    action: 'approve',
+    actor: { role: 'qc-head', name: 'QC Head', email: 'qc@example.com' },
+    update: { remark: 'Approved for issue' },
+    CoaAuditLogModel: stubAuditModel,
+  });
+
+  assert.equal(result.doc, doc);
+  assert.equal(doc.status, 'approved');
+  assert.deepEqual(savedDocs, [{ status: 'approved', remark: 'Approved for issue' }]);
+  assert.equal(createdRows.length, 1);
+  assert.equal(createdRows[0].event, 'approved');
+
+  const rejectedDoc = {
+    _id: 'rejected-coa-id',
+    status: 'pendingApproval',
+    save: async () => {
+      throw new Error('save must not be called for an invalid lifecycle action');
+    },
+  };
+  await assert.rejects(
+    () => applyCoaLifecycleAction({
+      doc: rejectedDoc,
+      action: 'approve',
+      actor: { role: 'lab-staff', name: 'Lab Staff', email: 'lab@example.com' },
+      CoaAuditLogModel: stubAuditModel,
+    }),
+    /QC Head required to approve COA/,
+  );
+  assert.equal(createdRows.length, 1);
+
+  await assert.rejects(
+    () => applyCoaLifecycleAction({
+      doc: rejectedDoc,
+      action: 'unknown-action',
+      actor: { role: 'qc-head', name: 'QC Head', email: 'qc@example.com' },
+      CoaAuditLogModel: stubAuditModel,
+    }),
+    /Unknown COA action unknown-action/,
+  );
+  assert.equal(createdRows.length, 1);
+});
+
 test('applySupersession performs reciprocal source and revision updates', async () => {
   const calls = [];
   const sessionCalls = [];
@@ -247,7 +316,7 @@ test('applySupersession performs reciprocal source and revision updates', async 
     startSession: async () => session,
     updateOne: async (filter, update, options) => {
       calls.push({ filter, update, options });
-      return { acknowledged: true, modifiedCount: 1 };
+      return { acknowledged: true, matchedCount: 1, modifiedCount: 1 };
     },
   };
 
@@ -257,7 +326,7 @@ test('applySupersession performs reciprocal source and revision updates', async 
     CoaDocumentModel: stubCoaDocumentModel,
   });
 
-  assert.deepEqual(result.source, { acknowledged: true, modifiedCount: 1 });
+  assert.deepEqual(result.source, { acknowledged: true, matchedCount: 1, modifiedCount: 1 });
   assert.deepEqual(sessionCalls, ['begin', 'commit', 'end']);
   assert.deepEqual(calls, [
     { findById: 'source-id', session },
@@ -339,6 +408,58 @@ test('applySupersession performs reciprocal source and revision updates', async 
   );
 });
 
+test('applySupersession uses a supplied session without nesting and rejects unmatched reciprocal updates', async () => {
+  const calls = [];
+  const providedSession = {
+    withTransaction: async () => {
+      throw new Error('provided session must not start a nested transaction');
+    },
+  };
+  const suppliedSessionModel = {
+    findById: () => ({
+      session: (session) => {
+        assert.equal(session, providedSession);
+        return { select: () => ({ lean: async () => ({ status: 'approved' }) }) };
+      },
+    }),
+    updateOne: async (_filter, _update, options) => {
+      calls.push(options.session);
+      return { acknowledged: true, matchedCount: 1, modifiedCount: 1 };
+    },
+    startSession: async () => {
+      throw new Error('provided session must not start another session');
+    },
+  };
+
+  await assert.doesNotReject(() => applySupersession({
+    sourceCoaId: 'source-id',
+    revisionCoaId: 'revision-id',
+    CoaDocumentModel: suppliedSessionModel,
+    session: providedSession,
+  }));
+  assert.deepEqual(calls, [providedSession, providedSession]);
+
+  const unmatchedModel = {
+    findById: () => ({
+      session: () => ({ select: () => ({ lean: async () => ({ status: 'approved' }) }) }),
+    }),
+    updateOne: async (filter) => ({
+      acknowledged: true,
+      matchedCount: filter._id === 'source-id' ? 1 : 0,
+      modifiedCount: filter._id === 'source-id' ? 1 : 0,
+    }),
+  };
+  await assert.rejects(
+    () => applySupersession({
+      sourceCoaId: 'source-id',
+      revisionCoaId: 'revision-id',
+      CoaDocumentModel: unmatchedModel,
+      session: {},
+    }),
+    /revision COA was not found for supersession/,
+  );
+});
+
 test('COA query update guard rejects cancellation without non-empty reason', () => {
   assert.throws(
     () => CoaDocument.validateCoaQueryUpdate({}, { $set: { status: 'cancelled' } }),
@@ -356,6 +477,24 @@ test('COA query update guard rejects cancellation without non-empty reason', () 
     {},
     { $set: { status: 'cancelled', 'cancel.reason': 'QC requested cancellation' } },
   ));
+  assert.throws(
+    () => CoaDocument.validateCoaQueryUpdate(
+      { _id: 'cancelled-id' },
+      { $unset: { 'cancel.reason': 1 } },
+      {},
+      { status: 'cancelled', cancel: { reason: 'Original reason' } },
+    ),
+    /COA cancellation reason is required/,
+  );
+  assert.throws(
+    () => CoaDocument.validateCoaQueryUpdate(
+      { _id: 'cancelled-id' },
+      { $set: { cancel: { reason: '  ' } } },
+      {},
+      { status: 'cancelled', cancel: { reason: 'Original reason' } },
+    ),
+    /COA cancellation reason is required/,
+  );
 });
 
 test('COA query update guard rejects issued snapshot edits unless override is set', () => {
@@ -378,6 +517,15 @@ test('COA query update guard rejects issued snapshot edits unless override is se
     { $set: { resultSnapshots: [{ itemSeq: 1, testItem: 'Assay' }] } },
     { allowCoaIssuedSnapshotMutation: true },
   ));
+  assert.throws(
+    () => CoaDocument.validateCoaQueryUpdate(
+      { _id: 'issued-id' },
+      { $set: { 'sampleSnapshots.0.sampleName': 'Edited Sample' } },
+      {},
+      { status: 'printed' },
+    ),
+    /Cannot edit issued COA snapshots/,
+  );
 });
 
 test('printable statuses exclude pending, cancelled, and superseded documents', () => {

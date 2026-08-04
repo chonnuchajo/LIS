@@ -51,6 +51,14 @@ const lifecycleActionEvents = {
   update: () => 'updated',
 };
 
+const lifecycleActionStatuses = {
+  submit: (status) => (status === 'revisionDraft' ? 'pendingRevisionApproval' : 'pendingApproval'),
+  approve: (status) => (status === 'pendingRevisionApproval' ? 'reissued' : 'approved'),
+  reject: () => 'rejected',
+  cancel: () => 'cancelled',
+  print: () => 'printed',
+};
+
 function normalizeRole(value) {
   return String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
 }
@@ -132,7 +140,8 @@ async function recordCoaLifecycleAction({
   if (!doc || !doc._id) {
     throw new Error('COA lifecycle action requires a COA document');
   }
-  assertCanTransition(doc.status, action, actor);
+  const sourceStatus = doc.status;
+  assertCanTransition(sourceStatus, action, actor);
   const eventForAction = lifecycleActionEvents[action];
   if (!eventForAction) {
     throw new Error(`Unknown COA action ${action}`);
@@ -145,6 +154,106 @@ async function recordCoaLifecycleAction({
     { action, ...(metadata || {}) },
     CoaAuditLogModel,
   );
+}
+
+function getLifecycleUpdateStatus(update = {}) {
+  if (Object.prototype.hasOwnProperty.call(update, 'status')) return update.status;
+  if (update.$set && Object.prototype.hasOwnProperty.call(update.$set, 'status')) return update.$set.status;
+  return undefined;
+}
+
+function getLifecycleCancellationReason(doc, update = {}) {
+  if (Object.prototype.hasOwnProperty.call(update, 'cancel.reason')) return update['cancel.reason'];
+  if (update.$set && Object.prototype.hasOwnProperty.call(update.$set, 'cancel.reason')) {
+    return update.$set['cancel.reason'];
+  }
+  if (Object.prototype.hasOwnProperty.call(update, 'cancel')) return update.cancel && update.cancel.reason;
+  if (update.$set && Object.prototype.hasOwnProperty.call(update.$set, 'cancel')) {
+    return update.$set.cancel && update.$set.cancel.reason;
+  }
+  return doc.cancel && doc.cancel.reason;
+}
+
+function applyDocumentUpdate(doc, update = {}) {
+  const setUpdate = { ...update };
+  if (setUpdate.$set) {
+    Object.assign(setUpdate, setUpdate.$set);
+    delete setUpdate.$set;
+  }
+  if (Object.keys(setUpdate).some((key) => key.startsWith('$'))) {
+    throw new Error('COA lifecycle updates must use document fields');
+  }
+  if (typeof doc.set === 'function') {
+    doc.set(setUpdate);
+  } else {
+    Object.assign(doc, setUpdate);
+  }
+}
+
+async function applyCoaLifecycleAction({
+  doc,
+  action,
+  actor,
+  note,
+  metadata,
+  update = {},
+  CoaAuditLogModel,
+} = {}) {
+  if (!doc || !doc._id) {
+    throw new Error('COA lifecycle action requires a COA document');
+  }
+  if (typeof doc.save !== 'function') {
+    throw new Error('COA lifecycle action requires a saveable COA document');
+  }
+
+  const sourceStatus = doc.status;
+  assertCanTransition(sourceStatus, action, actor);
+  const eventForAction = lifecycleActionEvents[action];
+  if (!eventForAction) {
+    throw new Error(`Unknown COA action ${action}`);
+  }
+  const nextStatusForAction = lifecycleActionStatuses[action];
+  const nextStatus = nextStatusForAction ? nextStatusForAction(sourceStatus) : undefined;
+  const event = eventForAction(sourceStatus);
+  const requestedStatus = getLifecycleUpdateStatus(update);
+  if (requestedStatus !== undefined && requestedStatus !== nextStatus) {
+    throw new Error(`COA lifecycle action ${action} cannot set status to ${requestedStatus}`);
+  }
+  if (action === 'cancel') {
+    assertValidCancellation(getLifecycleCancellationReason(doc, update));
+  }
+
+  // Validate the actor and audit payload before mutating or saving the document.
+  buildCoaAuditEvent({
+    coaId: doc._id,
+    coaNo: doc.coaNo,
+    petitionId: doc.petitionId,
+    petitionNo: doc.petitionNoSnapshot,
+    event,
+    actor,
+    note,
+    metadata: { action, ...(metadata || {}) },
+  });
+
+  applyDocumentUpdate(doc, update);
+  if (nextStatus !== undefined) {
+    if (typeof doc.set === 'function') {
+      doc.set({ status: nextStatus, updatedBy: actor });
+    } else {
+      doc.status = nextStatus;
+      doc.updatedBy = actor;
+    }
+  }
+  await doc.save();
+  const audit = await writeCoaAuditEvent(
+    doc,
+    event,
+    actor,
+    note,
+    { action, ...(metadata || {}) },
+    CoaAuditLogModel,
+  );
+  return { doc, audit };
 }
 
 function assertCanEditSnapshots(status) {
@@ -208,27 +317,33 @@ async function applySupersession({ sourceCoaId, revisionCoaId, CoaDocumentModel,
       { $set: updates.replacement },
       options,
     );
+    assertSupersessionUpdateMatched(source, 'source');
+    assertSupersessionUpdateMatched(revision, 'revision');
     return { source, revision };
   };
 
+  if (session) {
+    return runUpdates();
+  }
+
   try {
-    if (typeof activeSession.withTransaction === 'function') {
-      return await activeSession.withTransaction(runUpdates);
+    if (typeof activeSession.withTransaction !== 'function') {
+      throw new Error('COA supersession requires a transaction session');
     }
-    const result = await runUpdates();
-    if (typeof activeSession.commitTransaction === 'function') {
-      await activeSession.commitTransaction();
-    }
-    return result;
-  } catch (error) {
-    if (typeof activeSession.abortTransaction === 'function') {
-      await activeSession.abortTransaction();
-    }
-    throw error;
+    return await activeSession.withTransaction(runUpdates);
   } finally {
     if (ownedSession && typeof ownedSession.endSession === 'function') {
       await ownedSession.endSession();
     }
+  }
+}
+
+function assertSupersessionUpdateMatched(result, label) {
+  const matchedCount = result && (
+    result.matchedCount ?? result.n ?? (result.result && result.result.n)
+  );
+  if (matchedCount === 0) {
+    throw new Error(`${label} COA was not found for supersession`);
   }
 }
 
@@ -266,6 +381,7 @@ module.exports = {
   buildCoaAuditEvent,
   writeCoaAuditEvent,
   recordCoaLifecycleAction,
+  applyCoaLifecycleAction,
   assertCanEditSnapshots,
   assertCanSupersede,
   buildSupersessionUpdate,

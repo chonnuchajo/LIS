@@ -85,13 +85,47 @@ function getUpdateValue(update = {}, path) {
   return undefined;
 }
 
-function hasNonEmptyUpdateValue(update, path) {
-  const value = getUpdateValue(update, path);
-  return typeof value === 'string' && value.trim().length > 0;
+function getCurrentCancellationReason(doc) {
+  return doc && doc.cancel ? doc.cancel.reason : undefined;
 }
 
-function updateSetsStatus(update, status) {
-  return getUpdateValue(update, 'status') === status;
+function updateTouchesPath(update = {}, path) {
+  const updateBuckets = [update];
+  for (const [key, value] of Object.entries(update)) {
+    if (key.startsWith('$') && value && typeof value === 'object') {
+      updateBuckets.push(value);
+    }
+  }
+  return updateBuckets.some((bucket) => Object.keys(bucket).some((key) => (
+    key === path || key.startsWith(`${path}.`)
+  )));
+}
+
+function updateTouchesCancellation(update = {}) {
+  return updateTouchesPath(update, 'status') || updateTouchesPath(update, 'cancel');
+}
+
+function cancellationReasonAfterUpdate(update = {}, currentDoc) {
+  if (updateTouchesPath(update, 'cancel.reason')) {
+    if (update.$unset && Object.prototype.hasOwnProperty.call(update.$unset, 'cancel.reason')) {
+      return undefined;
+    }
+    if (update.$rename && Object.prototype.hasOwnProperty.call(update.$rename, 'cancel.reason')) {
+      return undefined;
+    }
+    return getUpdateValue(update, 'cancel.reason');
+  }
+  if (updateTouchesPath(update, 'cancel')) {
+    if (update.$unset && Object.prototype.hasOwnProperty.call(update.$unset, 'cancel')) {
+      return undefined;
+    }
+    if (update.$rename && Object.prototype.hasOwnProperty.call(update.$rename, 'cancel')) {
+      return undefined;
+    }
+    const cancel = getUpdateValue(update, 'cancel');
+    return cancel && typeof cancel === 'object' ? cancel.reason : undefined;
+  }
+  return getCurrentCancellationReason(currentDoc);
 }
 
 function filterTargetsIssuedStatus(filter = {}) {
@@ -107,6 +141,22 @@ function filterTargetsIssuedStatus(filter = {}) {
   return false;
 }
 
+function filterProvesEditableStatus(filter = {}) {
+  const status = filter.status;
+  if (editableStatus(status)) return true;
+  if (status && editableStatus(status.$eq)) return true;
+  return Boolean(
+    status &&
+    Array.isArray(status.$in) &&
+    status.$in.length > 0 &&
+    status.$in.every((value) => editableStatus(value))
+  );
+}
+
+function editableStatus(status) {
+  return status === 'draft' || status === 'revisionDraft';
+}
+
 function updateTouchesSnapshot(update = {}) {
   const updateBuckets = [update];
   for (const [key, value] of Object.entries(update)) {
@@ -119,21 +169,28 @@ function updateTouchesSnapshot(update = {}) {
   )));
 }
 
-function validateCoaQueryUpdate(filter = {}, update = {}, options = {}) {
-  if (updateSetsStatus(update, 'cancelled') && !hasNonEmptyUpdateValue(update, 'cancel.reason')) {
-    const cancel = getUpdateValue(update, 'cancel');
-    if (!cancel || typeof cancel.reason !== 'string' || cancel.reason.trim().length === 0) {
-      throw new Error('COA cancellation reason is required');
-    }
+function validateCoaQueryUpdate(filter = {}, update = {}, options = {}, currentDoc) {
+  const nextStatus = getUpdateValue(update, 'status');
+  const effectiveStatus = nextStatus === undefined ? currentDoc && currentDoc.status : nextStatus;
+  if (
+    updateTouchesCancellation(update) &&
+    effectiveStatus === 'cancelled' &&
+    !hasNonEmptyCancellationReason(cancellationReasonAfterUpdate(update, currentDoc))
+  ) {
+    throw new Error('COA cancellation reason is required');
   }
 
   if (
-    filterTargetsIssuedStatus(filter) &&
     updateTouchesSnapshot(update) &&
-    !options.allowCoaIssuedSnapshotMutation
+    !options.allowCoaIssuedSnapshotMutation &&
+    (filterTargetsIssuedStatus(filter) || (currentDoc && ISSUED_SNAPSHOT_STATUSES.has(currentDoc.status)))
   ) {
     throw new Error('Cannot edit issued COA snapshots');
   }
+}
+
+function hasNonEmptyCancellationReason(value) {
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
 const CoaDocumentSchema = new mongoose.Schema(
@@ -203,13 +260,23 @@ CoaDocumentSchema.pre('validate', function validateCancellationAndSnapshots(next
   next();
 });
 
-function validateCoaQueryUpdateMiddleware(next) {
-  try {
-    validateCoaQueryUpdate(this.getFilter(), this.getUpdate(), this.getOptions());
-    next();
-  } catch (error) {
-    next(error);
+async function validateCoaQueryUpdateMiddleware() {
+  const filter = this.getFilter();
+  const update = this.getUpdate();
+  const options = this.getOptions();
+  const needsCurrentDoc =
+    updateTouchesCancellation(update) ||
+    (updateTouchesSnapshot(update) && !options.allowCoaIssuedSnapshotMutation && !filterProvesEditableStatus(filter));
+  let currentDoc;
+
+  if (needsCurrentDoc) {
+    let lookup = this.model.findOne(filter).select('status cancel.reason');
+    if (options.session && typeof lookup.session === 'function') {
+      lookup = lookup.session(options.session);
+    }
+    currentDoc = await lookup.lean();
   }
+  validateCoaQueryUpdate(filter, update, options, currentDoc);
 }
 
 CoaDocumentSchema.pre('updateOne', validateCoaQueryUpdateMiddleware);
