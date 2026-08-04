@@ -371,6 +371,76 @@ function actorFromBody(body = {}) {
   };
 }
 
+function selectedItemsFromPetition(petition, selectedItemSeqs) {
+  const wanted = new Set((selectedItemSeqs || []).map(Number));
+  if (wanted.size === 0) throw new Error('COA must include at least one sample');
+  const items = Array.isArray(petition?.items) ? petition.items : [];
+  const selected = items.filter((item) => wanted.has(Number(item.seq)));
+  const found = new Set(selected.map((item) => Number(item.seq)));
+  const missing = [...wanted].filter((seq) => !found.has(seq));
+  if (missing.length) throw new Error(`Invalid COA item seqs: ${missing.join(', ')}`);
+  return selected;
+}
+
+function itemSnapshot(item) {
+  return {
+    itemSeq: item.seq,
+    sampleName: item.sampleName || item.commonName || '-',
+    commonName: item.commonName || '',
+    batchNo: item.batchNo || '',
+    lotNo: item.lotNo || '',
+    productionDate: item.productionDate || '',
+    sampleId: item.sampleId || '',
+    condition: item.condition || '',
+    manufacturer: item.labelManufacturer || item.labelSeller || '',
+  };
+}
+
+function buildCoaSnapshots({
+  petition,
+  labRequests = [],
+  parameters = [],
+  qcResults = [],
+  selectedItemSeqs,
+  groupMembership,
+} = {}) {
+  const selectedItems = selectedItemsFromPetition(petition, selectedItemSeqs);
+  const selectedSeqs = new Set(selectedItems.map((item) => Number(item.seq)));
+  const parameterById = new Map(parameters.map((parameter) => [String(parameter._id), parameter]));
+  const firstLabRequest = labRequests[0] || {};
+  const requester = firstLabRequest.requester || {};
+  const resultSnapshots = [];
+
+  for (const result of qcResults) {
+    if (!selectedSeqs.has(Number(result.itemSeq))) continue;
+    const parameter = parameterById.get(String(result.parameterId));
+    if ((parameter?.scope || 'qc') !== 'lab') continue;
+    for (const [testItem, value] of Object.entries(result.values || {})) {
+      resultSnapshots.push({
+        itemSeq: result.itemSeq,
+        testItem,
+        result: value == null || String(value).trim() === '' ? '-' : String(value),
+        criteria: '-',
+        method: '-',
+        unit: '',
+      });
+    }
+  }
+
+  return {
+    petitionNoSnapshot: petition.petitionNo,
+    customerSnapshot: {
+      name: firstLabRequest.reportCustomerName || requester.fullName || petition.submittedBy?.name || '-',
+      company: 'บริษัท ไอ ซี พี ลัดดา จำกัด',
+      department: requester.department || '',
+      email: requester.email || '',
+      phone: requester.phone || '',
+    },
+    sampleSnapshots: selectedItems.map(itemSnapshot),
+    resultSnapshots,
+  };
+}
+
 module.exports = {
   COA_STATUSES,
   COA_AUDIT_EVENTS,
@@ -388,4 +458,6 @@ module.exports = {
   buildSupersessionUpdate,
   applySupersession,
   actorFromBody,
+  selectedItemsFromPetition,
+  buildCoaSnapshots,
 };
