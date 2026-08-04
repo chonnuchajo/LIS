@@ -71,6 +71,9 @@ const STATUS = [
   'rejected',
 ];
 
+const ISSUED_SNAPSHOT_STATUSES = new Set(['approved', 'printed', 'reissued', 'cancelled', 'superseded']);
+const SNAPSHOT_PATHS = ['customerSnapshot', 'sampleSnapshots', 'resultSnapshots'];
+
 const CoaDocumentSchema = new mongoose.Schema(
   {
     coaNo: { type: String, default: null, index: true },
@@ -117,6 +120,26 @@ CoaDocumentSchema.index(
 CoaDocumentSchema.index({ petitionId: 1, status: 1 });
 CoaDocumentSchema.index({ status: 1, updatedAt: -1 });
 CoaDocumentSchema.index({ coaYear: 1, sequence: -1 });
+
+CoaDocumentSchema.pre('validate', function validateCancellationAndSnapshots(next) {
+  if (
+    this.status === 'cancelled' &&
+    (!this.cancel || typeof this.cancel.reason !== 'string' || this.cancel.reason.trim().length === 0)
+  ) {
+    this.invalidate('cancel.reason', 'COA cancellation reason is required');
+  }
+
+  if (
+    !this.isNew &&
+    ISSUED_SNAPSHOT_STATUSES.has(this.status) &&
+    !this.$locals.allowIssuedSnapshotMutation &&
+    SNAPSHOT_PATHS.some((path) => this.isModified(path))
+  ) {
+    this.invalidate('customerSnapshot', 'Cannot edit issued COA snapshots');
+  }
+
+  next();
+});
 
 module.exports = mongoose.model('CoaDocument', CoaDocumentSchema);
 module.exports.COA_STATUSES = STATUS;

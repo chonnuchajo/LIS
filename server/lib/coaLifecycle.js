@@ -24,10 +24,8 @@ const transitions = {
 const protectedActions = new Set(['approve', 'reject', 'cancel']);
 const editableSnapshotStatuses = new Set(['draft', 'revisionDraft']);
 const supersedableStatuses = new Set(['approved', 'printed', 'reissued']);
-const printableStatuses = new Set(transitions.print);
-const activePrintableStatuses = Object.freeze({
-  has: (status) => printableStatuses.has(status),
-});
+// Prefer canPrintStatus() for read checks; this Set remains exported for Task 1 compatibility.
+const activePrintableStatuses = new Set(transitions.print);
 
 const COA_AUDIT_EVENTS = [
   'created',
@@ -96,6 +94,23 @@ function buildCoaAuditEvent(input = {}) {
   };
 }
 
+async function writeCoaAuditEvent(doc, event, actor, note, metadata, CoaAuditLogModel) {
+  const AuditModel = CoaAuditLogModel || require('../models/CoaAuditLog');
+  if (!doc || !doc._id) {
+    throw new Error('COA audit event requires a COA document');
+  }
+  return AuditModel.create(buildCoaAuditEvent({
+    coaId: doc._id,
+    coaNo: doc.coaNo,
+    petitionId: doc.petitionId,
+    petitionNo: doc.petitionNoSnapshot,
+    event,
+    actor,
+    note,
+    metadata,
+  }));
+}
+
 function assertCanEditSnapshots(status) {
   if (!editableSnapshotStatuses.has(status)) {
     throw new Error(`Cannot edit COA snapshots from ${status}`);
@@ -119,8 +134,33 @@ function buildSupersessionUpdate({ sourceCoaId, replacementCoaId, sourceStatus }
   };
 }
 
+async function applySupersession({ sourceCoaId, revisionCoaId, CoaDocumentModel } = {}) {
+  const DocumentModel = CoaDocumentModel || require('../models/CoaDocument');
+  if (!sourceCoaId || !revisionCoaId) {
+    throw new Error('COA supersession requires source and revision IDs');
+  }
+  const sourceDoc = await DocumentModel.findById(sourceCoaId).select('status').lean();
+  if (!sourceDoc) {
+    throw new Error('Source COA not found for supersession');
+  }
+  const updates = buildSupersessionUpdate({
+    sourceCoaId,
+    replacementCoaId: revisionCoaId,
+    sourceStatus: sourceDoc.status,
+  });
+  const source = await DocumentModel.updateOne(
+    { _id: sourceCoaId },
+    { $set: updates.source },
+  );
+  const revision = await DocumentModel.updateOne(
+    { _id: revisionCoaId },
+    { $set: updates.replacement },
+  );
+  return { source, revision };
+}
+
 function canPrintStatus(status) {
-  return printableStatuses.has(status);
+  return activePrintableStatuses.has(status);
 }
 
 function actorFromBody(body = {}) {
@@ -141,8 +181,10 @@ module.exports = {
   assertCanTransition,
   assertValidCancellation,
   buildCoaAuditEvent,
+  writeCoaAuditEvent,
   assertCanEditSnapshots,
   assertCanSupersede,
   buildSupersessionUpdate,
+  applySupersession,
   actorFromBody,
 };

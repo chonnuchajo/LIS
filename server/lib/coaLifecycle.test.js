@@ -11,9 +11,11 @@ const {
   canPrintStatus,
   assertValidCancellation,
   buildCoaAuditEvent,
+  writeCoaAuditEvent,
   assertCanEditSnapshots,
   assertCanSupersede,
   buildSupersessionUpdate,
+  applySupersession,
 } = require('./coaLifecycle');
 
 test('formatCoaNo pads sequence to four digits and appends Gregorian year', () => {
@@ -101,7 +103,132 @@ test('COA document and audit schemas reject missing cancellation and actor ident
   assert.ok(auditErrors['actor.email']);
 });
 
+test('cancelled COA documents require cancellation reason even when cancel payload is missing', async () => {
+  const coa = new CoaDocument({
+    petitionId: new mongoose.Types.ObjectId(),
+    status: 'cancelled',
+  });
+
+  await assert.rejects(() => coa.validate(), /COA cancellation reason is required/);
+});
+
+test('issued COA snapshot fields cannot be modified without internal override', async () => {
+  const issuedCoa = CoaDocument.hydrate({
+    _id: new mongoose.Types.ObjectId(),
+    petitionId: new mongoose.Types.ObjectId(),
+    status: 'approved',
+    customerSnapshot: { name: 'Original Customer' },
+    sampleSnapshots: [{ itemSeq: 1, sampleName: 'Original Sample' }],
+    resultSnapshots: [{ itemSeq: 1, testItem: 'Assay', result: 'Pass' }],
+  });
+
+  issuedCoa.customerSnapshot = { name: 'Edited Customer' };
+  await assert.rejects(() => issuedCoa.validate(), /Cannot edit issued COA snapshots/);
+
+  const overrideCoa = CoaDocument.hydrate({
+    _id: new mongoose.Types.ObjectId(),
+    petitionId: new mongoose.Types.ObjectId(),
+    status: 'approved',
+    customerSnapshot: { name: 'Original Customer' },
+  });
+  overrideCoa.customerSnapshot = { name: 'Frozen Approval Snapshot' };
+  overrideCoa.$locals.allowIssuedSnapshotMutation = true;
+
+  await assert.doesNotReject(() => overrideCoa.validate());
+});
+
+test('writeCoaAuditEvent persists a validated audit event', async () => {
+  const createdRows = [];
+  const stubAuditModel = {
+    create: async (payload) => {
+      createdRows.push(payload);
+      return { _id: 'audit-id', ...payload };
+    },
+  };
+  const doc = {
+    _id: 'coa-id',
+    coaNo: '00012026',
+    petitionId: 'petition-id',
+    petitionNoSnapshot: 'P-001',
+  };
+
+  const row = await writeCoaAuditEvent(
+    doc,
+    'approved',
+    { name: 'QC Head', email: 'qc@example.com', role: 'qc-head' },
+    'Approved for release',
+    { status: 'approved' },
+    stubAuditModel,
+  );
+
+  assert.equal(row._id, 'audit-id');
+  assert.equal(createdRows.length, 1);
+  assert.equal(createdRows[0].coaId, 'coa-id');
+  assert.equal(createdRows[0].event, 'approved');
+  assert.equal(createdRows[0].note, 'Approved for release');
+  assert.deepEqual(createdRows[0].metadata, { status: 'approved' });
+  assert.ok(createdRows[0].createdAt instanceof Date);
+
+  await assert.rejects(
+    () => writeCoaAuditEvent(doc, 'approved', { name: 'QC Head' }, null, null, stubAuditModel),
+    /actor email is required/,
+  );
+});
+
+test('applySupersession performs reciprocal source and revision updates', async () => {
+  const calls = [];
+  const stubCoaDocumentModel = {
+    findById: (id) => ({
+      select: () => ({
+        lean: async () => ({ _id: id, status: 'printed' }),
+      }),
+    }),
+    updateOne: async (filter, update) => {
+      calls.push({ filter, update });
+      return { acknowledged: true, modifiedCount: 1 };
+    },
+  };
+
+  const result = await applySupersession({
+    sourceCoaId: 'source-id',
+    revisionCoaId: 'revision-id',
+    CoaDocumentModel: stubCoaDocumentModel,
+  });
+
+  assert.deepEqual(result.source, { acknowledged: true, modifiedCount: 1 });
+  assert.deepEqual(calls, [
+    {
+      filter: { _id: 'source-id' },
+      update: { $set: { status: 'superseded', supersededByCoaId: 'revision-id' } },
+    },
+    {
+      filter: { _id: 'revision-id' },
+      update: { $set: { status: 'reissued', supersedesCoaId: 'source-id' } },
+    },
+  ]);
+
+  const draftSourceModel = {
+    findById: () => ({
+      select: () => ({
+        lean: async () => ({ status: 'draft' }),
+      }),
+    }),
+    updateOne: async () => {
+      throw new Error('updateOne should not be called for draft supersession source');
+    },
+  };
+  await assert.rejects(
+    () => applySupersession({
+      sourceCoaId: 'draft-source-id',
+      revisionCoaId: 'revision-id',
+      CoaDocumentModel: draftSourceModel,
+    }),
+    /Cannot supersede COA from draft/,
+  );
+});
+
 test('printable statuses exclude pending, cancelled, and superseded documents', () => {
+  assert.equal(activePrintableStatuses instanceof Set, true);
   assert.equal(activePrintableStatuses.has('approved'), true);
   assert.equal(activePrintableStatuses.has('printed'), true);
   assert.equal(activePrintableStatuses.has('reissued'), true);
@@ -109,5 +236,4 @@ test('printable statuses exclude pending, cancelled, and superseded documents', 
   assert.equal(activePrintableStatuses.has('cancelled'), false);
   assert.equal(activePrintableStatuses.has('superseded'), false);
   assert.equal(canPrintStatus('approved'), true);
-  assert.equal(Object.isFrozen(activePrintableStatuses), true);
 });
