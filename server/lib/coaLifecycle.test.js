@@ -287,6 +287,43 @@ test('applyCoaLifecycleAction saves the transition and persists its audit event'
   assert.equal(createdRows.length, 1);
 });
 
+test('applyCoaLifecycleAction moves revise actions to revision draft and audits creation', async () => {
+  const createdRows = [];
+  const savedStatuses = [];
+  const doc = {
+    _id: 'approved-coa-id',
+    status: 'approved',
+    coaNo: '00012026',
+    petitionId: 'petition-id',
+    petitionNoSnapshot: 'P-001',
+    set(update) {
+      Object.assign(this, update);
+    },
+    async save() {
+      savedStatuses.push(this.status);
+      return this;
+    },
+  };
+  const stubAuditModel = {
+    create: async (payload) => {
+      createdRows.push(payload);
+      return { _id: 'audit-id', ...payload };
+    },
+  };
+
+  await applyCoaLifecycleAction({
+    doc,
+    action: 'revise',
+    actor: { role: 'lab-staff', name: 'Lab Staff', email: 'lab@example.com' },
+    CoaAuditLogModel: stubAuditModel,
+  });
+
+  assert.equal(doc.status, 'revisionDraft');
+  assert.deepEqual(savedStatuses, ['revisionDraft']);
+  assert.equal(createdRows.length, 1);
+  assert.equal(createdRows[0].event, 'revisionCreated');
+});
+
 test('applySupersession performs reciprocal source and revision updates', async () => {
   const calls = [];
   const sessionCalls = [];
@@ -497,6 +534,27 @@ test('COA query update guard rejects cancellation without non-empty reason', () 
   );
 });
 
+test('COA query update guard rejects pipeline cancellation lifecycle changes', () => {
+  assert.throws(
+    () => CoaDocument.validateCoaQueryUpdate(
+      { _id: 'cancelled-id' },
+      [{ $unset: 'cancel.reason' }],
+      {},
+      { status: 'cancelled', cancel: { reason: 'Original reason' } },
+    ),
+    /COA aggregation pipeline updates cannot modify lifecycle fields/,
+  );
+  assert.throws(
+    () => CoaDocument.validateCoaQueryUpdate(
+      { _id: 'approved-id' },
+      [{ $set: { status: 'cancelled' } }],
+      {},
+      { status: 'approved' },
+    ),
+    /COA aggregation pipeline updates cannot modify lifecycle fields/,
+  );
+});
+
 test('COA query update guard rejects issued snapshot edits unless override is set', () => {
   assert.throws(
     () => CoaDocument.validateCoaQueryUpdate(
@@ -526,6 +584,26 @@ test('COA query update guard rejects issued snapshot edits unless override is se
     ),
     /Cannot edit issued COA snapshots/,
   );
+});
+
+test('COA query update guard detects pipeline issued snapshot edits and honors override', () => {
+  const update = [{ $set: { 'sampleSnapshots.0.sampleName': 'Edited Sample' } }];
+
+  assert.throws(
+    () => CoaDocument.validateCoaQueryUpdate(
+      { _id: 'issued-id' },
+      update,
+      {},
+      { status: 'approved' },
+    ),
+    /Cannot edit issued COA snapshots/,
+  );
+  assert.doesNotThrow(() => CoaDocument.validateCoaQueryUpdate(
+    { _id: 'issued-id' },
+    update,
+    { allowCoaIssuedSnapshotMutation: true },
+    { status: 'approved' },
+  ));
 });
 
 test('printable statuses exclude pending, cancelled, and superseded documents', () => {

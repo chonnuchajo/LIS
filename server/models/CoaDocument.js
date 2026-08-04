@@ -90,6 +90,21 @@ function getCurrentCancellationReason(doc) {
 }
 
 function updateTouchesPath(update = {}, path) {
+  if (Array.isArray(update)) {
+    return update.some((stage) => updateTouchesPath(stage, path));
+  }
+
+  if (update.$replaceRoot || update.$replaceWith) return true;
+  const unsetPaths = update.$unset;
+  if (
+    (typeof unsetPaths === 'string' && (unsetPaths === path || unsetPaths.startsWith(`${path}.`))) ||
+    (Array.isArray(unsetPaths) && unsetPaths.some((value) => (
+      value === path || value.startsWith(`${path}.`)
+    )))
+  ) {
+    return true;
+  }
+
   const updateBuckets = [update];
   for (const [key, value] of Object.entries(update)) {
     if (key.startsWith('$') && value && typeof value === 'object') {
@@ -158,18 +173,14 @@ function editableStatus(status) {
 }
 
 function updateTouchesSnapshot(update = {}) {
-  const updateBuckets = [update];
-  for (const [key, value] of Object.entries(update)) {
-    if (key.startsWith('$') && value && typeof value === 'object') {
-      updateBuckets.push(value);
-    }
-  }
-  return updateBuckets.some((bucket) => Object.keys(bucket).some((key) => (
-    SNAPSHOT_PATHS.some((path) => key === path || key.startsWith(`${path}.`))
-  )));
+  return SNAPSHOT_PATHS.some((path) => updateTouchesPath(update, path));
 }
 
 function validateCoaQueryUpdate(filter = {}, update = {}, options = {}, currentDoc) {
+  if (Array.isArray(update) && updateTouchesCancellation(update)) {
+    throw new Error('COA aggregation pipeline updates cannot modify lifecycle fields');
+  }
+
   const nextStatus = getUpdateValue(update, 'status');
   const effectiveStatus = nextStatus === undefined ? currentDoc && currentDoc.status : nextStatus;
   if (

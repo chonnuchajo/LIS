@@ -55,6 +55,7 @@ const lifecycleActionStatuses = {
   submit: (status) => (status === 'revisionDraft' ? 'pendingRevisionApproval' : 'pendingApproval'),
   approve: (status) => (status === 'pendingRevisionApproval' ? 'reissued' : 'approved'),
   reject: () => 'rejected',
+  revise: () => 'revisionDraft',
   cancel: () => 'cancelled',
   print: () => 'printed',
 };
