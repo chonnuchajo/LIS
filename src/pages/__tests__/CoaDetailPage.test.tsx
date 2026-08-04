@@ -122,6 +122,13 @@ describe("CoaDetailPage", () => {
     expect(await screen.findByRole("button", { name: /QC Head อนุมัติ/ })).toBeInTheDocument();
   });
 
+  it("shows approval actions for the active QC Head role without approval permissions", async () => {
+    mocks.user = { name: "QC Head", email: "qc@example.com", role: "qc-head", roles: ["qc-head", "qc-staff"], permissions: [], position: "QC Staff" };
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: /QC Head อนุมัติ/ })).toBeInTheDocument();
+  });
+
   it("shows QC Head approval actions and sends the authenticated actor", async () => {
     mocks.user = qcHead;
     renderPage();
