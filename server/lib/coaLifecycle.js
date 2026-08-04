@@ -113,12 +113,12 @@ function buildCoaAuditEvent(input = {}) {
   };
 }
 
-async function writeCoaAuditEvent(doc, event, actor, note, metadata, CoaAuditLogModel) {
+async function writeCoaAuditEvent(doc, event, actor, note, metadata, CoaAuditLogModel, session) {
   const AuditModel = CoaAuditLogModel || require('../models/CoaAuditLog');
   if (!doc || !doc._id) {
     throw new Error('COA audit event requires a COA document');
   }
-  return AuditModel.create(buildCoaAuditEvent({
+  const auditEvent = buildCoaAuditEvent({
     coaId: doc._id,
     coaNo: doc.coaNo,
     petitionId: doc.petitionId,
@@ -127,7 +127,8 @@ async function writeCoaAuditEvent(doc, event, actor, note, metadata, CoaAuditLog
     actor,
     note,
     metadata,
-  }));
+  });
+  return session ? AuditModel.create(auditEvent, { session }) : AuditModel.create(auditEvent);
 }
 
 async function recordCoaLifecycleAction({
@@ -199,6 +200,7 @@ async function applyCoaLifecycleAction({
   metadata,
   update = {},
   CoaAuditLogModel,
+  session,
 } = {}) {
   if (!doc || !doc._id) {
     throw new Error('COA lifecycle action requires a COA document');
@@ -245,7 +247,7 @@ async function applyCoaLifecycleAction({
       doc.updatedBy = actor;
     }
   }
-  await doc.save();
+  await doc.save(session ? { session } : undefined);
   const audit = await writeCoaAuditEvent(
     doc,
     event,
@@ -253,6 +255,7 @@ async function applyCoaLifecycleAction({
     note,
     { action, ...(metadata || {}) },
     CoaAuditLogModel,
+    session,
   );
   return { doc, audit };
 }
@@ -284,7 +287,15 @@ function resolveQuerySession(query, session) {
   return session && typeof query.session === 'function' ? query.session(session) : query;
 }
 
-async function applySupersession({ sourceCoaId, revisionCoaId, CoaDocumentModel, session } = {}) {
+async function applySupersession({
+  sourceCoaId,
+  revisionCoaId,
+  CoaDocumentModel,
+  CoaAuditLogModel,
+  actor,
+  note = 'Superseded by approved COA revision',
+  session,
+} = {}) {
   const DocumentModel = CoaDocumentModel || require('../models/CoaDocument');
   if (!sourceCoaId || !revisionCoaId) {
     throw new Error('COA supersession requires source and revision IDs');
@@ -297,7 +308,7 @@ async function applySupersession({ sourceCoaId, revisionCoaId, CoaDocumentModel,
 
   const runUpdates = async () => {
     const sourceDoc = await resolveQuerySession(DocumentModel.findById(sourceCoaId), activeSession)
-      .select('status')
+      .select('status coaNo petitionId petitionNoSnapshot')
       .lean();
     if (!sourceDoc) {
       throw new Error('Source COA not found for supersession');
@@ -307,10 +318,11 @@ async function applySupersession({ sourceCoaId, revisionCoaId, CoaDocumentModel,
       replacementCoaId: revisionCoaId,
       sourceStatus: sourceDoc.status,
     });
+    const sourceUpdate = actor ? { ...updates.source, updatedBy: actor } : updates.source;
     const options = { session: activeSession, allowCoaIssuedSnapshotMutation: true };
     const source = await DocumentModel.updateOne(
       { _id: sourceCoaId },
-      { $set: updates.source },
+      { $set: sourceUpdate },
       options,
     );
     const revision = await DocumentModel.updateOne(
@@ -320,7 +332,19 @@ async function applySupersession({ sourceCoaId, revisionCoaId, CoaDocumentModel,
     );
     assertSupersessionUpdateMatched(source, 'source');
     assertSupersessionUpdateMatched(revision, 'revision');
-    return { source, revision };
+    let audit;
+    if (actor) {
+      audit = await writeCoaAuditEvent(
+        sourceDoc,
+        'superseded',
+        actor,
+        note,
+        { replacementCoaId: revisionCoaId },
+        CoaAuditLogModel,
+        activeSession,
+      );
+    }
+    return { source, revision, audit };
   };
 
   if (session) {
@@ -402,7 +426,6 @@ function buildCoaSnapshots({
   parameters = [],
   qcResults = [],
   selectedItemSeqs,
-  groupMembership,
 } = {}) {
   const selectedItems = selectedItemsFromPetition(petition, selectedItemSeqs);
   const selectedSeqs = new Set(selectedItems.map((item) => Number(item.seq)));

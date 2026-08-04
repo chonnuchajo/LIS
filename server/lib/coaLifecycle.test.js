@@ -324,6 +324,35 @@ test('applyCoaLifecycleAction moves revise actions to revision draft and audits 
   assert.equal(createdRows[0].event, 'revisionCreated');
 });
 
+test('applyCoaLifecycleAction saves the document and audit event in a supplied session', async () => {
+  const session = { id: 'transaction-session' };
+  const saveOptions = [];
+  const auditCalls = [];
+  const doc = {
+    _id: 'coa-id',
+    status: 'pendingApproval',
+    petitionId: 'petition-id',
+    petitionNoSnapshot: 'P-1',
+    save: async (options) => saveOptions.push(options),
+  };
+  const auditModel = {
+    create: async (...args) => auditCalls.push(args),
+  };
+
+  await applyCoaLifecycleAction({
+    doc,
+    action: 'approve',
+    actor: { name: 'QC Head', email: 'qc@example.com', role: 'qc_head' },
+    note: 'Approved in transaction',
+    session,
+    CoaAuditLogModel: auditModel,
+  });
+
+  assert.deepEqual(saveOptions, [{ session }]);
+  assert.equal(auditCalls.length, 1);
+  assert.deepEqual(auditCalls[0][1], { session });
+});
+
 test('applySupersession performs reciprocal source and revision updates', async () => {
   const calls = [];
   const sessionCalls = [];
@@ -495,6 +524,49 @@ test('applySupersession uses a supplied session without nesting and rejects unma
     }),
     /revision COA was not found for supersession/,
   );
+});
+
+test('applySupersession records an actor-backed source audit and updatedBy in the transaction', async () => {
+  const session = { id: 'transaction-session' };
+  const actor = { name: 'QC Head', email: 'qc@example.com', role: 'qc_head' };
+  const updates = [];
+  const audits = [];
+  const model = {
+    findById: () => ({
+      session: () => ({
+        select: () => ({
+          lean: async () => ({
+            _id: 'source-id',
+            status: 'approved',
+            coaNo: '00012026',
+            petitionId: 'petition-id',
+            petitionNoSnapshot: 'P-1',
+          }),
+        }),
+      }),
+    }),
+    updateOne: async (filter, update, options) => {
+      updates.push({ filter, update, options });
+      return { acknowledged: true, matchedCount: 1, modifiedCount: 1 };
+    },
+  };
+  const auditModel = {
+    create: async (...args) => audits.push(args),
+  };
+
+  await applySupersession({
+    sourceCoaId: 'source-id',
+    revisionCoaId: 'revision-id',
+    CoaDocumentModel: model,
+    CoaAuditLogModel: auditModel,
+    actor,
+    session,
+  });
+
+  assert.deepEqual(updates[0].update.$set.updatedBy, actor);
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0][0].event, 'superseded');
+  assert.deepEqual(audits[0][1], { session });
 });
 
 test('COA query update guard rejects cancellation without non-empty reason', () => {

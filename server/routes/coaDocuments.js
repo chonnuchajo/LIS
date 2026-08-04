@@ -196,6 +196,7 @@ router.post('/:id/approve', async (req, res) => {
     if (!isQcHead(actor)) return res.status(403).json({ error: 'อนุมัติ COA ได้เฉพาะ QC Head' });
     const doc = await CoaDocument.findById(objectId(req.params.id));
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
+    assertCanTransition(doc.status, 'approve', actor);
     const snapshots = await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs);
     const update = {
       ...snapshots,
@@ -203,20 +204,36 @@ router.post('/:id/approve', async (req, res) => {
     };
     if (!doc.coaNo) Object.assign(update, await nextCoaNumber());
     doc.$locals.allowIssuedSnapshotMutation = true;
-    const { doc: updated } = await applyCoaLifecycleAction({
+    const action = {
       doc,
       action: 'approve',
       actor,
       note: 'อนุมัติ COA',
       CoaAuditLogModel: CoaAuditLog,
       update,
-    });
-    if (updated.sourceCoaId) {
-      await applySupersession({
-        sourceCoaId: updated.sourceCoaId,
-        revisionCoaId: updated._id,
-        CoaDocumentModel: CoaDocument,
-      });
+    };
+    let updated;
+    if (doc.sourceCoaId) {
+      const session = await CoaDocument.startSession();
+      try {
+        await session.withTransaction(async () => {
+          if (typeof doc.$session === 'function') doc.$session(session);
+          ({ doc: updated } = await applyCoaLifecycleAction({ ...action, session }));
+          await applySupersession({
+            sourceCoaId: updated.sourceCoaId,
+            revisionCoaId: updated._id,
+            CoaDocumentModel: CoaDocument,
+            CoaAuditLogModel: CoaAuditLog,
+            actor,
+            note: 'แทนที่ด้วย COA ฉบับแก้ไข',
+            session,
+          });
+        });
+      } finally {
+        await session.endSession();
+      }
+    } else {
+      ({ doc: updated } = await applyCoaLifecycleAction(action));
     }
     res.json(updated);
   } catch (error) {
