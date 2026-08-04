@@ -39,7 +39,7 @@ export default function CoaDetailPage() {
     permissions: user?.permissions ?? [],
     position: user?.position,
   };
-  const isQcHead = [user?.role, ...roles, user?.position]
+  const isQcHead = [user?.role, actor.activeRole, user?.position]
     .some((value) => String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_") === "qc_head")
     || actor.permissions.includes("coa.approve");
   const pages = useMemo(() => (doc ? buildCoaReportPages(doc) : []), [doc]);

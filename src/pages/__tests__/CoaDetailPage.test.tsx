@@ -99,6 +99,14 @@ describe("CoaDetailPage", () => {
     expect(screen.queryByRole("button", { name: "ไม่อนุมัติ" })).not.toBeInTheDocument();
   });
 
+  it("does not treat an unselected QC Head role as an approval grant", async () => {
+    mocks.user = { ...qcHead, role: "qc-staff", permissions: [], position: "QC Staff" };
+    renderPage();
+
+    await screen.findByText("P-2608-0001");
+    expect(screen.queryByRole("button", { name: /QC Head อนุมัติ/ })).not.toBeInTheDocument();
+  });
+
   it("shows QC Head approval actions and sends the authenticated actor", async () => {
     mocks.user = qcHead;
     renderPage();
@@ -134,6 +142,39 @@ describe("CoaDetailPage", () => {
       copies: 2,
       outputMode: "local",
       _user: { ...mocks.user, activeRole: "qc-staff" },
+    }));
+  });
+
+  it("requires a reason before rejecting and sends it with the authenticated actor", async () => {
+    mocks.user = qcHead;
+    renderPage();
+
+    const reject = await screen.findByRole("button", { name: "ไม่อนุมัติ" });
+    expect(reject).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText(/เหตุผล/), { target: { value: "  ผลไม่ผ่าน  " } });
+    expect(reject).toBeEnabled();
+    fireEvent.click(reject);
+
+    await waitFor(() => expect(mocks.rejectCoaDocument).toHaveBeenCalledWith("c1", {
+      reason: "  ผลไม่ผ่าน  ",
+      _user: { ...qcHead, activeRole: "qc-head" },
+    }));
+  });
+
+  it("requires a reason before cancelling and sends it with the authenticated actor", async () => {
+    mocks.user = qcHead;
+    mocks.getCoaDocument.mockResolvedValue(documentWith("approved"));
+    renderPage();
+
+    const cancel = await screen.findByRole("button", { name: "ยกเลิก COA" });
+    expect(cancel).toBeDisabled();
+    fireEvent.change(screen.getByPlaceholderText(/เหตุผล/), { target: { value: "ยกเลิกตามคำขอลูกค้า" } });
+    expect(cancel).toBeEnabled();
+    fireEvent.click(cancel);
+
+    await waitFor(() => expect(mocks.cancelCoaDocument).toHaveBeenCalledWith("c1", {
+      reason: "ยกเลิกตามคำขอลูกค้า",
+      _user: { ...qcHead, activeRole: "qc-head" },
     }));
   });
 });
