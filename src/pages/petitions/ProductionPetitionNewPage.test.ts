@@ -69,6 +69,11 @@ describe('R&D integration request rules', () => {
     const items = makeInitialItemsFromQuery(params);
 
     expect(items).toHaveLength(2);
-    expect(items[1]).toMatchObject({ batchNo: '26S-OMT51', labelQuantity: '9478.67 Kg/L' });
+    expect(items[1]).toMatchObject({
+      batchNo: '26S-OMT51',
+      labelQuantity: '9478.67 Kg/L',
+      submittedQuantity: '9478.67',
+      submittedUnit: 'Kg/L',
+    });
   });
 });

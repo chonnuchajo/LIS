@@ -112,4 +112,18 @@ describe('ItemsStep master item selection', () => {
       },
     ]);
   });
+
+  it('shows submitted quantity and unit from integration payload as read-only fields', () => {
+    renderStep({
+      value: [{
+        ...baseItem,
+        submittedQuantity: '9478.67',
+        submittedUnit: 'Kg/L',
+      }],
+      itemsReadOnly: true,
+    });
+
+    expect(screen.getByLabelText('ปริมาณที่ส่งตัวอย่าง')).toHaveValue('9478.67');
+    expect(screen.getByLabelText('หน่วยที่นำส่ง')).toHaveValue('Kg/L');
+  });
 });

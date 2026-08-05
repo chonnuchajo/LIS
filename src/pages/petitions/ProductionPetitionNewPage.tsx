@@ -292,12 +292,16 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
   if (itemCount <= 1) {
     if (!singleItem) return [];
     const productionDate = productionDates[0] || singleItem.productionDate || '';
+    const submittedQuantity = quantities[0] ?? '';
+    const submittedUnit = quantityUnits[0] ?? '';
     return [{
       ...singleItem,
       productionDate: productionDate || null,
       packageUnit: packageUnits[0] || singleItem.packageUnit,
-      labelQuantity: makeQuantityLabel(quantities[0] ?? '', quantityUnits[0] ?? ''),
+      labelQuantity: makeQuantityLabel(submittedQuantity, submittedUnit),
       labelSampledDate: productionDate,
+      submittedQuantity,
+      submittedUnit,
     }];
   }
 
@@ -324,6 +328,8 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
       note,
       labelQuantity: makeQuantityLabel(valueAt(quantities, i, false), valueAt(quantityUnits, i)),
       labelSampledDate: valueAt(productionDates, i),
+      submittedQuantity: valueAt(quantities, i, false),
+      submittedUnit: valueAt(quantityUnits, i),
     };
 
     if ([
