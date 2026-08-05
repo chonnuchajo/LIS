@@ -196,7 +196,7 @@ describe("ParameterDetailDrawer", () => {
     expect(screen.getByText("← ดึงจาก ความหนืดก่อนกวน · ค่าแรก · phase 2")).toBeInTheDocument();
   });
 
-  it("chips: required/phase/ตัวเริ่ม Phase 2/หลายค่า/แบชล่าสุด", () => {
+  it("chips: required/phase/trigger/หลายค่า/แบชล่าสุด", () => {
     renderDrawer({
       _id: "p1",
       name: "X",
@@ -216,10 +216,10 @@ describe("ParameterDetailDrawer", () => {
     });
     expect(screen.getByText("*")).toBeInTheDocument();
     expect(screen.getByText("เฉพาะก่อน (Phase 1)")).toBeInTheDocument();
-    expect(screen.getByText("ตัวเริ่ม Phase 2")).toBeInTheDocument();
+    expect(screen.getByText("ตัว trigger รอบตรวจซ้ำ")).toBeInTheDocument();
     expect(screen.getByText("กรอกได้หลายค่า")).toBeInTheDocument();
     expect(screen.getByText("โชว์ค่าแบชล่าสุด")).toBeInTheDocument();
-    expect(screen.getByText("มี 2 phase (ก่อน/หลัง)")).toBeInTheDocument();
+    expect(screen.getByText("เป็นตัว trigger รอบตรวจซ้ำ")).toBeInTheDocument();
     expect(screen.getByText("กรอกซ้ำได้หลายรายการ")).toBeInTheDocument();
   });
 

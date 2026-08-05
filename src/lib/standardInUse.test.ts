@@ -78,11 +78,25 @@ describe("canAcknowledge", () => {
     expect(canAcknowledge(expired, { email: " Owner@ICPLadda.com " }, NOW)).toBe(true);
   });
 
-  it("คนอื่น / ยังไม่หมดอายุ / ไม่มี user / รายการไม่มีผู้เบิก → กดไม่ได้", () => {
+  it("คนอื่น / ยังไม่หมดอายุ / ไม่มี user → กดไม่ได้", () => {
     expect(canAcknowledge(expired, { email: "other@icpladda.com" }, NOW)).toBe(false);
     expect(canAcknowledge(row({ dueAt: new Date(+NOW + DAY).toISOString() }), { email: "owner@icpladda.com" }, NOW)).toBe(false);
     expect(canAcknowledge(expired, null, NOW)).toBe(false);
-    expect(canAcknowledge(row({ dueAt: expired.dueAt, userEmail: "" }), { email: "owner@icpladda.com" }, NOW)).toBe(false);
+  });
+
+  it("แถวมีชื่อผู้เบิกแต่ไม่มีอีเมล → คนอื่นยังกดไม่ได้", () => {
+    const named = row({ dueAt: expired.dueAt, userEmail: "", userName: "สมชาย" });
+    expect(canAcknowledge(named, { email: "anyone@icpladda.com" }, NOW)).toBe(false);
+  });
+
+  it("แถวไม่มีทั้งชื่อและอีเมลผู้เบิก → ใครกดรับทราบก็ได้", () => {
+    const orphan = row({ dueAt: expired.dueAt, userEmail: "", userName: "" });
+    expect(canAcknowledge(orphan, { email: "anyone@icpladda.com" }, NOW)).toBe(true);
+  });
+
+  it("แถวไม่มีผู้เบิกแต่ยังไม่ถึงกำหนด → กดไม่ได้", () => {
+    const orphan = row({ dueAt: new Date(+NOW + DAY).toISOString(), userEmail: "", userName: "" });
+    expect(canAcknowledge(orphan, { email: "anyone@icpladda.com" }, NOW)).toBe(false);
   });
 });
 

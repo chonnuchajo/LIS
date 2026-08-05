@@ -1247,7 +1247,7 @@ export type ParameterItem = {
   valueFields?: ParameterValueField[];
   sortOrder?: number;
   note?: string;
-  // 2-phase testing toggle — when true, this parameter is split into ก่อน/หลัง
+  // 2-phase testing toggle — when true, this parameter triggers retesting other matched parameters.
   hasPhases?: boolean;
   // Parameter-level repeat — whole field set repeats into QCTestResult.entries.
   multiEntry?: boolean;

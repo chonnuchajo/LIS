@@ -45,9 +45,16 @@ function buildInUseItems(txs = [], standards = []) {
   });
 }
 
-/** กดรับทราบหมดอายุได้เฉพาะคนที่เบิกรายการนั้น */
+/**
+ * กดรับทราบหมดอายุได้เฉพาะคนที่เบิกรายการนั้น
+ * ยกเว้น tx ที่ไม่มีทั้งอีเมลและชื่อผู้เบิก — ระบุเจ้าของไม่ได้ ใครก็รับทราบได้
+ * (กติกาเดียวกับ canAcknowledge ฝั่ง FE — แก้ที่ไหนต้องแก้ทั้งคู่)
+ */
 function canAcknowledgeDeduction(tx, actorEmail) {
-  const owner = String((tx && tx.userEmail) || '').trim().toLowerCase();
+  if (!tx) return false;
+  const owner = String(tx.userEmail || '').trim().toLowerCase();
+  const ownerName = String(tx.userName || '').trim();
+  if (!owner && !ownerName) return true;
   const me = String(actorEmail || '').trim().toLowerCase();
   return Boolean(owner) && owner === me;
 }

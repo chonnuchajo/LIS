@@ -59,7 +59,7 @@ export function PhaseBanner({
     <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 space-y-2">
       <div className="flex items-center gap-2 text-xs text-amber-800">
         <FlaskConical className="h-4 w-4" />
-        <span className="font-medium">Parameter แบบ 2 phase</span>
+        <span className="font-medium">รอบตรวจซ้ำหลัง trigger</span>
         {isWaiting && dueMs ? (
           <span className="inline-flex items-center gap-1 ml-auto">
             <Hourglass className="h-3.5 w-3.5" />
@@ -69,7 +69,7 @@ export function PhaseBanner({
         {!isWaiting && phase2UnlockedAt ? (
           <span className="inline-flex items-center gap-1 ml-auto">
             <Clock className="h-3.5 w-3.5" />
-            <span>Phase 2 พร้อมแล้ว</span>
+            <span>พร้อมตรวจซ้ำแล้ว</span>
           </span>
         ) : null}
       </div>
@@ -85,7 +85,7 @@ export function PhaseBanner({
           )}
         >
           <div className="font-semibold">Phase 1: ค่าก่อน</div>
-          <div className="text-xs opacity-80">บันทึกผลก่อนกระบวนการ (อบ/บ่ม/รอ)</div>
+          <div className="text-xs opacity-80">บันทึกผลและเริ่ม trigger/timer</div>
         </button>
         <button
           type="button"
@@ -101,10 +101,10 @@ export function PhaseBanner({
           title={phase2Locked ? 'รอ trigger ครบกำหนด' : ''}
         >
           <div className="font-semibold">
-            Phase 2: ค่าหลัง {phase2Locked ? '🔒' : ''}
+            Phase 2: ตรวจซ้ำ{phase2Locked ? ' (ล็อก)' : ''}
           </div>
           <div className="text-xs opacity-80">
-            {triggeredByName ? `trigger: ${triggeredByName}` : 'บันทึกผลหลังกระบวนการ'}
+            {triggeredByName ? `ยกเว้น trigger: ${triggeredByName}` : 'ตรวจซ้ำ parameter อื่นในสารเดียวกัน'}
           </div>
         </button>
       </div>
