@@ -63,6 +63,32 @@ function getQueryValue(searchParams: URLSearchParams, keys: string[]): string {
   return '';
 }
 
+export function objectToSearchParams(input: unknown): URLSearchParams {
+  const params = new URLSearchParams();
+  const append = (key: string, value: unknown) => {
+    if (value == null || value === '') return;
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => {
+        if (item && typeof item === 'object') {
+          Object.entries(item as Record<string, unknown>).forEach(([childKey, childValue]) =>
+            append(`${key}[${index}][${childKey}]`, childValue),
+          );
+        } else {
+          append(key, item);
+        }
+      });
+      return;
+    }
+    if (typeof value === 'object') return;
+    params.append(key, String(value));
+  };
+
+  if (input && typeof input === 'object') {
+    Object.entries(input as Record<string, unknown>).forEach(([key, value]) => append(key, value));
+  }
+  return params;
+}
+
 export function buildProductionReturnUrl(searchParams: URLSearchParams, createdPetition?: Pick<Petition, 'petitionNo'> | null): string {
   const petitionNo = createdPetition?.petitionNo;
   const requestNo = getQueryValue(searchParams, ['requestNo', 'request_no', 'submissionNo']);
@@ -551,24 +577,41 @@ export default function ProductionPetitionNewPage({
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const integrationToken = searchParams.get('integrationToken');
+  const [postedSearchParams, setPostedSearchParams] = useState<URLSearchParams | null>(null);
+  const effectiveSearchParams = postedSearchParams ?? searchParams;
   const { user } = useAuth();
   const prodOrderNosFromState = (location.state as { prodOrderNos?: string[] } | null)?.prodOrderNos;
+
+  useEffect(() => {
+    if (!integrationToken) return;
+    let alive = true;
+    api.get<unknown>(`/production-integration/petitions/${encodeURIComponent(integrationToken)}`)
+      .then((res) => {
+        if (alive) setPostedSearchParams(objectToSearchParams(res.data.data));
+      })
+      .catch((err) => {
+        if (alive) setError(err instanceof Error ? err.message : 'โหลดข้อมูลจาก Production ไม่สำเร็จ');
+      });
+    return () => { alive = false; };
+  }, [integrationToken]);
+
   const prodOrderNosFromQuery = useMemo(() => {
-    const plural = getQueryValues(searchParams, ['prodOrderNos'], { splitComma: true });
-    const singular = getQueryValues(searchParams, ['prodOrderNo'], { splitComma: true });
-    const mfNo = getSampleOrQueryValues(searchParams, ['mfNo'], { splitComma: true });
+    const plural = getQueryValues(effectiveSearchParams, ['prodOrderNos'], { splitComma: true });
+    const singular = getQueryValues(effectiveSearchParams, ['prodOrderNo'], { splitComma: true });
+    const mfNo = getSampleOrQueryValues(effectiveSearchParams, ['mfNo'], { splitComma: true });
     return [...plural, ...singular, ...mfNo];
-  }, [searchParams]);
+  }, [effectiveSearchParams]);
   const prodOrderNos = prodOrderNosFromState?.length ? prodOrderNosFromState : prodOrderNosFromQuery;
-  const productionRequestNo = getQueryValue(searchParams, ['requestNo', 'request_no', 'submissionNo']);
-  const productionRequesterEmail = getQueryValue(searchParams, ['requesterEmail', 'requester_email', 'email']);
-  const initialQueryItems = useMemo(() => makeInitialItemsFromQuery(searchParams), [searchParams]);
+  const productionRequestNo = getQueryValue(effectiveSearchParams, ['requestNo', 'request_no', 'submissionNo']);
+  const productionRequesterEmail = getQueryValue(effectiveSearchParams, ['requesterEmail', 'requester_email', 'email']);
+  const initialQueryItems = useMemo(() => makeInitialItemsFromQuery(effectiveSearchParams), [effectiveSearchParams]);
   const integrationActor = useMemo(() => {
-    const department = getQueryValue(searchParams, ['department']);
-    const requesterName = getQueryValue(searchParams, ['requesterName', 'submittedBy', 'submitterName', 'employeeName']);
-    const requesterEmail = getQueryValue(searchParams, ['requesterEmail', 'requester_email', 'email', 'requesterMail', 'mail']);
-    const requestNo = getQueryValue(searchParams, ['requestNo', 'request_no']);
-    const mfNo = getQueryValue(searchParams, ['mfNo']);
+    const department = getQueryValue(effectiveSearchParams, ['department']);
+    const requesterName = getQueryValue(effectiveSearchParams, ['requesterName', 'submittedBy', 'submitterName', 'employeeName']);
+    const requesterEmail = getQueryValue(effectiveSearchParams, ['requesterEmail', 'requester_email', 'email', 'requesterMail', 'mail']);
+    const requestNo = getQueryValue(effectiveSearchParams, ['requestNo', 'request_no']);
+    const mfNo = getQueryValue(effectiveSearchParams, ['mfNo']);
     const ref = requestNo || mfNo;
     return {
       employeeId: ref || 'production-system',
@@ -576,7 +619,7 @@ export default function ProductionPetitionNewPage({
       department,
       email: requesterEmail,
     };
-  }, [searchParams]);
+  }, [effectiveSearchParams]);
   const submitterDepartment = integrationMode
     ? integrationActor.department
     : user?.department;
@@ -632,6 +675,10 @@ export default function ProductionPetitionNewPage({
   const [items, setItems] = useState<ItemRowValues[]>(() =>
     initialQueryItems.length ? initialQueryItems : [makeBlankItem(1)],
   );
+
+  useEffect(() => {
+    if (initialQueryItems.length) setItems(initialQueryItems);
+  }, [initialQueryItems]);
 
   // Pre-fill from a rejected predecessor when ?revisionOf=<id> is present
   useEffect(() => {
@@ -858,7 +905,7 @@ export default function ProductionPetitionNewPage({
 
   function handlePageBack() {
     if (publicMode) {
-      window.location.href = buildProductionReturnUrl(searchParams, createdPetition);
+      window.location.href = buildProductionReturnUrl(effectiveSearchParams, createdPetition);
       return;
     }
     navigate('/petition');
