@@ -325,7 +325,7 @@ function FieldCard({
     chips.push(
       phase === "both" ? "ทั้ง 2 phase" : phase === "before" ? "เฉพาะก่อน (Phase 1)" : "เฉพาะหลัง (Phase 2)",
     );
-    if (field.triggersPhase2) chips.push("ตัวเริ่ม Phase 2");
+    if (field.triggersPhase2) chips.push("ตัว trigger รอบตรวจซ้ำ");
   }
   if (field.multiple) chips.push("กรอกได้หลายค่า");
   if (field.showLastBatch) chips.push("โชว์ค่าแบชล่าสุด");
@@ -373,7 +373,7 @@ export function ParameterDetailDrawer({
   const status = parameter.status ?? "active";
   const fields = parameter.valueFields ?? [];
   const systemInfo: string[] = [];
-  if (parameter.hasPhases) systemInfo.push("มี 2 phase (ก่อน/หลัง)");
+  if (parameter.hasPhases) systemInfo.push("เป็นตัว trigger รอบตรวจซ้ำ");
   if (parameter.multiEntry) systemInfo.push("กรอกซ้ำได้หลายรายการ");
 
   return (

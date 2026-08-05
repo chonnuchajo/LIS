@@ -30,6 +30,7 @@ interface Props {
   docType: PrintDocType;
   css?: string;
   children: React.ReactNode;
+  onPrinted?: (meta: { copies: number; outputMode: PrintOutputMode }) => void;
 }
 
 const BOX_CHROME = 18;
@@ -62,9 +63,11 @@ function getSheetSize(printEl: HTMLDivElement | null, contentEl: HTMLDivElement)
 
 function ScaledPreview({
   printRef,
+  previewClassName,
   children,
 }: {
   printRef: React.RefObject<HTMLDivElement>;
+  previewClassName?: string;
   children: React.ReactNode;
 }) {
   const outerRef = useRef<HTMLDivElement>(null);
@@ -181,7 +184,7 @@ function ScaledPreview({
           พอดีหน้า
         </Button>
       </div>
-      <div ref={outerRef} className="min-h-0 flex-1 overflow-auto rounded border bg-neutral-100 p-3">
+      <div ref={outerRef} className={`min-h-0 flex-1 overflow-auto rounded border p-3 ${previewClassName ?? "bg-neutral-100"}`}>
         <div className="mx-auto" style={{ width: naturalWidth * scale, height: naturalHeight * scale }}>
           <div
             ref={contentRef}
@@ -205,6 +208,7 @@ export default function PrintPreviewDialog({
   docType,
   css,
   children,
+  onPrinted,
 }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
   const [copies, setCopies] = useState(1);
@@ -232,6 +236,7 @@ export default function PrintPreviewDialog({
     setPrinting(true);
     try {
       const res = await printDocument(docType, printRef.current, { css, copies, outputMode: mode });
+      onPrinted?.({ copies, outputMode: mode });
       if (mode === "local") {
         toast.success("เปิด print dialog ของเครื่องนี้แล้ว");
       } else {
@@ -252,7 +257,7 @@ export default function PrintPreviewDialog({
           <DialogTitle>ตัวอย่างก่อนพิมพ์ — {meta?.label ?? docType}</DialogTitle>
         </DialogHeader>
 
-        <ScaledPreview printRef={printRef}>{children}</ScaledPreview>
+        <ScaledPreview printRef={printRef} previewClassName={docType === "coa" ? "bg-sky-50" : undefined}>{children}</ScaledPreview>
 
         {!configured && (
           <p className="shrink-0 text-sm text-red-600">

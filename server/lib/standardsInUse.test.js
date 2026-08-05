@@ -63,10 +63,18 @@ describe('canAcknowledgeDeduction', () => {
     expect(canAcknowledgeDeduction(tx, ' someone@icpladda.com ')).toBe(true);
   });
 
-  test('คนอื่น / ไม่มีอีเมล / transaction ไม่มีผู้เบิก → ไม่ได้', () => {
+  test('คนอื่น / ไม่มีอีเมล / ไม่มี transaction → ไม่ได้', () => {
     expect(canAcknowledgeDeduction(tx, 'other@icpladda.com')).toBe(false);
     expect(canAcknowledgeDeduction(tx, '')).toBe(false);
-    expect(canAcknowledgeDeduction({ userEmail: '' }, 'someone@icpladda.com')).toBe(false);
     expect(canAcknowledgeDeduction(null, 'someone@icpladda.com')).toBe(false);
+  });
+
+  test('มีชื่อผู้เบิกแต่ไม่มีอีเมล → คนอื่นยังไม่ได้', () => {
+    expect(canAcknowledgeDeduction({ userEmail: '', userName: 'สมชาย' }, 'anyone@icpladda.com')).toBe(false);
+  });
+
+  test('ไม่มีทั้งชื่อและอีเมลผู้เบิก → ใครก็รับทราบได้', () => {
+    expect(canAcknowledgeDeduction({ userEmail: '', userName: '' }, 'anyone@icpladda.com')).toBe(true);
+    expect(canAcknowledgeDeduction({}, 'anyone@icpladda.com')).toBe(true);
   });
 });

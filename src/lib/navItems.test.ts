@@ -11,6 +11,15 @@ describe("NAV_ITEMS", () => {
     expect(NAV_ITEMS.map((item) => item.path)).toContain("/petition");
   });
 
+  it("includes COA Center in the sidebar and detail page registry", () => {
+    expect(
+      NAV_ITEMS.some(
+        (item) => item.path === "/coa" && item.label === "ออกเอกสาร COA",
+      ),
+    ).toBe(true);
+    expect(PAGE_ITEMS.some((item) => item.path === "/coa/:id")).toBe(true);
+  });
+
   it("no longer exposes the retired /petitions list or timeline path in the main nav", () => {
     const paths = NAV_ITEMS.map((item) => item.path);
     expect(paths).not.toContain("/petitions");

@@ -54,6 +54,7 @@ mountApi('/virtual-lab', require('./routes/virtualLab'));
 mountApi('/methods', require('./routes/methods'));
 mountApi('/parameters', require('./routes/parameters'));
 mountApi('/qc-results', require('./routes/qcResults'));
+mountApi('/coa-documents', require('./routes/coaDocuments'));
 mountApi('/uploads', require('./routes/uploads'));
 mountApi('/daily-checks', require('./routes/dailyChecks'));
 mountApi('/equipment-checks', require('./routes/equipment-checks'));

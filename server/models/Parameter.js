@@ -115,10 +115,10 @@ const ValueFieldSchema = new mongoose.Schema({
   maxPhotos: { type: Number, default: 5, min: 1, max: 20 },
   maxFiles: { type: Number, default: 5, min: 1, max: 20 },
   allowedFileTypes: { type: [String], default: ['pdf'] },
-  // 2-phase support: which phase this field appears in
-  // 'both'   = field appears in both Phase 1 (ก่อน) and Phase 2 (หลัง) — collected twice
+  // 2-phase support: which phase this field appears in when this parameter is retested.
+  // 'both'   = field appears in both Phase 1 (ก่อน) and Phase 2 retest — collected twice
   // 'before' = field only appears in Phase 1
-  // 'after'  = field only appears in Phase 2 (deferred value)
+  // 'after'  = field only appears in Phase 2 retest
   phase: {
     type: String,
     enum: ['both', 'before', 'after'],
@@ -180,7 +180,8 @@ const ParameterSchema = new mongoose.Schema({
   valueFields: { type: [ValueFieldSchema], default: [] },
   sortOrder: { type: Number, default: 0 },
   note: { type: String, default: '' },
-  // 2-phase testing flag — when true this parameter is split into Phase 1 (ก่อน) / Phase 2 (หลัง)
+  // 2-phase testing flag — when true this parameter can trigger Phase 2 retesting for
+  // other matched parameters on the same item/substance.
   hasPhases: { type: Boolean, default: false, index: true },
   // Parameter-level repeat — when true the whole valueFields set repeats as
   // independent rows stored in QCTestResult.entries. Mutually exclusive with hasPhases.
@@ -447,7 +448,7 @@ ParameterSchema.pre('validate', function (next) {
       return next(new Error('Parameter แบบ 2-phase ต้องมีอย่างน้อย 1 field ที่กรอกใน Phase 1 (phase=before หรือ both)'));
     }
     if (!hasTrigger) {
-      return next(new Error('Parameter แบบ 2-phase ต้องมีอย่างน้อย 1 field ที่ติ๊ก "ส่งให้ Lab ตรวจค่าหลัง" (triggersPhase2)'));
+      return next(new Error('Parameter แบบ 2-phase ต้องมีอย่างน้อย 1 field ที่ติ๊ก "ตัว trigger รอบตรวจซ้ำ" (triggersPhase2)'));
     }
     for (const f of fields) {
       if (f.triggersPhase2 && f.phase === 'after') {

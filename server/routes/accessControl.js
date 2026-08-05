@@ -26,7 +26,7 @@ const defaultGroups = [
   { id: 'samples', name: 'งานตัวอย่าง', description: 'รับ ส่ง และตรวจกายภาพตัวอย่าง', paths: ['/petition', '/petition/:id', '/petitions/new', '/physical-inspection'], locked: false, sortOrder: 20 },
   { id: 'audit-log', name: 'Audit Log', description: 'ประวัติการเปลี่ยนสถานะคำร้อง', paths: ['/adutuilog', '/auditlog'], locked: false, sortOrder: 25 },
   { id: 'results', name: 'ผลวิเคราะห์', description: 'บันทึกผลและมาตรฐาน', paths: ['/record-results', '/stock-deduction', '/daily-check'], locked: false, sortOrder: 30 },
-  { id: 'qc', name: 'ควบคุมคุณภาพ', description: 'อนุมัติหรือปฏิเสธผล', paths: ['/dashboard/qc', '/qc-approval'], locked: false, sortOrder: 40 },
+  { id: 'qc', name: 'ควบคุมคุณภาพ', description: 'อนุมัติหรือปฏิเสธผล', paths: ['/dashboard/qc', '/qc-approval', '/coa', '/coa/:id'], locked: false, sortOrder: 40 },
   { id: 'stock', name: 'สต๊อก', description: 'จัดการ standard ตัวทำละลาย master item simple method และเครื่องมือ', paths: ['/stock', '/master-items', '/simple-method', '/machines'], locked: false, sortOrder: 50 },
   { id: 'reports', name: 'รายงาน', description: 'ดูรายงานและส่งออกข้อมูล', paths: ['/report'], locked: false, sortOrder: 60 },
   { id: 'admin', name: 'ข้อมูลแอดมิน', description: 'ข้อมูลที่อนุมัติแล้วและบันทึกการใช้งาน', paths: ['/admin-data'], locked: false, sortOrder: 70 },
@@ -156,6 +156,14 @@ async function ensureGroups() {
     await AccessGroup.updateOne(
       { id: petitionListGroupId },
       { $addToSet: { paths: { $each: petitionListPaths } } },
+    );
+  }
+  const coaPaths = findOrphanBackfillPaths(existingGroups, ['/coa', '/coa/:id']);
+  const coaGroupId = findGroupForBackfill(existingGroups, 'qc', '/qc-approval');
+  if (coaPaths.length && coaGroupId) {
+    await AccessGroup.updateOne(
+      { id: coaGroupId },
+      { $addToSet: { paths: { $each: coaPaths } } },
     );
   }
   return AccessGroup.find().sort({ sortOrder: 1, name: 1 }).lean();
