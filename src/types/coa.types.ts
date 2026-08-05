@@ -1,4 +1,5 @@
 export type CoaStatus =
+  | "requested"
   | "draft"
   | "pendingApproval"
   | "approved"

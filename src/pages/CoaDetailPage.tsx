@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { FileCheck2, Printer } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
@@ -19,6 +19,7 @@ import { normalizeRoles, primaryRole } from "@/lib/roles";
 export default function CoaDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [printOpen, setPrintOpen] = useState(false);
@@ -53,6 +54,14 @@ export default function CoaDetailPage() {
     mutationFn: (meta: { copies: number; outputMode: string }) => api.recordCoaPrintEvent(id, { event: "printDialogOpened", ...meta, _user: actor }),
     onSuccess: invalidate,
   });
+  const actions = doc ? allowedCoaActions(doc.status, isQcHead) : [];
+  const printable = doc ? actions.includes("print") && canPrintCoa(doc.status) : false;
+
+  useEffect(() => {
+    if (searchParams.get("print") === "1" && printable) {
+      setPrintOpen(true);
+    }
+  }, [printable, searchParams]);
 
   if (isLoading || !doc) {
     if (isError) {
@@ -60,9 +69,6 @@ export default function CoaDetailPage() {
     }
     return <AppLayout><div className="min-h-[calc(100vh-64px)] bg-sky-50 p-6 text-muted-foreground">กำลังโหลด...</div></AppLayout>;
   }
-
-  const actions = allowedCoaActions(doc.status, isQcHead);
-  const printable = actions.includes("print") && canPrintCoa(doc.status);
 
   return (
     <AppLayout title={doc.coaNo || "COA"}>

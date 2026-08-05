@@ -52,11 +52,11 @@ function documentWith(status: string) {
   };
 }
 
-function renderPage() {
+function renderPage(initialEntry = "/coa/c1") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/coa/c1"]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes><Route path="/coa/:id" element={<CoaDetailPage />} /></Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -166,6 +166,13 @@ describe("CoaDetailPage", () => {
       outputMode: "local",
       _user: { ...mocks.user, activeRole: "qc-staff" },
     }));
+  });
+
+  it("opens the print preview when requested from the COA table", async () => {
+    mocks.getCoaDocument.mockResolvedValue(documentWith("approved"));
+    renderPage("/coa/c1?print=1");
+
+    expect(await screen.findByRole("button", { name: "Complete print" })).toBeInTheDocument();
   });
 
   it("requires a reason before rejecting and sends it with the authenticated actor", async () => {

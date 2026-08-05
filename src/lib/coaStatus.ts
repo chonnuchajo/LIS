@@ -1,6 +1,7 @@
 import type { CoaStatus } from "@/types/coa.types";
 
 export const COA_STATUS_LABELS: Record<CoaStatus, string> = {
+  requested: "ขอ COA",
   draft: "ร่าง",
   pendingApproval: "รอ QC Head อนุมัติ",
   approved: "อนุมัติแล้ว",
