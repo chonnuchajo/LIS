@@ -56,9 +56,9 @@ export default function CoaDetailPage() {
 
   if (isLoading || !doc) {
     if (isError) {
-      return <AppLayout><div className="p-6 text-destructive">{error instanceof Error ? error.message : "ไม่สามารถโหลด COA ได้"}</div></AppLayout>;
+      return <AppLayout><div className="min-h-[calc(100vh-64px)] bg-sky-50 p-6 text-destructive">{error instanceof Error ? error.message : "ไม่สามารถโหลด COA ได้"}</div></AppLayout>;
     }
-    return <AppLayout><div className="p-6 text-muted-foreground">กำลังโหลด...</div></AppLayout>;
+    return <AppLayout><div className="min-h-[calc(100vh-64px)] bg-sky-50 p-6 text-muted-foreground">กำลังโหลด...</div></AppLayout>;
   }
 
   const actions = allowedCoaActions(doc.status, isQcHead);
@@ -66,7 +66,7 @@ export default function CoaDetailPage() {
 
   return (
     <AppLayout title={doc.coaNo || "COA"}>
-      <div className="space-y-6 p-6">
+      <div className="min-h-[calc(100vh-64px)] space-y-6 bg-sky-50 p-6">
         <PageHeader
           onBack={() => navigate("/coa")}
           title={<span className="inline-flex items-center gap-2"><FileCheck2 className="h-5 w-5 text-sky-500" />{doc.coaNo || "ร่าง COA"}</span>}

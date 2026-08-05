@@ -63,9 +63,11 @@ function getSheetSize(printEl: HTMLDivElement | null, contentEl: HTMLDivElement)
 
 function ScaledPreview({
   printRef,
+  previewClassName,
   children,
 }: {
   printRef: React.RefObject<HTMLDivElement>;
+  previewClassName?: string;
   children: React.ReactNode;
 }) {
   const outerRef = useRef<HTMLDivElement>(null);
@@ -182,7 +184,7 @@ function ScaledPreview({
           พอดีหน้า
         </Button>
       </div>
-      <div ref={outerRef} className="min-h-0 flex-1 overflow-auto rounded border bg-neutral-100 p-3">
+      <div ref={outerRef} className={`min-h-0 flex-1 overflow-auto rounded border p-3 ${previewClassName ?? "bg-neutral-100"}`}>
         <div className="mx-auto" style={{ width: naturalWidth * scale, height: naturalHeight * scale }}>
           <div
             ref={contentRef}
@@ -255,7 +257,7 @@ export default function PrintPreviewDialog({
           <DialogTitle>ตัวอย่างก่อนพิมพ์ — {meta?.label ?? docType}</DialogTitle>
         </DialogHeader>
 
-        <ScaledPreview printRef={printRef}>{children}</ScaledPreview>
+        <ScaledPreview printRef={printRef} previewClassName={docType === "coa" ? "bg-sky-50" : undefined}>{children}</ScaledPreview>
 
         {!configured && (
           <p className="shrink-0 text-sm text-red-600">

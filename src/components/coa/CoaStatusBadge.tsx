@@ -3,12 +3,12 @@ import { coaStatusLabel } from "@/lib/coaStatus";
 import type { CoaStatus } from "@/types/coa.types";
 
 const variantByStatus: Record<CoaStatus, React.ComponentProps<typeof Badge>["variant"]> = {
-  draft: "gray-soft",
-  pendingApproval: "yellow-soft",
+  draft: "purple-soft",
+  pendingApproval: "purple-soft",
   approved: "green-soft",
-  printed: "blue-soft",
-  revisionDraft: "yellow-soft",
-  pendingRevisionApproval: "yellow-soft",
+  printed: "green-soft",
+  revisionDraft: "purple-soft",
+  pendingRevisionApproval: "purple-soft",
   reissued: "green-soft",
   cancelled: "red-soft",
   superseded: "gray-soft",
