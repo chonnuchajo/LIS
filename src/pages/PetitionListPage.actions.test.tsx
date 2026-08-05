@@ -120,12 +120,12 @@ function LocationProbe() {
   return <output data-testid="location">{location.pathname}</output>;
 }
 
-function renderPage(props: React.ComponentProps<typeof PetitionListPage> = {}) {
+function renderPage(props: React.ComponentProps<typeof PetitionListPage> = {}, initialEntry = '/petitions') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter
-        initialEntries={['/petitions']}
+        initialEntries={[initialEntry]}
         future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
       >
         <PetitionListPage {...props} />
@@ -192,6 +192,13 @@ describe('PetitionListPage action cues', () => {
     expect(waitingCard).toHaveTextContent('1');
     expect(inProgressCard).toHaveTextContent('2');
     expect(rejectedCard).toHaveTextContent('1');
+  });
+
+  it('uses production petition_no query as the list search term', async () => {
+    renderPage({}, '/petitions?petition_no=P-2607-0003');
+
+    expect(await screen.findByText('P-2607-0003')).toBeInTheDocument();
+    expect(screen.queryByText('P-2607-0001')).not.toBeInTheDocument();
   });
 
   it('filters the list as soon as the search field changes', async () => {
