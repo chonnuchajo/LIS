@@ -50,6 +50,8 @@ export interface PetitionFlowNotification {
   createdAt: string;
 }
 
+export type UserFavorites = { email: string; paths: string[] };
+
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
 function normalizeBaseUrl(value: string | undefined) {
@@ -577,6 +579,17 @@ export const api = {
     request<{ data: StoredLayout }>(`/dashboard-layout/${dashboard}/${encodeURIComponent(roleId)}`, {
       method: "PUT",
       body: JSON.stringify(input),
+    }).then((r) => r.data),
+
+  // ── รายการโปรดบน sidebar (ผูกกับ user ด้วย email) ──
+  getUserFavorites: (email: string) =>
+    request<{ data: UserFavorites }>(
+      `/user-favorites?email=${encodeURIComponent(email)}`,
+    ).then((r) => r.data),
+  saveUserFavorites: (email: string, paths: string[]) =>
+    request<{ data: UserFavorites }>("/user-favorites", {
+      method: "PUT",
+      body: JSON.stringify({ email, paths }),
     }).then((r) => r.data),
 
   // ── LINE integration (group registry + test push) ──
