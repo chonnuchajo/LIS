@@ -54,6 +54,28 @@ LINE Messaging API — **group notifications** on petition events + a **status-q
 - **Webhook + admin** `server/routes/line.js`, mounted at `/api/line` & `/LIS/api/line`. `POST /line/webhook` verifies the signature then handles events. Inbound intents are parsed by the pure, unit-tested `parseCommand(text)`: petition no (`P-2606-0018`) → status; `batch <no>`/`lot <no>` → search by batch/lot; `งานค้าง` → pending summary; `งานวันนี้` → today's inflow/completions; `/ผูก <audience>` binds the chat to an audience (self-service — no UI needed); `/ยกเลิก` unbinds; `/id`, `/help`; `/ถาม <question>` (also `/ai`, `/ask`) → free-form **AI Q&A** via `buildAssistantReply` (OpenAI `generateText`, grounded on the referenced petition + live pending/today snapshots; safe no-op → falls back to HELP when `OPENAI_API_KEY` is unset). In groups the bot replies only to explicit commands/petition-nos/`/ถาม` (stays silent otherwise); in 1:1 chats any unrecognized text is routed through the AI Q&A fallback. Admin/setup: `GET /line/health`, `GET|POST /line/groups`, `DELETE /line/groups/:groupId`, `POST /line/test`. Group registry = `LineGroup` model (auto-exported by `seed:export`). The Settings **LINE tab** (admin-only, `src/components/lis/LineConfigCard.tsx`) manages groups + shows `LINE_NOTIFICATIONS`/`LINE_BOT_COMMANDS` catalogues (`src/lib/lineConfig.ts` — keep in sync with the server's `describeEvent`/`parseCommand`).
 - **LINE Developers setup**: create a Messaging API channel → set Webhook URL to `https://<host>/LIS/api/line/webhook`, enable "Use webhook", disable auto-reply → paste token+secret into `.env` → add the bot to each department group → type `/ผูก qc` (or `lab`, etc.) in that group.
 
+### API protection / API keys
+
+Endpoint ที่ **ระบบภายนอก** เรียก (ไม่ใช่ SPA) ถูกคุมด้วย middleware กลาง `server/lib/apiGuard.js`
+ที่ `app.use()` ไว้ก่อน `mountApi(...)` ทุกบรรทัด
+
+- **ทะเบียนเดียว** `server/lib/apiPolicy.js` — `API_SCOPES` + `API_POLICIES` (ตอนนี้: production-integration,
+  temphum push, line ingest) path ที่ไม่อยู่ในทะเบียนถูกปล่อยผ่านทันที → **ห้ามใส่ route ที่ SPA เรียก**
+  ลงในทะเบียนนี้ เพราะหน้าเว็บไม่มี key เปิด enforce เมื่อไหร่หน้าเว็บดับ
+- **สามโหมดต่อ endpoint** เก็บใน `ApiPolicyMode` สลับได้จาก UI: `off` / `audit` (ปล่อยผ่าน + log ว่าจะโดน
+  บล็อกเพราะอะไร) / `enforce` ค่าเริ่มต้นของทุก endpoint = `audit`
+- **key**: `lisk_<random>` เก็บเฉพาะ sha256 ใน `ApiKey` (`seed-data/` เข้า git) ส่งมาทาง header เท่านั้น: `X-API-Key`, `Authorization: Bearer`, หรือ legacy headers `x-integration-token` / `x-lis-ingest-key`; มี scope / วันหมดอายุ / เพิกถอน / rate limit ต่อนาที
+- **token เดิม** (`PRODUCTION_INTEGRATION_TOKEN`, `LINE_INGEST_SECRET`) ยังใช้ได้ระหว่างช่วงย้าย
+  guard บันทึก log ว่า `legacy-token` เพื่อดูว่าเหลือใครยังไม่ย้าย
+- **log** `ApiRequestLog` (TTL 30 วัน ปรับด้วย `API_LOG_TTL_DAYS`) — ถูก **ข้าม** ใน `export-data.js`
+  (`SKIP_COLLECTIONS`) ไม่งั้น auto-sync commit ทุกชั่วโมง
+- **UI**: แท็บ "API Key" ในหน้า `/settings` (`src/components/lis/ApiKeysPanel.tsx`, admin-only)
+  ทะเบียน scope/endpoint ดึงจาก `GET /api-keys/meta` — อย่า hardcode ซ้ำฝั่ง FE
+- **⚠️ route จัดการ key** กันด้วย `server/lib/adminGate.js` ที่อ่าน header `X-LIS-User` (SPA ใส่ให้ที่
+  `fetchApi()`) แล้วเช็ค role admin ใน DB — **ปลอมได้** เท่ากับระดับความเชื่อถือของทั้งระบบตอนนี้
+  ตัวปิดรูจริงคือให้ backend verify Azure AD token (ยังไม่ทำ) ดูสเปก
+  `docs/superpowers/specs/2026-08-06-api-keys-and-api-protection-design.md`
+
 ### Authentication
 
 Two auth modes; the switch is `DEV_MODE` in `src/config/dev.ts`:
