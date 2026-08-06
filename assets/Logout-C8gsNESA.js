@@ -1,0 +1,1 @@
+import{r as o}from"./vendor-react-BrcJiHE1.js";import{u as r}from"./main-BVrH17PW.js";import"./vendor-msal-pq7o4QqD.js";import"./vendor-query-CD9KNe1W.js";function m(){const{logout:t}=r();return o.useEffect(()=>{t()},[t]),null}export{m as default};
