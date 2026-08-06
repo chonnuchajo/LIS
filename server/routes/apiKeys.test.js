@@ -1,5 +1,5 @@
 const router = require('./apiKeys');
-const { serializeKey } = require('./apiKeys');
+const { serializeKey, parseScopes, parseExpiresAt } = require('./apiKeys');
 
 // ลำดับ register สำคัญ: '/:id' ต้องอยู่ท้ายสุด ไม่งั้นมันกลืน '/meta', '/logs',
 // '/policy/:policyId' (บทเรียนเดิมจาก /stock/standards/in-use)
@@ -47,5 +47,39 @@ describe('serializeKey', () => {
     expect(serializeKey(doc, NOW).status).toBe('active');
     expect(serializeKey({ ...doc, revokedAt: NOW }, NOW).status).toBe('revoked');
     expect(serializeKey({ ...doc, expiresAt: '2026-08-05T00:00:00Z' }, NOW).status).toBe('expired');
+  });
+});
+
+describe('parseScopes', () => {
+  test('รับ scope list ที่ถูกต้อง', () => {
+    expect(parseScopes(['temphum:write', 'line:ingest'])).toEqual(['temphum:write', 'line:ingest']);
+  });
+
+  test('input ที่ไม่ใช่ array คืน []', () => {
+    expect(parseScopes(undefined)).toEqual([]);
+    expect(parseScopes(null)).toEqual([]);
+    expect(parseScopes('temphum:write')).toEqual([]);
+  });
+
+  test('scope ที่ไม่รู้จัก throw พร้อมชื่อ scope นั้น', () => {
+    expect(() => parseScopes(['temphum:write', 'bogus:scope'])).toThrow('bogus:scope');
+  });
+});
+
+describe('parseExpiresAt', () => {
+  test('undefined/null/"" คืน null', () => {
+    expect(parseExpiresAt(undefined)).toBeNull();
+    expect(parseExpiresAt(null)).toBeNull();
+    expect(parseExpiresAt('')).toBeNull();
+  });
+
+  test('ISO string ที่ถูกต้องคืน Date', () => {
+    const out = parseExpiresAt('2026-08-05T00:00:00Z');
+    expect(out).toBeInstanceOf(Date);
+    expect(out.toISOString()).toBe('2026-08-05T00:00:00.000Z');
+  });
+
+  test('ค่าที่ parse ไม่ได้ throw', () => {
+    expect(() => parseExpiresAt('ไม่ใช่วันที่')).toThrow('วันหมดอายุไม่ถูกต้อง');
   });
 });

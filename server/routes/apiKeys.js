@@ -168,7 +168,12 @@ router.patch('/:id', async (req, res) => {
   try {
     const patch = {};
     if (req.body?.name !== undefined) patch.name = String(req.body.name).trim();
-    if (req.body?.scopes !== undefined) patch.scopes = parseScopes(req.body.scopes);
+    if (req.body?.scopes !== undefined) {
+      patch.scopes = parseScopes(req.body.scopes);
+      if (patch.scopes.length === 0) {
+        return res.status(400).json({ error: { message: 'ต้องเลือกอย่างน้อย 1 scope' } });
+      }
+    }
     if (req.body?.expiresAt !== undefined) patch.expiresAt = parseExpiresAt(req.body.expiresAt);
     if (req.body?.rateLimitPerMinute !== undefined) {
       patch.rateLimitPerMinute = Number(req.body.rateLimitPerMinute);
@@ -208,3 +213,5 @@ router.delete('/:id', async (req, res) => {
 
 module.exports = router;
 module.exports.serializeKey = serializeKey;
+module.exports.parseScopes = parseScopes;
+module.exports.parseExpiresAt = parseExpiresAt;
