@@ -132,7 +132,15 @@ export default function PetitionListPage({
   const groupMembership = useItemGroupMembership();
 
   const status = searchParams.get('status') ?? '';
-  const search = searchParams.get('search') ?? searchParams.get('q') ?? searchParams.get('requestNo') ?? '';
+  const search =
+    searchParams.get('search') ??
+    searchParams.get('q') ??
+    searchParams.get('petitionNo') ??
+    searchParams.get('petition_no') ??
+    searchParams.get('petitions_no') ??
+    searchParams.get('requestNo') ??
+    searchParams.get('request_no') ??
+    '';
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
 
   const highlightIds = (searchParams.get('highlight') ?? '')

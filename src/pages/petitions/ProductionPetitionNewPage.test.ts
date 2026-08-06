@@ -4,6 +4,7 @@ import {
   hasRequiredLabRequestStep,
   isResearchAndDevelopmentDepartment,
   makeInitialItemsFromQuery,
+  objectToSearchParams,
   requiresMasterItemSelection,
   requiresDeliveryAndBatch,
 } from './ProductionPetitionNewPage';
@@ -73,6 +74,27 @@ describe('R&D integration request rules', () => {
       sampleName: 'R&D Sample',
       batchNo: '',
       testItems: 'Assay',
+    });
+  });
+
+  it('maps posted integration payloads into the existing query parser', () => {
+    const params = objectToSearchParams({
+      requestNo: 'SA260805025408',
+      requestDate: '2026-08-05',
+      samples: [
+        { sampleName: 'OMETHOATE', commonName: 'OMETHOATE', batchNo: '26S-OMT50', lotNo: '26S-OMT50', qty: 9478.67, unit: 'Kg/L' },
+        { sampleName: 'OMETHOATE', commonName: 'OMETHOATE', batchNo: '26S-OMT51', lotNo: '26S-OMT51', qty: 9478.67, unit: 'Kg/L' },
+      ],
+    });
+
+    const items = makeInitialItemsFromQuery(params);
+
+    expect(items).toHaveLength(2);
+    expect(items[1]).toMatchObject({
+      batchNo: '26S-OMT51',
+      labelQuantity: '9478.67 Kg/L',
+      submittedQuantity: '9478.67',
+      submittedUnit: 'Kg/L',
     });
   });
 });

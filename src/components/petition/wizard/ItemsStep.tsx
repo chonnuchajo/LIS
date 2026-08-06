@@ -42,6 +42,8 @@ export interface ItemRowValues {
   note: string;
   labelQuantity?: string;
   labelSampledDate?: string;
+  submittedQuantity?: string;
+  submittedUnit?: string;
 }
 
 interface Props {
@@ -253,6 +255,18 @@ export default function ItemsStep({
                     placeholder={allowManualItemFields ? 'กรอกขนาดบรรจุ หรือเลือกจาก Master Item' : 'เติมอัตโนมัติจาก Master Item'}
                   />
                 </div>
+                {(it.submittedQuantity || it.submittedUnit) && (
+                  <>
+                    <div>
+                      <Label htmlFor={`submitted-quantity-${idx}`}>ปริมาณที่ส่งตัวอย่าง</Label>
+                      <Input id={`submitted-quantity-${idx}`} value={it.submittedQuantity ?? ''} disabled />
+                    </div>
+                    <div>
+                      <Label htmlFor={`submitted-unit-${idx}`}>หน่วยที่นำส่ง</Label>
+                      <Input id={`submitted-unit-${idx}`} value={it.submittedUnit ?? ''} disabled />
+                    </div>
+                  </>
+                )}
                 <div className="sm:col-span-2">
                   <Label>หมายเหตุ</Label>
                   <Textarea

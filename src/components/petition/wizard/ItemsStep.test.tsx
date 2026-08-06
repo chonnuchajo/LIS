@@ -117,6 +117,20 @@ describe('ItemsStep master item selection', () => {
     ]);
   });
 
+<<<<<<< HEAD
+  it('shows submitted quantity and unit from integration payload as read-only fields', () => {
+    renderStep({
+      value: [{
+        ...baseItem,
+        submittedQuantity: '9478.67',
+        submittedUnit: 'Kg/L',
+      }],
+      itemsReadOnly: true,
+    });
+
+    expect(screen.getByLabelText('ปริมาณที่ส่งตัวอย่าง')).toHaveValue('9478.67');
+    expect(screen.getByLabelText('หน่วยที่นำส่ง')).toHaveValue('Kg/L');
+=======
   // itemNo ขับ "หมวดหมู่ย่อย (prefix code)" + "กลุ่ม Item" ของ parameter — ถ้าค้างรหัสเก่าไว้
   // ตอนคนพิมพ์ชื่อที่ไม่ตรง master item ไหนเลย พารามิเตอร์จะขึ้นผิดตัว
   it('clears itemNo when a typed sample name matches no master item', () => {
@@ -133,5 +147,6 @@ describe('ItemsStep master item selection', () => {
     expect(onChange).toHaveBeenCalledWith([
       { ...baseItem, itemNo: '', sampleName: 'Something nobody sells' },
     ]);
+>>>>>>> 7d8ec2a00d5f954c5c9eb8c6d156e9b30d7568ea
   });
 });
