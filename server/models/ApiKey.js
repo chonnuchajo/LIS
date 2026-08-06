@@ -8,7 +8,7 @@ const { softDeletePlugin } = require('../lib/softDelete');
 const ApiKeySchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   keyPrefix: { type: String, required: true, index: true },
-  keyHash: { type: String, required: true, index: true },
+  keyHash: { type: String, required: true }, // ดูดัชนี compound unique {keyHash,deletedAt} ด้านล่าง — ครอบ lookup อยู่แล้ว ไม่ต้องมี index เดี่ยวซ้ำ
   scopes: { type: [String], default: [] },
   expiresAt: { type: Date, default: null },
   revokedAt: { type: Date, default: null },

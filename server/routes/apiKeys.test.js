@@ -7,6 +7,12 @@ function registeredPaths(r) {
   return r.stack.filter((l) => l.route).map((l) => l.route.path);
 }
 
+describe('admin gate', () => {
+  test('requireAdminUser ต้องเป็น middleware ตัวแรกของ router (ก่อน route จัดการ key ทุกตัว)', () => {
+    expect(router.stack[0].handle.name).toBe('requireAdminUser');
+  });
+});
+
 describe('ลำดับ route', () => {
   test('/meta, /logs, /policy/:policyId ต้องมาก่อน /:id', () => {
     const paths = registeredPaths(router);
