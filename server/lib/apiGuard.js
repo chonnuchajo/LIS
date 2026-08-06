@@ -1,8 +1,14 @@
 const { API_POLICIES, matchPolicy, normalizePath } = require('./apiPolicy');
 const { hashApiKey, evaluateKey, checkRateLimit } = require('./apiKeyAuth');
 const { resolveMode, modeCache } = require('./policyModes');
+const { timingSafeEqualString } = require('./line');
 const ApiKey = require('../models/ApiKey');
 const ApiRequestLog = require('../models/ApiRequestLog');
+
+// เพดาน log แถวของการถูกปฏิเสธ (denied/rate-limited) ต่อ policy ต่อนาที — กันคนไม่มี key
+// ยิงรัวๆ ใส่ endpoint โหมด enforce แล้วยัด ApiRequestLog ไม่อั้น (DoS เชิง storage) response
+// ยังตอบสถานะ (401/403/429) ถูกต้องเหมือนเดิมทุกครั้ง แค่ไม่เขียน log แถวที่เกินโควตา
+const DENY_LOG_CAP_PER_MINUTE = 60;
 
 // รับ credential จาก header เท่านั้น — รวม header เดิมของ production-integration
 // (x-integration-token) และ n8n (x-lis-ingest-key) ไว้ด้วย เพื่อให้ token เดิมยังทำงาน
@@ -27,10 +33,16 @@ function createApiGuard({
   touchKey,
   readEnv = (name) => process.env[name],
   rateState = new Map(),
+  denyLogState = new Map(),
   now = () => new Date(),
 }) {
   return async function apiGuard(req, res, next) {
-    const policy = matchPolicy(policies, req.method, req.originalUrl || req.url);
+    // ใช้ pathname ที่ Express parse แล้ว (req.path) ไม่ใช่ req.originalUrl/req.url ดิบๆ —
+    // สำหรับ request target แบบ absolute-form (เช่น 'GET http://host/api/temphum') Express
+    // route ด้วย pathname ที่ตัด scheme/host ออกแล้ว แต่ req.originalUrl ยังเป็นค่าดิบเต็มๆ ทำให้
+    // matchPolicy เทียบผิดรูปแบบและมองไม่เห็น request นั้น
+    const rawPath = req.path || req.originalUrl || req.url;
+    const policy = matchPolicy(policies, req.method, rawPath);
     if (!policy) return next(); // traffic ของหน้าเว็บทั้งหมดออกทางนี้
 
     let modes = {};
@@ -43,10 +55,10 @@ function createApiGuard({
     if (mode === 'off') return next();
 
     const at = now();
-    const path = normalizePath(req.originalUrl || req.url);
+    const path = normalizePath(rawPath);
     const credential = String(extractCredential(req) || '');
     const legacyToken = policy.legacyEnv ? readEnv(policy.legacyEnv) : '';
-    const isLegacy = Boolean(legacyToken && credential && credential === legacyToken);
+    const isLegacy = Boolean(legacyToken && credential && timingSafeEqualString(credential, legacyToken));
 
     let keyDoc = null;
     let verdict = { decision: 'allow', reason: 'ok', status: 200 };
@@ -90,9 +102,16 @@ function createApiGuard({
       ip: req.ip || '',
       status: blocked ? verdict.status : 200,
     };
-    Promise.resolve()
-      .then(() => logRequest(log))
-      .catch(() => {}); // log ล่มต้องไม่ทำให้ request ล่ม
+    // denial (blocked) เท่านั้นที่โดนเพดาน — audit-pass/allowed/legacy-token log ตามปกติเสมอ
+    // เพราะมาจาก request ที่มี key จริง (หรือ audit mode ที่ไม่บล็อกใครอยู่แล้ว) ไม่ใช่ target ของ flood
+    const shouldLog =
+      !blocked ||
+      checkRateLimit(denyLogState, `deny:${policy.id}`, DENY_LOG_CAP_PER_MINUTE, at.getTime()).allowed;
+    if (shouldLog) {
+      Promise.resolve()
+        .then(() => logRequest(log))
+        .catch(() => {}); // log ล่มต้องไม่ทำให้ request ล่ม
+    }
 
     if (keyDoc && (verdict.decision === 'allow' || !enforcing)) {
       Promise.resolve().then(() => touchKey(keyDoc._id)).catch(() => {});
@@ -101,7 +120,13 @@ function createApiGuard({
     if (blocked) {
       return res.status(verdict.status).json({ error: { message: `API key ไม่ผ่าน: ${verdict.reason}` } });
     }
-    if (keyDoc) req.apiKey = { id: String(keyDoc._id), name: keyDoc.name, scopes: keyDoc.scopes || [] };
+    // ตั้ง req.apiKey เฉพาะตอน verdict อนุมัติจริง (allow) เท่านั้น — เดิมตั้งให้ทันทีที่หา keyDoc
+    // เจอ แม้ verdict จะเป็น revoked/expired/missing-scope ก็ตาม (แค่โหมด audit ไม่บล็อก) ทำให้
+    // route ปลายทางที่เริ่มเชื่อ req.apiKey เป็น credential ทางเลือก (ดู productionIntegration.js,
+    // line.js) เผลอยอมรับ key ที่ถูกเพิกถอน/หมดอายุไปด้วย
+    if (keyDoc && verdict.decision === 'allow') {
+      req.apiKey = { id: String(keyDoc._id), name: keyDoc.name, scopes: keyDoc.scopes || [] };
+    }
     return next();
   };
 }

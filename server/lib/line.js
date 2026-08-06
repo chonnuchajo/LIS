@@ -31,6 +31,17 @@ function isForwarding() {
   return forwardUrl().length > 0;
 }
 
+// เทียบสตริงสองค่าแบบ timing-safe (กัน timing attack เดา secret/signature ทีละไบต์) — ใช้ทั้ง
+// verifyIngestKey/verifySignature ด้านล่าง และถูก apiGuard.js เอาไปใช้เทียบ legacy env token
+// ด้วย (เดิมใช้ === เทียบตรงๆ) ค่าใดค่าหนึ่งว่าง/undefined ต้องไม่ match กันเองเด็ดขาด
+function timingSafeEqualString(a, b) {
+  if (!a || !b) return false;
+  const bufA = Buffer.from(String(a));
+  const bufB = Buffer.from(String(b));
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 // Shared secret for the /line/ingest endpoint — used when an upstream handler (n8n)
 // is the LINE webhook target and relays events to LIS. n8n may re-serialize the JSON
 // (breaking the byte-exact LINE signature), so ingest authenticates with this static
@@ -39,12 +50,7 @@ function ingestSecret() {
   return String(process.env.LINE_INGEST_SECRET || '').trim();
 }
 function verifyIngestKey(key) {
-  const secret = ingestSecret();
-  if (!secret || !key) return false;
-  const a = Buffer.from(secret);
-  const b = Buffer.from(String(key));
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
+  return timingSafeEqualString(ingestSecret(), key);
 }
 
 // Verify the X-Line-Signature header: base64( HMAC-SHA256(channelSecret, rawBody) ).
@@ -55,10 +61,7 @@ function verifySignature(rawBody, signature) {
   if (!secret || !signature) return false;
   const body = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody ?? ''), 'utf8');
   const expected = crypto.createHmac('sha256', secret).update(body).digest('base64');
-  const a = Buffer.from(expected);
-  const b = Buffer.from(String(signature));
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
+  return timingSafeEqualString(expected, signature);
 }
 
 // Accepts a string, a message object, or an array of either. Strings become text
@@ -149,6 +152,7 @@ module.exports = {
   verifyIngestKey,
   channelSecret,
   verifySignature,
+  timingSafeEqualString,
   toMessages,
   pushToGroup,
   reply,

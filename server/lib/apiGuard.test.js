@@ -20,6 +20,8 @@ function makeReq({ method = 'POST', url = '/LIS/api/temphum', headers = {} } = {
   return {
     method,
     originalUrl: url,
+    // เลียนแบบ req.path ของ Express จริง (pathname ที่ parse แล้ว ไม่มี query, คงตัวพิมพ์เดิม)
+    path: url.split('?')[0],
     query: {},
     ip: '10.0.0.9',
     get: (name) => lower[String(name).toLowerCase()],
@@ -86,6 +88,19 @@ test('โหมด enforce + ไม่มี key → 401 ไม่เรีย�
   expect(logs[0]).toMatchObject({ outcome: 'denied', reason: 'no-key', status: 401 });
 });
 
+// C1: ปิดช่องบายพาสด้วยตัวพิมพ์ — Express route แบบ case-insensitive แต่ก่อนหน้านี้
+// matchPolicy เทียบแบบ case-sensitive ทำให้ POST /LIS/api/TEMPHUM (ตัวใหญ่) หลุดพ้น policy
+// ไปเงียบๆ แม้ enforce mode จะเปิดอยู่ก็ตาม
+test('โหมด enforce + path ตัวพิมพ์ใหญ่ + ไม่มี key → 401 (กัน bypass ด้วย casing)', async () => {
+  const { guard, logs } = setup({ modes: { 'temphum-push': 'enforce' } });
+  const res = makeRes();
+  let called = false;
+  await guard(makeReq({ url: '/LIS/api/TEMPHUM' }), res, () => { called = true; });
+  expect(called).toBe(false);
+  expect(res.statusCode).toBe(401);
+  expect(logs[0]).toMatchObject({ policyId: 'temphum-push', path: '/temphum', outcome: 'denied' });
+});
+
 test('โหมด enforce + key ถูกต้อง → ผ่าน, set req.apiKey, log allowed, touch key', async () => {
   const { guard, logs, touched } = setup({ modes: { 'temphum-push': 'enforce' } });
   const req = makeReq({ headers: { 'X-API-Key': RAW } });
@@ -114,6 +129,23 @@ test('scope ไม่พอ → 403', async () => {
   expect(res.statusCode).toBe(403);
 });
 
+// M7: req.apiKey ต้องตั้งเฉพาะตอน verdict อนุมัติจริง (allow) เท่านั้น — I2 ทำให้ route ปลายทาง
+// (productionIntegration.js, line.js) เริ่มเชื่อ req.apiKey เป็น credential ทางเลือก ถ้ายังตั้ง
+// ให้ทันทีที่หา keyDoc เจอ (ของเดิม) แม้ key จะถูกเพิกถอนไปแล้ว route เหล่านั้นจะเผลอยอมรับ
+// key ที่เพิกถอนแล้วไปด้วยในโหมด audit
+test('โหมด audit + key ถูกเพิกถอน → ผ่าน (audit ไม่บล็อก) แต่ req.apiKey ต้องไม่ถูกตั้ง', async () => {
+  const { guard, logs } = setup({
+    modes: { 'temphum-push': 'audit' },
+    keys: { [hashApiKey(RAW)]: { ...KEY_DOC, revokedAt: new Date('2020-01-01T00:00:00Z') } },
+  });
+  const req = makeReq({ headers: { 'X-API-Key': RAW } });
+  let called = false;
+  await guard(req, makeRes(), () => { called = true; });
+  expect(called).toBe(true);
+  expect(req.apiKey).toBeUndefined();
+  expect(logs[0]).toMatchObject({ outcome: 'audit-pass', reason: 'revoked' });
+});
+
 test('token เดิมใน env ยังใช้ได้ และ log ว่า legacy-token', async () => {
   const { guard, logs } = setup({
     modes: { 'line-ingest': 'enforce' },
@@ -140,6 +172,21 @@ test('เกิน rate limit → 429 (enforce)', async () => {
   await guard(req(), res, () => {});
   expect(res.statusCode).toBe(429);
   expect(logs[1]).toMatchObject({ outcome: 'rate-limited', reason: 'rate-limited' });
+});
+
+// I4: จำกัดจำนวน log แถวของการถูกปฏิเสธต่อ policy ต่อนาที กันคนไม่มี key ยิงรัวๆ ใส่ endpoint
+// enforce แล้วยัด ApiRequestLog ไม่อั้น — response ต้องยังตอบ 401 ถูกต้องทุกครั้ง แค่ log ไม่เขียน
+// เกินโควตา (60 ครั้ง/นาที)
+test('เกิน cap log ของ denial ต่อนาที (60 ครั้ง) → ครั้งที่ 61 ยัง 401 เหมือนเดิมแต่ไม่เขียน log เพิ่ม', async () => {
+  const { guard, logs } = setup({ modes: { 'temphum-push': 'enforce' } });
+  let lastRes;
+  for (let i = 0; i < 61; i += 1) {
+    lastRes = makeRes();
+    // eslint-disable-next-line no-await-in-loop
+    await guard(makeReq(), lastRes, () => {});
+  }
+  expect(lastRes.statusCode).toBe(401);
+  expect(logs).toHaveLength(60);
 });
 
 test('getModes พัง → fallback เป็น defaultMode (audit) ไม่บล็อก traffic', async () => {

@@ -44,9 +44,14 @@ const API_POLICIES = [
 ];
 
 // '/LIS/api/temphum?x=1' → '/temphum' (mountApi ผูก router ไว้ทั้ง /api และ /LIS/api)
+// ⚠️ ต้อง lowercase ก่อนเทียบเสมอ: Express route แบบ default เทียบ path แบบไม่สนตัวพิมพ์
+// (case-insensitive) ดังนั้น POST /LIS/api/TEMPHUM ก็ยังไปถึง route เดิม — ถ้า normalizePath
+// เทียบแบบ case-sensitive (ของเดิม) matchPolicy จะคืน null ทำให้ guard มองไม่เห็น request นี้
+// เลย (ไม่ต้องมี key, ไม่ rate limit, ไม่ log แม้ใน enforce mode) prefix ในทะเบียนเป็นตัวเล็กหมด
+// อยู่แล้ว lowercase จึงทำให้ "match มากขึ้น" เท่านั้น ไม่มีทางไป match route ของ SPA โดยไม่ตั้งใจ
 function normalizePath(url) {
-  let path = String(url || '').split('?')[0];
-  if (path.startsWith('/LIS/')) path = path.slice(4);
+  let path = String(url || '').split('?')[0].toLowerCase();
+  if (path.startsWith('/lis/')) path = path.slice(4);
   if (path === '/api') path = '/';
   else if (path.startsWith('/api/')) path = path.slice(4);
   if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
@@ -65,9 +70,11 @@ function matchPolicy(policies, method, url) {
   );
 }
 
-// path ที่โชว์ในหน้า UI เช่น 'POST /LIS/api/temphum'
+// path ที่โชว์ในหน้า UI เช่น 'POST /LIS/api/temphum' หรือ 'POST /LIS/api/production-integration/*'
+// (ต่อท้าย /* ให้ policy แบบ prefix เพื่อสื่อว่าคุมทุก sub-path ไม่ใช่แค่ path ตรงตัว)
 function policyPublicPath(policy) {
-  return `${policy.methods.join('/')} /LIS/api${policy.prefix}`;
+  const suffix = policy.exact ? '' : '/*';
+  return `${policy.methods.join('/')} /LIS/api${policy.prefix}${suffix}`;
 }
 
 module.exports = {

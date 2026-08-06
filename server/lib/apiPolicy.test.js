@@ -3,6 +3,7 @@ const {
   API_POLICIES,
   normalizePath,
   matchPolicy,
+  policyPublicPath,
 } = require('./apiPolicy');
 
 describe('normalizePath', () => {
@@ -54,5 +55,38 @@ describe('matchPolicy', () => {
       expect(scopeIds).toContain(p.scope);
       expect(p.defaultMode).toBe('audit');
     }
+  });
+
+  // C1: Express route แบบ case-insensitive โดย default — matchPolicy ต้อง match ด้วยไม่ว่า
+  // ตัวพิมพ์จะเป็นแบบไหน ไม่งั้น POST /LIS/api/TEMPHUM จะหลุดพ้น policy ไปเงียบๆ แม้ Express จะ
+  // ส่งไป route เดิมก็ตาม (guard มองไม่เห็น = ไม่ต้องมี key, ไม่ rate limit, ไม่ log)
+  test('ตัวพิมพ์ใหญ่-เล็กของ path ไม่มีผลกับการ match (กัน bypass ด้วย casing)', () => {
+    for (const url of ['/LIS/api/TEMPHUM', '/api/TempHum', '/API/TEMPHUM', '/api/temphum']) {
+      const p = matchPolicy(API_POLICIES, 'POST', url);
+      expect(p?.id).toBe('temphum-push');
+    }
+  });
+
+  test('production-integration match ได้ทั้งตัวพิมพ์ใหญ่และเล็ก', () => {
+    const p = matchPolicy(API_POLICIES, 'POST', '/api/Production-Integration/petitions');
+    expect(p?.id).toBe('production-integration');
+  });
+
+  test('path ของ SPA ที่สะกดตัวใหญ่ปนก็ยังไม่ถูกคุม', () => {
+    expect(matchPolicy(API_POLICIES, 'GET', '/api/Petitions')).toBeNull();
+    expect(matchPolicy(API_POLICIES, 'POST', '/api/Petitions')).toBeNull();
+  });
+});
+
+// M12: policyPublicPath ต่อ /* ให้ policy แบบ prefix (ไม่ใช่ exact) เพื่อสื่อว่าคุมทุก sub-path
+describe('policyPublicPath', () => {
+  test('policy แบบ exact ไม่มี /* ต่อท้าย', () => {
+    const p = API_POLICIES.find((x) => x.id === 'temphum-push');
+    expect(policyPublicPath(p)).toBe('POST /LIS/api/temphum');
+  });
+
+  test('policy แบบ prefix มี /* ต่อท้าย เพื่อสื่อว่าคุมทุก sub-path', () => {
+    const p = API_POLICIES.find((x) => x.id === 'production-integration');
+    expect(policyPublicPath(p)).toBe('POST /LIS/api/production-integration/*');
   });
 });
