@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const UserFavorite = require('../models/UserFavorite');
-const { normalizeEmail, sanitizePaths } = require('../lib/favorites');
+const { normalizeEmail, sanitizePaths, isValidEmailShape } = require('../lib/favorites');
 
 // GET /api/user-favorites?email=... — path รายการโปรดตามลำดับที่ผู้ใช้จัดไว้
 router.get('/', async (req, res) => {
@@ -21,6 +21,11 @@ router.put('/', async (req, res) => {
     const body = req.body || {};
     const email = normalizeEmail(body.email);
     if (!email) return res.status(400).json({ error: 'email จำเป็น' });
+    // unauthenticated endpoint — กันสร้างเอกสารขยะจาก email มั่ว ๆ (ไม่เช็คกับ User
+    // collection เพราะ dev mode ใช้ user สังเคราะห์ที่ไม่มี User doc โดยตั้งใจ)
+    if (!isValidEmailShape(email)) {
+      return res.status(400).json({ error: 'รูปแบบ email ไม่ถูกต้อง' });
+    }
     const paths = sanitizePaths(body.paths);
     const doc = await UserFavorite.findOneAndUpdate(
       { email },

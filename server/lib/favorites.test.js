@@ -1,4 +1,4 @@
-const { MAX_FAVORITES, normalizeEmail, sanitizePaths } = require('./favorites');
+const { MAX_FAVORITES, normalizeEmail, sanitizePaths, isValidEmailShape } = require('./favorites');
 
 describe('normalizeEmail', () => {
   it('ตัดช่องว่างและแปลงเป็นตัวพิมพ์เล็ก', () => {
@@ -45,5 +45,50 @@ describe('sanitizePaths', () => {
     expect(result).toHaveLength(MAX_FAVORITES);
     expect(result[0]).toBe('/page-0');
     expect(result[MAX_FAVORITES - 1]).toBe(`/page-${MAX_FAVORITES - 1}`);
+  });
+});
+
+describe('isValidEmailShape', () => {
+  it('ผ่านสำหรับ email รูปแบบปกติ', () => {
+    expect(isValidEmailShape('itadmin@icpladda.com')).toBe(true);
+  });
+
+  it('ผ่านสำหรับ email dev mode ที่สังเคราะห์ขึ้น (ไม่มี User doc จริง)', () => {
+    // src/config/dev.ts synthesizeDevUser: `${primary.id}.dev@icpladda.com`
+    expect(isValidEmailShape('lab-analyst.dev@icpladda.com')).toBe(true);
+    expect(isValidEmailShape('admin.dev@icpladda.com')).toBe(true);
+    expect(isValidEmailShape('qc-staff.dev@icpladda.com')).toBe(true);
+  });
+
+  it('ผ่านแม้ตัวพิมพ์ใหญ่/มีช่องว่างหัวท้าย (normalize ก่อนตรวจ)', () => {
+    expect(isValidEmailShape('  Admin@ICPLadda.com  ')).toBe(true);
+  });
+
+  it('ไม่ผ่านเมื่อไม่ใช่ string หรือว่างเปล่า', () => {
+    expect(isValidEmailShape(undefined)).toBe(false);
+    expect(isValidEmailShape(null)).toBe(false);
+    expect(isValidEmailShape('')).toBe(false);
+    expect(isValidEmailShape('   ')).toBe(false);
+  });
+
+  it('ไม่ผ่านเมื่อไม่มี @', () => {
+    expect(isValidEmailShape('itadmin.icpladda.com')).toBe(false);
+  });
+
+  it('ไม่ผ่านเมื่อ domain ไม่มีจุด', () => {
+    expect(isValidEmailShape('itadmin@icpladda')).toBe(false);
+  });
+
+  it('ไม่ผ่านเมื่อมีช่องว่างตรงกลาง', () => {
+    expect(isValidEmailShape('it admin@icpladda.com')).toBe(false);
+  });
+
+  it('ไม่ผ่านเมื่อมี @ มากกว่าหนึ่งตัว', () => {
+    expect(isValidEmailShape('it@admin@icpladda.com')).toBe(false);
+  });
+
+  it('ไม่ผ่านเมื่อยาวเกินเพดาน', () => {
+    const longLocal = 'a'.repeat(250);
+    expect(isValidEmailShape(`${longLocal}@icpladda.com`)).toBe(false);
   });
 });
