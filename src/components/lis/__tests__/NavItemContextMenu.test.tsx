@@ -108,6 +108,15 @@ describe("NavItemContextMenu", () => {
     expect(moveDownItem).not.toHaveAttribute("data-disabled");
   });
 
+  it("เปิดเมนูได้แม้ห่อด้วย Tooltip (โหมด rail พับ ส่ง tooltip prop มา) — nested asChild Slot ยังทำงาน", async () => {
+    renderMenu({ tooltip: "รายการคำร้อง" });
+    openMenu();
+
+    expect(await screen.findByText("เพิ่มในรายการโปรด")).toBeInTheDocument();
+    expect(screen.getByText("เปิดในแท็บใหม่")).toBeInTheDocument();
+    expect(screen.getByText("คัดลอกลิงก์")).toBeInTheDocument();
+  });
+
   it("คัดลอกลิงก์ล้มเหลว (execCommand throw) ต้องไม่หลง textarea ค้างใน DOM และไม่ throw ออกไปนอกฟังก์ชัน", async () => {
     const originalExecCommand = document.execCommand;
     document.execCommand = vi.fn(() => {

@@ -39,7 +39,9 @@ const STORAGE_KEY = "lis.sidebar.collapsed";
 const GROUPS_STORAGE_KEY = "lis.sidebar.collapsedGroups";
 const ACCESS_CONTROL_QUERY_KEY = ["access-control"];
 const EMPTY_GROUPS: NavGroup[] = [];
-const FAVORITES_SECTION_ID = "favorites";
+// prefixed so it can never collide with a real (free-form, lowercase, admin-entered)
+// AccessGroup id — see server/models/AccessGroup.js
+const FAVORITES_SECTION_ID = "__favorites";
 const NAV_PATHS = NAV_ITEMS.map((item) => item.path);
 
 export type AppSidebarVariant = "desktop" | "drawer";
@@ -83,7 +85,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
   const navRef = useRef<HTMLElement | null>(null);
   const navScrollStorageKey = NAV_SCROLL_STORAGE_KEY[variant];
   const roles = normalizeRoles(user);
-  const { favorites, isFavorite, toggle: toggleFavoritePath, move: moveFavoritePath } = useFavorites();
+  const { favorites, isFavorite, toggle: toggleFavoritePath, move: moveFavoritePath } = useFavorites(NAV_PATHS);
 
   const { data: accessControl } = useQuery({
     queryKey: ACCESS_CONTROL_QUERY_KEY,

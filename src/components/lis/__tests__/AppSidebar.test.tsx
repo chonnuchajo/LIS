@@ -3,32 +3,37 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import AppSidebar from "../AppSidebar";
+import { useAuth } from "@/context/AuthContext";
+import { api } from "@/lib/api";
 
-vi.mock("@/context/AuthContext", () => ({
-  useAuth: () => ({
-    user: {
-      email: "admin@example.com",
-      name: "Admin",
-      roles: ["admin"],
-      status: "active",
+const ADMIN_USER = {
+  email: "admin@example.com",
+  name: "Admin",
+  roles: ["admin"],
+  status: "active",
+};
+
+const DEFAULT_ACCESS_CONTROL = {
+  data: {
+    data: {
+      roles: [{ id: "admin", name: "Admin" }],
+      groups: [],
+      permissions: {},
     },
-    logout: vi.fn(),
-  }),
+  },
+};
+
+// useAuth/api.get เป็น vi.fn() (ไม่ใช่ arrow function เปล่า) เพื่อให้เทสต์รายตัว override ด้วย
+// mockReturnValue/mockResolvedValue ได้ — จำเป็นสำหรับเคส non-admin ของ Fix 4
+vi.mock("@/context/AuthContext", () => ({
+  useAuth: vi.fn(() => ({ user: ADMIN_USER, logout: vi.fn() })),
 }));
 
 const getUserFavorites = vi.fn();
 
 vi.mock("@/lib/api", () => ({
   api: {
-    get: vi.fn().mockResolvedValue({
-      data: {
-        data: {
-          roles: [{ id: "admin", name: "Admin" }],
-          groups: [],
-          permissions: {},
-        },
-      },
-    }),
+    get: vi.fn(),
     getUserFavorites: (...args: unknown[]) => getUserFavorites(...args),
     saveUserFavorites: vi.fn().mockResolvedValue({ email: "admin@example.com", paths: [] }),
   },
@@ -58,6 +63,8 @@ describe("AppSidebar", () => {
     sessionStorage.clear();
     localStorage.clear();
     getUserFavorites.mockResolvedValue({ email: "admin@example.com", paths: [] });
+    vi.mocked(useAuth).mockReturnValue({ user: ADMIN_USER, logout: vi.fn() });
+    vi.mocked(api.get).mockResolvedValue(DEFAULT_ACCESS_CONTROL);
   });
 
   afterEach(() => {
@@ -137,6 +144,54 @@ describe("AppSidebar", () => {
     renderSidebar();
 
     await screen.findByPlaceholderText("ค้นหาเมนู...");
+    expect(screen.queryByText("รายการโปรด")).not.toBeInTheDocument();
+  });
+
+  it("รายการที่ถูกเพิ่มเป็นโปรดโผล่สองที่ — กลุ่มรายการโปรด และกลุ่มเดิม", async () => {
+    getUserFavorites.mockResolvedValue({
+      email: "admin@example.com",
+      paths: ["/stock"],
+    });
+    const { container } = renderSidebar();
+
+    await screen.findByText("รายการโปรด");
+
+    const nav = getSidebarNav(container);
+    const stockLinks = nav.querySelectorAll('a[href="/stock"]');
+    expect(stockLinks).toHaveLength(2);
+  });
+
+  it("ไม่แสดงกลุ่มรายการโปรดเมื่อ user เสียสิทธิ์เข้าถึง path ที่บันทึกไว้เป็นรายการโปรด (non-admin)", async () => {
+    // roles=["admin"] ข้ามทุก access check — ต้องใช้ fixture non-admin ที่ permissions
+    // ไม่ครอบ path ที่เป็นรายการโปรด ถึงจะทดสอบเส้นทางนี้ได้จริง
+    vi.mocked(useAuth).mockReturnValue({
+      user: {
+        email: "analyst@example.com",
+        name: "Analyst",
+        roles: ["lab-analyze"],
+        status: "active",
+      },
+      logout: vi.fn(),
+    });
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        data: {
+          roles: [{ id: "lab-analyze", name: "Lab Analyst" }],
+          groups: [],
+          // ไม่มี /stock ในสิทธิ์ของ lab-analyze
+          permissions: { "lab-analyze": ["/petition"] },
+        },
+      },
+    });
+    getUserFavorites.mockResolvedValue({
+      email: "analyst@example.com",
+      paths: ["/stock"],
+    });
+
+    renderSidebar();
+
+    // sanity: หน้าเมนูโหลดสำเร็จและมีอย่างน้อยหนึ่งรายการที่มีสิทธิ์ขึ้นจริง
+    await screen.findByText("รายการคำร้อง");
     expect(screen.queryByText("รายการโปรด")).not.toBeInTheDocument();
   });
 });
