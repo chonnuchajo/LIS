@@ -8,7 +8,7 @@ const { softDeletePlugin } = require('../lib/softDelete');
 const ApiKeySchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   keyPrefix: { type: String, required: true, index: true },
-  keyHash: { type: String, required: true, unique: true, index: true },
+  keyHash: { type: String, required: true, index: true },
   scopes: { type: [String], default: [] },
   expiresAt: { type: Date, default: null },
   revokedAt: { type: Date, default: null },
@@ -26,6 +26,9 @@ ApiKeySchema.set('toJSON', {
     return ret;
   },
 });
+
+// unique keyHash ในแถวที่ยังไม่ถูกลบ (compound กับ deletedAt — soft-delete pattern)
+ApiKeySchema.index({ keyHash: 1, deletedAt: 1 }, { unique: true });
 
 ApiKeySchema.plugin(softDeletePlugin);
 module.exports = mongoose.model('ApiKey', ApiKeySchema);

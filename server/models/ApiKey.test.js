@@ -32,6 +32,22 @@ describe('ApiKey schema', () => {
     const err = new ApiKey({ keyPrefix: 'lisk_abc123', keyHash: 'x'.repeat(64) }).validateSync();
     expect(err?.errors?.name).toBeTruthy();
   });
+
+  test('keyHash ใช้ compound unique index กับ deletedAt (soft-delete pattern)', () => {
+    const indexes = ApiKey.schema.indexes();
+    // ตรวจสอบมี compound unique index ที่ { keyHash: 1, deletedAt: 1 }
+    const compoundIndex = indexes.find(
+      ([keys, opts]) => keys.keyHash && keys.deletedAt && opts.unique
+    );
+    expect(compoundIndex).toBeTruthy();
+    expect(compoundIndex[1].unique).toBe(true);
+
+    // ตรวจสอบไม่มี plain single-field unique index บน keyHash
+    const plainUniqueOnHash = indexes.find(
+      ([keys, opts]) => keys.keyHash && !keys.deletedAt && opts.unique
+    );
+    expect(plainUniqueOnHash).toBeFalsy();
+  });
 });
 
 describe('ApiRequestLog schema', () => {
