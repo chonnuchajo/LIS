@@ -48,10 +48,13 @@ async function copyToClipboard(text: string) {
     el.style.position = "fixed";
     el.style.opacity = "0";
     document.body.appendChild(el);
-    el.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(el);
-    return ok;
+    // finally เพื่อไม่ให้ el ค้างใน DOM ถ้า select()/execCommand throw (เช่น browser บล็อก)
+    try {
+      el.select();
+      return document.execCommand("copy");
+    } finally {
+      document.body.removeChild(el);
+    }
   } catch {
     return false;
   }

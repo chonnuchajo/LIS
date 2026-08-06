@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NavItemContextMenu, { type NavItemContextMenuProps } from "../NavItemContextMenu";
 
@@ -8,6 +8,20 @@ beforeAll(() => {
   Element.prototype.hasPointerCapture = vi.fn(() => false);
   Element.prototype.setPointerCapture = vi.fn();
   Element.prototype.releasePointerCapture = vi.fn();
+});
+
+const toastSuccess = vi.fn();
+const toastError = vi.fn();
+vi.mock("sonner", () => ({
+  toast: {
+    success: (...args: unknown[]) => toastSuccess(...args),
+    error: (...args: unknown[]) => toastError(...args),
+  },
+}));
+
+beforeEach(() => {
+  toastSuccess.mockClear();
+  toastError.mockClear();
 });
 
 type Overrides = Partial<NavItemContextMenuProps>;
@@ -79,5 +93,39 @@ describe("NavItemContextMenu", () => {
 
     fireEvent.click(await screen.findByText("เพิ่มในรายการโปรด"));
     expect(onToggleFavorite).toHaveBeenCalledTimes(1);
+  });
+
+  it("ปุ่มย้ายขึ้น disabled ที่ขอบบนสุด ส่วนย้ายลงยังกดได้ (ไม่ใช่แค่ซ่อน)", async () => {
+    renderMenu({ isFavorite: true, inFavorites: true, canMoveUp: false, canMoveDown: true });
+    openMenu();
+
+    const moveUpItem = (await screen.findByText("ย้ายขึ้น")).closest('[role="menuitem"]');
+    const moveDownItem = screen.getByText("ย้ายลง").closest('[role="menuitem"]');
+
+    expect(moveUpItem).toHaveAttribute("aria-disabled", "true");
+    expect(moveUpItem).toHaveAttribute("data-disabled");
+    expect(moveDownItem).not.toHaveAttribute("aria-disabled");
+    expect(moveDownItem).not.toHaveAttribute("data-disabled");
+  });
+
+  it("คัดลอกลิงก์ล้มเหลว (execCommand throw) ต้องไม่หลง textarea ค้างใน DOM และไม่ throw ออกไปนอกฟังก์ชัน", async () => {
+    const originalExecCommand = document.execCommand;
+    document.execCommand = vi.fn(() => {
+      throw new Error("execCommand ถูกบล็อก");
+    }) as typeof document.execCommand;
+
+    try {
+      renderMenu();
+      openMenu();
+
+      fireEvent.click(await screen.findByText("คัดลอกลิงก์"));
+
+      await waitFor(() => {
+        expect(toastError).toHaveBeenCalledWith("คัดลอกลิงก์ไม่สำเร็จ");
+      });
+      expect(document.body.querySelectorAll("textarea")).toHaveLength(0);
+    } finally {
+      document.execCommand = originalExecCommand;
+    }
   });
 });
