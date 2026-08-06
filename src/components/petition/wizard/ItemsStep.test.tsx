@@ -54,6 +54,7 @@ describe('ItemsStep master item selection', () => {
     expect(onChange).toHaveBeenCalledWith([
       {
         ...baseItem,
+        itemNo: 'P001',
         sampleName: 'Product A 1.8 EC',
         commonName: 'ABAMECTIN 1.8% W/V EC',
         packageUnit: '1 L x 12 bottles',
@@ -81,6 +82,7 @@ describe('ItemsStep master item selection', () => {
     expect(onChange).toHaveBeenCalledWith([
       {
         ...baseItem,
+        itemNo: 'P001',
         sampleName: 'Product A 1.8 EC',
         commonName: 'ABAMECTIN 1.8% W/V EC',
         packageUnit: '1 L x 12 bottles',
@@ -103,9 +105,11 @@ describe('ItemsStep master item selection', () => {
     fireEvent.click(screen.getByText('Master'));
     fireEvent.click(screen.getByText('Product A 1.8 EC'));
 
+    // itemNo คือตัวตนของ master item ที่เลือก ไม่ใช่ค่าที่คนพิมพ์เอง — ต้องตามของที่เลือกเสมอ
     expect(onChange).toHaveBeenCalledWith([
       {
         ...baseItem,
+        itemNo: 'P001',
         sampleName: 'Typed sample',
         commonName: 'Typed common',
         packageUnit: 'Typed package',
@@ -113,6 +117,7 @@ describe('ItemsStep master item selection', () => {
     ]);
   });
 
+<<<<<<< HEAD
   it('shows submitted quantity and unit from integration payload as read-only fields', () => {
     renderStep({
       value: [{
@@ -125,5 +130,23 @@ describe('ItemsStep master item selection', () => {
 
     expect(screen.getByLabelText('ปริมาณที่ส่งตัวอย่าง')).toHaveValue('9478.67');
     expect(screen.getByLabelText('หน่วยที่นำส่ง')).toHaveValue('Kg/L');
+=======
+  // itemNo ขับ "หมวดหมู่ย่อย (prefix code)" + "กลุ่ม Item" ของ parameter — ถ้าค้างรหัสเก่าไว้
+  // ตอนคนพิมพ์ชื่อที่ไม่ตรง master item ไหนเลย พารามิเตอร์จะขึ้นผิดตัว
+  it('clears itemNo when a typed sample name matches no master item', () => {
+    const { onChange } = renderStep({
+      value: [{ ...baseItem, itemNo: 'P001', sampleName: 'Product A 1.8 EC' }],
+      allowManualItemFields: true,
+      requireDeliveryAndBatch: false,
+    });
+
+    fireEvent.change(screen.getAllByRole('textbox')[0], {
+      target: { value: 'Something nobody sells' },
+    });
+
+    expect(onChange).toHaveBeenCalledWith([
+      { ...baseItem, itemNo: '', sampleName: 'Something nobody sells' },
+    ]);
+>>>>>>> 7d8ec2a00d5f954c5c9eb8c6d156e9b30d7568ea
   });
 });

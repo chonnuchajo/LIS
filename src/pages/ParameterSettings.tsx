@@ -294,6 +294,8 @@ type MultiSelectPopoverProps = {
   disabled?: boolean;
   emptyText?: string;
   labelFor?: (value: string) => string;
+  // คำอธิบายใต้ช่อง — ใช้บอกกฎที่มองไม่เห็นจากตัวเลือก เช่น หมวดหมู่เป็นเงื่อนไขบังคับ
+  hint?: string;
 };
 
 function MultiSelectPopover({
@@ -306,6 +308,7 @@ function MultiSelectPopover({
   disabled,
   emptyText = "ไม่มีตัวเลือก",
   labelFor,
+  hint,
 }: MultiSelectPopoverProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -452,6 +455,7 @@ function MultiSelectPopover({
           ))}
         </div>
       ) : null}
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
@@ -2303,6 +2307,7 @@ function ParameterDialog({
                 options={categoryOptions}
                 disabled={form.applyAll}
                 emptyText="ยังไม่มีหมวดหมู่"
+                hint="ดูจากแผนกที่ยื่นคำขอ และเป็นเงื่อนไขบังคับ — เลือกแล้วต้องเข้าหมวดนี้ด้วยเสมอ ถึงจะเช็คเงื่อนไขอื่นต่อ"
               />
               {(() => {
                 const activeParents = (form.categories ?? []).filter(

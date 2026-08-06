@@ -10,6 +10,8 @@ export interface RmTestSelection {
   commonName: string;
   // ชื่อตัวอย่างจาก Master Item ที่เลือก — เก็บไว้แสดงผลใน trigger เท่านั้น ไม่ได้ใช้ประกอบ item
   sampleName?: string;
+  // รหัส Master Item (RO-0123) — ขับ "หมวดหมู่ย่อย (prefix code)" + "กลุ่ม Item" ของ parameter
+  itemNo?: string;
 }
 
 export interface RmPetitionItem {
@@ -18,6 +20,7 @@ export interface RmPetitionItem {
   commonName: string;
   batchNo: string;
   testItems: string;
+  itemNo: string;
 }
 
 export function buildRmPetitionItems(
@@ -64,6 +67,7 @@ export function buildRmPetitionItems(
       sampleName,
       commonName,
       batchNo,
+      itemNo: String(pick?.itemNo ?? '').trim(),
       // ปล่อยว่างเสมอ — ดู comment บน RmTestSelection ด้านบน
       testItems: '',
     };

@@ -99,6 +99,9 @@ export default function PetitionEditPage() {
     });
     const mappedItems: ItemRowValues[] = data.items.map((it) => ({
       seq: it.seq,
+      // ต้องหอบมาด้วย ไม่งั้นการแก้คำขอจะล้างรหัสสินค้าทิ้ง แล้ว parameter ที่ผูกกับ
+      // หมวดหมู่ย่อย/กลุ่ม item จะหายไปจากคำขอนั้นเงียบๆ
+      itemNo: it.itemNo ?? '',
       sampleName: it.sampleName,
       commonName: it.commonName ?? '',
       batchNo: it.batchNo,

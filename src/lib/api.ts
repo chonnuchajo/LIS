@@ -1235,7 +1235,9 @@ export type ParameterItem = {
   commonNames?: string[];
   itemNames?: string[];
   productTypes?: string[];
+  // 'RM' | 'FG' — ประตูแบบ AND เทียบกับ petition.dept (ไม่ใช่มิติ OR ตัวที่หก)
   categories?: string[];
+  // prefix code ของรหัสสินค้า เช่น 'RO' — จับแบบ "ขึ้นต้นด้วย" (RO ครอบ ROPH/ROLS)
   subCategories?: string[];
   itemGroups?: string[];
   excludeCommonNames?: string[];

@@ -1,6 +1,6 @@
 import type { ParameterItem } from '@/lib/api';
 import { isAssignedTo } from '@/lib/assignment';
-import { matchParametersForItem } from '@/lib/petitionTestItems';
+import { getPetitionCategory, itemGroupKey, matchParametersForItem } from '@/lib/petitionTestItems';
 import { normalizeRoles } from '@/lib/roles';
 import type { Petition } from '@/types/petition.types';
 
@@ -42,7 +42,8 @@ export const petitionHasLabReadableItem = (
       matchParametersForItem(
         item,
         labParams,
-        membership?.get(String(item.sampleId ?? '').trim()) ?? [],
+        membership?.get(itemGroupKey(item)) ?? [],
+        { petitionCategory: getPetitionCategory(petition) },
       ).length > 0,
   );
 

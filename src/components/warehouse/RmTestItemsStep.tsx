@@ -92,6 +92,7 @@ export default function RmTestItemsStep({
       batchNo,
       commonName: existing?.commonName ?? '',
       sampleName: existing?.sampleName,
+      itemNo: existing?.itemNo,
       ...next,
     };
     onChange([...value.filter((s) => s.batchNo !== batchNo), merged]);
@@ -118,6 +119,7 @@ export default function RmTestItemsStep({
                   onPick={(option) => patch(batchNo, {
                     commonName: option.commonName,
                     sampleName: option.sampleName,
+                    itemNo: option.itemNo,
                   })} />
               </Field>
             </CardContent>

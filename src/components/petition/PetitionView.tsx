@@ -9,7 +9,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { api, type ParameterItem } from '@/lib/api';
 import { normalizeRoles } from "@/lib/roles";
-import { getPetitionCategory, matchParametersForItem } from '@/lib/petitionTestItems';
+import { getPetitionCategory, itemGroupKey, matchParametersForItem } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import { isResearchAndDevelopmentPetition } from '@/lib/petitionRouting';
 import {
@@ -52,8 +52,8 @@ export default function PetitionView({ petition: p }: Props) {
   const isResearchPetition = isResearchAndDevelopmentPetition(p);
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const groupMembership = useItemGroupMembership();
-  const idsFor = (it: { sampleId?: string }) =>
-    groupMembership.get(String(it?.sampleId ?? '').trim()) ?? [];
+  const idsFor = (it: Parameters<typeof itemGroupKey>[0]) =>
+    groupMembership.get(itemGroupKey(it)) ?? [];
   const [results, setResults] = useState<QCTestResult[]>([]);
   useEffect(() => {
     if (!canSeeTestItems) return;
@@ -147,7 +147,7 @@ export default function PetitionView({ petition: p }: Props) {
           {p.items.map((item) => {
             const lab = isResearchPetition || (item.batchNo && isLabBatch(item.batchNo));
             const matchedParams = canSeeTestItems
-              ? matchParametersForItem(item, visibleParameters, idsFor(item), { forceLabTrack: isResearchPetition })
+              ? matchParametersForItem(item, visibleParameters, idsFor(item), { forceLabTrack: isResearchPetition, petitionCategory })
               : [];
             return (
               <div key={item.seq} className="rounded-[10px] border border-black-50 p-4 space-y-3">

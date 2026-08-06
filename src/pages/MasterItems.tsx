@@ -83,6 +83,7 @@ import {
   getCommonName,
 } from "@/lib/productClassification";
 import { getMasterItemRegulatoryType } from "@/lib/masterItemRegulatoryType";
+import { parameterMatchesFacets, type ParameterMatchFacets } from "@/lib/petitionTestItems";
 
 export { getMasterItemRegulatoryType } from "@/lib/masterItemRegulatoryType";
 
@@ -502,23 +503,21 @@ function getParametersFor(
   const commonName = getCommonName(firstValue(item, commonNameKeys))
     || getCommonName(firstValue(item, nameKeys));
 
-  return parameters.filter((parameter) => {
-    if ((parameter.status ?? "active") !== "active") return false;
-    if (itemName && parameter.excludeItemNames?.includes(itemName)) return false;
-    if (productType && parameter.excludeProductTypes?.includes(productType)) return false;
-    if (category && parameter.excludeCategories?.includes(category)) return false;
-    if (subCategory && parameter.excludeSubCategories?.includes(subCategory)) return false;
-    if (commonName && parameter.excludeCommonNames?.some((name) => name.toUpperCase() === commonName.toUpperCase())) return false;
-    if (itemGroupIds.length > 0 && (parameter.excludeItemGroups ?? []).some((g) => itemGroupIds.includes(g))) return false;
-    if (parameter.applyAll) return true;
-    if (itemName && parameter.itemNames?.includes(itemName)) return true;
-    if (productType && parameter.productTypes?.includes(productType)) return true;
-    if (category && parameter.categories?.includes(category)) return true;
-    if (subCategory && parameter.subCategories?.includes(subCategory)) return true;
-    if (commonName && parameter.commonNames?.includes(commonName)) return true;
-    if (itemGroupIds.length > 0 && (parameter.itemGroups ?? []).some((g) => itemGroupIds.includes(g))) return true;
-    return false;
-  });
+  // กฎ "ใช้กับ" มีชุดเดียว (parameterMatchesFacets) — หน้านี้แค่สกัดข้อเท็จจริงจากแถว
+  // master item แทนที่จะสกัดจาก PetitionItem. เคยมีสำเนากฎอยู่ตรงนี้แล้วเพี้ยนจากฝั่ง
+  // testing (categories จับแบบ OR, subCategories จับแบบตรงตัว) — พรีวิวเลยบอกว่าใช้ได้
+  // ทั้งที่หน้ากรอกผลไม่ขึ้น
+  const facets: ParameterMatchFacets = {
+    itemName,
+    commonName,
+    productType,
+    subCategory,
+    itemGroupIds,
+    category,
+  };
+  return parameters.filter(
+    (parameter) => (parameter.status ?? "active") === "active" && parameterMatchesFacets(parameter, facets),
+  );
 }
 
 function countParametersFor(
