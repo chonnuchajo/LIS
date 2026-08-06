@@ -76,17 +76,66 @@ export default function ApiKeyFormDialog({
       setRawKey(result.rawKey); // โชว์ค่าเต็มครั้งเดียว
       return;
     }
-    onOpenChange(false);
+    handleDialogOpenChange(false);
+  };
+
+  // Clipboard with fallback pattern (from NavItemContextMenu.tsx)
+  const copyToClipboard = async (text: string): Promise<boolean> => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // ตกไปใช้ fallback ข้างล่าง
+    }
+    // clipboard API ใช้ไม่ได้เมื่อไม่ใช่ secure context (เช่น http ภายในองค์กร)
+    try {
+      const el = document.createElement("textarea");
+      el.value = text;
+      el.setAttribute("readonly", "");
+      el.style.position = "fixed";
+      el.style.opacity = "0";
+      document.body.appendChild(el);
+      // finally เพื่อไม่ให้ el ค้างใน DOM ถ้า select()/execCommand throw (เช่น browser บล็อก)
+      try {
+        el.select();
+        return document.execCommand("copy");
+      } finally {
+        document.body.removeChild(el);
+      }
+    } catch {
+      return false;
+    }
   };
 
   const copyKey = async () => {
-    await navigator.clipboard.writeText(rawKey);
-    setCopied(true);
-    toast.success("คัดลอก key แล้ว");
+    const success = await copyToClipboard(rawKey);
+    if (success) {
+      setCopied(true);
+      toast.success("คัดลอก key แล้ว");
+    } else {
+      toast.error("คัดลอกไม่ได้ — กรุณาเลือกและคัดลอกเอง");
+    }
+  };
+
+  // Intercept dialog close to protect rawKey display
+  const handleDialogOpenChange = (newOpen: boolean) => {
+    // If showing rawKey and trying to close without copying, prevent it
+    if (rawKey && !newOpen && !copied) {
+      toast.warning("ต้องคัดลอก key ก่อน — ปิดแล้วจะดูค่าไม่ได้อีก");
+      return;
+    }
+    onOpenChange(newOpen);
+  };
+
+  // Explicit close button on reveal screen (deliberate exit path)
+  const handleRevealClose = () => {
+    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="sm:max-w-lg">
         {rawKey ? (
           <>
@@ -110,7 +159,7 @@ export default function ApiKeyFormDialog({
               วิธีใช้: ส่ง header <code>X-API-Key: {"<key>"}</code> ไปกับทุก request
             </p>
             <DialogFooter>
-              <Button onClick={() => onOpenChange(false)}>เสร็จแล้ว</Button>
+              <Button onClick={handleRevealClose}>คัดลอกแล้ว ปิดหน้าต่าง</Button>
             </DialogFooter>
           </>
         ) : (
@@ -171,7 +220,7 @@ export default function ApiKeyFormDialog({
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              <Button variant="outline" onClick={() => handleDialogOpenChange(false)} disabled={saving}>
                 ยกเลิก
               </Button>
               <Button onClick={handleSubmit} disabled={saving}>
