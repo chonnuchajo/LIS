@@ -1,7 +1,7 @@
 import { PublicClientApplication, type Configuration } from "@azure/msal-browser";
 
-const CLIENT_ID = process.env.CLIENT_ID;
-const TENANT_ID = process.env.TENANT_ID;
+const CLIENT_ID = import.meta.env.VITE_AZURE_CLIENT_ID;
+const TENANT_ID = import.meta.env.VITE_AZURE_TENANT_ID;
 
 // Redirect URI must match exactly what's registered in Azure App Registration.
 const REDIRECT_URI =
