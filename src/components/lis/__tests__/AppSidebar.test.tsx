@@ -16,6 +16,8 @@ vi.mock("@/context/AuthContext", () => ({
   }),
 }));
 
+const getUserFavorites = vi.fn();
+
 vi.mock("@/lib/api", () => ({
   api: {
     get: vi.fn().mockResolvedValue({
@@ -27,6 +29,8 @@ vi.mock("@/lib/api", () => ({
         },
       },
     }),
+    getUserFavorites: (...args: unknown[]) => getUserFavorites(...args),
+    saveUserFavorites: vi.fn().mockResolvedValue({ email: "admin@example.com", paths: [] }),
   },
 }));
 
@@ -53,6 +57,7 @@ describe("AppSidebar", () => {
   beforeEach(() => {
     sessionStorage.clear();
     localStorage.clear();
+    getUserFavorites.mockResolvedValue({ email: "admin@example.com", paths: [] });
   });
 
   afterEach(() => {
@@ -96,5 +101,42 @@ describe("AppSidebar", () => {
     if (!toggle) throw new Error("Sidebar collapse toggle not found");
 
     expect(toggle).toHaveClass("z-40", "w-8", "h-8", "-right-4", "ring-4", "ring-background", "shadow-md");
+  });
+
+  it("ไม่แสดงกลุ่มรายการโปรดเมื่อยังไม่มีรายการโปรด", async () => {
+    renderSidebar();
+
+    await screen.findByPlaceholderText("ค้นหาเมนู...");
+    expect(screen.queryByText("รายการโปรด")).not.toBeInTheDocument();
+  });
+
+  it("แสดงกลุ่มรายการโปรดบนสุดตามลำดับที่เก็บไว้", async () => {
+    getUserFavorites.mockResolvedValue({
+      email: "admin@example.com",
+      paths: ["/stock", "/petition"],
+    });
+    const { container } = renderSidebar();
+
+    await screen.findByText("รายการโปรด");
+
+    const nav = getSidebarNav(container);
+    const headings = Array.from(nav.querySelectorAll("button > span.truncate")).map(
+      (el) => el.textContent,
+    );
+    expect(headings[0]).toBe("รายการโปรด");
+
+    const links = Array.from(nav.querySelectorAll("a")).map((el) => el.getAttribute("href"));
+    expect(links.slice(0, 2)).toEqual(["/stock", "/petition"]);
+  });
+
+  it("ไม่แสดงรายการโปรดที่ชี้ path ซึ่งไม่มีใน NAV_ITEMS", async () => {
+    getUserFavorites.mockResolvedValue({
+      email: "admin@example.com",
+      paths: ["/ไม่มีหน้านี้แล้ว"],
+    });
+    renderSidebar();
+
+    await screen.findByPlaceholderText("ค้นหาเมนู...");
+    expect(screen.queryByText("รายการโปรด")).not.toBeInTheDocument();
   });
 });
