@@ -207,13 +207,27 @@ test('findKeyByHash พัง + โหมด enforce + มี credential → 401
   expect(res.body).toMatchObject({ error: { message: expect.stringContaining('unknown-key') } });
 });
 
+test('credential ผ่าน query string (?key=) เท่านั้น → ไม่ถูกอ่าน (401 no-key) แม้ key จะถูกต้อง', async () => {
+  const { guard, logs } = setup({ modes: { 'temphum-push': 'enforce' } });
+  const res = makeRes();
+  let called = false;
+  await guard(
+    { ...makeReq(), query: { key: RAW } },
+    res,
+    () => { called = true; },
+  );
+  expect(called).toBe(false);
+  expect(res.statusCode).toBe(401);
+  expect(logs[0]).toMatchObject({ outcome: 'denied', reason: 'no-key', status: 401 });
+});
+
 describe('extractCredential', () => {
-  test('อ่านได้ทุกช่องทางที่ระบบภายนอกใช้อยู่', () => {
+  test('อ่านได้ทุกช่องทางที่ระบบภายนอกใช้อยู่ ยกเว้น query string', () => {
     expect(extractCredential(makeReq({ headers: { 'X-API-Key': 'a' } }))).toBe('a');
     expect(extractCredential(makeReq({ headers: { Authorization: 'Bearer b' } }))).toBe('b');
     expect(extractCredential(makeReq({ headers: { 'X-Integration-Token': 'c' } }))).toBe('c');
     expect(extractCredential(makeReq({ headers: { 'X-LIS-Ingest-Key': 'd' } }))).toBe('d');
-    expect(extractCredential({ ...makeReq(), query: { key: 'e' } })).toBe('e');
+    expect(extractCredential({ ...makeReq(), query: { key: 'e' } })).toBe(''); // ?key= ไม่ถูกอ่านแล้ว กัน secret หลุดเข้า access log
     expect(extractCredential(makeReq())).toBe('');
   });
 });

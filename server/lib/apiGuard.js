@@ -4,9 +4,10 @@ const { resolveMode, modeCache } = require('./policyModes');
 const ApiKey = require('../models/ApiKey');
 const ApiRequestLog = require('../models/ApiRequestLog');
 
-// ช่องทางที่ระบบภายนอกส่ง credential เข้ามา — รวม header เดิมของ
-// production-integration (x-integration-token) และ n8n (x-lis-ingest-key / ?key=)
-// ไว้ด้วย เพื่อให้ token เดิมยังทำงานระหว่างช่วงย้าย
+// รับ credential จาก header เท่านั้น — รวม header เดิมของ production-integration
+// (x-integration-token) และ n8n (x-lis-ingest-key) ไว้ด้วย เพื่อให้ token เดิมยังทำงาน
+// ระหว่างช่วงย้าย ⚠️ ห้ามรับผ่าน query string (?key=): หลุดเข้า access log ของ
+// web server / browser history / Referer header ได้ ซึ่งไม่ได้อยู่ใต้การควบคุมของเรา
 function extractCredential(req) {
   const bearer = (req.get('authorization') || '').match(/^Bearer\s+(.+)$/i)?.[1];
   return (
@@ -14,7 +15,6 @@ function extractCredential(req) {
     bearer ||
     req.get('x-integration-token') ||
     req.get('x-lis-ingest-key') ||
-    (req.query && req.query.key) ||
     ''
   );
 }
