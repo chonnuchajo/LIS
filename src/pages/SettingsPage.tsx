@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 import { toast } from "sonner";
+import ApiKeysPanel from "@/components/lis/ApiKeysPanel";
 import AppLayout from "@/components/lis/AppLayout";
 import DashboardLayoutConfigCard from "@/components/lis/DashboardLayoutConfigCard";
 import DocumentNumberConfigCard from "@/components/lis/DocumentNumberConfigCard";
@@ -229,6 +230,15 @@ const SettingsPage = () => {
             <div className="max-w-2xl">
               <LineConfigCard />
             </div>
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="api-keys" className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              ออก API key ให้ระบบภายนอกเรียก LIS และกำหนดว่า endpoint ไหนบังคับใช้ key แล้วบ้าง
+            </p>
+            <ApiKeysPanel />
           </TabsContent>
         )}
       </Tabs>
