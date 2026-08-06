@@ -71,7 +71,14 @@ export default function ApiKeyFormDialog({
       expiresAt: expiresAt ? new Date(`${expiresAt}T23:59:59`).toISOString() : null,
       rateLimitPerMinute: Number(rateLimit) || 0,
     };
-    const result = await onSubmit(input);
+    let result: CreatedApiKey | ApiKeyItem;
+    try {
+      result = await onSubmit(input);
+    } catch {
+      // parent (ApiKeysPanel) แสดง toast error ให้แล้วผ่าน onError ของ mutation — ที่นี่แค่กัน
+      // unhandled promise rejection และปล่อยให้ dialog ยังเปิดอยู่ให้ผู้ใช้แก้แล้วลองใหม่ได้
+      return;
+    }
     if (!editing && "rawKey" in result) {
       setRawKey(result.rawKey); // โชว์ค่าเต็มครั้งเดียว
       return;
@@ -131,6 +138,7 @@ export default function ApiKeyFormDialog({
 
   // Explicit close button on reveal screen (deliberate exit path)
   const handleRevealClose = () => {
+    setRawKey(""); // ล้าง key เต็มออกจาก memory ทันที ไม่ปล่อยให้ค้างใน state หลังปิดหน้าต่างนี้
     onOpenChange(false);
   };
 

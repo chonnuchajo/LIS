@@ -67,7 +67,7 @@ export default function ApiKeyList({ items, scopes, onEdit, onRevoke, onDelete }
               </td>
               <td className="p-2">
                 {fmtDate(item.expiresAt)}
-                {isExpiringSoon(item.expiresAt) && (
+                {item.status === "active" && isExpiringSoon(item.expiresAt) && (
                   <Badge variant="secondary" className="ml-1 text-[11px]">
                     ใกล้หมดอายุ
                   </Badge>

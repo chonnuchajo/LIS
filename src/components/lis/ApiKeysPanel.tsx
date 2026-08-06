@@ -20,6 +20,16 @@ import {
 const errMessage = (err: unknown, fallback: string) =>
   err instanceof Error ? err.message : fallback;
 
+// หน้านี้เป็นหน้าความปลอดภัย ("อะไรถูกคุมอยู่บ้าง") — ถ้า query 401/403 (เช่น admin gate ปฏิเสธ)
+// ต้องไม่โชว์เป็นตารางว่างเฉยๆ เพราะ admin จะแยกไม่ออกว่า "ไม่มีอะไรถูกคุม" กับ "ไม่มีสิทธิ์ดู"
+function ErrorState({ message }: { message: string }) {
+  return (
+    <p className="rounded-md border border-dashed border-destructive/50 bg-destructive/5 p-6 text-center text-sm text-destructive">
+      โหลดข้อมูลไม่สำเร็จ: {message}
+    </p>
+  );
+}
+
 export default function ApiKeysPanel() {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
@@ -27,9 +37,22 @@ export default function ApiKeysPanel() {
   const [editing, setEditing] = useState<ApiKeyItem | null>(null);
   const [outcomeFilter, setOutcomeFilter] = useState("all");
 
-  const { data: meta } = useQuery({ queryKey: ["api-keys", "meta"], queryFn: api.getApiKeyMeta });
-  const { data: keys = [] } = useQuery({ queryKey: ["api-keys"], queryFn: api.getApiKeys });
-  const { data: logs = [], isLoading: logsLoading } = useQuery({
+  const {
+    data: meta,
+    isError: metaIsError,
+    error: metaError,
+  } = useQuery({ queryKey: ["api-keys", "meta"], queryFn: api.getApiKeyMeta });
+  const {
+    data: keys = [],
+    isError: keysIsError,
+    error: keysError,
+  } = useQuery({ queryKey: ["api-keys"], queryFn: api.getApiKeys });
+  const {
+    data: logs = [],
+    isLoading: logsLoading,
+    isError: logsIsError,
+    error: logsError,
+  } = useQuery({
     queryKey: ["api-keys", "logs", outcomeFilter],
     queryFn: () =>
       api.getApiKeyLogs({ outcome: outcomeFilter === "all" ? undefined : outcomeFilter, limit: 50 }),
@@ -150,16 +173,20 @@ export default function ApiKeysPanel() {
           </Button>
         </CardHeader>
         <CardContent>
-          <ApiKeyList
-            items={keys}
-            scopes={meta?.scopes ?? []}
-            onEdit={(item) => {
-              setEditing(item);
-              setFormOpen(true);
-            }}
-            onRevoke={handleRevoke}
-            onDelete={handleDelete}
-          />
+          {keysIsError ? (
+            <ErrorState message={errMessage(keysError, "ไม่ทราบสาเหตุ")} />
+          ) : (
+            <ApiKeyList
+              items={keys}
+              scopes={meta?.scopes ?? []}
+              onEdit={(item) => {
+                setEditing(item);
+                setFormOpen(true);
+              }}
+              onRevoke={handleRevoke}
+              onDelete={handleDelete}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -171,11 +198,16 @@ export default function ApiKeysPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ApiPolicyTable
-            policies={meta?.policies ?? []}
-            saving={modeMutation.isPending}
-            onChangeMode={handleChangeMode}
-          />
+          {metaIsError ? (
+            <ErrorState message={errMessage(metaError, "ไม่ทราบสาเหตุ")} />
+          ) : (
+            <ApiPolicyTable
+              policies={meta?.policies ?? []}
+              modes={meta?.modes ?? []}
+              saving={modeMutation.isPending}
+              onChangeMode={handleChangeMode}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -185,12 +217,16 @@ export default function ApiKeysPanel() {
           <CardDescription>50 รายการล่าสุด (เก็บย้อนหลัง 30 วัน)</CardDescription>
         </CardHeader>
         <CardContent>
-          <ApiRequestLogTable
-            logs={logs}
-            loading={logsLoading}
-            outcomeFilter={outcomeFilter}
-            onOutcomeFilterChange={setOutcomeFilter}
-          />
+          {logsIsError ? (
+            <ErrorState message={errMessage(logsError, "ไม่ทราบสาเหตุ")} />
+          ) : (
+            <ApiRequestLogTable
+              logs={logs}
+              loading={logsLoading}
+              outcomeFilter={outcomeFilter}
+              onOutcomeFilterChange={setOutcomeFilter}
+            />
+          )}
         </CardContent>
       </Card>
 

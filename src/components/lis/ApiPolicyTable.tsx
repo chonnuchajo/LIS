@@ -10,13 +10,12 @@ import { API_POLICY_MODE_LABEL, type ApiPolicyItem, type ApiPolicyMode } from "@
 
 interface Props {
   policies: ApiPolicyItem[];
+  modes: ApiPolicyMode[];
   saving: boolean;
   onChangeMode: (policyId: string, mode: ApiPolicyMode) => void;
 }
 
-const MODES: ApiPolicyMode[] = ["off", "audit", "enforce"];
-
-export default function ApiPolicyTable({ policies, saving, onChangeMode }: Props) {
+export default function ApiPolicyTable({ policies, modes, saving, onChangeMode }: Props) {
   return (
     <div className="overflow-x-auto rounded-md border">
       <table className="w-full text-sm">
@@ -62,7 +61,7 @@ export default function ApiPolicyTable({ policies, saving, onChangeMode }: Props
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {MODES.map((mode) => (
+                    {modes.map((mode) => (
                       <SelectItem key={mode} value={mode}>
                         {API_POLICY_MODE_LABEL[mode]}
                       </SelectItem>
