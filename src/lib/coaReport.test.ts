@@ -24,4 +24,35 @@ describe("buildCoaReportPages", () => {
     expect(pages[0].revision).toBe(1);
     expect(pages[0].samples[0].rows[0].testItem).toBe("pH");
   });
+
+  it("uses the GR/WP/SP COA form data for common names with those suffixes", () => {
+    const doc = {
+      _id: "c-gr",
+      coaNo: "00052026",
+      revision: 0,
+      status: "approved",
+      petitionId: "p-gr",
+      petitionNoSnapshot: "P-2608-0005",
+      selectedItemSeqs: [1],
+      customerSnapshot: { name: "Customer A" },
+      sampleSnapshots: [{
+        itemSeq: 1,
+        sampleName: "Trade Herbicide",
+        commonName: "Glyphosate 48% SL GR",
+        batchNo: "B-777",
+        lotNo: "LOT-777",
+        productionDate: "2026-08-15",
+      }],
+      resultSnapshots: [{ itemSeq: 1, testItem: "%AI content (W/W)", result: "48.2%" }],
+      approval: { approvedBy: { name: "QC Head" }, approvedAt: "2026-08-20T00:00:00.000Z" },
+    } as CoaDocument;
+
+    const pages = buildCoaReportPages(doc);
+
+    expect(pages[0].template).toBe("grWpSp");
+    expect(pages[0].samples[0].product).toBe("Trade Herbicide (Glyphosate 48% SL GR)");
+    expect(pages[0].samples[0].manufacturingDate).toBe("15/08/2026");
+    expect(pages[0].samples[0].expiredDate).toBe("15/08/2028");
+    expect(pages[0].samples[0].aiContentResult).toBe("48.2%");
+  });
 });

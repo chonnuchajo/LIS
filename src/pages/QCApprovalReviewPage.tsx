@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { FlaskConical, Loader2, AlertTriangle, CheckCircle2, RotateCcw } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
@@ -204,6 +204,7 @@ function QCRejectDecisionDialog({
 export default function QCApprovalReviewPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { user } = useAuth();
   const canSeeRestrictedStandards = normalizeRoles(user).some((role) => role === "admin" || role === "qc-head");
@@ -295,6 +296,38 @@ export default function QCApprovalReviewPage() {
       setSubmitting(false);
     }
   }, [petition, user, navigate]);
+
+  useEffect(() => {
+    const decision = searchParams.get("decision");
+    if (!petition || !abnormalLoaded || submitting || !decision) return;
+
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("decision");
+      return next;
+    }, { replace: true });
+
+    if (decision === "approve") {
+      if (petitionHasAbnormal) {
+        setAcceptReasonDialogOpen(true);
+      } else {
+        handleApprovePass();
+      }
+      return;
+    }
+
+    if (decision === "reject") {
+      setRejectDialogOpen(true);
+    }
+  }, [
+    abnormalLoaded,
+    handleApprovePass,
+    petition,
+    petitionHasAbnormal,
+    searchParams,
+    setSearchParams,
+    submitting,
+  ]);
 
   if (loading) {
     return (

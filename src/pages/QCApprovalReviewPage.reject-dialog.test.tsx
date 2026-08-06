@@ -106,9 +106,9 @@ vi.mock("sonner", () => ({
   },
 }));
 
-function renderPage() {
+function renderPage(initialEntry = "/qc-approval/p1") {
   return render(
-    <MemoryRouter initialEntries={["/qc-approval/p1"]}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/qc-approval/:id" element={<QCApprovalReviewPage />} />
       </Routes>
@@ -175,5 +175,12 @@ describe("QCApprovalReviewPage reject dialog", () => {
     expect(actionBar).toHaveClass("bottom-3");
     expect(actionBar).not.toHaveClass("bottom-0");
     expect(actionBar).toHaveClass("pb-[calc(env(safe-area-inset-bottom)+0.75rem)]");
+  });
+
+  it("opens the reject dialog from the decision query", async () => {
+    renderPage("/qc-approval/p1?decision=reject");
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("ไม่อนุมัติคำร้อง P-2607-0001");
+    expect(screen.getByText("ส่งให้ใคร")).toBeInTheDocument();
   });
 });

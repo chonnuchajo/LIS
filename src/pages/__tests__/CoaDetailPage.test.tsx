@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   reviseCoaDocument: vi.fn(),
   cancelCoaDocument: vi.fn(),
   recordCoaPrintEvent: vi.fn(),
+  openPrintPdf: vi.fn(),
 }));
 
 vi.mock("@/components/lis/AppLayout", () => ({
@@ -34,6 +35,9 @@ vi.mock("@/lib/api", () => ({
     cancelCoaDocument: mocks.cancelCoaDocument,
     recordCoaPrintEvent: mocks.recordCoaPrintEvent,
   },
+}));
+vi.mock("@/lib/print", () => ({
+  openPrintPdf: mocks.openPrintPdf,
 }));
 
 function documentWith(status: string) {
@@ -81,6 +85,7 @@ beforeEach(() => {
   mocks.reviseCoaDocument.mockResolvedValue({ _id: "c2" });
   mocks.cancelCoaDocument.mockResolvedValue(documentWith("cancelled"));
   mocks.recordCoaPrintEvent.mockResolvedValue(documentWith("printed"));
+  mocks.openPrintPdf.mockResolvedValue(undefined);
 });
 
 describe("CoaDetailPage", () => {
@@ -173,6 +178,15 @@ describe("CoaDetailPage", () => {
     renderPage("/coa/c1?print=1");
 
     expect(await screen.findByRole("button", { name: "Complete print" })).toBeInTheDocument();
+  });
+
+  it("downloads a COA PDF when requested from the COA table", async () => {
+    mocks.getCoaDocument.mockResolvedValue(documentWith("approved"));
+    renderPage("/coa/c1?pdf=1");
+
+    await waitFor(() => expect(mocks.openPrintPdf).toHaveBeenCalledWith("coa", expect.any(HTMLElement), expect.objectContaining({
+      fileName: "COA-00012026.pdf",
+    })));
   });
 
   it("requires a reason before rejecting and sends it with the authenticated actor", async () => {

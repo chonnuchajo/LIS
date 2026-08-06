@@ -1,7 +1,7 @@
 import { useMemo, useState, type ComponentProps } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { FileCheck2, FilePlus2, Folder, Pencil, Printer } from "lucide-react";
+import { FileCheck2, FileDown, FilePlus2, Folder, Pencil, Printer } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -163,9 +163,26 @@ export default function CoaCenterPage() {
   const showEditActions = activeTab !== "all" && activeWorkflowStage === "inProgress";
   const showInProgressReviewColumns = showEditActions;
   const showWorkflowTabs = activeTab !== "all";
-  const showStatusColumn = activeTab !== "all" && !showInProgressReviewColumns;
-  const baseColumnCount = showInProgressReviewColumns ? 4 : 6;
-  const tableColumnCount = baseColumnCount + (showStatusColumn ? 1 : 0) + (showPrintActions ? 1 : 0) + (showEditActions ? 1 : 0);
+  const showApprovedCommandColumns = showPrintActions;
+  const showPendingApprovalColumns = activeTab !== "all" && activeWorkflowStage === "pendingApproval";
+  const showDocumentColumn = !showInProgressReviewColumns && !showApprovedCommandColumns && !showPendingApprovalColumns;
+  const showCustomerColumn = !showInProgressReviewColumns && !showApprovedCommandColumns && !showPendingApprovalColumns;
+  const showCompanyColumn = showApprovedCommandColumns;
+  const showCommonNameColumn = !showApprovedCommandColumns;
+  const showLotColumn = !showApprovedCommandColumns;
+  const showStatusColumn = activeTab !== "all" && !showInProgressReviewColumns && !showCreateActions && !showApprovedCommandColumns;
+  const showCommandColumn = showPrintActions || showCreateActions || showEditActions;
+  const tableColumnCount = [
+    showDocumentColumn,
+    true,
+    showCustomerColumn,
+    true,
+    showCompanyColumn,
+    showCommonNameColumn,
+    showLotColumn,
+    showStatusColumn,
+    showCommandColumn,
+  ].filter(Boolean).length;
   const showAllYearFolders = activeTab === "all" && !openAllYear;
 
   return (
@@ -303,15 +320,15 @@ export default function CoaCenterPage() {
             <table className="w-full text-sm">
               <thead className="bg-violet-50 text-left text-xs font-semibold text-violet-900">
                 <tr>
-                  {!showInProgressReviewColumns && <th className="px-4 py-3">Document No</th>}
+                  {showDocumentColumn && <th className="px-4 py-3">Document No</th>}
                   <th className="px-4 py-3">COA No</th>
-                  {!showInProgressReviewColumns && <th className="px-4 py-3">ชื่อลูกค้า</th>}
+                  {showCustomerColumn && <th className="px-4 py-3">ชื่อลูกค้า</th>}
                   <th className="px-4 py-3">ชื่อการค้า</th>
-                  <th className="px-4 py-3">ชื่อสามัญ</th>
-                  <th className="px-4 py-3">LOT No. (แบช+วันที่ผลิต)</th>
+                  {showCompanyColumn && <th className="px-4 py-3">ชื่อลูกค้า</th>}
+                  {showCommonNameColumn && <th className="px-4 py-3">ชื่อสามัญ</th>}
+                  {showLotColumn && <th className="px-4 py-3">LOT No. (แบช+วันที่ผลิต)</th>}
                   {showStatusColumn && <th className="px-4 py-3">สถานะ</th>}
-                  {showPrintActions && <th className="px-4 py-3">พิมพ์</th>}
-                  {showEditActions && <th className="px-4 py-3">คำสั่ง</th>}
+                  {showCommandColumn && <th className="px-4 py-3">คำสั่ง</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-violet-50">
@@ -331,14 +348,15 @@ export default function CoaCenterPage() {
                     className="cursor-pointer text-slate-700 transition-colors hover:bg-emerald-50/70"
                     onClick={() => navigate(`/coa/${doc._id}`)}
                   >
-                    {!showInProgressReviewColumns && (
+                    {showDocumentColumn && (
                       <td className="px-4 py-3 font-semibold text-violet-950">{doc.petitionNoSnapshot || "-"}</td>
                     )}
                     <td className="px-4 py-3">{doc.coaNo || "ร่าง"}</td>
-                    {!showInProgressReviewColumns && <td className="px-4 py-3">{customerName(doc)}</td>}
+                    {showCustomerColumn && <td className="px-4 py-3">{customerName(doc)}</td>}
                     <td className="px-4 py-3">{joinValues(doc.sampleSnapshots?.map((sample) => sample.sampleName))}</td>
-                    <td className="px-4 py-3">{joinValues(doc.sampleSnapshots?.map((sample) => sample.commonName))}</td>
-                    <td className="px-4 py-3">{joinValues(doc.sampleSnapshots?.map(lotLabel))}</td>
+                    {showCompanyColumn && <td className="px-4 py-3">{customerName(doc)}</td>}
+                    {showCommonNameColumn && <td className="px-4 py-3">{joinValues(doc.sampleSnapshots?.map((sample) => sample.commonName))}</td>}
+                    {showLotColumn && <td className="px-4 py-3">{joinValues(doc.sampleSnapshots?.map(lotLabel))}</td>}
                     {showStatusColumn && (
                       <td className="px-4 py-3">
                         <Badge variant={workflowStageBadgeVariantFor(workflowStageFor(doc))}>
@@ -361,6 +379,23 @@ export default function CoaCenterPage() {
                         )}
                       </td>
                     )}
+                    {showCreateActions && (
+                      <td className="px-4 py-3">
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="gap-2 bg-violet-700 text-white shadow-sm hover:bg-violet-800"
+                          aria-label={`สร้าง COA ${doc.petitionNoSnapshot || doc._id}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setCreateOpen(true);
+                          }}
+                        >
+                          <FilePlus2 className="h-4 w-4" />
+                          สร้าง COA
+                        </Button>
+                      </td>
+                    )}
                     {showPrintActions && (
                       <td className="px-4 py-3">
                         <Button
@@ -377,6 +412,21 @@ export default function CoaCenterPage() {
                         >
                           <Printer className="h-4 w-4" />
                           พิมพ์
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-2 gap-2 border-sky-200 text-sky-700 hover:bg-sky-50"
+                          disabled={!canPrintCoa(doc.status)}
+                          aria-label={`บันทึกไฟล์ PDF COA ${doc.coaNo || doc.petitionNoSnapshot || doc._id}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            navigate(`/coa/${doc._id}?pdf=1`);
+                          }}
+                        >
+                          <FileDown className="h-4 w-4" />
+                          บันทึกไฟล์ PDF
                         </Button>
                       </td>
                     )}

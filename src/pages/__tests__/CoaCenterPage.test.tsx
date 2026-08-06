@@ -186,6 +186,8 @@ describe("CoaCenterPage", () => {
     expect(await screen.findByText("00022026")).toBeInTheDocument();
     expect(screen.queryByText("00012026")).not.toBeInTheDocument();
     expect(screen.queryByText("00032026")).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Document No" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "ชื่อลูกค้า" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "สถานะ อนุมัติแล้ว" }));
 
@@ -193,7 +195,7 @@ describe("CoaCenterPage", () => {
     expect(screen.queryByText("00022026")).not.toBeInTheDocument();
   });
 
-  it("shows the create COA action in the status cell for requested COAs", async () => {
+  it("shows the create COA action in a command column for requested COAs", async () => {
     renderPage();
 
     expect(await screen.findByText("00012026")).toBeInTheDocument();
@@ -202,7 +204,9 @@ describe("CoaCenterPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "สถานะ ขอ COA" }));
 
     const requestedRow = await screen.findByRole("row", { name: /P-2608-0004/ });
-    expect(within(requestedRow).getByText("ขอ COA")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "คำสั่ง" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "สถานะ" })).not.toBeInTheDocument();
+    expect(within(requestedRow).queryByText("ขอ COA")).not.toBeInTheDocument();
     expect(within(requestedRow).getByRole("button", { name: /สร้าง COA/ })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "สถานะ ดำเนินการแล้ว" }));
@@ -229,7 +233,7 @@ describe("CoaCenterPage", () => {
     expect(screen.getByRole("button", { name: "แก้ไข COA 00012026" })).toBeInTheDocument();
   });
 
-  it("shows print actions only in the approved workflow tab", async () => {
+  it("shows print and PDF commands with focused COA columns in the approved workflow tab", async () => {
     renderPage();
 
     expect(await screen.findByText("00012026")).toBeInTheDocument();
@@ -245,7 +249,18 @@ describe("CoaCenterPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "สถานะ อนุมัติแล้ว" }));
 
     expect(await screen.findByText("00032026")).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "พิมพ์" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Document No" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "COA No" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "ชื่อการค้า" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "ชื่อลูกค้า" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "ชื่อบริษัท" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "ชื่อสามัญ" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "LOT No. (แบช+วันที่ผลิต)" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "สถานะ" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "พิมพ์" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "คำสั่ง" })).toBeInTheDocument();
+    expect(screen.getByText("Customer D")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "พิมพ์ COA 00032026" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "บันทึกไฟล์ PDF COA 00032026" })).toBeEnabled();
   });
 });

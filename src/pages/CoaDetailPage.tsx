@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { FileCheck2, Printer } from "lucide-react";
@@ -13,6 +13,7 @@ import CoaStatusBadge from "@/components/coa/CoaStatusBadge";
 import { api } from "@/lib/api";
 import { buildCoaReportPages } from "@/lib/coaReport";
 import { allowedCoaActions, canPrintCoa } from "@/lib/coaStatus";
+import { openPrintPdf } from "@/lib/print";
 import { useAuth } from "@/hooks/useAuth";
 import { normalizeRoles, primaryRole } from "@/lib/roles";
 
@@ -24,6 +25,8 @@ export default function CoaDetailPage() {
   const queryClient = useQueryClient();
   const [printOpen, setPrintOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const pdfRef = useRef<HTMLDivElement>(null);
+  const pdfDownloadKeyRef = useRef("");
   const { data: doc, isLoading, isError, error } = useQuery({
     queryKey: ["coa", id],
     queryFn: () => api.getCoaDocument(id),
@@ -62,6 +65,17 @@ export default function CoaDetailPage() {
       setPrintOpen(true);
     }
   }, [printable, searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("pdf") !== "1" || !printable || !doc || !pdfRef.current) return;
+    const key = `${id}:${doc.coaNo || "draft"}`;
+    if (pdfDownloadKeyRef.current === key) return;
+    pdfDownloadKeyRef.current = key;
+    void openPrintPdf("coa", pdfRef.current, {
+      css: COA_REPORT_CSS,
+      fileName: `COA-${doc.coaNo || id}.pdf`,
+    });
+  }, [doc, id, printable, searchParams]);
 
   if (isLoading || !doc) {
     if (isError) {
@@ -121,6 +135,9 @@ export default function CoaDetailPage() {
       <PrintPreviewDialog open={printOpen} onOpenChange={setPrintOpen} docType="coa" css={COA_REPORT_CSS} onPrinted={(meta) => recordPrint.mutate(meta)}>
         <CoaReportTemplate pages={pages} />
       </PrintPreviewDialog>
+      <div ref={pdfRef} className="fixed -left-[10000px] top-0 bg-white" aria-hidden="true">
+        <CoaReportTemplate pages={pages} />
+      </div>
     </AppLayout>
   );
 }
