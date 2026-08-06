@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "@/lib/msalConfig";
-import { api } from "@/lib/api";
+import { api, setApiUserEmail } from "@/lib/api";
 import { loadAccessControl } from "@/lib/accessControlSource";
 import {
   DEV_MODE,
@@ -187,6 +187,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         status: syncedUser?.status,
       }
     : null;
+
+  // ส่งอีเมลผู้ใช้ปัจจุบันให้ api.ts แนบเป็น header X-LIS-User (backend ใช้ตรวจ
+  // สิทธิ์ admin ของ route /api-keys)
+  useEffect(() => {
+    setApiUserEmail(user?.email);
+  }, [user?.email]);
 
   useEffect(() => {
     if (!account) {

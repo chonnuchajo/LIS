@@ -38,7 +38,18 @@ function dbNameFromUri(uri) {
   return m ? m[1] : null;
 }
 
-(async () => {
+// collection ที่ไม่ต้อง export ลง seed-data/: เป็น log ล้วน กู้คืนไปก็ไม่มีประโยชน์
+// แต่ auto-sync.ps1 จะ commit ไฟล์ใหม่ให้ทุกชั่วโมง (Node-RED ยิงนาทีละครั้ง)
+const SKIP_COLLECTIONS = ['apirequestlogs'];
+
+// ONLY (จาก --only) ชนะ skip list เสมอ เผื่ออยากดัมพ์ log จริงๆ
+function selectCollections(names, only = [], skip = SKIP_COLLECTIONS) {
+  return names
+    .filter((n) => !n.startsWith('system.'))
+    .filter((n) => (only.length ? only.includes(n) : !skip.includes(n)));
+}
+
+async function main() {
   const dbName = dbNameFromUri(SOURCE_URI);
   if (!dbName) {
     console.error('❌ Could not read the database name from the source URI.');
@@ -58,10 +69,10 @@ function dbNameFromUri(uri) {
     await client.connect();
     const db = client.db(dbName);
 
-    const cols = (await db.listCollections({ type: 'collection' }).toArray())
-      .map(c => c.name)
-      .filter(n => !n.startsWith('system.'))
-      .filter(n => ONLY.length === 0 || ONLY.includes(n));
+    const cols = selectCollections(
+      (await db.listCollections({ type: 'collection' }).toArray()).map((c) => c.name),
+      ONLY,
+    );
 
     const manifest = [];
     for (const name of cols) {
@@ -89,4 +100,9 @@ function dbNameFromUri(uri) {
   } finally {
     await client.close().catch(() => {});
   }
-})();
+}
+
+// รันเฉพาะตอนถูกเรียกเป็น script — require จากเทสต้องไม่ไปต่อ MongoDB จริง
+if (require.main === module) main();
+
+module.exports = { SKIP_COLLECTIONS, selectCollections };

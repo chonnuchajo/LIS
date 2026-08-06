@@ -1,0 +1,1 @@
+{"collection":"coacounters","indexes":[{"v":{"$numberInt":"2"},"key":{"year":{"$numberInt":"1"}},"name":"year_1","background":true,"unique":true}],"count":{"$numberInt":"0"},"documents":[]}

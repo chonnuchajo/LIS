@@ -4,11 +4,14 @@ import { Link, useLocation } from "react-router-dom";
 import {
   ChevronDown, ChevronLeft, ChevronRight, Search,
 } from "lucide-react";
-import { NAV_ITEMS } from "@/lib/navItems";
+import { NAV_ITEMS, type NavItem } from "@/lib/navItems";
+import { normalizeFavorites } from "@/lib/favorites";
+import { useFavorites } from "@/hooks/useFavorites";
+import NavItemContextMenu from "./NavItemContextMenu";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { pathMatches, userCanAccessPath } from "@/lib/accessControl";
 import { api } from "@/lib/api";
 import { normalizeRoles, unionPermissions } from "@/lib/roles";
@@ -36,6 +39,10 @@ const STORAGE_KEY = "lis.sidebar.collapsed";
 const GROUPS_STORAGE_KEY = "lis.sidebar.collapsedGroups";
 const ACCESS_CONTROL_QUERY_KEY = ["access-control"];
 const EMPTY_GROUPS: NavGroup[] = [];
+// prefixed so it can never collide with a real (free-form, lowercase, admin-entered)
+// AccessGroup id — see server/models/AccessGroup.js
+const FAVORITES_SECTION_ID = "__favorites";
+const NAV_PATHS = NAV_ITEMS.map((item) => item.path);
 
 export type AppSidebarVariant = "desktop" | "drawer";
 
@@ -78,6 +85,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
   const navRef = useRef<HTMLElement | null>(null);
   const navScrollStorageKey = NAV_SCROLL_STORAGE_KEY[variant];
   const roles = normalizeRoles(user);
+  const { favorites, isFavorite, toggle: toggleFavoritePath, move: moveFavoritePath } = useFavorites(NAV_PATHS);
 
   const { data: accessControl } = useQuery({
     queryKey: ACCESS_CONTROL_QUERY_KEY,
@@ -213,6 +221,18 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
     return result;
   }, [navGroups]);
 
+  // ลำดับยึดตาม favorites ที่เก็บไว้ ไม่ใช่ลำดับใน NAV_ITEMS
+  const favoritePaths = useMemo(() => normalizeFavorites(favorites, NAV_PATHS), [favorites]);
+
+  const allSections = useMemo(() => {
+    if (favoritePaths.length === 0) return sections;
+    const items = favoritePaths
+      .map((path) => NAV_ITEMS.find((item) => item.path === path))
+      .filter((item): item is NavItem => !!item);
+    if (items.length === 0) return sections;
+    return [{ id: FAVORITES_SECTION_ID, label: "รายการโปรด", items }, ...sections];
+  }, [favoritePaths, sections]);
+
   // The active nav item is the one whose path is the longest prefix of the
   // current pathname — so /daily-check stays active on /daily-check/balance,
   // while /petitions/assign still wins over /petitions on its own page.
@@ -300,7 +320,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
               </div>
             </div>
           )}
-          {sections.map((section, sIdx) => {
+          {allSections.map((section, sIdx) => {
             const q = menuQuery.trim().toLowerCase();
             const visibleItems = section.items.filter(
               (item) =>
@@ -345,9 +365,12 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
                     item.path === activePath ||
                     (item.path === "/" &&
                       (location.pathname === "/home" || location.pathname.startsWith("/dashboard/")));
-                  const Btn = (
+                  const inFavorites = section.id === FAVORITES_SECTION_ID;
+                  // ตำแหน่งอ้างจากรายการเต็มที่เก็บไว้ ไม่ใช่รายการที่ผ่านตัวกรอง —
+                  // ไม่งั้นสิทธิ์/ช่องค้นหาจะทำให้ย้ายผิดตำแหน่ง
+                  const favIndex = favoritePaths.indexOf(item.path);
+                  const link = (
                     <Link
-                      key={item.path}
                       to={targetPath}
                       onClick={(e) => {
                         persistNavScroll();
@@ -376,12 +399,22 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
                       {!collapsed && <span className="truncate">{item.label}</span>}
                     </Link>
                   );
-                  return collapsed ? (
-                    <Tooltip key={item.path}>
-                      <TooltipTrigger asChild>{Btn}</TooltipTrigger>
-                      <TooltipContent side="right">{item.label}</TooltipContent>
-                    </Tooltip>
-                  ) : Btn;
+                  return (
+                    // path เดียวโผล่ได้สองที่ (กลุ่มโปรด + กลุ่มเดิม) — key ต้องผูก section ด้วย
+                    <NavItemContextMenu
+                      key={`${section.id}:${item.path}`}
+                      path={item.path}
+                      isFavorite={isFavorite(item.path)}
+                      inFavorites={inFavorites}
+                      canMoveUp={inFavorites && favIndex > 0}
+                      canMoveDown={inFavorites && favIndex >= 0 && favIndex < favoritePaths.length - 1}
+                      tooltip={collapsed ? item.label : undefined}
+                      onToggleFavorite={() => toggleFavoritePath(item.path)}
+                      onMove={(direction) => moveFavoritePath(item.path, direction)}
+                    >
+                      {link}
+                    </NavItemContextMenu>
+                  );
                 })}
               </div>
             </div>
@@ -389,7 +422,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
           })}
           {!collapsed &&
             menuQuery.trim() !== "" &&
-            sections.every(
+            allSections.every(
               (s) =>
                 s.items.filter(
                   (item) =>

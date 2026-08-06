@@ -7,6 +7,11 @@ const router = express.Router();
 router.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 function authorized(req) {
+  // apiGuard (mount ก่อนหน้านี้ใน server/index.js) เซ็ต req.apiKey ให้เฉพาะตอน verdict อนุมัติ
+  // จริง (allow) เท่านั้น — รับเป็น credential ทางเลือกคู่กับ token เดิม เพื่อไม่ให้ขั้นตอนสุดท้าย
+  // ของ rollout (ลบ PRODUCTION_INTEGRATION_TOKEN ออกจาก .env) ทำให้ endpoint นี้ตายสำหรับผู้เรียก
+  // ที่ย้ายไปส่ง X-API-Key แล้ว
+  if (req.apiKey?.scopes?.includes('integration:write')) return true;
   const secret = process.env.PRODUCTION_INTEGRATION_TOKEN;
   if (!secret) return true;
   const header = req.get('authorization') || '';

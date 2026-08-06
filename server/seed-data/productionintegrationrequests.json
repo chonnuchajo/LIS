@@ -1,0 +1,1 @@
+{"collection":"productionintegrationrequests","indexes":[{"v":{"$numberInt":"2"},"key":{"token":{"$numberInt":"1"}},"name":"token_1","background":true,"unique":true},{"v":{"$numberInt":"2"},"key":{"createdAt":{"$numberInt":"1"}},"name":"createdAt_1","background":true,"expireAfterSeconds":{"$numberInt":"172800"}}],"count":{"$numberInt":"0"},"documents":[]}

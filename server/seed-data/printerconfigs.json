@@ -1,0 +1,1 @@
+{"collection":"printerconfigs","indexes":[{"v":{"$numberInt":"2"},"key":{"kind":{"$numberInt":"1"}},"name":"kind_1","background":true},{"v":{"$numberInt":"2"},"key":{"deletedAt":{"$numberInt":"1"}},"name":"deletedAt_1","background":true}],"count":{"$numberInt":"0"},"documents":[]}

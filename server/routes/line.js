@@ -314,12 +314,18 @@ router.post('/webhook', async (req, res) => {
 // static shared key (X-LIS-Ingest-Key header or ?key=), NOT the LINE signature — n8n
 // may not preserve byte-exact body. Join replies are deferred (n8n owns them).
 router.post('/ingest', async (req, res) => {
-  if (!line.ingestSecret()) {
-    return res.status(503).json({ error: { message: 'ingest ยังไม่ถูกตั้งค่า (LINE_INGEST_SECRET)' } });
-  }
-  const key = req.get('x-lis-ingest-key') || req.query.key;
-  if (!line.verifyIngestKey(key)) {
-    return res.status(401).json({ error: { message: 'invalid ingest key' } });
+  // apiGuard เซ็ต req.apiKey ให้เฉพาะตอน key ผ่านจริง (allow) — รับเป็น credential ทางเลือกคู่กับ
+  // LINE_INGEST_SECRET เดิม ไม่งั้นขั้นตอนสุดท้ายของ rollout (ลบ env ตัวนี้ทิ้ง) จะทำให้ endpoint
+  // นี้ตอบ 503 ทันทีสำหรับทุกคน แม้ผู้เรียกจะย้ายไปส่ง X-API-Key ครบแล้วก็ตาม
+  const hasGuardKey = req.apiKey?.scopes?.includes('line:ingest');
+  if (!hasGuardKey) {
+    if (!line.ingestSecret()) {
+      return res.status(503).json({ error: { message: 'ingest ยังไม่ถูกตั้งค่า (LINE_INGEST_SECRET)' } });
+    }
+    const key = req.get('x-lis-ingest-key') || req.query.key;
+    if (!line.verifyIngestKey(key)) {
+      return res.status(401).json({ error: { message: 'invalid ingest key' } });
+    }
   }
   res.status(200).json({ ok: true });
 

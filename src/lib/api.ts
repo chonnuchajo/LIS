@@ -28,6 +28,14 @@ import type { MethodDoc, MethodInput } from './methodRegistry';
 import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
 import type { GoodsReceipt, GoodsReceiptInput } from "@/types/goodsReceipt.types";
 import type { CoaDocument, EligibleCoaPetition } from "@/types/coa.types";
+import type {
+  ApiKeyItem,
+  ApiKeyInput,
+  ApiKeyMeta,
+  ApiPolicyMode,
+  ApiRequestLogItem,
+  CreatedApiKey,
+} from "@/lib/apiKeys";
 
 type StockUserPayload = { _user?: { email?: string; name?: string } };
 export interface StockTransactionParams {
@@ -50,6 +58,8 @@ export interface PetitionFlowNotification {
   createdAt: string;
 }
 
+export type UserFavorites = { email: string; paths: string[] };
+
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
 function normalizeBaseUrl(value: string | undefined) {
@@ -68,6 +78,19 @@ const API_BASES = Array.from(
   ),
 );
 
+// อีเมลผู้ใช้ที่ล็อกอินอยู่ — ส่งไปกับทุก request เป็น header X-LIS-User เพื่อให้
+// backend ตรวจสิทธิ์ admin ของ route /api-keys ได้ (AuthContext เป็นคนตั้งค่า)
+// ⚠️ ไม่ใช่ security จริง (ปลอมได้) เฟส 2 จะเปลี่ยนไปใช้ Azure AD token
+let currentUserEmail = "";
+
+export function setApiUserEmail(email?: string | null) {
+  currentUserEmail = email ? String(email) : "";
+}
+
+function identityHeaders(): Record<string, string> {
+  return currentUserEmail ? { "X-LIS-User": currentUserEmail } : {};
+}
+
 async function fetchApi(path: string, options?: RequestInit): Promise<unknown> {
   let lastError: Error | null = null;
 
@@ -75,7 +98,7 @@ async function fetchApi(path: string, options?: RequestInit): Promise<unknown> {
     const base = API_BASES[i];
     const res = await fetch(`${base}${path}`, {
       ...options,
-      headers: { "Content-Type": "application/json", ...options?.headers },
+      headers: { "Content-Type": "application/json", ...identityHeaders(), ...options?.headers },
     });
     const contentType = res.headers.get("content-type") || "";
 
@@ -149,7 +172,7 @@ async function fetchBlob(path: string, options?: RequestInit): Promise<Blob> {
     const base = API_BASES[i];
     const res = await fetch(`${base}${path}`, {
       ...options,
-      headers: { "Content-Type": "application/json", ...options?.headers },
+      headers: { "Content-Type": "application/json", ...identityHeaders(), ...options?.headers },
     });
     const contentType = res.headers.get("content-type") || "";
     if (res.ok && !contentType.includes("application/json")) {
@@ -579,6 +602,17 @@ export const api = {
       body: JSON.stringify(input),
     }).then((r) => r.data),
 
+  // ── รายการโปรดบน sidebar (ผูกกับ user ด้วย email) ──
+  getUserFavorites: (email: string) =>
+    request<{ data: UserFavorites }>(
+      `/user-favorites?email=${encodeURIComponent(email)}`,
+    ).then((r) => r.data),
+  saveUserFavorites: (email: string, paths: string[]) =>
+    request<{ data: UserFavorites }>("/user-favorites", {
+      method: "PUT",
+      body: JSON.stringify({ email, paths }),
+    }).then((r) => r.data),
+
   // ── LINE integration (group registry + test push) ──
   getLineHealth: () => request<LineHealth>("/line/health"),
   getLineGroups: () =>
@@ -651,6 +685,36 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  // API keys (แท็บ API Key ในหน้าตั้งค่าระบบ — admin เท่านั้น)
+  getApiKeys: () => request<{ data: ApiKeyItem[] }>("/api-keys").then((r) => r.data),
+  getApiKeyMeta: () => request<{ data: ApiKeyMeta }>("/api-keys/meta").then((r) => r.data),
+  createApiKey: (input: ApiKeyInput) =>
+    request<{ data: CreatedApiKey }>("/api-keys", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }).then((r) => r.data),
+  updateApiKey: (id: string, input: Partial<ApiKeyInput>) =>
+    request<{ data: ApiKeyItem }>(`/api-keys/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }).then((r) => r.data),
+  revokeApiKey: (id: string) =>
+    request<{ data: ApiKeyItem }>(`/api-keys/${id}/revoke`, { method: "POST" }).then((r) => r.data),
+  deleteApiKey: (id: string) => request<{ ok: boolean }>(`/api-keys/${id}`, { method: "DELETE" }),
+  setApiPolicyMode: (policyId: string, mode: ApiPolicyMode) =>
+    request<{ data: { policyId: string; mode: ApiPolicyMode } }>(`/api-keys/policy/${policyId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ mode }),
+    }).then((r) => r.data),
+  getApiKeyLogs: (params?: { keyId?: string; outcome?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.keyId) qs.set("keyId", params.keyId);
+    if (params?.outcome) qs.set("outcome", params.outcome);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return request<{ data: ApiRequestLogItem[] }>(`/api-keys/logs${suffix}`).then((r) => r.data);
+  },
 
   // Parameters (พารามิเตอร์การตรวจสอบของสารแต่ละชนิด)
   getParameters: () => request<ParameterItem[]>("/parameters"),
