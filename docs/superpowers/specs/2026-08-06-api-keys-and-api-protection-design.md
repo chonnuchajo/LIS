@@ -211,7 +211,10 @@ mount: `mountApi('/api-keys', require('./routes/apiKeys'))`
 2. admin เข้า `/settings` → แท็บ API Key → สร้าง key ให้ Node-RED / n8n / production ทีละใบ ตาม scope ที่ต้องใช้
 3. ไปตั้ง header `X-API-Key` ในแต่ละระบบปลายทาง
 4. ดูตาราง log จนไม่มี `audit-pass (no-key)` และไม่มี `legacy-token` ของ endpoint นั้นแล้ว → กดสวิตช์เป็น `enforce`
-5. ทำทีละ endpoint จนครบ แล้วค่อยลบ env token เดิมออกจาก `.env`
+5. ทำทีละ endpoint จนครบ แล้วค่อยลบ env token เดิมออกจาก `.env` — ลบได้โดยไม่มี downtime ทันทีที่
+   ผู้เรียกทุกรายของ endpoint นั้นส่ง `X-API-Key` แล้ว เพราะ `productionIntegration.js` และ
+   `line.js` (`/ingest`) รับ API key ที่ guard ตรวจผ่านแล้ว (scope `integration:write` /
+   `line:ingest`) เป็น credential ทางเลือกคู่กับ env token เดิมอยู่แล้ว (ไม่ต้องรอแก้ route อื่น)
 6. รัน `npm run seed:export` + commit หลังมีการสร้าง key จริง (ตามกติกา seed-data ของ repo)
 
 **สองเรื่องที่ต้องจัดการเพราะ `seed-data/` เข้า git**

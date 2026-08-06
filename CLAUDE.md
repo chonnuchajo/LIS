@@ -66,7 +66,11 @@ Endpoint ที่ **ระบบภายนอก** เรียก (ไม่
   บล็อกเพราะอะไร) / `enforce` ค่าเริ่มต้นของทุก endpoint = `audit`
 - **key**: `lisk_<random>` เก็บเฉพาะ sha256 ใน `ApiKey` (`seed-data/` เข้า git) ส่งมาทาง header เท่านั้น: `X-API-Key`, `Authorization: Bearer`, หรือ legacy headers `x-integration-token` / `x-lis-ingest-key`; มี scope / วันหมดอายุ / เพิกถอน / rate limit ต่อนาที
 - **token เดิม** (`PRODUCTION_INTEGRATION_TOKEN`, `LINE_INGEST_SECRET`) ยังใช้ได้ระหว่างช่วงย้าย
-  guard บันทึก log ว่า `legacy-token` เพื่อดูว่าเหลือใครยังไม่ย้าย
+  guard บันทึก log ว่า `legacy-token` เพื่อดูว่าเหลือใครยังไม่ย้าย — `productionIntegration.js`
+  และ `line.js` (`/ingest`) รับ API key ที่ guard ตรวจผ่านแล้ว (`req.apiKey`, scope
+  `integration:write` / `line:ingest`) เป็น credential ทางเลือกคู่กับ token เดิมด้วย ดังนั้นเมื่อ
+  ผู้เรียกทุกรายของ endpoint นั้นเปลี่ยนไปส่ง `X-API-Key` แล้ว **ลบ env var ตัวเดิมออกได้ทันทีโดย
+  endpoint ไม่ล่ม** (ไม่ต้องรอแก้โค้ดฝั่ง route เพิ่ม)
 - **log** `ApiRequestLog` (TTL 30 วัน ปรับด้วย `API_LOG_TTL_DAYS`) — ถูก **ข้าม** ใน `export-data.js`
   (`SKIP_COLLECTIONS`) ไม่งั้น auto-sync commit ทุกชั่วโมง
 - **UI**: แท็บ "API Key" ในหน้า `/settings` (`src/components/lis/ApiKeysPanel.tsx`, admin-only)
