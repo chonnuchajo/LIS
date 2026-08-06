@@ -41,10 +41,7 @@ export function useFavorites() {
       toast.error("บันทึกรายการโปรดไม่สำเร็จ");
     },
     onSettled: () => {
-      // ค่าใน cache หลัง optimistic update คือค่าจริงที่เพิ่งบันทึกสำเร็จแล้ว —
-      // แค่ mark stale ไว้ ไม่ต้อง refetch ทันที กัน response ของ GET (อาจ eventual-consistent ช้ากว่า)
-      // มาทับค่าที่เพิ่งเซฟถูกต้องแล้ว
-      queryClient.invalidateQueries({ queryKey, refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey });
     },
   });
 
