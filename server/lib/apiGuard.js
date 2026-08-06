@@ -55,7 +55,13 @@ function createApiGuard({
     if (isLegacy) {
       verdict = { decision: 'allow', reason: 'legacy-token', status: 200 };
     } else {
-      if (credential) keyDoc = await findKeyByHash(hashApiKey(credential));
+      if (credential) {
+        try {
+          keyDoc = await findKeyByHash(hashApiKey(credential));
+        } catch {
+          keyDoc = null; // DB มีปัญหา → ถือเหมือนหา key ไม่เจอ (unknown-key) ไม่ทำให้ request พัง
+        }
+      }
       verdict = evaluateKey({ rawKeyPresented: Boolean(credential), keyDoc, policy, now: at });
       if (verdict.decision === 'allow') {
         rate = checkRateLimit(rateState, String(keyDoc._id), keyDoc.rateLimitPerMinute, at.getTime());

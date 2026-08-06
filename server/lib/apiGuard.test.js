@@ -170,6 +170,43 @@ test('logRequest พังต้องไม่ทำให้ request พัง
   expect(called).toBe(true);
 });
 
+test('findKeyByHash พัง + โหมด audit + มี credential → ผ่าน ไม่ throw และ log ถูกเขียน', async () => {
+  const logs = [];
+  const guard = createApiGuard({
+    policies: POLICIES,
+    getModes: async () => ({ 'temphum-push': 'audit' }),
+    findKeyByHash: async () => { throw new Error('mongo down'); },
+    logRequest: async (doc) => { logs.push(doc); },
+    touchKey: async () => {},
+    readEnv: () => undefined,
+    now: () => new Date('2026-08-06T10:00:00Z'),
+  });
+  const req = makeReq({ headers: { 'X-API-Key': RAW } });
+  let called = false;
+  await expect(guard(req, makeRes(), () => { called = true; })).resolves.toBeUndefined();
+  expect(called).toBe(true);
+  expect(logs[0]).toMatchObject({ outcome: 'audit-pass', reason: 'unknown-key' });
+});
+
+test('findKeyByHash พัง + โหมด enforce + มี credential → 401 unknown-key ไม่เรียก next และไม่ throw', async () => {
+  const guard = createApiGuard({
+    policies: POLICIES,
+    getModes: async () => ({ 'temphum-push': 'enforce' }),
+    findKeyByHash: async () => { throw new Error('mongo down'); },
+    logRequest: async () => {},
+    touchKey: async () => {},
+    readEnv: () => undefined,
+    now: () => new Date('2026-08-06T10:00:00Z'),
+  });
+  const req = makeReq({ headers: { 'X-API-Key': RAW } });
+  const res = makeRes();
+  let called = false;
+  await expect(guard(req, res, () => { called = true; })).resolves.toBeDefined();
+  expect(called).toBe(false);
+  expect(res.statusCode).toBe(401);
+  expect(res.body).toMatchObject({ error: { message: expect.stringContaining('unknown-key') } });
+});
+
 describe('extractCredential', () => {
   test('อ่านได้ทุกช่องทางที่ระบบภายนอกใช้อยู่', () => {
     expect(extractCredential(makeReq({ headers: { 'X-API-Key': 'a' } }))).toBe('a');
