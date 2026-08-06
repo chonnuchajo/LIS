@@ -25,6 +25,12 @@ function mountApi(path, router) {
   app.use(`/LIS/api${path}`, router);
 }
 
+// ป้องกัน API ที่ระบบภายนอกเรียก — ต้องอยู่ก่อน mountApi ทุกบรรทัด (แต่หลัง
+// express.json เพราะบาง route อ่าน req.body) path ที่ไม่อยู่ใน
+// server/lib/apiPolicy.js จะถูกปล่อยผ่านทันที = traffic ของหน้าเว็บไม่กระทบ
+const { apiGuard } = require('./lib/apiGuard');
+app.use(apiGuard);
+
 // API Routes
 mountApi('/samples', require('./routes/samples'));
 mountApi('/auth', require('./routes/auth'));
@@ -35,6 +41,7 @@ mountApi('/result-densities', require('./routes/result-densities'));
 mountApi('/instrument-readings', require('./routes/instrument-readings'));
 mountApi('/stock', require('./routes/stock'));
 mountApi('/access-control', require('./routes/accessControl'));
+mountApi('/api-keys', require('./routes/apiKeys')); // จัดการ API key (admin เท่านั้น)
 mountApi('/petitions', require('./routes/petitions'));
 mountApi('/production-integration', require('./routes/productionIntegration'));
 mountApi('/lab-requests', require('./routes/labRequests'));
