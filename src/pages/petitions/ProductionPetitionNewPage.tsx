@@ -42,6 +42,7 @@ interface ProductionPetitionNewPageProps {
 function makeBlankItem(seq: number): ItemRowValues {
   return {
     seq,
+    itemNo: '',
     sampleName: '',
     commonName: '',
     batchNo: '',
@@ -138,6 +139,7 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
 
   return {
     ...makeBlankItem(1),
+    itemNo,
     sampleName,
     batchNo,
     lotNo,
@@ -288,6 +290,7 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
 
     const item = {
       ...makeBlankItem(i + 1),
+      itemNo: valueAt(itemNos, i, false),
       sampleName: valueAt(sampleNames, i),
       batchNo: valueAt(batchNos, i, false),
       lotNo: valueAt(lotNos, i, false),

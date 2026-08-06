@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
-import { getPetitionCategory, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
+import { getPetitionCategory, itemGroupKey, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { visibleFieldsForPhase } from '@/lib/phaseRetest';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import { isResearchAndDevelopmentPetition, isLabBatchNo } from '@/lib/petitionRouting';
@@ -94,7 +94,10 @@ function matchLabParametersForItem(
     item,
     labParametersForPetition(petition, params),
     itemGroupIds,
-    { forceLabTrack: isResearchAndDevelopmentPetition(petition) },
+    {
+      forceLabTrack: isResearchAndDevelopmentPetition(petition),
+      petitionCategory: getPetitionCategory(petition),
+    },
   );
 }
 
@@ -395,8 +398,8 @@ export default function LabTestingDetailPage() {
     [instrumentSources],
   );
   const groupMembership = useItemGroupMembership();
-  const idsFor = (it: { sampleId?: string }) =>
-    groupMembership.get(String(it?.sampleId ?? '').trim()) ?? [];
+  const idsFor = (it: Parameters<typeof itemGroupKey>[0]) =>
+    groupMembership.get(itemGroupKey(it)) ?? [];
   const [paramsLoaded, setParamsLoaded] = useState(false);
   const [savedResults, setSavedResults] = useState<QCTestResult[]>([]);
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({});

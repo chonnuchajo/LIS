@@ -14,9 +14,9 @@ const receipt: GoodsReceiptReceipt = {
 };
 
 const selections = [
-  { batchNo: 'B-001', commonName: 'Glyphosate' },
-  { batchNo: 'B-003', commonName: 'Glyphosate' },
-  { batchNo: 'B-004', commonName: 'Glyphosate' },
+  { batchNo: 'B-001', commonName: 'Glyphosate', itemNo: 'RO-0123' },
+  { batchNo: 'B-003', commonName: 'Glyphosate', itemNo: 'RO-0123' },
+  { batchNo: 'B-004', commonName: 'Glyphosate', itemNo: 'RI-0044' },
 ];
 
 describe('buildRmPetitionItems', () => {
@@ -35,6 +35,18 @@ describe('buildRmPetitionItems', () => {
   it('commonName มาจาก selection ของแบชนั้น', () => {
     const items = buildRmPetitionItems(receipt, selections);
     expect(items[1].commonName).toBe('Glyphosate');
+  });
+
+  // itemNo คือรหัส Master Item ที่ขับ "หมวดหมู่ย่อย (prefix code)" ของ parameter —
+  // ขาดไปแล้วเงื่อนไข RO/RI/RS ตายทั้งหมด
+  it('itemNo ติดไปกับ item ตาม selection ของแบชนั้น', () => {
+    const items = buildRmPetitionItems(receipt, selections);
+    expect(items.map((i) => i.itemNo)).toEqual(['RO-0123', 'RO-0123', 'RI-0044']);
+  });
+
+  it('selection ที่ยังไม่มี itemNo → itemNo ว่าง (ไม่พัง)', () => {
+    const items = buildRmPetitionItems(receipt, selections.map(({ itemNo: _drop, ...rest }) => rest));
+    expect(items.every((i) => i.itemNo === '')).toBe(true);
   });
 
   it('testItems ว่างเสมอ — RM ใช้ classification-based matching เหมือน production (ไม่ exact-match ชื่อพารามิเตอร์)', () => {

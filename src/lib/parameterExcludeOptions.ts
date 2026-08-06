@@ -1,4 +1,5 @@
 import type { ParameterItem } from "./api";
+import { parameterMatchesFacets } from "./petitionTestItems";
 import { getClassification, getCommonName } from "./productClassification";
 
 export type MasterItemRecord = Record<string, unknown>;
@@ -94,20 +95,26 @@ function itemMatchesIncludeCriteria(
 ): boolean {
   if (form.applyAll) return true;
 
-  const itemName = getParameterOptionItemName(item);
-  const commonName = getParameterOptionCommonName(item);
-  const productType = getParameterOptionProductType(item);
-  const category = getParameterOptionCategory(item);
-  const subCategory = getParameterOptionSubCategory(item);
+  // ใช้กฎ "ใช้กับ" ชุดกลาง (parameterMatchesFacets) แต่ตัดเงื่อนไข "ยกเว้น" ออก —
+  // ที่นี่กำลังสร้างตัวเลือกของช่องยกเว้นเอง ถ้าเอาไปกรองด้วยจะกินหางตัวเอง
+  const includeOnly: ParameterItem = {
+    ...(form as ParameterItem),
+    excludeItemNames: [],
+    excludeCommonNames: [],
+    excludeProductTypes: [],
+    excludeCategories: [],
+    excludeSubCategories: [],
+    excludeItemGroups: [],
+  };
 
-  if (itemName && (form.itemNames ?? []).includes(itemName)) return true;
-  if (commonName && (form.commonNames ?? []).includes(commonName)) return true;
-  if (productType && (form.productTypes ?? []).includes(productType)) return true;
-  if (category && (form.categories ?? []).includes(category)) return true;
-  if (subCategory && (form.subCategories ?? []).includes(subCategory)) return true;
-  if (itemGroupIds.length > 0 && (form.itemGroups ?? []).some((g) => itemGroupIds.includes(g))) return true;
-
-  return false;
+  return parameterMatchesFacets(includeOnly, {
+    itemName: getParameterOptionItemName(item),
+    commonName: getParameterOptionCommonName(item),
+    productType: getParameterOptionProductType(item),
+    subCategory: getParameterOptionSubCategory(item),
+    category: getParameterOptionCategory(item),
+    itemGroupIds,
+  });
 }
 
 function hasIncludeCriteria(form: Partial<ParameterItem>): boolean {

@@ -5,7 +5,12 @@ import AppLayout from '@/components/lis/AppLayout';
 import { usePetitionList } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
 import { api, type ParameterItem } from '@/lib/api';
-import { matchParametersForItem } from '@/lib/petitionTestItems';
+import {
+  getPetitionCategory,
+  itemGroupKey,
+  matchParametersForItem,
+  type PetitionCategory,
+} from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import {
   PETITION_DEPT_LABELS,
@@ -39,14 +44,17 @@ const isLabReadableItem = (
   it: PetitionItem,
   params: ParameterItem[],
   itemGroupIds: string[] = [],
+  petitionCategory: PetitionCategory = '',
 ) =>
-  isLabBatchNo(it.batchNo) && matchParametersForItem(it, params, itemGroupIds).length > 0;
+  isLabBatchNo(it.batchNo) && matchParametersForItem(it, params, itemGroupIds, { petitionCategory }).length > 0;
 
 const isResearchLabReadableItem = (
   it: PetitionItem,
   params: ParameterItem[],
   itemGroupIds: string[] = [],
-) => params.length === 0 || matchParametersForItem(it, params, itemGroupIds, { forceLabTrack: true }).length > 0;
+  petitionCategory: PetitionCategory = '',
+) => params.length === 0
+  || matchParametersForItem(it, params, itemGroupIds, { forceLabTrack: true, petitionCategory }).length > 0;
 
 const labParametersForPetition = (petition: Petition, params: ParameterItem[]) =>
   isResearchAndDevelopmentPetition(petition)
@@ -64,8 +72,8 @@ export default function LabTestingPage() {
   const [labParams, setLabParams] = useState<ParameterItem[]>([]);
   const [paramsLoaded, setParamsLoaded] = useState(false);
   const groupMembership = useItemGroupMembership();
-  const idsFor = (it: { sampleId?: string }) =>
-    groupMembership.get(String(it?.sampleId ?? '').trim()) ?? [];
+  const idsFor = (it: Parameters<typeof itemGroupKey>[0]) =>
+    groupMembership.get(itemGroupKey(it)) ?? [];
 
   useEffect(() => {
     api.getParameters()
@@ -91,10 +99,10 @@ export default function LabTestingPage() {
     .filter((p) =>
       isResearchAndDevelopmentPetition(p)
         ? (p.items ?? []).some((it) =>
-          paramsLoaded ? isResearchLabReadableItem(it, labParametersForPetition(p, labParams), idsFor(it)) : true,
+          paramsLoaded ? isResearchLabReadableItem(it, labParametersForPetition(p, labParams), idsFor(it), getPetitionCategory(p)) : true,
         )
         : (paramsLoaded
-          ? (p.items ?? []).some((it) => isLabReadableItem(it, labParams, idsFor(it)))
+          ? (p.items ?? []).some((it) => isLabReadableItem(it, labParams, idsFor(it), getPetitionCategory(p)))
           : (p.items ?? []).some((it) => isLabBatchNo(it.batchNo))),
     )
     .filter((p) => isFullAccess || isAssignedTo(p.assignedTo, user));
@@ -129,8 +137,8 @@ export default function LabTestingPage() {
       cell: (p) => {
         const labItems = (p.items ?? []).filter((it) =>
           isResearchAndDevelopmentPetition(p)
-            ? (paramsLoaded ? isResearchLabReadableItem(it, labParametersForPetition(p, labParams), idsFor(it)) : true)
-            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it)) : isLabBatchNo(it.batchNo)),
+            ? (paramsLoaded ? isResearchLabReadableItem(it, labParametersForPetition(p, labParams), idsFor(it), getPetitionCategory(p)) : true)
+            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it), getPetitionCategory(p)) : isLabBatchNo(it.batchNo)),
         );
         return (
           <>
@@ -161,8 +169,8 @@ export default function LabTestingPage() {
       cell: (p) => {
         const labItems = (p.items ?? []).filter((it) =>
           isResearchAndDevelopmentPetition(p)
-            ? (paramsLoaded ? isResearchLabReadableItem(it, labParametersForPetition(p, labParams), idsFor(it)) : true)
-            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it)) : isLabBatchNo(it.batchNo)),
+            ? (paramsLoaded ? isResearchLabReadableItem(it, labParametersForPetition(p, labParams), idsFor(it), getPetitionCategory(p)) : true)
+            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it), getPetitionCategory(p)) : isLabBatchNo(it.batchNo)),
         );
         return labItems.length > 0 ? (
           <div className="space-y-1">

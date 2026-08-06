@@ -77,6 +77,10 @@ export interface PetitionItem {
   labelSampledDate?: string;
   labelRemark?: string;
   sampleId?: string;
+  // รหัสสินค้าจาก Master Item (item_no) ของแถวที่เลือก — คนละเรื่องกับ sampleId
+  // ซึ่งเป็น key ของ Approval/PhysicalResult (ซ้ำกันข้าม item ไม่ได้). ใช้ขับ
+  // "หมวดหมู่ย่อย (prefix code)" + "กลุ่ม Item" ของ parameter — ดู getItemSubCategory.
+  itemNo?: string;
   condition?: ItemCondition;
 }
 
