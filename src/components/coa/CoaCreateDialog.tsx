@@ -27,6 +27,16 @@ export default function CoaCreateDialog({
     () => petitions.find((petition: EligibleCoaPetition) => petition._id === petitionId),
     [petitions, petitionId],
   );
+  const selectedItems = useMemo(
+    () => selectedPetition?.items.filter((item) => selectedSeqs.includes(item.seq)) ?? [],
+    [selectedPetition, selectedSeqs],
+  );
+  const reusableActiveCoa = useMemo(() => {
+    if (selectedItems.length === 0) return null;
+    const activeCoas = selectedItems.map((item) => item.activeCoa).filter(Boolean);
+    const coaIds = new Set(activeCoas.map((coa) => coa?.coaId));
+    return activeCoas.length === selectedItems.length && coaIds.size === 1 ? activeCoas[0] : null;
+  }, [selectedItems]);
   const actor = useMemo(() => {
     const roles = normalizeRoles(user);
     const activeRole = user?.role || primaryRole(roles);
@@ -39,6 +49,17 @@ export default function CoaCreateDialog({
   }, [user]);
   const create = useMutation({
     mutationFn: () => api.createCoaDocument({ petitionId, selectedItemSeqs: selectedSeqs, _user: actor }),
+    onSuccess: (doc) => {
+      onOpenChange(false);
+      onCreated(doc._id);
+    },
+  });
+  const submitExisting = useMutation({
+    mutationFn: async () => {
+      if (!reusableActiveCoa) throw new Error("ไม่พบ COA ใบเดิมสำหรับส่งอนุมัติ");
+      const revision = await api.reviseCoaDocument(reusableActiveCoa.coaId, { _user: actor });
+      return api.submitCoaDocument(revision._id, { _user: actor });
+    },
     onSuccess: (doc) => {
       onOpenChange(false);
       onCreated(doc._id);
@@ -88,7 +109,17 @@ export default function CoaCreateDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" className="border-violet-200 text-violet-700 hover:bg-violet-50" onClick={() => onOpenChange(false)}>ปิด</Button>
-          <Button className="gap-2 bg-violet-700 text-white hover:bg-violet-800" disabled={!petitionId || selectedSeqs.length === 0 || create.isPending} onClick={() => create.mutate()}>
+          {reusableActiveCoa && (
+            <Button
+              variant="outline"
+              className="gap-2 border-yellow-200 text-yellow-700 hover:bg-yellow-50"
+              disabled={submitExisting.isPending || create.isPending}
+              onClick={() => submitExisting.mutate()}
+            >
+              ส่งใบเดิมไปรออนุมัติ
+            </Button>
+          )}
+          <Button className="gap-2 bg-violet-700 text-white hover:bg-violet-800" disabled={!petitionId || selectedSeqs.length === 0 || create.isPending || submitExisting.isPending} onClick={() => create.mutate()}>
             <FilePlus2 className="h-4 w-4" />
             สร้างร่าง COA
           </Button>

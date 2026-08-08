@@ -1,20 +1,46 @@
 import { useMemo, useState, type ComponentProps } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { FileCheck2, FileDown, FilePlus2, Folder, Pencil, Printer } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import CoaCreateDialog from "@/components/coa/CoaCreateDialog";
+import CoaReportTemplate, { COA_REPORT_CSS } from "@/components/coa/CoaReportTemplate";
+import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
+import { DEV_MODE } from "@/config/dev";
+import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
+import { buildCoaReportPages } from "@/lib/coaReport";
 import { canPrintCoa } from "@/lib/coaStatus";
+import { normalizeRoles, primaryRole } from "@/lib/roles";
+import { cn } from "@/lib/utils";
 import type { CoaDocument, CoaSampleSnapshot } from "@/types/coa.types";
 
 type CoaTab = "today" | "all";
 type CoaTabTone = "sky" | "emerald";
-type CoaWorkflowStage = "all" | "requested" | "inProgress" | "pendingApproval" | "approved";
+type CoaDocumentStage = "requested" | "inProgress" | "pendingApproval" | "approved";
+type CoaWorkflowStage = "all" | CoaDocumentStage;
+
+const BROMADIOLONE_DEMO_COA_ID = "demo-coa-bromadiolone-0005";
+const BROMADIOLONE_DEMO_COA_NO = "00042026";
+
+type DemoCoaEditForm = {
+  sampleName: string;
+  commonName: string;
+  batchNo: string;
+  lotNo: string;
+  productionDate: string;
+  aiContentResult: string;
+  waxBlockSizeResult: string;
+  dateOfAnalysis: string;
+  remark: string;
+};
 
 function isToday(value?: string | null) {
   if (!value) return false;
@@ -59,41 +85,264 @@ function buddhistYear(year: number) {
   return year + 543;
 }
 
-function workflowStageFor(doc: CoaDocument): Exclude<CoaWorkflowStage, "all"> {
+function coaDisplayNo(doc: CoaDocument) {
+  return doc.coaNo || doc.petitionNoSnapshot || doc._id;
+}
+
+function isDemoCoaDocument(doc: CoaDocument) {
+  return doc._id === BROMADIOLONE_DEMO_COA_ID;
+}
+
+function coaResultValue(doc: CoaDocument, matcher: RegExp) {
+  return doc.resultSnapshots.find((row) => matcher.test(row.testItem ?? ""))?.result ?? "";
+}
+
+function makeDemoCoaEditForm(doc: CoaDocument): DemoCoaEditForm {
+  const sample = doc.sampleSnapshots[0];
+  return {
+    sampleName: sample?.sampleName ?? "",
+    commonName: sample?.commonName ?? "",
+    batchNo: sample?.batchNo ?? "",
+    lotNo: sample?.lotNo ?? "",
+    productionDate: sample?.productionDate ?? "",
+    aiContentResult: coaResultValue(doc, /%AI\s*content/i),
+    waxBlockSizeResult: coaResultValue(doc, /wax\s*block\s*size/i),
+    dateOfAnalysis: coaResultValue(doc, /date\s*of\s*analysis/i),
+    remark: doc.remark ?? "",
+  };
+}
+
+function replaceDemoResult(rows: CoaDocument["resultSnapshots"], testItem: string, result: string) {
+  let replaced = false;
+  const nextRows = rows.map((row) => {
+    if (row.testItem !== testItem) return row;
+    replaced = true;
+    return { ...row, result };
+  });
+  return replaced ? nextRows : [...nextRows, { itemSeq: 1, testItem, result }];
+}
+
+function makeBromadioloneDemoCoa(status: CoaDocument["status"] = "requested", now = new Date()): CoaDocument {
+  const isoNow = now.toISOString();
+  return {
+    _id: BROMADIOLONE_DEMO_COA_ID,
+    coaNo: status === "requested" ? null : BROMADIOLONE_DEMO_COA_NO,
+    coaYear: 2026,
+    sequence: status === "requested" ? undefined : 4,
+    revision: 0,
+    status,
+    petitionId: "demo-petition-bromadiolone-0005",
+    petitionNoSnapshot: "P-2608-DEMO-001",
+    selectedItemSeqs: [1],
+    customerSnapshot: { name: "ลูกค้าจำลอง", company: "บริษัท ตัวอย่าง จำกัด" },
+    sampleSnapshots: [{
+      itemSeq: 1,
+      sampleName: "Red Wax Block",
+      commonName: "BROMADIOLONE 0.005%",
+      batchNo: "B-DEMO-001",
+      lotNo: "LOT-DEMO-001",
+      productionDate: "2026-08-08",
+    }],
+    resultSnapshots: [
+      { itemSeq: 1, testItem: "Appearance", result: "Conform", criteria: "Red wax block" },
+      { itemSeq: 1, testItem: "%AI content (W/W)", result: "0.0051%", criteria: "0.005% ± 0.00125" },
+      { itemSeq: 1, testItem: "Wax block size", result: "5.90 gm", criteria: "5.88 gm ± 5%" },
+      { itemSeq: 1, testItem: "Date of analysis", result: "2026-08-08" },
+    ],
+    remark: "จำลองการสร้าง COA สำหรับ BROMADIOLONE 0.005%",
+    approval: {},
+    print: { printCount: 0 },
+    createdBy: { name: "Demo User", email: "demo@example.com", role: "demo" },
+    updatedBy: { name: "Demo User", email: "demo@example.com", role: "demo" },
+    createdAt: isoNow,
+    updatedAt: isoNow,
+  };
+}
+
+function workflowStageFor(doc: CoaDocument): CoaDocumentStage {
   if (doc.status === "requested") return "requested";
   if (doc.status === "pendingApproval" || doc.status === "pendingRevisionApproval") return "pendingApproval";
   if (doc.status === "approved" || doc.status === "printed" || doc.status === "reissued") return "approved";
   return "inProgress";
 }
 
-const workflowStageLabels: Record<Exclude<CoaWorkflowStage, "all">, string> = {
+const workflowStageLabels: Record<CoaDocumentStage, string> = {
   requested: "ขอ COA",
   inProgress: "ดำเนินการแล้ว",
   pendingApproval: "รออนุมัติ",
   approved: "อนุมัติแล้ว",
 };
 
-const workflowStageBadgeVariants: Record<Exclude<CoaWorkflowStage, "all" | "requested">, ComponentProps<typeof Badge>["variant"]> = {
+const workflowStageBadgeVariants: Record<Exclude<CoaDocumentStage, "requested">, ComponentProps<typeof Badge>["variant"]> = {
   inProgress: "blue-soft",
   pendingApproval: "yellow-soft",
   approved: "green-soft",
 };
 
-const workflowStageBadgeVariantFor = (stage: Exclude<CoaWorkflowStage, "all">): ComponentProps<typeof Badge>["variant"] => (
+const workflowStageBadgeVariantFor = (stage: CoaDocumentStage): ComponentProps<typeof Badge>["variant"] => (
   stage === "requested" ? "blue-soft" : workflowStageBadgeVariants[stage]
 );
 
 export default function CoaCenterPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const demoCoaEnabled = DEV_MODE && searchParams.get("demoCoa") === "bromadiolone";
   const [createOpen, setCreateOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<CoaTab>("today");
-  const [activeWorkflowStage, setActiveWorkflowStage] = useState<CoaWorkflowStage>("all");
+  const [activeWorkflowStage, setActiveWorkflowStage] = useState<CoaWorkflowStage>(() => (demoCoaEnabled ? "requested" : "all"));
   const [activeYear, setActiveYear] = useState<number | null>(null);
   const [openAllYear, setOpenAllYear] = useState<number | null>(null);
+  const [previewDoc, setPreviewDoc] = useState<CoaDocument | null>(null);
+  const [demoCoa, setDemoCoa] = useState<CoaDocument | null>(() => (demoCoaEnabled ? makeBromadioloneDemoCoa() : null));
+  const [demoEditDoc, setDemoEditDoc] = useState<CoaDocument | null>(null);
+  const [demoEditForm, setDemoEditForm] = useState<DemoCoaEditForm>(() => makeDemoCoaEditForm(makeBromadioloneDemoCoa("draft")));
   const { data, isLoading } = useQuery({ queryKey: ["coa", "documents"], queryFn: () => api.getCoaDocuments() });
 
-  const items = useMemo(() => data?.items ?? [], [data]);
+  const roles = normalizeRoles(user);
+  const activeRole = user?.role || primaryRole(roles);
+  const actor = {
+    name: user?.name,
+    email: user?.email,
+    role: activeRole,
+    activeRole,
+    roles,
+    permissions: user?.permissions ?? [],
+    position: user?.position,
+  };
+  const isQcHead = [user?.role, actor.activeRole]
+    .some((value) => String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_") === "qc_head")
+    || actor.permissions.includes("coa.approve");
+  const invalidateCoaDocuments = () => queryClient.invalidateQueries({ queryKey: ["coa", "documents"] });
+  const submit = useMutation({ mutationFn: (id: string) => api.submitCoaDocument(id, { _user: actor }), onSuccess: invalidateCoaDocuments });
+  const approve = useMutation({ mutationFn: (id: string) => api.approveCoaDocument(id, { _user: actor }), onSuccess: invalidateCoaDocuments });
+  const reject = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => api.rejectCoaDocument(id, { reason, _user: actor }),
+    onSuccess: invalidateCoaDocuments,
+  });
+
+  function handleReject(doc: CoaDocument) {
+    const reason = window.prompt(`เหตุผลที่ไม่อนุมัติ COA ${coaDisplayNo(doc)}`)?.trim();
+    if (!reason) return;
+    if (isDemoCoaDocument(doc)) {
+      setDemoCoa({
+        ...doc,
+        status: "draft",
+        approval: {
+          ...doc.approval,
+          rejectedBy: actor,
+          rejectedAt: new Date().toISOString(),
+          rejectReason: reason,
+        },
+        updatedBy: actor,
+        updatedAt: new Date().toISOString(),
+      });
+      setActiveWorkflowStage("inProgress");
+      return;
+    }
+    reject.mutate({ id: doc._id, reason });
+  }
+
+  function handleCreate(doc: CoaDocument) {
+    if (isDemoCoaDocument(doc)) {
+      setDemoCoa({
+        ...doc,
+        coaNo: doc.coaNo || BROMADIOLONE_DEMO_COA_NO,
+        sequence: doc.sequence || 4,
+        status: "draft",
+        updatedBy: actor,
+        updatedAt: new Date().toISOString(),
+      });
+      setActiveWorkflowStage("inProgress");
+      return;
+    }
+    setCreateOpen(true);
+  }
+
+  function handleEdit(doc: CoaDocument) {
+    if (isDemoCoaDocument(doc)) {
+      setDemoEditForm(makeDemoCoaEditForm(doc));
+      setDemoEditDoc(doc);
+      return;
+    }
+    navigate(`/coa/${doc._id}`);
+  }
+
+  function handleSubmit(doc: CoaDocument) {
+    if (isDemoCoaDocument(doc)) {
+      setDemoCoa({
+        ...doc,
+        status: "pendingApproval",
+        approval: { ...doc.approval, submittedBy: actor, submittedAt: new Date().toISOString() },
+        updatedBy: actor,
+        updatedAt: new Date().toISOString(),
+      });
+      setActiveWorkflowStage("pendingApproval");
+      return;
+    }
+    submit.mutate(doc._id);
+  }
+
+  function handleApprove(doc: CoaDocument) {
+    if (isDemoCoaDocument(doc)) {
+      setDemoCoa({
+        ...doc,
+        coaNo: doc.coaNo || BROMADIOLONE_DEMO_COA_NO,
+        sequence: doc.sequence || 4,
+        status: "approved",
+        approval: { ...doc.approval, approvedBy: actor, approvedAt: new Date().toISOString() },
+        updatedBy: actor,
+        updatedAt: new Date().toISOString(),
+      });
+      setActiveWorkflowStage("approved");
+      return;
+    }
+    approve.mutate(doc._id);
+  }
+
+  function handleSaveDemoEdit() {
+    if (!demoEditDoc) return;
+    setDemoCoa((currentDoc) => {
+      const baseDoc = currentDoc && isDemoCoaDocument(currentDoc) ? currentDoc : demoEditDoc;
+      const resultSnapshots = replaceDemoResult(
+        replaceDemoResult(
+          replaceDemoResult(baseDoc.resultSnapshots, "%AI content (W/W)", demoEditForm.aiContentResult),
+          "Wax block size",
+          demoEditForm.waxBlockSizeResult,
+        ),
+        "Date of analysis",
+        demoEditForm.dateOfAnalysis,
+      );
+      return {
+        ...baseDoc,
+        sampleSnapshots: baseDoc.sampleSnapshots.map((sample, index) => (
+          index === 0
+            ? {
+                ...sample,
+                sampleName: demoEditForm.sampleName,
+                commonName: demoEditForm.commonName,
+                batchNo: demoEditForm.batchNo,
+                lotNo: demoEditForm.lotNo,
+                productionDate: demoEditForm.productionDate,
+              }
+            : sample
+        )),
+        resultSnapshots,
+        remark: demoEditForm.remark,
+        updatedBy: actor,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    setDemoEditDoc(null);
+  }
+
+  const items = useMemo(() => {
+    const documents = data?.items ?? [];
+    return demoCoa ? [demoCoa, ...documents.filter((doc) => doc._id !== demoCoa._id)] : documents;
+  }, [data, demoCoa]);
+  const previewPages = useMemo(() => (previewDoc ? buildCoaReportPages(previewDoc) : []), [previewDoc]);
   const years = useMemo(() => {
     return Array.from(new Set(items.map(documentYear))).sort((a, b) => b - a);
   }, [items]);
@@ -161,17 +410,19 @@ export default function CoaCenterPage() {
   const showPrintActions = activeTab !== "all" && activeWorkflowStage === "approved";
   const showCreateActions = activeTab !== "all" && activeWorkflowStage === "requested";
   const showEditActions = activeTab !== "all" && activeWorkflowStage === "inProgress";
+  const showApprovalActions = activeTab !== "all" && activeWorkflowStage === "pendingApproval";
   const showInProgressReviewColumns = showEditActions;
   const showWorkflowTabs = activeTab !== "all";
   const showApprovedCommandColumns = showPrintActions;
-  const showPendingApprovalColumns = activeTab !== "all" && activeWorkflowStage === "pendingApproval";
+  const showPendingApprovalColumns = showApprovalActions;
   const showDocumentColumn = !showInProgressReviewColumns && !showApprovedCommandColumns && !showPendingApprovalColumns;
   const showCustomerColumn = !showInProgressReviewColumns && !showApprovedCommandColumns && !showPendingApprovalColumns;
   const showCompanyColumn = showApprovedCommandColumns;
   const showCommonNameColumn = !showApprovedCommandColumns;
   const showLotColumn = !showApprovedCommandColumns;
   const showStatusColumn = activeTab !== "all" && !showInProgressReviewColumns && !showCreateActions && !showApprovedCommandColumns;
-  const showCommandColumn = showPrintActions || showCreateActions || showEditActions;
+  const showCommandColumn = showPrintActions || showCreateActions || showEditActions || showApprovalActions;
+  const isApprovedWorkflowPage = activeTab !== "all" && activeWorkflowStage === "approved";
   const tableColumnCount = [
     showDocumentColumn,
     true,
@@ -187,7 +438,13 @@ export default function CoaCenterPage() {
 
   return (
     <AppLayout>
-      <div className="min-h-[calc(100vh-64px)] bg-sky-50 p-6">
+      <div
+        data-testid="coa-center-page"
+        className={cn(
+          "min-h-[calc(100vh-64px)] p-6",
+          isApprovedWorkflowPage ? "bg-green-50" : "bg-sky-50",
+        )}
+      >
         <div className="space-y-5">
           <PageHeader
             title={(
@@ -199,6 +456,16 @@ export default function CoaCenterPage() {
               </span>
             )}
           />
+
+          {demoCoaEnabled && (
+            <div role="status" className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 shadow-sm">
+              <div className="flex flex-wrap items-center gap-2 font-semibold">
+                <Badge variant="green-soft">โหมดจำลอง</Badge>
+                <span>COA BROMADIOLONE 0.005% พร้อมทดสอบในแท็บขอ COA</span>
+              </div>
+              <p className="mt-1 text-emerald-700">กดสร้าง COA → เสร็จสิ้น → QC Head อนุมัติ เพื่อส่งไปหน้าอนุมัติแล้วและแฟ้มปี 2569</p>
+            </div>
+          )}
 
           <div className="rounded-md border border-violet-100 bg-white p-4 shadow-sm">
             {activeTab !== "all" && (
@@ -346,7 +613,13 @@ export default function CoaCenterPage() {
                   <tr
                     key={doc._id}
                     className="cursor-pointer text-slate-700 transition-colors hover:bg-emerald-50/70"
-                    onClick={() => navigate(`/coa/${doc._id}`)}
+                    onClick={() => {
+                      if (isDemoCoaDocument(doc)) {
+                        setPreviewDoc(doc);
+                        return;
+                      }
+                      navigate(`/coa/${doc._id}`);
+                    }}
                   >
                     {showDocumentColumn && (
                       <td className="px-4 py-3 font-semibold text-violet-950">{doc.petitionNoSnapshot || "-"}</td>
@@ -370,7 +643,7 @@ export default function CoaCenterPage() {
                             aria-label={`สร้าง COA ${doc.petitionNoSnapshot || doc._id}`}
                             onClick={(event) => {
                               event.stopPropagation();
-                              setCreateOpen(true);
+                              handleCreate(doc);
                             }}
                           >
                             <FilePlus2 className="h-4 w-4" />
@@ -388,7 +661,7 @@ export default function CoaCenterPage() {
                           aria-label={`สร้าง COA ${doc.petitionNoSnapshot || doc._id}`}
                           onClick={(event) => {
                             event.stopPropagation();
-                            setCreateOpen(true);
+                            handleCreate(doc);
                           }}
                         >
                           <FilePlus2 className="h-4 w-4" />
@@ -430,22 +703,115 @@ export default function CoaCenterPage() {
                         </Button>
                       </td>
                     )}
+                    {showApprovalActions && (
+                      <td className="px-4 py-3">
+                        {isQcHead ? (
+                          <div className="flex flex-col gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="border-yellow-200 text-yellow-700 hover:bg-yellow-50"
+                              aria-label={`เปิดดูไฟล์ COA ${coaDisplayNo(doc)}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setPreviewDoc(doc);
+                              }}
+                            >
+                              เปิดดูไฟล์
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="gap-2 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                              disabled={approve.isPending || reject.isPending}
+                              aria-label={`QC Head อนุมัติ COA ${coaDisplayNo(doc)}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleApprove(doc);
+                              }}
+                            >
+                              QC Head อนุมัติ
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              disabled={approve.isPending || reject.isPending}
+                              aria-label={`ไม่อนุมัติ COA ${coaDisplayNo(doc)}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleReject(doc);
+                              }}
+                            >
+                              ไม่อนุมัติ
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="border-yellow-200 text-yellow-700 hover:bg-yellow-50"
+                            aria-label={`ดู COA รออนุมัติ ${coaDisplayNo(doc)}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (isDemoCoaDocument(doc)) {
+                                setPreviewDoc(doc);
+                                return;
+                              }
+                              navigate(`/coa/${doc._id}`);
+                            }}
+                          >
+                            ดูรายละเอียด
+                          </Button>
+                        )}
+                      </td>
+                    )}
                     {showEditActions && (
                       <td className="px-4 py-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="gap-2 border-violet-200 text-violet-700 hover:bg-violet-50"
-                          aria-label={`แก้ไข COA ${doc.coaNo || doc.petitionNoSnapshot || doc._id}`}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            navigate(`/coa/${doc._id}`);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
-                          แก้ไข
-                        </Button>
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="border-sky-200 text-sky-700 hover:bg-sky-50"
+                            aria-label={`เปิดดูไฟล์ COA ${coaDisplayNo(doc)}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setPreviewDoc(doc);
+                            }}
+                          >
+                            เปิดดูไฟล์
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="gap-2 border-violet-200 text-violet-700 hover:bg-violet-50"
+                            aria-label={`แก้ไข COA ${coaDisplayNo(doc)}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleEdit(doc);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                            แก้ไข
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                            disabled={submit.isPending}
+                            aria-label={`เสร็จสิ้น COA ${coaDisplayNo(doc)}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleSubmit(doc);
+                            }}
+                          >
+                            เสร็จสิ้น
+                          </Button>
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -456,6 +822,106 @@ export default function CoaCenterPage() {
           )}
         </div>
       </div>
+      <Dialog open={Boolean(demoEditDoc)} onOpenChange={(open) => {
+        if (!open) setDemoEditDoc(null);
+      }}>
+        <DialogContent className="border-violet-100 bg-white sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-violet-950">แก้ไขฟอร์ม COA จำลอง</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="demo-coa-sample-name">ชื่อการค้า</Label>
+              <Input
+                id="demo-coa-sample-name"
+                value={demoEditForm.sampleName}
+                onChange={(event) => setDemoEditForm((form) => ({ ...form, sampleName: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="demo-coa-common-name">ชื่อสามัญ</Label>
+              <Input
+                id="demo-coa-common-name"
+                value={demoEditForm.commonName}
+                onChange={(event) => setDemoEditForm((form) => ({ ...form, commonName: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="demo-coa-lot-no">LOT No.</Label>
+              <Input
+                id="demo-coa-lot-no"
+                value={demoEditForm.lotNo}
+                onChange={(event) => setDemoEditForm((form) => ({ ...form, lotNo: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="demo-coa-batch-no">Batch No.</Label>
+              <Input
+                id="demo-coa-batch-no"
+                value={demoEditForm.batchNo}
+                onChange={(event) => setDemoEditForm((form) => ({ ...form, batchNo: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="demo-coa-production-date">วันที่ผลิต</Label>
+              <Input
+                id="demo-coa-production-date"
+                type="date"
+                value={demoEditForm.productionDate}
+                onChange={(event) => setDemoEditForm((form) => ({ ...form, productionDate: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="demo-coa-ai-content">%AI content (W/W)</Label>
+              <Input
+                id="demo-coa-ai-content"
+                value={demoEditForm.aiContentResult}
+                onChange={(event) => setDemoEditForm((form) => ({ ...form, aiContentResult: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="demo-coa-wax-size">Wax block size</Label>
+              <Input
+                id="demo-coa-wax-size"
+                value={demoEditForm.waxBlockSizeResult}
+                onChange={(event) => setDemoEditForm((form) => ({ ...form, waxBlockSizeResult: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="demo-coa-analysis-date">Date of analysis</Label>
+              <Input
+                id="demo-coa-analysis-date"
+                type="date"
+                value={demoEditForm.dateOfAnalysis}
+                onChange={(event) => setDemoEditForm((form) => ({ ...form, dateOfAnalysis: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="demo-coa-remark">หมายเหตุ</Label>
+              <Textarea
+                id="demo-coa-remark"
+                value={demoEditForm.remark}
+                onChange={(event) => setDemoEditForm((form) => ({ ...form, remark: event.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setDemoEditDoc(null)}>ยกเลิก</Button>
+            <Button type="button" className="bg-violet-700 text-white hover:bg-violet-800" onClick={handleSaveDemoEdit}>บันทึกฟอร์ม</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <PrintPreviewDialog
+        open={Boolean(previewDoc)}
+        onOpenChange={(open) => {
+          if (!open) setPreviewDoc(null);
+        }}
+        docType="coa"
+        css={COA_REPORT_CSS}
+        previewOnly
+      >
+        <CoaReportTemplate pages={previewPages} />
+      </PrintPreviewDialog>
       <CoaCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={(id) => navigate(`/coa/${id}`)} />
     </AppLayout>
   );

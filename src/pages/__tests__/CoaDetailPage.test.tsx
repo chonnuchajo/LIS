@@ -7,6 +7,7 @@ import CoaDetailPage from "../CoaDetailPage";
 const mocks = vi.hoisted(() => ({
   user: null as Record<string, unknown> | null,
   getCoaDocument: vi.fn(),
+  updateCoaDocument: vi.fn(),
   submitCoaDocument: vi.fn(),
   approveCoaDocument: vi.fn(),
   rejectCoaDocument: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: mocks.user }) }));
 vi.mock("@/lib/api", () => ({
   api: {
     getCoaDocument: mocks.getCoaDocument,
+    updateCoaDocument: mocks.updateCoaDocument,
     submitCoaDocument: mocks.submitCoaDocument,
     approveCoaDocument: mocks.approveCoaDocument,
     rejectCoaDocument: mocks.rejectCoaDocument,
@@ -79,6 +81,7 @@ const qcHead = {
 beforeEach(() => {
   mocks.user = { name: "QC Staff", email: "staff@example.com", role: "qc-staff", roles: ["qc-staff"], permissions: [], position: "QC Staff" };
   mocks.getCoaDocument.mockResolvedValue(documentWith("pendingApproval"));
+  mocks.updateCoaDocument.mockResolvedValue(documentWith("draft"));
   mocks.submitCoaDocument.mockResolvedValue(documentWith("pendingApproval"));
   mocks.approveCoaDocument.mockResolvedValue(documentWith("approved"));
   mocks.rejectCoaDocument.mockResolvedValue(documentWith("rejected"));
@@ -89,12 +92,12 @@ beforeEach(() => {
 });
 
 describe("CoaDetailPage", () => {
-  it("disables print before approval", async () => {
+  it("shows preview before approval", async () => {
     const { container } = renderPage();
 
     expect(await screen.findByText("P-2608-0001")).toBeInTheDocument();
     expect(container.querySelector(".bg-sky-50")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /พิมพ์ COA/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /เปิดดูไฟล์/ })).toBeEnabled();
   });
 
   it("does not show approval actions to a non-QC Head", async () => {
@@ -151,9 +154,23 @@ describe("CoaDetailPage", () => {
     mocks.getCoaDocument.mockResolvedValue(documentWith("draft"));
     renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: "ส่งอนุมัติ" }));
+    fireEvent.click(await screen.findByRole("button", { name: "เสร็จสิ้น" }));
 
     await waitFor(() => expect(mocks.submitCoaDocument).toHaveBeenCalledWith("c1", {
+      _user: { ...mocks.user, activeRole: "qc-staff" },
+    }));
+  });
+
+  it("saves editable form data before submitting", async () => {
+    mocks.getCoaDocument.mockResolvedValue({ ...documentWith("draft"), remark: "Old remark" });
+    renderPage();
+
+    const remark = await screen.findByPlaceholderText("หมายเหตุหรือข้อมูลประกอบในฟอร์ม COA");
+    fireEvent.change(remark, { target: { value: "Updated COA form note" } });
+    fireEvent.click(screen.getByRole("button", { name: "บันทึกฟอร์ม" }));
+
+    await waitFor(() => expect(mocks.updateCoaDocument).toHaveBeenCalledWith("c1", {
+      remark: "Updated COA form note",
       _user: { ...mocks.user, activeRole: "qc-staff" },
     }));
   });

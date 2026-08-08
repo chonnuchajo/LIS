@@ -25,6 +25,7 @@ export default function CoaDetailPage() {
   const queryClient = useQueryClient();
   const [printOpen, setPrintOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const [remark, setRemark] = useState("");
   const pdfRef = useRef<HTMLDivElement>(null);
   const pdfDownloadKeyRef = useRef("");
   const { data: doc, isLoading, isError, error } = useQuery({
@@ -49,6 +50,7 @@ export default function CoaDetailPage() {
   const pages = useMemo(() => (doc ? buildCoaReportPages(doc) : []), [doc]);
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["coa", id] });
   const submit = useMutation({ mutationFn: () => api.submitCoaDocument(id, { _user: actor }), onSuccess: invalidate });
+  const save = useMutation({ mutationFn: () => api.updateCoaDocument(id, { remark, _user: actor }), onSuccess: invalidate });
   const approve = useMutation({ mutationFn: () => api.approveCoaDocument(id, { _user: actor }), onSuccess: invalidate });
   const reject = useMutation({ mutationFn: () => api.rejectCoaDocument(id, { reason, _user: actor }), onSuccess: invalidate });
   const revise = useMutation({ mutationFn: () => api.reviseCoaDocument(id, { _user: actor }), onSuccess: (next) => navigate(`/coa/${next._id}`) });
@@ -61,10 +63,20 @@ export default function CoaDetailPage() {
   const printable = doc ? actions.includes("print") && canPrintCoa(doc.status) : false;
 
   useEffect(() => {
+    if (doc) setRemark(doc.remark ?? "");
+  }, [doc]);
+
+  useEffect(() => {
     if (searchParams.get("print") === "1" && printable) {
       setPrintOpen(true);
     }
   }, [printable, searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("preview") === "1") {
+      setPrintOpen(true);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (searchParams.get("pdf") !== "1" || !printable || !doc || !pdfRef.current) return;
@@ -90,7 +102,7 @@ export default function CoaDetailPage() {
         <PageHeader
           onBack={() => navigate("/coa")}
           title={<span className="inline-flex items-center gap-2"><FileCheck2 className="h-5 w-5 text-sky-500" />{doc.coaNo || "ร่าง COA"}</span>}
-          actions={<Button className="gap-2" disabled={!printable} onClick={() => setPrintOpen(true)}><Printer className="h-4 w-4" />พิมพ์ COA</Button>}
+          actions={<Button className="gap-2" onClick={() => setPrintOpen(true)}><Printer className="h-4 w-4" />{printable ? "พิมพ์ COA" : "เปิดดูไฟล์"}</Button>}
         />
         <div className="flex flex-wrap items-center gap-2">
           <CoaStatusBadge status={doc.status} />
@@ -98,7 +110,8 @@ export default function CoaDetailPage() {
           {doc.revision > 0 && <span className="text-sm text-muted-foreground">Rev.{doc.revision}</span>}
         </div>
         <div className="flex flex-wrap gap-2">
-          {actions.includes("submit") && <Button onClick={() => submit.mutate()}>ส่งอนุมัติ</Button>}
+          {actions.includes("save") && <Button variant="outline" disabled={save.isPending} onClick={() => save.mutate()}>บันทึกฟอร์ม</Button>}
+          {actions.includes("submit") && <Button onClick={() => submit.mutate()}>เสร็จสิ้น</Button>}
           {actions.includes("approve") && (
             <>
               <Button onClick={() => approve.mutate()}>QC Head อนุมัติ</Button>
@@ -112,6 +125,12 @@ export default function CoaDetailPage() {
             </>
           )}
         </div>
+        {actions.includes("save") && (
+          <section className="rounded-lg border bg-white p-4">
+            <h2 className="mb-3 font-semibold">ข้อมูลในฟอร์ม COA</h2>
+            <Textarea value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="หมายเหตุหรือข้อมูลประกอบในฟอร์ม COA" />
+          </section>
+        )}
         <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="เหตุผลสำหรับไม่อนุมัติหรือยกเลิก" />
         <section className="rounded-lg border bg-white p-4">
           <h2 className="mb-3 font-semibold">ตัวอย่างและผลทดสอบ</h2>
@@ -132,7 +151,7 @@ export default function CoaDetailPage() {
           <CoaAuditTimeline audit={doc.audit} />
         </section>
       </div>
-      <PrintPreviewDialog open={printOpen} onOpenChange={setPrintOpen} docType="coa" css={COA_REPORT_CSS} onPrinted={(meta) => recordPrint.mutate(meta)}>
+      <PrintPreviewDialog open={printOpen} onOpenChange={setPrintOpen} docType="coa" css={COA_REPORT_CSS} onPrinted={(meta) => recordPrint.mutate(meta)} previewOnly={!printable}>
         <CoaReportTemplate pages={pages} />
       </PrintPreviewDialog>
       <div ref={pdfRef} className="fixed -left-[10000px] top-0 bg-white" aria-hidden="true">

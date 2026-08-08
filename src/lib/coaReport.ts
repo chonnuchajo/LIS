@@ -1,6 +1,6 @@
 import type { CoaDocument, CoaResultSnapshot, CoaSampleSnapshot } from "@/types/coa.types";
 
-export type CoaReportTemplateKind = "standard" | "grWpSp";
+export type CoaReportTemplateKind = "standard" | "grWpSp" | "bromadiolone0005";
 
 export type CoaReportSample = CoaSampleSnapshot & {
   rows: CoaResultSnapshot[];
@@ -9,6 +9,8 @@ export type CoaReportSample = CoaSampleSnapshot & {
   expiredDate: string;
   batchLabel: string;
   aiContentResult: string;
+  waxBlockSizeResult: string;
+  dateOfAnalysis: string;
 };
 
 export type CoaReportPage = {
@@ -52,6 +54,14 @@ function isGrWpSpCommonName(commonName?: string): boolean {
   return /\b(GR|WP|SP)$/i.test(commonName?.trim() ?? "");
 }
 
+function normalizeCommonName(commonName?: string): string {
+  return commonName?.trim().replace(/\s+/g, " ").toUpperCase() ?? "";
+}
+
+function isBromadiolone0005CommonName(commonName?: string): boolean {
+  return normalizeCommonName(commonName) === "BROMADIOLONE 0.005%";
+}
+
 function productLabel(sample: CoaSampleSnapshot): string {
   const tradeName = sample.sampleName?.trim();
   const commonName = sample.commonName?.trim();
@@ -65,6 +75,23 @@ function batchLabel(sample: CoaSampleSnapshot): string {
 
 function aiContentResult(rows: CoaResultSnapshot[]): string {
   return rows.find((row) => /%?\s*AI\s*content/i.test(row.testItem ?? ""))?.result || "-";
+}
+
+function waxBlockSizeResult(rows: CoaResultSnapshot[]): string {
+  return rows.find((row) => /wax\s*block\s*size/i.test(row.testItem ?? ""))?.result || "-";
+}
+
+function dateOfAnalysis(rows: CoaResultSnapshot[]): string {
+  const row = rows.find((item) => /date\s*of\s*analysis/i.test(item.testItem ?? ""));
+  if (!row?.result) return "-";
+  const formatted = formatGregorianDate(row.result);
+  return formatted === "-" ? row.result : formatted;
+}
+
+function templateKindFor(samples: CoaReportSample[]): CoaReportTemplateKind {
+  if (samples.some((sample) => isBromadiolone0005CommonName(sample.commonName))) return "bromadiolone0005";
+  if (samples.some((sample) => isGrWpSpCommonName(sample.commonName))) return "grWpSp";
+  return "standard";
 }
 
 export function buildCoaReportPages(doc: CoaDocument): CoaReportPage[] {
@@ -84,11 +111,13 @@ export function buildCoaReportPages(doc: CoaDocument): CoaReportPage[] {
       expiredDate: addYears(sample.productionDate, 2),
       batchLabel: batchLabel(sample),
       aiContentResult: aiContentResult(rows),
+      waxBlockSizeResult: waxBlockSizeResult(rows),
+      dateOfAnalysis: dateOfAnalysis(rows),
     };
   });
   return [
     {
-      template: samples.some((sample) => isGrWpSpCommonName(sample.commonName)) ? "grWpSp" : "standard",
+      template: templateKindFor(samples),
       coaNo: doc.coaNo || "-",
       revision: doc.revision || 0,
       issueDate: formatDate(doc.approval?.approvedAt),

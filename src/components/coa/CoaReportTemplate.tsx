@@ -23,6 +23,14 @@ export const COA_REPORT_CSS = `
 .coa-special-table { margin-top: 8mm; }
 .coa-special-table th, .coa-special-table td { text-align: center; vertical-align: middle; }
 .coa-special-sign { margin-top: 28mm; margin-left: auto; width: 78mm; text-align: center; line-height: 1.55; }
+.coa-brom-page { padding: 24mm 22mm 18mm; }
+.coa-brom-title { margin-top: 0; text-align: center; font-size: 14pt; font-weight: 700; letter-spacing: 0; }
+.coa-brom-meta { margin-top: 7mm; text-align: right; line-height: 1.7; }
+.coa-brom-fields { margin-top: 7mm; line-height: 2.35; }
+.coa-brom-label { font-weight: 700; }
+.coa-brom-table { margin-top: 8mm; width: 128mm; }
+.coa-brom-table th, .coa-brom-table td { text-align: center; vertical-align: middle; }
+.coa-brom-sign { margin-top: 30mm; margin-left: auto; width: 78mm; text-align: center; line-height: 1.55; }
 @media screen { .coa-page { margin: 0 auto; box-shadow: 0 0 0 1px #ddd; } }
 .coa-root h1, .coa-root th, .coa-title, .print-heading { font-weight: ${A4_PRINT_HEADING_FONT_WEIGHT} !important; }
 `;
@@ -78,6 +86,68 @@ function SpecialCoaPage({ page, index }: { page: CoaReportPage; index: number })
       <div className="coa-special-sign">
         <span className="coa-line" />
         <div>(สิริพรญ์ สงสมพันธ์)</div>
+        <div>Asst. Quality Control Manager</div>
+      </div>
+    </section>
+  );
+}
+
+function BromadioloneCoaPage({ page, index }: { page: CoaReportPage; index: number }) {
+  const sample = page.samples[0];
+
+  return (
+    <section className="coa-page coa-brom-page" key={page.coaNo + "-" + index}>
+      <h1 className="coa-brom-title">CERTIFICATE OF ANALYSIS</h1>
+      <div className="coa-brom-meta">
+        <div>NO. {page.coaNo === "-" ? "" : page.coaNo}</div>
+        <div>Month DATE, ค.ศ.</div>
+      </div>
+
+      <div className="coa-brom-fields">
+        <div><span className="coa-brom-label">PRODUCT :</span> {sample?.product || "-"}</div>
+        <div><span className="coa-brom-label">MANUFACTURER :</span> I C P Ladda Company Limited, Thailand</div>
+        <div><span className="coa-brom-label">MANUFACTURING DATE :</span> {sample?.manufacturingDate || "-"}</div>
+        <div><span className="coa-brom-label">EXPIRED DATE :</span> {sample?.expiredDate || "-"}</div>
+      </div>
+
+      <table className="coa-table coa-brom-table">
+        <thead>
+          <tr>
+            <th>TEST ITEM</th>
+            <th>Specification</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Appearance</td>
+            <td>Red wax block</td>
+            <td>Conform</td>
+          </tr>
+          <tr>
+            <td colSpan={2}>BATCH NO.</td>
+            <td>{sample?.batchLabel === "-" ? "" : sample?.batchLabel}</td>
+          </tr>
+          <tr>
+            <td>%AI content (W/W)</td>
+            <td>0.005% ± 0.00125</td>
+            <td>{sample?.aiContentResult === "-" ? "" : sample?.aiContentResult}</td>
+          </tr>
+          <tr>
+            <td>Wax block size</td>
+            <td>5.88 gm ± 5%</td>
+            <td>{sample?.waxBlockSizeResult === "-" ? "" : sample?.waxBlockSizeResult}</td>
+          </tr>
+          <tr>
+            <td colSpan={2}>Date of analysis</td>
+            <td>{sample?.dateOfAnalysis === "-" ? "" : sample?.dateOfAnalysis}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div className="coa-brom-sign">
+        <span className="coa-line" />
+        <div>(สิริพิชญ์ สงสมพันธ์)</div>
         <div>Asst. Quality Control Manager</div>
       </div>
     </section>
@@ -147,9 +217,11 @@ export default function CoaReportTemplate({ pages }: { pages: CoaReportPage[] })
     <div className="coa-root">
       <style>{COA_REPORT_CSS}</style>
       {pages.map((page, index) => (
-        page.template === "grWpSp"
-          ? <SpecialCoaPage page={page} index={index} key={`${page.coaNo}-${index}`} />
-          : <StandardCoaPage page={page} index={index} key={`${page.coaNo}-${index}`} />
+        page.template === "bromadiolone0005"
+          ? <BromadioloneCoaPage page={page} index={index} key={`${page.coaNo}-${index}`} />
+          : page.template === "grWpSp"
+            ? <SpecialCoaPage page={page} index={index} key={`${page.coaNo}-${index}`} />
+            : <StandardCoaPage page={page} index={index} key={`${page.coaNo}-${index}`} />
       ))}
     </div>
   );

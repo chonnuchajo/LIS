@@ -10,11 +10,11 @@ vi.mock("@/components/lis/AppLayout", () => ({
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({
     user: {
-      name: "Lab User",
-      email: "lab@example.com",
-      role: "lab-staff",
-      roles: ["lab-staff"],
-      permissions: [],
+      name: "QC Head User",
+      email: "qc-head@example.com",
+      role: "qc-head",
+      roles: ["qc-head"],
+      permissions: ["coa.approve"],
     },
   }),
 }));
@@ -100,14 +100,18 @@ vi.mock("@/lib/api", () => ({
       ],
     }),
     getEligibleCoaPetitions: vi.fn().mockResolvedValue({ items: [] }),
+    submitCoaDocument: vi.fn().mockResolvedValue({}),
+    approveCoaDocument: vi.fn().mockResolvedValue({}),
+    rejectCoaDocument: vi.fn().mockResolvedValue({}),
+    getPrinterConfigs: vi.fn().mockResolvedValue({ items: [] }),
   },
 }));
 
-function renderPage() {
+function renderPage(initialEntry = "/coa") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <CoaCenterPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -188,6 +192,10 @@ describe("CoaCenterPage", () => {
     expect(screen.queryByText("00032026")).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Document No" })).not.toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "ชื่อลูกค้า" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "คำสั่ง" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "เปิดดูไฟล์ COA 00022026" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "QC Head อนุมัติ COA 00022026" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ไม่อนุมัติ COA 00022026" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "สถานะ อนุมัติแล้ว" }));
 
@@ -230,25 +238,60 @@ describe("CoaCenterPage", () => {
     expect(screen.getByRole("columnheader", { name: "LOT No. (แบช+วันที่ผลิต)" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "สถานะ" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "คำสั่ง" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "เปิดดูไฟล์ COA 00012026" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "แก้ไข COA 00012026" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "เสร็จสิ้น COA 00012026" })).toBeInTheDocument();
+  });
+
+  it("simulates a BROMADIOLONE 0.005% COA through QC Head approval", async () => {
+    renderPage("/coa?demoCoa=bromadiolone");
+
+    expect(await screen.findByText("โหมดจำลอง")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "สถานะ ขอ COA" })).toHaveAttribute("aria-pressed", "true");
+
+    const requestedRow = await screen.findByRole("row", { name: /P-2608-DEMO-001/ });
+    expect(within(requestedRow).getByText("Red Wax Block")).toBeInTheDocument();
+    expect(within(requestedRow).getByText("BROMADIOLONE 0.005%")).toBeInTheDocument();
+    expect(within(requestedRow).getByText("LOT-DEMO-001 / B-DEMO-001 / 08\/08\/2026")).toBeInTheDocument();
+
+    fireEvent.click(within(requestedRow).getByRole("button", { name: "สร้าง COA P-2608-DEMO-001" }));
+
+    expect(screen.getByRole("button", { name: "สถานะ ดำเนินการแล้ว" })).toHaveAttribute("aria-pressed", "true");
+    const inProgressRow = await screen.findByRole("row", { name: /00042026/ });
+    expect(within(inProgressRow).getByRole("button", { name: "เปิดดูไฟล์ COA 00042026" })).toBeInTheDocument();
+    expect(within(inProgressRow).getByRole("button", { name: "แก้ไข COA 00042026" })).toBeInTheDocument();
+    expect(within(inProgressRow).getByRole("button", { name: "เสร็จสิ้น COA 00042026" })).toBeInTheDocument();
+
+    fireEvent.click(within(inProgressRow).getByRole("button", { name: "เสร็จสิ้น COA 00042026" }));
+
+    expect(screen.getByRole("button", { name: "สถานะ รออนุมัติ" })).toHaveAttribute("aria-pressed", "true");
+    const pendingApprovalRow = await screen.findByRole("row", { name: /00042026/ });
+    expect(within(pendingApprovalRow).getByRole("button", { name: "เปิดดูไฟล์ COA 00042026" })).toBeInTheDocument();
+    expect(within(pendingApprovalRow).getByRole("button", { name: "QC Head อนุมัติ COA 00042026" })).toBeInTheDocument();
+    expect(within(pendingApprovalRow).getByRole("button", { name: "ไม่อนุมัติ COA 00042026" })).toBeInTheDocument();
+
+    fireEvent.click(within(pendingApprovalRow).getByRole("button", { name: "QC Head อนุมัติ COA 00042026" }));
+
+    expect(screen.getByRole("button", { name: "สถานะ อนุมัติแล้ว" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("coa-center-page")).toHaveClass("bg-green-50");
+    const approvedRow = await screen.findByRole("row", { name: /00042026/ });
+    expect(within(approvedRow).getByText("Red Wax Block")).toBeInTheDocument();
+    expect(within(approvedRow).getByRole("button", { name: "พิมพ์ COA 00042026" })).toBeEnabled();
   });
 
   it("shows print and PDF commands with focused COA columns in the approved workflow tab", async () => {
     renderPage();
 
     expect(await screen.findByText("00012026")).toBeInTheDocument();
+    expect(screen.getByTestId("coa-center-page")).toHaveClass("bg-sky-50");
     expect(screen.queryByRole("columnheader", { name: "พิมพ์" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "พิมพ์ COA 00032026" })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "สถานะ รออนุมัติ" }));
-
-    expect(await screen.findByText("00022026")).toBeInTheDocument();
-    expect(screen.queryByRole("columnheader", { name: "พิมพ์" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "พิมพ์ COA 00022026" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "สถานะ อนุมัติแล้ว" }));
 
     expect(await screen.findByText("00032026")).toBeInTheDocument();
+    expect(screen.getByTestId("coa-center-page")).toHaveClass("bg-green-50");
+    expect(screen.getByTestId("coa-center-page")).not.toHaveClass("bg-sky-50");
     expect(screen.queryByRole("columnheader", { name: "Document No" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "COA No" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "ชื่อการค้า" })).toBeInTheDocument();
