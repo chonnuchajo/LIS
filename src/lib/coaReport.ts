@@ -1,6 +1,6 @@
 import type { CoaDocument, CoaResultSnapshot, CoaSampleSnapshot } from "@/types/coa.types";
 
-export type CoaReportTemplateKind = "standard" | "grWpSp" | "bromadiolone0005";
+export type CoaReportTemplateKind = "standard" | "grWpSp" | "liquid" | "bromadiolone0005";
 
 export type CoaReportSample = CoaSampleSnapshot & {
   rows: CoaResultSnapshot[];
@@ -9,6 +9,7 @@ export type CoaReportSample = CoaSampleSnapshot & {
   expiredDate: string;
   batchLabel: string;
   aiContentResult: string;
+  densityResult: string;
   waxBlockSizeResult: string;
   dateOfAnalysis: string;
 };
@@ -54,6 +55,10 @@ function isGrWpSpCommonName(commonName?: string): boolean {
   return /\b(GR|WP|SP)$/i.test(commonName?.trim() ?? "");
 }
 
+function isLiquidCommonName(commonName?: string): boolean {
+  return /%\s*(SL|ME|SC|EC|ZC|EW)$/i.test(commonName?.trim() ?? "");
+}
+
 function normalizeCommonName(commonName?: string): string {
   return commonName?.trim().replace(/\s+/g, " ").toUpperCase() ?? "";
 }
@@ -81,6 +86,10 @@ function waxBlockSizeResult(rows: CoaResultSnapshot[]): string {
   return rows.find((row) => /wax\s*block\s*size/i.test(row.testItem ?? ""))?.result || "-";
 }
 
+function densityResult(rows: CoaResultSnapshot[]): string {
+  return rows.find((row) => /density/i.test(row.testItem ?? ""))?.result || "-";
+}
+
 function dateOfAnalysis(rows: CoaResultSnapshot[]): string {
   const row = rows.find((item) => /date\s*of\s*analysis/i.test(item.testItem ?? ""));
   if (!row?.result) return "-";
@@ -91,6 +100,7 @@ function dateOfAnalysis(rows: CoaResultSnapshot[]): string {
 function templateKindFor(samples: CoaReportSample[]): CoaReportTemplateKind {
   if (samples.some((sample) => isBromadiolone0005CommonName(sample.commonName))) return "bromadiolone0005";
   if (samples.some((sample) => isGrWpSpCommonName(sample.commonName))) return "grWpSp";
+  if (samples.some((sample) => isLiquidCommonName(sample.commonName))) return "liquid";
   return "standard";
 }
 
@@ -111,6 +121,7 @@ export function buildCoaReportPages(doc: CoaDocument): CoaReportPage[] {
       expiredDate: addYears(sample.productionDate, 2),
       batchLabel: batchLabel(sample),
       aiContentResult: aiContentResult(rows),
+      densityResult: densityResult(rows),
       waxBlockSizeResult: waxBlockSizeResult(rows),
       dateOfAnalysis: dateOfAnalysis(rows),
     };

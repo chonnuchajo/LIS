@@ -92,6 +92,68 @@ function SpecialCoaPage({ page, index }: { page: CoaReportPage; index: number })
   );
 }
 
+function LiquidCoaPage({ page, index }: { page: CoaReportPage; index: number }) {
+  const sample = page.samples[0];
+
+  return (
+    <section className="coa-page coa-special-page" key={`${page.coaNo}-${index}`}>
+      <h1 className="coa-special-title">CERTIFICATE OF ANALYSIS</h1>
+      <div className="coa-special-meta">
+        <div>NO. {page.coaNo === "-" ? "" : page.coaNo}</div>
+        <div>Month DATE, ค.ศ.</div>
+      </div>
+
+      <div className="coa-special-fields">
+        <div><span className="coa-special-label">PRODUCT :</span> {sample?.product || "-"}</div>
+        <div><span className="coa-special-label">MANUFACTURER :</span> I C P Ladda Company Limited, Thailand</div>
+        <div><span className="coa-special-label">MANUFACTURING DATE :</span> {sample?.manufacturingDate || "-"}</div>
+        <div><span className="coa-special-label">EXPIRED DATE :</span> {sample?.expiredDate || "-"}</div>
+      </div>
+
+      <table className="coa-table coa-special-table">
+        <thead>
+          <tr>
+            <th>TEST ITEM</th>
+            <th>Specification</th>
+            <th>Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Appearance</td>
+            <td />
+            <td>Conform</td>
+          </tr>
+          <tr>
+            <td colSpan={2}>BATCH NO.</td>
+            <td>{sample?.batchLabel === "-" ? "" : sample?.batchLabel}</td>
+          </tr>
+          <tr>
+            <td>%AI content (W/V)</td>
+            <td />
+            <td>{sample?.aiContentResult === "-" ? "" : sample?.aiContentResult}</td>
+          </tr>
+          <tr>
+            <td>Density at 30°C (g/cm³)</td>
+            <td />
+            <td>{sample?.densityResult === "-" ? "" : sample?.densityResult}</td>
+          </tr>
+          <tr>
+            <td colSpan={2}>Date of analysis</td>
+            <td>{sample?.dateOfAnalysis === "-" ? "" : sample?.dateOfAnalysis}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div className="coa-special-sign">
+        <span className="coa-line" />
+        <div>(สิริพิชญ์ สงสมพันธ์)</div>
+        <div>Asst. Quality Control Manager</div>
+      </div>
+    </section>
+  );
+}
+
 function BromadioloneCoaPage({ page, index }: { page: CoaReportPage; index: number }) {
   const sample = page.samples[0];
 
@@ -219,6 +281,8 @@ export default function CoaReportTemplate({ pages }: { pages: CoaReportPage[] })
       {pages.map((page, index) => (
         page.template === "bromadiolone0005"
           ? <BromadioloneCoaPage page={page} index={index} key={`${page.coaNo}-${index}`} />
+          : page.template === "liquid"
+            ? <LiquidCoaPage page={page} index={index} key={`${page.coaNo}-${index}`} />
           : page.template === "grWpSp"
             ? <SpecialCoaPage page={page} index={index} key={`${page.coaNo}-${index}`} />
             : <StandardCoaPage page={page} index={index} key={`${page.coaNo}-${index}`} />

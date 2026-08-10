@@ -24,6 +24,7 @@ describe("CoaReportTemplate", () => {
         expiredDate: "15/08/2028",
         batchLabel: "LOT-777 / B-777",
         aiContentResult: "48.2%",
+        densityResult: "-",
         waxBlockSizeResult: "-",
         dateOfAnalysis: "-",
         rows: [{ itemSeq: 1, testItem: "%AI content (W/W)", result: "48.2%" }],
@@ -41,6 +42,47 @@ describe("CoaReportTemplate", () => {
     expect(screen.getByText(/EXPIRED DATE/).closest("div")).toHaveTextContent("EXPIRED DATE : 15/08/2028");
     expect(screen.getByText("BATCH NO.")).toBeInTheDocument();
     expect(screen.getByText("48.2%")).toBeInTheDocument();
+  });
+
+  it("renders the liquid formulation COA form", () => {
+    const page: CoaReportPage = {
+      template: "liquid",
+      coaNo: "00062026",
+      revision: 0,
+      issueDate: "20/08/2569",
+      petitionNo: "P-2608-0006",
+      customer: {},
+      samples: [{
+        itemSeq: 1,
+        sampleName: "Trade Liquid",
+        commonName: "Glyphosate 48% SL",
+        batchNo: "B-888",
+        lotNo: "LOT-888",
+        productionDate: "2026-08-15",
+        product: "Trade Liquid (Glyphosate 48% SL)",
+        manufacturingDate: "15/08/2026",
+        expiredDate: "15/08/2028",
+        batchLabel: "LOT-888 / B-888",
+        aiContentResult: "48.2%",
+        densityResult: "1.120",
+        waxBlockSizeResult: "-",
+        dateOfAnalysis: "20/08/2026",
+        rows: [],
+      }],
+      remark: "",
+      approvedBy: "QC Head",
+      approvedAt: "20/08/2569",
+    };
+
+    render(<CoaReportTemplate pages={[page]} />);
+
+    expect(screen.getByText("CERTIFICATE OF ANALYSIS")).toBeInTheDocument();
+    expect(screen.getByText(/PRODUCT/).closest("div")).toHaveTextContent("PRODUCT : Trade Liquid (Glyphosate 48% SL)");
+    expect(screen.getByText("%AI content (W/V)")).toBeInTheDocument();
+    expect(screen.getByText("Density at 30°C (g/cm³)")).toBeInTheDocument();
+    expect(screen.getByText("LOT-888 / B-888")).toBeInTheDocument();
+    expect(screen.getByText("1.120")).toBeInTheDocument();
+    expect(screen.getByText("20/08/2026")).toBeInTheDocument();
   });
 
   it("renders the BROMADIOLONE 0.005% wax block COA form", () => {
@@ -63,6 +105,7 @@ describe("CoaReportTemplate", () => {
         expiredDate: "15/08/2028",
         batchLabel: "LOT-008 / B-008",
         aiContentResult: "0.0051%",
+        densityResult: "-",
         waxBlockSizeResult: "5.90 gm",
         dateOfAnalysis: "20/08/2026",
         rows: [],
