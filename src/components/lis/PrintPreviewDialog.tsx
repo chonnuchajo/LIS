@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { printDocument } from "@/lib/print";
 import {
@@ -213,6 +214,7 @@ export default function PrintPreviewDialog({
   const printRef = useRef<HTMLDivElement>(null);
   const [copies, setCopies] = useState(1);
   const [printing, setPrinting] = useState(false);
+  const [selectedPrinterId, setSelectedPrinterId] = useState("");
   const meta = getPrintDocType(docType);
   const widthClass = docType === "sample-label" ? "sm:max-w-2xl" : "sm:max-w-4xl";
   const outputMode = getPrintOutputModeForDocType(docType);
@@ -223,10 +225,24 @@ export default function PrintPreviewDialog({
     enabled: open,
   });
 
-  const cfg = defaultPrinterFor(configs, docTypeToKind(docType));
+  const printerKind = docTypeToKind(docType);
+  const serverPrinters = useMemo(
+    () => (configs ?? []).filter((printer) => printer.kind === printerKind && printer.cupsPrinterUrl?.trim()),
+    [configs, printerKind],
+  );
+  const cfg = selectedPrinterId
+    ? serverPrinters.find((printer) => printer.id === selectedPrinterId)
+    : defaultPrinterFor(configs, printerKind);
   const serverConfigured = Boolean(cfg?.cupsPrinterUrl?.trim());
   const configured = outputMode === "local" || serverConfigured;
   const printerTarget = outputMode === "local" ? "เครื่องนี้" : (cfg?.label?.trim() || cfg?.cupsPrinterUrl?.trim());
+
+  useEffect(() => {
+    if (!open || outputMode !== "server") return;
+    if (selectedPrinterId && serverPrinters.some((printer) => printer.id === selectedPrinterId)) return;
+    const fallback = defaultPrinterFor(configs, printerKind) ?? serverPrinters[0];
+    setSelectedPrinterId(fallback?.id ?? "");
+  }, [configs, open, outputMode, printerKind, selectedPrinterId, serverPrinters]);
 
   async function handlePrint(mode: PrintOutputMode = outputMode) {
     if (mode === "server" && !serverConfigured) {
@@ -235,7 +251,12 @@ export default function PrintPreviewDialog({
     }
     setPrinting(true);
     try {
-      const res = await printDocument(docType, printRef.current, { css, copies, outputMode: mode });
+      const res = await printDocument(docType, printRef.current, {
+        css,
+        copies,
+        outputMode: mode,
+        printerConfigId: mode === "server" ? cfg?.id : undefined,
+      });
       onPrinted?.({ copies, outputMode: mode });
       if (mode === "local") {
         toast.success("เปิด print dialog ของเครื่องนี้แล้ว");
@@ -307,6 +328,20 @@ export default function PrintPreviewDialog({
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
+            {outputMode === "server" && serverPrinters.length > 0 && (
+              <Select value={cfg?.id ?? ""} onValueChange={setSelectedPrinterId}>
+                <SelectTrigger className="h-9 w-[220px]">
+                  <SelectValue placeholder="เลือกเครื่องพิมพ์" />
+                </SelectTrigger>
+                <SelectContent>
+                  {serverPrinters.map((printer) => (
+                    <SelectItem key={printer.id} value={printer.id}>
+                      {printer.label?.trim() || printer.cupsPrinterUrl}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {configured && <span className="break-all text-sm text-muted-foreground">→ {printerTarget}</span>}
           </div>
 

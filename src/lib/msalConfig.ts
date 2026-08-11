@@ -17,13 +17,16 @@ if (!CLIENT_ID || !TENANT_ID) {
 // Redirect URI must match exactly what's registered in Azure App Registration.
 const REDIRECT_URI =
   window.location.origin + (import.meta.env.MODE === "production" ? "/LIS/" : "/");
+const APP_BASE_URL = import.meta.env.BASE_URL || "/";
+const APP_BASE_PATH = APP_BASE_URL.endsWith("/") ? APP_BASE_URL : `${APP_BASE_URL}/`;
+const POST_LOGOUT_REDIRECT_URI = new URL("login", window.location.origin + APP_BASE_PATH).toString();
 
 const msalConfig: Configuration = {
   auth: {
     clientId: CLIENT_ID,
     authority: `https://login.microsoftonline.com/${TENANT_ID}`,
     redirectUri: REDIRECT_URI,
-    postLogoutRedirectUri: REDIRECT_URI,
+    postLogoutRedirectUri: POST_LOGOUT_REDIRECT_URI,
   },
   cache: {
     cacheLocation: "localStorage",

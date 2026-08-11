@@ -99,10 +99,7 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-6">
         <div className="max-w-md rounded-lg border bg-card p-6 text-center shadow-sm">
-          <h1 className="text-lg font-semibold text-foreground">ไม่มีสิทธิ์เข้าใช้งานหน้านี้</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Role ของคุณยังไม่ได้รับสิทธิ์สำหรับหน้านี้
-          </p>
+          <h1 className="text-lg font-semibold text-foreground">คุณไม่สิทธิ์เข้าถึงหน้านี้ โปรดติดต่อผู้ดูแลระบบ</h1>
         </div>
       </div>
     );

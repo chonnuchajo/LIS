@@ -10,6 +10,8 @@ describe("parseScannedQrId", () => {
   it("plain id", () => expect(parseScannedQrId("u_abc123")).toBe("u_abc123"));
   it("from URL path", () =>
     expect(parseScannedQrId("https://x.com/LIS/stock/scan/u_abc123")).toBe("u_abc123"));
+  it("from stock deduction URL query", () =>
+    expect(parseScannedQrId("https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_abc123")).toBe("u_abc123"));
   it("from JSON payload", () =>
     expect(parseScannedQrId('{"qrId":"u_abc123"}')).toBe("u_abc123"));
   it("empty → empty", () => expect(parseScannedQrId("  ")).toBe(""));

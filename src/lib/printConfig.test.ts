@@ -107,19 +107,19 @@ describe("defaultPrinterFor", () => {
 });
 
 describe("validatePrinterUrl", () => {
-  it("passes a valid CUPS URL", () => {
-    expect(validatePrinterUrl("https://192.168.0.237:631/printers/HP-A4")).toBeNull();
+  it("accepts direct printer IP and host", () => {
+    expect(validatePrinterUrl("192.168.1.50")).toBeNull();
+    expect(validatePrinterUrl("printer.local")).toBeNull();
   });
-  it("rejects empty", () => {
-    expect(validatePrinterUrl("")).toMatch(/CUPS printer URL/);
+
+  it("accepts CUPS and IPP URLs", () => {
+    expect(validatePrinterUrl("http://cups:631/printers/Zebra")).toBeNull();
+    expect(validatePrinterUrl("ipps://printer.local:631/ipp/print")).toBeNull();
   });
-  it("rejects a non-url", () => {
+
+  it("rejects invalid addresses", () => {
+    expect(validatePrinterUrl("")).toMatch(/Printer IP \/ URL/);
     expect(validatePrinterUrl("not a url")).toMatch(/ไม่ถูกต้อง/);
-  });
-  it("rejects wrong protocol", () => {
-    expect(validatePrinterUrl("ftp://host/printers/x")).toMatch(/http/);
-  });
-  it("rejects a url with no queue", () => {
-    expect(validatePrinterUrl("https://192.168.0.237:631/")).toMatch(/queue/);
+    expect(validatePrinterUrl("ftp://printer.local/printers/x")).toMatch(/Printer IP \/ URL/);
   });
 });

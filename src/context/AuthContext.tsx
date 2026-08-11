@@ -410,18 +410,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [productionUser, syncedUser?.id],
   );
 
-  const logout = () => {
+  const logout = useCallback(() => {
+    const appBaseUrl = import.meta.env.BASE_URL || "/";
+    const appBasePath = appBaseUrl.endsWith("/") ? appBaseUrl : `${appBaseUrl}/`;
+    const postLogoutRedirectUri = new URL("login", window.location.origin + appBasePath).toString();
+
     localStorage.removeItem("lis_production_sso_user");
     sessionStorage.removeItem("lis_login_redirect");
     setProductionUser(null);
     if (!account) {
-      window.location.href = window.location.origin + import.meta.env.BASE_URL;
+      window.location.href = postLogoutRedirectUri;
       return;
     }
     instance.logoutRedirect({
-      postLogoutRedirectUri: window.location.origin + import.meta.env.BASE_URL,
+      postLogoutRedirectUri,
     });
-  };
+  }, [account, instance]);
 
   return (
     <AuthContext.Provider

@@ -25,6 +25,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { normalizeRoles, type RoleHolder } from "@/lib/roles";
 import { requisitionUser } from "@/lib/standardRequisition";
 import {
   summarizeStandard, standardLevel, solventLevel, glasswareLevel, isUsableBottle,
@@ -53,11 +54,18 @@ const STANDARD_STATUS_OPTIONS: { value: StandardStatus; label: string }[] = [
   { value: "soon", label: "ใกล้หมดอายุ" },
 ];
 
+function canDeleteStockItems(user: RoleHolder | null | undefined) {
+  const roles = normalizeRoles(user);
+  return roles.includes("admin") || !roles.includes("lab-inventory");
+}
+
 // ============================================================
 // Standards Tab
 // ============================================================
 function StandardsTab() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canDelete = canDeleteStockItems(user);
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "standards"],
     queryFn: api.getStandards,
@@ -294,13 +302,15 @@ function StandardsTab() {
                           onClick={e => e.stopPropagation()}
                           onDoubleClick={e => e.stopPropagation()}
                         >
-                          <Button
-                            size="icon" variant="ghost"
-                            title={`ลบ Standard ${item.name}`} aria-label={`ลบ Standard ${item.name}`}
-                            onClick={() => setDeleting(item)}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
+                          {canDelete && (
+                            <Button
+                              size="icon" variant="ghost"
+                              title={`ลบ Standard ${item.name}`} aria-label={`ลบ Standard ${item.name}`}
+                              onClick={() => setDeleting(item)}
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -434,6 +444,7 @@ function GlasswareDetailDrawer({
 function SolventsTab() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const canDelete = canDeleteStockItems(user);
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "solvents"],
     queryFn: api.getSolvents,
@@ -549,9 +560,11 @@ function SolventsTab() {
                     >
                       <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
-                      <Button size="icon" variant="ghost" title={`ลบสารเคมี ${item.name}`} aria-label={`ลบสารเคมี ${item.name}`} onClick={() => setDeleting(item)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      {canDelete && (
+                        <Button size="icon" variant="ghost" title={`ลบสารเคมี ${item.name}`} aria-label={`ลบสารเคมี ${item.name}`} onClick={() => setDeleting(item)}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -625,6 +638,7 @@ function SolventsTab() {
 function GlasswareTab() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const canDelete = canDeleteStockItems(user);
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "glassware"],
     queryFn: api.getGlassware,
@@ -733,9 +747,11 @@ function GlasswareTab() {
                     >
                       <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
-                      <Button size="icon" variant="ghost" title={`ลบเครื่องแก้ว ${item.name}`} aria-label={`ลบเครื่องแก้ว ${item.name}`} onClick={() => setDeleting(item)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      {canDelete && (
+                        <Button size="icon" variant="ghost" title={`ลบเครื่องแก้ว ${item.name}`} aria-label={`ลบเครื่องแก้ว ${item.name}`} onClick={() => setDeleting(item)}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

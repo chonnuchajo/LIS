@@ -146,6 +146,7 @@ export default function PetitionView({ petition: p }: Props) {
         <CardContent className="space-y-3">
           {p.items.map((item) => {
             const lab = isResearchPetition || (item.batchNo && isLabBatch(item.batchNo));
+            const itemCode = item.itemNo?.trim();
             const matchedParams = canSeeTestItems
               ? matchParametersForItem(item, visibleParameters, idsFor(item), { forceLabTrack: isResearchPetition, petitionCategory })
               : [];
@@ -164,7 +165,20 @@ export default function PetitionView({ petition: p }: Props) {
                   <Field label="Batch No." value={item.batchNo} />
                   <Field label="วันที่ผลิต" value={item.productionDate} />
                   <Field label="ขนาดบรรจุ" value={item.packageUnit} />
-                  <Field label="ชื่อสามัญ" value={item.commonName} />
+                  <Field
+                    label="ชื่อสามัญ"
+                    value={
+                      itemCode ? (
+                        <div className="space-y-1">
+                          <div>{item.commonName || '-'}</div>
+                          <Badge variant="gray-soft" className="gap-1 px-2 py-0.5 text-[11px] font-medium">
+                            <span>รหัสสินค้า</span>
+                            <span className="font-semibold">{itemCode}</span>
+                          </Badge>
+                        </div>
+                      ) : item.commonName
+                    }
+                  />
                   <Field label="เลขที่ใบนำส่ง" value={item.submissionNo} />
                 </div>
                 {item.note && <Field label="หมายเหตุ" value={item.note} />}

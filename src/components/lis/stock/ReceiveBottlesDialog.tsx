@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
-import { printRawHtmlDocument } from "@/lib/print";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
 import type { StockStandardItem, StockUnitItem } from "@/types/stock";
 
@@ -16,9 +15,10 @@ interface Props {
   standard: StockStandardItem;
   onClose: () => void;
   onSaved: () => void;
+  onPreviewLabels: (labels: string[]) => void;
 }
 
-export default function ReceiveBottlesDialog({ standard, onClose, onSaved }: Props) {
+export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPreviewLabels }: Props) {
   const [lotNo, setLotNo] = useState("");
   const [type, setType] = useState<"primary" | "supplier" | "working">("primary");
   const [sizeMl, setSizeMl] = useState("100");
@@ -39,15 +39,16 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved }: Pro
     });
   };
 
-  const printLabels = async (units: StockUnitItem[]) => {
+  const buildLabels = async (units: StockUnitItem[]) => {
+    const labels: string[] = [];
     for (const u of units) {
       try {
-        const html = await buildStockLabelHtml(u);
-        await printRawHtmlDocument("stock-label", html);
+        labels.push(await buildStockLabelHtml(u));
       } catch (err) {
         toast.error(`ปริ้นลาเบล ${u.qrId} ไม่สำเร็จ: ${(err as Error).message}`);
       }
     }
+    return labels;
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -65,8 +66,11 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved }: Pro
         lotNo, sizeMl: size, unit: "ml", type, bottles,
       });
       toast.success(`รับเข้า ${created.length} ขวดแล้ว`);
-      if (printAfter) await printLabels(created);
       onSaved();
+      if (printAfter) {
+        const labels = await buildLabels(created);
+        if (labels.length > 0) onPreviewLabels(labels);
+      }
       onClose();
     } catch (err) {
       toast.error((err as Error).message);

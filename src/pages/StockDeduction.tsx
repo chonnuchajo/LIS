@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { History, Filter } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
@@ -25,10 +26,17 @@ const analysisInstruments =
 
 const StockDeduction = () => {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { tabs, defaultKey } = useAccessibleTabs("/stock-deduction");
   const [type, setType] = useState<string>("");
   const [selected, setSelected] = useState<StockTransactionItem | null>(null);
   const [resolving, setResolving] = useState<StockTransactionItem | null>(null);
+  const initialQrId = searchParams.get("qrId")?.trim() || null;
+  const clearInitialQrId = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("qrId");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock-deductions", type],
@@ -115,7 +123,14 @@ const StockDeduction = () => {
           </span>
         }
         description="เบิกสารเคมีให้เครื่อง และดูประวัติการตัด stock"
-        actions={<StockRequisitionButton roomSlug={ANALYSIS_ROOM_SLUG} instruments={analysisInstruments} />}
+        actions={
+          <StockRequisitionButton
+            roomSlug={ANALYSIS_ROOM_SLUG}
+            instruments={analysisInstruments}
+            initialQrId={initialQrId}
+            onInitialQrConsumed={clearInitialQrId}
+          />
+        }
       />
 
       <Tabs key={defaultKey} defaultValue={defaultKey}>

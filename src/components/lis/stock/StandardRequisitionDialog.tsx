@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronsUpDown, Check } from "lucide-react";
 import { toast } from "sonner";
@@ -24,18 +24,24 @@ type BottleType = (typeof TYPES)[number];
 type MasterItemRaw = Record<string, unknown>;
 const GROUP_LABEL: Record<InstrumentGroup, string> = { gc: "GC", hplc: "HPLC" };
 
+function stockUnitBottleType(type: StockUnitItem["type"]): BottleType {
+  const value = type || "primary";
+  return TYPES.includes(value as BottleType) ? (value as BottleType) : "primary";
+}
+
 interface Props {
+  initialQrId?: string | null;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
+export default function StandardRequisitionDialog({ initialQrId, onClose, onSaved }: Props) {
   const qc = useQueryClient();
   const { user } = useAuth();
   const [code, setCode] = useState("");
   const [pickOpen, setPickOpen] = useState(false);
   const [bottleType, setBottleType] = useState<BottleType>("primary");
-  const [qrId, setQrId] = useState("");
+  const [qrId, setQrId] = useState(initialQrId ?? "");
   const [pickedGroup, setPickedGroup] = useState<InstrumentGroup | null>(null);
   const [customCount, setCustomCount] = useState(false);
   const [weights, setWeights] = useState<string[]>([""]);
@@ -45,6 +51,7 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
   const [pendingNote, setPendingNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [countCustomized, setCountCustomized] = useState(false);
+  const appliedInitialQrRef = useRef<string | null>(null);
 
   const { data: standards = [] } = useQuery({ queryKey: ["stock", "standards"], queryFn: api.getStandards });
   const { data: allUnits = [] } = useQuery({ queryKey: ["stock", "units"], queryFn: () => api.getStockUnits() });
@@ -147,6 +154,29 @@ export default function StandardRequisitionDialog({ onClose, onSaved }: Props) {
     setPendingReason("");
     setPendingNote("");
   }, [pendingDeduction?._id]);
+
+  useEffect(() => {
+    const qrIdToApply = initialQrId?.trim();
+    if (!qrIdToApply || appliedInitialQrRef.current === qrIdToApply) return;
+
+    const selectedUnit = allUnits.find((row) => row.qrId === qrIdToApply);
+    if (!selectedUnit) return;
+
+    appliedInitialQrRef.current = qrIdToApply;
+    const selectedCode = selectedUnit.itemCode;
+    setCode(selectedCode);
+    setPickOpen(false);
+    setQrId(selectedUnit.qrId);
+    setBottleType(stockUnitBottleType(selectedUnit.type));
+    setPickedGroup(null);
+    setCustomCount(false);
+
+    const selectedStandard = standards.find((row) => row.code === selectedCode) ?? null;
+    const selectedGroups = selectedStandard ? resolveGroups(selectedStandard.name, substanceGroups) : [];
+    const weightCount = selectedGroups.length === 1 ? defaultWeightCount(selectedGroups[0]) : 1;
+    setWeights(Array.from({ length: weightCount }, () => ""));
+    setCountCustomized(false);
+  }, [allUnits, initialQrId, standards, substanceGroups]);
 
   // ถ้า group index (master-items/simple-methods) โหลดเสร็จหลังเลือกสารแล้ว → resync
   // จำนวนน้ำหนัก default ให้ตรงกลุ่มที่ resolve ได้ (ไม่ทับถ้าผู้ใช้ปรับเอง). loop-safe: set เฉพาะเมื่อ length ต่าง.

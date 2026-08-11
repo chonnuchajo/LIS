@@ -144,6 +144,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return fetchApi(path, options) as Promise<T>;
 }
 
+type PrintResult = { printer: string; copies: number };
+
 function toLegacyPrintConfig(
   docType: PrintDocType,
   printers: PrinterConfig[] | undefined | null,
@@ -675,11 +677,15 @@ export const api = {
         }).then((r) => r.data);
     return toLegacyPrintConfig(slug, [updated]);
   },
-  printDocument: (payload: { docType: PrintDocType; html: string; copies?: number }) =>
+  printDocument: (payload: { docType: PrintDocType; html: string; copies?: number; printerConfigId?: string }) =>
     request<{ ok: boolean; printer: string; copies: number }>("/print", {
       method: "POST",
       body: JSON.stringify(payload),
-    }).then((r) => ({ printer: r.printer, copies: r.copies })),
+    }).then((r) => ({ printer: r.printer, copies: r.copies } as PrintResult)),
+  testPrinterConfig: (id: string) =>
+    request<{ ok: boolean; printer: string; copies: number }>(`/print/printers-config/${id}/test`, {
+      method: "POST",
+    }).then((r) => ({ printer: r.printer, copies: r.copies } as PrintResult)),
   downloadPrintPdf: (payload: { docType: PrintDocType; html: string }) =>
     fetchBlob("/print/pdf", {
       method: "POST",
