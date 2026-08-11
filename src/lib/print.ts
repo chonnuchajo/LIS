@@ -53,6 +53,12 @@ export interface PrintResult {
   copies: number;
 }
 
+type ServerPrintOptions = {
+  copies?: number;
+  outputMode?: PrintOutputMode;
+  printerConfigId?: string;
+};
+
 function localPrintPageCss(docType: PrintDocType): string {
   if (docType === "sample-label") {
     return "@page { size: 100mm 50mm; margin: 0; } html, body { margin: 0; padding: 0; background: #fff; }";
@@ -121,26 +127,26 @@ function openLocalPrintWindow(title: string, html: string, docType: PrintDocType
 export async function printDocument(
   docType: PrintDocType,
   el: HTMLElement | null,
-  opts?: { css?: string; copies?: number; outputMode?: PrintOutputMode },
+  opts?: { css?: string } & ServerPrintOptions,
 ): Promise<PrintResult> {
   const html = documentHtml(docType, el, opts?.css);
   if ((opts?.outputMode ?? getPrintOutputModeForDocType(docType)) === "local") {
     openLocalPrintWindow(docType, html, docType);
     return { printer: "เครื่องนี้", copies: opts?.copies ?? 1 };
   }
-  return api.printDocument({ docType, html, copies: opts?.copies });
+  return api.printDocument({ docType, html, copies: opts?.copies, printerConfigId: opts?.printerConfigId });
 }
 
 export async function printRawHtmlDocument(
   docType: PrintDocType,
   html: string,
-  opts?: { copies?: number; outputMode?: PrintOutputMode },
+  opts?: ServerPrintOptions,
 ): Promise<PrintResult> {
   if ((opts?.outputMode ?? getPrintOutputModeForDocType(docType)) === "local") {
     openLocalPrintWindow(docType, html, docType);
     return { printer: "เครื่องนี้", copies: opts?.copies ?? 1 };
   }
-  return api.printDocument({ docType, html, copies: opts?.copies });
+  return api.printDocument({ docType, html, copies: opts?.copies, printerConfigId: opts?.printerConfigId });
 }
 
 export async function openPrintPdf(

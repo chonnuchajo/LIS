@@ -1,5 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { buildSolventLabelHtml } from "./stockLabel";
+import { buildSolventLabelHtml, stockDeductionQrUrl } from "./stockLabel";
+
+describe("stockDeductionQrUrl", () => {
+  it("builds the production stock deduction URL with qrId", () => {
+    expect(stockDeductionQrUrl("u_abc123")).toBe(
+      "https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_abc123",
+    );
+  });
+
+  it("URL-encodes qrId values", () => {
+    expect(stockDeductionQrUrl("solvent 1/2")).toBe(
+      "https://app-plant.icpladda.com/LIS/stock-deduction?qrId=solvent+1%2F2",
+    );
+  });
+});
 
 describe("buildSolventLabelHtml", () => {
   it("ใส่ชื่อ/lot/ขนาด และฝัง QR เป็น data URL", async () => {

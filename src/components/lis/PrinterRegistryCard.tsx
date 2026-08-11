@@ -23,11 +23,12 @@ type Draft = {
 
 interface Props {
   configs: PrinterConfig[];
-  saving: boolean;
+  saving?: boolean;
   onCreate: (input: PrinterConfigInput) => Promise<unknown>;
-  onUpdate: (id: string, input: { label?: string; cupsPrinterUrl?: string }) => Promise<unknown>;
+  onUpdate: (id: string, input: Partial<PrinterConfigInput>) => Promise<unknown>;
   onDelete: (id: string) => Promise<unknown>;
   onSetDefault: (id: string) => Promise<unknown>;
+  onTestPrint: (id: string) => Promise<unknown>;
 }
 
 function emptyDraft(): Draft {
@@ -41,6 +42,7 @@ export default function PrinterRegistryCard({
   onUpdate,
   onDelete,
   onSetDefault,
+  onTestPrint,
 }: Props) {
   const [addingKind, setAddingKind] = useState<PrinterKind | null>(null);
   const [addDraft, setAddDraft] = useState<Draft>(emptyDraft);
@@ -107,6 +109,15 @@ export default function PrinterRegistryCard({
     if (editingId === config.id) {
       setEditingId(null);
       setEditDraft(emptyDraft());
+    }
+  }
+
+  async function handleTestPrint(config: PrinterConfig) {
+    try {
+      await onTestPrint(config.id);
+      toast.success(`ส่งพิมพ์ทดสอบไปยัง ${config.label?.trim() || config.cupsPrinterUrl}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "พิมพ์ทดสอบไม่สำเร็จ");
     }
   }
 
@@ -186,12 +197,15 @@ export default function PrinterRegistryCard({
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-xs">CUPS printer URL</Label>
+                            <Label className="text-xs">Printer IP / URL</Label>
                             <Input
                               value={editDraft.cupsPrinterUrl}
                               onChange={(e) => setEditDraft((prev) => ({ ...prev, cupsPrinterUrl: e.target.value }))}
-                              placeholder="https://192.168.0.237:631/printers/PRINTER_NAME"
+                              placeholder="192.168.1.50 หรือ http://192.168.1.10:631/printers/Zebra"
                             />
+                            <p className="text-xs text-muted-foreground">
+                              ใส่ IP เครื่องปริ้นโดยตรงได้ถ้าเครื่องรองรับ IPP หรือใส่ CUPS URL เต็มได้เหมือนเดิม
+                            </p>
                           </div>
                           <div className="flex flex-wrap gap-2">
                             <Button size="sm" onClick={() => void handleUpdate(config.id)} disabled={saving}>
@@ -239,6 +253,15 @@ export default function PrinterRegistryCard({
                               type="button"
                               variant="outline"
                               size="sm"
+                              onClick={() => void handleTestPrint(config)}
+                              disabled={saving}
+                            >
+                              พิมพ์ทดสอบ
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
                               onClick={() => startEdit(config)}
                               disabled={saving}
                             >
@@ -275,12 +298,15 @@ export default function PrinterRegistryCard({
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">CUPS printer URL</Label>
+                      <Label className="text-xs">Printer IP / URL</Label>
                       <Input
                         value={addDraft.cupsPrinterUrl}
                         onChange={(e) => setAddDraft((prev) => ({ ...prev, cupsPrinterUrl: e.target.value }))}
-                        placeholder="https://192.168.0.237:631/printers/PRINTER_NAME"
+                        placeholder="192.168.1.50 หรือ http://192.168.1.10:631/printers/Zebra"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        ใส่ IP เครื่องปริ้นโดยตรงได้ถ้าเครื่องรองรับ IPP หรือใส่ CUPS URL เต็มได้เหมือนเดิม
+                      </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" onClick={() => void handleCreate(meta.kind)} disabled={saving}>

@@ -93,6 +93,7 @@ const SettingsPage = () => {
       toast.error(err instanceof Error ? err.message : "อัปเดตค่าเริ่มต้นไม่สำเร็จ");
     },
   });
+  const testPrinterMutation = useMutation({ mutationFn: api.testPrinterConfig });
 
   const { data: docNumberConfigs = [] } = useQuery({
     queryKey: ["document-number-config"],
@@ -130,7 +131,8 @@ const SettingsPage = () => {
     createPrinterMutation.isPending ||
     updatePrinterMutation.isPending ||
     deletePrinterMutation.isPending ||
-    setDefaultPrinterMutation.isPending;
+    setDefaultPrinterMutation.isPending ||
+    testPrinterMutation.isPending;
 
   return (
     <AppLayout title="ตั้งค่าระบบ">
@@ -185,6 +187,7 @@ const SettingsPage = () => {
             onUpdate={(id, input) => updatePrinterMutation.mutateAsync({ id, input })}
             onDelete={deletePrinterMutation.mutateAsync}
             onSetDefault={setDefaultPrinterMutation.mutateAsync}
+            onTestPrint={testPrinterMutation.mutateAsync}
           />
         </TabsContent>
 

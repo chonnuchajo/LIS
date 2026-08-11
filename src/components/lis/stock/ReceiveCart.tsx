@@ -14,8 +14,8 @@ import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
 
+import StockRawLabelPreviewDialog from "@/components/lis/StockRawLabelPreviewDialog";
 import { api } from "@/lib/api";
-import { printRawHtmlDocument } from "@/lib/print";
 import { cn } from "@/lib/utils";
 import { buildStockLabelHtml, buildSolventLabelHtml } from "@/lib/stockLabel";
 import {
@@ -65,6 +65,8 @@ export default function ReceiveCart() {
   const [rows, setRows] = useState<CartRow[]>(() => [makeEmptyRow()]);
   const [printAfter, setPrintAfter] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [pendingLabels, setPendingLabels] = useState<string[]>([]);
+  const [labelPreviewOpen, setLabelPreviewOpen] = useState(false);
 
   const patchRow = (id: string, patch: Partial<CartRow>) =>
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -138,13 +140,9 @@ export default function ReceiveCart() {
         }
       }
 
-      // ปริ้นท้ายสุด — print fail ไม่ถือว่า receive ล้ม
-      for (const html of labels) {
-        try {
-          await printRawHtmlDocument("stock-label", html);
-        } catch (err) {
-          toast.error(`ปริ้นลาเบลไม่สำเร็จ: ${(err as Error).message}`);
-        }
+      if (labels.length > 0) {
+        setPendingLabels(labels);
+        setLabelPreviewOpen(true);
       }
 
       if (okCount > 0) toast.success(`รับเข้าสำเร็จ ${okCount} รายการ${failCount ? ` · ล้มเหลว ${failCount}` : ""}`);
@@ -165,7 +163,8 @@ export default function ReceiveCart() {
   const validCount = rows.filter((r) => r.itemId && !validateRow(r)).length;
 
   return (
-    <div className="space-y-4">
+    <>
+      <div className="space-y-4">
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
@@ -259,7 +258,17 @@ export default function ReceiveCart() {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+      <StockRawLabelPreviewDialog
+        open={labelPreviewOpen}
+        labels={pendingLabels}
+        onOpenChange={(open) => {
+          setLabelPreviewOpen(open);
+          if (!open) setPendingLabels([]);
+        }}
+        onPrinted={() => setPendingLabels([])}
+      />
+    </>
   );
 }
 

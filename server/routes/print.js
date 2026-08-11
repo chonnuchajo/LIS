@@ -9,6 +9,7 @@ const {
   PRINT_DOC_TYPES,
   kindForDocType,
   paperSizeForSlug,
+  printerTargetFromAddress,
   validatePrinterInput,
   pickDefault,
 } = require('../lib/printerRouting');
@@ -55,23 +56,12 @@ function paperSpec(paperSize) {
   };
 }
 
-function cupsTargetFromUrl(cupsPrinterUrl) {
-  const raw = String(cupsPrinterUrl || '').trim();
-  if (!raw) return null;
-  const url = new URL(raw);
-  const pathParts = url.pathname.split('/').filter(Boolean);
-  const queuePrefixIndex = pathParts.findIndex((p) => p === 'printers' || p === 'classes');
-  const queueName = queuePrefixIndex >= 0 ? pathParts[queuePrefixIndex + 1] : '';
-  const destination = decodeURIComponent(queueName || '').trim();
-  if (!destination) {
-    throw new Error('CUPS URL ต้องระบุ queue เช่น https://192.168.0.237:631/printers/PRINTER_NAME');
+function printTargetFromConfig(cfg) {
+  try {
+    return printerTargetFromAddress(cfg.cupsPrinterUrl);
+  } catch (err) {
+    throw new Error(`Printer IP / URL ไม่ถูกต้อง: ${err.message}`);
   }
-  const printerUriProtocol = url.protocol === 'https:' ? 'ipps:' : url.protocol === 'http:' ? 'ipp:' : url.protocol;
-  return {
-    destination,
-    printerUri: `${printerUriProtocol}//${url.host}${url.pathname}`,
-    display: raw,
-  };
 }
 
 function isPrivateCupsHost(hostname) {
@@ -86,7 +76,7 @@ function isPrivateCupsHost(hostname) {
 }
 
 function cupsRequestOptions(cupsPrinterUrl) {
-  const url = new URL(cupsPrinterUrl);
+  const url = new URL(printerTargetFromAddress(cupsPrinterUrl).printerUri);
   const opts = {
     protocol: url.protocol,
     hostname: url.hostname,
@@ -202,7 +192,7 @@ async function renderSampleLabelPngBuffers(page) {
 }
 
 function printViaCups(tmpPdf, cfg, copies) {
-  const target = cupsTargetFromUrl(cfg.cupsPrinterUrl);
+  const target = printTargetFromConfig(cfg);
   const ipp = require('ipp');
   const printer = ipp.Printer(cupsRequestOptions(cfg.cupsPrinterUrl), { uri: target.printerUri, version: '2.0' });
   const paper = paperSpec(paperSizeForSlug(cfg.slug));
@@ -242,7 +232,7 @@ function printViaCups(tmpPdf, cfg, copies) {
 }
 
 function printBuffersViaCups(buffers, cfg, copies, documentFormat) {
-  const target = cupsTargetFromUrl(cfg.cupsPrinterUrl);
+  const target = printTargetFromConfig(cfg);
   const ipp = require('ipp');
   const printer = ipp.Printer(cupsRequestOptions(cfg.cupsPrinterUrl), { uri: target.printerUri, version: '2.0' });
   const paper = paperSpec(paperSizeForSlug(cfg.slug));
@@ -383,78 +373,49 @@ router.delete('/printers-config/:id', async (req, res) => {
   }
 });
 
-// POST /api/print/pdf — { docType, html } → PDF blob for browser preview/download
-router.post('/pdf', async (req, res) => {
-  const { docType, html } = req.body || {};
-  if (!ALLOWED_SLUGS.includes(docType)) return res.status(400).json({ error: 'docType ไม่ถูกต้อง' });
-  if (typeof html !== 'string' || !html.trim()) return res.status(400).json({ error: 'ไม่มีเนื้อหาเอกสาร' });
-
-  let browser;
-  try {
-    const chromePath = process.env.PRINT_CHROME_PATH;
-    if (!chromePath || !fs.existsSync(chromePath)) {
-      return res.status(500).json({ error: 'ไม่พบ Chrome สำหรับสร้าง PDF (ตั้งค่า PRINT_CHROME_PATH)' });
+async function choosePrinterForDocType(docType, printerConfigId) {
+  const kind = kindForDocType(docType);
+  if (printerConfigId) {
+    if (typeof printerConfigId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(printerConfigId)) {
+      const err = new Error('ไม่พบเครื่องพิมพ์ที่เลือก');
+      err.statusCode = 404;
+      throw err;
     }
-
-    const puppeteer = require('puppeteer-core');
-    browser = await puppeteer.launch({
-      executablePath: chromePath,
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    const page = await browser.newPage();
-    await page.setJavaScriptEnabled(false);
-    await page.setRequestInterception(true);
-    page.on('request', (r) => {
-      const u = r.url();
-      if (u.startsWith('data:')) return r.continue();
-      try {
-        if (ALLOWED_HOSTS.has(new URL(u).host)) return r.continue();
-      } catch (_) { /* fallthrough */ }
-      return r.abort();
-    });
-
-    const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
-</head><body>${html}</body></html>`;
-    await page.setContent(fullHtml, { waitUntil: 'load', timeout: 15000 });
-
-    const pdf = await page.pdf({
-      ...paperSpec(paperSizeForSlug(docType)).pdf,
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: { top: 0, right: 0, bottom: 0, left: 0 },
-    });
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="lis-${docType}.pdf"`);
-    res.send(Buffer.from(pdf));
-  } catch (err) {
-    res.status(500).json({ error: `สร้าง PDF ไม่สำเร็จ: ${err.message}` });
-  } finally {
-    if (browser) { try { await browser.close(); } catch (_) {} }
+    const selected = await PrinterConfig.findById(printerConfigId).lean();
+    if (!selected) {
+      const err = new Error('ไม่พบเครื่องพิมพ์ที่เลือก');
+      err.statusCode = 404;
+      throw err;
+    }
+    if (selected.kind !== kind) {
+      const err = new Error('เครื่องพิมพ์ที่เลือกไม่ตรงกับชนิดเอกสาร');
+      err.statusCode = 400;
+      throw err;
+    }
+    return selected;
   }
-});
+  const printers = await PrinterConfig.find({ kind }).lean();
+  return pickDefault(printers, kind);
+}
 
-// POST /api/print — { docType, html, copies? } → PDF/PNG → CUPS
-router.post('/', async (req, res) => {
-  const { docType, html, copies: copiesOverride } = req.body || {};
-  if (!ALLOWED_SLUGS.includes(docType)) return res.status(400).json({ error: 'docType ไม่ถูกต้อง' });
-  if (typeof html !== 'string' || !html.trim()) return res.status(400).json({ error: 'ไม่มีเนื้อหาเอกสาร' });
+function missingPrinterConfigError() {
+  const err = new Error('ยังไม่ได้ตั้งค่าเครื่องพิมพ์สำหรับเอกสารนี้ (ตั้งค่าที่หน้าตั้งค่าระบบ)');
+  err.statusCode = 400;
+  return err;
+}
 
+async function printHtmlJob({ docType, html, copiesOverride, printerConfig }) {
   let browser;
   let tmpPdf;
   try {
-    const kind = kindForDocType(docType);
-    const printers = await PrinterConfig.find({ kind }).lean();
-    const chosen = pickDefault(printers, kind);
-    if (!chosen || !chosen.cupsPrinterUrl) {
-      return res.status(400).json({ error: 'ยังไม่ได้ตั้งค่าเครื่องพิมพ์สำหรับเอกสารนี้ (ตั้งค่าที่หน้าตั้งค่าระบบ)' });
+    if (!printerConfig || !printerConfig.cupsPrinterUrl) {
+      throw missingPrinterConfigError();
     }
-    const cfg = { slug: docType, cupsPrinterUrl: chosen.cupsPrinterUrl };
 
+    const cfg = { slug: docType, cupsPrinterUrl: printerConfig.cupsPrinterUrl };
     const chromePath = process.env.PRINT_CHROME_PATH;
     if (!chromePath || !fs.existsSync(chromePath)) {
-      return res.status(500).json({ error: 'ไม่พบ Chrome สำหรับสร้าง PDF (ตั้งค่า PRINT_CHROME_PATH)' });
+      throw new Error('ไม่พบ Chrome สำหรับสร้าง PDF (ตั้งค่า PRINT_CHROME_PATH)');
     }
 
     const copies = (Number.isInteger(copiesOverride) && copiesOverride >= 1 && copiesOverride <= 99) ? copiesOverride : 1;
@@ -519,12 +480,106 @@ router.post('/', async (req, res) => {
       printerTarget = result.target;
     }
 
-    res.json({ ok: true, printer: printerTarget, copies });
-  } catch (err) {
-    res.status(500).json({ error: `พิมพ์ไม่สำเร็จ: ${err.message}` });
+    return { printer: printerTarget, copies };
   } finally {
     if (browser) { try { await browser.close(); } catch (_) {} }
     if (tmpPdf) fs.promises.unlink(tmpPdf).catch(() => {});
+  }
+}
+
+function escapeHtmlText(value) {
+  return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function testPrintHtml(config) {
+  const now = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+  const label = escapeHtmlText(config.label || 'Printer');
+  const target = escapeHtmlText(config.cupsPrinterUrl || '-');
+  if (config.kind === 'sticker') {
+    return `<div style="font-family:'Kanit',sans-serif;width:152mm;height:101mm;box-sizing:border-box;padding:8mm;color:#000;border:1px solid #000;"><div style="font-size:18pt;font-weight:700;margin-bottom:4mm;">LIS Test Print</div><div style="font-size:14pt;line-height:1.5;">Printer: <b>${label}</b></div><div>Kind: sticker</div><div style="word-break:break-all;">Target: ${target}</div><div>${escapeHtmlText(now)}</div></div>`;
+  }
+  return `<main style="font-family:'Kanit',sans-serif;padding:18mm;color:#000;"><h1>LIS Test Print</h1><p>Printer: <b>${label}</b></p><p>Kind: a4</p><p style="word-break:break-all;">Target: ${target}</p><p>${escapeHtmlText(now)}</p></main>`;
+}
+
+router.post('/printers-config/:id/test', async (req, res) => {
+  try {
+    const printerConfig = await PrinterConfig.findById(req.params.id).lean();
+    if (!printerConfig) return res.status(404).json({ error: 'ไม่พบเครื่องพิมพ์' });
+    const docType = printerConfig.kind === 'sticker' ? 'stock-label' : 'service-request';
+    const result = await printHtmlJob({ docType, html: testPrintHtml(printerConfig), copiesOverride: 1, printerConfig });
+    res.json({ ok: true, printer: result.printer, copies: result.copies });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    res.status(status).json({ error: `พิมพ์ทดสอบไม่สำเร็จ: ${err.message} หากเครื่องพิมพ์ IP ตรงไม่รองรับ IPP ให้ตั้งผ่าน CUPS URL แทน` });
+  }
+});
+
+// POST /api/print/pdf — { docType, html } → PDF blob for browser preview/download
+router.post('/pdf', async (req, res) => {
+  const { docType, html } = req.body || {};
+  if (!ALLOWED_SLUGS.includes(docType)) return res.status(400).json({ error: 'docType ไม่ถูกต้อง' });
+  if (typeof html !== 'string' || !html.trim()) return res.status(400).json({ error: 'ไม่มีเนื้อหาเอกสาร' });
+
+  let browser;
+  try {
+    const chromePath = process.env.PRINT_CHROME_PATH;
+    if (!chromePath || !fs.existsSync(chromePath)) {
+      return res.status(500).json({ error: 'ไม่พบ Chrome สำหรับสร้าง PDF (ตั้งค่า PRINT_CHROME_PATH)' });
+    }
+
+    const puppeteer = require('puppeteer-core');
+    browser = await puppeteer.launch({
+      executablePath: chromePath,
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+    const page = await browser.newPage();
+    await page.setJavaScriptEnabled(false);
+    await page.setRequestInterception(true);
+    page.on('request', (r) => {
+      const u = r.url();
+      if (u.startsWith('data:')) return r.continue();
+      try {
+        if (ALLOWED_HOSTS.has(new URL(u).host)) return r.continue();
+      } catch (_) { /* fallthrough */ }
+      return r.abort();
+    });
+
+    const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
+</head><body>${html}</body></html>`;
+    await page.setContent(fullHtml, { waitUntil: 'load', timeout: 15000 });
+
+    const pdf = await page.pdf({
+      ...paperSpec(paperSizeForSlug(docType)).pdf,
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="lis-${docType}.pdf"`);
+    res.send(Buffer.from(pdf));
+  } catch (err) {
+    res.status(500).json({ error: `สร้าง PDF ไม่สำเร็จ: ${err.message}` });
+  } finally {
+    if (browser) { try { await browser.close(); } catch (_) {} }
+  }
+});
+
+// POST /api/print — { docType, html, copies?, printerConfigId? } → PDF/PNG → CUPS
+router.post('/', async (req, res) => {
+  const { docType, html, copies: copiesOverride, printerConfigId } = req.body || {};
+  if (!ALLOWED_SLUGS.includes(docType)) return res.status(400).json({ error: 'docType ไม่ถูกต้อง' });
+  if (typeof html !== 'string' || !html.trim()) return res.status(400).json({ error: 'ไม่มีเนื้อหาเอกสาร' });
+
+  try {
+    const printerConfig = await choosePrinterForDocType(docType, printerConfigId);
+    const result = await printHtmlJob({ docType, html, copiesOverride, printerConfig });
+    res.json({ ok: true, printer: result.printer, copies: result.copies });
+  } catch (err) {
+    const status = err.statusCode || 500;
+    const fallback = printerConfigId ? ' หากเครื่องพิมพ์ IP ตรงไม่รองรับ IPP ให้ตั้งผ่าน CUPS URL แทน' : '';
+    res.status(status).json({ error: `พิมพ์ไม่สำเร็จ: ${err.message}${fallback}` });
   }
 });
 

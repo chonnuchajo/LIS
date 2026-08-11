@@ -15,6 +15,14 @@ const apiMock = vi.hoisted(() => ({
 const tabsMock = vi.hoisted(() => ({
   defaultKey: "standard",
 }));
+const authMock = vi.hoisted(() => ({
+  user: {
+    email: "tester@example.com",
+    name: "Tester",
+    role: "admin",
+    roles: ["admin"],
+  },
+}));
 
 vi.mock("@/lib/api", () => ({ api: apiMock }));
 
@@ -48,7 +56,7 @@ vi.mock("@/components/lis/stock/ReceiveCart", () => ({
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({
-    user: { email: "tester@example.com", name: "Tester" },
+    user: authMock.user,
   }),
 }));
 
@@ -86,6 +94,12 @@ describe("StockPage delete actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     tabsMock.defaultKey = "standard";
+    authMock.user = {
+      email: "tester@example.com",
+      name: "Tester",
+      role: "admin",
+      roles: ["admin"],
+    };
     apiMock.getStandards.mockResolvedValue([
       {
         _id: "std-1",
@@ -135,6 +149,38 @@ describe("StockPage delete actions", () => {
     fireEvent.click(await screen.findByRole("button", { name: "ลบ" }));
 
     await waitFor(() => expect(apiMock.deleteStandard).toHaveBeenCalledWith("std-1"));
+  });
+
+  it.each([
+    { defaultKey: "standard", cellName: "Pesticide Standard", deleteName: /Standard Pesticide Standard/ },
+    { defaultKey: "solvent", cellName: "Methanol", deleteName: /Methanol/ },
+    { defaultKey: "glassware", cellName: "Volumetric flask", deleteName: /Volumetric flask/ },
+  ])("hides the $defaultKey delete button for Lab Inventory without admin", async ({ defaultKey, cellName, deleteName }) => {
+    authMock.user = {
+      email: "tester@example.com",
+      name: "Tester",
+      role: "lab-inventory",
+      roles: ["lab-inventory", "lab-analyze"],
+    };
+    renderStock(defaultKey);
+
+    expect(await screen.findByRole("cell", { name: cellName })).toBeInTheDocument();
+
+    expect(screen.queryByRole("button", { name: deleteName })).not.toBeInTheDocument();
+  });
+
+  it("keeps delete visible for admin even with Lab Inventory assigned", async () => {
+    authMock.user = {
+      email: "tester@example.com",
+      name: "Tester",
+      role: "admin",
+      roles: ["admin", "lab-inventory"],
+    };
+    renderStock();
+
+    expect(await screen.findByRole("cell", { name: "Pesticide Standard" })).toBeInTheDocument();
+
+    expect(screen.getByRole("button", { name: /Standard Pesticide Standard/ })).toBeInTheDocument();
   });
 
   it("opens the detail drawer when clicking a standard row", async () => {

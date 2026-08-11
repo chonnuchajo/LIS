@@ -13,6 +13,8 @@ export function parseScannedQrId(raw: string): string {
   }
   try {
     const url = new URL(text);
+    const fromQuery = url.searchParams.get("qrId") ?? url.searchParams.get("id") ?? url.searchParams.get("solventId");
+    if (fromQuery) return fromQuery.trim();
     const parts = url.pathname.split("/").filter(Boolean);
     return decodeURIComponent(parts[parts.length - 1] || text).trim();
   } catch {

@@ -140,23 +140,29 @@ export function isPrinterConfigured(config?: PrintConfig | null): boolean {
   return Boolean(config.cupsPrinterUrl?.trim() || config.printerName?.trim());
 }
 
+const URL_PROTOCOLS = ["http:", "https:", "ipp:", "ipps:"];
+const HOST_WITH_OPTIONAL_PORT = /^[A-Za-z0-9.-]+(?::\d{1,5})?$/;
+
+function hasUrlProtocol(raw: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(raw);
+}
+
 // mirror ของ validatePrinterInput ใน server/lib/printerRouting.js
 export function validatePrinterUrl(url: string): string | null {
   const raw = (url ?? "").trim();
-  if (!raw) return "ต้องระบุ CUPS printer URL";
+  if (!raw) return "ต้องระบุ Printer IP / URL";
   let u: URL;
   try {
-    u = new URL(raw);
+    const normalized = hasUrlProtocol(raw) ? raw : `ipp://${raw}`;
+    if (!hasUrlProtocol(raw) && !HOST_WITH_OPTIONAL_PORT.test(raw)) {
+      return "Printer IP / URL ไม่ถูกต้อง";
+    }
+    u = new URL(normalized);
   } catch {
-    return "CUPS URL ไม่ถูกต้อง";
+    return "Printer IP / URL ไม่ถูกต้อง";
   }
-  if (!["http:", "https:", "ipp:", "ipps:"].includes(u.protocol)) {
-    return "CUPS URL ต้องเป็น http, https, ipp หรือ ipps";
-  }
-  const parts = u.pathname.split("/").filter(Boolean);
-  const qi = parts.findIndex((p) => p === "printers" || p === "classes");
-  if (qi < 0 || !parts[qi + 1]) {
-    return "CUPS URL ต้องระบุ queue เช่น https://192.168.0.237:631/printers/PRINTER_NAME";
+  if (!URL_PROTOCOLS.includes(u.protocol)) {
+    return "Printer IP / URL ต้องเป็น IP เครื่องปริ้น, http, https, ipp หรือ ipps";
   }
   return null;
 }
@@ -165,7 +171,7 @@ export function validatePrintConfig(input: PrintConfigInput): string | null {
   const printerName = (input.printerName ?? "").trim();
   const cupsPrinterUrl = (input.cupsPrinterUrl ?? "").trim();
   if (!printerName && !cupsPrinterUrl) {
-    return "ต้องระบุ CUPS printer URL";
+    return "ต้องระบุ Printer IP / URL";
   }
   if (!cupsPrinterUrl) return null;
   return validatePrinterUrl(cupsPrinterUrl);

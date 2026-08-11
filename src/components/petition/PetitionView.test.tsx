@@ -20,6 +20,7 @@ const fixtures = vi.hoisted(() => ({
         seq: 1,
         sampleName: 'R&D Sample',
         commonName: 'R&D Active',
+        itemNo: 'FC-QPA50-1X16',
         batchNo: '',
       },
     ],
@@ -71,5 +72,14 @@ describe('PetitionView R&D parameter visibility', () => {
 
     await waitFor(() => expect(screen.getByText('ทดสอบ Lab')).toBeInTheDocument());
     expect(screen.queryByText('กายภาพ')).not.toBeInTheDocument();
+  });
+
+  it('shows the item code bubble under common name', async () => {
+    render(<PetitionView petition={fixtures.petition} />);
+
+    await waitFor(() => expect(screen.getByText('ทดสอบ Lab')).toBeInTheDocument());
+    expect(screen.getByText('R&D Active')).toBeInTheDocument();
+    expect(screen.getByText('รหัสสินค้า')).toBeInTheDocument();
+    expect(screen.getByText('FC-QPA50-1X16')).toBeInTheDocument();
   });
 });

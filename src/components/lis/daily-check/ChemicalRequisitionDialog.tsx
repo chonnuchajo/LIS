@@ -35,6 +35,7 @@ interface Props {
   roomSlug: string;
   instruments: { id: string; name: string }[];
   presetInstrumentId?: string;
+  initialSolventId?: string | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -43,12 +44,13 @@ export default function ChemicalRequisitionDialog({
   roomSlug,
   instruments,
   presetInstrumentId,
+  initialSolventId,
   onClose,
   onSaved,
 }: Props) {
   const { user } = useAuth();
   const [instrumentId, setInstrumentId] = useState(presetInstrumentId ?? "");
-  const [solventId, setSolventId] = useState("");
+  const [solventId, setSolventId] = useState(initialSolventId ?? "");
   const [qty, setQty] = useState("1");
   const [note, setNote] = useState("");
   const [pendingReason, setPendingReason] = useState<DeductionResolutionReason | "">("");
@@ -85,6 +87,10 @@ export default function ChemicalRequisitionDialog({
     setPendingReason("");
     setPendingNote("");
   }, [pendingDeduction?._id]);
+
+  useEffect(() => {
+    if (initialSolventId) setSolventId(initialSolventId);
+  }, [initialSolventId]);
 
   const onScanned = (id: string) => {
     setScanOpen(false);

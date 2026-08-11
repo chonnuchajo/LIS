@@ -1,11 +1,19 @@
 import QRCode from "qrcode";
 import type { StockUnitItem } from "@/types/stock";
 
+const STOCK_DEDUCTION_QR_BASE_URL = "https://app-plant.icpladda.com/LIS/stock-deduction";
+
+export function stockDeductionQrUrl(qrId: string): string {
+  const url = new URL(STOCK_DEDUCTION_QR_BASE_URL);
+  url.searchParams.set("qrId", qrId);
+  return url.toString();
+}
+
 /** สร้าง HTML ลาเบลขวด พร้อม QR (data URL) — ส่งตรงเข้า api.printDocument
- *  QR encode แค่ qrId เปล่า (ไม่ใช่ URL) → ข้อมูลสั้น module ใหญ่ สแกนง่ายแม้พิมพ์เล็ก;
- *  in-app scanner parseScannedQrId คืน id ตรงๆ อยู่แล้ว */
+ *  QR encode URL หน้าเบิก stock เพื่อให้สแกนจากกล้อง/แอปใดก็เปิดหน้าเบิกได้ทันที;
+ *  in-app scanner parseScannedQrId ยังรองรับ qrId เปล่าและ URL เดิมอยู่ */
 export async function buildStockLabelHtml(unit: StockUnitItem): Promise<string> {
-  const qr = await QRCode.toDataURL(unit.qrId, {
+  const qr = await QRCode.toDataURL(stockDeductionQrUrl(unit.qrId), {
     margin: 3, // quiet zone กว้างขึ้น ให้กล้องจับขอบ QR ได้ง่าย
     width: 512, // render คมขึ้น (เดิม 240)
     errorCorrectionLevel: "M",
@@ -27,8 +35,8 @@ export async function buildStockLabelHtml(unit: StockUnitItem): Promise<string> 
 }
 
 /** สติกเกอร์สารเคมี — solvent ไม่ได้ track รายขวด จึงไม่มี StockUnit/qrId จริง
- *  QR encode idForQr (= _id ของสารเคมี) เป็นตัวบอกว่าเป็นสารตัวไหน
- *  scanner ในแอปยัง resolve ไม่ได้ (ไม่มี StockUnit) — เป็นสติกเกอร์ระบุตัวเท่านั้น */
+ *  QR encode URL หน้าเบิก stock พร้อม idForQr (= _id ของสารเคมี) เพื่อให้เปิดหน้าเบิกได้ทันที
+ *  หน้าเบิก stock จะ resolve เป็นสารเคมีจาก idForQr */
 export async function buildSolventLabelHtml(payload: {
   name: string;
   idForQr: string;
@@ -36,7 +44,7 @@ export async function buildSolventLabelHtml(payload: {
   exp?: string | null;
   sizeLabel?: string;
 }): Promise<string> {
-  const qr = await QRCode.toDataURL(payload.idForQr, {
+  const qr = await QRCode.toDataURL(stockDeductionQrUrl(payload.idForQr), {
     margin: 3,
     width: 512,
     errorCorrectionLevel: "M",
