@@ -101,8 +101,8 @@ export default function CoaDetailPage() {
       <div className="min-h-[calc(100vh-64px)] space-y-6 bg-sky-50 p-6">
         <PageHeader
           onBack={() => navigate("/coa")}
-          title={<span className="inline-flex items-center gap-2"><FileCheck2 className="h-5 w-5 text-sky-500" />{doc.coaNo || "ร่าง COA"}</span>}
-          actions={<Button className="gap-2" onClick={() => setPrintOpen(true)}><Printer className="h-4 w-4" />{printable ? "พิมพ์ COA" : "เปิดดูไฟล์"}</Button>}
+          title={<span className="inline-flex items-center gap-2 text-sky-950"><FileCheck2 className="h-5 w-5 text-sky-500" />{doc.coaNo || "ร่าง COA"}</span>}
+          actions={<Button className="gap-2 bg-sky-600 text-white hover:bg-sky-700" onClick={() => setPrintOpen(true)}><Printer className="h-4 w-4" />{printable ? "พิมพ์ COA" : "เปิดดูไฟล์"}</Button>}
         />
         <div className="flex flex-wrap items-center gap-2">
           <CoaStatusBadge status={doc.status} />
@@ -110,35 +110,35 @@ export default function CoaDetailPage() {
           {doc.revision > 0 && <span className="text-sm text-muted-foreground">Rev.{doc.revision}</span>}
         </div>
         <div className="flex flex-wrap gap-2">
-          {actions.includes("save") && <Button variant="outline" disabled={save.isPending} onClick={() => save.mutate()}>บันทึกฟอร์ม</Button>}
-          {actions.includes("submit") && <Button onClick={() => submit.mutate()}>เสร็จสิ้น</Button>}
+          {actions.includes("save") && <Button variant="outline" className="border-sky-200 text-sky-700 hover:bg-sky-50" disabled={save.isPending} onClick={() => save.mutate()}>บันทึกฟอร์ม</Button>}
+          {actions.includes("submit") && <Button className="bg-sky-600 text-white hover:bg-sky-700" onClick={() => submit.mutate()}>เสร็จสิ้น</Button>}
           {actions.includes("approve") && (
             <>
-              <Button onClick={() => approve.mutate()}>QC Head อนุมัติ</Button>
+              <Button className="bg-sky-600 text-white hover:bg-sky-700" onClick={() => approve.mutate()}>QC Head อนุมัติ</Button>
               <Button variant="destructive" disabled={!reason.trim()} onClick={() => reject.mutate()}>ไม่อนุมัติ</Button>
             </>
           )}
           {actions.includes("revise") && (
             <>
-              <Button variant="outline" onClick={() => revise.mutate()}>สร้างฉบับแก้ไข</Button>
+              <Button variant="outline" className="border-sky-200 text-sky-700 hover:bg-sky-50" onClick={() => revise.mutate()}>สร้างฉบับแก้ไข</Button>
               {isQcHead && <Button variant="destructive" disabled={!reason.trim()} onClick={() => cancel.mutate()}>ยกเลิก COA</Button>}
             </>
           )}
         </div>
         {actions.includes("save") && (
-          <section className="rounded-lg border bg-white p-4">
-            <h2 className="mb-3 font-semibold">ข้อมูลในฟอร์ม COA</h2>
-            <Textarea value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="หมายเหตุหรือข้อมูลประกอบในฟอร์ม COA" />
+          <section className="rounded-lg border border-sky-100 bg-white/90 p-4 shadow-sm">
+            <h2 className="mb-3 font-semibold text-sky-950">ข้อมูลในฟอร์ม COA</h2>
+            <Textarea className="border-sky-100 bg-white focus-visible:ring-sky-300" value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="หมายเหตุหรือข้อมูลประกอบในฟอร์ม COA" />
           </section>
         )}
-        <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="เหตุผลสำหรับไม่อนุมัติหรือยกเลิก" />
-        <section className="rounded-lg border bg-white p-4">
-          <h2 className="mb-3 font-semibold">ตัวอย่างและผลทดสอบ</h2>
+        <Textarea className="border-sky-100 bg-white/90 focus-visible:ring-sky-300" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="เหตุผลสำหรับไม่อนุมัติหรือยกเลิก" />
+        <section className="rounded-lg border border-sky-100 bg-white/90 p-4 shadow-sm">
+          <h2 className="mb-3 font-semibold text-sky-950">ตัวอย่างและผลทดสอบ</h2>
           {doc.sampleSnapshots.map((sample) => (
-            <div key={sample.itemSeq} className="mb-4 rounded-md border p-3">
-              <div className="font-medium">{sample.sampleName || sample.commonName || `Sample ${sample.itemSeq}`}</div>
-              <div className="text-sm text-muted-foreground">{sample.batchNo || sample.lotNo || "-"}</div>
-              <ul className="mt-2 list-disc pl-5 text-sm">
+            <div key={sample.itemSeq} className="mb-4 rounded-md border border-sky-100 bg-sky-50/60 p-3 last:mb-0">
+              <div className="font-medium text-sky-950">{sample.sampleName || sample.commonName || `Sample ${sample.itemSeq}`}</div>
+              <div className="text-sm text-sky-600">{sample.batchNo || sample.lotNo || "-"}</div>
+              <ul className="mt-2 list-disc pl-5 text-sm text-slate-700">
                 {doc.resultSnapshots.filter((row) => row.itemSeq === sample.itemSeq).map((row, index) => (
                   <li key={index}>{row.testItem}: {row.result}</li>
                 ))}
@@ -147,7 +147,7 @@ export default function CoaDetailPage() {
           ))}
         </section>
         <section>
-          <h2 className="mb-3 font-semibold">ประวัติเอกสาร</h2>
+          <h2 className="mb-3 font-semibold text-sky-950">ประวัติเอกสาร</h2>
           <CoaAuditTimeline audit={doc.audit} />
         </section>
       </div>

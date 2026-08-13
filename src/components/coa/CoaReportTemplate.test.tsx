@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import CoaReportTemplate from "./CoaReportTemplate";
+import CoaReportTemplate, { COA_REPORT_CSS } from "./CoaReportTemplate";
 import type { CoaReportPage } from "@/lib/coaReport";
 
 describe("CoaReportTemplate", () => {
@@ -24,6 +24,7 @@ describe("CoaReportTemplate", () => {
         expiredDate: "15/08/2028",
         batchLabel: "LOT-777 / B-777",
         aiContentResult: "48.2%",
+        aiContentCriteria: "48% ± 2.40",
         densityResult: "-",
         waxBlockSizeResult: "-",
         dateOfAnalysis: "-",
@@ -41,6 +42,7 @@ describe("CoaReportTemplate", () => {
     expect(screen.getByText(/MANUFACTURING DATE/).closest("div")).toHaveTextContent("MANUFACTURING DATE : 15/08/2026");
     expect(screen.getByText(/EXPIRED DATE/).closest("div")).toHaveTextContent("EXPIRED DATE : 15/08/2028");
     expect(screen.getByText("BATCH NO.")).toBeInTheDocument();
+    expect(screen.getByText("48% ± 2.40")).toBeInTheDocument();
     expect(screen.getByText("48.2%")).toBeInTheDocument();
   });
 
@@ -64,6 +66,7 @@ describe("CoaReportTemplate", () => {
         expiredDate: "15/08/2028",
         batchLabel: "LOT-888 / B-888",
         aiContentResult: "48.2%",
+        aiContentCriteria: "48% ± 2.40",
         densityResult: "1.120",
         waxBlockSizeResult: "-",
         dateOfAnalysis: "20/08/2026",
@@ -77,8 +80,11 @@ describe("CoaReportTemplate", () => {
     render(<CoaReportTemplate pages={[page]} />);
 
     expect(screen.getByText("CERTIFICATE OF ANALYSIS")).toBeInTheDocument();
+    expect(screen.getByText("CERTIFICATE OF ANALYSIS").closest("section")).toHaveClass("coa-liquid-page");
+    expect(COA_REPORT_CSS).toContain(".coa-liquid-page { background: #fff3b0; }");
     expect(screen.getByText(/PRODUCT/).closest("div")).toHaveTextContent("PRODUCT : Trade Liquid (Glyphosate 48% SL)");
     expect(screen.getByText("%AI content (W/V)")).toBeInTheDocument();
+    expect(screen.getByText("48% ± 2.40")).toBeInTheDocument();
     expect(screen.getByText("Density at 30°C (g/cm³)")).toBeInTheDocument();
     expect(screen.getByText("LOT-888 / B-888")).toBeInTheDocument();
     expect(screen.getByText("1.120")).toBeInTheDocument();
@@ -105,6 +111,7 @@ describe("CoaReportTemplate", () => {
         expiredDate: "15/08/2028",
         batchLabel: "LOT-008 / B-008",
         aiContentResult: "0.0051%",
+        aiContentCriteria: "0.005% ± 0.00125",
         densityResult: "-",
         waxBlockSizeResult: "5.90 gm",
         dateOfAnalysis: "20/08/2026",

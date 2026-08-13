@@ -19,11 +19,10 @@ import { api } from "@/lib/api";
 import { buildCoaReportPages } from "@/lib/coaReport";
 import { canPrintCoa } from "@/lib/coaStatus";
 import { normalizeRoles, primaryRole } from "@/lib/roles";
-import { cn } from "@/lib/utils";
 import type { CoaDocument, CoaSampleSnapshot } from "@/types/coa.types";
 
 type CoaTab = "today" | "all";
-type CoaTabTone = "sky" | "emerald";
+type CoaTabTone = "sky" | "blue";
 type CoaDocumentStage = "requested" | "inProgress" | "pendingApproval" | "approved";
 type CoaWorkflowStage = "all" | CoaDocumentStage;
 
@@ -175,8 +174,8 @@ const workflowStageLabels: Record<CoaDocumentStage, string> = {
 
 const workflowStageBadgeVariants: Record<Exclude<CoaDocumentStage, "requested">, ComponentProps<typeof Badge>["variant"]> = {
   inProgress: "blue-soft",
-  pendingApproval: "yellow-soft",
-  approved: "green-soft",
+  pendingApproval: "blue-soft",
+  approved: "blue-soft",
 };
 
 const workflowStageBadgeVariantFor = (stage: CoaDocumentStage): ComponentProps<typeof Badge>["variant"] => (
@@ -216,6 +215,16 @@ export default function CoaCenterPage() {
     .some((value) => String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_") === "qc_head")
     || actor.permissions.includes("coa.approve");
   const invalidateCoaDocuments = () => queryClient.invalidateQueries({ queryKey: ["coa", "documents"] });
+  const syncCoaDocument = (doc: CoaDocument) => {
+    queryClient.setQueryData<{ items: CoaDocument[] }>(["coa", "documents"], (current) => {
+      if (!current) return { items: [doc] };
+      const exists = current.items.some((item) => item._id === doc._id);
+      const items = exists
+        ? current.items.map((item) => (item._id === doc._id ? doc : item))
+        : [doc, ...current.items];
+      return { ...current, items };
+    });
+  };
   const submit = useMutation({ mutationFn: (id: string) => api.submitCoaDocument(id, { _user: actor }), onSuccess: invalidateCoaDocuments });
   const approve = useMutation({ mutationFn: (id: string) => api.approveCoaDocument(id, { _user: actor }), onSuccess: invalidateCoaDocuments });
   const reject = useMutation({
@@ -259,6 +268,18 @@ export default function CoaCenterPage() {
       return;
     }
     setCreateOpen(true);
+  }
+
+  function handleCreated(doc: CoaDocument) {
+    syncCoaDocument(doc);
+    if (workflowStageFor(doc) === "pendingApproval") {
+      setActiveTab("today");
+      setActiveYear(documentYear(doc));
+      setActiveWorkflowStage("pendingApproval");
+      setOpenAllYear(null);
+      return;
+    }
+    navigate(`/coa/${doc._id}`);
   }
 
   function handleEdit(doc: CoaDocument) {
@@ -385,7 +406,7 @@ export default function CoaCenterPage() {
 
   const tabs: Array<{ key: CoaTab; label: string; count: number; tone: CoaTabTone }> = [
     { key: "today", label: "คำขอ COA วันนี้", count: todayCount, tone: "sky" },
-    { key: "all", label: "คำขอ COA ทั้งหมด", count: yearItems.length, tone: "emerald" },
+    { key: "all", label: "คำขอ COA ทั้งหมด", count: yearItems.length, tone: "blue" },
   ];
   const tabToneClasses: Record<CoaTabTone, { button: string; selected: string; count: string }> = {
     sky: {
@@ -393,18 +414,18 @@ export default function CoaCenterPage() {
       selected: "ring-2 ring-sky-300 shadow-sm",
       count: "bg-sky-50 text-sky-700",
     },
-    emerald: {
-      button: "bg-emerald-100 text-emerald-800 hover:bg-emerald-200",
-      selected: "ring-2 ring-emerald-300 shadow-sm",
-      count: "bg-emerald-50 text-emerald-700",
+    blue: {
+      button: "bg-blue-100 text-blue-800 hover:bg-blue-200",
+      selected: "ring-2 ring-blue-300 shadow-sm",
+      count: "bg-blue-50 text-blue-700",
     },
   };
   const workflowTabs: Array<{ key: CoaWorkflowStage; label: string; count: number; className: string; activeClassName: string; countClassName: string }> = [
-    { key: "all", label: "ทุกสถานะ", count: yearItems.length, className: "bg-slate-100 text-slate-700 hover:bg-slate-200", activeClassName: "ring-2 ring-slate-300 shadow-sm", countClassName: "bg-white text-slate-600" },
+    { key: "all", label: "ทุกสถานะ", count: yearItems.length, className: "bg-sky-50 text-sky-700 hover:bg-sky-100", activeClassName: "ring-2 ring-sky-200 shadow-sm", countClassName: "bg-white text-sky-600" },
     { key: "requested", label: workflowStageLabels.requested, count: workflowCounts.requested, className: "bg-sky-100 text-sky-800 hover:bg-sky-200", activeClassName: "ring-2 ring-sky-300 shadow-sm", countClassName: "bg-sky-50 text-sky-700" },
-    { key: "inProgress", label: workflowStageLabels.inProgress, count: workflowCounts.inProgress, className: "bg-blue-100 text-blue-800 hover:bg-blue-200", activeClassName: "ring-2 ring-blue-300 shadow-sm", countClassName: "bg-blue-50 text-blue-700" },
-    { key: "pendingApproval", label: workflowStageLabels.pendingApproval, count: workflowCounts.pendingApproval, className: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200", activeClassName: "ring-2 ring-yellow-300 shadow-sm", countClassName: "bg-yellow-50 text-yellow-700" },
-    { key: "approved", label: workflowStageLabels.approved, count: workflowCounts.approved, className: "bg-green-100 text-green-800 hover:bg-green-200", activeClassName: "ring-2 ring-green-300 shadow-sm", countClassName: "bg-green-50 text-green-700" },
+    { key: "inProgress", label: workflowStageLabels.inProgress, count: workflowCounts.inProgress, className: "bg-green-100 text-green-800 hover:bg-green-200", activeClassName: "ring-2 ring-green-300 shadow-sm", countClassName: "bg-green-50 text-green-700" },
+    { key: "pendingApproval", label: workflowStageLabels.pendingApproval, count: workflowCounts.pendingApproval, className: "bg-orange-100 text-orange-800 hover:bg-orange-200", activeClassName: "ring-2 ring-orange-300 shadow-sm", countClassName: "bg-orange-50 text-orange-700" },
+    { key: "approved", label: workflowStageLabels.approved, count: workflowCounts.approved, className: "bg-yellow-100 text-yellow-800 hover:bg-yellow-200", activeClassName: "ring-2 ring-yellow-300 shadow-sm", countClassName: "bg-yellow-50 text-yellow-700" },
   ];
 
   const showPrintActions = activeTab !== "all" && activeWorkflowStage === "approved";
@@ -422,7 +443,6 @@ export default function CoaCenterPage() {
   const showLotColumn = !showApprovedCommandColumns;
   const showStatusColumn = activeTab !== "all" && !showInProgressReviewColumns && !showCreateActions && !showApprovedCommandColumns;
   const showCommandColumn = showPrintActions || showCreateActions || showEditActions || showApprovalActions;
-  const isApprovedWorkflowPage = activeTab !== "all" && activeWorkflowStage === "approved";
   const tableColumnCount = [
     showDocumentColumn,
     true,
@@ -438,18 +458,12 @@ export default function CoaCenterPage() {
 
   return (
     <AppLayout>
-      <div
-        data-testid="coa-center-page"
-        className={cn(
-          "min-h-[calc(100vh-64px)] p-6",
-          isApprovedWorkflowPage ? "bg-green-50" : "bg-sky-50",
-        )}
-      >
+      <div data-testid="coa-center-page" className="min-h-[calc(100vh-64px)] bg-sky-50 p-6">
         <div className="space-y-5">
           <PageHeader
             title={(
-              <span className="inline-flex items-center gap-2 text-violet-950">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-violet-100 text-violet-700">
+              <span className="inline-flex items-center gap-2 text-sky-950">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-sky-100 text-sky-700">
                   <FileCheck2 className="h-5 w-5" />
                 </span>
                 ออกเอกสาร COA
@@ -458,16 +472,16 @@ export default function CoaCenterPage() {
           />
 
           {demoCoaEnabled && (
-            <div role="status" className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 shadow-sm">
+            <div role="status" className="rounded-md border border-sky-200 bg-sky-100/70 p-3 text-sm text-sky-900 shadow-sm">
               <div className="flex flex-wrap items-center gap-2 font-semibold">
-                <Badge variant="green-soft">โหมดจำลอง</Badge>
+                <Badge variant="blue-soft">โหมดจำลอง</Badge>
                 <span>COA BROMADIOLONE 0.005% พร้อมทดสอบในแท็บขอ COA</span>
               </div>
-              <p className="mt-1 text-emerald-700">กดสร้าง COA → เสร็จสิ้น → QC Head อนุมัติ เพื่อส่งไปหน้าอนุมัติแล้วและแฟ้มปี 2569</p>
+              <p className="mt-1 text-sky-700">กดสร้าง COA → เสร็จสิ้น → QC Head อนุมัติ เพื่อส่งไปหน้าอนุมัติแล้วและแฟ้มปี 2569</p>
             </div>
           )}
 
-          <div className="rounded-md border border-violet-100 bg-white p-4 shadow-sm">
+          <div className="rounded-md border border-sky-100 bg-white/90 p-4 shadow-sm">
             {activeTab !== "all" && (
               <div className="mb-4 flex flex-wrap gap-2">
               {years.map((year) => {
@@ -480,13 +494,13 @@ export default function CoaCenterPage() {
                     aria-pressed={selected}
                     className={`inline-flex min-h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors ${
                       selected
-                        ? "bg-violet-700 text-white shadow-sm"
-                        : "bg-violet-50 text-violet-700 hover:bg-violet-100"
+                        ? "bg-sky-600 text-white shadow-sm"
+                        : "bg-sky-50 text-sky-700 hover:bg-sky-100"
                     }`}
                     onClick={() => setActiveYear(year)}
                   >
                     {year}
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${selected ? "bg-white/20 text-white" : "bg-white text-violet-600"}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${selected ? "bg-white/20 text-white" : "bg-white text-sky-600"}`}>
                       {items.filter((doc) => documentYear(doc) === year).length}
                     </span>
                   </button>
@@ -541,7 +555,7 @@ export default function CoaCenterPage() {
               </div>
             )}
             <Input
-              className="max-w-sm border-violet-100 bg-white text-violet-950 placeholder:text-violet-400 focus-visible:ring-violet-300"
+              className="max-w-sm border-sky-100 bg-white text-sky-950 placeholder:text-sky-400 focus-visible:ring-sky-300"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="ค้นหา COA / คำร้อง"
@@ -558,15 +572,15 @@ export default function CoaCenterPage() {
                     key={year}
                     type="button"
                     aria-label={`แฟ้มปี ${beYear}`}
-                    className="flex min-h-28 items-center gap-4 rounded-md border border-emerald-100 bg-white p-4 text-left shadow-sm transition-colors hover:bg-emerald-50"
+                    className="flex min-h-28 items-center gap-4 rounded-md border border-sky-100 bg-white/90 p-4 text-left shadow-sm transition-colors hover:bg-sky-100/70"
                     onClick={() => setOpenAllYear(year)}
                   >
-                    <span className="inline-flex h-12 w-12 items-center justify-center rounded-md bg-emerald-100 text-emerald-700">
+                    <span className="inline-flex h-12 w-12 items-center justify-center rounded-md bg-sky-100 text-sky-700">
                       <Folder className="h-6 w-6" />
                     </span>
                     <span>
-                      <span className="block text-base font-semibold text-emerald-900">แฟ้มปี {beYear}</span>
-                      <span className="mt-1 block text-sm text-emerald-700">{count} รายการ</span>
+                      <span className="block text-base font-semibold text-sky-950">แฟ้มปี {beYear}</span>
+                      <span className="mt-1 block text-sm text-sky-700">{count} รายการ</span>
                     </span>
                   </button>
                 );
@@ -575,17 +589,17 @@ export default function CoaCenterPage() {
           )}
 
           {!showAllYearFolders && (
-            <div className="overflow-x-auto rounded-md border border-violet-100 bg-white shadow-sm">
+            <div className="overflow-x-auto rounded-md border border-sky-100 bg-white/90 shadow-sm">
               {activeTab === "all" && openAllYear && (
-                <div className="flex items-center justify-between border-b border-violet-100 px-4 py-3">
-                  <div className="font-semibold text-violet-950">แฟ้มปี {buddhistYear(openAllYear)}</div>
+                <div className="flex items-center justify-between border-b border-sky-100 px-4 py-3">
+                  <div className="font-semibold text-sky-950">แฟ้มปี {buddhistYear(openAllYear)}</div>
                   <Button type="button" variant="outline" size="sm" onClick={() => setOpenAllYear(null)}>
                     กลับไปแฟ้มปี
                   </Button>
                 </div>
               )}
             <table className="w-full text-sm">
-              <thead className="bg-violet-50 text-left text-xs font-semibold text-violet-900">
+              <thead className="bg-sky-50 text-left text-xs font-semibold text-sky-900">
                 <tr>
                   {showDocumentColumn && <th className="px-4 py-3">Document No</th>}
                   <th className="px-4 py-3">COA No</th>
@@ -598,21 +612,21 @@ export default function CoaCenterPage() {
                   {showCommandColumn && <th className="px-4 py-3">คำสั่ง</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-violet-50">
+              <tbody className="divide-y divide-sky-50">
                 {isLoading && (
                   <tr>
-                    <td colSpan={tableColumnCount} className="px-4 py-10 text-center text-violet-500">กำลังโหลด...</td>
+                    <td colSpan={tableColumnCount} className="px-4 py-10 text-center text-sky-500">กำลังโหลด...</td>
                   </tr>
                 )}
                 {!isLoading && rows.length === 0 && (
                   <tr>
-                    <td colSpan={tableColumnCount} className="px-4 py-10 text-center text-violet-500">ยังไม่มีเอกสาร COA</td>
+                    <td colSpan={tableColumnCount} className="px-4 py-10 text-center text-sky-500">ยังไม่มีเอกสาร COA</td>
                   </tr>
                 )}
                 {rows.map((doc) => (
                   <tr
                     key={doc._id}
-                    className="cursor-pointer text-slate-700 transition-colors hover:bg-emerald-50/70"
+                    className="cursor-pointer text-slate-700 transition-colors hover:bg-sky-50/80"
                     onClick={() => {
                       if (isDemoCoaDocument(doc)) {
                         setPreviewDoc(doc);
@@ -622,7 +636,7 @@ export default function CoaCenterPage() {
                     }}
                   >
                     {showDocumentColumn && (
-                      <td className="px-4 py-3 font-semibold text-violet-950">{doc.petitionNoSnapshot || "-"}</td>
+                      <td className="px-4 py-3 font-semibold text-sky-950">{doc.petitionNoSnapshot || "-"}</td>
                     )}
                     <td className="px-4 py-3">{doc.coaNo || "ร่าง"}</td>
                     {showCustomerColumn && <td className="px-4 py-3">{customerName(doc)}</td>}
@@ -639,7 +653,7 @@ export default function CoaCenterPage() {
                           <Button
                             type="button"
                             size="sm"
-                            className="mt-2 gap-2 bg-violet-700 text-white shadow-sm hover:bg-violet-800"
+                            className="mt-2 gap-2 bg-sky-600 text-white shadow-sm hover:bg-sky-700"
                             aria-label={`สร้าง COA ${doc.petitionNoSnapshot || doc._id}`}
                             onClick={(event) => {
                               event.stopPropagation();
@@ -657,7 +671,7 @@ export default function CoaCenterPage() {
                         <Button
                           type="button"
                           size="sm"
-                          className="gap-2 bg-violet-700 text-white shadow-sm hover:bg-violet-800"
+                          className="gap-2 bg-sky-600 text-white shadow-sm hover:bg-sky-700"
                           aria-label={`สร้าง COA ${doc.petitionNoSnapshot || doc._id}`}
                           onClick={(event) => {
                             event.stopPropagation();
@@ -675,7 +689,7 @@ export default function CoaCenterPage() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          className="gap-2 border-sky-200 text-sky-700 hover:bg-sky-50"
                           disabled={!canPrintCoa(doc.status)}
                           aria-label={`พิมพ์ COA ${doc.coaNo || doc.petitionNoSnapshot || doc._id}`}
                           onClick={(event) => {
@@ -711,7 +725,7 @@ export default function CoaCenterPage() {
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="border-yellow-200 text-yellow-700 hover:bg-yellow-50"
+                              className="border-sky-200 text-sky-700 hover:bg-sky-50"
                               aria-label={`เปิดดูไฟล์ COA ${coaDisplayNo(doc)}`}
                               onClick={(event) => {
                                 event.stopPropagation();
@@ -723,7 +737,7 @@ export default function CoaCenterPage() {
                             <Button
                               type="button"
                               size="sm"
-                              className="gap-2 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                              className="gap-2 bg-sky-600 text-white shadow-sm hover:bg-sky-700"
                               disabled={approve.isPending || reject.isPending}
                               aria-label={`QC Head อนุมัติ COA ${coaDisplayNo(doc)}`}
                               onClick={(event) => {
@@ -752,7 +766,7 @@ export default function CoaCenterPage() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="border-yellow-200 text-yellow-700 hover:bg-yellow-50"
+                            className="border-sky-200 text-sky-700 hover:bg-sky-50"
                             aria-label={`ดู COA รออนุมัติ ${coaDisplayNo(doc)}`}
                             onClick={(event) => {
                               event.stopPropagation();
@@ -788,7 +802,7 @@ export default function CoaCenterPage() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="gap-2 border-violet-200 text-violet-700 hover:bg-violet-50"
+                            className="gap-2 border-sky-200 text-sky-700 hover:bg-sky-50"
                             aria-label={`แก้ไข COA ${coaDisplayNo(doc)}`}
                             onClick={(event) => {
                               event.stopPropagation();
@@ -801,7 +815,7 @@ export default function CoaCenterPage() {
                           <Button
                             type="button"
                             size="sm"
-                            className="bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+                            className="bg-sky-600 text-white shadow-sm hover:bg-sky-700"
                             disabled={submit.isPending}
                             aria-label={`เสร็จสิ้น COA ${coaDisplayNo(doc)}`}
                             onClick={(event) => {
@@ -825,9 +839,9 @@ export default function CoaCenterPage() {
       <Dialog open={Boolean(demoEditDoc)} onOpenChange={(open) => {
         if (!open) setDemoEditDoc(null);
       }}>
-        <DialogContent className="border-violet-100 bg-white sm:max-w-3xl">
+        <DialogContent className="border-sky-100 bg-sky-50 sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="text-violet-950">แก้ไขฟอร์ม COA จำลอง</DialogTitle>
+            <DialogTitle className="text-sky-950">แก้ไขฟอร์ม COA จำลอง</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
@@ -907,7 +921,7 @@ export default function CoaCenterPage() {
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDemoEditDoc(null)}>ยกเลิก</Button>
-            <Button type="button" className="bg-violet-700 text-white hover:bg-violet-800" onClick={handleSaveDemoEdit}>บันทึกฟอร์ม</Button>
+            <Button type="button" className="bg-sky-600 text-white hover:bg-sky-700" onClick={handleSaveDemoEdit}>บันทึกฟอร์ม</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -922,7 +936,7 @@ export default function CoaCenterPage() {
       >
         <CoaReportTemplate pages={previewPages} />
       </PrintPreviewDialog>
-      <CoaCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={(id) => navigate(`/coa/${id}`)} />
+      <CoaCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={handleCreated} />
     </AppLayout>
   );
 }

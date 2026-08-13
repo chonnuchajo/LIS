@@ -1,4 +1,5 @@
 import type { CoaDocument, CoaResultSnapshot, CoaSampleSnapshot } from "@/types/coa.types";
+import { aiToleranceCriteriaForCommonName, isAiContentTestItem } from "@/lib/aiToleranceCriteria";
 
 export type CoaReportTemplateKind = "standard" | "grWpSp" | "liquid" | "bromadiolone0005";
 
@@ -9,6 +10,7 @@ export type CoaReportSample = CoaSampleSnapshot & {
   expiredDate: string;
   batchLabel: string;
   aiContentResult: string;
+  aiContentCriteria: string;
   densityResult: string;
   waxBlockSizeResult: string;
   dateOfAnalysis: string;
@@ -82,6 +84,12 @@ function aiContentResult(rows: CoaResultSnapshot[]): string {
   return rows.find((row) => /%?\s*AI\s*content/i.test(row.testItem ?? ""))?.result || "-";
 }
 
+function aiContentCriteria(rows: CoaResultSnapshot[], sample: CoaSampleSnapshot): string {
+  return rows.find((row) => isAiContentTestItem(row.testItem) && row.criteria && row.criteria !== "-")?.criteria
+    || aiToleranceCriteriaForCommonName(sample.commonName)
+    || "-";
+}
+
 function waxBlockSizeResult(rows: CoaResultSnapshot[]): string {
   return rows.find((row) => /wax\s*block\s*size/i.test(row.testItem ?? ""))?.result || "-";
 }
@@ -113,14 +121,21 @@ export function buildCoaReportPages(doc: CoaDocument): CoaReportPage[] {
   }
   const samples = (doc.sampleSnapshots || []).map((sample) => {
     const rows = rowsBySeq.get(sample.itemSeq) || [];
+    const resolvedAiContentCriteria = aiContentCriteria(rows, sample);
+    const rowsWithAiCriteria = rows.map((row) => (
+      isAiContentTestItem(row.testItem) && (!row.criteria || row.criteria === "-") && resolvedAiContentCriteria !== "-"
+        ? { ...row, criteria: resolvedAiContentCriteria }
+        : row
+    ));
     return {
       ...sample,
-      rows,
+      rows: rowsWithAiCriteria,
       product: productLabel(sample),
       manufacturingDate: formatGregorianDate(sample.productionDate),
       expiredDate: addYears(sample.productionDate, 2),
       batchLabel: batchLabel(sample),
       aiContentResult: aiContentResult(rows),
+      aiContentCriteria: resolvedAiContentCriteria,
       densityResult: densityResult(rows),
       waxBlockSizeResult: waxBlockSizeResult(rows),
       dateOfAnalysis: dateOfAnalysis(rows),

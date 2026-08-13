@@ -54,6 +54,45 @@ describe("buildCoaReportPages", () => {
     expect(pages[0].samples[0].manufacturingDate).toBe("15/08/2026");
     expect(pages[0].samples[0].expiredDate).toBe("15/08/2028");
     expect(pages[0].samples[0].aiContentResult).toBe("48.2%");
+    expect(pages[0].samples[0].aiContentCriteria).toBe("48% ± 2.40");
+    expect(pages[0].samples[0].rows[0].criteria).toBe("48% ± 2.40");
+  });
+
+  it("uses the number before % in the common name for AI tolerance criteria", () => {
+    const doc = {
+      _id: "c-ai",
+      coaNo: "00072026",
+      revision: 0,
+      status: "approved",
+      petitionId: "p-ai",
+      selectedItemSeqs: [1],
+      customerSnapshot: {},
+      sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade Liquid", commonName: "Glyphosate 48% SL" }],
+      resultSnapshots: [{ itemSeq: 1, testItem: "%AI content (W/V)", result: "47.9%", criteria: "-" }],
+    } as CoaDocument;
+
+    const pages = buildCoaReportPages(doc);
+
+    expect(pages[0].samples[0].aiContentCriteria).toBe("48% ± 2.40");
+    expect(pages[0].samples[0].rows[0].criteria).toBe("48% ± 2.40");
+  });
+
+  it("uses formulation-specific AI tolerance criteria when available", () => {
+    const doc = {
+      _id: "c-gr-specific",
+      coaNo: "00072026",
+      revision: 0,
+      status: "approved",
+      petitionId: "p-gr-specific",
+      selectedItemSeqs: [1],
+      customerSnapshot: {},
+      sampleSnapshots: [{ itemSeq: 1, sampleName: "Granule", commonName: "Insecticide 2% GR" }],
+      resultSnapshots: [{ itemSeq: 1, testItem: "%AI content (W/W)", result: "2.1%" }],
+    } as CoaDocument;
+
+    const pages = buildCoaReportPages(doc);
+
+    expect(pages[0].samples[0].aiContentCriteria).toBe("2% ± 0.50");
   });
 
   it.each(["SL", "ME", "SC", "EC", "ZC", "EW"])(
@@ -89,6 +128,7 @@ describe("buildCoaReportPages", () => {
       expect(pages[0].template).toBe("liquid");
       expect(pages[0].samples[0].product).toBe(`Trade Liquid (Glyphosate 48% ${formulation})`);
       expect(pages[0].samples[0].aiContentResult).toBe("48.2%");
+      expect(pages[0].samples[0].aiContentCriteria).toBe("48% ± 2.40");
       expect(pages[0].samples[0].densityResult).toBe("1.120");
       expect(pages[0].samples[0].dateOfAnalysis).toBe("20/08/2026");
     },
@@ -126,6 +166,7 @@ describe("buildCoaReportPages", () => {
     expect(pages[0].samples[0].product).toBe("Red Wax Block (BROMADIOLONE 0.005%)");
     expect(pages[0].samples[0].batchLabel).toBe("LOT-008 / B-008");
     expect(pages[0].samples[0].aiContentResult).toBe("0.0051%");
+    expect(pages[0].samples[0].aiContentCriteria).toBe("0.005% ± 0.00125");
     expect(pages[0].samples[0].waxBlockSizeResult).toBe("5.90 gm");
     expect(pages[0].samples[0].dateOfAnalysis).toBe("20/08/2026");
   });

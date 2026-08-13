@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import { api } from "@/lib/api";
 import CoaCenterPage from "../CoaCenterPage";
 
 vi.mock("@/components/lis/AppLayout", () => ({
@@ -100,6 +101,8 @@ vi.mock("@/lib/api", () => ({
       ],
     }),
     getEligibleCoaPetitions: vi.fn().mockResolvedValue({ items: [] }),
+    createCoaDocument: vi.fn().mockResolvedValue({}),
+    reviseCoaDocument: vi.fn().mockResolvedValue({ _id: "c6" }),
     submitCoaDocument: vi.fn().mockResolvedValue({}),
     approveCoaDocument: vi.fn().mockResolvedValue({}),
     rejectCoaDocument: vi.fn().mockResolvedValue({}),
@@ -149,7 +152,7 @@ describe("CoaCenterPage", () => {
     const tabButtons = Array.from(container.querySelectorAll("button[aria-pressed]:not([aria-label])"));
     expect(tabButtons).toHaveLength(2);
     expect(tabButtons[0]).toHaveClass("bg-sky-100");
-    expect(tabButtons[1]).toHaveClass("bg-emerald-100");
+    expect(tabButtons[1]).toHaveClass("bg-blue-100");
     expect(tabButtons[0]).toHaveAttribute("aria-pressed", "true");
     expect(tabButtons[1]).toHaveAttribute("aria-pressed", "false");
 
@@ -222,6 +225,66 @@ describe("CoaCenterPage", () => {
     expect(screen.queryByRole("button", { name: /สร้าง COA/ })).not.toBeInTheDocument();
   });
 
+  it("warns on repeated common name and batch then sends existing COA to approval", async () => {
+    vi.mocked(api.getEligibleCoaPetitions).mockResolvedValueOnce({
+      items: [
+        {
+          _id: "p-dup",
+          petitionNo: "P-2608-DUP",
+          items: [
+            {
+              seq: 1,
+              sampleName: "Trade Duplicate",
+              commonName: "BROMADIOLONE 0.005%",
+              batchNo: "B-DUP-001",
+              activeCoa: {
+                coaId: "coa-old",
+                coaNo: "00052026",
+                revision: 0,
+                petitionNo: "P-2608-OLD",
+                commonName: "BROMADIOLONE 0.005%",
+                batchNo: "B-DUP-001",
+              },
+            },
+          ],
+        },
+      ],
+    });
+    vi.mocked(api.reviseCoaDocument).mockResolvedValueOnce({ _id: "coa-revision" } as never);
+    vi.mocked(api.submitCoaDocument).mockResolvedValueOnce({
+      _id: "coa-revision",
+      coaNo: "00052026",
+      coaYear: new Date().getFullYear(),
+      revision: 1,
+      status: "pendingRevisionApproval",
+      petitionId: "p-dup",
+      petitionNoSnapshot: "P-2608-DUP",
+      customerSnapshot: { name: "Customer Duplicate" },
+      selectedItemSeqs: [1],
+      sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade Duplicate", commonName: "BROMADIOLONE 0.005%", batchNo: "B-DUP-001" }],
+      resultSnapshots: [],
+      print: { printCount: 0 },
+      createdAt: new Date().toISOString(),
+    } as never);
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "สถานะ ขอ COA" }));
+    fireEvent.click(await screen.findByRole("button", { name: /สร้าง COA P-2608-0004/ }));
+    fireEvent.click(await screen.findByText("P-2608-DUP"));
+    fireEvent.click(screen.getByText("Trade Duplicate"));
+
+    expect(await screen.findByText("พบประวัติการทำ COA แล้ว")).toBeInTheDocument();
+    expect(screen.getAllByText(/00052026/).length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "ส่งใบเดิมไปรออนุมัติ" }));
+
+    expect(await screen.findByRole("button", { name: "สถานะ รออนุมัติ" })).toHaveAttribute("aria-pressed", "true");
+    expect(await screen.findByRole("row", { name: /00052026/ })).toBeInTheDocument();
+    expect(api.reviseCoaDocument).toHaveBeenCalledWith("coa-old", expect.any(Object));
+    expect(api.submitCoaDocument).toHaveBeenCalledWith("coa-revision", expect.any(Object));
+  });
+
   it("shows an admin edit action and focused COA columns for in-progress COAs", async () => {
     renderPage();
 
@@ -252,7 +315,7 @@ describe("CoaCenterPage", () => {
     const requestedRow = await screen.findByRole("row", { name: /P-2608-DEMO-001/ });
     expect(within(requestedRow).getByText("Red Wax Block")).toBeInTheDocument();
     expect(within(requestedRow).getByText("BROMADIOLONE 0.005%")).toBeInTheDocument();
-    expect(within(requestedRow).getByText("LOT-DEMO-001 / B-DEMO-001 / 08\/08\/2026")).toBeInTheDocument();
+    expect(within(requestedRow).getByText("LOT-DEMO-001 / B-DEMO-001 / 08/08/2026")).toBeInTheDocument();
 
     fireEvent.click(within(requestedRow).getByRole("button", { name: "สร้าง COA P-2608-DEMO-001" }));
 
@@ -273,7 +336,7 @@ describe("CoaCenterPage", () => {
     fireEvent.click(within(pendingApprovalRow).getByRole("button", { name: "QC Head อนุมัติ COA 00042026" }));
 
     expect(screen.getByRole("button", { name: "สถานะ อนุมัติแล้ว" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("coa-center-page")).toHaveClass("bg-green-50");
+    expect(screen.getByTestId("coa-center-page")).toHaveClass("bg-sky-50");
     const approvedRow = await screen.findByRole("row", { name: /00042026/ });
     expect(within(approvedRow).getByText("Red Wax Block")).toBeInTheDocument();
     expect(within(approvedRow).getByRole("button", { name: "พิมพ์ COA 00042026" })).toBeEnabled();
@@ -290,8 +353,8 @@ describe("CoaCenterPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "สถานะ อนุมัติแล้ว" }));
 
     expect(await screen.findByText("00032026")).toBeInTheDocument();
-    expect(screen.getByTestId("coa-center-page")).toHaveClass("bg-green-50");
-    expect(screen.getByTestId("coa-center-page")).not.toHaveClass("bg-sky-50");
+    expect(screen.getByTestId("coa-center-page")).toHaveClass("bg-sky-50");
+    expect(screen.getByTestId("coa-center-page")).not.toHaveClass("bg-green-50");
     expect(screen.queryByRole("columnheader", { name: "Document No" })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "COA No" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "ชื่อการค้า" })).toBeInTheDocument();

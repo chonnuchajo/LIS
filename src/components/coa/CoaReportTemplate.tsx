@@ -23,6 +23,7 @@ export const COA_REPORT_CSS = `
 .coa-special-table { margin-top: 8mm; }
 .coa-special-table th, .coa-special-table td { text-align: center; vertical-align: middle; }
 .coa-special-sign { margin-top: 28mm; margin-left: auto; width: 78mm; text-align: center; line-height: 1.55; }
+.coa-liquid-page { background: #fff3b0; }
 .coa-brom-page { padding: 24mm 22mm 18mm; }
 .coa-brom-title { margin-top: 0; text-align: center; font-size: 14pt; font-weight: 700; letter-spacing: 0; }
 .coa-brom-meta { margin-top: 7mm; text-align: right; line-height: 1.7; }
@@ -73,7 +74,7 @@ function SpecialCoaPage({ page, index }: { page: CoaReportPage; index: number })
           </tr>
           <tr>
             <td>%AI content (W/W)</td>
-            <td />
+            <td>{sample?.aiContentCriteria === "-" ? "" : sample?.aiContentCriteria}</td>
             <td>{sample?.aiContentResult === "-" ? "" : sample?.aiContentResult}</td>
           </tr>
           <tr>
@@ -96,7 +97,7 @@ function LiquidCoaPage({ page, index }: { page: CoaReportPage; index: number }) 
   const sample = page.samples[0];
 
   return (
-    <section className="coa-page coa-special-page" key={`${page.coaNo}-${index}`}>
+    <section className="coa-page coa-special-page coa-liquid-page" key={`${page.coaNo}-${index}`}>
       <h1 className="coa-special-title">CERTIFICATE OF ANALYSIS</h1>
       <div className="coa-special-meta">
         <div>NO. {page.coaNo === "-" ? "" : page.coaNo}</div>
@@ -130,7 +131,7 @@ function LiquidCoaPage({ page, index }: { page: CoaReportPage; index: number }) 
           </tr>
           <tr>
             <td>%AI content (W/V)</td>
-            <td />
+            <td>{sample?.aiContentCriteria === "-" ? "" : sample?.aiContentCriteria}</td>
             <td>{sample?.aiContentResult === "-" ? "" : sample?.aiContentResult}</td>
           </tr>
           <tr>
@@ -192,7 +193,7 @@ function BromadioloneCoaPage({ page, index }: { page: CoaReportPage; index: numb
           </tr>
           <tr>
             <td>%AI content (W/W)</td>
-            <td>0.005% ± 0.00125</td>
+            <td>{sample?.aiContentCriteria === "-" ? "0.005% ± 0.00125" : sample?.aiContentCriteria}</td>
             <td>{sample?.aiContentResult === "-" ? "" : sample?.aiContentResult}</td>
           </tr>
           <tr>
