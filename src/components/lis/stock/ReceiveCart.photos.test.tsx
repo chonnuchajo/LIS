@@ -14,6 +14,20 @@ const apiMock = vi.hoisted(() => ({
   receiveGlassware: vi.fn(),
 }));
 const stockRawLabelPreviewDialogMock = vi.hoisted(() => vi.fn(() => null));
+const stockQrScannerMock = vi.hoisted(() => vi.fn(({
+  open,
+  scanMode,
+  onScanned,
+}: {
+  open: boolean;
+  scanMode?: string;
+  onScanned: (value: string) => void;
+}) => (open ? (
+  <div role="dialog" aria-label="camera barcode scanner">
+    <span>{scanMode}</span>
+    <button type="button" onClick={() => onScanned("654694")}>mock camera barcode</button>
+  </div>
+) : null)));
 
 vi.mock("@/lib/api", () => ({ api: apiMock }));
 vi.mock("@/lib/stockLabel", () => ({
@@ -22,6 +36,7 @@ vi.mock("@/lib/stockLabel", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/components/lis/StockRawLabelPreviewDialog", () => ({ default: stockRawLabelPreviewDialogMock }));
+vi.mock("@/components/lis/StockQrScanner", () => ({ default: stockQrScannerMock }));
 vi.mock("@/components/lis/stock/StockPhotoUploader", () => ({
   default: ({ label, onChange }: { label?: string; onChange: (urls: string[]) => void }) => (
     <button data-testid="photo-upload" type="button" onClick={() => onChange(["/LIS/uploads/qc-photos/cart.webp"])}>
@@ -68,6 +83,21 @@ describe("ReceiveCart photos", () => {
     expect(await screen.findByRole("dialog", { name: /Barcode/ })).toBeInTheDocument();
     expect(screen.getByText("654694")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /\(0/, hidden: true })).toBeDisabled();
+  });
+
+  it("opens the camera scanner and routes camera barcode scans into registration", async () => {
+    mockStockLists();
+    renderCart();
+
+    fireEvent.click(await screen.findByRole("button", { name: /กล้อง|camera/i }));
+
+    await waitFor(() => expect(stockQrScannerMock.mock.calls.some(([props]) => (
+      props.open === true && props.scanMode === "barcode"
+    ))).toBe(true));
+    fireEvent.click(screen.getByRole("button", { name: "mock camera barcode" }));
+
+    expect(await screen.findByRole("dialog", { name: /Barcode/ })).toBeInTheDocument();
+    expect(screen.getByText("654694")).toBeInTheDocument();
   });
 
   it("registers a new receive barcode before receiving the selected stock item", async () => {

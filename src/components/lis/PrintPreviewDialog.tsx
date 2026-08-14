@@ -36,6 +36,7 @@ interface Props {
   onPrinted?: (meta: { copies: number; outputMode: PrintOutputMode }) => void;
   autoPrint?: boolean;
   autoPrintKey?: string | number;
+  previewOnly?: boolean;
 }
 
 const BOX_CHROME = 18;
@@ -216,6 +217,7 @@ export default function PrintPreviewDialog({
   onPrinted,
   autoPrint,
   autoPrintKey,
+  previewOnly = false,
 }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
   const autoPrintDoneKeyRef = useRef<string | number | null>(null);
@@ -323,22 +325,25 @@ export default function PrintPreviewDialog({
                 ปิด
               </Button>
             </div>
-            {outputMode === "server" && serverPrinters.length > 0 && (
-              <Select value={cfg?.id ?? ""} onValueChange={setSelectedPrinterId}>
-                <SelectTrigger className="h-9 w-[220px]">
-                  <SelectValue placeholder="เลือกเครื่องพิมพ์" />
-                </SelectTrigger>
-                <SelectContent>
-                  {serverPrinters.map((printer) => (
-                    <SelectItem key={printer.id} value={printer.id}>
-                      {printer.label?.trim() || printer.cupsPrinterUrl}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {configured && <span className="break-all text-sm text-muted-foreground">→ {printerTarget}</span>}
-          </div>
+          ) : (
+            <>
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                {outputMode === "server" && serverPrinters.length > 0 && (
+                  <Select value={cfg?.id ?? ""} onValueChange={setSelectedPrinterId}>
+                    <SelectTrigger className="h-9 w-[220px]">
+                      <SelectValue placeholder="เลือกเครื่องพิมพ์" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {serverPrinters.map((printer) => (
+                        <SelectItem key={printer.id} value={printer.id}>
+                          {printer.label?.trim() || printer.cupsPrinterUrl}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {configured && <span className="break-all text-sm text-muted-foreground">→ {printerTarget}</span>}
+              </div>
 
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => onOpenChange(false)}>

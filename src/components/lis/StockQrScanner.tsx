@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeScannerState, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,16 +8,33 @@ import { parseScannedQrId } from "@/lib/stockUnit";
 
 const READER_ID = "stock-qr-reader";
 
+type ScanMode = "qr" | "barcode";
+
+const QR_FORMATS = [Html5QrcodeSupportedFormats.QR_CODE];
+const BARCODE_FORMATS = [
+  Html5QrcodeSupportedFormats.CODABAR,
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.CODE_93,
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.ITF,
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A,
+  Html5QrcodeSupportedFormats.UPC_E,
+  Html5QrcodeSupportedFormats.UPC_EAN_EXTENSION,
+];
+
 interface Props {
   open: boolean;
   title?: string;
   showManualEntry?: boolean;
+  scanMode?: ScanMode;
   onClose: () => void;
   onScanned: (qrId: string) => void;
 }
 
-/** เปิดกล้องอ่าน QR ขวด แล้วคืน qrId; มี fallback กรอก id มือ */
-export default function StockQrScanner({ open, title = "สแกน QR ขวด", showManualEntry = true, onClose, onScanned }: Props) {
+/** เน€เธเธดเธ”เธเธฅเนเธญเธเธญเนเธฒเธ QR เธเธงเธ” เนเธฅเนเธงเธเธทเธ qrId; เธกเธต fallback เธเธฃเธญเธ id เธกเธทเธญ */
+export default function StockQrScanner({ open, title = "สแกน QR ขวด", showManualEntry = true, scanMode = "qr", onClose, onScanned }: Props) {
   const [phase, setPhase] = useState<"scanning" | "no-camera" | "error">("scanning");
   const [errorMsg, setErrorMsg] = useState("");
   const [manual, setManual] = useState("");
@@ -42,33 +59,43 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
     let active = true;
 
     (async () => {
-      const scanner = new Html5Qrcode(READER_ID);
-      // qrbox ใหญ่ตามจอ (~80%) → QR ที่ใหญ่ขึ้นเต็มกรอบได้จากระยะปกติ ~15–20ซม.
-      // ไม่ต้องเอาเข้าใกล้จนกล้องโฟกัสไม่ติด (กล้องหลังโฟกัสใกล้กว่า ~10ซม.ไม่ได้)
+      const scanner = new Html5Qrcode(READER_ID, {
+        formatsToSupport: scanMode === "barcode" ? BARCODE_FORMATS : QR_FORMATS,
+        useBarCodeDetectorIfSupported: true,
+        verbose: false,
+      });
+      // qrbox เนเธซเธเนเธ•เธฒเธกเธเธญ (~80%) โ’ QR เธ—เธตเนเนเธซเธเนเธเธถเนเธเน€เธ•เนเธกเธเธฃเธญเธเนเธ”เนเธเธฒเธเธฃเธฐเธขเธฐเธเธเธ•เธด ~15โ€“20เธเธก.
+      // เนเธกเนเธ•เนเธญเธเน€เธญเธฒเน€เธเนเธฒเนเธเธฅเนเธเธเธเธฅเนเธญเธเนเธเธเธฑเธชเนเธกเนเธ•เธดเธ” (เธเธฅเนเธญเธเธซเธฅเธฑเธเนเธเธเธฑเธชเนเธเธฅเนเธเธงเนเธฒ ~10เธเธก.เนเธกเนเนเธ”เน)
       const config = {
         fps: 10,
         qrbox: (vw: number, vh: number) => {
+          if (scanMode === "barcode") {
+            return {
+              width: Math.round(vw * 0.9),
+              height: Math.round(Math.min(vh * 0.35, 220)),
+            };
+          }
           const side = Math.round(Math.min(vw, vh) * 0.8);
           return { width: side, height: side };
         },
       };
       const onScan = (text: string) => {
         if (!active || firedRef.current) return;
-        const qrId = parseScannedQrId(text);
-        if (!qrId) return;
+        const scannedValue = scanMode === "barcode" ? text.trim() : parseScannedQrId(text);
+        if (!scannedValue) return;
         firedRef.current = true;
-        onScanned(qrId);
+        onScanned(scannedValue);
       };
       const startWith = (source: MediaTrackConstraints | string) =>
         scanner.start(source, config, onScan, () => {});
-      // ดึงโฟกัสต่อเนื่อง + เปิด slider ซูม ให้จับ QR ที่อยู่ไกล/เล็กได้ดีขึ้น
+      // เธ”เธถเธเนเธเธเธฑเธชเธ•เนเธญเน€เธเธทเนเธญเธ + เน€เธเธดเธ” slider เธเธนเธก เนเธซเนเธเธฑเธ QR เธ—เธตเนเธญเธขเธนเนเนเธเธฅ/เน€เธฅเนเธเนเธ”เนเธ”เธตเธเธถเนเธ
       const tuneCamera = async () => {
         try {
           await scanner.applyVideoConstraints({
             advanced: [{ focusMode: "continuous" }],
           } as unknown as MediaTrackConstraints);
         } catch {
-          /* กล้องไม่รองรับ focusMode — ข้าม */
+          /* เธเธฅเนเธญเธเนเธกเนเธฃเธญเธเธฃเธฑเธ focusMode โ€” เธเนเธฒเธก */
         }
         try {
           const caps = scanner.getRunningTrackCapabilities() as MediaTrackCapabilities & {
@@ -82,7 +109,7 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
             try {
               current = (scanner.getRunningTrackSettings() as MediaTrackSettings & { zoom?: number })?.zoom ?? min;
             } catch {
-              /* ใช้ค่า min */
+              /* เนเธเนเธเนเธฒ min */
             }
             if (active) {
               setZoomCaps({ min, max, step });
@@ -90,7 +117,7 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
             }
           }
         } catch {
-          /* กล้องไม่รองรับ zoom — ไม่แสดง slider */
+          /* เธเธฅเนเธญเธเนเธกเนเธฃเธญเธเธฃเธฑเธ zoom โ€” เนเธกเนเนเธชเธ”เธ slider */
         }
       };
       try {
@@ -106,7 +133,7 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
             if (active) setPhase("no-camera");
             return;
           }
-          const back = cameras.find((c) => /back|environment|rear|หลัง|后|背面/i.test(c.label));
+          const back = cameras.find((c) => /back|environment|rear|เธซเธฅเธฑเธ|ๅ|่้ข/i.test(c.label));
           const cam = back ?? cameras[cameras.length - 1];
           await startWith(cam.id);
         }
@@ -119,7 +146,7 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
       } catch {
         if (active) {
           setPhase("error");
-          setErrorMsg(showManualEntry ? "ไม่สามารถเปิดกล้องได้ — ใช้ช่องกรอก id ด้านล่างแทนได้" : "ไม่สามารถเปิดกล้องได้");
+          setErrorMsg(showManualEntry ? "เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เน€เธเธดเธ”เธเธฅเนเธญเธเนเธ”เน โ€” เนเธเนเธเนเธญเธเธเธฃเธญเธ id เธ”เนเธฒเธเธฅเนเธฒเธเนเธ—เธเนเธ”เน" : "เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เน€เธเธดเธ”เธเธฅเนเธญเธเนเธ”เน");
         }
       }
     })();
@@ -139,16 +166,16 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
         }
       }
     };
-    // onScanned intentionally omitted — captured in closure; matches QrReceiveModal
+    // onScanned intentionally omitted โ€” captured in closure; matches QrReceiveModal
     // and avoids camera restarts if a parent passes an unstable handler.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, phase, showManualEntry]);
+  }, [open, phase, showManualEntry, scanMode]);
 
   if (!open) return null;
 
   const submitManual = () => {
-    const qrId = parseScannedQrId(manual);
-    if (qrId) onScanned(qrId);
+    const scannedValue = scanMode === "barcode" ? manual.trim() : parseScannedQrId(manual);
+    if (scannedValue) onScanned(scannedValue);
   };
 
   const onZoom = (v: number) => {
@@ -171,11 +198,11 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
           <div className={phase === "scanning" ? "block" : "hidden"}>
             <div id={READER_ID} className="w-full rounded-lg overflow-hidden border" />
             <p className="mt-2 text-center text-sm text-muted-foreground">
-              เล็งกล้องไปที่ QR บนขวด — ถือห่าง ~15–20 ซม. ไม่ต้องเอาเข้าใกล้
+              เน€เธฅเนเธเธเธฅเนเธญเธเนเธเธ—เธตเน QR เธเธเธเธงเธ” โ€” เธ–เธทเธญเธซเนเธฒเธ ~15โ€“20 เธเธก. เนเธกเนเธ•เนเธญเธเน€เธญเธฒเน€เธเนเธฒเนเธเธฅเน
             </p>
             {zoomCaps && (
               <div className="mt-3 flex items-center gap-2">
-                <span className="text-xs text-muted-foreground shrink-0">ซูม</span>
+                <span className="text-xs text-muted-foreground shrink-0">เธเธนเธก</span>
                 <input
                   type="range"
                   min={zoomCaps.min}
@@ -186,7 +213,7 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
                   className="flex-1 accent-lis-sidebar"
                 />
                 <span className="text-xs text-muted-foreground w-10 text-right tabular-nums">
-                  {zoom.toFixed(1)}×
+                  {zoom.toFixed(1)}ร—
                 </span>
               </div>
             )}
@@ -194,7 +221,7 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
           {phase !== "scanning" && <div id={READER_ID} className="hidden" />}
 
           {phase === "no-camera" && (
-            <p className="text-center text-sm text-muted-foreground">ไม่พบกล้องในอุปกรณ์นี้</p>
+            <p className="text-center text-sm text-muted-foreground">เนเธกเนเธเธเธเธฅเนเธญเธเนเธเธญเธธเธเธเธฃเธ“เนเธเธตเน</p>
           )}
           {phase === "error" && (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-center text-sm text-destructive flex items-center gap-2 justify-center">
@@ -204,15 +231,15 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
 
           {showManualEntry && (
             <div className="border-t pt-4 space-y-2">
-              <Label>หรือกรอก/วาง qrId เอง</Label>
+              <Label>เธซเธฃเธทเธญเธเธฃเธญเธ/เธงเธฒเธ qrId เน€เธญเธ</Label>
               <div className="flex gap-2">
                 <Input
                   value={manual}
                   onChange={(e) => setManual(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && manual.trim()) submitManual(); }}
-                  placeholder="u_xxxxxxxx หรือ URL"
+                  placeholder="u_xxxxxxxx เธซเธฃเธทเธญ URL"
                 />
-                <Button onClick={submitManual} disabled={!manual.trim()}>ตกลง</Button>
+                <Button onClick={submitManual} disabled={!manual.trim()}>เธ•เธเธฅเธ</Button>
               </div>
             </div>
           )}
