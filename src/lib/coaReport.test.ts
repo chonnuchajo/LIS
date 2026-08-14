@@ -24,4 +24,150 @@ describe("buildCoaReportPages", () => {
     expect(pages[0].revision).toBe(1);
     expect(pages[0].samples[0].rows[0].testItem).toBe("pH");
   });
+
+  it("uses the GR/WP/SP COA form data for common names with those suffixes", () => {
+    const doc = {
+      _id: "c-gr",
+      coaNo: "00052026",
+      revision: 0,
+      status: "approved",
+      petitionId: "p-gr",
+      petitionNoSnapshot: "P-2608-0005",
+      selectedItemSeqs: [1],
+      customerSnapshot: { name: "Customer A" },
+      sampleSnapshots: [{
+        itemSeq: 1,
+        sampleName: "Trade Herbicide",
+        commonName: "Glyphosate 48% SL GR",
+        batchNo: "B-777",
+        lotNo: "LOT-777",
+        productionDate: "2026-08-15",
+      }],
+      resultSnapshots: [{ itemSeq: 1, testItem: "%AI content (W/W)", result: "48.2%" }],
+      approval: { approvedBy: { name: "QC Head" }, approvedAt: "2026-08-20T00:00:00.000Z" },
+    } as CoaDocument;
+
+    const pages = buildCoaReportPages(doc);
+
+    expect(pages[0].template).toBe("grWpSp");
+    expect(pages[0].samples[0].product).toBe("Trade Herbicide (Glyphosate 48% SL GR)");
+    expect(pages[0].samples[0].manufacturingDate).toBe("15/08/2026");
+    expect(pages[0].samples[0].expiredDate).toBe("15/08/2028");
+    expect(pages[0].samples[0].aiContentResult).toBe("48.2%");
+    expect(pages[0].samples[0].aiContentCriteria).toBe("48% ± 2.40");
+    expect(pages[0].samples[0].rows[0].criteria).toBe("48% ± 2.40");
+  });
+
+  it("uses the number before % in the common name for AI tolerance criteria", () => {
+    const doc = {
+      _id: "c-ai",
+      coaNo: "00072026",
+      revision: 0,
+      status: "approved",
+      petitionId: "p-ai",
+      selectedItemSeqs: [1],
+      customerSnapshot: {},
+      sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade Liquid", commonName: "Glyphosate 48% SL" }],
+      resultSnapshots: [{ itemSeq: 1, testItem: "%AI content (W/V)", result: "47.9%", criteria: "-" }],
+    } as CoaDocument;
+
+    const pages = buildCoaReportPages(doc);
+
+    expect(pages[0].samples[0].aiContentCriteria).toBe("48% ± 2.40");
+    expect(pages[0].samples[0].rows[0].criteria).toBe("48% ± 2.40");
+  });
+
+  it("uses formulation-specific AI tolerance criteria when available", () => {
+    const doc = {
+      _id: "c-gr-specific",
+      coaNo: "00072026",
+      revision: 0,
+      status: "approved",
+      petitionId: "p-gr-specific",
+      selectedItemSeqs: [1],
+      customerSnapshot: {},
+      sampleSnapshots: [{ itemSeq: 1, sampleName: "Granule", commonName: "Insecticide 2% GR" }],
+      resultSnapshots: [{ itemSeq: 1, testItem: "%AI content (W/W)", result: "2.1%" }],
+    } as CoaDocument;
+
+    const pages = buildCoaReportPages(doc);
+
+    expect(pages[0].samples[0].aiContentCriteria).toBe("2% ± 0.50");
+  });
+
+  it.each(["SL", "ME", "SC", "EC", "ZC", "EW"])(
+    "uses the liquid COA form data for common names ending with %% %s",
+    (formulation) => {
+      const doc = {
+        _id: `c-liquid-${formulation}`,
+        coaNo: "00062026",
+        revision: 0,
+        status: "approved",
+        petitionId: `p-liquid-${formulation}`,
+        petitionNoSnapshot: "P-2608-0006",
+        selectedItemSeqs: [1],
+        customerSnapshot: { name: "Customer A" },
+        sampleSnapshots: [{
+          itemSeq: 1,
+          sampleName: "Trade Liquid",
+          commonName: `Glyphosate 48% ${formulation}`,
+          batchNo: "B-888",
+          lotNo: "LOT-888",
+          productionDate: "2026-08-15",
+        }],
+        resultSnapshots: [
+          { itemSeq: 1, testItem: "%AI content (W/V)", result: "48.2%" },
+          { itemSeq: 1, testItem: "Density at 30°C (g/cm³)", result: "1.120" },
+          { itemSeq: 1, testItem: "Date of analysis", result: "2026-08-20" },
+        ],
+        approval: { approvedBy: { name: "QC Head" }, approvedAt: "2026-08-20T00:00:00.000Z" },
+      } as CoaDocument;
+
+      const pages = buildCoaReportPages(doc);
+
+      expect(pages[0].template).toBe("liquid");
+      expect(pages[0].samples[0].product).toBe(`Trade Liquid (Glyphosate 48% ${formulation})`);
+      expect(pages[0].samples[0].aiContentResult).toBe("48.2%");
+      expect(pages[0].samples[0].aiContentCriteria).toBe("48% ± 2.40");
+      expect(pages[0].samples[0].densityResult).toBe("1.120");
+      expect(pages[0].samples[0].dateOfAnalysis).toBe("20/08/2026");
+    },
+  );
+
+  it("uses the BROMADIOLONE 0.005% wax block COA form data", () => {
+    const doc = {
+      _id: "c-brom",
+      coaNo: "00082026",
+      revision: 0,
+      status: "approved",
+      petitionId: "p-brom",
+      petitionNoSnapshot: "P-2608-0008",
+      selectedItemSeqs: [1],
+      customerSnapshot: { name: "Customer A" },
+      sampleSnapshots: [{
+        itemSeq: 1,
+        sampleName: "Red Wax Block",
+        commonName: "BROMADIOLONE 0.005%",
+        batchNo: "B-008",
+        lotNo: "LOT-008",
+        productionDate: "2026-08-15",
+      }],
+      resultSnapshots: [
+        { itemSeq: 1, testItem: "%AI content (W/W)", result: "0.0051%" },
+        { itemSeq: 1, testItem: "Wax block size", result: "5.90 gm" },
+        { itemSeq: 1, testItem: "Date of analysis", result: "2026-08-20" },
+      ],
+      approval: { approvedBy: { name: "QC Head" }, approvedAt: "2026-08-20T00:00:00.000Z" },
+    } as CoaDocument;
+
+    const pages = buildCoaReportPages(doc);
+
+    expect(pages[0].template).toBe("bromadiolone0005");
+    expect(pages[0].samples[0].product).toBe("Red Wax Block (BROMADIOLONE 0.005%)");
+    expect(pages[0].samples[0].batchLabel).toBe("LOT-008 / B-008");
+    expect(pages[0].samples[0].aiContentResult).toBe("0.0051%");
+    expect(pages[0].samples[0].aiContentCriteria).toBe("0.005% ± 0.00125");
+    expect(pages[0].samples[0].waxBlockSizeResult).toBe("5.90 gm");
+    expect(pages[0].samples[0].dateOfAnalysis).toBe("20/08/2026");
+  });
 });

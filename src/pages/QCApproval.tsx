@@ -3,13 +3,12 @@ import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, AlertTriangle, RotateCcw, Sparkles, Loader2 } from "lucide-react";
+import { ShieldCheck, AlertTriangle, RotateCcw, Sparkles, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { usePetitionList } from "@/hooks/usePetition";
 import { PETITION_DEPT_LABELS, type Petition } from "@/types/petition.types";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
-import { petitionStatusBadge } from "@/lib/statusBadge";
 import { getAiStatus, streamDraftNote } from "@/lib/aiApi";
 
 const API_BASE = import.meta.env.BASE_URL + "api";
@@ -158,28 +157,37 @@ const QCApproval = () => {
     },
     { key: "count", header: "จำนวนรายการ", cell: (p) => `${p.items?.length ?? 0} รายการ` },
     {
-      key: "status",
-      header: "สถานะ",
-      cell: (p) => {
-        const b = petitionStatusBadge(p);
-        return <Badge variant={b.variant}>{b.label}</Badge>;
-      },
-    },
-    {
       key: "action",
-      header: "การดำเนินการ",
+      header: "คำสั่ง",
       className: "text-right",
       cell: (p) => (
         <div className="flex flex-col items-end gap-2">
-          <Button
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/qc-approval/${p._id}`);
-            }}
-          >
-            ตรวจสอบ
-          </Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              size="sm"
+              variant="primary"
+              className="gap-1.5"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/qc-approval/${p._id}?decision=approve`);
+              }}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              อนุมัติ
+            </Button>
+            <Button
+              size="sm"
+              variant="danger-outline"
+              className="gap-1.5"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/qc-approval/${p._id}?decision=reject`);
+              }}
+            >
+              <XCircle className="h-4 w-4" />
+              ไม่อนุมัติ
+            </Button>
+          </div>
 
           {ollamaAvailable && (
             <div className="mt-1 space-y-2 w-full" onClick={(e) => e.stopPropagation()}>

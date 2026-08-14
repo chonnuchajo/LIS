@@ -36,6 +36,7 @@ interface Props {
   onPrinted?: (meta: { copies: number; outputMode: PrintOutputMode }) => void;
   autoPrint?: boolean;
   autoPrintKey?: string | number;
+  previewOnly?: boolean;
 }
 
 const BOX_CHROME = 18;
@@ -216,6 +217,7 @@ export default function PrintPreviewDialog({
   onPrinted,
   autoPrint,
   autoPrintKey,
+  previewOnly = false,
 }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
   const autoPrintDoneKeyRef = useRef<string | number | null>(null);
@@ -302,12 +304,12 @@ export default function PrintPreviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={`${widthClass} flex max-h-[90vh] min-h-[70vh] flex-col overflow-hidden`}>
         <DialogHeader className="shrink-0">
-          <DialogTitle>ตัวอย่างก่อนพิมพ์ — {meta?.label ?? docType}</DialogTitle>
+          <DialogTitle>{previewOnly ? "ตัวอย่างเอกสาร" : "ตัวอย่างก่อนพิมพ์"} — {meta?.label ?? docType}</DialogTitle>
         </DialogHeader>
 
         <ScaledPreview printRef={printRef} previewClassName={docType === "coa" ? "bg-sky-50" : undefined}>{children}</ScaledPreview>
 
-        {!configured && (
+        {!previewOnly && !configured && (
           <p className="shrink-0 text-sm text-red-600">
             ยังไม่ได้ตั้งค่าเครื่องพิมพ์สำหรับเอกสารนี้{" "}
             <Link to="/settings" className="underline" onClick={() => onOpenChange(false)}>
@@ -317,70 +319,43 @@ export default function PrintPreviewDialog({
         )}
 
         <DialogFooter className="shrink-0 items-center gap-3 sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <Label htmlFor="print-copies" className="text-sm">
-              จำนวนชุด
-            </Label>
-            <div className="flex items-center">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 rounded-r-none"
-                onClick={() => setCopies((value) => Math.max(1, value - 1))}
-                disabled={copies <= 1}
-                aria-label="ลดจำนวนชุด"
-              >
-                <Minus className="h-4 w-4" />
-              </Button>
-              <Input
-                id="print-copies"
-                type="text"
-                inputMode="numeric"
-                value={copies}
-                onChange={(e) =>
-                  setCopies(Math.min(99, Math.max(1, parseInt(e.target.value.replace(/\D/g, "") || "1", 10))))
-                }
-                className="w-12 rounded-none text-center"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-9 w-9 rounded-l-none"
-                onClick={() => setCopies((value) => Math.min(99, value + 1))}
-                disabled={copies >= 99}
-                aria-label="เพิ่มจำนวนชุด"
-              >
-                <Plus className="h-4 w-4" />
+          {previewOnly ? (
+            <div className="ml-auto flex gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                ปิด
               </Button>
             </div>
-            {outputMode === "server" && serverPrinters.length > 0 && (
-              <Select value={cfg?.id ?? ""} onValueChange={setSelectedPrinterId}>
-                <SelectTrigger className="h-9 w-[220px]">
-                  <SelectValue placeholder="เลือกเครื่องพิมพ์" />
-                </SelectTrigger>
-                <SelectContent>
-                  {serverPrinters.map((printer) => (
-                    <SelectItem key={printer.id} value={printer.id}>
-                      {printer.label?.trim() || printer.cupsPrinterUrl}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {configured && <span className="break-all text-sm text-muted-foreground">→ {printerTarget}</span>}
-          </div>
+          ) : (
+            <>
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                {outputMode === "server" && serverPrinters.length > 0 && (
+                  <Select value={cfg?.id ?? ""} onValueChange={setSelectedPrinterId}>
+                    <SelectTrigger className="h-9 w-[220px]">
+                      <SelectValue placeholder="เลือกเครื่องพิมพ์" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {serverPrinters.map((printer) => (
+                        <SelectItem key={printer.id} value={printer.id}>
+                          {printer.label?.trim() || printer.cupsPrinterUrl}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {configured && <span className="break-all text-sm text-muted-foreground">→ {printerTarget}</span>}
+              </div>
 
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              ปิด
-            </Button>
-            <Button onClick={() => void handlePrint()} disabled={!configured || printing} className="gap-2">
-              <Printer className="h-4 w-4" />
-              {printing ? "กำลังพิมพ์..." : outputMode === "local" ? "พิมพ์จากเครื่องนี้" : "พิมพ์ผ่าน Server"}
-            </Button>
-          </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
+                  ปิด
+                </Button>
+                <Button onClick={() => void handlePrint()} disabled={!configured || printing} className="gap-2">
+                  <Printer className="h-4 w-4" />
+                  {printing ? "กำลังพิมพ์..." : outputMode === "local" ? "พิมพ์จากเครื่องนี้" : "พิมพ์ผ่าน Server"}
+                </Button>
+              </div>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

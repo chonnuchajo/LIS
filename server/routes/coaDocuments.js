@@ -39,6 +39,50 @@ function errorStatus(error) {
   return error.message.startsWith('QC Head required') ? 403 : 400;
 }
 
+function normalizeCoaMatchValue(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function coaHistoryKey(commonName, batchNo) {
+  const normalizedCommonName = normalizeCoaMatchValue(commonName);
+  const normalizedBatchNo = normalizeCoaMatchValue(batchNo);
+  return normalizedCommonName && normalizedBatchNo
+    ? `${normalizedCommonName}\u0000${normalizedBatchNo}`
+    : null;
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function exactTrimmedRegex(value) {
+  return new RegExp(`^\\s*${escapeRegex(value)}\\s*$`, 'i');
+}
+
+function activeCoaSummary(coa, sample) {
+  return {
+    coaId: coa._id,
+    coaNo: coa.coaNo,
+    revision: coa.revision,
+    petitionNo: coa.petitionNoSnapshot,
+    commonName: sample.commonName,
+    batchNo: sample.batchNo,
+  };
+}
+
+function firstActiveCoaByHistoryKey(coas = []) {
+  const activeByHistoryKey = new Map();
+  for (const coa of coas) {
+    for (const sample of coa.sampleSnapshots || []) {
+      const key = coaHistoryKey(sample.commonName, sample.batchNo);
+      if (key && !activeByHistoryKey.has(key)) {
+        activeByHistoryKey.set(key, activeCoaSummary(coa, sample));
+      }
+    }
+  }
+  return activeByHistoryKey;
+}
+
 async function permissionsForRoles(roles) {
   const roleDocs = roles.length ? await Role.find({ id: { $in: roles } }).lean() : [];
   const permissions = unionPermissions(roles, Object.fromEntries(roleDocs.map((role) => [role.id, role.permissions || []])));
@@ -160,21 +204,38 @@ router.get('/eligible-petitions', async (_req, res) => {
       .limit(100)
       .lean();
     const petitionIds = petitions.map((petition) => petition._id);
+    const historyPairs = petitions.flatMap((petition) => (petition.items || [])
+      .map((item) => ({ commonName: item.commonName, batchNo: item.batchNo }))
+      .filter((item) => coaHistoryKey(item.commonName, item.batchNo)));
     const [coas, labRequests] = await Promise.all([
       CoaDocument.find({
-        petitionId: { $in: petitionIds },
+        $or: [
+          { petitionId: { $in: petitionIds } },
+          ...historyPairs.map((item) => ({
+            sampleSnapshots: {
+              $elemMatch: {
+                commonName: exactTrimmedRegex(item.commonName),
+                batchNo: exactTrimmedRegex(item.batchNo),
+              },
+            },
+          })),
+        ],
         status: { $in: ['approved', 'printed', 'reissued'] },
-      }).lean(),
+      }).sort({ updatedAt: -1 }).lean(),
       labRequestsForPetitionIds(petitionIds),
     ]);
+    const activeByHistoryKey = firstActiveCoaByHistoryKey(coas);
     const activeByPetitionSeq = new Map();
     for (const coa of coas) {
       for (const seq of coa.selectedItemSeqs || []) {
-        activeByPetitionSeq.set(`${coa.petitionId}:${seq}`, {
-          coaId: coa._id,
-          coaNo: coa.coaNo,
-          revision: coa.revision,
-        });
+        const key = `${coa.petitionId}:${seq}`;
+        if (!activeByPetitionSeq.has(key)) {
+          activeByPetitionSeq.set(key, {
+            coaId: coa._id,
+            coaNo: coa.coaNo,
+            revision: coa.revision,
+          });
+        }
       }
     }
     const labSeqsByPetition = new Map();
@@ -199,7 +260,9 @@ router.get('/eligible-petitions', async (_req, res) => {
               commonName: item.commonName,
               batchNo: item.batchNo,
               lotNo: item.lotNo,
-              activeCoa: activeByPetitionSeq.get(`${petition._id}:${item.seq}`) || null,
+              activeCoa: activeByPetitionSeq.get(`${petition._id}:${item.seq}`)
+                || activeByHistoryKey.get(coaHistoryKey(item.commonName, item.batchNo))
+                || null,
             })),
         };
       }),

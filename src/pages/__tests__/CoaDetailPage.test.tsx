@@ -7,12 +7,14 @@ import CoaDetailPage from "../CoaDetailPage";
 const mocks = vi.hoisted(() => ({
   user: null as Record<string, unknown> | null,
   getCoaDocument: vi.fn(),
+  updateCoaDocument: vi.fn(),
   submitCoaDocument: vi.fn(),
   approveCoaDocument: vi.fn(),
   rejectCoaDocument: vi.fn(),
   reviseCoaDocument: vi.fn(),
   cancelCoaDocument: vi.fn(),
   recordCoaPrintEvent: vi.fn(),
+  openPrintPdf: vi.fn(),
 }));
 
 vi.mock("@/components/lis/AppLayout", () => ({
@@ -27,6 +29,7 @@ vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: mocks.user }) }));
 vi.mock("@/lib/api", () => ({
   api: {
     getCoaDocument: mocks.getCoaDocument,
+    updateCoaDocument: mocks.updateCoaDocument,
     submitCoaDocument: mocks.submitCoaDocument,
     approveCoaDocument: mocks.approveCoaDocument,
     rejectCoaDocument: mocks.rejectCoaDocument,
@@ -34,6 +37,9 @@ vi.mock("@/lib/api", () => ({
     cancelCoaDocument: mocks.cancelCoaDocument,
     recordCoaPrintEvent: mocks.recordCoaPrintEvent,
   },
+}));
+vi.mock("@/lib/print", () => ({
+  openPrintPdf: mocks.openPrintPdf,
 }));
 
 function documentWith(status: string) {
@@ -52,11 +58,11 @@ function documentWith(status: string) {
   };
 }
 
-function renderPage() {
+function renderPage(initialEntry = "/coa/c1") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/coa/c1"]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes><Route path="/coa/:id" element={<CoaDetailPage />} /></Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -75,21 +81,23 @@ const qcHead = {
 beforeEach(() => {
   mocks.user = { name: "QC Staff", email: "staff@example.com", role: "qc-staff", roles: ["qc-staff"], permissions: [], position: "QC Staff" };
   mocks.getCoaDocument.mockResolvedValue(documentWith("pendingApproval"));
+  mocks.updateCoaDocument.mockResolvedValue(documentWith("draft"));
   mocks.submitCoaDocument.mockResolvedValue(documentWith("pendingApproval"));
   mocks.approveCoaDocument.mockResolvedValue(documentWith("approved"));
   mocks.rejectCoaDocument.mockResolvedValue(documentWith("rejected"));
   mocks.reviseCoaDocument.mockResolvedValue({ _id: "c2" });
   mocks.cancelCoaDocument.mockResolvedValue(documentWith("cancelled"));
   mocks.recordCoaPrintEvent.mockResolvedValue(documentWith("printed"));
+  mocks.openPrintPdf.mockResolvedValue(undefined);
 });
 
 describe("CoaDetailPage", () => {
-  it("disables print before approval", async () => {
+  it("shows preview before approval", async () => {
     const { container } = renderPage();
 
     expect(await screen.findByText("P-2608-0001")).toBeInTheDocument();
     expect(container.querySelector(".bg-sky-50")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /พิมพ์ COA/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /เปิดดูไฟล์/ })).toBeEnabled();
   });
 
   it("does not show approval actions to a non-QC Head", async () => {
@@ -146,9 +154,23 @@ describe("CoaDetailPage", () => {
     mocks.getCoaDocument.mockResolvedValue(documentWith("draft"));
     renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: "ส่งอนุมัติ" }));
+    fireEvent.click(await screen.findByRole("button", { name: "เสร็จสิ้น" }));
 
     await waitFor(() => expect(mocks.submitCoaDocument).toHaveBeenCalledWith("c1", {
+      _user: { ...mocks.user, activeRole: "qc-staff" },
+    }));
+  });
+
+  it("saves editable form data before submitting", async () => {
+    mocks.getCoaDocument.mockResolvedValue({ ...documentWith("draft"), remark: "Old remark" });
+    renderPage();
+
+    const remark = await screen.findByPlaceholderText("หมายเหตุหรือข้อมูลประกอบในฟอร์ม COA");
+    fireEvent.change(remark, { target: { value: "Updated COA form note" } });
+    fireEvent.click(screen.getByRole("button", { name: "บันทึกฟอร์ม" }));
+
+    await waitFor(() => expect(mocks.updateCoaDocument).toHaveBeenCalledWith("c1", {
+      remark: "Updated COA form note",
       _user: { ...mocks.user, activeRole: "qc-staff" },
     }));
   });
@@ -166,6 +188,22 @@ describe("CoaDetailPage", () => {
       outputMode: "local",
       _user: { ...mocks.user, activeRole: "qc-staff" },
     }));
+  });
+
+  it("opens the print preview when requested from the COA table", async () => {
+    mocks.getCoaDocument.mockResolvedValue(documentWith("approved"));
+    renderPage("/coa/c1?print=1");
+
+    expect(await screen.findByRole("button", { name: "Complete print" })).toBeInTheDocument();
+  });
+
+  it("downloads a COA PDF when requested from the COA table", async () => {
+    mocks.getCoaDocument.mockResolvedValue(documentWith("approved"));
+    renderPage("/coa/c1?pdf=1");
+
+    await waitFor(() => expect(mocks.openPrintPdf).toHaveBeenCalledWith("coa", expect.any(HTMLElement), expect.objectContaining({
+      fileName: "COA-00012026.pdf",
+    })));
   });
 
   it("requires a reason before rejecting and sends it with the authenticated actor", async () => {
