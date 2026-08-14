@@ -34,6 +34,7 @@ const StockTransactionSchema = new mongoose.Schema({
   instrumentName: String,
   instrumentGroup: { type: String, enum: ['gc', 'hplc', null], default: null },
   deductionResolution: { type: DeductionResolutionSchema, default: undefined },
+  photoUrls: { type: [String], default: undefined },
   userEmail: String,
   userName: String,
 }, { timestamps: true });

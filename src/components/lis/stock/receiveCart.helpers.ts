@@ -1,19 +1,31 @@
 export type CartCategory = "standard" | "solvent" | "glassware";
 
+export interface ReceiveScanOption {
+  category: CartCategory;
+  id: string;
+  code: string;
+  name: string;
+  label: string;
+  barcodes?: string[];
+}
+
 export interface CartRow {
   id: string;
   category: CartCategory | null;
   itemId: string;
   itemName: string;
   itemCode: string; // standard code; "" สำหรับ solvent/glassware
+  barcode: string;
   // standard
-  type: "primary" | "supplier" | "working";
+  type: "primary" | "supplier" | "working" | "";
   sizeMl: string;
   count: string;
   sameExp: boolean;
   commonExp: string;
   perExp: string[];
+  perPhotoUrls: string[][];
   // solvent
+  photoUrls: string[];
   qty: string;
   sizeLabel: string;
   exp: string;
@@ -31,18 +43,79 @@ export function makeEmptyRow(): CartRow {
     itemId: "",
     itemName: "",
     itemCode: "",
-    type: "primary",
+    barcode: "",
+    type: "",
     sizeMl: "100",
     count: "1",
     sameExp: true,
     commonExp: "",
     perExp: [""],
+    perPhotoUrls: [[]],
+    photoUrls: [],
     qty: "1",
     sizeLabel: "",
     exp: "",
     lotNo: "",
     note: "",
   };
+}
+
+
+export function findReceiveScanMatch(scanText: string, options: ReceiveScanOption[]): ReceiveScanOption | null {
+  const raw = scanText.trim();
+  if (!raw) return null;
+  const normalized = raw.toLowerCase();
+  return options.find((option) => {
+    const values = [option.code, option.name, option.label, option.id, ...(option.barcodes ?? [])]
+      .filter(Boolean)
+      .map((value) => String(value).trim().toLowerCase());
+    return values.some((value) => value === normalized);
+  }) ?? null;
+}
+
+
+export function applyReceiveScanMatch(rows: CartRow[], option: ReceiveScanOption): CartRow[] {
+  const patch = {
+    category: option.category,
+    itemId: option.id,
+    itemName: option.name,
+    itemCode: option.code,
+    barcode: "",
+  };
+  const emptyIndex = rows.findIndex((row) => !row.itemId);
+
+  if (emptyIndex >= 0) {
+    return rows.map((row, index) => (index === emptyIndex ? { ...row, ...patch } : row));
+  }
+
+  return [...rows, { ...makeEmptyRow(), ...patch }];
+}
+
+export function applyReceiveBarcodeRegistration(rows: CartRow[], barcode: string, option: ReceiveScanOption): CartRow[] {
+  const normalized = barcode.trim();
+  if (!normalized) return rows;
+
+  const patch = {
+    barcode: normalized,
+    category: option.category,
+    itemId: option.id,
+    itemName: option.name,
+    itemCode: option.code,
+  };
+  const emptyIndex = rows.findIndex((row) => !row.itemId);
+
+  if (emptyIndex >= 0) {
+    return rows.map((row, index) => (index === emptyIndex ? { ...row, ...patch } : row));
+  }
+
+  return [...rows, { ...makeEmptyRow(), ...patch }];
+}
+
+const REQUIRED_LOT_NO_MESSAGE = "กรุณาระบุ Lot No";
+const REQUIRED_EXP_MESSAGE = "กรุณาระบุ EXP";
+
+function hasText(value: string | undefined): boolean {
+  return Boolean(value && value.trim());
 }
 
 /** คืน error string ถ้าไม่ผ่าน, null ถ้าผ่าน */
@@ -53,19 +126,33 @@ export function validateRow(row: CartRow): string | null {
     const c = Number(row.count);
     if (!Number.isInteger(c) || c < 1) return "จำนวนขวดต้องเป็นจำนวนเต็มบวก";
     if (row.type !== "primary" && row.type !== "supplier" && row.type !== "working") return "ต้องเลือกประเภท";
+    if (!hasText(row.lotNo)) return REQUIRED_LOT_NO_MESSAGE;
+    if (row.sameExp) {
+      if (!hasText(row.commonExp)) return REQUIRED_EXP_MESSAGE;
+    } else {
+      const missingExp = Array.from({ length: c }, (_, i) => !hasText(row.perExp[i])).some(Boolean);
+      if (missingExp) return REQUIRED_EXP_MESSAGE;
+    }
     return null;
   }
   const q = Number(row.qty);
   if (!Number.isInteger(q) || q < 1) return "จำนวนต้องเป็นจำนวนเต็มบวก";
+  if (row.category === "solvent") {
+    if (!hasText(row.lotNo)) return REQUIRED_LOT_NO_MESSAGE;
+    if (!hasText(row.exp)) return REQUIRED_EXP_MESSAGE;
+  }
   return null;
 }
 
-export function buildBottles(row: CartRow): { exp?: string }[] {
+export function buildBottles(row: CartRow): { exp?: string; photoUrls?: string[] }[] {
   const n = Math.max(1, Number(row.count) || 1);
-  if (row.sameExp) {
-    return Array.from({ length: n }, () => ({ exp: row.commonExp || undefined }));
-  }
-  return Array.from({ length: n }, (_, i) => ({ exp: row.perExp[i] || undefined }));
+  return Array.from({ length: n }, (_, i) => {
+    const photoUrls = (row.perPhotoUrls[i] ?? []).filter(Boolean);
+    return {
+      exp: row.sameExp ? row.commonExp || undefined : row.perExp[i] || undefined,
+      ...(photoUrls.length ? { photoUrls } : {}),
+    };
+  });
 }
 
 export function composeSolventNote(row: CartRow): string {

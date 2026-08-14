@@ -48,6 +48,8 @@ describe("app bootstrap", () => {
     initialize.mockResolvedValue(undefined);
     getAllAccounts.mockReturnValue([]);
     document.body.innerHTML = '<div id="root"></div>';
+    sessionStorage.clear();
+    window.history.replaceState(null, "", "/");
   });
 
   it("renders the app on the normal path", async () => {
@@ -56,6 +58,17 @@ describe("app bootstrap", () => {
     await import("./main");
 
     await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(1));
+  });
+
+  it("restores a protected deep link after MSAL redirects back to the app root", async () => {
+    sessionStorage.setItem("lis_login_redirect", "/stock-deduction?qrId=u_abc123");
+    handleRedirectPromise.mockResolvedValue({ account: { homeAccountId: "acct" } });
+
+    await import("./main");
+
+    await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(1));
+    expect(window.location.pathname + window.location.search).toBe("/stock-deduction?qrId=u_abc123");
+    expect(sessionStorage.getItem("lis_login_redirect")).toBeNull();
   });
 
   it("still renders the app when handleRedirectPromise rejects on a stale MSAL cache", async () => {

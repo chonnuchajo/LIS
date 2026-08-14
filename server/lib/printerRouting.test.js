@@ -4,6 +4,8 @@ const {
   PRINT_DOC_TYPES,
   kindForDocType,
   paperSizeForSlug,
+  normalizePrinterAssignmentsInput,
+  pickPrinterAssignmentRoute,
   normalizePrinterAddress,
   printerTargetFromAddress,
   validatePrinterInput,
@@ -28,9 +30,102 @@ describe('printerRouting kinds/map', () => {
   });
   test('paper size derives from slug', () => {
     expect(paperSizeForSlug('sample-label')).toBe('label-100x50');
-    expect(paperSizeForSlug('stock-label')).toBe('label-6x4');
+    expect(paperSizeForSlug('stock-label')).toBe('label-65x25');
     expect(paperSizeForSlug('coa')).toBe('A4');
     expect(paperSizeForSlug('anything-else')).toBe('A4');
+  });
+});
+
+describe('printer assignment config', () => {
+  test('normalizes department, paper size, and multiple document choices on a printer', () => {
+    expect(normalizePrinterAssignmentsInput({
+      assignments: [
+        {
+          department: ' QC ',
+          docTypes: ['sample-label', 'stock-label', 'sample-label'],
+          paperSize: 'label-100x50',
+        },
+      ],
+    }, 'sticker')).toEqual({
+      assignments: [
+        {
+          department: 'QC',
+          docTypes: ['sample-label', 'stock-label'],
+          paperSize: 'label-100x50',
+        },
+      ],
+    });
+  });
+
+  test('rejects assignments with invalid documents, wrong printer kind, or invalid paper size', () => {
+    expect(normalizePrinterAssignmentsInput({
+      assignments: [{ department: 'QC', docTypes: ['unknown'], paperSize: 'A4' }],
+    }, 'a4').error).toMatch(/เอกสาร/);
+
+    expect(normalizePrinterAssignmentsInput({
+      assignments: [{ department: 'QC', docTypes: ['sample-label'], paperSize: 'A4' }],
+    }, 'a4').error).toMatch(/ประเภทเครื่อง/);
+
+    expect(normalizePrinterAssignmentsInput({
+      assignments: [{ department: 'QC', docTypes: ['coa'], paperSize: 'letter' }],
+    }, 'a4').error).toMatch(/paperSize/);
+  });
+
+  test('picks printer assignment by document and exact department before all-department fallback', () => {
+    const printers = [
+      {
+        id: 'global-a4',
+        kind: 'a4',
+        isDefault: true,
+        assignments: [{ department: '', docTypes: ['coa'], paperSize: 'A4' }],
+      },
+      {
+        id: 'qc-a4',
+        kind: 'a4',
+        isDefault: false,
+        assignments: [{ department: 'QC', docTypes: ['coa', 'service-request'], paperSize: 'label-65x25' }],
+      },
+      {
+        id: 'stock-label',
+        kind: 'sticker',
+        isDefault: true,
+        assignments: [{ department: 'QC', docTypes: ['stock-label'], paperSize: 'label-65x25' }],
+      },
+    ];
+
+    expect(pickPrinterAssignmentRoute(printers, 'coa', 'QC')).toMatchObject({
+      printerConfig: { id: 'qc-a4' },
+      assignment: { department: 'QC', paperSize: 'label-65x25' },
+      paperSize: 'label-65x25',
+    });
+    expect(pickPrinterAssignmentRoute(printers, 'coa', 'ผลิต 1')).toMatchObject({
+      printerConfig: { id: 'global-a4' },
+      assignment: { department: '', paperSize: 'A4' },
+      paperSize: 'A4',
+    });
+    expect(pickPrinterAssignmentRoute(printers, 'service-request', 'ผลิต 1')).toBeNull();
+  });
+
+  test('prefers the default printer when multiple assignments match the same department and document', () => {
+    const printers = [
+      {
+        id: 'first-qc',
+        kind: 'sticker',
+        isDefault: false,
+        assignments: [{ department: 'QC', docTypes: ['sample-label'], paperSize: 'label-100x50' }],
+      },
+      {
+        id: 'default-qc',
+        kind: 'sticker',
+        isDefault: true,
+        assignments: [{ department: 'QC', docTypes: ['sample-label'], paperSize: 'label-65x25' }],
+      },
+    ];
+
+    expect(pickPrinterAssignmentRoute(printers, 'sample-label', 'QC')).toMatchObject({
+      printerConfig: { id: 'default-qc' },
+      paperSize: 'label-65x25',
+    });
   });
 });
 

@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import type { AccountInfo } from "@azure/msal-browser";
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "@/lib/msalConfig";
 import { api, setApiUserEmail } from "@/lib/api";
@@ -13,8 +14,9 @@ import {
   type DevRoleOption,
 } from "@/config/dev";
 import { unionPermissions } from "@/lib/roles";
+import { isStandalonePwa, PWA_ACTIVE_ACCOUNT_STORAGE_KEY } from "@/lib/pwa";
 
-interface AuthUser {
+export interface AuthUser {
   id?: string;
   email: string;
   name?: string;
@@ -28,6 +30,35 @@ interface AuthUser {
   status?: "active" | "inactive";
 }
 
+export interface AuthAccount {
+  id: string;
+  email: string;
+  name?: string;
+  isActive: boolean;
+  photoUrl?: string;
+}
+
+type MsalAccountControls = {
+  getActiveAccount?: () => AccountInfo | null;
+  setActiveAccount?: (account: AccountInfo | null) => void;
+};
+
+function msalAccountId(account: AccountInfo) {
+  return account.homeAccountId || account.localAccountId || account.username;
+}
+
+function sameMsalAccount(a: AccountInfo, b: AccountInfo) {
+  return msalAccountId(a) === msalAccountId(b) || a.username.toLowerCase() === b.username.toLowerCase();
+}
+
+function getActiveMsalAccount(instance: MsalAccountControls) {
+  return typeof instance.getActiveAccount === "function" ? instance.getActiveAccount() : null;
+}
+
+function setActiveMsalAccount(instance: MsalAccountControls, account: AccountInfo | null) {
+  if (typeof instance.setActiveAccount === "function") instance.setActiveAccount(account);
+}
+
 interface AuthContextType {
   user: AuthUser | null;
   login: (redirectTo?: string, loginHint?: string) => Promise<void>;
@@ -37,6 +68,11 @@ interface AuthContextType {
   loginWithHint: (loginHint: string, redirectTo?: string, options?: { force?: boolean }) => Promise<void>;
   loginWithProductionToken: (token: string) => Promise<AuthUser>;
   logout: () => void;
+  isPwa: boolean;
+  accounts: AuthAccount[];
+  activeAccountId?: string;
+  switchAccount: (accountId: string) => void;
+  addAccount: () => Promise<void>;
   // Self-service link of the current user to an HR employee record. Used by the
   // EmployeeLinkGate when auto-link by email found no match. Updates local auth
   // state on success so the gate closes without a re-login.
@@ -58,8 +94,24 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const { instance, accounts } = useMsal();
-  const account = accounts[0] ?? null;
+  const { instance, accounts: msalAccounts } = useMsal();
+  const [isPwa] = useState(() => isStandalonePwa());
+  const [activeAccountId, setActiveAccountId] = useState<string>(() =>
+    isPwa ? localStorage.getItem(PWA_ACTIVE_ACCOUNT_STORAGE_KEY) ?? "" : "",
+  );
+  const account = useMemo(() => {
+    if (msalAccounts.length === 0) return null;
+    const storedAccount = isPwa && activeAccountId
+      ? msalAccounts.find((candidate) => msalAccountId(candidate) === activeAccountId)
+      : undefined;
+    if (storedAccount) return storedAccount;
+    const activeAccount = getActiveMsalAccount(instance);
+    const activeMatch = activeAccount
+      ? msalAccounts.find((candidate) => sameMsalAccount(candidate, activeAccount))
+      : undefined;
+    return activeMatch ?? msalAccounts[0] ?? null;
+  }, [activeAccountId, instance, isPwa, msalAccounts]);
+  const selectedAccountId = account ? msalAccountId(account) : undefined;
   const [syncedUser, setSyncedUser] = useState<AuthUser | null>(null);
   const [productionUser, setProductionUser] = useState<AuthUser | null>(() => {
     const raw = localStorage.getItem("lis_production_sso_user");
@@ -72,6 +124,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   });
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | undefined>();
+  const authAccounts = useMemo<AuthAccount[]>(
+    () =>
+      msalAccounts.map((candidate) => {
+        const id = msalAccountId(candidate);
+        const isActive = id === selectedAccountId;
+        return {
+          id,
+          email: candidate.username,
+          name: candidate.name ?? candidate.username,
+          isActive,
+          photoUrl: isActive ? profilePhotoUrl : undefined,
+        };
+      }),
+    [msalAccounts, profilePhotoUrl, selectedAccountId],
+  );
   const [devRoleIds, setDevRoleIds] = useState<string[]>(() => {
     const multi = localStorage.getItem("dev_roles");
     if (multi) {
@@ -168,23 +235,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       })()
     : null;
 
+  const syncedUserForAccount = account && syncedUser?.email.toLowerCase() === account.username.toLowerCase()
+    ? syncedUser
+    : null;
+
   const user: AuthUser | null = DEV_MODE
     ? devUser
     : productionUser
     ? productionUser
     : account
     ? {
-        id: syncedUser?.id,
+        id: syncedUserForAccount?.id,
         email: account.username,
-        name: syncedUser?.name ?? account.name ?? account.username,
+        name: syncedUserForAccount?.name ?? account.name ?? account.username,
         photoUrl: profilePhotoUrl,
-        role: syncedUser?.role,
-        roles: syncedUser?.roles,
-        permissions: syncedUser?.permissions,
-        department: syncedUser?.department,
-        position: syncedUser?.position,
-        employeeId: syncedUser?.employeeId,
-        status: syncedUser?.status,
+        role: syncedUserForAccount?.role,
+        roles: syncedUserForAccount?.roles,
+        permissions: syncedUserForAccount?.permissions,
+        department: syncedUserForAccount?.department,
+        position: syncedUserForAccount?.position,
+        employeeId: syncedUserForAccount?.employeeId,
+        status: syncedUserForAccount?.status,
       }
     : null;
 
@@ -194,11 +265,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setApiUserEmail(user?.email);
   }, [user?.email]);
 
+  useLayoutEffect(() => {
+    if (!account) return;
+    setActiveMsalAccount(instance, account);
+    if (!isPwa) return;
+    const accountId = msalAccountId(account);
+    localStorage.setItem(PWA_ACTIVE_ACCOUNT_STORAGE_KEY, accountId);
+    if (activeAccountId !== accountId) setActiveAccountId(accountId);
+  }, [account, activeAccountId, instance, isPwa]);
+
   useEffect(() => {
     if (!account) {
       setSyncedUser(null);
       return;
     }
+
+    setSyncedUser((prev) =>
+      prev?.email.toLowerCase() === account.username.toLowerCase() ? prev : null,
+    );
 
     let active = true;
     const claims = account.idTokenClaims as { tid?: string; oid?: string } | undefined;
@@ -291,6 +375,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    setProfilePhotoUrl(undefined);
+
     let alive = true;
     let objectUrl: string | undefined;
 
@@ -320,6 +406,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [account, instance]);
+
+  const switchAccount = useCallback(
+    (accountId: string) => {
+      if (!isPwa) return;
+      const nextAccount = msalAccounts.find((candidate) => msalAccountId(candidate) === accountId);
+      if (!nextAccount) return;
+      localStorage.removeItem("lis_production_sso_user");
+      setProductionUser(null);
+      setSyncedUser(null);
+      setProfilePhotoUrl(undefined);
+      setActiveMsalAccount(instance, nextAccount);
+      localStorage.setItem(PWA_ACTIVE_ACCOUNT_STORAGE_KEY, accountId);
+      setActiveAccountId(accountId);
+    },
+    [instance, isPwa, msalAccounts],
+  );
+
+  const addAccount = useCallback(async () => {
+    if (!isPwa) return;
+    const target = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (target && target !== "/login") {
+      sessionStorage.setItem("lis_login_redirect", target);
+    }
+    localStorage.removeItem("lis_production_sso_user");
+    setProductionUser(null);
+    await instance.loginRedirect({
+      ...loginRequest,
+      prompt: "select_account",
+      redirectStartPage: window.location.href,
+    });
+  }, [instance, isPwa]);
 
   const login = async (redirectTo?: string, loginHint?: string) => {
     const target = redirectTo || `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -376,7 +493,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const linkSelfEmployee = useCallback(
     async (employeeId: string) => {
-      const id = productionUser?.id ?? syncedUser?.id;
+      const id = productionUser?.id ?? syncedUserForAccount?.id;
       if (!id) throw new Error("ไม่พบบัญชีผู้ใช้");
       const res = await api.patch<AuthUser>(`/access-control/users/${id}`, { employeeId });
       const updated = res.data.data;
@@ -407,7 +524,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         );
       }
     },
-    [productionUser, syncedUser?.id],
+    [productionUser, syncedUserForAccount?.id],
   );
 
   const logout = useCallback(() => {
@@ -435,6 +552,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         loginWithHint,
         loginWithProductionToken,
         logout,
+        isPwa,
+        accounts: authAccounts,
+        activeAccountId: selectedAccountId,
+        switchAccount,
+        addAccount,
         linkSelfEmployee,
         devRoleIds: DEV_MODE ? devRoleIds : undefined,
         devRoles: DEV_MODE ? devRoles : undefined,

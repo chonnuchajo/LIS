@@ -6,7 +6,9 @@ import type {
   StockGlasswareItem,
   StockTransactionItem,
   StockTier,
+  StockItemType,
   StockUnitItem,
+  StockPublicScanItem,
   DeductionResolutionReason,
   StandardsInUseResponse,
 } from "@/types/stock";
@@ -18,6 +20,7 @@ import {
   type PrintConfig,
   type PrintConfigInput,
   type PrintDocType,
+  type PaperSize,
   type PrinterConfig,
   type PrinterConfigInput,
 } from "@/lib/printConfig";
@@ -38,6 +41,14 @@ import type {
 } from "@/lib/apiKeys";
 
 type StockUserPayload = { _user?: { email?: string; name?: string } };
+type StockBarcodeRegistration = {
+  barcode: string;
+  category: StockItemType;
+  itemId: string;
+  itemCode?: string;
+  itemName?: string;
+  barcodes?: string[];
+};
 export interface StockTransactionParams {
   itemType?: string;
   itemId?: string;
@@ -305,6 +316,8 @@ export const api = {
     request<StockStandardItem>(`/stock/standards/${id}/deduct`, { method: "POST", body: JSON.stringify(body) }),
   receiveStandard: (id: string, body: { tier: StockTier; qty: number; note?: string } & StockUserPayload) =>
     request<StockStandardItem>(`/stock/standards/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
+  registerStockBarcode: (body: Pick<StockBarcodeRegistration, "barcode" | "category" | "itemId"> & StockUserPayload) =>
+    request<StockBarcodeRegistration>("/stock/barcodes/register", { method: "POST", body: JSON.stringify(body) }),
 
   // Stock — Solvents
   getSolvents: () => request<StockSolventItem[]>("/stock/solvents"),
@@ -316,7 +329,7 @@ export const api = {
     request<{ success: true }>(`/stock/solvents/${id}`, { method: "DELETE" }),
   deductSolvent: (id: string, body: { qty: number; sampleId?: string; note?: string } & StockUserPayload) =>
     request<StockSolventItem>(`/stock/solvents/${id}/deduct`, { method: "POST", body: JSON.stringify(body) }),
-  receiveSolvent: (id: string, body: { qty: number; note?: string } & StockUserPayload) =>
+  receiveSolvent: (id: string, body: { qty: number; lotNo: string; exp: string; sizeLabel?: string; note?: string; photoUrls?: string[] } & StockUserPayload) =>
     request<StockSolventItem>(`/stock/solvents/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
 
   // Chemical requisition — เบิกสารเคมี (solvent) → เครื่อง (daily-check/analysis)
@@ -403,6 +416,8 @@ export const api = {
   },
   getStockUnit: (qrId: string) =>
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`),
+  getPublicStockItem: (qrId: string) =>
+    request<StockPublicScanItem>(`/stock/public/${encodeURIComponent(qrId)}`),
   deductStockUnitMg: (
     qrId: string,
     body: { weights?: number[]; mg?: number; instrumentGroup?: "gc" | "hplc"; instrumentId?: string; instrumentName?: string; sampleId?: string; petitionNo?: string; note?: string } & StockUserPayload,
@@ -413,7 +428,7 @@ export const api = {
     }),
   receiveStockUnits: (
     standardId: string,
-    body: { lotNo?: string; sizeMl: number; unit?: string; type: "primary" | "supplier" | "working"; bottles: { exp?: string }[]; note?: string } & StockUserPayload,
+    body: { lotNo?: string; sizeMl: number; unit?: string; type: "primary" | "supplier" | "working"; bottles: { exp?: string; photoUrls?: string[] }[]; note?: string } & StockUserPayload,
   ) =>
     request<StockUnitItem[]>(`/stock/standards/${standardId}/units/receive`, {
       method: "POST",
@@ -426,7 +441,7 @@ export const api = {
     }),
   updateStockUnit: (
     qrId: string,
-    body: { lotNo?: string; exp?: string | null; type?: "primary" | "supplier" | "working" | ""; volume?: { initial?: number; remaining?: number; unit?: string } },
+    body: { lotNo?: string; exp?: string | null; type?: "primary" | "supplier" | "working" | ""; photoUrls?: string[]; volume?: { initial?: number; remaining?: number; unit?: string } },
   ) =>
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`, {
       method: "PATCH",
@@ -647,7 +662,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }).then((r) => r.data),
-  updatePrinterConfig: (id: string, input: { label?: string; cupsPrinterUrl?: string }) =>
+  updatePrinterConfig: (id: string, input: Partial<PrinterConfigInput>) =>
     request<{ data: PrinterConfig }>(`/print/printers-config/${id}`, {
       method: "PUT",
       body: JSON.stringify(input),
@@ -677,7 +692,7 @@ export const api = {
         }).then((r) => r.data);
     return toLegacyPrintConfig(slug, [updated]);
   },
-  printDocument: (payload: { docType: PrintDocType; html: string; copies?: number; printerConfigId?: string }) =>
+  printDocument: (payload: { docType: PrintDocType; html: string; copies?: number; printerConfigId?: string; department?: string; paperSize?: PaperSize }) =>
     request<{ ok: boolean; printer: string; copies: number }>("/print", {
       method: "POST",
       body: JSON.stringify(payload),

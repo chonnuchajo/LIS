@@ -13,6 +13,7 @@ import {
   defaultPrinterFor,
   getPrintOutputMode,
   getPrintOutputModeForDocType,
+  pickPrinterAssignment,
   setPrintOutputMode,
   validatePrinterUrl,
   type PrinterConfig,
@@ -25,6 +26,7 @@ describe("PRINT_DOC_TYPES", () => {
     ]);
     expect(getPrintDocType("daily-check-report")?.defaultPaper).toBe("A4");
     expect(getPrintDocType("sample-label")?.defaultPaper).toBe("label-100x50");
+    expect(getPrintDocType("stock-label")?.defaultPaper).toBe("label-65x25");
   });
 });
 
@@ -103,6 +105,36 @@ describe("defaultPrinterFor", () => {
   it("undefined when none / empty", () => {
     expect(defaultPrinterFor([], "a4")).toBeUndefined();
     expect(defaultPrinterFor(undefined, "a4")).toBeUndefined();
+  });
+});
+
+describe("pickPrinterAssignment", () => {
+  const list: PrinterConfig[] = [
+    {
+      id: "global-a4",
+      kind: "a4",
+      label: "Global A4",
+      cupsPrinterUrl: "u1",
+      isDefault: true,
+      assignments: [{ department: "", docTypes: ["coa"], paperSize: "A4" }],
+    },
+    {
+      id: "qc-a4",
+      kind: "a4",
+      label: "QC A4",
+      cupsPrinterUrl: "u2",
+      isDefault: false,
+      assignments: [{ department: "QC", docTypes: ["coa", "service-request"], paperSize: "label-65x25" }],
+    },
+  ];
+
+  it("uses exact department before all-department fallback", () => {
+    expect(pickPrinterAssignment(list, "coa", "QC")?.printer.id).toBe("qc-a4");
+    expect(pickPrinterAssignment(list, "coa", "Production")?.printer.id).toBe("global-a4");
+  });
+
+  it("returns undefined when no assignment matches the document", () => {
+    expect(pickPrinterAssignment(list, "daily-check-report", "QC")).toBeUndefined();
   });
 });
 

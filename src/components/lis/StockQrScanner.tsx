@@ -11,12 +11,13 @@ const READER_ID = "stock-qr-reader";
 interface Props {
   open: boolean;
   title?: string;
+  showManualEntry?: boolean;
   onClose: () => void;
   onScanned: (qrId: string) => void;
 }
 
 /** เปิดกล้องอ่าน QR ขวด แล้วคืน qrId; มี fallback กรอก id มือ */
-export default function StockQrScanner({ open, title = "สแกน QR ขวด", onClose, onScanned }: Props) {
+export default function StockQrScanner({ open, title = "สแกน QR ขวด", showManualEntry = true, onClose, onScanned }: Props) {
   const [phase, setPhase] = useState<"scanning" | "no-camera" | "error">("scanning");
   const [errorMsg, setErrorMsg] = useState("");
   const [manual, setManual] = useState("");
@@ -118,7 +119,7 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
       } catch {
         if (active) {
           setPhase("error");
-          setErrorMsg("ไม่สามารถเปิดกล้องได้ — ใช้ช่องกรอก id ด้านล่างแทนได้");
+          setErrorMsg(showManualEntry ? "ไม่สามารถเปิดกล้องได้ — ใช้ช่องกรอก id ด้านล่างแทนได้" : "ไม่สามารถเปิดกล้องได้");
         }
       }
     })();
@@ -141,7 +142,7 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
     // onScanned intentionally omitted — captured in closure; matches QrReceiveModal
     // and avoids camera restarts if a parent passes an unstable handler.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, phase]);
+  }, [open, phase, showManualEntry]);
 
   if (!open) return null;
 
@@ -201,18 +202,20 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
             </div>
           )}
 
-          <div className="border-t pt-4 space-y-2">
-            <Label>หรือกรอก/วาง qrId เอง</Label>
-            <div className="flex gap-2">
-              <Input
-                value={manual}
-                onChange={(e) => setManual(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && manual.trim()) submitManual(); }}
-                placeholder="u_xxxxxxxx หรือ URL"
-              />
-              <Button onClick={submitManual} disabled={!manual.trim()}>ตกลง</Button>
+          {showManualEntry && (
+            <div className="border-t pt-4 space-y-2">
+              <Label>หรือกรอก/วาง qrId เอง</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={manual}
+                  onChange={(e) => setManual(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && manual.trim()) submitManual(); }}
+                  placeholder="u_xxxxxxxx หรือ URL"
+                />
+                <Button onClick={submitManual} disabled={!manual.trim()}>ตกลง</Button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

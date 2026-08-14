@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { serializeForPrint, collectDocumentCss } from "./print";
+import { serializeForPrint, collectDocumentCss, localPrintPageCss } from "./print";
 
 describe("serializeForPrint", () => {
   it("returns the element's outerHTML", () => {
@@ -41,5 +41,12 @@ describe("collectDocumentCss", () => {
 
   it("never throws (cross-origin sheets are skipped)", () => {
     expect(() => collectDocumentCss()).not.toThrow();
+  });
+});
+
+describe("localPrintPageCss", () => {
+  it("uses the configured sticker paper size when printing locally", () => {
+    expect(localPrintPageCss("sample-label", "label-65x25")).toContain("size: 65mm 25mm");
+    expect(localPrintPageCss("stock-label", "label-100x50")).toContain("size: 100mm 50mm");
   });
 });

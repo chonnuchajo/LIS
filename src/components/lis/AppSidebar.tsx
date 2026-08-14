@@ -170,6 +170,33 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
     };
   }, [navScrollStorageKey]);
 
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    let lastTouchY = 0;
+
+    const handleTouchStart = (event: TouchEvent) => {
+      lastTouchY = event.touches[0]?.clientY ?? 0;
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (nav.scrollHeight <= nav.clientHeight) return;
+      const nextTouchY = event.touches[0]?.clientY ?? lastTouchY;
+      const deltaY = lastTouchY - nextTouchY;
+      lastTouchY = nextTouchY;
+      const atTop = nav.scrollTop <= 0;
+      const atBottom = nav.scrollTop + nav.clientHeight >= nav.scrollHeight - 1;
+      if ((atTop && deltaY < 0) || (atBottom && deltaY > 0)) event.preventDefault();
+    };
+
+    nav.addEventListener("touchstart", handleTouchStart, { passive: true });
+    nav.addEventListener("touchmove", handleTouchMove, { passive: false });
+    return () => {
+      nav.removeEventListener("touchstart", handleTouchStart);
+      nav.removeEventListener("touchmove", handleTouchMove);
+    };
+  }, []);
+
   const toggleGroup = (id: string) =>
     setCollapsedGroups((prev) => ({ ...prev, [id]: !prev[id] }));
 
@@ -250,14 +277,14 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
     <TooltipProvider delayDuration={200}>
       <aside
         className={cn(
-          "relative flex flex-col bg-card border-r border-border",
+          "relative flex min-h-0 flex-col overflow-hidden bg-card border-r border-border",
           isDrawer
             ? "w-full h-full"
             : cn(
                 // h-screen (not min-h-screen) keeps the rail exactly viewport-tall
                 // so its <nav> scrolls internally instead of the whole rail growing
                 // and scrolling away with the page.
-                "h-screen transition-[width] duration-200 ease-out",
+                "h-screen min-h-0 transition-[width] duration-200 ease-out",
                 // Collapsed rail is w-20 (not w-16) so the centered logo clears
                 // the collapse toggle button, which pokes -right-4 into the rail
                 // (at w-16 the 40px logo and 32px button overlap ~5px).
@@ -279,7 +306,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
 
         {/* Header */}
         <div className={cn(
-          "flex items-center border-b border-border transition-all",
+          "flex shrink-0 items-center border-b border-border transition-all",
           collapsed ? "justify-center px-0 py-4" : "gap-3 px-5 py-6"
         )}>
           <img
@@ -304,7 +331,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
         <nav
           ref={navRef}
           onScroll={persistNavScroll}
-          className={cn("flex-1 py-3 overflow-y-auto overscroll-contain scrollbar-hide", collapsed ? "px-2" : "px-3")}
+          className={cn("min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch] scrollbar-hide py-3", collapsed ? "px-2" : "px-3")}
         >
           {!collapsed && (
             <div className="px-1 pb-2">
