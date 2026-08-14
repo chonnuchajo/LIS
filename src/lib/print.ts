@@ -4,6 +4,8 @@ import {
   getPrintFontSizeForDocType,
   getPrintHeadingFontWeightForDocType,
   getPrintOutputModeForDocType,
+  getPrintDocType,
+  type PaperSize,
   type PrintDocType,
   type PrintOutputMode,
 } from "@/lib/printConfig";
@@ -57,19 +59,22 @@ type ServerPrintOptions = {
   copies?: number;
   outputMode?: PrintOutputMode;
   printerConfigId?: string;
+  department?: string;
+  paperSize?: PaperSize;
 };
 
-function localPrintPageCss(docType: PrintDocType): string {
-  if (docType === "sample-label") {
+export function localPrintPageCss(docType: PrintDocType, paperSize?: PaperSize): string {
+  const resolvedPaperSize = paperSize ?? getPrintDocType(docType)?.defaultPaper ?? "A4";
+  if (resolvedPaperSize === "label-100x50") {
     return "@page { size: 100mm 50mm; margin: 0; } html, body { margin: 0; padding: 0; background: #fff; }";
   }
-  if (docType === "stock-label") {
-    return "@page { size: 152.4mm 101.6mm; margin: 0; } html, body { margin: 0; padding: 0; background: #fff; }";
+  if (resolvedPaperSize === "label-65x25") {
+    return "@page { size: 65mm 25mm; margin: 0; } html, body { margin: 0; padding: 0; background: #fff; }";
   }
   return "@page { size: A4; margin: 0; } html, body { margin: 0; padding: 0; background: #fff; }";
 }
 
-function localPrintDocument(title: string, html: string, docType: PrintDocType): string {
+function localPrintDocument(title: string, html: string, docType: PrintDocType, paperSize?: PaperSize): string {
   return `<!DOCTYPE html>
 <html lang="th">
   <head>
@@ -77,13 +82,13 @@ function localPrintDocument(title: string, html: string, docType: PrintDocType):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${title}</title>
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>${localPrintPageCss(docType)}</style>
+    <style>${localPrintPageCss(docType, paperSize)}</style>
   </head>
   <body>${html}</body>
 </html>`;
 }
 
-function openLocalPrintWindow(title: string, html: string, docType: PrintDocType): void {
+function openLocalPrintWindow(title: string, html: string, docType: PrintDocType, paperSize?: PaperSize): void {
   const iframe = document.createElement("iframe");
   iframe.title = title;
   iframe.style.position = "fixed";
@@ -120,7 +125,7 @@ function openLocalPrintWindow(title: string, html: string, docType: PrintDocType
     throw new Error("เตรียมเอกสารสำหรับพิมพ์จากเครื่องนี้ไม่สำเร็จ");
   }
   doc.open();
-  doc.write(localPrintDocument(title, html, docType));
+  doc.write(localPrintDocument(title, html, docType, paperSize));
   doc.close();
 }
 
@@ -131,10 +136,17 @@ export async function printDocument(
 ): Promise<PrintResult> {
   const html = documentHtml(docType, el, opts?.css);
   if ((opts?.outputMode ?? getPrintOutputModeForDocType(docType)) === "local") {
-    openLocalPrintWindow(docType, html, docType);
+    openLocalPrintWindow(docType, html, docType, opts?.paperSize);
     return { printer: "เครื่องนี้", copies: opts?.copies ?? 1 };
   }
-  return api.printDocument({ docType, html, copies: opts?.copies, printerConfigId: opts?.printerConfigId });
+  return api.printDocument({
+    docType,
+    html,
+    copies: opts?.copies,
+    printerConfigId: opts?.printerConfigId,
+    department: opts?.department,
+    paperSize: opts?.paperSize,
+  });
 }
 
 export async function printRawHtmlDocument(
@@ -143,10 +155,17 @@ export async function printRawHtmlDocument(
   opts?: ServerPrintOptions,
 ): Promise<PrintResult> {
   if ((opts?.outputMode ?? getPrintOutputModeForDocType(docType)) === "local") {
-    openLocalPrintWindow(docType, html, docType);
+    openLocalPrintWindow(docType, html, docType, opts?.paperSize);
     return { printer: "เครื่องนี้", copies: opts?.copies ?? 1 };
   }
-  return api.printDocument({ docType, html, copies: opts?.copies, printerConfigId: opts?.printerConfigId });
+  return api.printDocument({
+    docType,
+    html,
+    copies: opts?.copies,
+    printerConfigId: opts?.printerConfigId,
+    department: opts?.department,
+    paperSize: opts?.paperSize,
+  });
 }
 
 export async function openPrintPdf(

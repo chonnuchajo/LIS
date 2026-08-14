@@ -49,7 +49,7 @@ const AppLayout = ({
           collapse toggle's own z-40 inside it. Without a z-index here the whole
           rail sits at z:auto(0) and the page's sticky header (z-30) paints over
           the toggle button's overhang — making the arrow look "sunk". */}
-      <div className="hidden md:flex print:hidden sticky top-0 z-40 h-screen self-start">
+      <div className="hidden md:flex print:hidden sticky top-0 z-40 h-dvh self-start overflow-hidden">
         <AppSidebar variant="desktop" />
       </div>
 

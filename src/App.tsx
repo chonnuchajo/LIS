@@ -48,6 +48,7 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const ParameterSettings = lazy(() => import("./pages/ParameterSettings"));
 const AccessControl = lazy(() => import("./pages/AccessControl"));
 const StockDeduction = lazy(() => import("./pages/StockDeduction"));
+const StockPublicViewPage = lazy(() => import("./pages/StockPublicViewPage"));
 const DailyCheckLayout = lazy(() => import("./pages/daily-check/DailyCheckLayout"));
 const BalanceRoomPage = lazy(() => import("./pages/daily-check/BalanceRoomPage"));
 const RoomEquipmentCheckPage = lazy(() => import("./pages/daily-check/RoomEquipmentCheckPage"));
@@ -111,6 +112,7 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/logout" element={<Logout />} />
               <Route path="/scanner" element={<ScannerPage />} />
+              <Route path="/stock/view" element={<StockPublicViewPage />} />
               <Route path="/" element={<PrivateRoute><Home /></PrivateRoute>} />
               <Route path="/dashboard/lab" element={<PrivateRoute><Navigate to="/home" replace /></PrivateRoute>} />
               <Route path="/dashboard/qc" element={<PrivateRoute><Navigate to="/home" replace /></PrivateRoute>} />

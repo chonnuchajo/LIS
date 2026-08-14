@@ -20,6 +20,7 @@ const StockUnitSchema = new mongoose.Schema({
   type: { type: String, enum: ['primary', 'supplier', 'working', ''], default: '', index: true },
   parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockUnit', default: null },
   lotNo: { type: String, default: '' },
+  lotBottleNo: { type: Number, default: null, min: 1 },
   exp: { type: Date, default: null },
   frequencyDue: { type: Date, default: null },
   volume: { type: VolumeSchema, default: () => ({}) },
@@ -30,6 +31,7 @@ const StockUnitSchema = new mongoose.Schema({
   discardedBy: { type: PersonSchema, default: undefined },
   discardReason: { type: String, default: '' },
   createdBy: { type: PersonSchema, default: undefined },
+  photoUrls: { type: [String], default: undefined },
 }, { timestamps: true });
 
 StockUnitSchema.index({ exp: 1 });

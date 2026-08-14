@@ -24,6 +24,8 @@ const STATUS_LABEL: Record<string, string> = {
   active: "ใช้งานได้", empty: "หมด", discarded: "ทิ้งแล้ว", expired: "หมดอายุ",
 };
 
+type PreviewLabelOptions = { autoPrint?: boolean };
+
 /** ตารางจัดการขวดรายตัวของสารมาตรฐาน (เพิ่ม/แก้/แบ่ง/ปริ้นซ้ำ/ทิ้ง) — ใช้ทั้งใน
  *  StandardDetailDrawer และฝังในฟอร์มแก้ไข Standard. ปุ่มทุกอันเป็น type="button"
  *  เพื่อไม่ให้ submit ฟอร์มที่ครอบอยู่ (ตอนฝังในฟอร์มแก้ไข Standard)
@@ -35,6 +37,8 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
   const [reportQr, setReportQr] = useState<string | null>(null);
   const [pendingLabels, setPendingLabels] = useState<string[]>([]);
   const [labelPreviewOpen, setLabelPreviewOpen] = useState(false);
+  const [autoPrintLabels, setAutoPrintLabels] = useState(false);
+  const [labelPrintJobId, setLabelPrintJobId] = useState(0);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "units", standard.code],
@@ -50,8 +54,10 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
     qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
   };
 
-  const previewLabels = (labels: string[]) => {
+  const previewLabels = (labels: string[], options?: PreviewLabelOptions) => {
     setPendingLabels(labels);
+    setAutoPrintLabels(options?.autoPrint === true);
+    setLabelPrintJobId((id) => id + 1);
     setLabelPreviewOpen(true);
   };
 
@@ -128,11 +134,19 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
       <StockRawLabelPreviewDialog
         open={labelPreviewOpen}
         labels={pendingLabels}
+        autoPrint={autoPrintLabels}
+        autoPrintKey={labelPrintJobId}
         onOpenChange={(open) => {
           setLabelPreviewOpen(open);
-          if (!open) setPendingLabels([]);
+          if (!open) {
+            setPendingLabels([]);
+            setAutoPrintLabels(false);
+          }
         }}
-        onPrinted={() => setPendingLabels([])}
+        onPrinted={() => {
+          setPendingLabels([]);
+          setAutoPrintLabels(false);
+        }}
       />
     </div>
   );

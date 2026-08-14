@@ -610,11 +610,12 @@ function SolventsTab() {
           itemName={moving.item.name}
           currentQty={moving.item.qty}
           unit="ขวด"
+          requireLotExp={moving.mode === "receive"}
           onClose={() => setMoving(null)}
-          onSubmit={async (qty, note) => {
+          onSubmit={async (qty, note, receiveMeta) => {
             const _user = requisitionUser(user);
             if (moving.mode === "deduct") await api.deductSolvent(moving.item._id, { qty, note, _user });
-            else await api.receiveSolvent(moving.item._id, { qty, note, _user });
+            else await api.receiveSolvent(moving.item._id, { qty, note, lotNo: receiveMeta?.lotNo ?? "", exp: receiveMeta?.exp ?? "", _user });
             qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
             qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
           }}
@@ -1025,17 +1026,20 @@ function SimpleItemDialog<T extends { _id?: string }>({
 }
 
 function SimpleMoveDialog({
-  title, mode, itemName, currentQty, unit, onClose, onSubmit,
+  title, mode, itemName, currentQty, unit, requireLotExp = false, onClose, onSubmit,
 }: {
   title: string;
   mode: "deduct" | "receive";
   itemName: string;
   currentQty: number;
   unit: string;
+  requireLotExp?: boolean;
   onClose: () => void;
-  onSubmit: (qty: number, note?: string) => Promise<void>;
+  onSubmit: (qty: number, note?: string, receiveMeta?: { lotNo: string; exp: string }) => Promise<void>;
 }) {
   const [qty, setQty] = useState<string>("1");
+  const [lotNo, setLotNo] = useState("");
+  const [exp, setExp] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -1044,9 +1048,13 @@ function SimpleMoveDialog({
     const n = Number(qty);
     if (!n || n <= 0) { toast.error("กรุณาระบุจำนวน"); return; }
     if (mode === "deduct" && n > currentQty) { toast.error("จำนวนไม่พอ"); return; }
+    if (mode === "receive" && requireLotExp) {
+      if (!lotNo.trim()) { toast.error("กรุณาระบุ Lot No"); return; }
+      if (!exp) { toast.error("กรุณาระบุ EXP"); return; }
+    }
     setBusy(true);
     try {
-      await onSubmit(n, note || undefined);
+      await onSubmit(n, note || undefined, requireLotExp ? { lotNo: lotNo.trim(), exp } : undefined);
       toast.success(mode === "deduct" ? "ตัด stock สำเร็จ" : "รับเข้าสำเร็จ");
       onClose();
     } catch (err) {
@@ -1069,6 +1077,18 @@ function SimpleMoveDialog({
               <Label>จำนวน ({unit})</Label>
               <Input type="number" min="1" value={qty} onChange={e => setQty(e.target.value)} required />
             </div>
+            {mode === "receive" && requireLotExp && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Lot No</Label>
+                  <Input value={lotNo} onChange={e => setLotNo(e.target.value)} placeholder="required" required />
+                </div>
+                <div>
+                  <Label>EXP</Label>
+                  <Input type="date" value={exp} onChange={e => setExp(e.target.value)} required />
+                </div>
+              </div>
+            )}
             <div>
               <Label>หมายเหตุ</Label>
               <Input value={note} onChange={e => setNote(e.target.value)} placeholder="optional" />

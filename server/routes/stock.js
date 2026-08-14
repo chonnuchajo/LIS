@@ -8,6 +8,14 @@ const crypto = require('crypto');
 const { isValidReceiveType, isValidUnitType } = require('../lib/stockSource');
 const { sumWeights } = require('../lib/requisitionWeights');
 const { normalizeActorFields } = require('../lib/stockActor');
+const { buildLotBottleNumbers } = require('../lib/stockLotBottle');
+const {
+  validateStandardUnitReceiveInput,
+  validateSolventReceiveInput,
+  composeSolventReceiveNote,
+  normalizePhotoUrls,
+  normalizeBottlePhotoUrls,
+} = require('../lib/stockReceiveValidation');
 const {
   buildPendingDeductionFilter,
   normalizeDeductionResolutionInput,
@@ -29,6 +37,34 @@ async function personOf(req) {
 }
 
 const TIERS = ['primary', 'supplier', 'working'];
+const RECEIVE_BARCODE_MODELS = {
+  standard: StockStandard,
+  solvent: StockSolvent,
+  glassware: StockGlassware,
+};
+
+function normalizeReceiveBarcode(value) {
+  return String(value || '').trim();
+}
+
+function receiveBarcodePayload(category, item, barcode) {
+  return {
+    barcode,
+    category,
+    itemId: item._id.toString(),
+    itemCode: item.code || '',
+    itemName: item.name || '',
+    barcodes: item.barcodes || [],
+  };
+}
+
+async function findReceiveBarcodeOwner(barcode) {
+  for (const [category, Model] of Object.entries(RECEIVE_BARCODE_MODELS)) {
+    const item = await Model.findOne({ barcodes: barcode }).lean();
+    if (item) return { category, item };
+  }
+  return null;
+}
 
 async function userMeta(req) {
   if (req._stockUserMeta) return req._stockUserMeta;
@@ -137,6 +173,104 @@ async function deductMgFromUnit(qrId, mg, meta = {}) {
   });
   return { unit: updated, before, after: updated.volume.remaining };
 }
+
+function publicStockUnitPayload(unit) {
+  return {
+    kind: 'standard',
+    qrId: unit.qrId,
+    itemCode: unit.itemCode,
+    itemName: unit.itemName,
+    type: unit.type || 'primary',
+    lotNo: unit.lotNo || '',
+    lotBottleNo: unit.lotBottleNo || null,
+    exp: unit.exp || null,
+    volume: unit.volume,
+    status: unit.status,
+    photoUrls: unit.photoUrls || [],
+    updatedAt: unit.updatedAt,
+  };
+}
+
+function publicSolventPayload(solvent, latestReceive) {
+  return {
+    kind: 'solvent',
+    id: solvent._id.toString(),
+    qrId: solvent._id.toString(),
+    name: solvent.name,
+    sizeLiter: solvent.sizeLiter,
+    qty: solvent.qty,
+    note: solvent.note || '',
+    photoUrls: latestReceive?.photoUrls || [],
+    latestReceiveNote: latestReceive?.note || '',
+    updatedAt: solvent.updatedAt,
+  };
+}
+
+router.get('/public/:qrId', async (req, res) => {
+  try {
+    const qrId = String(req.params.qrId || '').trim();
+    if (!qrId) return res.status(400).json({ error: 'missing qrId' });
+
+    const unit = await StockUnit.findOne({ qrId }).lean();
+    if (unit) return res.json(publicStockUnitPayload(unit));
+
+    let solvent = null;
+    try {
+      solvent = await StockSolvent.findById(qrId).lean();
+    } catch {
+      solvent = null;
+    }
+    if (solvent) {
+      const latestReceive = await StockTransaction.findOne({
+        itemType: 'solvent',
+        itemId: solvent._id.toString(),
+        action: 'receive',
+        photoUrls: { $exists: true, $ne: [] },
+      }).sort({ createdAt: -1 }).lean();
+      return res.json(publicSolventPayload(solvent, latestReceive));
+    }
+
+    return res.status(404).json({ error: 'ไม่พบรายการ stock จาก QR นี้' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/* ==================== RECEIVE BARCODES ==================== */
+
+router.post('/barcodes/register', async (req, res) => {
+  try {
+    const barcode = normalizeReceiveBarcode(req.body?.barcode);
+    const category = String(req.body?.category || '').trim();
+    const itemId = String(req.body?.itemId || '').trim();
+    const Model = RECEIVE_BARCODE_MODELS[category];
+
+    if (!barcode) return res.status(400).json({ error: 'ต้องระบุ Barcode' });
+    if (!Model) return res.status(400).json({ error: 'ประเภท Barcode ไม่ถูกต้อง' });
+    if (!itemId) return res.status(400).json({ error: 'ต้องเลือกรายการ stock' });
+
+    const item = await Model.findById(itemId);
+    if (!item) return res.status(404).json({ error: 'ไม่พบรายการ stock' });
+
+    const owner = await findReceiveBarcodeOwner(barcode);
+    if (owner) {
+      const ownerId = owner.item._id.toString();
+      if (owner.category !== category || ownerId !== item._id.toString()) {
+        return res.status(409).json({ error: 'Barcode นี้ถูกลงทะเบียนกับรายการอื่นแล้ว' });
+      }
+    }
+
+    if (!Array.isArray(item.barcodes)) item.barcodes = [];
+    if (!item.barcodes.includes(barcode)) {
+      item.barcodes.push(barcode);
+      await item.save();
+    }
+
+    return res.json(receiveBarcodePayload(category, item, barcode));
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
 
 /* ==================== STANDARDS ==================== */
 
@@ -353,23 +487,33 @@ router.post('/standards/:id/units/receive', async (req, res) => {
     if (!Number.isFinite(size) || size <= 0) return res.status(400).json({ error: 'ขนาด/ขวดไม่ถูกต้อง' });
     if (!Array.isArray(bottles) || bottles.length === 0) return res.status(400).json({ error: 'ต้องระบุอย่างน้อย 1 ขวด' });
     if (!isValidReceiveType(type)) return res.status(400).json({ error: 'ต้องเลือกประเภท (primary, supplier หรือ working)' });
+    const validationError = validateStandardUnitReceiveInput(req.body || {});
+    if (validationError) return res.status(400).json({ error: validationError });
 
     const now = new Date();
+    const normalizedLotNo = String(lotNo).trim();
+    const existingLotBottleCount = normalizedLotNo
+      ? await StockUnit.countDocuments({ itemCode: std.code, kind: 'sealed', lotNo: normalizedLotNo })
+      : 0;
+    const lotBottleNumbers = buildLotBottleNumbers(existingLotBottleCount, bottles.length);
     const created = [];
-    for (const b of bottles) {
+    for (const [index, b] of bottles.entries()) {
       const qrId = await genUniqueQrId();
+      const photoUrls = normalizeBottlePhotoUrls(b);
       const u = await StockUnit.create({
         qrId,
         itemCode: std.code,
         itemName: std.name,
         kind: 'sealed',
         type,
-        lotNo,
-        exp: b && b.exp ? new Date(b.exp) : null,
+        lotNo: normalizedLotNo,
+        lotBottleNo: lotBottleNumbers[index],
+        exp: new Date(b.exp),
         volume: { initial: size, remaining: size, unit },
         status: 'active',
         receivedDate: now,
         createdBy: await personOf(req),
+        photoUrls: photoUrls.length ? photoUrls : undefined,
       });
       created.push(u);
       await logTransaction({
@@ -385,6 +529,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
         volumeUnit: unit,
         unit,
         note,
+        photoUrls: photoUrls.length ? photoUrls : undefined,
         ...(await userMeta(req)),
       });
     }
@@ -440,10 +585,11 @@ router.patch('/units/:qrId', async (req, res) => {
     if (!unit) return res.status(404).json({ error: 'ไม่พบขวด' });
     if (unit.status === 'discarded') return res.status(400).json({ error: 'ขวดนี้ถูกทิ้งแล้ว แก้ไขไม่ได้' });
 
-    const { lotNo, exp, volume, type } = req.body || {};
+    const { lotNo, exp, volume, type, photoUrls } = req.body || {};
     if (lotNo !== undefined) unit.lotNo = String(lotNo);
     if (exp !== undefined) unit.exp = exp ? new Date(exp) : null;
     if (type !== undefined && isValidUnitType(type)) unit.type = type;
+    if (photoUrls !== undefined) unit.photoUrls = normalizePhotoUrls(photoUrls);
     if (volume && typeof volume === 'object') {
       if (volume.unit !== undefined && ['ml', 'mg', 'g'].includes(volume.unit)) unit.volume.unit = volume.unit;
       if (volume.initial !== undefined) {
@@ -595,14 +741,17 @@ router.post('/solvents/:id/deduct', async (req, res) => {
 
 router.post('/solvents/:id/receive', async (req, res) => {
   try {
-    const { qty, note } = req.body;
+    const { qty, note, lotNo, exp, sizeLabel, photoUrls: rawPhotoUrls } = req.body;
     const amount = Number(qty);
     if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Invalid qty' });
+    const validationError = validateSolventReceiveInput(req.body || {});
+    if (validationError) return res.status(400).json({ error: validationError });
     const item = await StockSolvent.findById(req.params.id);
     if (!item) return res.status(404).json({ error: 'Not found' });
     const before = item.qty;
     item.qty = before + amount;
     await item.save();
+    const photoUrls = normalizePhotoUrls(rawPhotoUrls);
     await logTransaction({
       itemType: 'solvent',
       itemId: item._id.toString(),
@@ -612,7 +761,8 @@ router.post('/solvents/:id/receive', async (req, res) => {
       afterQty: item.qty,
       delta: amount,
       unit: 'bottle',
-      note,
+      note: composeSolventReceiveNote({ lotNo, exp, sizeLabel, note }),
+      photoUrls: photoUrls.length ? photoUrls : undefined,
       ...(await userMeta(req)),
     });
     res.json(item);

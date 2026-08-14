@@ -8,6 +8,11 @@ const PrinterConfigSchema = new mongoose.Schema({
   label: { type: String, default: '' },            // display name, optional
   cupsPrinterUrl: { type: String, default: '' },   // e.g. https://192.168.0.237:631/printers/HP-A4
   isDefault: { type: Boolean, default: false },    // the printer used when printing this kind
+  assignments: [{
+    department: { type: String, default: '' },
+    docTypes: [{ type: String, enum: ['sample-label', 'stock-label', 'coa', 'service-request', 'daily-check-report', 'goods-receipt'] }],
+    paperSize: { type: String, enum: ['A4', 'label-100x50', 'label-65x25'], default: 'A4' },
+  }],
 }, { timestamps: true });
 
 PrinterConfigSchema.plugin(softDeletePlugin);

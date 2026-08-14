@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
 import { printDocument } from "@/lib/print";
 import {
@@ -21,6 +22,7 @@ import {
   docTypeToKind,
   getPrintDocType,
   getPrintOutputModeForDocType,
+  pickPrinterAssignment,
   type PrintDocType,
   type PrintOutputMode,
 } from "@/lib/printConfig";
@@ -32,6 +34,8 @@ interface Props {
   css?: string;
   children: React.ReactNode;
   onPrinted?: (meta: { copies: number; outputMode: PrintOutputMode }) => void;
+  autoPrint?: boolean;
+  autoPrintKey?: string | number;
 }
 
 const BOX_CHROME = 18;
@@ -53,7 +57,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 function getSheetSize(printEl: HTMLDivElement | null, contentEl: HTMLDivElement) {
   const firstSheet = printEl?.querySelector<HTMLElement>(
-    "section, .label-page, .lr-page, .pr-page1, .pr-page2, .rr-page, .gr-page1",
+    "section, .label-page, .stock-label-page, .lr-page, .pr-page1, .pr-page2, .rr-page, .gr-page1",
   );
   const target = firstSheet ?? printEl ?? contentEl;
   return {
@@ -210,13 +214,17 @@ export default function PrintPreviewDialog({
   css,
   children,
   onPrinted,
+  autoPrint,
+  autoPrintKey,
 }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
+  const autoPrintDoneKeyRef = useRef<string | number | null>(null);
   const [copies, setCopies] = useState(1);
   const [printing, setPrinting] = useState(false);
   const [selectedPrinterId, setSelectedPrinterId] = useState("");
+  const { user } = useAuth();
   const meta = getPrintDocType(docType);
-  const widthClass = docType === "sample-label" ? "sm:max-w-2xl" : "sm:max-w-4xl";
+  const widthClass = docType === "sample-label" || docType === "stock-label" ? "sm:max-w-2xl" : "sm:max-w-4xl";
   const outputMode = getPrintOutputModeForDocType(docType);
 
   const { data: configs } = useQuery({
@@ -224,15 +232,20 @@ export default function PrintPreviewDialog({
     queryFn: api.getPrinterConfigs,
     enabled: open,
   });
-
   const printerKind = docTypeToKind(docType);
   const serverPrinters = useMemo(
     () => (configs ?? []).filter((printer) => printer.kind === printerKind && printer.cupsPrinterUrl?.trim()),
     [configs, printerKind],
   );
+  const userDepartment = user?.department?.trim() ?? "";
+  const assignmentRoute = useMemo(() => pickPrinterAssignment(configs, docType, userDepartment), [configs, docType, userDepartment]);
   const cfg = selectedPrinterId
     ? serverPrinters.find((printer) => printer.id === selectedPrinterId)
-    : defaultPrinterFor(configs, printerKind);
+    : assignmentRoute?.printer ?? defaultPrinterFor(configs, printerKind);
+  const selectedAssignment = cfg ? pickPrinterAssignment([cfg], docType, userDepartment) : undefined;
+  const paperSize = selectedPrinterId
+    ? selectedAssignment?.paperSize ?? meta?.defaultPaper
+    : assignmentRoute?.paperSize ?? meta?.defaultPaper;
   const serverConfigured = Boolean(cfg?.cupsPrinterUrl?.trim());
   const configured = outputMode === "local" || serverConfigured;
   const printerTarget = outputMode === "local" ? "เครื่องนี้" : (cfg?.label?.trim() || cfg?.cupsPrinterUrl?.trim());
@@ -240,11 +253,11 @@ export default function PrintPreviewDialog({
   useEffect(() => {
     if (!open || outputMode !== "server") return;
     if (selectedPrinterId && serverPrinters.some((printer) => printer.id === selectedPrinterId)) return;
-    const fallback = defaultPrinterFor(configs, printerKind) ?? serverPrinters[0];
+    const fallback = assignmentRoute?.printer ?? defaultPrinterFor(configs, printerKind) ?? serverPrinters[0];
     setSelectedPrinterId(fallback?.id ?? "");
-  }, [configs, open, outputMode, printerKind, selectedPrinterId, serverPrinters]);
+  }, [assignmentRoute, configs, open, outputMode, printerKind, selectedPrinterId, serverPrinters]);
 
-  async function handlePrint(mode: PrintOutputMode = outputMode) {
+  const handlePrint = useCallback(async (mode: PrintOutputMode = outputMode) => {
     if (mode === "server" && !serverConfigured) {
       toast.error("ยังไม่ได้ตั้งค่าเครื่องพิมพ์ Server สำหรับเอกสารนี้");
       return;
@@ -256,6 +269,8 @@ export default function PrintPreviewDialog({
         copies,
         outputMode: mode,
         printerConfigId: mode === "server" ? cfg?.id : undefined,
+        department: userDepartment,
+        paperSize,
       });
       onPrinted?.({ copies, outputMode: mode });
       if (mode === "local") {
@@ -269,7 +284,19 @@ export default function PrintPreviewDialog({
     } finally {
       setPrinting(false);
     }
-  }
+  }, [cfg?.id, copies, css, docType, onOpenChange, onPrinted, outputMode, paperSize, serverConfigured, userDepartment]);
+
+  useEffect(() => {
+    if (!open) {
+      autoPrintDoneKeyRef.current = null;
+      return;
+    }
+    if (!autoPrint || !configured || printing) return;
+    const key = autoPrintKey ?? "default";
+    if (autoPrintDoneKeyRef.current === key) return;
+    autoPrintDoneKeyRef.current = key;
+    void handlePrint();
+  }, [autoPrint, autoPrintKey, configured, handlePrint, open, printing]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

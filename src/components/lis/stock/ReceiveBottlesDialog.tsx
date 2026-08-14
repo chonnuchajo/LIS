@@ -9,32 +9,49 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
+import StockPhotoUploader from "@/components/lis/stock/StockPhotoUploader";
 import type { StockStandardItem, StockUnitItem } from "@/types/stock";
 
 interface Props {
   standard: StockStandardItem;
   onClose: () => void;
   onSaved: () => void;
-  onPreviewLabels: (labels: string[]) => void;
+  onPreviewLabels: (labels: string[], options?: { autoPrint?: boolean }) => void;
 }
 
 export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPreviewLabels }: Props) {
   const [lotNo, setLotNo] = useState("");
-  const [type, setType] = useState<"primary" | "supplier" | "working">("primary");
+  const [type, setType] = useState<"primary" | "supplier" | "working" | "">("");
   const [sizeMl, setSizeMl] = useState("100");
   const [count, setCount] = useState("1");
   const [sameExp, setSameExp] = useState(true);
   const [commonExp, setCommonExp] = useState("");
   const [perExp, setPerExp] = useState<string[]>([""]);
+  const [perPhotoUrls, setPerPhotoUrls] = useState<string[][]>([[]]);
   const [printAfter, setPrintAfter] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const n = Math.max(1, Number(count) || 1);
-  const ensurePerExp = (len: number) => {
+  const ensureBottleFields = (len: number) => {
     setPerExp((prev) => {
       const next = [...prev];
       while (next.length < len) next.push("");
       next.length = len;
+      return next;
+    });
+    setPerPhotoUrls((prev) => {
+      const next = prev.map((urls) => [...urls]);
+      while (next.length < len) next.push([]);
+      next.length = len;
+      return next;
+    });
+  };
+
+  const setBottlePhotoUrls = (index: number, photoUrls: string[]) => {
+    setPerPhotoUrls((prev) => {
+      const next = prev.map((urls) => [...urls]);
+      while (next.length <= index) next.push([]);
+      next[index] = photoUrls;
       return next;
     });
   };
@@ -57,19 +74,30 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
     if (!Number.isFinite(size) || size <= 0) { toast.error("กรุณาระบุขนาด/ขวด"); return; }
     const cnt = Number(count);
     if (!Number.isInteger(cnt) || cnt < 1) { toast.error("จำนวนขวดต้องเป็นจำนวนเต็มบวก"); return; }
-    const bottles = sameExp
-      ? Array.from({ length: n }, () => ({ exp: commonExp || undefined }))
-      : perExp.slice(0, n).map((exp) => ({ exp: exp || undefined }));
+    if (!lotNo.trim()) { toast.error("กรุณาระบุ Lot No"); return; }
+    if (sameExp) {
+      if (!commonExp) { toast.error("กรุณาระบุ EXP"); return; }
+    } else if (Array.from({ length: cnt }, (_, i) => !perExp[i]).some(Boolean)) {
+      toast.error("กรุณาระบุ EXP"); return;
+    }
+    if (type !== "primary" && type !== "supplier" && type !== "working") { toast.error("ต้องเลือกประเภท Barcode"); return; }
+    const bottles = Array.from({ length: n }, (_, i) => {
+      const photoUrls = (perPhotoUrls[i] ?? []).filter(Boolean);
+      return {
+        exp: sameExp ? commonExp || undefined : perExp[i] || undefined,
+        ...(photoUrls.length ? { photoUrls } : {}),
+      };
+    });
     setBusy(true);
     try {
       const created = await api.receiveStockUnits(standard._id, {
-        lotNo, sizeMl: size, unit: "ml", type, bottles,
+        lotNo: lotNo.trim(), sizeMl: size, unit: "ml", type, bottles,
       });
       toast.success(`รับเข้า ${created.length} ขวดแล้ว`);
       onSaved();
       if (printAfter) {
         const labels = await buildLabels(created);
-        if (labels.length > 0) onPreviewLabels(labels);
+        if (labels.length > 0) onPreviewLabels(labels, { autoPrint: true });
       }
       onClose();
     } catch (err) {
@@ -98,31 +126,43 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Lot No</Label><Input value={lotNo} onChange={(e) => setLotNo(e.target.value)} placeholder="optional" /></div>
+              <div><Label>Lot No</Label><Input value={lotNo} onChange={(e) => setLotNo(e.target.value)} placeholder="required" required /></div>
               <div><Label>ขนาด/ขวด (ml)</Label><Input type="number" value={sizeMl} onChange={(e) => setSizeMl(e.target.value)} /></div>
             </div>
             <div>
               <Label>จำนวนขวด</Label>
               <Input type="number" min="1" value={count}
-                onChange={(e) => { setCount(e.target.value); ensurePerExp(Math.max(1, Number(e.target.value) || 1)); }} />
+                onChange={(e) => { setCount(e.target.value); ensureBottleFields(Math.max(1, Number(e.target.value) || 1)); }} />
             </div>
             <div className="flex items-center gap-2">
               <Checkbox id="sameExp" checked={sameExp} onCheckedChange={(v) => setSameExp(v === true)} />
               <label htmlFor="sameExp" className="text-sm cursor-pointer">EXP เท่ากันทุกขวด</label>
             </div>
             {sameExp ? (
-              <div><Label>EXP (ทุกขวด)</Label><Input type="date" value={commonExp} onChange={(e) => setCommonExp(e.target.value)} /></div>
+              <div><Label>EXP (ทุกขวด)</Label><Input type="date" value={commonExp} onChange={(e) => setCommonExp(e.target.value)} required /></div>
             ) : (
               <div className="space-y-2">
                 {Array.from({ length: n }, (_, i) => (
                   <div key={i}>
                     <Label>EXP ขวดที่ {i + 1}</Label>
                     <Input type="date" value={perExp[i] ?? ""}
+                      required
                       onChange={(e) => setPerExp((prev) => { const x = [...prev]; x[i] = e.target.value; return x; })} />
                   </div>
                 ))}
               </div>
             )}
+            <div className="space-y-2">
+              {Array.from({ length: n }, (_, i) => (
+                <StockPhotoUploader
+                  key={i}
+                  label={`รูปขวดที่ ${i + 1} (ไม่บังคับ)`}
+                  value={perPhotoUrls[i] ?? []}
+                  onChange={(photoUrls) => setBottlePhotoUrls(i, photoUrls)}
+                  disabled={busy}
+                />
+              ))}
+            </div>
             <div className="flex items-center gap-2">
               <Checkbox id="printAfter" checked={printAfter} onCheckedChange={(v) => setPrintAfter(v === true)} />
               <label htmlFor="printAfter" className="text-sm cursor-pointer">ปริ้นลาเบลหลังรับเข้า</label>

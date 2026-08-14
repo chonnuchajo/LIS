@@ -18,6 +18,7 @@ import { useEnvRooms } from "@/hooks/useEnvRooms";
 import { api } from "@/lib/api";
 import type { EnvRoom, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import { DOC_NUMBER_TYPES, type DocumentNumberConfig, type DocumentNumberConfigInput, type DocNumberType } from "@/lib/documentNumberConfig";
+import type { PrinterConfigInput } from "@/lib/printConfig";
 import { normalizeRoles } from "@/lib/roles";
 
 const SettingsPage = () => {
@@ -63,7 +64,7 @@ const SettingsPage = () => {
     },
   });
   const updatePrinterMutation = useMutation({
-    mutationFn: ({ id, input }: { id: string; input: { label?: string; cupsPrinterUrl?: string } }) =>
+    mutationFn: ({ id, input }: { id: string; input: Partial<PrinterConfigInput> }) =>
       api.updatePrinterConfig(id, input),
     onSuccess: () => {
       toast.success("บันทึกการตั้งค่าเครื่องพิมพ์แล้ว");
@@ -122,6 +123,13 @@ const SettingsPage = () => {
     },
   });
   const roleOptions = (accessMatrix?.roles ?? []).map((r) => ({ id: r.id, name: r.name }));
+  const departmentOptions = useMemo(
+    () => Array.from(new Set((accessMatrix?.users ?? [])
+      .map((u: { department?: string }) => u.department?.trim())
+      .filter((department): department is string => Boolean(department && department !== "Unassigned"))))
+      .sort((a, b) => a.localeCompare(b, "th")),
+    [accessMatrix?.users],
+  );
 
   const { tabs, isVisible, defaultKey } = useAccessibleTabs("/settings");
   const [activeTab, setActiveTab] = useState<string | undefined>(defaultKey);
@@ -182,6 +190,7 @@ const SettingsPage = () => {
           </p>
           <PrinterRegistryCard
             configs={printerConfigs}
+            departmentOptions={departmentOptions}
             saving={printerSaving}
             onCreate={createPrinterMutation.mutateAsync}
             onUpdate={(id, input) => updatePrinterMutation.mutateAsync({ id, input })}

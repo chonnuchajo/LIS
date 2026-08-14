@@ -1,0 +1,97 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import ReceiveBottlesDialog from "./ReceiveBottlesDialog";
+import type { StockStandardItem } from "@/types/stock";
+
+const apiMock = vi.hoisted(() => ({
+  receiveStockUnits: vi.fn(),
+}));
+
+vi.mock("@/lib/api", () => ({ api: apiMock }));
+vi.mock("@/lib/stockLabel", () => ({ buildStockLabelHtml: vi.fn(async () => "<label />") }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/components/lis/stock/StockPhotoUploader", () => ({
+  default: ({ label, onChange }: { label?: string; onChange: (urls: string[]) => void }) => (
+    <button type="button" onClick={() => onChange(["/LIS/uploads/qc-photos/bottle.webp"])}>
+      {label || "เพิ่มรูป"}
+    </button>
+  ),
+}));
+
+const standard: StockStandardItem = {
+  _id: "std1",
+  code: "STD-001",
+  name: "ABAMECTIN",
+  unit: "ml",
+  volume: 0,
+  threshold: 0,
+  frequency: { value: 1, unit: "day" },
+};
+
+describe("ReceiveBottlesDialog photos", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("requires choosing a barcode type before receiving a new standard barcode", () => {
+    render(
+      <ReceiveBottlesDialog
+        standard={standard}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        onPreviewLabels={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "LOT-1" } });
+    fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
+    fireEvent.click(document.querySelector('button[type="submit"]') as HTMLButtonElement);
+
+    expect(apiMock.receiveStockUnits).not.toHaveBeenCalled();
+  });
+
+  it("sends optional bottle photo URLs when receiving a standard bottle", async () => {
+    apiMock.receiveStockUnits.mockResolvedValue([
+      {
+        _id: "unit1",
+        qrId: "u1",
+        itemCode: "STD-001",
+        itemName: "ABAMECTIN",
+        volume: { initial: 100, remaining: 100, unit: "ml" },
+      },
+    ]);
+
+    const onPreviewLabels = vi.fn();
+
+    render(
+      <ReceiveBottlesDialog
+        standard={standard}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+        onPreviewLabels={onPreviewLabels}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "primary" }));
+    fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "LOT-1" } });
+    fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
+    fireEvent.click(screen.getByRole("button", { name: "รูปขวดที่ 1 (ไม่บังคับ)" }));
+    fireEvent.click(screen.getByRole("button", { name: "รับเข้า" }));
+
+    await waitFor(() => expect(apiMock.receiveStockUnits).toHaveBeenCalled());
+    expect(apiMock.receiveStockUnits).toHaveBeenCalledWith(
+      "std1",
+      expect.objectContaining({
+        type: "primary",
+        bottles: [
+          {
+            exp: "2027-12-31",
+            photoUrls: ["/LIS/uploads/qc-photos/bottle.webp"],
+          },
+        ],
+      }),
+    );
+    expect(onPreviewLabels).toHaveBeenCalledWith(["<label />"], { autoPrint: true });
+  });
+});

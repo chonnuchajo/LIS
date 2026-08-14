@@ -10,16 +10,19 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
 } from "@/components/ui/command";
 
 import StockRawLabelPreviewDialog from "@/components/lis/StockRawLabelPreviewDialog";
+import StockPhotoUploader from "@/components/lis/stock/StockPhotoUploader";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { buildStockLabelHtml, buildSolventLabelHtml } from "@/lib/stockLabel";
 import {
-  makeEmptyRow, validateRow, buildBottles, composeSolventNote,
+  makeEmptyRow, validateRow, buildBottles, findReceiveScanMatch, applyReceiveScanMatch,
+  applyReceiveBarcodeRegistration,
 } from "@/components/lis/stock/receiveCart.helpers";
 import type { CartRow, CartCategory } from "@/components/lis/stock/receiveCart.helpers";
 import type {
@@ -32,6 +35,7 @@ interface PickOption {
   name: string;
   code: string;
   label: string; // ข้อความที่โชว์
+  barcodes?: string[];
 }
 
 const CATEGORY_LABEL: Record<CartCategory, string> = {
@@ -49,15 +53,15 @@ export default function ReceiveCart() {
   const options = useMemo<PickOption[]>(() => {
     const std = (standards as StockStandardItem[]).map((s) => ({
       category: "standard" as const, id: s._id, name: s.name, code: s.code,
-      label: `${s.code} ${s.name}`,
+      label: `${s.code} ${s.name}`, barcodes: s.barcodes ?? [],
     }));
     const sol = (solvents as StockSolventItem[]).map((s) => ({
       category: "solvent" as const, id: s._id, name: s.name, code: "",
-      label: s.name,
+      label: s.name, barcodes: s.barcodes ?? [],
     }));
     const gla = (glassware as StockGlasswareItem[]).map((g) => ({
       category: "glassware" as const, id: g._id, name: g.name, code: "",
-      label: g.name,
+      label: g.name, barcodes: g.barcodes ?? [],
     }));
     return [...std, ...sol, ...gla];
   }, [standards, solvents, glassware]);
@@ -67,6 +71,11 @@ export default function ReceiveCart() {
   const [busy, setBusy] = useState(false);
   const [pendingLabels, setPendingLabels] = useState<string[]>([]);
   const [labelPreviewOpen, setLabelPreviewOpen] = useState(false);
+  const [autoPrintLabels, setAutoPrintLabels] = useState(false);
+  const [labelPrintJobId, setLabelPrintJobId] = useState(0);
+  const [scanText, setScanText] = useState("");
+  const [pendingBarcode, setPendingBarcode] = useState("");
+  const [pendingBarcodeOption, setPendingBarcodeOption] = useState<PickOption | null>(null);
 
   const patchRow = (id: string, patch: Partial<CartRow>) =>
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -79,14 +88,65 @@ export default function ReceiveCart() {
       category: opt.category, itemId: opt.id, itemName: opt.name, itemCode: opt.code,
     });
 
-  const ensurePerExp = (id: string, len: number) =>
+  const clearPendingBarcode = () => {
+    setPendingBarcode("");
+    setPendingBarcodeOption(null);
+  };
+
+  const handleScanSubmit = () => {
+    const normalizedScanText = scanText.trim();
+    if (!normalizedScanText) return;
+
+    const match = findReceiveScanMatch(normalizedScanText, options);
+    if (!match) {
+      setPendingBarcode(normalizedScanText);
+      setPendingBarcodeOption(null);
+      setScanText("");
+      toast.success("Barcode ใหม่: เลือกรายการ stock เพื่อลงทะเบียน");
+      return;
+    }
+
+    setRows((prev) => applyReceiveScanMatch(prev, match));
+    setScanText("");
+    toast.success(`เพิ่มรายการ: ${match.label}`);
+  };
+
+  const confirmPendingBarcode = () => {
+    if (!pendingBarcodeOption) {
+      toast.error("กรุณาเลือกรายการ stock สำหรับ Barcode นี้");
+      return;
+    }
+
+    setRows((prev) => applyReceiveBarcodeRegistration(prev, pendingBarcode, pendingBarcodeOption));
+    toast.success(`Barcode ใหม่: ${pendingBarcode}`);
+    clearPendingBarcode();
+  };
+
+  const ensureBottleFields = (id: string, len: number) =>
     setRows((prev) => prev.map((r) => {
       if (r.id !== id) return r;
-      const next = [...r.perExp];
-      while (next.length < len) next.push("");
-      next.length = len;
-      return { ...r, perExp: next };
+      const nextExp = [...r.perExp];
+      while (nextExp.length < len) nextExp.push("");
+      nextExp.length = len;
+      const nextPhotos = r.perPhotoUrls.map((urls) => [...urls]);
+      while (nextPhotos.length < len) nextPhotos.push([]);
+      nextPhotos.length = len;
+      return { ...r, perExp: nextExp, perPhotoUrls: nextPhotos };
     }));
+
+  const setBottlePhotoUrls = (id: string, index: number, photoUrls: string[]) =>
+    setRows((prev) => prev.map((r) => {
+      if (r.id !== id) return r;
+      const nextPhotos = r.perPhotoUrls.map((urls) => [...urls]);
+      while (nextPhotos.length <= index) nextPhotos.push([]);
+      nextPhotos[index] = photoUrls;
+      return { ...r, perPhotoUrls: nextPhotos };
+    }));
+
+  const registerBarcodeIfNeeded = async (row: CartRow) => {
+    if (!row.barcode.trim() || !row.category) return;
+    await api.registerStockBarcode({ barcode: row.barcode.trim(), category: row.category, itemId: row.itemId });
+  };
 
   const submit = async () => {
     // validate ทั้งหมดก่อน
@@ -104,13 +164,25 @@ export default function ReceiveCart() {
       for (const row of rows) {
         let created: StockUnitItem[] = [];
         try {
+          await registerBarcodeIfNeeded(row);
           if (row.category === "standard") {
+            const receiveType = row.type;
+            if (receiveType !== "primary" && receiveType !== "supplier" && receiveType !== "working") {
+              throw new Error("ต้องเลือกประเภท Barcode");
+            }
             created = await api.receiveStockUnits(row.itemId, {
-              lotNo: row.lotNo, sizeMl: Number(row.sizeMl), unit: "ml",
-              type: row.type, bottles: buildBottles(row),
+              lotNo: row.lotNo.trim(), sizeMl: Number(row.sizeMl), unit: "ml",
+              type: receiveType, bottles: buildBottles(row),
             });
           } else if (row.category === "solvent") {
-            await api.receiveSolvent(row.itemId, { qty: Number(row.qty), note: composeSolventNote(row) });
+            await api.receiveSolvent(row.itemId, {
+              qty: Number(row.qty),
+              lotNo: row.lotNo.trim(),
+              exp: row.exp,
+              sizeLabel: row.sizeLabel,
+              note: row.note,
+              photoUrls: row.photoUrls,
+            });
           } else if (row.category === "glassware") {
             await api.receiveGlassware(row.itemId, { qty: Number(row.qty), note: row.note });
           }
@@ -142,6 +214,8 @@ export default function ReceiveCart() {
 
       if (labels.length > 0) {
         setPendingLabels(labels);
+        setAutoPrintLabels(true);
+        setLabelPrintJobId((id) => id + 1);
         setLabelPreviewOpen(true);
       }
 
@@ -151,6 +225,7 @@ export default function ReceiveCart() {
         const left = prev.filter((r) => !okIds.has(r.id));
         return left.length ? left : [makeEmptyRow()];
       });
+      qc.invalidateQueries({ queryKey: ["stock", "standards"] });
       qc.invalidateQueries({ queryKey: ["stock", "units"] });
       qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
       qc.invalidateQueries({ queryKey: ["stock", "glassware"] });
@@ -175,6 +250,28 @@ export default function ReceiveCart() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-3">
+          <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <div className="space-y-1.5">
+              <Label htmlFor="stock-receive-barcode">สแกน Barcode รับเข้า</Label>
+              <Input
+                id="stock-receive-barcode"
+                value={scanText}
+                onChange={(event) => setScanText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    handleScanSubmit();
+                  }
+                }}
+                placeholder="สแกน/กรอก Barcode แล้วกด Enter"
+                autoComplete="off"
+              />
+            </div>
+            <Button type="button" variant="outline" onClick={handleScanSubmit} disabled={!scanText.trim()}>
+              เพิ่มจาก Barcode
+            </Button>
+          </div>
+
           {rows.map((row, idx) => (
             <div key={row.id} className="border rounded-md p-3 space-y-3">
               <div className="flex items-center gap-2">
@@ -185,6 +282,7 @@ export default function ReceiveCart() {
                   onPick={(opt) => pickItem(row.id, opt)}
                 />
                 {row.category && <Badge variant="outline">{CATEGORY_LABEL[row.category]}</Badge>}
+                {row.barcode && <Badge variant="yellow-soft">Barcode ใหม่: {row.barcode}</Badge>}
                 <Button size="icon" variant="ghost" className="ml-auto" onClick={() => removeRow(row.id)}>
                   <Trash2 className="w-4 h-4 text-destructive" />
                 </Button>
@@ -199,23 +297,24 @@ export default function ReceiveCart() {
                     ))}
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    <div><Label>Lot No</Label><Input value={row.lotNo} onChange={(e) => patchRow(row.id, { lotNo: e.target.value })} placeholder="optional" /></div>
+                    <div><Label>Lot No</Label><Input value={row.lotNo} onChange={(e) => patchRow(row.id, { lotNo: e.target.value })} placeholder="required" required /></div>
                     <div><Label>ขนาด/ขวด (ml)</Label><Input type="number" value={row.sizeMl} onChange={(e) => patchRow(row.id, { sizeMl: e.target.value })} /></div>
                     <div><Label>จำนวนขวด</Label><Input type="number" min="1" value={row.count}
-                      onChange={(e) => { patchRow(row.id, { count: e.target.value }); ensurePerExp(row.id, Math.max(1, Number(e.target.value) || 1)); }} /></div>
+                      onChange={(e) => { patchRow(row.id, { count: e.target.value }); ensureBottleFields(row.id, Math.max(1, Number(e.target.value) || 1)); }} /></div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Checkbox id={`sameExp-${row.id}`} checked={row.sameExp} onCheckedChange={(v) => patchRow(row.id, { sameExp: v === true })} />
                     <label htmlFor={`sameExp-${row.id}`} className="text-sm cursor-pointer">EXP เท่ากันทุกขวด</label>
                   </div>
                   {row.sameExp ? (
-                    <div><Label>EXP (ทุกขวด)</Label><Input type="date" value={row.commonExp} onChange={(e) => patchRow(row.id, { commonExp: e.target.value })} /></div>
+                    <div><Label>EXP (ทุกขวด)</Label><Input type="date" value={row.commonExp} onChange={(e) => patchRow(row.id, { commonExp: e.target.value })} required /></div>
                   ) : (
                     <div className="space-y-2">
                       {Array.from({ length: Math.max(1, Number(row.count) || 1) }, (_, i) => (
                         <div key={i}>
                           <Label>EXP ขวดที่ {i + 1}</Label>
                           <Input type="date" value={row.perExp[i] ?? ""}
+                            required
                             onChange={(e) => setRows((prev) => prev.map((r) => {
                               if (r.id !== row.id) return r;
                               const x = [...r.perExp]; x[i] = e.target.value; return { ...r, perExp: x };
@@ -224,6 +323,17 @@ export default function ReceiveCart() {
                       ))}
                     </div>
                   )}
+                  <div className="space-y-2">
+                    {Array.from({ length: Math.max(1, Number(row.count) || 1) }, (_, i) => (
+                      <StockPhotoUploader
+                        key={i}
+                        label={`รูปขวดที่ ${i + 1} (ไม่บังคับ)`}
+                        value={row.perPhotoUrls[i] ?? []}
+                        onChange={(photoUrls) => setBottlePhotoUrls(row.id, i, photoUrls)}
+                        disabled={busy}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -231,9 +341,17 @@ export default function ReceiveCart() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pl-8">
                   <div><Label>จำนวน (ขวด)</Label><Input type="number" min="1" value={row.qty} onChange={(e) => patchRow(row.id, { qty: e.target.value })} /></div>
                   <div><Label>ขนาด/ขวด</Label><Input value={row.sizeLabel} onChange={(e) => patchRow(row.id, { sizeLabel: e.target.value })} placeholder="เช่น 2.5 L" /></div>
-                  <div><Label>Lot No</Label><Input value={row.lotNo} onChange={(e) => patchRow(row.id, { lotNo: e.target.value })} placeholder="optional" /></div>
-                  <div><Label>EXP</Label><Input type="date" value={row.exp} onChange={(e) => patchRow(row.id, { exp: e.target.value })} /></div>
+                  <div><Label>Lot No</Label><Input value={row.lotNo} onChange={(e) => patchRow(row.id, { lotNo: e.target.value })} placeholder="required" required /></div>
+                  <div><Label>EXP</Label><Input type="date" value={row.exp} onChange={(e) => patchRow(row.id, { exp: e.target.value })} required /></div>
                   <div className="col-span-2 sm:col-span-3"><Label>หมายเหตุ</Label><Input value={row.note} onChange={(e) => patchRow(row.id, { note: e.target.value })} placeholder="optional" /></div>
+                  <div className="col-span-2 sm:col-span-3">
+                    <StockPhotoUploader
+                      label="รูปขวดสารเคมี (ไม่บังคับ)"
+                      value={row.photoUrls}
+                      onChange={(photoUrls) => patchRow(row.id, { photoUrls })}
+                      disabled={busy}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -259,14 +377,54 @@ export default function ReceiveCart() {
         </CardContent>
       </Card>
       </div>
+      <Dialog open={Boolean(pendingBarcode)} onOpenChange={(open) => { if (!open) clearPendingBarcode(); }}>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>ลงทะเบียน Barcode ใหม่</DialogTitle>
+            <DialogDescription>
+              Barcode นี้ยังไม่อยู่ในระบบ กรุณาเลือกรายการ stock ที่ต้องผูกกับ Barcode นี้ก่อนรับเข้า
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border bg-muted/40 p-3">
+              <div className="text-xs text-muted-foreground">Barcode ที่สแกน</div>
+              <div className="font-mono text-lg font-semibold">{pendingBarcode}</div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>เลือกรายการ stock สำหรับ Barcode นี้</Label>
+              <ItemPicker
+                options={options}
+                value={pendingBarcodeOption?.id ?? ""}
+                onPick={setPendingBarcodeOption}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={clearPendingBarcode}>
+              ยกเลิก
+            </Button>
+            <Button type="button" onClick={confirmPendingBarcode}>
+              เพิ่ม Barcode เข้ารายการรับเข้า
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <StockRawLabelPreviewDialog
         open={labelPreviewOpen}
         labels={pendingLabels}
+        autoPrint={autoPrintLabels}
+        autoPrintKey={labelPrintJobId}
         onOpenChange={(open) => {
           setLabelPreviewOpen(open);
-          if (!open) setPendingLabels([]);
+          if (!open) {
+            setPendingLabels([]);
+            setAutoPrintLabels(false);
+          }
         }}
-        onPrinted={() => setPendingLabels([])}
+        onPrinted={() => {
+          setPendingLabels([]);
+          setAutoPrintLabels(false);
+        }}
       />
     </>
   );

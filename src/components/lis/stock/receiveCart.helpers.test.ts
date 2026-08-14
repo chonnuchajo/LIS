@@ -4,6 +4,9 @@ import {
   validateRow,
   buildBottles,
   composeSolventNote,
+  findReceiveScanMatch,
+  applyReceiveScanMatch,
+  applyReceiveBarcodeRegistration,
 } from "./receiveCart.helpers";
 
 describe("receiveCart.helpers", () => {
@@ -11,7 +14,7 @@ describe("receiveCart.helpers", () => {
     const r = makeEmptyRow();
     expect(r.category).toBeNull();
     expect(r.itemId).toBe("");
-    expect(r.type).toBe("primary");
+    expect(r.type).toBe("");
     expect(r.count).toBe("1");
     expect(r.qty).toBe("1");
     expect(r.sameExp).toBe(true);
@@ -26,13 +29,45 @@ describe("receiveCart.helpers", () => {
     expect(validateRow({ ...base, sizeMl: "0" })).toBe("ขนาด/ขวดไม่ถูกต้อง");
     expect(validateRow({ ...base, sizeMl: "100", count: "0" })).toBe("จำนวนขวดต้องเป็นจำนวนเต็มบวก");
     expect(validateRow({ ...base, sizeMl: "100", count: "2", type: "" as never })).toBe("ต้องเลือกประเภท");
-    expect(validateRow({ ...base, sizeMl: "100", count: "2" })).toBeNull();
+    expect(validateRow({ ...base, sizeMl: "100", count: "2", type: "primary", lotNo: "L1", commonExp: "2027-01-01" })).toBeNull();
+  });
+
+  it("validateRow: scanned standard requires choosing barcode type before receive", () => {
+    const scanned = {
+      ...makeEmptyRow(),
+      category: "standard" as const,
+      itemId: "s1",
+      itemCode: "STD-001",
+      itemName: "Standard A",
+      sizeMl: "100",
+      count: "1",
+      lotNo: "L1",
+      commonExp: "2027-01-01",
+    };
+
+    expect(validateRow(scanned)).toBe("ต้องเลือกประเภท");
+  });
+
+  it("validateRow: standard receive requires Lot No and EXP", () => {
+    const base = { ...makeEmptyRow(), category: "standard" as const, itemId: "s1", type: "primary" as const, sizeMl: "100", count: "2" };
+    expect(validateRow({ ...base, lotNo: "", commonExp: "2027-01-01" })).toContain("Lot No");
+    expect(validateRow({ ...base, lotNo: "L1", sameExp: true, commonExp: "" })).toContain("EXP");
+    expect(validateRow({ ...base, lotNo: "L1", sameExp: false, perExp: ["2027-01-01", ""] })).toContain("EXP");
   });
 
   it("validateRow: solvent/glassware ต้อง qty เป็นจำนวนเต็มบวก", () => {
     const sol = { ...makeEmptyRow(), category: "solvent" as const, itemId: "x", qty: "0" };
     expect(validateRow(sol)).toBe("จำนวนต้องเป็นจำนวนเต็มบวก");
-    expect(validateRow({ ...sol, qty: "3" })).toBeNull();
+    expect(validateRow({ ...sol, qty: "3", lotNo: "L1", exp: "2027-01-01" })).toBeNull();
+  });
+
+  it("validateRow: solvent receive requires Lot No and EXP but glassware does not", () => {
+    const solvent = { ...makeEmptyRow(), category: "solvent" as const, itemId: "sol1", qty: "1" };
+    expect(validateRow({ ...solvent, lotNo: "", exp: "2027-01-01" })).toContain("Lot No");
+    expect(validateRow({ ...solvent, lotNo: "L1", exp: "" })).toContain("EXP");
+
+    const glassware = { ...makeEmptyRow(), category: "glassware" as const, itemId: "g1", qty: "1" };
+    expect(validateRow(glassware)).toBeNull();
   });
 
   it("buildBottles: sameExp → ทุกขวด exp เดียวกัน", () => {
@@ -57,9 +92,88 @@ describe("receiveCart.helpers", () => {
     expect(buildBottles(r)).toEqual([{ exp: "2027-01-01" }, { exp: undefined }, { exp: undefined }]);
   });
 
+  it("buildBottles: แนบรูปแยกตามขวดเมื่อมีการอัปโหลด", () => {
+    const r = {
+      ...makeEmptyRow(),
+      count: "2",
+      sameExp: false,
+      perExp: ["2027-01-01", "2027-02-02"],
+      perPhotoUrls: [["/LIS/uploads/qc-photos/a.webp"], []],
+    };
+    expect(buildBottles(r)).toEqual([
+      { exp: "2027-01-01", photoUrls: ["/LIS/uploads/qc-photos/a.webp"] },
+      { exp: "2027-02-02" },
+    ]);
+  });
+
   it("composeSolventNote: รวม lot/exp/ขนาด/note ด้วย ·", () => {
     const r = { ...makeEmptyRow(), lotNo: "L1", exp: "2027-01-01", sizeLabel: "2.5 L", note: "ใหม่" };
     expect(composeSolventNote(r)).toBe("lot L1 · exp 2027-01-01 · ขนาด 2.5 L · ใหม่");
     expect(composeSolventNote({ ...makeEmptyRow() })).toBe("");
+  });
+
+
+  it("findReceiveScanMatch: matches barcode by exact standard code", () => {
+    const match = findReceiveScanMatch(" STD-001\n", [
+      { category: "standard", id: "s1", code: "STD-001", name: "Standard A", label: "STD-001 Standard A" },
+    ]);
+
+    expect(match).toEqual({ category: "standard", id: "s1", code: "STD-001", name: "Standard A", label: "STD-001 Standard A" });
+  });
+
+  it("findReceiveScanMatch: matches solvent names case-insensitively", () => {
+    const match = findReceiveScanMatch("methanol", [
+      { category: "solvent", id: "sol1", code: "", name: "Methanol", label: "Methanol" },
+    ]);
+
+    expect(match?.id).toBe("sol1");
+  });
+
+  it("findReceiveScanMatch: matches registered barcode aliases", () => {
+    const match = findReceiveScanMatch(" 654694 ", [
+      { category: "standard", id: "std1", code: "STD-001", name: "Standard A", label: "STD-001 Standard A", barcodes: ["654694"] },
+    ]);
+
+    expect(match?.id).toBe("std1");
+  });
+
+  it("applyReceiveBarcodeRegistration: fills the first empty row after popup selection", () => {
+    const empty = makeEmptyRow();
+    const existing = { ...makeEmptyRow(), category: "solvent" as const, itemId: "sol1", itemName: "Methanol" };
+
+    const rows = applyReceiveBarcodeRegistration([existing, empty], " 654694 ", {
+      category: "standard",
+      id: "std1",
+      code: "STD-001",
+      name: "Standard A",
+      label: "STD-001 Standard A",
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toMatchObject({ barcode: "654694", category: "standard", itemId: "std1", itemCode: "STD-001" });
+  });
+
+  it("applyReceiveScanMatch: fills the first empty row from scanned item", () => {
+    const empty = makeEmptyRow();
+    const existing = { ...makeEmptyRow(), category: "solvent" as const, itemId: "sol1", itemName: "Methanol" };
+
+    const rows = applyReceiveScanMatch([existing, empty], {
+      category: "standard", id: "std1", code: "STD-001", name: "Standard A", label: "STD-001 Standard A",
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toMatchObject({ category: "standard", itemId: "std1", itemName: "Standard A", itemCode: "STD-001" });
+  });
+
+  it("applyReceiveScanMatch: appends a new row when all rows already have items", () => {
+    const existing = { ...makeEmptyRow(), category: "solvent" as const, itemId: "sol1", itemName: "Methanol" };
+
+    const rows = applyReceiveScanMatch([existing], {
+      category: "standard", id: "std1", code: "STD-001", name: "Standard A", label: "STD-001 Standard A",
+    });
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0].itemId).toBe("sol1");
+    expect(rows[1]).toMatchObject({ category: "standard", itemId: "std1", itemName: "Standard A", itemCode: "STD-001" });
   });
 });

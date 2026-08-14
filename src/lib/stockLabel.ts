@@ -1,10 +1,10 @@
 import QRCode from "qrcode";
 import type { StockUnitItem } from "@/types/stock";
 
-const STOCK_DEDUCTION_QR_BASE_URL = "https://app-plant.icpladda.com/LIS/stock-deduction";
+const STOCK_PUBLIC_VIEW_QR_BASE_URL = "https://app-plant.icpladda.com/LIS/stock/view";
 
 export function stockDeductionQrUrl(qrId: string): string {
-  const url = new URL(STOCK_DEDUCTION_QR_BASE_URL);
+  const url = new URL(STOCK_PUBLIC_VIEW_QR_BASE_URL);
   url.searchParams.set("qrId", qrId);
   return url.toString();
 }
@@ -19,17 +19,19 @@ export async function buildStockLabelHtml(unit: StockUnitItem): Promise<string> 
     errorCorrectionLevel: "M",
   });
   const exp = unit.exp ? new Date(unit.exp).toLocaleDateString("th-TH") : "-";
-  const kindLabel = unit.kind === "working" ? "WORKING" : "SEALED";
+  const typeLabel = unit.type || "primary";
   const size = `${unit.volume?.initial ?? "-"}${unit.volume?.unit ? " " + unit.volume.unit : ""}`;
+  const lotBottleLabel = formatLotBottleLabel(unit.lotBottleNo);
+  const lotBottleHtml = lotBottleLabel ? ` · <b>${escapeHtml(lotBottleLabel)}</b>` : "";
   return `
-<div style="display:flex;gap:8px;align-items:center;font-family:'Kanit',sans-serif;width:152mm;height:101mm;box-sizing:border-box;padding:6mm;">
-  <img src="${qr}" alt="qr" style="width:56mm;height:56mm;flex:none;" />
-  <div style="font-size:12pt;line-height:1.4;min-width:0;">
-    <div style="font-weight:700;font-size:15pt;">${escapeHtml(unit.itemName || "")}</div>
-    <div>Code: <b>${escapeHtml(unit.itemCode || "")}</b> · <b>${kindLabel}</b></div>
-    <div>Lot: ${escapeHtml(unit.lotNo || "-")} · ขนาด: ${escapeHtml(size)}</div>
+<div style="display:flex;gap:1.2mm;align-items:center;font-family:'Kanit',Tahoma,Arial,sans-serif;width:65mm;height:25mm;box-sizing:border-box;padding:1mm;color:#000;background:#fff;overflow:hidden;">
+  <img src="${qr}" alt="qr" style="width:17mm;height:17mm;flex:none;" />
+  <div style="font-size:6.8pt;line-height:1.24;min-width:0;color:#000;overflow:hidden;flex:1;">
+    <div style="font-weight:700;font-size:8.2pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(unit.itemName || "")}</div>
+    <div>STD: <b>${escapeHtml(unit.itemCode || "")}</b></div>
+    <div>ประเภท: <b>${escapeHtml(typeLabel)}</b> · ${escapeHtml(size)}</div>
+    <div>Lot: <b>${escapeHtml(unit.lotNo || "-")}</b>${lotBottleHtml}</div>
     <div>EXP: <b>${escapeHtml(exp)}</b></div>
-    <div style="font-size:9pt;color:#666;margin-top:4px;">${escapeHtml(unit.qrId)}</div>
   </div>
 </div>`.trim();
 }
@@ -52,12 +54,12 @@ export async function buildSolventLabelHtml(payload: {
   const exp = payload.exp ? new Date(payload.exp).toLocaleDateString("th-TH") : "-";
   const size = payload.sizeLabel || "-";
   return `
-<div style="display:flex;gap:8px;align-items:center;font-family:'Kanit',sans-serif;width:152mm;height:101mm;box-sizing:border-box;padding:6mm;color:#000;">
-  <img src="${qr}" alt="qr" style="width:56mm;height:56mm;flex:none;" />
-  <div style="font-size:12pt;line-height:1.4;min-width:0;color:#000;">
-    <div style="font-weight:700;font-size:15pt;">${escapeHtml(payload.name || "")}</div>
-    <div>สารเคมี · ขนาด: ${escapeHtml(size)}</div>
-    <div>Lot: ${escapeHtml(payload.lotNo || "-")}</div>
+<div style="display:flex;gap:1.2mm;align-items:center;font-family:'Kanit',Tahoma,Arial,sans-serif;width:65mm;height:25mm;box-sizing:border-box;padding:1mm;color:#000;background:#fff;overflow:hidden;">
+  <img src="${qr}" alt="qr" style="width:17mm;height:17mm;flex:none;" />
+  <div style="font-size:6.8pt;line-height:1.24;min-width:0;color:#000;overflow:hidden;flex:1;">
+    <div style="font-weight:700;font-size:8.2pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(payload.name || "")}</div>
+    <div>สารเคมี · ${escapeHtml(size)}</div>
+    <div>Lot: <b>${escapeHtml(payload.lotNo || "-")}</b></div>
     <div>EXP: <b>${escapeHtml(exp)}</b></div>
   </div>
 </div>`.trim();
@@ -70,4 +72,9 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#x27;");
+}
+
+function formatLotBottleLabel(value?: number | null): string {
+  const bottleNo = Number(value);
+  return Number.isInteger(bottleNo) && bottleNo > 0 ? `ขวดที่ ${bottleNo}` : "";
 }

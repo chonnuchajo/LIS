@@ -15,6 +15,7 @@ const OpenShelfLifeSchema = new mongoose.Schema({
 const StockStandardSchema = new mongoose.Schema({
   code: { type: String, required: true, index: true },
   name: { type: String, required: true, index: true },
+  barcodes: { type: [String], default: [], index: true },
   primary: {
     qty: { type: Number, default: 0 },
     ordered: { type: Number, default: 0 },
@@ -36,6 +37,7 @@ const StockStandardSchema = new mongoose.Schema({
 
 const StockSolventSchema = new mongoose.Schema({
   name: { type: String, required: true, index: true },
+  barcodes: { type: [String], default: [], index: true },
   sizeLiter: { type: Number, default: 0 },
   qty: { type: Number, default: 0 },
   price: { type: Number, default: 0 },
@@ -44,6 +46,7 @@ const StockSolventSchema = new mongoose.Schema({
 
 const StockGlasswareSchema = new mongoose.Schema({
   name: { type: String, required: true, index: true },
+  barcodes: { type: [String], default: [], index: true },
   qty: { type: Number, default: 0 },
   pricePerPiece: { type: Number, default: 0 },
   note: { type: String, default: '' },
