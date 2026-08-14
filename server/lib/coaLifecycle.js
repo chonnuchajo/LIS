@@ -10,6 +10,7 @@ const COA_STATUSES = [
   'superseded',
   'rejected',
 ];
+const { aiToleranceCriteriaForCommonName, isAiContentTestItem } = require('./aiToleranceCriteria');
 
 const transitions = {
   submit: new Set(['draft', 'revisionDraft']),
@@ -54,7 +55,7 @@ const lifecycleActionEvents = {
 const lifecycleActionStatuses = {
   submit: (status) => (status === 'revisionDraft' ? 'pendingRevisionApproval' : 'pendingApproval'),
   approve: (status) => (status === 'pendingRevisionApproval' ? 'reissued' : 'approved'),
-  reject: () => 'rejected',
+  reject: (status) => (status === 'pendingRevisionApproval' ? 'revisionDraft' : 'draft'),
   revise: () => 'revisionDraft',
   cancel: () => 'cancelled',
   print: () => 'printed',
@@ -451,6 +452,12 @@ function itemSnapshot(item) {
   };
 }
 
+function criteriaForResult(testItem, itemSeq, selectedItemsBySeq) {
+  if (!isAiContentTestItem(testItem)) return '-';
+  const sample = selectedItemsBySeq.get(Number(itemSeq));
+  return aiToleranceCriteriaForCommonName(sample?.commonName) || '-';
+}
+
 function buildCoaSnapshots({
   petition,
   labRequests = [],
@@ -460,6 +467,7 @@ function buildCoaSnapshots({
 } = {}) {
   const selectedItems = selectedItemsFromPetition(petition, selectedItemSeqs);
   const selectedSeqs = new Set(selectedItems.map((item) => Number(item.seq)));
+  const selectedItemsBySeq = new Map(selectedItems.map((item) => [Number(item.seq), item]));
   const parameterById = new Map(parameters.map((parameter) => [String(parameter._id), parameter]));
   const firstLabRequest = labRequests[0] || {};
   const requester = firstLabRequest.requester || {};
@@ -471,13 +479,14 @@ function buildCoaSnapshots({
     if ((parameter?.scope || 'qc') !== 'lab') continue;
     for (const [rowIndex, row] of visibleResultEntries(result).entries()) {
       for (const [field, value] of Object.entries(row || {}).filter(([key]) => isVisibleResultField(key))) {
+        const testItem = result.parameterName && result.parameterName !== field
+          ? `${result.parameterName} - ${field}`
+          : (result.parameterName || field);
         resultSnapshots.push({
           itemSeq: result.itemSeq,
-          testItem: result.parameterName && result.parameterName !== field
-            ? `${result.parameterName} - ${field}`
-            : (result.parameterName || field),
+          testItem,
           result: valueText(value),
-          criteria: '-',
+          criteria: criteriaForResult(testItem, result.itemSeq, selectedItemsBySeq),
           method: '-',
           unit: '',
         });

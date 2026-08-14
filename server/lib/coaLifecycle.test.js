@@ -324,6 +324,58 @@ test('applyCoaLifecycleAction moves revise actions to revision draft and audits 
   assert.equal(createdRows[0].event, 'revisionCreated');
 });
 
+test('applyCoaLifecycleAction returns rejected approvals to editable draft states', async () => {
+  const createdRows = [];
+  const savedStatuses = [];
+  const stubAuditModel = {
+    create: async (payload) => {
+      createdRows.push(payload);
+      return { _id: 'audit-id', ...payload };
+    },
+  };
+  const makeDoc = (status) => ({
+    _id: status + '-coa-id',
+    status,
+    petitionId: 'petition-id',
+    petitionNoSnapshot: 'P-001',
+    approval: {},
+    set(update) {
+      Object.assign(this, update);
+    },
+    async save() {
+      savedStatuses.push(this.status);
+      return this;
+    },
+  });
+
+  const firstIssue = makeDoc('pendingApproval');
+  await applyCoaLifecycleAction({
+    doc: firstIssue,
+    action: 'reject',
+    actor: { role: 'qc-head', name: 'QC Head', email: 'qc@example.com' },
+    note: 'Need correction',
+    update: { approval: { rejectedAt: new Date(), rejectReason: 'Need correction' } },
+    CoaAuditLogModel: stubAuditModel,
+  });
+
+  const revision = makeDoc('pendingRevisionApproval');
+  await applyCoaLifecycleAction({
+    doc: revision,
+    action: 'reject',
+    actor: { role: 'qc-head', name: 'QC Head', email: 'qc@example.com' },
+    note: 'Need revision correction',
+    update: { approval: { rejectedAt: new Date(), rejectReason: 'Need revision correction' } },
+    CoaAuditLogModel: stubAuditModel,
+  });
+
+  assert.equal(firstIssue.status, 'draft');
+  assert.equal(revision.status, 'revisionDraft');
+  assert.deepEqual(savedStatuses, ['draft', 'revisionDraft']);
+  assert.deepEqual(createdRows.map((row) => row.event), ['rejected', 'rejected']);
+  assert.doesNotThrow(() => assertCanTransition(firstIssue.status, 'update', { role: 'lab-staff' }));
+  assert.doesNotThrow(() => assertCanTransition(revision.status, 'submit', { role: 'lab-staff' }));
+});
+
 test('applyCoaLifecycleAction saves the document and audit event in a supplied session', async () => {
   const session = { id: 'transaction-session' };
   const saveOptions = [];

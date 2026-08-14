@@ -136,6 +136,27 @@ test('buildCoaSnapshots freezes selected sample and lab result data', () => {
   ]);
 });
 
+test('buildCoaSnapshots applies AI tolerance criteria from the common-name percent', () => {
+  const snapshots = buildCoaSnapshots({
+    petition: {
+      petitionNo: 'P-2608-AI',
+      items: [{ seq: 1, sampleName: 'Liquid', commonName: 'Glyphosate 48% SL', batchNo: 'B-AI' }],
+    },
+    parameters: [{ _id: 'lab-parameter', scope: 'lab' }],
+    qcResults: [{
+      itemSeq: 1,
+      parameterId: 'lab-parameter',
+      parameterName: '%AI content (W/V)',
+      values: { '%AI content (W/V)': '47.9%' },
+    }],
+    selectedItemSeqs: [1],
+  });
+
+  assert.deepEqual(snapshots.resultSnapshots, [
+    { itemSeq: 1, testItem: '%AI content (W/V)', result: '47.9%', criteria: '48% ± 2.40', method: '-', unit: '' },
+  ]);
+});
+
 test('buildCoaSnapshots includes multi-entry and phase-two lab values without internal fields', () => {
   const snapshots = buildCoaSnapshots({
     petition: {
