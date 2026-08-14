@@ -1,0 +1,31 @@
+{
+  "name": "ICP Ladda Laboratory Information System",
+  "short_name": "LIS",
+  "description": "Laboratory Information System for ICP Ladda",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#1f6fb2",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "pwa-icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
