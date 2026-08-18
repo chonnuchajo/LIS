@@ -10,6 +10,15 @@ import { useAuth } from "@/hooks/useAuth";
 import { normalizeRoles, primaryRole } from "@/lib/roles";
 import type { CoaDocument, EligibleCoaPetition } from "@/types/coa.types";
 
+function formatProductionDate(value?: string | null) {
+  if (!value) return "";
+  const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoDate) return `${isoDate[3]}/${isoDate[2]}/${isoDate[1]}`;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-GB");
+}
+
 export default function CoaCreateDialog({
   open,
   onOpenChange,
@@ -38,6 +47,14 @@ export default function CoaCreateDialog({
     const coaIds = new Set(activeCoas.map((coa) => coa?.coaId));
     return activeCoas.length === selectedItems.length && coaIds.size === 1 ? activeCoas[0] : null;
   }, [selectedItems]);
+  const reusableActiveCoaFields = useMemo(() => {
+    if (!reusableActiveCoa) return "ชื่อสามัญ/Batch/วันที่ผลิตนี้";
+    return [
+      reusableActiveCoa.commonName ? `ชื่อสามัญ ${reusableActiveCoa.commonName}` : null,
+      reusableActiveCoa.batchNo ? `Batch No. ${reusableActiveCoa.batchNo}` : null,
+      reusableActiveCoa.productionDate ? `วันที่ผลิต ${formatProductionDate(reusableActiveCoa.productionDate)}` : null,
+    ].filter(Boolean).join(" · ") || "ชื่อสามัญ/Batch/วันที่ผลิตนี้";
+  }, [reusableActiveCoa]);
   const actor = useMemo(() => {
     const roles = normalizeRoles(user);
     const activeRole = user?.role || primaryRole(roles);
@@ -81,7 +98,7 @@ export default function CoaCreateDialog({
           <Alert className="border-orange-200 bg-orange-50 text-orange-900">
             <AlertTitle>พบประวัติการทำ COA แล้ว</AlertTitle>
             <AlertDescription>
-              ชื่อสามัญและ Batch No. นี้เคยออก COA แล้ว เลข COA No. {reusableActiveCoa.coaNo}
+              {reusableActiveCoaFields} เคยออก COA แล้ว เลข COA No. {reusableActiveCoa.coaNo}
               {reusableActiveCoa.petitionNo ? ` จากคำร้อง ${reusableActiveCoa.petitionNo}` : ""}
               <span className="mt-1 block">กด “ส่งใบเดิมไปรออนุมัติ” เพื่อส่งข้อมูลไปหน้า “รออนุมัติ” ได้ทันที</span>
             </AlertDescription>
@@ -109,11 +126,11 @@ export default function CoaCreateDialog({
             {selectedPetition?.items.map((item) => (
               <label key={item.seq} className="flex items-start gap-3 border-b border-sky-50 p-3 text-sm hover:bg-sky-50/80">
                 <Checkbox checked={selectedSeqs.includes(item.seq)} onCheckedChange={() => toggleSeq(item.seq)} />
-                <span>
-                  <span className="block font-medium text-sky-950">{item.sampleName || item.commonName || `Sample ${item.seq}`}</span>
-                  <span className="block text-xs text-sky-500">{item.batchNo || item.lotNo || "-"}</span>
-                  {item.activeCoa && (
-                    <span className="mt-1 block rounded-md bg-orange-50 px-2 py-1 text-xs text-orange-700">
+                  <span>
+                    <span className="block font-medium text-sky-950">{item.sampleName || item.commonName || `Sample ${item.seq}`}</span>
+                    <span className="block text-xs text-sky-500">{[item.batchNo || item.lotNo || "-", item.productionDate ? `ผลิต ${formatProductionDate(item.productionDate)}` : null].filter(Boolean).join(" · ")}</span>
+                    {item.activeCoa && (
+                      <span className="mt-1 block rounded-md bg-orange-50 px-2 py-1 text-xs text-orange-700">
                       มีประวัติ COA แล้ว: {item.activeCoa.coaNo}
                     </span>
                   )}

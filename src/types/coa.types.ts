@@ -87,6 +87,7 @@ export type EligibleCoaPetition = {
     commonName?: string;
     batchNo?: string;
     lotNo?: string;
+    productionDate?: string;
     activeCoa?: {
       coaId: string;
       coaNo: string;
@@ -94,6 +95,7 @@ export type EligibleCoaPetition = {
       petitionNo?: string;
       commonName?: string;
       batchNo?: string;
+      productionDate?: string;
     } | null;
   }>;
 };

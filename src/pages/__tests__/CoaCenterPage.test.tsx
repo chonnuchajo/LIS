@@ -42,10 +42,11 @@ vi.mock("@/lib/api", () => ({
           _id: "c2",
           coaNo: "00022026",
           coaYear: new Date().getFullYear(),
-          revision: 0,
+          revision: 1,
           status: "pendingApproval",
           petitionId: "p2",
           petitionNoSnapshot: "P-2608-0002",
+          sourceCoaId: "c2-source",
           customerSnapshot: { company: "Customer B" },
           selectedItemSeqs: [1],
           sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade B", commonName: "Common B", batchNo: "B-002", productionDate: "2026-07-30" }],
@@ -93,10 +94,27 @@ vi.mock("@/lib/api", () => ({
           petitionNoSnapshot: "P-2608-0004",
           customerSnapshot: { name: "Customer E" },
           selectedItemSeqs: [1],
-          sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade E", commonName: "Common E", batchNo: "B-005", productionDate: "2026-08-01" }],
+          sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade E", commonName: "Common A", batchNo: "B-001", productionDate: "2026-08-01" }],
           resultSnapshots: [],
           print: { printCount: 0 },
           createdAt: new Date().toISOString(),
+        },
+        {
+          _id: "c-correction",
+          coaNo: "00062026",
+          coaYear: new Date().getFullYear(),
+          revision: 0,
+          status: "draft",
+          petitionId: "p6",
+          petitionNoSnapshot: "P-2608-0005",
+          customerSnapshot: { name: "Customer F" },
+          selectedItemSeqs: [1],
+          sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade F", commonName: "Common F", batchNo: "B-006", lotNo: "L-006", productionDate: "2026-08-02" }],
+          resultSnapshots: [],
+          approval: { rejectedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(), rejectReason: "แก้ไข Lot ใหม่" },
+          print: { printCount: 0 },
+          createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+          updatedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
         },
       ],
     }),
@@ -128,6 +146,9 @@ describe("CoaCenterPage", () => {
     expect(await screen.findByText("ออกเอกสาร COA")).toBeInTheDocument();
     expect(await screen.findByText("00012026")).toBeInTheDocument();
     expect(container.querySelector(".bg-sky-50")).toBeInTheDocument();
+    const notificationButton = screen.getByRole("button", { name: "แจ้งเตือน COA 5 รายการ" });
+    expect(notificationButton).toHaveClass("bg-green-50");
+    expect(notificationButton.querySelector("svg")).toHaveClass("text-green-600");
     expect(screen.queryByRole("button", { name: /สร้าง COA/ })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Document No" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "COA No" })).toBeInTheDocument();
@@ -139,16 +160,43 @@ describe("CoaCenterPage", () => {
     expect(screen.queryByRole("columnheader", { name: "พิมพ์" })).not.toBeInTheDocument();
     expect(screen.getByText("Customer A")).toBeInTheDocument();
     expect(screen.getByText("Trade A")).toBeInTheDocument();
-    expect(screen.getByText("Common A")).toBeInTheDocument();
+    expect(screen.getAllByText("Common A").length).toBeGreaterThan(0);
     expect(screen.getByText("L-001 / B-001 / 01/08/2026")).toBeInTheDocument();
     expect(screen.getAllByText("ดำเนินการแล้ว").length).toBeGreaterThan(0);
+  });
+
+  it("alerts COAs waiting for approval and COAs that need correction", async () => {
+    renderPage();
+
+    expect(await screen.findByText("แจ้งเตือนเอกสาร COA")).toBeInTheDocument();
+    expect(screen.getByText("รออนุมัติ 1 รายการ")).toBeInTheDocument();
+    expect(screen.getByText("ต้องแก้ไขข้อมูลใหม่ 1 รายการ")).toBeInTheDocument();
+    expect(screen.getByText("ขอใบซ้ำ 1 รายการ")).toBeInTheDocument();
+    expect(screen.getByText("ชื่อสามัญซ้ำ 1 กลุ่ม")).toBeInTheDocument();
+    expect(screen.getByText("Batch/วันที่ผลิตซ้ำ 1 กลุ่ม")).toBeInTheDocument();
+    expect(screen.getByText("อนุมัติแล้ว 1 รายการ")).toBeInTheDocument();
+    expect(screen.getAllByText("00022026 · P-2608-0002").length).toBeGreaterThan(0);
+    expect(screen.getByText("00062026 · P-2608-0005")).toBeInTheDocument();
+    expect(screen.getByText("แก้ไข Lot ใหม่")).toBeInTheDocument();
+    expect(screen.getAllByText("Common A").length).toBeGreaterThan(0);
+    expect(screen.getByText("Batch B-001 · ผลิต 01/08/2026")).toBeInTheDocument();
+    expect(within(screen.getByTestId("coa-approved-summary")).getByText("00032026 · P-2608-0003")).toBeInTheDocument();
+    expect(within(screen.getByTestId("coa-daily-request-summary")).getByText("3 คำขอ")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "ดูรายการรออนุมัติ" }));
+    expect(await screen.findByRole("row", { name: /00022026/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "ดูรายการต้องแก้ไข" }));
+    const correctionRow = await screen.findByRole("row", { name: /00062026/ });
+    expect(within(correctionRow).getByText("ต้องแก้ไขข้อมูลใหม่")).toBeInTheDocument();
+    expect(within(correctionRow).getByRole("button", { name: "แก้ไข COA 00062026" })).toBeInTheDocument();
   });
 
   it("defaults to today's COA requests and can switch to all requests", async () => {
     const { container } = renderPage();
 
     expect(await screen.findByText("00012026")).toBeInTheDocument();
-    expect(screen.queryByText("00022026")).not.toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /00022026/ })).not.toBeInTheDocument();
     const tabButtons = Array.from(container.querySelectorAll("button[aria-pressed]:not([aria-label])"));
     expect(tabButtons).toHaveLength(2);
     expect(tabButtons[0]).toHaveClass("bg-sky-100");
@@ -159,7 +207,7 @@ describe("CoaCenterPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /คำขอ COA ทั้งหมด/ }));
 
     expect(await screen.findByRole("button", { name: /แฟ้มปี 2569/ })).toBeInTheDocument();
-    expect(screen.queryByText("00022026")).not.toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /00022026/ })).not.toBeInTheDocument();
     expect(tabButtons[0]).toHaveAttribute("aria-pressed", "false");
     expect(tabButtons[1]).toHaveAttribute("aria-pressed", "true");
   });
@@ -171,7 +219,7 @@ describe("CoaCenterPage", () => {
 
     expect(screen.getByRole("button", { name: /แฟ้มปี 2569/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /แฟ้มปี 2568/ })).not.toBeInTheDocument();
-    expect(screen.queryByText("00022026")).not.toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /00022026/ })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /แฟ้มปี 2569/ }));
 
@@ -184,7 +232,7 @@ describe("CoaCenterPage", () => {
     renderPage();
 
     expect(await screen.findByRole("button", { name: "สถานะ ขอ COA" })).toHaveTextContent("1");
-    expect(screen.getByRole("button", { name: "สถานะ ดำเนินการแล้ว" })).toHaveTextContent("1");
+    expect(screen.getByRole("button", { name: "สถานะ ดำเนินการแล้ว" })).toHaveTextContent("2");
     expect(screen.getByRole("button", { name: "สถานะ รออนุมัติ" })).toHaveTextContent("1");
     expect(screen.getByRole("button", { name: "สถานะ อนุมัติแล้ว" })).toHaveTextContent("1");
 
@@ -203,7 +251,7 @@ describe("CoaCenterPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "สถานะ อนุมัติแล้ว" }));
 
     expect(await screen.findByText("00032026")).toBeInTheDocument();
-    expect(screen.queryByText("00022026")).not.toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /00022026/ })).not.toBeInTheDocument();
   });
 
   it("shows the create COA action in a command column for requested COAs", async () => {
