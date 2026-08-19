@@ -150,6 +150,7 @@ describe("ReceiveCart photos", () => {
       "std1",
       expect.objectContaining({
         type: "primary",
+        unit: "mg",
         purity: "99.5",
         bottles: [
           {

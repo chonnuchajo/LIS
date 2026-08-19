@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { buildStockLabelHtml, buildSolventLabelHtml } from "@/lib/stockLabel";
 import {
   makeEmptyRow, validateRow, buildBottles, findReceiveScanMatch, applyReceiveScanMatch,
-  applyReceiveBarcodeRegistration,
+  applyReceiveBarcodeRegistration, sanitizeDecimalInput, sanitizeIntegerInput,
 } from "@/components/lis/stock/receiveCart.helpers";
 import type { CartRow, CartCategory } from "@/components/lis/stock/receiveCart.helpers";
 import type {
@@ -190,7 +190,7 @@ export default function ReceiveCart() {
               throw new Error("ต้องเลือกประเภท Barcode");
             }
             created = await api.receiveStockUnits(row.itemId, {
-              lotNo: row.lotNo.trim(), purity: row.purity.trim(), sizeMl: Number(row.sizeMl), unit: "ml",
+              lotNo: row.lotNo.trim(), purity: row.purity.trim(), sizeMl: Number(row.sizeMl), unit: "mg",
               type: receiveType, bottles: buildBottles(row),
             });
           } else if (row.category === "solvent") {
@@ -289,7 +289,7 @@ export default function ReceiveCart() {
                     handleScanSubmit();
                   }
                 }}
-                placeholder="สแกน/กรอก Barcode แล้วกด Enter"
+                placeholder="สแกน Barcode หรือค้นหา code/ชื่อ แล้วกด Enter"
                 autoComplete="off"
               />
             </div>
@@ -328,9 +328,17 @@ export default function ReceiveCart() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <div><Label htmlFor={`standard-lot-${row.id}`}>Lot No</Label><Input id={`standard-lot-${row.id}`} value={row.lotNo} onChange={(e) => patchRow(row.id, { lotNo: e.target.value })} placeholder="required" required /></div>
                     <div><Label htmlFor={`standard-purity-${row.id}`}>% Purity</Label><Input id={`standard-purity-${row.id}`} value={row.purity} onChange={(e) => patchRow(row.id, { purity: e.target.value })} placeholder="เช่น 99.5" inputMode="decimal" required /></div>
-                    <div><Label>ขนาด/ขวด (ml)</Label><Input type="number" value={row.sizeMl} onChange={(e) => patchRow(row.id, { sizeMl: e.target.value })} /></div>
-                    <div><Label>จำนวนขวด</Label><Input type="number" min="1" value={row.count}
-                      onChange={(e) => { patchRow(row.id, { count: e.target.value }); ensureBottleFields(row.id, Math.max(1, Number(e.target.value) || 1)); }} /></div>
+                    <div>
+                      <Label>ขนาด/ขวด (mg)</Label>
+                      <Input
+                        value={row.sizeMl}
+                        onChange={(e) => patchRow(row.id, { sizeMl: sanitizeDecimalInput(e.target.value, 4) })}
+                        inputMode="decimal"
+                        placeholder="เช่น 100 หรือ 0.1234"
+                      />
+                    </div>
+                    <div><Label>จำนวนขวด</Label><Input min="1" step="1" inputMode="numeric" value={row.count}
+                      onChange={(e) => { const count = sanitizeIntegerInput(e.target.value); patchRow(row.id, { count }); ensureBottleFields(row.id, Math.max(1, Number(count) || 1)); }} /></div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Checkbox id={`sameExp-${row.id}`} checked={row.sameExp} onCheckedChange={(v) => patchRow(row.id, { sameExp: v === true })} />

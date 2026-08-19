@@ -48,7 +48,7 @@ export function makeEmptyRow(): CartRow {
     itemName: "",
     itemCode: "",
     barcode: "",
-    type: "",
+    type: "primary",
     sizeMl: "100",
     purity: "",
     count: "1",
@@ -66,63 +66,83 @@ export function makeEmptyRow(): CartRow {
   };
 }
 
-
-export function findReceiveScanMatch(scanText: string, options: ReceiveScanOption[]): ReceiveScanOption | null {
-  const raw = scanText.trim();
-  if (!raw) return null;
-  const normalized = raw.toLowerCase();
-  return options.find((option) => {
-    const values = [option.code, option.name, option.label, option.id, ...(option.barcodes ?? [])]
-      .filter(Boolean)
-      .map((value) => String(value).trim().toLowerCase());
-    return values.some((value) => value === normalized);
-  }) ?? null;
+export function sanitizeDecimalInput(value: string, maxDecimals = 4): string {
+  const cleaned = value.replace(/[^\d.]/g, "");
+  const [integerPart, ...decimalParts] = cleaned.split(".");
+  if (decimalParts.length === 0) return integerPart;
+  return `${integerPart}.${decimalParts.join("").slice(0, maxDecimals)}`;
 }
 
+export function sanitizeIntegerInput(value: string): string {
+  return value.replace(/\D/g, "");
+}
 
-export function applyReceiveScanMatch(rows: CartRow[], option: ReceiveScanOption): CartRow[] {
-  const patch = {
+function isPositiveDecimalWithMaxPlaces(value: string, maxDecimals = 4): boolean {
+  const raw = value.trim();
+  if (!new RegExp(`^\\d+(?:\\.\\d{1,${maxDecimals}})?$`).test(raw)) return false;
+  const number = Number(raw);
+  return Number.isFinite(number) && number > 0;
+}
+
+function receiveRowPatch(option: ReceiveScanOption) {
+  return {
     category: option.category,
     itemId: option.id,
     itemName: option.name,
     itemCode: option.code,
     barcode: "",
+    ...(option.category === "standard" ? { type: "primary" as const } : {}),
     ...(option.category === "solvent" ? {
       sizeLiter: option.sizeLiter && option.sizeLiter > 0 ? String(option.sizeLiter) : "",
       price: option.price != null ? String(option.price) : "",
     } : {}),
   };
+}
+
+function addScannedRow(rows: CartRow[], patch: Partial<CartRow>): CartRow[] {
+  const hasExistingItem = rows.some((row) => row.itemId);
   const emptyIndex = rows.findIndex((row) => !row.itemId);
 
-  if (emptyIndex >= 0) {
+  if (!hasExistingItem && emptyIndex >= 0) {
     return rows.map((row, index) => (index === emptyIndex ? { ...row, ...patch } : row));
   }
 
-  return [...rows, { ...makeEmptyRow(), ...patch }];
+  return [{ ...makeEmptyRow(), ...patch }, ...rows];
+}
+
+
+export function findReceiveScanMatch(scanText: string, options: ReceiveScanOption[]): ReceiveScanOption | null {
+  const raw = scanText.trim();
+  if (!raw) return null;
+  const normalized = raw.toLowerCase();
+  const exactMatch = options.find((option) => {
+    const values = [option.code, option.name, option.label, option.id, ...(option.barcodes ?? [])]
+      .filter(Boolean)
+      .map((value) => String(value).trim().toLowerCase());
+    return values.some((value) => value === normalized);
+  });
+  if (exactMatch) return exactMatch;
+  if (/^\d+$/.test(normalized)) return null;
+
+  return options.find((option) => {
+    const values = [option.code, option.name, option.label, ...(option.barcodes ?? [])]
+      .filter(Boolean)
+      .map((value) => String(value).trim().toLowerCase());
+    return values.some((value) => value.includes(normalized));
+  }) ?? null;
+}
+
+
+export function applyReceiveScanMatch(rows: CartRow[], option: ReceiveScanOption): CartRow[] {
+  return addScannedRow(rows, receiveRowPatch(option));
 }
 
 export function applyReceiveBarcodeRegistration(rows: CartRow[], barcode: string, option: ReceiveScanOption): CartRow[] {
   const normalized = barcode.trim();
   if (!normalized) return rows;
 
-  const patch = {
-    barcode: normalized,
-    category: option.category,
-    itemId: option.id,
-    itemName: option.name,
-    itemCode: option.code,
-    ...(option.category === "solvent" ? {
-      sizeLiter: option.sizeLiter && option.sizeLiter > 0 ? String(option.sizeLiter) : "",
-      price: option.price != null ? String(option.price) : "",
-    } : {}),
-  };
-  const emptyIndex = rows.findIndex((row) => !row.itemId);
-
-  if (emptyIndex >= 0) {
-    return rows.map((row, index) => (index === emptyIndex ? { ...row, ...patch } : row));
-  }
-
-  return [...rows, { ...makeEmptyRow(), ...patch }];
+  const patch = { ...receiveRowPatch(option), barcode: normalized };
+  return addScannedRow(rows, patch);
 }
 
 const REQUIRED_LOT_NO_MESSAGE = "กรุณาระบุ Lot No";
@@ -142,7 +162,7 @@ function formatSolventSizeLabel(value: string | undefined): string {
 export function validateRow(row: CartRow): string | null {
   if (!row.category || !row.itemId) return "ยังไม่ได้เลือกของ";
   if (row.category === "standard") {
-    if (!(Number(row.sizeMl) > 0)) return "ขนาด/ขวดไม่ถูกต้อง";
+    if (!isPositiveDecimalWithMaxPlaces(row.sizeMl, 4)) return "ขนาด/ขวดต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง";
     const c = Number(row.count);
     if (!Number.isInteger(c) || c < 1) return "จำนวนขวดต้องเป็นจำนวนเต็มบวก";
     if (row.type !== "primary" && row.type !== "supplier" && row.type !== "working") return "ต้องเลือกประเภท";

@@ -4,10 +4,16 @@
 
 export type StockLevel = "out" | "low" | "ok";
 
-interface BottleLike { status: string; exp?: string | null }
+interface BottleLike { status: string; exp?: string | null; volume?: { remaining?: number | null } | null }
+
+function hasRemainingStock(u: BottleLike): boolean {
+  const remaining = u.volume?.remaining;
+  return remaining == null || Number(remaining) > 0;
+}
 
 export function isUsableBottle(u: BottleLike, now: Date = new Date()): boolean {
   if (u.status !== "active") return false;
+  if (!hasRemainingStock(u)) return false;
   if (u.exp && new Date(u.exp).getTime() < now.getTime()) return false;
   return true;
 }
@@ -43,6 +49,7 @@ export function summarizeStandard(
   let usable = 0, expired = 0, expiringSoon = 0;
   for (const u of units) {
     if (u.status === "discarded" || u.status === "empty") continue;
+    if (!hasRemainingStock(u)) continue;
     const isExpired = !!(u.exp && new Date(u.exp).getTime() < now.getTime());
     if (isExpired) { expired++; continue; }
     usable++;

@@ -253,13 +253,24 @@ export default function LabRequestStep({ items, request, onChange }: Props) {
         </div>
 
         {/* Uncertainty */}
-        <label className="flex items-center gap-2 text-sm cursor-pointer">
-          <Checkbox
-            checked={req.serviceAgreement.requireUncertainty}
-            onCheckedChange={(c) => setSA('requireUncertainty', c === true)}
-          />
-          ต้องการค่า Uncertainty
-        </label>
+        <div className="rounded-[10px] border border-grey-200 p-4 space-y-2">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox
+              checked={req.serviceAgreement.requireUncertainty}
+              onCheckedChange={(c) => setSA('requireUncertainty', c === true)}
+            />
+            ต้องการค่า Uncertainty
+          </label>
+          <div className="max-w-sm">
+            <Label className="text-xs text-grey-500">ค่า Uncertainty</Label>
+            <Input
+              value={req.serviceAgreement.uncertaintyValue ?? ''}
+              onChange={(e) => setSA('uncertaintyValue', e.target.value)}
+              placeholder="ระบุค่า Uncertainty (ถ้ามี)"
+            />
+          </div>
+          <p className="text-xs text-grey-500">ค่านี้ใช้ในใบคำขอ/ข้อมูลระบบ และไม่แสดงบนฉลากตัวอย่าง</p>
+        </div>
       </div>
 
       {/* Customer/report info */}

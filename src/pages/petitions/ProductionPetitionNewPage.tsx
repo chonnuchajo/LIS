@@ -565,6 +565,7 @@ function makeBlankLabRequest(
       testDuration: 'normal',
       testDurationDays: null,
       requireUncertainty: false,
+      uncertaintyValue: '',
     },
     reportCustomerName: ICP_LADDA_COMPANY,
     reportAddressType: 'default',

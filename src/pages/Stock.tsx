@@ -43,6 +43,9 @@ import StandardUnitsPanel from "@/components/lis/stock/StandardUnitsPanel";
 import ReceiveCart from "@/components/lis/stock/ReceiveCart";
 import StockQrScanner from "@/components/lis/StockQrScanner";
 import DiscardDialog from "@/components/lis/stock/DiscardDialog";
+import StockRawLabelPreviewDialog from "@/components/lis/StockRawLabelPreviewDialog";
+import { buildStockLabelHtml } from "@/lib/stockLabel";
+import { visibleBottles } from "@/lib/stockUnit";
 import type {
   StockStandardItem, StockSolventItem, StockGlasswareItem,
   StockTransactionItem, StockUnitItem,
@@ -180,15 +183,17 @@ function StandardsTab() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return data.filter(s => {
+      const sum = summarizeStandard(unitsByCode.get(s.code) ?? [], new Date(now));
+      if (sum.usable + sum.expired + sum.expiringSoon <= 0) return false;
       if (q && !s.name.toLowerCase().includes(q) && !s.code.toLowerCase().includes(q)) return false;
       if (statusFilters.size === 0) return true;
-      const sum = summarizeStandard(unitsByCode.get(s.code) ?? [], new Date(now));
       return standardMatchesStatuses(sum, statusFilters);
     }).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
   }, [data, search, statusFilters, now, unitsByCode]);
 
-  const lowList = data.filter(s => standardLevel(sumOf(s).usable) !== "ok");
-  const expiringList = data.filter(s => { const x = sumOf(s); return x.expired > 0 || x.expiringSoon > 0; });
+  const visibleStandards = data.filter(s => { const x = sumOf(s); return x.usable + x.expired + x.expiringSoon > 0; });
+  const lowList = visibleStandards.filter(s => { const x = sumOf(s); return x.usable > 0 && standardLevel(x.usable) !== "ok"; });
+  const expiringList = visibleStandards.filter(s => { const x = sumOf(s); return x.expired > 0 || x.expiringSoon > 0; });
 
   const statusLabel =
     statusFilters.size === 0 ? "ทุกสถานะ"
@@ -255,7 +260,7 @@ function StandardsTab() {
         <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Package className="w-5 h-5" /> Standards (สาร Standard)
-            <Badge variant="outline">{data.length}</Badge>
+            <Badge variant="outline">{visibleStandards.length}</Badge>
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[180px]">
@@ -380,7 +385,10 @@ function StandardsTab() {
         <StandardDialog
           item={editing}
           onClose={() => { setCreating(false); setEditing(null); }}
-          onSaved={() => { qc.invalidateQueries({ queryKey: ["stock", "standards"] }); }}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: ["stock", "standards"] });
+            qc.invalidateQueries({ queryKey: ["stock", "units"] });
+          }}
         />
       )}
       {drawerItem && (
@@ -510,10 +518,12 @@ function SolventsTab() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
+    const visible = data.filter(s => Number(s.qty) > 0);
+    return q ? visible.filter(s => s.name.toLowerCase().includes(q)) : visible;
   }, [data, search]);
 
-  const lowList = data.filter(s => solventLevel(s.qty) !== "ok");
+  const visibleSolvents = data.filter(s => Number(s.qty) > 0);
+  const lowList = visibleSolvents.filter(s => solventLevel(s.qty) !== "ok");
 
   const deleteItem = async () => {
     if (!deleting) return;
@@ -556,7 +566,7 @@ function SolventsTab() {
         <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Package className="w-5 h-5" /> สารเคมี / Solvents
-            <Badge variant="outline">{data.length}</Badge>
+            <Badge variant="outline">{visibleSolvents.length}</Badge>
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[180px]">
@@ -686,11 +696,13 @@ function GlasswareTab() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
+    const visible = data.filter(s => Number(s.qty) > 0);
+    return q ? visible.filter(s => s.name.toLowerCase().includes(q)) : visible;
   }, [data, search]);
 
   // เครื่องแก้ว: แจ้งเฉพาะตอนหมดจริง (ไม่เตือนตอนใกล้หมด)
-  const outList = data.filter(s => glasswareLevel(s.qty) === "out");
+  const visibleGlassware = data.filter(s => Number(s.qty) > 0);
+  const outList = visibleGlassware.filter(s => glasswareLevel(s.qty) === "out");
 
   const deleteItem = async () => {
     if (!deleting) return;
@@ -727,7 +739,7 @@ function GlasswareTab() {
         <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Package className="w-5 h-5" /> เครื่องแก้ว / Glassware
-            <Badge variant="outline">{data.length}</Badge>
+            <Badge variant="outline">{visibleGlassware.length}</Badge>
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[180px]">
@@ -1440,6 +1452,11 @@ function StandardDialog({
     expiryStatus: "",
   });
   const [busy, setBusy] = useState(false);
+  const [pendingLabels, setPendingLabels] = useState<string[]>([]);
+  const [labelPreviewOpen, setLabelPreviewOpen] = useState(false);
+  const [autoPrintLabels, setAutoPrintLabels] = useState(false);
+  const [labelPrintJobId, setLabelPrintJobId] = useState(0);
+  const [closeAfterLabels, setCloseAfterLabels] = useState(false);
 
   const setField = (path: string, value: unknown) => {
     setForm(prev => {
@@ -1457,6 +1474,12 @@ function StandardDialog({
     setBusy(true);
     try {
       const payload = { ...form };
+      const shouldReprintStockLabels = Boolean(
+        isEdit && item && (
+          String(payload.code || "").trim() !== String(item.code || "").trim()
+          || String(payload.name || "").trim() !== String(item.name || "").trim()
+        ),
+      );
       // strip _id from payload (it's url param for updates)
       const { _id: _stripId, createdAt: _stripCa, updatedAt: _stripUa, ...body } = payload;
       void _stripId; void _stripCa; void _stripUa;
@@ -1466,10 +1489,22 @@ function StandardDialog({
       body.primary.pricePerUnit = Number(body.primary.pricePerUnit) || 0;
       body.supplier.qty = Number(body.supplier.qty) || 0;
       body.working.qty = Number(body.working.qty) || 0;
-      if (isEdit) await api.updateStandard(item!._id, body);
-      else await api.createStandard(body);
+      const saved = isEdit ? await api.updateStandard(item!._id, body) : await api.createStandard(body);
       toast.success(isEdit ? "แก้ไขสำเร็จ" : "เพิ่มรายการสำเร็จ");
       onSaved();
+      if (shouldReprintStockLabels) {
+        const units = visibleBottles(await api.getStockUnits({ itemCode: saved.code }));
+        const labels = await Promise.all(units.map((unit) => buildStockLabelHtml(unit)));
+        if (labels.length > 0) {
+          setPendingLabels(labels);
+          setAutoPrintLabels(true);
+          setLabelPrintJobId((id) => id + 1);
+          setCloseAfterLabels(true);
+          setLabelPreviewOpen(true);
+          toast.success(`กำลังปริ้นฉลาก stock ${labels.length} ใบ`);
+          return;
+        }
+      }
       onClose();
     } catch (err) {
       toast.error((err as Error).message);
@@ -1570,6 +1605,25 @@ function StandardDialog({
           </DialogFooter>
         </form>
       </DialogContent>
+      <StockRawLabelPreviewDialog
+        open={labelPreviewOpen}
+        labels={pendingLabels}
+        autoPrint={autoPrintLabels}
+        autoPrintKey={labelPrintJobId}
+        onOpenChange={(open) => {
+          setLabelPreviewOpen(open);
+          if (!open) {
+            setPendingLabels([]);
+            setAutoPrintLabels(false);
+            if (closeAfterLabels) onClose();
+          }
+        }}
+        onPrinted={() => {
+          setPendingLabels([]);
+          setAutoPrintLabels(false);
+          if (closeAfterLabels) onClose();
+        }}
+      />
     </Dialog>
   );
 }

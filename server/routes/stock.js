@@ -381,6 +381,14 @@ router.patch('/standards/:id', async (req, res) => {
     const before = await StockStandard.findById(req.params.id);
     if (!before) return res.status(404).json({ error: 'Not found' });
     const item = await StockStandard.findByIdAndUpdate(req.params.id, body, { new: true });
+    const codeChanged = String(before.code || '') !== String(item.code || '');
+    const nameChanged = String(before.name || '') !== String(item.name || '');
+    if (codeChanged || nameChanged) {
+      await StockUnit.updateMany(
+        { itemCode: before.code },
+        { $set: { itemCode: item.code, itemName: item.name } },
+      );
+    }
     await logTransaction({
       itemType: 'standard',
       itemId: item._id.toString(),
@@ -523,7 +531,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
     const std = await StockStandard.findById(req.params.id);
     if (!std) return res.status(404).json({ error: 'ไม่พบสาร' });
 
-    const { lotNo = '', purity = '', sizeMl, unit = 'ml', bottles, type, note } = req.body || {};
+    const { lotNo = '', purity = '', sizeMl, unit = 'mg', bottles, type, note } = req.body || {};
     const size = Number(sizeMl);
     if (!Number.isFinite(size) || size <= 0) return res.status(400).json({ error: 'ขนาด/ขวดไม่ถูกต้อง' });
     if (!Array.isArray(bottles) || bottles.length === 0) return res.status(400).json({ error: 'ต้องระบุอย่างน้อย 1 ขวด' });
