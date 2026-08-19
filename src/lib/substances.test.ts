@@ -21,6 +21,12 @@ describe("parseSubstances", () => {
     ]);
   });
 
+  it("does not split plus signs inside parentheses", () => {
+    expect(parseSubstances("FENOBUCARB 50% EC (NRU+SOL)")).toEqual([
+      "FENOBUCARB 50% EC (NRU+SOL)",
+    ]);
+  });
+
   it("filters out empty fragments", () => {
     expect(parseSubstances("ANILOFOS + + BISPYRIBAC-SODIUM")).toEqual([
       "ANILOFOS",

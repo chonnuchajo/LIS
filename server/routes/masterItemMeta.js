@@ -14,6 +14,7 @@ const OVERRIDE_FIELDS = [
   'unit',
   'status',
   'description',
+  'imageUrl',
 ];
 
 const PACK_NUMBER_FIELDS = [
@@ -33,6 +34,10 @@ const PACK_STRING_FIELDS = [
   'measureUnit',
 ];
 
+const ARRAY_FIELDS = [
+  'imageUrls',
+];
+
 function normalizeQty(value) {
   const n = Number(value);
   if (!Number.isFinite(n) || n < 0) return 0;
@@ -43,6 +48,14 @@ function normalizeKg(value) {
   if (value === '' || value === null || value === undefined) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function normalizeStringArray(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item ?? '').trim()).filter(Boolean);
+  }
+  const text = String(value ?? '').trim();
+  return text ? [text] : [];
 }
 
 function toPlain(doc) {
@@ -59,6 +72,11 @@ function toPlain(doc) {
   PACK_STRING_FIELDS.forEach((key) => {
     out[key] = doc[key] || '';
   });
+  ARRAY_FIELDS.forEach((key) => {
+    out[key] = normalizeStringArray(doc[key]);
+  });
+  if (out.imageUrls.length === 0) out.imageUrls = normalizeStringArray(out.imageUrl);
+  out.imageUrl = out.imageUrls[0] || out.imageUrl || '';
   return out;
 }
 
@@ -78,6 +96,12 @@ function buildUpdate(body) {
   PACK_STRING_FIELDS.forEach((key) => {
     if (body && Object.prototype.hasOwnProperty.call(body, key)) update[key] = String(body[key] ?? '').trim();
   });
+  ARRAY_FIELDS.forEach((key) => {
+    if (body && Object.prototype.hasOwnProperty.call(body, key)) update[key] = normalizeStringArray(body[key]);
+  });
+  if (Object.prototype.hasOwnProperty.call(update, 'imageUrls') && !Object.prototype.hasOwnProperty.call(update, 'imageUrl')) {
+    update.imageUrl = update.imageUrls[0] || '';
+  }
   return update;
 }
 

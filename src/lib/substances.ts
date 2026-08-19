@@ -1,9 +1,37 @@
-// Split a commonName into its component substances by "+", merging short
-// fragments (3+ parts) down to at most 2 substances. Used by Petition Assign,
-// Master Items (Simple Method tab), and Standard Config to keep positional
-// instrument arrays aligned across the app.
+function splitTopLevelPlus(value: string): string[] {
+  const parts: string[] = [];
+  let currentPart = "";
+  let parenthesisDepth = 0;
+
+  for (const character of value) {
+    if (character === "(") {
+      parenthesisDepth += 1;
+      currentPart += character;
+      continue;
+    }
+    if (character === ")") {
+      parenthesisDepth = Math.max(0, parenthesisDepth - 1);
+      currentPart += character;
+      continue;
+    }
+    if (character === "+" && parenthesisDepth === 0) {
+      parts.push(currentPart);
+      currentPart = "";
+      continue;
+    }
+    currentPart += character;
+  }
+
+  parts.push(currentPart);
+  return parts;
+}
+
+// Split a commonName into its component substances by top-level "+", merging
+// short fragments (3+ parts) down to at most 2 substances. Used by Petition
+// Assign, Master Items (Simple Method tab), and Standard Config to keep
+// positional instrument arrays aligned across the app.
 export function parseSubstances(commonName: string): string[] {
-  const parts = commonName.split("+").map((s) => s.trim()).filter(Boolean);
+  const parts = splitTopLevelPlus(commonName).map((part) => part.trim()).filter(Boolean);
   if (parts.length === 0) return [commonName.trim()].filter(Boolean);
   if (parts.length <= 2) return parts;
 

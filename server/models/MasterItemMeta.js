@@ -10,6 +10,8 @@ const MasterItemMetaSchema = new mongoose.Schema({
   unit: { type: String, default: '' },
   status: { type: String, default: '' },
   description: { type: String, default: '' },
+  imageUrl: { type: String, default: '' },
+  imageUrls: { type: [String], default: [] },
   requiredInspectionQty: { type: Number, default: 0 },
   kgPerCarton: { type: Number, default: null },
   grossKgPerUnit: { type: Number, default: null },

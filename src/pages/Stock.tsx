@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, AlertTriangle, Clock, Plus, Pencil, ArrowDownToLine, History, Search, ScanLine, Trash2, ChevronDown } from "lucide-react";
+import { Package, AlertTriangle, Calendar as CalendarIcon, Clock, Plus, Pencil, ArrowDownToLine, History, Search, ScanLine, Trash2, ChevronDown, Download } from "lucide-react";
+import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 
 import AppLayout from "@/components/lis/AppLayout";
@@ -18,6 +19,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
@@ -57,6 +60,57 @@ const STANDARD_STATUS_OPTIONS: { value: StandardStatus; label: string }[] = [
 function canDeleteStockItems(user: RoleHolder | null | undefined) {
   const roles = normalizeRoles(user);
   return roles.includes("admin") || !roles.includes("lab-inventory");
+}
+
+type StockExportKind = "standard" | "solvent";
+
+function localDateInputValue(date = new Date()) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
+function dateFromInputValue(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return undefined;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function formatExportDateRangeLabel(startDate: string, endDate: string) {
+  const start = dateFromInputValue(startDate);
+  const end = dateFromInputValue(endDate);
+  const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+  if (start && end) {
+    const sameYear = start.getFullYear() === end.getFullYear();
+    const sameMonth = sameYear && start.getMonth() === end.getMonth();
+    const startLabel = new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: sameYear ? undefined : "numeric",
+    }).format(start);
+    const endLabel = new Intl.DateTimeFormat("en-US", {
+      month: sameMonth ? undefined : "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(end);
+    return `${startLabel} – ${endLabel}`;
+  }
+  if (start) return `${formatter.format(start)} – เลือกวันสิ้นสุด`;
+  return "เลือกช่วงวันที่ export";
+}
+
+function safeDownloadSegment(value: string | undefined) {
+  return (value || "stock").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, "_") || "stock";
+}
+
+function downloadStockExport(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 // ============================================================
@@ -350,18 +404,17 @@ function StandardsTab() {
 }
 
 function SolventDetailDrawer({
-  item, onClose, onReceive, onEdit,
+  item, onClose, onEdit,
 }: {
   item: StockSolventItem;
   onClose: () => void;
-  onReceive: () => void;
   onEdit: () => void;
 }) {
   const fields: [string, string][] = [
-    ["Size (L)", item.sizeLiter != null ? String(item.sizeLiter) : "-"],
-    ["Quantity (bottles)", String(item.qty ?? 0)],
-    ["Price (THB)", item.price != null ? item.price.toLocaleString() : "-"],
-    ["Note", item.note || "-"],
+    ["ขนาดล่าสุด/ขวด (ลิตร)", item.sizeLiter != null ? String(item.sizeLiter) : "-"],
+    ["จำนวนคงเหลือ (ขวด)", String(item.qty ?? 0)],
+    ["ราคาล่าสุด (บาท)", item.price != null ? item.price.toLocaleString() : "-"],
+    ["หมายเหตุ", item.note || "-"],
   ];
 
   return (
@@ -373,9 +426,6 @@ function SolventDetailDrawer({
         </SheetHeader>
         <div className="flex flex-col gap-4 p-5">
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={onReceive}>
-              <ArrowDownToLine className="w-4 h-4 mr-1" /> Receive
-            </Button>
             <Button type="button" size="sm" variant="outline" onClick={onEdit}>
               <Pencil className="w-4 h-4 mr-1" /> Edit
             </Button>
@@ -453,7 +503,6 @@ function SolventsTab() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<StockSolventItem | null>(null);
   const [creating, setCreating] = useState(false);
-  const [moving, setMoving] = useState<{ item: StockSolventItem; mode: "deduct" | "receive" } | null>(null);
   const [deleting, setDeleting] = useState<StockSolventItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -523,9 +572,9 @@ function SolventsTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>รายการ</TableHead>
-                <TableHead className="text-right">ขนาด (ลิตร)</TableHead>
+                <TableHead className="text-right">ขนาดล่าสุด (ลิตร)</TableHead>
                 <TableHead className="text-right">จำนวน (ขวด)</TableHead>
-                <TableHead className="text-right">ราคา (บาท)</TableHead>
+                <TableHead className="text-right">ราคาล่าสุด (บาท)</TableHead>
                 <TableHead>หมายเหตุ</TableHead>
                 <TableHead className="w-40 text-right">Actions</TableHead>
               </TableRow>
@@ -558,7 +607,6 @@ function SolventsTab() {
                       onClick={e => e.stopPropagation()}
                       onDoubleClick={e => e.stopPropagation()}
                     >
-                      <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
                       {canDelete && (
                         <Button size="icon" variant="ghost" title={`ลบสารเคมี ${item.name}`} aria-label={`ลบสารเคมี ${item.name}`} onClick={() => setDeleting(item)}>
@@ -579,7 +627,6 @@ function SolventsTab() {
         <SolventDetailDrawer
           item={detailItem}
           onClose={() => setDetailId(null)}
-          onReceive={() => setMoving({ item: detailItem, mode: "receive" })}
           onEdit={() => setEditing(detailItem)}
         />
       )}
@@ -590,32 +637,15 @@ function SolventsTab() {
           fields={[
             { key: "name", label: "ชื่อรายการ", type: "text", required: true },
             { key: "sizeLiter", label: "ขนาด (ลิตร)", type: "number" },
-            { key: "qty", label: "จำนวนคงเหลือ (ขวด)", type: "number" },
             { key: "price", label: "ราคา (บาท)", type: "number" },
             { key: "note", label: "หมายเหตุ", type: "text" },
           ]}
           onClose={() => { setCreating(false); setEditing(null); }}
           onSubmit={async (payload) => {
-            if (editing) await api.updateSolvent(editing._id, payload);
-            else await api.createSolvent(payload);
-            qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
-            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
-          }}
-        />
-      )}
-      {moving && (
-        <SimpleMoveDialog
-          title={moving.mode === "deduct" ? "ตัด stock สารเคมี" : "รับเข้าสารเคมี"}
-          mode={moving.mode}
-          itemName={moving.item.name}
-          currentQty={moving.item.qty}
-          unit="ขวด"
-          requireLotExp={moving.mode === "receive"}
-          onClose={() => setMoving(null)}
-          onSubmit={async (qty, note, receiveMeta) => {
-            const _user = requisitionUser(user);
-            if (moving.mode === "deduct") await api.deductSolvent(moving.item._id, { qty, note, _user });
-            else await api.receiveSolvent(moving.item._id, { qty, note, lotNo: receiveMeta?.lotNo ?? "", exp: receiveMeta?.exp ?? "", _user });
+            const { qty: _ignoredQty, ...safePayload } = payload;
+            void _ignoredQty;
+            if (editing) await api.updateSolvent(editing._id, safePayload);
+            else await api.createSolvent({ ...safePayload, qty: 0 });
             qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
             qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
           }}
@@ -831,86 +861,290 @@ function GlasswareTab() {
 function HistoryTab() {
   const [type, setType] = useState<string>("");
   const [action, setAction] = useState<string>("");
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportKind, setExportKind] = useState<StockExportKind>("standard");
+  const [exportStandardId, setExportStandardId] = useState("");
+  const [exportStandardStartDate, setExportStandardStartDate] = useState("");
+  const [exportStandardEndDate, setExportStandardEndDate] = useState("");
+  const [exportSolventId, setExportSolventId] = useState("");
+  const [exportDate, setExportDate] = useState(() => localDateInputValue());
+  const [exporting, setExporting] = useState(false);
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "transactions", type, action],
     queryFn: () => api.getStockTransactions({ itemType: type || undefined, action: action || undefined, limit: 300 }),
   });
+  const { data: standards = [] } = useQuery({
+    queryKey: ["stock", "standards"],
+    queryFn: api.getStandards,
+  });
+  const { data: solvents = [] } = useQuery({
+    queryKey: ["stock", "solvents"],
+    queryFn: api.getSolvents,
+  });
+
+  const selectedStandard = standards.find((item) => item._id === exportStandardId);
+  const selectedSolvent = solvents.find((item) => item._id === exportSolventId);
+  const selectedStandardDateRange: DateRange | undefined = exportStandardStartDate || exportStandardEndDate
+    ? {
+      from: dateFromInputValue(exportStandardStartDate),
+      to: dateFromInputValue(exportStandardEndDate),
+    }
+    : undefined;
+
+  const handleStandardDateRangeSelect = (range: DateRange | undefined) => {
+    setExportStandardStartDate(range?.from ? localDateInputValue(range.from) : "");
+    setExportStandardEndDate(range?.to ? localDateInputValue(range.to) : "");
+  };
+
+  const handleOpenExport = () => {
+    setExportOpen(true);
+  };
+
+  const handleExport = async () => {
+    if (exportKind === "standard" && !exportStandardId) {
+      toast.error("กรุณาเลือก standard");
+      return;
+    }
+    if (exportKind === "standard" && !exportStandardStartDate) {
+      toast.error("กรุณาเลือกวันที่เริ่มต้น");
+      return;
+    }
+    if (exportKind === "standard" && !exportStandardEndDate) {
+      toast.error("กรุณาเลือกวันที่สิ้นสุด");
+      return;
+    }
+    if (exportKind === "standard" && exportStandardStartDate > exportStandardEndDate) {
+      toast.error("วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด");
+      return;
+    }
+    if (exportKind === "solvent" && !exportSolventId) {
+      toast.error("กรุณาเลือกสารเคมี");
+      return;
+    }
+    if (exportKind === "solvent" && !exportDate) {
+      toast.error("กรุณาเลือกวันที่");
+      return;
+    }
+
+    setExporting(true);
+    try {
+      if (exportKind === "standard") {
+        const blob = await api.exportStockStandardHistory({
+          itemId: exportStandardId,
+          startDate: exportStandardStartDate,
+          endDate: exportStandardEndDate,
+        });
+        const baseName = safeDownloadSegment(selectedStandard?.code || selectedStandard?.name || "standard");
+        downloadStockExport(blob, `${baseName}-standard-history-${exportStandardStartDate}_to_${exportStandardEndDate}.xlsx`);
+      } else {
+        const blob = await api.exportStockSolventHistory({ solventId: exportSolventId, date: exportDate });
+        const baseName = safeDownloadSegment(selectedSolvent?.name || "solvent");
+        downloadStockExport(blob, `${baseName}-requisition-${exportDate}.doc`);
+      }
+      toast.success("Export stock สำเร็จ");
+      setExportOpen(false);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
-    <Card>
-      <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <History className="w-5 h-5" /> ประวัติการใช้ / รับเข้า
-          <Badge variant="outline">{data.length}</Badge>
-        </CardTitle>
-        <div className="flex flex-wrap gap-2">
-          <Select value={type || "all"} onValueChange={v => setType(v === "all" ? "" : v)}>
-            <SelectTrigger className="h-9 w-full sm:w-40"><SelectValue placeholder="ทุกหมวด" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">ทุกหมวด</SelectItem>
-              <SelectItem value="standard">Standards</SelectItem>
-              <SelectItem value="solvent">สารเคมี</SelectItem>
-              <SelectItem value="glassware">เครื่องแก้ว</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={action || "all"} onValueChange={v => setAction(v === "all" ? "" : v)}>
-            <SelectTrigger className="h-9 w-full sm:w-40"><SelectValue placeholder="ทุก action" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">ทุก action</SelectItem>
-              <SelectItem value="deduct">ตัด stock</SelectItem>
-              <SelectItem value="receive">รับเข้า</SelectItem>
-              <SelectItem value="create">สร้างใหม่</SelectItem>
-              <SelectItem value="update">แก้ไข</SelectItem>
-              <SelectItem value="delete">ลบ</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-        <Table className="min-w-[900px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead>เวลา</TableHead>
-              <TableHead>หมวด</TableHead>
-              <TableHead>รายการ</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead className="text-right">Δ qty</TableHead>
-              <TableHead>คงเหลือ</TableHead>
-              <TableHead>โดย</TableHead>
-              <TableHead>หมายเหตุ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
-            ) : data.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">ไม่มีประวัติ</TableCell></TableRow>
-            ) : data.map(t => (
-              <TableRow key={t._id}>
-                <TableCell className="text-xs whitespace-nowrap">{new Date(t.createdAt).toLocaleString("th-TH")}</TableCell>
-                <TableCell><Badge variant="outline">{t.itemType}</Badge></TableCell>
-                <TableCell>
-                  <div className="font-medium">{t.itemName || t.itemId}</div>
-                  {t.itemCode && <div className="text-xs text-muted-foreground">{t.itemCode}</div>}
-                  {t.tier && <Badge className="text-xs mt-1" variant="outline">{t.tier}</Badge>}
-                </TableCell>
-                <TableCell><ActionBadge action={t.action} /></TableCell>
-                <TableCell className={`text-right font-mono ${t.delta != null && t.delta < 0 ? "text-destructive" : t.delta != null && t.delta > 0 ? "text-emerald-600" : ""}`}>
-                  {t.delta != null ? (t.delta > 0 ? `+${t.delta}` : t.delta) : "-"}
-                </TableCell>
-                <TableCell className="text-sm">
-                  {t.beforeQty ?? "-"} → <strong>{t.afterQty ?? "-"}</strong> {t.unit || ""}
-                </TableCell>
-                <TableCell className="text-xs">{t.userName || t.userEmail || "-"}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{t.note || ""}</TableCell>
+    <>
+      <Card>
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <History className="w-5 h-5" /> ประวัติการใช้ / รับเข้า
+            <Badge variant="outline">{data.length}</Badge>
+          </CardTitle>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" className="h-9 gap-1.5" onClick={handleOpenExport}>
+              <Download className="h-4 w-4" /> Export stock
+            </Button>
+            <Select value={type || "all"} onValueChange={v => setType(v === "all" ? "" : v)}>
+              <SelectTrigger className="h-9 w-full sm:w-40"><SelectValue placeholder="ทุกหมวด" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทุกหมวด</SelectItem>
+                <SelectItem value="standard">Standards</SelectItem>
+                <SelectItem value="solvent">สารเคมี</SelectItem>
+                <SelectItem value="glassware">เครื่องแก้ว</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={action || "all"} onValueChange={v => setAction(v === "all" ? "" : v)}>
+              <SelectTrigger className="h-9 w-full sm:w-40"><SelectValue placeholder="ทุก action" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทุก action</SelectItem>
+                <SelectItem value="deduct">ตัด stock</SelectItem>
+                <SelectItem value="receive">รับเข้า</SelectItem>
+                <SelectItem value="create">สร้างใหม่</SelectItem>
+                <SelectItem value="update">แก้ไข</SelectItem>
+                <SelectItem value="delete">ลบ</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>เวลา</TableHead>
+                <TableHead>หมวด</TableHead>
+                <TableHead>รายการ</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead className="text-right">Δ qty</TableHead>
+                <TableHead>คงเหลือ</TableHead>
+                <TableHead>โดย</TableHead>
+                <TableHead>หมายเหตุ</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        </div>
-      </CardContent>
-    </Card>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={8} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
+              ) : data.length === 0 ? (
+                <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">ไม่มีประวัติ</TableCell></TableRow>
+              ) : data.map(t => (
+                <TableRow key={t._id}>
+                  <TableCell className="text-xs whitespace-nowrap">{new Date(t.createdAt).toLocaleString("th-TH")}</TableCell>
+                  <TableCell><Badge variant="outline">{t.itemType}</Badge></TableCell>
+                  <TableCell>
+                    <div className="font-medium">{t.itemName || t.itemId}</div>
+                    {t.itemCode && <div className="text-xs text-muted-foreground">{t.itemCode}</div>}
+                    {t.tier && <Badge className="text-xs mt-1" variant="outline">{t.tier}</Badge>}
+                  </TableCell>
+                  <TableCell><ActionBadge action={t.action} /></TableCell>
+                  <TableCell className={`text-right font-mono ${t.delta != null && t.delta < 0 ? "text-destructive" : t.delta != null && t.delta > 0 ? "text-emerald-600" : ""}`}>
+                    {t.delta != null ? (t.delta > 0 ? `+${t.delta}` : t.delta) : "-"}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {t.beforeQty ?? "-"} → <strong>{t.afterQty ?? "-"}</strong> {t.unit || ""}
+                  </TableCell>
+                  <TableCell className="text-xs">{t.userName || t.userEmail || "-"}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{t.note || ""}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Export stock</DialogTitle>
+            <DialogDescription>
+              เลือกชนิดเอกสารและรายการที่ต้องการ export จากประวัติ stock
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>ประเภท export</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={exportKind === "standard" ? "default" : "outline"}
+                  onClick={() => setExportKind("standard")}
+                >
+                  Standard
+                </Button>
+                <Button
+                  type="button"
+                  variant={exportKind === "solvent" ? "default" : "outline"}
+                  onClick={() => setExportKind("solvent")}
+                >
+                  สารเคมี
+                </Button>
+              </div>
+            </div>
+
+            {exportKind === "standard" ? (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="stock-export-standard">เลือก standard</Label>
+                  <select
+                    id="stock-export-standard"
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={exportStandardId}
+                    onChange={(event) => setExportStandardId(event.target.value)}
+                  >
+                    <option value="">เลือก standard</option>
+                    {standards.map((item) => (
+                      <option key={item._id} value={item._id}>{item.code ? `${item.code} ${item.name}` : item.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>ช่วงวันที่</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        aria-label="เลือกช่วงวันที่ export"
+                        className="h-11 w-full justify-start gap-2 rounded-xl border-primary/40 bg-background text-left font-semibold shadow-sm hover:bg-accent"
+                      >
+                        <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                        <span>{formatExportDateRangeLabel(exportStandardStartDate, exportStandardEndDate)}</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto rounded-2xl p-0" align="start">
+                      <Calendar
+                        mode="range"
+                        selected={selectedStandardDateRange}
+                        onSelect={handleStandardDateRangeSelect}
+                        defaultMonth={selectedStandardDateRange?.from ?? new Date()}
+                        numberOfMonths={1}
+                        initialFocus
+                        className="rounded-2xl border bg-background p-3 shadow-lg"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  ระบบจะ export เฉพาะประวัติในช่วงวันที่ที่เลือก โดยแยก Lot No. เป็นคนละ sheet ในไฟล์เดียว
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="stock-export-solvent">เลือกสารเคมี</Label>
+                  <select
+                    id="stock-export-solvent"
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={exportSolventId}
+                    onChange={(event) => setExportSolventId(event.target.value)}
+                  >
+                    <option value="">เลือกสารเคมี</option>
+                    {solvents.map((item) => (
+                      <option key={item._id} value={item._id}>{item.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="stock-export-date">วันที่</Label>
+                  <Input
+                    id="stock-export-date"
+                    type="date"
+                    value={exportDate}
+                    onChange={(event) => setExportDate(event.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setExportOpen(false)} disabled={exporting}>
+              ยกเลิก
+            </Button>
+            <Button type="button" onClick={handleExport} disabled={exporting}>
+              {exporting ? "กำลัง Export..." : "Export"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -1025,8 +1259,11 @@ function SimpleItemDialog<T extends { _id?: string }>({
   );
 }
 
+type SimpleMoveReceiveMeta = { lotNo: string; exp: string; sizeLiter?: number; price?: number };
+
 function SimpleMoveDialog({
-  title, mode, itemName, currentQty, unit, requireLotExp = false, onClose, onSubmit,
+  title, mode, itemName, currentQty, unit, requireLotExp = false, requireSolventReceiveDetails = false,
+  initialSizeLiter = 0, initialPrice = 0, onClose, onSubmit,
 }: {
   title: string;
   mode: "deduct" | "receive";
@@ -1034,12 +1271,17 @@ function SimpleMoveDialog({
   currentQty: number;
   unit: string;
   requireLotExp?: boolean;
+  requireSolventReceiveDetails?: boolean;
+  initialSizeLiter?: number;
+  initialPrice?: number;
   onClose: () => void;
-  onSubmit: (qty: number, note?: string, receiveMeta?: { lotNo: string; exp: string }) => Promise<void>;
+  onSubmit: (qty: number, note?: string, receiveMeta?: SimpleMoveReceiveMeta) => Promise<void>;
 }) {
   const [qty, setQty] = useState<string>("1");
   const [lotNo, setLotNo] = useState("");
   const [exp, setExp] = useState("");
+  const [sizeLiter, setSizeLiter] = useState(initialSizeLiter > 0 ? String(initialSizeLiter) : "");
+  const [price, setPrice] = useState(initialPrice > 0 ? String(initialPrice) : "");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -1052,9 +1294,23 @@ function SimpleMoveDialog({
       if (!lotNo.trim()) { toast.error("กรุณาระบุ Lot No"); return; }
       if (!exp) { toast.error("กรุณาระบุ EXP"); return; }
     }
+    if (mode === "receive" && requireSolventReceiveDetails) {
+      if (!sizeLiter.trim()) { toast.error("กรุณาระบุขนาด/ขวด"); return; }
+      if (!(Number(sizeLiter) > 0)) { toast.error("ขนาด/ขวดไม่ถูกต้อง"); return; }
+      if (!price.trim()) { toast.error("กรุณาระบุราคา"); return; }
+      const priceValue = Number(price);
+      if (!Number.isFinite(priceValue) || priceValue < 0) { toast.error("ราคาไม่ถูกต้อง"); return; }
+    }
+    const receiveMeta: SimpleMoveReceiveMeta | undefined = requireLotExp
+      ? {
+        lotNo: lotNo.trim(),
+        exp,
+        ...(requireSolventReceiveDetails ? { sizeLiter: Number(sizeLiter), price: Number(price) } : {}),
+      }
+      : undefined;
     setBusy(true);
     try {
-      await onSubmit(n, note || undefined, requireLotExp ? { lotNo: lotNo.trim(), exp } : undefined);
+      await onSubmit(n, note || undefined, receiveMeta);
       toast.success(mode === "deduct" ? "ตัด stock สำเร็จ" : "รับเข้าสำเร็จ");
       onClose();
     } catch (err) {
@@ -1086,6 +1342,18 @@ function SimpleMoveDialog({
                 <div>
                   <Label>EXP</Label>
                   <Input type="date" value={exp} onChange={e => setExp(e.target.value)} required />
+                </div>
+              </div>
+            )}
+            {mode === "receive" && requireSolventReceiveDetails && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="move-solvent-size">ขนาด/ขวด (ลิตร)</Label>
+                  <Input id="move-solvent-size" type="number" min="0.001" step="any" value={sizeLiter} onChange={e => setSizeLiter(e.target.value)} required />
+                </div>
+                <div>
+                  <Label htmlFor="move-solvent-price">ราคา (บาท)</Label>
+                  <Input id="move-solvent-price" type="number" min="0" step="any" value={price} onChange={e => setPrice(e.target.value)} required />
                 </div>
               </div>
             )}

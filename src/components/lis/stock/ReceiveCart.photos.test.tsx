@@ -14,6 +14,7 @@ const apiMock = vi.hoisted(() => ({
   receiveGlassware: vi.fn(),
 }));
 const stockRawLabelPreviewDialogMock = vi.hoisted(() => vi.fn(() => null));
+const buildSolventLabelHtmlMock = vi.hoisted(() => vi.fn(async () => "<solvent-label />"));
 const stockQrScannerMock = vi.hoisted(() => vi.fn(({
   open,
   scanMode,
@@ -32,7 +33,7 @@ const stockQrScannerMock = vi.hoisted(() => vi.fn(({
 vi.mock("@/lib/api", () => ({ api: apiMock }));
 vi.mock("@/lib/stockLabel", () => ({
   buildStockLabelHtml: vi.fn(async () => "<label />"),
-  buildSolventLabelHtml: vi.fn(async () => "<label />"),
+  buildSolventLabelHtml: buildSolventLabelHtmlMock,
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/components/lis/StockRawLabelPreviewDialog", () => ({ default: stockRawLabelPreviewDialogMock }));
@@ -72,6 +73,7 @@ describe("ReceiveCart photos", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMock.registerStockBarcode.mockResolvedValue({ barcode: "654694", category: "standard", itemId: "std1" });
+    buildSolventLabelHtmlMock.mockClear();
   });
 
   it("opens a registration popup for a newly scanned receive barcode", async () => {
@@ -118,6 +120,7 @@ describe("ReceiveCart photos", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "primary" }));
     fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "LOT-1" } });
+    fireEvent.change(screen.getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
     fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
     fireEvent.click(screen.getByRole("button", { name: /\(1/ }));
 
@@ -136,6 +139,7 @@ describe("ReceiveCart photos", () => {
 
     await scanReceiveBarcode("STD-001");
     fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "LOT-1" } });
+    fireEvent.change(screen.getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
     fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
     fireEvent.click(screen.getByRole("button", { name: "primary" }));
     fireEvent.click(await screen.findByTestId("photo-upload"));
@@ -146,6 +150,7 @@ describe("ReceiveCart photos", () => {
       "std1",
       expect.objectContaining({
         type: "primary",
+        purity: "99.5",
         bottles: [
           {
             exp: "2027-12-31",
@@ -156,6 +161,46 @@ describe("ReceiveCart photos", () => {
     );
   });
 
+  it("builds one chemical bottle label per received solvent bottle", async () => {
+    apiMock.getStandards.mockResolvedValue([]);
+    apiMock.getSolvents.mockResolvedValue([
+      { _id: "sol1", name: "Methanol", barcodes: [], sizeLiter: 2.5, qty: 0, price: 0, note: "" },
+    ]);
+    apiMock.getGlassware.mockResolvedValue([]);
+    apiMock.receiveSolvent.mockResolvedValue({ _id: "sol1", name: "Methanol", qty: 2 });
+
+    renderCart();
+
+    await scanReceiveBarcode("Methanol");
+    fireEvent.change(screen.getByLabelText("จำนวน (ขวด)"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("ขนาด/ขวด (ลิตร)"), { target: { value: "2.5" } });
+    fireEvent.change(screen.getByLabelText("ราคา (บาท)"), { target: { value: "1200" } });
+    fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "B-001" } });
+    fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-01-01" } });
+    fireEvent.click(screen.getByRole("button", { name: /\(1/ }));
+
+    await waitFor(() => expect(apiMock.receiveSolvent).toHaveBeenCalledWith(
+      "sol1",
+      expect.objectContaining({
+        qty: 2,
+        lotNo: "B-001",
+        exp: "2027-01-01",
+        sizeLiter: 2.5,
+        price: 1200,
+      }),
+    ));
+    await waitFor(() => expect(buildSolventLabelHtmlMock).toHaveBeenCalledTimes(2));
+    expect(buildSolventLabelHtmlMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      name: "Methanol",
+      lotNo: "B-001",
+      exp: "2027-01-01",
+      bottleNo: 1,
+      receivedDate: expect.any(String),
+    }));
+    expect(buildSolventLabelHtmlMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      bottleNo: 2,
+    }));
+  });
   it("auto-prints labels after receiving from the cart", async () => {
     mockStockLists();
     apiMock.receiveStockUnits.mockResolvedValue([
@@ -166,6 +211,7 @@ describe("ReceiveCart photos", () => {
 
     await scanReceiveBarcode("STD-001");
     fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "LOT-1" } });
+    fireEvent.change(screen.getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
     fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
     fireEvent.click(screen.getByRole("button", { name: "primary" }));
     fireEvent.click(screen.getByRole("button", { name: /\(1/ }));

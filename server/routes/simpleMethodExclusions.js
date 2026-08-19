@@ -3,7 +3,7 @@ const SimpleMethodExclusion = require('../models/SimpleMethodExclusion');
 
 const router = express.Router();
 
-const ALLOWED_MATCH = new Set(['contains', 'startsWith', 'endsWith']);
+const ALLOWED_MATCH = new Set(['contains', 'startsWith', 'endsWith', 'exact']);
 
 router.get('/', async (_req, res) => {
   try {
@@ -30,6 +30,25 @@ router.post('/', async (req, res) => {
       { $setOnInsert: { pattern, matchType } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     ).lean();
+    res.json({ _id: String(doc._id), pattern: doc.pattern, matchType: doc.matchType });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.put('/:id', async (req, res) => {
+  try {
+    const pattern = String(req.body && req.body.pattern || '').trim();
+    const matchType = String(req.body && req.body.matchType || 'contains');
+    if (!pattern) return res.status(400).json({ message: 'pattern required' });
+    if (!ALLOWED_MATCH.has(matchType)) return res.status(400).json({ message: 'invalid matchType' });
+
+    const doc = await SimpleMethodExclusion.findOneAndUpdate(
+      { _id: req.params.id },
+      { $set: { pattern, matchType } },
+      { new: true, runValidators: true },
+    ).lean();
+    if (!doc) return res.status(404).json({ message: 'not found' });
     res.json({ _id: String(doc._id), pattern: doc.pattern, matchType: doc.matchType });
   } catch (err) {
     res.status(500).json({ message: err.message });

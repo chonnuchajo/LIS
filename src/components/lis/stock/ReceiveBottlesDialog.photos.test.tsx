@@ -45,6 +45,7 @@ describe("ReceiveBottlesDialog photos", () => {
     );
 
     fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "LOT-1" } });
+    fireEvent.change(screen.getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
     fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
     fireEvent.click(document.querySelector('button[type="submit"]') as HTMLButtonElement);
 
@@ -75,6 +76,7 @@ describe("ReceiveBottlesDialog photos", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "primary" }));
     fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "LOT-1" } });
+    fireEvent.change(screen.getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
     fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
     fireEvent.click(screen.getByRole("button", { name: "รูปขวดที่ 1 (ไม่บังคับ)" }));
     fireEvent.click(screen.getByRole("button", { name: "รับเข้า" }));
@@ -84,6 +86,7 @@ describe("ReceiveBottlesDialog photos", () => {
       "std1",
       expect.objectContaining({
         type: "primary",
+        purity: "99.5",
         bottles: [
           {
             exp: "2027-12-31",

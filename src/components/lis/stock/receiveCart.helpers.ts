@@ -7,6 +7,8 @@ export interface ReceiveScanOption {
   name: string;
   label: string;
   barcodes?: string[];
+  sizeLiter?: number;
+  price?: number;
 }
 
 export interface CartRow {
@@ -19,6 +21,7 @@ export interface CartRow {
   // standard
   type: "primary" | "supplier" | "working" | "";
   sizeMl: string;
+  purity: string;
   count: string;
   sameExp: boolean;
   commonExp: string;
@@ -27,7 +30,8 @@ export interface CartRow {
   // solvent
   photoUrls: string[];
   qty: string;
-  sizeLabel: string;
+  sizeLiter: string;
+  price: string;
   exp: string;
   // shared
   lotNo: string;
@@ -46,6 +50,7 @@ export function makeEmptyRow(): CartRow {
     barcode: "",
     type: "",
     sizeMl: "100",
+    purity: "",
     count: "1",
     sameExp: true,
     commonExp: "",
@@ -53,7 +58,8 @@ export function makeEmptyRow(): CartRow {
     perPhotoUrls: [[]],
     photoUrls: [],
     qty: "1",
-    sizeLabel: "",
+    sizeLiter: "",
+    price: "",
     exp: "",
     lotNo: "",
     note: "",
@@ -81,6 +87,10 @@ export function applyReceiveScanMatch(rows: CartRow[], option: ReceiveScanOption
     itemName: option.name,
     itemCode: option.code,
     barcode: "",
+    ...(option.category === "solvent" ? {
+      sizeLiter: option.sizeLiter && option.sizeLiter > 0 ? String(option.sizeLiter) : "",
+      price: option.price != null ? String(option.price) : "",
+    } : {}),
   };
   const emptyIndex = rows.findIndex((row) => !row.itemId);
 
@@ -101,6 +111,10 @@ export function applyReceiveBarcodeRegistration(rows: CartRow[], barcode: string
     itemId: option.id,
     itemName: option.name,
     itemCode: option.code,
+    ...(option.category === "solvent" ? {
+      sizeLiter: option.sizeLiter && option.sizeLiter > 0 ? String(option.sizeLiter) : "",
+      price: option.price != null ? String(option.price) : "",
+    } : {}),
   };
   const emptyIndex = rows.findIndex((row) => !row.itemId);
 
@@ -118,6 +132,12 @@ function hasText(value: string | undefined): boolean {
   return Boolean(value && value.trim());
 }
 
+function formatSolventSizeLabel(value: string | undefined): string {
+  const raw = value?.trim() ?? "";
+  if (!raw) return "";
+  return /\bL\b/i.test(raw) ? raw : `${raw} L`;
+}
+
 /** คืน error string ถ้าไม่ผ่าน, null ถ้าผ่าน */
 export function validateRow(row: CartRow): string | null {
   if (!row.category || !row.itemId) return "ยังไม่ได้เลือกของ";
@@ -127,6 +147,7 @@ export function validateRow(row: CartRow): string | null {
     if (!Number.isInteger(c) || c < 1) return "จำนวนขวดต้องเป็นจำนวนเต็มบวก";
     if (row.type !== "primary" && row.type !== "supplier" && row.type !== "working") return "ต้องเลือกประเภท";
     if (!hasText(row.lotNo)) return REQUIRED_LOT_NO_MESSAGE;
+    if (!hasText(row.purity)) return "กรุณาระบุ % Purity";
     if (row.sameExp) {
       if (!hasText(row.commonExp)) return REQUIRED_EXP_MESSAGE;
     } else {
@@ -140,6 +161,11 @@ export function validateRow(row: CartRow): string | null {
   if (row.category === "solvent") {
     if (!hasText(row.lotNo)) return REQUIRED_LOT_NO_MESSAGE;
     if (!hasText(row.exp)) return REQUIRED_EXP_MESSAGE;
+    if (!hasText(row.sizeLiter)) return "กรุณาระบุขนาด/ขวด";
+    if (!(Number(row.sizeLiter) > 0)) return "ขนาด/ขวดไม่ถูกต้อง";
+    if (!hasText(row.price)) return "กรุณาระบุราคา";
+    const price = Number(row.price);
+    if (!Number.isFinite(price) || price < 0) return "ราคาไม่ถูกต้อง";
   }
   return null;
 }
@@ -159,7 +185,8 @@ export function composeSolventNote(row: CartRow): string {
   const parts: string[] = [];
   if (row.lotNo) parts.push(`lot ${row.lotNo}`);
   if (row.exp) parts.push(`exp ${row.exp}`);
-  if (row.sizeLabel) parts.push(`ขนาด ${row.sizeLabel}`);
+  if (row.sizeLiter) parts.push(`ขนาด ${formatSolventSizeLabel(row.sizeLiter)}`);
+  if (row.price) parts.push(`ราคา ${row.price.trim()} บาท`);
   if (row.note) parts.push(row.note);
   return parts.join(" · ");
 }
