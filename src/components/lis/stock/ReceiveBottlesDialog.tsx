@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
 import StockPhotoUploader from "@/components/lis/stock/StockPhotoUploader";
+import { sanitizeDecimalInput, sanitizeIntegerInput } from "@/components/lis/stock/receiveCart.helpers";
 import type { StockStandardItem, StockUnitItem } from "@/types/stock";
 
 interface Props {
@@ -22,7 +23,7 @@ interface Props {
 export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPreviewLabels }: Props) {
   const [lotNo, setLotNo] = useState("");
   const [purity, setPurity] = useState("");
-  const [type, setType] = useState<"primary" | "supplier" | "working" | "">("");
+  const [type, setType] = useState<"primary" | "supplier" | "working" | "">("primary");
   const [sizeMl, setSizeMl] = useState("100");
   const [count, setCount] = useState("1");
   const [sameExp, setSameExp] = useState(true);
@@ -72,7 +73,9 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const size = Number(sizeMl);
-    if (!Number.isFinite(size) || size <= 0) { toast.error("กรุณาระบุขนาด/ขวด"); return; }
+    if (!/^\d+(?:\.\d{1,4})?$/.test(sizeMl.trim()) || !Number.isFinite(size) || size <= 0) {
+      toast.error("ขนาด/ขวดต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง"); return;
+    }
     const cnt = Number(count);
     if (!Number.isInteger(cnt) || cnt < 1) { toast.error("จำนวนขวดต้องเป็นจำนวนเต็มบวก"); return; }
     if (!lotNo.trim()) { toast.error("กรุณาระบุ Lot No"); return; }
@@ -93,7 +96,7 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
     setBusy(true);
     try {
       const created = await api.receiveStockUnits(standard._id, {
-        lotNo: lotNo.trim(), purity: purity.trim(), sizeMl: size, unit: "ml", type, bottles,
+        lotNo: lotNo.trim(), purity: purity.trim(), sizeMl: size, unit: "mg", type, bottles,
       });
       toast.success(`รับเข้า ${created.length} ขวดแล้ว`);
       onSaved();
@@ -130,12 +133,12 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div><Label htmlFor="receive-standard-lot">Lot No</Label><Input id="receive-standard-lot" value={lotNo} onChange={(e) => setLotNo(e.target.value)} placeholder="required" required /></div>
               <div><Label htmlFor="receive-standard-purity">% Purity</Label><Input id="receive-standard-purity" value={purity} onChange={(e) => setPurity(e.target.value)} placeholder="เช่น 99.5" inputMode="decimal" required /></div>
-              <div><Label>ขนาด/ขวด (ml)</Label><Input type="number" value={sizeMl} onChange={(e) => setSizeMl(e.target.value)} /></div>
+              <div><Label>ขนาด/ขวด (mg)</Label><Input value={sizeMl} onChange={(e) => setSizeMl(sanitizeDecimalInput(e.target.value, 4))} inputMode="decimal" placeholder="เช่น 100 หรือ 0.1234" /></div>
             </div>
             <div>
               <Label>จำนวนขวด</Label>
-              <Input type="number" min="1" value={count}
-                onChange={(e) => { setCount(e.target.value); ensureBottleFields(Math.max(1, Number(e.target.value) || 1)); }} />
+              <Input min="1" step="1" inputMode="numeric" value={count}
+                onChange={(e) => { const next = sanitizeIntegerInput(e.target.value); setCount(next); ensureBottleFields(Math.max(1, Number(next) || 1)); }} />
             </div>
             <div className="flex items-center gap-2">
               <Checkbox id="sameExp" checked={sameExp} onCheckedChange={(v) => setSameExp(v === true)} />

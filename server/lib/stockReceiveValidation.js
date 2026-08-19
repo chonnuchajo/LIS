@@ -14,6 +14,13 @@ function isPositiveNumberInput(value) {
   return Number.isFinite(number) && number > 0;
 }
 
+function isPositiveDecimalWithMaxPlaces(value, maxDecimals = 4) {
+  if (!hasText(value)) return false;
+  const raw = String(value).trim();
+  const pattern = new RegExp(`^\\d+(?:\\.\\d{1,${maxDecimals}})?$`);
+  return pattern.test(raw) && isPositiveNumberInput(raw);
+}
+
 function isNonNegativeNumberInput(value) {
   if (!hasText(value)) return false;
   const number = Number(value);
@@ -37,6 +44,7 @@ function normalizeBottlePhotoUrls(bottle) {
 }
 
 function validateStandardUnitReceiveInput(body = {}) {
+  if (!isPositiveDecimalWithMaxPlaces(body.sizeMl, 4)) return 'ขนาด/ขวดต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง';
   if (!hasText(body.lotNo)) return 'กรุณาระบุ Lot No';
   if (!hasText(body.purity)) return 'กรุณาระบุ % Purity';
   if (!Array.isArray(body.bottles) || body.bottles.length === 0) return null;

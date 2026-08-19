@@ -11,6 +11,7 @@ const serviceAgreementSchema = z.object({
   testDuration: z.enum(['normal', 'extended', 'urgent']),
   testDurationDays: z.number().int().positive().nullable().optional(),
   requireUncertainty: z.boolean(),
+  uncertaintyValue: z.string().optional().default(''),
 });
 
 export const petitionItemSchema = z.object({

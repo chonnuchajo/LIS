@@ -9,6 +9,7 @@ const {
 describe('stock receive validation', () => {
   test('requires Lot No for standard unit receive', () => {
     expect(validateStandardUnitReceiveInput({
+      sizeMl: '100',
       lotNo: '',
       purity: '99.5',
       bottles: [{ exp: '2027-01-01' }],
@@ -17,6 +18,7 @@ describe('stock receive validation', () => {
 
   test('requires % Purity for standard unit receive', () => {
     expect(validateStandardUnitReceiveInput({
+      sizeMl: '100',
       lotNo: 'L1',
       purity: '',
       bottles: [{ exp: '2027-01-01' }],
@@ -25,12 +27,14 @@ describe('stock receive validation', () => {
 
   test('requires EXP for every standard unit bottle', () => {
     expect(validateStandardUnitReceiveInput({
+      sizeMl: '100',
       lotNo: 'L1',
       purity: '99.5',
       bottles: [{ exp: '2027-01-01' }, { exp: '' }],
     })).toMatch(/EXP/);
 
     expect(validateStandardUnitReceiveInput({
+      sizeMl: '100',
       lotNo: 'L1',
       purity: '99.5',
       bottles: [{ exp: 'not-a-date' }],
@@ -39,10 +43,20 @@ describe('stock receive validation', () => {
 
   test('accepts standard unit receive when Lot No, % Purity and EXP are present', () => {
     expect(validateStandardUnitReceiveInput({
+      sizeMl: '100.1234',
       lotNo: 'L1',
       purity: '99.5',
       bottles: [{ exp: '2027-01-01' }, { exp: '2027-02-02' }],
     })).toBeNull();
+  });
+
+  test('requires standard bottle size to be numeric with up to 4 decimals', () => {
+    expect(validateStandardUnitReceiveInput({
+      sizeMl: '100.12345', lotNo: 'L1', purity: '99.5', bottles: [{ exp: '2027-01-01' }],
+    })).toMatch(/ทศนิยมไม่เกิน 4/);
+    expect(validateStandardUnitReceiveInput({
+      sizeMl: '100mg', lotNo: 'L1', purity: '99.5', bottles: [{ exp: '2027-01-01' }],
+    })).toMatch(/ตัวเลข/);
   });
 
   test('requires Lot No, EXP, size and price for solvent receive', () => {

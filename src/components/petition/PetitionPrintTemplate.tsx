@@ -165,6 +165,7 @@ function PageOne({ lr, submissionNo }: { lr: LabRequest; submissionNo: string })
                     <div className="pr-ind">
                       <CB checked={!!sa?.requireUncertainty} /> ต้องการ&nbsp;&nbsp;
                       <CB checked={sa ? !sa.requireUncertainty : false} /> ไม่ต้องการ
+                      &nbsp;&nbsp;ค่า <Line width="4cm" value={sa?.uncertaintyValue} />
                     </div>
 
                     <div className="pr-terms">

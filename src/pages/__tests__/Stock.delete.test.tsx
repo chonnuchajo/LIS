@@ -115,7 +115,17 @@ describe("StockPage delete actions", () => {
         expiryStatus: "",
       },
     ]);
-    apiMock.getStockUnits.mockResolvedValue([]);
+    apiMock.getStockUnits.mockResolvedValue([
+      {
+        _id: "unit-1",
+        qrId: "u1",
+        itemCode: "STD-001",
+        itemName: "Pesticide Standard",
+        status: "active",
+        exp: "2027-01-01",
+        volume: { initial: 100, remaining: 100, unit: "mg" },
+      },
+    ]);
     apiMock.deleteStandard.mockResolvedValue({ success: true });
     apiMock.getSolvents.mockResolvedValue([
       {
@@ -149,6 +159,15 @@ describe("StockPage delete actions", () => {
     fireEvent.click(await screen.findByRole("button", { name: "ลบ" }));
 
     await waitFor(() => expect(apiMock.deleteStandard).toHaveBeenCalledWith("std-1"));
+  });
+
+  it("hides standards with zero remaining stock from the stock table", async () => {
+    apiMock.getStockUnits.mockResolvedValue([]);
+
+    renderStock();
+
+    await waitFor(() => expect(screen.queryByRole("cell", { name: "Pesticide Standard" })).not.toBeInTheDocument());
+    expect(await screen.findByText("ไม่มีข้อมูล")).toBeInTheDocument();
   });
 
   it.each([

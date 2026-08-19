@@ -10,6 +10,7 @@ const ServiceAgreementSchema = new mongoose.Schema(
     testDuration: { type: String, enum: ['normal', 'extended', 'urgent'] },
     testDurationDays: Number,
     requireUncertainty: Boolean,
+    uncertaintyValue: String,
   },
   { _id: false },
 );

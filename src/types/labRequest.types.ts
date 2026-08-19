@@ -11,6 +11,7 @@ export interface ServiceAgreement {
   testDuration: TestDuration;
   testDurationDays?: number | null;
   requireUncertainty: boolean;
+  uncertaintyValue?: string;
 }
 
 export type PersonnelCapability = 'able' | 'unable';

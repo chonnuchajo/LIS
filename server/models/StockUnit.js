@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const VolumeSchema = new mongoose.Schema({
   initial: { type: Number, default: 0 },
   remaining: { type: Number, default: 0 },
-  unit: { type: String, enum: ['ml', 'mg', 'g'], default: 'ml' },
+  unit: { type: String, enum: ['ml', 'mg', 'g'], default: 'mg' },
 }, { _id: false });
 
 const PersonSchema = new mongoose.Schema({

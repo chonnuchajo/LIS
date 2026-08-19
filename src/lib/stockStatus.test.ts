@@ -5,7 +5,7 @@ import {
 } from "./stockStatus";
 
 const now = new Date("2026-07-07T00:00:00Z");
-const mk = (o: Partial<{ status: string; exp: string | null }>) => ({ status: "active", exp: null, ...o });
+const mk = (o: Partial<{ status: string; exp: string | null; volume: { remaining?: number | null } }>) => ({ status: "active", exp: null, ...o });
 
 describe("isUsableBottle", () => {
   it("active + no exp is usable", () => expect(isUsableBottle(mk({}), now)).toBe(true));
@@ -15,6 +15,7 @@ describe("isUsableBottle", () => {
     expect(isUsableBottle(mk({ status: "empty" }), now)).toBe(false);
     expect(isUsableBottle(mk({ status: "discarded" }), now)).toBe(false);
   });
+  it("remaining zero is not usable", () => expect(isUsableBottle(mk({ volume: { remaining: 0 } }), now)).toBe(false));
 });
 
 describe("usableBottleCount", () => {
@@ -54,7 +55,7 @@ describe("glasswareLevel", () => {
 describe("summarizeStandard", () => {
   it("counts usable / expired / expiringSoon", () => {
     const s = summarizeStandard(
-      [mk({}), mk({ exp: "2026-07-20" }), mk({ exp: "2026-06-01" }), mk({ status: "discarded" })],
+      [mk({}), mk({ exp: "2026-07-20" }), mk({ exp: "2026-06-01" }), mk({ status: "discarded" }), mk({ volume: { remaining: 0 } })],
       now, 30,
     );
     expect(s).toEqual({ usable: 2, expired: 1, expiringSoon: 1 });

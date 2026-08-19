@@ -34,7 +34,8 @@ describe("ReceiveBottlesDialog photos", () => {
     vi.clearAllMocks();
   });
 
-  it("requires choosing a barcode type before receiving a new standard barcode", () => {
+  it("defaults standard receive type to primary", async () => {
+    apiMock.receiveStockUnits.mockResolvedValue([]);
     render(
       <ReceiveBottlesDialog
         standard={standard}
@@ -49,7 +50,11 @@ describe("ReceiveBottlesDialog photos", () => {
     fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
     fireEvent.click(document.querySelector('button[type="submit"]') as HTMLButtonElement);
 
-    expect(apiMock.receiveStockUnits).not.toHaveBeenCalled();
+    await waitFor(() => expect(apiMock.receiveStockUnits).toHaveBeenCalled());
+    expect(apiMock.receiveStockUnits).toHaveBeenCalledWith(
+      "std1",
+      expect.objectContaining({ type: "primary", unit: "mg" }),
+    );
   });
 
   it("sends optional bottle photo URLs when receiving a standard bottle", async () => {
@@ -86,6 +91,7 @@ describe("ReceiveBottlesDialog photos", () => {
       "std1",
       expect.objectContaining({
         type: "primary",
+        unit: "mg",
         purity: "99.5",
         bottles: [
           {

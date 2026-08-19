@@ -436,7 +436,7 @@ export const api = {
     }),
   receiveStockUnits: (
     standardId: string,
-    body: { lotNo?: string; purity: string; sizeMl: number; unit?: string; type: "primary" | "supplier" | "working"; bottles: { exp?: string; photoUrls?: string[] }[]; note?: string } & StockUserPayload,
+    body: { lotNo?: string; purity: string; sizeMl: number; unit?: "ml" | "mg" | "g"; type: "primary" | "supplier" | "working"; bottles: { exp?: string; photoUrls?: string[] }[]; note?: string } & StockUserPayload,
   ) =>
     request<StockUnitItem[]>(`/stock/standards/${standardId}/units/receive`, {
       method: "POST",
