@@ -118,6 +118,7 @@ export interface StockUnitItem {
   type?: "primary" | "supplier" | "working" | "";
   parentId?: string | null;
   lotNo?: string;
+  purity?: string | number | null;
   lotBottleNo?: number | null;
   exp?: string | null;
   frequencyDue?: string | null;

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AccountInfo } from "@azure/msal-browser";
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "@/lib/msalConfig";
@@ -42,6 +42,31 @@ type MsalAccountControls = {
   getActiveAccount?: () => AccountInfo | null;
   setActiveAccount?: (account: AccountInfo | null) => void;
 };
+
+const PRODUCTION_SSO_USER_STORAGE_KEY = "lis_production_sso_user";
+
+function readStoredProductionUser(): AuthUser | null {
+  const raw = localStorage.getItem(PRODUCTION_SSO_USER_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as AuthUser;
+  } catch {
+    localStorage.removeItem(PRODUCTION_SSO_USER_STORAGE_KEY);
+    return null;
+  }
+}
+
+function storeProductionUser(user: AuthUser) {
+  localStorage.setItem(PRODUCTION_SSO_USER_STORAGE_KEY, JSON.stringify(user));
+}
+
+function clearStoredProductionUser() {
+  localStorage.removeItem(PRODUCTION_SSO_USER_STORAGE_KEY);
+}
+
+async function clearProductionSessionCookie() {
+  await api.post("/auth/logout", {}).catch(() => undefined);
+}
 
 function msalAccountId(account: AccountInfo) {
   return account.homeAccountId || account.localAccountId || account.username;
@@ -113,16 +138,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [activeAccountId, instance, isPwa, msalAccounts]);
   const selectedAccountId = account ? msalAccountId(account) : undefined;
   const [syncedUser, setSyncedUser] = useState<AuthUser | null>(null);
-  const [productionUser, setProductionUser] = useState<AuthUser | null>(() => {
-    const raw = localStorage.getItem("lis_production_sso_user");
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as AuthUser;
-    } catch {
-      localStorage.removeItem("lis_production_sso_user");
-      return null;
-    }
-  });
+  const [productionUser, setProductionUser] = useState<AuthUser | null>(() => readStoredProductionUser());
+  const productionSessionCheckedRef = useRef(false);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | undefined>();
   const authAccounts = useMemo<AuthAccount[]>(
     () =>
@@ -264,6 +281,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     setApiUserEmail(user?.email);
   }, [user?.email]);
+
+  useEffect(() => {
+    if (DEV_MODE || productionSessionCheckedRef.current || productionUser || account) return;
+
+    let active = true;
+    productionSessionCheckedRef.current = true;
+    api.get<AuthUser>("/auth/session")
+      .then((res) => {
+        if (!active) return;
+        const nextUser = res.data.data;
+        storeProductionUser(nextUser);
+        setProductionUser(nextUser);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, [account, productionUser]);
 
   useLayoutEffect(() => {
     if (!account) return;
@@ -412,8 +448,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (!isPwa) return;
       const nextAccount = msalAccounts.find((candidate) => msalAccountId(candidate) === accountId);
       if (!nextAccount) return;
-      localStorage.removeItem("lis_production_sso_user");
+      clearStoredProductionUser();
       setProductionUser(null);
+      void clearProductionSessionCookie();
       setSyncedUser(null);
       setProfilePhotoUrl(undefined);
       setActiveMsalAccount(instance, nextAccount);
@@ -429,8 +466,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (target && target !== "/login") {
       sessionStorage.setItem("lis_login_redirect", target);
     }
-    localStorage.removeItem("lis_production_sso_user");
+    clearStoredProductionUser();
     setProductionUser(null);
+    void clearProductionSessionCookie();
     await instance.loginRedirect({
       ...loginRequest,
       prompt: "select_account",
@@ -443,6 +481,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (target && target !== "/login") {
       sessionStorage.setItem("lis_login_redirect", target);
     }
+    clearStoredProductionUser();
+    setProductionUser(null);
+    await clearProductionSessionCookie();
     await instance.loginRedirect({
       ...loginRequest,
       ...(loginHint ? { loginHint } : {}),
@@ -455,8 +496,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (redirectTo && redirectTo !== "/login") {
         sessionStorage.setItem("lis_login_redirect", redirectTo);
       }
-      localStorage.removeItem("lis_production_sso_user");
+      clearStoredProductionUser();
       setProductionUser(null);
+      await clearProductionSessionCookie();
       if (options?.force) {
         await instance.loginRedirect({
           ...loginRequest,
@@ -486,7 +528,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const loginWithProductionToken = useCallback(async (token: string) => {
     const res = await api.post<AuthUser>("/auth/sso", { token });
     const nextUser = res.data.data;
-    localStorage.setItem("lis_production_sso_user", JSON.stringify(nextUser));
+    storeProductionUser(nextUser);
     setProductionUser(nextUser);
     return nextUser;
   }, []);
@@ -508,7 +550,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           department: updated.department,
           position: updated.position,
         };
-        localStorage.setItem("lis_production_sso_user", JSON.stringify(next));
+        storeProductionUser(next);
         setProductionUser(next);
       } else {
         setSyncedUser((prev) =>
@@ -527,14 +569,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [productionUser, syncedUserForAccount?.id],
   );
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     const appBaseUrl = import.meta.env.BASE_URL || "/";
     const appBasePath = appBaseUrl.endsWith("/") ? appBaseUrl : `${appBaseUrl}/`;
     const postLogoutRedirectUri = new URL("login", window.location.origin + appBasePath).toString();
 
-    localStorage.removeItem("lis_production_sso_user");
+    clearStoredProductionUser();
     sessionStorage.removeItem("lis_login_redirect");
     setProductionUser(null);
+    await clearProductionSessionCookie();
     if (!account) {
       window.location.href = postLogoutRedirectUri;
       return;

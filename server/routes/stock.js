@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { StockStandard, StockSolvent, StockGlassware } = require('../models/Stock');
 const StockTransaction = require('../models/StockTransaction');
+const ChemicalRequisition = require('../models/ChemicalRequisition');
 const StockUnit = require('../models/StockUnit');
 const User = require('../models/User');
 const crypto = require('crypto');
@@ -21,6 +22,13 @@ const {
   normalizeDeductionResolutionInput,
 } = require('../lib/deductionResolution');
 const { buildInUseItems, canAcknowledgeDeduction } = require('../lib/standardsInUse');
+const {
+  buildStandardExportDateRange,
+  buildStandardLotExportWorkbook,
+  buildSolventRequisitionDoc,
+  dateStamp,
+  sanitizeFilenameSegment,
+} = require('../lib/stockHistoryExport');
 
 async function genUniqueQrId() {
   for (let i = 0; i < 5; i++) {
@@ -87,6 +95,24 @@ async function logTransaction(data) {
   }
 }
 
+function normalizeExportDate(value) {
+  const text = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '';
+}
+
+function contentDispositionFilename(filename) {
+  const fallback = String(filename || 'stock-export')
+    .replace(/[^ -~]+/g, '_')
+    .replace(/[\"]/g, '_') || 'stock-export';
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
+
+function sendAttachment(res, { buffer, contentType, filename }) {
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', contentDispositionFilename(filename));
+  return res.send(buffer);
+}
+
 const RESOLUTION_REASON_LABELS = {
   empty: 'หมด',
   ineffective: 'ไม่มีประสิทธิภาพ',
@@ -118,6 +144,21 @@ function stripMeta(body) {
   if (!body) return body;
   const { _user, ...rest } = body;
   return rest;
+}
+
+function solventItemPayload(body = {}) {
+  const payload = {};
+  if (body.name !== undefined) payload.name = String(body.name);
+  if (body.sizeLiter !== undefined) {
+    const sizeLiter = Number(body.sizeLiter);
+    payload.sizeLiter = Number.isFinite(sizeLiter) && sizeLiter > 0 ? sizeLiter : 0;
+  }
+  if (body.price !== undefined) {
+    const price = Number(body.price);
+    payload.price = Number.isFinite(price) && price >= 0 ? price : 0;
+  }
+  if (body.note !== undefined) payload.note = String(body.note);
+  return payload;
 }
 
 // Pure: can this unit give up `mg`? (no DB) — shared by the endpoint and the
@@ -482,7 +523,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
     const std = await StockStandard.findById(req.params.id);
     if (!std) return res.status(404).json({ error: 'ไม่พบสาร' });
 
-    const { lotNo = '', sizeMl, unit = 'ml', bottles, type, note } = req.body || {};
+    const { lotNo = '', purity = '', sizeMl, unit = 'ml', bottles, type, note } = req.body || {};
     const size = Number(sizeMl);
     if (!Number.isFinite(size) || size <= 0) return res.status(400).json({ error: 'ขนาด/ขวดไม่ถูกต้อง' });
     if (!Array.isArray(bottles) || bottles.length === 0) return res.status(400).json({ error: 'ต้องระบุอย่างน้อย 1 ขวด' });
@@ -492,6 +533,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
 
     const now = new Date();
     const normalizedLotNo = String(lotNo).trim();
+    const normalizedPurity = String(purity).trim();
     const existingLotBottleCount = normalizedLotNo
       ? await StockUnit.countDocuments({ itemCode: std.code, kind: 'sealed', lotNo: normalizedLotNo })
       : 0;
@@ -507,6 +549,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
         kind: 'sealed',
         type,
         lotNo: normalizedLotNo,
+        purity: normalizedPurity,
         lotBottleNo: lotBottleNumbers[index],
         exp: new Date(b.exp),
         volume: { initial: size, remaining: size, unit },
@@ -649,8 +692,8 @@ router.get('/solvents', async (req, res) => {
 
 router.post('/solvents', async (req, res) => {
   try {
-    const body = stripMeta(req.body);
-    const item = await StockSolvent.create(body);
+    const body = solventItemPayload(stripMeta(req.body));
+    const item = await StockSolvent.create({ ...body, qty: 0 });
     await logTransaction({
       itemType: 'solvent',
       itemId: item._id.toString(),
@@ -668,7 +711,7 @@ router.post('/solvents', async (req, res) => {
 
 router.patch('/solvents/:id', async (req, res) => {
   try {
-    const body = stripMeta(req.body);
+    const body = solventItemPayload(stripMeta(req.body));
     const before = await StockSolvent.findById(req.params.id);
     if (!before) return res.status(404).json({ error: 'Not found' });
     const item = await StockSolvent.findByIdAndUpdate(req.params.id, body, { new: true });
@@ -741,7 +784,7 @@ router.post('/solvents/:id/deduct', async (req, res) => {
 
 router.post('/solvents/:id/receive', async (req, res) => {
   try {
-    const { qty, note, lotNo, exp, sizeLabel, photoUrls: rawPhotoUrls } = req.body;
+    const { qty, note, lotNo, exp, sizeLiter, price, photoUrls: rawPhotoUrls } = req.body;
     const amount = Number(qty);
     if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Invalid qty' });
     const validationError = validateSolventReceiveInput(req.body || {});
@@ -750,6 +793,8 @@ router.post('/solvents/:id/receive', async (req, res) => {
     if (!item) return res.status(404).json({ error: 'Not found' });
     const before = item.qty;
     item.qty = before + amount;
+    item.sizeLiter = Number(sizeLiter);
+    item.price = Number(price);
     await item.save();
     const photoUrls = normalizePhotoUrls(rawPhotoUrls);
     await logTransaction({
@@ -761,7 +806,7 @@ router.post('/solvents/:id/receive', async (req, res) => {
       afterQty: item.qty,
       delta: amount,
       unit: 'bottle',
-      note: composeSolventReceiveNote({ lotNo, exp, sizeLabel, note }),
+      note: composeSolventReceiveNote({ lotNo, exp, sizeLiter, price, note }),
       photoUrls: photoUrls.length ? photoUrls : undefined,
       ...(await userMeta(req)),
     });
@@ -901,6 +946,79 @@ router.post('/glassware/:id/receive', async (req, res) => {
   }
 });
 
+/* ==================== STOCK HISTORY EXPORTS ==================== */
+
+router.get('/exports/standard', async (req, res) => {
+  try {
+    const itemId = String(req.query.itemId || '').trim();
+    const dateRange = buildStandardExportDateRange(req.query.startDate, req.query.endDate);
+    if (!itemId) return res.status(400).json({ error: 'ต้องเลือก standard' });
+    if (dateRange.error) return res.status(400).json({ error: dateRange.error });
+
+    const standard = await StockStandard.findById(itemId).lean();
+    if (!standard) return res.status(404).json({ error: 'ไม่พบ standard' });
+
+    const transactions = await StockTransaction.find({
+      itemType: 'standard',
+      action: { $in: ['receive', 'deduct'] },
+      createdAt: dateRange.value.createdAt,
+      $or: [
+        { itemId: standard._id.toString() },
+        { itemCode: standard.code },
+      ],
+    })
+      .sort({ createdAt: 1, _id: 1 })
+      .limit(5000)
+      .lean();
+
+    const qrIds = [...new Set(transactions.map((tx) => tx.qrId).filter(Boolean))];
+    const units = qrIds.length
+      ? await StockUnit.find({ qrId: { $in: qrIds } })
+        .select('qrId lotNo lotBottleNo exp volume type')
+        .lean()
+      : [];
+
+    const workbook = buildStandardLotExportWorkbook({ standard, units, transactions });
+    if (!workbook) return res.status(400).json({ error: 'ไม่มีประวัติสำหรับ standard นี้' });
+
+    const safeCode = sanitizeFilenameSegment(standard.code || standard.name || 'standard');
+    return sendAttachment(res, {
+      buffer: workbook.buffer,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      filename: `${safeCode}-standard-history-${dateRange.value.startDate}_to_${dateRange.value.endDate}-${dateStamp()}.xlsx`,
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/exports/solvent', async (req, res) => {
+  try {
+    const solventId = String(req.query.solventId || '').trim();
+    const date = normalizeExportDate(req.query.date);
+    if (!solventId) return res.status(400).json({ error: 'ต้องเลือกสารเคมี' });
+    if (!date) return res.status(400).json({ error: 'ต้องเลือกวันที่' });
+
+    const solvent = await StockSolvent.findById(solventId).lean();
+    if (!solvent) return res.status(404).json({ error: 'ไม่พบสารเคมี' });
+
+    const requisitions = await ChemicalRequisition.find({ solventId: solvent._id.toString(), date })
+      .sort({ createdAt: 1, _id: 1 })
+      .limit(1000)
+      .lean();
+    if (requisitions.length === 0) return res.status(400).json({ error: 'ไม่มีประวัติเบิกสารเคมีตามวันที่เลือก' });
+
+    const doc = buildSolventRequisitionDoc({ solvent, date, requisitions });
+    const safeName = sanitizeFilenameSegment(solvent.name || 'solvent');
+    return sendAttachment(res, {
+      buffer: doc,
+      contentType: 'application/msword; charset=utf-8',
+      filename: `${safeName}-requisition-${date}.doc`,
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
 /* ==================== TRANSACTIONS (Audit Log) ==================== */
 
 router.get('/transactions/pending-deduction', async (req, res) => {

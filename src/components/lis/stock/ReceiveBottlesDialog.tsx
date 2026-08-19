@@ -21,6 +21,7 @@ interface Props {
 
 export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPreviewLabels }: Props) {
   const [lotNo, setLotNo] = useState("");
+  const [purity, setPurity] = useState("");
   const [type, setType] = useState<"primary" | "supplier" | "working" | "">("");
   const [sizeMl, setSizeMl] = useState("100");
   const [count, setCount] = useState("1");
@@ -75,6 +76,7 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
     const cnt = Number(count);
     if (!Number.isInteger(cnt) || cnt < 1) { toast.error("จำนวนขวดต้องเป็นจำนวนเต็มบวก"); return; }
     if (!lotNo.trim()) { toast.error("กรุณาระบุ Lot No"); return; }
+    if (!purity.trim()) { toast.error("กรุณาระบุ % Purity"); return; }
     if (sameExp) {
       if (!commonExp) { toast.error("กรุณาระบุ EXP"); return; }
     } else if (Array.from({ length: cnt }, (_, i) => !perExp[i]).some(Boolean)) {
@@ -91,7 +93,7 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
     setBusy(true);
     try {
       const created = await api.receiveStockUnits(standard._id, {
-        lotNo: lotNo.trim(), sizeMl: size, unit: "ml", type, bottles,
+        lotNo: lotNo.trim(), purity: purity.trim(), sizeMl: size, unit: "ml", type, bottles,
       });
       toast.success(`รับเข้า ${created.length} ขวดแล้ว`);
       onSaved();
@@ -125,8 +127,9 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
                 ))}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Lot No</Label><Input value={lotNo} onChange={(e) => setLotNo(e.target.value)} placeholder="required" required /></div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div><Label htmlFor="receive-standard-lot">Lot No</Label><Input id="receive-standard-lot" value={lotNo} onChange={(e) => setLotNo(e.target.value)} placeholder="required" required /></div>
+              <div><Label htmlFor="receive-standard-purity">% Purity</Label><Input id="receive-standard-purity" value={purity} onChange={(e) => setPurity(e.target.value)} placeholder="เช่น 99.5" inputMode="decimal" required /></div>
               <div><Label>ขนาด/ขวด (ml)</Label><Input type="number" value={sizeMl} onChange={(e) => setSizeMl(e.target.value)} /></div>
             </div>
             <div>

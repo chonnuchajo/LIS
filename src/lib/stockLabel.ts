@@ -14,55 +14,68 @@ export function stockDeductionQrUrl(qrId: string): string {
  *  in-app scanner parseScannedQrId ยังรองรับ qrId เปล่าและ URL เดิมอยู่ */
 export async function buildStockLabelHtml(unit: StockUnitItem): Promise<string> {
   const qr = await QRCode.toDataURL(stockDeductionQrUrl(unit.qrId), {
-    margin: 3, // quiet zone กว้างขึ้น ให้กล้องจับขอบ QR ได้ง่าย
-    width: 512, // render คมขึ้น (เดิม 240)
-    errorCorrectionLevel: "M",
-  });
-  const exp = unit.exp ? new Date(unit.exp).toLocaleDateString("th-TH") : "-";
-  const typeLabel = unit.type || "primary";
-  const size = `${unit.volume?.initial ?? "-"}${unit.volume?.unit ? " " + unit.volume.unit : ""}`;
-  const lotBottleLabel = formatLotBottleLabel(unit.lotBottleNo);
-  const lotBottleHtml = lotBottleLabel ? ` · <b>${escapeHtml(lotBottleLabel)}</b>` : "";
-  return `
-<div style="display:flex;gap:1.2mm;align-items:center;font-family:'Kanit',Tahoma,Arial,sans-serif;width:65mm;height:25mm;box-sizing:border-box;padding:1mm;color:#000;background:#fff;overflow:hidden;">
-  <img src="${qr}" alt="qr" style="width:17mm;height:17mm;flex:none;" />
-  <div style="font-size:6.8pt;line-height:1.24;min-width:0;color:#000;overflow:hidden;flex:1;">
-    <div style="font-weight:700;font-size:8.2pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(unit.itemName || "")}</div>
-    <div>STD: <b>${escapeHtml(unit.itemCode || "")}</b></div>
-    <div>ประเภท: <b>${escapeHtml(typeLabel)}</b> · ${escapeHtml(size)}</div>
-    <div>Lot: <b>${escapeHtml(unit.lotNo || "-")}</b>${lotBottleHtml}</div>
-    <div>EXP: <b>${escapeHtml(exp)}</b></div>
-  </div>
-</div>`.trim();
-}
-
-/** สติกเกอร์สารเคมี — solvent ไม่ได้ track รายขวด จึงไม่มี StockUnit/qrId จริง
- *  QR encode URL หน้าเบิก stock พร้อม idForQr (= _id ของสารเคมี) เพื่อให้เปิดหน้าเบิกได้ทันที
- *  หน้าเบิก stock จะ resolve เป็นสารเคมีจาก idForQr */
-export async function buildSolventLabelHtml(payload: {
-  name: string;
-  idForQr: string;
-  lotNo?: string;
-  exp?: string | null;
-  sizeLabel?: string;
-}): Promise<string> {
-  const qr = await QRCode.toDataURL(stockDeductionQrUrl(payload.idForQr), {
     margin: 3,
     width: 512,
     errorCorrectionLevel: "M",
   });
-  const exp = payload.exp ? new Date(payload.exp).toLocaleDateString("th-TH") : "-";
-  const size = payload.sizeLabel || "-";
+  const exp = unit.exp ? new Date(unit.exp).toLocaleDateString("th-TH") : "-";
+  const purity = formatPurityLabel(unit);
   return `
-<div style="display:flex;gap:1.2mm;align-items:center;font-family:'Kanit',Tahoma,Arial,sans-serif;width:65mm;height:25mm;box-sizing:border-box;padding:1mm;color:#000;background:#fff;overflow:hidden;">
-  <img src="${qr}" alt="qr" style="width:17mm;height:17mm;flex:none;" />
-  <div style="font-size:6.8pt;line-height:1.24;min-width:0;color:#000;overflow:hidden;flex:1;">
-    <div style="font-weight:700;font-size:8.2pt;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(payload.name || "")}</div>
-    <div>สารเคมี · ${escapeHtml(size)}</div>
-    <div>Lot: <b>${escapeHtml(payload.lotNo || "-")}</b></div>
-    <div>EXP: <b>${escapeHtml(exp)}</b></div>
+<div style="font-family:Arial,'Kanit',Tahoma,sans-serif;width:65mm;height:25mm;box-sizing:border-box;color:#000;background:#fff;overflow:hidden;display:grid;grid-template-columns:18mm 1fr;gap:1mm;align-items:center;padding:1mm;">
+  <img src="${qr}" alt="qr" style="width:17mm;height:17mm;display:block;" />
+  <div style="height:23mm;box-sizing:border-box;border:0.35mm solid #000;display:grid;grid-template-rows:4.5mm 3.8mm 3.8mm 3.8mm 3.8mm 3.3mm;font-size:6.4pt;line-height:1;min-width:0;">
+    <div style="display:flex;align-items:center;justify-content:center;border-bottom:0.25mm solid #000;font-size:7.2pt;font-weight:500;letter-spacing:.01em;white-space:nowrap;">REFERENCE STANDARD</div>
+    ${labelRow("Name", unit.itemName || "")}
+    ${labelRow("% Purity", purity)}
+    ${labelRow("Batch/Lot", unit.lotNo || "")}
+    ${labelRow("Exp date", exp)}
+    <div style="display:flex;align-items:center;justify-content:center;border-top:0.25mm solid #000;font-size:5.7pt;font-weight:500;white-space:nowrap;">LB-TE-CH-002-001-R00 (07/02/67)</div>
   </div>
 </div>`.trim();
+}
+
+/** สติกเกอร์สารเคมี — รูปแบบฟอร์มติดขวดตาม F-CHM */
+export async function buildSolventLabelHtml(payload: {
+  name: string;
+  idForQr?: string;
+  lotNo?: string;
+  receivedDate?: string | null;
+  openedDate?: string | null;
+  exp?: string | null;
+  bottleNo?: string | number | null;
+  sizeLabel?: string;
+}): Promise<string> {
+  const receivedDate = formatThaiDateOrDash(payload.receivedDate);
+  const openedDate = formatThaiDateOrBlank(payload.openedDate);
+  const exp = formatThaiDateOrDash(payload.exp);
+  return `
+<div style="font-family:'TH Sarabun New','Kanit',Tahoma,Arial,sans-serif;width:65mm;height:25mm;box-sizing:border-box;color:#000;background:#fff;overflow:hidden;border:0.25mm solid #000;display:grid;grid-template-rows:3.7mm repeat(6,3.05mm) 2.9mm;font-size:5.9pt;line-height:1;">
+  <div style="display:flex;align-items:center;justify-content:center;border-bottom:0.25mm solid #000;font-size:7pt;">สารเคมี</div>
+  ${solventLabelRow("ชื่อสามัญ", payload.name || "")}
+  ${solventLabelRow("แบชนัมเบอร์", payload.lotNo || "-")}
+  ${solventLabelRow("วัน เดือน ปี ที่รับ", receivedDate)}
+  ${solventLabelRow("วัน เดือน ปี ที่เปิดใช้", openedDate)}
+  ${solventLabelRow("วัน เดือน ปี ที่หมดอายุ", exp)}
+  ${solventLabelRow("ขวดที่", payload.bottleNo == null || payload.bottleNo === "" ? "-" : String(payload.bottleNo))}
+  <div style="display:flex;align-items:center;padding:0 .8mm;border-top:0.25mm solid #000;font-size:4.8pt;background:#eee;white-space:nowrap;">F-CHM-01-03 Rev 00 : 12/09/67</div>
+</div>`.trim();
+}
+
+function formatThaiDateOrDash(value?: string | null): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("th-TH");
+}
+
+function formatThaiDateOrBlank(value?: string | null): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("th-TH");
+}
+function solventLabelRow(label: string, value: string): string {
+  return `<div style="display:flex;align-items:end;padding:0 .8mm;min-width:0;"><span style="white-space:nowrap;">${escapeHtml(label)}</span><span style="flex:1;border-bottom:0.2mm solid #000;margin-left:.6mm;min-width:0;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(value)}</span></div>`;
 }
 
 function escapeHtml(s: string): string {
@@ -74,7 +87,18 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#x27;");
 }
 
-function formatLotBottleLabel(value?: number | null): string {
-  const bottleNo = Number(value);
-  return Number.isInteger(bottleNo) && bottleNo > 0 ? `ขวดที่ ${bottleNo}` : "";
+function labelRow(label: string, value: string): string {
+  return `<div style="display:grid;grid-template-columns:14mm 1fr;border-bottom:0.25mm solid #000;min-width:0;"><div style="display:flex;align-items:center;border-right:0.25mm solid #000;padding:0 1mm;font-size:6.4pt;white-space:nowrap;">${escapeHtml(label)}</div><div style="display:flex;align-items:center;justify-content:center;padding:0 .8mm;font-size:6.2pt;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(value)}</div></div>`;
+}
+
+function formatPurityLabel(unit: StockUnitItem): string {
+  const source = unit as StockUnitItem & {
+    purity?: string | number | null;
+    percentPurity?: string | number | null;
+    purityPercent?: string | number | null;
+  };
+  const value = source.purity ?? source.percentPurity ?? source.purityPercent;
+  if (value === undefined || value === null || value === "") return "";
+  const text = String(value).trim();
+  return text.endsWith("%") ? text : `${text}%`;
 }

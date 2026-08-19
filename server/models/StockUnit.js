@@ -20,6 +20,7 @@ const StockUnitSchema = new mongoose.Schema({
   type: { type: String, enum: ['primary', 'supplier', 'working', ''], default: '', index: true },
   parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'StockUnit', default: null },
   lotNo: { type: String, default: '' },
+  purity: { type: String, default: '' },
   lotBottleNo: { type: Number, default: null, min: 1 },
   exp: { type: Date, default: null },
   frequencyDue: { type: Date, default: null },

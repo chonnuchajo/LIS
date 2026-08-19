@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import AppLayout from "@/components/lis/AppLayout";
 import ItemGroupManagerDialog from "@/components/lis/ItemGroupManagerDialog";
 import PageHeader from "@/components/lis/PageHeader";
+import StockPhotoUploader from "@/components/lis/stock/StockPhotoUploader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -90,7 +91,7 @@ export { getMasterItemRegulatoryType } from "@/lib/masterItemRegulatoryType";
 type MasterItem = Record<string, unknown>;
 // A substance slot holds a SET of method codes (an AND-set). A row's assignments
 // is one inner array per substance, positional (slot i ↔ substance i).
-type MatchType = "contains" | "startsWith" | "endsWith";
+type MatchType = "contains" | "startsWith" | "endsWith" | "exact";
 
 type ExclusionRule = {
   _id: string;
@@ -114,13 +115,15 @@ const MATCH_TYPE_LABELS: Record<MatchType, string> = {
   contains: "มีคำ",
   startsWith: "ขึ้นต้น",
   endsWith: "ลงท้าย",
+  exact: "ตรงกับ",
 };
 
-function matchesExclusion(commonName: string, rule: ExclusionRule): boolean {
+export function matchesExclusion(commonName: string, rule: ExclusionRule): boolean {
   const target = commonName.trim().toLowerCase();
   const needle = rule.pattern.trim().toLowerCase();
   if (!target || !needle) return false;
   switch (rule.matchType) {
+    case "exact": return target === needle;
     case "startsWith": return target.startsWith(needle);
     case "endsWith": return target.endsWith(needle);
     case "contains":
@@ -156,6 +159,7 @@ type MasterItemForm = {
   packUnit: string;
   measureSize: string;
   measureUnit: string;
+  imageUrls: string[];
 };
 
 const emptyForm: MasterItemForm = {
@@ -175,6 +179,7 @@ const emptyForm: MasterItemForm = {
   packUnit: "",
   measureSize: "",
   measureUnit: "",
+  imageUrls: [],
 };
 
 type MasterItemOverride = {
@@ -195,6 +200,8 @@ type MasterItemOverride = {
   packUnit?: string;
   measureSize?: number | null;
   measureUnit?: string;
+  imageUrl?: string;
+  imageUrls?: string[];
 };
 
 type MasterItemOverrideMap = Record<string, MasterItemOverride>;
@@ -221,6 +228,8 @@ const packKeys = [
   "measureSize",
   "measureUnit",
 ];
+const imageUrlKeys = ["imageUrl", "image_url", "photoUrl", "photo_url", "pictureUrl", "picture_url"];
+const imageUrlsKeys = ["imageUrls", "image_urls", "photoUrls", "photo_urls", "pictureUrls", "picture_urls"];
 const commonNameKeys = ["common_name", "commonname", "commonName", "item_name2", "itemType"];
 const methodInstrumentKeys = [
   "simple_method",
@@ -297,6 +306,19 @@ function applyOverride(item: MasterItem, override?: MasterItemOverride): MasterI
     const value = override[key as keyof MasterItemOverride];
     if (value !== undefined && value !== null && value !== "") merged[key] = value;
   });
+  if (
+    Object.prototype.hasOwnProperty.call(override, "imageUrls") ||
+    Object.prototype.hasOwnProperty.call(override, "imageUrl")
+  ) {
+    const imageUrls = normalizeImageUrls(override.imageUrls);
+    if (imageUrls.length === 0) imageUrls.push(...normalizeImageUrls(override.imageUrl));
+    imageUrlsKeys.forEach((key) => {
+      merged[key] = imageUrls;
+    });
+    imageUrlKeys.forEach((key) => {
+      merged[key] = imageUrls[0] ?? "";
+    });
+  }
   return merged;
 }
 
@@ -330,6 +352,26 @@ function formNumber(value: string): number | null {
 
 function formString(value: unknown): string {
   return value === undefined || value === null ? "" : String(value);
+}
+
+function normalizeImageUrls(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item ?? "").trim()).filter(Boolean);
+  }
+  const text = String(value ?? "").trim();
+  return text ? [text] : [];
+}
+
+function getImageUrls(item: MasterItem): string[] {
+  for (const key of imageUrlsKeys) {
+    const urls = normalizeImageUrls(item[key]);
+    if (urls.length > 0) return urls;
+  }
+  for (const key of imageUrlKeys) {
+    const urls = normalizeImageUrls(item[key]);
+    if (urls.length > 0) return urls;
+  }
+  return [];
 }
 
 // Escape regex-special chars so a method label/code can be matched literally.
@@ -632,6 +674,7 @@ function itemToForm(item: MasterItem, metaQty = 0): MasterItemForm {
     packUnit: formString(firstValue(item, ["packUnit"])),
     measureSize: formString(firstValue(item, ["measureSize"])),
     measureUnit: formString(firstValue(item, ["measureUnit"])),
+    imageUrls: getImageUrls(item),
   };
 }
 
@@ -662,6 +705,10 @@ function buildPayload(form: MasterItemForm, editing: MasterItem | null) {
     unit: form.unit.trim(),
     status: form.status,
     description: form.description.trim(),
+    imageUrl: form.imageUrls[0] ?? "",
+    image_url: form.imageUrls[0] ?? "",
+    imageUrls: form.imageUrls,
+    image_urls: form.imageUrls,
   };
 }
 
@@ -931,6 +978,8 @@ export default function MasterItems() {
       ...packSizeKeys,
       ...weightKeys,
       ...packKeys,
+      ...imageUrlKeys,
+      ...imageUrlsKeys,
       "productType",
       ...methodInstrumentKeys,
       ...hiddenTableKeys,
@@ -1133,6 +1182,9 @@ export default function MasterItems() {
                     pagedItems.map(({ item, originalItemNo, override, rawCommonName, displayCommonName }, index) => {
                       const rowKey = getItemId(item) || originalItemNo || `row-${index}`;
                       const active = isItemActive(item);
+                      const imageUrls = getImageUrls(item);
+                      const imageUrl = imageUrls[0] ?? "";
+                      const itemName = displayValue(firstValue(item, nameKeys));
                       return (
                         <TableRow
                           key={rowKey}
@@ -1148,25 +1200,41 @@ export default function MasterItems() {
                             {displayValue(firstValue(item, codeKeys))}
                           </TableCell>
                           <TableCell>
-                            <div className="max-w-[380px]">
-                              <div className="truncate font-semibold text-foreground">
-                                {displayValue(firstValue(item, nameKeys))}
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span
-                                  className="truncate text-sm text-muted-foreground"
-                                  title={displayCommonName !== rawCommonName ? `จากระบบ: ${rawCommonName}` : undefined}
-                                >
-                                  {displayValue(displayCommonName)}
-                                </span>
-                                {!active && (
-                                  <Badge
-                                    variant="outline"
-                                    className="h-4 shrink-0 border-muted-foreground/30 px-1 text-[10px] font-normal text-muted-foreground"
+                            <div className="flex max-w-[420px] items-center gap-3">
+                              {imageUrl && (
+                                <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-md border bg-muted">
+                                  <img
+                                    src={imageUrl}
+                                    alt={`รูปสินค้า ${itemName}`}
+                                    className="h-full w-full object-cover"
+                                  />
+                                  {imageUrls.length > 1 && (
+                                    <span className="absolute bottom-0 right-0 rounded-tl bg-black/70 px-1 text-[10px] leading-4 text-white">
+                                      +{imageUrls.length - 1}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <div className="truncate font-semibold text-foreground">
+                                  {itemName}
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span
+                                    className="truncate text-sm text-muted-foreground"
+                                    title={displayCommonName !== rawCommonName ? `จากระบบ: ${rawCommonName}` : undefined}
                                   >
-                                    ปิดใช้งาน
-                                  </Badge>
-                                )}
+                                    {displayValue(displayCommonName)}
+                                  </span>
+                                  {!active && (
+                                    <Badge
+                                      variant="outline"
+                                      className="h-4 shrink-0 border-muted-foreground/30 px-1 text-[10px] font-normal text-muted-foreground"
+                                    >
+                                      ปิดใช้งาน
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </TableCell>
@@ -1860,7 +1928,7 @@ function SimpleMethodTab({
   );
 }
 
-function ExclusionManager({
+export function ExclusionManager({
   exclusions,
   onChanged,
 }: {
@@ -1870,18 +1938,39 @@ function ExclusionManager({
   const [pattern, setPattern] = useState("");
   const [matchType, setMatchType] = useState<MatchType>("contains");
   const [adding, setAdding] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const isEditing = editingRuleId !== null;
 
-  const addRule = async () => {
+  const resetForm = () => {
+    setPattern("");
+    setMatchType("contains");
+    setEditingRuleId(null);
+  };
+
+  const startEdit = (rule: ExclusionRule) => {
+    setPattern(rule.pattern);
+    setMatchType(rule.matchType);
+    setEditingRuleId(rule._id);
+  };
+
+  const saveRule = async () => {
     const trimmed = pattern.trim();
     if (!trimmed) return;
     setAdding(true);
     try {
-      await api.post("/simple-method-exclusions", { pattern: trimmed, matchType });
-      setPattern("");
-      setMatchType("contains");
+      if (editingRuleId) {
+        await api.put(`/simple-method-exclusions/${editingRuleId}`, { pattern: trimmed, matchType });
+      } else {
+        await api.post("/simple-method-exclusions", { pattern: trimmed, matchType });
+      }
+      resetForm();
       onChanged();
-      toast.success(`ซ่อนสารที่ ${MATCH_TYPE_LABELS[matchType]} "${trimmed}"`);
+      toast.success(
+        isEditing
+          ? `แก้ไขสารที่ไม่ตรวจเป็น ${MATCH_TYPE_LABELS[matchType]} "${trimmed}"`
+          : `ซ่อนสารที่ ${MATCH_TYPE_LABELS[matchType]} "${trimmed}"`,
+      );
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -1928,7 +2017,7 @@ function ExclusionManager({
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();
-                  void addRule();
+                  void saveRule();
                 }
               }}
             />
@@ -1939,18 +2028,29 @@ function ExclusionManager({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="contains">มีคำนี้</SelectItem>
+                  <SelectItem value="exact">ตรงกับ</SelectItem>
                   <SelectItem value="startsWith">ขึ้นต้นด้วย</SelectItem>
                   <SelectItem value="endsWith">ลงท้ายด้วย</SelectItem>
                 </SelectContent>
               </Select>
               <Button
                 size="sm"
-                onClick={addRule}
+                onClick={saveRule}
                 disabled={adding || !pattern.trim()}
               >
-                <Plus className="h-4 w-4" />
-                เพิ่ม
+                {isEditing ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                {isEditing ? "บันทึก" : "เพิ่ม"}
               </Button>
+              {isEditing && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={resetForm}
+                  disabled={adding}
+                >
+                  ยกเลิก
+                </Button>
+              )}
             </div>
           </div>
 
@@ -1967,6 +2067,16 @@ function ExclusionManager({
                       {MATCH_TYPE_LABELS[rule.matchType]}
                     </Badge>
                     <span className="flex-1 truncate text-sm">{rule.pattern}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                      disabled={adding || removingId === rule._id}
+                      onClick={() => startEdit(rule)}
+                      aria-label={`แก้ไข ${rule.pattern}`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                     <Button
                       size="sm"
                       variant="ghost"
@@ -2080,7 +2190,7 @@ function MasterItemDialog({
     setUnitOptions((current) => current.includes(option) ? current : [...current, option]);
   };
 
-  const setField = (key: keyof MasterItemForm, value: string) => {
+  const setField = (key: keyof MasterItemForm, value: string | string[]) => {
     setForm((current) => {
       const next = { ...current, [key]: value };
       if (key === "kgPerCarton" || key === "unitsPerCarton") {
@@ -2130,6 +2240,8 @@ function MasterItemDialog({
       status: form.status,
       description: form.description.trim(),
       requiredInspectionQty: qtyValue,
+      imageUrl: form.imageUrls[0] ?? "",
+      imageUrls: form.imageUrls,
       ...numberFields,
       cartonUnit: form.cartonUnit.trim(),
       packUnit: form.packUnit.trim(),
@@ -2250,6 +2362,14 @@ function MasterItemDialog({
                 คำนวนอัตโนมัติจากพารามิเตอร์ที่ตั้งไว้ในหน้า "พารามิเตอร์การตรวจสอบ"
               </p>
             </div>
+            <div className="md:col-span-2">
+              <StockPhotoUploader
+                label="รูปสินค้า (ไม่บังคับ)"
+                value={form.imageUrls}
+                onChange={(urls) => setField("imageUrls", urls)}
+                disabled={busy}
+              />
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="kgPerCarton">Kg/Carton</Label>
               <Input
@@ -2365,6 +2485,7 @@ function MasterItemDetailDrawer({
   const active = isItemActive(item);
   const code = displayValue(originalItemNo || firstValue(item, codeKeys));
   const name = displayValue(firstValue(item, nameKeys));
+  const imageUrls = getImageUrls(item);
   const description = displayValue(firstValue(item, descriptionKeys));
   const hasExtra =
     extraColumns.length > 0 && extraColumns.some((key) => String(item[key] ?? "").trim() !== "");
@@ -2445,6 +2566,22 @@ function MasterItemDetailDrawer({
         </SheetHeader>
 
         <div className="flex-1 space-y-6 p-6">
+          {imageUrls.length > 0 && (
+            <section className="space-y-2">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">รูปสินค้า</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {imageUrls.map((imageUrl, index) => (
+                  <img
+                    key={imageUrl}
+                    src={imageUrl}
+                    alt={`รูปสินค้า ${name} ${index + 1}`}
+                    className="h-40 w-full rounded-lg border bg-muted object-contain"
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
           <section className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ข้อมูลหลัก</h3>
             <div className="grid grid-cols-2 gap-4">

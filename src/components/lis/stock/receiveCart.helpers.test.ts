@@ -16,7 +16,10 @@ describe("receiveCart.helpers", () => {
     expect(r.itemId).toBe("");
     expect(r.type).toBe("");
     expect(r.count).toBe("1");
+    expect(r.purity).toBe("");
     expect(r.qty).toBe("1");
+    expect(r.sizeLiter).toBe("");
+    expect(r.price).toBe("");
     expect(r.sameExp).toBe(true);
   });
 
@@ -29,7 +32,8 @@ describe("receiveCart.helpers", () => {
     expect(validateRow({ ...base, sizeMl: "0" })).toBe("ขนาด/ขวดไม่ถูกต้อง");
     expect(validateRow({ ...base, sizeMl: "100", count: "0" })).toBe("จำนวนขวดต้องเป็นจำนวนเต็มบวก");
     expect(validateRow({ ...base, sizeMl: "100", count: "2", type: "" as never })).toBe("ต้องเลือกประเภท");
-    expect(validateRow({ ...base, sizeMl: "100", count: "2", type: "primary", lotNo: "L1", commonExp: "2027-01-01" })).toBeNull();
+    expect(validateRow({ ...base, sizeMl: "100", count: "2", type: "primary", lotNo: "L1", commonExp: "2027-01-01" })).toContain("% Purity");
+    expect(validateRow({ ...base, sizeMl: "100", count: "2", type: "primary", lotNo: "L1", purity: "99.5", commonExp: "2027-01-01" })).toBeNull();
   });
 
   it("validateRow: scanned standard requires choosing barcode type before receive", () => {
@@ -49,22 +53,35 @@ describe("receiveCart.helpers", () => {
   });
 
   it("validateRow: standard receive requires Lot No and EXP", () => {
-    const base = { ...makeEmptyRow(), category: "standard" as const, itemId: "s1", type: "primary" as const, sizeMl: "100", count: "2" };
+    const base = { ...makeEmptyRow(), category: "standard" as const, itemId: "s1", type: "primary" as const, sizeMl: "100", count: "2", purity: "99.5" };
     expect(validateRow({ ...base, lotNo: "", commonExp: "2027-01-01" })).toContain("Lot No");
     expect(validateRow({ ...base, lotNo: "L1", sameExp: true, commonExp: "" })).toContain("EXP");
     expect(validateRow({ ...base, lotNo: "L1", sameExp: false, perExp: ["2027-01-01", ""] })).toContain("EXP");
   });
 
   it("validateRow: solvent/glassware ต้อง qty เป็นจำนวนเต็มบวก", () => {
-    const sol = { ...makeEmptyRow(), category: "solvent" as const, itemId: "x", qty: "0" };
+    const sol = {
+      ...makeEmptyRow(),
+      category: "solvent" as const,
+      itemId: "x",
+      qty: "0",
+      sizeLiter: "2.5",
+      price: "1200",
+      lotNo: "L1",
+      exp: "2027-01-01",
+    };
     expect(validateRow(sol)).toBe("จำนวนต้องเป็นจำนวนเต็มบวก");
-    expect(validateRow({ ...sol, qty: "3", lotNo: "L1", exp: "2027-01-01" })).toBeNull();
+    expect(validateRow({ ...sol, qty: "3" })).toBeNull();
   });
 
-  it("validateRow: solvent receive requires Lot No and EXP but glassware does not", () => {
-    const solvent = { ...makeEmptyRow(), category: "solvent" as const, itemId: "sol1", qty: "1" };
+  it("validateRow: solvent receive requires Lot No, EXP, size and price but glassware does not", () => {
+    const solvent = { ...makeEmptyRow(), category: "solvent" as const, itemId: "sol1", qty: "1", sizeLiter: "2.5", price: "1200" };
     expect(validateRow({ ...solvent, lotNo: "", exp: "2027-01-01" })).toContain("Lot No");
     expect(validateRow({ ...solvent, lotNo: "L1", exp: "" })).toContain("EXP");
+    expect(validateRow({ ...solvent, lotNo: "L1", exp: "2027-01-01", sizeLiter: "" })).toBe("กรุณาระบุขนาด/ขวด");
+    expect(validateRow({ ...solvent, lotNo: "L1", exp: "2027-01-01", sizeLiter: "0" })).toBe("ขนาด/ขวดไม่ถูกต้อง");
+    expect(validateRow({ ...solvent, lotNo: "L1", exp: "2027-01-01", price: "" })).toBe("กรุณาระบุราคา");
+    expect(validateRow({ ...solvent, lotNo: "L1", exp: "2027-01-01", price: "-1" })).toBe("ราคาไม่ถูกต้อง");
 
     const glassware = { ...makeEmptyRow(), category: "glassware" as const, itemId: "g1", qty: "1" };
     expect(validateRow(glassware)).toBeNull();
@@ -106,9 +123,9 @@ describe("receiveCart.helpers", () => {
     ]);
   });
 
-  it("composeSolventNote: รวม lot/exp/ขนาด/note ด้วย ·", () => {
-    const r = { ...makeEmptyRow(), lotNo: "L1", exp: "2027-01-01", sizeLabel: "2.5 L", note: "ใหม่" };
-    expect(composeSolventNote(r)).toBe("lot L1 · exp 2027-01-01 · ขนาด 2.5 L · ใหม่");
+  it("composeSolventNote: รวม lot/exp/ขนาด/ราคา/note ด้วย ·", () => {
+    const r = { ...makeEmptyRow(), lotNo: "L1", exp: "2027-01-01", sizeLiter: "2.5", price: "1200", note: "ใหม่" };
+    expect(composeSolventNote(r)).toBe("lot L1 · exp 2027-01-01 · ขนาด 2.5 L · ราคา 1200 บาท · ใหม่");
     expect(composeSolventNote({ ...makeEmptyRow() })).toBe("");
   });
 

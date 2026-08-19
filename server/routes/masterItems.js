@@ -16,7 +16,8 @@ const PACK_SIZE_KEYS = ['packSize', 'pack_size', 'desc2', 'description2', 'item_
 const CATEGORY_KEYS = ['inventory_posting_group', 'category', 'type', 'group', 'itemGroup', 'item_group'];
 const UNIT_KEYS = ['base_unit_of_mea', 'unit', 'uom', 'UOM', 'unitName'];
 const UNIT_COST_KEYS = ['unit_cost', 'unitCost', 'unit_cost_lcy', 'Unit Cost', 'UNIT_COST'];
-const META_STRING_FIELDS = ['itemCode', 'itemName', 'itemType', 'category', 'unit', 'status', 'description'];
+const META_STRING_FIELDS = ['itemCode', 'itemName', 'itemType', 'category', 'unit', 'status', 'description', 'imageUrl'];
+const META_ARRAY_FIELDS = ['imageUrls'];
 const META_KEYS = [
   'kgPerCarton',
   'grossKgPerUnit',
@@ -48,7 +49,17 @@ const META_SNAKE_ALIASES = {
   packUnit: 'pack_unit',
   measureSize: 'measure_size',
   measureUnit: 'measure_unit',
+  imageUrl: 'image_url',
+  imageUrls: 'image_urls',
 };
+
+function normalizeStringArray(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item ?? '').trim()).filter(Boolean);
+  }
+  const text = String(value ?? '').trim();
+  return text ? [text] : [];
+}
 
 const CLASSIFICATION_TYPES = [
   { code: 'SG', group: 'sand' },
@@ -182,8 +193,20 @@ function applyMeta(item, meta) {
   for (const key of META_KEYS) {
     if (meta[key] !== undefined && meta[key] !== null && meta[key] !== '') out[key] = meta[key];
   }
+  for (const key of META_ARRAY_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(meta, key)) out[key] = normalizeStringArray(meta[key]);
+  }
   for (const [camel, snake] of Object.entries(META_SNAKE_ALIASES)) {
     if (meta[camel] !== undefined && meta[camel] !== null && meta[camel] !== '') out[snake] = meta[camel];
+  }
+  if (Object.prototype.hasOwnProperty.call(meta, 'imageUrls') || Object.prototype.hasOwnProperty.call(meta, 'imageUrl')) {
+    const imageUrls = normalizeStringArray(meta.imageUrls);
+    if (imageUrls.length === 0) imageUrls.push(...normalizeStringArray(meta.imageUrl));
+    const imageUrl = imageUrls[0] || '';
+    out.imageUrl = imageUrl;
+    out.image_url = imageUrl;
+    out.imageUrls = imageUrls;
+    out.image_urls = imageUrls;
   }
   return out;
 }
@@ -202,6 +225,10 @@ function buildMetaOnlyItem(meta) {
     unit: meta.unit || '',
     status: meta.status || 'active',
     description: meta.description || '',
+    imageUrl: meta.imageUrl || '',
+    image_url: meta.imageUrl || '',
+    imageUrls: normalizeStringArray(meta.imageUrls).length ? normalizeStringArray(meta.imageUrls) : normalizeStringArray(meta.imageUrl),
+    image_urls: normalizeStringArray(meta.imageUrls).length ? normalizeStringArray(meta.imageUrls) : normalizeStringArray(meta.imageUrl),
     // ponytail: marker for UI/debug; remove if nobody reads it.
     source: 'meta',
   };

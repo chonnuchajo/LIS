@@ -169,6 +169,28 @@ describe("StockPage delete actions", () => {
     expect(screen.queryByRole("button", { name: deleteName })).not.toBeInTheDocument();
   });
 
+  it("does not show the solvent receive action button", async () => {
+    renderStock("solvent");
+
+    const row = (await screen.findByRole("cell", { name: "Methanol" })).closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLTableRowElement).getAllByRole("button")).toHaveLength(2);
+    expect(within(row as HTMLTableRowElement).getByRole("button", { name: /ลบสารเคมี Methanol/ })).toBeInTheDocument();
+  });
+
+  it("does not allow editing the solvent bottle quantity from the item dialog", async () => {
+    renderStock("solvent");
+
+    const row = (await screen.findByRole("cell", { name: "Methanol" })).closest("tr");
+    expect(row).not.toBeNull();
+    fireEvent.click(within(row as HTMLTableRowElement).getAllByRole("button")[0]);
+
+    const dialog = await screen.findByRole("dialog", { name: "แก้ไขสารเคมี" });
+    expect(within(dialog).getByLabelText(/ชื่อรายการ/)).toHaveValue("Methanol");
+    expect(within(dialog).getByLabelText("ขนาด (ลิตร)")).toHaveValue(2.5);
+    expect(within(dialog).getByLabelText("ราคา (บาท)")).toHaveValue(1200);
+    expect(within(dialog).queryByLabelText("จำนวนคงเหลือ (ขวด)")).not.toBeInTheDocument();
+  });
   it("keeps delete visible for admin even with Lab Inventory assigned", async () => {
     authMock.user = {
       email: "tester@example.com",
@@ -207,6 +229,16 @@ describe("StockPage delete actions", () => {
     const dialog = await screen.findByRole("dialog", { name: "Methanol" });
     expect(within(dialog).getByRole("heading", { name: "Methanol" })).toBeInTheDocument();
     expect(within(dialog).getByText("HPLC grade")).toBeInTheDocument();
+  });
+
+  it("does not show the solvent receive button in the detail drawer", async () => {
+    renderStock("solvent");
+
+    fireEvent.click(await screen.findByRole("cell", { name: "Methanol" }));
+    const detailDialog = await screen.findByRole("dialog", { name: "Methanol" });
+
+    expect(within(detailDialog).queryByRole("button", { name: /Receive/ })).not.toBeInTheDocument();
+    expect(within(detailDialog).getByRole("button", { name: /Edit/ })).toBeInTheDocument();
   });
 
   it("opens solvent details when double-clicking a solvent row", async () => {

@@ -10,32 +10,49 @@ describe('stock receive validation', () => {
   test('requires Lot No for standard unit receive', () => {
     expect(validateStandardUnitReceiveInput({
       lotNo: '',
+      purity: '99.5',
       bottles: [{ exp: '2027-01-01' }],
     })).toMatch(/Lot No/);
+  });
+
+  test('requires % Purity for standard unit receive', () => {
+    expect(validateStandardUnitReceiveInput({
+      lotNo: 'L1',
+      purity: '',
+      bottles: [{ exp: '2027-01-01' }],
+    })).toMatch(/Purity/);
   });
 
   test('requires EXP for every standard unit bottle', () => {
     expect(validateStandardUnitReceiveInput({
       lotNo: 'L1',
+      purity: '99.5',
       bottles: [{ exp: '2027-01-01' }, { exp: '' }],
     })).toMatch(/EXP/);
 
     expect(validateStandardUnitReceiveInput({
       lotNo: 'L1',
+      purity: '99.5',
       bottles: [{ exp: 'not-a-date' }],
     })).toMatch(/EXP/);
   });
 
-  test('accepts standard unit receive when Lot No and EXP are present', () => {
+  test('accepts standard unit receive when Lot No, % Purity and EXP are present', () => {
     expect(validateStandardUnitReceiveInput({
       lotNo: 'L1',
+      purity: '99.5',
       bottles: [{ exp: '2027-01-01' }, { exp: '2027-02-02' }],
     })).toBeNull();
   });
 
-  test('requires Lot No and EXP for solvent receive', () => {
-    expect(validateSolventReceiveInput({ lotNo: '', exp: '2027-01-01' })).toMatch(/Lot No/);
-    expect(validateSolventReceiveInput({ lotNo: 'L1', exp: '' })).toMatch(/EXP/);
+  test('requires Lot No, EXP, size and price for solvent receive', () => {
+    expect(validateSolventReceiveInput({ lotNo: '', exp: '2027-01-01', sizeLiter: 2.5, price: 1200 })).toMatch(/Lot No/);
+    expect(validateSolventReceiveInput({ lotNo: 'L1', exp: '', sizeLiter: 2.5, price: 1200 })).toMatch(/EXP/);
+    expect(validateSolventReceiveInput({ lotNo: 'L1', exp: '2027-01-01', sizeLiter: '', price: 1200 })).toMatch(/ขนาด/);
+    expect(validateSolventReceiveInput({ lotNo: 'L1', exp: '2027-01-01', sizeLiter: 0, price: 1200 })).toMatch(/ขนาด/);
+    expect(validateSolventReceiveInput({ lotNo: 'L1', exp: '2027-01-01', sizeLiter: 2.5, price: '' })).toMatch(/ราคา/);
+    expect(validateSolventReceiveInput({ lotNo: 'L1', exp: '2027-01-01', sizeLiter: 2.5, price: -1 })).toMatch(/ราคา/);
+    expect(validateSolventReceiveInput({ lotNo: 'L1', exp: '2027-01-01', sizeLiter: 2.5, price: 1200 })).toBeNull();
   });
 
 
@@ -56,8 +73,9 @@ describe('stock receive validation', () => {
     expect(composeSolventReceiveNote({
       lotNo: 'L1',
       exp: '2027-01-01',
-      sizeLabel: '2.5 L',
+      sizeLiter: 2.5,
+      price: 1200,
       note: 'new bottle',
-    })).toBe('lot L1 · exp 2027-01-01 · ขนาด 2.5 L · new bottle');
+    })).toBe('lot L1 · exp 2027-01-01 · ขนาด 2.5 L · ราคา 1200 บาท · new bottle');
   });
 });
