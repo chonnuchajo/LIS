@@ -120,6 +120,8 @@ export interface StockUnitItem {
   lotNo?: string;
   purity?: string | number | null;
   lotBottleNo?: number | null;
+  labelRunNo?: number | null;
+  labelRunYear?: number | null;
   exp?: string | null;
   frequencyDue?: string | null;
   volume: StockUnitVolume;

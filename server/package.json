@@ -10,7 +10,9 @@
     "sync": "node sync-to-remote.js",
     "seed:export": "node export-data.js",
     "seed:import": "node import-data.js",
-    "test": "jest"
+    "test": "jest",
+    "backfill:stock-standard-label-runs": "node scripts/backfill-stock-standard-label-runs.js",
+    "backfill:stock-standard-label-runs:commit": "node scripts/backfill-stock-standard-label-runs.js --commit"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

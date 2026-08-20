@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   isUsableBottle, usableBottleCount, standardLevel, solventLevel, glasswareLevel, summarizeStandard,
-  standardMatchesStatuses, type StandardStatus,
+  standardMatchesStatuses, getStandardAlertSummary, type StandardStatus,
 } from "./stockStatus";
 
 const now = new Date("2026-07-07T00:00:00Z");
@@ -102,5 +102,19 @@ describe("standardMatchesStatuses", () => {
     const s = sum(2, 0, 1);
     expect(standardMatchesStatuses(s, S("ok"))).toBe(false);
     expect(standardMatchesStatuses(s, S("ok", "soon"))).toBe(true);
+  });
+});
+
+describe("getStandardAlertSummary", () => {
+  it("รวม low stock และ near expiry ของ standard เดียวกันเป็น alert เดียว", () => {
+    const alert = getStandardAlertSummary({ usable: 1, expired: 0, expiringSoon: 1 });
+
+    expect(alert).toEqual({
+      lowStock: true,
+      expired: false,
+      expiringSoon: true,
+      severity: "destructive",
+      message: "ใกล้หมด เหลือรวม 1 ขวด / ใกล้หมดอายุ 1 ขวด",
+    });
   });
 });

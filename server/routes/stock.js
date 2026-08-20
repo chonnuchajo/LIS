@@ -10,6 +10,7 @@ const { isValidReceiveType, isValidUnitType } = require('../lib/stockSource');
 const { sumWeights } = require('../lib/requisitionWeights');
 const { normalizeActorFields } = require('../lib/stockActor');
 const { buildLotBottleNumbers } = require('../lib/stockLotBottle');
+const { nextStandardLabelRun } = require('../lib/stockStandardLabelRun');
 const {
   validateStandardUnitReceiveInput,
   validateSolventReceiveInput,
@@ -550,6 +551,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
       ? await StockUnit.countDocuments({ itemCode: std.code, kind: 'sealed', lotNo: normalizedLotNo })
       : 0;
     const lotBottleNumbers = buildLotBottleNumbers(existingLotBottleCount, bottles.length);
+    const labelRun = await nextStandardLabelRun(std._id, now);
     const created = [];
     for (const [index, b] of bottles.entries()) {
       const qrId = await genUniqueQrId();
@@ -563,6 +565,8 @@ router.post('/standards/:id/units/receive', async (req, res) => {
         lotNo: normalizedLotNo,
         purity: normalizedPurity,
         lotBottleNo: lotBottleNumbers[index],
+        labelRunNo: labelRun.labelRunNo,
+        labelRunYear: labelRun.labelRunYear,
         exp: new Date(b.exp),
         volume: { initial: size, remaining: size, unit },
         status: 'active',
