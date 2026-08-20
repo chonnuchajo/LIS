@@ -161,15 +161,32 @@ describe("StockPage delete actions", () => {
     await waitFor(() => expect(apiMock.deleteStandard).toHaveBeenCalledWith("std-1"));
   });
 
-  it("hides standards with zero remaining stock from the stock table", async () => {
+  it("keeps standards visible even when no bottle stock remains", async () => {
     apiMock.getStockUnits.mockResolvedValue([]);
 
     renderStock();
 
-    await waitFor(() => expect(screen.queryByRole("cell", { name: "Pesticide Standard" })).not.toBeInTheDocument());
-    expect(await screen.findByText("ไม่มีข้อมูล")).toBeInTheDocument();
+    expect(await screen.findByRole("cell", { name: "Pesticide Standard" })).toBeInTheDocument();
+    expect(screen.queryByText("ไม่มีข้อมูล")).not.toBeInTheDocument();
   });
 
+  it("keeps solvent items visible even when quantity is zero", async () => {
+    apiMock.getSolvents.mockResolvedValue([
+      {
+        _id: "solvent-1",
+        name: "Methanol",
+        sizeLiter: 2.5,
+        qty: 0,
+        price: 1200,
+        note: "HPLC grade",
+      },
+    ]);
+
+    renderStock("solvent");
+
+    expect(await screen.findByRole("cell", { name: "Methanol" })).toBeInTheDocument();
+    expect(screen.queryByText("ไม่มีข้อมูล")).not.toBeInTheDocument();
+  });
   it.each([
     { defaultKey: "standard", cellName: "Pesticide Standard", deleteName: /Standard Pesticide Standard/ },
     { defaultKey: "solvent", cellName: "Methanol", deleteName: /Methanol/ },

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, ArrowDownToLine, Check, ChevronsUpDown, ChevronRight, ChevronDown, Camera } from "lucide-react";
+import { Trash2, ArrowDownToLine, Check, ChevronsUpDown, ChevronRight, ChevronDown, Camera, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,7 +74,7 @@ export default function ReceiveCart() {
     return [...std, ...sol, ...gla];
   }, [standards, solvents, glassware]);
 
-  const [rows, setRows] = useState<CartRow[]>(() => [makeEmptyRow()]);
+  const [rows, setRows] = useState<CartRow[]>(() => []);
   const [printAfter, setPrintAfter] = useState(true);
   const [busy, setBusy] = useState(false);
   const [pendingLabels, setPendingLabels] = useState<string[]>([]);
@@ -85,22 +85,29 @@ export default function ReceiveCart() {
   const [pendingBarcode, setPendingBarcode] = useState("");
   const [pendingBarcodeOption, setPendingBarcodeOption] = useState<PickOption | null>(null);
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
 
   const patchRow = (id: string, patch: Partial<CartRow>) =>
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-  const addRow = () => setRows((prev) => [...prev, makeEmptyRow()]);
-  const removeRow = (id: string) =>
-    setRows((prev) => (prev.length <= 1 ? [makeEmptyRow()] : prev.filter((r) => r.id !== id)));
+  const removeRow = (id: string) => {
+    setRows((prev) => prev.filter((r) => r.id !== id));
+    if (editingRowId === id) setEditingRowId(null);
+  };
 
-  const pickItem = (id: string, opt: PickOption) => {
-    const patch: Partial<CartRow> = {
-      category: opt.category, itemId: opt.id, itemName: opt.name, itemCode: opt.code,
-    };
-    if (opt.category === "solvent") {
-      patch.sizeLiter = opt.sizeLiter && opt.sizeLiter > 0 ? String(opt.sizeLiter) : "";
-      patch.price = opt.price != null ? String(opt.price) : "";
-    }
-    patchRow(id, patch);
+  const optionPatch = (opt: PickOption): Partial<CartRow> => ({
+    category: opt.category,
+    itemId: opt.id,
+    itemName: opt.name,
+    itemCode: opt.code,
+    ...(opt.category === "solvent" ? {
+      sizeLiter: opt.sizeLiter && opt.sizeLiter > 0 ? String(opt.sizeLiter) : "",
+      price: opt.price != null ? String(opt.price) : "",
+    } : {}),
+  });
+
+  const addPickedItem = (opt: PickOption) => {
+    setRows((prev) => [...prev, { ...makeEmptyRow(), ...optionPatch(opt) }]);
+    toast.success(`เพิ่มรายการ: ${opt.label}`);
   };
 
   const clearPendingBarcode = () => {
@@ -247,10 +254,7 @@ export default function ReceiveCart() {
 
       if (okCount > 0) toast.success(`รับเข้าสำเร็จ ${okCount} รายการ${failCount ? ` · ล้มเหลว ${failCount}` : ""}`);
       // ลบแถวที่สำเร็จ เก็บแถว fail ไว้ retry
-      setRows((prev) => {
-        const left = prev.filter((r) => !okIds.has(r.id));
-        return left.length ? left : [makeEmptyRow()];
-      });
+      setRows((prev) => prev.filter((r) => !okIds.has(r.id)));
       qc.invalidateQueries({ queryKey: ["stock", "standards"] });
       qc.invalidateQueries({ queryKey: ["stock", "units"] });
       qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
@@ -262,161 +266,286 @@ export default function ReceiveCart() {
   };
 
   const validCount = rows.filter((r) => r.itemId && !validateRow(r)).length;
+  const editingRow = editingRowId ? rows.find((row) => row.id === editingRowId) ?? null : null;
+
+  const rowUnit = (row: CartRow) => (row.category === "glassware" ? "ชิ้น" : "ขวด");
+  const rowQty = (row: CartRow) => (row.category === "standard" ? row.count : row.qty);
+  const rowLot = (row: CartRow) => (row.category === "glassware" ? "-" : row.lotNo || "-");
+  const patchRowQty = (row: CartRow, value: string) => {
+    const qty = sanitizeIntegerInput(value);
+    if (row.category === "standard") {
+      patchRow(row.id, { count: qty });
+      ensureBottleFields(row.id, Math.max(1, Number(qty) || 1));
+      return;
+    }
+    patchRow(row.id, { qty });
+  };
+
+  const renderDetailFields = (row: CartRow) => (
+    <div className="space-y-4 py-2">
+      {row.category === "standard" && (
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {(["primary", "working", "supplier"] as const).map((type) => (
+              <Button
+                key={type}
+                type="button"
+                size="sm"
+                variant={row.type === type ? "default" : "outline"}
+                onClick={() => patchRow(row.id, { type })}
+              >
+                {type}
+              </Button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div>
+              <Label htmlFor={`standard-lot-${row.id}`}>Lot No</Label>
+              <Input id={`standard-lot-${row.id}`} value={row.lotNo} onChange={(e) => patchRow(row.id, { lotNo: e.target.value })} placeholder="required" required />
+            </div>
+            <div>
+              <Label htmlFor={`standard-purity-${row.id}`}>% Purity</Label>
+              <Input id={`standard-purity-${row.id}`} value={row.purity} onChange={(e) => patchRow(row.id, { purity: e.target.value })} placeholder="เช่น 99.5" inputMode="decimal" required />
+            </div>
+            <div>
+              <Label htmlFor={`standard-size-${row.id}`}>ขนาด/ขวด (mg)</Label>
+              <Input id={`standard-size-${row.id}`} value={row.sizeMl} onChange={(e) => patchRow(row.id, { sizeMl: sanitizeDecimalInput(e.target.value, 4) })} inputMode="decimal" placeholder="เช่น 100 หรือ 0.1234" />
+            </div>
+            <div>
+              <Label htmlFor={`standard-count-${row.id}`}>จำนวนขวด</Label>
+              <Input id={`standard-count-${row.id}`} min="1" step="1" inputMode="numeric" value={row.count} onChange={(e) => patchRowQty(row, e.target.value)} />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox id={`sameExp-${row.id}`} checked={row.sameExp} onCheckedChange={(value) => patchRow(row.id, { sameExp: value === true })} />
+            <label htmlFor={`sameExp-${row.id}`} className="text-sm cursor-pointer">EXP เท่ากันทุกขวด</label>
+          </div>
+          {row.sameExp ? (
+            <div>
+              <Label htmlFor={`standard-common-exp-${row.id}`}>EXP (ทุกขวด)</Label>
+              <Input id={`standard-common-exp-${row.id}`} type="date" value={row.commonExp} onChange={(e) => patchRow(row.id, { commonExp: e.target.value })} required />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {Array.from({ length: Math.max(1, Number(row.count) || 1) }, (_, index) => (
+                <div key={index}>
+                  <Label>EXP ขวดที่ {index + 1}</Label>
+                  <Input
+                    type="date"
+                    value={row.perExp[index] ?? ""}
+                    required
+                    onChange={(event) => setRows((prev) => prev.map((current) => {
+                      if (current.id !== row.id) return current;
+                      const perExp = [...current.perExp];
+                      perExp[index] = event.target.value;
+                      return { ...current, perExp };
+                    }))}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="space-y-2">
+            {Array.from({ length: Math.max(1, Number(row.count) || 1) }, (_, index) => (
+              <StockPhotoUploader
+                key={index}
+                label={`รูปขวดที่ ${index + 1} (ไม่บังคับ)`}
+                value={row.perPhotoUrls[index] ?? []}
+                onChange={(photoUrls) => setBottlePhotoUrls(row.id, index, photoUrls)}
+                disabled={busy}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {row.category === "solvent" && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div>
+            <Label htmlFor={`${row.id}-solvent-qty`}>จำนวน (ขวด)</Label>
+            <Input id={`${row.id}-solvent-qty`} min="1" step="1" inputMode="numeric" value={row.qty} onChange={(e) => patchRowQty(row, e.target.value)} />
+          </div>
+          <div>
+            <Label htmlFor={`${row.id}-solvent-size`}>ขนาด/ขวด (ลิตร)</Label>
+            <Input id={`${row.id}-solvent-size`} type="number" min="0.001" step="any" value={row.sizeLiter} onChange={(e) => patchRow(row.id, { sizeLiter: e.target.value })} placeholder="เช่น 2.5" required />
+          </div>
+          <div>
+            <Label htmlFor={`${row.id}-solvent-price`}>ราคา (บาท)</Label>
+            <Input id={`${row.id}-solvent-price`} type="number" min="0" step="any" value={row.price} onChange={(e) => patchRow(row.id, { price: e.target.value })} placeholder="เช่น 1200" required />
+          </div>
+          <div>
+            <Label htmlFor={`${row.id}-solvent-lot`}>Lot No</Label>
+            <Input id={`${row.id}-solvent-lot`} value={row.lotNo} onChange={(e) => patchRow(row.id, { lotNo: e.target.value })} placeholder="required" required />
+          </div>
+          <div>
+            <Label htmlFor={`${row.id}-solvent-exp`}>EXP</Label>
+            <Input id={`${row.id}-solvent-exp`} type="date" value={row.exp} onChange={(e) => patchRow(row.id, { exp: e.target.value })} required />
+          </div>
+          <div className="col-span-2 sm:col-span-3">
+            <Label htmlFor={`${row.id}-solvent-note`}>หมายเหตุ</Label>
+            <Input id={`${row.id}-solvent-note`} value={row.note} onChange={(e) => patchRow(row.id, { note: e.target.value })} placeholder="optional" />
+          </div>
+          <div className="col-span-2 sm:col-span-3">
+            <StockPhotoUploader label="รูปขวดสารเคมี (ไม่บังคับ)" value={row.photoUrls} onChange={(photoUrls) => patchRow(row.id, { photoUrls })} disabled={busy} />
+          </div>
+        </div>
+      )}
+
+      {row.category === "glassware" && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label htmlFor={`${row.id}-glassware-qty`}>จำนวน (ชิ้น)</Label>
+            <Input id={`${row.id}-glassware-qty`} min="1" step="1" inputMode="numeric" value={row.qty} onChange={(e) => patchRowQty(row, e.target.value)} />
+          </div>
+          <div>
+            <Label htmlFor={`${row.id}-glassware-note`}>หมายเหตุ</Label>
+            <Input id={`${row.id}-glassware-note`} value={row.note} onChange={(e) => patchRow(row.id, { note: e.target.value })} placeholder="optional" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <>
-      <div className="space-y-4">
-      <Card>
-        <CardHeader className="pb-3 flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <ArrowDownToLine className="w-5 h-5" /> รับเข้า stock (หลายรายการ)
-          </CardTitle>
-          <Button size="sm" variant="outline" onClick={addRow}>
-            <Plus className="w-4 h-4 mr-1" /> เพิ่มแถว
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
-            <div className="space-y-1.5">
-              <Label htmlFor="stock-receive-barcode">สแกน Barcode รับเข้า</Label>
-              <Input
-                id="stock-receive-barcode"
-                value={scanText}
-                onChange={(event) => setScanText(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    handleScanSubmit();
-                  }
-                }}
-                placeholder="สแกน Barcode หรือค้นหา code/ชื่อ แล้วกด Enter"
-                autoComplete="off"
-              />
-            </div>
-            <Button type="button" variant="outline" onClick={handleScanSubmit} disabled={!scanText.trim()}>
-              เพิ่มจาก Barcode
-            </Button>
-            <Button type="button" variant="outline" onClick={() => setCameraScannerOpen(true)}>
-              <Camera className="w-4 h-4 mr-1" /> สแกนด้วยกล้อง
-            </Button>
-          </div>
-
-          {rows.map((row, idx) => (
-            <div key={row.id} className="border rounded-md p-3 space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground w-6">{idx + 1}.</span>
-                <ItemPicker
-                  options={options}
-                  value={row.itemId}
-                  onPick={(opt) => pickItem(row.id, opt)}
-                />
-                {row.category && <Badge variant="outline">{CATEGORY_LABEL[row.category]}</Badge>}
-                {row.barcode && <Badge variant="yellow-soft">Barcode ใหม่: {row.barcode}</Badge>}
-                <Button size="icon" variant="ghost" className="ml-auto" onClick={() => removeRow(row.id)}>
-                  <Trash2 className="w-4 h-4 text-destructive" />
-                </Button>
-              </div>
-
-              {row.category === "standard" && (
-                <div className="space-y-2 pl-8">
-                  <div className="flex gap-2">
-                    {(["primary", "working", "supplier"] as const).map((t) => (
-                      <Button key={t} type="button" size="sm" variant={row.type === t ? "default" : "outline"}
-                        onClick={() => patchRow(row.id, { type: t })}>{t}</Button>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div><Label htmlFor={`standard-lot-${row.id}`}>Lot No</Label><Input id={`standard-lot-${row.id}`} value={row.lotNo} onChange={(e) => patchRow(row.id, { lotNo: e.target.value })} placeholder="required" required /></div>
-                    <div><Label htmlFor={`standard-purity-${row.id}`}>% Purity</Label><Input id={`standard-purity-${row.id}`} value={row.purity} onChange={(e) => patchRow(row.id, { purity: e.target.value })} placeholder="เช่น 99.5" inputMode="decimal" required /></div>
-                    <div>
-                      <Label>ขนาด/ขวด (mg)</Label>
-                      <Input
-                        value={row.sizeMl}
-                        onChange={(e) => patchRow(row.id, { sizeMl: sanitizeDecimalInput(e.target.value, 4) })}
-                        inputMode="decimal"
-                        placeholder="เช่น 100 หรือ 0.1234"
-                      />
-                    </div>
-                    <div><Label>จำนวนขวด</Label><Input min="1" step="1" inputMode="numeric" value={row.count}
-                      onChange={(e) => { const count = sanitizeIntegerInput(e.target.value); patchRow(row.id, { count }); ensureBottleFields(row.id, Math.max(1, Number(count) || 1)); }} /></div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox id={`sameExp-${row.id}`} checked={row.sameExp} onCheckedChange={(v) => patchRow(row.id, { sameExp: v === true })} />
-                    <label htmlFor={`sameExp-${row.id}`} className="text-sm cursor-pointer">EXP เท่ากันทุกขวด</label>
-                  </div>
-                  {row.sameExp ? (
-                    <div><Label>EXP (ทุกขวด)</Label><Input type="date" value={row.commonExp} onChange={(e) => patchRow(row.id, { commonExp: e.target.value })} required /></div>
-                  ) : (
-                    <div className="space-y-2">
-                      {Array.from({ length: Math.max(1, Number(row.count) || 1) }, (_, i) => (
-                        <div key={i}>
-                          <Label>EXP ขวดที่ {i + 1}</Label>
-                          <Input type="date" value={row.perExp[i] ?? ""}
-                            required
-                            onChange={(e) => setRows((prev) => prev.map((r) => {
-                              if (r.id !== row.id) return r;
-                              const x = [...r.perExp]; x[i] = e.target.value; return { ...r, perExp: x };
-                            }))} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    {Array.from({ length: Math.max(1, Number(row.count) || 1) }, (_, i) => (
-                      <StockPhotoUploader
-                        key={i}
-                        label={`รูปขวดที่ ${i + 1} (ไม่บังคับ)`}
-                        value={row.perPhotoUrls[i] ?? []}
-                        onChange={(photoUrls) => setBottlePhotoUrls(row.id, i, photoUrls)}
-                        disabled={busy}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {row.category === "solvent" && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pl-8">
-                  <div><Label htmlFor={`${row.id}-solvent-qty`}>จำนวน (ขวด)</Label><Input id={`${row.id}-solvent-qty`} type="number" min="1" value={row.qty} onChange={(e) => patchRow(row.id, { qty: e.target.value })} /></div>
-                  <div><Label htmlFor={`${row.id}-solvent-size`}>ขนาด/ขวด (ลิตร)</Label><Input id={`${row.id}-solvent-size`} type="number" min="0.001" step="any" value={row.sizeLiter} onChange={(e) => patchRow(row.id, { sizeLiter: e.target.value })} placeholder="เช่น 2.5" required /></div>
-                  <div><Label htmlFor={`${row.id}-solvent-price`}>ราคา (บาท)</Label><Input id={`${row.id}-solvent-price`} type="number" min="0" step="any" value={row.price} onChange={(e) => patchRow(row.id, { price: e.target.value })} placeholder="เช่น 1200" required /></div>
-                  <div><Label>Lot No</Label><Input value={row.lotNo} onChange={(e) => patchRow(row.id, { lotNo: e.target.value })} placeholder="required" required /></div>
-                  <div><Label>EXP</Label><Input type="date" value={row.exp} onChange={(e) => patchRow(row.id, { exp: e.target.value })} required /></div>
-                  <div className="col-span-2 sm:col-span-3"><Label>หมายเหตุ</Label><Input value={row.note} onChange={(e) => patchRow(row.id, { note: e.target.value })} placeholder="optional" /></div>
-                  <div className="col-span-2 sm:col-span-3">
-                    <StockPhotoUploader
-                      label="รูปขวดสารเคมี (ไม่บังคับ)"
-                      value={row.photoUrls}
-                      onChange={(photoUrls) => patchRow(row.id, { photoUrls })}
-                      disabled={busy}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {row.category === "glassware" && (
-                <div className="grid grid-cols-2 gap-2 pl-8">
-                  <div><Label>จำนวน (ชิ้น)</Label><Input type="number" min="1" value={row.qty} onChange={(e) => patchRow(row.id, { qty: e.target.value })} /></div>
-                  <div><Label>หมายเหตุ</Label><Input value={row.note} onChange={(e) => patchRow(row.id, { note: e.target.value })} placeholder="optional" /></div>
-                </div>
-              )}
-            </div>
-          ))}
-
-          <div className="flex items-center justify-between pt-2">
-            <div className="flex items-center gap-2">
-              <Checkbox id="printAfterCart" checked={printAfter} onCheckedChange={(v) => setPrintAfter(v === true)} />
-              <label htmlFor="printAfterCart" className="text-sm cursor-pointer">ปริ้นลาเบลหลังรับเข้า (standard + สารเคมี)</label>
-            </div>
+            <div className="space-y-4">
+        <Card>
+          <CardHeader className="pb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ArrowDownToLine className="w-5 h-5" /> รับเข้า Stock
+            </CardTitle>
             <Button onClick={submit} disabled={busy || validCount === 0}>
               <ArrowDownToLine className="w-4 h-4 mr-1" />
               {busy ? "กำลังบันทึก..." : `รับเข้าทั้งหมด (${validCount} รายการ)`}
             </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <section className="space-y-3 rounded-lg border bg-muted/20 p-3">
+              <div className="font-medium">เพิ่มรายการรับเข้า</div>
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] lg:items-end">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="stock-receive-barcode">ค้นหา / สแกน Barcode</Label>
+                    <Input
+                      id="stock-receive-barcode"
+                      value={scanText}
+                      onChange={(event) => setScanText(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          handleScanSubmit();
+                        }
+                      }}
+                      placeholder="สแกน Barcode หรือพิมพ์ชื่อ/code แล้วกด Enter"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <Button type="button" variant="outline" onClick={handleScanSubmit} disabled={!scanText.trim()}>
+                    เพิ่มรายการ
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setCameraScannerOpen(true)}>
+                    <Camera className="w-4 h-4 mr-1" /> สแกนด้วยกล้อง
+                  </Button>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>ค้นจากรายการในระบบ</Label>
+                  <ItemPicker
+                    options={options}
+                    value=""
+                    placeholder="ค้นหาหรือเลือกสาร/สินค้า..."
+                    onPick={addPickedItem}
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">สามารถสแกน Barcode ต่อเนื่องได้เลย</p>
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="font-medium">รายการที่จะรับเข้า</div>
+                <Badge variant="outline">{rows.length} รายการ</Badge>
+              </div>
+
+              {rows.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  ยังไม่มีรายการรับเข้า ค้นหาหรือสแกน Barcode เพื่อเพิ่มรายการ
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full min-w-[680px] text-sm">
+                    <thead className="bg-muted/60 text-muted-foreground">
+                      <tr>
+                        <th className="w-12 px-3 py-2 text-left font-medium">#</th>
+                        <th className="px-3 py-2 text-left font-medium">สาร/สินค้า</th>
+                        <th className="w-40 px-3 py-2 text-left font-medium">Lot</th>
+                        <th className="w-28 px-3 py-2 text-right font-medium">จำนวน</th>
+                        <th className="w-20 px-3 py-2 text-left font-medium">หน่วย</th>
+                        <th className="w-28 px-3 py-2 text-right font-medium">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {rows.map((row, index) => (
+                        <tr key={row.id}>
+                          <td className="px-3 py-2 text-muted-foreground">{index + 1}</td>
+                          <td className="px-3 py-2 font-medium">{row.itemName || "-"}</td>
+                          <td className="px-3 py-2 text-muted-foreground">{rowLot(row)}</td>
+                          <td className="px-3 py-2 text-right">
+                            <Input
+                              aria-label={`จำนวน ${row.itemName || "รายการ"}`}
+                              className="ml-auto h-8 w-20 text-right"
+                              min="1"
+                              step="1"
+                              inputMode="numeric"
+                              value={rowQty(row)}
+                              onChange={(event) => patchRowQty(row, event.target.value)}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-muted-foreground">{rowUnit(row)}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex justify-end gap-1">
+                              <Button type="button" size="icon" variant="ghost" aria-label={`แก้ไข ${row.itemName || "รายการ"}`} onClick={() => setEditingRowId(row.id)}>
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                              <Button type="button" size="icon" variant="ghost" aria-label={`ลบ ${row.itemName || "รายการ"}`} onClick={() => removeRow(row.id)}>
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <Checkbox id="printAfterCart" checked={printAfter} onCheckedChange={(value) => setPrintAfter(value === true)} />
+                <label htmlFor="printAfterCart" className="text-sm cursor-pointer">ปริ้นลาเบลหลังรับเข้า (standard + สารเคมี)</label>
+              </div>
+              <Button onClick={submit} disabled={busy || validCount === 0}>
+                <ArrowDownToLine className="w-4 h-4 mr-1" />
+                {busy ? "กำลังบันทึก..." : `รับเข้า ${validCount} รายการ`}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-      <Dialog open={Boolean(pendingBarcode)} onOpenChange={(open) => { if (!open) clearPendingBarcode(); }}>
+
+      <Dialog open={Boolean(editingRow)} onOpenChange={(open) => { if (!open) setEditingRowId(null); }}>
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>แก้ไขรายการรับเข้า</DialogTitle>
+            <DialogDescription>{editingRow?.itemName || "รายการรับเข้า"}</DialogDescription>
+          </DialogHeader>
+          {editingRow && renderDetailFields(editingRow)}
+          <DialogFooter>
+            <Button type="button" onClick={() => setEditingRowId(null)}>เสร็จ</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+<Dialog open={Boolean(pendingBarcode)} onOpenChange={(open) => { if (!open) clearPendingBarcode(); }}>
         <DialogContent className="max-w-[95vw] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>ลงทะเบียน Barcode ใหม่</DialogTitle>
@@ -477,11 +606,12 @@ export default function ReceiveCart() {
 }
 
 function ItemPicker({
-  options, value, onPick,
+  options, value, onPick, placeholder = "เลือกของ...",
 }: {
   options: PickOption[];
   value: string;
   onPick: (opt: PickOption) => void;
+  placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -515,7 +645,7 @@ function ItemPicker({
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button variant="outline" role="combobox" className="w-64 justify-between font-normal">
-          <span className="truncate">{selected ? selected.label : "เลือกของ..."}</span>
+          <span className="truncate">{selected ? selected.label : placeholder}</span>
           <ChevronsUpDown className="w-4 h-4 opacity-50 shrink-0" />
         </Button>
       </PopoverTrigger>

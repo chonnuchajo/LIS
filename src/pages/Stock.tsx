@@ -184,14 +184,13 @@ function StandardsTab() {
     const q = search.trim().toLowerCase();
     return data.filter(s => {
       const sum = summarizeStandard(unitsByCode.get(s.code) ?? [], new Date(now));
-      if (sum.usable + sum.expired + sum.expiringSoon <= 0) return false;
       if (q && !s.name.toLowerCase().includes(q) && !s.code.toLowerCase().includes(q)) return false;
       if (statusFilters.size === 0) return true;
       return standardMatchesStatuses(sum, statusFilters);
     }).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
   }, [data, search, statusFilters, now, unitsByCode]);
 
-  const visibleStandards = data.filter(s => { const x = sumOf(s); return x.usable + x.expired + x.expiringSoon > 0; });
+  const visibleStandards = data;
   const lowList = visibleStandards.filter(s => { const x = sumOf(s); return x.usable > 0 && standardLevel(x.usable) !== "ok"; });
   const expiringList = visibleStandards.filter(s => { const x = sumOf(s); return x.expired > 0 || x.expiringSoon > 0; });
 
@@ -518,11 +517,10 @@ function SolventsTab() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const visible = data.filter(s => Number(s.qty) > 0);
-    return q ? visible.filter(s => s.name.toLowerCase().includes(q)) : visible;
+    return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
   }, [data, search]);
 
-  const visibleSolvents = data.filter(s => Number(s.qty) > 0);
+  const visibleSolvents = data;
   const lowList = visibleSolvents.filter(s => solventLevel(s.qty) !== "ok");
 
   const deleteItem = async () => {

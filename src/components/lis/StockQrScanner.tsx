@@ -33,20 +33,59 @@ interface Props {
   onScanned: (qrId: string) => void;
 }
 
-/** เน€เธเธดเธ”เธเธฅเนเธญเธเธญเนเธฒเธ QR เธเธงเธ” เนเธฅเนเธงเธเธทเธ qrId; เธกเธต fallback เธเธฃเธญเธ id เธกเธทเธญ */
-export default function StockQrScanner({ open, title = "สแกน QR ขวด", showManualEntry = true, scanMode = "qr", onClose, onScanned }: Props) {
+function scanHint(scanMode: ScanMode) {
+  if (scanMode === "barcode") {
+    return "เล็งกล้องไปที่ Barcode ให้เส้นอยู่ในกรอบ — ถือให้นิ่งและมีแสงเพียงพอ";
+  }
+  return "เล็งกล้องไปที่ QR บนขวด — ถือห่าง ~15–20 ซม. ไม่ต้องเอาเข้าใกล้";
+}
+
+function cameraErrorMessage(scanMode: ScanMode, showManualEntry: boolean) {
+  const target = scanMode === "barcode" ? "Barcode" : "QR";
+  if (showManualEntry) {
+    return `เปิดกล้องไม่ได้ กรุณาอนุญาตการใช้งานกล้องในเบราว์เซอร์ หรือกรอก/วาง ${target} ด้านล่างแทน`;
+  }
+  return `เปิดกล้องไม่ได้ กรุณาอนุญาตการใช้งานกล้องในเบราว์เซอร์ แล้วลองใหม่อีกครั้ง หรือปิดหน้าต่างนี้แล้วกรอก ${target} ในช่องค้นหา`;
+}
+
+function cameraErrorDetail(error: unknown) {
+  if (!error) return "";
+  if (error instanceof Error) {
+    const name = error.name && error.name !== "Error" ? error.name : "";
+    const message = error.message || "";
+    if (name && message) return `${name} — ${message}`;
+    return name || message;
+  }
+  return String(error);
+}
+
+export default function StockQrScanner({
+  open,
+  title = "สแกน QR ขวด",
+  showManualEntry = true,
+  scanMode = "qr",
+  onClose,
+  onScanned,
+}: Props) {
   const [phase, setPhase] = useState<"scanning" | "no-camera" | "error">("scanning");
   const [errorMsg, setErrorMsg] = useState("");
+  const [errorDetail, setErrorDetail] = useState("");
   const [manual, setManual] = useState("");
   const [zoomCaps, setZoomCaps] = useState<{ min: number; max: number; step: number } | null>(null);
   const [zoom, setZoom] = useState(1);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const firedRef = useRef(false);
+  const onScannedRef = useRef(onScanned);
+
+  useEffect(() => {
+    onScannedRef.current = onScanned;
+  }, [onScanned]);
 
   useEffect(() => {
     if (open) {
       setPhase("scanning");
       setErrorMsg("");
+      setErrorDetail("");
       setManual("");
       setZoomCaps(null);
       setZoom(1);
@@ -64,8 +103,6 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
         useBarCodeDetectorIfSupported: true,
         verbose: false,
       });
-      // qrbox เนเธซเธเนเธ•เธฒเธกเธเธญ (~80%) โ’ QR เธ—เธตเนเนเธซเธเนเธเธถเนเธเน€เธ•เนเธกเธเธฃเธญเธเนเธ”เนเธเธฒเธเธฃเธฐเธขเธฐเธเธเธ•เธด ~15โ€“20เธเธก.
-      // เนเธกเนเธ•เนเธญเธเน€เธญเธฒเน€เธเนเธฒเนเธเธฅเนเธเธเธเธฅเนเธญเธเนเธเธเธฑเธชเนเธกเนเธ•เธดเธ” (เธเธฅเนเธญเธเธซเธฅเธฑเธเนเธเธเธฑเธชเนเธเธฅเนเธเธงเนเธฒ ~10เธเธก.เนเธกเนเนเธ”เน)
       const config = {
         fps: 10,
         qrbox: (vw: number, vh: number) => {
@@ -84,19 +121,14 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
         const scannedValue = scanMode === "barcode" ? text.trim() : parseScannedQrId(text);
         if (!scannedValue) return;
         firedRef.current = true;
-        onScanned(scannedValue);
+        onScannedRef.current(scannedValue);
       };
       const startWith = (source: MediaTrackConstraints | string) =>
         scanner.start(source, config, onScan, () => {});
-      // เธ”เธถเธเนเธเธเธฑเธชเธ•เนเธญเน€เธเธทเนเธญเธ + เน€เธเธดเธ” slider เธเธนเธก เนเธซเนเธเธฑเธ QR เธ—เธตเนเธญเธขเธนเนเนเธเธฅ/เน€เธฅเนเธเนเธ”เนเธ”เธตเธเธถเนเธ
       const tuneCamera = async () => {
-        try {
-          await scanner.applyVideoConstraints({
-            advanced: [{ focusMode: "continuous" }],
-          } as unknown as MediaTrackConstraints);
-        } catch {
-          /* เธเธฅเนเธญเธเนเธกเนเธฃเธญเธเธฃเธฑเธ focusMode โ€” เธเนเธฒเธก */
-        }
+        await scanner.applyVideoConstraints({
+          advanced: [{ focusMode: "continuous" }],
+        } as unknown as MediaTrackConstraints).catch(() => undefined);
         try {
           const caps = scanner.getRunningTrackCapabilities() as MediaTrackCapabilities & {
             zoom?: { min: number; max: number; step?: number };
@@ -109,7 +141,7 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
             try {
               current = (scanner.getRunningTrackSettings() as MediaTrackSettings & { zoom?: number })?.zoom ?? min;
             } catch {
-              /* เนเธเนเธเนเธฒ min */
+              current = min;
             }
             if (active) {
               setZoomCaps({ min, max, step });
@@ -117,25 +149,32 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
             }
           }
         } catch {
-          /* เธเธฅเนเธญเธเนเธกเนเธฃเธญเธเธฃเธฑเธ zoom โ€” เนเธกเนเนเธชเธ”เธ slider */
+          if (active) setZoomCaps(null);
         }
       };
+      let lastStartError: unknown = null;
       try {
         try {
           await startWith({
-            facingMode: { exact: "environment" },
+            facingMode: { ideal: "environment" },
             width: { ideal: 1920 },
             height: { ideal: 1080 },
           } as MediaTrackConstraints);
-        } catch {
-          const cameras = await Html5Qrcode.getCameras();
-          if (cameras.length === 0) {
-            if (active) setPhase("no-camera");
-            return;
+        } catch (error) {
+          lastStartError = error;
+          try {
+            const cameras = await Html5Qrcode.getCameras();
+            if (cameras.length === 0) {
+              if (active) setPhase("no-camera");
+              return;
+            }
+            const back = cameras.find((camera) => /back|environment|rear|หลัง|後|背面/i.test(camera.label));
+            const camera = back ?? cameras[cameras.length - 1];
+            await startWith(camera.id);
+          } catch (fallbackError) {
+            lastStartError = fallbackError;
+            throw fallbackError;
           }
-          const back = cameras.find((c) => /back|environment|rear|เธซเธฅเธฑเธ|ๅ|่้ข/i.test(c.label));
-          const cam = back ?? cameras[cameras.length - 1];
-          await startWith(cam.id);
         }
         if (!active) {
           scanner.stop().catch(() => {});
@@ -143,54 +182,64 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
         }
         scannerRef.current = scanner;
         await tuneCamera();
-      } catch {
+      } catch (error) {
         if (active) {
           setPhase("error");
-          setErrorMsg(showManualEntry ? "เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เน€เธเธดเธ”เธเธฅเนเธญเธเนเธ”เน โ€” เนเธเนเธเนเธญเธเธเธฃเธญเธ id เธ”เนเธฒเธเธฅเนเธฒเธเนเธ—เธเนเธ”เน" : "เนเธกเนเธชเธฒเธกเธฒเธฃเธ–เน€เธเธดเธ”เธเธฅเนเธญเธเนเธ”เน");
+          setErrorMsg(cameraErrorMessage(scanMode, showManualEntry));
+          setErrorDetail(cameraErrorDetail(error || lastStartError));
         }
       }
     })();
 
     return () => {
       active = false;
-      const s = scannerRef.current;
+      const scanner = scannerRef.current;
       scannerRef.current = null;
-      if (s) {
+      if (scanner) {
         try {
-          const state = s.getState();
+          const state = scanner.getState();
           if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
-            s.stop().catch(() => {});
+            scanner.stop().catch(() => {});
           }
         } catch {
-          /* ignore */
+          return;
         }
       }
     };
-    // onScanned intentionally omitted โ€” captured in closure; matches QrReceiveModal
-    // and avoids camera restarts if a parent passes an unstable handler.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, phase, showManualEntry, scanMode]);
 
   if (!open) return null;
 
   const submitManual = () => {
     const scannedValue = scanMode === "barcode" ? manual.trim() : parseScannedQrId(manual);
-    if (scannedValue) onScanned(scannedValue);
+    if (scannedValue) onScannedRef.current(scannedValue);
   };
 
-  const onZoom = (v: number) => {
-    setZoom(v);
+  const retryCamera = () => {
+    setErrorMsg("");
+    setErrorDetail("");
+    setZoomCaps(null);
+    setZoom(1);
+    firedRef.current = false;
+    setPhase("scanning");
+  };
+
+  const onZoom = (value: number) => {
+    setZoom(value);
     scannerRef.current
-      ?.applyVideoConstraints({ advanced: [{ zoom: v }] } as unknown as MediaTrackConstraints)
+      ?.applyVideoConstraints({ advanced: [{ zoom: value }] } as unknown as MediaTrackConstraints)
       .catch(() => {});
   };
+
+  const manualLabel = scanMode === "barcode" ? "หรือกรอก/วาง Barcode เอง" : "หรือกรอก/วาง qrId เอง";
+  const manualPlaceholder = scanMode === "barcode" ? "Barcode" : "u_xxxxxxxx หรือ URL";
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl w-full max-w-md max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-3 border-b">
           <h2 className="text-base font-bold">{title}</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground" aria-label="ปิดหน้าต่างสแกน">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -198,11 +247,11 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
           <div className={phase === "scanning" ? "block" : "hidden"}>
             <div id={READER_ID} className="w-full rounded-lg overflow-hidden border" />
             <p className="mt-2 text-center text-sm text-muted-foreground">
-              เน€เธฅเนเธเธเธฅเนเธญเธเนเธเธ—เธตเน QR เธเธเธเธงเธ” โ€” เธ–เธทเธญเธซเนเธฒเธ ~15โ€“20 เธเธก. เนเธกเนเธ•เนเธญเธเน€เธญเธฒเน€เธเนเธฒเนเธเธฅเน
+              {scanHint(scanMode)}
             </p>
             {zoomCaps && (
               <div className="mt-3 flex items-center gap-2">
-                <span className="text-xs text-muted-foreground shrink-0">เธเธนเธก</span>
+                <span className="text-xs text-muted-foreground shrink-0">ซูม</span>
                 <input
                   type="range"
                   min={zoomCaps.min}
@@ -213,33 +262,39 @@ export default function StockQrScanner({ open, title = "สแกน QR ขว�
                   className="flex-1 accent-lis-sidebar"
                 />
                 <span className="text-xs text-muted-foreground w-10 text-right tabular-nums">
-                  {zoom.toFixed(1)}ร—
+                  {zoom.toFixed(1)}×
                 </span>
               </div>
             )}
           </div>
-          {phase !== "scanning" && <div id={READER_ID} className="hidden" />}
 
           {phase === "no-camera" && (
-            <p className="text-center text-sm text-muted-foreground">เนเธกเนเธเธเธเธฅเนเธญเธเนเธเธญเธธเธเธเธฃเธ“เนเธเธตเน</p>
+            <p className="text-center text-sm text-muted-foreground">ไม่พบกล้องในอุปกรณ์นี้</p>
           )}
           {phase === "error" && (
-            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-center text-sm text-destructive flex items-center gap-2 justify-center">
-              <AlertCircle className="w-4 h-4" /> {errorMsg}
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-center text-sm text-destructive space-y-2">
+              <div className="flex items-center gap-2 justify-center">
+                <AlertCircle className="w-4 h-4" />
+                <span>{errorMsg}</span>
+              </div>
+              {errorDetail && <div className="text-xs opacity-90">รายละเอียด: {errorDetail}</div>}
+              <Button type="button" size="sm" variant="outline" onClick={retryCamera}>
+                ลองเปิดกล้องอีกครั้ง
+              </Button>
             </div>
           )}
 
           {showManualEntry && (
             <div className="border-t pt-4 space-y-2">
-              <Label>เธซเธฃเธทเธญเธเธฃเธญเธ/เธงเธฒเธ qrId เน€เธญเธ</Label>
+              <Label>{manualLabel}</Label>
               <div className="flex gap-2">
                 <Input
                   value={manual}
                   onChange={(e) => setManual(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && manual.trim()) submitManual(); }}
-                  placeholder="u_xxxxxxxx เธซเธฃเธทเธญ URL"
+                  placeholder={manualPlaceholder}
                 />
-                <Button onClick={submitManual} disabled={!manual.trim()}>เธ•เธเธฅเธ</Button>
+                <Button onClick={submitManual} disabled={!manual.trim()}>ตกลง</Button>
               </div>
             </div>
           )}

@@ -1,0 +1,38 @@
+{
+  "db": "192.168.51.11/LIS-DB",
+  "correctedAt": "2026-08-20T01:54:40.571Z",
+  "id": "6a8657700114c5b77e8672f0",
+  "actor": {
+    "email": "admin.dev@icpladda.com",
+    "name": "Dev Administrator"
+  },
+  "before": {
+    "_id": "6a8657700114c5b77e8672f0",
+    "itemType": "standard",
+    "itemId": "6a1ab84cda9652d9f1b00daf",
+    "itemCode": "1",
+    "itemName": "2,4-D Acid",
+    "action": "deduct",
+    "tier": null,
+    "beforeQty": 100,
+    "afterQty": 0,
+    "delta": null,
+    "unit": "mg",
+    "note": "",
+    "unitId": "6a842656dbedf8cb671fd92f",
+    "qrId": "u_11a907a2451b",
+    "volumeDelta": -100,
+    "volumeUnit": "mg",
+    "weights": [
+      40,
+      30,
+      30
+    ],
+    "instrumentGroup": "gc",
+    "userEmail": "nutcharin.d@icpladda.com",
+    "userName": "นางสาวนุชจรินทร์ ดวงเนตร",
+    "createdAt": "2026-08-20T01:25:04.914Z",
+    "updatedAt": "2026-08-20T01:45:33.822Z",
+    "__v": 0
+  }
+}

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -46,18 +46,35 @@ describe("ReceiveCart Thai copy", () => {
     apiMock.getGlassware.mockResolvedValue([]);
   });
 
-  it("renders the receiving controls with readable Thai text", () => {
+  it("renders the simplified receive flow copy", () => {
     renderReceiveCart();
 
-    expect(screen.getByRole("heading", { name: "รับเข้า stock (หลายรายการ)" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /เพิ่มแถว/ })).toBeInTheDocument();
-    expect(screen.getByLabelText("สแกน Barcode รับเข้า")).toHaveAttribute(
+    expect(screen.getByRole("heading", { name: "รับเข้า Stock" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /เพิ่มแถว/ })).not.toBeInTheDocument();
+    expect(screen.getByText("เพิ่มรายการรับเข้า")).toBeInTheDocument();
+    expect(screen.getByLabelText("ค้นหา / สแกน Barcode")).toHaveAttribute(
       "placeholder",
-      "สแกน/กรอก Barcode แล้วกด Enter",
+      "สแกน Barcode หรือพิมพ์ชื่อ/code แล้วกด Enter",
     );
-    expect(screen.getByRole("button", { name: "เพิ่มจาก Barcode" })).toBeInTheDocument();
-    expect(screen.getByText("ปริ้นลาเบลหลังรับเข้า (standard + สารเคมี)")).toBeInTheDocument();
+    expect(screen.getByText("สามารถสแกน Barcode ต่อเนื่องได้เลย")).toBeInTheDocument();
+    expect(screen.getByText("รายการที่จะรับเข้า")).toBeInTheDocument();
+    expect(screen.getByText("0 รายการ")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "รับเข้าทั้งหมด (0 รายการ)" })).toBeDisabled();
+  });
+
+  it("adds a scanned stock item directly to the receive list", async () => {
+    apiMock.getStandards.mockResolvedValue([
+      { _id: "std1", code: "STD-001", name: "ABAMECTIN", barcodes: [], primary: {}, supplier: {}, working: {} },
+    ]);
+    renderReceiveCart();
+
+    fireEvent.change(await screen.findByLabelText("ค้นหา / สแกน Barcode"), { target: { value: "STD-001" } });
+    fireEvent.click(screen.getByRole("button", { name: "เพิ่มรายการ" }));
+
+    expect(await screen.findByRole("cell", { name: "ABAMECTIN" })).toBeInTheDocument();
+    expect(screen.getByText("1 รายการ")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /แก้ไข ABAMECTIN/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /ลบ ABAMECTIN/ })).toBeInTheDocument();
   });
 
   it("does not contain known Thai mojibake sequences", () => {
@@ -66,5 +83,3 @@ describe("ReceiveCart Thai copy", () => {
     expect(source).not.toMatch(/เธ|เน[€-]|โ€”|ยท/);
   });
 });
-
-

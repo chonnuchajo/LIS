@@ -74,11 +74,15 @@ async function findReceiveBarcodeOwner(barcode) {
   return null;
 }
 
+function requestHeader(req, name) {
+  return req.get?.(name) || req.headers?.[String(name).toLowerCase()] || '';
+}
+
 async function userMeta(req) {
   if (req._stockUserMeta) return req._stockUserMeta;
   const raw = {
-    email: req.body?._user?.email || req.headers['x-user-email'] || '',
-    name: req.body?._user?.name || req.headers['x-user-name'] || '',
+    email: req.body?._user?.email || requestHeader(req, 'x-user-email') || requestHeader(req, 'x-lis-user') || '',
+    name: req.body?._user?.name || requestHeader(req, 'x-user-name') || '',
   };
   const email = String(raw.email || '').trim().toLowerCase();
   const stored = email ? await User.findOne({ email }).lean() : null;
@@ -1118,4 +1122,5 @@ router.get('/transactions', async (req, res) => {
 
 module.exports = router;
 router.planDeductMg = planDeductMg;
+router.userMeta = userMeta;
 router.deductMgFromUnit = deductMgFromUnit;
