@@ -149,6 +149,8 @@ describe("stock label paper size", () => {
     expect(html).toContain('alt="qr"');
     expect(html).toContain("grid-template-rows");
     expect(html).toContain("font-size:6.4pt");
+    expect(html).toContain("font-size:6.2pt;font-weight:400");
+    expect(html).not.toContain("font-size:6.2pt;font-weight:600");
   });
 
   it("renders solvent labels at 65mm x 25mm", async () => {

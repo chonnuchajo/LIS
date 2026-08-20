@@ -88,7 +88,7 @@ function escapeHtml(s: string): string {
 }
 
 function labelRow(label: string, value: string): string {
-  return `<div style="display:grid;grid-template-columns:14mm 1fr;border-bottom:0.25mm solid #000;min-width:0;"><div style="display:flex;align-items:center;border-right:0.25mm solid #000;padding:0 1mm;font-size:6.4pt;white-space:nowrap;">${escapeHtml(label)}</div><div style="display:flex;align-items:center;justify-content:center;padding:0 .8mm;font-size:6.2pt;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(value)}</div></div>`;
+  return `<div style="display:grid;grid-template-columns:14mm 1fr;border-bottom:0.25mm solid #000;min-width:0;"><div style="display:flex;align-items:center;border-right:0.25mm solid #000;padding:0 1mm;font-size:6.4pt;white-space:nowrap;">${escapeHtml(label)}</div><div style="display:flex;align-items:center;justify-content:center;padding:0 .8mm;font-size:6.2pt;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(value)}</div></div>`;
 }
 
 function formatPurityLabel(unit: StockUnitItem): string {

@@ -45,6 +45,7 @@ describe("app bootstrap", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
     initialize.mockResolvedValue(undefined);
     getAllAccounts.mockReturnValue([]);
     document.body.innerHTML = '<div id="root"></div>';
@@ -71,6 +72,29 @@ describe("app bootstrap", () => {
     expect(sessionStorage.getItem("lis_login_redirect")).toBeNull();
   });
 
+  it("restores an app-relative stock deduction deep link under the production basename", async () => {
+    vi.stubEnv("BASE_URL", "/LIS/");
+    window.history.replaceState(null, "", "/LIS/");
+    sessionStorage.setItem("lis_login_redirect", "/stock-deduction?qrId=u_prod");
+    handleRedirectPromise.mockResolvedValue({ account: { homeAccountId: "acct" } });
+
+    await import("./main");
+
+    await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(1));
+    expect(window.location.pathname + window.location.search).toBe("/LIS/stock-deduction?qrId=u_prod");
+    expect(sessionStorage.getItem("lis_login_redirect")).toBeNull();
+  });
+
+  it("restores a stored stock deduction deep link even when MSAL has no account yet", async () => {
+    sessionStorage.setItem("lis_login_redirect", "/stock-deduction?qrId=u_scan");
+    handleRedirectPromise.mockResolvedValue(null);
+
+    await import("./main");
+
+    await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(1));
+    expect(window.location.pathname + window.location.search).toBe("/stock-deduction?qrId=u_scan");
+    expect(sessionStorage.getItem("lis_login_redirect")).toBeNull();
+  });
   it("still renders the app when handleRedirectPromise rejects on a stale MSAL cache", async () => {
     handleRedirectPromise.mockRejectedValue(
       Object.assign(new Error("no_token_request_cache_error"), {

@@ -28,9 +28,15 @@ function currentAppPath() {
 
 function normalizeLoginRedirect(raw: string | null) {
   if (!raw) return "";
+  const base = appBasePath();
+  const isAppRelativePath =
+    raw.startsWith("/") &&
+    !raw.startsWith("//") &&
+    (!base || (raw !== base && !raw.startsWith(base + "/")));
+  if (isAppRelativePath) return raw;
+
   try {
     const url = new URL(raw, window.location.origin);
-    const base = appBasePath();
     if (url.origin !== window.location.origin) return "";
     if (base && url.pathname !== base && !url.pathname.startsWith(base + "/")) return "";
     const path = base ? url.pathname.slice(base.length) || "/" : url.pathname || "/";
@@ -74,7 +80,6 @@ async function resolveActiveAccount() {
 resolveActiveAccount().then((account) => {
   if (account) {
     msalInstance.setActiveAccount(account);
-    restoreLoginRedirectAtRoot();
     // Authenticated session: warm the landing route's chunk (Vite also preloads
     // its AppLayout dep) and the access-control matrix in parallel with React's
     // first mount, so neither is a sequential network hop before the home LCP.
@@ -82,6 +87,7 @@ resolveActiveAccount().then((account) => {
     void import("./pages/Home");
     void loadAccessControl().catch(() => {});
   }
+  restoreLoginRedirectAtRoot();
 
   createRoot(document.getElementById("root")!).render(
     <MsalProvider instance={msalInstance}>

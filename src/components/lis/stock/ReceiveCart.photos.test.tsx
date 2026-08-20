@@ -66,7 +66,16 @@ function mockStockLists() {
 async function scanReceiveBarcode(value: string) {
   const barcodeInput = await screen.findByRole("textbox", { name: /Barcode/ });
   fireEvent.change(barcodeInput, { target: { value } });
-  fireEvent.click(screen.getByRole("button", { name: /Barcode/ }));
+  fireEvent.click(screen.getByRole("button", { name: "เพิ่มรายการ" }));
+}
+
+async function openReceiveRowEditor(itemName: string) {
+  fireEvent.click(await screen.findByRole("button", { name: new RegExp(`แก้ไข ${itemName}`) }));
+  return screen.findByRole("dialog", { name: "แก้ไขรายการรับเข้า" });
+}
+
+function closeReceiveRowEditor(dialog: HTMLElement) {
+  fireEvent.click(within(dialog).getByRole("button", { name: "เสร็จ" }));
 }
 
 describe("ReceiveCart photos", () => {
@@ -118,10 +127,12 @@ describe("ReceiveCart photos", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: /Barcode/ }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /Barcode/ })).not.toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole("button", { name: "primary" }));
-    fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "LOT-1" } });
-    fireEvent.change(screen.getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
-    fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
+    const editor = await openReceiveRowEditor("ABAMECTIN");
+    fireEvent.click(within(editor).getByRole("button", { name: "primary" }));
+    fireEvent.change(within(editor).getByPlaceholderText("required"), { target: { value: "LOT-1" } });
+    fireEvent.change(within(editor).getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
+    fireEvent.change(within(editor).getByLabelText("EXP (ทุกขวด)"), { target: { value: "2027-12-31" } });
+    closeReceiveRowEditor(editor);
     fireEvent.click(screen.getByRole("button", { name: /\(1/ }));
 
     await waitFor(() => expect(apiMock.registerStockBarcode).toHaveBeenCalled());
@@ -138,11 +149,13 @@ describe("ReceiveCart photos", () => {
     renderCart();
 
     await scanReceiveBarcode("STD-001");
-    fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "LOT-1" } });
-    fireEvent.change(screen.getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
-    fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
-    fireEvent.click(screen.getByRole("button", { name: "primary" }));
-    fireEvent.click(await screen.findByTestId("photo-upload"));
+    const editor = await openReceiveRowEditor("ABAMECTIN");
+    fireEvent.click(within(editor).getByRole("button", { name: "primary" }));
+    fireEvent.change(within(editor).getByPlaceholderText("required"), { target: { value: "LOT-1" } });
+    fireEvent.change(within(editor).getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
+    fireEvent.change(within(editor).getByLabelText("EXP (ทุกขวด)"), { target: { value: "2027-12-31" } });
+    fireEvent.click(await within(editor).findByTestId("photo-upload"));
+    closeReceiveRowEditor(editor);
     fireEvent.click(screen.getByRole("button", { name: /\(1/ }));
 
     await waitFor(() => expect(apiMock.receiveStockUnits).toHaveBeenCalled());
@@ -173,11 +186,13 @@ describe("ReceiveCart photos", () => {
     renderCart();
 
     await scanReceiveBarcode("Methanol");
-    fireEvent.change(screen.getByLabelText("จำนวน (ขวด)"), { target: { value: "2" } });
-    fireEvent.change(screen.getByLabelText("ขนาด/ขวด (ลิตร)"), { target: { value: "2.5" } });
-    fireEvent.change(screen.getByLabelText("ราคา (บาท)"), { target: { value: "1200" } });
-    fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "B-001" } });
-    fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-01-01" } });
+    const editor = await openReceiveRowEditor("Methanol");
+    fireEvent.change(within(editor).getByLabelText("จำนวน (ขวด)"), { target: { value: "2" } });
+    fireEvent.change(within(editor).getByLabelText("ขนาด/ขวด (ลิตร)"), { target: { value: "2.5" } });
+    fireEvent.change(within(editor).getByLabelText("ราคา (บาท)"), { target: { value: "1200" } });
+    fireEvent.change(within(editor).getByPlaceholderText("required"), { target: { value: "B-001" } });
+    fireEvent.change(within(editor).getByLabelText("EXP"), { target: { value: "2027-01-01" } });
+    closeReceiveRowEditor(editor);
     fireEvent.click(screen.getByRole("button", { name: /\(1/ }));
 
     await waitFor(() => expect(apiMock.receiveSolvent).toHaveBeenCalledWith(
@@ -211,10 +226,12 @@ describe("ReceiveCart photos", () => {
     renderCart();
 
     await scanReceiveBarcode("STD-001");
-    fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "LOT-1" } });
-    fireEvent.change(screen.getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
-    fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
-    fireEvent.click(screen.getByRole("button", { name: "primary" }));
+    const editor = await openReceiveRowEditor("ABAMECTIN");
+    fireEvent.click(within(editor).getByRole("button", { name: "primary" }));
+    fireEvent.change(within(editor).getByPlaceholderText("required"), { target: { value: "LOT-1" } });
+    fireEvent.change(within(editor).getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
+    fireEvent.change(within(editor).getByLabelText("EXP (ทุกขวด)"), { target: { value: "2027-12-31" } });
+    closeReceiveRowEditor(editor);
     fireEvent.click(screen.getByRole("button", { name: /\(1/ }));
 
     await waitFor(() => {
