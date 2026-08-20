@@ -329,7 +329,7 @@ export const api = {
     request<{ success: true }>(`/stock/solvents/${id}`, { method: "DELETE" }),
   deductSolvent: (id: string, body: { qty: number; sampleId?: string; note?: string } & StockUserPayload) =>
     request<StockSolventItem>(`/stock/solvents/${id}/deduct`, { method: "POST", body: JSON.stringify(body) }),
-  receiveSolvent: (id: string, body: { qty: number; lotNo: string; exp: string; sizeLiter: number; price: number; note?: string; photoUrls?: string[] } & StockUserPayload) =>
+  receiveSolvent: (id: string, body: { qty: number; lotNo: string; exp: string; sizeLiter: number; price: number; note?: string } & StockUserPayload) =>
     request<StockSolventItem>(`/stock/solvents/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
 
   // Chemical requisition — เบิกสารเคมี (solvent) → เครื่อง (daily-check/analysis)
@@ -436,7 +436,7 @@ export const api = {
     }),
   receiveStockUnits: (
     standardId: string,
-    body: { lotNo?: string; purity: string; sizeMl: number; unit?: "ml" | "mg" | "g"; type: "primary" | "supplier" | "working"; bottles: { exp?: string; photoUrls?: string[] }[]; note?: string } & StockUserPayload,
+    body: { lotNo?: string; purity: string; sizeMl: number; unit?: "ml" | "mg" | "g"; type: "primary" | "supplier" | "working"; bottles: { exp?: string }[]; note?: string } & StockUserPayload,
   ) =>
     request<StockUnitItem[]>(`/stock/standards/${standardId}/units/receive`, {
       method: "POST",
