@@ -116,6 +116,11 @@ export default function StockQrScanner({
           return { width: side, height: side };
         },
       };
+      const preferredVideoConstraints: MediaTrackConstraints = {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      };
       const onScan = (text: string) => {
         if (!active || firedRef.current) return;
         const scannedValue = scanMode === "barcode" ? text.trim() : parseScannedQrId(text);
@@ -123,8 +128,10 @@ export default function StockQrScanner({
         firedRef.current = true;
         onScannedRef.current(scannedValue);
       };
-      const startWith = (source: MediaTrackConstraints | string) =>
-        scanner.start(source, config, onScan, () => {});
+      const startWith = (
+        source: MediaTrackConstraints | string,
+        startConfig: typeof config & { videoConstraints?: MediaTrackConstraints } = config,
+      ) => scanner.start(source, startConfig, onScan, () => {});
       const tuneCamera = async () => {
         await scanner.applyVideoConstraints({
           advanced: [{ focusMode: "continuous" }],
@@ -155,11 +162,10 @@ export default function StockQrScanner({
       let lastStartError: unknown = null;
       try {
         try {
-          await startWith({
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          } as MediaTrackConstraints);
+          await startWith({ facingMode: "environment" }, {
+            ...config,
+            videoConstraints: preferredVideoConstraints,
+          });
         } catch (error) {
           lastStartError = error;
           try {

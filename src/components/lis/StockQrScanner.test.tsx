@@ -94,7 +94,7 @@ describe("StockQrScanner", () => {
     });
   });
 
-  it("starts with an ideal rear camera instead of requiring an exact rear camera", async () => {
+  it("passes only a library-supported camera selector as the start source", async () => {
     render(
       <StockQrScanner
         open
@@ -108,11 +108,16 @@ describe("StockQrScanner", () => {
 
     await waitFor(() => expect(scannerState.startSources).toHaveLength(1));
 
-    expect(scannerState.startSources[0]).toMatchObject({
-      facingMode: { ideal: "environment" },
+    expect(scannerState.startSources[0]).toEqual({
+      facingMode: "environment",
     });
-    expect(scannerState.startSources[0]).not.toMatchObject({
-      facingMode: { exact: "environment" },
+    expect(Object.keys(scannerState.startSources[0] as Record<string, unknown>)).toEqual(["facingMode"]);
+    expect(scannerState.startConfigs[0]).toMatchObject({
+      videoConstraints: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
     });
   });
 
