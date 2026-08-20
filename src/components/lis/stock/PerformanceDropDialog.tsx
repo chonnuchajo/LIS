@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -15,16 +15,16 @@ import { cn } from "@/lib/utils";
 import type { StockUnitItem } from "@/types/stock";
 
 interface Props {
-  qrId: string;
+  qrId?: string;
+  units?: StockUnitItem[];
   onClose: () => void;
   onSaved: () => void;
 }
 
 const REASONS = ["ประสิทธิภาพลดลง", "หมดอายุ", "ปนเปื้อน", "ใช้งานไม่ได้", "อื่นๆ"] as const;
 
-/** แจ้งสถานะขวด standard รายขวด → แจ้งหมด (empty) หรือแจ้งปัญหา/ทิ้งขวด (discard) */
-export default function PerformanceDropDialog({ qrId, onClose, onSaved }: Props) {
-  const [unit, setUnit] = useState<StockUnitItem | null>(null);
+export default function PerformanceDropDialog({ qrId, units, onClose, onSaved }: Props) {
+  const [loadedUnits, setLoadedUnits] = useState<StockUnitItem[]>(units ?? []);
   const [loadErr, setLoadErr] = useState("");
   const [outcome, setOutcome] = useState<"empty" | "discard">("discard");
   const [reasonKey, setReasonKey] = useState<string>(REASONS[0]);
@@ -32,24 +32,43 @@ export default function PerformanceDropDialog({ qrId, onClose, onSaved }: Props)
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (units) {
+      setLoadedUnits(units);
+      setLoadErr("");
+      return;
+    }
+    if (!qrId) {
+      setLoadedUnits([]);
+      setLoadErr("ไม่พบข้อมูลขวดที่ต้องแจ้งสถานะ");
+      return;
+    }
     let on = true;
     api.getStockUnit(qrId)
-      .then((u) => { if (on) setUnit(u); })
-      .catch((e) => { if (on) setLoadErr((e as Error).message); });
+      .then((unit) => { if (on) setLoadedUnits([unit]); })
+      .catch((error) => { if (on) setLoadErr((error as Error).message); });
     return () => { on = false; };
-  }, [qrId]);
+  }, [qrId, units]);
 
-  const isWorking = unit?.kind === "working";
+  const targetQrIds = loadedUnits.length > 0 ? loadedUnits.map((unit) => unit.qrId) : qrId ? [qrId] : [];
+  const firstUnit = loadedUnits[0];
+  const isWorking = loadedUnits.length === 1 && firstUnit?.kind === "working";
   const reason = outcome === "discard"
     ? (reasonKey === "อื่นๆ" ? (customReason.trim() || "อื่นๆ") : reasonKey)
     : undefined;
+  const count = targetQrIds.length;
+  const lotSummary = Array.from(new Set(loadedUnits.map((unit) => unit.lotNo).filter(Boolean))).join(", ");
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (targetQrIds.length === 0) {
+      toast.error("ไม่พบขวดที่ต้องแจ้งสถานะ");
+      return;
+    }
     setBusy(true);
     try {
-      await api.discardStockUnit(qrId, { reason, outcome });
-      toast.success(outcome === "empty" ? "แจ้งหมดแล้ว" : "แจ้งปัญหา/ทิ้งขวดแล้ว");
+      await Promise.all(targetQrIds.map((targetQrId) => api.discardStockUnit(targetQrId, { reason, outcome })));
+      const suffix = count > 1 ? ` ${count} ขวด` : "";
+      toast.success(outcome === "empty" ? `แจ้งหมดแล้ว${suffix}` : `แจ้งปัญหา/ทิ้งขวดแล้ว${suffix}`);
       onSaved();
       onClose();
     } catch (err) {
@@ -60,38 +79,47 @@ export default function PerformanceDropDialog({ qrId, onClose, onSaved }: Props)
   };
 
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-[95vw] rounded-2xl sm:max-w-md">
         <form onSubmit={submit}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Trash2 className="h-5 w-5 text-destructive" /> แจ้งสถานะขวด
             </DialogTitle>
-            <DialogDescription>แจ้งหมด หรือแจ้งปัญหา/ทิ้งขวดนี้</DialogDescription>
+            <DialogDescription>
+              {count > 1 ? `แจ้งหมด หรือแจ้งปัญหา/ทิ้ง ${count} ขวดที่เลือก` : "แจ้งหมด หรือแจ้งปัญหา/ทิ้งขวดนี้"}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             {loadErr && <p className="text-sm text-destructive">{loadErr}</p>}
 
-            {/* ชื่อ + ปริมาณคงเหลือ */}
-            {unit && (
+            {loadedUnits.length === 1 && firstUnit && (
               <div className="rounded-xl border bg-muted/40 p-3">
-                <div className="font-medium">{unit.itemName}</div>
+                <div className="font-medium">{firstUnit.itemName}</div>
                 <div className="mt-0.5 text-sm text-muted-foreground">
-                  เหลือ <span className="font-medium text-foreground">{unit.volume?.remaining ?? "-"} {unit.volume?.unit}</span>
+                  เหลือ <span className="font-medium text-foreground">{firstUnit.volume?.remaining ?? "-"} {firstUnit.volume?.unit}</span>
                   {" · "}{isWorking ? "working" : "คงคลัง"}
-                  {unit.lotNo ? ` · Lot ${unit.lotNo}` : ""}
+                  {firstUnit.lotNo ? ` · Lot ${firstUnit.lotNo}` : ""}
                 </div>
               </div>
             )}
 
-            {/* การแจ้ง */}
+            {loadedUnits.length > 1 && firstUnit && (
+              <div className="rounded-xl border bg-muted/40 p-3">
+                <div className="font-medium">{firstUnit.itemName} · {loadedUnits.length} ขวดที่เลือก</div>
+                <div className="mt-0.5 text-sm text-muted-foreground">
+                  {lotSummary ? `Lot ${lotSummary}` : "หลาย Lot"}
+                </div>
+              </div>
+            )}
+
             <div>
               <Label className="mb-1.5 block">การแจ้ง</Label>
               <div className="space-y-2">
                 {([
-                  { v: "empty", label: "แจ้งหมด (ขวดนี้ใช้หมดแล้ว)" },
-                  { v: "discard", label: "แจ้งปัญหา / ทิ้งขวด (ระบุเหตุผล)" },
+                  { v: "empty", label: count > 1 ? "แจ้งหมด (ขวดที่เลือกใช้หมดแล้ว)" : "แจ้งหมด (ขวดนี้ใช้หมดแล้ว)" },
+                  { v: "discard", label: count > 1 ? "แจ้งปัญหา / ทิ้งขวดที่เลือก (ระบุเหตุผล)" : "แจ้งปัญหา / ทิ้งขวด (ระบุเหตุผล)" },
                 ] as const).map((opt) => (
                   <label
                     key={opt.v}
@@ -107,7 +135,6 @@ export default function PerformanceDropDialog({ qrId, onClose, onSaved }: Props)
               </div>
             </div>
 
-            {/* เหตุผล */}
             {outcome === "discard" && (
               <div>
                 <Label className="mb-1.5 block">เหตุผล</Label>
@@ -137,7 +164,7 @@ export default function PerformanceDropDialog({ qrId, onClose, onSaved }: Props)
 
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-            <Button type="submit" variant="destructive" disabled={busy || !unit}>
+            <Button type="submit" variant="destructive" disabled={busy || targetQrIds.length === 0}>
               {busy ? "กำลังบันทึก..." : "ยืนยัน"}
             </Button>
           </DialogFooter>
