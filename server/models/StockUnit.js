@@ -22,6 +22,8 @@ const StockUnitSchema = new mongoose.Schema({
   lotNo: { type: String, default: '' },
   purity: { type: String, default: '' },
   lotBottleNo: { type: Number, default: null, min: 1 },
+  labelRunNo: { type: Number, default: null, min: 1 },
+  labelRunYear: { type: Number, default: null, min: 2000 },
   exp: { type: Date, default: null },
   frequencyDue: { type: Date, default: null },
   volume: { type: VolumeSchema, default: () => ({}) },
@@ -36,5 +38,6 @@ const StockUnitSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 StockUnitSchema.index({ exp: 1 });
+StockUnitSchema.index({ itemCode: 1, labelRunYear: 1, labelRunNo: 1 });
 
 module.exports = mongoose.model('StockUnit', StockUnitSchema);

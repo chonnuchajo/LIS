@@ -39,6 +39,14 @@ export function glasswareLevel(qty: number): StockLevel {
 
 export interface StdSummary { usable: number; expired: number; expiringSoon: number }
 
+export interface StandardAlertSummary {
+  lowStock: boolean;
+  expired: boolean;
+  expiringSoon: boolean;
+  severity: "destructive" | "warning";
+  message: string;
+}
+
 /** สรุปขวดของสาร: usable (นับ level), expired (active แต่หมดอายุ), expiringSoon (usable + exp ภายใน soonDays) */
 export function summarizeStandard(
   units: BottleLike[],
@@ -77,4 +85,24 @@ export function standardMatchesStatuses(
   if (statuses.has("expired") && sum.expired > 0) return true;
   if (statuses.has("soon") && sum.expiringSoon > 0) return true;
   return false;
+}
+
+export function getStandardAlertSummary(sum: StdSummary): StandardAlertSummary | null {
+  const lowStock = sum.usable > 0 && standardLevel(sum.usable) !== "ok";
+  const expired = sum.expired > 0;
+  const expiringSoon = !expired && sum.expiringSoon > 0;
+  const parts: string[] = [];
+
+  if (lowStock) parts.push(`ใกล้หมด เหลือรวม ${sum.usable} ขวด`);
+  if (expired) parts.push(`หมดอายุ ${sum.expired} ขวด`);
+  else if (expiringSoon) parts.push(`ใกล้หมดอายุ ${sum.expiringSoon} ขวด`);
+  if (parts.length === 0) return null;
+
+  return {
+    lowStock,
+    expired,
+    expiringSoon,
+    severity: lowStock || expired ? "destructive" : "warning",
+    message: parts.join(" / "),
+  };
 }

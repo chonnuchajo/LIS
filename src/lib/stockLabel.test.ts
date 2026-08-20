@@ -171,6 +171,29 @@ describe("stock label paper size", () => {
     expect(html).toContain("font-family:Verdana,'Segoe UI',Arial,'Kanit',Tahoma,sans-serif");
   });
 
+  it("renders the annual receive run under the QR code", async () => {
+    const html = await buildStockLabelHtml({
+      _id: "unit-1",
+      qrId: "u_abc123",
+      itemCode: "STD-001",
+      itemName: "2,4-D dimethyl amonium",
+      kind: "sealed",
+      type: "primary",
+      lotNo: "G1237356",
+      purity: "99.72",
+      labelRunNo: 1,
+      labelRunYear: 2026,
+      exp: "2028-05-28",
+      volume: { initial: 100, remaining: 100, unit: "mg" },
+      status: "active",
+    } as StockUnitItem);
+
+    expect(html).toContain("2,4-D dimethyl amonium");
+    expect(html).not.toContain("2,4-D dimethyl amonium (01/2026)");
+    expect(html.indexOf('alt="qr"')).toBeLessThan(html.indexOf("01/2026"));
+    expect(html.indexOf("01/2026")).toBeLessThan(html.indexOf("REFERENCE STANDARD"));
+  });
+
   it("renders solvent labels at 65mm x 25mm", async () => {
     const html = await buildSolventLabelHtml({ name: "Methanol", idForQr: "sol_123" });
 

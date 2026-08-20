@@ -20,9 +20,13 @@ export async function buildStockLabelHtml(unit: StockUnitItem): Promise<string> 
   });
   const exp = unit.exp ? new Date(unit.exp).toLocaleDateString("th-TH") : "-";
   const purity = formatPurityLabel(unit);
+  const labelRun = formatStandardLabelRun(unit.labelRunNo, unit.labelRunYear);
   return `
 <div style="font-family:Verdana,'Segoe UI',Arial,'Kanit',Tahoma,sans-serif;width:65mm;height:25mm;box-sizing:border-box;color:#000;background:#fff;overflow:hidden;display:grid;grid-template-columns:18mm 1fr;gap:1mm;align-items:center;padding:1mm;">
-  <img src="${qr}" alt="qr" style="width:17mm;height:17mm;display:block;" />
+  <div style="width:18mm;height:23mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6mm;overflow:hidden;">
+    <img src="${qr}" alt="qr" style="width:17mm;height:17mm;display:block;flex:0 0 auto;" />
+    ${labelRun ? `<div style="font-size:5.2pt;font-weight:600;line-height:1;white-space:nowrap;text-align:center;">${escapeHtml(labelRun)}</div>` : ""}
+  </div>
   <div style="height:23mm;box-sizing:border-box;border:0.35mm solid #000;display:grid;grid-template-rows:4.5mm 3.8mm 3.8mm 3.8mm 3.8mm 3.3mm;font-size:6.4pt;line-height:1;min-width:0;">
     <div style="display:flex;align-items:center;justify-content:center;border-bottom:0.25mm solid #000;font-size:7.2pt;font-weight:500;letter-spacing:.01em;white-space:nowrap;">REFERENCE STANDARD</div>
     ${labelRow("Name", unit.itemName || "")}
@@ -89,6 +93,11 @@ function escapeHtml(s: string): string {
 
 function labelRow(label: string, value: string): string {
   return `<div style="display:grid;grid-template-columns:14mm 1fr;border-bottom:0.25mm solid #000;min-width:0;"><div style="display:flex;align-items:center;border-right:0.25mm solid #000;padding:0 1mm;font-size:6.4pt;white-space:nowrap;">${escapeHtml(label)}</div><div style="display:flex;align-items:center;justify-content:center;padding:0 .8mm;font-size:6.2pt;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(value)}</div></div>`;
+}
+
+function formatStandardLabelRun(sequence: number | null | undefined, year: number | null | undefined): string {
+  if (!Number.isInteger(sequence) || !Number.isInteger(year) || !sequence || sequence < 1 || !year || year < 2000) return "";
+  return `${String(sequence).padStart(2, "0")}/${year}`;
 }
 
 function formatPurityLabel(unit: StockUnitItem): string {

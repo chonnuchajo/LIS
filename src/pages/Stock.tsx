@@ -32,7 +32,7 @@ import { normalizeRoles, type RoleHolder } from "@/lib/roles";
 import { requisitionUser } from "@/lib/standardRequisition";
 import {
   summarizeStandard, standardLevel, solventLevel, glasswareLevel, isUsableBottle,
-  standardMatchesStatuses, type StandardStatus,
+  standardMatchesStatuses, getStandardAlertSummary, type StandardStatus,
 } from "@/lib/stockStatus";
 import {
   FREQUENCY_UNITS, FREQUENCY_PRESETS, parseFrequency, formatFrequency, isPreset,
@@ -191,8 +191,11 @@ function StandardsTab() {
   }, [data, search, statusFilters, now, unitsByCode]);
 
   const visibleStandards = data;
-  const lowList = visibleStandards.filter(s => { const x = sumOf(s); return x.usable > 0 && standardLevel(x.usable) !== "ok"; });
-  const expiringList = visibleStandards.filter(s => { const x = sumOf(s); return x.expired > 0 || x.expiringSoon > 0; });
+  const standardAlerts = visibleStandards.flatMap(s => {
+    const summary = sumOf(s);
+    const alert = getStandardAlertSummary(summary);
+    return alert ? [{ standard: s, alert }] : [];
+  });
 
   const statusLabel =
     statusFilters.size === 0 ? "ทุกสถานะ"
@@ -217,36 +220,24 @@ function StandardsTab() {
 
   return (
     <div className="space-y-4">
-      {(lowList.length > 0 || expiringList.length > 0) && (
+      {standardAlerts.length > 0 && (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle className="w-5 h-5 text-destructive" />
               <span className="font-semibold text-destructive">
-                แจ้งเตือน Standard ({lowList.length + expiringList.length} รายการ)
+                แจ้งเตือน Standard ({standardAlerts.length} รายการ)
               </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-              {lowList.slice(0, 8).map(s => {
-                const usable = sumOf(s).usable;
+              {standardAlerts.slice(0, 8).map(({ standard: s, alert }) => {
+                const Icon = alert.lowStock ? Package : Clock;
                 return (
-                  <div key={`low-${s._id}`} className="flex items-center gap-2 text-destructive">
-                    <Package className="w-3.5 h-3.5" />
+                  <div key={`std-alert-${s._id}`} className={`flex items-center gap-2 ${alert.severity === "destructive" ? "text-destructive" : "text-amber-600"}`}>
+                    <Icon className="w-3.5 h-3.5" />
                     <span>
-                      {usable === 0
-                        ? <><strong>{s.name}</strong> หมดแล้ว</>
-                        : <><strong>{s.name}</strong> ใกล้หมด เหลือรวม {usable} ขวด</>}
+                      <strong>{s.name}</strong> {alert.message}
                     </span>
-                  </div>
-                );
-              })}
-              {expiringList.slice(0, 8).map(s => {
-                const x = sumOf(s);
-                const expired = x.expired > 0;
-                return (
-                  <div key={`exp-${s._id}`} className={`flex items-center gap-2 ${expired ? "text-destructive" : "text-amber-600"}`}>
-                    <Clock className="w-3.5 h-3.5" />
-                    <span><strong>{s.name}</strong> {expired ? `หมดอายุ ${x.expired} ขวด` : `ใกล้หมดอายุ ${x.expiringSoon} ขวด`}</span>
                   </div>
                 );
               })}
