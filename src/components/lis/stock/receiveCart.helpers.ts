@@ -162,7 +162,7 @@ function formatSolventSizeLabel(value: string | undefined): string {
 export function validateRow(row: CartRow): string | null {
   if (!row.category || !row.itemId) return "ยังไม่ได้เลือกของ";
   if (row.category === "standard") {
-    if (!isPositiveDecimalWithMaxPlaces(row.sizeMl, 4)) return "ขนาด/ขวดต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง";
+    if (!isPositiveDecimalWithMaxPlaces(row.sizeMl, 4)) return "ปริมาณต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง";
     const c = Number(row.count);
     if (!Number.isInteger(c) || c < 1) return "จำนวนขวดต้องเป็นจำนวนเต็มบวก";
     if (row.type !== "primary" && row.type !== "supplier" && row.type !== "working") return "ต้องเลือกประเภท";

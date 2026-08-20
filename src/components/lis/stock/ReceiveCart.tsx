@@ -22,8 +22,8 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { buildStockLabelHtml, buildSolventLabelHtml } from "@/lib/stockLabel";
 import {
-  makeEmptyRow, validateRow, buildBottles, findReceiveScanMatch, applyReceiveScanMatch,
-  applyReceiveBarcodeRegistration, sanitizeDecimalInput, sanitizeIntegerInput,
+  makeEmptyRow, validateRow, buildBottles, findReceiveScanMatch,
+  sanitizeDecimalInput, sanitizeIntegerInput,
 } from "@/components/lis/stock/receiveCart.helpers";
 import type { CartRow, CartCategory } from "@/components/lis/stock/receiveCart.helpers";
 import type {
@@ -86,6 +86,7 @@ export default function ReceiveCart() {
   const [pendingBarcodeOption, setPendingBarcodeOption] = useState<PickOption | null>(null);
   const [cameraScannerOpen, setCameraScannerOpen] = useState(false);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [detailDialogMode, setDetailDialogMode] = useState<"add" | "edit">("edit");
 
   const patchRow = (id: string, patch: Partial<CartRow>) =>
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -105,9 +106,30 @@ export default function ReceiveCart() {
     } : {}),
   });
 
+  const makeReceiveRow = (opt: PickOption, patch: Partial<CartRow> = {}): CartRow => ({
+    ...makeEmptyRow(),
+    ...optionPatch(opt),
+    ...patch,
+  });
+
+  const openDetailDialog = (rowId: string, mode: "add" | "edit") => {
+    setDetailDialogMode(mode);
+    setEditingRowId(rowId);
+  };
+
+  const closeDetailDialog = () => {
+    setEditingRowId(null);
+    setDetailDialogMode("edit");
+  };
+
+  const addReceiveRow = (row: CartRow, insertPosition: "start" | "end", message: string) => {
+    setRows((prev) => (insertPosition === "start" ? [row, ...prev] : [...prev, row]));
+    openDetailDialog(row.id, "add");
+    toast.success(message);
+  };
+
   const addPickedItem = (opt: PickOption) => {
-    setRows((prev) => [...prev, { ...makeEmptyRow(), ...optionPatch(opt) }]);
-    toast.success(`เพิ่มรายการ: ${opt.label}`);
+    addReceiveRow(makeReceiveRow(opt), "end", `เพิ่มรายการ: ${opt.label}`);
   };
 
   const clearPendingBarcode = () => {
@@ -129,10 +151,9 @@ export default function ReceiveCart() {
       return;
     }
 
-    setRows((prev) => applyReceiveScanMatch(prev, match));
+    addReceiveRow(makeReceiveRow(match), "start", `เพิ่มรายการ: ${match.label}`);
     setScanText("");
     setCameraScannerOpen(false);
-    toast.success(`เพิ่มรายการ: ${match.label}`);
   };
 
   const handleScanSubmit = () => applyReceiveBarcodeScan(scanText);
@@ -143,8 +164,11 @@ export default function ReceiveCart() {
       return;
     }
 
-    setRows((prev) => applyReceiveBarcodeRegistration(prev, pendingBarcode, pendingBarcodeOption));
-    toast.success(`Barcode ใหม่: ${pendingBarcode}`);
+    addReceiveRow(
+      makeReceiveRow(pendingBarcodeOption, { barcode: pendingBarcode.trim() }),
+      "start",
+      `Barcode ใหม่: ${pendingBarcode}`,
+    );
     clearPendingBarcode();
   };
 
@@ -308,7 +332,7 @@ export default function ReceiveCart() {
               <Input id={`standard-purity-${row.id}`} value={row.purity} onChange={(e) => patchRow(row.id, { purity: e.target.value })} placeholder="เช่น 99.5" inputMode="decimal" required />
             </div>
             <div>
-              <Label htmlFor={`standard-size-${row.id}`}>ขนาด/ขวด (mg)</Label>
+              <Label htmlFor={`standard-size-${row.id}`}>ปริมาณ (mg)</Label>
               <Input id={`standard-size-${row.id}`} value={row.sizeMl} onChange={(e) => patchRow(row.id, { sizeMl: sanitizeDecimalInput(e.target.value, 4) })} inputMode="decimal" placeholder="เช่น 100 หรือ 0.1234" />
             </div>
             <div>
@@ -422,40 +446,23 @@ export default function ReceiveCart() {
           <CardContent className="space-y-5">
             <section className="space-y-3 rounded-lg border bg-muted/20 p-3">
               <div className="font-medium">เพิ่มรายการรับเข้า</div>
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] lg:items-end">
-                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="stock-receive-barcode">ค้นหา / สแกน Barcode</Label>
-                    <Input
-                      id="stock-receive-barcode"
-                      value={scanText}
-                      onChange={(event) => setScanText(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          handleScanSubmit();
-                        }
-                      }}
-                      placeholder="สแกน Barcode หรือพิมพ์ชื่อ/code แล้วกด Enter"
-                      autoComplete="off"
-                    />
-                  </div>
-                  <Button type="button" variant="outline" onClick={handleScanSubmit} disabled={!scanText.trim()}>
-                    เพิ่มรายการ
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => setCameraScannerOpen(true)}>
-                    <Camera className="w-4 h-4 mr-1" /> สแกนด้วยกล้อง
-                  </Button>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>ค้นจากรายการในระบบ</Label>
-                  <ItemPicker
-                    options={options}
-                    value=""
-                    placeholder="ค้นหาหรือเลือกสาร/สินค้า..."
-                    onPick={addPickedItem}
-                  />
-                </div>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
+                <ReceiveSearchInput
+                  options={options}
+                  value={scanText}
+                  onValueChange={setScanText}
+                  onSubmit={handleScanSubmit}
+                  onPick={(option) => {
+                    addPickedItem(option);
+                    setScanText("");
+                  }}
+                />
+                <Button type="button" variant="outline" onClick={handleScanSubmit} disabled={!scanText.trim()}>
+                  เพิ่มรายการ
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setCameraScannerOpen(true)}>
+                  <Camera className="w-4 h-4 mr-1" /> สแกนด้วยกล้อง
+                </Button>
               </div>
               <p className="text-sm text-muted-foreground">สามารถสแกน Barcode ต่อเนื่องได้เลย</p>
             </section>
@@ -503,7 +510,7 @@ export default function ReceiveCart() {
                           <td className="px-3 py-2 text-muted-foreground">{rowUnit(row)}</td>
                           <td className="px-3 py-2">
                             <div className="flex justify-end gap-1">
-                              <Button type="button" size="icon" variant="ghost" aria-label={`แก้ไข ${row.itemName || "รายการ"}`} onClick={() => setEditingRowId(row.id)}>
+                              <Button type="button" size="icon" variant="ghost" aria-label={`แก้ไข ${row.itemName || "รายการ"}`} onClick={() => openDetailDialog(row.id, "edit")}>
                                 <Pencil className="w-4 h-4" />
                               </Button>
                               <Button type="button" size="icon" variant="ghost" aria-label={`ลบ ${row.itemName || "รายการ"}`} onClick={() => removeRow(row.id)}>
@@ -533,15 +540,15 @@ export default function ReceiveCart() {
         </Card>
       </div>
 
-      <Dialog open={Boolean(editingRow)} onOpenChange={(open) => { if (!open) setEditingRowId(null); }}>
+      <Dialog open={Boolean(editingRow)} onOpenChange={(open) => { if (!open) closeDetailDialog(); }}>
         <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>แก้ไขรายการรับเข้า</DialogTitle>
+            <DialogTitle>{detailDialogMode === "add" ? "กรอกรายละเอียดรับเข้า" : "แก้ไขรายการรับเข้า"}</DialogTitle>
             <DialogDescription>{editingRow?.itemName || "รายการรับเข้า"}</DialogDescription>
           </DialogHeader>
           {editingRow && renderDetailFields(editingRow)}
           <DialogFooter>
-            <Button type="button" onClick={() => setEditingRowId(null)}>เสร็จ</Button>
+            <Button type="button" onClick={closeDetailDialog}>เสร็จ</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -602,6 +609,120 @@ export default function ReceiveCart() {
         }}
       />
     </>
+  );
+}
+
+function ReceiveSearchInput({
+  options, value, onValueChange, onSubmit, onPick,
+}: {
+  options: PickOption[];
+  value: string;
+  onValueChange: (value: string) => void;
+  onSubmit: () => void;
+  onPick: (opt: PickOption) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState<Record<CartCategory, boolean>>({
+    standard: false, solvent: false, glassware: false,
+  });
+
+  const query = value.trim().toLowerCase();
+  const searching = query.length > 0;
+  const match = (option: PickOption) => {
+    if (!searching) return true;
+    return [option.label, option.name, option.code, ...(option.barcodes ?? [])]
+      .some((text) => text.toLowerCase().includes(query));
+  };
+  const groups: { cat: CartCategory; items: PickOption[] }[] = [
+    { cat: "standard", items: options.filter((option) => option.category === "standard" && match(option)) },
+    { cat: "solvent", items: options.filter((option) => option.category === "solvent" && match(option)) },
+    { cat: "glassware", items: options.filter((option) => option.category === "glassware" && match(option)) },
+  ];
+  const anyVisible = groups.some((group) => group.items.length > 0);
+
+  const resetExpanded = () => setExpanded({ standard: false, solvent: false, glassware: false });
+  const closeDropdown = () => {
+    setOpen(false);
+    resetExpanded();
+  };
+  const pickOption = (option: PickOption) => {
+    onPick(option);
+    closeDropdown();
+  };
+
+  return (
+    <div
+      className="relative space-y-1.5"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
+      <Label htmlFor="stock-receive-barcode">ค้นหา / สแกน Barcode</Label>
+      <Input
+        id="stock-receive-barcode"
+        value={value}
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
+        onChange={(event) => {
+          onValueChange(event.target.value);
+          if (event.currentTarget.ownerDocument.activeElement === event.currentTarget) setOpen(true);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            closeDropdown();
+            onSubmit();
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            closeDropdown();
+          }
+        }}
+        placeholder="สแกน Barcode หรือพิมพ์ชื่อ/code แล้วกด Enter"
+        autoComplete="off"
+        aria-expanded={open}
+        aria-controls="stock-receive-search-options"
+      />
+
+      {open && (
+        <div className="absolute bottom-full left-0 z-50 mb-2 w-80 max-w-[calc(100vw-3rem)] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md">
+          <div id="stock-receive-search-options" role="listbox" aria-label="รายการ stock ที่ค้นหา" className="max-h-72 overflow-auto py-1">
+            {!anyVisible && <div className="px-3 py-2 text-sm text-muted-foreground">ไม่พบรายการ</div>}
+            {groups.map((group) => {
+              if (group.items.length === 0) return null;
+              const groupOpen = searching || expanded[group.cat];
+              return (
+                <div key={group.cat}>
+                  <button
+                    type="button"
+                    aria-expanded={groupOpen}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => setExpanded((prev) => ({ ...prev, [group.cat]: !prev[group.cat] }))}
+                    className="flex w-full items-center gap-1 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent/50"
+                  >
+                    {groupOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                    <span>{CATEGORY_LABEL[group.cat]}</span>
+                    <span className="ml-auto tabular-nums">{group.items.length}</span>
+                  </button>
+                  {groupOpen && group.items.map((option) => (
+                    <button
+                      key={`${option.category}-${option.id}`}
+                      type="button"
+                      role="option"
+                      aria-selected={false}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => pickOption(option)}
+                      className="flex w-full items-center px-7 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <span className="truncate">{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -153,6 +153,24 @@ describe("stock label paper size", () => {
     expect(html).not.toContain("font-size:6.2pt;font-weight:600");
   });
 
+  it("uses a clearer font for standard label digits", async () => {
+    const html = await buildStockLabelHtml({
+      _id: "unit-1",
+      qrId: "u_abc123",
+      itemCode: "STD-001",
+      itemName: "Standard A",
+      kind: "sealed",
+      type: "primary",
+      lotNo: "30822659",
+      exp: "2027-09-08",
+      volume: { initial: 100, remaining: 100, unit: "mg" },
+      status: "active",
+    } as StockUnitItem);
+
+    expect(html).toContain("30822659");
+    expect(html).toContain("font-family:Verdana,'Segoe UI',Arial,'Kanit',Tahoma,sans-serif");
+  });
+
   it("renders solvent labels at 65mm x 25mm", async () => {
     const html = await buildSolventLabelHtml({ name: "Methanol", idForQr: "sol_123" });
 

@@ -31,9 +31,9 @@ describe("receiveCart.helpers", () => {
 
   it("validateRow: standard ต้องมี size>0 แบบทศนิยมไม่เกิน 4 และ count เป็นจำนวนเต็มบวก", () => {
     const base = { ...makeEmptyRow(), category: "standard" as const, itemId: "s1" };
-    expect(validateRow({ ...base, sizeMl: "0" })).toBe("ขนาด/ขวดต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง");
-    expect(validateRow({ ...base, sizeMl: "1.12345" })).toBe("ขนาด/ขวดต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง");
-    expect(validateRow({ ...base, sizeMl: "1mg" })).toBe("ขนาด/ขวดต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง");
+    expect(validateRow({ ...base, sizeMl: "0" })).toBe("ปริมาณต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง");
+    expect(validateRow({ ...base, sizeMl: "1.12345" })).toBe("ปริมาณต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง");
+    expect(validateRow({ ...base, sizeMl: "1mg" })).toBe("ปริมาณต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง");
     expect(validateRow({ ...base, sizeMl: "100", count: "0" })).toBe("จำนวนขวดต้องเป็นจำนวนเต็มบวก");
     expect(validateRow({ ...base, sizeMl: "100", count: "2", type: "primary", lotNo: "L1", commonExp: "2027-01-01" })).toContain("% Purity");
     expect(validateRow({ ...base, sizeMl: "100.1234", count: "2", type: "primary", lotNo: "L1", purity: "99.5", commonExp: "2027-01-01" })).toBeNull();

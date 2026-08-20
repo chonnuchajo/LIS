@@ -70,6 +70,9 @@ async function scanReceiveBarcode(value: string) {
 }
 
 async function openReceiveRowEditor(itemName: string) {
+  const openedAddDialog = screen.queryByRole("dialog", { name: "กรอกรายละเอียดรับเข้า" });
+  if (openedAddDialog) return openedAddDialog;
+
   fireEvent.click(await screen.findByRole("button", { name: new RegExp(`แก้ไข ${itemName}`) }));
   return screen.findByRole("dialog", { name: "แก้ไขรายการรับเข้า" });
 }
@@ -122,7 +125,8 @@ describe("ReceiveCart photos", () => {
     await scanReceiveBarcode("654694");
     const dialog = await screen.findByRole("dialog", { name: /Barcode/ });
     fireEvent.click(within(dialog).getByRole("combobox"));
-    fireEvent.click(await screen.findByText("Standard"));
+    const standardChoices = await screen.findAllByText("Standard");
+    fireEvent.click(standardChoices[standardChoices.length - 1]);
     fireEvent.click(await screen.findByText("STD-001 ABAMECTIN"));
     fireEvent.click(within(dialog).getByRole("button", { name: /Barcode/ }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /Barcode/ })).not.toBeInTheDocument());

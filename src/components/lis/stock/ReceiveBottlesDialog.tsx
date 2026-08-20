@@ -74,7 +74,7 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
     e.preventDefault();
     const size = Number(sizeMl);
     if (!/^\d+(?:\.\d{1,4})?$/.test(sizeMl.trim()) || !Number.isFinite(size) || size <= 0) {
-      toast.error("ขนาด/ขวดต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง"); return;
+      toast.error("ปริมาณต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง"); return;
     }
     const cnt = Number(count);
     if (!Number.isInteger(cnt) || cnt < 1) { toast.error("จำนวนขวดต้องเป็นจำนวนเต็มบวก"); return; }
@@ -133,7 +133,7 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div><Label htmlFor="receive-standard-lot">Lot No</Label><Input id="receive-standard-lot" value={lotNo} onChange={(e) => setLotNo(e.target.value)} placeholder="required" required /></div>
               <div><Label htmlFor="receive-standard-purity">% Purity</Label><Input id="receive-standard-purity" value={purity} onChange={(e) => setPurity(e.target.value)} placeholder="เช่น 99.5" inputMode="decimal" required /></div>
-              <div><Label>ขนาด/ขวด (mg)</Label><Input value={sizeMl} onChange={(e) => setSizeMl(sanitizeDecimalInput(e.target.value, 4))} inputMode="decimal" placeholder="เช่น 100 หรือ 0.1234" /></div>
+              <div><Label>ปริมาณ (mg)</Label><Input value={sizeMl} onChange={(e) => setSizeMl(sanitizeDecimalInput(e.target.value, 4))} inputMode="decimal" placeholder="เช่น 100 หรือ 0.1234" /></div>
             </div>
             <div>
               <Label>จำนวนขวด</Label>
