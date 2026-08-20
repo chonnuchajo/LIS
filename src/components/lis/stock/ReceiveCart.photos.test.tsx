@@ -38,14 +38,6 @@ vi.mock("@/lib/stockLabel", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/components/lis/StockRawLabelPreviewDialog", () => ({ default: stockRawLabelPreviewDialogMock }));
 vi.mock("@/components/lis/StockQrScanner", () => ({ default: stockQrScannerMock }));
-vi.mock("@/components/lis/stock/StockPhotoUploader", () => ({
-  default: ({ label, onChange }: { label?: string; onChange: (urls: string[]) => void }) => (
-    <button data-testid="photo-upload" type="button" onClick={() => onChange(["/LIS/uploads/qc-photos/cart.webp"])}>
-      {label || "photo upload"}
-    </button>
-  ),
-}));
-
 function renderCart() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
@@ -70,6 +62,9 @@ async function scanReceiveBarcode(value: string) {
 }
 
 async function openReceiveRowEditor(itemName: string) {
+  const openedAddDialog = screen.queryByRole("dialog", { name: "กรอกรายละเอียดรับเข้า" });
+  if (openedAddDialog) return openedAddDialog;
+
   fireEvent.click(await screen.findByRole("button", { name: new RegExp(`แก้ไข ${itemName}`) }));
   return screen.findByRole("dialog", { name: "แก้ไขรายการรับเข้า" });
 }
@@ -78,7 +73,7 @@ function closeReceiveRowEditor(dialog: HTMLElement) {
   fireEvent.click(within(dialog).getByRole("button", { name: "เสร็จ" }));
 }
 
-describe("ReceiveCart photos", () => {
+describe("ReceiveCart receive flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     apiMock.registerStockBarcode.mockResolvedValue({ barcode: "654694", category: "standard", itemId: "std1" });
@@ -122,7 +117,8 @@ describe("ReceiveCart photos", () => {
     await scanReceiveBarcode("654694");
     const dialog = await screen.findByRole("dialog", { name: /Barcode/ });
     fireEvent.click(within(dialog).getByRole("combobox"));
-    fireEvent.click(await screen.findByText("Standard"));
+    const standardChoices = await screen.findAllByText("Standard");
+    fireEvent.click(standardChoices[standardChoices.length - 1]);
     fireEvent.click(await screen.findByText("STD-001 ABAMECTIN"));
     fireEvent.click(within(dialog).getByRole("button", { name: /Barcode/ }));
     await waitFor(() => expect(screen.queryByRole("dialog", { name: /Barcode/ })).not.toBeInTheDocument());
@@ -140,7 +136,7 @@ describe("ReceiveCart photos", () => {
     expect(apiMock.receiveStockUnits).toHaveBeenCalled();
   });
 
-  it("sends bottle photo URLs from the bulk receive cart", async () => {
+  it("does not offer photo upload or send photo URLs from the bulk receive cart", async () => {
     mockStockLists();
     apiMock.receiveStockUnits.mockResolvedValue([
       { _id: "unit1", qrId: "u1", itemCode: "STD-001", itemName: "ABAMECTIN", volume: { initial: 100, remaining: 100, unit: "ml" } },
@@ -154,7 +150,7 @@ describe("ReceiveCart photos", () => {
     fireEvent.change(within(editor).getByPlaceholderText("required"), { target: { value: "LOT-1" } });
     fireEvent.change(within(editor).getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
     fireEvent.change(within(editor).getByLabelText("EXP (ทุกขวด)"), { target: { value: "2027-12-31" } });
-    fireEvent.click(await within(editor).findByTestId("photo-upload"));
+    expect(within(editor).queryByText(/รูปขวด/)).not.toBeInTheDocument();
     closeReceiveRowEditor(editor);
     fireEvent.click(screen.getByRole("button", { name: /\(1/ }));
 
@@ -168,11 +164,12 @@ describe("ReceiveCart photos", () => {
         bottles: [
           {
             exp: "2027-12-31",
-            photoUrls: ["/LIS/uploads/qc-photos/cart.webp"],
           },
         ],
       }),
     );
+    const payload = apiMock.receiveStockUnits.mock.calls[0][1];
+    expect(payload.bottles[0]).not.toHaveProperty("photoUrls");
   });
 
   it("builds one chemical bottle label per received solvent bottle", async () => {
@@ -187,6 +184,7 @@ describe("ReceiveCart photos", () => {
 
     await scanReceiveBarcode("Methanol");
     const editor = await openReceiveRowEditor("Methanol");
+    expect(within(editor).queryByText(/รูปขวด/)).not.toBeInTheDocument();
     fireEvent.change(within(editor).getByLabelText("จำนวน (ขวด)"), { target: { value: "2" } });
     fireEvent.change(within(editor).getByLabelText("ขนาด/ขวด (ลิตร)"), { target: { value: "2.5" } });
     fireEvent.change(within(editor).getByLabelText("ราคา (บาท)"), { target: { value: "1200" } });
@@ -206,6 +204,8 @@ describe("ReceiveCart photos", () => {
       }),
     ));
     await waitFor(() => expect(buildSolventLabelHtmlMock).toHaveBeenCalledTimes(2));
+    const solventPayload = apiMock.receiveSolvent.mock.calls[0][1];
+    expect(solventPayload).not.toHaveProperty("photoUrls");
     expect(buildSolventLabelHtmlMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
       name: "Methanol",
       lotNo: "B-001",

@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
-import StockPhotoUploader from "@/components/lis/stock/StockPhotoUploader";
 import { sanitizeDecimalInput, sanitizeIntegerInput } from "@/components/lis/stock/receiveCart.helpers";
 import type { StockStandardItem, StockUnitItem } from "@/types/stock";
 
@@ -29,7 +28,6 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
   const [sameExp, setSameExp] = useState(true);
   const [commonExp, setCommonExp] = useState("");
   const [perExp, setPerExp] = useState<string[]>([""]);
-  const [perPhotoUrls, setPerPhotoUrls] = useState<string[][]>([[]]);
   const [printAfter, setPrintAfter] = useState(true);
   const [busy, setBusy] = useState(false);
 
@@ -39,21 +37,6 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
       const next = [...prev];
       while (next.length < len) next.push("");
       next.length = len;
-      return next;
-    });
-    setPerPhotoUrls((prev) => {
-      const next = prev.map((urls) => [...urls]);
-      while (next.length < len) next.push([]);
-      next.length = len;
-      return next;
-    });
-  };
-
-  const setBottlePhotoUrls = (index: number, photoUrls: string[]) => {
-    setPerPhotoUrls((prev) => {
-      const next = prev.map((urls) => [...urls]);
-      while (next.length <= index) next.push([]);
-      next[index] = photoUrls;
       return next;
     });
   };
@@ -74,7 +57,7 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
     e.preventDefault();
     const size = Number(sizeMl);
     if (!/^\d+(?:\.\d{1,4})?$/.test(sizeMl.trim()) || !Number.isFinite(size) || size <= 0) {
-      toast.error("ขนาด/ขวดต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง"); return;
+      toast.error("ปริมาณต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง"); return;
     }
     const cnt = Number(count);
     if (!Number.isInteger(cnt) || cnt < 1) { toast.error("จำนวนขวดต้องเป็นจำนวนเต็มบวก"); return; }
@@ -86,13 +69,9 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
       toast.error("กรุณาระบุ EXP"); return;
     }
     if (type !== "primary" && type !== "supplier" && type !== "working") { toast.error("ต้องเลือกประเภท Barcode"); return; }
-    const bottles = Array.from({ length: n }, (_, i) => {
-      const photoUrls = (perPhotoUrls[i] ?? []).filter(Boolean);
-      return {
-        exp: sameExp ? commonExp || undefined : perExp[i] || undefined,
-        ...(photoUrls.length ? { photoUrls } : {}),
-      };
-    });
+    const bottles = Array.from({ length: n }, (_, i) => ({
+      exp: sameExp ? commonExp || undefined : perExp[i] || undefined,
+    }));
     setBusy(true);
     try {
       const created = await api.receiveStockUnits(standard._id, {
@@ -133,7 +112,7 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div><Label htmlFor="receive-standard-lot">Lot No</Label><Input id="receive-standard-lot" value={lotNo} onChange={(e) => setLotNo(e.target.value)} placeholder="required" required /></div>
               <div><Label htmlFor="receive-standard-purity">% Purity</Label><Input id="receive-standard-purity" value={purity} onChange={(e) => setPurity(e.target.value)} placeholder="เช่น 99.5" inputMode="decimal" required /></div>
-              <div><Label>ขนาด/ขวด (mg)</Label><Input value={sizeMl} onChange={(e) => setSizeMl(sanitizeDecimalInput(e.target.value, 4))} inputMode="decimal" placeholder="เช่น 100 หรือ 0.1234" /></div>
+              <div><Label>ปริมาณ (mg)</Label><Input value={sizeMl} onChange={(e) => setSizeMl(sanitizeDecimalInput(e.target.value, 4))} inputMode="decimal" placeholder="เช่น 100 หรือ 0.1234" /></div>
             </div>
             <div>
               <Label>จำนวนขวด</Label>
@@ -158,17 +137,6 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
                 ))}
               </div>
             )}
-            <div className="space-y-2">
-              {Array.from({ length: n }, (_, i) => (
-                <StockPhotoUploader
-                  key={i}
-                  label={`รูปขวดที่ ${i + 1} (ไม่บังคับ)`}
-                  value={perPhotoUrls[i] ?? []}
-                  onChange={(photoUrls) => setBottlePhotoUrls(i, photoUrls)}
-                  disabled={busy}
-                />
-              ))}
-            </div>
             <div className="flex items-center gap-2">
               <Checkbox id="printAfter" checked={printAfter} onCheckedChange={(v) => setPrintAfter(v === true)} />
               <label htmlFor="printAfter" className="text-sm cursor-pointer">ปริ้นลาเบลหลังรับเข้า</label>

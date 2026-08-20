@@ -21,7 +21,7 @@ export async function buildStockLabelHtml(unit: StockUnitItem): Promise<string> 
   const exp = unit.exp ? new Date(unit.exp).toLocaleDateString("th-TH") : "-";
   const purity = formatPurityLabel(unit);
   return `
-<div style="font-family:Arial,'Kanit',Tahoma,sans-serif;width:65mm;height:25mm;box-sizing:border-box;color:#000;background:#fff;overflow:hidden;display:grid;grid-template-columns:18mm 1fr;gap:1mm;align-items:center;padding:1mm;">
+<div style="font-family:Verdana,'Segoe UI',Arial,'Kanit',Tahoma,sans-serif;width:65mm;height:25mm;box-sizing:border-box;color:#000;background:#fff;overflow:hidden;display:grid;grid-template-columns:18mm 1fr;gap:1mm;align-items:center;padding:1mm;">
   <img src="${qr}" alt="qr" style="width:17mm;height:17mm;display:block;" />
   <div style="height:23mm;box-sizing:border-box;border:0.35mm solid #000;display:grid;grid-template-rows:4.5mm 3.8mm 3.8mm 3.8mm 3.8mm 3.3mm;font-size:6.4pt;line-height:1;min-width:0;">
     <div style="display:flex;align-items:center;justify-content:center;border-bottom:0.25mm solid #000;font-size:7.2pt;font-weight:500;letter-spacing:.01em;white-space:nowrap;">REFERENCE STANDARD</div>

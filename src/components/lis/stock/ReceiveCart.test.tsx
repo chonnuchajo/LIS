@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,10 +20,6 @@ vi.mock("@/components/lis/StockQrScanner", () => ({
 
 vi.mock("@/components/lis/StockRawLabelPreviewDialog", () => ({
   default: () => null,
-}));
-
-vi.mock("@/components/lis/stock/StockPhotoUploader", () => ({
-  default: ({ label }: { label: string }) => <div>{label}</div>,
 }));
 
 function renderReceiveCart() {
@@ -62,7 +58,7 @@ describe("ReceiveCart Thai copy", () => {
     expect(screen.getByRole("button", { name: "รับเข้าทั้งหมด (0 รายการ)" })).toBeDisabled();
   });
 
-  it("adds a scanned stock item directly to the receive list", async () => {
+  it("opens a detail popup after adding a scanned stock item", async () => {
     apiMock.getStandards.mockResolvedValue([
       { _id: "std1", code: "STD-001", name: "ABAMECTIN", barcodes: [], primary: {}, supplier: {}, working: {} },
     ]);
@@ -71,10 +67,80 @@ describe("ReceiveCart Thai copy", () => {
     fireEvent.change(await screen.findByLabelText("ค้นหา / สแกน Barcode"), { target: { value: "STD-001" } });
     fireEvent.click(screen.getByRole("button", { name: "เพิ่มรายการ" }));
 
+    const detailDialog = await screen.findByRole("dialog", { name: "กรอกรายละเอียดรับเข้า" });
+    expect(detailDialog).toBeInTheDocument();
+    expect(within(detailDialog).getByLabelText("ปริมาณ (mg)")).toBeInTheDocument();
+    fireEvent.click(within(detailDialog).getByRole("button", { name: "เสร็จ" }));
     expect(await screen.findByRole("cell", { name: "ABAMECTIN" })).toBeInTheDocument();
     expect(screen.getByText("1 รายการ")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /แก้ไข ABAMECTIN/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ลบ ABAMECTIN/ })).toBeInTheDocument();
+  });
+
+  it("shows standard and solvent receive amounts in the row", async () => {
+    apiMock.getStandards.mockResolvedValue([
+      { _id: "std1", code: "STD-001", name: "ABAMECTIN", barcodes: [], primary: {}, supplier: {}, working: {} },
+    ]);
+    apiMock.getSolvents.mockResolvedValue([
+      { _id: "sol1", name: "Methanol", barcodes: [], sizeLiter: 2.5, price: 1200 },
+    ]);
+    renderReceiveCart();
+
+    const searchInput = await screen.findByLabelText("ค้นหา / สแกน Barcode");
+    fireEvent.change(searchInput, { target: { value: "STD-001" } });
+    fireEvent.click(screen.getByRole("button", { name: "เพิ่มรายการ" }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "กรอกรายละเอียดรับเข้า" })).getByRole("button", { name: "เสร็จ" }));
+
+    fireEvent.change(searchInput, { target: { value: "Methanol" } });
+    fireEvent.click(screen.getByRole("button", { name: "เพิ่มรายการ" }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "กรอกรายละเอียดรับเข้า" })).getByRole("button", { name: "เสร็จ" }));
+
+    expect(screen.getByRole("columnheader", { name: "ปริมาณ" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "100 mg" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "2.5 L" })).toBeInTheDocument();
+  });
+
+  it("opens grouped stock choices from the barcode search input", async () => {
+    apiMock.getStandards.mockResolvedValue([
+      { _id: "std1", code: "STD-001", name: "ABAMECTIN", barcodes: [], primary: {}, supplier: {}, working: {} },
+      { _id: "std2", code: "STD-002", name: "2,4-D Acid", barcodes: [], primary: {}, supplier: {}, working: {} },
+    ]);
+    apiMock.getSolvents.mockResolvedValue([
+      { _id: "sol1", name: "Methanol", barcodes: [] },
+    ]);
+    apiMock.getGlassware.mockResolvedValue([
+      { _id: "glass1", name: "Beaker", barcodes: [] },
+    ]);
+
+    renderReceiveCart();
+
+    fireEvent.focus(await screen.findByLabelText("ค้นหา / สแกน Barcode"));
+
+    expect(await screen.findByRole("button", { name: /Standard\s+2/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /สารเคมี\s+1/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /เครื่องแก้ว\s+1/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /ABAMECTIN/ })).not.toBeInTheDocument();
+  });
+
+  it("filters search choices and adds a clicked item", async () => {
+    apiMock.getStandards.mockResolvedValue([
+      { _id: "std1", code: "STD-001", name: "ABAMECTIN", barcodes: [], primary: {}, supplier: {}, working: {} },
+      { _id: "std2", code: "STD-002", name: "2,4-D Acid", barcodes: [], primary: {}, supplier: {}, working: {} },
+    ]);
+
+    renderReceiveCart();
+
+    const searchInput = await screen.findByLabelText("ค้นหา / สแกน Barcode");
+    fireEvent.focus(searchInput);
+    fireEvent.change(searchInput, { target: { value: "2" } });
+    fireEvent.click(await screen.findByRole("option", { name: /STD-002 2,4-D Acid/ }));
+
+    const detailDialog = await screen.findByRole("dialog", { name: "กรอกรายละเอียดรับเข้า" });
+    expect(detailDialog).toBeInTheDocument();
+    fireEvent.click(within(detailDialog).getByRole("button", { name: "เสร็จ" }));
+    expect(await screen.findByRole("cell", { name: "2,4-D Acid" })).toBeInTheDocument();
+    expect(searchInput).toHaveValue("");
+    expect(screen.queryByRole("option", { name: /STD-002 2,4-D Acid/ })).not.toBeInTheDocument();
   });
 
   it("does not contain known Thai mojibake sequences", () => {
