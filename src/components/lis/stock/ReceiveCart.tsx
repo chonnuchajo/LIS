@@ -17,7 +17,6 @@ import {
 
 import StockRawLabelPreviewDialog from "@/components/lis/StockRawLabelPreviewDialog";
 import StockQrScanner from "@/components/lis/StockQrScanner";
-import StockPhotoUploader from "@/components/lis/stock/StockPhotoUploader";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { buildStockLabelHtml, buildSolventLabelHtml } from "@/lib/stockLabel";
@@ -178,19 +177,7 @@ export default function ReceiveCart() {
       const nextExp = [...r.perExp];
       while (nextExp.length < len) nextExp.push("");
       nextExp.length = len;
-      const nextPhotos = r.perPhotoUrls.map((urls) => [...urls]);
-      while (nextPhotos.length < len) nextPhotos.push([]);
-      nextPhotos.length = len;
-      return { ...r, perExp: nextExp, perPhotoUrls: nextPhotos };
-    }));
-
-  const setBottlePhotoUrls = (id: string, index: number, photoUrls: string[]) =>
-    setRows((prev) => prev.map((r) => {
-      if (r.id !== id) return r;
-      const nextPhotos = r.perPhotoUrls.map((urls) => [...urls]);
-      while (nextPhotos.length <= index) nextPhotos.push([]);
-      nextPhotos[index] = photoUrls;
-      return { ...r, perPhotoUrls: nextPhotos };
+      return { ...r, perExp: nextExp };
     }));
 
   const registerBarcodeIfNeeded = async (row: CartRow) => {
@@ -232,7 +219,6 @@ export default function ReceiveCart() {
               sizeLiter: Number(row.sizeLiter),
               price: Number(row.price),
               note: row.note,
-              photoUrls: row.photoUrls,
             });
           } else if (row.category === "glassware") {
             await api.receiveGlassware(row.itemId, { qty: Number(row.qty), note: row.note });
@@ -295,6 +281,11 @@ export default function ReceiveCart() {
   const rowUnit = (row: CartRow) => (row.category === "glassware" ? "ชิ้น" : "ขวด");
   const rowQty = (row: CartRow) => (row.category === "standard" ? row.count : row.qty);
   const rowLot = (row: CartRow) => (row.category === "glassware" ? "-" : row.lotNo || "-");
+  const rowAmount = (row: CartRow) => {
+    if (row.category === "standard") return row.sizeMl ? `${row.sizeMl} mg` : "-";
+    if (row.category === "solvent") return row.sizeLiter ? `${row.sizeLiter} L` : "-";
+    return "-";
+  };
   const patchRowQty = (row: CartRow, value: string) => {
     const qty = sanitizeIntegerInput(value);
     if (row.category === "standard") {
@@ -369,17 +360,6 @@ export default function ReceiveCart() {
               ))}
             </div>
           )}
-          <div className="space-y-2">
-            {Array.from({ length: Math.max(1, Number(row.count) || 1) }, (_, index) => (
-              <StockPhotoUploader
-                key={index}
-                label={`รูปขวดที่ ${index + 1} (ไม่บังคับ)`}
-                value={row.perPhotoUrls[index] ?? []}
-                onChange={(photoUrls) => setBottlePhotoUrls(row.id, index, photoUrls)}
-                disabled={busy}
-              />
-            ))}
-          </div>
         </div>
       )}
 
@@ -408,9 +388,6 @@ export default function ReceiveCart() {
           <div className="col-span-2 sm:col-span-3">
             <Label htmlFor={`${row.id}-solvent-note`}>หมายเหตุ</Label>
             <Input id={`${row.id}-solvent-note`} value={row.note} onChange={(e) => patchRow(row.id, { note: e.target.value })} placeholder="optional" />
-          </div>
-          <div className="col-span-2 sm:col-span-3">
-            <StockPhotoUploader label="รูปขวดสารเคมี (ไม่บังคับ)" value={row.photoUrls} onChange={(photoUrls) => patchRow(row.id, { photoUrls })} disabled={busy} />
           </div>
         </div>
       )}
@@ -479,12 +456,13 @@ export default function ReceiveCart() {
                 </div>
               ) : (
                 <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full min-w-[680px] text-sm">
+                  <table className="w-full min-w-[760px] text-sm">
                     <thead className="bg-muted/60 text-muted-foreground">
                       <tr>
                         <th className="w-12 px-3 py-2 text-left font-medium">#</th>
                         <th className="px-3 py-2 text-left font-medium">สาร/สินค้า</th>
                         <th className="w-40 px-3 py-2 text-left font-medium">Lot</th>
+                        <th className="w-32 px-3 py-2 text-right font-medium">ปริมาณ</th>
                         <th className="w-28 px-3 py-2 text-right font-medium">จำนวน</th>
                         <th className="w-20 px-3 py-2 text-left font-medium">หน่วย</th>
                         <th className="w-28 px-3 py-2 text-right font-medium">Action</th>
@@ -496,6 +474,7 @@ export default function ReceiveCart() {
                           <td className="px-3 py-2 text-muted-foreground">{index + 1}</td>
                           <td className="px-3 py-2 font-medium">{row.itemName || "-"}</td>
                           <td className="px-3 py-2 text-muted-foreground">{rowLot(row)}</td>
+                          <td className="px-3 py-2 text-right text-muted-foreground">{rowAmount(row)}</td>
                           <td className="px-3 py-2 text-right">
                             <Input
                               aria-label={`จำนวน ${row.itemName || "รายการ"}`}

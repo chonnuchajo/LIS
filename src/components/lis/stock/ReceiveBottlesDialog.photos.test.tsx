@@ -11,14 +11,6 @@ const apiMock = vi.hoisted(() => ({
 vi.mock("@/lib/api", () => ({ api: apiMock }));
 vi.mock("@/lib/stockLabel", () => ({ buildStockLabelHtml: vi.fn(async () => "<label />") }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/components/lis/stock/StockPhotoUploader", () => ({
-  default: ({ label, onChange }: { label?: string; onChange: (urls: string[]) => void }) => (
-    <button type="button" onClick={() => onChange(["/LIS/uploads/qc-photos/bottle.webp"])}>
-      {label || "เพิ่มรูป"}
-    </button>
-  ),
-}));
-
 const standard: StockStandardItem = {
   _id: "std1",
   code: "STD-001",
@@ -29,7 +21,7 @@ const standard: StockStandardItem = {
   frequency: { value: 1, unit: "day" },
 };
 
-describe("ReceiveBottlesDialog photos", () => {
+describe("ReceiveBottlesDialog receive flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -57,7 +49,7 @@ describe("ReceiveBottlesDialog photos", () => {
     );
   });
 
-  it("sends optional bottle photo URLs when receiving a standard bottle", async () => {
+  it("does not offer photo upload or send photo URLs when receiving a standard bottle", async () => {
     apiMock.receiveStockUnits.mockResolvedValue([
       {
         _id: "unit1",
@@ -80,10 +72,10 @@ describe("ReceiveBottlesDialog photos", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "primary" }));
+    expect(screen.queryByText(/รูปขวด/)).not.toBeInTheDocument();
     fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "LOT-1" } });
     fireEvent.change(screen.getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
     fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
-    fireEvent.click(screen.getByRole("button", { name: "รูปขวดที่ 1 (ไม่บังคับ)" }));
     fireEvent.click(screen.getByRole("button", { name: "รับเข้า" }));
 
     await waitFor(() => expect(apiMock.receiveStockUnits).toHaveBeenCalled());
@@ -96,11 +88,12 @@ describe("ReceiveBottlesDialog photos", () => {
         bottles: [
           {
             exp: "2027-12-31",
-            photoUrls: ["/LIS/uploads/qc-photos/bottle.webp"],
           },
         ],
       }),
     );
+    const payload = apiMock.receiveStockUnits.mock.calls[0][1];
+    expect(payload.bottles[0]).not.toHaveProperty("photoUrls");
     expect(onPreviewLabels).toHaveBeenCalledWith(["<label />"], { autoPrint: true });
   });
 });

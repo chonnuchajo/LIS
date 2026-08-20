@@ -26,9 +26,7 @@ export interface CartRow {
   sameExp: boolean;
   commonExp: string;
   perExp: string[];
-  perPhotoUrls: string[][];
   // solvent
-  photoUrls: string[];
   qty: string;
   sizeLiter: string;
   price: string;
@@ -55,8 +53,6 @@ export function makeEmptyRow(): CartRow {
     sameExp: true,
     commonExp: "",
     perExp: [""],
-    perPhotoUrls: [[]],
-    photoUrls: [],
     qty: "1",
     sizeLiter: "",
     price: "",
@@ -190,15 +186,11 @@ export function validateRow(row: CartRow): string | null {
   return null;
 }
 
-export function buildBottles(row: CartRow): { exp?: string; photoUrls?: string[] }[] {
+export function buildBottles(row: CartRow): { exp?: string }[] {
   const n = Math.max(1, Number(row.count) || 1);
-  return Array.from({ length: n }, (_, i) => {
-    const photoUrls = (row.perPhotoUrls[i] ?? []).filter(Boolean);
-    return {
-      exp: row.sameExp ? row.commonExp || undefined : row.perExp[i] || undefined,
-      ...(photoUrls.length ? { photoUrls } : {}),
-    };
-  });
+  return Array.from({ length: n }, (_, i) => ({
+    exp: row.sameExp ? row.commonExp || undefined : row.perExp[i] || undefined,
+  }));
 }
 
 export function composeSolventNote(row: CartRow): string {

@@ -115,16 +115,16 @@ describe("receiveCart.helpers", () => {
     expect(buildBottles(r)).toEqual([{ exp: "2027-01-01" }, { exp: undefined }, { exp: undefined }]);
   });
 
-  it("buildBottles: แนบรูปแยกตามขวดเมื่อมีการอัปโหลด", () => {
+  it("buildBottles: ไม่แนบ photoUrls แม้มีข้อมูลรูปค้างอยู่", () => {
     const r = {
       ...makeEmptyRow(),
       count: "2",
       sameExp: false,
       perExp: ["2027-01-01", "2027-02-02"],
       perPhotoUrls: [["/LIS/uploads/qc-photos/a.webp"], []],
-    };
+    } as ReturnType<typeof makeEmptyRow> & { perPhotoUrls: string[][] };
     expect(buildBottles(r)).toEqual([
-      { exp: "2027-01-01", photoUrls: ["/LIS/uploads/qc-photos/a.webp"] },
+      { exp: "2027-01-01" },
       { exp: "2027-02-02" },
     ]);
   });

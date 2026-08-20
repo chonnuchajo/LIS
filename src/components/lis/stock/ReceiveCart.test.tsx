@@ -22,10 +22,6 @@ vi.mock("@/components/lis/StockRawLabelPreviewDialog", () => ({
   default: () => null,
 }));
 
-vi.mock("@/components/lis/stock/StockPhotoUploader", () => ({
-  default: ({ label }: { label: string }) => <div>{label}</div>,
-}));
-
 function renderReceiveCart() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -79,6 +75,29 @@ describe("ReceiveCart Thai copy", () => {
     expect(screen.getByText("1 รายการ")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /แก้ไข ABAMECTIN/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ลบ ABAMECTIN/ })).toBeInTheDocument();
+  });
+
+  it("shows standard and solvent receive amounts in the row", async () => {
+    apiMock.getStandards.mockResolvedValue([
+      { _id: "std1", code: "STD-001", name: "ABAMECTIN", barcodes: [], primary: {}, supplier: {}, working: {} },
+    ]);
+    apiMock.getSolvents.mockResolvedValue([
+      { _id: "sol1", name: "Methanol", barcodes: [], sizeLiter: 2.5, price: 1200 },
+    ]);
+    renderReceiveCart();
+
+    const searchInput = await screen.findByLabelText("ค้นหา / สแกน Barcode");
+    fireEvent.change(searchInput, { target: { value: "STD-001" } });
+    fireEvent.click(screen.getByRole("button", { name: "เพิ่มรายการ" }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "กรอกรายละเอียดรับเข้า" })).getByRole("button", { name: "เสร็จ" }));
+
+    fireEvent.change(searchInput, { target: { value: "Methanol" } });
+    fireEvent.click(screen.getByRole("button", { name: "เพิ่มรายการ" }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "กรอกรายละเอียดรับเข้า" })).getByRole("button", { name: "เสร็จ" }));
+
+    expect(screen.getByRole("columnheader", { name: "ปริมาณ" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "100 mg" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "2.5 L" })).toBeInTheDocument();
   });
 
   it("opens grouped stock choices from the barcode search input", async () => {
