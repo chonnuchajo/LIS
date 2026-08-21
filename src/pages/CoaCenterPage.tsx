@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ComponentProps } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, BellRing, FileCheck2, FileDown, FilePlus2, Folder, Pencil, Printer } from "lucide-react";
+import { AlertTriangle, BellRing, FileCheck2, FileDown, FilePlus2, Folder, Pencil, Printer, TrendingUp } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -18,6 +18,7 @@ import { DEV_MODE } from "@/config/dev";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
 import { buildCoaReportPages } from "@/lib/coaReport";
+import { buildCoaRequestTrend, formatCoaTrendPercent } from "@/lib/coaTrend";
 import { canPrintCoa } from "@/lib/coaStatus";
 import { normalizeRoles, primaryRole } from "@/lib/roles";
 import type { CoaDocument, CoaSampleSnapshot } from "@/types/coa.types";
@@ -748,6 +749,18 @@ export default function CoaCenterPage() {
   const openedAllYearItems = useMemo(() => (
     openAllYear ? items.filter((doc) => documentYear(doc) === openAllYear) : []
   ), [items, openAllYear]);
+  const trendScopeItems = useMemo(() => {
+    if (activeTab === "all") return openAllYear ? openedAllYearItems : items;
+    return yearItems;
+  }, [activeTab, items, openAllYear, openedAllYearItems, yearItems]);
+  const coaRequestTrend = useMemo(() => buildCoaRequestTrend(trendScopeItems), [trendScopeItems]);
+  const coaRequestTrendTotal = useMemo(() => (
+    coaRequestTrend.reduce((sum, entry) => sum + entry.requestCount, 0)
+  ), [coaRequestTrend]);
+  const coaRequestTrendScopeLabel = activeTab === "all"
+    ? (openAllYear ? `แฟ้มปี ${buddhistYear(openAllYear)}` : "ทุกปี")
+    : `ปี ${selectedYear}`;
+  const topCoaRequestTrend = coaRequestTrend[0];
   const todayCount = useMemo(() => yearItems.filter((doc) => isToday(doc.createdAt)).length, [yearItems]);
   const workflowCounts = useMemo(() => ({
     requested: yearItems.filter((doc) => workflowStageFor(doc) === "requested").length,
@@ -918,6 +931,80 @@ export default function CoaCenterPage() {
               />
             </div>
           )}
+
+          <div data-testid="coa-request-trend" className="rounded-md border border-indigo-100 bg-white/90 p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-indigo-50 text-indigo-600">
+                  <TrendingUp className="h-5 w-5" />
+                </span>
+                <div>
+                  <h2 className="text-base font-semibold text-slate-950">Trend การขอ COA (%AI)</h2>
+                  <p className="text-sm text-slate-500">
+                    เก็บจาก COA ที่บันทึกใน {coaRequestTrendScopeLabel}: ความถี่ที่ขอแยกตามชื่อยา พร้อม %AI จากฉลากและผลวิเคราะห์
+                  </p>
+                </div>
+              </div>
+              <Badge variant="blue-soft">รวม {coaRequestTrendTotal} รายการยา</Badge>
+            </div>
+            {coaRequestTrend.length === 0 ? (
+              <div className="mt-4 rounded-md border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                ยังไม่มีข้อมูล Trend จาก COA ในช่วงนี้
+              </div>
+            ) : (
+              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                <div className="space-y-3">
+                  {coaRequestTrend.map((entry, index) => (
+                    <div key={entry.key} className="rounded-lg border border-slate-100 bg-slate-50/70 p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+                            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-100 px-1.5 text-xs text-indigo-700">{index + 1}</span>
+                            <span className="truncate">{entry.commonName}</span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
+                            <span>Label %AI {formatCoaTrendPercent(entry.labelAiPercent)}</span>
+                            <span>Avg %AI {formatCoaTrendPercent(entry.averageAiPercent, 4)}</span>
+                            {entry.latestAiResult && <span>ล่าสุด {entry.latestAiResult}</span>}
+                          </div>
+                        </div>
+                        <div className="text-right text-sm font-semibold text-indigo-700">
+                          {entry.requestCount} ครั้ง
+                          <div className="text-xs font-normal text-slate-500">{formatCoaTrendPercent(entry.sharePercent, 1)} ของทั้งหมด</div>
+                        </div>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                        <div
+                          className="h-full rounded-full bg-indigo-500"
+                          style={{ width: `${Math.max(6, Math.min(100, entry.sharePercent))}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {topCoaRequestTrend && (
+                  <div className="rounded-lg border border-indigo-100 bg-indigo-50/70 p-4 text-sm text-indigo-950">
+                    <div className="font-semibold">ยาที่ถูกขอมากที่สุด</div>
+                    <div className="mt-2 text-lg font-bold">{topCoaRequestTrend.commonName}</div>
+                    <dl className="mt-4 space-y-2 text-sm">
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-indigo-700">ความถี่ที่ขอ</dt>
+                        <dd className="font-semibold">{topCoaRequestTrend.requestCount} ครั้ง</dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-indigo-700">%AI ฉลาก</dt>
+                        <dd className="font-semibold">{formatCoaTrendPercent(topCoaRequestTrend.labelAiPercent)}</dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-indigo-700">%AI เฉลี่ย</dt>
+                        <dd className="font-semibold">{formatCoaTrendPercent(topCoaRequestTrend.averageAiPercent, 4)}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="rounded-md border border-sky-100 bg-white/90 p-4 shadow-sm">
             {activeTab !== "all" && (

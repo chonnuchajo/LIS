@@ -34,6 +34,15 @@ export type CoaResultSnapshot = {
   unit?: string;
 };
 
+export type CoaTrendSnapshot = {
+  itemSeq: number;
+  sampleName?: string;
+  commonName?: string;
+  aiLabelPercent?: number;
+  aiResultPercent?: number;
+  aiResultText?: string;
+};
+
 export type CoaAuditLogEntry = {
   _id: string;
   event: string;
@@ -57,6 +66,7 @@ export type CoaDocument = {
   customerSnapshot?: { name?: string; company?: string; department?: string; email?: string; phone?: string };
   sampleSnapshots: CoaSampleSnapshot[];
   resultSnapshots: CoaResultSnapshot[];
+  trendSnapshots?: CoaTrendSnapshot[];
   remark?: string;
   approval?: {
     submittedBy?: CoaPerson;

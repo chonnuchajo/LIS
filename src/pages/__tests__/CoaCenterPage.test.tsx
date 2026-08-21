@@ -79,8 +79,8 @@ vi.mock("@/lib/api", () => ({
           petitionNoSnapshot: "P-2608-0003",
           customerSnapshot: { name: "Customer D" },
           selectedItemSeqs: [1],
-          sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade D", commonName: "Common D", batchNo: "B-004", productionDate: "2026-08-01" }],
-          resultSnapshots: [],
+          sampleSnapshots: [{ itemSeq: 1, sampleName: "Trade D", commonName: "GLYPHOSATE 48% SL", batchNo: "B-004", productionDate: "2026-08-01" }],
+          resultSnapshots: [{ itemSeq: 1, testItem: "%AI content (W/V)", result: "47.9%" }],
           print: { printCount: 0 },
           createdAt: new Date().toISOString(),
         },
@@ -163,6 +163,18 @@ describe("CoaCenterPage", () => {
     expect(screen.getAllByText("Common A").length).toBeGreaterThan(0);
     expect(screen.getByText("L-001 / B-001 / 01/08/2026")).toBeInTheDocument();
     expect(screen.getAllByText("ดำเนินการแล้ว").length).toBeGreaterThan(0);
+  });
+
+  it("shows request trend with drug frequency and %AI", async () => {
+    renderPage();
+
+    const trend = await screen.findByTestId("coa-request-trend");
+    expect(within(trend).getByText("Trend การขอ COA (%AI)")).toBeInTheDocument();
+    expect(within(trend).getAllByText("Common A").length).toBeGreaterThan(0);
+    expect(within(trend).getAllByText("2 ครั้ง").length).toBeGreaterThan(0);
+    expect(within(trend).getByText("GLYPHOSATE 48% SL")).toBeInTheDocument();
+    expect(within(trend).getByText("Label %AI 48%")).toBeInTheDocument();
+    expect(within(trend).getByText("Avg %AI 47.9%")).toBeInTheDocument();
   });
 
   it("alerts COAs waiting for approval and COAs that need correction", async () => {

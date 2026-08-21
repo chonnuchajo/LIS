@@ -367,7 +367,7 @@ router.post('/:id/approve', async (req, res) => {
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
     assertCanTransition(doc.status, 'approve', actor);
     await assertLabApprovedPetition(doc.petitionId);
-    const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length;
+    const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length || !doc.trendSnapshots?.length;
     const snapshots = missingSnapshots ? await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs) : {};
     const update = {
       ...snapshots,
@@ -454,6 +454,7 @@ router.post('/:id/revise', async (req, res) => {
         customerSnapshot: source.customerSnapshot,
         sampleSnapshots: source.sampleSnapshots,
         resultSnapshots: source.resultSnapshots,
+        trendSnapshots: source.trendSnapshots,
         sourceCoaId: source._id,
         remark: source.remark,
         createdBy: actor,
