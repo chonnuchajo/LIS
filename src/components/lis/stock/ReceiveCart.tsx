@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2, ArrowDownToLine, Check, ChevronsUpDown, ChevronRight, ChevronDown, Camera, Pencil } from "lucide-react";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ import StockQrScanner from "@/components/lis/StockQrScanner";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { buildStockLabelHtml, buildSolventLabelHtml } from "@/lib/stockLabel";
+import { buildLocalStandardLabelCodeDefaults, mergeStandardLabelCodeDefaults, standardLabelCodeFromSuffix, standardLabelCodePrefix, standardLabelCodeSuffix } from "@/lib/standardLabelCode";
 import {
   makeEmptyRow, validateRow, buildBottles, findReceiveScanMatch,
   sanitizeDecimalInput, sanitizeIntegerInput,
@@ -177,7 +178,10 @@ export default function ReceiveCart() {
       const nextExp = [...r.perExp];
       while (nextExp.length < len) nextExp.push("");
       nextExp.length = len;
-      return { ...r, perExp: nextExp };
+      const nextLabelCodes = [...r.labelCodes];
+      while (nextLabelCodes.length < len) nextLabelCodes.push("");
+      nextLabelCodes.length = len;
+      return { ...r, perExp: nextExp, labelCodes: nextLabelCodes };
     }));
 
   const registerBarcodeIfNeeded = async (row: CartRow) => {
@@ -278,6 +282,24 @@ export default function ReceiveCart() {
   const validCount = rows.filter((r) => r.itemId && !validateRow(r)).length;
   const editingRow = editingRowId ? rows.find((row) => row.id === editingRowId) ?? null : null;
 
+  useEffect(() => {
+    if (!editingRow || editingRow.category !== "standard" || !editingRow.itemId) return;
+    const len = Math.max(1, Number(editingRow.count) || 1);
+    const needsDefaults = Array.from({ length: len }, (_, index) => !editingRow.labelCodes[index]?.trim()).some(Boolean);
+    if (!needsDefaults) return;
+    let active = true;
+    const applyDefaults = (codes: string[]) => {
+      if (!active) return;
+      setRows((prev) => prev.map((row) => (row.id === editingRow.id
+        ? { ...row, labelCodes: mergeStandardLabelCodeDefaults(row.labelCodes, codes, len) }
+        : row)));
+    };
+    api.getStandardLabelCodeDefaults(editingRow.itemId, len)
+      .then((defaults) => applyDefaults(defaults.codes))
+      .catch(() => applyDefaults(buildLocalStandardLabelCodeDefaults(editingRow.itemCode, len).codes));
+    return () => { active = false; };
+  }, [editingRow?.id, editingRow?.category, editingRow?.itemId, editingRow?.itemCode, editingRow?.count]);
+
   const rowUnit = (row: CartRow) => (row.category === "glassware" ? "ชิ้น" : "ขวด");
   const rowQty = (row: CartRow) => (row.category === "standard" ? row.count : row.qty);
   const rowLot = (row: CartRow) => (row.category === "glassware" ? "-" : row.lotNo || "-");
@@ -296,6 +318,19 @@ export default function ReceiveCart() {
     patchRow(row.id, { qty });
   };
 
+
+  const standardBottleCount = (row: CartRow) => Math.max(1, Number(row.count) || 1);
+
+  const patchStandardLabelCodeSuffix = (row: CartRow, index: number, value: string) => {
+    const prefix = standardLabelCodePrefix(row.itemCode);
+    setRows((prev) => prev.map((current) => {
+      if (current.id !== row.id) return current;
+      const labelCodes = [...current.labelCodes];
+      while (labelCodes.length < standardBottleCount(current)) labelCodes.push("");
+      labelCodes[index] = standardLabelCodeFromSuffix(prefix, value);
+      return { ...current, labelCodes };
+    }));
+  };
   const renderDetailFields = (row: CartRow) => (
     <div className="space-y-4 py-2">
       {row.category === "standard" && (
@@ -330,6 +365,28 @@ export default function ReceiveCart() {
               <Label htmlFor={`standard-count-${row.id}`}>จำนวนขวด</Label>
               <Input id={`standard-count-${row.id}`} min="1" step="1" inputMode="numeric" value={row.count} onChange={(e) => patchRowQty(row, e.target.value)} />
             </div>
+          </div>
+          <p className="text-xs text-muted-foreground">Code: 2 ตัวแรกล็อกตาม Code ของ Std ให้แก้ได้เฉพาะปี/เลขขวด เช่น 016901</p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {Array.from({ length: standardBottleCount(row) }, (_, index) => {
+              const prefix = standardLabelCodePrefix(row.itemCode);
+              return (
+                <div key={index}>
+                  <Label htmlFor={`standard-code-${row.id}-${index}`}>{standardBottleCount(row) === 1 ? "Code" : `Code ขวดที่ ${index + 1}`}</Label>
+                  <div className="mt-1 flex gap-2">
+                    <Input value={prefix} readOnly aria-label="standard-code-prefix" className="w-16 bg-muted text-center font-medium" />
+                    <Input
+                      id={`standard-code-${row.id}-${index}`}
+                      value={standardLabelCodeSuffix(row.labelCodes[index] ?? "", prefix)}
+                      onChange={(event) => patchStandardLabelCodeSuffix(row, index, event.target.value)}
+                      inputMode="numeric"
+                      placeholder="6901"
+                      required
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
           <div className="flex items-center gap-2">
             <Checkbox id={`sameExp-${row.id}`} checked={row.sameExp} onCheckedChange={(value) => patchRow(row.id, { sameExp: value === true })} />
@@ -456,12 +513,13 @@ export default function ReceiveCart() {
                 </div>
               ) : (
                 <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full min-w-[760px] text-sm">
+                  <table className="w-full min-w-[980px] text-sm">
                     <thead className="bg-muted/60 text-muted-foreground">
                       <tr>
                         <th className="w-12 px-3 py-2 text-left font-medium">#</th>
                         <th className="px-3 py-2 text-left font-medium">สาร/สินค้า</th>
                         <th className="w-40 px-3 py-2 text-left font-medium">Lot</th>
+                        <th className="w-56 px-3 py-2 text-left font-medium">Code</th>
                         <th className="w-32 px-3 py-2 text-right font-medium">ปริมาณ</th>
                         <th className="w-28 px-3 py-2 text-right font-medium">จำนวน</th>
                         <th className="w-20 px-3 py-2 text-left font-medium">หน่วย</th>
@@ -474,6 +532,40 @@ export default function ReceiveCart() {
                           <td className="px-3 py-2 text-muted-foreground">{index + 1}</td>
                           <td className="px-3 py-2 font-medium">{row.itemName || "-"}</td>
                           <td className="px-3 py-2 text-muted-foreground">{rowLot(row)}</td>
+                          <td className="px-3 py-2 align-top">
+                            {row.category === "standard" ? (
+                              <div className="space-y-1">
+                                {Array.from({ length: standardBottleCount(row) }, (_, codeIndex) => {
+                                  const prefix = standardLabelCodePrefix(row.itemCode);
+                                  const name = row.itemName || "Standard";
+                                  return (
+                                    <div key={codeIndex} className="flex items-center gap-1">
+                                      {standardBottleCount(row) > 1 && (
+                                        <span className="w-5 text-xs text-muted-foreground">{codeIndex + 1}</span>
+                                      )}
+                                      <Input
+                                        value={prefix}
+                                        readOnly
+                                        aria-label={`Code prefix ${name}${standardBottleCount(row) > 1 ? ` ขวดที่ ${codeIndex + 1}` : ""}`}
+                                        className="h-8 w-12 bg-muted px-1 text-center font-medium"
+                                      />
+                                      <Input
+                                        aria-label={standardBottleCount(row) === 1 ? `Code ${name}` : `Code ${name} ขวดที่ ${codeIndex + 1}`}
+                                        className="h-8 w-24 font-mono"
+                                        value={standardLabelCodeSuffix(row.labelCodes[codeIndex] ?? "", prefix)}
+                                        onChange={(event) => patchStandardLabelCodeSuffix(row, codeIndex, event.target.value)}
+                                        inputMode="numeric"
+                                        placeholder="6901"
+                                        required
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </td>
                           <td className="px-3 py-2 text-right text-muted-foreground">{rowAmount(row)}</td>
                           <td className="px-3 py-2 text-right">
                             <Input

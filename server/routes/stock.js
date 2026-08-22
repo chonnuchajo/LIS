@@ -10,7 +10,7 @@ const { isValidReceiveType, isValidUnitType } = require('../lib/stockSource');
 const { sumWeights } = require('../lib/requisitionWeights');
 const { normalizeActorFields } = require('../lib/stockActor');
 const { buildLotBottleNumbers } = require('../lib/stockLotBottle');
-const { nextStandardLabelRun } = require('../lib/stockStandardLabelRun');
+const { buildStandardLabelCodeDefaults, formatStandardLabelCode, parseStandardLabelCode, standardLabelCodePrefix } = require('../lib/stockStandardLabelCode');
 const {
   validateStandardUnitReceiveInput,
   validateSolventReceiveInput,
@@ -38,6 +38,74 @@ async function genUniqueQrId() {
     if (!exists) return id;
   }
   throw new Error('ไม่สามารถสร้าง qrId ที่ไม่ซ้ำได้');
+}
+
+function normalizeDefaultLabelCodeCount(value) {
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 1) return 1;
+  return Math.min(count, 200);
+}
+
+async function standardLabelCodeDefaults(std, count, now = new Date()) {
+  const units = await StockUnit.find({ itemCode: std.code, labelCode: { $exists: true, $nin: ['', null] } })
+    .select('labelCode')
+    .lean();
+  return buildStandardLabelCodeDefaults(std.code, units, { count: normalizeDefaultLabelCodeCount(count), now });
+}
+
+function duplicateLabelCode(labelCodes) {
+  const seen = new Set();
+  for (const code of labelCodes) {
+    if (seen.has(code)) return code;
+    seen.add(code);
+  }
+  return '';
+}
+
+async function resolveReceiveLabelCodes(std, bottles, now = new Date()) {
+  const parsed = bottles.map((bottle) => {
+    const raw = bottle && bottle.labelCode;
+    if (raw == null || String(raw).trim() === '') return null;
+    const parsedCode = parseStandardLabelCode(raw, std.code);
+    if (!parsedCode) {
+      const prefix = standardLabelCodePrefix(std.code);
+      const sample = formatStandardLabelCode(std.code, (now.getFullYear() + 543) % 100, 1);
+      throw new Error(`Code ต้องขึ้นต้นด้วย ${prefix} และตามด้วยปี/เลขขวด เช่น ${sample}`);
+    }
+    return parsedCode.labelCode;
+  });
+
+  const providedCodes = new Set(parsed.filter(Boolean));
+  const defaults = await standardLabelCodeDefaults(std, bottles.length + providedCodes.size, now);
+  let defaultIndex = 0;
+  const labelCodes = parsed.map((code) => {
+    if (code) return code;
+    while (providedCodes.has(defaults.codes[defaultIndex])) defaultIndex += 1;
+    const next = defaults.codes[defaultIndex];
+    defaultIndex += 1;
+    return next;
+  });
+
+  const duplicateInRequest = duplicateLabelCode(labelCodes);
+  if (duplicateInRequest) throw new Error(`Code ${duplicateInRequest} ซ้ำในรายการรับเข้า`);
+
+  const existing = await StockUnit.findOne({ itemCode: std.code, labelCode: { $in: labelCodes } })
+    .select('labelCode')
+    .lean();
+  if (existing) throw new Error(`Code ${existing.labelCode} ถูกใช้แล้ว`);
+
+  return labelCodes;
+}
+
+function normalizeUnitLabelCodeUpdate(labelCode, itemCode) {
+  const rawLabelCode = String(labelCode ?? '').trim().toUpperCase();
+  if (!rawLabelCode) return '';
+  const parsedCode = parseStandardLabelCode(rawLabelCode, itemCode);
+  if (!parsedCode) {
+    const prefix = standardLabelCodePrefix(itemCode);
+    throw new Error(`Code ต้องขึ้นต้นด้วย ${prefix} และตามด้วยปี/เลขขวด เช่น ${prefix}6901`);
+  }
+  return parsedCode.labelCode;
 }
 
 async function personOf(req) {
@@ -229,6 +297,7 @@ function publicStockUnitPayload(unit) {
     type: unit.type || 'primary',
     lotNo: unit.lotNo || '',
     lotBottleNo: unit.lotBottleNo || null,
+    labelCode: unit.labelCode || '',
     exp: unit.exp || null,
     volume: unit.volume,
     status: unit.status,
@@ -345,6 +414,18 @@ router.get('/standards/in-use', async (req, res) => {
       ? await StockStandard.find({ code: { $in: codes } }).select('code frequency').lean()
       : [];
     res.json({ serverTime: new Date().toISOString(), items: buildInUseItems(txs, standards) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/standards/:id/label-codes/defaults', async (req, res) => {
+  try {
+    const std = await StockStandard.findById(req.params.id);
+    if (!std) return res.status(404).json({ error: 'Not found' });
+    const count = normalizeDefaultLabelCodeCount(req.query.count);
+    const defaults = await standardLabelCodeDefaults(std, count);
+    res.json(defaults);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -551,7 +632,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
       ? await StockUnit.countDocuments({ itemCode: std.code, kind: 'sealed', lotNo: normalizedLotNo })
       : 0;
     const lotBottleNumbers = buildLotBottleNumbers(existingLotBottleCount, bottles.length);
-    const labelRun = await nextStandardLabelRun(std._id, now);
+    const labelCodes = await resolveReceiveLabelCodes(std, bottles, now);
     const created = [];
     for (const [index, b] of bottles.entries()) {
       const qrId = await genUniqueQrId();
@@ -565,8 +646,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
         lotNo: normalizedLotNo,
         purity: normalizedPurity,
         lotBottleNo: lotBottleNumbers[index],
-        labelRunNo: labelRun.labelRunNo,
-        labelRunYear: labelRun.labelRunYear,
+        labelCode: labelCodes[index],
         exp: new Date(b.exp),
         volume: { initial: size, remaining: size, unit },
         status: 'active',
@@ -644,11 +724,25 @@ router.patch('/units/:qrId', async (req, res) => {
     if (!unit) return res.status(404).json({ error: 'ไม่พบขวด' });
     if (unit.status === 'discarded') return res.status(400).json({ error: 'ขวดนี้ถูกทิ้งแล้ว แก้ไขไม่ได้' });
 
-    const { lotNo, exp, volume, type, photoUrls } = req.body || {};
+    const { lotNo, exp, volume, type, photoUrls, labelCode } = req.body || {};
     if (lotNo !== undefined) unit.lotNo = String(lotNo);
     if (exp !== undefined) unit.exp = exp ? new Date(exp) : null;
     if (type !== undefined && isValidUnitType(type)) unit.type = type;
     if (photoUrls !== undefined) unit.photoUrls = normalizePhotoUrls(photoUrls);
+    if (labelCode !== undefined) {
+      const nextLabelCode = normalizeUnitLabelCodeUpdate(labelCode, unit.itemCode);
+      if (nextLabelCode) {
+        const existing = await StockUnit.findOne({
+          _id: { $ne: unit._id },
+          itemCode: unit.itemCode,
+          labelCode: nextLabelCode,
+        }).select('labelCode').lean();
+        if (existing) throw new Error(`Code ${nextLabelCode} ถูกใช้แล้ว`);
+        unit.labelCode = nextLabelCode;
+      } else {
+        unit.labelCode = '';
+      }
+    }
     if (volume && typeof volume === 'object') {
       if (volume.unit !== undefined && ['ml', 'mg', 'g'].includes(volume.unit)) unit.volume.unit = volume.unit;
       if (volume.initial !== undefined) {
@@ -1128,3 +1222,4 @@ module.exports = router;
 router.planDeductMg = planDeductMg;
 router.userMeta = userMeta;
 router.deductMgFromUnit = deductMgFromUnit;
+router.normalizeUnitLabelCodeUpdate = normalizeUnitLabelCodeUpdate;

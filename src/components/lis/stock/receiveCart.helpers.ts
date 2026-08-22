@@ -1,3 +1,4 @@
+import { parseStandardLabelCode } from "@/lib/standardLabelCode";
 export type CartCategory = "standard" | "solvent" | "glassware";
 
 export interface ReceiveScanOption {
@@ -26,6 +27,7 @@ export interface CartRow {
   sameExp: boolean;
   commonExp: string;
   perExp: string[];
+  labelCodes: string[];
   // solvent
   qty: string;
   sizeLiter: string;
@@ -53,6 +55,7 @@ export function makeEmptyRow(): CartRow {
     sameExp: true,
     commonExp: "",
     perExp: [""],
+    labelCodes: [],
     qty: "1",
     sizeLiter: "",
     price: "",
@@ -164,6 +167,9 @@ export function validateRow(row: CartRow): string | null {
     if (row.type !== "primary" && row.type !== "supplier" && row.type !== "working") return "ต้องเลือกประเภท";
     if (!hasText(row.lotNo)) return REQUIRED_LOT_NO_MESSAGE;
     if (!hasText(row.purity)) return "กรุณาระบุ % Purity";
+    const labelCodes = Array.from({ length: c }, (_, i) => row.labelCodes[i]?.trim() ?? "");
+    if (labelCodes.some((code) => !parseStandardLabelCode(code, row.itemCode))) return "กรุณาระบุ Code ให้ถูกต้อง";
+    if (new Set(labelCodes).size !== labelCodes.length) return "Code ห้ามซ้ำกันในรายการรับเข้า";
     if (row.sameExp) {
       if (!hasText(row.commonExp)) return REQUIRED_EXP_MESSAGE;
     } else {
@@ -186,11 +192,15 @@ export function validateRow(row: CartRow): string | null {
   return null;
 }
 
-export function buildBottles(row: CartRow): { exp?: string }[] {
+export function buildBottles(row: CartRow): { exp?: string; labelCode?: string }[] {
   const n = Math.max(1, Number(row.count) || 1);
-  return Array.from({ length: n }, (_, i) => ({
-    exp: row.sameExp ? row.commonExp || undefined : row.perExp[i] || undefined,
-  }));
+  return Array.from({ length: n }, (_, i) => {
+    const labelCode = row.labelCodes[i]?.trim();
+    return {
+      exp: row.sameExp ? row.commonExp || undefined : row.perExp[i] || undefined,
+      ...(labelCode ? { labelCode } : {}),
+    };
+  });
 }
 
 export function composeSolventNote(row: CartRow): string {

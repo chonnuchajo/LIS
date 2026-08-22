@@ -30,7 +30,7 @@ describe("receiveCart.helpers", () => {
   });
 
   it("validateRow: standard ต้องมี size>0 แบบทศนิยมไม่เกิน 4 และ count เป็นจำนวนเต็มบวก", () => {
-    const base = { ...makeEmptyRow(), category: "standard" as const, itemId: "s1" };
+    const base = { ...makeEmptyRow(), category: "standard" as const, itemId: "s1", itemCode: "STD-001", labelCodes: ["016901", "016902"] };
     expect(validateRow({ ...base, sizeMl: "0" })).toBe("ปริมาณต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง");
     expect(validateRow({ ...base, sizeMl: "1.12345" })).toBe("ปริมาณต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง");
     expect(validateRow({ ...base, sizeMl: "1mg" })).toBe("ปริมาณต้องเป็นตัวเลข และทศนิยมไม่เกิน 4 ตำแหน่ง");
@@ -46,6 +46,7 @@ describe("receiveCart.helpers", () => {
       itemId: "s1",
       itemCode: "STD-001",
       itemName: "Standard A",
+      labelCodes: ["016901"],
       sizeMl: "100",
       count: "1",
       lotNo: "L1",
@@ -59,7 +60,7 @@ describe("receiveCart.helpers", () => {
   });
 
   it("validateRow: standard receive requires Lot No and EXP", () => {
-    const base = { ...makeEmptyRow(), category: "standard" as const, itemId: "s1", type: "primary" as const, sizeMl: "100", count: "2", purity: "99.5" };
+    const base = { ...makeEmptyRow(), category: "standard" as const, itemId: "s1", itemCode: "STD-001", type: "primary" as const, sizeMl: "100", count: "2", purity: "99.5", labelCodes: ["016901", "016902"] };
     expect(validateRow({ ...base, lotNo: "", commonExp: "2027-01-01" })).toContain("Lot No");
     expect(validateRow({ ...base, lotNo: "L1", sameExp: true, commonExp: "" })).toContain("EXP");
     expect(validateRow({ ...base, lotNo: "L1", sameExp: false, perExp: ["2027-01-01", ""] })).toContain("EXP");
@@ -113,6 +114,14 @@ describe("receiveCart.helpers", () => {
   it("buildBottles: per-bottle exp สั้นกว่า count → เติม undefined ให้ครบ", () => {
     const r = { ...makeEmptyRow(), count: "3", sameExp: false, perExp: ["2027-01-01"] };
     expect(buildBottles(r)).toEqual([{ exp: "2027-01-01" }, { exp: undefined }, { exp: undefined }]);
+  });
+
+  it("buildBottles: แนบ Code รายขวดสำหรับ standard", () => {
+    const r = { ...makeEmptyRow(), count: "2", sameExp: true, commonExp: "2027-01-01", labelCodes: ["016901", "016902"] };
+    expect(buildBottles(r)).toEqual([
+      { exp: "2027-01-01", labelCode: "016901" },
+      { exp: "2027-01-01", labelCode: "016902" },
+    ]);
   });
 
   it("buildBottles: ไม่แนบ photoUrls แม้มีข้อมูลรูปค้างอยู่", () => {

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { parseScannedQrId } from "@/lib/stockUnit";
 
 const READER_ID = "stock-qr-reader";
+const QR_DECODE_MISS_THRESHOLD = 24;
 
 type ScanMode = "qr" | "barcode";
 
@@ -71,10 +72,12 @@ export default function StockQrScanner({
   const [errorMsg, setErrorMsg] = useState("");
   const [errorDetail, setErrorDetail] = useState("");
   const [manual, setManual] = useState("");
+  const [scanFeedback, setScanFeedback] = useState("");
   const [zoomCaps, setZoomCaps] = useState<{ min: number; max: number; step: number } | null>(null);
   const [zoom, setZoom] = useState(1);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const firedRef = useRef(false);
+  const decodeMissCountRef = useRef(0);
   const onScannedRef = useRef(onScanned);
 
   useEffect(() => {
@@ -87,9 +90,11 @@ export default function StockQrScanner({
       setErrorMsg("");
       setErrorDetail("");
       setManual("");
+      setScanFeedback("");
       setZoomCaps(null);
       setZoom(1);
       firedRef.current = false;
+      decodeMissCountRef.current = 0;
     }
   }, [open]);
 
@@ -103,18 +108,17 @@ export default function StockQrScanner({
         useBarCodeDetectorIfSupported: true,
         verbose: false,
       });
-      const config = {
+      const config = scanMode === "barcode" ? {
         fps: 10,
         qrbox: (vw: number, vh: number) => {
-          if (scanMode === "barcode") {
-            return {
-              width: Math.round(vw * 0.9),
-              height: Math.round(Math.min(vh * 0.35, 220)),
-            };
-          }
-          const side = Math.round(Math.min(vw, vh) * 0.8);
-          return { width: side, height: side };
+          return {
+            width: Math.round(vw * 0.9),
+            height: Math.round(Math.min(vh * 0.35, 220)),
+          };
         },
+      } : {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
       };
       const preferredVideoConstraints: MediaTrackConstraints = {
         facingMode: { ideal: "environment" },
@@ -126,12 +130,21 @@ export default function StockQrScanner({
         const scannedValue = scanMode === "barcode" ? text.trim() : parseScannedQrId(text);
         if (!scannedValue) return;
         firedRef.current = true;
+        decodeMissCountRef.current = 0;
+        setScanFeedback("");
         onScannedRef.current(scannedValue);
+      };
+      const onDecodeMiss = () => {
+        if (!active || firedRef.current || scanMode !== "qr") return;
+        decodeMissCountRef.current += 1;
+        if (decodeMissCountRef.current === QR_DECODE_MISS_THRESHOLD) {
+          setScanFeedback("ยังอ่าน QR ไม่ได้ — จัด QR ให้อยู่กลางกรอบ ถอย/ขยับช้า ๆ ให้ภาพคม แล้วลองเปิดไฟเพิ่ม");
+        }
       };
       const startWith = (
         source: MediaTrackConstraints | string,
         startConfig: typeof config & { videoConstraints?: MediaTrackConstraints } = config,
-      ) => scanner.start(source, startConfig, onScan, () => {});
+      ) => scanner.start(source, startConfig, onScan, onDecodeMiss);
       const tuneCamera = async () => {
         await scanner.applyVideoConstraints({
           advanced: [{ focusMode: "continuous" }],
@@ -162,10 +175,14 @@ export default function StockQrScanner({
       let lastStartError: unknown = null;
       try {
         try {
-          await startWith({ facingMode: "environment" }, {
-            ...config,
-            videoConstraints: preferredVideoConstraints,
-          });
+          if (scanMode === "qr") {
+            await startWith({ facingMode: { exact: "environment" } });
+          } else {
+            await startWith({ facingMode: "environment" }, {
+              ...config,
+              videoConstraints: preferredVideoConstraints,
+            });
+          }
         } catch (error) {
           lastStartError = error;
           try {
@@ -224,9 +241,11 @@ export default function StockQrScanner({
   const retryCamera = () => {
     setErrorMsg("");
     setErrorDetail("");
+    setScanFeedback("");
     setZoomCaps(null);
     setZoom(1);
     firedRef.current = false;
+    decodeMissCountRef.current = 0;
     setPhase("scanning");
   };
 
@@ -255,6 +274,11 @@ export default function StockQrScanner({
             <p className="mt-2 text-center text-sm text-muted-foreground">
               {scanHint(scanMode)}
             </p>
+            {scanFeedback && (
+              <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-700">
+                {scanFeedback}
+              </p>
+            )}
             {zoomCaps && (
               <div className="mt-3 flex items-center gap-2">
                 <span className="text-xs text-muted-foreground shrink-0">ซูม</span>

@@ -5,6 +5,7 @@ import ReceiveBottlesDialog from "./ReceiveBottlesDialog";
 import type { StockStandardItem } from "@/types/stock";
 
 const apiMock = vi.hoisted(() => ({
+  getStandardLabelCodeDefaults: vi.fn(),
   receiveStockUnits: vi.fn(),
 }));
 
@@ -24,6 +25,7 @@ const standard: StockStandardItem = {
 describe("ReceiveBottlesDialog receive flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiMock.getStandardLabelCodeDefaults.mockResolvedValue({ prefix: "01", buddhistYear: 69, nextBottleNo: 1, codes: ["016902"] });
   });
 
   it("defaults standard receive type to primary", async () => {
@@ -40,6 +42,7 @@ describe("ReceiveBottlesDialog receive flow", () => {
     fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "LOT-1" } });
     fireEvent.change(screen.getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
     fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
+    await waitFor(() => expect(screen.getByLabelText("Code")).toHaveValue("6902"));
     fireEvent.click(document.querySelector('button[type="submit"]') as HTMLButtonElement);
 
     await waitFor(() => expect(apiMock.receiveStockUnits).toHaveBeenCalled());
@@ -76,6 +79,7 @@ describe("ReceiveBottlesDialog receive flow", () => {
     fireEvent.change(screen.getByPlaceholderText("required"), { target: { value: "LOT-1" } });
     fireEvent.change(screen.getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
     fireEvent.change(document.querySelector('input[type="date"]') as HTMLInputElement, { target: { value: "2027-12-31" } });
+    await waitFor(() => expect(screen.getByLabelText("Code")).toHaveValue("6902"));
     fireEvent.click(screen.getByRole("button", { name: "รับเข้า" }));
 
     await waitFor(() => expect(apiMock.receiveStockUnits).toHaveBeenCalled());
@@ -88,6 +92,7 @@ describe("ReceiveBottlesDialog receive flow", () => {
         bottles: [
           {
             exp: "2027-12-31",
+            labelCode: "016902",
           },
         ],
       }),

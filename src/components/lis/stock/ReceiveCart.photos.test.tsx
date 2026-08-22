@@ -8,6 +8,7 @@ const apiMock = vi.hoisted(() => ({
   getStandards: vi.fn(),
   getSolvents: vi.fn(),
   getGlassware: vi.fn(),
+  getStandardLabelCodeDefaults: vi.fn(),
   registerStockBarcode: vi.fn(),
   receiveStockUnits: vi.fn(),
   receiveSolvent: vi.fn(),
@@ -69,13 +70,16 @@ async function openReceiveRowEditor(itemName: string) {
   return screen.findByRole("dialog", { name: "แก้ไขรายการรับเข้า" });
 }
 
-function closeReceiveRowEditor(dialog: HTMLElement) {
+async function closeReceiveRowEditor(dialog: HTMLElement) {
+  const codeInput = within(dialog).queryByLabelText("Code");
+  if (codeInput) await waitFor(() => expect(codeInput).toHaveValue("6901"));
   fireEvent.click(within(dialog).getByRole("button", { name: "เสร็จ" }));
 }
 
 describe("ReceiveCart receive flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiMock.getStandardLabelCodeDefaults.mockResolvedValue({ prefix: "01", buddhistYear: 69, nextBottleNo: 1, codes: ["016901", "016902"] });
     apiMock.registerStockBarcode.mockResolvedValue({ barcode: "654694", category: "standard", itemId: "std1" });
     buildSolventLabelHtmlMock.mockClear();
   });
@@ -128,7 +132,7 @@ describe("ReceiveCart receive flow", () => {
     fireEvent.change(within(editor).getByPlaceholderText("required"), { target: { value: "LOT-1" } });
     fireEvent.change(within(editor).getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
     fireEvent.change(within(editor).getByLabelText("EXP (ทุกขวด)"), { target: { value: "2027-12-31" } });
-    closeReceiveRowEditor(editor);
+    await closeReceiveRowEditor(editor);
     fireEvent.click(screen.getByRole("button", { name: /\(1/ }));
 
     await waitFor(() => expect(apiMock.registerStockBarcode).toHaveBeenCalled());
@@ -151,7 +155,7 @@ describe("ReceiveCart receive flow", () => {
     fireEvent.change(within(editor).getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
     fireEvent.change(within(editor).getByLabelText("EXP (ทุกขวด)"), { target: { value: "2027-12-31" } });
     expect(within(editor).queryByText(/รูปขวด/)).not.toBeInTheDocument();
-    closeReceiveRowEditor(editor);
+    await closeReceiveRowEditor(editor);
     fireEvent.click(screen.getByRole("button", { name: /\(1/ }));
 
     await waitFor(() => expect(apiMock.receiveStockUnits).toHaveBeenCalled());
@@ -164,6 +168,7 @@ describe("ReceiveCart receive flow", () => {
         bottles: [
           {
             exp: "2027-12-31",
+            labelCode: "016901",
           },
         ],
       }),
@@ -190,7 +195,7 @@ describe("ReceiveCart receive flow", () => {
     fireEvent.change(within(editor).getByLabelText("ราคา (บาท)"), { target: { value: "1200" } });
     fireEvent.change(within(editor).getByPlaceholderText("required"), { target: { value: "B-001" } });
     fireEvent.change(within(editor).getByLabelText("EXP"), { target: { value: "2027-01-01" } });
-    closeReceiveRowEditor(editor);
+    await closeReceiveRowEditor(editor);
     fireEvent.click(screen.getByRole("button", { name: /\(1/ }));
 
     await waitFor(() => expect(apiMock.receiveSolvent).toHaveBeenCalledWith(
@@ -231,7 +236,7 @@ describe("ReceiveCart receive flow", () => {
     fireEvent.change(within(editor).getByPlaceholderText("required"), { target: { value: "LOT-1" } });
     fireEvent.change(within(editor).getByPlaceholderText("เช่น 99.5"), { target: { value: "99.5" } });
     fireEvent.change(within(editor).getByLabelText("EXP (ทุกขวด)"), { target: { value: "2027-12-31" } });
-    closeReceiveRowEditor(editor);
+    await closeReceiveRowEditor(editor);
     fireEvent.click(screen.getByRole("button", { name: /\(1/ }));
 
     await waitFor(() => {
