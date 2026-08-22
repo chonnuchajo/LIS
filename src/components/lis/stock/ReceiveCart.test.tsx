@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,6 +10,7 @@ const apiMock = vi.hoisted(() => ({
   getStandards: vi.fn(),
   getSolvents: vi.fn(),
   getGlassware: vi.fn(),
+  getStandardLabelCodeDefaults: vi.fn(),
 }));
 
 vi.mock("@/lib/api", () => ({ api: apiMock }));
@@ -37,6 +38,7 @@ function renderReceiveCart() {
 describe("ReceiveCart Thai copy", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    apiMock.getStandardLabelCodeDefaults.mockResolvedValue({ prefix: "01", buddhistYear: 69, nextBottleNo: 1, codes: ["016901", "016902"] });
     apiMock.getStandards.mockResolvedValue([]);
     apiMock.getSolvents.mockResolvedValue([]);
     apiMock.getGlassware.mockResolvedValue([]);
@@ -75,6 +77,26 @@ describe("ReceiveCart Thai copy", () => {
     expect(screen.getByText("1 รายการ")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /แก้ไข ABAMECTIN/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ลบ ABAMECTIN/ })).toBeInTheDocument();
+  });
+
+  it("keeps the standard Code editable in the receive row", async () => {
+    apiMock.getStandards.mockResolvedValue([
+      { _id: "std1", code: "STD-001", name: "ABAMECTIN", barcodes: [], primary: {}, supplier: {}, working: {} },
+    ]);
+    renderReceiveCart();
+
+    fireEvent.change(await screen.findByLabelText("ค้นหา / สแกน Barcode"), { target: { value: "STD-001" } });
+    fireEvent.click(screen.getByRole("button", { name: "เพิ่มรายการ" }));
+
+    const detailDialog = await screen.findByRole("dialog", { name: "กรอกรายละเอียดรับเข้า" });
+    await waitFor(() => expect(within(detailDialog).getByLabelText("Code")).toHaveValue("6901"));
+    fireEvent.click(within(detailDialog).getByRole("button", { name: "เสร็จ" }));
+
+    expect(screen.getByRole("columnheader", { name: "Code" })).toBeInTheDocument();
+    const codeInput = await screen.findByLabelText("Code ABAMECTIN");
+    expect(codeInput).toHaveValue("6901");
+    fireEvent.change(codeInput, { target: { value: "6902" } });
+    expect(codeInput).toHaveValue("6902");
   });
 
   it("shows standard and solvent receive amounts in the row", async () => {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +7,7 @@ import StockQrScanner from "./StockQrScanner";
 
 const scannerState = vi.hoisted(() => ({
   successCallbacks: [] as Array<(text: string) => void>,
+  errorCallbacks: [] as Array<(message: string) => void>,
   constructorCalls: [] as unknown[][],
   startConfigs: [] as unknown[],
   startSources: [] as unknown[],
@@ -23,12 +24,18 @@ function cameraError(name: string, message: string) {
 const html5QrcodeMock = vi.hoisted(() => vi.fn().mockImplementation((...args: unknown[]) => {
   scannerState.constructorCalls.push(args);
   return {
-    start: vi.fn(async (source: unknown, config: unknown, onSuccess: (text: string) => void) => {
+    start: vi.fn(async (
+      source: unknown,
+      config: unknown,
+      onSuccess: (text: string) => void,
+      onError: (message: string) => void,
+    ) => {
       scannerState.startSources.push(source);
       scannerState.startConfigs.push(config);
       const startError = scannerState.startErrors.length > 0 ? scannerState.startErrors.shift() : null;
       if (startError) throw startError;
       scannerState.successCallbacks.push(onSuccess);
+      scannerState.errorCallbacks.push(onError);
       return null;
     }),
     stop: vi.fn(async () => {}),
@@ -63,6 +70,7 @@ describe("StockQrScanner", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     scannerState.successCallbacks = [];
+    scannerState.errorCallbacks = [];
     scannerState.constructorCalls = [];
     scannerState.startConfigs = [];
     scannerState.startSources = [];
@@ -121,6 +129,27 @@ describe("StockQrScanner", () => {
     });
   });
 
+  it("uses the stable QR camera crop used by the working petition scanners", async () => {
+    render(
+      <StockQrScanner
+        open
+        title="สแกน QR ข้างขวดเพื่อเบิก"
+        showManualEntry={false}
+        onClose={vi.fn()}
+        onScanned={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(scannerState.startSources).toHaveLength(1));
+
+    expect(scannerState.startSources[0]).toEqual({ facingMode: { exact: "environment" } });
+    expect(scannerState.startConfigs[0]).toMatchObject({
+      fps: 10,
+      qrbox: { width: 250, height: 250 },
+    });
+    expect(scannerState.startConfigs[0]).not.toHaveProperty("videoConstraints");
+  });
+
   it("shows barcode-specific guidance in readable Thai", async () => {
     render(
       <StockQrScanner
@@ -137,6 +166,28 @@ describe("StockQrScanner", () => {
 
     expect(screen.getByText(/เล็งกล้องไปที่ Barcode/)).toBeInTheDocument();
     expect(screen.queryByText(/QR บนขวด/)).not.toBeInTheDocument();
+  });
+
+  it("shows QR guidance after repeated decode misses instead of staying silent", async () => {
+    render(
+      <StockQrScanner
+        open
+        title="สแกน QR ข้างขวดเพื่อเบิก"
+        showManualEntry={false}
+        onClose={vi.fn()}
+        onScanned={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(scannerState.errorCallbacks).toHaveLength(1));
+    act(() => {
+      for (let index = 0; index < 24; index += 1) {
+        scannerState.errorCallbacks[0]("No QR code found");
+      }
+    });
+
+    expect(await screen.findByText(/ยังอ่าน QR ไม่ได้/)).toBeInTheDocument();
+    expect(screen.getByText(/จัด QR ให้อยู่กลางกรอบ/)).toBeInTheDocument();
   });
 
   it("shows a readable Thai camera error when barcode camera start fails", async () => {

@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
+import {
+  parseStandardLabelCode,
+  standardLabelCodeFromStockUnit,
+  standardLabelCodeFromSuffix,
+  standardLabelCodePrefix,
+  standardLabelCodeSuffix,
+} from "@/lib/standardLabelCode";
 import type { StockUnitItem } from "@/types/stock";
 
 interface Props {
@@ -24,8 +31,10 @@ function toDateInput(v?: string | null): string {
 }
 
 export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
+  const labelPrefix = standardLabelCodePrefix(unit.itemCode);
   const [lotNo, setLotNo] = useState(unit.lotNo ?? "");
   const [type, setType] = useState<"primary" | "supplier" | "working" | "">(unit.type ?? "");
+  const [labelCode, setLabelCode] = useState(standardLabelCodeFromStockUnit(unit));
   const [exp, setExp] = useState(toDateInput(unit.exp));
   const [initial, setInitial] = useState(String(unit.volume?.initial ?? ""));
   const [remaining, setRemaining] = useState(String(unit.volume?.remaining ?? ""));
@@ -38,12 +47,18 @@ export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
     if (!Number.isFinite(init) || init < 0) { toast.error("ปริมาณตั้งต้นไม่ถูกต้อง"); return; }
     if (!Number.isFinite(rem) || rem < 0) { toast.error("ปริมาณคงเหลือไม่ถูกต้อง"); return; }
     if (rem > init) { toast.error("คงเหลือมากกว่าปริมาณตั้งต้นไม่ได้"); return; }
+    const trimmedLabelCode = labelCode.trim();
+    if (trimmedLabelCode && !parseStandardLabelCode(trimmedLabelCode, unit.itemCode)) {
+      toast.error(`Code ต้องขึ้นต้นด้วย ${labelPrefix} และตามด้วยปี/เลขขวด เช่น ${labelPrefix}6901`);
+      return;
+    }
     setBusy(true);
     try {
       await api.updateStockUnit(unit.qrId, {
         lotNo,
         exp: exp || null,
         type,
+        labelCode: trimmedLabelCode,
         volume: { initial: init, remaining: rem },
       });
       toast.success("บันทึกข้อมูลขวดแล้ว");
@@ -81,6 +96,20 @@ export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
                 <Button type="button" variant={type === "" ? "default" : "outline"} size="sm"
                   onClick={() => setType("")}>ไม่ระบุ</Button>
               </div>
+            </div>
+            <div>
+              <Label htmlFor={`edit-unit-code-${unit.qrId}`}>Code</Label>
+              <div className="mt-1 flex gap-2">
+                <Input value={labelPrefix} readOnly aria-label="Code prefix" className="w-16 bg-muted text-center font-medium" />
+                <Input
+                  id={`edit-unit-code-${unit.qrId}`}
+                  value={standardLabelCodeSuffix(labelCode, labelPrefix)}
+                  onChange={(e) => setLabelCode(standardLabelCodeFromSuffix(labelPrefix, e.target.value))}
+                  inputMode="numeric"
+                  placeholder="6901"
+                />
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">2 ตัวแรกล็อกตาม Code ของ Std แก้ได้เฉพาะปี/เลขขวด</p>
             </div>
             <div>
               <Label>EXP (รายขวด)</Label>

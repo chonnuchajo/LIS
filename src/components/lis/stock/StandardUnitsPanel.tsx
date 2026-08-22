@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import StockRawLabelPreviewDialog from "@/components/lis/StockRawLabelPreviewDialog";
 import { api } from "@/lib/api";
+import { standardLabelCodeFromStockUnit } from "@/lib/standardLabelCode";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
 import { unitDerivedStatus, visibleBottles } from "@/lib/stockUnit";
 import type { StockStandardItem, StockUnitItem } from "@/types/stock";
@@ -24,6 +25,10 @@ const STATUS_BADGE: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
   active: "ใช้งานได้", empty: "หมด", discarded: "ทิ้งแล้ว", expired: "หมดอายุ",
 };
+
+function unitLabelCode(unit: StockUnitItem): string {
+  return standardLabelCodeFromStockUnit(unit) || "-";
+}
 
 type PreviewLabelOptions = { autoPrint?: boolean };
 
@@ -162,7 +167,7 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
         </div>
       </div>
       <div className="overflow-x-auto">
-        <Table className="min-w-[700px]">
+        <Table className="min-w-[820px]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-10 text-center">
@@ -175,6 +180,7 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
               </TableHead>
               <TableHead className="w-10 text-center">#</TableHead>
               <TableHead>ประเภท</TableHead>
+              <TableHead>Code</TableHead>
               <TableHead>Lot</TableHead>
               <TableHead className="text-right">คงเหลือ</TableHead>
               <TableHead>EXP</TableHead>
@@ -184,9 +190,9 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
             ) : rows.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">ยังไม่มีขวด — กดเพิ่มขวด</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground">ยังไม่มีขวด — กดเพิ่มขวด</TableCell></TableRow>
             ) : rows.map((unit, index) => {
               const status = unitDerivedStatus(unit);
               return (
@@ -200,6 +206,7 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
                   </TableCell>
                   <TableCell className="text-center text-muted-foreground">{index + 1}</TableCell>
                   <TableCell><Badge variant="outline">{unit.type || "primary"}</Badge></TableCell>
+                  <TableCell className="font-mono text-xs">{unitLabelCode(unit)}</TableCell>
                   <TableCell className="text-xs">{unit.lotNo || "-"}</TableCell>
                   <TableCell className="text-right">{unit.volume?.remaining ?? "-"} {unit.volume?.unit}</TableCell>
                   <TableCell className="text-xs">{unit.exp ? new Date(unit.exp).toLocaleDateString("th-TH") : "-"}</TableCell>

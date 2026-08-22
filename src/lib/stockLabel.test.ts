@@ -194,6 +194,29 @@ describe("stock label paper size", () => {
     expect(html.indexOf("01/2026")).toBeLessThan(html.indexOf("REFERENCE STANDARD"));
   });
 
+  it("renders the user-entered standard Code under the QR code", async () => {
+    const html = await buildStockLabelHtml({
+      _id: "unit-1",
+      qrId: "u_abc123",
+      itemCode: "01",
+      itemName: "2,4-D Acid",
+      kind: "sealed",
+      type: "primary",
+      lotNo: "G1237356",
+      purity: "99.72",
+      labelCode: "016901",
+      labelRunNo: 1,
+      labelRunYear: 2026,
+      exp: "2028-05-28",
+      volume: { initial: 100, remaining: 100, unit: "mg" },
+      status: "active",
+    } as StockUnitItem);
+
+    expect(html.indexOf('alt="qr"')).toBeLessThan(html.indexOf("016901"));
+    expect(html.indexOf("016901")).toBeLessThan(html.indexOf("REFERENCE STANDARD"));
+    expect(html).not.toContain("01/2026");
+  });
+
   it("renders solvent labels at 65mm x 25mm", async () => {
     const html = await buildSolventLabelHtml({ name: "Methanol", idForQr: "sol_123" });
 

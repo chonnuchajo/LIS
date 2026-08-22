@@ -8,6 +8,7 @@ import type { StockStandardItem, StockUnitItem } from "@/types/stock";
 const apiMock = vi.hoisted(() => ({
   getStockUnits: vi.fn(),
   discardStockUnit: vi.fn(),
+  updateStockUnit: vi.fn(),
 }));
 const buildStockLabelHtmlMock = vi.hoisted(() => vi.fn(async (unit: StockUnitItem) => `<label ${unit.qrId} />`));
 const stockRawLabelPreviewDialogMock = vi.hoisted(() => vi.fn(() => null));
@@ -77,6 +78,31 @@ describe("StandardUnitsPanel bulk actions", () => {
       expect(latestProps).toMatchObject({ open: true, labels: ["<label u1 />"] });
       expect(latestProps.autoPrint).not.toBe(true);
     });
+  });
+
+  it("lets legacy standard bottles edit Code from the bottle dialog", async () => {
+    apiMock.getStockUnits.mockResolvedValue([
+      makeUnit({ _id: "unit1", qrId: "u1", labelCode: "", labelRunNo: 1, labelRunYear: 2026 }),
+    ]);
+    apiMock.updateStockUnit.mockResolvedValue(makeUnit({ _id: "unit1", qrId: "u1", labelCode: "016902" }));
+
+    renderPanel();
+
+    expect(await screen.findByRole("columnheader", { name: "Code" })).toBeInTheDocument();
+    const row = (await screen.findByText("016901")).closest("tr");
+    expect(row).not.toBeNull();
+    fireEvent.click(within(row as HTMLTableRowElement).getAllByRole("button")[0]);
+
+    const dialog = await screen.findByRole("dialog", { name: "แก้ไขข้อมูลขวด" });
+    const codeInput = within(dialog).getByLabelText("Code");
+    expect(codeInput).toHaveValue("6901");
+    fireEvent.change(codeInput, { target: { value: "6902" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "บันทึก" }));
+
+    await waitFor(() => expect(apiMock.updateStockUnit).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({ labelCode: "016902" }),
+    ));
   });
 
   it("selects multiple bottles and prints selected labels in one preview", async () => {

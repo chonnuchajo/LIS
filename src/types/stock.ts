@@ -120,6 +120,7 @@ export interface StockUnitItem {
   lotNo?: string;
   purity?: string | number | null;
   lotBottleNo?: number | null;
+  labelCode?: string;
   labelRunNo?: number | null;
   labelRunYear?: number | null;
   exp?: string | null;
@@ -169,6 +170,7 @@ export type StockPublicScanItem =
       type?: "primary" | "supplier" | "working" | "";
       lotNo?: string;
       lotBottleNo?: number | null;
+      labelCode?: string;
       exp?: string | null;
       volume: StockUnitVolume;
       status: StockUnitStatus;

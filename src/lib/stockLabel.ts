@@ -20,7 +20,7 @@ export async function buildStockLabelHtml(unit: StockUnitItem): Promise<string> 
   });
   const exp = unit.exp ? new Date(unit.exp).toLocaleDateString("th-TH") : "-";
   const purity = formatPurityLabel(unit);
-  const labelRun = formatStandardLabelRun(unit.labelRunNo, unit.labelRunYear);
+  const labelRun = formatStandardLabelMarker(unit);
   return `
 <div style="font-family:Verdana,'Segoe UI',Arial,'Kanit',Tahoma,sans-serif;width:65mm;height:25mm;box-sizing:border-box;color:#000;background:#fff;overflow:hidden;display:grid;grid-template-columns:18mm 1fr;gap:1mm;align-items:center;padding:1mm;">
   <div style="width:18mm;height:23mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6mm;overflow:hidden;">
@@ -98,6 +98,12 @@ function labelRow(label: string, value: string): string {
 function formatStandardLabelRun(sequence: number | null | undefined, year: number | null | undefined): string {
   if (!Number.isInteger(sequence) || !Number.isInteger(year) || !sequence || sequence < 1 || !year || year < 2000) return "";
   return `${String(sequence).padStart(2, "0")}/${year}`;
+}
+
+function formatStandardLabelMarker(unit: StockUnitItem): string {
+  const labelCode = unit.labelCode?.trim();
+  if (labelCode) return labelCode;
+  return formatStandardLabelRun(unit.labelRunNo, unit.labelRunYear);
 }
 
 function formatPurityLabel(unit: StockUnitItem): string {

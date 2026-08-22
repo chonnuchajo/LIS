@@ -13,6 +13,7 @@ import type {
   StandardsInUseResponse,
 } from "@/types/stock";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
+import type { StandardLabelCodeDefaults } from "@/lib/standardLabelCode";
 import {
   defaultPrinterFor,
   docTypeToKind,
@@ -434,9 +435,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  getStandardLabelCodeDefaults: (standardId: string, count = 1) =>
+    request<StandardLabelCodeDefaults>(`/stock/standards/${standardId}/label-codes/defaults?count=${encodeURIComponent(String(count))}`),
   receiveStockUnits: (
     standardId: string,
-    body: { lotNo?: string; purity: string; sizeMl: number; unit?: "ml" | "mg" | "g"; type: "primary" | "supplier" | "working"; bottles: { exp?: string }[]; note?: string } & StockUserPayload,
+    body: { lotNo?: string; purity: string; sizeMl: number; unit?: "ml" | "mg" | "g"; type: "primary" | "supplier" | "working"; bottles: { exp?: string; labelCode?: string }[]; note?: string } & StockUserPayload,
   ) =>
     request<StockUnitItem[]>(`/stock/standards/${standardId}/units/receive`, {
       method: "POST",
@@ -449,7 +452,7 @@ export const api = {
     }),
   updateStockUnit: (
     qrId: string,
-    body: { lotNo?: string; exp?: string | null; type?: "primary" | "supplier" | "working" | ""; photoUrls?: string[]; volume?: { initial?: number; remaining?: number; unit?: string } },
+    body: { lotNo?: string; exp?: string | null; type?: "primary" | "supplier" | "working" | ""; labelCode?: string; photoUrls?: string[]; volume?: { initial?: number; remaining?: number; unit?: string } },
   ) =>
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`, {
       method: "PATCH",
