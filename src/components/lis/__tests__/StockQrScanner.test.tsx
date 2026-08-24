@@ -118,6 +118,41 @@ describe("StockQrScanner", () => {
     });
   });
 
+  it("zooms the camera with a two-finger pinch gesture without page panning", async () => {
+    html5QrMock.getRunningTrackCapabilities.mockReturnValue({ zoom: { min: 1, max: 4, step: 0.1 } });
+    html5QrMock.getRunningTrackSettings.mockReturnValue({ zoom: 1 });
+
+    render(
+      <StockQrScanner
+        open
+        onClose={() => {}}
+        onScanned={() => {}}
+      />,
+    );
+
+    expect(await screen.findByText("2.0×")).toBeInTheDocument();
+    const cameraFrame = screen.getByTestId("stock-qr-camera-frame");
+
+    expect(cameraFrame).toHaveClass("touch-none", "overscroll-contain");
+    html5QrMock.applyVideoConstraints.mockClear();
+
+    fireEvent.touchStart(cameraFrame, {
+      touches: [
+        { clientX: 0, clientY: 0 },
+        { clientX: 100, clientY: 0 },
+      ],
+    });
+    fireEvent.touchMove(cameraFrame, {
+      touches: [
+        { clientX: 0, clientY: 0 },
+        { clientX: 150, clientY: 0 },
+      ],
+    });
+
+    expect(html5QrMock.applyVideoConstraints).toHaveBeenCalledWith({ advanced: [{ zoom: 3 }] });
+    expect(screen.getByText("3.0×")).toBeInTheDocument();
+  });
+
   it("reports both raw decoded QR text and parsed qrId", async () => {
     const onDecoded = vi.fn();
     const onScanned = vi.fn();

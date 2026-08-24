@@ -97,12 +97,12 @@ describe("StockDeduction item display", () => {
     await waitFor(() => expect(screen.getByTestId("stock-requisition")).toHaveTextContent("u_scan"));
   });
 
-  it("shows manual stock link fallback in the stock deduction scanner", () => {
+  it("hides manual stock link fallback in the stock deduction scanner", () => {
     renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
 
-    expect(screen.getByText("หรือวางลิงก์/qrId เอง")).toBeInTheDocument();
+    expect(screen.queryByText("หรือวางลิงก์/qrId เอง")).not.toBeInTheDocument();
   });
 
   it("shows the substance name in the item column without showing the stock code", async () => {

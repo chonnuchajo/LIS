@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type TouchEvent, useEffect, useRef, useState } from "react";
 import { Html5Qrcode, Html5QrcodeScannerState, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,13 @@ function cameraIdConstraints(cameraId: string): MediaTrackConstraints {
     width: { ideal: 1920 },
     height: { ideal: 1080 },
   };
+}
+
+function touchDistance(touches: TouchList) {
+  const first = touches[0];
+  const second = touches[1];
+  if (!first || !second) return 0;
+  return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
 }
 
 interface Props {
@@ -103,6 +110,7 @@ export default function StockQrScanner({
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const firedRef = useRef(false);
   const decodeMissCountRef = useRef(0);
+  const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
   const onScannedRef = useRef(onScanned);
   const onDecodedRef = useRef(onDecoded);
 
@@ -294,11 +302,38 @@ export default function StockQrScanner({
     setPhase("scanning");
   };
 
-  const onZoom = (value: number) => {
-    setZoom(value);
+  const applyZoom = (value: number) => {
+    const next = zoomCaps
+      ? Math.min(zoomCaps.max, Math.max(zoomCaps.min, value))
+      : value;
+    setZoom(next);
     scannerRef.current
-      ?.applyVideoConstraints({ advanced: [{ zoom: value }] } as unknown as MediaTrackConstraints)
+      ?.applyVideoConstraints({ advanced: [{ zoom: next }] } as unknown as MediaTrackConstraints)
       .catch(() => {});
+  };
+
+  const onZoom = (value: number) => {
+    applyZoom(value);
+  };
+
+  const onCameraTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (!zoomCaps || event.touches.length !== 2) return;
+    const distance = touchDistance(event.touches);
+    if (distance <= 0) return;
+    event.preventDefault();
+    pinchRef.current = { distance, zoom };
+  };
+
+  const onCameraTouchMove = (event: TouchEvent<HTMLDivElement>) => {
+    if (!zoomCaps || !pinchRef.current || event.touches.length !== 2) return;
+    const distance = touchDistance(event.touches);
+    if (distance <= 0) return;
+    event.preventDefault();
+    applyZoom(pinchRef.current.zoom * (distance / pinchRef.current.distance));
+  };
+
+  const clearPinch = () => {
+    pinchRef.current = null;
   };
 
   const manualLabel = scanMode === "barcode" ? "หรือกรอก/วาง Barcode เอง" : "หรือวางลิงก์/qrId เอง";
@@ -315,7 +350,15 @@ export default function StockQrScanner({
         </div>
         <div className="p-5 space-y-4">
           <div className={phase === "scanning" ? "block" : "hidden"}>
-            <div className="relative overflow-hidden rounded-lg border bg-black">
+            <div
+              data-testid="stock-qr-camera-frame"
+              className="relative touch-none overflow-hidden overscroll-contain rounded-lg border bg-black"
+              style={{ touchAction: "none" }}
+              onTouchStart={onCameraTouchStart}
+              onTouchMove={onCameraTouchMove}
+              onTouchEnd={clearPinch}
+              onTouchCancel={clearPinch}
+            >
               <div id={READER_ID} className="w-full" />
               {scanMode === "qr" && (
                 <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">

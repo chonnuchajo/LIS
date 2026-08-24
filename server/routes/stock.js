@@ -1176,10 +1176,11 @@ router.post('/transactions/:id/resolve-deduction', async (req, res) => {
 
 router.get('/transactions', async (req, res) => {
   try {
-    const { itemType, itemId, action, createdFrom, createdTo, limit = 200, skip = 0 } = req.query;
+    const { itemType, itemId, qrId, action, createdFrom, createdTo, limit = 200, skip = 0 } = req.query;
     const filter = {};
     if (itemType) filter.itemType = itemType;
     if (itemId) filter.itemId = itemId;
+    if (qrId) filter.qrId = String(qrId).trim();
     if (action) filter.action = action;
     if (createdFrom || createdTo) {
       filter.createdAt = {};

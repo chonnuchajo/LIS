@@ -53,6 +53,7 @@ type StockBarcodeRegistration = {
 export interface StockTransactionParams {
   itemType?: string;
   itemId?: string;
+  qrId?: string;
   action?: string;
   createdFrom?: string;
   createdTo?: string;

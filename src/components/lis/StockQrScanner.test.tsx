@@ -129,7 +129,7 @@ describe("StockQrScanner", () => {
     });
   });
 
-  it("uses the stable QR camera crop used by the working petition scanners", async () => {
+  it("uses full-frame QR scanning with high-resolution camera constraints", async () => {
     render(
       <StockQrScanner
         open
@@ -145,9 +145,15 @@ describe("StockQrScanner", () => {
     expect(scannerState.startSources[0]).toEqual({ facingMode: { exact: "environment" } });
     expect(scannerState.startConfigs[0]).toMatchObject({
       fps: 10,
-      qrbox: { width: 250, height: 250 },
+      aspectRatio: 1.0,
+      disableFlip: false,
+      videoConstraints: {
+        facingMode: { exact: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
     });
-    expect(scannerState.startConfigs[0]).not.toHaveProperty("videoConstraints");
+    expect(scannerState.startConfigs[0]).not.toHaveProperty("qrbox");
   });
 
   it("shows barcode-specific guidance in readable Thai", async () => {

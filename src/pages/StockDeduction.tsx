@@ -208,7 +208,7 @@ const StockDeduction = () => {
       <StockQrScanner
         open={scannerOpen}
         title="สแกน QR ข้างขวดเพื่อเบิก"
-        showManualEntry
+        showManualEntry={false}
         onClose={() => setScannerOpen(false)}
         onDecoded={setLastScanResult}
         onScanned={applyScannedQrId}
