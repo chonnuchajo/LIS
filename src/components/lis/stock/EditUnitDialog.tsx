@@ -30,14 +30,26 @@ function toDateInput(v?: string | null): string {
   return d.toISOString().slice(0, 10);
 }
 
+function toTwoDecimalInput(value?: number | null): string {
+  if (value == null) return "";
+  return Number(value).toFixed(2);
+}
+
+function normalizeTwoDecimalInput(value: string): string {
+  if (value.trim() === "") return value;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return value;
+  return parsed.toFixed(2);
+}
+
 export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
   const labelPrefix = standardLabelCodePrefix(unit.itemCode);
   const [lotNo, setLotNo] = useState(unit.lotNo ?? "");
   const [type, setType] = useState<"primary" | "supplier" | "working" | "">(unit.type ?? "");
   const [labelCode, setLabelCode] = useState(standardLabelCodeFromStockUnit(unit));
   const [exp, setExp] = useState(toDateInput(unit.exp));
-  const [initial, setInitial] = useState(String(unit.volume?.initial ?? ""));
-  const [remaining, setRemaining] = useState(String(unit.volume?.remaining ?? ""));
+  const [initial, setInitial] = useState(toTwoDecimalInput(unit.volume?.initial));
+  const [remaining, setRemaining] = useState(toTwoDecimalInput(unit.volume?.remaining));
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
@@ -118,11 +130,27 @@ export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>ปริมาณตั้งต้น ({unit.volume?.unit})</Label>
-                <Input type="number" min="0" value={initial} onChange={(e) => setInitial(e.target.value)} />
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={initial}
+                  onChange={(e) => setInitial(e.target.value)}
+                  onBlur={() => setInitial(normalizeTwoDecimalInput(initial))}
+                />
               </div>
               <div>
                 <Label>คงเหลือ ({unit.volume?.unit})</Label>
-                <Input type="number" min="0" value={remaining} onChange={(e) => setRemaining(e.target.value)} />
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={remaining}
+                  onChange={(e) => setRemaining(e.target.value)}
+                  onBlur={() => setRemaining(normalizeTwoDecimalInput(remaining))}
+                />
               </div>
             </div>
           </div>

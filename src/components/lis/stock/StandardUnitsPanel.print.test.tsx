@@ -105,6 +105,31 @@ describe("StandardUnitsPanel bulk actions", () => {
     ));
   });
 
+  it("shows mg volume fields with two decimals and 0.01 step in the bottle dialog", async () => {
+    apiMock.getStockUnits.mockResolvedValue([
+      makeUnit({ volume: { initial: 100.01, remaining: 100, unit: "mg" } }),
+    ]);
+
+    renderPanel();
+
+    const row = (await screen.findByText("LOT-1")).closest("tr");
+    expect(row).not.toBeNull();
+    fireEvent.click(within(row as HTMLTableRowElement).getAllByRole("button")[0]);
+
+    const dialog = await screen.findByRole("dialog", { name: "แก้ไขข้อมูลขวด" });
+    const [initialInput, remainingInput] = within(dialog).getAllByRole("spinbutton") as HTMLInputElement[];
+
+    expect(initialInput).toHaveDisplayValue("100.01");
+    expect(initialInput).toHaveAttribute("step", "0.01");
+    expect(remainingInput).toHaveDisplayValue("100.00");
+    expect(remainingInput).toHaveAttribute("step", "0.01");
+
+    fireEvent.change(remainingInput, { target: { value: "99.9" } });
+    fireEvent.blur(remainingInput);
+
+    expect(remainingInput).toHaveDisplayValue("99.90");
+  });
+
   it("selects multiple bottles and prints selected labels in one preview", async () => {
     const unit1 = makeUnit({ _id: "unit1", qrId: "u1", lotNo: "LOT-1", receivedDate: "2026-01-01T00:00:00.000Z" });
     const unit2 = makeUnit({ _id: "unit2", qrId: "u2", lotNo: "LOT-2", receivedDate: "2026-01-02T00:00:00.000Z" });
