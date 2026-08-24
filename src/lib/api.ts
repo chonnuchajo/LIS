@@ -382,8 +382,10 @@ export const api = {
       : "";
     return request<StockTransactionItem[]>(`/stock/transactions${qs}`);
   },
-  exportStockStandardHistory: (params: { itemId: string; startDate: string; endDate: string }) => {
-    const qs = new URLSearchParams(params).toString();
+  exportStockStandardHistory: (params: { itemId: string; startDate: string; endDate: string; format?: "xlsx" | "pdf" }) => {
+    const qs = new URLSearchParams(
+      Object.entries({ format: "xlsx", ...params }).map(([key, value]) => [key, String(value)]),
+    ).toString();
     return fetchBlob(`/stock/exports/standard?${qs}`);
   },
   exportStockSolventHistory: (params: { solventId: string; date: string }) => {

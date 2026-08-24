@@ -112,6 +112,20 @@ describe("standardMatchesStatuses", () => {
 });
 
 describe("getStandardAlertSummary", () => {
+  it("ไม่สร้าง alert ถ้าแค่เหลือ 1 ขวด แต่ไม่มีขวดหมดอายุหรือใกล้หมดอายุ", () => {
+    expect(getStandardAlertSummary({ usable: 1, expired: 0, expiringSoon: 0 })).toBeNull();
+  });
+
+  it("สร้าง alert ถ้าเหลือ 0 ขวด แม้ไม่มีขวดหมดอายุหรือใกล้หมดอายุ", () => {
+    expect(getStandardAlertSummary({ usable: 0, expired: 0, expiringSoon: 0 })).toEqual({
+      lowStock: true,
+      expired: false,
+      expiringSoon: false,
+      severity: "destructive",
+      message: "หมด เหลือรวม 0 ขวด",
+    });
+  });
+
   it("รวม low stock และ near expiry ของ standard เดียวกันเป็น alert เดียว", () => {
     const alert = getStandardAlertSummary({ usable: 1, expired: 0, expiringSoon: 1 });
 

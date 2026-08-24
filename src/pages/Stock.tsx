@@ -22,7 +22,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -66,6 +66,7 @@ function canDeleteStockItems(user: RoleHolder | null | undefined) {
 }
 
 type StockExportKind = "standard" | "solvent";
+type StockExportFormat = "xlsx" | "pdf";
 
 function localDateInputValue(date = new Date()) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
@@ -159,6 +160,7 @@ function StandardsTab() {
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<StockStandardItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [standardListExporting, setStandardListExporting] = useState<StockExportFormat | null>(null);
 
   const now = Date.now();
 
@@ -216,6 +218,46 @@ function StandardsTab() {
       toast.error((err as Error).message);
     } finally {
       setDeleteBusy(false);
+    }
+  };
+
+  const buildStandardListExportRows = () => filtered.map((item) => {
+    const units = unitsByCode.get(item.code) ?? [];
+    const summary = summarizeStandard(units, new Date(now));
+    const counts = usableByCode.get(item.code) ?? {};
+    const statusParts = [];
+    if (summary.usable === 0) statusParts.push("หมด");
+    if (summary.expired > 0) statusParts.push(`หมดอายุ ${summary.expired}`);
+    if (summary.expiringSoon > 0) statusParts.push(`ใกล้หมดอายุ ${summary.expiringSoon}`);
+    return {
+      Code: item.code,
+      Name: item.name,
+      "คงเหลือใช้งานได้": summary.usable,
+      Primary: counts.primary ?? 0,
+      Working: counts.working ?? 0,
+      Supplier: counts.supplier ?? 0,
+      Frequency: item.frequency || "",
+      "Storage Temp": item.storageTemp || "",
+      Status: statusParts.join(" · ") || "ปกติ",
+    };
+  });
+
+  const exportStandards = async (format: StockExportFormat) => {
+    const rows = buildStandardListExportRows();
+    if (rows.length === 0) {
+      toast.error("ไม่มีข้อมูล Standard สำหรับ export");
+      return;
+    }
+
+    setStandardListExporting(format);
+    try {
+      const blob = await api.exportMasterItems(format, rows, "Standards");
+      downloadStockExport(blob, `standards-${localDateInputValue()}.${format}`);
+      toast.success("Export Standards สำเร็จ");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setStandardListExporting(null);
     }
   };
 
@@ -279,6 +321,27 @@ function StandardsTab() {
                     {o.label}
                   </DropdownMenuCheckboxItem>
                 ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 gap-1.5"
+                  disabled={standardListExporting !== null}
+                >
+                  <Download className="w-4 h-4" /> Export
+                  <ChevronDown className="w-4 h-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-32">
+                <DropdownMenuItem onClick={() => exportStandards("xlsx")}>
+                  Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportStandards("pdf")}>
+                  PDF
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button size="sm" onClick={() => setCreating(true)}>
@@ -865,6 +928,7 @@ function HistoryTab() {
   const [action, setAction] = useState<string>("");
   const [exportOpen, setExportOpen] = useState(false);
   const [exportKind, setExportKind] = useState<StockExportKind>("standard");
+  const [exportStandardFormat, setExportStandardFormat] = useState<StockExportFormat>("xlsx");
   const [exportStandardId, setExportStandardId] = useState("");
   const [exportStandardStartDate, setExportStandardStartDate] = useState("");
   const [exportStandardEndDate, setExportStandardEndDate] = useState("");
@@ -935,9 +999,11 @@ function HistoryTab() {
           itemId: exportStandardId,
           startDate: exportStandardStartDate,
           endDate: exportStandardEndDate,
+          format: exportStandardFormat,
         });
         const baseName = safeDownloadSegment(selectedStandard?.code || selectedStandard?.name || "standard");
-        downloadStockExport(blob, `${baseName}-standard-history-${exportStandardStartDate}_to_${exportStandardEndDate}.xlsx`);
+        const extension = exportStandardFormat === "pdf" ? "pdf" : "xlsx";
+        downloadStockExport(blob, `${baseName}-standard-history-${exportStandardStartDate}_to_${exportStandardEndDate}.${extension}`);
       } else {
         const blob = await api.exportStockSolventHistory({ solventId: exportSolventId, date: exportDate });
         const baseName = safeDownloadSegment(selectedSolvent?.name || "solvent");
@@ -1078,6 +1144,25 @@ function HistoryTab() {
                   </select>
                 </div>
                 <div className="space-y-2">
+                  <Label>รูปแบบไฟล์</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={exportStandardFormat === "xlsx" ? "default" : "outline"}
+                      onClick={() => setExportStandardFormat("xlsx")}
+                    >
+                      Excel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={exportStandardFormat === "pdf" ? "default" : "outline"}
+                      onClick={() => setExportStandardFormat("pdf")}
+                    >
+                      PDF
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
                   <Label>ช่วงวันที่</Label>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -1105,7 +1190,7 @@ function HistoryTab() {
                   </Popover>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  ระบบจะ export เฉพาะประวัติในช่วงวันที่ที่เลือก โดยแยก Lot No. เป็นคนละ sheet ในไฟล์เดียว
+                  ระบบจะ export เฉพาะประวัติในช่วงวันที่ที่เลือก โดย Excel จะแยก Lot No. เป็นคนละ sheet และ PDF จะแยกเป็นคนละหน้า
                 </p>
               </div>
             ) : (

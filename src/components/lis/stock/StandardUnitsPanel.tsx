@@ -25,9 +25,19 @@ const STATUS_BADGE: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
   active: "ใช้งานได้", empty: "หมด", discarded: "ทิ้งแล้ว", expired: "หมดอายุ",
 };
+const COMPACT_ACTION_BUTTON_CLASS = "h-8 w-8 sm:h-8 sm:w-8";
 
 function unitLabelCode(unit: StockUnitItem): string {
   return standardLabelCodeFromStockUnit(unit) || "-";
+}
+
+function compareUnitsByLabelCode(a: StockUnitItem, b: StockUnitItem): number {
+  const byCode = unitLabelCode(a).localeCompare(unitLabelCode(b), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+  if (byCode !== 0) return byCode;
+  return String(a.qrId || "").localeCompare(String(b.qrId || ""), undefined, { numeric: true, sensitivity: "base" });
 }
 
 type PreviewLabelOptions = { autoPrint?: boolean };
@@ -48,7 +58,7 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
     queryFn: () => api.getStockUnits({ itemCode: standard.code }),
   });
 
-  const rows = visibleBottles(data);
+  const rows = visibleBottles(data).sort(compareUnitsByLabelCode);
   const selectedRows = rows.filter((row) => selectedQrIds.has(row.qrId));
   const selectedReportRows = selectedRows.filter((row) => {
     const status = unitDerivedStatus(row);
@@ -166,11 +176,10 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
           </Button>
         </div>
       </div>
-      <div className="overflow-x-auto">
-        <Table className="min-w-[820px]">
+      <Table containerClassName="overflow-hidden" className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-10 text-center">
+              <TableHead className="w-9 px-2 text-center">
                 <Checkbox
                   aria-label="เลือกขวดทั้งหมด"
                   checked={selectionState}
@@ -178,45 +187,73 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
                   onCheckedChange={(value) => toggleAll(value === true)}
                 />
               </TableHead>
-              <TableHead className="w-10 text-center">#</TableHead>
-              <TableHead>ประเภท</TableHead>
-              <TableHead>Code</TableHead>
-              <TableHead>Lot</TableHead>
-              <TableHead className="text-right">คงเหลือ</TableHead>
-              <TableHead>EXP</TableHead>
-              <TableHead>สถานะ</TableHead>
-              <TableHead className="text-right">จัดการ</TableHead>
+              <TableHead className="w-8 px-1 text-center">#</TableHead>
+              <TableHead className="w-20 px-2">ประเภท</TableHead>
+              <TableHead className="w-20 px-2">Code</TableHead>
+              <TableHead className="w-24 px-2 text-right">คงเหลือ</TableHead>
+              <TableHead className="w-20 px-2">EXP</TableHead>
+              <TableHead className="w-24 px-2">สถานะ</TableHead>
+              <TableHead className="w-[92px] px-1 text-right">จัดการ</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={9} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
             ) : rows.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground">ยังไม่มีขวด — กดเพิ่มขวด</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">ยังไม่มีขวด — กดเพิ่มขวด</TableCell></TableRow>
             ) : rows.map((unit, index) => {
               const status = unitDerivedStatus(unit);
               return (
                 <TableRow key={unit._id} data-state={selectedQrIds.has(unit.qrId) ? "selected" : undefined}>
-                  <TableCell className="text-center">
+                  <TableCell className="px-2 py-3 text-center">
                     <Checkbox
                       aria-label={`เลือกขวด ${index + 1}`}
                       checked={selectedQrIds.has(unit.qrId)}
                       onCheckedChange={(value) => toggleRow(unit.qrId, value === true)}
                     />
                   </TableCell>
-                  <TableCell className="text-center text-muted-foreground">{index + 1}</TableCell>
-                  <TableCell><Badge variant="outline">{unit.type || "primary"}</Badge></TableCell>
-                  <TableCell className="font-mono text-xs">{unitLabelCode(unit)}</TableCell>
-                  <TableCell className="text-xs">{unit.lotNo || "-"}</TableCell>
-                  <TableCell className="text-right">{unit.volume?.remaining ?? "-"} {unit.volume?.unit}</TableCell>
-                  <TableCell className="text-xs">{unit.exp ? new Date(unit.exp).toLocaleDateString("th-TH") : "-"}</TableCell>
-                  <TableCell><Badge className={`text-xs ${STATUS_BADGE[status]}`}>{STATUS_LABEL[status]}</Badge></TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-1">
-                      {status !== "discarded" && <Button type="button" size="icon" variant="ghost" title="แก้ไขข้อมูล" onClick={() => setEditUnit(unit)}><Pencil className="w-4 h-4" /></Button>}
-                      <Button type="button" size="icon" variant="ghost" title="ปริ้นซ้ำ" onClick={() => reprint(unit)}><Printer className="w-4 h-4" /></Button>
+                  <TableCell className="px-1 py-3 text-center text-muted-foreground">{index + 1}</TableCell>
+                  <TableCell className="px-2 py-3"><Badge variant="outline">{unit.type || "primary"}</Badge></TableCell>
+                  <TableCell className="px-2 py-3 font-mono text-xs">{unitLabelCode(unit)}</TableCell>
+                  <TableCell className="whitespace-nowrap px-2 py-3 text-right">{unit.volume?.remaining ?? "-"} {unit.volume?.unit}</TableCell>
+                  <TableCell className="whitespace-nowrap px-2 py-3 text-xs">{unit.exp ? new Date(unit.exp).toLocaleDateString("th-TH") : "-"}</TableCell>
+                  <TableCell className="px-2 py-3"><Badge className={`text-xs ${STATUS_BADGE[status]}`}>{STATUS_LABEL[status]}</Badge></TableCell>
+                  <TableCell className="px-1 py-2">
+                    <div className="flex justify-end gap-0.5">
+                      {status !== "discarded" && (
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          className={COMPACT_ACTION_BUTTON_CLASS}
+                          aria-label="แก้ไขข้อมูล"
+                          title="แก้ไขข้อมูล"
+                          onClick={() => setEditUnit(unit)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        className={COMPACT_ACTION_BUTTON_CLASS}
+                        aria-label="ปริ้นซ้ำ"
+                        title="ปริ้นซ้ำ"
+                        onClick={() => reprint(unit)}
+                      >
+                        <Printer className="w-4 h-4" />
+                      </Button>
                       {status !== "discarded" && status !== "empty" && (
-                        <Button type="button" size="icon" variant="ghost" title="แจ้งหมด/ปัญหา" onClick={() => setReportUnits([unit])}>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          className={COMPACT_ACTION_BUTTON_CLASS}
+                          aria-label="แจ้งหมด/ปัญหา"
+                          title="แจ้งหมด/ปัญหา"
+                          onClick={() => setReportUnits([unit])}
+                        >
                           <TriangleAlert className="w-4 h-4" />
                         </Button>
                       )}
@@ -227,7 +264,6 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
             })}
           </TableBody>
         </Table>
-      </div>
 
       {receiving && <ReceiveBottlesDialog standard={standard} onClose={() => setReceiving(false)} onSaved={refresh} onPreviewLabels={previewLabels} />}
       {editUnit && <EditUnitDialog unit={editUnit} onClose={() => setEditUnit(null)} onSaved={refresh} />}

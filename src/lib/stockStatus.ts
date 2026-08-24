@@ -156,15 +156,21 @@ export function getStandardAlertSummary(
   sum: StdSummary,
   options: StandardAlertSummaryOptions = {},
 ): StandardAlertSummary | null {
-  const lowStock = sum.usable > 0 && standardLevel(sum.usable) !== "ok";
+  const stockLevel = standardLevel(sum.usable);
+  const outOfStock = stockLevel === "out";
+  const lowStock = stockLevel !== "ok";
   const expired = sum.expired > 0;
   const expiringSoon = !expired && sum.expiringSoon > 0;
+  const hasExpiryAlert = expired || expiringSoon;
   const parts: string[] = [];
   const now = options.now ?? new Date();
   const soonDays = options.soonDays ?? 30;
   const maxDetails = options.maxDetails ?? 3;
 
-  if (lowStock) parts.push(`ใกล้หมด เหลือรวม ${sum.usable} ขวด`);
+  if (!outOfStock && !hasExpiryAlert) return null;
+
+  if (outOfStock) parts.push(`หมด เหลือรวม ${sum.usable} ขวด`);
+  else if (lowStock) parts.push(`ใกล้หมด เหลือรวม ${sum.usable} ขวด`);
   if (expired) {
     parts.push(`หมดอายุ ${sum.expired} ขวด${expiryDetails(options.units, now, "expired", soonDays, maxDetails)}`);
   } else if (expiringSoon) {

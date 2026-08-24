@@ -7,9 +7,15 @@ import StockPage from "../Stock";
 const apiMock = vi.hoisted(() => ({
   getStockTransactions: vi.fn(),
   getStandards: vi.fn(),
+  getStockUnits: vi.fn(),
   getSolvents: vi.fn(),
+  exportMasterItems: vi.fn(),
   exportStockStandardHistory: vi.fn(),
   exportStockSolventHistory: vi.fn(),
+}));
+const accessibleTabsMock = vi.hoisted(() => ({
+  defaultKey: "history",
+  tabs: [{ key: "history", label: "ประวัติ" }],
 }));
 
 vi.mock("@/lib/api", () => ({ api: apiMock }));
@@ -34,8 +40,8 @@ vi.mock("@/context/AuthContext", () => ({
 
 vi.mock("@/hooks/useAccessibleTabs", () => ({
   useAccessibleTabs: () => ({
-    defaultKey: "history",
-    tabs: [{ key: "history", label: "ประวัติ" }],
+    defaultKey: accessibleTabsMock.defaultKey,
+    tabs: accessibleTabsMock.tabs,
   }),
 }));
 
@@ -74,9 +80,13 @@ function currentMonthDayButton(day: number) {
 describe("Stock history export", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    accessibleTabsMock.defaultKey = "history";
+    accessibleTabsMock.tabs = [{ key: "history", label: "ประวัติ" }];
     apiMock.getStockTransactions.mockResolvedValue([]);
     apiMock.getStandards.mockResolvedValue([{ _id: "std1", code: "STD-001", name: "Pesticide Mix" }]);
+    apiMock.getStockUnits.mockResolvedValue([]);
     apiMock.getSolvents.mockResolvedValue([{ _id: "sol1", name: "Methanol" }]);
+    apiMock.exportMasterItems.mockResolvedValue(new Blob(["xlsx"]));
     apiMock.exportStockStandardHistory.mockResolvedValue(new Blob(["xlsx"]));
     apiMock.exportStockSolventHistory.mockResolvedValue(new Blob(["doc"]));
     Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:stock-export") });
@@ -138,7 +148,26 @@ describe("Stock history export", () => {
       itemId: "std1",
       startDate: isoDateForCurrentMonth(5),
       endDate: isoDateForCurrentMonth(16),
+      format: "xlsx",
     }));
+  });
+
+  it("exports the visible Standards tab directly as PDF without a dialog", async () => {
+    accessibleTabsMock.defaultKey = "standard";
+    accessibleTabsMock.tabs = [{ key: "standard", label: "Standards" }];
+    apiMock.exportMasterItems.mockResolvedValue(new Blob(["pdf"], { type: "application/pdf" }));
+    renderStock();
+
+    fireEvent.keyDown(await screen.findByRole("button", { name: "Export" }), { key: "Enter", code: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "PDF" }));
+
+    expect(screen.queryByRole("dialog", { name: "Export Standard" })).not.toBeInTheDocument();
+    await waitFor(() => expect(apiMock.exportMasterItems).toHaveBeenCalledWith(
+      "pdf",
+      expect.arrayContaining([expect.objectContaining({ Code: "STD-001", Name: "Pesticide Mix" })]),
+      "Standards",
+    ));
+    expect(apiMock.exportStockStandardHistory).not.toHaveBeenCalled();
   });
 });
 

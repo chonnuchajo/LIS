@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs');
 const router = express.Router();
 const { StockStandard, StockSolvent, StockGlassware } = require('../models/Stock');
 const StockTransaction = require('../models/StockTransaction');
@@ -25,6 +26,7 @@ const {
 const { buildInUseItems, canAcknowledgeDeduction } = require('../lib/standardsInUse');
 const {
   buildStandardExportDateRange,
+  buildStandardLotExportHtml,
   buildStandardLotExportWorkbook,
   buildSolventRequisitionDoc,
   dateStamp,
@@ -1062,8 +1064,10 @@ router.get('/exports/standard', async (req, res) => {
   try {
     const itemId = String(req.query.itemId || '').trim();
     const dateRange = buildStandardExportDateRange(req.query.startDate, req.query.endDate);
+    const format = String(req.query.format || 'xlsx').trim().toLowerCase();
     if (!itemId) return res.status(400).json({ error: 'ต้องเลือก standard' });
     if (dateRange.error) return res.status(400).json({ error: dateRange.error });
+    if (!['xlsx', 'pdf'].includes(format)) return res.status(400).json({ error: 'รองรับเฉพาะ xlsx หรือ pdf' });
 
     const standard = await StockStandard.findById(itemId).lean();
     if (!standard) return res.status(404).json({ error: 'ไม่พบ standard' });
@@ -1088,14 +1092,53 @@ router.get('/exports/standard', async (req, res) => {
         .lean()
       : [];
 
+    const safeCode = sanitizeFilenameSegment(standard.code || standard.name || 'standard');
+    const baseFilename = `${safeCode}-standard-history-${dateRange.value.startDate}_to_${dateRange.value.endDate}-${dateStamp()}`;
+
+    if (format === 'pdf') {
+      const html = buildStandardLotExportHtml({ standard, units, transactions });
+      if (!html) return res.status(400).json({ error: 'ไม่มีประวัติสำหรับ standard นี้' });
+
+      const chromePath = process.env.PRINT_CHROME_PATH;
+      if (!chromePath || !fs.existsSync(chromePath)) {
+        return res.status(400).json({ error: 'ไม่พบ Chrome สำหรับสร้าง PDF (ตั้งค่า PRINT_CHROME_PATH)' });
+      }
+
+      const puppeteer = require('puppeteer-core');
+      let browser;
+      try {
+        browser = await puppeteer.launch({
+          executablePath: chromePath,
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        });
+        const page = await browser.newPage();
+        await page.setContent(html.toString('utf8'), { waitUntil: 'load', timeout: 20000 });
+        await page.evaluateHandle('document.fonts.ready').catch(() => {});
+        const pdf = await page.pdf({
+          printBackground: true,
+          preferCSSPageSize: true,
+          margin: { top: '8mm', right: '8mm', bottom: '8mm', left: '8mm' },
+        });
+        await browser.close();
+        browser = null;
+        return sendAttachment(res, {
+          buffer: Buffer.from(pdf),
+          contentType: 'application/pdf',
+          filename: `${baseFilename}.pdf`,
+        });
+      } finally {
+        if (browser) await browser.close().catch(() => {});
+      }
+    }
+
     const workbook = buildStandardLotExportWorkbook({ standard, units, transactions });
     if (!workbook) return res.status(400).json({ error: 'ไม่มีประวัติสำหรับ standard นี้' });
 
-    const safeCode = sanitizeFilenameSegment(standard.code || standard.name || 'standard');
     return sendAttachment(res, {
       buffer: workbook.buffer,
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      filename: `${safeCode}-standard-history-${dateRange.value.startDate}_to_${dateRange.value.endDate}-${dateStamp()}.xlsx`,
+      filename: `${baseFilename}.xlsx`,
     });
   } catch (err) {
     return res.status(400).json({ error: err.message });

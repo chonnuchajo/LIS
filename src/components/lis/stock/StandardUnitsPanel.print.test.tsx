@@ -63,12 +63,12 @@ describe("StandardUnitsPanel bulk actions", () => {
 
   it("keeps stock reprint as a manual confirmation dialog", async () => {
     apiMock.getStockUnits.mockResolvedValue([
-      makeUnit({ _id: "unit1", qrId: "u1", lotNo: "LOT-1" }),
+      makeUnit({ _id: "unit1", qrId: "u1", labelCode: "016901", lotNo: "LOT-1" }),
     ]);
 
     renderPanel();
 
-    const row = (await screen.findByText("LOT-1")).closest("tr");
+    const row = (await screen.findByText("016901")).closest("tr");
     expect(row).not.toBeNull();
     const buttons = within(row as HTMLTableRowElement).getAllByRole("button");
     fireEvent.click(buttons[1]);
@@ -105,14 +105,50 @@ describe("StandardUnitsPanel bulk actions", () => {
     ));
   });
 
-  it("shows mg volume fields with two decimals and 0.01 step in the bottle dialog", async () => {
+  it("เรียง # ของรายขวดตาม Code ที่แสดงในตาราง", async () => {
     apiMock.getStockUnits.mockResolvedValue([
-      makeUnit({ volume: { initial: 100.01, remaining: 100, unit: "mg" } }),
+      makeUnit({ _id: "unit2", qrId: "u2", labelCode: "016902", lotNo: "LOT-2" }),
+      makeUnit({ _id: "unit10", qrId: "u10", labelCode: "016910", lotNo: "LOT-10" }),
+      makeUnit({ _id: "unit1", qrId: "u1", labelCode: "016901", lotNo: "LOT-1" }),
     ]);
 
     renderPanel();
 
-    const row = (await screen.findByText("LOT-1")).closest("tr");
+    await screen.findByText("016901");
+    const rows = screen.getAllByRole("row").slice(1);
+
+    expect(rows).toHaveLength(3);
+    expect(within(rows[0]).getAllByRole("cell")[1]).toHaveTextContent("1");
+    expect(within(rows[0]).getAllByRole("cell")[3]).toHaveTextContent("016901");
+    expect(within(rows[1]).getAllByRole("cell")[1]).toHaveTextContent("2");
+    expect(within(rows[1]).getAllByRole("cell")[3]).toHaveTextContent("016902");
+    expect(within(rows[2]).getAllByRole("cell")[1]).toHaveTextContent("3");
+    expect(within(rows[2]).getAllByRole("cell")[3]).toHaveTextContent("016910");
+  });
+
+  it("ซ่อนคอลัมน์ Lot เพื่อให้ตารางรายขวดไม่ล้นจอเล็ก", async () => {
+    apiMock.getStockUnits.mockResolvedValue([
+      makeUnit({ _id: "unit1", qrId: "u1", labelCode: "016901", lotNo: "LOT-1" }),
+    ]);
+
+    renderPanel();
+
+    await screen.findByText("016901");
+
+    expect(screen.queryByRole("columnheader", { name: "Lot" })).not.toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /016901/ })).toHaveTextContent("016901");
+    expect(screen.getByRole("row", { name: /016901/ })).not.toHaveTextContent("LOT-1");
+    expect(within(screen.getByRole("row", { name: /016901/ })).getAllByRole("cell")).toHaveLength(8);
+  });
+
+  it("shows mg volume fields with two decimals and 0.01 step in the bottle dialog", async () => {
+    apiMock.getStockUnits.mockResolvedValue([
+      makeUnit({ labelCode: "016901", volume: { initial: 100.01, remaining: 100, unit: "mg" } }),
+    ]);
+
+    renderPanel();
+
+    const row = (await screen.findByText("016901")).closest("tr");
     expect(row).not.toBeNull();
     fireEvent.click(within(row as HTMLTableRowElement).getAllByRole("button")[0]);
 
