@@ -13,7 +13,7 @@ import { api } from "@/lib/api";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import StockRequisitionButton from "@/components/lis/stock/StockRequisitionButton";
-import StockQrScanner from "@/components/lis/StockQrScanner";
+import StockQrScanner, { type DecodedScanResult } from "@/components/lis/StockQrScanner";
 import StandardsInUseTable from "@/components/lis/stock/StandardsInUseTable";
 import DeductionResolutionDialog from "@/components/lis/stock/DeductionResolutionDialog";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
@@ -33,19 +33,30 @@ const StockDeduction = () => {
   const [selected, setSelected] = useState<StockTransactionItem | null>(null);
   const [resolving, setResolving] = useState<StockTransactionItem | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
-  const initialQrId = searchParams.get("qrId")?.trim() || null;
+  const [scannedQrId, setScannedQrId] = useState<string | null>(null);
+  const [lastScanResult, setLastScanResult] = useState<DecodedScanResult | null>(null);
+  const queryQrId = searchParams.get("qrId")?.trim() || null;
+  const initialQrId = scannedQrId ?? queryQrId;
   const clearInitialQrId = useCallback(() => {
+    if (scannedQrId) {
+      setScannedQrId(null);
+      return;
+    }
+    if (!queryQrId) return;
     const next = new URLSearchParams(searchParams);
     next.delete("qrId");
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+  }, [queryQrId, scannedQrId, searchParams, setSearchParams]);
 
   const applyScannedQrId = useCallback((qrId: string) => {
-    const next = new URLSearchParams(searchParams);
-    next.set("qrId", qrId);
-    setSearchParams(next, { replace: true });
+    setScannedQrId(qrId);
     setScannerOpen(false);
-  }, [searchParams, setSearchParams]);
+    if (queryQrId) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("qrId");
+      setSearchParams(next, { replace: true });
+    }
+  }, [queryQrId, searchParams, setSearchParams]);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock-deductions", type],
@@ -138,7 +149,6 @@ const StockDeduction = () => {
               <ScanLine className="mr-1 h-4 w-4" /> สแกน QR ข้างขวด
             </Button>
             <StockRequisitionButton
-              key={initialQrId ?? "manual"}
               roomSlug={ANALYSIS_ROOM_SLUG}
               instruments={analysisInstruments}
               initialQrId={initialQrId}
@@ -147,6 +157,14 @@ const StockDeduction = () => {
           </>
         }
       />
+
+      {lastScanResult && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="font-medium">ค่าที่ scanner อ่านได้ล่าสุด</div>
+          <div className="mt-1 break-all text-xs">raw: {lastScanResult.raw}</div>
+          <div className="mt-1 break-all text-xs">qrId: {lastScanResult.value}</div>
+        </div>
+      )}
 
       <Tabs key={defaultKey} defaultValue={defaultKey}>
         <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
@@ -190,8 +208,9 @@ const StockDeduction = () => {
       <StockQrScanner
         open={scannerOpen}
         title="สแกน QR ข้างขวดเพื่อเบิก"
-        showManualEntry={false}
+        showManualEntry
         onClose={() => setScannerOpen(false)}
+        onDecoded={setLastScanResult}
         onScanned={applyScannedQrId}
       />
 

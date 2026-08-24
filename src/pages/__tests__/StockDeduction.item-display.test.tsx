@@ -34,7 +34,7 @@ vi.mock("@/components/lis/StockQrScanner", () => ({
   default: ({ open, showManualEntry = true, onScanned }: { open: boolean; showManualEntry?: boolean; onScanned: (qrId: string) => void }) => (
     open ? (
       <div>
-        {showManualEntry ? <div>หรือกรอก/วาง qrId เอง</div> : null}
+        {showManualEntry ? <div>หรือวางลิงก์/qrId เอง</div> : null}
         <button type="button" onClick={() => onScanned("https://app-plant.icpladda.com/LIS/stock/view?qrId=u_scan")}>mock scan</button>
       </div>
     ) : null
@@ -97,12 +97,12 @@ describe("StockDeduction item display", () => {
     await waitFor(() => expect(screen.getByTestId("stock-requisition")).toHaveTextContent("u_scan"));
   });
 
-  it("does not show manual qrId entry in the stock deduction scanner", () => {
+  it("shows manual stock link fallback in the stock deduction scanner", () => {
     renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
 
-    expect(screen.queryByText("หรือกรอก/วาง qrId เอง")).not.toBeInTheDocument();
+    expect(screen.getByText("หรือวางลิงก์/qrId เอง")).toBeInTheDocument();
   });
 
   it("shows the substance name in the item column without showing the stock code", async () => {

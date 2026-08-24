@@ -8,8 +8,15 @@ import { parseScannedQrId } from "@/lib/stockUnit";
 
 const READER_ID = "stock-qr-reader";
 const QR_DECODE_MISS_THRESHOLD = 24;
+const QR_INITIAL_ZOOM = 2;
 
 type ScanMode = "qr" | "barcode";
+
+export interface DecodedScanResult {
+  raw: string;
+  value: string;
+  scanMode: ScanMode;
+}
 
 const QR_FORMATS = [Html5QrcodeSupportedFormats.QR_CODE];
 const BARCODE_FORMATS = [
@@ -25,12 +32,29 @@ const BARCODE_FORMATS = [
   Html5QrcodeSupportedFormats.UPC_EAN_EXTENSION,
 ];
 
+function preferredCameraConstraints(facingMode: MediaTrackConstraints["facingMode"]): MediaTrackConstraints {
+  return {
+    facingMode,
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+  };
+}
+
+function cameraIdConstraints(cameraId: string): MediaTrackConstraints {
+  return {
+    deviceId: { exact: cameraId },
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+  };
+}
+
 interface Props {
   open: boolean;
   title?: string;
   showManualEntry?: boolean;
   scanMode?: ScanMode;
   onClose: () => void;
+  onDecoded?: (result: DecodedScanResult) => void;
   onScanned: (qrId: string) => void;
 }
 
@@ -66,6 +90,7 @@ export default function StockQrScanner({
   showManualEntry = true,
   scanMode = "qr",
   onClose,
+  onDecoded,
   onScanned,
 }: Props) {
   const [phase, setPhase] = useState<"scanning" | "no-camera" | "error">("scanning");
@@ -79,10 +104,15 @@ export default function StockQrScanner({
   const firedRef = useRef(false);
   const decodeMissCountRef = useRef(0);
   const onScannedRef = useRef(onScanned);
+  const onDecodedRef = useRef(onDecoded);
 
   useEffect(() => {
     onScannedRef.current = onScanned;
   }, [onScanned]);
+
+  useEffect(() => {
+    onDecodedRef.current = onDecoded;
+  }, [onDecoded]);
 
   useEffect(() => {
     if (open) {
@@ -118,13 +148,11 @@ export default function StockQrScanner({
         },
       } : {
         fps: 10,
-        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+        disableFlip: false,
       };
-      const preferredVideoConstraints: MediaTrackConstraints = {
-        facingMode: { ideal: "environment" },
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-      };
+      const preferredVideoConstraints = preferredCameraConstraints({ ideal: "environment" });
+      const exactEnvironmentVideoConstraints = preferredCameraConstraints({ exact: "environment" });
       const onScan = (text: string) => {
         if (!active || firedRef.current) return;
         const scannedValue = scanMode === "barcode" ? text.trim() : parseScannedQrId(text);
@@ -132,6 +160,7 @@ export default function StockQrScanner({
         firedRef.current = true;
         decodeMissCountRef.current = 0;
         setScanFeedback("");
+        onDecodedRef.current?.({ raw: text, value: scannedValue, scanMode });
         onScannedRef.current(scannedValue);
       };
       const onDecodeMiss = () => {
@@ -163,6 +192,13 @@ export default function StockQrScanner({
             } catch {
               current = min;
             }
+            if (scanMode === "qr") {
+              const targetZoom = Math.min(max, Math.max(min, QR_INITIAL_ZOOM));
+              if (targetZoom > current) {
+                await scanner.applyVideoConstraints({ advanced: [{ zoom: targetZoom }] } as unknown as MediaTrackConstraints).catch(() => undefined);
+                current = targetZoom;
+              }
+            }
             if (active) {
               setZoomCaps({ min, max, step });
               setZoom(current);
@@ -176,7 +212,10 @@ export default function StockQrScanner({
       try {
         try {
           if (scanMode === "qr") {
-            await startWith({ facingMode: { exact: "environment" } });
+            await startWith({ facingMode: { exact: "environment" } }, {
+              ...config,
+              videoConstraints: exactEnvironmentVideoConstraints,
+            });
           } else {
             await startWith({ facingMode: "environment" }, {
               ...config,
@@ -193,7 +232,10 @@ export default function StockQrScanner({
             }
             const back = cameras.find((camera) => /back|environment|rear|หลัง|後|背面/i.test(camera.label));
             const camera = back ?? cameras[cameras.length - 1];
-            await startWith(camera.id);
+            await startWith(camera.id, {
+              ...config,
+              videoConstraints: cameraIdConstraints(camera.id),
+            });
           } catch (fallbackError) {
             lastStartError = fallbackError;
             throw fallbackError;
@@ -235,7 +277,10 @@ export default function StockQrScanner({
 
   const submitManual = () => {
     const scannedValue = scanMode === "barcode" ? manual.trim() : parseScannedQrId(manual);
-    if (scannedValue) onScannedRef.current(scannedValue);
+    if (scannedValue) {
+      onDecodedRef.current?.({ raw: manual.trim(), value: scannedValue, scanMode });
+      onScannedRef.current(scannedValue);
+    }
   };
 
   const retryCamera = () => {
@@ -256,7 +301,7 @@ export default function StockQrScanner({
       .catch(() => {});
   };
 
-  const manualLabel = scanMode === "barcode" ? "หรือกรอก/วาง Barcode เอง" : "หรือกรอก/วาง qrId เอง";
+  const manualLabel = scanMode === "barcode" ? "หรือกรอก/วาง Barcode เอง" : "หรือวางลิงก์/qrId เอง";
   const manualPlaceholder = scanMode === "barcode" ? "Barcode" : "u_xxxxxxxx หรือ URL";
 
   return (
@@ -270,7 +315,14 @@ export default function StockQrScanner({
         </div>
         <div className="p-5 space-y-4">
           <div className={phase === "scanning" ? "block" : "hidden"}>
-            <div id={READER_ID} className="w-full rounded-lg overflow-hidden border" />
+            <div className="relative overflow-hidden rounded-lg border bg-black">
+              <div id={READER_ID} className="w-full" />
+              {scanMode === "qr" && (
+                <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="h-[68%] max-h-72 min-h-44 w-[68%] max-w-72 min-w-44 rounded-2xl border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.16)]" />
+                </div>
+              )}
+            </div>
             <p className="mt-2 text-center text-sm text-muted-foreground">
               {scanHint(scanMode)}
             </p>

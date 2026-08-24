@@ -33,6 +33,10 @@ export default function StockRequisitionButton({
   const normalizedInitialQrId = initialQrId?.trim() ?? "";
   const shouldResolveInitialQr = Boolean(normalizedInitialQrId) && consumedQrRef.current !== normalizedInitialQrId;
 
+  useEffect(() => {
+    if (!normalizedInitialQrId) consumedQrRef.current = null;
+  }, [normalizedInitialQrId]);
+
   const { data: units = [], isFetched: unitsFetched } = useQuery({
     queryKey: ["stock", "units"],
     queryFn: () => api.getStockUnits(),
