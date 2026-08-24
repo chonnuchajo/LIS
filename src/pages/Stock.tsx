@@ -192,8 +192,9 @@ function StandardsTab() {
 
   const visibleStandards = data;
   const standardAlerts = visibleStandards.flatMap(s => {
-    const summary = sumOf(s);
-    const alert = getStandardAlertSummary(summary);
+    const units = unitsByCode.get(s.code) ?? [];
+    const summary = summarizeStandard(units, new Date(now));
+    const alert = getStandardAlertSummary(summary, { units, now: new Date(now) });
     return alert ? [{ standard: s, alert }] : [];
   });
 

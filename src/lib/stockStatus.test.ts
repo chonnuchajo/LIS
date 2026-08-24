@@ -5,7 +5,13 @@ import {
 } from "./stockStatus";
 
 const now = new Date("2026-07-07T00:00:00Z");
-const mk = (o: Partial<{ status: string; exp: string | null; volume: { remaining?: number | null } }>) => ({ status: "active", exp: null, ...o });
+const mk = (o: Partial<{
+  status: string;
+  exp: string | null;
+  volume: { remaining?: number | null };
+  labelCode: string;
+  lotNo: string;
+}>) => ({ status: "active", exp: null, ...o });
 
 describe("isUsableBottle", () => {
   it("active + no exp is usable", () => expect(isUsableBottle(mk({}), now)).toBe(true));
@@ -116,5 +122,17 @@ describe("getStandardAlertSummary", () => {
       severity: "destructive",
       message: "ใกล้หมด เหลือรวม 1 ขวด / ใกล้หมดอายุ 1 ขวด",
     });
+  });
+
+  it("แจ้งเตือนหมดอายุระบุขวดที่หมดด้วย label, lot และวันหมดอายุ", () => {
+    const units = [
+      mk({ labelCode: "STD-EXP-01", lotNo: "LOT-A", exp: "2026-06-01" }),
+      mk({ labelCode: "STD-OK-01", lotNo: "LOT-B", exp: "2026-08-01" }),
+    ];
+    const summary = summarizeStandard(units, now, 30);
+
+    const alert = getStandardAlertSummary(summary, { units, now });
+
+    expect(alert?.message).toContain("หมดอายุ 1 ขวด: STD-EXP-01 · Lot LOT-A · EXP 01/06/2569");
   });
 });

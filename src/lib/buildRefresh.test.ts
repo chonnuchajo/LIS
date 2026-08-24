@@ -68,4 +68,30 @@ describe("build refresh watcher", () => {
 
     stop();
   });
+
+  it("keeps the page open when runtime adds extra route assets", async () => {
+    vi.useFakeTimers();
+    document.head.innerHTML = `
+      <script type="module" crossorigin src="/LIS/assets/index-same.js"></script>
+      <link rel="modulepreload" crossorigin href="/LIS/assets/route-home.js">
+    `;
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(`<script type="module" crossorigin src="./assets/index-same.js"></script>`),
+    );
+    const reload = vi.fn();
+
+    const stop = startBuildRefreshWatcher({
+      enabled: true,
+      baseUrl: "/LIS/",
+      intervalMs: 1_000,
+      fetcher,
+      reload,
+    });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(reload).not.toHaveBeenCalled();
+
+    stop();
+  });
 });

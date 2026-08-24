@@ -37,6 +37,10 @@ export function extractBuildSignature(html: string, entryUrl = getPwaAssetUrl("a
   return assets.join("\n");
 }
 
+function toAssetSet(signature: string) {
+  return new Set(signature.split("\n").filter(Boolean));
+}
+
 function readCurrentBuildSignature(documentRef: Document) {
   const entryUrl = documentRef.baseURI || getPwaAssetUrl("app.html");
   return Array.from(documentRef.querySelectorAll<HTMLLinkElement | HTMLScriptElement>("link[href],script[src]"))
@@ -66,6 +70,7 @@ export function startBuildRefreshWatcher(options: BuildRefreshWatcherOptions = {
 
   const currentSignature = readCurrentBuildSignature(documentRef);
   if (!currentSignature) return () => {};
+  const currentAssets = toAssetSet(currentSignature);
 
   let checking = false;
   let stopped = false;
@@ -82,7 +87,8 @@ export function startBuildRefreshWatcher(options: BuildRefreshWatcherOptions = {
       if (!response.ok) return;
 
       const latestSignature = extractBuildSignature(await response.text(), new URL(entryUrl, window.location.origin).toString());
-      if (latestSignature && latestSignature !== currentSignature) {
+      const latestAssets = toAssetSet(latestSignature);
+      if (latestAssets.size > 0 && [...latestAssets].some((asset) => !currentAssets.has(asset))) {
         stopped = true;
         reload();
       }
