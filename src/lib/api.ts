@@ -418,9 +418,11 @@ export const api = {
   getStandardsInUse: () => request<StandardsInUseResponse>("/stock/standards/in-use"),
 
   // Stock — Units (per-bottle)
-  getStockUnits: (params?: { itemCode?: string; status?: string; kind?: string }) => {
+  getStockUnits: (params?: { itemCode?: string; itemType?: string; itemId?: string; status?: string; kind?: string }) => {
     const q = new URLSearchParams();
     if (params?.itemCode) q.set("itemCode", params.itemCode);
+    if (params?.itemType) q.set("itemType", params.itemType);
+    if (params?.itemId) q.set("itemId", params.itemId);
     if (params?.status) q.set("status", params.status);
     if (params?.kind) q.set("kind", params.kind);
     const qs = q.toString() ? `?${q.toString()}` : "";

@@ -40,6 +40,7 @@ import {
 } from "@/lib/standardFrequency";
 import StandardDetailDrawer from "@/components/lis/stock/StandardDetailDrawer";
 import StandardUnitsPanel from "@/components/lis/stock/StandardUnitsPanel";
+import SolventUnitsPanel from "@/components/lis/stock/SolventUnitsPanel";
 import ReceiveCart from "@/components/lis/stock/ReceiveCart";
 import StockQrScanner from "@/components/lis/StockQrScanner";
 import DiscardDialog from "@/components/lis/stock/DiscardDialog";
@@ -161,6 +162,7 @@ function StandardsTab() {
   const [deleting, setDeleting] = useState<StockStandardItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [standardListExporting, setStandardListExporting] = useState<StockExportFormat | null>(null);
+  const [standardAlertsOpen, setStandardAlertsOpen] = useState(false);
 
   const now = Date.now();
 
@@ -266,11 +268,24 @@ function StandardsTab() {
       {standardAlerts.length > 0 && (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
-              <span className="font-semibold text-destructive">
-                แจ้งเตือน Standard ({standardAlerts.length} รายการ)
-              </span>
+            <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+                <span className="font-semibold text-destructive">
+                  แจ้งเตือน Standard ({standardAlerts.length} รายการ)
+                </span>
+              </div>
+              {standardAlerts.length > 8 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 w-fit border-destructive/30 text-destructive hover:text-destructive"
+                  onClick={() => setStandardAlertsOpen(true)}
+                >
+                  ดูทั้งหมด
+                </Button>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
               {standardAlerts.slice(0, 8).map(({ standard: s, alert }) => {
@@ -288,6 +303,40 @@ function StandardsTab() {
           </CardContent>
         </Card>
       )}
+      <Dialog open={standardAlertsOpen} onOpenChange={setStandardAlertsOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>แจ้งเตือน Standard ทั้งหมด</DialogTitle>
+            <DialogDescription>
+              แสดง Standard ที่ต้องติดตามทั้งหมด {standardAlerts.length} รายการ
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+              {standardAlerts.map(({ standard: s, alert }) => {
+                const Icon = alert.lowStock ? Package : Clock;
+                return (
+                  <div
+                    key={`std-alert-dialog-${s._id}`}
+                    className={`rounded-md border p-3 ${alert.severity === "destructive" ? "border-destructive/30 text-destructive" : "border-amber-300 text-amber-600"}`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong className="break-words text-foreground">{s.name}</strong>
+                          <Badge variant="outline" className="text-[10px]">{s.code}</Badge>
+                        </div>
+                        <div>{alert.message}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
@@ -481,7 +530,7 @@ function SolventDetailDrawer({
 
   return (
     <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-md">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-3xl">
         <SheetHeader className="space-y-2 border-b border-border p-5 pr-16 text-left">
           <SheetTitle className="text-xl font-bold">{item.name}</SheetTitle>
           <SheetDescription>Solvent</SheetDescription>
@@ -500,6 +549,7 @@ function SolventDetailDrawer({
               </div>
             ))}
           </dl>
+          <SolventUnitsPanel solvent={item} />
         </div>
       </SheetContent>
     </Sheet>

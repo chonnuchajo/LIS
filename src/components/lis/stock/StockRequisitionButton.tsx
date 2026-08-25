@@ -199,6 +199,7 @@ export default function StockRequisitionButton({
             queryClient.invalidateQueries({ queryKey: ["stock", "pending-deductions"] });
             queryClient.invalidateQueries({ queryKey: ["chemical-requisitions"] });
             queryClient.invalidateQueries({ queryKey: ["stock", "solvents"] });
+            queryClient.invalidateQueries({ queryKey: ["stock", "units"] });
             queryClient.invalidateQueries({ queryKey: ["stock", "transactions"] });
           }}
         />

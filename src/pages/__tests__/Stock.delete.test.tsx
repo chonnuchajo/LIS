@@ -90,6 +90,23 @@ function renderStock(defaultKey = "standard") {
   );
 }
 
+function makeStandardAlertItem(index: number) {
+  const padded = index.toString().padStart(3, "0");
+  return {
+    _id: `std-${index}`,
+    code: `STD-${padded}`,
+    name: `Standard ${padded}`,
+    primary: { qty: 0, ordered: 0, sizeMg: null, exp: "", usesPerBottle: null, pricePerUnit: 0, totalPrice: 0 },
+    supplier: { qty: 0, sizeMg: null, exp: "" },
+    working: { qty: 0, sizeMg: null, exp: "" },
+    usagePerUseMg: null,
+    frequency: "",
+    storageTemp: "",
+    status: "",
+    expiryStatus: "",
+  };
+}
+
 describe("StockPage delete actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -168,6 +185,21 @@ describe("StockPage delete actions", () => {
 
     expect(await screen.findByRole("cell", { name: "Pesticide Standard" })).toBeInTheDocument();
     expect(screen.queryByText("ไม่มีข้อมูล")).not.toBeInTheDocument();
+  });
+
+  it("opens a popup with every standard alert from the alert card", async () => {
+    apiMock.getStandards.mockResolvedValue(Array.from({ length: 9 }, (_, index) => makeStandardAlertItem(index + 1)));
+    apiMock.getStockUnits.mockResolvedValue([]);
+
+    renderStock();
+
+    expect(await screen.findByText("แจ้งเตือน Standard (9 รายการ)")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "ดูทั้งหมด" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "แจ้งเตือน Standard ทั้งหมด" });
+    expect(within(dialog).getByText("Standard 009")).toBeInTheDocument();
+    expect(within(dialog).getByText("STD-009")).toBeInTheDocument();
   });
 
   it("keeps solvent items visible even when quantity is zero", async () => {

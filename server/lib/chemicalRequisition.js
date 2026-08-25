@@ -17,7 +17,7 @@ function normalizeReqInput(body) {
   const qty = Number(b.qty);
   if (!b.solventId) return { error: 'solventId ต้องระบุ' };
   if (!b.instrumentId) return { error: 'instrumentId ต้องระบุ' };
-  if (!Number.isFinite(qty) || qty <= 0) return { error: 'จำนวนไม่ถูกต้อง' };
+  if (!Number.isInteger(qty) || qty <= 0) return { error: 'จำนวนต้องเป็นจำนวนเต็มบวก' };
   const rb = b.requestedBy || {};
   return {
     value: {

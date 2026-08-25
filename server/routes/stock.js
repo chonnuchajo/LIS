@@ -236,6 +236,66 @@ function solventItemPayload(body = {}) {
   return payload;
 }
 
+function requireWholeBottleCount(value) {
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 1) return null;
+  return count;
+}
+
+function solventVolumeMl(sizeLiter) {
+  const liters = Number(sizeLiter);
+  return Number.isFinite(liters) && liters > 0 ? liters * 1000 : 0;
+}
+
+async function createSolventUnitsForReceive({ item, qty, lotNo, exp, sizeLiter, photoUrls, receivedDate, createdBy }) {
+  const itemId = item._id.toString();
+  const normalizedLotNo = String(lotNo || '').trim();
+  const existingLotBottleCount = normalizedLotNo
+    ? await StockUnit.countDocuments({ itemType: 'solvent', itemId, kind: 'sealed', lotNo: normalizedLotNo })
+    : 0;
+  const lotBottleNumbers = buildLotBottleNumbers(existingLotBottleCount, qty);
+  const volumeMl = solventVolumeMl(sizeLiter);
+  const created = [];
+
+  for (let index = 0; index < qty; index += 1) {
+    const qrId = await genUniqueQrId();
+    const unit = await StockUnit.create({
+      qrId,
+      itemType: 'solvent',
+      itemId,
+      itemCode: itemId,
+      itemName: item.name,
+      kind: 'sealed',
+      type: '',
+      lotNo: normalizedLotNo,
+      lotBottleNo: lotBottleNumbers[index],
+      exp: new Date(exp),
+      volume: { initial: volumeMl, remaining: volumeMl, unit: 'ml' },
+      status: 'active',
+      receivedDate,
+      createdBy,
+      photoUrls: photoUrls.length ? photoUrls : undefined,
+    });
+    created.push(unit);
+  }
+
+  return created;
+}
+
+async function markSolventUnitsEmptyForDeduction(item, qty) {
+  const count = Math.floor(Number(qty));
+  if (!Number.isFinite(count) || count < 1) return;
+  const itemId = item._id.toString();
+  const units = await StockUnit.find({ itemType: 'solvent', itemId, status: 'active' })
+    .sort({ receivedDate: 1, createdAt: 1, _id: 1 })
+    .limit(count);
+  for (const unit of units) {
+    unit.status = 'empty';
+    if (unit.volume) unit.volume.remaining = 0;
+    await unit.save();
+  }
+}
+
 // Pure: can this unit give up `mg`? (no DB) — shared by the endpoint and the
 // lab-completion settle validator so both agree on the rules.
 function planDeductMg(unit, mg) {
@@ -643,6 +703,8 @@ router.post('/standards/:id/units/receive', async (req, res) => {
         qrId,
         itemCode: std.code,
         itemName: std.name,
+        itemType: 'standard',
+        itemId: std._id.toString(),
         kind: 'sealed',
         type,
         lotNo: normalizedLotNo,
@@ -769,9 +831,11 @@ router.patch('/units/:qrId', async (req, res) => {
 // list units: GET /units?itemCode=&status=&kind=
 router.get('/units', async (req, res) => {
   try {
-    const { itemCode, status, kind } = req.query;
+    const { itemCode, itemType, itemId, status, kind } = req.query;
     const f = {};
     if (itemCode) f.itemCode = itemCode;
+    if (itemType) f.itemType = String(itemType).trim();
+    if (itemId) f.itemId = String(itemId).trim();
     if (status) f.status = status;
     if (kind) f.kind = kind;
     const units = await StockUnit.find(f).sort({ createdAt: -1 }).limit(2000);
@@ -875,6 +939,7 @@ router.post('/solvents/:id/deduct', async (req, res) => {
     if (before < amount) return res.status(400).json({ error: 'จำนวน stock ไม่พอ' });
     item.qty = before - amount;
     await item.save();
+    await markSolventUnitsEmptyForDeduction(item, amount);
     await logTransaction({
       itemType: 'solvent',
       itemId: item._id.toString(),
@@ -897,8 +962,8 @@ router.post('/solvents/:id/deduct', async (req, res) => {
 router.post('/solvents/:id/receive', async (req, res) => {
   try {
     const { qty, note, lotNo, exp, sizeLiter, price, photoUrls: rawPhotoUrls } = req.body;
-    const amount = Number(qty);
-    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Invalid qty' });
+    const amount = requireWholeBottleCount(qty);
+    if (!amount) return res.status(400).json({ error: 'จำนวนขวดต้องเป็นจำนวนเต็มบวก' });
     const validationError = validateSolventReceiveInput(req.body || {});
     if (validationError) return res.status(400).json({ error: validationError });
     const item = await StockSolvent.findById(req.params.id);
@@ -909,6 +974,10 @@ router.post('/solvents/:id/receive', async (req, res) => {
     item.price = Number(price);
     await item.save();
     const photoUrls = normalizePhotoUrls(rawPhotoUrls);
+    const receivedDate = new Date();
+    const meta = await userMeta(req);
+    const createdBy = meta.userName ? { email: meta.userEmail, name: meta.userName } : undefined;
+    await createSolventUnitsForReceive({ item, qty: amount, lotNo, exp, sizeLiter, photoUrls, receivedDate, createdBy });
     await logTransaction({
       itemType: 'solvent',
       itemId: item._id.toString(),
@@ -920,7 +989,7 @@ router.post('/solvents/:id/receive', async (req, res) => {
       unit: 'bottle',
       note: composeSolventReceiveNote({ lotNo, exp, sizeLiter, price, note }),
       photoUrls: photoUrls.length ? photoUrls : undefined,
-      ...(await userMeta(req)),
+      ...meta,
     });
     res.json(item);
   } catch (err) {

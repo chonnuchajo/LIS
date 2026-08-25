@@ -49,11 +49,16 @@ export async function buildSolventLabelHtml(payload: {
   bottleNo?: string | number | null;
   sizeLabel?: string;
 }): Promise<string> {
+  const qrId = payload.idForQr?.trim();
+  const qr = qrId ? await QRCode.toDataURL(stockDeductionQrUrl(qrId), {
+    margin: 3,
+    width: 512,
+    errorCorrectionLevel: "M",
+  }) : "";
   const receivedDate = formatThaiDateOrDash(payload.receivedDate);
   const openedDate = formatThaiDateOrBlank(payload.openedDate);
   const exp = formatThaiDateOrDash(payload.exp);
-  return `
-<div style="font-family:'TH Sarabun New','Kanit',Tahoma,Arial,sans-serif;width:65mm;height:25mm;box-sizing:border-box;color:#000;background:#fff;overflow:hidden;border:0.25mm solid #000;display:grid;grid-template-rows:3.7mm repeat(6,3.05mm) 2.9mm;font-size:5.9pt;line-height:1;">
+  const rows = `
   <div style="display:flex;align-items:center;justify-content:center;border-bottom:0.25mm solid #000;font-size:7pt;">สารเคมี</div>
   ${solventLabelRow("ชื่อสามัญ", payload.name || "")}
   ${solventLabelRow("แบชนัมเบอร์", payload.lotNo || "-")}
@@ -61,10 +66,24 @@ export async function buildSolventLabelHtml(payload: {
   ${solventLabelRow("วัน เดือน ปี ที่เปิดใช้", openedDate)}
   ${solventLabelRow("วัน เดือน ปี ที่หมดอายุ", exp)}
   ${solventLabelRow("ขวดที่", payload.bottleNo == null || payload.bottleNo === "" ? "-" : String(payload.bottleNo))}
-  <div style="display:flex;align-items:center;padding:0 .8mm;border-top:0.25mm solid #000;font-size:4.8pt;background:#eee;white-space:nowrap;">F-CHM-01-03 Rev 00 : 12/09/67</div>
+  <div style="display:flex;align-items:center;padding:0 .8mm;border-top:0.25mm solid #000;font-size:4.8pt;background:#eee;white-space:nowrap;">F-CHM-01-03 Rev 00 : 12/09/67</div>`;
+
+  if (!qr) {
+    return `
+<div style="font-family:'TH Sarabun New','Kanit',Tahoma,Arial,sans-serif;width:65mm;height:25mm;box-sizing:border-box;color:#000;background:#fff;overflow:hidden;border:0.25mm solid #000;display:grid;grid-template-rows:3.7mm repeat(6,3.05mm) 2.9mm;font-size:5.9pt;line-height:1;">${rows}
+</div>`.trim();
+  }
+
+  return `
+<div style="font-family:'TH Sarabun New','Kanit',Tahoma,Arial,sans-serif;width:65mm;height:25mm;box-sizing:border-box;color:#000;background:#fff;overflow:hidden;display:grid;grid-template-columns:18mm 1fr;gap:1mm;align-items:center;padding:1mm;">
+  <div style="width:18mm;height:23mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6mm;overflow:hidden;">
+    <img src="${qr}" alt="qr" style="width:17mm;height:17mm;display:block;flex:0 0 auto;" />
+    <div style="font-size:4.8pt;font-weight:600;line-height:1;white-space:nowrap;text-align:center;">เบิกสารเคมี</div>
+  </div>
+  <div style="height:23mm;box-sizing:border-box;border:0.25mm solid #000;display:grid;grid-template-rows:3.4mm repeat(6,2.85mm) 2.5mm;font-size:5.15pt;line-height:1;min-width:0;">${rows}
+  </div>
 </div>`.trim();
 }
-
 function formatThaiDateOrDash(value?: string | null): string {
   if (!value) return "-";
   const date = new Date(value);

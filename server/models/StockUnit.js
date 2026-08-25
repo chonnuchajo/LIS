@@ -15,6 +15,8 @@ const StockUnitSchema = new mongoose.Schema({
   qrId: { type: String, required: true, unique: true, index: true },
   itemCode: { type: String, required: true, index: true },
   itemName: { type: String, default: '' },
+  itemType: { type: String, enum: ['standard', 'solvent'], default: 'standard', index: true },
+  itemId: { type: String, default: '', index: true },
   kind: { type: String, enum: ['sealed', 'working'], required: true },
   source: { type: String, enum: ['primary', 'supply', ''], default: '' }, // deprecated → type
   type: { type: String, enum: ['primary', 'supplier', 'working', ''], default: '', index: true },

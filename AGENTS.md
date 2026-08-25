@@ -9,7 +9,8 @@
 
 ## ข้อตกลงการซิ้ง Branch ประจำวัน
 
-- ก่อนเริ่มงานในแต่ละวัน ถ้า branch ปัจจุบันไม่ใช่ `main` หรือ `develop` ให้ run `git pull origin main` ก่อนทุกครั้ง
+- ก่อนเริ่มงานในแต่ละวัน ถ้า branch ปัจจุบันคือ `develop` ให้ run `git pull origin develop` ก่อนทุกครั้ง
+- ก่อนเริ่มงานในแต่ละวัน ถ้า branch ปัจจุบันไม่ใช่ `main` หรือ `develop` ให้ run `git pull origin <ชื่อ branch อื่นๆที่ไม่ใช่ปัจจุบัน>` ก่อนทุกครั้ง
 
 ## ข้อตกลงการวางแผนงาน
 

@@ -113,6 +113,8 @@ export interface StockUnitItem {
   qrId: string;
   itemCode: string;
   itemName: string;
+  itemType?: StockItemType;
+  itemId?: string;
   kind: StockUnitKind;
   source?: StockUnitSource;
   type?: "primary" | "supplier" | "working" | "";
