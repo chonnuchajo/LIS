@@ -147,8 +147,8 @@ describe("CoaCenterPage", () => {
     expect(await screen.findByText("00012026")).toBeInTheDocument();
     expect(container.querySelector(".bg-sky-50")).toBeInTheDocument();
     const notificationButton = screen.getByRole("button", { name: "แจ้งเตือน COA 5 รายการ" });
-    expect(notificationButton).toHaveClass("bg-green-50");
-    expect(notificationButton.querySelector("svg")).toHaveClass("text-green-600");
+    expect(notificationButton).toHaveClass("bg-violet-50");
+    expect(notificationButton.querySelector("svg")).toHaveClass("text-violet-600");
     expect(screen.queryByRole("button", { name: /สร้าง COA/ })).not.toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Document No" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "COA No" })).toBeInTheDocument();
