@@ -137,7 +137,7 @@ const Login = () => {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div data-testid="login-shell" className="flex min-h-screen min-h-dvh overflow-y-auto">
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <picture>
           <source srcSet={labCoverWebp} type="image/webp" />
@@ -167,7 +167,7 @@ const Login = () => {
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-background">
+      <div data-testid="login-panel" className="flex-1 flex items-start sm:items-center justify-center px-4 py-8 sm:p-6 lg:p-8 bg-background">
         <div className="w-full max-w-md space-y-6 sm:space-y-8">
           <div className="lg:hidden flex items-center gap-3 justify-center mb-4">
             <img src={ICP_LADDA_LOGO_URL} alt="ICP Logo" className="w-12 h-12 rounded-full object-contain" />
