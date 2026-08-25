@@ -37,6 +37,18 @@ const ResultSnapshotSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const TrendSnapshotSchema = new mongoose.Schema(
+  {
+    itemSeq: { type: Number, required: true },
+    sampleName: String,
+    commonName: String,
+    aiLabelPercent: Number,
+    aiResultPercent: Number,
+    aiResultText: String,
+  },
+  { _id: false },
+);
+
 const PrintEventSchema = new mongoose.Schema(
   { event: String, printedAt: Date, printedBy: PersonSchema, copies: Number, outputMode: String },
   { _id: false },
@@ -72,7 +84,7 @@ const STATUS = [
 ];
 
 const ISSUED_SNAPSHOT_STATUSES = new Set(['approved', 'printed', 'reissued', 'cancelled', 'superseded']);
-const SNAPSHOT_PATHS = ['customerSnapshot', 'sampleSnapshots', 'resultSnapshots'];
+const SNAPSHOT_PATHS = ['customerSnapshot', 'sampleSnapshots', 'resultSnapshots', 'trendSnapshots'];
 
 function getUpdateValue(update = {}, path) {
   const operators = ['$set', '$setOnInsert'];
@@ -220,6 +232,7 @@ const CoaDocumentSchema = new mongoose.Schema(
     customerSnapshot: CustomerSnapshotSchema,
     sampleSnapshots: { type: [SampleSnapshotSchema], default: [] },
     resultSnapshots: { type: [ResultSnapshotSchema], default: [] },
+    trendSnapshots: { type: [TrendSnapshotSchema], default: [] },
     remark: { type: String, default: '' },
     approval: {
       submittedBy: PersonSchema,

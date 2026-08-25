@@ -155,6 +155,9 @@ test('buildCoaSnapshots applies AI tolerance criteria from the common-name perce
   assert.deepEqual(snapshots.resultSnapshots, [
     { itemSeq: 1, testItem: '%AI content (W/V)', result: '47.9%', criteria: '48% ± 2.40', method: '-', unit: '' },
   ]);
+  assert.deepEqual(snapshots.trendSnapshots, [
+    { itemSeq: 1, sampleName: 'Liquid', commonName: 'Glyphosate 48% SL', aiLabelPercent: 48, aiResultPercent: 47.9, aiResultText: '47.9%' },
+  ]);
 });
 
 test('buildCoaSnapshots includes multi-entry and phase-two lab values without internal fields', () => {
@@ -341,10 +344,10 @@ test('create route validates actor before insert and stores review snapshots', a
       _id: '507f1f77bcf86cd799439031',
       petitionNo: 'P-1',
       labApprovedAt: new Date(),
-      items: [{ seq: 1, sampleName: 'Sample' }],
+      items: [{ seq: 1, sampleName: 'Sample', commonName: 'Glyphosate 48% SL' }],
     }) });
     LabRequest.find = () => ({ lean: async () => [{ petitionId: '507f1f77bcf86cd799439031', sampleSeq: 1 }] });
-    QCTestResult.find = () => ({ lean: async () => [{ itemSeq: 1, parameterId: 'lab-param', parameterName: 'Assay', values: { Assay: 99 } }] });
+    QCTestResult.find = () => ({ lean: async () => [{ itemSeq: 1, parameterId: 'lab-param', parameterName: '%AI content (W/V)', values: { '%AI content (W/V)': '47.9%' } }] });
     Parameter.find = () => ({ lean: async () => [{ _id: 'lab-param', scope: 'lab' }] });
     CoaDocument.create = async (payload) => {
       writes.push(payload);
@@ -368,7 +371,10 @@ test('create route validates actor before insert and stores review snapshots', a
     assert.equal(res.statusCode, 201);
     assert.equal(res.body.sampleSnapshots.length, 1);
     assert.deepEqual(res.body.resultSnapshots, [
-      { itemSeq: 1, testItem: 'Assay', result: '99', criteria: '-', method: '-', unit: '' },
+      { itemSeq: 1, testItem: '%AI content (W/V)', result: '47.9%', criteria: '48% ± 2.40', method: '-', unit: '' },
+    ]);
+    assert.deepEqual(res.body.trendSnapshots, [
+      { itemSeq: 1, sampleName: 'Sample', commonName: 'Glyphosate 48% SL', aiLabelPercent: 48, aiResultPercent: 47.9, aiResultText: '47.9%' },
     ]);
   } finally {
     CoaDocument.create = originals.create;

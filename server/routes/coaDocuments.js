@@ -67,6 +67,7 @@ function activeCoaSummary(coa, sample) {
     petitionNo: coa.petitionNoSnapshot,
     commonName: sample.commonName,
     batchNo: sample.batchNo,
+    productionDate: sample.productionDate,
   };
 }
 
@@ -230,11 +231,8 @@ router.get('/eligible-petitions', async (_req, res) => {
       for (const seq of coa.selectedItemSeqs || []) {
         const key = `${coa.petitionId}:${seq}`;
         if (!activeByPetitionSeq.has(key)) {
-          activeByPetitionSeq.set(key, {
-            coaId: coa._id,
-            coaNo: coa.coaNo,
-            revision: coa.revision,
-          });
+          const sample = (coa.sampleSnapshots || []).find((item) => Number(item.itemSeq) === Number(seq)) || {};
+          activeByPetitionSeq.set(key, activeCoaSummary(coa, sample));
         }
       }
     }
@@ -260,6 +258,7 @@ router.get('/eligible-petitions', async (_req, res) => {
               commonName: item.commonName,
               batchNo: item.batchNo,
               lotNo: item.lotNo,
+              productionDate: item.productionDate,
               activeCoa: activeByPetitionSeq.get(`${petition._id}:${item.seq}`)
                 || activeByHistoryKey.get(coaHistoryKey(item.commonName, item.batchNo))
                 || null,
@@ -368,7 +367,7 @@ router.post('/:id/approve', async (req, res) => {
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
     assertCanTransition(doc.status, 'approve', actor);
     await assertLabApprovedPetition(doc.petitionId);
-    const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length;
+    const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length || !doc.trendSnapshots?.length;
     const snapshots = missingSnapshots ? await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs) : {};
     const update = {
       ...snapshots,
@@ -455,6 +454,7 @@ router.post('/:id/revise', async (req, res) => {
         customerSnapshot: source.customerSnapshot,
         sampleSnapshots: source.sampleSnapshots,
         resultSnapshots: source.resultSnapshots,
+        trendSnapshots: source.trendSnapshots,
         sourceCoaId: source._id,
         remark: source.remark,
         createdBy: actor,

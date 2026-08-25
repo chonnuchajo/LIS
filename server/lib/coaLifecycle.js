@@ -10,7 +10,7 @@ const COA_STATUSES = [
   'superseded',
   'rejected',
 ];
-const { aiToleranceCriteriaForCommonName, isAiContentTestItem } = require('./aiToleranceCriteria');
+const { aiPercentFromCommonName, aiToleranceCriteriaForCommonName, isAiContentTestItem } = require('./aiToleranceCriteria');
 
 const transitions = {
   submit: new Set(['draft', 'revisionDraft']),
@@ -85,6 +85,13 @@ function valueText(value) {
     return JSON.stringify(value);
   }
   return String(value);
+}
+
+function parsePercentValue(value) {
+  const match = String(value || '').replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+  if (!match) return undefined;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function visibleResultEntries(result = {}) {
@@ -458,6 +465,30 @@ function criteriaForResult(testItem, itemSeq, selectedItemsBySeq) {
   return aiToleranceCriteriaForCommonName(sample?.commonName) || '-';
 }
 
+function buildTrendSnapshots(selectedItems, resultSnapshots) {
+  const aiResultBySeq = new Map();
+  for (const row of resultSnapshots || []) {
+    if (!isAiContentTestItem(row.testItem)) continue;
+    const key = Number(row.itemSeq);
+    if (aiResultBySeq.has(key)) continue;
+    aiResultBySeq.set(key, {
+      text: row.result || '',
+      percent: parsePercentValue(row.result),
+    });
+  }
+  return selectedItems.map((item) => {
+    const aiResult = aiResultBySeq.get(Number(item.seq));
+    return {
+      itemSeq: item.seq,
+      sampleName: item.sampleName || item.commonName || '-',
+      commonName: item.commonName || '',
+      aiLabelPercent: parsePercentValue(aiPercentFromCommonName(item.commonName)),
+      aiResultPercent: aiResult?.percent,
+      aiResultText: aiResult?.text || '',
+    };
+  });
+}
+
 function buildCoaSnapshots({
   petition,
   labRequests = [],
@@ -505,6 +536,7 @@ function buildCoaSnapshots({
     },
     sampleSnapshots: selectedItems.map(itemSnapshot),
     resultSnapshots,
+    trendSnapshots: buildTrendSnapshots(selectedItems, resultSnapshots),
   };
 }
 
