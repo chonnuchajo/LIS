@@ -47,14 +47,19 @@ export function sortInUse<T extends DueRow & Pick<StandardInUseItem, "withdrawnA
 
 const normEmail = (v: string | null | undefined) => String(v || "").trim().toLowerCase();
 
-/** กดรับทราบได้เมื่อหมดอายุแล้ว และคนที่กดคือคนที่เบิกรายการนั้น */
+/**
+ * กดรับทราบได้เมื่อหมดอายุแล้ว และคนที่กดคือคนที่เบิกรายการนั้น
+ * ยกเว้นแถวที่ไม่มีทั้งอีเมลและชื่อผู้เบิก — ระบุเจ้าของไม่ได้ ปล่อยให้ใครก็ปิดได้
+ * (ไม่งั้นแถวค้างถาวร เพราะไม่มีใครผ่านเงื่อนไขเจ้าของเลย)
+ */
 export function canAcknowledge(
-  row: DueRow & Pick<StandardInUseItem, "userEmail">,
+  row: DueRow & Pick<StandardInUseItem, "userEmail" | "userName">,
   user: { email?: string } | null | undefined,
   now: Date,
 ): boolean {
   if (inUseStatus(row, now) !== "expired") return false;
   const owner = normEmail(row.userEmail);
+  if (!owner && !String(row.userName || "").trim()) return true;
   return Boolean(owner) && owner === normEmail(user?.email);
 }
 

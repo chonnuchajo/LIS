@@ -1,9 +1,42 @@
-# Codex Instructions
+# ข้อตกลงสำหรับ AI ทุกค่าย
 
-## No-build policy
+## ข้อตกลงห้ามรัน Build
 
-- Do not run `npm run build`, `npm run build:dev`, `npm run build:watch`, `vite build`, or any equivalent production/dev build command unless the user explicitly asks for a build in the current conversation.
-- Do not run scripts that indirectly trigger the build or `postbuild` workflow without explicit user approval.
-- For normal validation, prefer `npx tsc --noEmit`, `npm run test`, `npm run lint`, and focused test commands.
-- This repository's build flow rewrites root production files, including `app.html` and `assets/`, so an unsolicited build can disrupt the working tree and deployment state.
+- ห้าม run `npm run build`, `npm run build:dev`, `npm run build:watch`, `vite build` หรือคำสั่ง build ที่เทียบเท่า เว้นแต่ผู้ใช้จะสั่งให้ build อย่างชัดเจนในบทสนทนาปัจจุบัน
+- ห้าม run script ที่ไป trigger build หรือ workflow `postbuild` ทางอ้อม เว้นแต่ได้รับอนุญาตจากผู้ใช้อย่างชัดเจน
+- สำหรับการตรวจสอบทั่วไป ให้ใช้ `npx tsc --noEmit`, `npm run test`, `npm run lint` หรือคำสั่ง test แบบเจาะจงแทน
+- Build flow ของ repository นี้จะเขียนทับไฟล์ production ที่ root เช่น `app.html` และ `assets/` ดังนั้นการ build โดยไม่ได้รับคำสั่งอาจรบกวน working tree และสถานะ deployment ได้
 
+## ข้อตกลงการซิ้ง Branch ประจำวัน
+
+- ก่อนเริ่มงานในแต่ละวัน ถ้า branch ปัจจุบันคือ `develop` ให้ run `git pull origin develop` ก่อนทุกครั้ง
+- ก่อนเริ่มงานในแต่ละวัน ถ้า branch ปัจจุบันไม่ใช่ `main` หรือ `develop` ให้ run `git pull origin <ชื่อ branch อื่นๆที่ไม่ใช่ปัจจุบัน>` ก่อนทุกครั้ง
+
+## ข้อตกลงการวางแผนงาน
+
+- ทุกครั้งที่ทำแผนงานหรือรายการ TODO ให้เขียนเป็นภาษาไทย
+
+## ข้อตกลงการ Commit
+
+- เมื่อมีการ commit งานที่ทำเสร็จ ให้เขียน commit message เป็นภาษาไทยทุกครั้ง
+- Commit เฉพาะ `src/` และไฟล์ต้นฉบับที่เกี่ยวข้องเท่านั้น
+- ห้าม commit ไฟล์ build output หรือไฟล์ที่สร้างใหม่ได้ เช่น `dist/`, `build/`, `assets/` ที่เกิดจาก build และ `node_modules/`
+- ห้ามใช้ `git add -f` เพื่อบังคับเพิ่มไฟล์ที่ถูก ignore ไว้แล้ว
+- Commit message บรรทัดแรกต้องอยู่ในรูปแบบ `<prefix>: <สรุปผลลัพธ์เป็นภาษาไทย สั้น กระชับ>`
+- Prefix ให้ใช้ภาษาอังกฤษตามมาตรฐาน เช่น `feat:`, `fix:`, `perf:`, `refactor:`, `docs:` หรือ `chore:`
+- ข้อความหลัง prefix ในบรรทัดแรกต้องเป็นภาษาไทย ความยาวไม่เกิน 60 ตัวอักษร และบอกว่าผู้ใช้ได้อะไรหรือเห็นอะไรเปลี่ยน
+- ถ้าต้องใส่รายละเอียดเพิ่มเติม ให้เว้น 1 บรรทัดหลังบรรทัดแรก แล้วใส่ body เป็นภาษาไทยหรืออังกฤษก็ได้
+- หลีกเลี่ยงศัพท์ช่างในบรรทัดแรก เช่น `deps`, `hook`, `memo`, `context` หรือ `race condition`; ถ้าจำเป็นให้ย้ายไปไว้ใน body
+- ชื่อระบบภาษาอังกฤษที่คนในบริษัทใช้กันอยู่แล้ว เช่น `Board`, `PDF`, `Login` หรือ `LINE` ใช้ในบรรทัดแรกได้
+
+## ข้อตกลงการ Push
+
+- ห้าม AI run `git push` เองหลังทำงานหรือแก้งานเสร็จ แม้จะ commit แล้วก็ตาม
+- Push ได้ต่อเมื่อผู้ใช้หรือ vibecoder สั่งชัดเจน เช่น `push main` เท่านั้น
+- ก่อน push ทุกครั้ง ต้อง QA งานในเซสชันนั้นก่อน สรุปผล QA ให้ผู้ใช้เห็น และถามขออนุมัติ push
+- ต้องรอให้ผู้ใช้ยืนยันก่อน push ทุกครั้ง
+- ไม่มีการ push เงียบ ๆ ทุกกรณี รวมถึงงานเอกสารหรือ docs
+
+## ข้อตกลงการทำ Feature
+
+- ทุกครั้งที่ทำ feature ให้ทำบน branch ปัจจุบัน โดยไม่ต้องถามก่อน

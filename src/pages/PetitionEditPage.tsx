@@ -52,6 +52,7 @@ function labRequestToFormValues(lr: LabRequest, sampleName: string): LabRequestR
       testDuration: lr.serviceAgreement.testDuration,
       testDurationDays: lr.serviceAgreement.testDurationDays ?? null,
       requireUncertainty: lr.serviceAgreement.requireUncertainty,
+      uncertaintyValue: lr.serviceAgreement.uncertaintyValue ?? '',
     },
     reportCustomerName: lr.reportCustomerName ?? '',
     reportAddressType: lr.reportAddressType ?? 'default',
@@ -99,6 +100,9 @@ export default function PetitionEditPage() {
     });
     const mappedItems: ItemRowValues[] = data.items.map((it) => ({
       seq: it.seq,
+      // ต้องหอบมาด้วย ไม่งั้นการแก้คำขอจะล้างรหัสสินค้าทิ้ง แล้ว parameter ที่ผูกกับ
+      // หมวดหมู่ย่อย/กลุ่ม item จะหายไปจากคำขอนั้นเงียบๆ
+      itemNo: it.itemNo ?? '',
       sampleName: it.sampleName,
       commonName: it.commonName ?? '',
       batchNo: it.batchNo,
@@ -141,6 +145,7 @@ export default function PetitionEditPage() {
           testDuration: 'normal',
           testDurationDays: null,
           requireUncertainty: false,
+          uncertaintyValue: '',
         },
         reportCustomerName: 'ICP Ladda Co., LTD.',
         reportAddressType: 'default',

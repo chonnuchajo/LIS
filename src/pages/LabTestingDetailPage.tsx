@@ -31,7 +31,8 @@ import { cn } from '@/lib/utils';
 import { TimerField } from '@/components/lis/TimerField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
-import { getPetitionCategory, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
+import { getPetitionCategory, itemGroupKey, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
+import { visibleFieldsForPhase } from '@/lib/phaseRetest';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import { isResearchAndDevelopmentPetition, isLabBatchNo } from '@/lib/petitionRouting';
 import {
@@ -93,7 +94,10 @@ function matchLabParametersForItem(
     item,
     labParametersForPetition(petition, params),
     itemGroupIds,
-    { forceLabTrack: isResearchAndDevelopmentPetition(petition) },
+    {
+      forceLabTrack: isResearchAndDevelopmentPetition(petition),
+      petitionCategory: getPetitionCategory(petition),
+    },
   );
 }
 
@@ -394,8 +398,8 @@ export default function LabTestingDetailPage() {
     [instrumentSources],
   );
   const groupMembership = useItemGroupMembership();
-  const idsFor = (it: { sampleId?: string }) =>
-    groupMembership.get(String(it?.sampleId ?? '').trim()) ?? [];
+  const idsFor = (it: Parameters<typeof itemGroupKey>[0]) =>
+    groupMembership.get(itemGroupKey(it)) ?? [];
   const [paramsLoaded, setParamsLoaded] = useState(false);
   const [savedResults, setSavedResults] = useState<QCTestResult[]>([]);
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({});
@@ -692,17 +696,8 @@ export default function LabTestingDetailPage() {
   // If user hasn't picked a tab, default to current phase
   const effectivePhase: PetitionPhase = hasAnyPhasedParam ? selectedPhase : 1;
 
-  // Returns fields visible in the given phase for a parameter.
-  // Non-phased parameters always show all fields in Phase 1.
-  const visibleFields = (param: ParameterItem, phase: PetitionPhase): ParameterValueField[] => {
-    const fields = param.valueFields ?? [];
-    if (!param.hasPhases) return phase === 1 ? fields : [];
-    return fields.filter((f) => {
-      const p = f.phase ?? 'both';
-      if (p === 'both') return true;
-      return phase === 1 ? p === 'before' : p === 'after';
-    });
-  };
+  const visibleFields = (param: ParameterItem, phase: PetitionPhase): ParameterValueField[] =>
+    visibleFieldsForPhase(param, phase, petition.phase2TriggeredBy?.parameterId);
 
   const valuesForPhase = (phase: PetitionPhase) => (phase === 2 ? valuesPhase2 : values);
   const savesForPhase = (phase: PetitionPhase) => (phase === 2 ? saveStatesPhase2 : saveStates);
@@ -760,7 +755,7 @@ export default function LabTestingDetailPage() {
       matched.forEach((param) => {
         if (param.scope !== 'lab') return; // skip read-only shared QC params
         const k = resultKey(item.seq, param._id!);
-        const p1Fields = (param.valueFields ?? []).filter((f) => (f.phase ?? 'both') !== 'after');
+        const p1Fields = visibleFields(param, 1);
         // multiEntry: scan every entry; otherwise the flat phase-1 dict.
         if (param.multiEntry) {
           getEntryValues({ entries: entriesByKey[k] }, param).forEach((entryValues) => {
@@ -770,10 +765,9 @@ export default function LabTestingDetailPage() {
           count += countAbnormalInValues(p1Fields, item, values[k] ?? {});
         }
         // Check Phase 2 values for both/after fields if phased
-        if (param.hasPhases) {
+        if (hasAnyPhasedParam) {
           const p2Values = valuesPhase2[k] ?? {};
-          const p2Fields = (param.valueFields ?? []).filter((f) => (f.phase ?? 'both') !== 'before');
-          count += countAbnormalInValues(p2Fields, item, p2Values);
+          count += countAbnormalInValues(visibleFields(param, 2), item, p2Values);
         }
       });
     });

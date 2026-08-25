@@ -1,7 +1,7 @@
 import type { ParameterItem } from "@/lib/api";
 import type { QCProgressEntry } from "@/lib/api";
 import type { Petition } from "@/types/petition.types";
-import { getPetitionCategory, matchParametersForItem } from "@/lib/petitionTestItems";
+import { getPetitionCategory, itemGroupKey, matchParametersForItem } from "@/lib/petitionTestItems";
 import { expandFieldForItem } from "@/lib/parameterValidation";
 
 export { matchParametersForItem };
@@ -35,8 +35,8 @@ export function computePetitionProgress(
   const category = getPetitionCategory(petition);
 
   for (const item of petition.items ?? []) {
-    const ids = membership?.get(String(item.sampleId ?? '').trim()) ?? [];
-    const matched = matchParametersForItem(item, parameters, ids);
+    const ids = membership?.get(itemGroupKey(item)) ?? [];
+    const matched = matchParametersForItem(item, parameters, ids, { petitionCategory: category });
     for (const param of matched) {
       const fields = (param.valueFields ?? []).filter((f) =>
         isCountableField(f.type),

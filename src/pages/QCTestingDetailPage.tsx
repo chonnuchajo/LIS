@@ -18,7 +18,8 @@ import { TimerField } from '@/components/lis/TimerField';
 import { PhotoField } from '@/components/lis/PhotoField';
 import { PhaseBanner } from '@/components/lis/PhaseBanner';
 import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
-import { getPetitionCategory, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
+import { getPetitionCategory, itemGroupKey, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
+import { visibleFieldsForPhase } from '@/lib/phaseRetest';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import {
   PETITION_DEPT_LABELS,
@@ -326,8 +327,8 @@ export default function QCTestingDetailPage() {
   });
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const groupMembership = useItemGroupMembership();
-  const idsFor = (it: { sampleId?: string }) =>
-    groupMembership.get(String(it?.sampleId ?? '').trim()) ?? [];
+  const idsFor = (it: Parameters<typeof itemGroupKey>[0]) =>
+    groupMembership.get(itemGroupKey(it)) ?? [];
   const [savedResults, setSavedResults] = useState<QCTestResult[]>([]);
   const [values, setValues] = useState<Record<string, Record<string, unknown>>>({});
   const [valuesPhase2, setValuesPhase2] = useState<Record<string, Record<string, unknown>>>({});
@@ -710,7 +711,7 @@ export default function QCTestingDetailPage() {
     (petition.items ?? []).forEach((item) => {
       const commonName = item.commonName?.trim();
       if (!commonName) return;
-      const matched = matchParametersForItem(item, parameters, idsFor(item));
+      const matched = matchParametersForItem(item, parameters, idsFor(item), { petitionCategory });
       matched.forEach((param) => {
         if (!param._id) return;
         const hasLastBatchField = (param.valueFields ?? []).some((f) => f.showLastBatch);
@@ -819,20 +820,13 @@ export default function QCTestingDetailPage() {
 
   // 2-phase support
   const hasAnyPhasedParam = items.some((item) =>
-    matchParametersForItem(item, parameters, idsFor(item)).some((p) => p.hasPhases),
+    matchParametersForItem(item, parameters, idsFor(item), { petitionCategory }).some((p) => p.hasPhases),
   );
   const currentPhase: PetitionPhase = (petition.currentPhase ?? 1) as PetitionPhase;
   const effectivePhase: PetitionPhase = hasAnyPhasedParam ? selectedPhase : 1;
 
-  const visibleFields = (param: ParameterItem, phase: PetitionPhase): ParameterValueField[] => {
-    const fields = param.valueFields ?? [];
-    if (!param.hasPhases) return phase === 1 ? fields : [];
-    return fields.filter((f) => {
-      const p = f.phase ?? 'both';
-      if (p === 'both') return true;
-      return phase === 1 ? p === 'before' : p === 'after';
-    });
-  };
+  const visibleFields = (param: ParameterItem, phase: PetitionPhase): ParameterValueField[] =>
+    visibleFieldsForPhase(param, phase, petition.phase2TriggeredBy?.parameterId);
 
   const valuesForPhase = (phase: PetitionPhase) => (phase === 2 ? valuesPhase2 : values);
   const savesForPhase = (phase: PetitionPhase) => (phase === 2 ? saveStatesPhase2 : saveStates);
@@ -885,10 +879,10 @@ export default function QCTestingDetailPage() {
   const countAbnormal = (): number => {
     let count = 0;
     items.forEach((item) => {
-      const matched = matchParametersForItem(item, parameters, idsFor(item));
+      const matched = matchParametersForItem(item, parameters, idsFor(item), { petitionCategory });
       matched.forEach((param) => {
         const k = resultKey(item.seq, param._id!);
-        const p1Fields = (param.valueFields ?? []).filter((f) => (f.phase ?? 'both') !== 'after');
+        const p1Fields = visibleFields(param, 1);
         // multiEntry: scan every entry; otherwise the flat phase-1 dict.
         if (param.multiEntry) {
           getEntryValues({ entries: entriesByKey[k] }, param).forEach((entryValues) => {
@@ -897,10 +891,9 @@ export default function QCTestingDetailPage() {
         } else {
           count += countAbnormalInValues(p1Fields, item, values[k] ?? {});
         }
-        if (param.hasPhases) {
+        if (hasAnyPhasedParam) {
           const p2Values = valuesPhase2[k] ?? {};
-          const p2Fields = (param.valueFields ?? []).filter((f) => (f.phase ?? 'both') !== 'before');
-          count += countAbnormalInValues(p2Fields, item, p2Values);
+          count += countAbnormalInValues(visibleFields(param, 2), item, p2Values);
         }
       });
     });
@@ -912,7 +905,7 @@ export default function QCTestingDetailPage() {
     const missing: string[] = [];
     const phaseValues = valuesForPhase(phaseToCheck);
     items.forEach((item) => {
-      const matched = matchParametersForItem(item, parameters, idsFor(item));
+      const matched = matchParametersForItem(item, parameters, idsFor(item), { petitionCategory });
       matched.forEach((param) => {
         const k = resultKey(item.seq, param._id!);
         // multiEntry params validate each existing entry; otherwise the flat dict.
@@ -1156,7 +1149,7 @@ export default function QCTestingDetailPage() {
 
       {/* Each item */}
       {items.map((item) => {
-        const matchedParams = matchParametersForItem(item, parameters, idsFor(item));
+        const matchedParams = matchParametersForItem(item, parameters, idsFor(item), { petitionCategory });
         const phaseValues = valuesForPhase(effectivePhase);
         const phaseSaves = savesForPhase(effectivePhase);
         const phaseLocked = effectivePhase === 2 && currentPhase === 1;

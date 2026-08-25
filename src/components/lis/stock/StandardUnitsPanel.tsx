@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Printer, Pencil, Plus, TriangleAlert } from "lucide-react";
+import { Printer, Pencil, Plus, TriangleAlert, X } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import StockRawLabelPreviewDialog from "@/components/lis/StockRawLabelPreviewDialog";
 import { api } from "@/lib/api";
-import { printRawHtmlDocument } from "@/lib/print";
+import { standardLabelCodeFromStockUnit } from "@/lib/standardLabelCode";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
 import { unitDerivedStatus, visibleBottles } from "@/lib/stockUnit";
 import type { StockStandardItem, StockUnitItem } from "@/types/stock";
@@ -23,24 +25,47 @@ const STATUS_BADGE: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
   active: "ใช้งานได้", empty: "หมด", discarded: "ทิ้งแล้ว", expired: "หมดอายุ",
 };
+const COMPACT_ACTION_BUTTON_CLASS = "h-8 w-8 sm:h-8 sm:w-8";
 
-/** ตารางจัดการขวดรายตัวของสารมาตรฐาน (เพิ่ม/แก้/แบ่ง/ปริ้นซ้ำ/ทิ้ง) — ใช้ทั้งใน
- *  StandardDetailDrawer และฝังในฟอร์มแก้ไข Standard. ปุ่มทุกอันเป็น type="button"
- *  เพื่อไม่ให้ submit ฟอร์มที่ครอบอยู่ (ตอนฝังในฟอร์มแก้ไข Standard)
- *  ส่ง onEdit เมื่อต้องการปุ่มแก้ไขข้างปุ่มเพิ่มขวด (ใช้ใน drawer); ไม่ส่ง = ไม่มีปุ่ม */
+function unitLabelCode(unit: StockUnitItem): string {
+  return standardLabelCodeFromStockUnit(unit) || "-";
+}
+
+function compareUnitsByLabelCode(a: StockUnitItem, b: StockUnitItem): number {
+  const byCode = unitLabelCode(a).localeCompare(unitLabelCode(b), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+  if (byCode !== 0) return byCode;
+  return String(a.qrId || "").localeCompare(String(b.qrId || ""), undefined, { numeric: true, sensitivity: "base" });
+}
+
+type PreviewLabelOptions = { autoPrint?: boolean };
+
 export default function StandardUnitsPanel({ standard, onEdit }: { standard: StockStandardItem; onEdit?: () => void }) {
   const qc = useQueryClient();
   const [editUnit, setEditUnit] = useState<StockUnitItem | null>(null);
   const [receiving, setReceiving] = useState(false);
-  const [reportQr, setReportQr] = useState<string | null>(null);
+  const [reportUnits, setReportUnits] = useState<StockUnitItem[] | null>(null);
+  const [selectedQrIds, setSelectedQrIds] = useState<Set<string>>(() => new Set());
+  const [pendingLabels, setPendingLabels] = useState<string[]>([]);
+  const [labelPreviewOpen, setLabelPreviewOpen] = useState(false);
+  const [autoPrintLabels, setAutoPrintLabels] = useState(false);
+  const [labelPrintJobId, setLabelPrintJobId] = useState(0);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "units", standard.code],
     queryFn: () => api.getStockUnits({ itemCode: standard.code }),
   });
 
-  // รายการขวดแบบเรียบ (ไม่มี parent-child) — ซ่อน discarded ใน helper
-  const rows = visibleBottles(data);
+  const rows = visibleBottles(data).sort(compareUnitsByLabelCode);
+  const selectedRows = rows.filter((row) => selectedQrIds.has(row.qrId));
+  const selectedReportRows = selectedRows.filter((row) => {
+    const status = unitDerivedStatus(row);
+    return status !== "discarded" && status !== "empty";
+  });
+  const allSelected = rows.length > 0 && rows.every((row) => selectedQrIds.has(row.qrId));
+  const selectionState = allSelected ? true : selectedRows.length > 0 ? "indeterminate" : false;
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["stock", "units", standard.code] });
@@ -48,62 +73,187 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
     qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
   };
 
-  const reprint = async (u: StockUnitItem) => {
+  const previewLabels = (labels: string[], options?: PreviewLabelOptions) => {
+    setPendingLabels(labels);
+    setAutoPrintLabels(options?.autoPrint === true);
+    setLabelPrintJobId((id) => id + 1);
+    setLabelPreviewOpen(true);
+  };
+
+  const reprint = async (unit: StockUnitItem) => {
     try {
-      const html = await buildStockLabelHtml(u);
-      await printRawHtmlDocument("stock-label", html);
-      toast.success("ส่งปริ้นแล้ว");
+      const html = await buildStockLabelHtml(unit);
+      previewLabels([html]);
     } catch (err) {
       toast.error((err as Error).message);
     }
   };
 
+  const printSelected = async () => {
+    if (selectedRows.length === 0) return;
+    try {
+      const labels = await Promise.all(selectedRows.map((unit) => buildStockLabelHtml(unit)));
+      previewLabels(labels);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
+  const toggleRow = (qrId: string, checked: boolean) => {
+    setSelectedQrIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(qrId);
+      else next.delete(qrId);
+      return next;
+    });
+  };
+
+  const toggleAll = (checked: boolean) => {
+    setSelectedQrIds(checked ? new Set(rows.map((row) => row.qrId)) : new Set());
+  };
+
+  const clearSelection = () => setSelectedQrIds(new Set());
+
+  const closeReportDialog = () => setReportUnits(null);
+  const handleReportSaved = () => {
+    closeReportDialog();
+    clearSelection();
+    refresh();
+  };
+
   return (
     <div>
-      <div className="flex justify-end gap-2 mb-2">
-        {onEdit && (
-          <Button type="button" size="sm" variant="outline" onClick={onEdit}>
-            <Pencil className="w-4 h-4 mr-1" /> แก้ไข
+      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-h-9">
+          {selectedRows.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 px-2 py-1.5 text-sm">
+              <span className="font-medium">เลือกแล้ว {selectedRows.length} ขวด</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 w-8 p-0"
+                aria-label="ปริ้นที่เลือก"
+                title="ปริ้นที่เลือก"
+                onClick={printSelected}
+              >
+                <Printer className="w-4 h-4" aria-hidden="true" />
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 w-8 p-0"
+                aria-label="แจ้งหมด/ปัญหาที่เลือก"
+                title="แจ้งหมด/ปัญหาที่เลือก"
+                disabled={selectedReportRows.length === 0}
+                onClick={() => setReportUnits(selectedReportRows)}
+              >
+                <TriangleAlert className="w-4 h-4" aria-hidden="true" />
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                aria-label="ล้างที่เลือก"
+                title="ล้างที่เลือก"
+                onClick={clearSelection}
+              >
+                <X className="w-4 h-4" aria-hidden="true" />
+              </Button>
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end gap-2">
+          {onEdit && (
+            <Button type="button" size="sm" variant="outline" onClick={onEdit}>
+              <Pencil className="w-4 h-4 mr-1" /> แก้ไข
+            </Button>
+          )}
+          <Button type="button" size="sm" variant="outline" onClick={() => setReceiving(true)}>
+            <Plus className="w-4 h-4 mr-1" /> เพิ่มขวด (รับเข้า)
           </Button>
-        )}
-        <Button type="button" size="sm" variant="outline" onClick={() => setReceiving(true)}>
-          <Plus className="w-4 h-4 mr-1" /> เพิ่มขวด (รับเข้า)
-        </Button>
+        </div>
       </div>
-      <div className="overflow-x-auto">
-        <Table className="min-w-[640px]">
+      <Table containerClassName="overflow-hidden" className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-10 text-center">#</TableHead>
-              <TableHead>ประเภท</TableHead>
-              <TableHead>Lot</TableHead>
-              <TableHead className="text-right">คงเหลือ</TableHead>
-              <TableHead>EXP</TableHead>
-              <TableHead>สถานะ</TableHead>
-              <TableHead className="text-right">จัดการ</TableHead>
+              <TableHead className="w-9 px-2 text-center">
+                <Checkbox
+                  aria-label="เลือกขวดทั้งหมด"
+                  checked={selectionState}
+                  disabled={rows.length === 0}
+                  onCheckedChange={(value) => toggleAll(value === true)}
+                />
+              </TableHead>
+              <TableHead className="w-8 px-1 text-center">#</TableHead>
+              <TableHead className="w-20 px-2">ประเภท</TableHead>
+              <TableHead className="w-20 px-2">Code</TableHead>
+              <TableHead className="w-24 px-2 text-right">คงเหลือ</TableHead>
+              <TableHead className="w-20 px-2">EXP</TableHead>
+              <TableHead className="w-24 px-2">สถานะ</TableHead>
+              <TableHead className="w-[92px] px-1 text-right">จัดการ</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
             ) : rows.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">ยังไม่มีขวด — กดเพิ่มขวด</TableCell></TableRow>
-            ) : rows.map((u, i) => {
-              const st = unitDerivedStatus(u);
+              <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">ยังไม่มีขวด — กดเพิ่มขวด</TableCell></TableRow>
+            ) : rows.map((unit, index) => {
+              const status = unitDerivedStatus(unit);
               return (
-                <TableRow key={u._id}>
-                  <TableCell className="text-center text-muted-foreground">{i + 1}</TableCell>
-                  <TableCell><Badge variant="outline">{u.type || "primary"}</Badge></TableCell>
-                  <TableCell className="text-xs">{u.lotNo || "-"}</TableCell>
-                  <TableCell className="text-right">{u.volume?.remaining ?? "-"} {u.volume?.unit}</TableCell>
-                  <TableCell className="text-xs">{u.exp ? new Date(u.exp).toLocaleDateString("th-TH") : "-"}</TableCell>
-                  <TableCell><Badge className={`text-xs ${STATUS_BADGE[st]}`}>{STATUS_LABEL[st]}</Badge></TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-1">
-                      {st !== "discarded" && <Button type="button" size="icon" variant="ghost" title="แก้ไขข้อมูล" onClick={() => setEditUnit(u)}><Pencil className="w-4 h-4" /></Button>}
-                      <Button type="button" size="icon" variant="ghost" title="ปริ้นซ้ำ" onClick={() => reprint(u)}><Printer className="w-4 h-4" /></Button>
-                      {st !== "discarded" && st !== "empty" && (
-                        <Button type="button" size="icon" variant="ghost" title="แจ้งหมด/ปัญหา" onClick={() => setReportQr(u.qrId)}>
+                <TableRow key={unit._id} data-state={selectedQrIds.has(unit.qrId) ? "selected" : undefined}>
+                  <TableCell className="px-2 py-3 text-center">
+                    <Checkbox
+                      aria-label={`เลือกขวด ${index + 1}`}
+                      checked={selectedQrIds.has(unit.qrId)}
+                      onCheckedChange={(value) => toggleRow(unit.qrId, value === true)}
+                    />
+                  </TableCell>
+                  <TableCell className="px-1 py-3 text-center text-muted-foreground">{index + 1}</TableCell>
+                  <TableCell className="px-2 py-3"><Badge variant="outline">{unit.type || "primary"}</Badge></TableCell>
+                  <TableCell className="px-2 py-3 font-mono text-xs">{unitLabelCode(unit)}</TableCell>
+                  <TableCell className="whitespace-nowrap px-2 py-3 text-right">{unit.volume?.remaining ?? "-"} {unit.volume?.unit}</TableCell>
+                  <TableCell className="whitespace-nowrap px-2 py-3 text-xs">{unit.exp ? new Date(unit.exp).toLocaleDateString("th-TH") : "-"}</TableCell>
+                  <TableCell className="px-2 py-3"><Badge className={`text-xs ${STATUS_BADGE[status]}`}>{STATUS_LABEL[status]}</Badge></TableCell>
+                  <TableCell className="px-1 py-2">
+                    <div className="flex justify-end gap-0.5">
+                      {status !== "discarded" && (
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          className={COMPACT_ACTION_BUTTON_CLASS}
+                          aria-label="แก้ไขข้อมูล"
+                          title="แก้ไขข้อมูล"
+                          onClick={() => setEditUnit(unit)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        className={COMPACT_ACTION_BUTTON_CLASS}
+                        aria-label="ปริ้นซ้ำ"
+                        title="ปริ้นซ้ำ"
+                        onClick={() => reprint(unit)}
+                      >
+                        <Printer className="w-4 h-4" />
+                      </Button>
+                      {status !== "discarded" && status !== "empty" && (
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          className={COMPACT_ACTION_BUTTON_CLASS}
+                          aria-label="แจ้งหมด/ปัญหา"
+                          title="แจ้งหมด/ปัญหา"
+                          onClick={() => setReportUnits([unit])}
+                        >
                           <TriangleAlert className="w-4 h-4" />
                         </Button>
                       )}
@@ -114,11 +264,27 @@ export default function StandardUnitsPanel({ standard, onEdit }: { standard: Sto
             })}
           </TableBody>
         </Table>
-      </div>
 
-      {receiving && <ReceiveBottlesDialog standard={standard} onClose={() => setReceiving(false)} onSaved={refresh} />}
+      {receiving && <ReceiveBottlesDialog standard={standard} onClose={() => setReceiving(false)} onSaved={refresh} onPreviewLabels={previewLabels} />}
       {editUnit && <EditUnitDialog unit={editUnit} onClose={() => setEditUnit(null)} onSaved={refresh} />}
-      {reportQr && <PerformanceDropDialog qrId={reportQr} onClose={() => setReportQr(null)} onSaved={() => { setReportQr(null); refresh(); }} />}
+      {reportUnits && <PerformanceDropDialog units={reportUnits} onClose={closeReportDialog} onSaved={handleReportSaved} />}
+      <StockRawLabelPreviewDialog
+        open={labelPreviewOpen}
+        labels={pendingLabels}
+        autoPrint={autoPrintLabels}
+        autoPrintKey={labelPrintJobId}
+        onOpenChange={(open) => {
+          setLabelPreviewOpen(open);
+          if (!open) {
+            setPendingLabels([]);
+            setAutoPrintLabels(false);
+          }
+        }}
+        onPrinted={() => {
+          setPendingLabels([]);
+          setAutoPrintLabels(false);
+        }}
+      />
     </div>
   );
 }

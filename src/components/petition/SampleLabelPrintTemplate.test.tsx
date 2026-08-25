@@ -41,4 +41,16 @@ describe("SampleLabelPrintTemplate", () => {
 
     expect(screen.getByText("โบรมาดิโอโลน - อ.ย. BROMADIOLONE 0.005% W/W")).toBeInTheDocument();
   });
+
+  it("ไม่แสดงค่า Uncertainty บนฉลากตัวอย่าง", () => {
+    const petition = {
+      ...petitionWith({ sampleName: "PROCHLORAZ 45% W/V EC", batchNo: "B-001" }),
+      labRequests: [{ serviceAgreement: { requireUncertainty: true, uncertaintyValue: "±0.12" } }],
+    } as unknown as Petition;
+
+    const { container } = render(<SampleLabelPrintTemplate petition={petition} />);
+
+    expect(container).not.toHaveTextContent("Uncertainty");
+    expect(container).not.toHaveTextContent("±0.12");
+  });
 });

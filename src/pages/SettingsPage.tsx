@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Settings } from "lucide-react";
 import { toast } from "sonner";
+import ApiKeysPanel from "@/components/lis/ApiKeysPanel";
 import AppLayout from "@/components/lis/AppLayout";
 import DashboardLayoutConfigCard from "@/components/lis/DashboardLayoutConfigCard";
 import DocumentNumberConfigCard from "@/components/lis/DocumentNumberConfigCard";
@@ -17,6 +18,7 @@ import { useEnvRooms } from "@/hooks/useEnvRooms";
 import { api } from "@/lib/api";
 import type { EnvRoom, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import { DOC_NUMBER_TYPES, type DocumentNumberConfig, type DocumentNumberConfigInput, type DocNumberType } from "@/lib/documentNumberConfig";
+import type { PrinterConfigInput } from "@/lib/printConfig";
 import { normalizeRoles } from "@/lib/roles";
 
 const SettingsPage = () => {
@@ -62,7 +64,7 @@ const SettingsPage = () => {
     },
   });
   const updatePrinterMutation = useMutation({
-    mutationFn: ({ id, input }: { id: string; input: { label?: string; cupsPrinterUrl?: string } }) =>
+    mutationFn: ({ id, input }: { id: string; input: Partial<PrinterConfigInput> }) =>
       api.updatePrinterConfig(id, input),
     onSuccess: () => {
       toast.success("บันทึกการตั้งค่าเครื่องพิมพ์แล้ว");
@@ -92,6 +94,7 @@ const SettingsPage = () => {
       toast.error(err instanceof Error ? err.message : "อัปเดตค่าเริ่มต้นไม่สำเร็จ");
     },
   });
+  const testPrinterMutation = useMutation({ mutationFn: api.testPrinterConfig });
 
   const { data: docNumberConfigs = [] } = useQuery({
     queryKey: ["document-number-config"],
@@ -120,6 +123,13 @@ const SettingsPage = () => {
     },
   });
   const roleOptions = (accessMatrix?.roles ?? []).map((r) => ({ id: r.id, name: r.name }));
+  const departmentOptions = useMemo(
+    () => Array.from(new Set((accessMatrix?.users ?? [])
+      .map((u: { department?: string }) => u.department?.trim())
+      .filter((department): department is string => Boolean(department && department !== "Unassigned"))))
+      .sort((a, b) => a.localeCompare(b, "th")),
+    [accessMatrix?.users],
+  );
 
   const { tabs, isVisible, defaultKey } = useAccessibleTabs("/settings");
   const [activeTab, setActiveTab] = useState<string | undefined>(defaultKey);
@@ -129,7 +139,8 @@ const SettingsPage = () => {
     createPrinterMutation.isPending ||
     updatePrinterMutation.isPending ||
     deletePrinterMutation.isPending ||
-    setDefaultPrinterMutation.isPending;
+    setDefaultPrinterMutation.isPending ||
+    testPrinterMutation.isPending;
 
   return (
     <AppLayout title="ตั้งค่าระบบ">
@@ -179,11 +190,13 @@ const SettingsPage = () => {
           </p>
           <PrinterRegistryCard
             configs={printerConfigs}
+            departmentOptions={departmentOptions}
             saving={printerSaving}
             onCreate={createPrinterMutation.mutateAsync}
             onUpdate={(id, input) => updatePrinterMutation.mutateAsync({ id, input })}
             onDelete={deletePrinterMutation.mutateAsync}
             onSetDefault={setDefaultPrinterMutation.mutateAsync}
+            onTestPrint={testPrinterMutation.mutateAsync}
           />
         </TabsContent>
 
@@ -229,6 +242,15 @@ const SettingsPage = () => {
             <div className="max-w-2xl">
               <LineConfigCard />
             </div>
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="api-keys" className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              ออก API key ให้ระบบภายนอกเรียก LIS และกำหนดว่า endpoint ไหนบังคับใช้ key แล้วบ้าง
+            </p>
+            <ApiKeysPanel />
           </TabsContent>
         )}
       </Tabs>

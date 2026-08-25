@@ -58,7 +58,7 @@ async function maybeAdvancePhase(petition, actor = "system") {
     fromStatus: beforeStatus,
     toStatus: petition.status,
     actor,
-    note: "เริ่ม Phase 2 (ตรวจค่าหลัง)",
+    note: "เริ่ม Phase 2 (ตรวจซ้ำหลัง trigger)",
     metadata: { phaseAdvance: { from: 1, to: 2 } },
   }).catch((err) => console.error("[audit-log] phase advance:", err.message));
 

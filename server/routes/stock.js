@@ -1,18 +1,37 @@
 const express = require('express');
+const fs = require('fs');
 const router = express.Router();
 const { StockStandard, StockSolvent, StockGlassware } = require('../models/Stock');
 const StockTransaction = require('../models/StockTransaction');
+const ChemicalRequisition = require('../models/ChemicalRequisition');
 const StockUnit = require('../models/StockUnit');
 const User = require('../models/User');
 const crypto = require('crypto');
 const { isValidReceiveType, isValidUnitType } = require('../lib/stockSource');
 const { sumWeights } = require('../lib/requisitionWeights');
 const { normalizeActorFields } = require('../lib/stockActor');
+const { buildLotBottleNumbers } = require('../lib/stockLotBottle');
+const { buildStandardLabelCodeDefaults, formatStandardLabelCode, parseStandardLabelCode, standardLabelCodePrefix } = require('../lib/stockStandardLabelCode');
+const {
+  validateStandardUnitReceiveInput,
+  validateSolventReceiveInput,
+  composeSolventReceiveNote,
+  normalizePhotoUrls,
+  normalizeBottlePhotoUrls,
+} = require('../lib/stockReceiveValidation');
 const {
   buildPendingDeductionFilter,
   normalizeDeductionResolutionInput,
 } = require('../lib/deductionResolution');
 const { buildInUseItems, canAcknowledgeDeduction } = require('../lib/standardsInUse');
+const {
+  buildStandardExportDateRange,
+  buildStandardLotExportHtml,
+  buildStandardLotExportWorkbook,
+  buildSolventRequisitionDoc,
+  dateStamp,
+  sanitizeFilenameSegment,
+} = require('../lib/stockHistoryExport');
 
 async function genUniqueQrId() {
   for (let i = 0; i < 5; i++) {
@@ -23,18 +42,118 @@ async function genUniqueQrId() {
   throw new Error('ไม่สามารถสร้าง qrId ที่ไม่ซ้ำได้');
 }
 
+function normalizeDefaultLabelCodeCount(value) {
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 1) return 1;
+  return Math.min(count, 200);
+}
+
+async function standardLabelCodeDefaults(std, count, now = new Date()) {
+  const units = await StockUnit.find({ itemCode: std.code, labelCode: { $exists: true, $nin: ['', null] } })
+    .select('labelCode')
+    .lean();
+  return buildStandardLabelCodeDefaults(std.code, units, { count: normalizeDefaultLabelCodeCount(count), now });
+}
+
+function duplicateLabelCode(labelCodes) {
+  const seen = new Set();
+  for (const code of labelCodes) {
+    if (seen.has(code)) return code;
+    seen.add(code);
+  }
+  return '';
+}
+
+async function resolveReceiveLabelCodes(std, bottles, now = new Date()) {
+  const parsed = bottles.map((bottle) => {
+    const raw = bottle && bottle.labelCode;
+    if (raw == null || String(raw).trim() === '') return null;
+    const parsedCode = parseStandardLabelCode(raw, std.code);
+    if (!parsedCode) {
+      const prefix = standardLabelCodePrefix(std.code);
+      const sample = formatStandardLabelCode(std.code, (now.getFullYear() + 543) % 100, 1);
+      throw new Error(`Code ต้องขึ้นต้นด้วย ${prefix} และตามด้วยปี/เลขขวด เช่น ${sample}`);
+    }
+    return parsedCode.labelCode;
+  });
+
+  const providedCodes = new Set(parsed.filter(Boolean));
+  const defaults = await standardLabelCodeDefaults(std, bottles.length + providedCodes.size, now);
+  let defaultIndex = 0;
+  const labelCodes = parsed.map((code) => {
+    if (code) return code;
+    while (providedCodes.has(defaults.codes[defaultIndex])) defaultIndex += 1;
+    const next = defaults.codes[defaultIndex];
+    defaultIndex += 1;
+    return next;
+  });
+
+  const duplicateInRequest = duplicateLabelCode(labelCodes);
+  if (duplicateInRequest) throw new Error(`Code ${duplicateInRequest} ซ้ำในรายการรับเข้า`);
+
+  const existing = await StockUnit.findOne({ itemCode: std.code, labelCode: { $in: labelCodes } })
+    .select('labelCode')
+    .lean();
+  if (existing) throw new Error(`Code ${existing.labelCode} ถูกใช้แล้ว`);
+
+  return labelCodes;
+}
+
+function normalizeUnitLabelCodeUpdate(labelCode, itemCode) {
+  const rawLabelCode = String(labelCode ?? '').trim().toUpperCase();
+  if (!rawLabelCode) return '';
+  const parsedCode = parseStandardLabelCode(rawLabelCode, itemCode);
+  if (!parsedCode) {
+    const prefix = standardLabelCodePrefix(itemCode);
+    throw new Error(`Code ต้องขึ้นต้นด้วย ${prefix} และตามด้วยปี/เลขขวด เช่น ${prefix}6901`);
+  }
+  return parsedCode.labelCode;
+}
+
 async function personOf(req) {
   const m = await userMeta(req);
   return m.userName ? { email: m.userEmail, name: m.userName } : undefined;
 }
 
 const TIERS = ['primary', 'supplier', 'working'];
+const RECEIVE_BARCODE_MODELS = {
+  standard: StockStandard,
+  solvent: StockSolvent,
+  glassware: StockGlassware,
+};
+
+function normalizeReceiveBarcode(value) {
+  return String(value || '').trim();
+}
+
+function receiveBarcodePayload(category, item, barcode) {
+  return {
+    barcode,
+    category,
+    itemId: item._id.toString(),
+    itemCode: item.code || '',
+    itemName: item.name || '',
+    barcodes: item.barcodes || [],
+  };
+}
+
+async function findReceiveBarcodeOwner(barcode) {
+  for (const [category, Model] of Object.entries(RECEIVE_BARCODE_MODELS)) {
+    const item = await Model.findOne({ barcodes: barcode }).lean();
+    if (item) return { category, item };
+  }
+  return null;
+}
+
+function requestHeader(req, name) {
+  return req.get?.(name) || req.headers?.[String(name).toLowerCase()] || '';
+}
 
 async function userMeta(req) {
   if (req._stockUserMeta) return req._stockUserMeta;
   const raw = {
-    email: req.body?._user?.email || req.headers['x-user-email'] || '',
-    name: req.body?._user?.name || req.headers['x-user-name'] || '',
+    email: req.body?._user?.email || requestHeader(req, 'x-user-email') || requestHeader(req, 'x-lis-user') || '',
+    name: req.body?._user?.name || requestHeader(req, 'x-user-name') || '',
   };
   const email = String(raw.email || '').trim().toLowerCase();
   const stored = email ? await User.findOne({ email }).lean() : null;
@@ -49,6 +168,24 @@ async function logTransaction(data) {
   } catch (err) {
     console.error('logTransaction failed:', err.message);
   }
+}
+
+function normalizeExportDate(value) {
+  const text = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '';
+}
+
+function contentDispositionFilename(filename) {
+  const fallback = String(filename || 'stock-export')
+    .replace(/[^ -~]+/g, '_')
+    .replace(/[\"]/g, '_') || 'stock-export';
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
+
+function sendAttachment(res, { buffer, contentType, filename }) {
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', contentDispositionFilename(filename));
+  return res.send(buffer);
 }
 
 const RESOLUTION_REASON_LABELS = {
@@ -82,6 +219,81 @@ function stripMeta(body) {
   if (!body) return body;
   const { _user, ...rest } = body;
   return rest;
+}
+
+function solventItemPayload(body = {}) {
+  const payload = {};
+  if (body.name !== undefined) payload.name = String(body.name);
+  if (body.sizeLiter !== undefined) {
+    const sizeLiter = Number(body.sizeLiter);
+    payload.sizeLiter = Number.isFinite(sizeLiter) && sizeLiter > 0 ? sizeLiter : 0;
+  }
+  if (body.price !== undefined) {
+    const price = Number(body.price);
+    payload.price = Number.isFinite(price) && price >= 0 ? price : 0;
+  }
+  if (body.note !== undefined) payload.note = String(body.note);
+  return payload;
+}
+
+function requireWholeBottleCount(value) {
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 1) return null;
+  return count;
+}
+
+function solventVolumeMl(sizeLiter) {
+  const liters = Number(sizeLiter);
+  return Number.isFinite(liters) && liters > 0 ? liters * 1000 : 0;
+}
+
+async function createSolventUnitsForReceive({ item, qty, lotNo, exp, sizeLiter, photoUrls, receivedDate, createdBy }) {
+  const itemId = item._id.toString();
+  const normalizedLotNo = String(lotNo || '').trim();
+  const existingLotBottleCount = normalizedLotNo
+    ? await StockUnit.countDocuments({ itemType: 'solvent', itemId, kind: 'sealed', lotNo: normalizedLotNo })
+    : 0;
+  const lotBottleNumbers = buildLotBottleNumbers(existingLotBottleCount, qty);
+  const volumeMl = solventVolumeMl(sizeLiter);
+  const created = [];
+
+  for (let index = 0; index < qty; index += 1) {
+    const qrId = await genUniqueQrId();
+    const unit = await StockUnit.create({
+      qrId,
+      itemType: 'solvent',
+      itemId,
+      itemCode: itemId,
+      itemName: item.name,
+      kind: 'sealed',
+      type: '',
+      lotNo: normalizedLotNo,
+      lotBottleNo: lotBottleNumbers[index],
+      exp: new Date(exp),
+      volume: { initial: volumeMl, remaining: volumeMl, unit: 'ml' },
+      status: 'active',
+      receivedDate,
+      createdBy,
+      photoUrls: photoUrls.length ? photoUrls : undefined,
+    });
+    created.push(unit);
+  }
+
+  return created;
+}
+
+async function markSolventUnitsEmptyForDeduction(item, qty) {
+  const count = Math.floor(Number(qty));
+  if (!Number.isFinite(count) || count < 1) return;
+  const itemId = item._id.toString();
+  const units = await StockUnit.find({ itemType: 'solvent', itemId, status: 'active' })
+    .sort({ receivedDate: 1, createdAt: 1, _id: 1 })
+    .limit(count);
+  for (const unit of units) {
+    unit.status = 'empty';
+    if (unit.volume) unit.volume.remaining = 0;
+    await unit.save();
+  }
 }
 
 // Pure: can this unit give up `mg`? (no DB) — shared by the endpoint and the
@@ -138,6 +350,105 @@ async function deductMgFromUnit(qrId, mg, meta = {}) {
   return { unit: updated, before, after: updated.volume.remaining };
 }
 
+function publicStockUnitPayload(unit) {
+  return {
+    kind: 'standard',
+    qrId: unit.qrId,
+    itemCode: unit.itemCode,
+    itemName: unit.itemName,
+    type: unit.type || 'primary',
+    lotNo: unit.lotNo || '',
+    lotBottleNo: unit.lotBottleNo || null,
+    labelCode: unit.labelCode || '',
+    exp: unit.exp || null,
+    volume: unit.volume,
+    status: unit.status,
+    photoUrls: unit.photoUrls || [],
+    updatedAt: unit.updatedAt,
+  };
+}
+
+function publicSolventPayload(solvent, latestReceive) {
+  return {
+    kind: 'solvent',
+    id: solvent._id.toString(),
+    qrId: solvent._id.toString(),
+    name: solvent.name,
+    sizeLiter: solvent.sizeLiter,
+    qty: solvent.qty,
+    note: solvent.note || '',
+    photoUrls: latestReceive?.photoUrls || [],
+    latestReceiveNote: latestReceive?.note || '',
+    updatedAt: solvent.updatedAt,
+  };
+}
+
+router.get('/public/:qrId', async (req, res) => {
+  try {
+    const qrId = String(req.params.qrId || '').trim();
+    if (!qrId) return res.status(400).json({ error: 'missing qrId' });
+
+    const unit = await StockUnit.findOne({ qrId }).lean();
+    if (unit) return res.json(publicStockUnitPayload(unit));
+
+    let solvent = null;
+    try {
+      solvent = await StockSolvent.findById(qrId).lean();
+    } catch {
+      solvent = null;
+    }
+    if (solvent) {
+      const latestReceive = await StockTransaction.findOne({
+        itemType: 'solvent',
+        itemId: solvent._id.toString(),
+        action: 'receive',
+        photoUrls: { $exists: true, $ne: [] },
+      }).sort({ createdAt: -1 }).lean();
+      return res.json(publicSolventPayload(solvent, latestReceive));
+    }
+
+    return res.status(404).json({ error: 'ไม่พบรายการ stock จาก QR นี้' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+/* ==================== RECEIVE BARCODES ==================== */
+
+router.post('/barcodes/register', async (req, res) => {
+  try {
+    const barcode = normalizeReceiveBarcode(req.body?.barcode);
+    const category = String(req.body?.category || '').trim();
+    const itemId = String(req.body?.itemId || '').trim();
+    const Model = RECEIVE_BARCODE_MODELS[category];
+
+    if (!barcode) return res.status(400).json({ error: 'ต้องระบุ Barcode' });
+    if (!Model) return res.status(400).json({ error: 'ประเภท Barcode ไม่ถูกต้อง' });
+    if (!itemId) return res.status(400).json({ error: 'ต้องเลือกรายการ stock' });
+
+    const item = await Model.findById(itemId);
+    if (!item) return res.status(404).json({ error: 'ไม่พบรายการ stock' });
+
+    const owner = await findReceiveBarcodeOwner(barcode);
+    if (owner) {
+      const ownerId = owner.item._id.toString();
+      if (owner.category !== category || ownerId !== item._id.toString()) {
+        return res.status(409).json({ error: 'Barcode นี้ถูกลงทะเบียนกับรายการอื่นแล้ว' });
+      }
+    }
+
+    if (!Array.isArray(item.barcodes)) item.barcodes = [];
+    if (!item.barcodes.includes(barcode)) {
+      item.barcodes.push(barcode);
+      await item.save();
+    }
+
+    return res.json(receiveBarcodePayload(category, item, barcode));
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
 /* ==================== STANDARDS ==================== */
 
 router.get('/standards', async (req, res) => {
@@ -165,6 +476,18 @@ router.get('/standards/in-use', async (req, res) => {
       ? await StockStandard.find({ code: { $in: codes } }).select('code frequency').lean()
       : [];
     res.json({ serverTime: new Date().toISOString(), items: buildInUseItems(txs, standards) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/standards/:id/label-codes/defaults', async (req, res) => {
+  try {
+    const std = await StockStandard.findById(req.params.id);
+    if (!std) return res.status(404).json({ error: 'Not found' });
+    const count = normalizeDefaultLabelCodeCount(req.query.count);
+    const defaults = await standardLabelCodeDefaults(std, count);
+    res.json(defaults);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -206,6 +529,14 @@ router.patch('/standards/:id', async (req, res) => {
     const before = await StockStandard.findById(req.params.id);
     if (!before) return res.status(404).json({ error: 'Not found' });
     const item = await StockStandard.findByIdAndUpdate(req.params.id, body, { new: true });
+    const codeChanged = String(before.code || '') !== String(item.code || '');
+    const nameChanged = String(before.name || '') !== String(item.name || '');
+    if (codeChanged || nameChanged) {
+      await StockUnit.updateMany(
+        { itemCode: before.code },
+        { $set: { itemCode: item.code, itemName: item.name } },
+      );
+    }
     await logTransaction({
       itemType: 'standard',
       itemId: item._id.toString(),
@@ -348,28 +679,44 @@ router.post('/standards/:id/units/receive', async (req, res) => {
     const std = await StockStandard.findById(req.params.id);
     if (!std) return res.status(404).json({ error: 'ไม่พบสาร' });
 
-    const { lotNo = '', sizeMl, unit = 'ml', bottles, type, note } = req.body || {};
+    const { lotNo = '', purity = '', sizeMl, unit = 'mg', bottles, type, note } = req.body || {};
     const size = Number(sizeMl);
     if (!Number.isFinite(size) || size <= 0) return res.status(400).json({ error: 'ขนาด/ขวดไม่ถูกต้อง' });
     if (!Array.isArray(bottles) || bottles.length === 0) return res.status(400).json({ error: 'ต้องระบุอย่างน้อย 1 ขวด' });
     if (!isValidReceiveType(type)) return res.status(400).json({ error: 'ต้องเลือกประเภท (primary, supplier หรือ working)' });
+    const validationError = validateStandardUnitReceiveInput(req.body || {});
+    if (validationError) return res.status(400).json({ error: validationError });
 
     const now = new Date();
+    const normalizedLotNo = String(lotNo).trim();
+    const normalizedPurity = String(purity).trim();
+    const existingLotBottleCount = normalizedLotNo
+      ? await StockUnit.countDocuments({ itemCode: std.code, kind: 'sealed', lotNo: normalizedLotNo })
+      : 0;
+    const lotBottleNumbers = buildLotBottleNumbers(existingLotBottleCount, bottles.length);
+    const labelCodes = await resolveReceiveLabelCodes(std, bottles, now);
     const created = [];
-    for (const b of bottles) {
+    for (const [index, b] of bottles.entries()) {
       const qrId = await genUniqueQrId();
+      const photoUrls = normalizeBottlePhotoUrls(b);
       const u = await StockUnit.create({
         qrId,
         itemCode: std.code,
         itemName: std.name,
+        itemType: 'standard',
+        itemId: std._id.toString(),
         kind: 'sealed',
         type,
-        lotNo,
-        exp: b && b.exp ? new Date(b.exp) : null,
+        lotNo: normalizedLotNo,
+        purity: normalizedPurity,
+        lotBottleNo: lotBottleNumbers[index],
+        labelCode: labelCodes[index],
+        exp: new Date(b.exp),
         volume: { initial: size, remaining: size, unit },
         status: 'active',
         receivedDate: now,
         createdBy: await personOf(req),
+        photoUrls: photoUrls.length ? photoUrls : undefined,
       });
       created.push(u);
       await logTransaction({
@@ -385,6 +732,7 @@ router.post('/standards/:id/units/receive', async (req, res) => {
         volumeUnit: unit,
         unit,
         note,
+        photoUrls: photoUrls.length ? photoUrls : undefined,
         ...(await userMeta(req)),
       });
     }
@@ -440,10 +788,25 @@ router.patch('/units/:qrId', async (req, res) => {
     if (!unit) return res.status(404).json({ error: 'ไม่พบขวด' });
     if (unit.status === 'discarded') return res.status(400).json({ error: 'ขวดนี้ถูกทิ้งแล้ว แก้ไขไม่ได้' });
 
-    const { lotNo, exp, volume, type } = req.body || {};
+    const { lotNo, exp, volume, type, photoUrls, labelCode } = req.body || {};
     if (lotNo !== undefined) unit.lotNo = String(lotNo);
     if (exp !== undefined) unit.exp = exp ? new Date(exp) : null;
     if (type !== undefined && isValidUnitType(type)) unit.type = type;
+    if (photoUrls !== undefined) unit.photoUrls = normalizePhotoUrls(photoUrls);
+    if (labelCode !== undefined) {
+      const nextLabelCode = normalizeUnitLabelCodeUpdate(labelCode, unit.itemCode);
+      if (nextLabelCode) {
+        const existing = await StockUnit.findOne({
+          _id: { $ne: unit._id },
+          itemCode: unit.itemCode,
+          labelCode: nextLabelCode,
+        }).select('labelCode').lean();
+        if (existing) throw new Error(`Code ${nextLabelCode} ถูกใช้แล้ว`);
+        unit.labelCode = nextLabelCode;
+      } else {
+        unit.labelCode = '';
+      }
+    }
     if (volume && typeof volume === 'object') {
       if (volume.unit !== undefined && ['ml', 'mg', 'g'].includes(volume.unit)) unit.volume.unit = volume.unit;
       if (volume.initial !== undefined) {
@@ -468,9 +831,11 @@ router.patch('/units/:qrId', async (req, res) => {
 // list units: GET /units?itemCode=&status=&kind=
 router.get('/units', async (req, res) => {
   try {
-    const { itemCode, status, kind } = req.query;
+    const { itemCode, itemType, itemId, status, kind } = req.query;
     const f = {};
     if (itemCode) f.itemCode = itemCode;
+    if (itemType) f.itemType = String(itemType).trim();
+    if (itemId) f.itemId = String(itemId).trim();
     if (status) f.status = status;
     if (kind) f.kind = kind;
     const units = await StockUnit.find(f).sort({ createdAt: -1 }).limit(2000);
@@ -503,8 +868,8 @@ router.get('/solvents', async (req, res) => {
 
 router.post('/solvents', async (req, res) => {
   try {
-    const body = stripMeta(req.body);
-    const item = await StockSolvent.create(body);
+    const body = solventItemPayload(stripMeta(req.body));
+    const item = await StockSolvent.create({ ...body, qty: 0 });
     await logTransaction({
       itemType: 'solvent',
       itemId: item._id.toString(),
@@ -522,7 +887,7 @@ router.post('/solvents', async (req, res) => {
 
 router.patch('/solvents/:id', async (req, res) => {
   try {
-    const body = stripMeta(req.body);
+    const body = solventItemPayload(stripMeta(req.body));
     const before = await StockSolvent.findById(req.params.id);
     if (!before) return res.status(404).json({ error: 'Not found' });
     const item = await StockSolvent.findByIdAndUpdate(req.params.id, body, { new: true });
@@ -574,6 +939,7 @@ router.post('/solvents/:id/deduct', async (req, res) => {
     if (before < amount) return res.status(400).json({ error: 'จำนวน stock ไม่พอ' });
     item.qty = before - amount;
     await item.save();
+    await markSolventUnitsEmptyForDeduction(item, amount);
     await logTransaction({
       itemType: 'solvent',
       itemId: item._id.toString(),
@@ -595,14 +961,23 @@ router.post('/solvents/:id/deduct', async (req, res) => {
 
 router.post('/solvents/:id/receive', async (req, res) => {
   try {
-    const { qty, note } = req.body;
-    const amount = Number(qty);
-    if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'Invalid qty' });
+    const { qty, note, lotNo, exp, sizeLiter, price, photoUrls: rawPhotoUrls } = req.body;
+    const amount = requireWholeBottleCount(qty);
+    if (!amount) return res.status(400).json({ error: 'จำนวนขวดต้องเป็นจำนวนเต็มบวก' });
+    const validationError = validateSolventReceiveInput(req.body || {});
+    if (validationError) return res.status(400).json({ error: validationError });
     const item = await StockSolvent.findById(req.params.id);
     if (!item) return res.status(404).json({ error: 'Not found' });
     const before = item.qty;
     item.qty = before + amount;
+    item.sizeLiter = Number(sizeLiter);
+    item.price = Number(price);
     await item.save();
+    const photoUrls = normalizePhotoUrls(rawPhotoUrls);
+    const receivedDate = new Date();
+    const meta = await userMeta(req);
+    const createdBy = meta.userName ? { email: meta.userEmail, name: meta.userName } : undefined;
+    await createSolventUnitsForReceive({ item, qty: amount, lotNo, exp, sizeLiter, photoUrls, receivedDate, createdBy });
     await logTransaction({
       itemType: 'solvent',
       itemId: item._id.toString(),
@@ -612,8 +987,9 @@ router.post('/solvents/:id/receive', async (req, res) => {
       afterQty: item.qty,
       delta: amount,
       unit: 'bottle',
-      note,
-      ...(await userMeta(req)),
+      note: composeSolventReceiveNote({ lotNo, exp, sizeLiter, price, note }),
+      photoUrls: photoUrls.length ? photoUrls : undefined,
+      ...meta,
     });
     res.json(item);
   } catch (err) {
@@ -751,6 +1127,120 @@ router.post('/glassware/:id/receive', async (req, res) => {
   }
 });
 
+/* ==================== STOCK HISTORY EXPORTS ==================== */
+
+router.get('/exports/standard', async (req, res) => {
+  try {
+    const itemId = String(req.query.itemId || '').trim();
+    const dateRange = buildStandardExportDateRange(req.query.startDate, req.query.endDate);
+    const format = String(req.query.format || 'xlsx').trim().toLowerCase();
+    if (!itemId) return res.status(400).json({ error: 'ต้องเลือก standard' });
+    if (dateRange.error) return res.status(400).json({ error: dateRange.error });
+    if (!['xlsx', 'pdf'].includes(format)) return res.status(400).json({ error: 'รองรับเฉพาะ xlsx หรือ pdf' });
+
+    const standard = await StockStandard.findById(itemId).lean();
+    if (!standard) return res.status(404).json({ error: 'ไม่พบ standard' });
+
+    const transactions = await StockTransaction.find({
+      itemType: 'standard',
+      action: { $in: ['receive', 'deduct'] },
+      createdAt: dateRange.value.createdAt,
+      $or: [
+        { itemId: standard._id.toString() },
+        { itemCode: standard.code },
+      ],
+    })
+      .sort({ createdAt: 1, _id: 1 })
+      .limit(5000)
+      .lean();
+
+    const qrIds = [...new Set(transactions.map((tx) => tx.qrId).filter(Boolean))];
+    const units = qrIds.length
+      ? await StockUnit.find({ qrId: { $in: qrIds } })
+        .select('qrId lotNo lotBottleNo exp volume type')
+        .lean()
+      : [];
+
+    const safeCode = sanitizeFilenameSegment(standard.code || standard.name || 'standard');
+    const baseFilename = `${safeCode}-standard-history-${dateRange.value.startDate}_to_${dateRange.value.endDate}-${dateStamp()}`;
+
+    if (format === 'pdf') {
+      const html = buildStandardLotExportHtml({ standard, units, transactions });
+      if (!html) return res.status(400).json({ error: 'ไม่มีประวัติสำหรับ standard นี้' });
+
+      const chromePath = process.env.PRINT_CHROME_PATH;
+      if (!chromePath || !fs.existsSync(chromePath)) {
+        return res.status(400).json({ error: 'ไม่พบ Chrome สำหรับสร้าง PDF (ตั้งค่า PRINT_CHROME_PATH)' });
+      }
+
+      const puppeteer = require('puppeteer-core');
+      let browser;
+      try {
+        browser = await puppeteer.launch({
+          executablePath: chromePath,
+          headless: true,
+          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        });
+        const page = await browser.newPage();
+        await page.setContent(html.toString('utf8'), { waitUntil: 'load', timeout: 20000 });
+        await page.evaluateHandle('document.fonts.ready').catch(() => {});
+        const pdf = await page.pdf({
+          printBackground: true,
+          preferCSSPageSize: true,
+          margin: { top: '8mm', right: '8mm', bottom: '8mm', left: '8mm' },
+        });
+        await browser.close();
+        browser = null;
+        return sendAttachment(res, {
+          buffer: Buffer.from(pdf),
+          contentType: 'application/pdf',
+          filename: `${baseFilename}.pdf`,
+        });
+      } finally {
+        if (browser) await browser.close().catch(() => {});
+      }
+    }
+
+    const workbook = buildStandardLotExportWorkbook({ standard, units, transactions });
+    if (!workbook) return res.status(400).json({ error: 'ไม่มีประวัติสำหรับ standard นี้' });
+
+    return sendAttachment(res, {
+      buffer: workbook.buffer,
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      filename: `${baseFilename}.xlsx`,
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/exports/solvent', async (req, res) => {
+  try {
+    const solventId = String(req.query.solventId || '').trim();
+    const date = normalizeExportDate(req.query.date);
+    if (!solventId) return res.status(400).json({ error: 'ต้องเลือกสารเคมี' });
+    if (!date) return res.status(400).json({ error: 'ต้องเลือกวันที่' });
+
+    const solvent = await StockSolvent.findById(solventId).lean();
+    if (!solvent) return res.status(404).json({ error: 'ไม่พบสารเคมี' });
+
+    const requisitions = await ChemicalRequisition.find({ solventId: solvent._id.toString(), date })
+      .sort({ createdAt: 1, _id: 1 })
+      .limit(1000)
+      .lean();
+    if (requisitions.length === 0) return res.status(400).json({ error: 'ไม่มีประวัติเบิกสารเคมีตามวันที่เลือก' });
+
+    const doc = buildSolventRequisitionDoc({ solvent, date, requisitions });
+    const safeName = sanitizeFilenameSegment(solvent.name || 'solvent');
+    return sendAttachment(res, {
+      buffer: doc,
+      contentType: 'application/msword; charset=utf-8',
+      filename: `${safeName}-requisition-${date}.doc`,
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
 /* ==================== TRANSACTIONS (Audit Log) ==================== */
 
 router.get('/transactions/pending-deduction', async (req, res) => {
@@ -798,10 +1288,11 @@ router.post('/transactions/:id/resolve-deduction', async (req, res) => {
 
 router.get('/transactions', async (req, res) => {
   try {
-    const { itemType, itemId, action, createdFrom, createdTo, limit = 200, skip = 0 } = req.query;
+    const { itemType, itemId, qrId, action, createdFrom, createdTo, limit = 200, skip = 0 } = req.query;
     const filter = {};
     if (itemType) filter.itemType = itemType;
     if (itemId) filter.itemId = itemId;
+    if (qrId) filter.qrId = String(qrId).trim();
     if (action) filter.action = action;
     if (createdFrom || createdTo) {
       filter.createdAt = {};
@@ -842,4 +1333,6 @@ router.get('/transactions', async (req, res) => {
 
 module.exports = router;
 router.planDeductMg = planDeductMg;
+router.userMeta = userMeta;
 router.deductMgFromUnit = deductMgFromUnit;
+router.normalizeUnitLabelCodeUpdate = normalizeUnitLabelCodeUpdate;

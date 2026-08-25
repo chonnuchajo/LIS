@@ -4,6 +4,7 @@ const router = express.Router();
 const User = require('../models/User');
 const Role = require('../models/Role');
 const { primaryRole, normalizeRoles, unionPermissions } = require('../lib/roles');
+const { clearLisSessionCookie, getLisSessionUserId, setLisSessionCookie } = require('../lib/lisSessionCookie');
 
 function b64urlDecode(value) {
   const padded = value + '='.repeat((4 - (value.length % 4)) % 4);
@@ -117,6 +118,7 @@ router.post('/sso', async (req, res) => {
       const onlyViewer = currentRoles.length === 0 || (currentRoles.length === 1 && currentRoles[0] === 'viewer');
       if (role && onlyViewer) user.roles = [role.id];
       await user.save();
+      setLisSessionCookie(res, user._id, req);
       return res.json(formatSsoUser(user, await getPermissions(normalizeRoles(user))));
     }
 
@@ -133,11 +135,34 @@ router.post('/sso', async (req, res) => {
       tenantId: 'production',
     });
 
+    setLisSessionCookie(res, user._id, req);
     res.status(201).json(formatSsoUser(user, await getPermissions(normalizeRoles(user))));
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Email นี้มีในระบบแล้ว' });
     res.status(400).json({ error: err.message });
   }
+});
+
+router.get('/session', async (req, res) => {
+  try {
+    const userId = getLisSessionUserId(req);
+    if (!userId) return res.status(401).json({ error: 'ไม่มี session ของ LIS' });
+
+    const user = await User.findById(userId);
+    if (!user || user.status === 'inactive') {
+      clearLisSessionCookie(res, req);
+      return res.status(401).json({ error: 'session ของ LIS ไม่ถูกต้อง' });
+    }
+
+    res.json(formatSsoUser(user, await getPermissions(normalizeRoles(user))));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/logout', (_req, res) => {
+  clearLisSessionCookie(res, _req);
+  res.json({ ok: true });
 });
 
 // Admin only: create user

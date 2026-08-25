@@ -1,18 +1,32 @@
 import { PublicClientApplication, type Configuration } from "@azure/msal-browser";
 
-const CLIENT_ID = "a83e5077-2d8b-44b6-9e3b-c7adca9f9321";
-const TENANT_ID = "2e73ca10-7e02-42ce-a4c8-d71202e7bc71";
+const CLIENT_ID = import.meta.env.VITE_AZURE_CLIENT_ID;
+const TENANT_ID = import.meta.env.VITE_AZURE_TENANT_ID;
+
+if (!CLIENT_ID || !TENANT_ID) {
+  // Vite resolves these from the .env at the REPO ROOT (server/.env is the
+  // backend's and is never bundled), inlining them at build time. Left unset
+  // they silently produce an authority of ".../undefined", which Azure rejects
+  // at sign-in with AADSTS900023 rather than at startup — so say it here.
+  console.error(
+    "[auth] VITE_AZURE_CLIENT_ID / VITE_AZURE_TENANT_ID are missing. " +
+      "Set them in the repo-root .env and restart Vite (or rebuild for production).",
+  );
+}
 
 // Redirect URI must match exactly what's registered in Azure App Registration.
 const REDIRECT_URI =
   window.location.origin + (import.meta.env.MODE === "production" ? "/LIS/" : "/");
+const APP_BASE_URL = import.meta.env.BASE_URL || "/";
+const APP_BASE_PATH = APP_BASE_URL.endsWith("/") ? APP_BASE_URL : `${APP_BASE_URL}/`;
+const POST_LOGOUT_REDIRECT_URI = new URL("login", window.location.origin + APP_BASE_PATH).toString();
 
 const msalConfig: Configuration = {
   auth: {
     clientId: CLIENT_ID,
     authority: `https://login.microsoftonline.com/${TENANT_ID}`,
     redirectUri: REDIRECT_URI,
-    postLogoutRedirectUri: REDIRECT_URI,
+    postLogoutRedirectUri: POST_LOGOUT_REDIRECT_URI,
   },
   cache: {
     cacheLocation: "localStorage",

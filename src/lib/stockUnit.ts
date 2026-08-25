@@ -13,6 +13,8 @@ export function parseScannedQrId(raw: string): string {
   }
   try {
     const url = new URL(text);
+    const fromQuery = url.searchParams.get("qrId") ?? url.searchParams.get("id") ?? url.searchParams.get("solventId");
+    if (fromQuery) return fromQuery.trim();
     const parts = url.pathname.split("/").filter(Boolean);
     return decodeURIComponent(parts[parts.length - 1] || text).trim();
   } catch {
@@ -23,11 +25,12 @@ export function parseScannedQrId(raw: string): string {
 export type UnitDerivedStatus = "active" | "empty" | "discarded" | "expired";
 
 export function unitDerivedStatus(
-  u: { status: string; exp?: string | null },
+  u: { status: string; exp?: string | null; volume?: { remaining?: number | null } | null },
   now: Date = new Date(),
 ): UnitDerivedStatus {
   if (u.status === "discarded") return "discarded";
-  if (u.status === "empty") return "empty";
+  const remaining = u.volume?.remaining;
+  if (u.status === "empty" || (remaining != null && Number(remaining) <= 0)) return "empty";
   if (u.exp && new Date(u.exp).getTime() < now.getTime()) return "expired";
   return "active";
 }
@@ -36,6 +39,9 @@ export function unitDerivedStatus(
 export function visibleBottles(units: StockUnitItem[], now: Date = new Date()): StockUnitItem[] {
   const timeOf = (u: StockUnitItem) => new Date(u.receivedDate || u.createdAt || 0).getTime();
   return units
-    .filter((u) => unitDerivedStatus(u, now) !== "discarded")
+    .filter((u) => {
+      const status = unitDerivedStatus(u, now);
+      return status !== "discarded" && status !== "empty";
+    })
     .sort((a, b) => timeOf(a) - timeOf(b));
 }

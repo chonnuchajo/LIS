@@ -30,7 +30,8 @@ const EmployeeLinkGate = () => {
   const { user, linkSelfEmployee } = useAuth();
   const isAdmin = (user?.roles ?? (user?.role ? [user.role] : [])).includes("admin");
   const isLogout = location.pathname === "/logout";
-  const needsLink = !!user?.id && !user.employeeId && !isAdmin && !isLogout;
+  const isPublicStockView = location.pathname === "/stock/view";
+  const needsLink = !!user?.id && !user.employeeId && !isAdmin && !isLogout && !isPublicStockView;
 
   const [directory, setDirectory] = useState<DirectoryEntry[]>([]);
   const [search, setSearch] = useState("");

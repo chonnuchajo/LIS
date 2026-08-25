@@ -93,6 +93,101 @@ describe('getItemSubCategory', () => {
   it('returns empty string when sampleId missing', () => {
     expect(getItemSubCategory(makeItem({ sampleId: undefined }))).toBe('');
   });
+
+  // itemNo = รหัส Master Item จริง (RO-0123). sampleId เป็น key ของ Approval/
+  // PhysicalResult และคำขอเก่าไม่เคยเก็บรหัสสินค้าไว้เลย — itemNo จึงต้องมาก่อน
+  it('prefers itemNo over sampleId', () => {
+    expect(getItemSubCategory(makeItem({ itemNo: 'RO-0123', sampleId: 'P-2606-0001-1' }))).toBe('RO');
+  });
+
+  it('falls back to sampleId when itemNo is blank', () => {
+    expect(getItemSubCategory(makeItem({ itemNo: '  ', sampleId: 'ULV-001' }))).toBe('ULV');
+  });
+});
+
+describe('subCategory prefix matching', () => {
+  // หน้า Parameter Settings เขียนกำกับไว้ว่า "ครอบคลุมทุก code ที่ขึ้นต้นด้วย prefix
+  // ที่เลือก — เลือก RO จะรวม ROLS, ROPH ด้วย"
+  it('matches deeper codes that start with the chosen prefix', () => {
+    const param = makeParam({ applyAll: false, subCategories: ['RO'], scope: 'qc' });
+    expect(matchParametersForItem(makeItem({ itemNo: 'RO-0123' }), [param])).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ itemNo: 'ROPH-0007' }), [param])).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ itemNo: 'ROLS-0002' }), [param])).toHaveLength(1);
+  });
+
+  it('does not match a sibling prefix', () => {
+    const param = makeParam({ applyAll: false, subCategories: ['RO'], scope: 'qc' });
+    expect(matchParametersForItem(makeItem({ itemNo: 'RI-0044' }), [param])).toHaveLength(0);
+    expect(matchParametersForItem(makeItem({ itemNo: 'RS-0100' }), [param])).toHaveLength(0);
+  });
+});
+
+describe('category (RM/FG) scoping', () => {
+  // หมวดหมู่ทำหน้าที่เป็น "ประตู" (AND) ไม่ใช่มิติ OR ตัวที่หก — ตรงกับหน้าจอ
+  // ที่ให้เลือกหมวดหมู่ย่อยได้ต่อเมื่อเลือก RM/FG แล้ว
+  it('matches a category-only param on a petition of that category', () => {
+    const param = makeParam({ applyAll: false, categories: ['RM'], scope: 'qc' });
+    const item = makeItem({ itemNo: 'RS-0100' });
+    expect(matchParametersForItem(item, [param], [], { petitionCategory: 'RM' })).toHaveLength(1);
+  });
+
+  it('drops a category-only param on a petition of another category', () => {
+    const param = makeParam({ applyAll: false, categories: ['RM'], scope: 'qc' });
+    const item = makeItem({ itemNo: 'F-1200' });
+    expect(matchParametersForItem(item, [param], [], { petitionCategory: 'FG' })).toHaveLength(0);
+    // คำขอฝ่ายผลิตไม่ใช่ทั้ง RM และ FG
+    expect(matchParametersForItem(item, [param], [], { petitionCategory: '' })).toHaveLength(0);
+    expect(matchParametersForItem(item, [param])).toHaveLength(0);
+  });
+
+  it('narrows (AND) when both category and subCategory are set', () => {
+    const param = makeParam({ applyAll: false, categories: ['RM'], subCategories: ['RO'], scope: 'qc' });
+    const opts = { petitionCategory: 'RM' as const };
+    expect(matchParametersForItem(makeItem({ itemNo: 'RO-0123' }), [param], [], opts)).toHaveLength(1);
+    // อยู่ในคำขอ RM แต่รหัสไม่ใช่ RO → ไม่ขึ้น
+    expect(matchParametersForItem(makeItem({ itemNo: 'RI-0044' }), [param], [], opts)).toHaveLength(0);
+    // รหัส RO แต่คนละหมวดหมู่ → ไม่ขึ้น
+    expect(
+      matchParametersForItem(makeItem({ itemNo: 'RO-0123' }), [param], [], { petitionCategory: 'FG' }),
+    ).toHaveLength(0);
+  });
+
+  it('keeps the OR across the other dimensions inside the category gate', () => {
+    const param = makeParam({
+      applyAll: false,
+      categories: ['RM'],
+      subCategories: ['RO'],
+      commonNames: ['EW'],
+      scope: 'qc',
+    });
+    const opts = { petitionCategory: 'RM' as const };
+    // ไม่ใช่ RO แต่ commonName ตรง → ยังขึ้น (OR ภายในประตู RM)
+    expect(matchParametersForItem(makeItem({ itemNo: 'RI-0044', commonName: 'EW' }), [param], [], opts)).toHaveLength(1);
+  });
+
+  it('leaves params without categories unaffected by petition category', () => {
+    const param = makeParam({ applyAll: false, commonNames: ['EW'], scope: 'qc' });
+    expect(matchParametersForItem(makeItem(), [param], [], { petitionCategory: 'RM' })).toHaveLength(1);
+    expect(matchParametersForItem(makeItem(), [param], [], { petitionCategory: '' })).toHaveLength(1);
+  });
+
+  it('applyAll still respects the category gate', () => {
+    const param = makeParam({ applyAll: true, categories: ['RM'], scope: 'qc' });
+    expect(matchParametersForItem(makeItem(), [param], [], { petitionCategory: 'RM' })).toHaveLength(1);
+    expect(matchParametersForItem(makeItem(), [param], [], { petitionCategory: 'FG' })).toHaveLength(0);
+  });
+
+  it('excludeCategories drops the param for that petition category', () => {
+    const param = makeParam({ applyAll: true, excludeCategories: ['RM'], scope: 'qc' });
+    expect(matchParametersForItem(makeItem(), [param], [], { petitionCategory: 'RM' })).toHaveLength(0);
+    expect(matchParametersForItem(makeItem(), [param], [], { petitionCategory: 'FG' })).toHaveLength(1);
+  });
+
+  it('excludeSubCategories matches by prefix too', () => {
+    const param = makeParam({ applyAll: true, excludeSubCategories: ['RO'], scope: 'qc' });
+    expect(matchParametersForItem(makeItem({ itemNo: 'ROPH-0007' }), [param])).toHaveLength(0);
+    expect(matchParametersForItem(makeItem({ itemNo: 'RI-0044' }), [param])).toHaveLength(1);
+  });
 });
 
 describe('parameter exclusions', () => {

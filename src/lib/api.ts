@@ -6,11 +6,14 @@ import type {
   StockGlasswareItem,
   StockTransactionItem,
   StockTier,
+  StockItemType,
   StockUnitItem,
+  StockPublicScanItem,
   DeductionResolutionReason,
   StandardsInUseResponse,
 } from "@/types/stock";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
+import type { StandardLabelCodeDefaults } from "@/lib/standardLabelCode";
 import {
   defaultPrinterFor,
   docTypeToKind,
@@ -18,6 +21,7 @@ import {
   type PrintConfig,
   type PrintConfigInput,
   type PrintDocType,
+  type PaperSize,
   type PrinterConfig,
   type PrinterConfigInput,
 } from "@/lib/printConfig";
@@ -28,11 +32,28 @@ import type { MethodDoc, MethodInput } from './methodRegistry';
 import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
 import type { GoodsReceipt, GoodsReceiptInput } from "@/types/goodsReceipt.types";
 import type { CoaDocument, EligibleCoaPetition } from "@/types/coa.types";
+import type {
+  ApiKeyItem,
+  ApiKeyInput,
+  ApiKeyMeta,
+  ApiPolicyMode,
+  ApiRequestLogItem,
+  CreatedApiKey,
+} from "@/lib/apiKeys";
 
 type StockUserPayload = { _user?: { email?: string; name?: string } };
+type StockBarcodeRegistration = {
+  barcode: string;
+  category: StockItemType;
+  itemId: string;
+  itemCode?: string;
+  itemName?: string;
+  barcodes?: string[];
+};
 export interface StockTransactionParams {
   itemType?: string;
   itemId?: string;
+  qrId?: string;
   action?: string;
   createdFrom?: string;
   createdTo?: string;
@@ -49,6 +70,8 @@ export interface PetitionFlowNotification {
   link: string;
   createdAt: string;
 }
+
+export type UserFavorites = { email: string; paths: string[] };
 
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
@@ -68,6 +91,19 @@ const API_BASES = Array.from(
   ),
 );
 
+// อีเมลผู้ใช้ที่ล็อกอินอยู่ — ส่งไปกับทุก request เป็น header X-LIS-User เพื่อให้
+// backend ตรวจสิทธิ์ admin ของ route /api-keys ได้ (AuthContext เป็นคนตั้งค่า)
+// ⚠️ ไม่ใช่ security จริง (ปลอมได้) เฟส 2 จะเปลี่ยนไปใช้ Azure AD token
+let currentUserEmail = "";
+
+export function setApiUserEmail(email?: string | null) {
+  currentUserEmail = email ? String(email) : "";
+}
+
+function identityHeaders(): Record<string, string> {
+  return currentUserEmail ? { "X-LIS-User": currentUserEmail } : {};
+}
+
 async function fetchApi(path: string, options?: RequestInit): Promise<unknown> {
   let lastError: Error | null = null;
 
@@ -75,7 +111,7 @@ async function fetchApi(path: string, options?: RequestInit): Promise<unknown> {
     const base = API_BASES[i];
     const res = await fetch(`${base}${path}`, {
       ...options,
-      headers: { "Content-Type": "application/json", ...options?.headers },
+      headers: { "Content-Type": "application/json", ...identityHeaders(), ...options?.headers },
     });
     const contentType = res.headers.get("content-type") || "";
 
@@ -121,6 +157,8 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return fetchApi(path, options) as Promise<T>;
 }
 
+type PrintResult = { printer: string; copies: number };
+
 function toLegacyPrintConfig(
   docType: PrintDocType,
   printers: PrinterConfig[] | undefined | null,
@@ -149,7 +187,7 @@ async function fetchBlob(path: string, options?: RequestInit): Promise<Blob> {
     const base = API_BASES[i];
     const res = await fetch(`${base}${path}`, {
       ...options,
-      headers: { "Content-Type": "application/json", ...options?.headers },
+      headers: { "Content-Type": "application/json", ...identityHeaders(), ...options?.headers },
     });
     const contentType = res.headers.get("content-type") || "";
     if (res.ok && !contentType.includes("application/json")) {
@@ -280,6 +318,8 @@ export const api = {
     request<StockStandardItem>(`/stock/standards/${id}/deduct`, { method: "POST", body: JSON.stringify(body) }),
   receiveStandard: (id: string, body: { tier: StockTier; qty: number; note?: string } & StockUserPayload) =>
     request<StockStandardItem>(`/stock/standards/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
+  registerStockBarcode: (body: Pick<StockBarcodeRegistration, "barcode" | "category" | "itemId"> & StockUserPayload) =>
+    request<StockBarcodeRegistration>("/stock/barcodes/register", { method: "POST", body: JSON.stringify(body) }),
 
   // Stock — Solvents
   getSolvents: () => request<StockSolventItem[]>("/stock/solvents"),
@@ -291,7 +331,7 @@ export const api = {
     request<{ success: true }>(`/stock/solvents/${id}`, { method: "DELETE" }),
   deductSolvent: (id: string, body: { qty: number; sampleId?: string; note?: string } & StockUserPayload) =>
     request<StockSolventItem>(`/stock/solvents/${id}/deduct`, { method: "POST", body: JSON.stringify(body) }),
-  receiveSolvent: (id: string, body: { qty: number; note?: string } & StockUserPayload) =>
+  receiveSolvent: (id: string, body: { qty: number; lotNo: string; exp: string; sizeLiter: number; price: number; note?: string } & StockUserPayload) =>
     request<StockSolventItem>(`/stock/solvents/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
 
   // Chemical requisition — เบิกสารเคมี (solvent) → เครื่อง (daily-check/analysis)
@@ -342,6 +382,16 @@ export const api = {
       : "";
     return request<StockTransactionItem[]>(`/stock/transactions${qs}`);
   },
+  exportStockStandardHistory: (params: { itemId: string; startDate: string; endDate: string; format?: "xlsx" | "pdf" }) => {
+    const qs = new URLSearchParams(
+      Object.entries({ format: "xlsx", ...params }).map(([key, value]) => [key, String(value)]),
+    ).toString();
+    return fetchBlob(`/stock/exports/standard?${qs}`);
+  },
+  exportStockSolventHistory: (params: { solventId: string; date: string }) => {
+    const qs = new URLSearchParams(params).toString();
+    return fetchBlob(`/stock/exports/solvent?${qs}`);
+  },
   getPendingStockDeductions: (params: {
     itemType: "standard" | "solvent";
     itemId?: string;
@@ -368,9 +418,11 @@ export const api = {
   getStandardsInUse: () => request<StandardsInUseResponse>("/stock/standards/in-use"),
 
   // Stock — Units (per-bottle)
-  getStockUnits: (params?: { itemCode?: string; status?: string; kind?: string }) => {
+  getStockUnits: (params?: { itemCode?: string; itemType?: string; itemId?: string; status?: string; kind?: string }) => {
     const q = new URLSearchParams();
     if (params?.itemCode) q.set("itemCode", params.itemCode);
+    if (params?.itemType) q.set("itemType", params.itemType);
+    if (params?.itemId) q.set("itemId", params.itemId);
     if (params?.status) q.set("status", params.status);
     if (params?.kind) q.set("kind", params.kind);
     const qs = q.toString() ? `?${q.toString()}` : "";
@@ -378,6 +430,8 @@ export const api = {
   },
   getStockUnit: (qrId: string) =>
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`),
+  getPublicStockItem: (qrId: string) =>
+    request<StockPublicScanItem>(`/stock/public/${encodeURIComponent(qrId)}`),
   deductStockUnitMg: (
     qrId: string,
     body: { weights?: number[]; mg?: number; instrumentGroup?: "gc" | "hplc"; instrumentId?: string; instrumentName?: string; sampleId?: string; petitionNo?: string; note?: string } & StockUserPayload,
@@ -386,9 +440,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  getStandardLabelCodeDefaults: (standardId: string, count = 1) =>
+    request<StandardLabelCodeDefaults>(`/stock/standards/${standardId}/label-codes/defaults?count=${encodeURIComponent(String(count))}`),
   receiveStockUnits: (
     standardId: string,
-    body: { lotNo?: string; sizeMl: number; unit?: string; type: "primary" | "supplier" | "working"; bottles: { exp?: string }[]; note?: string } & StockUserPayload,
+    body: { lotNo?: string; purity: string; sizeMl: number; unit?: "ml" | "mg" | "g"; type: "primary" | "supplier" | "working"; bottles: { exp?: string; labelCode?: string }[]; note?: string } & StockUserPayload,
   ) =>
     request<StockUnitItem[]>(`/stock/standards/${standardId}/units/receive`, {
       method: "POST",
@@ -401,7 +457,7 @@ export const api = {
     }),
   updateStockUnit: (
     qrId: string,
-    body: { lotNo?: string; exp?: string | null; type?: "primary" | "supplier" | "working" | ""; volume?: { initial?: number; remaining?: number; unit?: string } },
+    body: { lotNo?: string; exp?: string | null; type?: "primary" | "supplier" | "working" | ""; labelCode?: string; photoUrls?: string[]; volume?: { initial?: number; remaining?: number; unit?: string } },
   ) =>
     request<StockUnitItem>(`/stock/units/${encodeURIComponent(qrId)}`, {
       method: "PATCH",
@@ -579,6 +635,17 @@ export const api = {
       body: JSON.stringify(input),
     }).then((r) => r.data),
 
+  // ── รายการโปรดบน sidebar (ผูกกับ user ด้วย email) ──
+  getUserFavorites: (email: string) =>
+    request<{ data: UserFavorites }>(
+      `/user-favorites?email=${encodeURIComponent(email)}`,
+    ).then((r) => r.data),
+  saveUserFavorites: (email: string, paths: string[]) =>
+    request<{ data: UserFavorites }>("/user-favorites", {
+      method: "PUT",
+      body: JSON.stringify({ email, paths }),
+    }).then((r) => r.data),
+
   // ── LINE integration (group registry + test push) ──
   getLineHealth: () => request<LineHealth>("/line/health"),
   getLineGroups: () =>
@@ -611,7 +678,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }).then((r) => r.data),
-  updatePrinterConfig: (id: string, input: { label?: string; cupsPrinterUrl?: string }) =>
+  updatePrinterConfig: (id: string, input: Partial<PrinterConfigInput>) =>
     request<{ data: PrinterConfig }>(`/print/printers-config/${id}`, {
       method: "PUT",
       body: JSON.stringify(input),
@@ -641,16 +708,50 @@ export const api = {
         }).then((r) => r.data);
     return toLegacyPrintConfig(slug, [updated]);
   },
-  printDocument: (payload: { docType: PrintDocType; html: string; copies?: number }) =>
+  printDocument: (payload: { docType: PrintDocType; html: string; copies?: number; printerConfigId?: string; department?: string; paperSize?: PaperSize }) =>
     request<{ ok: boolean; printer: string; copies: number }>("/print", {
       method: "POST",
       body: JSON.stringify(payload),
-    }).then((r) => ({ printer: r.printer, copies: r.copies })),
+    }).then((r) => ({ printer: r.printer, copies: r.copies } as PrintResult)),
+  testPrinterConfig: (id: string) =>
+    request<{ ok: boolean; printer: string; copies: number }>(`/print/printers-config/${id}/test`, {
+      method: "POST",
+    }).then((r) => ({ printer: r.printer, copies: r.copies } as PrintResult)),
   downloadPrintPdf: (payload: { docType: PrintDocType; html: string }) =>
     fetchBlob("/print/pdf", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  // API keys (แท็บ API Key ในหน้าตั้งค่าระบบ — admin เท่านั้น)
+  getApiKeys: () => request<{ data: ApiKeyItem[] }>("/api-keys").then((r) => r.data),
+  getApiKeyMeta: () => request<{ data: ApiKeyMeta }>("/api-keys/meta").then((r) => r.data),
+  createApiKey: (input: ApiKeyInput) =>
+    request<{ data: CreatedApiKey }>("/api-keys", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }).then((r) => r.data),
+  updateApiKey: (id: string, input: Partial<ApiKeyInput>) =>
+    request<{ data: ApiKeyItem }>(`/api-keys/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }).then((r) => r.data),
+  revokeApiKey: (id: string) =>
+    request<{ data: ApiKeyItem }>(`/api-keys/${id}/revoke`, { method: "POST" }).then((r) => r.data),
+  deleteApiKey: (id: string) => request<{ ok: boolean }>(`/api-keys/${id}`, { method: "DELETE" }),
+  setApiPolicyMode: (policyId: string, mode: ApiPolicyMode) =>
+    request<{ data: { policyId: string; mode: ApiPolicyMode } }>(`/api-keys/policy/${policyId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ mode }),
+    }).then((r) => r.data),
+  getApiKeyLogs: (params?: { keyId?: string; outcome?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.keyId) qs.set("keyId", params.keyId);
+    if (params?.outcome) qs.set("outcome", params.outcome);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return request<{ data: ApiRequestLogItem[] }>(`/api-keys/logs${suffix}`).then((r) => r.data);
+  },
 
   // Parameters (พารามิเตอร์การตรวจสอบของสารแต่ละชนิด)
   getParameters: () => request<ParameterItem[]>("/parameters"),
@@ -1235,7 +1336,9 @@ export type ParameterItem = {
   commonNames?: string[];
   itemNames?: string[];
   productTypes?: string[];
+  // 'RM' | 'FG' — ประตูแบบ AND เทียบกับ petition.dept (ไม่ใช่มิติ OR ตัวที่หก)
   categories?: string[];
+  // prefix code ของรหัสสินค้า เช่น 'RO' — จับแบบ "ขึ้นต้นด้วย" (RO ครอบ ROPH/ROLS)
   subCategories?: string[];
   itemGroups?: string[];
   excludeCommonNames?: string[];
@@ -1247,7 +1350,7 @@ export type ParameterItem = {
   valueFields?: ParameterValueField[];
   sortOrder?: number;
   note?: string;
-  // 2-phase testing toggle — when true, this parameter is split into ก่อน/หลัง
+  // 2-phase testing toggle — when true, this parameter triggers retesting other matched parameters.
   hasPhases?: boolean;
   // Parameter-level repeat — whole field set repeats into QCTestResult.entries.
   multiEntry?: boolean;

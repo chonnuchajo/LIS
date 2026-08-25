@@ -27,6 +27,9 @@ import SubmitterPicker, { type SubmitterValues } from './SubmitterPicker';
 
 export interface ItemRowValues {
   seq: number;
+  // รหัส Master Item (RO-0123) ของแถวที่เลือก — ขับ "หมวดหมู่ย่อย (prefix code)" +
+  // "กลุ่ม Item" ของ parameter. ตามของที่เลือกเสมอ ไม่ใช่ค่าที่คนพิมพ์เอง
+  itemNo?: string;
   sampleName: string;
   commonName: string;
   batchNo: string;
@@ -39,6 +42,8 @@ export interface ItemRowValues {
   note: string;
   labelQuantity?: string;
   labelSampledDate?: string;
+  submittedQuantity?: string;
+  submittedUnit?: string;
 }
 
 interface Props {
@@ -83,6 +88,9 @@ export default function ItemsStep({
   ): Partial<ItemRowValues> {
     return {
       ...patch,
+      // itemNo คือตัวตนของ master item ที่เลือก — ตามของที่เลือกเสมอ ต่างจากอีก 3 ฟิลด์
+      // ที่เติมเฉพาะช่องว่างเพื่อไม่ทับสิ่งที่ R&D พิมพ์เอง
+      itemNo: option.itemNo,
       sampleName: item.sampleName.trim() ? (patch.sampleName ?? item.sampleName) : option.sampleName,
       commonName: item.commonName.trim() ? item.commonName : option.commonName,
       packageUnit: item.packageUnit.trim() ? item.packageUnit : option.packageUnit,
@@ -93,7 +101,8 @@ export default function ItemsStep({
     const item = value[idx];
     const match = findMatchingPetitionMasterItem(masterItemOptions, { sampleName });
     if (!match) {
-      setItem(idx, { sampleName });
+      // ล้างรหัสเก่าทิ้ง ไม่งั้นชื่อที่พิมพ์ใหม่จะยังลาก parameter ของสินค้าตัวก่อนมาด้วย
+      setItem(idx, { sampleName, itemNo: '' });
       return;
     }
     setItem(idx, fillEmptyMasterFields(item, match, { sampleName }));
@@ -200,6 +209,7 @@ export default function ItemsStep({
                       loading={masterItemsLoading}
                       disabled={itemsReadOnly}
                       onPick={(option) => setItem(idx, {
+                        itemNo: option.itemNo,
                         sampleName: option.sampleName,
                         commonName: option.commonName,
                         packageUnit: option.packageUnit,
@@ -245,6 +255,18 @@ export default function ItemsStep({
                     placeholder={allowManualItemFields ? 'กรอกขนาดบรรจุ หรือเลือกจาก Master Item' : 'เติมอัตโนมัติจาก Master Item'}
                   />
                 </div>
+                {(it.submittedQuantity || it.submittedUnit) && (
+                  <>
+                    <div>
+                      <Label htmlFor={`submitted-quantity-${idx}`}>ปริมาณที่ส่งตัวอย่าง</Label>
+                      <Input id={`submitted-quantity-${idx}`} value={it.submittedQuantity ?? ''} disabled />
+                    </div>
+                    <div>
+                      <Label htmlFor={`submitted-unit-${idx}`}>หน่วยที่นำส่ง</Label>
+                      <Input id={`submitted-unit-${idx}`} value={it.submittedUnit ?? ''} disabled />
+                    </div>
+                  </>
+                )}
                 <div className="sm:col-span-2">
                   <Label>หมายเหตุ</Label>
                   <Textarea

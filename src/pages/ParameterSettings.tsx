@@ -294,6 +294,8 @@ type MultiSelectPopoverProps = {
   disabled?: boolean;
   emptyText?: string;
   labelFor?: (value: string) => string;
+  // คำอธิบายใต้ช่อง — ใช้บอกกฎที่มองไม่เห็นจากตัวเลือก เช่น หมวดหมู่เป็นเงื่อนไขบังคับ
+  hint?: string;
 };
 
 function MultiSelectPopover({
@@ -306,6 +308,7 @@ function MultiSelectPopover({
   disabled,
   emptyText = "ไม่มีตัวเลือก",
   labelFor,
+  hint,
 }: MultiSelectPopoverProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -452,6 +455,7 @@ function MultiSelectPopover({
           ))}
         </div>
       ) : null}
+      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
@@ -1114,14 +1118,14 @@ function ValueFieldEditor({
                 {field.phase !== "after" ? (
                   <label
                     className="flex items-center gap-1.5 text-xs text-muted-foreground"
-                    title="เมื่อกรอกช่องนี้ (หรือ timer ครบเวลา) จะ unlock Phase 2 ให้ Lab ตรวจค่าหลัง"
+                    title="เมื่อกรอกช่องนี้ (หรือ timer ครบเวลา) จะ unlock Phase 2 ให้ตรวจซ้ำ parameter อื่นทั้งหมดในสารเดียวกัน"
                   >
                     <Checkbox
                       checked={!!field.triggersPhase2}
                       onCheckedChange={(v) => onChange({ ...field, triggersPhase2: v === true })}
                       className="h-3.5 w-3.5"
                     />
-                    <span>ตัวเริ่ม Phase 2</span>
+                    <span>ตัว trigger รอบตรวจซ้ำ</span>
                   </label>
                 ) : null}
               </>
@@ -1983,7 +1987,7 @@ function ParameterDialog({
         }
       }
       if (form.hasPhases && f.triggersPhase2 && f.phase === "after") {
-        return `ช่อง "${f.label}": ตัวเริ่ม Phase 2 ต้องอยู่ใน Phase 1 (เลือก "ทั้ง 2 phase" หรือ "เฉพาะก่อน")`;
+        return `ช่อง "${f.label}": ตัว trigger รอบตรวจซ้ำต้องอยู่ใน Phase 1 (เลือก "ทั้ง 2 phase" หรือ "เฉพาะก่อน")`;
       }
     }
     if (form.hasPhases) {
@@ -1993,7 +1997,7 @@ function ParameterDialog({
         return "Parameter แบบ 2-phase ต้องมีอย่างน้อย 1 field ที่กรอกใน Phase 1 (เลือก 'ทั้ง 2 phase' หรือ 'เฉพาะก่อน')";
       }
       if (!hasTrigger) {
-        return "Parameter แบบ 2-phase ต้องมีอย่างน้อย 1 field ติ๊ก 'ตัวเริ่ม Phase 2'";
+        return "Parameter แบบ 2-phase ต้องมีอย่างน้อย 1 field ติ๊ก 'ตัว trigger รอบตรวจซ้ำ'";
       }
     }
     return null;
@@ -2188,10 +2192,10 @@ function ParameterDialog({
               />
               <div className="space-y-0.5">
                 <span className="text-sm font-medium">
-                  Parameter นี้มี 2 phase (ค่าก่อน / ค่าหลัง)
+                  Parameter นี้เป็นตัว trigger รอบตรวจซ้ำ
                 </span>
                 <p className="text-xs text-muted-foreground">
-                  เปิดเมื่อ parameter ต้องวัด 2 รอบ (เช่น stability test "อบ 14 วัน") — ตั้ง field ที่เป็นตัว trigger ในรายการช่องด้านล่าง
+                  หลังกรอกค่า trigger หรือ timer ครบเวลา ระบบจะเปิด Phase 2 ให้ตรวจซ้ำ parameter อื่นทั้งหมดในสารเดียวกัน ยกเว้น parameter นี้
                 </p>
               </div>
             </label>
@@ -2303,6 +2307,7 @@ function ParameterDialog({
                 options={categoryOptions}
                 disabled={form.applyAll}
                 emptyText="ยังไม่มีหมวดหมู่"
+                hint="ดูจากแผนกที่ยื่นคำขอ และเป็นเงื่อนไขบังคับ — เลือกแล้วต้องเข้าหมวดนี้ด้วยเสมอ ถึงจะเช็คเงื่อนไขอื่นต่อ"
               />
               {(() => {
                 const activeParents = (form.categories ?? []).filter(

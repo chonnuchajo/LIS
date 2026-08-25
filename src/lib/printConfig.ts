@@ -1,7 +1,9 @@
 export type PrintDocType = "sample-label" | "coa" | "service-request" | "stock-label" | "daily-check-report" | "goods-receipt";
-export type PaperSize = "A4" | "label-100x50" | "label-6x4";
+export type PaperSize = "A4" | "label-100x50" | "label-65x25";
 export type PrinterKind = "a4" | "sticker";
 export type PrintOutputMode = "server" | "local";
+
+export const PAPER_SIZES: PaperSize[] = ["A4", "label-100x50", "label-65x25"];
 
 export const A4_PRINT_FONT_FAMILY = "'Angsana New', 'Cordia New', 'Sarabun', 'TH SarabunPSK', serif";
 export const A4_PRINT_FONT_SIZE = "16pt";
@@ -13,12 +15,20 @@ export interface PrinterConfig {
   label: string;
   cupsPrinterUrl: string;
   isDefault: boolean;
+  assignments?: PrinterAssignment[];
+}
+
+export interface PrinterAssignment {
+  department: string;
+  docTypes: PrintDocType[];
+  paperSize: PaperSize;
 }
 
 export interface PrinterConfigInput {
   kind: PrinterKind;
   label?: string;
   cupsPrinterUrl: string;
+  assignments?: PrinterAssignment[];
 }
 
 // Legacy per-document config shape kept temporarily so screens can keep using
@@ -46,7 +56,7 @@ export interface PrinterKindMeta {
 
 export const PRINTER_KINDS: PrinterKindMeta[] = [
   { kind: "a4", label: "A4", hint: "COA / ใบคำขอ / รายงาน Daily Check" },
-  { kind: "sticker", label: "Sticker (ฉลาก)", hint: "ป้ายนำส่งตัวอย่าง / ฉลากขวด Standard" },
+  { kind: "sticker", label: "Sticker (ฉลาก)", hint: "ป้ายนำส่งตัวอย่าง / ฉลากขวด Stock" },
 ];
 
 // เอกสารแต่ละชนิดพิมพ์ไปเครื่องชนิดไหน — mirror ของ server/lib/printerRouting.js
@@ -117,7 +127,7 @@ export const PRINT_DOC_TYPES: PrintDocTypeMeta[] = [
   { slug: "sample-label",    label: "ป้ายนำส่งตัวอย่าง", defaultPaper: "label-100x50" },
   { slug: "coa",             label: "ใบรายงานผล (COA)",            defaultPaper: "A4" },
   { slug: "service-request", label: "ใบคำขอ (Petition)",            defaultPaper: "A4" },
-  { slug: "stock-label",     label: "ฉลากขวด Standard (sticker)", defaultPaper: "label-6x4" },
+  { slug: "stock-label",     label: "ฉลากขวด Stock", defaultPaper: "label-65x25" },
   { slug: "daily-check-report", label: "รายงานเช็กเครื่องมือ (Daily Check)", defaultPaper: "A4" },
   { slug: "goods-receipt", label: "ใบรับสินค้า/ใบตรวจสอบวัตถุดิบ (RM)", defaultPaper: "A4" },
 ];
@@ -135,28 +145,70 @@ export function defaultPrinterFor(
   return ofKind.find((c) => c.isDefault) ?? ofKind[0];
 }
 
+export function normalizeDepartment(value: unknown): string {
+  const raw = String(value ?? "").trim();
+  if (!raw || raw === "all" || raw === "ทุกแผนก") return "";
+  return raw;
+}
+
+export function pickPrinterAssignment(
+  configs: PrinterConfig[] | undefined | null,
+  docType: PrintDocType,
+  department?: string,
+): { printer: PrinterConfig; assignment: PrinterAssignment; paperSize: PaperSize } | undefined {
+  const kind = docTypeToKind(docType);
+  const normalizedDepartment = normalizeDepartment(department);
+  const candidates = (configs ?? [])
+    .filter((printer) => printer.kind === kind)
+    .flatMap((printer) =>
+      (printer.assignments ?? [])
+        .filter((assignment) => assignment.docTypes.includes(docType))
+        .map((assignment) => ({
+          printer,
+          assignment: {
+            ...assignment,
+            department: normalizeDepartment(assignment.department),
+            paperSize: assignment.paperSize ?? getPrintDocType(docType)?.defaultPaper ?? "A4",
+          },
+        })),
+    )
+    .filter(({ assignment }) => assignment.department === normalizedDepartment || assignment.department === "");
+
+  const exact = candidates.filter(({ assignment }) => assignment.department === normalizedDepartment);
+  const usable = exact.length > 0 ? exact : candidates.filter(({ assignment }) => assignment.department === "");
+  const picked = usable.find(({ printer }) => printer.isDefault) ?? usable[0];
+  if (!picked) return undefined;
+  return { ...picked, paperSize: picked.assignment.paperSize };
+}
+
 export function isPrinterConfigured(config?: PrintConfig | null): boolean {
   if (!config) return false;
   return Boolean(config.cupsPrinterUrl?.trim() || config.printerName?.trim());
 }
 
+const URL_PROTOCOLS = ["http:", "https:", "ipp:", "ipps:"];
+const HOST_WITH_OPTIONAL_PORT = /^[A-Za-z0-9.-]+(?::\d{1,5})?$/;
+
+function hasUrlProtocol(raw: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(raw);
+}
+
 // mirror ของ validatePrinterInput ใน server/lib/printerRouting.js
 export function validatePrinterUrl(url: string): string | null {
   const raw = (url ?? "").trim();
-  if (!raw) return "ต้องระบุ CUPS printer URL";
+  if (!raw) return "ต้องระบุ Printer IP / URL";
   let u: URL;
   try {
-    u = new URL(raw);
+    const normalized = hasUrlProtocol(raw) ? raw : `ipp://${raw}`;
+    if (!hasUrlProtocol(raw) && !HOST_WITH_OPTIONAL_PORT.test(raw)) {
+      return "Printer IP / URL ไม่ถูกต้อง";
+    }
+    u = new URL(normalized);
   } catch {
-    return "CUPS URL ไม่ถูกต้อง";
+    return "Printer IP / URL ไม่ถูกต้อง";
   }
-  if (!["http:", "https:", "ipp:", "ipps:"].includes(u.protocol)) {
-    return "CUPS URL ต้องเป็น http, https, ipp หรือ ipps";
-  }
-  const parts = u.pathname.split("/").filter(Boolean);
-  const qi = parts.findIndex((p) => p === "printers" || p === "classes");
-  if (qi < 0 || !parts[qi + 1]) {
-    return "CUPS URL ต้องระบุ queue เช่น https://192.168.0.237:631/printers/PRINTER_NAME";
+  if (!URL_PROTOCOLS.includes(u.protocol)) {
+    return "Printer IP / URL ต้องเป็น IP เครื่องปริ้น, http, https, ipp หรือ ipps";
   }
   return null;
 }
@@ -165,7 +217,7 @@ export function validatePrintConfig(input: PrintConfigInput): string | null {
   const printerName = (input.printerName ?? "").trim();
   const cupsPrinterUrl = (input.cupsPrinterUrl ?? "").trim();
   if (!printerName && !cupsPrinterUrl) {
-    return "ต้องระบุ CUPS printer URL";
+    return "ต้องระบุ Printer IP / URL";
   }
   if (!cupsPrinterUrl) return null;
   return validatePrinterUrl(cupsPrinterUrl);

@@ -9,7 +9,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { api, type ParameterItem } from '@/lib/api';
 import { normalizeRoles } from "@/lib/roles";
-import { getPetitionCategory, matchParametersForItem } from '@/lib/petitionTestItems';
+import { getPetitionCategory, itemGroupKey, matchParametersForItem } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import { isResearchAndDevelopmentPetition } from '@/lib/petitionRouting';
 import {
@@ -52,8 +52,8 @@ export default function PetitionView({ petition: p }: Props) {
   const isResearchPetition = isResearchAndDevelopmentPetition(p);
   const [parameters, setParameters] = useState<ParameterItem[]>([]);
   const groupMembership = useItemGroupMembership();
-  const idsFor = (it: { sampleId?: string }) =>
-    groupMembership.get(String(it?.sampleId ?? '').trim()) ?? [];
+  const idsFor = (it: Parameters<typeof itemGroupKey>[0]) =>
+    groupMembership.get(itemGroupKey(it)) ?? [];
   const [results, setResults] = useState<QCTestResult[]>([]);
   useEffect(() => {
     if (!canSeeTestItems) return;
@@ -146,8 +146,9 @@ export default function PetitionView({ petition: p }: Props) {
         <CardContent className="space-y-3">
           {p.items.map((item) => {
             const lab = isResearchPetition || (item.batchNo && isLabBatch(item.batchNo));
+            const itemCode = item.itemNo?.trim();
             const matchedParams = canSeeTestItems
-              ? matchParametersForItem(item, visibleParameters, idsFor(item), { forceLabTrack: isResearchPetition })
+              ? matchParametersForItem(item, visibleParameters, idsFor(item), { forceLabTrack: isResearchPetition, petitionCategory })
               : [];
             return (
               <div key={item.seq} className="rounded-[10px] border border-black-50 p-4 space-y-3">
@@ -164,7 +165,20 @@ export default function PetitionView({ petition: p }: Props) {
                   <Field label="Batch No." value={item.batchNo} />
                   <Field label="วันที่ผลิต" value={item.productionDate} />
                   <Field label="ขนาดบรรจุ" value={item.packageUnit} />
-                  <Field label="ชื่อสามัญ" value={item.commonName} />
+                  <Field
+                    label="ชื่อสามัญ"
+                    value={
+                      itemCode ? (
+                        <div className="space-y-1">
+                          <div>{item.commonName || '-'}</div>
+                          <Badge variant="gray-soft" className="gap-1 px-2 py-0.5 text-[11px] font-medium">
+                            <span>รหัสสินค้า</span>
+                            <span className="font-semibold">{itemCode}</span>
+                          </Badge>
+                        </div>
+                      ) : item.commonName
+                    }
+                  />
                   <Field label="เลขที่ใบนำส่ง" value={item.submissionNo} />
                 </div>
                 {item.note && <Field label="หมายเหตุ" value={item.note} />}

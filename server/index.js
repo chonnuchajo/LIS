@@ -8,6 +8,12 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/LIS-DB';
 
+// Apache mod_proxy อยู่หน้าเซิร์ฟเวอร์นี้เสมอ (.htaccess proxy /api/* → localhost:3001) และเติม
+// X-Forwarded-For มาให้ ถ้าไม่ตั้ง trust proxy, req.ip จะเป็น loopback (::ffff:127.0.0.1) เสมอ
+// ไม่ว่าใครยิงมาจากไหนก็ตาม ทำให้ log/rate-limit ของ apiGuard เห็น IP ผิดสำหรับ external caller
+// ทุกราย — 'loopback' เชื่อ X-Forwarded-For เฉพาะ hop ที่มาจาก 127.0.0.1/::1 เท่านั้น (ตัว proxy จริง)
+app.set('trust proxy', 'loopback');
+
 app.use(cors());
 // Capture the raw request bytes so routes/line.js can verify the LINE webhook
 // signature (HMAC over the exact body LINE sent — re-serialized JSON won't match).
@@ -25,6 +31,12 @@ function mountApi(path, router) {
   app.use(`/LIS/api${path}`, router);
 }
 
+// ป้องกัน API ที่ระบบภายนอกเรียก — ต้องอยู่ก่อน mountApi ทุกบรรทัด (แต่หลัง
+// express.json เพราะบาง route อ่าน req.body) path ที่ไม่อยู่ใน
+// server/lib/apiPolicy.js จะถูกปล่อยผ่านทันที = traffic ของหน้าเว็บไม่กระทบ
+const { apiGuard } = require('./lib/apiGuard');
+app.use(apiGuard);
+
 // API Routes
 mountApi('/samples', require('./routes/samples'));
 mountApi('/auth', require('./routes/auth'));
@@ -35,7 +47,9 @@ mountApi('/result-densities', require('./routes/result-densities'));
 mountApi('/instrument-readings', require('./routes/instrument-readings'));
 mountApi('/stock', require('./routes/stock'));
 mountApi('/access-control', require('./routes/accessControl'));
+mountApi('/api-keys', require('./routes/apiKeys')); // จัดการ API key (admin เท่านั้น)
 mountApi('/petitions', require('./routes/petitions'));
+mountApi('/production-integration', require('./routes/productionIntegration'));
 mountApi('/lab-requests', require('./routes/labRequests'));
 mountApi('/goods-receipts', require('./routes/goodsReceipts'));
 mountApi('/sample-receipts', require('./routes/sampleReceipts'));
@@ -63,6 +77,7 @@ mountApi('/env-checks', require('./routes/envChecks'));
 mountApi('/env-room-config', require('./routes/envRoomConfig'));
 mountApi('/document-number-config', require('./routes/documentNumberConfigs'));
 mountApi('/dashboard-layout', require('./routes/dashboardLayout'));
+mountApi('/user-favorites', require('./routes/userFavorites')); // รายการโปรดบน sidebar ต่อ user
 mountApi('/print', require('./routes/print'));
 mountApi('/ai', require('./routes/ai'));
 mountApi('/line', require('./routes/line')); // LINE webhook + group registry

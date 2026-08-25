@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, AlertTriangle, Clock, Plus, Pencil, ArrowDownToLine, History, Search, ScanLine, Trash2, ChevronDown } from "lucide-react";
+import { Package, AlertTriangle, Calendar as CalendarIcon, Clock, Plus, Pencil, ArrowDownToLine, History, Search, ScanLine, Trash2, ChevronDown, Download } from "lucide-react";
+import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 
 import AppLayout from "@/components/lis/AppLayout";
@@ -18,17 +19,20 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { normalizeRoles, type RoleHolder } from "@/lib/roles";
 import { requisitionUser } from "@/lib/standardRequisition";
 import {
   summarizeStandard, standardLevel, solventLevel, glasswareLevel, isUsableBottle,
-  standardMatchesStatuses, type StandardStatus,
+  standardMatchesStatuses, getStandardAlertSummary, type StandardStatus,
 } from "@/lib/stockStatus";
 import {
   FREQUENCY_UNITS, FREQUENCY_PRESETS, parseFrequency, formatFrequency, isPreset,
@@ -36,9 +40,13 @@ import {
 } from "@/lib/standardFrequency";
 import StandardDetailDrawer from "@/components/lis/stock/StandardDetailDrawer";
 import StandardUnitsPanel from "@/components/lis/stock/StandardUnitsPanel";
+import SolventUnitsPanel from "@/components/lis/stock/SolventUnitsPanel";
 import ReceiveCart from "@/components/lis/stock/ReceiveCart";
 import StockQrScanner from "@/components/lis/StockQrScanner";
 import DiscardDialog from "@/components/lis/stock/DiscardDialog";
+import StockRawLabelPreviewDialog from "@/components/lis/StockRawLabelPreviewDialog";
+import { buildStockLabelHtml } from "@/lib/stockLabel";
+import { visibleBottles } from "@/lib/stockUnit";
 import type {
   StockStandardItem, StockSolventItem, StockGlasswareItem,
   StockTransactionItem, StockUnitItem,
@@ -53,11 +61,70 @@ const STANDARD_STATUS_OPTIONS: { value: StandardStatus; label: string }[] = [
   { value: "soon", label: "ใกล้หมดอายุ" },
 ];
 
+function canDeleteStockItems(user: RoleHolder | null | undefined) {
+  const roles = normalizeRoles(user);
+  return roles.includes("admin") || !roles.includes("lab-inventory");
+}
+
+type StockExportKind = "standard" | "solvent";
+type StockExportFormat = "xlsx" | "pdf";
+
+function localDateInputValue(date = new Date()) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
+function dateFromInputValue(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return undefined;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function formatExportDateRangeLabel(startDate: string, endDate: string) {
+  const start = dateFromInputValue(startDate);
+  const end = dateFromInputValue(endDate);
+  const formatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+  if (start && end) {
+    const sameYear = start.getFullYear() === end.getFullYear();
+    const sameMonth = sameYear && start.getMonth() === end.getMonth();
+    const startLabel = new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: sameYear ? undefined : "numeric",
+    }).format(start);
+    const endLabel = new Intl.DateTimeFormat("en-US", {
+      month: sameMonth ? undefined : "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(end);
+    return `${startLabel} – ${endLabel}`;
+  }
+  if (start) return `${formatter.format(start)} – เลือกวันสิ้นสุด`;
+  return "เลือกช่วงวันที่ export";
+}
+
+function safeDownloadSegment(value: string | undefined) {
+  return (value || "stock").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, "_") || "stock";
+}
+
+function downloadStockExport(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ============================================================
 // Standards Tab
 // ============================================================
 function StandardsTab() {
   const qc = useQueryClient();
+  const { user } = useAuth();
+  const canDelete = canDeleteStockItems(user);
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "standards"],
     queryFn: api.getStandards,
@@ -94,6 +161,8 @@ function StandardsTab() {
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<StockStandardItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [standardListExporting, setStandardListExporting] = useState<StockExportFormat | null>(null);
+  const [standardAlertsOpen, setStandardAlertsOpen] = useState(false);
 
   const now = Date.now();
 
@@ -118,15 +187,20 @@ function StandardsTab() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return data.filter(s => {
+      const sum = summarizeStandard(unitsByCode.get(s.code) ?? [], new Date(now));
       if (q && !s.name.toLowerCase().includes(q) && !s.code.toLowerCase().includes(q)) return false;
       if (statusFilters.size === 0) return true;
-      const sum = summarizeStandard(unitsByCode.get(s.code) ?? [], new Date(now));
       return standardMatchesStatuses(sum, statusFilters);
     }).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
   }, [data, search, statusFilters, now, unitsByCode]);
 
-  const lowList = data.filter(s => standardLevel(sumOf(s).usable) !== "ok");
-  const expiringList = data.filter(s => { const x = sumOf(s); return x.expired > 0 || x.expiringSoon > 0; });
+  const visibleStandards = data;
+  const standardAlerts = visibleStandards.flatMap(s => {
+    const units = unitsByCode.get(s.code) ?? [];
+    const summary = summarizeStandard(units, new Date(now));
+    const alert = getStandardAlertSummary(summary, { units, now: new Date(now) });
+    return alert ? [{ standard: s, alert }] : [];
+  });
 
   const statusLabel =
     statusFilters.size === 0 ? "ทุกสถานะ"
@@ -149,38 +223,79 @@ function StandardsTab() {
     }
   };
 
+  const buildStandardListExportRows = () => filtered.map((item) => {
+    const units = unitsByCode.get(item.code) ?? [];
+    const summary = summarizeStandard(units, new Date(now));
+    const counts = usableByCode.get(item.code) ?? {};
+    const statusParts = [];
+    if (summary.usable === 0) statusParts.push("หมด");
+    if (summary.expired > 0) statusParts.push(`หมดอายุ ${summary.expired}`);
+    if (summary.expiringSoon > 0) statusParts.push(`ใกล้หมดอายุ ${summary.expiringSoon}`);
+    return {
+      Code: item.code,
+      Name: item.name,
+      "คงเหลือใช้งานได้": summary.usable,
+      Primary: counts.primary ?? 0,
+      Working: counts.working ?? 0,
+      Supplier: counts.supplier ?? 0,
+      Frequency: item.frequency || "",
+      "Storage Temp": item.storageTemp || "",
+      Status: statusParts.join(" · ") || "ปกติ",
+    };
+  });
+
+  const exportStandards = async (format: StockExportFormat) => {
+    const rows = buildStandardListExportRows();
+    if (rows.length === 0) {
+      toast.error("ไม่มีข้อมูล Standard สำหรับ export");
+      return;
+    }
+
+    setStandardListExporting(format);
+    try {
+      const blob = await api.exportMasterItems(format, rows, "Standards");
+      downloadStockExport(blob, `standards-${localDateInputValue()}.${format}`);
+      toast.success("Export Standards สำเร็จ");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setStandardListExporting(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {(lowList.length > 0 || expiringList.length > 0) && (
+      {standardAlerts.length > 0 && (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
-              <span className="font-semibold text-destructive">
-                แจ้งเตือน Standard ({lowList.length + expiringList.length} รายการ)
-              </span>
+            <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+                <span className="font-semibold text-destructive">
+                  แจ้งเตือน Standard ({standardAlerts.length} รายการ)
+                </span>
+              </div>
+              {standardAlerts.length > 8 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 w-fit border-destructive/30 text-destructive hover:text-destructive"
+                  onClick={() => setStandardAlertsOpen(true)}
+                >
+                  ดูทั้งหมด
+                </Button>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-              {lowList.slice(0, 8).map(s => {
-                const usable = sumOf(s).usable;
+              {standardAlerts.slice(0, 8).map(({ standard: s, alert }) => {
+                const Icon = alert.lowStock ? Package : Clock;
                 return (
-                  <div key={`low-${s._id}`} className="flex items-center gap-2 text-destructive">
-                    <Package className="w-3.5 h-3.5" />
+                  <div key={`std-alert-${s._id}`} className={`flex items-center gap-2 ${alert.severity === "destructive" ? "text-destructive" : "text-amber-600"}`}>
+                    <Icon className="w-3.5 h-3.5" />
                     <span>
-                      {usable === 0
-                        ? <><strong>{s.name}</strong> หมดแล้ว</>
-                        : <><strong>{s.name}</strong> ใกล้หมด เหลือรวม {usable} ขวด</>}
+                      <strong>{s.name}</strong> {alert.message}
                     </span>
-                  </div>
-                );
-              })}
-              {expiringList.slice(0, 8).map(s => {
-                const x = sumOf(s);
-                const expired = x.expired > 0;
-                return (
-                  <div key={`exp-${s._id}`} className={`flex items-center gap-2 ${expired ? "text-destructive" : "text-amber-600"}`}>
-                    <Clock className="w-3.5 h-3.5" />
-                    <span><strong>{s.name}</strong> {expired ? `หมดอายุ ${x.expired} ขวด` : `ใกล้หมดอายุ ${x.expiringSoon} ขวด`}</span>
                   </div>
                 );
               })}
@@ -188,12 +303,46 @@ function StandardsTab() {
           </CardContent>
         </Card>
       )}
+      <Dialog open={standardAlertsOpen} onOpenChange={setStandardAlertsOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>แจ้งเตือน Standard ทั้งหมด</DialogTitle>
+            <DialogDescription>
+              แสดง Standard ที่ต้องติดตามทั้งหมด {standardAlerts.length} รายการ
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+              {standardAlerts.map(({ standard: s, alert }) => {
+                const Icon = alert.lowStock ? Package : Clock;
+                return (
+                  <div
+                    key={`std-alert-dialog-${s._id}`}
+                    className={`rounded-md border p-3 ${alert.severity === "destructive" ? "border-destructive/30 text-destructive" : "border-amber-300 text-amber-600"}`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong className="break-words text-foreground">{s.name}</strong>
+                          <Badge variant="outline" className="text-[10px]">{s.code}</Badge>
+                        </div>
+                        <div>{alert.message}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Package className="w-5 h-5" /> Standards (สาร Standard)
-            <Badge variant="outline">{data.length}</Badge>
+            <Badge variant="outline">{visibleStandards.length}</Badge>
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[180px]">
@@ -221,6 +370,27 @@ function StandardsTab() {
                     {o.label}
                   </DropdownMenuCheckboxItem>
                 ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 gap-1.5"
+                  disabled={standardListExporting !== null}
+                >
+                  <Download className="w-4 h-4" /> Export
+                  <ChevronDown className="w-4 h-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-32">
+                <DropdownMenuItem onClick={() => exportStandards("xlsx")}>
+                  Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportStandards("pdf")}>
+                  PDF
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button size="sm" onClick={() => setCreating(true)}>
@@ -294,13 +464,15 @@ function StandardsTab() {
                           onClick={e => e.stopPropagation()}
                           onDoubleClick={e => e.stopPropagation()}
                         >
-                          <Button
-                            size="icon" variant="ghost"
-                            title={`ลบ Standard ${item.name}`} aria-label={`ลบ Standard ${item.name}`}
-                            onClick={() => setDeleting(item)}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
+                          {canDelete && (
+                            <Button
+                              size="icon" variant="ghost"
+                              title={`ลบ Standard ${item.name}`} aria-label={`ลบ Standard ${item.name}`}
+                              onClick={() => setDeleting(item)}
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -316,7 +488,10 @@ function StandardsTab() {
         <StandardDialog
           item={editing}
           onClose={() => { setCreating(false); setEditing(null); }}
-          onSaved={() => { qc.invalidateQueries({ queryKey: ["stock", "standards"] }); }}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: ["stock", "standards"] });
+            qc.invalidateQueries({ queryKey: ["stock", "units"] });
+          }}
         />
       )}
       {drawerItem && (
@@ -340,32 +515,28 @@ function StandardsTab() {
 }
 
 function SolventDetailDrawer({
-  item, onClose, onReceive, onEdit,
+  item, onClose, onEdit,
 }: {
   item: StockSolventItem;
   onClose: () => void;
-  onReceive: () => void;
   onEdit: () => void;
 }) {
   const fields: [string, string][] = [
-    ["Size (L)", item.sizeLiter != null ? String(item.sizeLiter) : "-"],
-    ["Quantity (bottles)", String(item.qty ?? 0)],
-    ["Price (THB)", item.price != null ? item.price.toLocaleString() : "-"],
-    ["Note", item.note || "-"],
+    ["ขนาดล่าสุด/ขวด (ลิตร)", item.sizeLiter != null ? String(item.sizeLiter) : "-"],
+    ["จำนวนคงเหลือ (ขวด)", String(item.qty ?? 0)],
+    ["ราคาล่าสุด (บาท)", item.price != null ? item.price.toLocaleString() : "-"],
+    ["หมายเหตุ", item.note || "-"],
   ];
 
   return (
     <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-md">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-3xl">
         <SheetHeader className="space-y-2 border-b border-border p-5 pr-16 text-left">
           <SheetTitle className="text-xl font-bold">{item.name}</SheetTitle>
           <SheetDescription>Solvent</SheetDescription>
         </SheetHeader>
         <div className="flex flex-col gap-4 p-5">
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={onReceive}>
-              <ArrowDownToLine className="w-4 h-4 mr-1" /> Receive
-            </Button>
             <Button type="button" size="sm" variant="outline" onClick={onEdit}>
               <Pencil className="w-4 h-4 mr-1" /> Edit
             </Button>
@@ -378,6 +549,7 @@ function SolventDetailDrawer({
               </div>
             ))}
           </dl>
+          <SolventUnitsPanel solvent={item} />
         </div>
       </SheetContent>
     </Sheet>
@@ -434,6 +606,7 @@ function GlasswareDetailDrawer({
 function SolventsTab() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const canDelete = canDeleteStockItems(user);
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "solvents"],
     queryFn: api.getSolvents,
@@ -442,7 +615,6 @@ function SolventsTab() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<StockSolventItem | null>(null);
   const [creating, setCreating] = useState(false);
-  const [moving, setMoving] = useState<{ item: StockSolventItem; mode: "deduct" | "receive" } | null>(null);
   const [deleting, setDeleting] = useState<StockSolventItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -453,7 +625,8 @@ function SolventsTab() {
     return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
   }, [data, search]);
 
-  const lowList = data.filter(s => solventLevel(s.qty) !== "ok");
+  const visibleSolvents = data;
+  const lowList = visibleSolvents.filter(s => solventLevel(s.qty) !== "ok");
 
   const deleteItem = async () => {
     if (!deleting) return;
@@ -496,7 +669,7 @@ function SolventsTab() {
         <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Package className="w-5 h-5" /> สารเคมี / Solvents
-            <Badge variant="outline">{data.length}</Badge>
+            <Badge variant="outline">{visibleSolvents.length}</Badge>
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[180px]">
@@ -512,9 +685,9 @@ function SolventsTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>รายการ</TableHead>
-                <TableHead className="text-right">ขนาด (ลิตร)</TableHead>
+                <TableHead className="text-right">ขนาดล่าสุด (ลิตร)</TableHead>
                 <TableHead className="text-right">จำนวน (ขวด)</TableHead>
-                <TableHead className="text-right">ราคา (บาท)</TableHead>
+                <TableHead className="text-right">ราคาล่าสุด (บาท)</TableHead>
                 <TableHead>หมายเหตุ</TableHead>
                 <TableHead className="w-40 text-right">Actions</TableHead>
               </TableRow>
@@ -547,11 +720,12 @@ function SolventsTab() {
                       onClick={e => e.stopPropagation()}
                       onDoubleClick={e => e.stopPropagation()}
                     >
-                      <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
-                      <Button size="icon" variant="ghost" title={`ลบสารเคมี ${item.name}`} aria-label={`ลบสารเคมี ${item.name}`} onClick={() => setDeleting(item)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      {canDelete && (
+                        <Button size="icon" variant="ghost" title={`ลบสารเคมี ${item.name}`} aria-label={`ลบสารเคมี ${item.name}`} onClick={() => setDeleting(item)}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -566,7 +740,6 @@ function SolventsTab() {
         <SolventDetailDrawer
           item={detailItem}
           onClose={() => setDetailId(null)}
-          onReceive={() => setMoving({ item: detailItem, mode: "receive" })}
           onEdit={() => setEditing(detailItem)}
         />
       )}
@@ -577,31 +750,15 @@ function SolventsTab() {
           fields={[
             { key: "name", label: "ชื่อรายการ", type: "text", required: true },
             { key: "sizeLiter", label: "ขนาด (ลิตร)", type: "number" },
-            { key: "qty", label: "จำนวนคงเหลือ (ขวด)", type: "number" },
             { key: "price", label: "ราคา (บาท)", type: "number" },
             { key: "note", label: "หมายเหตุ", type: "text" },
           ]}
           onClose={() => { setCreating(false); setEditing(null); }}
           onSubmit={async (payload) => {
-            if (editing) await api.updateSolvent(editing._id, payload);
-            else await api.createSolvent(payload);
-            qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
-            qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
-          }}
-        />
-      )}
-      {moving && (
-        <SimpleMoveDialog
-          title={moving.mode === "deduct" ? "ตัด stock สารเคมี" : "รับเข้าสารเคมี"}
-          mode={moving.mode}
-          itemName={moving.item.name}
-          currentQty={moving.item.qty}
-          unit="ขวด"
-          onClose={() => setMoving(null)}
-          onSubmit={async (qty, note) => {
-            const _user = requisitionUser(user);
-            if (moving.mode === "deduct") await api.deductSolvent(moving.item._id, { qty, note, _user });
-            else await api.receiveSolvent(moving.item._id, { qty, note, _user });
+            const { qty: _ignoredQty, ...safePayload } = payload;
+            void _ignoredQty;
+            if (editing) await api.updateSolvent(editing._id, safePayload);
+            else await api.createSolvent({ ...safePayload, qty: 0 });
             qc.invalidateQueries({ queryKey: ["stock", "solvents"] });
             qc.invalidateQueries({ queryKey: ["stock", "transactions"] });
           }}
@@ -625,6 +782,7 @@ function SolventsTab() {
 function GlasswareTab() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const canDelete = canDeleteStockItems(user);
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "glassware"],
     queryFn: api.getGlassware,
@@ -641,11 +799,13 @@ function GlasswareTab() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
+    const visible = data.filter(s => Number(s.qty) > 0);
+    return q ? visible.filter(s => s.name.toLowerCase().includes(q)) : visible;
   }, [data, search]);
 
   // เครื่องแก้ว: แจ้งเฉพาะตอนหมดจริง (ไม่เตือนตอนใกล้หมด)
-  const outList = data.filter(s => glasswareLevel(s.qty) === "out");
+  const visibleGlassware = data.filter(s => Number(s.qty) > 0);
+  const outList = visibleGlassware.filter(s => glasswareLevel(s.qty) === "out");
 
   const deleteItem = async () => {
     if (!deleting) return;
@@ -682,7 +842,7 @@ function GlasswareTab() {
         <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Package className="w-5 h-5" /> เครื่องแก้ว / Glassware
-            <Badge variant="outline">{data.length}</Badge>
+            <Badge variant="outline">{visibleGlassware.length}</Badge>
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[180px]">
@@ -733,9 +893,11 @@ function GlasswareTab() {
                     >
                       <Button size="icon" variant="ghost" onClick={() => setMoving({ item, mode: "receive" })}><ArrowDownToLine className="w-4 h-4" /></Button>
                       <Button size="icon" variant="ghost" onClick={() => setEditing(item)}><Pencil className="w-4 h-4" /></Button>
-                      <Button size="icon" variant="ghost" title={`ลบเครื่องแก้ว ${item.name}`} aria-label={`ลบเครื่องแก้ว ${item.name}`} onClick={() => setDeleting(item)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      {canDelete && (
+                        <Button size="icon" variant="ghost" title={`ลบเครื่องแก้ว ${item.name}`} aria-label={`ลบเครื่องแก้ว ${item.name}`} onClick={() => setDeleting(item)}>
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -814,86 +976,312 @@ function GlasswareTab() {
 function HistoryTab() {
   const [type, setType] = useState<string>("");
   const [action, setAction] = useState<string>("");
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportKind, setExportKind] = useState<StockExportKind>("standard");
+  const [exportStandardFormat, setExportStandardFormat] = useState<StockExportFormat>("xlsx");
+  const [exportStandardId, setExportStandardId] = useState("");
+  const [exportStandardStartDate, setExportStandardStartDate] = useState("");
+  const [exportStandardEndDate, setExportStandardEndDate] = useState("");
+  const [exportSolventId, setExportSolventId] = useState("");
+  const [exportDate, setExportDate] = useState(() => localDateInputValue());
+  const [exporting, setExporting] = useState(false);
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock", "transactions", type, action],
     queryFn: () => api.getStockTransactions({ itemType: type || undefined, action: action || undefined, limit: 300 }),
   });
+  const { data: standards = [] } = useQuery({
+    queryKey: ["stock", "standards"],
+    queryFn: api.getStandards,
+  });
+  const { data: solvents = [] } = useQuery({
+    queryKey: ["stock", "solvents"],
+    queryFn: api.getSolvents,
+  });
+
+  const selectedStandard = standards.find((item) => item._id === exportStandardId);
+  const selectedSolvent = solvents.find((item) => item._id === exportSolventId);
+  const selectedStandardDateRange: DateRange | undefined = exportStandardStartDate || exportStandardEndDate
+    ? {
+      from: dateFromInputValue(exportStandardStartDate),
+      to: dateFromInputValue(exportStandardEndDate),
+    }
+    : undefined;
+
+  const handleStandardDateRangeSelect = (range: DateRange | undefined) => {
+    setExportStandardStartDate(range?.from ? localDateInputValue(range.from) : "");
+    setExportStandardEndDate(range?.to ? localDateInputValue(range.to) : "");
+  };
+
+  const handleOpenExport = () => {
+    setExportOpen(true);
+  };
+
+  const handleExport = async () => {
+    if (exportKind === "standard" && !exportStandardId) {
+      toast.error("กรุณาเลือก standard");
+      return;
+    }
+    if (exportKind === "standard" && !exportStandardStartDate) {
+      toast.error("กรุณาเลือกวันที่เริ่มต้น");
+      return;
+    }
+    if (exportKind === "standard" && !exportStandardEndDate) {
+      toast.error("กรุณาเลือกวันที่สิ้นสุด");
+      return;
+    }
+    if (exportKind === "standard" && exportStandardStartDate > exportStandardEndDate) {
+      toast.error("วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด");
+      return;
+    }
+    if (exportKind === "solvent" && !exportSolventId) {
+      toast.error("กรุณาเลือกสารเคมี");
+      return;
+    }
+    if (exportKind === "solvent" && !exportDate) {
+      toast.error("กรุณาเลือกวันที่");
+      return;
+    }
+
+    setExporting(true);
+    try {
+      if (exportKind === "standard") {
+        const blob = await api.exportStockStandardHistory({
+          itemId: exportStandardId,
+          startDate: exportStandardStartDate,
+          endDate: exportStandardEndDate,
+          format: exportStandardFormat,
+        });
+        const baseName = safeDownloadSegment(selectedStandard?.code || selectedStandard?.name || "standard");
+        const extension = exportStandardFormat === "pdf" ? "pdf" : "xlsx";
+        downloadStockExport(blob, `${baseName}-standard-history-${exportStandardStartDate}_to_${exportStandardEndDate}.${extension}`);
+      } else {
+        const blob = await api.exportStockSolventHistory({ solventId: exportSolventId, date: exportDate });
+        const baseName = safeDownloadSegment(selectedSolvent?.name || "solvent");
+        downloadStockExport(blob, `${baseName}-requisition-${exportDate}.doc`);
+      }
+      toast.success("Export stock สำเร็จ");
+      setExportOpen(false);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
-    <Card>
-      <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <History className="w-5 h-5" /> ประวัติการใช้ / รับเข้า
-          <Badge variant="outline">{data.length}</Badge>
-        </CardTitle>
-        <div className="flex flex-wrap gap-2">
-          <Select value={type || "all"} onValueChange={v => setType(v === "all" ? "" : v)}>
-            <SelectTrigger className="h-9 w-full sm:w-40"><SelectValue placeholder="ทุกหมวด" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">ทุกหมวด</SelectItem>
-              <SelectItem value="standard">Standards</SelectItem>
-              <SelectItem value="solvent">สารเคมี</SelectItem>
-              <SelectItem value="glassware">เครื่องแก้ว</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={action || "all"} onValueChange={v => setAction(v === "all" ? "" : v)}>
-            <SelectTrigger className="h-9 w-full sm:w-40"><SelectValue placeholder="ทุก action" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">ทุก action</SelectItem>
-              <SelectItem value="deduct">ตัด stock</SelectItem>
-              <SelectItem value="receive">รับเข้า</SelectItem>
-              <SelectItem value="create">สร้างใหม่</SelectItem>
-              <SelectItem value="update">แก้ไข</SelectItem>
-              <SelectItem value="delete">ลบ</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-        <Table className="min-w-[900px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead>เวลา</TableHead>
-              <TableHead>หมวด</TableHead>
-              <TableHead>รายการ</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead className="text-right">Δ qty</TableHead>
-              <TableHead>คงเหลือ</TableHead>
-              <TableHead>โดย</TableHead>
-              <TableHead>หมายเหตุ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
-            ) : data.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">ไม่มีประวัติ</TableCell></TableRow>
-            ) : data.map(t => (
-              <TableRow key={t._id}>
-                <TableCell className="text-xs whitespace-nowrap">{new Date(t.createdAt).toLocaleString("th-TH")}</TableCell>
-                <TableCell><Badge variant="outline">{t.itemType}</Badge></TableCell>
-                <TableCell>
-                  <div className="font-medium">{t.itemName || t.itemId}</div>
-                  {t.itemCode && <div className="text-xs text-muted-foreground">{t.itemCode}</div>}
-                  {t.tier && <Badge className="text-xs mt-1" variant="outline">{t.tier}</Badge>}
-                </TableCell>
-                <TableCell><ActionBadge action={t.action} /></TableCell>
-                <TableCell className={`text-right font-mono ${t.delta != null && t.delta < 0 ? "text-destructive" : t.delta != null && t.delta > 0 ? "text-emerald-600" : ""}`}>
-                  {t.delta != null ? (t.delta > 0 ? `+${t.delta}` : t.delta) : "-"}
-                </TableCell>
-                <TableCell className="text-sm">
-                  {t.beforeQty ?? "-"} → <strong>{t.afterQty ?? "-"}</strong> {t.unit || ""}
-                </TableCell>
-                <TableCell className="text-xs">{t.userName || t.userEmail || "-"}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{t.note || ""}</TableCell>
+    <>
+      <Card>
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <History className="w-5 h-5" /> ประวัติการใช้ / รับเข้า
+            <Badge variant="outline">{data.length}</Badge>
+          </CardTitle>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" className="h-9 gap-1.5" onClick={handleOpenExport}>
+              <Download className="h-4 w-4" /> Export stock
+            </Button>
+            <Select value={type || "all"} onValueChange={v => setType(v === "all" ? "" : v)}>
+              <SelectTrigger className="h-9 w-full sm:w-40"><SelectValue placeholder="ทุกหมวด" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทุกหมวด</SelectItem>
+                <SelectItem value="standard">Standards</SelectItem>
+                <SelectItem value="solvent">สารเคมี</SelectItem>
+                <SelectItem value="glassware">เครื่องแก้ว</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={action || "all"} onValueChange={v => setAction(v === "all" ? "" : v)}>
+              <SelectTrigger className="h-9 w-full sm:w-40"><SelectValue placeholder="ทุก action" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทุก action</SelectItem>
+                <SelectItem value="deduct">ตัด stock</SelectItem>
+                <SelectItem value="receive">รับเข้า</SelectItem>
+                <SelectItem value="create">สร้างใหม่</SelectItem>
+                <SelectItem value="update">แก้ไข</SelectItem>
+                <SelectItem value="delete">ลบ</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>เวลา</TableHead>
+                <TableHead>หมวด</TableHead>
+                <TableHead>รายการ</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead className="text-right">Δ qty</TableHead>
+                <TableHead>คงเหลือ</TableHead>
+                <TableHead>โดย</TableHead>
+                <TableHead>หมายเหตุ</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        </div>
-      </CardContent>
-    </Card>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow><TableCell colSpan={8} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
+              ) : data.length === 0 ? (
+                <TableRow><TableCell colSpan={8} className="text-center py-6 text-muted-foreground">ไม่มีประวัติ</TableCell></TableRow>
+              ) : data.map(t => (
+                <TableRow key={t._id}>
+                  <TableCell className="text-xs whitespace-nowrap">{new Date(t.createdAt).toLocaleString("th-TH")}</TableCell>
+                  <TableCell><Badge variant="outline">{t.itemType}</Badge></TableCell>
+                  <TableCell>
+                    <div className="font-medium">{t.itemName || t.itemId}</div>
+                    {t.itemCode && <div className="text-xs text-muted-foreground">{t.itemCode}</div>}
+                    {t.tier && <Badge className="text-xs mt-1" variant="outline">{t.tier}</Badge>}
+                  </TableCell>
+                  <TableCell><ActionBadge action={t.action} /></TableCell>
+                  <TableCell className={`text-right font-mono ${t.delta != null && t.delta < 0 ? "text-destructive" : t.delta != null && t.delta > 0 ? "text-emerald-600" : ""}`}>
+                    {t.delta != null ? (t.delta > 0 ? `+${t.delta}` : t.delta) : "-"}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {t.beforeQty ?? "-"} → <strong>{t.afterQty ?? "-"}</strong> {t.unit || ""}
+                  </TableCell>
+                  <TableCell className="text-xs">{t.userName || t.userEmail || "-"}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{t.note || ""}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Export stock</DialogTitle>
+            <DialogDescription>
+              เลือกชนิดเอกสารและรายการที่ต้องการ export จากประวัติ stock
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>ประเภท export</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={exportKind === "standard" ? "default" : "outline"}
+                  onClick={() => setExportKind("standard")}
+                >
+                  Standard
+                </Button>
+                <Button
+                  type="button"
+                  variant={exportKind === "solvent" ? "default" : "outline"}
+                  onClick={() => setExportKind("solvent")}
+                >
+                  สารเคมี
+                </Button>
+              </div>
+            </div>
+
+            {exportKind === "standard" ? (
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="stock-export-standard">เลือก standard</Label>
+                  <select
+                    id="stock-export-standard"
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={exportStandardId}
+                    onChange={(event) => setExportStandardId(event.target.value)}
+                  >
+                    <option value="">เลือก standard</option>
+                    {standards.map((item) => (
+                      <option key={item._id} value={item._id}>{item.code ? `${item.code} ${item.name}` : item.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>รูปแบบไฟล์</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={exportStandardFormat === "xlsx" ? "default" : "outline"}
+                      onClick={() => setExportStandardFormat("xlsx")}
+                    >
+                      Excel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={exportStandardFormat === "pdf" ? "default" : "outline"}
+                      onClick={() => setExportStandardFormat("pdf")}
+                    >
+                      PDF
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>ช่วงวันที่</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        aria-label="เลือกช่วงวันที่ export"
+                        className="h-11 w-full justify-start gap-2 rounded-xl border-primary/40 bg-background text-left font-semibold shadow-sm hover:bg-accent"
+                      >
+                        <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                        <span>{formatExportDateRangeLabel(exportStandardStartDate, exportStandardEndDate)}</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto rounded-2xl p-0" align="start">
+                      <Calendar
+                        mode="range"
+                        selected={selectedStandardDateRange}
+                        onSelect={handleStandardDateRangeSelect}
+                        defaultMonth={selectedStandardDateRange?.from ?? new Date()}
+                        numberOfMonths={1}
+                        initialFocus
+                        className="rounded-2xl border bg-background p-3 shadow-lg"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  ระบบจะ export เฉพาะประวัติในช่วงวันที่ที่เลือก โดย Excel จะแยก Lot No. เป็นคนละ sheet และ PDF จะแยกเป็นคนละหน้า
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="stock-export-solvent">เลือกสารเคมี</Label>
+                  <select
+                    id="stock-export-solvent"
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={exportSolventId}
+                    onChange={(event) => setExportSolventId(event.target.value)}
+                  >
+                    <option value="">เลือกสารเคมี</option>
+                    {solvents.map((item) => (
+                      <option key={item._id} value={item._id}>{item.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="stock-export-date">วันที่</Label>
+                  <Input
+                    id="stock-export-date"
+                    type="date"
+                    value={exportDate}
+                    onChange={(event) => setExportDate(event.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setExportOpen(false)} disabled={exporting}>
+              ยกเลิก
+            </Button>
+            <Button type="button" onClick={handleExport} disabled={exporting}>
+              {exporting ? "กำลัง Export..." : "Export"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -1008,18 +1396,29 @@ function SimpleItemDialog<T extends { _id?: string }>({
   );
 }
 
+type SimpleMoveReceiveMeta = { lotNo: string; exp: string; sizeLiter?: number; price?: number };
+
 function SimpleMoveDialog({
-  title, mode, itemName, currentQty, unit, onClose, onSubmit,
+  title, mode, itemName, currentQty, unit, requireLotExp = false, requireSolventReceiveDetails = false,
+  initialSizeLiter = 0, initialPrice = 0, onClose, onSubmit,
 }: {
   title: string;
   mode: "deduct" | "receive";
   itemName: string;
   currentQty: number;
   unit: string;
+  requireLotExp?: boolean;
+  requireSolventReceiveDetails?: boolean;
+  initialSizeLiter?: number;
+  initialPrice?: number;
   onClose: () => void;
-  onSubmit: (qty: number, note?: string) => Promise<void>;
+  onSubmit: (qty: number, note?: string, receiveMeta?: SimpleMoveReceiveMeta) => Promise<void>;
 }) {
   const [qty, setQty] = useState<string>("1");
+  const [lotNo, setLotNo] = useState("");
+  const [exp, setExp] = useState("");
+  const [sizeLiter, setSizeLiter] = useState(initialSizeLiter > 0 ? String(initialSizeLiter) : "");
+  const [price, setPrice] = useState(initialPrice > 0 ? String(initialPrice) : "");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -1028,9 +1427,27 @@ function SimpleMoveDialog({
     const n = Number(qty);
     if (!n || n <= 0) { toast.error("กรุณาระบุจำนวน"); return; }
     if (mode === "deduct" && n > currentQty) { toast.error("จำนวนไม่พอ"); return; }
+    if (mode === "receive" && requireLotExp) {
+      if (!lotNo.trim()) { toast.error("กรุณาระบุ Lot No"); return; }
+      if (!exp) { toast.error("กรุณาระบุ EXP"); return; }
+    }
+    if (mode === "receive" && requireSolventReceiveDetails) {
+      if (!sizeLiter.trim()) { toast.error("กรุณาระบุขนาด/ขวด"); return; }
+      if (!(Number(sizeLiter) > 0)) { toast.error("ขนาด/ขวดไม่ถูกต้อง"); return; }
+      if (!price.trim()) { toast.error("กรุณาระบุราคา"); return; }
+      const priceValue = Number(price);
+      if (!Number.isFinite(priceValue) || priceValue < 0) { toast.error("ราคาไม่ถูกต้อง"); return; }
+    }
+    const receiveMeta: SimpleMoveReceiveMeta | undefined = requireLotExp
+      ? {
+        lotNo: lotNo.trim(),
+        exp,
+        ...(requireSolventReceiveDetails ? { sizeLiter: Number(sizeLiter), price: Number(price) } : {}),
+      }
+      : undefined;
     setBusy(true);
     try {
-      await onSubmit(n, note || undefined);
+      await onSubmit(n, note || undefined, receiveMeta);
       toast.success(mode === "deduct" ? "ตัด stock สำเร็จ" : "รับเข้าสำเร็จ");
       onClose();
     } catch (err) {
@@ -1053,6 +1470,30 @@ function SimpleMoveDialog({
               <Label>จำนวน ({unit})</Label>
               <Input type="number" min="1" value={qty} onChange={e => setQty(e.target.value)} required />
             </div>
+            {mode === "receive" && requireLotExp && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Lot No</Label>
+                  <Input value={lotNo} onChange={e => setLotNo(e.target.value)} placeholder="required" required />
+                </div>
+                <div>
+                  <Label>EXP</Label>
+                  <Input type="date" value={exp} onChange={e => setExp(e.target.value)} required />
+                </div>
+              </div>
+            )}
+            {mode === "receive" && requireSolventReceiveDetails && (
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label htmlFor="move-solvent-size">ขนาด/ขวด (ลิตร)</Label>
+                  <Input id="move-solvent-size" type="number" min="0.001" step="any" value={sizeLiter} onChange={e => setSizeLiter(e.target.value)} required />
+                </div>
+                <div>
+                  <Label htmlFor="move-solvent-price">ราคา (บาท)</Label>
+                  <Input id="move-solvent-price" type="number" min="0" step="any" value={price} onChange={e => setPrice(e.target.value)} required />
+                </div>
+              </div>
+            )}
             <div>
               <Label>หมายเหตุ</Label>
               <Input value={note} onChange={e => setNote(e.target.value)} placeholder="optional" />
@@ -1136,6 +1577,11 @@ function StandardDialog({
     expiryStatus: "",
   });
   const [busy, setBusy] = useState(false);
+  const [pendingLabels, setPendingLabels] = useState<string[]>([]);
+  const [labelPreviewOpen, setLabelPreviewOpen] = useState(false);
+  const [autoPrintLabels, setAutoPrintLabels] = useState(false);
+  const [labelPrintJobId, setLabelPrintJobId] = useState(0);
+  const [closeAfterLabels, setCloseAfterLabels] = useState(false);
 
   const setField = (path: string, value: unknown) => {
     setForm(prev => {
@@ -1153,6 +1599,12 @@ function StandardDialog({
     setBusy(true);
     try {
       const payload = { ...form };
+      const shouldReprintStockLabels = Boolean(
+        isEdit && item && (
+          String(payload.code || "").trim() !== String(item.code || "").trim()
+          || String(payload.name || "").trim() !== String(item.name || "").trim()
+        ),
+      );
       // strip _id from payload (it's url param for updates)
       const { _id: _stripId, createdAt: _stripCa, updatedAt: _stripUa, ...body } = payload;
       void _stripId; void _stripCa; void _stripUa;
@@ -1162,10 +1614,22 @@ function StandardDialog({
       body.primary.pricePerUnit = Number(body.primary.pricePerUnit) || 0;
       body.supplier.qty = Number(body.supplier.qty) || 0;
       body.working.qty = Number(body.working.qty) || 0;
-      if (isEdit) await api.updateStandard(item!._id, body);
-      else await api.createStandard(body);
+      const saved = isEdit ? await api.updateStandard(item!._id, body) : await api.createStandard(body);
       toast.success(isEdit ? "แก้ไขสำเร็จ" : "เพิ่มรายการสำเร็จ");
       onSaved();
+      if (shouldReprintStockLabels) {
+        const units = visibleBottles(await api.getStockUnits({ itemCode: saved.code }));
+        const labels = await Promise.all(units.map((unit) => buildStockLabelHtml(unit)));
+        if (labels.length > 0) {
+          setPendingLabels(labels);
+          setAutoPrintLabels(true);
+          setLabelPrintJobId((id) => id + 1);
+          setCloseAfterLabels(true);
+          setLabelPreviewOpen(true);
+          toast.success(`กำลังปริ้นฉลาก stock ${labels.length} ใบ`);
+          return;
+        }
+      }
       onClose();
     } catch (err) {
       toast.error((err as Error).message);
@@ -1266,6 +1730,25 @@ function StandardDialog({
           </DialogFooter>
         </form>
       </DialogContent>
+      <StockRawLabelPreviewDialog
+        open={labelPreviewOpen}
+        labels={pendingLabels}
+        autoPrint={autoPrintLabels}
+        autoPrintKey={labelPrintJobId}
+        onOpenChange={(open) => {
+          setLabelPreviewOpen(open);
+          if (!open) {
+            setPendingLabels([]);
+            setAutoPrintLabels(false);
+            if (closeAfterLabels) onClose();
+          }
+        }}
+        onPrinted={() => {
+          setPendingLabels([]);
+          setAutoPrintLabels(false);
+          if (closeAfterLabels) onClose();
+        }}
+      />
     </Dialog>
   );
 }

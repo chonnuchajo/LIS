@@ -1,6 +1,6 @@
 import type { ParameterItem } from "@/lib/api";
-import type { Petition, QCTestResult } from "@/types/petition.types";
-import { getPetitionCategory, matchParametersForItem } from "@/lib/petitionTestItems";
+import type { Petition, PetitionItem, QCTestResult } from "@/types/petition.types";
+import { getPetitionCategory, itemGroupKey, matchParametersForItem } from "@/lib/petitionTestItems";
 import {
   expandFieldForItem,
   fieldValueList,
@@ -74,11 +74,10 @@ export function buildApprovalGroups(
     v2[k] = { ...((r.valuesPhase2 ?? {}) as Record<string, unknown>) };
   });
 
-  const idsFor = (sampleId?: string) =>
-    groupMembership.get(String(sampleId ?? "").trim()) ?? [];
+  const idsFor = (item: PetitionItem) => groupMembership.get(itemGroupKey(item)) ?? [];
 
   return (petition.items ?? []).map((item) => {
-    const matched = matchParametersForItem(item, parameters, idsFor(item.sampleId));
+    const matched = matchParametersForItem(item, parameters, idsFor(item), { petitionCategory });
 
     const params: ApprovalParamGroup[] = matched.map((param) => {
       const k = resultKey(item.seq, param._id!);

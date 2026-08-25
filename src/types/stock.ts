@@ -17,6 +17,7 @@ export interface StockStandardItem {
   _id: string;
   code: string;
   name: string;
+  barcodes?: string[];
   primary: StandardPrimary;
   supplier: StandardTier;
   working: StandardTier;
@@ -33,6 +34,7 @@ export interface StockStandardItem {
 export interface StockSolventItem {
   _id: string;
   name: string;
+  barcodes?: string[];
   sizeLiter: number;
   qty: number;
   price: number;
@@ -44,6 +46,7 @@ export interface StockSolventItem {
 export interface StockGlasswareItem {
   _id: string;
   name: string;
+  barcodes?: string[];
   qty: number;
   pricePerPiece: number;
   note: string;
@@ -83,6 +86,7 @@ export interface StockTransactionItem {
   sampleId?: string;
   note?: string;
   deductionResolution?: DeductionResolution;
+  photoUrls?: string[];
   userEmail?: string;
   userName?: string;
   createdAt: string;
@@ -109,11 +113,18 @@ export interface StockUnitItem {
   qrId: string;
   itemCode: string;
   itemName: string;
+  itemType?: StockItemType;
+  itemId?: string;
   kind: StockUnitKind;
   source?: StockUnitSource;
   type?: "primary" | "supplier" | "working" | "";
   parentId?: string | null;
   lotNo?: string;
+  purity?: string | number | null;
+  lotBottleNo?: number | null;
+  labelCode?: string;
+  labelRunNo?: number | null;
+  labelRunYear?: number | null;
   exp?: string | null;
   frequencyDue?: string | null;
   volume: StockUnitVolume;
@@ -124,6 +135,7 @@ export interface StockUnitItem {
   discardedBy?: { email?: string; name?: string };
   discardReason?: string;
   createdBy?: { email?: string; name?: string };
+  photoUrls?: string[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -150,3 +162,32 @@ export interface StandardsInUseResponse {
   serverTime: string;
   items: StandardInUseItem[];
 }
+
+export type StockPublicScanItem =
+  | {
+      kind: "standard";
+      qrId: string;
+      itemCode: string;
+      itemName: string;
+      type?: "primary" | "supplier" | "working" | "";
+      lotNo?: string;
+      lotBottleNo?: number | null;
+      labelCode?: string;
+      exp?: string | null;
+      volume: StockUnitVolume;
+      status: StockUnitStatus;
+      photoUrls?: string[];
+      updatedAt?: string;
+    }
+  | {
+      kind: "solvent";
+      id: string;
+      qrId: string;
+      name: string;
+      sizeLiter: number;
+      qty: number;
+      note?: string;
+      latestReceiveNote?: string;
+      photoUrls?: string[];
+      updatedAt?: string;
+    };

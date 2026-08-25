@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { History, Filter } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { History, Filter, ScanLine } from "lucide-react";
 import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { api } from "@/lib/api";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import StockRequisitionButton from "@/components/lis/stock/StockRequisitionButton";
+import StockQrScanner, { type DecodedScanResult } from "@/components/lis/StockQrScanner";
 import StandardsInUseTable from "@/components/lis/stock/StandardsInUseTable";
 import DeductionResolutionDialog from "@/components/lis/stock/DeductionResolutionDialog";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
@@ -25,10 +27,36 @@ const analysisInstruments =
 
 const StockDeduction = () => {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { tabs, defaultKey } = useAccessibleTabs("/stock-deduction");
   const [type, setType] = useState<string>("");
   const [selected, setSelected] = useState<StockTransactionItem | null>(null);
   const [resolving, setResolving] = useState<StockTransactionItem | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannedQrId, setScannedQrId] = useState<string | null>(null);
+  const [lastScanResult, setLastScanResult] = useState<DecodedScanResult | null>(null);
+  const queryQrId = searchParams.get("qrId")?.trim() || null;
+  const initialQrId = scannedQrId ?? queryQrId;
+  const clearInitialQrId = useCallback(() => {
+    if (scannedQrId) {
+      setScannedQrId(null);
+      return;
+    }
+    if (!queryQrId) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("qrId");
+    setSearchParams(next, { replace: true });
+  }, [queryQrId, scannedQrId, searchParams, setSearchParams]);
+
+  const applyScannedQrId = useCallback((qrId: string) => {
+    setScannedQrId(qrId);
+    setScannerOpen(false);
+    if (queryQrId) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("qrId");
+      setSearchParams(next, { replace: true });
+    }
+  }, [queryQrId, searchParams, setSearchParams]);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock-deductions", type],
@@ -115,8 +143,28 @@ const StockDeduction = () => {
           </span>
         }
         description="เบิกสารเคมีให้เครื่อง และดูประวัติการตัด stock"
-        actions={<StockRequisitionButton roomSlug={ANALYSIS_ROOM_SLUG} instruments={analysisInstruments} />}
+        actions={
+          <>
+            <Button type="button" variant="outline" onClick={() => setScannerOpen(true)}>
+              <ScanLine className="mr-1 h-4 w-4" /> สแกน QR ข้างขวด
+            </Button>
+            <StockRequisitionButton
+              roomSlug={ANALYSIS_ROOM_SLUG}
+              instruments={analysisInstruments}
+              initialQrId={initialQrId}
+              onInitialQrConsumed={clearInitialQrId}
+            />
+          </>
+        }
       />
+
+      {lastScanResult && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="font-medium">ค่าที่ scanner อ่านได้ล่าสุด</div>
+          <div className="mt-1 break-all text-xs">raw: {lastScanResult.raw}</div>
+          <div className="mt-1 break-all text-xs">qrId: {lastScanResult.value}</div>
+        </div>
+      )}
 
       <Tabs key={defaultKey} defaultValue={defaultKey}>
         <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
@@ -157,6 +205,14 @@ const StockDeduction = () => {
           />
         </TabsContent>
       </Tabs>
+      <StockQrScanner
+        open={scannerOpen}
+        title="สแกน QR ข้างขวดเพื่อเบิก"
+        showManualEntry={false}
+        onClose={() => setScannerOpen(false)}
+        onDecoded={setLastScanResult}
+        onScanned={applyScannedQrId}
+      />
 
       <DeductionDetailSheet
         transaction={selected}

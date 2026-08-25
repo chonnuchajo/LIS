@@ -1,0 +1,1 @@
+{"collection":"apipolicymodes","indexes":[{"v":{"$numberInt":"2"},"key":{"policyId":{"$numberInt":"1"}},"name":"policyId_1","background":true,"unique":true}],"count":{"$numberInt":"0"},"documents":[]}

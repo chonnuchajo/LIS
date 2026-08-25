@@ -4,6 +4,7 @@ import {
   hasRequiredLabRequestStep,
   isResearchAndDevelopmentDepartment,
   makeInitialItemsFromQuery,
+  objectToSearchParams,
   requiresMasterItemSelection,
   requiresDeliveryAndBatch,
 } from './ProductionPetitionNewPage';
@@ -15,6 +16,27 @@ describe('buildProductionReturnUrl', () => {
     expect(buildProductionReturnUrl(params, { petitionNo: 'P26070001' })).toBe(
       'https://app-plant.icpladda.com/production-react/?tab=list&requestNo=SA260715023429&request_no=SA260715023429&lisPetitionNo=P26070001&petitionNo=P26070001&lisStatus=sent&lisSent=1',
     );
+  });
+});
+
+describe('makeInitialItemsFromQuery — itemNo', () => {
+  // ระบบผลิตส่ง itemNo มาอยู่แล้ว (เดิมเอาไปต่อท้าย note เฉยๆ) — ต้องลงฟิลด์ itemNo ด้วย
+  // ไม่งั้นเงื่อนไข "หมวดหมู่ย่อย (prefix code)" ของ parameter ใช้ไม่ได้กับคำขอเส้นนี้
+  it('carries a single itemNo from the query onto the item', () => {
+    const [item] = makeInitialItemsFromQuery(new URLSearchParams('sampleName=Foo&itemNo=RO-0123'));
+    expect(item.itemNo).toBe('RO-0123');
+  });
+
+  it('carries one itemNo per item when several are passed', () => {
+    const items = makeInitialItemsFromQuery(
+      new URLSearchParams('sampleName=Foo,Bar&batchNo=B1,B2&itemNo=RO-0123,RI-0044'),
+    );
+    expect(items.map((i) => i.itemNo)).toEqual(['RO-0123', 'RI-0044']);
+  });
+
+  it('leaves itemNo empty when the query has none', () => {
+    const [item] = makeInitialItemsFromQuery(new URLSearchParams('sampleName=Foo'));
+    expect(item.itemNo).toBe('');
   });
 });
 
@@ -52,6 +74,27 @@ describe('R&D integration request rules', () => {
       sampleName: 'R&D Sample',
       batchNo: '',
       testItems: 'Assay',
+    });
+  });
+
+  it('maps posted integration payloads into the existing query parser', () => {
+    const params = objectToSearchParams({
+      requestNo: 'SA260805025408',
+      requestDate: '2026-08-05',
+      samples: [
+        { sampleName: 'OMETHOATE', commonName: 'OMETHOATE', batchNo: '26S-OMT50', lotNo: '26S-OMT50', qty: 9478.67, unit: 'Kg/L' },
+        { sampleName: 'OMETHOATE', commonName: 'OMETHOATE', batchNo: '26S-OMT51', lotNo: '26S-OMT51', qty: 9478.67, unit: 'Kg/L' },
+      ],
+    });
+
+    const items = makeInitialItemsFromQuery(params);
+
+    expect(items).toHaveLength(2);
+    expect(items[1]).toMatchObject({
+      batchNo: '26S-OMT51',
+      labelQuantity: '9478.67 Kg/L',
+      submittedQuantity: '9478.67',
+      submittedUnit: 'Kg/L',
     });
   });
 });

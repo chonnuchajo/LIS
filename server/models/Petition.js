@@ -21,6 +21,10 @@ const PetitionItemSchema = new mongoose.Schema(
     labelSampledDate: String,
     labelRemark: String,
     sampleId: String,
+    // รหัส Master Item (item_no) ของแถวที่เลือก — คนละเรื่องกับ sampleId ซึ่งเป็น key
+    // ของ Approval/PhysicalResult. ใช้ขับ "หมวดหมู่ย่อย (prefix code)" + "กลุ่ม Item"
+    // ตอนจับคู่ parameter (ดู src/lib/petitionTestItems.ts)
+    itemNo: String,
     condition: { type: String, enum: ['normal', 'defective'] },
   },
   { _id: false },

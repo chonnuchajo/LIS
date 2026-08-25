@@ -19,6 +19,7 @@ test('normalizeReqInput rejects bad input', () => {
   assert.ok(normalizeReqInput({ solventId: 's', instrumentId: 'x', qty: 0 }).error);
   assert.ok(normalizeReqInput({ solventId: 's', instrumentId: 'x', qty: -2 }).error);
   assert.ok(normalizeReqInput({ solventId: 's', instrumentId: 'x', qty: 'abc' }).error);
+  assert.ok(normalizeReqInput({ solventId: 's', instrumentId: 'x', qty: 1.5 }).error);
 });
 
 test('normalizeReqInput normalizes good input (coerces qty, trims requestedBy)', () => {

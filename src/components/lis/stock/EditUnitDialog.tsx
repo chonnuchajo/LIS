@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
+import {
+  parseStandardLabelCode,
+  standardLabelCodeFromStockUnit,
+  standardLabelCodeFromSuffix,
+  standardLabelCodePrefix,
+  standardLabelCodeSuffix,
+} from "@/lib/standardLabelCode";
 import type { StockUnitItem } from "@/types/stock";
 
 interface Props {
@@ -23,12 +30,26 @@ function toDateInput(v?: string | null): string {
   return d.toISOString().slice(0, 10);
 }
 
+function toTwoDecimalInput(value?: number | null): string {
+  if (value == null) return "";
+  return Number(value).toFixed(2);
+}
+
+function normalizeTwoDecimalInput(value: string): string {
+  if (value.trim() === "") return value;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return value;
+  return parsed.toFixed(2);
+}
+
 export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
+  const labelPrefix = standardLabelCodePrefix(unit.itemCode);
   const [lotNo, setLotNo] = useState(unit.lotNo ?? "");
   const [type, setType] = useState<"primary" | "supplier" | "working" | "">(unit.type ?? "");
+  const [labelCode, setLabelCode] = useState(standardLabelCodeFromStockUnit(unit));
   const [exp, setExp] = useState(toDateInput(unit.exp));
-  const [initial, setInitial] = useState(String(unit.volume?.initial ?? ""));
-  const [remaining, setRemaining] = useState(String(unit.volume?.remaining ?? ""));
+  const [initial, setInitial] = useState(toTwoDecimalInput(unit.volume?.initial));
+  const [remaining, setRemaining] = useState(toTwoDecimalInput(unit.volume?.remaining));
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
@@ -38,12 +59,18 @@ export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
     if (!Number.isFinite(init) || init < 0) { toast.error("ปริมาณตั้งต้นไม่ถูกต้อง"); return; }
     if (!Number.isFinite(rem) || rem < 0) { toast.error("ปริมาณคงเหลือไม่ถูกต้อง"); return; }
     if (rem > init) { toast.error("คงเหลือมากกว่าปริมาณตั้งต้นไม่ได้"); return; }
+    const trimmedLabelCode = labelCode.trim();
+    if (trimmedLabelCode && !parseStandardLabelCode(trimmedLabelCode, unit.itemCode)) {
+      toast.error(`Code ต้องขึ้นต้นด้วย ${labelPrefix} และตามด้วยปี/เลขขวด เช่น ${labelPrefix}6901`);
+      return;
+    }
     setBusy(true);
     try {
       await api.updateStockUnit(unit.qrId, {
         lotNo,
         exp: exp || null,
         type,
+        labelCode: trimmedLabelCode,
         volume: { initial: init, remaining: rem },
       });
       toast.success("บันทึกข้อมูลขวดแล้ว");
@@ -83,17 +110,47 @@ export default function EditUnitDialog({ unit, onClose, onSaved }: Props) {
               </div>
             </div>
             <div>
+              <Label htmlFor={`edit-unit-code-${unit.qrId}`}>Code</Label>
+              <div className="mt-1 flex gap-2">
+                <Input value={labelPrefix} readOnly aria-label="Code prefix" className="w-16 bg-muted text-center font-medium" />
+                <Input
+                  id={`edit-unit-code-${unit.qrId}`}
+                  value={standardLabelCodeSuffix(labelCode, labelPrefix)}
+                  onChange={(e) => setLabelCode(standardLabelCodeFromSuffix(labelPrefix, e.target.value))}
+                  inputMode="numeric"
+                  placeholder="6901"
+                />
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">2 ตัวแรกล็อกตาม Code ของ Std แก้ได้เฉพาะปี/เลขขวด</p>
+            </div>
+            <div>
               <Label>EXP (รายขวด)</Label>
               <Input type="date" value={exp} onChange={(e) => setExp(e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>ปริมาณตั้งต้น ({unit.volume?.unit})</Label>
-                <Input type="number" min="0" value={initial} onChange={(e) => setInitial(e.target.value)} />
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={initial}
+                  onChange={(e) => setInitial(e.target.value)}
+                  onBlur={() => setInitial(normalizeTwoDecimalInput(initial))}
+                />
               </div>
               <div>
                 <Label>คงเหลือ ({unit.volume?.unit})</Label>
-                <Input type="number" min="0" value={remaining} onChange={(e) => setRemaining(e.target.value)} />
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={remaining}
+                  onChange={(e) => setRemaining(e.target.value)}
+                  onBlur={() => setRemaining(normalizeTwoDecimalInput(remaining))}
+                />
               </div>
             </div>
           </div>

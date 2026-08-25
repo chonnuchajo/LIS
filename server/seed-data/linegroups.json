@@ -1,0 +1,1 @@
+{"collection":"linegroups","indexes":[{"v":{"$numberInt":"2"},"key":{"groupId":{"$numberInt":"1"}},"name":"groupId_1","background":true,"unique":true},{"v":{"$numberInt":"2"},"key":{"audience":{"$numberInt":"1"}},"name":"audience_1","background":true}],"count":{"$numberInt":"0"},"documents":[]}

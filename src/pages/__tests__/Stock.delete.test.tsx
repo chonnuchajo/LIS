@@ -15,6 +15,14 @@ const apiMock = vi.hoisted(() => ({
 const tabsMock = vi.hoisted(() => ({
   defaultKey: "standard",
 }));
+const authMock = vi.hoisted(() => ({
+  user: {
+    email: "tester@example.com",
+    name: "Tester",
+    role: "admin",
+    roles: ["admin"],
+  },
+}));
 
 vi.mock("@/lib/api", () => ({ api: apiMock }));
 
@@ -48,7 +56,7 @@ vi.mock("@/components/lis/stock/ReceiveCart", () => ({
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({
-    user: { email: "tester@example.com", name: "Tester" },
+    user: authMock.user,
   }),
 }));
 
@@ -82,10 +90,33 @@ function renderStock(defaultKey = "standard") {
   );
 }
 
+function makeStandardAlertItem(index: number) {
+  const padded = index.toString().padStart(3, "0");
+  return {
+    _id: `std-${index}`,
+    code: `STD-${padded}`,
+    name: `Standard ${padded}`,
+    primary: { qty: 0, ordered: 0, sizeMg: null, exp: "", usesPerBottle: null, pricePerUnit: 0, totalPrice: 0 },
+    supplier: { qty: 0, sizeMg: null, exp: "" },
+    working: { qty: 0, sizeMg: null, exp: "" },
+    usagePerUseMg: null,
+    frequency: "",
+    storageTemp: "",
+    status: "",
+    expiryStatus: "",
+  };
+}
+
 describe("StockPage delete actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     tabsMock.defaultKey = "standard";
+    authMock.user = {
+      email: "tester@example.com",
+      name: "Tester",
+      role: "admin",
+      roles: ["admin"],
+    };
     apiMock.getStandards.mockResolvedValue([
       {
         _id: "std-1",
@@ -101,7 +132,17 @@ describe("StockPage delete actions", () => {
         expiryStatus: "",
       },
     ]);
-    apiMock.getStockUnits.mockResolvedValue([]);
+    apiMock.getStockUnits.mockResolvedValue([
+      {
+        _id: "unit-1",
+        qrId: "u1",
+        itemCode: "STD-001",
+        itemName: "Pesticide Standard",
+        status: "active",
+        exp: "2027-01-01",
+        volume: { initial: 100, remaining: 100, unit: "mg" },
+      },
+    ]);
     apiMock.deleteStandard.mockResolvedValue({ success: true });
     apiMock.getSolvents.mockResolvedValue([
       {
@@ -137,6 +178,101 @@ describe("StockPage delete actions", () => {
     await waitFor(() => expect(apiMock.deleteStandard).toHaveBeenCalledWith("std-1"));
   });
 
+  it("keeps standards visible even when no bottle stock remains", async () => {
+    apiMock.getStockUnits.mockResolvedValue([]);
+
+    renderStock();
+
+    expect(await screen.findByRole("cell", { name: "Pesticide Standard" })).toBeInTheDocument();
+    expect(screen.queryByText("ไม่มีข้อมูล")).not.toBeInTheDocument();
+  });
+
+  it("opens a popup with every standard alert from the alert card", async () => {
+    apiMock.getStandards.mockResolvedValue(Array.from({ length: 9 }, (_, index) => makeStandardAlertItem(index + 1)));
+    apiMock.getStockUnits.mockResolvedValue([]);
+
+    renderStock();
+
+    expect(await screen.findByText("แจ้งเตือน Standard (9 รายการ)")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "ดูทั้งหมด" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "แจ้งเตือน Standard ทั้งหมด" });
+    expect(within(dialog).getByText("Standard 009")).toBeInTheDocument();
+    expect(within(dialog).getByText("STD-009")).toBeInTheDocument();
+  });
+
+  it("keeps solvent items visible even when quantity is zero", async () => {
+    apiMock.getSolvents.mockResolvedValue([
+      {
+        _id: "solvent-1",
+        name: "Methanol",
+        sizeLiter: 2.5,
+        qty: 0,
+        price: 1200,
+        note: "HPLC grade",
+      },
+    ]);
+
+    renderStock("solvent");
+
+    expect(await screen.findByRole("cell", { name: "Methanol" })).toBeInTheDocument();
+    expect(screen.queryByText("ไม่มีข้อมูล")).not.toBeInTheDocument();
+  });
+  it.each([
+    { defaultKey: "standard", cellName: "Pesticide Standard", deleteName: /Standard Pesticide Standard/ },
+    { defaultKey: "solvent", cellName: "Methanol", deleteName: /Methanol/ },
+    { defaultKey: "glassware", cellName: "Volumetric flask", deleteName: /Volumetric flask/ },
+  ])("hides the $defaultKey delete button for Lab Inventory without admin", async ({ defaultKey, cellName, deleteName }) => {
+    authMock.user = {
+      email: "tester@example.com",
+      name: "Tester",
+      role: "lab-inventory",
+      roles: ["lab-inventory", "lab-analyze"],
+    };
+    renderStock(defaultKey);
+
+    expect(await screen.findByRole("cell", { name: cellName })).toBeInTheDocument();
+
+    expect(screen.queryByRole("button", { name: deleteName })).not.toBeInTheDocument();
+  });
+
+  it("does not show the solvent receive action button", async () => {
+    renderStock("solvent");
+
+    const row = (await screen.findByRole("cell", { name: "Methanol" })).closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLTableRowElement).getAllByRole("button")).toHaveLength(2);
+    expect(within(row as HTMLTableRowElement).getByRole("button", { name: /ลบสารเคมี Methanol/ })).toBeInTheDocument();
+  });
+
+  it("does not allow editing the solvent bottle quantity from the item dialog", async () => {
+    renderStock("solvent");
+
+    const row = (await screen.findByRole("cell", { name: "Methanol" })).closest("tr");
+    expect(row).not.toBeNull();
+    fireEvent.click(within(row as HTMLTableRowElement).getAllByRole("button")[0]);
+
+    const dialog = await screen.findByRole("dialog", { name: "แก้ไขสารเคมี" });
+    expect(within(dialog).getByLabelText(/ชื่อรายการ/)).toHaveValue("Methanol");
+    expect(within(dialog).getByLabelText("ขนาด (ลิตร)")).toHaveValue(2.5);
+    expect(within(dialog).getByLabelText("ราคา (บาท)")).toHaveValue(1200);
+    expect(within(dialog).queryByLabelText("จำนวนคงเหลือ (ขวด)")).not.toBeInTheDocument();
+  });
+  it("keeps delete visible for admin even with Lab Inventory assigned", async () => {
+    authMock.user = {
+      email: "tester@example.com",
+      name: "Tester",
+      role: "admin",
+      roles: ["admin", "lab-inventory"],
+    };
+    renderStock();
+
+    expect(await screen.findByRole("cell", { name: "Pesticide Standard" })).toBeInTheDocument();
+
+    expect(screen.getByRole("button", { name: /Standard Pesticide Standard/ })).toBeInTheDocument();
+  });
+
   it("opens the detail drawer when clicking a standard row", async () => {
     renderStock();
 
@@ -161,6 +297,16 @@ describe("StockPage delete actions", () => {
     const dialog = await screen.findByRole("dialog", { name: "Methanol" });
     expect(within(dialog).getByRole("heading", { name: "Methanol" })).toBeInTheDocument();
     expect(within(dialog).getByText("HPLC grade")).toBeInTheDocument();
+  });
+
+  it("does not show the solvent receive button in the detail drawer", async () => {
+    renderStock("solvent");
+
+    fireEvent.click(await screen.findByRole("cell", { name: "Methanol" }));
+    const detailDialog = await screen.findByRole("dialog", { name: "Methanol" });
+
+    expect(within(detailDialog).queryByRole("button", { name: /Receive/ })).not.toBeInTheDocument();
+    expect(within(detailDialog).getByRole("button", { name: /Edit/ })).toBeInTheDocument();
   });
 
   it("opens solvent details when double-clicking a solvent row", async () => {

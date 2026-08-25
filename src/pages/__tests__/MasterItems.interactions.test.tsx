@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import MasterItems from "../MasterItems";
-import { api } from "@/lib/api";
+import { api, uploadQcPhoto } from "@/lib/api";
 
 vi.mock("@/components/lis/AppLayout", () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -25,6 +25,8 @@ vi.mock("@/lib/api", () => ({
     put: vi.fn(),
     patch: vi.fn(),
   },
+  uploadQcPhoto: vi.fn(),
+  deleteQcPhoto: vi.fn(),
 }));
 
 const masterItem = {
@@ -63,6 +65,7 @@ describe("MasterItems interactions", () => {
       return { data: { data: [] } };
     });
     vi.mocked(api.getParameters).mockResolvedValue([]);
+    vi.mocked(uploadQcPhoto).mockResolvedValue({ url: "/LIS/uploads/qc-photos/master-item.webp" });
   });
 
   afterEach(() => {
@@ -134,5 +137,46 @@ describe("MasterItems interactions", () => {
     fireEvent.change(await screen.findByLabelText("Units/Carton"), { target: { value: "12" } });
 
     expect(screen.getByLabelText("Gross Kg/Unit")).toHaveValue(1.5);
+  });
+
+  it("saves uploaded product image URLs with the master item metadata", async () => {
+    vi.mocked(uploadQcPhoto)
+      .mockResolvedValueOnce({ url: "/LIS/uploads/qc-photos/master-item-1.webp" })
+      .mockResolvedValueOnce({ url: "/LIS/uploads/qc-photos/master-item-2.webp" });
+
+    renderMasterItems();
+
+    await screen.findByText("FG-001");
+    fireEvent.click(screen.getByRole("button", { name: /เพิ่มสินค้า/ }));
+
+    fireEvent.change(await screen.findByLabelText("Code"), { target: { value: "FG-002" } });
+    fireEvent.change(screen.getByLabelText("ชื่อ Item"), { target: { value: "Product With Photo" } });
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    fireEvent.change(input!, {
+      target: {
+        files: [
+          new File(["photo-1"], "product-1.webp", { type: "image/webp" }),
+          new File(["photo-2"], "product-2.webp", { type: "image/webp" }),
+        ],
+      },
+    });
+
+    await waitFor(() => expect(uploadQcPhoto).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
+
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith(
+        "/master-item-meta/FG-002",
+        expect.objectContaining({
+          imageUrl: "/LIS/uploads/qc-photos/master-item-1.webp",
+          imageUrls: [
+            "/LIS/uploads/qc-photos/master-item-1.webp",
+            "/LIS/uploads/qc-photos/master-item-2.webp",
+          ],
+        }),
+      );
+    });
   });
 });

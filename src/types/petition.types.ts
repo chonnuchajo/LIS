@@ -77,6 +77,10 @@ export interface PetitionItem {
   labelSampledDate?: string;
   labelRemark?: string;
   sampleId?: string;
+  // รหัสสินค้าจาก Master Item (item_no) ของแถวที่เลือก — คนละเรื่องกับ sampleId
+  // ซึ่งเป็น key ของ Approval/PhysicalResult (ซ้ำกันข้าม item ไม่ได้). ใช้ขับ
+  // "หมวดหมู่ย่อย (prefix code)" + "กลุ่ม Item" ของ parameter — ดู getItemSubCategory.
+  itemNo?: string;
   condition?: ItemCondition;
 }
 
@@ -267,7 +271,7 @@ export interface QCTestResult {
   parameterId: string;
   parameterName?: string;
   values: Record<string, unknown>;
-  // Phase 2 ("ค่าหลัง") values — only populated for parameters with hasPhases=true
+  // Phase 2 retest values after a trigger/timer unlocks the second pass.
   valuesPhase2?: Record<string, unknown>;
   // For multiEntry parameters — array of per-entry value-objects.
   entries?: Record<string, unknown>[];
@@ -291,6 +295,6 @@ export interface SaveQCResultPayload {
   // For multiEntry parameters — which entry row this field write targets.
   entryIndex?: number;
   enteredBy: { name: string; email: string };
-  // 1 = Phase 1 (default, ค่าก่อน), 2 = Phase 2 (ค่าหลัง)
+  // 1 = Phase 1 (default, ค่าก่อน), 2 = Phase 2 retest values
   phase?: PetitionPhase;
 }

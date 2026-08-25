@@ -5,7 +5,7 @@ const SimpleMethodExclusionSchema = new mongoose.Schema({
   pattern: { type: String, required: true, trim: true },
   matchType: {
     type: String,
-    enum: ['contains', 'startsWith', 'endsWith'],
+    enum: ['contains', 'startsWith', 'endsWith', 'exact'],
     default: 'contains',
   },
 }, { timestamps: true });

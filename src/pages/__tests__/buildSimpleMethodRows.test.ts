@@ -1,6 +1,21 @@
-import { describe, it, expect } from "vitest";
-import { buildSimpleMethodRows } from "@/pages/MasterItems";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createElement } from "react";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+import { buildSimpleMethodRows, ExclusionManager, matchesExclusion } from "@/pages/MasterItems";
 import { buildOverrideMap } from "@/lib/commonNameOverride";
+
+const apiMock = vi.hoisted(() => ({
+  post: vi.fn(),
+  put: vi.fn(),
+  delete: vi.fn(),
+}));
+
+vi.mock("@/lib/api", () => ({ api: apiMock }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("buildSimpleMethodRows with common-name overrides", () => {
   it("merges malformed + well-formed variants into one canonical row", () => {
@@ -28,5 +43,38 @@ describe("buildSimpleMethodRows with common-name overrides", () => {
     const rows = buildSimpleMethodRows(items, {}, new Map());
     expect(rows[0].commonName).toBe("GLYPHOSATE 48% SL");
     expect(rows[0].rawCommonNames).toEqual(["GLYPHOSATE 48% SL"]);
+  });
+});
+
+describe("matchesExclusion", () => {
+  it("matches exact rules only when the whole common name is equal", () => {
+    const rule = { _id: "exact-seaweed", pattern: "SEAWEED", matchType: "exact" as const };
+
+    expect(matchesExclusion("SEAWEED", rule)).toBe(true);
+    expect(matchesExclusion("SEAWEED EXTRACT", rule)).toBe(false);
+  });
+});
+
+describe("ExclusionManager", () => {
+  it("updates an existing exclusion instead of adding a new rule", async () => {
+    apiMock.put.mockResolvedValue({ data: { _id: "rule1", pattern: "SEAWEED EXTRACT", matchType: "exact" } });
+    const onChanged = vi.fn();
+
+    render(createElement(ExclusionManager, {
+      exclusions: [{ _id: "rule1", pattern: "SEAWEED", matchType: "exact" }],
+      onChanged,
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: /สารที่ไม่ตรวจ/ }));
+    fireEvent.click(screen.getByLabelText("แก้ไข SEAWEED"));
+    fireEvent.change(screen.getByDisplayValue("SEAWEED"), { target: { value: "SEAWEED EXTRACT" } });
+    fireEvent.click(screen.getByRole("button", { name: "บันทึก" }));
+
+    await waitFor(() => expect(apiMock.put).toHaveBeenCalledWith("/simple-method-exclusions/rule1", {
+      pattern: "SEAWEED EXTRACT",
+      matchType: "exact",
+    }));
+    expect(apiMock.post).not.toHaveBeenCalled();
+    expect(onChanged).toHaveBeenCalled();
   });
 });

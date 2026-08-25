@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 
 import StockDeduction from "../StockDeduction";
@@ -16,16 +17,28 @@ vi.mock("@/components/lis/AppLayout", () => ({
 }));
 
 vi.mock("@/components/lis/PageHeader", () => ({
-  default: ({ title, description }: { title: ReactNode; description?: ReactNode }) => (
+  default: ({ title, description, actions }: { title: ReactNode; description?: ReactNode; actions?: ReactNode }) => (
     <header>
       {title}
       {description}
+          {actions}
     </header>
   ),
 }));
 
 vi.mock("@/components/lis/stock/StockRequisitionButton", () => ({
-  default: () => null,
+  default: ({ initialQrId }: { initialQrId?: string | null }) => <div data-testid="stock-requisition">{initialQrId || ""}</div>,
+}));
+
+vi.mock("@/components/lis/StockQrScanner", () => ({
+  default: ({ open, showManualEntry = true, onScanned }: { open: boolean; showManualEntry?: boolean; onScanned: (qrId: string) => void }) => (
+    open ? (
+      <div>
+        {showManualEntry ? <div>หรือวางลิงก์/qrId เอง</div> : null}
+        <button type="button" onClick={() => onScanned("https://app-plant.icpladda.com/LIS/stock/view?qrId=u_scan")}>mock scan</button>
+      </div>
+    ) : null
+  ),
 }));
 
 vi.mock("@/hooks/useAccessibleTabs", () => ({
@@ -44,14 +57,16 @@ vi.mock("@/components/lis/stock/StandardsInUseTable", () => ({
   default: () => <div>in-use-table</div>,
 }));
 
-function renderPage() {
+function renderPage(initialEntries = ["/stock-deduction"]) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
-    <QueryClientProvider client={client}>
-      <StockDeduction />
-    </QueryClientProvider>,
+    <MemoryRouter initialEntries={initialEntries}>
+      <QueryClientProvider client={client}>
+        <StockDeduction />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 
@@ -71,6 +86,23 @@ describe("StockDeduction item display", () => {
         createdAt: "2026-07-10T01:00:00.000Z",
       },
     ]);
+  });
+
+  it("puts scanned bottle QR into the deduction flow", async () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+    fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
+
+    await waitFor(() => expect(screen.getByTestId("stock-requisition")).toHaveTextContent("u_scan"));
+  });
+
+  it("hides manual stock link fallback in the stock deduction scanner", () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+
+    expect(screen.queryByText("หรือวางลิงก์/qrId เอง")).not.toBeInTheDocument();
   });
 
   it("shows the substance name in the item column without showing the stock code", async () => {

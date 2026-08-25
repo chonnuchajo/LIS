@@ -92,6 +92,26 @@ describe("StandardsInUseTable", () => {
     expect(screen.queryByRole("button", { name: "รับทราบ" })).not.toBeInTheDocument();
   });
 
+  it("แถวหมดอายุที่ไม่มีผู้เบิก → ใครก็กดรับทราบได้", async () => {
+    apiMock.getStandardsInUse.mockResolvedValue({
+      serverTime: NOW,
+      items: [item({
+        _id: "a",
+        dueAt: new Date(Date.parse(NOW) - DAY).toISOString(),
+        userEmail: "",
+        userName: "",
+      })],
+    });
+    apiMock.resolveStockDeduction.mockResolvedValue({});
+    renderTable();
+
+    fireEvent.click(await screen.findByRole("button", { name: "รับทราบ" }));
+
+    await waitFor(() =>
+      expect(apiMock.resolveStockDeduction).toHaveBeenCalledWith("a", expect.objectContaining({ reason: "expired" })),
+    );
+  });
+
   it("กดรับทราบแถว A ค้างอยู่ แล้วกดแถว B ต้องไม่ทำให้ A หลุดสถานะกำลังบันทึก", async () => {
     apiMock.getStandardsInUse.mockResolvedValue({
       serverTime: NOW,

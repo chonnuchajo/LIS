@@ -2,7 +2,7 @@ import type { ParameterItem, ParameterScope, QCProgressEntry } from "@/lib/api";
 import { expandFieldForItem } from "@/lib/parameterValidation";
 import { estimatePetitionEnd, WORK_END_HOUR, WORK_START_HOUR } from "@/lib/petitionEstimate";
 import { isResearchAndDevelopmentPetition } from "@/lib/petitionRouting";
-import { getPetitionCategory, matchParametersForItem } from "@/lib/petitionTestItems";
+import { getPetitionCategory, itemGroupKey, matchParametersForItem } from "@/lib/petitionTestItems";
 import { hasLabTrack } from "@/lib/statusBadge";
 import { PETITION_STATUS_CONFIG, type Petition, type PetitionAuditLogEntry, type PetitionStatus } from "@/types/petition.types";
 
@@ -328,8 +328,8 @@ function buildRequiredTasks(
   const tasks: TimelineDetailTask[] = [];
 
   for (const item of petition.items ?? []) {
-    const groupIds = itemGroupIds?.get(String(item.sampleId ?? "").trim()) ?? [];
-    for (const parameter of matchParametersForItem(item, scopedParameters, groupIds, { forceLabTrack: isResearchPetition })) {
+    const groupIds = itemGroupIds?.get(itemGroupKey(item)) ?? [];
+    for (const parameter of matchParametersForItem(item, scopedParameters, groupIds, { forceLabTrack: isResearchPetition, petitionCategory: category })) {
       const parameterId = parameter._id;
       if (!parameterId) continue;
       const requiredFields = (parameter.valueFields ?? []).filter((field) => field.required === true && field.type !== "photo");
