@@ -16,6 +16,7 @@ const apiMock = vi.hoisted(() => ({
   getStockUnits: vi.fn(),
   getPendingStockDeductions: vi.fn(),
   deductStockUnitMg: vi.fn(),
+  createChemicalRequisition: vi.fn(),
 }));
 
 const toastMock = vi.hoisted(() => ({
@@ -148,6 +149,30 @@ describe("StockDeduction scan form", () => {
     expect(await screen.findByText("2,4-D Acid (1)")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /GC\s*\(3\)/ })).toBeInTheDocument();
     expect(screen.getByText(/Lot 123 · เหลือ 100 mg/)).toBeInTheDocument();
+  });
+
+  it("opens the chemical form when scanning a solvent bottle QR", async () => {
+    const solventUnit = stockUnit({
+      _id: "unit-solvent-1",
+      qrId: "u_scan",
+      itemType: "solvent",
+      itemId: "sol1",
+      itemCode: "sol1",
+      itemName: "Methanol",
+      lotNo: "B-001",
+      volume: { initial: 2500, remaining: 2500, unit: "ml" },
+      status: "active",
+    });
+    apiMock.getStockUnit.mockResolvedValue(solventUnit);
+    apiMock.getSolvents.mockResolvedValue([{ _id: "sol1", name: "Methanol", qty: 2 }]);
+
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+    fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
+
+    expect(await screen.findByRole("heading", { name: "เบิกสารเคมี" })).toBeInTheDocument();
+    expect(await screen.findByText("Methanol (คงเหลือ 2)")).toBeInTheDocument();
   });
 
   it("opens scanner results without writing qrId into the URL", async () => {

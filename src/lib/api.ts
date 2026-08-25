@@ -332,7 +332,7 @@ export const api = {
   deductSolvent: (id: string, body: { qty: number; sampleId?: string; note?: string } & StockUserPayload) =>
     request<StockSolventItem>(`/stock/solvents/${id}/deduct`, { method: "POST", body: JSON.stringify(body) }),
   receiveSolvent: (id: string, body: { qty: number; lotNo: string; exp: string; sizeLiter: number; price: number; note?: string } & StockUserPayload) =>
-    request<StockSolventItem>(`/stock/solvents/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
+    request<StockSolventItem & { receivedUnits?: StockUnitItem[] }>(`/stock/solvents/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
 
   // Chemical requisition — เบิกสารเคมี (solvent) → เครื่อง (daily-check/analysis)
   getChemicalRequisitions: (params: { room: string; date?: string }) => {
@@ -351,6 +351,7 @@ export const api = {
     instrumentId: string;
     instrumentName: string;
     solventId: string;
+    solventUnitQrId?: string;
     qty: number;
     note?: string;
     requestedBy: { email: string; name: string };

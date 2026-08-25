@@ -799,12 +799,11 @@ function GlasswareTab() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const visible = data.filter(s => Number(s.qty) > 0);
-    return q ? visible.filter(s => s.name.toLowerCase().includes(q)) : visible;
+    return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
   }, [data, search]);
 
   // เครื่องแก้ว: แจ้งเฉพาะตอนหมดจริง (ไม่เตือนตอนใกล้หมด)
-  const visibleGlassware = data.filter(s => Number(s.qty) > 0);
+  const visibleGlassware = data;
   const outList = visibleGlassware.filter(s => glasswareLevel(s.qty) === "out");
 
   const deleteItem = async () => {

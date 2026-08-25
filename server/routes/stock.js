@@ -351,6 +351,25 @@ async function deductMgFromUnit(qrId, mg, meta = {}) {
 }
 
 function publicStockUnitPayload(unit) {
+  if (unit.itemType === 'solvent') {
+    const remaining = Number(unit.volume?.remaining ?? 0);
+    const initialMl = Number(unit.volume?.initial ?? 0);
+    return {
+      kind: 'solvent',
+      id: unit.itemId || unit.itemCode,
+      qrId: unit.qrId,
+      name: unit.itemName,
+      sizeLiter: initialMl > 0 ? initialMl / 1000 : 0,
+      qty: unit.status === 'active' && remaining > 0 ? 1 : 0,
+      lotNo: unit.lotNo || '',
+      lotBottleNo: unit.lotBottleNo || null,
+      exp: unit.exp || null,
+      volume: unit.volume,
+      status: unit.status,
+      photoUrls: unit.photoUrls || [],
+      updatedAt: unit.updatedAt,
+    };
+  }
   return {
     kind: 'standard',
     qrId: unit.qrId,
@@ -977,7 +996,7 @@ router.post('/solvents/:id/receive', async (req, res) => {
     const receivedDate = new Date();
     const meta = await userMeta(req);
     const createdBy = meta.userName ? { email: meta.userEmail, name: meta.userName } : undefined;
-    await createSolventUnitsForReceive({ item, qty: amount, lotNo, exp, sizeLiter, photoUrls, receivedDate, createdBy });
+    const receivedUnits = await createSolventUnitsForReceive({ item, qty: amount, lotNo, exp, sizeLiter, photoUrls, receivedDate, createdBy });
     await logTransaction({
       itemType: 'solvent',
       itemId: item._id.toString(),
@@ -991,7 +1010,8 @@ router.post('/solvents/:id/receive', async (req, res) => {
       photoUrls: photoUrls.length ? photoUrls : undefined,
       ...meta,
     });
-    res.json(item);
+    const payload = typeof item.toObject === 'function' ? item.toObject() : item;
+    res.json({ ...payload, receivedUnits });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

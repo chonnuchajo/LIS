@@ -40,7 +40,7 @@ describe("buildSolventLabelHtml", () => {
     expect(html).toContain("2");
     expect(html).toContain("F-CHM-01-03 Rev 00 : 12/09/67");
     expect(html).toContain("data:image/png;base64");
-    expect(html).toContain("เบิกสารเคมี");
+    expect(html).not.toContain("เบิกสารเคมี");
     expect(html).toContain('alt="qr"');
   });
 

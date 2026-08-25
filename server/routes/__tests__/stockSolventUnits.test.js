@@ -79,7 +79,10 @@ describe('stock solvent units routes', () => {
 
     await handler(req, res);
 
-    expect(res.json).toHaveBeenCalledWith(solvent);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Acetone',
+      receivedUnits: expect.any(Array),
+    }));
     expect(StockUnit.create).toHaveBeenCalledTimes(2);
     expect(StockUnit.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
       itemType: 'solvent',

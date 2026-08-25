@@ -18,6 +18,8 @@ function normalizeReqInput(body) {
   if (!b.solventId) return { error: 'solventId ต้องระบุ' };
   if (!b.instrumentId) return { error: 'instrumentId ต้องระบุ' };
   if (!Number.isInteger(qty) || qty <= 0) return { error: 'จำนวนต้องเป็นจำนวนเต็มบวก' };
+  const solventUnitQrId = b.solventUnitQrId ? String(b.solventUnitQrId).trim() : '';
+  if (solventUnitQrId && qty !== 1) return { error: 'การเบิกจาก QR รายขวดต้องเบิกครั้งละ 1 ขวด' };
   const rb = b.requestedBy || {};
   return {
     value: {
@@ -26,6 +28,7 @@ function normalizeReqInput(body) {
       instrumentId: String(b.instrumentId),
       instrumentName: b.instrumentName ? String(b.instrumentName) : '',
       solventId: String(b.solventId),
+      solventUnitQrId,
       qty,
       note: b.note ? String(b.note) : '',
       requestedBy: {

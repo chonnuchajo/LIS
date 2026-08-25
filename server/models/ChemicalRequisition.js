@@ -13,6 +13,7 @@ const ChemicalRequisitionSchema = new mongoose.Schema({
   instrumentName: { type: String, default: '' },
   itemType: { type: String, enum: ['solvent'], default: 'solvent' },
   solventId: { type: String, required: true, index: true },
+  solventUnitQrId: { type: String, default: '', index: true },
   solventName: { type: String, default: '' },
   qty: { type: Number, required: true },
   unit: { type: String, default: 'bottle' },

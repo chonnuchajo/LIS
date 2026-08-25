@@ -175,7 +175,7 @@ export default function SolventUnitsPanel({ solvent }: { solvent: StockSolventIt
 
   const buildLabel = (row: SolventBottleRow) => buildSolventLabelHtml({
     name: solvent.name,
-    idForQr: solvent._id,
+    idForQr: row.qrId || solvent._id,
     lotNo: row.lotNo || undefined,
     receivedDate: row.receivedDate || null,
     exp: row.exp || null,

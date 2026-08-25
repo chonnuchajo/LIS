@@ -219,6 +219,24 @@ describe("StockPage delete actions", () => {
     expect(await screen.findByRole("cell", { name: "Methanol" })).toBeInTheDocument();
     expect(screen.queryByText("ไม่มีข้อมูล")).not.toBeInTheDocument();
   });
+
+  it("keeps glassware items visible even when quantity is zero", async () => {
+    apiMock.getGlassware.mockResolvedValue([
+      {
+        _id: "glass-1",
+        name: "Volumetric flask",
+        qty: 0,
+        pricePerPiece: 450,
+        note: "Class A",
+      },
+    ]);
+
+    renderStock("glassware");
+
+    expect(await screen.findByRole("cell", { name: "Volumetric flask" })).toBeInTheDocument();
+    expect(screen.queryByText("ไม่มีข้อมูล")).not.toBeInTheDocument();
+    expect(screen.getByText("เครื่องแก้วหมด (1 รายการ)")).toBeInTheDocument();
+  });
   it.each([
     { defaultKey: "standard", cellName: "Pesticide Standard", deleteName: /Standard Pesticide Standard/ },
     { defaultKey: "solvent", cellName: "Methanol", deleteName: /Methanol/ },

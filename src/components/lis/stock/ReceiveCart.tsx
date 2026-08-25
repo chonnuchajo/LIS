@@ -216,7 +216,7 @@ export default function ReceiveCart() {
               type: receiveType, bottles: buildBottles(row),
             });
           } else if (row.category === "solvent") {
-            await api.receiveSolvent(row.itemId, {
+            const received = await api.receiveSolvent(row.itemId, {
               qty: Number(row.qty),
               lotNo: row.lotNo.trim(),
               exp: row.exp,
@@ -224,6 +224,7 @@ export default function ReceiveCart() {
               price: Number(row.price),
               note: row.note,
             });
+            created = received.receivedUnits ?? [];
           } else if (row.category === "glassware") {
             await api.receiveGlassware(row.itemId, { qty: Number(row.qty), note: row.note });
           }
@@ -240,16 +241,22 @@ export default function ReceiveCart() {
             if (row.category === "standard") {
               for (const u of created) labels.push(await buildStockLabelHtml(u));
             } else if (row.category === "solvent") {
-              const n = Math.max(1, Number(row.qty));
               const receivedDate = localDateInputValue();
-              for (let i = 0; i < n; i++) {
+              const unitsForLabels = created.length > 0 ? created : Array.from({ length: Math.max(1, Number(row.qty)) }, (_, index) => ({
+                qrId: row.itemId,
+                lotNo: row.lotNo,
+                exp: row.exp || null,
+                receivedDate,
+                lotBottleNo: index + 1,
+              } as Partial<StockUnitItem>));
+              for (const unit of unitsForLabels) {
                 labels.push(await buildSolventLabelHtml({
                   name: row.itemName,
-                  idForQr: row.itemId,
-                  lotNo: row.lotNo,
-                  receivedDate,
-                  exp: row.exp || null,
-                  bottleNo: i + 1,
+                  idForQr: unit.qrId || row.itemId,
+                  lotNo: unit.lotNo || row.lotNo,
+                  receivedDate: unit.receivedDate || receivedDate,
+                  exp: unit.exp || row.exp || null,
+                  bottleNo: unit.lotBottleNo ?? undefined,
                 }));
               }
             }

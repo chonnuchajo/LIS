@@ -81,7 +81,7 @@ describe("SolventUnitsPanel", () => {
 
     await waitFor(() => expect(buildSolventLabelHtmlMock).toHaveBeenCalledWith(expect.objectContaining({
       name: "Acetone",
-      idForQr: "solvent-1",
+      idForQr: "u-solvent-1",
       lotNo: "LOT-A",
       exp: "2027-01-01T00:00:00.000Z",
       receivedDate: "2026-08-20T00:00:00.000Z",

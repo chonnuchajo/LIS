@@ -75,10 +75,9 @@ export async function buildSolventLabelHtml(payload: {
   }
 
   return `
-<div style="font-family:'TH Sarabun New','Kanit',Tahoma,Arial,sans-serif;width:65mm;height:25mm;box-sizing:border-box;color:#000;background:#fff;overflow:hidden;display:grid;grid-template-columns:18mm 1fr;gap:1mm;align-items:center;padding:1mm;">
-  <div style="width:18mm;height:23mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6mm;overflow:hidden;">
-    <img src="${qr}" alt="qr" style="width:17mm;height:17mm;display:block;flex:0 0 auto;" />
-    <div style="font-size:4.8pt;font-weight:600;line-height:1;white-space:nowrap;text-align:center;">เบิกสารเคมี</div>
+  <div style="font-family:'TH Sarabun New','Kanit',Tahoma,Arial,sans-serif;width:65mm;height:25mm;box-sizing:border-box;color:#000;background:#fff;overflow:hidden;display:grid;grid-template-columns:18mm 1fr;gap:1mm;align-items:center;padding:1mm;">
+    <div style="width:18mm;height:23mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6mm;overflow:hidden;">
+      <img src="${qr}" alt="qr" style="width:17mm;height:17mm;display:block;flex:0 0 auto;" />
   </div>
   <div style="height:23mm;box-sizing:border-box;border:0.25mm solid #000;display:grid;grid-template-rows:3.4mm repeat(6,2.85mm) 2.5mm;font-size:5.15pt;line-height:1;min-width:0;">${rows}
   </div>

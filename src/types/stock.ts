@@ -186,6 +186,11 @@ export type StockPublicScanItem =
       name: string;
       sizeLiter: number;
       qty: number;
+      lotNo?: string;
+      lotBottleNo?: number | null;
+      exp?: string | null;
+      volume?: StockUnitVolume;
+      status?: StockUnitStatus;
       note?: string;
       latestReceiveNote?: string;
       photoUrls?: string[];

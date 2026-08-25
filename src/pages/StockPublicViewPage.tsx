@@ -55,6 +55,7 @@ function transactionAmountText(transaction: StockTransactionItem) {
 function transactionQueryParams(item?: StockPublicScanItem | null) {
   if (!item) return null;
   if (item.kind === "standard") return { qrId: item.qrId, limit: 20 };
+  if (item.qrId && item.qrId !== item.id) return { itemType: "solvent", qrId: item.qrId, limit: 20 };
   return { itemType: "solvent", itemId: item.id, limit: 20 };
 }
 
@@ -172,7 +173,6 @@ export default function StockPublicViewPage() {
                         {formatLotBottleLabel(data.lotBottleNo) ? <Detail label="ลำดับขวดใน Lot" value={formatLotBottleLabel(data.lotBottleNo)} /> : null}
                         <Detail label="EXP" value={formatDate(data.exp)} />
                         <Detail label="ปริมาณเริ่มต้น" value={String(data.volume?.initial ?? "-") + (data.volume?.unit ? " " + data.volume.unit : "")} />
-                        <Detail label="qrId" value={data.qrId} />
                       </dl>
                     ) : (
                       <dl className="grid gap-3 text-sm sm:grid-cols-2">
@@ -180,7 +180,6 @@ export default function StockPublicViewPage() {
                         <Detail label="ขนาด/ขวด" value={String(data.sizeLiter || "-") + " L"} />
                         <Detail label="คงเหลือ" value={String(data.qty ?? "-") + " ขวด"} />
                         <Detail label="หมายเหตุ" value={data.note || data.latestReceiveNote || "-"} />
-                        <Detail label="qrId" value={data.qrId} />
                       </dl>
                     )}
 
