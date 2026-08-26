@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import CoaCreateDialog from "@/components/coa/CoaCreateDialog";
+import CoaSamplePreview from "@/components/coa/CoaSamplePreview";
 import CoaReportTemplate, { COA_REPORT_CSS } from "@/components/coa/CoaReportTemplate";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
 import { DEV_MODE } from "@/config/dev";
@@ -1058,7 +1059,7 @@ export default function CoaCenterPage() {
               })}
             </div>
             {showWorkflowTabs && (
-              <div className="mb-4 flex flex-wrap gap-2">
+              <div className="mb-4 flex flex-nowrap items-center gap-x-[6cm] overflow-x-auto pb-1">
               {workflowTabs.map((tab) => {
                 const selected = activeWorkflowStage === tab.key;
                 return (
@@ -1067,7 +1068,7 @@ export default function CoaCenterPage() {
                     type="button"
                     aria-label={`สถานะ ${tab.label}`}
                     aria-pressed={selected}
-                    className={`inline-flex min-h-12 items-center gap-3 rounded-lg px-5 py-2.5 text-base font-semibold transition-colors ${tab.className} ${selected ? tab.activeClassName : "opacity-80"}`}
+                    className={`inline-flex min-h-12 shrink-0 items-center gap-3 whitespace-nowrap rounded-none px-5 py-2.5 text-base font-semibold transition-colors ${tab.className} ${selected ? tab.activeClassName : "opacity-80"}`}
                     onClick={() => setActiveWorkflowStage(tab.key)}
                   >
                     {tab.label}
@@ -1086,6 +1087,14 @@ export default function CoaCenterPage() {
               placeholder="ค้นหา COA / คำร้อง"
             />
           </div>
+
+          {showCreateActions && (
+            <CoaSamplePreview
+              className="bg-white/90"
+              title="ตัวอย่างการสร้างฟอร์ม COA 1 ใบ"
+              description="ตัวอย่างเอกสารที่แสดงเมื่ออยู่ในแท็บขอ COA"
+            />
+          )}
 
           {showAllYearFolders && (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -29,6 +29,7 @@ const LabResults = lazy(() => import("./pages/LabResults"));
 const LabResultDetailPage = lazy(() => import("./pages/LabResultDetailPage"));
 const CoaCenterPage = lazy(() => import("./pages/CoaCenterPage"));
 const CoaDetailPage = lazy(() => import("./pages/CoaDetailPage"));
+const BlankFormPage = lazy(() => import("./pages/BlankFormPage"));
 const Report = lazy(() => import("./pages/Report"));
 const Stock = lazy(() => import("./pages/Stock"));
 const StockUnitScanPage = lazy(() => import("./pages/StockUnitScanPage"));
@@ -126,6 +127,7 @@ const App = () => (
               <Route path="/lab-results/:id" element={<PrivateRoute><LabResultDetailPage /></PrivateRoute>} />
               <Route path="/coa" element={<PrivateRoute><CoaCenterPage /></PrivateRoute>} />
               <Route path="/coa/:id" element={<PrivateRoute><CoaDetailPage /></PrivateRoute>} />
+              <Route path="/blank-form" element={<PrivateRoute><BlankFormPage /></PrivateRoute>} />
               <Route path="/qc-approval" element={<PrivateRoute><QCApproval /></PrivateRoute>} />
               <Route path="/qc-approval/:id" element={<PrivateRoute><QCApprovalReviewPage /></PrivateRoute>} />
               <Route path="/lab-approval" element={<PrivateRoute><LabApproval /></PrivateRoute>} />

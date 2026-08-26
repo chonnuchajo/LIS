@@ -18,6 +18,7 @@ import {
   ChevronRight,
   ChevronsUpDown,
   FolderTree,
+  Globe2,
   GripVertical,
   KeyRound,
   LockKeyhole,
@@ -30,6 +31,7 @@ import {
 import { toast } from "sonner";
 import UsersTab from "@/components/lis/access/UsersTab";
 import RolesTab from "@/components/lis/access/RolesTab";
+import PageAccessTab from "@/components/lis/access/PageAccessTab";
 import type { AppUser, Role, AccessGroup, EmployeeDirectoryEntry, RoleFamily } from "@/components/lis/access/types";
 
 const defaultRoles: Role[] = [
@@ -762,8 +764,8 @@ const AccessControl = () => {
         )}
 
         <Tabs defaultValue="users">
-          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-            <TabsList className="mb-4 w-max">
+          <div className="sticky top-14 z-20 -mx-3 mb-4 overflow-x-auto rounded-lg border bg-card/95 p-1 shadow-sm backdrop-blur sm:mx-0 md:top-12">
+            <TabsList className="w-max">
               <TabsTrigger value="users" className="gap-1.5">
                 <UsersRound className="h-4 w-4" />
                 Users
@@ -779,6 +781,10 @@ const AccessControl = () => {
               <TabsTrigger value="matrix" className="gap-1.5">
                 <KeyRound className="h-4 w-4" />
                 Access Matrix
+              </TabsTrigger>
+              <TabsTrigger value="pages" className="gap-1.5">
+                <Globe2 className="h-4 w-4" />
+                Page Access
               </TabsTrigger>
             </TabsList>
           </div>
@@ -1152,6 +1158,15 @@ const AccessControl = () => {
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="pages">
+            <PageAccessTab
+              groups={groups}
+              roles={roles}
+              users={users}
+              permissions={permissions}
+            />
           </TabsContent>
         </Tabs>
     </AppLayout>

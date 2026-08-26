@@ -33,6 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
   { icon: ClipboardList, label: "ผลวิเคราะห์", path: "/record-results" },
   { icon: ClipboardList, label: "ผลวิเคราะห์ Lab", path: "/lab-results" },
   { icon: FileCheck2, label: "ออกเอกสาร COA", path: "/coa" },
+  { icon: FileText, label: "แบบฟอร์มเปล่า", path: "/blank-form" },
   { icon: ClipboardList, label: "การเบิก stock", path: "/stock-deduction" },
   { icon: Scale, label: "Daily Check", path: "/daily-check" },
   { icon: Network, label: "Virtual Lab", path: "/virtual-lab" },
