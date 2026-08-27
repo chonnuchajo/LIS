@@ -55,15 +55,6 @@ async function standardLabelCodeDefaults(std, count, now = new Date()) {
   return buildStandardLabelCodeDefaults(std.code, units, { count: normalizeDefaultLabelCodeCount(count), now });
 }
 
-function duplicateLabelCode(labelCodes) {
-  const seen = new Set();
-  for (const code of labelCodes) {
-    if (seen.has(code)) return code;
-    seen.add(code);
-  }
-  return '';
-}
-
 async function resolveReceiveLabelCodes(std, bottles, now = new Date()) {
   const parsed = bottles.map((bottle) => {
     const raw = bottle && bottle.labelCode;
@@ -87,14 +78,6 @@ async function resolveReceiveLabelCodes(std, bottles, now = new Date()) {
     defaultIndex += 1;
     return next;
   });
-
-  const duplicateInRequest = duplicateLabelCode(labelCodes);
-  if (duplicateInRequest) throw new Error(`Code ${duplicateInRequest} ซ้ำในรายการรับเข้า`);
-
-  const existing = await StockUnit.findOne({ itemCode: std.code, labelCode: { $in: labelCodes } })
-    .select('labelCode')
-    .lean();
-  if (existing) throw new Error(`Code ${existing.labelCode} ถูกใช้แล้ว`);
 
   return labelCodes;
 }
@@ -815,12 +798,6 @@ router.patch('/units/:qrId', async (req, res) => {
     if (labelCode !== undefined) {
       const nextLabelCode = normalizeUnitLabelCodeUpdate(labelCode, unit.itemCode);
       if (nextLabelCode) {
-        const existing = await StockUnit.findOne({
-          _id: { $ne: unit._id },
-          itemCode: unit.itemCode,
-          labelCode: nextLabelCode,
-        }).select('labelCode').lean();
-        if (existing) throw new Error(`Code ${nextLabelCode} ถูกใช้แล้ว`);
         unit.labelCode = nextLabelCode;
       } else {
         unit.labelCode = '';

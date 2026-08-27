@@ -169,7 +169,6 @@ export function validateRow(row: CartRow): string | null {
     if (!hasText(row.purity)) return "กรุณาระบุ % Purity";
     const labelCodes = Array.from({ length: c }, (_, i) => row.labelCodes[i]?.trim() ?? "");
     if (labelCodes.some((code) => !parseStandardLabelCode(code, row.itemCode))) return "กรุณาระบุ Code ให้ถูกต้อง";
-    if (new Set(labelCodes).size !== labelCodes.length) return "Code ห้ามซ้ำกันในรายการรับเข้า";
     if (row.sameExp) {
       if (!hasText(row.commonExp)) return REQUIRED_EXP_MESSAGE;
     } else {
