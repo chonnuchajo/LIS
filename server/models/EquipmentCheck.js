@@ -24,9 +24,11 @@ const EquipmentCheckSchema = new mongoose.Schema({
   recorderEmail: { type: String, default: '' },
 
   date: { type: String, required: true, index: true }, // YYYY-MM-DD
+  period: { type: String, enum: ['morning', 'afternoon'], index: true },
   checkedAt: { type: Date, required: true, default: Date.now },
 }, { timestamps: true });
 
 EquipmentCheckSchema.index({ roomSlug: 1, date: -1, instrumentId: 1 });
+EquipmentCheckSchema.index({ roomSlug: 1, date: -1, period: 1, instrumentId: 1 });
 
 module.exports = mongoose.model('EquipmentCheck', EquipmentCheckSchema);

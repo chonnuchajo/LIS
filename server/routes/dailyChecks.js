@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const DailyCheck = require('../models/DailyCheck');
+const { getDailyCheckPeriod, isDailyCheckPeriod } = require('../lib/dailyCheckPeriod');
 
 const todayStr = () => {
   const d = new Date();
@@ -15,7 +16,7 @@ const todayStr = () => {
 // Default: today
 router.get('/', async (req, res) => {
   try {
-    const { date, from, to, scaleId, status } = req.query;
+    const { date, from, to, scaleId, status, period } = req.query;
     const q = {};
 
     if (from || to) {
@@ -30,6 +31,7 @@ router.get('/', async (req, res) => {
 
     if (scaleId) q.scaleId = String(scaleId);
     if (status) q.status = String(status);
+    if (period) q.period = String(period);
 
     const records = await DailyCheck.find(q).sort({ checkedAt: -1 }).lean();
     res.json({ data: records });
@@ -67,6 +69,11 @@ router.post('/', async (req, res) => {
     const overall = (status100 === 'pass' && status10 === 'pass') ? 'pass' : 'fail';
 
     const now = new Date();
+    const period = getDailyCheckPeriod(now);
+    if (!period) {
+      return res.status(400).json({ error: 'Daily Check บันทึกได้เฉพาะช่วงเช้า 08:00-12:00 หรือบ่าย 13:00-17:00' });
+    }
+
     const created = await DailyCheck.create({
       scaleId, scaleName, model: model || '',
       weights100, weights10,
@@ -78,6 +85,7 @@ router.post('/', async (req, res) => {
       recorderId: recorderId || '',
       recorderEmail: recorderEmail || '',
       date: todayStr(),
+      period,
       checkedAt: now,
     });
 
@@ -92,12 +100,18 @@ router.get('/summary/today', async (req, res) => {
   try {
     const date = todayStr();
     const records = await DailyCheck.find({ date }).lean();
-    const scaleIds = [...new Set(records.map(r => r.scaleId))];
+    const scaleRecords = records.map(r => ({
+      scaleId: r.scaleId,
+      checkedAt: r.checkedAt,
+      period: isDailyCheckPeriod(r.period) ? r.period : getDailyCheckPeriod(r.checkedAt),
+    }));
+    const scaleIds = [...new Set(scaleRecords.map(r => r.scaleId).filter(Boolean))];
     res.json({
       data: {
         date,
         count: records.length,
         scaleIds,
+        scaleRecords,
         allPass: records.length > 0 && records.every(r => r.status === 'pass'),
       },
     });

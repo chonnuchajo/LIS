@@ -13,6 +13,7 @@ import type {
   StandardsInUseResponse,
 } from "@/types/stock";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
+import type { DailyCheckPeriod } from "@/lib/dailyCheckPeriod";
 import type { StandardLabelCodeDefaults } from "@/lib/standardLabelCode";
 import {
   defaultPrinterFor,
@@ -528,6 +529,7 @@ export const api = {
     to?: string;
     scaleId?: string;
     status?: "pass" | "fail";
+    period?: DailyCheckPeriod;
   }) => {
     const qs = params
       ? "?" + new URLSearchParams(
@@ -569,6 +571,7 @@ export const api = {
     to?: string;
     room?: string;
     status?: "pass" | "fail";
+    period?: DailyCheckPeriod;
   }) => {
     const qs = params
       ? "?" + new URLSearchParams(
@@ -593,6 +596,7 @@ export const api = {
     to?: string;
     instrumentId?: string;
     status?: "normal" | "abnormal";
+    period?: DailyCheckPeriod;
   }) => {
     const qs = "?" + new URLSearchParams(
       Object.entries(params).filter(([, v]) => v != null && v !== "").map(([k, v]) => [k, String(v)]),
@@ -942,6 +946,7 @@ export type DailyCheckRecord = {
   recorderId?: string;
   recorderEmail?: string;
   date: string;       // YYYY-MM-DD
+  period?: DailyCheckPeriod | null;
   checkedAt: string;  // ISO
   createdAt?: string;
   updatedAt?: string;
@@ -967,6 +972,11 @@ export type DailyCheckTodaySummary = {
   date: string;
   count: number;
   scaleIds: string[];
+  scaleRecords?: Array<{
+    scaleId: string;
+    checkedAt?: string;
+    period?: DailyCheckPeriod | null;
+  }>;
   allPass: boolean;
 };
 
@@ -985,6 +995,7 @@ export type EquipmentCheckRecord = {
   recorderId?: string;
   recorderEmail?: string;
   date: string;       // YYYY-MM-DD
+  period?: DailyCheckPeriod | null;
   checkedAt: string;  // ISO
   createdAt?: string;
   updatedAt?: string;
@@ -1020,6 +1031,7 @@ export type EnvCheckRecord = {
   recorderId?: string;
   recorderEmail?: string;
   date: string;       // YYYY-MM-DD
+  period?: DailyCheckPeriod | null;
   checkedAt: string;  // ISO
   createdAt?: string;
   updatedAt?: string;
@@ -1043,6 +1055,11 @@ export type EnvCheckTodaySummary = {
   date: string;
   count: number;
   rooms: string[];
+  roomRecords?: Array<{
+    room: string;
+    checkedAt?: string;
+    period?: DailyCheckPeriod | null;
+  }>;
   allPass: boolean;
 };
 

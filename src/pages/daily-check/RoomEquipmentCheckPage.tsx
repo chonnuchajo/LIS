@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
+import { getCurrentDailyCheckPeriod, getDailyCheckPeriod, getDailyCheckPeriodLabel } from "@/lib/dailyCheckPeriod";
 import { getRoomBySlug } from "@/lib/dailyCheckRooms";
 import { api, type EquipmentCheckRecord, type EquipmentReading } from "@/lib/api";
 import { getRoomCatalog } from "@/lib/roomEquipment";
@@ -47,6 +48,13 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
     month: "long",
     day: "numeric",
   });
+  const currentPeriod = getCurrentDailyCheckPeriod();
+  const currentPeriodLabel = getDailyCheckPeriodLabel(currentPeriod);
+  const currentPeriodHint = currentPeriod === "morning"
+    ? "08:00–12:00"
+    : currentPeriod === "afternoon"
+      ? "13:00–17:00"
+      : "เปิด 08:00–12:00 และ 13:00–17:00";
 
   const room = getRoomBySlug(roomSlug);
   const catalog = getRoomCatalog(roomSlug);
@@ -61,11 +69,14 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
 
   const latestByInstrument = useMemo(() => {
     const map: Record<string, EquipmentCheckRecord> = {};
+    if (!currentPeriod) return map;
     for (const row of todayRecords) {
+      const recordPeriod = row.period ?? getDailyCheckPeriod(row.checkedAt);
+      if (recordPeriod !== currentPeriod) continue;
       if (!map[row.instrumentId]) map[row.instrumentId] = row;
     }
     return map;
-  }, [todayRecords]);
+  }, [todayRecords, currentPeriod]);
 
   const createMutation = useMutation({
     mutationFn: api.createEquipmentCheck,
@@ -113,6 +124,10 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
     setDrafts((prev) => ({ ...prev, [id]: { ...getDraft(id), note } }));
 
   const handleSave = (instrumentId: string) => {
+    if (!currentPeriod) {
+      toast.error("Daily Check บันทึกได้เฉพาะช่วงเช้า 08:00-12:00 หรือบ่าย 13:00-17:00");
+      return;
+    }
     const instrument = instruments.find((row) => row.id === instrumentId);
     if (!instrument) return;
 
@@ -164,9 +179,12 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
           <h2 className="text-lg font-semibold text-foreground">
             {room.label} - เช็กการทำงานเครื่องมือ
           </h2>
-          <p className="text-sm text-muted-foreground">ประจำวัน - {todayLabel}</p>
+          <p className="text-sm text-muted-foreground">ประจำวัน - {todayLabel} · รอบ{currentPeriodLabel} ({currentPeriodHint})</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="outline" className="gap-1 px-3 py-1 text-sm">
+            รอบ{currentPeriodLabel}
+          </Badge>
           <Badge variant="outline" className="gap-1 px-3 py-1 text-sm">
             <Clock className="h-3.5 w-3.5" /> ตรวจแล้ว {checkedCount}/{total}
           </Badge>
@@ -254,7 +272,7 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
                               type="button"
                               variant={draft.status === "normal" ? "default" : "outline"}
                               className="h-8 gap-1 text-xs"
-                              disabled={createMutation.isPending}
+                              disabled={createMutation.isPending || !currentPeriod}
                               onClick={() => setStatus(instrument.id, "normal")}
                             >
                               <CheckCircle2 className="h-3.5 w-3.5" /> ปกติ
@@ -263,7 +281,7 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
                               type="button"
                               variant={draft.status === "abnormal" ? "destructive" : "outline"}
                               className="h-8 gap-1 text-xs"
-                              disabled={createMutation.isPending}
+                              disabled={createMutation.isPending || !currentPeriod}
                               onClick={() => setStatus(instrument.id, "abnormal")}
                             >
                               <AlertTriangle className="h-3.5 w-3.5" /> ผิดปกติ
@@ -287,7 +305,7 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
                               }
                               value={draft.readingValues[field.key] ?? ""}
                               onChange={(e) => setReading(instrument.id, field.key, e.target.value)}
-                              disabled={createMutation.isPending}
+                              disabled={createMutation.isPending || !currentPeriod}
                               className="h-8 text-xs"
                             />
                           </div>
@@ -301,7 +319,7 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
                             value={draft.note}
                             placeholder={showResult && todayRec?.note ? todayRec.note : "-"}
                             onChange={(e) => setNote(instrument.id, e.target.value)}
-                            disabled={createMutation.isPending}
+                            disabled={createMutation.isPending || !currentPeriod}
                             className="h-8 text-xs"
                           />
                         </div>
@@ -310,7 +328,7 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
                           <label className="mb-1 block text-xs font-medium text-muted-foreground">
                             ผู้บันทึก
                           </label>
-                          <Input value={user?.name ?? ""} readOnly disabled className="h-8 bg-muted/40 text-xs" />
+                          <Input value={showResult && todayRec ? todayRec.recorder : (user?.name ?? "")} readOnly disabled className="h-8 bg-muted/40 text-xs" />
                         </div>
 
                         {showResult ? (
@@ -325,12 +343,14 @@ const RoomEquipmentCheckPage = ({ roomSlug }: RoomEquipmentCheckPageProps) => {
                           <Button
                             className="w-full gap-2"
                             onClick={() => handleSave(instrument.id)}
-                            disabled={createMutation.isPending}
+                            disabled={createMutation.isPending || !currentPeriod}
                           >
                             <CheckCircle2 className="h-4 w-4" />
-                            {createMutation.isPending && createMutation.variables?.instrumentId === instrument.id
-                              ? "กำลังบันทึก..."
-                              : "บันทึกผล"}
+                            {!currentPeriod
+                              ? "นอกเวลาบันทึก"
+                              : createMutation.isPending && createMutation.variables?.instrumentId === instrument.id
+                                ? "กำลังบันทึก..."
+                                : "บันทึกผล"}
                           </Button>
                         )}
                       </CardContent>

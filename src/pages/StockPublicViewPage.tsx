@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { deductionAmount } from "@/lib/stockDeduction";
+import { formatStockQuantity, formatStockQuantityWithUnit } from "@/lib/stockQuantity";
 import { parseScannedQrId } from "@/lib/stockUnit";
 import type { StockPublicScanItem, StockTransactionItem } from "@/types/stock";
 
@@ -35,7 +36,7 @@ function stockDescription(item: StockPublicScanItem) {
 
 function remainingText(item: StockPublicScanItem) {
   if (item.kind === "standard") {
-    return String(item.volume?.remaining ?? "-") + (item.volume?.unit ? " " + item.volume.unit : "");
+    return formatStockQuantityWithUnit(item.volume?.remaining, item.volume?.unit);
   }
   return String(item.qty ?? "-") + " ขวด";
 }
@@ -49,7 +50,7 @@ function transactionAmountText(transaction: StockTransactionItem) {
   if (amount.text !== "-") return amount;
   const delta = transaction.delta;
   if (delta == null) return amount;
-  return { text: `${delta > 0 ? "+" : ""}${delta}${transaction.unit ? ` ${transaction.unit}` : ""}` };
+  return { text: `${delta > 0 ? "+" : ""}${formatStockQuantity(delta)}${transaction.unit ? ` ${transaction.unit}` : ""}` };
 }
 
 function transactionQueryParams(item?: StockPublicScanItem | null) {

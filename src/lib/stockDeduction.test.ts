@@ -10,6 +10,10 @@ describe("deductionAmount", () => {
     expect(deductionAmount({ delta: null, volumeDelta: -45, unit: "mg" })).toEqual({ text: "45 mg" });
   });
 
+  it("ปัดเศษ volumeDelta ให้เหลือไม่เกิน 2 ตำแหน่ง", () => {
+    expect(deductionAmount({ delta: null, volumeDelta: -7031.519999999998, unit: "mg" })).toEqual({ text: "7031.52 mg" });
+  });
+
   it("มี weights หลายค่า → sub แจกแจงรายน้ำหนัก", () => {
     expect(deductionAmount({ volumeDelta: -45, unit: "mg", weights: [15, 15, 15] })).toEqual({
       text: "45 mg",

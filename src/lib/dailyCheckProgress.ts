@@ -1,4 +1,5 @@
 import { ENV_ROOMS } from "./dailyCheckEnv";
+import { DAILY_CHECK_PERIOD_COUNT, getDailyCheckPeriod, isDailyCheckPeriod, type DailyCheckPeriod } from "./dailyCheckPeriod";
 import { ROOM_CATALOGS } from "./roomEquipment";
 
 export const DAILY_CHECK_SCALE_TOTAL = 5;
@@ -21,11 +22,23 @@ export const DAILY_CHECK_EXPECTED_TOTALS: DailyCheckExpectedTotals = {
 export interface DailyCheckProgressSources {
   scaleIds?: string[] | null;
   scaleCount?: number | null;
+  scaleRecords?: Array<{
+    scaleId?: string | null;
+    checkedAt?: string | Date | null;
+    period?: DailyCheckPeriod | string | null;
+  }> | null;
   environmentRooms?: string[] | null;
   environmentCount?: number | null;
+  environmentRecords?: Array<{
+    room?: string | null;
+    checkedAt?: string | Date | null;
+    period?: DailyCheckPeriod | string | null;
+  }> | null;
   equipmentRecords?: Array<{
     roomSlug?: string | null;
     instrumentId?: string | null;
+    checkedAt?: string | Date | null;
+    period?: DailyCheckPeriod | string | null;
   }> | null;
 }
 
@@ -46,32 +59,69 @@ function countBounded(value: number | null | undefined, max: number): number {
   return Math.min(Math.max(0, Math.floor(value)), max);
 }
 
-function countEquipment(records: DailyCheckProgressSources["equipmentRecords"], max: number): number {
-  if (!records) return 0;
-  const unique = new Set<string>();
+function periodOf(record: { period?: DailyCheckPeriod | string | null; checkedAt?: string | Date | null }): DailyCheckPeriod | null {
+  if (isDailyCheckPeriod(record.period)) return record.period;
+  if (!record.checkedAt) return null;
+  return getDailyCheckPeriod(record.checkedAt);
+}
+
+function countByItemPeriod<T>(
+  records: T[] | null | undefined,
+  itemKey: (record: T) => string | null,
+  max: number,
+  maxLegacyItems: number,
+): number | null {
+  if (!records) return null;
+  const uniquePeriods = new Set<string>();
+  const legacyItems = new Set<string>();
   for (const record of records) {
-    const roomSlug = record.roomSlug?.trim();
-    const instrumentId = record.instrumentId?.trim();
-    if (!roomSlug || !instrumentId) continue;
-    unique.add(`${roomSlug}:${instrumentId}`);
+    const key = itemKey(record)?.trim();
+    if (!key) continue;
+    const timedRecord = record as T & { period?: DailyCheckPeriod | string | null; checkedAt?: string | Date | null };
+    const period = periodOf(timedRecord);
+    if (period) {
+      uniquePeriods.add(`${key}:${period}`);
+    } else if (!timedRecord.checkedAt) {
+      legacyItems.add(key);
+    }
   }
-  return Math.min(unique.size, max);
+  return Math.min(uniquePeriods.size + Math.min(legacyItems.size, maxLegacyItems), max);
+}
+
+function countEquipment(records: DailyCheckProgressSources["equipmentRecords"], max: number): number {
+  return countByItemPeriod(
+    records,
+    (record) => {
+      const roomSlug = record.roomSlug?.trim();
+      const instrumentId = record.instrumentId?.trim();
+      return roomSlug && instrumentId ? `${roomSlug}:${instrumentId}` : null;
+    },
+    max,
+    max / DAILY_CHECK_PERIOD_COUNT,
+  ) ?? 0;
 }
 
 export function dailyCheckProgressFromSources(
   sources: DailyCheckProgressSources,
   totals: DailyCheckExpectedTotals = DAILY_CHECK_EXPECTED_TOTALS,
 ): DailyCheckProgress {
-  const total = totals.scales + totals.environment + totals.equipment;
+  const scaleTotal = totals.scales * DAILY_CHECK_PERIOD_COUNT;
+  const environmentTotal = totals.environment * DAILY_CHECK_PERIOD_COUNT;
+  const equipmentTotal = totals.equipment * DAILY_CHECK_PERIOD_COUNT;
+  const total = scaleTotal + environmentTotal + equipmentTotal;
   const scaleDone = countBounded(
-    countUnique(sources.scaleIds) ?? sources.scaleCount,
-    totals.scales,
+    countByItemPeriod(sources.scaleRecords, (record) => record.scaleId?.trim() || null, scaleTotal, totals.scales) ??
+      countUnique(sources.scaleIds) ??
+      sources.scaleCount,
+    scaleTotal,
   );
   const environmentDone = countBounded(
-    countUnique(sources.environmentRooms) ?? sources.environmentCount,
-    totals.environment,
+    countByItemPeriod(sources.environmentRecords, (record) => record.room?.trim() || null, environmentTotal, totals.environment) ??
+      countUnique(sources.environmentRooms) ??
+      sources.environmentCount,
+    environmentTotal,
   );
-  const equipmentDone = countEquipment(sources.equipmentRecords, totals.equipment);
+  const equipmentDone = countEquipment(sources.equipmentRecords, equipmentTotal);
   const done = Math.min(total, scaleDone + environmentDone + equipmentDone);
 
   return {

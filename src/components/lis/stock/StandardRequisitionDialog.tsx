@@ -14,6 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { isDeductionResolutionReady } from "@/lib/deductionResolution";
 import { isUsableBottle } from "@/lib/stockStatus";
+import { formatStockQuantityWithUnit } from "@/lib/stockQuantity";
 import { defaultWeightCount, requisitionUser, sumWeights, validateWeights } from "@/lib/standardRequisition";
 import { buildSubstanceGroups, resolveGroups, type InstrumentGroup } from "@/lib/standardInstrumentGroups";
 import { cn } from "@/lib/utils";
@@ -348,7 +349,7 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
                           (bottle?.qrId === u.qrId) ? "border-primary bg-primary/5" : "hover:bg-muted/50")}>
                           <input type="radio" name="bottle" checked={bottle?.qrId === u.qrId} onChange={() => setQrId(u.qrId)} />
                           <span className="text-xs text-muted-foreground">
-                            Lot {u.lotNo || "-"} · เหลือ {u.volume?.remaining} {u.volume?.unit} · EXP {u.exp ? new Date(u.exp).toLocaleDateString("th-TH") : "-"}
+                            Lot {u.lotNo || "-"} · เหลือ {formatStockQuantityWithUnit(u.volume?.remaining, u.volume?.unit)} · EXP {u.exp ? new Date(u.exp).toLocaleDateString("th-TH") : "-"}
                           </span>
                         </label>
                       ))}
@@ -387,7 +388,7 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
                     ))}
                   </div>
                   <p className="mt-1.5 text-xs text-muted-foreground">
-                    รวม {total} mg · คงเหลือหลังหัก {Math.max(0, remainingMg - total)} mg
+                    รวม {total} mg · คงเหลือหลังหัก {formatStockQuantityWithUnit(Math.max(0, remainingMg - total), bottle?.volume?.unit ?? "mg")}
                   </p>
                   {weightError && <p className="mt-1 text-sm text-destructive">{weightError}</p>}
                 </div>

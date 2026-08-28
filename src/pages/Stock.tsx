@@ -46,6 +46,7 @@ import StockQrScanner from "@/components/lis/StockQrScanner";
 import DiscardDialog from "@/components/lis/stock/DiscardDialog";
 import StockRawLabelPreviewDialog from "@/components/lis/StockRawLabelPreviewDialog";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
+import { formatStockQuantity, formatStockQuantityWithUnit } from "@/lib/stockQuantity";
 import { visibleBottles } from "@/lib/stockUnit";
 import type {
   StockStandardItem, StockSolventItem, StockGlasswareItem,
@@ -1132,10 +1133,10 @@ function HistoryTab() {
                   </TableCell>
                   <TableCell><ActionBadge action={t.action} /></TableCell>
                   <TableCell className={`text-right font-mono ${t.delta != null && t.delta < 0 ? "text-destructive" : t.delta != null && t.delta > 0 ? "text-emerald-600" : ""}`}>
-                    {t.delta != null ? (t.delta > 0 ? `+${t.delta}` : t.delta) : "-"}
+                    {t.delta != null ? `${t.delta > 0 ? "+" : ""}${formatStockQuantity(t.delta)}` : "-"}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {t.beforeQty ?? "-"} → <strong>{t.afterQty ?? "-"}</strong> {t.unit || ""}
+                    {formatStockQuantity(t.beforeQty)} → <strong>{formatStockQuantity(t.afterQty)}</strong> {t.unit || ""}
                   </TableCell>
                   <TableCell className="text-xs">{t.userName || t.userEmail || "-"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{t.note || ""}</TableCell>
@@ -1818,7 +1819,7 @@ const StockPage = () => {
             <DialogHeader>
               <DialogTitle>{scannedUnit.itemName}</DialogTitle>
               <DialogDescription>
-                {scannedUnit.itemCode} · {scannedUnit.type || "primary"} · เหลือ {scannedUnit.volume?.remaining} {scannedUnit.volume?.unit}
+                {scannedUnit.itemCode} · {scannedUnit.type || "primary"} · เหลือ {formatStockQuantityWithUnit(scannedUnit.volume?.remaining, scannedUnit.volume?.unit)}
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2 py-2">

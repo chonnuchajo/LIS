@@ -19,6 +19,7 @@ import DeductionResolutionDialog from "@/components/lis/stock/DeductionResolutio
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
 import { DEDUCTION_RESOLUTION_LABELS } from "@/lib/deductionResolution";
 import { deductionAmount } from "@/lib/stockDeduction";
+import { formatStockQuantity } from "@/lib/stockQuantity";
 import { getRoomCatalog } from "@/lib/roomEquipment";
 import type { StockTransactionItem } from "@/types/stock";
 
@@ -101,7 +102,7 @@ const StockDeduction = () => {
       className: "text-sm",
       cell: (t) => (
         <>
-          {t.beforeQty ?? "-"} → <strong>{t.afterQty ?? "-"}</strong>
+          {formatStockQuantity(t.beforeQty)} → <strong>{formatStockQuantity(t.afterQty)}</strong>
           {t.unit ? <span className="text-xs text-muted-foreground"> {t.unit}</span> : null}
         </>
       ),
@@ -274,7 +275,7 @@ function DeductionDetailSheet({
               <DetailItem label="จำนวนที่ตัด" value={amount.sub ? `${amount.text} (${amount.sub})` : amount.text} />
               <DetailItem
                 label="คงเหลือ"
-                value={`${transaction.beforeQty ?? "-"} → ${transaction.afterQty ?? "-"}${transaction.unit ? ` ${transaction.unit}` : ""}`}
+                value={`${formatStockQuantity(transaction.beforeQty)} → ${formatStockQuantity(transaction.afterQty)}${transaction.unit ? ` ${transaction.unit}` : ""}`}
               />
               <DetailItem label="เครื่อง" value={transaction.instrumentName || transaction.instrumentGroup?.toUpperCase() || "-"} />
               <DetailItem label="ผู้ดำเนินการ" value={transaction.userName || transaction.userEmail || "-"} />

@@ -51,14 +51,30 @@ describe("EquipmentCheckReport", () => {
     expect(screen.getByText(/สถานะ: ทั้งหมด/)).toBeInTheDocument();
   });
 
+  it("renders Daily Check period in filters and table rows", () => {
+    const { container } = render(
+      <EquipmentCheckReport
+        rows={[rec({ period: "afternoon" })]}
+        filters={{ ...filters, period: "afternoon" }}
+        printedBy="x"
+        printedAt="2026-07-02T04:00:00.000Z"
+      />,
+    );
+
+    expect(screen.getByText(/รอบ: บ่าย/)).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "รอบ" })).toBeInTheDocument();
+    const cells = Array.from(container.querySelector("tbody tr")!.querySelectorAll("td")).map((td) => td.textContent);
+    expect(cells[2]).toBe("บ่าย");
+  });
+
   it("renders em dash in the readings cell when a row has no readings", () => {
     const rows = [rec({ _id: "b", readings: [], note: "หมายเหตุ" })];
     const { container } = render(
       <EquipmentCheckReport rows={rows} filters={filters} printedBy="x" printedAt="2026-07-02T04:00:00.000Z" />,
     );
     const cells = Array.from(container.querySelector("tbody tr")!.querySelectorAll("td")).map((td) => td.textContent);
-    expect(cells[5]).toBe("—"); // ค่าที่วัด (readings) fallback
-    expect(cells[6]).toBe("หมายเหตุ"); // note present, not fallback
+    expect(cells[6]).toBe("—"); // ค่าที่วัด (readings) fallback
+    expect(cells[7]).toBe("หมายเหตุ"); // note present, not fallback
   });
 
   it("falls back to em dash in the note cell when note is empty", () => {
@@ -67,7 +83,7 @@ describe("EquipmentCheckReport", () => {
       <EquipmentCheckReport rows={rows} filters={filters} printedBy="x" printedAt="2026-07-02T04:00:00.000Z" />,
     );
     const cells = Array.from(container.querySelector("tbody tr")!.querySelectorAll("td")).map((td) => td.textContent);
-    expect(cells[6]).toBe("—"); // note fallback
+    expect(cells[7]).toBe("—"); // note fallback
   });
 
   it("renders per-row status text (ปกติ / ผิดปกติ)", () => {
@@ -76,7 +92,7 @@ describe("EquipmentCheckReport", () => {
       <EquipmentCheckReport rows={rows} filters={filters} printedBy="x" printedAt="2026-07-02T04:00:00.000Z" />,
     );
     const trs = container.querySelectorAll("tbody tr");
-    const statusOf = (tr: Element) => Array.from(tr.querySelectorAll("td"))[4].textContent;
+    const statusOf = (tr: Element) => Array.from(tr.querySelectorAll("td"))[5].textContent;
     expect(statusOf(trs[0])).toBe("ปกติ");
     expect(statusOf(trs[1])).toBe("ผิดปกติ");
   });

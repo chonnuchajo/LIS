@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { api, type DailyCheckRecord } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { getCurrentDailyCheckPeriod, getDailyCheckPeriod, getDailyCheckPeriodLabel } from "@/lib/dailyCheckPeriod";
 
 interface ScaleDraft {
   weights100: [string, string, string];
@@ -57,6 +58,13 @@ const BalanceRoomPage = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const todayLabel = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+  const currentPeriod = getCurrentDailyCheckPeriod();
+  const currentPeriodLabel = getDailyCheckPeriodLabel(currentPeriod);
+  const currentPeriodHint = currentPeriod === "morning"
+    ? "08:00–12:00"
+    : currentPeriod === "afternoon"
+      ? "13:00–17:00"
+      : "เปิด 08:00–12:00 และ 13:00–17:00";
 
   const [drafts, setDrafts] = useState<Record<string, ScaleDraft>>({});
   const [consecutiveAlert, setConsecutiveAlert] = useState<DailyCheckTrend | null>(null);
@@ -92,11 +100,14 @@ const BalanceRoomPage = () => {
 
   const latestByScale = useMemo(() => {
     const map: Record<string, DailyCheckRecord> = {};
+    if (!currentPeriod) return map;
     for (const r of todayRecords) {
+      const recordPeriod = r.period ?? getDailyCheckPeriod(r.checkedAt);
+      if (recordPeriod !== currentPeriod) continue;
       if (!map[r.scaleId]) map[r.scaleId] = r;
     }
     return map;
-  }, [todayRecords]);
+  }, [todayRecords, currentPeriod]);
 
   const createMutation = useMutation({
     mutationFn: api.createDailyCheck,
@@ -142,6 +153,10 @@ const BalanceRoomPage = () => {
     Math.abs(avg - target) <= TOLERANCE ? "pass" : "fail";
 
   const handleCheck = (id: string) => {
+    if (!currentPeriod) {
+      toast.error("Daily Check บันทึกได้เฉพาะช่วงเช้า 08:00-12:00 หรือบ่าย 13:00-17:00");
+      return;
+    }
     const r = getDraft(id);
     if (r.weights100.some(v => !v) || r.weights10.some(v => !v)) {
       toast.error("กรุณากรอกค่าน้ำหนักให้ครบทั้ง 6 ค่า");
@@ -190,9 +205,12 @@ const BalanceRoomPage = () => {
           <h2 className="text-lg font-semibold text-foreground">
             ห้องเครื่องชั่ง — Calibrate เครื่องชั่ง
           </h2>
-          <p className="text-sm text-muted-foreground">ประจำวัน — {todayLabel}</p>
+          <p className="text-sm text-muted-foreground">ประจำวัน — {todayLabel} · รอบ{currentPeriodLabel} ({currentPeriodHint})</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="outline" className="text-sm gap-1 py-1 px-3">
+            รอบ{currentPeriodLabel}
+          </Badge>
           <Badge variant="outline" className="text-sm gap-1 py-1 px-3">
             <Clock className="w-3.5 h-3.5" /> ตรวจแล้ว {checkedCount}/{SCALES.length}
           </Badge>
@@ -269,7 +287,7 @@ const BalanceRoomPage = () => {
                             placeholder={showResult && todayRec ? todayRec.weights100[i] : `ครั้งที่ ${i + 1}`}
                             value={r.weights100[i]}
                             onChange={e => updateWeight(scale.id, "100", i, e.target.value)}
-                            disabled={createMutation.isPending}
+                            disabled={createMutation.isPending || !currentPeriod}
                             className="text-xs h-8"
                           />
                         ))}
@@ -297,7 +315,7 @@ const BalanceRoomPage = () => {
                             placeholder={showResult && todayRec ? todayRec.weights10[i] : `ครั้งที่ ${i + 1}`}
                             value={r.weights10[i]}
                             onChange={e => updateWeight(scale.id, "10", i, e.target.value)}
-                            disabled={createMutation.isPending}
+                            disabled={createMutation.isPending || !currentPeriod}
                             className="text-xs h-8"
                           />
                         ))}
@@ -313,7 +331,7 @@ const BalanceRoomPage = () => {
                     <div>
                       <label className="text-xs font-medium text-muted-foreground mb-1 block">ผู้บันทึก</label>
                       <Input
-                        value={user?.name ?? ""}
+                        value={showResult && todayRec ? todayRec.recorder : (user?.name ?? "")}
                         readOnly
                         disabled
                         className="text-xs h-8 bg-muted/40"
@@ -328,10 +346,14 @@ const BalanceRoomPage = () => {
                       <Button
                         className="w-full gap-2"
                         onClick={() => handleCheck(scale.id)}
-                        disabled={createMutation.isPending}
+                        disabled={createMutation.isPending || !currentPeriod}
                       >
                         <CheckCircle2 className="w-4 h-4" />
-                        {createMutation.isPending && createMutation.variables?.scaleId === scale.id ? "กำลังบันทึก..." : "บันทึกผล Calibrate"}
+                        {!currentPeriod
+                          ? "นอกเวลาบันทึก"
+                          : createMutation.isPending && createMutation.variables?.scaleId === scale.id
+                            ? "กำลังบันทึก..."
+                            : "บันทึกผล Calibrate"}
                       </Button>
                     )}
                   </CardContent>
@@ -415,6 +437,7 @@ const BalanceRoomPage = () => {
                       <TableRow>
                         <TableHead>วันที่</TableHead>
                         <TableHead>เวลา</TableHead>
+                        <TableHead>รอบ</TableHead>
                         <TableHead>เครื่องชั่ง</TableHead>
                         <TableHead className="text-center">100g #1</TableHead>
                         <TableHead className="text-center">100g #2</TableHead>
@@ -435,6 +458,7 @@ const BalanceRoomPage = () => {
                           <TableRow key={h._id}>
                             <TableCell className="text-xs whitespace-nowrap">{fmtDate(h.date)}</TableCell>
                             <TableCell className="text-xs whitespace-nowrap">{fmtTime(h.checkedAt)}</TableCell>
+                            <TableCell className="text-xs whitespace-nowrap">{getDailyCheckPeriodLabel(h.period ?? getDailyCheckPeriod(h.checkedAt))}</TableCell>
                             <TableCell className="font-medium whitespace-nowrap">{h.scaleName}</TableCell>
                             {[0, 1, 2].map(i => (
                               <TableCell key={`100-${i}`} className="text-center text-xs">{h.weights100[i]}</TableCell>

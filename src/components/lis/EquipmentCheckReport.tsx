@@ -1,5 +1,6 @@
 import type { EquipmentCheckRecord } from "@/lib/api";
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
+import { getDailyCheckPeriod, getDailyCheckPeriodLabel, type DailyCheckPeriod } from "@/lib/dailyCheckPeriod";
 import { A4_PRINT_FONT_FAMILY, A4_PRINT_FONT_SIZE, A4_PRINT_HEADING_FONT_WEIGHT } from "@/lib/printConfig";
 import {
   fmtDate,
@@ -17,6 +18,7 @@ export interface EquipmentCheckReportFilters {
   room: string;
   instrument: string;
   status: string;
+  period?: DailyCheckPeriod | "all";
 }
 
 export interface EquipmentCheckReportProps {
@@ -67,6 +69,7 @@ export default function EquipmentCheckReport({
         <div>ห้อง: {roomFilterLabel(filters.room)}</div>
         <div>เครื่อง: {instrumentFilterLabel(filters.room, filters.instrument)}</div>
         <div>สถานะ: {statusFilterLabel(filters.status)}</div>
+        <div>รอบ: {filters.period && filters.period !== "all" ? getDailyCheckPeriodLabel(filters.period) : "ทั้งหมด"}</div>
       </div>
 
       {/* Table */}
@@ -75,6 +78,7 @@ export default function EquipmentCheckReport({
           <tr>
             <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold">วันที่</th>
             <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold">เวลา</th>
+            <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold">รอบ</th>
             <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold">ห้อง</th>
             <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold">เครื่อง</th>
             <th className="border border-black px-2 py-1 align-top bg-gray-100 font-semibold text-center">สถานะ</th>
@@ -88,6 +92,7 @@ export default function EquipmentCheckReport({
             <tr key={h._id}>
               <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{fmtDate(h.date)}</td>
               <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{fmtTime(h.checkedAt)}</td>
+              <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{getDailyCheckPeriodLabel(h.period ?? getDailyCheckPeriod(h.checkedAt))}</td>
               <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{roomLabel(h.roomSlug)}</td>
               <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{h.instrumentName} ({h.instrumentId})</td>
               <td className="border border-black px-2 py-1 align-top text-center whitespace-nowrap">{h.status === "normal" ? "ปกติ" : "ผิดปกติ"}</td>

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { api, type EquipmentCheckRecord } from "@/lib/api";
 import { EQUIPMENT_ROOM_SLUGS, getRoomCatalog } from "@/lib/roomEquipment";
 import { filterEquipmentRecords } from "@/lib/equipmentRecords";
+import { getDailyCheckPeriod, getDailyCheckPeriodLabel, type DailyCheckPeriod } from "@/lib/dailyCheckPeriod";
 import { fmtDate, fmtTime, roomLabel, formatReadings } from "@/lib/dailyCheckFormat";
 import { useAuth } from "@/context/AuthContext";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
@@ -26,6 +27,7 @@ const DailyCheckRecordsPage = () => {
   const [filterInstrument, setFilterInstrument] = useState<string>("all");
   const [filterDate, setFilterDate] = useState<string>(todayStr());
   const [filterStatus, setFilterStatus] = useState<"all" | "normal" | "abnormal">("all");
+  const [filterPeriod, setFilterPeriod] = useState<"all" | DailyCheckPeriod>("all");
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryText, setSummaryText] = useState('');
@@ -57,6 +59,7 @@ const DailyCheckRecordsPage = () => {
     room: filterRoom,
     instrumentId: filterInstrument,
     status: filterStatus,
+    period: filterPeriod,
   });
 
   const roomInstruments =
@@ -72,6 +75,7 @@ const DailyCheckRecordsPage = () => {
     setFilterInstrument("all");
     setFilterDate(todayStr());
     setFilterStatus("all");
+    setFilterPeriod("all");
   };
 
   return (
@@ -179,6 +183,17 @@ const DailyCheckRecordsPage = () => {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] text-muted-foreground">รอบ</label>
+              <Select value={filterPeriod} onValueChange={(v) => setFilterPeriod(v as "all" | DailyCheckPeriod)}>
+                <SelectTrigger className="h-8 text-xs w-[120px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">ทั้งหมด</SelectItem>
+                  <SelectItem value="morning">เช้า</SelectItem>
+                  <SelectItem value="afternoon">บ่าย</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={resetFilters}>
               รีเซ็ตตัวกรอง
             </Button>
@@ -205,11 +220,12 @@ const DailyCheckRecordsPage = () => {
             <p className="text-sm text-muted-foreground text-center py-8">ไม่พบรายการในช่วงที่เลือก</p>
           ) : (
             <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-              <Table className="min-w-[860px]">
+              <Table className="min-w-[940px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>วันที่</TableHead>
                     <TableHead>เวลา</TableHead>
+                    <TableHead>รอบ</TableHead>
                     <TableHead>ห้อง</TableHead>
                     <TableHead>เครื่อง</TableHead>
                     <TableHead className="text-center">สถานะ</TableHead>
@@ -225,6 +241,7 @@ const DailyCheckRecordsPage = () => {
                       <TableRow key={h._id}>
                         <TableCell className="text-xs whitespace-nowrap">{fmtDate(h.date)}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{fmtTime(h.checkedAt)}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{getDailyCheckPeriodLabel(h.period ?? getDailyCheckPeriod(h.checkedAt))}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{roomLabel(h.roomSlug)}</TableCell>
                         <TableCell className="font-medium whitespace-nowrap">{h.instrumentName} <span className="text-muted-foreground">({h.instrumentId})</span></TableCell>
                         <TableCell className="text-center">
@@ -255,7 +272,7 @@ const DailyCheckRecordsPage = () => {
       >
         <EquipmentCheckReport
           rows={rows}
-          filters={{ date: filterDate, room: filterRoom, instrument: filterInstrument, status: filterStatus }}
+          filters={{ date: filterDate, room: filterRoom, instrument: filterInstrument, status: filterStatus, period: filterPeriod }}
           printedBy={user?.name ?? user?.email ?? ""}
           printedAt={printedAt || new Date().toISOString()}
         />

@@ -1,6 +1,8 @@
 // แสดงจำนวนที่ตัดของ StockTransaction แถว deduct — solvent/glassware/ขวด standard
 // เก็บใน delta ส่วนเบิก mg รายน้ำหนัก (deduct-mg) เก็บใน volumeDelta + weights.
 
+import { formatStockQuantity } from "./stockQuantity";
+
 export interface DeductionAmountInput {
   delta?: number | null;
   volumeDelta?: number | null;
@@ -17,7 +19,7 @@ export interface DeductionAmount {
 export function deductionAmount(t: DeductionAmountInput): DeductionAmount {
   const amount = t.delta ?? t.volumeDelta;
   if (amount == null) return { text: "-" };
-  const text = `${Math.abs(amount)}${t.unit ? ` ${t.unit}` : ""}`;
+  const text = `${formatStockQuantity(Math.abs(amount))}${t.unit ? ` ${t.unit}` : ""}`;
   if (t.weights && t.weights.length > 1) return { text, sub: t.weights.join(" + ") };
   return { text };
 }

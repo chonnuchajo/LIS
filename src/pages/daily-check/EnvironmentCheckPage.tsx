@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { api, type EnvCheckRecord, type LiveTempHum } from "@/lib/api";
 import { evaluateEnv, isReadingStale, type EnvRoom } from "@/lib/dailyCheckEnv";
+import { getCurrentDailyCheckPeriod, getDailyCheckPeriod, getDailyCheckPeriodLabel } from "@/lib/dailyCheckPeriod";
 import { useAuth } from "@/context/AuthContext";
 import { useEnvRooms } from "@/hooks/useEnvRooms";
 
@@ -42,6 +43,13 @@ const EnvironmentCheckPage = () => {
   const { rooms } = useEnvRooms();
   const queryClient = useQueryClient();
   const todayLabel = new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" });
+  const currentPeriod = getCurrentDailyCheckPeriod();
+  const currentPeriodLabel = getDailyCheckPeriodLabel(currentPeriod);
+  const currentPeriodHint = currentPeriod === "morning"
+    ? "08:00–12:00"
+    : currentPeriod === "afternoon"
+      ? "13:00–17:00"
+      : "เปิด 08:00–12:00 และ 13:00–17:00";
 
   const [drafts, setDrafts] = useState<Record<string, EnvDraft>>({});
 
@@ -96,9 +104,14 @@ const EnvironmentCheckPage = () => {
 
   const latestByRoom = useMemo(() => {
     const map: Record<string, EnvCheckRecord> = {};
-    for (const r of todayRecords) if (!map[r.room]) map[r.room] = r;
+    if (!currentPeriod) return map;
+    for (const r of todayRecords) {
+      const recordPeriod = r.period ?? getDailyCheckPeriod(r.checkedAt);
+      if (recordPeriod !== currentPeriod) continue;
+      if (!map[r.room]) map[r.room] = r;
+    }
     return map;
-  }, [todayRecords]);
+  }, [todayRecords, currentPeriod]);
 
   const liveForRoom = (room: EnvRoom): LiveTempHum | undefined =>
     room.boardId ? liveByBoard[room.boardId] : undefined;
@@ -153,6 +166,10 @@ const EnvironmentCheckPage = () => {
   });
 
   const handleSave = (room: EnvRoom) => {
+    if (!currentPeriod) {
+      toast.error("Daily Check บันทึกได้เฉพาะช่วงเช้า 08:00-12:00 หรือบ่าย 13:00-17:00");
+      return;
+    }
     const d = getDraft(room);
     if (d.temperature === "" || d.humidity === "") {
       toast.error("กรุณากรอกอุณหภูมิและความชื้น");
@@ -196,9 +213,12 @@ const EnvironmentCheckPage = () => {
           <h2 className="text-lg font-semibold text-foreground">
             อุณหภูมิ/ความชื้น — ตรวจประจำวัน
           </h2>
-          <p className="text-sm text-muted-foreground">ประจำวัน — {todayLabel}</p>
+          <p className="text-sm text-muted-foreground">ประจำวัน — {todayLabel} · รอบ{currentPeriodLabel} ({currentPeriodHint})</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <Badge variant="outline" className="text-sm gap-1 py-1 px-3">
+            รอบ{currentPeriodLabel}
+          </Badge>
           <Badge variant="outline" className="text-sm gap-1 py-1 px-3">
             <Clock className="w-3.5 h-3.5" /> ตรวจแล้ว {checkedCount}/{rooms.length}
           </Badge>
@@ -304,7 +324,7 @@ const EnvironmentCheckPage = () => {
                         placeholder={showResult && todayRec ? String(todayRec.temperature) : "เช่น 22.5"}
                         value={d.temperature}
                         onChange={(e) => setField(room.slug, { temperature: e.target.value })}
-                        disabled={createMutation.isPending}
+                        disabled={createMutation.isPending || !currentPeriod}
                         className="text-sm h-9"
                       />
                     </div>
@@ -320,7 +340,7 @@ const EnvironmentCheckPage = () => {
                         placeholder={showResult && todayRec ? String(todayRec.humidity) : "เช่น 55"}
                         value={d.humidity}
                         onChange={(e) => setField(room.slug, { humidity: e.target.value })}
-                        disabled={createMutation.isPending}
+                        disabled={createMutation.isPending || !currentPeriod}
                         className="text-sm h-9"
                       />
                     </div>
@@ -344,7 +364,7 @@ const EnvironmentCheckPage = () => {
                           placeholder="บันทึกเพิ่มเติม / การแก้ไข"
                           value={d.note}
                           onChange={(e) => setField(room.slug, { note: e.target.value })}
-                          disabled={createMutation.isPending}
+                          disabled={createMutation.isPending || !currentPeriod}
                           className="text-sm"
                         />
                       </div>
@@ -357,7 +377,7 @@ const EnvironmentCheckPage = () => {
                     {/* ผู้บันทึก */}
                     <div>
                       <label className="text-xs font-medium text-muted-foreground mb-1 block">ผู้บันทึก</label>
-                      <Input value={user?.name ?? ""} readOnly disabled className="text-xs h-8 bg-muted/40" />
+                      <Input value={showResult && todayRec ? todayRec.recorder : (user?.name ?? "")} readOnly disabled className="text-xs h-8 bg-muted/40" />
                     </div>
 
                     {showResult ? (
@@ -368,10 +388,14 @@ const EnvironmentCheckPage = () => {
                       <Button
                         className="w-full gap-2"
                         onClick={() => handleSave(room)}
-                        disabled={createMutation.isPending}
+                        disabled={createMutation.isPending || !currentPeriod}
                       >
                         <CheckCircle2 className="w-4 h-4" />
-                        {createMutation.isPending && createMutation.variables?.room === room.slug ? "กำลังบันทึก..." : "บันทึกผล"}
+                        {!currentPeriod
+                          ? "นอกเวลาบันทึก"
+                          : createMutation.isPending && createMutation.variables?.room === room.slug
+                            ? "กำลังบันทึก..."
+                            : "บันทึกผล"}
                       </Button>
                     )}
                   </CardContent>
@@ -440,6 +464,7 @@ const EnvironmentCheckPage = () => {
                       <TableRow>
                         <TableHead>วันที่</TableHead>
                         <TableHead>เวลา</TableHead>
+                        <TableHead>รอบ</TableHead>
                         <TableHead>ห้อง</TableHead>
                         <TableHead className="text-center">อุณหภูมิ (°C)</TableHead>
                         <TableHead className="text-center">ความชื้น (%RH)</TableHead>
@@ -455,6 +480,7 @@ const EnvironmentCheckPage = () => {
                           <TableRow key={h._id}>
                             <TableCell className="text-xs whitespace-nowrap">{fmtDate(h.date)}</TableCell>
                             <TableCell className="text-xs whitespace-nowrap">{fmtTime(h.checkedAt)}</TableCell>
+                            <TableCell className="text-xs whitespace-nowrap">{getDailyCheckPeriodLabel(h.period ?? getDailyCheckPeriod(h.checkedAt))}</TableCell>
                             <TableCell className="font-medium whitespace-nowrap">{h.roomName}</TableCell>
                             <TableCell className={`text-center text-xs font-semibold ${h.tempStatus === "pass" ? "text-green-600" : "text-red-600"}`}>
                               {h.temperature}

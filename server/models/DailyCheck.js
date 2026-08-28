@@ -21,9 +21,11 @@ const DailyCheckSchema = new mongoose.Schema({
 
   // YYYY-MM-DD (สำหรับ filter ตามวันแบบเร็ว)
   date: { type: String, required: true, index: true },
+  period: { type: String, enum: ['morning', 'afternoon'], index: true },
   checkedAt: { type: Date, required: true, default: Date.now },
 }, { timestamps: true });
 
 DailyCheckSchema.index({ date: -1, scaleId: 1 });
+DailyCheckSchema.index({ date: -1, period: 1, scaleId: 1 });
 
 module.exports = mongoose.model('DailyCheck', DailyCheckSchema);

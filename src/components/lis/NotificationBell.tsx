@@ -57,6 +57,9 @@ const NotificationBell = ({ className, iconClassName }: NotificationBellProps) =
         <button
           type="button"
           aria-label="การแจ้งเตือน"
+          onClick={() => {
+            if (unreadCount > 0) markAllRead();
+          }}
           className={cn(
             "relative inline-flex items-center justify-center h-10 w-10 rounded-md hover:bg-accent transition-colors",
             className,

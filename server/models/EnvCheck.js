@@ -24,9 +24,11 @@ const EnvCheckSchema = new mongoose.Schema({
 
   // YYYY-MM-DD (filter ตามวันแบบเร็ว)
   date: { type: String, required: true, index: true },
+  period: { type: String, enum: ['morning', 'afternoon'], index: true },
   checkedAt: { type: Date, required: true, default: Date.now },
 }, { timestamps: true });
 
 EnvCheckSchema.index({ date: -1, room: 1 });
+EnvCheckSchema.index({ date: -1, period: 1, room: 1 });
 
 module.exports = mongoose.model('EnvCheck', EnvCheckSchema);
