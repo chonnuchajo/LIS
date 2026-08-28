@@ -1,13 +1,18 @@
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { History, Filter, ScanLine } from "lucide-react";
+import { History, Filter, Pencil, ScanLine, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/context/AuthContext";
 import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/lis/PageHeader";
@@ -18,7 +23,8 @@ import StandardsInUseTable from "@/components/lis/stock/StandardsInUseTable";
 import DeductionResolutionDialog from "@/components/lis/stock/DeductionResolutionDialog";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
 import { DEDUCTION_RESOLUTION_LABELS } from "@/lib/deductionResolution";
-import { deductionAmount } from "@/lib/stockDeduction";
+import { requisitionUser } from "@/lib/standardRequisition";
+import { canManageStockDeduction, deductionAmount } from "@/lib/stockDeduction";
 import { formatStockQuantity } from "@/lib/stockQuantity";
 import { getRoomCatalog } from "@/lib/roomEquipment";
 import type { StockTransactionItem } from "@/types/stock";
@@ -28,11 +34,15 @@ const analysisInstruments =
 
 const StockDeduction = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const { tabs, defaultKey } = useAccessibleTabs("/stock-deduction");
   const [type, setType] = useState<string>("");
   const [selected, setSelected] = useState<StockTransactionItem | null>(null);
   const [resolving, setResolving] = useState<StockTransactionItem | null>(null);
+  const [editing, setEditing] = useState<StockTransactionItem | null>(null);
+  const [deleting, setDeleting] = useState<StockTransactionItem | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannedQrId, setScannedQrId] = useState<string | null>(null);
   const [lastScanResult, setLastScanResult] = useState<DecodedScanResult | null>(null);
@@ -56,8 +66,18 @@ const StockDeduction = () => {
       const next = new URLSearchParams(searchParams);
       next.delete("qrId");
       setSearchParams(next, { replace: true });
-    }
-  }, [queryQrId, searchParams, setSearchParams]);
+      }
+    }, [queryQrId, searchParams, setSearchParams]);
+
+  const refreshStockDeductions = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["stock-deductions"] });
+    queryClient.invalidateQueries({ queryKey: ["stock", "transactions"] });
+    queryClient.invalidateQueries({ queryKey: ["stock", "units"] });
+    queryClient.invalidateQueries({ queryKey: ["stock", "in-use"] });
+    queryClient.invalidateQueries({ queryKey: ["stock", "standards"] });
+    queryClient.invalidateQueries({ queryKey: ["stock", "solvents"] });
+    queryClient.invalidateQueries({ queryKey: ["stock", "glassware"] });
+  }, [queryClient]);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["stock-deductions", type],
@@ -121,16 +141,65 @@ const StockDeduction = () => {
     },
     { key: "user", header: "ผู้ดำเนินการ", className: "text-xs", cell: (t) => t.userName || t.userEmail || "-" },
     { key: "note", header: "หมายเหตุ", className: "text-xs text-muted-foreground", cell: (t) => t.note || "" },
+    {
+      key: "actions",
+      header: "จัดการ",
+      className: "text-right",
+      cell: (t) => canManageStockDeduction(t, user) ? (
+        <div
+          className="flex justify-end gap-1"
+          onClick={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+        >
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            aria-label={`แก้ไขการเบิก ${t.itemName || t.itemCode || t._id}`}
+            onClick={() => setEditing(t)}
+          >
+            <Pencil className="mr-1 h-3.5 w-3.5" /> แก้ไข
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:text-destructive"
+            aria-label={`ลบการเบิก ${t.itemName || t.itemCode || t._id}`}
+            onClick={() => setDeleting(t)}
+          >
+            <Trash2 className="mr-1 h-3.5 w-3.5" /> ลบ
+          </Button>
+        </div>
+      ) : null,
+    },
   ];
 
   const handleResolved = (updated: StockTransactionItem) => {
     setSelected((current) => (current?._id === updated._id ? updated : current));
-    queryClient.invalidateQueries({ queryKey: ["stock-deductions"] });
-    queryClient.invalidateQueries({ queryKey: ["stock", "transactions"] });
-    queryClient.invalidateQueries({ queryKey: ["stock", "units"] });
-    // แถวนี้อาจเป็น standard ที่กำลังใช้งานอยู่ — ปิดจาก history tab ก็ต้องหลุดจากแท็บ
-    // "กำลังใช้งานอยู่" และกระดิ่งของทุกคนด้วย ไม่งั้นค้างโชว์ได้ถึง 60 วิ
-    queryClient.invalidateQueries({ queryKey: ["stock", "in-use"] });
+    refreshStockDeductions();
+  };
+
+  const handleEdited = (updated: StockTransactionItem) => {
+    setSelected((current) => (current?._id === updated._id ? updated : current));
+    setEditing(null);
+    refreshStockDeductions();
+  };
+
+  const deleteDeduction = async () => {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    try {
+      await api.deleteStockDeduction(deleting._id, { _user: requisitionUser(user) });
+      toast.success("ลบการเบิกแล้ว");
+      setSelected((current) => (current?._id === deleting._id ? null : current));
+      setDeleting(null);
+      refreshStockDeductions();
+    } catch (err) {
+      toast.error((err as Error).message || "ลบการเบิกไม่สำเร็จ");
+    } finally {
+      setDeleteBusy(false);
+    }
   };
 
   return (
@@ -202,7 +271,7 @@ const StockDeduction = () => {
             isLoading={isLoading}
             onRowClick={(row) => setSelected(row)}
             emptyTitle="ยังไม่มีรายการตัด stock"
-            tableClassName="min-w-[860px]"
+            tableClassName="min-w-[980px]"
           />
         </TabsContent>
       </Tabs>
@@ -227,11 +296,173 @@ const StockDeduction = () => {
           onSaved={handleResolved}
         />
       )}
+      {editing && (
+        <DeductionEditDialog
+          transaction={editing}
+          user={user}
+          onClose={() => setEditing(null)}
+          onSaved={handleEdited}
+        />
+      )}
+      <DeductionDeleteDialog
+        transaction={deleting}
+        busy={deleteBusy}
+        onCancel={() => setDeleting(null)}
+        onConfirm={deleteDeduction}
+      />
     </AppLayout>
   );
 };
 
 export default StockDeduction;
+
+function deductionAmountValue(transaction: StockTransactionItem): number {
+  const value = transaction.volumeDelta ?? transaction.delta;
+  const amount = Number(value);
+  return Number.isFinite(amount) ? Math.abs(amount) : 0;
+}
+
+function formatAmountInput(value: number): string {
+  return Number.isFinite(value) && value > 0 ? String(value) : "";
+}
+
+function unitLabel(transaction: StockTransactionItem): string {
+  return transaction.unit || transaction.volumeUnit || (transaction.weights?.length ? "mg" : "");
+}
+
+function DeductionEditDialog({
+  transaction,
+  user,
+  onClose,
+  onSaved,
+}: {
+  transaction: StockTransactionItem;
+  user: { email?: string; name?: string } | null;
+  onClose: () => void;
+  onSaved: (transaction: StockTransactionItem) => void;
+}) {
+  const initialWeights = transaction.weights?.length ? transaction.weights : [];
+  const [amount, setAmount] = useState(formatAmountInput(deductionAmountValue(transaction)));
+  const [weights, setWeights] = useState(initialWeights.map((weight) => formatAmountInput(weight)));
+  const [note, setNote] = useState(transaction.note || "");
+  const [busy, setBusy] = useState(false);
+  const isWeightMode = weights.length > 0;
+  const weightNumbers = weights.map((weight) => Number(weight));
+  const parsedAmount = isWeightMode
+    ? weightNumbers.reduce((total, weight) => total + (Number.isFinite(weight) ? weight : 0), 0)
+    : Number(amount);
+  const hasInvalidWeights = isWeightMode && weightNumbers.some((weight) => !Number.isFinite(weight) || weight <= 0);
+  const canSave = Number.isFinite(parsedAmount) && parsedAmount > 0 && !hasInvalidWeights;
+
+  const save = async () => {
+    if (!canSave) return;
+    setBusy(true);
+    try {
+      const updated = await api.updateStockDeduction(transaction._id, {
+        ...(isWeightMode ? { weights: weightNumbers } : { amount: parsedAmount }),
+        note,
+        _user: requisitionUser(user),
+      });
+      toast.success("แก้ไขการเบิกแล้ว");
+      onSaved(updated);
+    } catch (err) {
+      toast.error((err as Error).message || "แก้ไขการเบิกไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
+      <DialogContent className="max-w-[95vw] sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>แก้ไขการเบิก</DialogTitle>
+          <DialogDescription>
+            {transaction.itemName || transaction.itemCode || transaction._id}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          {isWeightMode ? (
+            <div className="space-y-2">
+              <Label>น้ำหนักที่ตัด ({unitLabel(transaction) || "mg"})</Label>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {weights.map((weight, index) => (
+                  <Input
+                    key={`${transaction._id}-weight-${index}`}
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={weight}
+                    aria-label={`น้ำหนักที่ ${index + 1}`}
+                    onChange={(event) => setWeights((current) => current.map((value, valueIndex) => (
+                      valueIndex === index ? event.target.value : value
+                    )))}
+                  />
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">รวม {formatStockQuantity(parsedAmount)} {unitLabel(transaction) || "mg"}</p>
+              {hasInvalidWeights && <p className="text-sm text-destructive">กรุณากรอกน้ำหนักทุกช่องให้มากกว่า 0</p>}
+            </div>
+          ) : (
+            <div>
+              <Label className="mb-1.5 block">จำนวนที่ตัด {unitLabel(transaction) ? `(${unitLabel(transaction)})` : ""}</Label>
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+              />
+            </div>
+          )}
+          <div>
+            <Label className="mb-1.5 block">หมายเหตุ</Label>
+            <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="optional" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose} disabled={busy}>ยกเลิก</Button>
+          <Button type="button" onClick={save} disabled={!canSave || busy}>
+            {busy ? "กำลังบันทึก..." : "บันทึก"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeductionDeleteDialog({
+  transaction,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  transaction: StockTransactionItem | null;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  return (
+    <Dialog open={Boolean(transaction)} onOpenChange={(open) => { if (!open && !busy) onCancel(); }}>
+      <DialogContent className="max-w-[95vw] sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>ลบการเบิก?</DialogTitle>
+          <DialogDescription>
+            {transaction
+              ? `รายการ "${transaction.itemName || transaction.itemCode || transaction._id}" จะถูกลบ และคืนจำนวนกลับเข้า stock`
+              : "ยืนยันการลบการเบิก"}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onCancel} disabled={busy}>ยกเลิก</Button>
+          <Button type="button" variant="destructive" onClick={onConfirm} disabled={busy}>
+            {busy ? "กำลังลบ..." : "ลบ"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function DeductionDetailSheet({
   transaction,

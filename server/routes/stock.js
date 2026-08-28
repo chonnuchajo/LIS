@@ -7,6 +7,7 @@ const ChemicalRequisition = require('../models/ChemicalRequisition');
 const StockUnit = require('../models/StockUnit');
 const User = require('../models/User');
 const crypto = require('crypto');
+const { normalizeRoles } = require('../lib/roles');
 const { isValidReceiveType, isValidUnitType } = require('../lib/stockSource');
 const { sumWeights } = require('../lib/requisitionWeights');
 const { normalizeActorFields } = require('../lib/stockActor');
@@ -145,6 +146,112 @@ async function userMeta(req) {
   return req._stockUserMeta;
 }
 
+const STOCK_DEDUCTION_ACTION_TIME_ZONE = 'Asia/Bangkok';
+const STOCK_DEDUCTION_MANAGER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const STOCK_DEDUCTION_MANAGER_ROLES = new Set(['admin', 'lab-inventory']);
+
+function normalizedEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function calendarDayKey(value, timeZone = STOCK_DEDUCTION_ACTION_TIME_ZONE) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const part = (type) => parts.find((row) => row.type === type)?.value || '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+function canManageOwnTodayDeduction(tx, actorEmail, now = new Date()) {
+  if (!tx || tx.action !== 'deduct') return false;
+  const owner = normalizedEmail(tx.userEmail);
+  const actor = normalizedEmail(actorEmail);
+  if (!owner || !actor || owner !== actor) return false;
+  return calendarDayKey(tx.createdAt) === calendarDayKey(now);
+}
+
+function canManageStockDeduction(tx, actor, now = new Date()) {
+  if (!tx || tx.action !== 'deduct') return false;
+  const createdAt = tx.createdAt ? new Date(tx.createdAt) : null;
+  const createdAtMs = createdAt?.getTime?.() ?? NaN;
+  const nowMs = now.getTime();
+  const hasManagerRole = normalizeRoles(actor).some((role) => STOCK_DEDUCTION_MANAGER_ROLES.has(role));
+  if (hasManagerRole) {
+    return Number.isFinite(createdAtMs) && createdAtMs <= nowMs && nowMs - createdAtMs <= STOCK_DEDUCTION_MANAGER_WINDOW_MS;
+  }
+  return canManageOwnTodayDeduction(tx, actor?.email || actor?.userEmail || '', now);
+}
+
+async function stockManagementActor(req) {
+  const meta = await userMeta(req);
+  const email = normalizedEmail(meta.userEmail);
+  const stored = email ? await User.findOne({ email }).lean() : null;
+  return {
+    email: meta.userEmail,
+    userEmail: meta.userEmail,
+    name: meta.userName,
+    roles: normalizeRoles(stored),
+  };
+}
+
+function isVolumeDeduction(tx) {
+  return tx?.volumeDelta != null || String(tx?.unit || tx?.volumeUnit || '').toLowerCase() === 'mg';
+}
+
+function transactionDeductionAmount(tx) {
+  const volumeDelta = Number(tx?.volumeDelta);
+  if (tx?.volumeDelta != null && Number.isFinite(volumeDelta)) return Math.abs(volumeDelta);
+  const delta = Number(tx?.delta);
+  if (tx?.delta != null && Number.isFinite(delta)) return Math.abs(delta);
+  return Array.isArray(tx?.weights) ? sumWeights(tx.weights) : 0;
+}
+
+function normalizePositiveAmount(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return amount;
+}
+
+function normalizeDeductionEditInput(body = {}, tx = {}) {
+  let amount = null;
+  let weights;
+  if (isVolumeDeduction(tx) && Array.isArray(body.weights)) {
+    weights = body.weights.map((weight) => Number(weight));
+    if (!weights.length || weights.some((weight) => !Number.isFinite(weight) || weight <= 0)) {
+      return { error: 'กรุณากรอกน้ำหนักทุกช่องให้มากกว่า 0' };
+    }
+    amount = sumWeights(weights);
+  } else {
+    amount = normalizePositiveAmount(body.amount ?? body.qty);
+  }
+  if (!amount) return { error: 'จำนวนที่ตัดไม่ถูกต้อง' };
+
+  const previousAmount = transactionDeductionAmount(tx);
+  if (tx.itemType === 'solvent' && tx.qrId && amount !== previousAmount) {
+    return { error: 'รายการเบิกจาก QR รายขวดแก้จำนวนไม่ได้ ให้ลบแล้วเบิกใหม่' };
+  }
+  if (tx.itemType === 'solvent' && !Number.isInteger(amount)) {
+    return { error: 'จำนวนขวดต้องเป็นจำนวนเต็มบวก' };
+  }
+  const beforeQty = Number(tx.beforeQty);
+  if (Number.isFinite(beforeQty) && beforeQty >= 0 && amount > beforeQty) {
+    return { error: 'จำนวนที่ตัดต้องไม่เกินคงเหลือก่อนตัด' };
+  }
+  return {
+    value: {
+      amount,
+      weights,
+      note: body.note === undefined ? String(tx.note || '') : String(body.note || ''),
+    },
+  };
+}
+
 async function logTransaction(data) {
   try {
     await StockTransaction.create(data);
@@ -276,6 +383,127 @@ async function markSolventUnitsEmptyForDeduction(item, qty) {
     unit.status = 'empty';
     if (unit.volume) unit.volume.remaining = 0;
     await unit.save();
+  }
+}
+
+async function markSolventUnitsEmptyForDeductionStrict(solventId, qty) {
+  const count = requireWholeBottleCount(qty);
+  if (!count) throw new Error('จำนวนขวดต้องเป็นจำนวนเต็มบวก');
+  const units = await StockUnit.find({ itemType: 'solvent', itemId: String(solventId), status: 'active' })
+    .sort({ receivedDate: 1, createdAt: 1, _id: 1 })
+    .limit(count);
+  if (units.length < count) throw new Error('ขวดสารเคมีพร้อมใช้งานไม่พอ');
+  for (const unit of units) {
+    unit.status = 'empty';
+    if (unit.volume) unit.volume.remaining = 0;
+    await unit.save();
+  }
+  return units;
+}
+
+async function restoreSolventUnit(unit) {
+  unit.status = 'active';
+  if (unit.volume && Number(unit.volume.remaining) <= 0) {
+    unit.volume.remaining = Number(unit.volume.initial) || 0;
+  }
+  await unit.save();
+}
+
+async function restoreSolventUnitsForDeduction(solventId, qty, qrId) {
+  const count = requireWholeBottleCount(qty);
+  if (!count) return;
+  if (qrId) {
+    const unit = await StockUnit.findOne({ itemType: 'solvent', itemId: String(solventId), qrId: String(qrId).trim(), status: 'empty' });
+    if (unit) await restoreSolventUnit(unit);
+    return;
+  }
+  const units = await StockUnit.find({ itemType: 'solvent', itemId: String(solventId), status: 'empty' })
+    .sort({ updatedAt: -1, _id: -1 })
+    .limit(count);
+  for (const unit of units) await restoreSolventUnit(unit);
+}
+
+async function updateStockQuantity(Model, itemId, path, diff, errorMessage) {
+  if (diff === 0) return Model.findById(itemId);
+  const filter = { _id: itemId };
+  if (diff < 0) filter[path] = { $gte: Math.abs(diff) };
+  const updated = await Model.findOneAndUpdate(filter, { $inc: { [path]: diff } }, { new: true });
+  if (!updated) throw new Error(errorMessage);
+  return updated;
+}
+
+function stockUnitQueryForTransaction(tx) {
+  if (tx.qrId) return { qrId: tx.qrId, itemType: 'standard' };
+  if (tx.unitId) return { _id: tx.unitId, itemType: 'standard' };
+  throw new Error('ไม่พบข้อมูลขวดของรายการเบิก');
+}
+
+async function adjustStockUnitDeduction(tx, diff) {
+  if (diff === 0) return;
+  const query = stockUnitQueryForTransaction(tx);
+  if (diff < 0) {
+    const amountToDeduct = Math.abs(diff);
+    const updated = await StockUnit.findOneAndUpdate(
+      { ...query, status: 'active', 'volume.remaining': { $gte: amountToDeduct } },
+      { $inc: { 'volume.remaining': -amountToDeduct } },
+      { new: true },
+    );
+    if (!updated) throw new Error('ปริมาณคงเหลือไม่พอ');
+    if (Number(updated.volume?.remaining) <= 0) {
+      updated.status = 'empty';
+      await updated.save();
+    }
+    return;
+  }
+
+  const unit = await StockUnit.findOne(query);
+  if (!unit) throw new Error('ไม่พบขวด (QR)');
+  const currentRemaining = Number(unit.volume?.remaining) || 0;
+  const initialAmount = Number(unit.volume?.initial);
+  const nextRemaining = currentRemaining + diff;
+  if (Number.isFinite(initialAmount) && initialAmount > 0 && nextRemaining > initialAmount) {
+    throw new Error('จำนวนคืนกลับเกินปริมาณตั้งต้นของขวด');
+  }
+  if (!unit.volume) {
+    unit.volume = { initial: nextRemaining, remaining: nextRemaining, unit: tx.volumeUnit || tx.unit || 'mg' };
+  } else {
+    unit.volume.remaining = nextRemaining;
+  }
+  if (nextRemaining > 0 && unit.status === 'empty') unit.status = 'active';
+  await unit.save();
+}
+
+async function adjustSolventDeduction(tx, diff) {
+  if (diff === 0) return;
+  if (diff < 0) {
+    const emptiedUnits = await markSolventUnitsEmptyForDeductionStrict(tx.itemId, Math.abs(diff));
+    try {
+      await updateStockQuantity(StockSolvent, tx.itemId, 'qty', diff, 'จำนวน stock ไม่พอ');
+    } catch (err) {
+      for (const unit of emptiedUnits) await restoreSolventUnit(unit);
+      throw err;
+    }
+    return;
+  }
+  await updateStockQuantity(StockSolvent, tx.itemId, 'qty', diff, 'ไม่พบสารเคมี');
+  await restoreSolventUnitsForDeduction(tx.itemId, diff, tx.qrId);
+}
+
+async function adjustDeductionStock(tx, nextAmount) {
+  const previousAmount = transactionDeductionAmount(tx);
+  const diff = previousAmount - nextAmount;
+  if (diff === 0) return;
+  if (isVolumeDeduction(tx)) {
+    await adjustStockUnitDeduction(tx, diff);
+  } else if (tx.itemType === 'standard') {
+    const tier = TIERS.includes(tx.tier) ? tx.tier : 'primary';
+    await updateStockQuantity(StockStandard, tx.itemId, `${tier}.qty`, diff, 'จำนวน stock ไม่พอ');
+  } else if (tx.itemType === 'solvent') {
+    await adjustSolventDeduction(tx, diff);
+  } else if (tx.itemType === 'glassware') {
+    await updateStockQuantity(StockGlassware, tx.itemId, 'qty', diff, 'จำนวน stock ไม่พอ');
+  } else {
+    throw new Error('ไม่รองรับประเภทรายการเบิกนี้');
   }
 }
 
@@ -1283,6 +1511,54 @@ router.post('/transactions/:id/resolve-deduction', async (req, res) => {
   }
 });
 
+router.patch('/transactions/:id/deduction', async (req, res) => {
+  try {
+    const tx = await StockTransaction.findById(req.params.id);
+    if (!tx) return res.status(404).json({ error: 'ไม่พบรายการเบิก' });
+    const actor = await stockManagementActor(req);
+    if (!canManageStockDeduction(tx, actor)) {
+      return res.status(403).json({ error: 'แก้ไขได้เฉพาะเจ้าของในวันเดียวกัน หรือ admin/Lab Inventory ภายใน 7 วัน' });
+    }
+    const normalized = normalizeDeductionEditInput(req.body || {}, tx);
+    if (normalized.error) return res.status(400).json({ error: normalized.error });
+
+    const { amount, weights, note } = normalized.value;
+    await adjustDeductionStock(tx, amount);
+    const beforeQty = Number(tx.beforeQty);
+    if (isVolumeDeduction(tx)) {
+      tx.volumeDelta = -amount;
+      tx.volumeUnit = tx.volumeUnit || tx.unit || 'mg';
+      tx.unit = tx.unit || tx.volumeUnit || 'mg';
+      tx.weights = weights;
+    } else {
+      tx.delta = -amount;
+    }
+    if (Number.isFinite(beforeQty)) tx.afterQty = beforeQty - amount;
+    tx.note = note;
+    await tx.save();
+    return res.json(tx);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/transactions/:id/deduction', async (req, res) => {
+  try {
+    const tx = await StockTransaction.findById(req.params.id);
+    if (!tx) return res.status(404).json({ error: 'ไม่พบรายการเบิก' });
+    const actor = await stockManagementActor(req);
+    if (!canManageStockDeduction(tx, actor)) {
+      return res.status(403).json({ error: 'ลบได้เฉพาะเจ้าของในวันเดียวกัน หรือ admin/Lab Inventory ภายใน 7 วัน' });
+    }
+
+    await adjustDeductionStock(tx, 0);
+    await StockTransaction.deleteOne({ _id: tx._id });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
 router.get('/transactions', async (req, res) => {
   try {
     const { itemType, itemId, qrId, action, createdFrom, createdTo, limit = 200, skip = 0 } = req.query;
@@ -1331,5 +1607,8 @@ router.get('/transactions', async (req, res) => {
 module.exports = router;
 router.planDeductMg = planDeductMg;
 router.userMeta = userMeta;
+router.canManageOwnTodayDeduction = canManageOwnTodayDeduction;
+router.canManageStockDeduction = canManageStockDeduction;
+router.normalizeDeductionEditInput = normalizeDeductionEditInput;
 router.deductMgFromUnit = deductMgFromUnit;
 router.normalizeUnitLabelCodeUpdate = normalizeUnitLabelCodeUpdate;

@@ -83,6 +83,7 @@ export interface StockTransactionItem {
   instrumentGroup?: "gc" | "hplc" | null;
   qrId?: string;
   unit?: string;
+  volumeUnit?: string;
   sampleId?: string;
   note?: string;
   deductionResolution?: DeductionResolution;

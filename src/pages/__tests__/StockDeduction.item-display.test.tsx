@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactNode } from "react";
 
@@ -10,7 +10,20 @@ const apiMock = vi.hoisted(() => ({
   getStockTransactions: vi.fn(),
 }));
 
+const authMock = vi.hoisted(() => ({
+  user: { email: "analyst@icpladda.com", name: "Analyst" } as {
+    email: string;
+    name: string;
+    role?: string;
+    roles?: string[];
+  },
+}));
+
 vi.mock("@/lib/api", () => ({ api: apiMock }));
+
+vi.mock("@/context/AuthContext", () => ({
+  useAuth: () => ({ user: authMock.user }),
+}));
 
 vi.mock("@/components/lis/AppLayout", () => ({
   default: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -73,6 +86,8 @@ function renderPage(initialEntries = ["/stock-deduction"]) {
 describe("StockDeduction item display", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
+    authMock.user = { email: "analyst@icpladda.com", name: "Analyst" };
     apiMock.getStockTransactions.mockResolvedValue([
       {
         _id: "tx-1",
@@ -105,6 +120,10 @@ describe("StockDeduction item display", () => {
     expect(screen.queryByText("หรือวางลิงก์/qrId เอง")).not.toBeInTheDocument();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("shows the substance name in the item column without showing the stock code", async () => {
     renderPage();
 
@@ -128,5 +147,113 @@ describe("StockDeduction item display", () => {
     expect(await screen.findByRole("heading", { name: "รายละเอียดการเบิก" })).toBeInTheDocument();
     expect(screen.getAllByText("ABAMECTIN").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "แจ้งหมด/ปัญหา" })).toBeInTheDocument();
+  });
+
+  it("shows edit and delete actions only on today's own deductions", async () => {
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 36 * 60 * 60 * 1000);
+    apiMock.getStockTransactions.mockResolvedValue([
+      {
+        _id: "tx-own-today",
+        itemType: "standard",
+        itemId: "std-1",
+        itemCode: "STD-001",
+        itemName: "OWN TODAY",
+        action: "deduct",
+        volumeDelta: -45,
+        unit: "mg",
+        userEmail: "Analyst@ICPLadda.com",
+        createdAt: now.toISOString(),
+      },
+      {
+        _id: "tx-other-today",
+        itemType: "standard",
+        itemId: "std-2",
+        itemCode: "STD-002",
+        itemName: "OTHER TODAY",
+        action: "deduct",
+        volumeDelta: -10,
+        unit: "mg",
+        userEmail: "other@icpladda.com",
+        createdAt: now.toISOString(),
+      },
+      {
+        _id: "tx-own-yesterday",
+        itemType: "standard",
+        itemId: "std-3",
+        itemCode: "STD-003",
+        itemName: "OWN YESTERDAY",
+        action: "deduct",
+        volumeDelta: -5,
+        unit: "mg",
+        userEmail: "analyst@icpladda.com",
+        createdAt: yesterday.toISOString(),
+      },
+    ]);
+
+    renderPage();
+
+    const historyTab = await screen.findByRole("tab", { name: "ประวัติการตัด stock" });
+    fireEvent.mouseDown(historyTab);
+    fireEvent.click(historyTab);
+
+    const ownTodayRow = (await screen.findByText("OWN TODAY")).closest("tr");
+    const otherTodayRow = (await screen.findByText("OTHER TODAY")).closest("tr");
+    const ownYesterdayRow = (await screen.findByText("OWN YESTERDAY")).closest("tr");
+
+    expect(ownTodayRow).not.toBeNull();
+    expect(otherTodayRow).not.toBeNull();
+    expect(ownYesterdayRow).not.toBeNull();
+
+    expect(within(ownTodayRow!).getByRole("button", { name: "แก้ไขการเบิก OWN TODAY" })).toBeInTheDocument();
+    expect(within(ownTodayRow!).getByRole("button", { name: "ลบการเบิก OWN TODAY" })).toBeInTheDocument();
+    expect(within(otherTodayRow!).queryByRole("button", { name: /การเบิก OTHER TODAY/ })).not.toBeInTheDocument();
+    expect(within(ownYesterdayRow!).queryByRole("button", { name: /การเบิก OWN YESTERDAY/ })).not.toBeInTheDocument();
+  });
+
+  it("shows edit and delete actions for lab inventory on anyone's deduction within seven days", async () => {
+    authMock.user = { email: "stock@icpladda.com", name: "Stock", roles: ["lab-inventory"] };
+    const now = new Date();
+    const withinSevenDays = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const olderThanSevenDays = new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000);
+    apiMock.getStockTransactions.mockResolvedValue([
+      {
+        _id: "tx-other-recent",
+        itemType: "standard",
+        itemId: "std-1",
+        itemName: "OTHER RECENT",
+        action: "deduct",
+        volumeDelta: -12,
+        unit: "mg",
+        userEmail: "other@icpladda.com",
+        createdAt: withinSevenDays.toISOString(),
+      },
+      {
+        _id: "tx-other-old",
+        itemType: "standard",
+        itemId: "std-2",
+        itemName: "OTHER OLD",
+        action: "deduct",
+        volumeDelta: -12,
+        unit: "mg",
+        userEmail: "other@icpladda.com",
+        createdAt: olderThanSevenDays.toISOString(),
+      },
+    ]);
+
+    renderPage();
+
+    const historyTab = await screen.findByRole("tab", { name: "ประวัติการตัด stock" });
+    fireEvent.mouseDown(historyTab);
+    fireEvent.click(historyTab);
+
+    const recentRow = (await screen.findByText("OTHER RECENT")).closest("tr");
+    const oldRow = (await screen.findByText("OTHER OLD")).closest("tr");
+
+    expect(recentRow).not.toBeNull();
+    expect(oldRow).not.toBeNull();
+    expect(within(recentRow!).getByRole("button", { name: "แก้ไขการเบิก OTHER RECENT" })).toBeInTheDocument();
+    expect(within(recentRow!).getByRole("button", { name: "ลบการเบิก OTHER RECENT" })).toBeInTheDocument();
+    expect(within(oldRow!).queryByRole("button", { name: /การเบิก OTHER OLD/ })).not.toBeInTheDocument();
   });
 });

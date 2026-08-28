@@ -417,6 +417,19 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  updateStockDeduction: (
+    id: string,
+    body: { amount?: number; weights?: number[]; note?: string } & StockUserPayload,
+  ) =>
+    request<StockTransactionItem>(`/stock/transactions/${encodeURIComponent(id)}/deduction`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteStockDeduction: (id: string, body?: StockUserPayload) =>
+    request<{ ok: true }>(`/stock/transactions/${encodeURIComponent(id)}/deduction`, {
+      method: "DELETE",
+      body: JSON.stringify(body ?? {}),
+    }),
   getStandardsInUse: () => request<StandardsInUseResponse>("/stock/standards/in-use"),
 
   // Stock — Units (per-bottle)
