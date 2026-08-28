@@ -1,16 +1,42 @@
-import { type TouchEvent, useEffect, useRef, useState } from "react";
+import { type TouchEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Html5Qrcode, Html5QrcodeScannerState, Html5QrcodeSupportedFormats } from "html5-qrcode";
-import { AlertCircle, X } from "lucide-react";
+import { AlertCircle, Flashlight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { decodeQrCanvasWithTryHarder } from "@/lib/qrTryHarderDecoder";
 import { parseScannedQrId } from "@/lib/stockUnit";
 
 const READER_ID = "stock-qr-reader";
 const QR_DECODE_MISS_THRESHOLD = 24;
+const QR_AUTO_ZOOM_MISS_INTERVAL = 18;
+const QR_SCAN_FPS = 15;
+const BARCODE_SCAN_FPS = 10;
+const QR_VIEWFINDER_RATIO = 0.8;
+const QR_VIEWFINDER_MIN_SIZE = 220;
+const QR_VIEWFINDER_MAX_SIZE = 360;
 const QR_INITIAL_ZOOM = 2;
+const QR_FALLBACK_CANVAS_SIZE = 720;
+const QR_FALLBACK_SCAN_INTERVAL_MS = 280;
+const QR_FALLBACK_CROP_RATIOS = [0.96, 0.78, 0.62] as const;
+const QR_FALLBACK_FRAME_MODES = ["normal", "contrast", "binary"] as const;
+const QR_FALLBACK_FRAMES = QR_FALLBACK_CROP_RATIOS.flatMap((cropRatio) => (
+  QR_FALLBACK_FRAME_MODES.map((mode) => ({ cropRatio, mode }))
+));
 
 type ScanMode = "qr" | "barcode";
+type QrFallbackFrameMode = typeof QR_FALLBACK_FRAME_MODES[number];
+type ExtendedTrackCapabilities = MediaTrackCapabilities & {
+  torch?: boolean;
+  zoom?: { min?: number; max?: number; step?: number };
+};
+type ExtendedConstraintSet = MediaTrackConstraintSet & {
+  exposureMode?: string;
+  focusMode?: string;
+  torch?: boolean;
+  whiteBalanceMode?: string;
+  zoom?: number;
+};
 
 export interface DecodedScanResult {
   raw: string;
@@ -46,6 +72,131 @@ function cameraIdConstraints(cameraId: string): MediaTrackConstraints {
     width: { ideal: 1920 },
     height: { ideal: 1080 },
   };
+}
+
+function qrViewfinderDimensions(viewfinderWidth: number, viewfinderHeight: number) {
+  const minDimension = Math.max(1, Math.min(viewfinderWidth, viewfinderHeight));
+  const minSize = Math.min(QR_VIEWFINDER_MIN_SIZE, minDimension);
+  const targetSize = Math.round(minDimension * QR_VIEWFINDER_RATIO);
+  const size = Math.round(Math.min(QR_VIEWFINDER_MAX_SIZE, Math.max(minSize, targetSize)));
+  return { width: size, height: size };
+}
+
+function getReaderVideoElement(): HTMLVideoElement | null {
+  return document.getElementById(READER_ID)?.querySelector("video") ?? null;
+}
+
+function canReadVideoFrame(video: HTMLVideoElement) {
+  return video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
+}
+
+function otsuThreshold(histogram: number[], total: number) {
+  let sum = 0;
+  for (let level = 0; level < histogram.length; level += 1) {
+    sum += level * histogram[level];
+  }
+
+  let backgroundWeight = 0;
+  let backgroundSum = 0;
+  let maxVariance = 0;
+  let threshold = 128;
+
+  for (let level = 0; level < histogram.length; level += 1) {
+    backgroundWeight += histogram[level];
+    if (backgroundWeight === 0) continue;
+
+    const foregroundWeight = total - backgroundWeight;
+    if (foregroundWeight === 0) break;
+
+    backgroundSum += level * histogram[level];
+    const backgroundMean = backgroundSum / backgroundWeight;
+    const foregroundMean = (sum - backgroundSum) / foregroundWeight;
+    const variance = backgroundWeight * foregroundWeight * (backgroundMean - foregroundMean) ** 2;
+
+    if (variance > maxVariance) {
+      maxVariance = variance;
+      threshold = level;
+    }
+  }
+
+  return threshold;
+}
+
+function binarizeFallbackCanvas(context: CanvasRenderingContext2D, size: number) {
+  const image = context.getImageData(0, 0, size, size);
+  const { data } = image;
+  const histogram = Array.from({ length: 256 }, () => 0);
+
+  for (let index = 0; index < data.length; index += 4) {
+    const luminance = Math.round((data[index] * 0.299) + (data[index + 1] * 0.587) + (data[index + 2] * 0.114));
+    histogram[luminance] += 1;
+  }
+
+  const threshold = otsuThreshold(histogram, size * size);
+
+  for (let index = 0; index < data.length; index += 4) {
+    const luminance = Math.round((data[index] * 0.299) + (data[index + 1] * 0.587) + (data[index + 2] * 0.114));
+    const value = luminance > threshold ? 255 : 0;
+    data[index] = value;
+    data[index + 1] = value;
+    data[index + 2] = value;
+    data[index + 3] = 255;
+  }
+
+  context.putImageData(image, 0, 0);
+}
+
+function drawFallbackFrame(video: HTMLVideoElement, canvas: HTMLCanvasElement, cropRatio: number, mode: QrFallbackFrameMode) {
+  if (!canReadVideoFrame(video)) return false;
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return false;
+
+  if (canvas.width !== QR_FALLBACK_CANVAS_SIZE || canvas.height !== QR_FALLBACK_CANVAS_SIZE) {
+    canvas.width = QR_FALLBACK_CANVAS_SIZE;
+    canvas.height = QR_FALLBACK_CANVAS_SIZE;
+  }
+
+  const sourceSize = Math.max(1, Math.min(video.videoWidth, video.videoHeight) * cropRatio);
+  const sourceX = (video.videoWidth - sourceSize) / 2;
+  const sourceY = (video.videoHeight - sourceSize) / 2;
+
+  context.save();
+  context.clearRect(0, 0, QR_FALLBACK_CANVAS_SIZE, QR_FALLBACK_CANVAS_SIZE);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.filter = mode === "normal" ? "none" : "grayscale(1) contrast(1.65) brightness(1.08)";
+  context.drawImage(
+    video,
+    sourceX,
+    sourceY,
+    sourceSize,
+    sourceSize,
+    0,
+    0,
+    QR_FALLBACK_CANVAS_SIZE,
+    QR_FALLBACK_CANVAS_SIZE,
+  );
+  context.restore();
+
+  if (mode === "binary") {
+    binarizeFallbackCanvas(context, QR_FALLBACK_CANVAS_SIZE);
+  }
+
+  return true;
+}
+
+function decodeFallbackFrame(canvas: HTMLCanvasElement, frameIndex: number) {
+  const video = getReaderVideoElement();
+  if (!video) return "";
+
+  const frame = QR_FALLBACK_FRAMES[frameIndex % QR_FALLBACK_FRAMES.length];
+  try {
+    if (!drawFallbackFrame(video, canvas, frame.cropRatio, frame.mode)) return "";
+    return decodeQrCanvasWithTryHarder(canvas);
+  } catch {
+    return "";
+  }
 }
 
 function touchDistance(touches: TouchList) {
@@ -107,9 +258,17 @@ export default function StockQrScanner({
   const [scanFeedback, setScanFeedback] = useState("");
   const [zoomCaps, setZoomCaps] = useState<{ min: number; max: number; step: number } | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const firedRef = useRef(false);
   const decodeMissCountRef = useRef(0);
+  const fallbackCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fallbackFrameIndexRef = useRef(0);
+  const fallbackIntervalRef = useRef<number | null>(null);
+  const autoZoomStepRef = useRef(0);
+  const zoomCapsRef = useRef<{ min: number; max: number; step: number } | null>(null);
+  const zoomRef = useRef(1);
   const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
   const onScannedRef = useRef(onScanned);
   const onDecodedRef = useRef(onDecoded);
@@ -131,10 +290,100 @@ export default function StockQrScanner({
       setScanFeedback("");
       setZoomCaps(null);
       setZoom(1);
+      setTorchSupported(false);
+      setTorchOn(false);
       firedRef.current = false;
       decodeMissCountRef.current = 0;
+      fallbackFrameIndexRef.current = 0;
+      autoZoomStepRef.current = 0;
+      zoomCapsRef.current = null;
+      zoomRef.current = 1;
     }
   }, [open]);
+
+  const setZoomCapsState = useCallback((caps: { min: number; max: number; step: number } | null) => {
+    zoomCapsRef.current = caps;
+    setZoomCaps(caps);
+  }, []);
+
+  const setZoomState = useCallback((value: number) => {
+    zoomRef.current = value;
+    setZoom(value);
+  }, []);
+
+  const stopFallbackScan = useCallback(() => {
+    if (fallbackIntervalRef.current !== null) {
+      window.clearInterval(fallbackIntervalRef.current);
+      fallbackIntervalRef.current = null;
+    }
+    fallbackCanvasRef.current = null;
+  }, []);
+
+  const startFallbackScan = useCallback((onScan: (text: string) => void) => {
+    stopFallbackScan();
+    if (scanMode !== "qr") return;
+
+    fallbackCanvasRef.current = document.createElement("canvas");
+    fallbackIntervalRef.current = window.setInterval(() => {
+      if (firedRef.current) {
+        stopFallbackScan();
+        return;
+      }
+
+      const canvas = fallbackCanvasRef.current;
+      if (!canvas) return;
+
+      const text = decodeFallbackFrame(canvas, fallbackFrameIndexRef.current);
+      fallbackFrameIndexRef.current = (fallbackFrameIndexRef.current + 1) % QR_FALLBACK_FRAMES.length;
+      if (text) onScan(text);
+    }, QR_FALLBACK_SCAN_INTERVAL_MS);
+  }, [scanMode, stopFallbackScan]);
+
+  const clampZoom = useCallback((value: number) => {
+    const caps = zoomCapsRef.current;
+    if (!caps) return value;
+    const clamped = Math.min(caps.max, Math.max(caps.min, value));
+    return Number(clamped.toFixed(2));
+  }, []);
+
+  const applyZoom = useCallback((value: number) => {
+    const next = clampZoom(value);
+    setZoomState(next);
+    scannerRef.current
+      ?.applyVideoConstraints({ advanced: [{ zoom: next } as ExtendedConstraintSet] } as unknown as MediaTrackConstraints)
+      .catch(() => {});
+  }, [clampZoom, setZoomState]);
+
+  const advanceQrZoom = useCallback(() => {
+    const caps = zoomCapsRef.current;
+    if (!caps || caps.max <= caps.min) return;
+
+    const candidates = [
+      QR_INITIAL_ZOOM + 0.6,
+      QR_INITIAL_ZOOM - 0.4,
+      QR_INITIAL_ZOOM + 1.2,
+      caps.max,
+      caps.min,
+    ].map(clampZoom);
+    const targets = candidates.filter((candidate, index) => candidates.indexOf(candidate) === index);
+    const target = targets[autoZoomStepRef.current % targets.length];
+    autoZoomStepRef.current += 1;
+
+    if (Math.abs(target - zoomRef.current) > 0.01) {
+      applyZoom(target);
+    }
+  }, [applyZoom, clampZoom]);
+
+  const toggleTorch = useCallback(() => {
+    const scanner = scannerRef.current;
+    if (!scanner) return;
+
+    const next = !torchOn;
+    setTorchOn(next);
+    scanner
+      .applyVideoConstraints({ advanced: [{ torch: next } as ExtendedConstraintSet] } as unknown as MediaTrackConstraints)
+      .catch(() => setTorchOn(!next));
+  }, [torchOn]);
 
   useEffect(() => {
     if (!open || phase !== "scanning") return;
@@ -147,7 +396,7 @@ export default function StockQrScanner({
         verbose: false,
       });
       const config = scanMode === "barcode" ? {
-        fps: 10,
+        fps: BARCODE_SCAN_FPS,
         qrbox: (vw: number, vh: number) => {
           return {
             width: Math.round(vw * 0.9),
@@ -155,7 +404,8 @@ export default function StockQrScanner({
           };
         },
       } : {
-        fps: 10,
+        fps: QR_SCAN_FPS,
+        qrbox: qrViewfinderDimensions,
         aspectRatio: 1.0,
         disableFlip: false,
       };
@@ -168,14 +418,18 @@ export default function StockQrScanner({
         firedRef.current = true;
         decodeMissCountRef.current = 0;
         setScanFeedback("");
+        stopFallbackScan();
         onDecodedRef.current?.({ raw: text, value: scannedValue, scanMode });
         onScannedRef.current(scannedValue);
       };
       const onDecodeMiss = () => {
         if (!active || firedRef.current || scanMode !== "qr") return;
         decodeMissCountRef.current += 1;
+        if (decodeMissCountRef.current % QR_AUTO_ZOOM_MISS_INTERVAL === 0) {
+          advanceQrZoom();
+        }
         if (decodeMissCountRef.current === QR_DECODE_MISS_THRESHOLD) {
-          setScanFeedback("ยังอ่าน QR ไม่ได้ — จัด QR ให้อยู่กลางกรอบ ถอย/ขยับช้า ๆ ให้ภาพคม แล้วลองเปิดไฟเพิ่ม");
+          setScanFeedback("ยังอ่าน QR ไม่ได้ — จัด QR ให้อยู่กลางกรอบ ลดเงาสะท้อน ขยับช้า ๆ ให้ภาพคม หรือเปิดไฟช่วยสแกนถ้ามี");
         }
       };
       const startWith = (
@@ -184,12 +438,11 @@ export default function StockQrScanner({
       ) => scanner.start(source, startConfig, onScan, onDecodeMiss);
       const tuneCamera = async () => {
         await scanner.applyVideoConstraints({
-          advanced: [{ focusMode: "continuous" }],
+          advanced: [{ focusMode: "continuous", exposureMode: "continuous", whiteBalanceMode: "continuous" } as ExtendedConstraintSet],
         } as unknown as MediaTrackConstraints).catch(() => undefined);
         try {
-          const caps = scanner.getRunningTrackCapabilities() as MediaTrackCapabilities & {
-            zoom?: { min: number; max: number; step?: number };
-          };
+          const caps = scanner.getRunningTrackCapabilities() as ExtendedTrackCapabilities;
+          if (active) setTorchSupported(scanMode === "qr" && caps.torch === true);
           if (caps?.zoom && typeof caps.zoom.max === "number") {
             const min = caps.zoom.min ?? 1;
             const max = caps.zoom.max;
@@ -203,17 +456,22 @@ export default function StockQrScanner({
             if (scanMode === "qr") {
               const targetZoom = Math.min(max, Math.max(min, QR_INITIAL_ZOOM));
               if (targetZoom > current) {
-                await scanner.applyVideoConstraints({ advanced: [{ zoom: targetZoom }] } as unknown as MediaTrackConstraints).catch(() => undefined);
+                await scanner.applyVideoConstraints({ advanced: [{ zoom: targetZoom } as ExtendedConstraintSet] } as unknown as MediaTrackConstraints).catch(() => undefined);
                 current = targetZoom;
               }
             }
             if (active) {
-              setZoomCaps({ min, max, step });
-              setZoom(current);
+              setZoomCapsState({ min, max, step });
+              setZoomState(current);
             }
+          } else if (active) {
+            setZoomCapsState(null);
           }
         } catch {
-          if (active) setZoomCaps(null);
+          if (active) {
+            setZoomCapsState(null);
+            setTorchSupported(false);
+          }
         }
       };
       let lastStartError: unknown = null;
@@ -255,6 +513,7 @@ export default function StockQrScanner({
         }
         scannerRef.current = scanner;
         await tuneCamera();
+        startFallbackScan(onScan);
       } catch (error) {
         if (active) {
           setPhase("error");
@@ -266,6 +525,7 @@ export default function StockQrScanner({
 
     return () => {
       active = false;
+      stopFallbackScan();
       const scanner = scannerRef.current;
       scannerRef.current = null;
       if (scanner) {
@@ -279,7 +539,7 @@ export default function StockQrScanner({
         }
       }
     };
-  }, [open, phase, showManualEntry, scanMode]);
+  }, [advanceQrZoom, open, phase, scanMode, setZoomCapsState, setZoomState, showManualEntry, startFallbackScan, stopFallbackScan]);
 
   if (!open) return null;
 
@@ -292,24 +552,19 @@ export default function StockQrScanner({
   };
 
   const retryCamera = () => {
+    stopFallbackScan();
     setErrorMsg("");
     setErrorDetail("");
     setScanFeedback("");
-    setZoomCaps(null);
-    setZoom(1);
+    setZoomCapsState(null);
+    setZoomState(1);
+    setTorchSupported(false);
+    setTorchOn(false);
     firedRef.current = false;
     decodeMissCountRef.current = 0;
+    fallbackFrameIndexRef.current = 0;
+    autoZoomStepRef.current = 0;
     setPhase("scanning");
-  };
-
-  const applyZoom = (value: number) => {
-    const next = zoomCaps
-      ? Math.min(zoomCaps.max, Math.max(zoomCaps.min, value))
-      : value;
-    setZoom(next);
-    scannerRef.current
-      ?.applyVideoConstraints({ advanced: [{ zoom: next }] } as unknown as MediaTrackConstraints)
-      .catch(() => {});
   };
 
   const onZoom = (value: number) => {
@@ -362,7 +617,7 @@ export default function StockQrScanner({
               <div id={READER_ID} className="w-full" />
               {scanMode === "qr" && (
                 <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="h-[68%] max-h-72 min-h-44 w-[68%] max-w-72 min-w-44 rounded-2xl border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.16)]" />
+                  <div className="h-[80%] max-h-80 min-h-44 w-[80%] max-w-80 min-w-44 rounded-2xl border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.16)]" />
                 </div>
               )}
             </div>
@@ -373,6 +628,18 @@ export default function StockQrScanner({
               <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs text-amber-700">
                 {scanFeedback}
               </p>
+            )}
+            {torchSupported && (
+              <Button
+                type="button"
+                size="sm"
+                variant={torchOn ? "default" : "outline"}
+                onClick={toggleTorch}
+                className="mt-3 w-full"
+              >
+                <Flashlight className="h-4 w-4" aria-hidden="true" />
+                {torchOn ? "ปิดไฟช่วยสแกน" : "เปิดไฟช่วยสแกน"}
+              </Button>
             )}
             {zoomCaps && (
               <div className="mt-3 flex items-center gap-2">

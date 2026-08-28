@@ -53,7 +53,7 @@ describe("StockQrScanner", () => {
     html5QrMock.getRunningTrackSettings.mockReturnValue({});
   });
 
-  it("starts QR scanning full-frame with high-resolution environment camera constraints", async () => {
+  it("starts QR scanning with a large viewfinder and high-resolution environment camera constraints", async () => {
     render(
       <StockQrScanner
         open
@@ -65,6 +65,7 @@ describe("StockQrScanner", () => {
     await waitFor(() => expect(html5QrMock.start).toHaveBeenCalled());
 
     expect(html5QrMock.start.mock.calls[0][1]).toMatchObject({
+      fps: 15,
       aspectRatio: 1.0,
       disableFlip: false,
       videoConstraints: {
@@ -73,7 +74,11 @@ describe("StockQrScanner", () => {
         height: { ideal: 1080 },
       },
     });
-    expect(html5QrMock.start.mock.calls[0][1]).not.toHaveProperty("qrbox");
+    expect(html5QrMock.start.mock.calls[0][1]).toHaveProperty("qrbox");
+    expect((html5QrMock.start.mock.calls[0][1] as { qrbox: (width: number, height: number) => { width: number; height: number } }).qrbox(360, 320)).toEqual({
+      width: 256,
+      height: 256,
+    });
   });
 
   it("keeps high-resolution constraints when falling back to a listed back camera", async () => {

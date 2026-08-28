@@ -129,7 +129,7 @@ describe("StockQrScanner", () => {
     });
   });
 
-  it("uses full-frame QR scanning with high-resolution camera constraints", async () => {
+  it("uses a large QR viewfinder with high-resolution camera constraints", async () => {
     render(
       <StockQrScanner
         open
@@ -144,7 +144,7 @@ describe("StockQrScanner", () => {
 
     expect(scannerState.startSources[0]).toEqual({ facingMode: { exact: "environment" } });
     expect(scannerState.startConfigs[0]).toMatchObject({
-      fps: 10,
+      fps: 15,
       aspectRatio: 1.0,
       disableFlip: false,
       videoConstraints: {
@@ -153,7 +153,11 @@ describe("StockQrScanner", () => {
         height: { ideal: 1080 },
       },
     });
-    expect(scannerState.startConfigs[0]).not.toHaveProperty("qrbox");
+    expect(scannerState.startConfigs[0]).toHaveProperty("qrbox");
+    expect((scannerState.startConfigs[0] as { qrbox: (width: number, height: number) => { width: number; height: number } }).qrbox(360, 320)).toEqual({
+      width: 256,
+      height: 256,
+    });
   });
 
   it("shows barcode-specific guidance in readable Thai", async () => {
