@@ -106,7 +106,7 @@ describe("StockQrScanner", () => {
     });
   });
 
-  it("applies initial QR zoom when the camera supports zoom", async () => {
+  it("keeps camera zoom unchanged when QR scanner opens", async () => {
     html5QrMock.getRunningTrackCapabilities.mockReturnValue({ zoom: { min: 1, max: 4, step: 0.1 } });
     html5QrMock.getRunningTrackSettings.mockReturnValue({ zoom: 1 });
 
@@ -118,9 +118,35 @@ describe("StockQrScanner", () => {
       />,
     );
 
-    await waitFor(() => {
-      expect(html5QrMock.applyVideoConstraints).toHaveBeenCalledWith({ advanced: [{ zoom: 2 }] });
-    });
+    expect(await screen.findByText("1.0×")).toBeInTheDocument();
+
+    const zoomCalls = html5QrMock.applyVideoConstraints.mock.calls.filter(([constraints]) => (
+      constraints.advanced?.some((constraint: { zoom?: number }) => typeof constraint.zoom === "number")
+    ));
+    expect(zoomCalls).toHaveLength(0);
+  });
+
+  it("does not auto-adjust zoom after QR decode misses", async () => {
+    html5QrMock.getRunningTrackCapabilities.mockReturnValue({ zoom: { min: 1, max: 4, step: 0.1 } });
+    html5QrMock.getRunningTrackSettings.mockReturnValue({ zoom: 1 });
+
+    render(
+      <StockQrScanner
+        open
+        onClose={() => {}}
+        onScanned={() => {}}
+      />,
+    );
+
+    await waitFor(() => expect(html5QrMock.start).toHaveBeenCalled());
+    expect(await screen.findByText("1.0×")).toBeInTheDocument();
+    html5QrMock.applyVideoConstraints.mockClear();
+
+    const decodeMissCallback = html5QrMock.start.mock.calls[0][3] as () => void;
+    for (let count = 0; count < 18; count += 1) decodeMissCallback();
+
+    expect(html5QrMock.applyVideoConstraints).not.toHaveBeenCalled();
+    expect(screen.getByText("1.0×")).toBeInTheDocument();
   });
 
   it("zooms the camera with a two-finger pinch gesture without page panning", async () => {
@@ -135,7 +161,7 @@ describe("StockQrScanner", () => {
       />,
     );
 
-    expect(await screen.findByText("2.0×")).toBeInTheDocument();
+    expect(await screen.findByText("1.0×")).toBeInTheDocument();
     const cameraFrame = screen.getByTestId("stock-qr-camera-frame");
 
     expect(cameraFrame).toHaveClass("touch-none", "overscroll-contain");
@@ -154,8 +180,8 @@ describe("StockQrScanner", () => {
       ],
     });
 
-    expect(html5QrMock.applyVideoConstraints).toHaveBeenCalledWith({ advanced: [{ zoom: 3 }] });
-    expect(screen.getByText("3.0×")).toBeInTheDocument();
+    expect(html5QrMock.applyVideoConstraints).toHaveBeenCalledWith({ advanced: [{ zoom: 1.5 }] });
+    expect(screen.getByText("1.5×")).toBeInTheDocument();
   });
 
   it("reports both raw decoded QR text and parsed qrId", async () => {

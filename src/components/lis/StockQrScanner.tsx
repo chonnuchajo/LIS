@@ -9,13 +9,11 @@ import { parseScannedQrId } from "@/lib/stockUnit";
 
 const READER_ID = "stock-qr-reader";
 const QR_DECODE_MISS_THRESHOLD = 24;
-const QR_AUTO_ZOOM_MISS_INTERVAL = 18;
 const QR_SCAN_FPS = 15;
 const BARCODE_SCAN_FPS = 10;
 const QR_VIEWFINDER_RATIO = 0.8;
 const QR_VIEWFINDER_MIN_SIZE = 220;
 const QR_VIEWFINDER_MAX_SIZE = 360;
-const QR_INITIAL_ZOOM = 2;
 const QR_FALLBACK_CANVAS_SIZE = 720;
 const QR_FALLBACK_SCAN_INTERVAL_MS = 280;
 const QR_FALLBACK_CROP_RATIOS = [0.96, 0.78, 0.62] as const;
@@ -266,7 +264,6 @@ export default function StockQrScanner({
   const fallbackCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fallbackFrameIndexRef = useRef(0);
   const fallbackIntervalRef = useRef<number | null>(null);
-  const autoZoomStepRef = useRef(0);
   const zoomCapsRef = useRef<{ min: number; max: number; step: number } | null>(null);
   const zoomRef = useRef(1);
   const pinchRef = useRef<{ distance: number; zoom: number } | null>(null);
@@ -295,7 +292,6 @@ export default function StockQrScanner({
       firedRef.current = false;
       decodeMissCountRef.current = 0;
       fallbackFrameIndexRef.current = 0;
-      autoZoomStepRef.current = 0;
       zoomCapsRef.current = null;
       zoomRef.current = 1;
     }
@@ -354,26 +350,6 @@ export default function StockQrScanner({
       .catch(() => {});
   }, [clampZoom, setZoomState]);
 
-  const advanceQrZoom = useCallback(() => {
-    const caps = zoomCapsRef.current;
-    if (!caps || caps.max <= caps.min) return;
-
-    const candidates = [
-      QR_INITIAL_ZOOM + 0.6,
-      QR_INITIAL_ZOOM - 0.4,
-      QR_INITIAL_ZOOM + 1.2,
-      caps.max,
-      caps.min,
-    ].map(clampZoom);
-    const targets = candidates.filter((candidate, index) => candidates.indexOf(candidate) === index);
-    const target = targets[autoZoomStepRef.current % targets.length];
-    autoZoomStepRef.current += 1;
-
-    if (Math.abs(target - zoomRef.current) > 0.01) {
-      applyZoom(target);
-    }
-  }, [applyZoom, clampZoom]);
-
   const toggleTorch = useCallback(() => {
     const scanner = scannerRef.current;
     if (!scanner) return;
@@ -425,9 +401,6 @@ export default function StockQrScanner({
       const onDecodeMiss = () => {
         if (!active || firedRef.current || scanMode !== "qr") return;
         decodeMissCountRef.current += 1;
-        if (decodeMissCountRef.current % QR_AUTO_ZOOM_MISS_INTERVAL === 0) {
-          advanceQrZoom();
-        }
         if (decodeMissCountRef.current === QR_DECODE_MISS_THRESHOLD) {
           setScanFeedback("ยังอ่าน QR ไม่ได้ — จัด QR ให้อยู่กลางกรอบ ลดเงาสะท้อน ขยับช้า ๆ ให้ภาพคม หรือเปิดไฟช่วยสแกนถ้ามี");
         }
@@ -452,13 +425,6 @@ export default function StockQrScanner({
               current = (scanner.getRunningTrackSettings() as MediaTrackSettings & { zoom?: number })?.zoom ?? min;
             } catch {
               current = min;
-            }
-            if (scanMode === "qr") {
-              const targetZoom = Math.min(max, Math.max(min, QR_INITIAL_ZOOM));
-              if (targetZoom > current) {
-                await scanner.applyVideoConstraints({ advanced: [{ zoom: targetZoom } as ExtendedConstraintSet] } as unknown as MediaTrackConstraints).catch(() => undefined);
-                current = targetZoom;
-              }
             }
             if (active) {
               setZoomCapsState({ min, max, step });
@@ -539,7 +505,7 @@ export default function StockQrScanner({
         }
       }
     };
-  }, [advanceQrZoom, open, phase, scanMode, setZoomCapsState, setZoomState, showManualEntry, startFallbackScan, stopFallbackScan]);
+  }, [open, phase, scanMode, setZoomCapsState, setZoomState, showManualEntry, startFallbackScan, stopFallbackScan]);
 
   if (!open) return null;
 
@@ -563,7 +529,6 @@ export default function StockQrScanner({
     firedRef.current = false;
     decodeMissCountRef.current = 0;
     fallbackFrameIndexRef.current = 0;
-    autoZoomStepRef.current = 0;
     setPhase("scanning");
   };
 
