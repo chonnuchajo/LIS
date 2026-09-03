@@ -83,6 +83,30 @@ function renderPage(initialEntries = ["/stock-deduction"]) {
   );
 }
 
+function currentMonthParts() {
+  const now = new Date();
+  return { year: now.getFullYear(), month: now.getMonth() + 1 };
+}
+
+function bangkokDayWindowForCurrentMonth(day: number) {
+  const { year, month } = currentMonthParts();
+  const offsetMs = 7 * 60 * 60 * 1000;
+  return {
+    createdFrom: new Date(Date.UTC(year, month - 1, day) - offsetMs).toISOString(),
+    createdTo: new Date(Date.UTC(year, month - 1, day + 1) - offsetMs).toISOString(),
+  };
+}
+
+function currentMonthDayButton(day: number) {
+  const monthName = new Intl.DateTimeFormat("en-US", { month: "long" }).format(new Date());
+  const button = screen.getAllByRole("gridcell").find((element) => (
+    element.getAttribute("aria-label")?.includes(`${monthName} ${day}`)
+    || (element.textContent?.trim() === String(day) && !String(element.className).includes("day-outside"))
+  ));
+  if (!button) throw new Error(`Date button not found for ${monthName} ${day}`);
+  return button;
+}
+
 describe("StockDeduction item display", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -126,6 +150,70 @@ describe("StockDeduction item display", () => {
     expect(screen.queryByRole("tab", { name: "กำลังใช้งานอยู่" })).not.toBeInTheDocument();
     expect(screen.queryByText("in-use-table")).not.toBeInTheDocument();
     expect(await screen.findByText("ABAMECTIN")).toBeInTheDocument();
+  });
+
+  it("hides notification column and sends substance and requester filters", async () => {
+    renderPage();
+
+    await screen.findByText("ABAMECTIN");
+    expect(screen.queryByRole("columnheader", { name: "การแจ้ง" })).not.toBeInTheDocument();
+
+    apiMock.getStockTransactions.mockClear();
+    fireEvent.change(screen.getByLabelText("ค้นหาชื่อสาร"), { target: { value: "methanol" } });
+    fireEvent.change(screen.getByLabelText("กรองคนเบิก"), { target: { value: "somchai" } });
+
+    await waitFor(() => expect(apiMock.getStockTransactions).toHaveBeenLastCalledWith(expect.objectContaining({
+      search: "methanol",
+      user: "somchai",
+    })));
+  });
+
+  it("loads the selected calendar date and summarizes how much stock went out", async () => {
+    apiMock.getStockTransactions.mockImplementation((params?: { createdFrom?: string }) => Promise.resolve(
+      params?.createdFrom
+        ? [
+          {
+            _id: "tx-day-1",
+            itemType: "standard",
+            itemId: "std-1",
+            itemCode: "STD-001",
+            itemName: "ABAMECTIN",
+            action: "deduct",
+            volumeDelta: -45,
+            unit: "mg",
+            createdAt: "2026-07-10T01:00:00.000Z",
+          },
+          {
+            _id: "tx-day-2",
+            itemType: "standard",
+            itemId: "std-1",
+            itemCode: "STD-001",
+            itemName: "ABAMECTIN",
+            action: "deduct",
+            volumeDelta: -15,
+            unit: "mg",
+            createdAt: "2026-07-10T02:00:00.000Z",
+          },
+        ]
+        : [],
+    ));
+
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "เลือกวันที่ดูยอดเบิก" }));
+    await screen.findByRole("grid");
+    fireEvent.click(currentMonthDayButton(8));
+
+    await waitFor(() => expect(apiMock.getStockTransactions).toHaveBeenCalledWith({
+      action: "deduct",
+      itemType: undefined,
+      ...bangkokDayWindowForCurrentMonth(8),
+      limit: 1000,
+    }));
+    const summary = await screen.findByLabelText("สรุปยอดเบิกตามวันที่");
+    expect(within(summary).getByText("ABAMECTIN")).toBeInTheDocument();
+    expect(within(summary).getByText("60 mg")).toBeInTheDocument();
+    expect(within(summary).getByText("2 ครั้ง")).toBeInTheDocument();
   });
 
   afterEach(() => {

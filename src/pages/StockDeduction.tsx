@@ -1,14 +1,16 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { History, Filter, Pencil, ScanLine, Trash2 } from "lucide-react";
+import { Calendar as CalendarIcon, History, Filter, Pencil, ScanLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
@@ -29,6 +31,47 @@ import type { StockTransactionItem } from "@/types/stock";
 const analysisInstruments =
   getRoomCatalog(ANALYSIS_ROOM_SLUG)?.instruments.map((i) => ({ id: i.id, name: i.name, group: i.group })) ?? [];
 
+const BANGKOK_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+function localDateInputValue(date = new Date()) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
+function dateFromInputValue(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return undefined;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function bangkokDayWindow(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return undefined;
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  return {
+    createdFrom: new Date(Date.UTC(year, monthIndex, day) - BANGKOK_UTC_OFFSET_MS).toISOString(),
+    createdTo: new Date(Date.UTC(year, monthIndex, day + 1) - BANGKOK_UTC_OFFSET_MS).toISOString(),
+  };
+}
+
+function formatSelectedDate(value: string) {
+  const date = dateFromInputValue(value);
+  if (!date) return "เลือกวันที่ดูยอดเบิก";
+  return new Intl.DateTimeFormat("th-TH", { dateStyle: "medium" }).format(date);
+}
+
+function deductionAmountNumber(transaction: StockTransactionItem) {
+  const value = transaction.delta ?? transaction.volumeDelta;
+  const amount = Number(value);
+  return Number.isFinite(amount) ? Math.abs(amount) : 0;
+}
+
+function deductionUnitLabel(transaction: StockTransactionItem) {
+  return transaction.unit || transaction.volumeUnit || (transaction.weights?.length ? "mg" : "");
+}
+
 const StockDeduction = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -42,6 +85,9 @@ const StockDeduction = () => {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannedQrId, setScannedQrId] = useState<string | null>(null);
   const [lastScanResult, setLastScanResult] = useState<DecodedScanResult | null>(null);
+  const [selectedDate, setSelectedDate] = useState("");
+  const [search, setSearch] = useState("");
+  const [requester, setRequester] = useState("");
   const queryQrId = searchParams.get("qrId")?.trim() || null;
   const initialQrId = scannedQrId ?? queryQrId;
   const clearInitialQrId = useCallback(() => {
@@ -74,15 +120,44 @@ const StockDeduction = () => {
     queryClient.invalidateQueries({ queryKey: ["stock", "glassware"] });
   }, [queryClient]);
 
+  const selectedDayWindow = selectedDate ? bangkokDayWindow(selectedDate) : undefined;
+  const selectedCalendarDate = selectedDate ? dateFromInputValue(selectedDate) : undefined;
+  const searchText = search.trim();
+  const requesterText = requester.trim();
   const { data = [], isLoading } = useQuery({
-    queryKey: ["stock-deductions", type],
+    queryKey: ["stock-deductions", type, selectedDate, searchText, requesterText],
     queryFn: () =>
       api.getStockTransactions({
         action: "deduct",
         itemType: type || undefined,
-        limit: 200,
+        ...(searchText ? { search: searchText } : {}),
+        ...(requesterText ? { user: requesterText } : {}),
+        ...(selectedDayWindow || {}),
+        limit: selectedDayWindow ? 1000 : 200,
       }),
   });
+
+  const dailySummary = useMemo(() => {
+    const rows = new Map<string, { key: string; itemType: string; itemName: string; unit: string; total: number; count: number }>();
+    data.forEach((transaction) => {
+      const total = deductionAmountNumber(transaction);
+      if (!total) return;
+      const unit = deductionUnitLabel(transaction);
+      const key = [transaction.itemType, transaction.itemId, transaction.itemCode || "", transaction.itemName || "", unit].join("|");
+      const current = rows.get(key) || {
+        key,
+        itemType: transaction.itemType,
+        itemName: transaction.itemName || transaction.itemCode || transaction.itemId || "-",
+        unit,
+        total: 0,
+        count: 0,
+      };
+      current.total += total;
+      current.count += 1;
+      rows.set(key, current);
+    });
+    return Array.from(rows.values()).sort((a, b) => a.itemName.localeCompare(b.itemName, "th"));
+  }, [data]);
 
   const columns: DataTableColumn<StockTransactionItem>[] = [
     {
@@ -120,18 +195,6 @@ const StockDeduction = () => {
           {formatStockQuantity(t.beforeQty)} → <strong>{formatStockQuantity(t.afterQty)}</strong>
           {t.unit ? <span className="text-xs text-muted-foreground"> {t.unit}</span> : null}
         </>
-      ),
-    },
-    {
-      key: "resolution",
-      header: "การแจ้ง",
-      className: "text-xs",
-      cell: (t) => t.deductionResolution ? (
-        <Badge variant="secondary">{DEDUCTION_RESOLUTION_LABELS[t.deductionResolution.reason]}</Badge>
-      ) : t.itemType === "glassware" ? (
-        <span className="text-muted-foreground">-</span>
-      ) : (
-        <Badge variant="outline">ยังไม่ได้แจ้ง</Badge>
       ),
     },
     { key: "user", header: "ผู้ดำเนินการ", className: "text-xs", cell: (t) => t.userName || t.userEmail || "-" },
@@ -231,20 +294,101 @@ const StockDeduction = () => {
         </div>
       )}
 
-      <div className="mb-3 flex items-center justify-end gap-2">
-        <Filter className="w-4 h-4 text-muted-foreground" />
-        <Select value={type || "all"} onValueChange={(v) => setType(v === "all" ? "" : v)}>
-          <SelectTrigger className="h-9 w-full sm:w-44">
-            <SelectValue placeholder="ทุกหมวด" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">ทุกหมวด</SelectItem>
-            <SelectItem value="standard">Standards</SelectItem>
-            <SelectItem value="solvent">สารเคมี</SelectItem>
-            <SelectItem value="glassware">เครื่องแก้ว</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="mb-3 grid gap-2 lg:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_auto_auto_auto] lg:items-end">
+        <div className="space-y-1">
+          <Label htmlFor="stock-deduction-search" className="text-xs">ค้นหาชื่อสาร</Label>
+          <Input
+            id="stock-deduction-search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="ชื่อสารหรือรหัส stock"
+            className="h-9"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="stock-deduction-requester" className="text-xs">กรองคนเบิก</Label>
+          <Input
+            id="stock-deduction-requester"
+            value={requester}
+            onChange={(event) => setRequester(event.target.value)}
+            placeholder="ชื่อหรืออีเมล"
+            className="h-9"
+          />
+        </div>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              aria-label="เลือกวันที่ดูยอดเบิก"
+              className="h-9 w-full justify-start gap-2 sm:w-auto"
+            >
+              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+              {formatSelectedDate(selectedDate)}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto rounded-2xl p-0" align="end">
+            <Calendar
+              mode="single"
+              selected={selectedCalendarDate}
+              onSelect={(date) => setSelectedDate(date ? localDateInputValue(date) : "")}
+              defaultMonth={selectedCalendarDate ?? new Date()}
+              initialFocus
+              className="rounded-2xl border bg-background p-3 shadow-lg"
+            />
+          </PopoverContent>
+        </Popover>
+        {selectedDate ? (
+          <Button type="button" variant="ghost" className="h-9" onClick={() => setSelectedDate("")}>ล้างวันที่</Button>
+        ) : null}
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-muted-foreground" />
+          <Select value={type || "all"} onValueChange={(v) => setType(v === "all" ? "" : v)}>
+            <SelectTrigger className="h-9 w-full lg:w-44">
+              <SelectValue placeholder="ทุกหมวด" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ทุกหมวด</SelectItem>
+              <SelectItem value="standard">Standards</SelectItem>
+              <SelectItem value="solvent">สารเคมี</SelectItem>
+              <SelectItem value="glassware">เครื่องแก้ว</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+      {selectedDate ? (
+        <div aria-label="สรุปยอดเบิกตามวันที่" className="mb-4 rounded-xl border bg-card p-4 shadow-sm">
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-semibold">ยอดเบิกวันที่ {formatSelectedDate(selectedDate)}</div>
+              <div className="text-xs text-muted-foreground">รวมจากรายการตัด stock ที่เกิดในวันปฏิทินนี้</div>
+            </div>
+            <Badge variant="outline">{data.length} รายการ</Badge>
+          </div>
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground">กำลังโหลดสรุป...</div>
+          ) : dailySummary.length === 0 ? (
+            <div className="text-sm text-muted-foreground">วันที่นี้ไม่มี stock ออก</div>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {dailySummary.map((row) => (
+                <div key={row.key} className="rounded-lg border bg-background p-3">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{row.itemName}</div>
+                      <Badge variant="outline" className="mt-1 text-[11px]">{row.itemType}</Badge>
+                    </div>
+                    <div className="text-right font-mono text-sm font-semibold text-destructive">
+                      {formatStockQuantity(row.total)}{row.unit ? ` ${row.unit}` : ""}
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground">{row.count} ครั้ง</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
       <DataTable
         columns={columns}
         data={data}

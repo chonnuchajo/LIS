@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNotifications } from '@/context/NotificationContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useCanAccessPath } from '@/hooks/useCanAccessPath';
@@ -434,6 +435,15 @@ export default function PetitionListPage({
           </div>
         )}
 
+        <Tabs defaultValue="petitions" className="space-y-4">
+          <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+            <TabsList className="w-max">
+              <TabsTrigger value="petitions">รายการคำร้อง</TabsTrigger>
+              <TabsTrigger value="six-month-medicine">List ยา 6 เดือน</TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="petitions" className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map((card) => (
             <Card
@@ -603,6 +613,22 @@ export default function PetitionListPage({
             </div>
           </div>
         )}
+          </TabsContent>
+
+          <TabsContent value="six-month-medicine">
+            <Card className="border-black-50 shadow-none">
+              <CardHeader>
+                <CardTitle className="text-base">List ยา 6 เดือน</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-[10px] border border-dashed border-grey-200 py-12 text-center">
+                  <p className="text-sm font-medium text-black-500">ยังไม่มีรายการเชื่อมโยงสำหรับยา 6 เดือน</p>
+                  <p className="mt-1 text-xs text-grey-500">เตรียมพื้นที่ไว้สำหรับเชื่อมข้อมูลภายหลัง</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );

@@ -10,6 +10,7 @@ import { usePetition, useLabRequestsByPetition } from "@/hooks/usePetition";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { buildApprovalGroups } from "@/lib/qcApprovalRows";
 import { buildLabResultReportPages } from "@/lib/labResultReport";
+import { canPrintLabResult } from "@/lib/petitionPrintability";
 import LabResultGroups from "@/components/petition/LabResultGroups";
 import LabResultReportTemplate, { LAB_REPORT_CSS } from "@/components/petition/LabResultReportTemplate";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
@@ -53,6 +54,7 @@ export default function LabResultDetailPage() {
   );
 
   const report = <LabResultReportTemplate pages={pages} />;
+  const labResultPrintable = petition ? canPrintLabResult(petition) && pages.length > 0 : false;
 
   if (loading) {
     return (
@@ -83,7 +85,7 @@ export default function LabResultDetailPage() {
             </span>
           }
           actions={
-            <Button variant="primary-outline" onClick={() => setPrintOpen(true)} disabled={pages.length === 0} className="gap-2">
+            <Button variant="primary-outline" onClick={() => labResultPrintable && setPrintOpen(true)} disabled={!labResultPrintable} className="gap-2">
               <Printer className="h-4 w-4" /> พิมพ์ผลวิเคราะห์ Lab
             </Button>
           }

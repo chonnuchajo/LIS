@@ -194,6 +194,26 @@ describe('PetitionListPage action cues', () => {
     expect(rejectedCard).toHaveTextContent('1');
   });
 
+  it('shows a standalone six-month medicine tab with no petition linkage yet', async () => {
+    renderPage();
+
+    expect(await screen.findByText('P-2607-0001')).toBeInTheDocument();
+
+    const petitionsTab = screen.getByRole('tab', { name: 'รายการคำร้อง' });
+    const sixMonthMedicineTab = screen.getByRole('tab', { name: 'List ยา 6 เดือน' });
+
+    expect(petitionsTab).toHaveAttribute('aria-selected', 'true');
+    expect(sixMonthMedicineTab).toHaveAttribute('aria-selected', 'false');
+
+    fireEvent.mouseDown(sixMonthMedicineTab, { button: 0, ctrlKey: false });
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'List ยา 6 เดือน' })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByText('ยังไม่มีรายการเชื่อมโยงสำหรับยา 6 เดือน')).toBeInTheDocument();
+      expect(screen.queryByText('P-2607-0001')).not.toBeInTheDocument();
+    });
+  });
+
   it('uses production petition_no query as the list search term', async () => {
     renderPage({}, '/petitions?petition_no=P-2607-0003');
 

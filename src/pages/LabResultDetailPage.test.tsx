@@ -1,0 +1,122 @@
+import type { ReactNode } from 'react';
+import { render, screen } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import LabResultDetailPage from './LabResultDetailPage';
+import type { ParameterItem } from '@/lib/api';
+import type { Petition } from '@/types/petition.types';
+
+const basePetition = (): Petition => ({
+  _id: 'petition-1',
+  petitionNo: 'P-2607-001',
+  dept: 'production',
+  status: 'success',
+  submittedBy: { name: 'Requester', submittedAt: '2026-07-13T01:00:00.000Z' },
+  items: [{ seq: 1, sampleName: 'Sample A', commonName: 'ABAMECTIN 1.8% W/V EC', batchNo: 'BATCH-001', sampleId: 'sample-1' }],
+  labApprovedAt: '2026-07-14T00:00:00.000Z',
+  createdAt: '2026-07-13T01:00:00.000Z',
+  updatedAt: '2026-07-13T01:00:00.000Z',
+});
+
+const mocks = vi.hoisted(() => ({
+  navigate: vi.fn(),
+  petition: {} as Petition,
+  labRequests: [] as Array<{ _id: string }>,
+  getParameters: vi.fn<() => Promise<ParameterItem[]>>(),
+  getQCResults: vi.fn(),
+}));
+
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mocks.navigate,
+  };
+});
+
+vi.mock('@/components/lis/AppLayout', () => ({
+  default: ({ children }: { children: ReactNode }) => <main>{children}</main>,
+}));
+
+vi.mock('@/components/lis/PageHeader', () => ({
+  default: ({ title, actions }: { title: ReactNode; actions?: ReactNode }) => (
+    <header>
+      <h1>{title}</h1>
+      {actions}
+    </header>
+  ),
+}));
+
+vi.mock('@/components/lis/PrintPreviewDialog', () => ({
+  default: ({ children }: { children: ReactNode }) => <div data-testid="print-preview">{children}</div>,
+}));
+
+vi.mock('@/components/petition/LabResultReportTemplate', () => ({
+  default: () => <div data-testid="lab-result-report" />,
+  LAB_REPORT_CSS: '',
+}));
+
+vi.mock('@/components/petition/LabResultGroups', () => ({
+  default: () => <div data-testid="lab-result-groups" />,
+}));
+
+vi.mock('@/hooks/usePetition', () => ({
+  usePetition: () => ({ data: mocks.petition, loading: false, error: null }),
+  useLabRequestsByPetition: () => ({ data: mocks.labRequests, loading: false, error: null }),
+}));
+
+vi.mock('@/hooks/useItemGroupMembership', () => ({
+  useItemGroupMembership: () => new Map(),
+}));
+
+vi.mock('@/lib/api', () => ({
+  api: {
+    getParameters: mocks.getParameters,
+    getQCResults: mocks.getQCResults,
+  },
+}));
+
+vi.mock('@/lib/qcApprovalRows', () => ({
+  buildApprovalGroups: () => [],
+}));
+
+vi.mock('@/lib/labResultReport', () => ({
+  buildLabResultReportPages: () => [{ reportNo: 'LR-1' }],
+}));
+
+function renderPage() {
+  return render(
+    <MemoryRouter initialEntries={['/lab-results/petition-1']} future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+      <Routes>
+        <Route path="/lab-results/:id" element={<LabResultDetailPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.petition = basePetition();
+  mocks.labRequests = [{ _id: 'lab-request-1' }];
+  mocks.getParameters.mockReturnValue(new Promise<ParameterItem[]>(() => {}));
+  mocks.getQCResults.mockReturnValue(new Promise(() => {}));
+});
+
+describe('LabResultDetailPage print action', () => {
+  it('disables the print lab-result button when QC has not confirmed Final Result', () => {
+    renderPage();
+
+    expect(screen.getByRole('button', { name: /พิมพ์ผลวิเคราะห์ Lab/ })).toBeDisabled();
+  });
+
+  it('enables the print lab-result button when QC has confirmed Final Result', () => {
+    Object.assign(mocks.petition, {
+      status: 'approved',
+      approvedAt: '2026-07-15T00:00:00.000Z',
+    });
+
+    renderPage();
+
+    expect(screen.getByRole('button', { name: /พิมพ์ผลวิเคราะห์ Lab/ })).toBeEnabled();
+  });
+});

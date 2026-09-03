@@ -56,6 +56,8 @@ export interface StockTransactionParams {
   itemId?: string;
   qrId?: string;
   action?: string;
+  search?: string;
+  user?: string;
   createdFrom?: string;
   createdTo?: string;
   limit?: number;

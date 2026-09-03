@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PetitionDetailPage from './PetitionDetailPage';
 import type { Petition } from '@/types/petition.types';
 
@@ -129,8 +129,8 @@ vi.mock('@/lib/laLisAssistant', () => ({
 vi.mock('@/lib/petitionPrintability', () => ({
   canPrintPreReport: () => false,
   canPrintSampleLabel: () => false,
-  canPrintLabResult: (petition: { labApprovedAt?: string; labCompletedAt?: string }) =>
-    !!(petition?.labApprovedAt || petition?.labCompletedAt),
+  canPrintLabResult: (petition: { status?: string; labApprovedAt?: string; labCompletedAt?: string }) =>
+    petition?.status === 'approved' && !!(petition?.labApprovedAt || petition?.labCompletedAt),
 }));
 
 vi.mock('@/lib/labResultReport', () => ({
@@ -150,6 +150,16 @@ function renderPage() {
   );
 }
 
+beforeEach(() => {
+  vi.clearAllMocks();
+  Object.assign(mocks.petition, {
+    status: 'inProgress',
+    labCompletedAt: undefined,
+    labApprovedAt: undefined,
+    approvedAt: undefined,
+  });
+});
+
 describe('PetitionDetailPage request summary', () => {
   it('consolidates request metadata into the top summary and does not repeat the request-info card', () => {
     renderPage();
@@ -162,13 +172,26 @@ describe('PetitionDetailPage request summary', () => {
     expect(screen.getByRole('heading', { name: 'รายการตัวอย่าง (1)' })).toBeInTheDocument();
   });
 
-  it('shows the print lab-result action when Lab has issued results', async () => {
-    mocks.petition.labApprovedAt = '2026-07-14T00:00:00.000Z';
-    try {
-      renderPage();
-      await waitFor(() => expect(screen.getByRole('button', { name: /พิมพ์ผลวิเคราะห์ Lab/ })).toBeInTheDocument());
-    } finally {
-      delete (mocks.petition as { labApprovedAt?: string }).labApprovedAt;
-    }
+  it('hides the print lab-result action when QC has not confirmed Final Result', () => {
+    Object.assign(mocks.petition, {
+      status: 'success',
+      labApprovedAt: '2026-07-14T00:00:00.000Z',
+    });
+
+    renderPage();
+
+    expect(screen.queryByRole('button', { name: /พิมพ์ผลวิเคราะห์ Lab/ })).not.toBeInTheDocument();
+  });
+
+  it('shows the print lab-result action when Lab has issued results and QC has confirmed Final Result', async () => {
+    Object.assign(mocks.petition, {
+      status: 'approved',
+      approvedAt: '2026-07-15T00:00:00.000Z',
+      labApprovedAt: '2026-07-14T00:00:00.000Z',
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /พิมพ์ผลวิเคราะห์ Lab/ })).toBeInTheDocument());
   });
 });
