@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '@/lib/api';
+import { formatDensity3 } from '@/lib/densitySync';
 import { Gauge, RefreshCw, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
 
@@ -207,6 +208,7 @@ export default function DensityResultPage() {
               <th className="px-4 py-3 text-left">Batch</th>
               <th className="px-4 py-3 text-left">Product</th>
               <th className="px-4 py-3 text-right">Density [g/cm³]</th>
+              <th className="px-4 py-3 text-right">Density (3 ตำแหน่ง)</th>
               <th className="px-4 py-3 text-right">T(block) [°C]</th>
               <th className="px-4 py-3 text-right">T(set) [°C]</th>
               <th className="px-4 py-3 text-left">วันเวลา</th>
@@ -216,7 +218,7 @@ export default function DensityResultPage() {
           <tbody className="divide-y divide-gray-100">
             {docs.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={10} className="px-4 py-8 text-center text-gray-400">
                   {isFetching ? 'กำลังโหลด...' : 'ไม่พบข้อมูล'}
                 </td>
               </tr>
@@ -229,6 +231,9 @@ export default function DensityResultPage() {
                   <td className="px-4 py-2.5 text-gray-600">{String(row['Product name'] ?? '')}</td>
                   <td className="px-4 py-2.5 text-right font-mono font-semibold text-blue-700">
                     {String(row['Density [g/cm³]'] ?? '')}
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-mono font-semibold text-emerald-700">
+                    {formatDensity3(row)}
                   </td>
                   <td className="px-4 py-2.5 text-right font-mono text-gray-600">{String(row['T (block) [°C]'] ?? '')}</td>
                   <td className="px-4 py-2.5 text-right font-mono text-gray-600">{String(row['T (set) [°C]'] ?? '')}</td>

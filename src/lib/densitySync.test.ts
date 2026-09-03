@@ -7,6 +7,7 @@ import {
   selectDensitySyncRow,
   hasHandTypedEntries,
   formatTSetComparison,
+  formatDensity3,
   isSgMachineUnitKey,
   isSgValueKey,
 } from './densitySync';
@@ -93,6 +94,20 @@ describe('selectDensitySyncRow', () => {
     ];
 
     expect(selectDensitySyncRow(docs)).toBe(docs[1]);
+  });
+});
+
+describe('formatDensity3', () => {
+  it('uses the reported 3-decimal value when present', () => {
+    expect(formatDensity3({ ...ROW, 'Density (3 ตำแหน่ง)': '1.028' })).toBe('1.028');
+  });
+
+  it('rounds raw density to 3 decimals when the reported value is missing', () => {
+    expect(formatDensity3({ ...ROW, 'Density [g/cm³]': '1.0279' })).toBe('1.028');
+  });
+
+  it('returns empty text for an unparseable density', () => {
+    expect(formatDensity3({ ...ROW, 'Density [g/cm³]': 'n/a' })).toBe('');
   });
 });
 

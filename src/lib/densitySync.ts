@@ -47,6 +47,11 @@ export function readDensityValue(row: Record<string, unknown>): unknown {
   return firstDensityColumnValue(row, COL_DENSITIES);
 }
 
+export function formatDensity3(row: Record<string, unknown>): string {
+  const density = toNum(readDensityValue(row));
+  return density === '' ? '' : density.toFixed(3);
+}
+
 function toNum(v: unknown): number | '' {
   if (v == null || v === '') return '';
   const n = Number(v);
