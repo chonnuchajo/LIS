@@ -4,7 +4,7 @@ import { Loader2, Radio, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
-import { readDensityTBlock } from '@/lib/densitySync';
+import { readDensityTBlock, readDensityValue, selectDensitySyncRow } from '@/lib/densitySync';
 
 interface DensitySyncButtonProps {
   /** Petition item batch number to match against Result-Density. */
@@ -43,7 +43,9 @@ export default function DensitySyncButton({
   useEffect(() => {
     if (active && docs.length && !initializedRef.current) {
       initializedRef.current = true;
-      setSelectedKey(rowKey(docs[0], 0));
+      const selected = selectDensitySyncRow(docs) ?? docs[0];
+      const selectedIndex = Math.max(docs.indexOf(selected), 0);
+      setSelectedKey(rowKey(selected, selectedIndex));
       toast.success(`พบค่า ถพ. จากเครื่อง (${docs.length} รายการ)`);
     }
   }, [active, docs]);
@@ -104,7 +106,7 @@ export default function DensitySyncButton({
                   onChange={() => setSelectedKey(key)}
                 />
                 <span className="flex-1">{String(doc['Sample name'] ?? doc['Sample ID'] ?? `#${idx + 1}`)}</span>
-                <span className="font-mono font-semibold">{String(doc['Density [g/cm³]'] ?? '')}</span>
+                <span className="font-mono font-semibold">{String(readDensityValue(doc) ?? '')}</span>
                 <span className="font-mono text-amber-700">{String(readDensityTBlock(doc) ?? '')}</span>
               </label>
             );

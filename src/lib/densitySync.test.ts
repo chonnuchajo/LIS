@@ -4,6 +4,7 @@ import {
   SG_TEMP_LABEL,
   sourceSiblingKey,
   densityRowToEntry,
+  selectDensitySyncRow,
   hasHandTypedEntries,
   formatTSetComparison,
   isSgMachineUnitKey,
@@ -58,6 +59,13 @@ describe('densityRowToEntry', () => {
     expect(e['อุณหภูมิ']).toBe(31.5);
     expect((e['อุณหภูมิ__source'] as Record<string, unknown>).tBlock).toBe(31.5);
   });
+  it('prefers the 3-decimal density column when present', () => {
+    const e = densityRowToEntry(
+      { ...ROW, 'Density [g/cm³]': '1.1574', 'Density (3 ตำแหน่ง)': '1.157' },
+      '2026-06-13T03:00:00.000Z',
+    );
+    expect(e['ค่าถพ.']).toBe(1.157);
+  });
   it('stores density under substance value keys when provided', () => {
     const e = densityRowToEntry(ROW, '2026-06-13T03:00:00.000Z', ['ค่าถพ.::glyphosate']);
     expect(e['ค่าถพ.']).toBeUndefined();
@@ -73,6 +81,18 @@ describe('densityRowToEntry', () => {
   it('falls back to DMA 501 when instrument name missing', () => {
     const e = densityRowToEntry({ ...ROW, 'Instrument name': '' }, 'x');
     expect((e['อุณหภูมิ__source'] as Record<string, unknown>).instrument).toBe('DMA 501');
+  });
+});
+
+describe('selectDensitySyncRow', () => {
+  it('chooses the most repeated 3-decimal density, then T(block) closest to 30', () => {
+    const docs = [
+      { _id: 'a', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '29.80' },
+      { _id: 'b', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.10' },
+      { _id: 'c', 'Density (3 ตำแหน่ง)': '1.158', 'T(block) [°C]': '30.00' },
+    ];
+
+    expect(selectDensitySyncRow(docs)).toBe(docs[1]);
   });
 });
 

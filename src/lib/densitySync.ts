@@ -7,10 +7,12 @@ const SG_VALUE_KEY_PREFIX = `${SG_VALUE_LABEL}::`;
 
 // Result-Density column keys (raw DMA 501 export).
 const COL_DENSITY = 'Density [g/cm³]';
+const COL_DENSITIES = ['Density (3 ตำแหน่ง)', COL_DENSITY, 'Density [g/cmÂ³]'];
 const COL_TBLOCKS = ['T(block) [°C]', 'T (block) [°C]'];
 const COL_TSETS = ['T(set) [°C]', 'T (set) [°C]'];
 const COL_INSTRUMENT = 'Instrument name';
 const COL_SAMPLE = 'Sample name';
+const TARGET_TBLOCK = 30;
 
 // Provenance sibling convention: "<label>__source" (mirrors LabTestingDetailPage).
 export function sourceSiblingKey(label: string): string {
@@ -41,10 +43,52 @@ export function readDensityTSet(row: Record<string, unknown>): unknown {
   return firstDensityColumnValue(row, COL_TSETS);
 }
 
+export function readDensityValue(row: Record<string, unknown>): unknown {
+  return firstDensityColumnValue(row, COL_DENSITIES);
+}
+
 function toNum(v: unknown): number | '' {
   if (v == null || v === '') return '';
   const n = Number(v);
   return Number.isFinite(n) ? n : '';
+}
+
+function density3Key(row: Record<string, unknown>): string | null {
+  const density = toNum(readDensityValue(row));
+  return density === '' ? null : density.toFixed(3);
+}
+
+function tBlockDistance(row: Record<string, unknown>): number {
+  const tBlock = toNum(readDensityTBlock(row));
+  return tBlock === '' ? Number.POSITIVE_INFINITY : Math.abs(tBlock - TARGET_TBLOCK);
+}
+
+export function selectDensitySyncRow(rows: Record<string, unknown>[]): Record<string, unknown> | undefined {
+  const groups = new Map<string, { firstIndex: number; rows: { row: Record<string, unknown>; index: number }[] }>();
+
+  rows.forEach((row, index) => {
+    const key = density3Key(row);
+    if (!key) return;
+    const group = groups.get(key);
+    if (group) {
+      group.rows.push({ row, index });
+      return;
+    }
+    groups.set(key, { firstIndex: index, rows: [{ row, index }] });
+  });
+
+  if (!groups.size) return rows[0];
+
+  const bestGroup = Array.from(groups.values()).sort((a, b) => (
+    b.rows.length - a.rows.length || a.firstIndex - b.firstIndex
+  ))[0];
+
+  return bestGroup.rows.reduce((best, current) => {
+    const distanceDiff = tBlockDistance(current.row) - tBlockDistance(best.row);
+    if (distanceDiff < 0) return current;
+    if (distanceDiff === 0 && current.index < best.index) return current;
+    return best;
+  }).row;
 }
 
 // Map one Result-Density row to a QCTestResult entry for the "ค่า ถพ." parameter.
@@ -56,7 +100,7 @@ export function densityRowToEntry(
 ): Record<string, unknown> {
   const instrument = String(row[COL_INSTRUMENT] || 'DMA 501');
   const sampleName = row[COL_SAMPLE];
-  const density = toNum(row[COL_DENSITY]);
+  const density = toNum(readDensityValue(row));
   const tBlock = toNum(readDensityTBlock(row));
   const tSet = toNum(readDensityTSet(row));
   const entry: Record<string, unknown> = {

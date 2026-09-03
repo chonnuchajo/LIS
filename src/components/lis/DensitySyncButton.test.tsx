@@ -74,4 +74,23 @@ describe('DensitySyncButton', () => {
 
     expect(await screen.findByText('31.5')).toBeInTheDocument();
   });
+
+  it('preselects the repeated 3-decimal density row with T(block) closest to 30', async () => {
+    const docs = [
+      { _id: 'a', 'Sample name': 'Batch 009 A', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '29.80' },
+      { _id: 'b', 'Sample name': 'Batch 009 B', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.10' },
+      { _id: 'c', 'Sample name': 'Batch 009 C', 'Density (3 ตำแหน่ง)': '1.158', 'T(block) [°C]': '30.00' },
+    ];
+    vi.mocked(api.getResultDensitiesByBatch).mockResolvedValue({ batch: '009', docs });
+    const onRows = vi.fn();
+
+    renderWith({ onRows });
+    fireEvent.click(screen.getByRole('button', { name: /ดึงค่า ถพ\./ }));
+
+    const radios = await screen.findAllByRole('radio');
+    expect(radios[1]).toBeChecked();
+
+    fireEvent.click(screen.getByRole('button', { name: /ใช้ค่าที่เลือก/ }));
+    expect(onRows).toHaveBeenCalledWith([docs[1]]);
+  });
 });
