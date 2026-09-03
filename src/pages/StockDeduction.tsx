@@ -11,15 +11,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/context/AuthContext";
-import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import StockRequisitionButton from "@/components/lis/stock/StockRequisitionButton";
 import StockQrScanner, { type DecodedScanResult } from "@/components/lis/StockQrScanner";
-import StandardsInUseTable from "@/components/lis/stock/StandardsInUseTable";
 import DeductionResolutionDialog from "@/components/lis/stock/DeductionResolutionDialog";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
 import { DEDUCTION_RESOLUTION_LABELS } from "@/lib/deductionResolution";
@@ -36,7 +33,6 @@ const StockDeduction = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { tabs, defaultKey } = useAccessibleTabs("/stock-deduction");
   const [type, setType] = useState<string>("");
   const [selected, setSelected] = useState<StockTransactionItem | null>(null);
   const [resolving, setResolving] = useState<StockTransactionItem | null>(null);
@@ -73,7 +69,6 @@ const StockDeduction = () => {
     queryClient.invalidateQueries({ queryKey: ["stock-deductions"] });
     queryClient.invalidateQueries({ queryKey: ["stock", "transactions"] });
     queryClient.invalidateQueries({ queryKey: ["stock", "units"] });
-    queryClient.invalidateQueries({ queryKey: ["stock", "in-use"] });
     queryClient.invalidateQueries({ queryKey: ["stock", "standards"] });
     queryClient.invalidateQueries({ queryKey: ["stock", "solvents"] });
     queryClient.invalidateQueries({ queryKey: ["stock", "glassware"] });
@@ -236,45 +231,29 @@ const StockDeduction = () => {
         </div>
       )}
 
-      <Tabs key={defaultKey} defaultValue={defaultKey}>
-        <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
-          <TabsList className="mb-4 w-max">
-            {tabs.map((t) => (
-              <TabsTrigger key={t.key} value={t.key}>{t.label}</TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
-
-        <TabsContent value="in-use">
-          <StandardsInUseTable />
-        </TabsContent>
-
-        <TabsContent value="history">
-          <div className="mb-3 flex items-center justify-end gap-2">
-            <Filter className="w-4 h-4 text-muted-foreground" />
-            <Select value={type || "all"} onValueChange={(v) => setType(v === "all" ? "" : v)}>
-              <SelectTrigger className="h-9 w-full sm:w-44">
-                <SelectValue placeholder="ทุกหมวด" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">ทุกหมวด</SelectItem>
-                <SelectItem value="standard">Standards</SelectItem>
-                <SelectItem value="solvent">สารเคมี</SelectItem>
-                <SelectItem value="glassware">เครื่องแก้ว</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <DataTable
-            columns={columns}
-            data={data}
-            rowKey={(t) => t._id}
-            isLoading={isLoading}
-            onRowClick={(row) => setSelected(row)}
-            emptyTitle="ยังไม่มีรายการตัด stock"
-            tableClassName="min-w-[980px]"
-          />
-        </TabsContent>
-      </Tabs>
+      <div className="mb-3 flex items-center justify-end gap-2">
+        <Filter className="w-4 h-4 text-muted-foreground" />
+        <Select value={type || "all"} onValueChange={(v) => setType(v === "all" ? "" : v)}>
+          <SelectTrigger className="h-9 w-full sm:w-44">
+            <SelectValue placeholder="ทุกหมวด" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">ทุกหมวด</SelectItem>
+            <SelectItem value="standard">Standards</SelectItem>
+            <SelectItem value="solvent">สารเคมี</SelectItem>
+            <SelectItem value="glassware">เครื่องแก้ว</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <DataTable
+        columns={columns}
+        data={data}
+        rowKey={(t) => t._id}
+        isLoading={isLoading}
+        onRowClick={(row) => setSelected(row)}
+        emptyTitle="ยังไม่มีรายการตัด stock"
+        tableClassName="min-w-[980px]"
+      />
       <StockQrScanner
         open={scannerOpen}
         title="สแกน QR ข้างขวดเพื่อเบิก"

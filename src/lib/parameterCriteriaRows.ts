@@ -430,7 +430,7 @@ export function buildLabelToleranceCriteriaRows(
           failHigh: "-",
           previewText: "-",
           isSetupRow: true,
-          searchText: appendSearchText(base, "labelTolerance", "setup"),
+          searchText: appendSearchText(base, "labelTolerance", "ตาม %สาร", "%สาร", "setup"),
         });
         continue;
       }
@@ -439,13 +439,14 @@ export function buildLabelToleranceCriteriaRows(
         const summary = describeLabelTolerance(rule, field.unit || "");
         const autoText = tolerancePercent(rule);
         const headText = headTolerance(rule);
+        const drugPercent = displayValue(rule.labelPercent);
         rows.push({
           ...base,
           mode: "labelTolerance",
           rowId: `${base.parameterId}:${fieldIndex}:${ruleIndex}`,
           ruleIndex,
           selectorText: selector,
-          drugPercent: displayValue(rule.labelPercent),
+          drugPercent,
           tolerancePercent: tolerancePercent(rule),
           headTolerance: headTolerance(rule),
           failLow: displayValue(rule.failLow),
@@ -456,10 +457,13 @@ export function buildLabelToleranceCriteriaRows(
           searchText: appendSearchText(
             base,
             "labelTolerance",
+            "ตาม %สาร",
+            "%สาร",
             selector,
             summary,
             rule.substance,
             rule.labelPercent,
+            drugPercent === "-" ? "" : `${drugPercent}%`,
             productTypeSearchTokens(rule.productTypes),
             rule.autoPct,
             rule.headPct,

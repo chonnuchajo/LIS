@@ -34,6 +34,15 @@ describe("toneBadge", () => {
 });
 
 describe("petitionStatusBadge", () => {
+  it("shows received label for stale deliveringQC petitions that already have a receive timestamp", () => {
+    const badge = petitionStatusBadge({
+      status: "deliveringQC",
+      qcReceivedAt: "2026-09-03T06:05:34.767Z",
+    } as Petition);
+    expect(badge.label).toBe("รับตัวอย่างแล้ว");
+    expect(badge.variant).toBe("yellow-soft");
+  });
+
   it("shows QC completed instead of raw inProgress", () => {
     const b = petitionStatusBadge({ status: "inProgress", qcCompletedAt: "2026-07-02" } as Petition);
     expect(b.label).toBe("QC ตรวจครบ · รอส่วนอื่น");

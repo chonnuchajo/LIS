@@ -839,9 +839,11 @@ router.patch('/:id/receive', async (req, res) => {
       [`${side}ReceivedBy`]: actor,
       [`${side}ReceivedAt`]: now,
     };
-    // ฝั่งแรกที่รับ: flip status จาก sampleSent → pendingReview
-    if (before.status === 'sampleSent') {
+    if (before.status === 'sampleSent' || before.status === 'deliveringQC') {
       update.status = 'pendingReview';
+    }
+    if (!before.sampleSentAt && (before.status === 'sampleSent' || before.status === 'deliveringQC')) {
+      update.sampleSentAt = now;
     }
     // legacy receivedBy/At = ฝั่งแรกที่รับ (ไม่ทับถ้ามีแล้ว) เพื่อให้ print/HomeQC ทำงานต่อ
     if (!before.receivedAt) {

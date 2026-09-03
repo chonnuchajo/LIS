@@ -25,7 +25,7 @@ import { DataTable, type DataTableColumn } from '@/components/lis/DataTable';
 import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
 import { qcReceivedAt, qcReceivedBy, qcTrackStatusBadge } from '@/lib/receiveStatus';
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
-import { requiresQcTrack } from '@/lib/petitionRouting';
+import { isVisibleInQcTestingQueue } from '@/lib/petitionQueueVisibility';
 
 
 export default function QCTestingPage() {
@@ -41,8 +41,21 @@ export default function QCTestingPage() {
     dept: dept || undefined,
     limit: 50,
   });
+  const {
+    data: staleReceivedData,
+    loading: staleReceivedLoading,
+    refresh: refreshStaleReceived,
+  } = usePetitionList({
+    status: 'deliveringQC',
+    search,
+    dept: dept || undefined,
+    limit: 50,
+  });
 
-  const petitions: Petition[] = (data?.items ?? []).filter((p) => requiresQcTrack(p));
+  const petitions: Petition[] = [
+    ...(data?.items ?? []),
+    ...(staleReceivedData?.items ?? []),
+  ].filter(isVisibleInQcTestingQueue);
 
   // Bulk-fetch abnormal flag for petitions that may have results
   // (sampleSent has no results yet, so skip it)
@@ -204,7 +217,7 @@ export default function QCTestingPage() {
         columns={columns}
         data={petitions}
         rowKey={(p) => p._id}
-        isLoading={loading}
+        isLoading={loading || staleReceivedLoading}
         rowClassName={(p) => (p._id === flashId ? 'animate-flash-bg' : undefined)}
         onRowClick={(p) => {
           if (qcReceivedAt(p)) navigate(`/qc-testing/${p._id}`);
@@ -215,7 +228,10 @@ export default function QCTestingPage() {
     <QrReceiveModal
       open={scanOpen}
       onClose={() => setScanOpen(false)}
-      onReceived={refresh}
+      onReceived={() => {
+        refresh();
+        refreshStaleReceived();
+      }}
     />
     </AppLayout>
   );

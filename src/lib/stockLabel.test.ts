@@ -146,8 +146,8 @@ describe("stock label paper size", () => {
     } as StockUnitItem);
 
     expect(html).toContain("border:0.35mm solid #000");
-    expect(html).toContain("grid-template-columns:18mm 1fr");
-    expect(html).toContain("width:17mm;height:17mm");
+    expect(html).toContain("grid-template-columns:21mm 1fr");
+    expect(html).toContain("width:20mm;height:20mm");
     expect(html).toContain('alt="qr"');
     expect(html).toContain("grid-template-rows");
     expect(html).toContain("font-size:6.4pt");

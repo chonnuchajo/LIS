@@ -87,6 +87,11 @@ describe('labTrackStatusBadge', () => {
 });
 
 describe('qcTrackStatusBadge', () => {
+  it('QC received while global status is still deliveringQC → shows received status', () => {
+    const petition = { status: 'deliveringQC' as const, qcReceivedAt: T1 };
+    expect(qcTrackStatusBadge(petition).label).toBe('รับตัวอย่างแล้ว');
+  });
+
   it('QC not received yet → "รอรับ" even if global status inProgress', () => {
     const p = { status: 'inProgress' as const, labReceivedAt: T1 };
     expect(qcTrackStatusBadge(p).label).toBe('รอรับ');

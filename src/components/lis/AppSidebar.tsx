@@ -70,6 +70,19 @@ function saveNavScrollTop(key: string, scrollTop: number) {
   }
 }
 
+function normalizeSidebarPath(path: string) {
+  if (!path || path === "/") return "/";
+  return path.replace(/\/+$/, "");
+}
+
+function groupPathMatchesNavItem(groupPath: string, itemPath: string) {
+  const normalizedGroupPath = normalizeSidebarPath(groupPath);
+  const normalizedItemPath = normalizeSidebarPath(itemPath);
+  if (normalizedGroupPath === normalizedItemPath) return true;
+  if (normalizedGroupPath.split("/").some((part) => part.startsWith(":"))) return false;
+  return pathMatches(groupPath, itemPath);
+}
+
 interface AppSidebarProps {
   variant?: AppSidebarVariant;
   /** Called when the user picks a nav item — useful for the drawer to close itself. */
@@ -217,27 +230,41 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
     const coveredPaths = sorted
       .filter((g) => g.id !== "others")
       .flatMap((g) => g.paths ?? []);
+    const assignedPaths = new Set<string>();
 
     const result = sorted
       .map((group) => {
         let items: typeof NAV_ITEMS;
         if (group.id === "others") {
           const uncovered = NAV_ITEMS.filter(
-            (item) => !coveredPaths.some((p) => pathMatches(p, item.path)),
+            (item) => !coveredPaths.some((p) => groupPathMatchesNavItem(p, item.path)),
           );
           items = [];
           for (const p of group.paths ?? []) {
-            const match = uncovered.find((item) => pathMatches(p, item.path));
-            if (match && !items.includes(match)) items.push(match);
+            const match = uncovered.find((item) => groupPathMatchesNavItem(p, item.path));
+            if (match && !items.includes(match) && !assignedPaths.has(match.path)) {
+              items.push(match);
+              assignedPaths.add(match.path);
+            }
           }
           for (const item of uncovered) {
-            if (!items.includes(item)) items.push(item);
+            if (!items.includes(item) && !assignedPaths.has(item.path)) {
+              items.push(item);
+              assignedPaths.add(item.path);
+            }
           }
         } else {
           items = [];
           for (const p of group.paths ?? []) {
             for (const item of NAV_ITEMS) {
-              if (pathMatches(p, item.path) && !items.includes(item)) items.push(item);
+              if (
+                groupPathMatchesNavItem(p, item.path) &&
+                !items.includes(item) &&
+                !assignedPaths.has(item.path)
+              ) {
+                items.push(item);
+                assignedPaths.add(item.path);
+              }
             }
           }
         }
@@ -277,14 +304,14 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
     <TooltipProvider delayDuration={200}>
       <aside
         className={cn(
-          "relative flex min-h-0 flex-col overflow-hidden bg-card border-r border-border",
+          "relative flex min-h-0 flex-col bg-card border-r border-border",
           isDrawer
-            ? "w-full h-full"
+            ? "w-full h-full overflow-hidden"
             : cn(
                 // h-screen (not min-h-screen) keeps the rail exactly viewport-tall
                 // so its <nav> scrolls internally instead of the whole rail growing
                 // and scrolling away with the page.
-                "h-screen min-h-0 transition-[width] duration-200 ease-out",
+                "h-screen min-h-0 overflow-visible transition-[width] duration-200 ease-out",
                 // Collapsed rail is w-20 (not w-16) so the centered logo clears
                 // the collapse toggle button, which pokes -right-4 into the rail
                 // (at w-16 the 40px logo and 32px button overlap ~5px).
@@ -298,7 +325,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
             type="button"
             onClick={toggleCollapsed}
             aria-label={collapsed ? "ขยายเมนู" : "ซ่อนเมนู"}
-            className="absolute -right-4 top-7 z-40 w-8 h-8 rounded-full border border-border bg-card shadow-md ring-4 ring-background flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            className="absolute -right-4 top-7 z-40 flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card/95 text-muted-foreground shadow-md ring-4 ring-background backdrop-blur transition-[background-color,border-color,color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:bg-accent hover:text-foreground hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:translate-y-0"
           >
             {collapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
           </button>

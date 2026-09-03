@@ -127,6 +127,14 @@ describe("userCanAccessPath", () => {
       expect(userCanAccessPath(user, "/petition/abc", navGroups)).toBe(true);
     });
 
+    it("keeps Assign Lab as a separate current petition permission", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/petition"] };
+      const assignUser = { role: "lab", status: "active" as const, permissions: ["/petition/assign"] };
+
+      expect(userCanAccessPath(user, "/petition/assign", navGroups)).toBe(false);
+      expect(userCanAccessPath(assignUser, "/petition/assign", navGroups)).toBe(true);
+    });
+
     it("grants result detail from /record-results without granting petition detail", () => {
       const user = { role: "lab", status: "active" as const, permissions: ["/record-results"] };
       expect(userCanAccessPath(user, "/record-results/abc", navGroups)).toBe(true);

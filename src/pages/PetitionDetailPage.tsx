@@ -57,11 +57,12 @@ import { buildApprovalGroups } from '@/lib/qcApprovalRows';
 import { buildLaLisAssistant, type LaLisIssue } from '@/lib/laLisAssistant';
 import { buildLabResultReportPages } from '@/lib/labResultReport';
 import { canPrintSampleLabel, canPrintPreReport, canPrintLabResult } from '@/lib/petitionPrintability';
+import { isWaitingForAssignment } from '@/lib/petitionQueueVisibility';
 import { cn } from '@/lib/utils';
 
 function detailBannerText(petition: Petition) {
   if (petition.status === 'rejected') return 'คำร้องนี้ถูกส่งกลับเพื่อแก้ไข';
-  if (!petition.assignedTo && (petition.status === 'sampleSent' || petition.status === 'pendingReview')) {
+  if (isWaitingForAssignment(petition)) {
     return 'คำร้องนี้รอการมอบหมายผู้รับงาน';
   }
   if (petition.qcReceivedBy || petition.labReceivedBy) {
@@ -74,7 +75,7 @@ function detailBannerText(petition: Petition) {
 
 function detailBannerTone(petition: Petition) {
   if (petition.status === 'rejected') return 'border-orange-200 bg-orange-50 text-orange-800';
-  if (!petition.assignedTo && (petition.status === 'sampleSent' || petition.status === 'pendingReview')) {
+  if (isWaitingForAssignment(petition)) {
     return 'border-primary-200 bg-primary-50 text-primary-700';
   }
   if (petition.status === 'approved' || petition.status === 'success') {
@@ -436,8 +437,8 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                         <p>ผู้รับผิดชอบ QC: <span className="font-medium text-black-500">{displayPerson(data.qcReceivedBy)}</span></p>
                         <p>ผู้รับผิดชอบ Lab: <span className="font-medium text-black-500">{displayPerson(data.labReceivedBy)}</span></p>
                       </div>
-                      {!isResultMode && !data.assignedTo && (data.status === 'sampleSent' || data.status === 'pendingReview') && (
-                        <Button className="w-full" onClick={() => navigate('/petitions-old/assign')}>
+                      {!isResultMode && isWaitingForAssignment(data) && (
+                        <Button className="w-full" onClick={() => navigate('/petition/assign')}>
                           <UserCheck className="h-4 w-4" />
                           Assign ผู้รับงาน
                         </Button>

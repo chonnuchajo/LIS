@@ -36,7 +36,7 @@ const defaultGroups = [
 
 const defaultRoles = [
   { id: 'admin', name: 'Administrator', description: 'Full system access', locked: true, permissions: defaultGroups.map(g => g.id), family: '' },
-  { id: LAB_BASE_ROLE, name: 'Lab Analyze', description: 'Base Lab analysis workspace', permissions: ['dashboard', 'samples', 'results', '/lab-testing', '/lab-testing/:id'], family: 'lab', dashboardProfile: 'lab-analyze' },
+  { id: LAB_BASE_ROLE, name: 'Lab Analyze', description: 'Base Lab analysis workspace', permissions: ['dashboard', 'samples', 'results', '/petition/assign', '/lab-testing', '/lab-testing/:id'], family: 'lab', dashboardProfile: 'lab-analyze' },
   { id: QC_BASE_ROLE, name: 'QC Staff', description: 'Base QC receiving and tracking workspace', permissions: ['dashboard', 'samples', 'qc', '/qc-testing', '/qc-testing/:id'], family: 'qc', dashboardProfile: 'qc-staff' },
   { id: 'lab', name: 'Lab Analyst', description: 'Sample handling and result entry', permissions: ['dashboard', 'samples', 'results', 'stock'], family: 'lab' },
   { id: 'qc', name: 'QC Reviewer', description: 'Review and approve results', permissions: ['dashboard', 'results', 'qc', 'reports'], family: 'qc' },
@@ -164,6 +164,17 @@ async function ensureGroups() {
     await AccessGroup.updateOne(
       { id: coaGroupId },
       { $addToSet: { paths: { $each: coaPaths } } },
+    );
+  }
+  const assignPaths = findOrphanBackfillPaths(existingGroups, ['/petition/assign']);
+  const assignGroupId =
+    findGroupForBackfill(existingGroups, 'lab', '/petitions-old/assign') ||
+    findGroupForBackfill(existingGroups, 'lab', '/lab-testing') ||
+    findGroupForBackfill(existingGroups, 'results', '/record-results');
+  if (assignPaths.length && assignGroupId) {
+    await AccessGroup.updateOne(
+      { id: assignGroupId },
+      { $addToSet: { paths: { $each: assignPaths } } },
     );
   }
   return AccessGroup.find().sort({ sortOrder: 1, name: 1 }).lean();

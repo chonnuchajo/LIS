@@ -88,7 +88,7 @@ function stockUnit(overrides: Record<string, unknown> = {}) {
     kind: "sealed",
     type: "primary",
     lotNo: "123",
-    exp: "2026-08-30T00:00:00.000Z",
+    exp: "2099-08-30T00:00:00.000Z",
     volume: { initial: 100, remaining: 100, unit: "mg" },
     status: "active",
     ...overrides,

@@ -22,9 +22,9 @@ export async function buildStockLabelHtml(unit: StockUnitItem): Promise<string> 
   const purity = formatPurityLabel(unit);
   const labelRun = formatStandardLabelMarker(unit);
   return `
-<div style="font-family:Verdana,'Segoe UI',Arial,'Kanit',Tahoma,sans-serif;width:65mm;height:25mm;box-sizing:border-box;color:#000;background:#fff;overflow:hidden;display:grid;grid-template-columns:18mm 1fr;gap:1mm;align-items:center;padding:1mm;">
-  <div style="width:18mm;height:23mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6mm;overflow:hidden;">
-    <img src="${qr}" alt="qr" style="width:17mm;height:17mm;display:block;flex:0 0 auto;" />
+<div style="font-family:Verdana,'Segoe UI',Arial,'Kanit',Tahoma,sans-serif;width:65mm;height:25mm;box-sizing:border-box;color:#000;background:#fff;overflow:hidden;display:grid;grid-template-columns:21mm 1fr;gap:1mm;align-items:center;padding:1mm;">
+  <div style="width:21mm;height:23mm;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6mm;overflow:hidden;">
+    <img src="${qr}" alt="qr" style="width:20mm;height:20mm;display:block;flex:0 0 auto;" />
     ${labelRun ? `<div style="font-size:5.2pt;font-weight:600;line-height:1;white-space:nowrap;text-align:center;">${escapeHtml(labelRun)}</div>` : ""}
   </div>
   <div style="height:23mm;box-sizing:border-box;border:0.35mm solid #000;display:grid;grid-template-rows:4.5mm 3.8mm 3.8mm 3.8mm 3.8mm 3.3mm;font-size:6.4pt;line-height:1;min-width:0;">

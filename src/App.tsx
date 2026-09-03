@@ -46,6 +46,7 @@ const LabApprovalReviewPage = lazy(() => import("./pages/LabApprovalReviewPage")
 const AdminData = lazy(() => import("./pages/AdminData"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const ParameterSettings = lazy(() => import("./pages/ParameterSettings"));
+const FullSpecPage = lazy(() => import("./pages/FullSpecPage"));
 const AccessControl = lazy(() => import("./pages/AccessControl"));
 const StockDeduction = lazy(() => import("./pages/StockDeduction"));
 const StockPublicViewPage = lazy(() => import("./pages/StockPublicViewPage"));
@@ -152,13 +153,15 @@ const App = () => (
               <Route path="/access-control" element={<PrivateRoute><AccessControl /></PrivateRoute>} />
               <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
               <Route path="/parameter-settings" element={<PrivateRoute><ParameterSettings /></PrivateRoute>} />
+              <Route path="/full-spec" element={<PrivateRoute><FullSpecPage /></PrivateRoute>} />
               <Route path="/petitions" element={<PrivateRoute><PetitionTimelinePage /></PrivateRoute>} />
               <Route path="/petitions-old" element={<PrivateRoute><PetitionListPage /></PrivateRoute>} />
               <Route path="/petition" element={<PrivateRoute><PetitionTimelinePage /></PrivateRoute>} />
+              <Route path="/petition/assign" element={<PrivateRoute><PetitionAssignPage /></PrivateRoute>} />
               <Route path="/petition/:id" element={<PrivateRoute><PetitionTimelineDetailPage /></PrivateRoute>} />
               <Route path="/adutuilog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
               <Route path="/auditlog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
-              <Route path="/petitions-old/assign" element={<PrivateRoute><PetitionAssignPage /></PrivateRoute>} />
+              <Route path="/petitions-old/assign" element={<Navigate to="/petition/assign" replace />} />
               <Route path="/petitions-old/new" element={<PrivateRoute><PetitionNewPage /></PrivateRoute>} />
               <Route path="/petitions-old/production/new" element={<PrivateRoute><ProductionIntegrationPetitionNewPage /></PrivateRoute>} />
               <Route path="/petitions/ProductionIntegrationPetitionNewPage" element={<ProductionIntegrationPetitionNewPage />} />

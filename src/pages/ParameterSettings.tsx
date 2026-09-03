@@ -65,6 +65,7 @@ import { useAuth } from "@/context/AuthContext";
 import {
   api,
   type ItemGroupItem,
+  type LabelToleranceRule,
   type OptionOutput,
   type OptionOutputKind,
   type ParameterItem,
@@ -676,6 +677,47 @@ function summarizeField(field: ParameterValueField): string {
       return `← ${field.refFieldLabel}${phaseLabel}`;
     }
   }
+}
+
+function normalizeParameterSearchText(value: unknown) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/%\s+/g, "%")
+    .trim();
+}
+
+function labelToleranceRuleSearchTokens(rule: LabelToleranceRule) {
+  const labelPercent = rule.labelPercent;
+  return [
+    "ตาม %สาร",
+    "%สาร",
+    rule.substance,
+    labelPercent,
+    labelPercent == null ? "" : `${labelPercent}%`,
+    rule.autoPct,
+    rule.headPct,
+    rule.autoAbs,
+    rule.headAbs,
+    rule.failLow,
+    rule.passLow,
+    rule.passHigh,
+    rule.failHigh,
+    rule.itemNo,
+    rule.packSize,
+    rule.masterItemName,
+    rule.masterCommonName,
+    rule.productTypes?.map(formatProductTypeOption),
+  ];
+}
+
+function parameterValueFieldSearchTokens(field: ParameterValueField) {
+  return [
+    field.label,
+    summarizeField(field),
+    ...(field.substanceStandards ?? []).map((standard) => standard.substance),
+    ...(field.labelToleranceStandards ?? []).flatMap(labelToleranceRuleSearchTokens),
+  ];
 }
 
 type ValueFieldEditorProps = {
@@ -2645,12 +2687,12 @@ export default function ParameterSettings() {
   );
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = normalizeParameterSearchText(search);
     const sorted = [...scopedParameters].sort(
       (a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999),
     );
     return sorted.filter((p) => {
-      const haystack = [
+      const haystack = normalizeParameterSearchText([
         p.name,
         p.note,
         ...(p.commonNames ?? []),
@@ -2664,15 +2706,10 @@ export default function ParameterSettings() {
         ...(p.excludeCategories ?? []),
         ...(p.excludeSubCategories ?? []),
         ...(p.excludeItemGroups ?? []),
-        ...(p.valueFields ?? []).flatMap((f) => [
-          f.label,
-          ...(f.substanceStandards ?? []).map((standard) => standard.substance),
-          ...(f.labelToleranceStandards ?? []).map((standard) => standard.substance),
-        ]),
+        ...(p.valueFields ?? []).flatMap(parameterValueFieldSearchTokens),
       ]
         .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+        .join(" "));
       const matchesSearch = !q || haystack.includes(q);
       const matchesStatus =
         statusFilter === "all" || (p.status ?? "active") === statusFilter;

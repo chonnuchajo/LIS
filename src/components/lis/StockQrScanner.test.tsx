@@ -38,6 +38,7 @@ const html5QrcodeMock = vi.hoisted(() => vi.fn().mockImplementation((...args: un
       scannerState.errorCallbacks.push(onError);
       return null;
     }),
+    pause: vi.fn(),
     stop: vi.fn(async () => {}),
     getState: vi.fn(() => 2),
     applyVideoConstraints: vi.fn(async () => {}),
@@ -69,6 +70,10 @@ vi.mock("html5-qrcode", () => ({
 describe("StockQrScanner", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn() },
+    });
     scannerState.successCallbacks = [];
     scannerState.errorCallbacks = [];
     scannerState.constructorCalls = [];
@@ -92,7 +97,9 @@ describe("StockQrScanner", () => {
     );
 
     await waitFor(() => expect(scannerState.successCallbacks).toHaveLength(1));
-    scannerState.successCallbacks[0](" 654694 ");
+    act(() => {
+      scannerState.successCallbacks[0](" 654694 ");
+    });
 
     expect(onScanned).toHaveBeenCalledWith("654694");
     expect(scannerState.constructorCalls[0][1]).toMatchObject({
@@ -129,7 +136,7 @@ describe("StockQrScanner", () => {
     });
   });
 
-  it("uses a large QR viewfinder with high-resolution camera constraints", async () => {
+  it("scans the full QR camera frame with high-resolution environment constraints", async () => {
     render(
       <StockQrScanner
         open
@@ -142,22 +149,19 @@ describe("StockQrScanner", () => {
 
     await waitFor(() => expect(scannerState.startSources).toHaveLength(1));
 
-    expect(scannerState.startSources[0]).toEqual({ facingMode: { exact: "environment" } });
+    expect(scannerState.startSources[0]).toEqual({ facingMode: "environment" });
     expect(scannerState.startConfigs[0]).toMatchObject({
       fps: 15,
-      aspectRatio: 1.0,
       disableFlip: false,
       videoConstraints: {
-        facingMode: { exact: "environment" },
+        facingMode: { ideal: "environment" },
         width: { ideal: 1920 },
         height: { ideal: 1080 },
+        frameRate: { ideal: 30, max: 30 },
       },
     });
-    expect(scannerState.startConfigs[0]).toHaveProperty("qrbox");
-    expect((scannerState.startConfigs[0] as { qrbox: (width: number, height: number) => { width: number; height: number } }).qrbox(360, 320)).toEqual({
-      width: 256,
-      height: 256,
-    });
+    expect(scannerState.startConfigs[0]).not.toHaveProperty("qrbox");
+    expect(scannerState.startConfigs[0]).not.toHaveProperty("aspectRatio");
   });
 
   it("shows barcode-specific guidance in readable Thai", async () => {
@@ -197,7 +201,7 @@ describe("StockQrScanner", () => {
     });
 
     expect(await screen.findByText(/ยังอ่าน QR ไม่ได้/)).toBeInTheDocument();
-    expect(screen.getByText(/จัด QR ให้อยู่กลางกรอบ/)).toBeInTheDocument();
+    expect(screen.getByText(/ยังอ่าน QR ไม่ได้ — ให้ QR อยู่ในภาพกล้อง/)).toBeInTheDocument();
   });
 
   it("shows a readable Thai camera error when barcode camera start fails", async () => {

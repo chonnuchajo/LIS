@@ -11,6 +11,15 @@ describe("NAV_ITEMS", () => {
     expect(NAV_ITEMS.map((item) => item.path)).toContain("/petition");
   });
 
+  it("exposes Assign Lab under the current petition route", () => {
+    expect(
+      NAV_ITEMS.some(
+        (item) => item.path === "/petition/assign" && item.label === "Assign Lab",
+      ),
+    ).toBe(true);
+    expect(PAGE_ITEMS.some((item) => item.path === "/petition/assign")).toBe(true);
+  });
+
   it("includes COA Center in the sidebar and detail page registry", () => {
     expect(
       NAV_ITEMS.some(
@@ -18,6 +27,12 @@ describe("NAV_ITEMS", () => {
       ),
     ).toBe(true);
     expect(PAGE_ITEMS.some((item) => item.path === "/coa/:id")).toBe(true);
+  });
+
+  it("includes Full spec in the main nav", () => {
+    expect(
+      NAV_ITEMS.some((item) => item.path === "/full-spec" && item.label === "Full spec"),
+    ).toBe(true);
   });
 
   it("no longer exposes the retired /petitions list or timeline path in the main nav", () => {
@@ -30,6 +45,7 @@ describe("NAV_ITEMS", () => {
     const pagePaths = PAGE_ITEMS.map((item) => item.path);
     expect(pagePaths).toContain("/petitions/new");
     expect(pagePaths).not.toContain("/petitions-old");
+    expect(pagePaths).not.toContain("/petitions-old/assign");
     expect(pagePaths).not.toContain("/petitions-old/new");
     expect(pagePaths).not.toContain("/petitions-old/:id");
     expect(pagePaths).not.toContain("/petitions-old/:id/edit");

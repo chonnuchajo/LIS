@@ -120,6 +120,14 @@ describe("StockDeduction item display", () => {
     expect(screen.queryByText("หรือวางลิงก์/qrId เอง")).not.toBeInTheDocument();
   });
 
+  it("shows only deduction history without the in-use tab", async () => {
+    renderPage();
+
+    expect(screen.queryByRole("tab", { name: "กำลังใช้งานอยู่" })).not.toBeInTheDocument();
+    expect(screen.queryByText("in-use-table")).not.toBeInTheDocument();
+    expect(await screen.findByText("ABAMECTIN")).toBeInTheDocument();
+  });
+
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -127,20 +135,12 @@ describe("StockDeduction item display", () => {
   it("shows the substance name in the item column without showing the stock code", async () => {
     renderPage();
 
-    const historyTab = await screen.findByRole("tab", { name: "ประวัติการตัด stock" });
-    fireEvent.mouseDown(historyTab);
-    fireEvent.click(historyTab);
-
     expect(await screen.findByText("ABAMECTIN")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText("STD-001")).not.toBeInTheDocument());
   });
 
   it("opens deduction details from a clicked row and shows the resolution action", async () => {
     renderPage();
-
-    const historyTab = await screen.findByRole("tab", { name: "ประวัติการตัด stock" });
-    fireEvent.mouseDown(historyTab);
-    fireEvent.click(historyTab);
 
     fireEvent.click(await screen.findByText("ABAMECTIN"));
 
@@ -193,10 +193,6 @@ describe("StockDeduction item display", () => {
 
     renderPage();
 
-    const historyTab = await screen.findByRole("tab", { name: "ประวัติการตัด stock" });
-    fireEvent.mouseDown(historyTab);
-    fireEvent.click(historyTab);
-
     const ownTodayRow = (await screen.findByText("OWN TODAY")).closest("tr");
     const otherTodayRow = (await screen.findByText("OTHER TODAY")).closest("tr");
     const ownYesterdayRow = (await screen.findByText("OWN YESTERDAY")).closest("tr");
@@ -242,10 +238,6 @@ describe("StockDeduction item display", () => {
     ]);
 
     renderPage();
-
-    const historyTab = await screen.findByRole("tab", { name: "ประวัติการตัด stock" });
-    fireEvent.mouseDown(historyTab);
-    fireEvent.click(historyTab);
 
     const recentRow = (await screen.findByText("OTHER RECENT")).closest("tr");
     const oldRow = (await screen.findByText("OTHER OLD")).closest("tr");

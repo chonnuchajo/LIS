@@ -17,6 +17,7 @@ import {
   Settings,
   SlidersHorizontal,
   ShieldCheck,
+  UserCheck,
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -43,9 +44,11 @@ export const NAV_ITEMS: NavItem[] = [
   { icon: FlaskConical, label: "การทดสอบ QC", path: "/qc-testing" },
   { icon: FlaskConical, label: "การทดสอบ Lab", path: "/lab-testing" },
   { icon: Gauge, label: "ผล Density", path: "/density-results" },
+  { icon: UserCheck, label: "Assign Lab", path: "/petition/assign" },
   { icon: Package, label: "Stock Management", path: "/stock" },
   { icon: Database, label: "Master Item", path: "/master-items" },
   { icon: FlaskConical, label: "Simple Method", path: "/simple-method" },
+  { icon: FileText, label: "Full spec", path: "/full-spec" },
   { icon: Wrench, label: "รายการเครื่อง", path: "/machines" },
   { icon: Database, label: "Admin Data", path: "/admin-data" },
   { icon: SlidersHorizontal, label: "พารามิเตอร์ตรวจสอบ", path: "/parameter-settings" },

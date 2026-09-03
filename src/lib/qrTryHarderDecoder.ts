@@ -21,8 +21,7 @@ function decodeWithBinarizer(canvas: HTMLCanvasElement, reader: TryHarderQrReade
   return typeof result?.text === "string" ? result.text.trim() : "";
 }
 
-export function decodeQrCanvasWithTryHarder(canvas: HTMLCanvasElement): string {
-  const reader = createTryHarderQrReader();
+export function decodeQrCanvasWithTryHarder(canvas: HTMLCanvasElement, reader = createTryHarderQrReader()): string {
   const binarizers = [ZXing.HybridBinarizer, ZXing.GlobalHistogramBinarizer] as BinarizerCtor[];
 
   for (const Binarizer of binarizers) {

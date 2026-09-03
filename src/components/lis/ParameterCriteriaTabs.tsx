@@ -124,7 +124,7 @@ export function ParameterCriteriaTabs({
   const [sortKeyByTab, setSortKeyByTab] = useState<Record<Exclude<ParameterCriteriaTab, "list">, CriteriaSortKey>>({
     substance: "substanceAsc",
     conditional: "parameterOrder",
-    labelTolerance: "parameterOrder",
+    labelTolerance: "drugPercentAsc",
   });
   const [criteriaSearch, setCriteriaSearch] = useState("");
   const showHeadCriteriaColumns = canViewHeadCriteriaColumns === true;
@@ -154,7 +154,7 @@ export function ParameterCriteriaTabs({
   const substanceRows = useMemo(() => buildSubstanceCriteriaRows(parameters, scope), [parameters, scope]);
   const conditionalRows = useMemo(() => buildConditionalCriteriaRows(parameters, scope), [parameters, scope]);
   const labelRows = useMemo(() => buildLabelToleranceCriteriaRows(parameters, scope), [parameters, scope]);
-  const normalizedCriteriaSearch = criteriaSearch.trim().toLowerCase();
+  const normalizedCriteriaSearch = normalizeCriteriaSearchText(criteriaSearch);
   const visibleSubstanceRows = useMemo(
     () => filterAndSortRows(substanceRows, activeParameterFilter, normalizedCriteriaSearch, sortKey, parameterOrder),
     [activeParameterFilter, normalizedCriteriaSearch, parameterOrder, sortKey, substanceRows],
@@ -402,16 +402,24 @@ function filterAndSortRows<T extends SortableCriteriaRow>(
 function matchesCriteriaSearch(row: SortableCriteriaRow, searchQuery: string) {
   if (!searchQuery) return true;
   const searchable = row as unknown as Record<string, unknown>;
-  const rowSearchText = String(searchable.searchText ?? "").toLowerCase();
+  const rowSearchText = normalizeCriteriaSearchText(searchable.searchText);
   if (rowSearchText.includes(searchQuery)) return true;
   return SEARCHABLE_ROW_KEYS.some((key) => {
     const value = searchable[key];
     if (value == null) return false;
     if (Array.isArray(value)) {
-      return value.some((item) => String(item).toLowerCase().includes(searchQuery));
+      return value.some((item) => normalizeCriteriaSearchText(item).includes(searchQuery));
     }
-    return String(value).toLowerCase().includes(searchQuery);
+    return normalizeCriteriaSearchText(value).includes(searchQuery);
   });
+}
+
+function normalizeCriteriaSearchText(value: unknown) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/%\s+/g, "%")
+    .trim();
 }
 
 function compareCriteriaRows<T extends SortableCriteriaRow>(

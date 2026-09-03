@@ -1,10 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import StockQrScanner from "../StockQrScanner";
 
 const html5QrMock = vi.hoisted(() => {
   const start = vi.fn().mockResolvedValue(undefined);
+  const pause = vi.fn();
   const stop = vi.fn().mockResolvedValue(undefined);
   const applyVideoConstraints = vi.fn().mockResolvedValue(undefined);
   const getRunningTrackCapabilities = vi.fn().mockReturnValue({});
@@ -17,6 +18,7 @@ const html5QrMock = vi.hoisted(() => {
 
   return {
     start,
+    pause,
     stop,
     applyVideoConstraints,
     getRunningTrackCapabilities,
@@ -49,11 +51,15 @@ vi.mock("html5-qrcode", () => ({
 describe("StockQrScanner", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn() },
+    });
     html5QrMock.getRunningTrackCapabilities.mockReturnValue({});
     html5QrMock.getRunningTrackSettings.mockReturnValue({});
   });
 
-  it("starts QR scanning with a large viewfinder and high-resolution environment camera constraints", async () => {
+  it("starts QR scanning over the full frame with high-resolution environment constraints", async () => {
     render(
       <StockQrScanner
         open
@@ -66,19 +72,17 @@ describe("StockQrScanner", () => {
 
     expect(html5QrMock.start.mock.calls[0][1]).toMatchObject({
       fps: 15,
-      aspectRatio: 1.0,
       disableFlip: false,
       videoConstraints: {
-        facingMode: { exact: "environment" },
+        facingMode: { ideal: "environment" },
         width: { ideal: 1920 },
         height: { ideal: 1080 },
+        frameRate: { ideal: 30, max: 30 },
       },
     });
-    expect(html5QrMock.start.mock.calls[0][1]).toHaveProperty("qrbox");
-    expect((html5QrMock.start.mock.calls[0][1] as { qrbox: (width: number, height: number) => { width: number; height: number } }).qrbox(360, 320)).toEqual({
-      width: 256,
-      height: 256,
-    });
+    expect(html5QrMock.start.mock.calls[0][0]).toEqual({ facingMode: "environment" });
+    expect(html5QrMock.start.mock.calls[0][1]).not.toHaveProperty("qrbox");
+    expect(html5QrMock.start.mock.calls[0][1]).not.toHaveProperty("aspectRatio");
   });
 
   it("keeps high-resolution constraints when falling back to a listed back camera", async () => {
@@ -102,6 +106,7 @@ describe("StockQrScanner", () => {
         deviceId: { exact: "back-camera" },
         width: { ideal: 1920 },
         height: { ideal: 1080 },
+        frameRate: { ideal: 30, max: 30 },
       },
     });
   });
@@ -143,7 +148,9 @@ describe("StockQrScanner", () => {
     html5QrMock.applyVideoConstraints.mockClear();
 
     const decodeMissCallback = html5QrMock.start.mock.calls[0][3] as () => void;
-    for (let count = 0; count < 18; count += 1) decodeMissCallback();
+    act(() => {
+      for (let count = 0; count < 18; count += 1) decodeMissCallback();
+    });
 
     expect(html5QrMock.applyVideoConstraints).not.toHaveBeenCalled();
     expect(screen.getByText("1.0×")).toBeInTheDocument();
@@ -199,7 +206,9 @@ describe("StockQrScanner", () => {
 
     await waitFor(() => expect(html5QrMock.start).toHaveBeenCalled());
     const successCallback = html5QrMock.start.mock.calls[0][2] as (text: string) => void;
-    successCallback("https://app-plant.icpladda.com/LIS/stock/view?qrId=u_scan");
+    act(() => {
+      successCallback("https://app-plant.icpladda.com/LIS/stock/view?qrId=u_scan");
+    });
 
     expect(onDecoded).toHaveBeenCalledWith({
       raw: "https://app-plant.icpladda.com/LIS/stock/view?qrId=u_scan",
@@ -221,6 +230,8 @@ describe("StockQrScanner", () => {
         onScanned={onScanned}
       />,
     );
+
+    await waitFor(() => expect(html5QrMock.start).toHaveBeenCalled());
 
     fireEvent.change(screen.getByPlaceholderText("u_xxxxxxxx หรือ URL"), {
       target: { value: "https://app-plant.icpladda.com/LIS/stock/view?qrId=u_ea3be3c6fb7b" },

@@ -48,6 +48,7 @@ function petitionStatusText(petition) {
   if (petition?.labCompletedAt) return 'รอออกผล';
   if (s === 'inProgress') return 'กำลังตรวจ';
   if (s === 'pendingReview') return 'รับตัวอย่างแล้ว';
+  if (s === 'deliveringQC' && (petition?.qcReceivedAt || petition?.labReceivedAt || petition?.receivedAt)) return 'รับตัวอย่างแล้ว';
   if (s === 'sampleSent') return 'ส่งตัวอย่างแล้ว — รอรับ';
   if (s === 'deliveringQC') return 'กำลังส่งตัวอย่าง';
   return String(s || '-');
