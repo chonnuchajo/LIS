@@ -33,8 +33,6 @@ const builtIndex = resolve(root, "index.html");
 const appHtml = resolve(root, "app.html");
 if (existsSync(builtIndex)) {
   renameSync(builtIndex, appHtml);
-  const html = readFileSync(appHtml, "utf8");
-  writeFileSync(appHtml, html.replaceAll("/LIS/assets/", "./assets/"), "utf8");
 }
 writeFileSync(builtIndex, devIndexHtml, "utf8");
 
