@@ -50,6 +50,7 @@ import {
   hasHandTypedEntries,
   densityRowToEntry,
   formatTSetComparison,
+  isSgMachineUnitKey,
 } from '@/lib/densitySync';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -656,7 +657,11 @@ export default function QCTestingDetailPage() {
     ) => {
       const k = resultKey(item.seq, param._id!);
       const fetchedAt = new Date().toISOString();
-      const rows = docs.map((d) => densityRowToEntry(d, fetchedAt));
+      const sgValueField = (param.valueFields ?? []).find((field) => field.label === SG_VALUE_LABEL);
+      const sgValueKeys = sgValueField
+        ? expandFieldForItem(sgValueField, item.commonName, { category: petitionCategory }).map((unit) => unit.key)
+        : [SG_VALUE_LABEL];
+      const rows = docs.map((d) => densityRowToEntry(d, fetchedAt, sgValueKeys));
       setEntriesByKey((prev) => ({ ...prev, [k]: rows.map((e) => ({ ...e })) }));
       setEntryRowCounts((c) => ({ ...c, [k]: Math.max(rows.length, 1) }));
       advanceToInProgress();
@@ -678,7 +683,7 @@ export default function QCTestingDetailPage() {
         toast.error('บันทึกค่าไม่สำเร็จ');
       }
     },
-    [user, advanceToInProgress, id, loadResults],
+    [user, advanceToInProgress, id, loadResults, petitionCategory],
   );
 
   const handleOutlierCheck = useCallback(
@@ -1246,7 +1251,7 @@ export default function QCTestingDetailPage() {
                     // read-only so the only way to populate them is the "ดึงค่า ถพ." button.
                     const isSgMachineField =
                       (param.valueFields ?? []).some((f) => f.label === SG_VALUE_LABEL) &&
-                      (unit.field.label === SG_VALUE_LABEL || unit.field.label === SG_TEMP_LABEL);
+                      isSgMachineUnitKey(unit.key, unit.field.label);
                     const unitDisabled = fieldDisabled || isSgMachineField;
 
                     // Field-level `multiple` — repeatable list of inputs sharing the

@@ -37,7 +37,7 @@ async function getPermissions(rolesInput) {
     Array.isArray(rolesInput) ? { roles: rolesInput } : { role: rolesInput },
   );
   if (roles.length === 0) roles.push('viewer');
-  const roleDocs = await Role.find({ id: { $in: roles } }).lean();
+  const roleDocs = await Role.find(roles.includes('admin') ? {} : { id: { $in: roles } }).lean();
   const permsByRole = Object.fromEntries(roleDocs.map((r) => [r.id, r.permissions || []]));
   return unionPermissions(roles, permsByRole);
 }

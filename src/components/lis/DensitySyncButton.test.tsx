@@ -42,7 +42,7 @@ describe('DensitySyncButton', () => {
     await waitFor(() => expect(api.triggerDensitySync).toHaveBeenCalledTimes(1));
   });
 
-  it('applies only checked density rows', async () => {
+  it('applies only the selected density row', async () => {
     const docs = [
       { _id: 'a', 'Sample name': 'Batch 009 A', 'Density [g/cm³]': '0.991', 'T (block) [°C]': '30.0' },
       { _id: 'b', 'Sample name': 'Batch 009 B', 'Density [g/cm³]': '0.992', 'T (block) [°C]': '30.0' },
@@ -53,10 +53,25 @@ describe('DensitySyncButton', () => {
     renderWith({ onRows });
     fireEvent.click(screen.getByRole('button', { name: /ดึงค่า ถพ\./ }));
 
-    const boxes = await screen.findAllByRole('checkbox');
-    fireEvent.click(boxes[1]);
+    const radios = await screen.findAllByRole('radio');
+    expect(radios[0]).toBeChecked();
+    fireEvent.click(radios[1]);
     fireEvent.click(screen.getByRole('button', { name: /ใช้ค่าที่เลือก/ }));
 
-    expect(onRows).toHaveBeenCalledWith([docs[0]]);
+    expect(radios[0]).not.toBeChecked();
+    expect(radios[1]).toBeChecked();
+    expect(onRows).toHaveBeenCalledWith([docs[1]]);
+  });
+
+  it('shows temperature from the compact T(block) column name', async () => {
+    const docs = [
+      { _id: 'a', 'Sample name': 'Batch 009 A', 'Density [g/cm³]': '0.991', 'T(block) [°C]': '31.5' },
+    ];
+    vi.mocked(api.getResultDensitiesByBatch).mockResolvedValue({ batch: '009', docs });
+
+    renderWith();
+    fireEvent.click(screen.getByRole('button', { name: /ดึงค่า ถพ\./ }));
+
+    expect(await screen.findByText('31.5')).toBeInTheDocument();
   });
 });

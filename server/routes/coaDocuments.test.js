@@ -97,15 +97,17 @@ test('buildCoaSnapshots freezes selected sample and lab result data', () => {
     },
     labRequests: [{
       reportCustomerName: 'Report Customer',
-      requester: { department: 'Quality', email: 'customer@example.com', phone: '1234' },
+      requester: { fullName: 'Keyer Name', department: 'Quality', email: 'customer@example.com', phone: '1234' },
     }],
     parameters: [
       { _id: 'qc-parameter', scope: 'qc' },
+      { _id: 'physical-parameter', name: 'กายภาพ', scope: 'qc' },
       { _id: 'lab-parameter', scope: 'lab' },
     ],
     qcResults: [
       { itemSeq: 1, parameterId: 'lab-parameter', values: { Assay: 'Ignored' } },
       { itemSeq: 2, parameterId: 'qc-parameter', values: { Appearance: 'Ignored' } },
+      { itemSeq: 2, parameterId: 'physical-parameter', parameterName: 'กายภาพ', values: { 'ลักษณะ': 'ของเหลวใส', 'สี': 'สีส้ม' } },
       { itemSeq: 2, parameterId: 'lab-parameter', values: { Assay: 99.5, Moisture: '' } },
     ],
     selectedItemSeqs: [2],
@@ -113,8 +115,8 @@ test('buildCoaSnapshots freezes selected sample and lab result data', () => {
 
   assert.equal(snapshots.petitionNoSnapshot, 'P-2608-0001');
   assert.deepEqual(snapshots.customerSnapshot, {
-    name: 'Report Customer',
-    company: 'บริษัท ไอ ซี พี ลัดดา จำกัด',
+    name: 'Keyer Name',
+    company: 'Report Customer',
     department: 'Quality',
     email: 'customer@example.com',
     phone: '1234',
@@ -127,7 +129,7 @@ test('buildCoaSnapshots freezes selected sample and lab result data', () => {
     lotNo: 'L-2',
     productionDate: '',
     sampleId: '',
-    condition: '',
+    condition: 'ของเหลวใส',
     manufacturer: 'Manufacturer',
   }]);
   assert.deepEqual(snapshots.resultSnapshots, [

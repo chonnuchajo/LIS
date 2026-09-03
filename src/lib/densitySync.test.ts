@@ -6,6 +6,8 @@ import {
   densityRowToEntry,
   hasHandTypedEntries,
   formatTSetComparison,
+  isSgMachineUnitKey,
+  isSgValueKey,
 } from './densitySync';
 
 const ROW = {
@@ -22,6 +24,18 @@ describe('labels', () => {
     expect(SG_TEMP_LABEL).toBe('อุณหภูมิ');
     expect(sourceSiblingKey('อุณหภูมิ')).toBe('อุณหภูมิ__source');
   });
+
+  it('matches base and substance SG value keys, but not provenance keys', () => {
+    expect(isSgValueKey('ค่าถพ.')).toBe(true);
+    expect(isSgValueKey('ค่าถพ.::glyphosate')).toBe(true);
+    expect(isSgValueKey('ค่าถพ.::glyphosate__source')).toBe(false);
+  });
+
+  it('marks SG value and temp render units as machine-only', () => {
+    expect(isSgMachineUnitKey('ค่าถพ.::glyphosate', 'ค่าถพ. — GLYPHOSATE')).toBe(true);
+    expect(isSgMachineUnitKey('อุณหภูมิ', 'อุณหภูมิ')).toBe(true);
+    expect(isSgMachineUnitKey('สี', 'สี')).toBe(false);
+  });
 });
 
 describe('densityRowToEntry', () => {
@@ -36,6 +50,20 @@ describe('densityRowToEntry', () => {
     expect(tempSrc.tSet).toBe(30);
     expect(tempSrc.fetchedAt).toBe('2026-06-13T03:00:00.000Z');
     const valSrc = e['ค่าถพ.__source'] as Record<string, unknown>;
+    expect(valSrc.source).toBe('instrument');
+  });
+  it('reads temperature from the compact T(block) column name', () => {
+    const { 'T (block) [°C]': _oldTemp, ...row } = ROW;
+    const e = densityRowToEntry({ ...row, 'T(block) [°C]': '31.50' }, '2026-06-13T03:00:00.000Z');
+    expect(e['อุณหภูมิ']).toBe(31.5);
+    expect((e['อุณหภูมิ__source'] as Record<string, unknown>).tBlock).toBe(31.5);
+  });
+  it('stores density under substance value keys when provided', () => {
+    const e = densityRowToEntry(ROW, '2026-06-13T03:00:00.000Z', ['ค่าถพ.::glyphosate']);
+    expect(e['ค่าถพ.']).toBeUndefined();
+    expect(e['ค่าถพ.::glyphosate']).toBe(0.9919);
+    expect(e['อุณหภูมิ']).toBe(30);
+    const valSrc = e['ค่าถพ.::glyphosate__source'] as Record<string, unknown>;
     expect(valSrc.source).toBe('instrument');
   });
   it('leaves value empty when unparseable', () => {
@@ -56,19 +84,25 @@ describe('hasHandTypedEntries', () => {
   });
   it('true when a value lacks instrument provenance', () => {
     expect(hasHandTypedEntries([{ 'ค่าถพ.': 0.99 }])).toBe(true);
+    expect(hasHandTypedEntries([{ 'ค่าถพ.::glyphosate': 0.99 }])).toBe(true);
     expect(hasHandTypedEntries([{ 'อุณหภูมิ': 30 }])).toBe(true);
+  });
+  it('false for substance values with instrument provenance', () => {
+    expect(hasHandTypedEntries([
+      {
+        'ค่าถพ.::glyphosate': 0.99,
+        'ค่าถพ.::glyphosate__source': { source: 'instrument' },
+      },
+    ])).toBe(false);
   });
 });
 
 describe('formatTSetComparison', () => {
-  it('match / differ / no-standard / null', () => {
-    expect(formatTSetComparison(30, 30)?.status).toBe('match');
-    expect(formatTSetComparison(30, 25)?.status).toBe('differ');
-    expect(formatTSetComparison(30, null)?.status).toBe('no-standard');
+  it('does not build a visible T set comparison message', () => {
+    expect(formatTSetComparison(30, 30)).toBeNull();
+    expect(formatTSetComparison(30, 25)).toBeNull();
+    expect(formatTSetComparison(30, null)).toBeNull();
     expect(formatTSetComparison('', 30)).toBeNull();
     expect(formatTSetComparison(undefined, 30)).toBeNull();
-  });
-  it('text includes both values when standard present', () => {
-    expect(formatTSetComparison(30, 30)?.text).toBe('เครื่องตั้งที่ (T set): 30 • มาตรฐาน: 30');
   });
 });

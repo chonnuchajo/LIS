@@ -24,7 +24,7 @@ import { isAssignedTo } from '@/lib/assignment';
 import { labReceivedAt, labReceivedBy } from '@/lib/receiveStatus';
 import { useConfirm } from '@/context/ConfirmDialog';
 import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues, optionOutputText, enumNormalValues, resolveConditionalOutput, isConditionalOutputAbnormal, resolveLabelTolerance } from '@/lib/parameterValidation';
-import { SG_FIELD_LABEL, FORM_ENTRY_INDEX_KEY } from '@/lib/formSpecificGravity';
+import { SG_FIELD_LABEL, FORM_ENTRY_INDEX_KEY, readSpecificGravityEntryValue } from '@/lib/formSpecificGravity';
 import type { ConditionContext, ResolvedOutput, RenderFieldUnit } from '@/lib/parameterValidation';
 import { describeResolvedStandard, formatLabelToleranceRange, labelToleranceBadge } from '@/lib/standardOperators';
 import { cn } from '@/lib/utils';
@@ -1512,14 +1512,15 @@ export default function LabTestingDetailPage() {
                                           <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {entryRows.map((ev, ei) => (
-                                            <SelectItem key={ei} value={String(ei)}>
-                                              รายการที่ {ei + 1}
-                                              {ev?.[SG_FIELD_LABEL] != null && ev[SG_FIELD_LABEL] !== ''
-                                                ? ` (${ev[SG_FIELD_LABEL]})`
-                                                : ''}
-                                            </SelectItem>
-                                          ))}
+                                          {entryRows.map((ev, ei) => {
+                                            const sgValue = readSpecificGravityEntryValue(ev, SG_FIELD_LABEL);
+                                            return (
+                                              <SelectItem key={ei} value={String(ei)}>
+                                                รายการที่ {ei + 1}
+                                                {sgValue != null && sgValue !== '' ? ` (${sgValue})` : ''}
+                                              </SelectItem>
+                                            );
+                                          })}
                                         </SelectContent>
                                       </Select>
                                     </div>

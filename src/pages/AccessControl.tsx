@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { NAV_ITEMS, PAGE_ITEMS, type NavItem } from "@/lib/navItems";
+import { unionPermissions } from "@/lib/roles";
 import { configurableTabsFor, denyToken, isTabDenied, tabsFor } from "@/lib/tabRegistry";
 import {
   ChevronDown,
@@ -44,6 +45,7 @@ const defaultRoles: Role[] = [
 const defaultUsers: AppUser[] = [];
 
 const defaultPermissions: Record<string, string[]> = {};
+const ADMIN_ROLE_ID = "admin";
 
 type AccessControlState = {
   users: AppUser[];
@@ -255,6 +257,17 @@ const AccessControl = () => {
   };
 
   const uniquePaths = (paths: string[]) => Array.from(new Set(paths));
+
+  const adminEffectivePermissions = useMemo(
+    () => Array.from(new Set([
+      ...unionPermissions([ADMIN_ROLE_ID], permissions),
+      ...groups.map((group) => group.id),
+    ])),
+    [groups, permissions],
+  );
+
+  const permissionsForRole = (roleId: string) =>
+    roleId === ADMIN_ROLE_ID ? adminEffectivePermissions : permissions[roleId] ?? [];
 
   const updateUser = async (id: string, patch: Partial<AppUser>) => {
     const previous = users;
@@ -658,7 +671,7 @@ const AccessControl = () => {
     roleId: string,
     group: AccessGroup,
   ): boolean | "indeterminate" => {
-    const current = permissions[roleId] ?? [];
+    const current = permissionsForRole(roleId);
     if (current.includes(group.id)) return true;
     const groupPaths = getGroupPagePaths(group);
     if (groupPaths.length === 0) return false;
@@ -669,7 +682,7 @@ const AccessControl = () => {
   };
 
   const isPageGranted = (roleId: string, group: AccessGroup, path: string) => {
-    const current = permissions[roleId] ?? [];
+    const current = permissionsForRole(roleId);
     return current.includes(group.id) || current.includes(path);
   };
 
@@ -1054,6 +1067,7 @@ const AccessControl = () => {
                                 <TableCell key={role.id} className="px-1 text-center sm:px-4">
                                   <Checkbox
                                     checked={groupCheckState(role.id, group)}
+                                    disabled={role.id === ADMIN_ROLE_ID}
                                     onCheckedChange={(c) =>
                                       toggleGroupForRole(role.id, group, c === true)
                                     }
@@ -1111,6 +1125,7 @@ const AccessControl = () => {
                                           <TableCell key={role.id} className="px-1 py-1.5 text-center sm:px-4">
                                             <Checkbox
                                               checked={isPageGranted(role.id, group, path)}
+                                              disabled={role.id === ADMIN_ROLE_ID}
                                               onCheckedChange={(c) =>
                                                 togglePageForRole(role.id, group, path, c === true)
                                               }
@@ -1130,8 +1145,8 @@ const AccessControl = () => {
                                               return (
                                                 <TableCell key={role.id} className="px-1 py-1 text-center sm:px-4">
                                                   <Checkbox
-                                                    checked={!isTabDenied(permissions[role.id] ?? [], path, tab.key)}
-                                                    disabled={!pageGranted}
+                                                    checked={!isTabDenied(permissionsForRole(role.id), path, tab.key)}
+                                                    disabled={!pageGranted || role.id === ADMIN_ROLE_ID}
                                                     onCheckedChange={(c) =>
                                                       toggleTabForRole(role.id, path, tab.key, c === true)
                                                     }

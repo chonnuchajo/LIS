@@ -60,6 +60,29 @@ describe("unionPermissions", () => {
     expect(unionPermissions(["lab", "qc"], byRole)).toEqual(["a", "b", "c"]);
   });
 
+  it("expands admin to every role grant permission", () => {
+    const byRole = {
+      admin: ["access"],
+      lab: ["/lab-testing", "deny:/stock/history"],
+      qc: ["/qc-testing"],
+      viewer: ["/petition", "/lab-testing"],
+    };
+
+    expect(unionPermissions(["admin"], byRole)).toEqual([
+      "access",
+      "/lab-testing",
+      "/qc-testing",
+      "/petition",
+    ]);
+  });
+
+  it("keeps deny permissions for non-admin roles", () => {
+    expect(unionPermissions(["lab"], { lab: ["/stock", "deny:/stock/history"] })).toEqual([
+      "/stock",
+      "deny:/stock/history",
+    ]);
+  });
+
   it("ignores roles with no permission entry", () => {
     expect(unionPermissions(["lab", "ghost"], { lab: ["a"] })).toEqual(["a"]);
   });

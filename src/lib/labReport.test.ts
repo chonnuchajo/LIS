@@ -155,9 +155,34 @@ describe("buildLabReportPages", () => {
     expect(p.sample.condition).toBe("บกพร่อง");
   });
 
-  it("reportCustomerName ถ้ามี ชนะ requester.fullName", () => {
-    const lr2 = [{ ...labRequests[0], reportCustomerName: "ลูกค้าพิเศษ" }] as unknown as LabRequest[];
+  it("ชื่อในข้อมูลลูกค้าใช้ชื่อผู้ขอบริการ ไม่ใช้ชื่อบริษัทผู้ส่งตัวอย่าง", () => {
+    const lr2 = [{ ...labRequests[0], reportCustomerName: "ICP Ladda Co., LTD." }] as unknown as LabRequest[];
     const out = buildLabReportPages(petition, lr2, groups);
-    expect(out[0].customer.name).toBe("ลูกค้าพิเศษ");
+    expect(out[0].customer.name).toBe("คุณเอ");
+    expect(out[0].customer.company).toBe("ICP Ladda Co., LTD.");
+  });
+
+  it("สภาพตัวอย่างใช้ค่าลักษณะจาก parameter กายภาพ", () => {
+    const physicalGroups: ApprovalItemGroup[] = [
+      {
+        ...groups[0],
+        params: [
+          ...groups[0].params,
+          {
+            parameterId: "physical",
+            parameterName: "กายภาพ",
+            scope: "qc",
+            hasPhases: false,
+            rows: [
+              { key: "physical__appearance", label: "ลักษณะ", value: "ของเหลวใส", standardText: "", abnormal: false, note: "", phase: 1 },
+              { key: "physical__color", label: "สี", value: "สีส้ม", standardText: "", abnormal: false, note: "", phase: 1 },
+            ],
+          },
+        ],
+      },
+    ];
+    const out = buildLabReportPages(petition, labRequests, physicalGroups);
+    expect(out[0].sample.condition).toBe("ของเหลวใส");
+    expect(out[0].rows).toHaveLength(1);
   });
 });

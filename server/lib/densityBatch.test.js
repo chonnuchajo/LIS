@@ -20,8 +20,9 @@ test('extractDensityBatch: keeps suffixes as part of the value', () => {
   assert.equal(extractDensityBatch('26S-OMT50-288 TOP'), '26S-OMT50-288 TOP');
 });
 
-test('batchMatches: exact whole-value matching only', () => {
+test('batchMatches: exact whole-value matching ignoring letter case', () => {
   assert.equal(batchMatches('26S-FPN5-GMP-009', '26S-FPN5-GMP-009'), true);
+  assert.equal(batchMatches('26S-GLY48-056', '26S-Gly48-056'), true);
   assert.equal(batchMatches('009', '26S-FPN5-GMP-009'), false);
   assert.equal(batchMatches('9', '26S-FPN5-GMP-009'), false);
   assert.equal(batchMatches('009', '009'), true);

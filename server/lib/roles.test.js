@@ -56,6 +56,29 @@ test('unionPermissions unions permissions across roles and de-dupes', () => {
   assert.deepStrictEqual(unionPermissions(['lab', 'qc'], byRole), ['a', 'b', 'c']);
 });
 
+test('unionPermissions expands admin to every role grant permission', () => {
+  const byRole = {
+    admin: ['access'],
+    lab: ['/lab-testing', 'deny:/stock/history'],
+    qc: ['/qc-testing'],
+    viewer: ['/petition', '/lab-testing'],
+  };
+
+  assert.deepStrictEqual(unionPermissions(['admin'], byRole), [
+    'access',
+    '/lab-testing',
+    '/qc-testing',
+    '/petition',
+  ]);
+});
+
+test('unionPermissions keeps deny permissions for non-admin roles', () => {
+  assert.deepStrictEqual(unionPermissions(['lab'], { lab: ['/stock', 'deny:/stock/history'] }), [
+    '/stock',
+    'deny:/stock/history',
+  ]);
+});
+
 test('unionPermissions ignores roles with no permission entry', () => {
   assert.deepStrictEqual(unionPermissions(['lab', 'ghost'], { lab: ['a'] }), ['a']);
 });

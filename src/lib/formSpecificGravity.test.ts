@@ -54,6 +54,16 @@ describe('resolveSpecificGravity', () => {
     expect(resolveSpecificGravity(results as any, 1, matched)).toBe('1.222');
   });
 
+  it('falls back to a substance-scoped SG entry value', () => {
+    const results = [{
+      itemSeq: 1,
+      parameterId: 'sg1',
+      values: {},
+      entries: [{ [`${SG_FIELD_LABEL}::glyphosate`]: 1.157 }],
+    }];
+    expect(resolveSpecificGravity(results as any, 1, matched)).toBe('1.157');
+  });
+
   it('defaults to the first entry when no index is chosen', () => {
     const results = [{
       itemSeq: 1,

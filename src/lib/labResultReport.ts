@@ -4,6 +4,8 @@ import type { ParameterItem } from '@/lib/api';
 import { buildApprovalGroups } from '@/lib/qcApprovalRows';
 import { buildLabReportPages, type LabReportPage } from '@/lib/labReport';
 
+const PHYSICAL_PARAMETER_NAME = 'กายภาพ';
+
 /**
  * รวม 3 ขั้นสร้าง "ผลวิเคราะห์ Lab" ให้เป็น code path เดียว: กรอง parameter เฉพาะฝั่ง Lab
  * (ไม่รวม param QC ที่แชร์ให้ Lab เช่น ค่า ถพ.) → buildApprovalGroups → buildLabReportPages
@@ -16,7 +18,10 @@ export function buildLabResultReportPages(input: {
   groupMembership: Map<string, string[]>;
 }): LabReportPage[] {
   const { petition, labRequests, parameters, qcResults, groupMembership } = input;
-  const labParams = parameters.filter((p) => (p.scope ?? 'qc') === 'lab');
+  const labParams = parameters.filter((parameter) => (
+    (parameter.scope ?? 'qc') === 'lab'
+    || parameter.name?.trim() === PHYSICAL_PARAMETER_NAME
+  ));
   const groups = buildApprovalGroups(petition, labParams, qcResults, groupMembership);
   return buildLabReportPages(petition, labRequests, groups);
 }

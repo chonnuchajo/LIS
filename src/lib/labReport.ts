@@ -34,6 +34,12 @@ export interface LabReportPage {
 
 const DASH = "-";
 const COMPANY_NAME = "บริษัท ไอ ซี พี ลัดดา จำกัด";
+const PHYSICAL_PARAMETER_NAME = "กายภาพ";
+const PHYSICAL_DESCRIPTION_LABEL = "ลักษณะ";
+
+function cleanText(value?: string | null): string {
+  return value?.trim() || "";
+}
 
 export function buddhistDate(iso?: string | null): string {
   if (!iso) return "";
@@ -63,8 +69,8 @@ function labReportCriteriaText(standardText: string): string {
     .split(/\s*(?:·|\|)\s*/u)
     .map((part) =>
       part
-        .replace(/[^\d.,+\-–—<>≤≥=±%\s]/gu, " ")
-        .replace(/\s*([\-–—])\s*/g, "$1")
+        .replace(/[^\d.,+–—<>≤≥=±%\s-]/gu, " ")
+        .replace(/\s*([-–—])\s*/g, "$1")
         .replace(/\s+/g, " ")
         .trim(),
     )
@@ -99,6 +105,16 @@ function rowsForItem(group: ApprovalItemGroup | undefined): LabReportRow[] {
 const conditionText = (c?: string) =>
   c === "normal" ? "ปกติ" : c === "defective" ? "บกพร่อง" : DASH;
 
+function physicalDescription(group: ApprovalItemGroup | undefined): string {
+  for (const parameter of group?.params ?? []) {
+    if (parameter.parameterName.trim() !== PHYSICAL_PARAMETER_NAME) continue;
+    const row = parameter.rows.find((fieldRow) => fieldRow.label.split(" · ")[0]?.trim() === PHYSICAL_DESCRIPTION_LABEL);
+    const value = cleanText(row?.value);
+    if (value && value !== DASH) return value;
+  }
+  return "";
+}
+
 export function buildLabReportPages(
   petition: Petition,
   labRequests: LabRequest[],
@@ -114,12 +130,14 @@ export function buildLabReportPages(
   return (petition.items ?? []).map((item) => {
     const lr = labRequestForItem(item, labRequests);
     const requester = lr?.requester;
+    const group = groupBySeq.get(item.seq);
+    const requesterName = cleanText(requester?.fullName) || cleanText(petition.submittedBy?.name) || DASH;
     return {
       reportNo: lr?.labRequestNo || petition.petitionNo,
       reportDate: reportedDate || DASH,
       customer: {
-        name: lr?.reportCustomerName || requester?.fullName || petition.submittedBy?.name || DASH,
-        company: COMPANY_NAME,
+        name: requesterName,
+        company: cleanText(lr?.reportCustomerName) || COMPANY_NAME,
         department: requester?.department || PETITION_DEPT_LABELS[petition.dept] || DASH,
         email: requester?.email || DASH,
         phone: requester?.phone || DASH,
@@ -134,9 +152,9 @@ export function buildLabReportPages(
         receivedDate: buddhistDate(petition.labReceivedAt || petition.receivedAt || petition.sampleSentAt) || DASH,
         testedDate: buddhistDate(petition.firstResultAt || petition.labCompletedAt) || DASH,
         reportedDate: reportedDate || DASH,
-        condition: conditionText(item.condition),
+        condition: physicalDescription(group) || conditionText(item.condition),
       },
-      rows: rowsForItem(groupBySeq.get(item.seq)),
+      rows: rowsForItem(group),
       analystName,
       labHeadName,
       remark: petition.conclusionNote || "",

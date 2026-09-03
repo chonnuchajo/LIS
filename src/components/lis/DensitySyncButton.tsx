@@ -4,6 +4,7 @@ import { Loader2, Radio, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
+import { readDensityTBlock } from '@/lib/densitySync';
 
 interface DensitySyncButtonProps {
   /** Petition item batch number to match against Result-Density. */
@@ -15,6 +16,8 @@ interface DensitySyncButtonProps {
   disabled?: boolean;
 }
 
+const EMPTY_DENSITY_DOCS: Record<string, unknown>[] = [];
+
 /**
  * Pull DMA 501 density readings for `batchNo` from Result-Density. If none exist
  * yet, poll every 30 s until they appear. Staff choose which readings to apply.
@@ -24,7 +27,7 @@ export default function DensitySyncButton({
 }: DensitySyncButtonProps) {
   const qc = useQueryClient();
   const [active, setActive] = useState(false);
-  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [selectedKey, setSelectedKey] = useState('');
   const initializedRef = useRef(false);
 
   const { data, isError, error } = useQuery({
@@ -34,13 +37,13 @@ export default function DensitySyncButton({
     refetchInterval: (q) => (q.state.data?.docs?.length ? false : 30_000),
   });
 
-  const docs = data?.docs ?? [];
+  const docs = data?.docs ?? EMPTY_DENSITY_DOCS;
   const rowKey = (doc: Record<string, unknown>, idx: number) => String(doc._id ?? idx);
 
   useEffect(() => {
     if (active && docs.length && !initializedRef.current) {
       initializedRef.current = true;
-      setSelectedKeys(docs.map(rowKey));
+      setSelectedKey(rowKey(docs[0], 0));
       toast.success(`พบค่า ถพ. จากเครื่อง (${docs.length} รายการ)`);
     }
   }, [active, docs]);
@@ -58,7 +61,7 @@ export default function DensitySyncButton({
     if (!batchNo) return;
     if (hasHandTyped && !window.confirm('มีค่าที่กรอกเอง จะเขียนทับด้วยค่าจากเครื่อง?')) return;
     initializedRef.current = false;
-    setSelectedKeys([]);
+    setSelectedKey('');
     qc.removeQueries({ queryKey: ['density-by-batch', batchNo] });
     setActive(true);
     try {
@@ -68,18 +71,14 @@ export default function DensitySyncButton({
     }
   };
 
-  const toggle = (key: string, checked: boolean) => {
-    setSelectedKeys((prev) => (checked ? [...prev, key] : prev.filter((k) => k !== key)));
-  };
-
   const applySelected = () => {
-    const selected = docs.filter((doc, idx) => selectedKeys.includes(rowKey(doc, idx)));
-    if (!selected.length) {
+    const selected = docs.find((doc, idx) => rowKey(doc, idx) === selectedKey);
+    if (!selected) {
       toast.warning('กรุณาเลือกค่าที่จะใช้');
       return;
     }
-    onRows(selected);
-    toast.success(`ใช้ค่า ถพ. ที่เลือกแล้ว (${selected.length} รายการ)`);
+    onRows([selected]);
+    toast.success('ใช้ค่า ถพ. ที่เลือกแล้ว (1 รายการ)');
     setActive(false);
   };
 
@@ -98,14 +97,15 @@ export default function DensitySyncButton({
             return (
               <label key={key} className="flex cursor-pointer items-center gap-2 rounded bg-white/70 px-2 py-1.5">
                 <input
-                  type="checkbox"
+                  type="radio"
+                  name={`density-sync-${batchNo}`}
                   className="h-4 w-4"
-                  checked={selectedKeys.includes(key)}
-                  onChange={(e) => toggle(key, e.target.checked)}
+                  checked={selectedKey === key}
+                  onChange={() => setSelectedKey(key)}
                 />
                 <span className="flex-1">{String(doc['Sample name'] ?? doc['Sample ID'] ?? `#${idx + 1}`)}</span>
                 <span className="font-mono font-semibold">{String(doc['Density [g/cm³]'] ?? '')}</span>
-                <span className="font-mono text-amber-700">{String(doc['T (block) [°C]'] ?? '')}</span>
+                <span className="font-mono text-amber-700">{String(readDensityTBlock(doc) ?? '')}</span>
               </label>
             );
           })}
