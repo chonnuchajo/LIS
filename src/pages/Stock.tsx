@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, AlertTriangle, Calendar as CalendarIcon, Clock, Plus, Pencil, ArrowDownToLine, History, Search, Trash2, ChevronDown, Download } from "lucide-react";
+import { Package, AlertTriangle, Calendar as CalendarIcon, Clock, Plus, Pencil, ArrowDownToLine, History, Search, Trash2, ChevronDown, Download, RefreshCw } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 
@@ -106,6 +106,19 @@ function formatExportDateRangeLabel(startDate: string, endDate: string) {
 
 function safeDownloadSegment(value: string | undefined) {
   return (value || "stock").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, "_") || "stock";
+}
+
+function formatStockDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatStockMonth(value: string | undefined) {
+  if (!value) return "-";
+  const date = new Date(`${value}-01T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("th-TH", { month: "long", year: "numeric" });
 }
 
 function downloadStockExport(blob: Blob, filename: string) {
@@ -971,6 +984,95 @@ function GlasswareTab() {
 }
 
 // ============================================================
+// Medicine six-month list
+// ============================================================
+function MedicineSixMonthTab() {
+  const [search, setSearch] = useState("");
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
+    queryKey: ["stock", "medicine-six-months"],
+    queryFn: api.getSixMonthMedicineStock,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const items = data?.items ?? [];
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((item) => [
+      item.itemNo,
+      item.lotNo,
+      item.companySource,
+      item.locationCode,
+      item.binCode,
+    ].some((value) => value.toLowerCase().includes(q)));
+  }, [items, search]);
+  const errorMessage = error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ";
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:space-y-0 space-y-2">
+          <div className="space-y-1">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Package className="w-5 h-5" /> List ยา 6 เดือน
+              <Badge variant="outline">{filtered.length}</Badge>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              แสดงล็อตที่อายุ 6, 12, 18... เดือนจาก registering_date · นับเฉพาะเดือน ไม่ดูวันที่ · เดือนอ้างอิง {formatStockMonth(data?.referenceMonth)}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา item / lot / location" className="pl-8 h-9 w-full sm:w-72" />
+            </div>
+            <Button size="sm" variant="outline" onClick={() => void refetch()} disabled={isFetching}>
+              <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} /> รีเฟรช
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+            <Table className="min-w-[900px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Item No</TableHead>
+                  <TableHead>Lot</TableHead>
+                  <TableHead>Registering Date</TableHead>
+                  <TableHead className="text-right">อายุ (เดือน)</TableHead>
+                  <TableHead className="text-right">Stock Qty</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Company</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
+                ) : isError ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-6 text-destructive">{errorMessage}</TableCell></TableRow>
+                ) : filtered.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">ไม่มีข้อมูล</TableCell></TableRow>
+                ) : filtered.map((item) => (
+                  <TableRow key={`${item.itemNo}-${item.lotNo}-${item.locationCode}-${item.binCode}-${item.registeringDate}`}>
+                    <TableCell className="font-medium">{item.itemNo || "-"}</TableCell>
+                    <TableCell>{item.lotNo || "-"}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{formatStockDate(item.registeringDate)}</TableCell>
+                    <TableCell className="text-right"><Badge variant="outline">{item.ageMonths}</Badge></TableCell>
+                    <TableCell className="text-right font-mono">{formatStockQuantityWithUnit(item.stockQty, item.unit)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{item.locationCode || "-"} / {item.binCode || "-"}</TableCell>
+                    <TableCell className="text-xs">{item.companySource || "-"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
 // History Tab
 // ============================================================
 function HistoryTab() {
@@ -1800,6 +1902,7 @@ const StockPage = () => {
         <TabsContent value="standard"><StandardsTab /></TabsContent>
         <TabsContent value="solvent"><SolventsTab /></TabsContent>
         <TabsContent value="glassware"><GlasswareTab /></TabsContent>
+        <TabsContent value="medicine-six-months"><MedicineSixMonthTab /></TabsContent>
         <TabsContent value="receive"><ReceiveCart /></TabsContent>
         <TabsContent value="history"><HistoryTab /></TabsContent>
       </Tabs>

@@ -25,6 +25,7 @@ const {
   normalizeDeductionResolutionInput,
 } = require('../lib/deductionResolution');
 const { buildInUseItems, canAcknowledgeDeduction } = require('../lib/standardsInUse');
+const { normalizeSixMonthStockItems } = require('../lib/sixMonthStockItems');
 const {
   buildStandardExportDateRange,
   buildStandardLotExportHtml,
@@ -33,6 +34,9 @@ const {
   dateStamp,
   sanitizeFilenameSegment,
 } = require('../lib/stockHistoryExport');
+
+const STOCK_ALL_ITEM_URL = process.env.STOCK_ALL_ITEM_URL || 'https://n8n-plant.icpladda.com/webhook/api/stock-all-item';
+const STOCK_ALL_ITEM_TIMEOUT_MS = 15_000;
 
 async function genUniqueQrId() {
   for (let i = 0; i < 5; i++) {
@@ -118,6 +122,27 @@ function badRequest(message) {
   const err = new Error(message);
   err.statusCode = 400;
   return err;
+}
+
+async function fetchStockAllItems() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), STOCK_ALL_ITEM_TIMEOUT_MS);
+  try {
+    const response = await fetch(STOCK_ALL_ITEM_URL, {
+      headers: { accept: 'application/json' },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`stock-all-item returned ${response.status}`);
+    }
+    const payload = await response.json();
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.items)) return payload.items;
+    return [];
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function buildTransactionFilter(query = {}) {
@@ -723,6 +748,22 @@ router.post('/barcodes/register', async (req, res) => {
 });
 
 /* ==================== STANDARDS ==================== */
+
+router.get('/medicine-six-months', async (req, res) => {
+  try {
+    const referenceDate = new Date();
+    const rows = await fetchStockAllItems();
+    res.json({
+      serverTime: referenceDate.toISOString(),
+      referenceMonth: referenceDate.toISOString().slice(0, 7),
+      items: normalizeSixMonthStockItems(rows, referenceDate),
+    });
+  } catch (err) {
+    const status = err.name === 'AbortError' ? 504 : 502;
+    const message = err.name === 'AbortError' ? 'stock-all-item timeout' : err.message;
+    res.status(status).json({ error: message });
+  }
+});
 
 router.get('/standards', async (req, res) => {
   try {

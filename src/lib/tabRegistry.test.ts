@@ -28,6 +28,10 @@ describe("tabRegistry", () => {
     expect(PAGES_WITH_TABS).not.toContain("/stock-deduction");
   });
 
+  it("stock includes the six month medicine list tab", () => {
+    expect(tabsFor("/stock").map((tab) => tab.key)).toContain("medicine-six-months");
+  });
+
   it("builds tab + deny tokens", () => {
     expect(tabPath("/stock", "history")).toBe("/stock/history");
     expect(denyToken("/stock", "history")).toBe("deny:/stock/history");

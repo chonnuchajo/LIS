@@ -11,6 +11,7 @@ import type {
   StockPublicScanItem,
   DeductionResolutionReason,
   StandardsInUseResponse,
+  SixMonthMedicineStockResponse,
 } from "@/types/stock";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import type { DailyCheckPeriod } from "@/lib/dailyCheckPeriod";
@@ -438,6 +439,7 @@ export const api = {
       body: JSON.stringify(body ?? {}),
     }),
   getStandardsInUse: () => request<StandardsInUseResponse>("/stock/standards/in-use"),
+  getSixMonthMedicineStock: () => request<SixMonthMedicineStockResponse>("/stock/medicine-six-months"),
 
   // Stock — Units (per-bottle)
   getStockUnits: (params?: { itemCode?: string; itemType?: string; itemId?: string; status?: string; kind?: string }) => {

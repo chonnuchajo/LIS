@@ -164,6 +164,25 @@ export interface StandardsInUseResponse {
   items: StandardInUseItem[];
 }
 
+export interface SixMonthMedicineStockItem {
+  companySource: string;
+  itemNo: string;
+  locationCode: string;
+  binCode: string;
+  lotNo: string;
+  registeringDate: string;
+  unit: string;
+  stockQty: number;
+  stockQtyBase: number;
+  ageMonths: number;
+}
+
+export interface SixMonthMedicineStockResponse {
+  serverTime: string;
+  referenceMonth: string;
+  items: SixMonthMedicineStockItem[];
+}
+
 export type StockPublicScanItem =
   | {
       kind: "standard";

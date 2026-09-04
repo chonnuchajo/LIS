@@ -38,6 +38,7 @@ const defaultRoles = [
   { id: 'admin', name: 'Administrator', description: 'Full system access', locked: true, permissions: defaultGroups.map(g => g.id), family: '' },
   { id: LAB_BASE_ROLE, name: 'Lab Analyze', description: 'Base Lab analysis workspace', permissions: ['dashboard', 'samples', 'results', '/petition/assign', '/lab-testing', '/lab-testing/:id'], family: 'lab', dashboardProfile: 'lab-analyze' },
   { id: QC_BASE_ROLE, name: 'QC Staff', description: 'Base QC receiving and tracking workspace', permissions: ['dashboard', 'samples', 'qc', '/qc-testing', '/qc-testing/:id'], family: 'qc', dashboardProfile: 'qc-staff' },
+  { id: 'qc-head', name: 'QC Head', description: 'Full Access Data and Approve', permissions: ['/petitions', '/qc-approval', '/stock'], family: 'qc' },
   { id: 'lab', name: 'Lab Analyst', description: 'Sample handling and result entry', permissions: ['dashboard', 'samples', 'results', 'stock'], family: 'lab' },
   { id: 'qc', name: 'QC Reviewer', description: 'Review and approve results', permissions: ['dashboard', 'results', 'qc', 'reports'], family: 'qc' },
   { id: 'viewer', name: 'Viewer', description: 'Read-only access to dashboards and reports', permissions: ['dashboard', 'reports'], family: '' },
@@ -56,6 +57,10 @@ const knownRoleFamilies = new Map([
   ['qc-data-config', 'qc'],
   ['qc-head', 'qc'],
 ]);
+
+const defaultRolePermissionGrants = [
+  { id: 'qc-head', permissions: ['/stock'] },
+];
 
 function slugify(value) {
   return String(value || '')
@@ -196,6 +201,15 @@ async function ensureRoleFamilyDefaults() {
   }
 }
 
+async function ensureDefaultRolePermissionGrants() {
+  for (const grant of defaultRolePermissionGrants) {
+    await Role.updateOne(
+      { id: grant.id },
+      { $addToSet: { permissions: { $each: grant.permissions } } },
+    );
+  }
+}
+
 async function ensureDefaults() {
   const groups = await ensureGroups();
   const count = await Role.countDocuments();
@@ -207,6 +221,7 @@ async function ensureDefaults() {
     { $addToSet: { permissions: { $each: groups.map(group => group.id) } } },
   );
   await ensureRoleFamilyDefaults();
+  await ensureDefaultRolePermissionGrants();
   return groups;
 }
 

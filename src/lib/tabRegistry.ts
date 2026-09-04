@@ -24,6 +24,7 @@ export const TAB_REGISTRY: Record<string, TabDef[]> = {
     { key: "standard", label: "Standards" },
     { key: "solvent", label: "สารเคมี" },
     { key: "glassware", label: "เครื่องแก้ว" },
+    { key: "medicine-six-months", label: "List ยา 6 เดือน" },
     { key: "receive", label: "รับเข้า" },
     { key: "history", label: "ประวัติ" },
   ],
