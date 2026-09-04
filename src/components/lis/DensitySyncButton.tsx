@@ -1,16 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Radio, X } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
-import { readDensityTBlock, readDensityValue, selectDensitySyncRow } from '@/lib/densitySync';
+import { selectDensitySyncRow } from '@/lib/densitySync';
 
 interface DensitySyncButtonProps {
   /** Petition item batch number to match against Result-Density. */
   batchNo: string;
-  /** Whether existing entries hold hand-typed values (triggers overwrite confirm). */
-  hasHandTyped: boolean;
   /** Called with the selected matched rows. */
   onRows: (docs: Record<string, unknown>[]) => void;
   disabled?: boolean;
@@ -20,130 +17,52 @@ const EMPTY_DENSITY_DOCS: Record<string, unknown>[] = [];
 
 /**
  * Pull DMA 501 density readings for `batchNo` from Result-Density. If none exist
- * yet, poll every 30 s until they appear. Staff choose which readings to apply.
+ * yet, poll every 30 s until a valid consecutive repeat appears, then apply it.
  */
 export default function DensitySyncButton({
-  batchNo, hasHandTyped, onRows, disabled = false,
+  batchNo, onRows, disabled = false,
 }: DensitySyncButtonProps) {
-  const qc = useQueryClient();
-  const [active, setActive] = useState(false);
-  const [selectedKey, setSelectedKey] = useState('');
-  const initializedRef = useRef(false);
+  const appliedKeyRef = useRef('');
 
-  const { data, isError, error } = useQuery({
+  const { data, isError, error, isFetching } = useQuery({
     queryKey: ['density-by-batch', batchNo],
     queryFn: () => api.getResultDensitiesByBatch(batchNo),
-    enabled: active && !!batchNo,
-    refetchInterval: (q) => (q.state.data?.docs?.length ? false : 30_000),
+    enabled: !disabled && !!batchNo,
+    refetchInterval: (q) => (selectDensitySyncRow(q.state.data?.docs ?? EMPTY_DENSITY_DOCS) ? false : 30_000),
   });
 
   const docs = data?.docs ?? EMPTY_DENSITY_DOCS;
-  const rowKey = (doc: Record<string, unknown>, idx: number) => String(doc._id ?? idx);
 
   useEffect(() => {
-    if (active && docs.length && !initializedRef.current) {
-      initializedRef.current = true;
-      const selected = selectDensitySyncRow(docs) ?? docs[0];
+    appliedKeyRef.current = '';
+  }, [batchNo]);
+
+  useEffect(() => {
+    const selected = selectDensitySyncRow(docs);
+    if (selected) {
       const selectedIndex = Math.max(docs.indexOf(selected), 0);
-      setSelectedKey(rowKey(selected, selectedIndex));
-      toast.success(`พบค่า ถพ. จากเครื่อง (${docs.length} รายการ)`);
+      const selectedKey = `${batchNo}::${String(selected._id ?? selectedIndex)}`;
+      if (appliedKeyRef.current === selectedKey) return;
+      appliedKeyRef.current = selectedKey;
+      onRows([selected]);
+      toast.success('ใช้ค่า ถพ. จากเครื่องแล้ว (1 รายการ)');
     }
-  }, [active, docs]);
+  }, [batchNo, docs, onRows]);
 
   useEffect(() => {
-    if (active && isError) {
-      toast.error('ดึงค่าจากเครื่องไม่ได้ - กรอกมือได้', {
+    if (isError) {
+      toast.error('ตรวจค่า ถพ. จากฐานข้อมูลไม่ได้', {
         description: error instanceof Error ? error.message : undefined,
       });
-      setActive(false);
     }
-  }, [active, isError, error]);
+  }, [isError, error]);
 
-  const start = async () => {
-    if (!batchNo) return;
-    if (hasHandTyped && !window.confirm('มีค่าที่กรอกเอง จะเขียนทับด้วยค่าจากเครื่อง?')) return;
-    initializedRef.current = false;
-    setSelectedKey('');
-    qc.removeQueries({ queryKey: ['density-by-batch', batchNo] });
-    setActive(true);
-    try {
-      await api.triggerDensitySync();
-    } catch {
-      toast.warning('สั่งเครื่องส่งค่าไม่สำเร็จ - กำลังตรวจค่าที่มีอยู่');
-    }
-  };
-
-  const applySelected = () => {
-    const selected = docs.find((doc, idx) => rowKey(doc, idx) === selectedKey);
-    if (!selected) {
-      toast.warning('กรุณาเลือกค่าที่จะใช้');
-      return;
-    }
-    onRows([selected]);
-    toast.success('ใช้ค่า ถพ. ที่เลือกแล้ว (1 รายการ)');
-    setActive(false);
-  };
-
-  if (active && docs.length) {
-    return (
-      <div className="w-full rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="font-semibold">เลือกค่า ถพ. ที่จะใช้รายงาน</span>
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-2" onClick={() => setActive(false)}>
-            <X className="h-3.5 w-3.5" /> ยกเลิก
-          </Button>
-        </div>
-        <div className="max-h-48 space-y-1 overflow-auto">
-          {docs.map((doc, idx) => {
-            const key = rowKey(doc, idx);
-            return (
-              <label key={key} className="flex cursor-pointer items-center gap-2 rounded bg-white/70 px-2 py-1.5">
-                <input
-                  type="radio"
-                  name={`density-sync-${batchNo}`}
-                  className="h-4 w-4"
-                  checked={selectedKey === key}
-                  onChange={() => setSelectedKey(key)}
-                />
-                <span className="flex-1">{String(doc['Sample name'] ?? doc['Sample ID'] ?? `#${idx + 1}`)}</span>
-                <span className="font-mono font-semibold">{String(readDensityValue(doc) ?? '')}</span>
-                <span className="font-mono text-amber-700">{String(readDensityTBlock(doc) ?? '')}</span>
-              </label>
-            );
-          })}
-        </div>
-        <div className="mt-2 flex justify-end">
-          <Button type="button" size="sm" className="h-8 px-3 text-xs" onClick={applySelected}>
-            ใช้ค่าที่เลือก
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (active && !docs.length) {
-    return (
-      <div className="flex items-center gap-2 text-xs text-amber-600">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        รอค่าจากเครื่อง...
-        <Button
-          type="button" variant="ghost" size="sm" className="h-7 gap-1 px-2"
-          onClick={() => setActive(false)}
-        >
-          <X className="h-3.5 w-3.5" /> ยกเลิก
-        </Button>
-      </div>
-    );
-  }
+  if (disabled || !batchNo || selectDensitySyncRow(docs)) return null;
 
   return (
-    <Button
-      type="button" variant="outline" size="sm" className="h-8 gap-1 px-2 text-xs"
-      onClick={start}
-      disabled={disabled || !batchNo}
-      title={!batchNo ? 'ไม่มีเลข batch' : 'ดึงค่า ถพ. จากเครื่อง DMA 501 ตามเลข batch'}
-    >
-      <Radio className="h-3.5 w-3.5" /> ดึงค่า ถพ.
-    </Button>
+    <div className="flex items-center gap-2 text-xs text-amber-600">
+      {isFetching && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      รอค่า ถพ. valid ที่ Density (3 ตำแหน่ง) เท่ากันต่อเนื่องอย่างน้อย 2 ครั้ง
+    </div>
   );
 }

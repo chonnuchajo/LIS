@@ -31,4 +31,30 @@ describe('petitionQueueVisibility', () => {
     expect(isVisibleInAssignQueue(receivedStalePetition)).toBe(true);
     expect(isWaitingForAssignment(receivedStalePetition)).toBe(true);
   });
+
+  it('hides Lab-received petitions from Assign queue', () => {
+    const labReceivedPetition = {
+      ...receivedStalePetition,
+      status: 'inProgress',
+      assignedTo: { employeeId: 'E123', name: 'นายชนินัญชา ภู่สุวรรณ' },
+      labReceivedAt: '2026-09-03T07:05:34.767Z',
+      labReceivedBy: 'นายชนินัญชา ภู่สุวรรณ',
+      qcReceivedAt: undefined,
+    } as Petition;
+
+    expect(isVisibleInAssignQueue(labReceivedPetition)).toBe(false);
+  });
+
+  it('does not count Lab-received petitions as waiting for assignment', () => {
+    const labReceivedWithoutAssignee = {
+      ...receivedStalePetition,
+      status: 'pendingReview',
+      assignedTo: undefined,
+      labReceivedAt: '2026-09-03T07:05:34.767Z',
+      labReceivedBy: 'นายชนินัญชา ภู่สุวรรณ',
+      qcReceivedAt: undefined,
+    } as Petition;
+
+    expect(isWaitingForAssignment(labReceivedWithoutAssignee)).toBe(false);
+  });
 });

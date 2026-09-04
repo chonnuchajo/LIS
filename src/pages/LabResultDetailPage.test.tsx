@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LabResultDetailPage from './LabResultDetailPage';
@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => ({
   labRequests: [] as Array<{ _id: string }>,
   getParameters: vi.fn<() => Promise<ParameterItem[]>>(),
   getQCResults: vi.fn(),
+  buildApprovalGroups: vi.fn(),
+  buildLabResultReportPages: vi.fn(),
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -77,11 +79,11 @@ vi.mock('@/lib/api', () => ({
 }));
 
 vi.mock('@/lib/qcApprovalRows', () => ({
-  buildApprovalGroups: () => [],
+  buildApprovalGroups: (...args: unknown[]) => mocks.buildApprovalGroups(...args),
 }));
 
 vi.mock('@/lib/labResultReport', () => ({
-  buildLabResultReportPages: () => [{ reportNo: 'LR-1' }],
+  buildLabResultReportPages: (...args: unknown[]) => mocks.buildLabResultReportPages(...args),
 }));
 
 function renderPage() {
@@ -100,6 +102,8 @@ beforeEach(() => {
   mocks.labRequests = [{ _id: 'lab-request-1' }];
   mocks.getParameters.mockReturnValue(new Promise<ParameterItem[]>(() => {}));
   mocks.getQCResults.mockReturnValue(new Promise(() => {}));
+  mocks.buildApprovalGroups.mockReturnValue([]);
+  mocks.buildLabResultReportPages.mockReturnValue([{ reportNo: 'LR-1' }]);
 });
 
 describe('LabResultDetailPage print action', () => {
@@ -118,5 +122,24 @@ describe('LabResultDetailPage print action', () => {
     renderPage();
 
     expect(screen.getByRole('button', { name: /พิมพ์ผลวิเคราะห์ Lab/ })).toBeEnabled();
+  });
+
+  it('passes physical parameter to report pages but keeps lab result groups lab-only', async () => {
+    const parameters = [
+      { _id: 'lab-1', name: 'สารสำคัญ', scope: 'lab' },
+      { _id: 'qc-1', name: 'ค่า ถพ.', scope: 'qc' },
+      { _id: 'physical-1', name: 'กายภาพ', scope: 'qc' },
+    ] as ParameterItem[];
+    mocks.getParameters.mockResolvedValue(parameters);
+    mocks.getQCResults.mockResolvedValue([]);
+
+    renderPage();
+
+    await waitFor(() => {
+      const reportInput = mocks.buildLabResultReportPages.mock.calls.at(-1)?.[0] as { parameters: ParameterItem[] };
+      expect(reportInput.parameters.map((parameter) => parameter._id)).toEqual(['lab-1', 'physical-1']);
+    });
+    const groupParameters = mocks.buildApprovalGroups.mock.calls.at(-1)?.[1] as ParameterItem[];
+    expect(groupParameters.map((parameter) => parameter._id)).toEqual(['lab-1']);
   });
 });

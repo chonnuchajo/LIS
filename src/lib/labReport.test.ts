@@ -136,7 +136,7 @@ describe("buildLabReportPages", () => {
             rows: [
               {
                 ...groups[0].params[0].rows[0],
-                standardText: "ผ่าน 48.13–51.88 · หัวหน้าตรวจสอบ 47.50–52.50 %",
+                standardText: "ผ่าน 48.13–51.88 · เกณฑ์กรม 47.50–52.50 %",
               },
             ],
           },
@@ -182,7 +182,7 @@ describe("buildLabReportPages", () => {
       },
     ];
     const out = buildLabReportPages(petition, labRequests, physicalGroups);
-    expect(out[0].sample.condition).toBe("ของเหลวใส");
+    expect(out[0].sample.condition).toBe("ของเหลวใส สีส้ม");
     expect(out[0].rows).toHaveLength(1);
   });
 });

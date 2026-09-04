@@ -23,6 +23,10 @@ function matchSubstanceKeyJS(name) {
   return first ? first.toLowerCase() : "";
 }
 
+function fullSubstanceKeyJS(value) {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 function parseLabelPercentJS(raw) {
   const m = String(raw == null ? "" : raw).match(/(\d+(?:\.\d+)?)\s*%/);
   return m ? Number(m[1]) : null;
@@ -77,20 +81,40 @@ function isSubstanceAbnormalJS(field, std, value) {
 }
 
 function findSubstanceStandardJS(field, rawSpec, productType, category) {
+  const exactKey = fullSubstanceKeyJS(rawSpec);
   const subKey = matchSubstanceKeyJS(rawSpec);
+  if (!exactKey && !subKey) return undefined;
   const wantedProductType = String(productType || productTypeFromSpecJS(rawSpec) || "").trim();
   const wantedCategory = normalizeCategoryJS(category);
-  let best = null;
-  for (const std of field.substanceStandards || []) {
-    if (matchSubstanceKeyJS(std.substance) !== subKey) continue;
+
+  const scoreCandidate = (std) => {
     const productTypes = Array.isArray(std.productTypes) ? std.productTypes.filter(Boolean) : [];
     const categories = Array.isArray(std.categories) ? std.categories.map(normalizeCategoryJS).filter(Boolean) : [];
-    if (productTypes.length > 0 && (!wantedProductType || !productTypes.includes(wantedProductType))) continue;
-    if (categories.length > 0 && (!wantedCategory || !categories.includes(wantedCategory))) continue;
-    const score = (productTypes.length > 0 ? 2 : 0) + (categories.length > 0 ? 2 : 0);
-    if (!best || score > best.score) best = { std, score };
-  }
-  return best ? best.std : undefined;
+    if (productTypes.length > 0 && (!wantedProductType || !productTypes.includes(wantedProductType))) return null;
+    if (categories.length > 0 && (!wantedCategory || !categories.includes(wantedCategory))) return null;
+    return (productTypes.length > 0 ? 2 : 0) + (categories.length > 0 ? 2 : 0);
+  };
+
+  const pickBest = (standards) => {
+    let best = null;
+    for (const std of standards) {
+      const score = scoreCandidate(std);
+      if (score == null) continue;
+      if (!best || score > best.score) best = { std, score };
+    }
+    return best ? best.std : undefined;
+  };
+
+  const standards = field.substanceStandards || [];
+  const exact = pickBest(standards.filter((std) => fullSubstanceKeyJS(std.substance) === exactKey));
+  if (exact) return exact;
+
+  return pickBest(
+    standards.filter((std) =>
+      matchSubstanceKeyJS(std.substance) === subKey &&
+      fullSubstanceKeyJS(std.substance) === matchSubstanceKeyJS(std.substance),
+    ),
+  );
 }
 
 function visibleSubstanceStandardJS(field, rawSpec, includeRestricted, productType, category) {

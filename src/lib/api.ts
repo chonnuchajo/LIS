@@ -75,6 +75,7 @@ export interface PetitionFlowNotification {
 }
 
 export type UserFavorites = { email: string; paths: string[] };
+export type UserSignatureResponse = { signatureUrl: string | null };
 
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
@@ -239,6 +240,7 @@ export const api = {
       permissions?: string[];
       department?: string;
       position?: string;
+      signatureUrl?: string;
       status?: "active" | "inactive";
     }>("/auth/sso", {
       method: "POST",
@@ -246,6 +248,9 @@ export const api = {
     }),
 
   // Samples
+  saveMySignature: (signatureDataUrl: string) =>
+    request<UserSignatureResponse>("/profile/signature", { method: "PUT", body: JSON.stringify({ signatureDataUrl }) }),
+
   getSamples: () => request<SampleItem[]>("/samples"),
   createSample: (data: Partial<SampleItem>) =>
     request<SampleItem>("/samples", { method: "POST", body: JSON.stringify(data) }),
@@ -1263,7 +1268,7 @@ export type LabelToleranceRule = LabelToleranceStandard & {
   masterCommonName?: string;
   masterRaw?: Record<string, unknown>;
   productTypes?: ("water" | "sand" | "powder")[];
-  // autoMode = "percent" => autoPct เป็น % ที่เว้นจากขอบช่วงหัวหน้าตรวจสอบเข้าด้านใน
+  // autoMode = "percent" => autoPct เป็น % ที่เว้นจากขอบช่วงเกณฑ์กรมเข้าด้านใน
   // headMode = "percent" => headPct เป็น % ของค่ากลางจาก %ฉลาก
   // mode "abs" — ± รอบค่ากลาง (%ฉลาก) เป็นค่าจริงในหน่วยของ field แทน % relative
   autoAbs?: number | null;   // ± ชั้นใน (ผ่านเอง), > 0

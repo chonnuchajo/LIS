@@ -43,7 +43,7 @@ describe('labels', () => {
 describe('densityRowToEntry', () => {
   it('maps density + T(block) and stores T(set) in provenance', () => {
     const e = densityRowToEntry(ROW, '2026-06-13T03:00:00.000Z');
-    expect(e['ค่าถพ.']).toBe(0.9919);
+    expect(e['ค่าถพ.']).toBe(0.992);
     expect(e['อุณหภูมิ']).toBe(30);
     const tempSrc = e['อุณหภูมิ__source'] as Record<string, unknown>;
     expect(tempSrc.source).toBe('instrument');
@@ -70,7 +70,7 @@ describe('densityRowToEntry', () => {
   it('stores density under substance value keys when provided', () => {
     const e = densityRowToEntry(ROW, '2026-06-13T03:00:00.000Z', ['ค่าถพ.::glyphosate']);
     expect(e['ค่าถพ.']).toBeUndefined();
-    expect(e['ค่าถพ.::glyphosate']).toBe(0.9919);
+    expect(e['ค่าถพ.::glyphosate']).toBe(0.992);
     expect(e['อุณหภูมิ']).toBe(30);
     const valSrc = e['ค่าถพ.::glyphosate__source'] as Record<string, unknown>;
     expect(valSrc.source).toBe('instrument');
@@ -88,12 +88,44 @@ describe('densityRowToEntry', () => {
 describe('selectDensitySyncRow', () => {
   it('chooses the most repeated 3-decimal density, then T(block) closest to 30', () => {
     const docs = [
-      { _id: 'a', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '29.80' },
-      { _id: 'b', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.10' },
-      { _id: 'c', 'Density (3 ตำแหน่ง)': '1.158', 'T(block) [°C]': '30.00' },
+      { _id: 'a', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '29.80' },
+      { _id: 'b', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.10' },
+      { _id: 'c', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.158', 'T(block) [°C]': '30.00' },
     ];
 
     expect(selectDensitySyncRow(docs)).toBe(docs[1]);
+  });
+
+  it('chooses repeated 3-decimal densities only when rows are consecutive', () => {
+    const docs = [
+      { _id: 'a', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.00' },
+      { _id: 'b', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.158', 'T(block) [°C]': '30.50' },
+      { _id: 'c', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '29.90' },
+      { _id: 'd', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.156', 'T(block) [°C]': '30.20' },
+      { _id: 'e', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.156', 'T(block) [°C]': '30.05' },
+    ];
+
+    expect(selectDensitySyncRow(docs)).toBe(docs[4]);
+  });
+
+  it('uses the displayed 3-decimal density value for consecutive equality', () => {
+    const docs = [
+      { _id: 'a', 'Measurement status': 'valid', 'Density [g/cm³]': '1.1568', 'T(block) [°C]': '30.20' },
+      { _id: 'b', 'Measurement status': 'valid', 'Density [g/cm³]': '1.1567', 'T(block) [°C]': '29.95' },
+      { _id: 'c', 'Measurement status': 'valid', 'Density [g/cm³]': '1.1582', 'T(block) [°C]': '30.00' },
+    ];
+
+    expect(selectDensitySyncRow(docs)).toBe(docs[1]);
+  });
+
+  it('returns nothing until at least two valid rows repeat consecutively', () => {
+    const docs = [
+      { _id: 'a', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.00' },
+      { _id: 'b', 'Measurement status': 'invalid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.00' },
+      { _id: 'c', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.158', 'T(block) [°C]': '29.95' },
+    ];
+
+    expect(selectDensitySyncRow(docs)).toBeUndefined();
   });
 });
 

@@ -135,7 +135,7 @@ function describeStandard(field: ParameterValueField): string {
 }
 
 function formatLabLabelToleranceRange(rv: ReturnType<typeof resolveLabelTolerance>, unit: string): string {
-  return formatLabelToleranceRange(rv, unit).replace(/^หัวหน้าตรวจสอบ/, 'เกณฑ์กลาง');
+  return formatLabelToleranceRange(rv, unit);
 }
 
 interface TestFieldProps {

@@ -2834,7 +2834,10 @@ export default function ParameterSettings() {
 
       <Tabs
         value={scopeTab}
-        onValueChange={(v) => setScopeTab(v as ParameterScope)}
+        onValueChange={(v) => {
+          setScopeTab(v as ParameterScope);
+          setSearch("");
+        }}
         className="mb-4"
       >
         <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:inline-grid">

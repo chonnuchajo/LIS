@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Pencil, Search } from "lucide-react";
 
 import type { ParameterItem, ParameterScope } from "@/lib/api";
@@ -22,8 +22,6 @@ import {
 } from "@/components/ui/table";
 
 export type ParameterCriteriaTab = "list" | AdvancedCriteriaMode;
-
-const ALL_PARAMETERS_VALUE = "__all__";
 
 type CriteriaSortKey =
   | "parameterOrder"
@@ -120,7 +118,7 @@ export function ParameterCriteriaTabs({
   canViewHeadCriteriaColumns = false,
   onEditField,
 }: ParameterCriteriaTabsProps) {
-  const [parameterFilter, setParameterFilter] = useState(ALL_PARAMETERS_VALUE);
+  const [parameterFilter, setParameterFilter] = useState("");
   const [sortKeyByTab, setSortKeyByTab] = useState<Record<Exclude<ParameterCriteriaTab, "list">, CriteriaSortKey>>({
     substance: "substanceAsc",
     conditional: "parameterOrder",
@@ -149,7 +147,13 @@ export function ParameterCriteriaTabs({
     scopedParameters.forEach((parameter, index) => order.set(parameter._id, index));
     return order;
   }, [scopedParameters]);
-  const activeParameterFilter = parameterOrder.has(parameterFilter) ? parameterFilter : ALL_PARAMETERS_VALUE;
+  const defaultParameterFilter = useMemo(
+    () => scopedParameters.find(isSpecificGravityParameter)?._id ?? scopedParameters[0]?._id ?? "",
+    [scopedParameters],
+  );
+  const activeParameterFilter = parameterOrder.has(parameterFilter) ? parameterFilter : defaultParameterFilter;
+  const selectedParameterName =
+    scopedParameters.find((parameter) => parameter._id === activeParameterFilter)?.name ?? "ยังไม่มี Parameter";
 
   const substanceRows = useMemo(() => buildSubstanceCriteriaRows(parameters, scope), [parameters, scope]);
   const conditionalRows = useMemo(() => buildConditionalCriteriaRows(parameters, scope), [parameters, scope]);
@@ -168,8 +172,19 @@ export function ParameterCriteriaTabs({
     [activeParameterFilter, labelRows, normalizedCriteriaSearch, parameterOrder, sortKey],
   );
 
+  useEffect(() => {
+    setParameterFilter(defaultParameterFilter);
+    setCriteriaSearch("");
+  }, [defaultParameterFilter]);
+
+  const handleTabChange = (next: string) => {
+    setParameterFilter(defaultParameterFilter);
+    setCriteriaSearch("");
+    onValueChange(next as ParameterCriteriaTab);
+  };
+
   return (
-    <Tabs value={value} onValueChange={(next) => onValueChange(next as ParameterCriteriaTab)}>
+    <Tabs value={value} onValueChange={handleTabChange}>
       <TabsList className="mb-4 grid w-full grid-cols-2 lg:inline-grid lg:w-auto lg:grid-cols-4">
         <TabsTrigger value="list">ทั้งหมด</TabsTrigger>
         <TabsTrigger value="substance">แยกตามสาร</TabsTrigger>
@@ -187,7 +202,7 @@ export function ParameterCriteriaTabs({
                 aria-label="ค้นหาเกณฑ์"
                 value={criteriaSearch}
                 onChange={(event) => setCriteriaSearch(event.target.value)}
-                placeholder="ค้นหาสาร / Parameter / ค่าเกณฑ์..."
+                placeholder="ค้นหาสาร / ค่าเกณฑ์..."
                 className="h-9 bg-background pl-8"
               />
             </div>
@@ -200,7 +215,6 @@ export function ParameterCriteriaTabs({
               value={activeParameterFilter}
               onChange={(event) => setParameterFilter(event.target.value)}
             >
-              <option value={ALL_PARAMETERS_VALUE}>ทุก Parameter</option>
               {scopedParameters.map((parameter) => (
                 <option key={parameter._id} value={parameter._id}>
                   {parameter.name}
@@ -239,8 +253,8 @@ export function ParameterCriteriaTabs({
         <TableShell empty={visibleSubstanceRows.length === 0}>
           <Table className="min-w-[980px]">
             <TableHeader>
+              <ParameterTitleRow title={selectedParameterName} colSpan={7} />
               <TableRow>
-                <TableHead>Parameter</TableHead>
                 <TableHead>สาร</TableHead>
                 <TableHead>รหัสสินค้า</TableHead>
                 <TableHead>ขนาดบรรจุ</TableHead>
@@ -257,7 +271,6 @@ export function ParameterCriteriaTabs({
                   className="cursor-pointer"
                   onClick={() => onEditField("substance", row.parameterId, row.fieldIndex, row.ruleIndex)}
                 >
-                  <TableCell className="font-medium">{row.parameterName}</TableCell>
                   <TableCell>{row.substance}</TableCell>
                   <TableCell>{row.itemNo || "-"}</TableCell>
                   <TableCell>{row.packSize || "-"}</TableCell>
@@ -295,8 +308,8 @@ export function ParameterCriteriaTabs({
         <TableShell empty={visibleConditionalRows.length === 0}>
           <Table className="min-w-[820px]">
             <TableHeader>
+              <ParameterTitleRow title={selectedParameterName} colSpan={5} />
               <TableRow>
-                <TableHead>Parameter</TableHead>
                 <TableHead>กฎที่</TableHead>
                 <TableHead>ชื่อกฎ</TableHead>
                 <TableHead>เงื่อนไข</TableHead>
@@ -307,7 +320,6 @@ export function ParameterCriteriaTabs({
             <TableBody>
               {visibleConditionalRows.map((row) => (
                 <TableRow key={row.rowId}>
-                  <TableCell className="font-medium">{row.parameterName}</TableCell>
                   <TableCell>{row.ruleIndex == null ? "-" : row.ruleIndex + 1}</TableCell>
                   <TableCell>{row.ruleLabel}</TableCell>
                   <TableCell>{row.conditionsText}</TableCell>
@@ -329,8 +341,8 @@ export function ParameterCriteriaTabs({
         <TableShell empty={visibleLabelRows.length === 0}>
           <Table className={showHeadCriteriaColumns ? "min-w-[1100px]" : "min-w-[780px]"}>
             <TableHeader>
+              <ParameterTitleRow title={selectedParameterName} colSpan={showHeadCriteriaColumns ? 7 : 4} />
               <TableRow>
-                <TableHead>Parameter</TableHead>
                 <TableHead>%สาร</TableHead>
                 {showHeadCriteriaColumns ? <TableHead>เกณฑ์คลาดเคลื่อน (%,+-)</TableHead> : null}
                 <TableHead>เกณฑ์กลาง</TableHead>
@@ -348,14 +360,8 @@ export function ParameterCriteriaTabs({
               {visibleLabelRows.map((row) => (
                 <TableRow key={row.rowId}>
                   <TableCell>
-                    <div className="min-w-0 space-y-1">
-                      <div className="font-medium">{row.parameterName}</div>
-                      <div className="truncate text-xs text-muted-foreground">{row.selectorText}</div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-medium tabular-nums">{row.drugPercent}</span>
+                      <span className="font-medium tabular-nums">{row.selectorText}</span>
                       <EditButton
                         label={`แก้ไขเกณฑ์ %สาร ${row.fieldLabel}`}
                         onClick={() => onEditField("labelTolerance", row.parameterId, row.fieldIndex)}
@@ -382,6 +388,21 @@ export function ParameterCriteriaTabs({
   );
 }
 
+function isSpecificGravityParameter(parameter: ParameterOption) {
+  return [parameter.name, ...(parameter.valueFields ?? []).map((field) => field.label)]
+    .some((value) => normalizeCriteriaSearchText(value).includes("ถพ"));
+}
+
+function ParameterTitleRow({ title, colSpan }: { title: string; colSpan: number }) {
+  return (
+    <TableRow>
+      <TableHead colSpan={colSpan} className="bg-muted/40 text-sm font-semibold text-foreground">
+        {title}
+      </TableHead>
+    </TableRow>
+  );
+}
+
 function filterAndSortRows<T extends SortableCriteriaRow>(
   rows: T[],
   parameterFilter: string,
@@ -392,7 +413,8 @@ function filterAndSortRows<T extends SortableCriteriaRow>(
   return rows
     .filter(
       (row) =>
-        (parameterFilter === ALL_PARAMETERS_VALUE || row.parameterId === parameterFilter) &&
+        Boolean(parameterFilter) &&
+        row.parameterId === parameterFilter &&
         matchesCriteriaSearch(row, searchQuery),
     )
     .slice()

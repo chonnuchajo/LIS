@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PetitionListPage from './PetitionListPage';
 import type { Petition } from '@/types/petition.types';
 
@@ -47,10 +47,17 @@ const mocks = vi.hoisted(() => {
   ];
 
   return {
+    canAccess: vi.fn(() => true),
     getParameters: vi.fn().mockResolvedValue([]),
     petitions,
     push: vi.fn(),
     refresh: vi.fn(),
+    user: {
+      employeeId: 'E999',
+      email: 'admin@example.test',
+      name: 'Admin',
+      roles: ['admin'],
+    },
   };
 });
 
@@ -59,18 +66,11 @@ vi.mock('@/components/lis/AppLayout', () => ({
 }));
 
 vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({
-    user: {
-      employeeId: 'E999',
-      email: 'admin@example.test',
-      name: 'Admin',
-      roles: ['admin'],
-    },
-  }),
+  useAuth: () => ({ user: mocks.user }),
 }));
 
 vi.mock('@/hooks/useCanAccessPath', () => ({
-  useCanAccessPath: () => () => true,
+  useCanAccessPath: () => mocks.canAccess,
 }));
 
 vi.mock('@/hooks/useItemGroupMembership', () => ({
@@ -136,6 +136,17 @@ function renderPage(props: React.ComponentProps<typeof PetitionListPage> = {}, i
 }
 
 describe('PetitionListPage action cues', () => {
+  beforeEach(() => {
+    mocks.canAccess.mockClear();
+    mocks.canAccess.mockImplementation(() => true);
+    mocks.user = {
+      employeeId: 'E999',
+      email: 'admin@example.test',
+      name: 'Admin',
+      roles: ['admin'],
+    };
+  });
+
   it('does not show the per-card action labels on the petitions list', async () => {
     renderPage();
 
@@ -159,6 +170,26 @@ describe('PetitionListPage action cues', () => {
     fireEvent.click(await screen.findByText('P-2607-0001'));
 
     expect(screen.getByTestId('location')).toHaveTextContent('/petition/P-2607-0001');
+  });
+
+  it('shows the new petition button for viewer users who can open the canonical form', async () => {
+    mocks.user = {
+      employeeId: 'E777',
+      email: 'viewer@example.test',
+      name: 'Viewer',
+      roles: ['viewer'],
+    };
+    mocks.canAccess.mockImplementation((path: string) => path === '/petitions/new');
+
+    renderPage();
+
+    const button = await screen.findByRole('button', { name: 'ยื่นคำร้องใหม่' });
+    expect(button.querySelector('svg')).not.toBeNull();
+
+    fireEvent.click(button);
+
+    expect(mocks.canAccess).toHaveBeenCalledWith('/petitions/new');
+    expect(screen.getByTestId('location')).toHaveTextContent('/petitions/new');
   });
 
   it('shows approved petitions as completed instead of final-result wording', async () => {

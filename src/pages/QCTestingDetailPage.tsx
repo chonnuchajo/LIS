@@ -47,7 +47,6 @@ import { normalizeRoles } from '@/lib/roles';
 import {
   SG_VALUE_LABEL,
   SG_TEMP_LABEL,
-  hasHandTypedEntries,
   densityRowToEntry,
   formatTSetComparison,
   isSgMachineUnitKey,
@@ -119,6 +118,9 @@ function TestField({
   const requireNoteOn = field.requireNoteOn ?? [];
   const showNote = field.type === 'enum' && requireNoteOn.includes(strVal);
   const isAbnormal = hideStandard ? false : (outputResult ? outputResult.kind === 'abnormal' : isFieldAbnormal(field, value));
+  const numericBounds = field.type !== 'text'
+    ? (field as ParameterValueField & { min?: number; max?: number })
+    : undefined;
   const customText = optionOutputText(field, value);
 
   return (
@@ -200,8 +202,8 @@ function TestField({
         <Input
           type={field.type === 'number' || field.type === 'float' ? 'number' : 'text'}
           step={field.type === 'float' ? 'any' : undefined}
-          min={field.type !== 'text' ? (field as any).min : undefined}
-          max={field.type !== 'text' ? (field as any).max : undefined}
+          min={numericBounds?.min}
+          max={numericBounds?.max}
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
           // เลื่อนเมาส์ (wheel) ห้ามเปลี่ยนค่าตัวเลข — พิมพ์อย่างเดียว: blur ทิ้งโฟกัสตอน scroll
@@ -646,7 +648,7 @@ export default function QCTestingDetailPage() {
     [user, entriesByKey, id, loadResults],
   );
 
-  // Density sync: replace the SG param's entries with one entry per matched
+  // Density sync: replace the SG param's entries with the selected valid
   // Result-Density row (Density + T block; T set lives in provenance only).
   const applyDensityRows = useCallback(
     async (
@@ -1246,9 +1248,8 @@ export default function QCTestingDetailPage() {
                       ? lastBatch?.values?.[unit.field.label]
                       : undefined;
 
-                    // Specific-gravity (ค่า ถพ.) value + temperature are filled only by the
-                    // density sync (instrument readings), never typed by hand — render them
-                    // read-only so the only way to populate them is the "ดึงค่า ถพ." button.
+                    // Specific-gravity (ค่า ถพ.) value + temperature are filled only by
+                    // validated Result-Density rows, never typed by hand.
                     const isSgMachineField =
                       (param.valueFields ?? []).some((f) => f.label === SG_VALUE_LABEL) &&
                       isSgMachineUnitKey(unit.key, unit.field.label);
@@ -1433,10 +1434,9 @@ export default function QCTestingDetailPage() {
                           return (
                             <div className="space-y-4">
                               {isSgParam && !fieldDisabled && (
-                                <div className="flex justify-end">
+                                <div>
                                   <DensitySyncButton
                                     batchNo={item.batchNo?.trim() ?? ''}
-                                    hasHandTyped={hasHandTypedEntries(savedRows)}
                                     onRows={(docs) => applyDensityRows(petition, item, param, docs)}
                                   />
                                 </div>

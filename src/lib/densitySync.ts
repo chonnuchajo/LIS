@@ -6,12 +6,14 @@ export const SG_TEMP_LABEL = 'อุณหภูมิ';
 const SG_VALUE_KEY_PREFIX = `${SG_VALUE_LABEL}::`;
 
 // Result-Density column keys (raw DMA 501 export).
+const COL_DENSITY_3 = 'Density (3 ตำแหน่ง)';
 const COL_DENSITY = 'Density [g/cm³]';
-const COL_DENSITIES = ['Density (3 ตำแหน่ง)', COL_DENSITY, 'Density [g/cmÂ³]'];
+const COL_DENSITIES = [COL_DENSITY_3, COL_DENSITY, 'Density [g/cmÂ³]'];
 const COL_TBLOCKS = ['T(block) [°C]', 'T (block) [°C]'];
 const COL_TSETS = ['T(set) [°C]', 'T (set) [°C]'];
 const COL_INSTRUMENT = 'Instrument name';
 const COL_SAMPLE = 'Sample name';
+const COL_STATUS = 'Measurement status';
 const TARGET_TBLOCK = 30;
 
 // Provenance sibling convention: "<label>__source" (mirrors LabTestingDetailPage).
@@ -59,8 +61,7 @@ function toNum(v: unknown): number | '' {
 }
 
 function density3Key(row: Record<string, unknown>): string | null {
-  const density = toNum(readDensityValue(row));
-  return density === '' ? null : density.toFixed(3);
+  return formatDensity3(row) || null;
 }
 
 function tBlockDistance(row: Record<string, unknown>): number {
@@ -68,27 +69,36 @@ function tBlockDistance(row: Record<string, unknown>): number {
   return tBlock === '' ? Number.POSITIVE_INFINITY : Math.abs(tBlock - TARGET_TBLOCK);
 }
 
+function isValidDensityRow(row: Record<string, unknown>): boolean {
+  return String(row[COL_STATUS] ?? '').trim().toLowerCase() === 'valid';
+}
+
 export function selectDensitySyncRow(rows: Record<string, unknown>[]): Record<string, unknown> | undefined {
-  const groups = new Map<string, { firstIndex: number; rows: { row: Record<string, unknown>; index: number }[] }>();
+  type DensityRun = { key: string; firstIndex: number; rows: { row: Record<string, unknown>; index: number }[] };
+  const runs: DensityRun[] = [];
+  let currentRun: DensityRun | null = null;
+  let validCount = 0;
 
   rows.forEach((row, index) => {
-    const key = density3Key(row);
-    if (!key) return;
-    const group = groups.get(key);
-    if (group) {
-      group.rows.push({ row, index });
+    const valid = isValidDensityRow(row);
+    if (valid) validCount += 1;
+    const key = valid ? density3Key(row) : null;
+    if (key && currentRun?.key === key) {
+      currentRun.rows.push({ row, index });
       return;
     }
-    groups.set(key, { firstIndex: index, rows: [{ row, index }] });
+    if (currentRun && currentRun.rows.length >= 2) runs.push(currentRun);
+    currentRun = key ? { key, firstIndex: index, rows: [{ row, index }] } : null;
   });
+  if (currentRun && currentRun.rows.length >= 2) runs.push(currentRun);
 
-  if (!groups.size) return rows[0];
+  if (validCount <= 1 || !runs.length) return undefined;
 
-  const bestGroup = Array.from(groups.values()).sort((a, b) => (
+  const bestRun = runs.sort((a, b) => (
     b.rows.length - a.rows.length || a.firstIndex - b.firstIndex
   ))[0];
 
-  return bestGroup.rows.reduce((best, current) => {
+  return bestRun.rows.reduce((best, current) => {
     const distanceDiff = tBlockDistance(current.row) - tBlockDistance(best.row);
     if (distanceDiff < 0) return current;
     if (distanceDiff === 0 && current.index < best.index) return current;
@@ -105,7 +115,8 @@ export function densityRowToEntry(
 ): Record<string, unknown> {
   const instrument = String(row[COL_INSTRUMENT] || 'DMA 501');
   const sampleName = row[COL_SAMPLE];
-  const density = toNum(readDensityValue(row));
+  const densityText = formatDensity3(row);
+  const density = densityText === '' ? '' : Number(densityText);
   const tBlock = toNum(readDensityTBlock(row));
   const tSet = toNum(readDensityTSet(row));
   const entry: Record<string, unknown> = {

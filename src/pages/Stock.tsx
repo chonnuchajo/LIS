@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, AlertTriangle, Calendar as CalendarIcon, Clock, Plus, Pencil, ArrowDownToLine, History, Search, ScanLine, Trash2, ChevronDown, Download } from "lucide-react";
+import { Package, AlertTriangle, Calendar as CalendarIcon, Clock, Plus, Pencil, ArrowDownToLine, History, Search, Trash2, ChevronDown, Download } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 
@@ -1803,13 +1803,6 @@ const StockPage = () => {
         <TabsContent value="receive"><ReceiveCart /></TabsContent>
         <TabsContent value="history"><HistoryTab /></TabsContent>
       </Tabs>
-
-      <Button
-        className="fixed bottom-6 right-6 rounded-full shadow-lg h-14 w-14 p-0"
-        title="สแกน QR ขวด" onClick={() => setScanOpen(true)}
-      >
-        <ScanLine className="w-6 h-6" />
-      </Button>
 
       <StockQrScanner open={scanOpen} onClose={() => setScanOpen(false)} onScanned={onScanned} />
 

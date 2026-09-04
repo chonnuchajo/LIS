@@ -54,6 +54,7 @@ function formatSsoUser(user, permissions = []) {
     permissions,
     department: user.department,
     position: user.position,
+    signatureUrl: user.signatureUrl || '',
     status: user.status,
   };
 }

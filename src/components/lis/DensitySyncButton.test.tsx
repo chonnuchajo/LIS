@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import DensitySyncButton from './DensitySyncButton';
 import { api } from '@/lib/api';
@@ -15,7 +15,7 @@ function renderWith(props: Partial<React.ComponentProps<typeof DensitySyncButton
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <DensitySyncButton batchNo="009" hasHandTyped={false} onRows={vi.fn()} {...props} />
+      <DensitySyncButton batchNo="009" onRows={vi.fn()} {...props} />
     </QueryClientProvider>,
   );
 }
@@ -23,74 +23,81 @@ function renderWith(props: Partial<React.ComponentProps<typeof DensitySyncButton
 describe('DensitySyncButton', () => {
   beforeEach(() => {
     vi.mocked(api.triggerDensitySync).mockClear();
+    vi.mocked(api.getResultDensitiesByBatch).mockClear();
     vi.mocked(api.getResultDensitiesByBatch).mockResolvedValue({ batch: '009', docs: [] });
   });
 
-  it('renders the sync button', () => {
+  it('does not render a manual sync button', () => {
     renderWith();
-    expect(screen.getByRole('button', { name: /ดึงค่า ถพ\./ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /ดึงค่า ถพ\./ })).not.toBeInTheDocument();
   });
 
-  it('is disabled when batchNo is empty', () => {
+  it('does not query when batchNo is empty', async () => {
     renderWith({ batchNo: '' });
-    expect(screen.getByRole('button', { name: /ดึงค่า ถพ\./ })).toBeDisabled();
+    await Promise.resolve();
+    expect(api.getResultDensitiesByBatch).not.toHaveBeenCalled();
   });
 
-  it('fires the density sync webhook on click', async () => {
+  it('queries matching density rows on mount without triggering sync webhook', async () => {
     renderWith();
-    fireEvent.click(screen.getByRole('button', { name: /ดึงค่า ถพ\./ }));
-    await waitFor(() => expect(api.triggerDensitySync).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(api.getResultDensitiesByBatch).toHaveBeenCalledWith('009'));
+    expect(api.triggerDensitySync).not.toHaveBeenCalled();
   });
 
-  it('applies only the selected density row', async () => {
+  it('auto applies the density row without showing a chooser', async () => {
     const docs = [
-      { _id: 'a', 'Sample name': 'Batch 009 A', 'Density [g/cm³]': '0.991', 'T (block) [°C]': '30.0' },
-      { _id: 'b', 'Sample name': 'Batch 009 B', 'Density [g/cm³]': '0.992', 'T (block) [°C]': '30.0' },
+      { _id: 'a', 'Sample name': 'Batch 009 A', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.156', 'T(block) [°C]': '30.20' },
+      { _id: 'b', 'Sample name': 'Batch 009 B', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.156', 'T(block) [°C]': '29.95' },
+      { _id: 'c', 'Sample name': 'Batch 009 C', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.00' },
     ];
     vi.mocked(api.getResultDensitiesByBatch).mockResolvedValue({ batch: '009', docs });
     const onRows = vi.fn();
 
     renderWith({ onRows });
-    fireEvent.click(screen.getByRole('button', { name: /ดึงค่า ถพ\./ }));
 
-    const radios = await screen.findAllByRole('radio');
-    expect(radios[0]).toBeChecked();
-    fireEvent.click(radios[1]);
-    fireEvent.click(screen.getByRole('button', { name: /ใช้ค่าที่เลือก/ }));
-
-    expect(radios[0]).not.toBeChecked();
-    expect(radios[1]).toBeChecked();
-    expect(onRows).toHaveBeenCalledWith([docs[1]]);
+    await waitFor(() => expect(onRows).toHaveBeenCalledWith([docs[1]]));
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /ใช้ค่าที่เลือก/ })).not.toBeInTheDocument();
   });
 
-  it('shows temperature from the compact T(block) column name', async () => {
+  it('waits instead of applying a single valid result row', async () => {
     const docs = [
-      { _id: 'a', 'Sample name': 'Batch 009 A', 'Density [g/cm³]': '0.991', 'T(block) [°C]': '31.5' },
-    ];
-    vi.mocked(api.getResultDensitiesByBatch).mockResolvedValue({ batch: '009', docs });
-
-    renderWith();
-    fireEvent.click(screen.getByRole('button', { name: /ดึงค่า ถพ\./ }));
-
-    expect(await screen.findByText('31.5')).toBeInTheDocument();
-  });
-
-  it('preselects the repeated 3-decimal density row with T(block) closest to 30', async () => {
-    const docs = [
-      { _id: 'a', 'Sample name': 'Batch 009 A', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '29.80' },
-      { _id: 'b', 'Sample name': 'Batch 009 B', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.10' },
-      { _id: 'c', 'Sample name': 'Batch 009 C', 'Density (3 ตำแหน่ง)': '1.158', 'T(block) [°C]': '30.00' },
+      { _id: 'a', 'Sample name': 'Batch 009 A', 'Measurement status': 'valid', 'Density [g/cm³]': '0.991', 'T(block) [°C]': '31.5' },
     ];
     vi.mocked(api.getResultDensitiesByBatch).mockResolvedValue({ batch: '009', docs });
     const onRows = vi.fn();
 
     renderWith({ onRows });
-    fireEvent.click(screen.getByRole('button', { name: /ดึงค่า ถพ\./ }));
 
-    const radios = await screen.findAllByRole('radio');
-    expect(radios[1]).toBeChecked();
+    expect(await screen.findByText(/รอค่า ถพ/)).toBeInTheDocument();
+    expect(onRows).not.toHaveBeenCalled();
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: /ใช้ค่าที่เลือก/ }));
-    expect(onRows).toHaveBeenCalledWith([docs[1]]);
+  it('auto applies the repeated 3-decimal density row with T(block) closest to 30', async () => {
+    const docs = [
+      { _id: 'a', 'Sample name': 'Batch 009 A', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '29.80' },
+      { _id: 'b', 'Sample name': 'Batch 009 B', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.10' },
+      { _id: 'c', 'Sample name': 'Batch 009 C', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.158', 'T(block) [°C]': '30.00' },
+    ];
+    vi.mocked(api.getResultDensitiesByBatch).mockResolvedValue({ batch: '009', docs });
+    const onRows = vi.fn();
+
+    renderWith({ onRows });
+
+    await waitFor(() => expect(onRows).toHaveBeenCalledWith([docs[1]]));
+  });
+
+  it('does not apply when repeated rows are not valid', async () => {
+    const docs = [
+      { _id: 'a', 'Sample name': 'Batch 009 A', 'Measurement status': 'invalid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.00' },
+      { _id: 'b', 'Sample name': 'Batch 009 B', 'Measurement status': 'invalid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.00' },
+    ];
+    vi.mocked(api.getResultDensitiesByBatch).mockResolvedValue({ batch: '009', docs });
+    const onRows = vi.fn();
+
+    renderWith({ onRows });
+
+    expect(await screen.findByText(/รอค่า ถพ/)).toBeInTheDocument();
+    expect(onRows).not.toHaveBeenCalled();
   });
 });

@@ -15,6 +15,7 @@ const { aiPercentFromCommonName, aiToleranceCriteriaForCommonName, isAiContentTe
 const COMPANY_NAME = 'บริษัท ไอ ซี พี ลัดดา จำกัด';
 const PHYSICAL_PARAMETER_NAME = 'กายภาพ';
 const PHYSICAL_DESCRIPTION_LABEL = 'ลักษณะ';
+const PHYSICAL_COLOR_LABEL = 'สี';
 
 const transitions = {
   submit: new Set(['draft', 'revisionDraft']),
@@ -130,6 +131,13 @@ function isPhysicalParameter(parameter = {}, result = {}) {
   return cleanString(parameter.name || result.parameterName) === PHYSICAL_PARAMETER_NAME;
 }
 
+function physicalDescriptionFromRow(row = {}) {
+  return [
+    meaningfulResultText(row[PHYSICAL_DESCRIPTION_LABEL]),
+    meaningfulResultText(row[PHYSICAL_COLOR_LABEL]),
+  ].filter(Boolean).join(' ');
+}
+
 function physicalDescriptionBySeq(qcResults, parameterById, selectedSeqs) {
   const descriptions = new Map();
   for (const result of qcResults || []) {
@@ -138,7 +146,7 @@ function physicalDescriptionBySeq(qcResults, parameterById, selectedSeqs) {
     const parameter = parameterById.get(String(result.parameterId));
     if (!isPhysicalParameter(parameter, result)) continue;
     for (const row of visibleResultEntries(result)) {
-      const description = meaningfulResultText(row?.[PHYSICAL_DESCRIPTION_LABEL]);
+      const description = physicalDescriptionFromRow(row);
       if (!description) continue;
       descriptions.set(itemSeq, description);
       break;

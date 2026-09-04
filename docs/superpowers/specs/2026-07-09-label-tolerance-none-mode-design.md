@@ -5,13 +5,13 @@
 Add a `ไม่มี` option to both dropdowns in the label tolerance rule dialog:
 
 - `ช่วงผ่านอัตโนมัติ`
-- `หัวหน้าตรวจสอบ`
+- `เกณฑ์กรม`
 
 Selecting `ไม่มี` disables that band and hides its numeric inputs. The saved rule must round-trip through the frontend, API types, Mongoose schema, validation, and result calculation.
 
 ## Behavior
 
-`autoMode = "none"` means there is no automatic pass band. If a head-review band exists, values inside that band become `หัวหน้าตรวจสอบ`; values outside it become `ไม่ผ่าน`. If no head-review band exists either, the rule is incomplete and does not produce a verdict.
+`autoMode = "none"` means there is no automatic pass band. If a head-review band exists, values inside that band become `เกณฑ์กรม`; values outside it become `ไม่ผ่าน`. If no head-review band exists either, the rule is incomplete and does not produce a verdict.
 
 `headMode = "none"` means there is no head-review band. Values inside the automatic pass band become `ผ่าน`; values outside it become `ไม่ผ่าน`.
 

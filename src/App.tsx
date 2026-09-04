@@ -48,6 +48,7 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const ParameterSettings = lazy(() => import("./pages/ParameterSettings"));
 const FullSpecPage = lazy(() => import("./pages/FullSpecPage"));
 const AccessControl = lazy(() => import("./pages/AccessControl"));
+const SignatureCapturePage = lazy(() => import("./pages/SignatureCapturePage"));
 const StockDeduction = lazy(() => import("./pages/StockDeduction"));
 const StockPublicViewPage = lazy(() => import("./pages/StockPublicViewPage"));
 const DailyCheckLayout = lazy(() => import("./pages/daily-check/DailyCheckLayout"));
@@ -151,6 +152,7 @@ const App = () => (
               <Route path="/machines" element={<PrivateRoute><MachinesPage /></PrivateRoute>} />
               <Route path="/admin-data" element={<PrivateRoute><AdminData /></PrivateRoute>} />
               <Route path="/access-control" element={<PrivateRoute><AccessControl /></PrivateRoute>} />
+              <Route path="/profile/signature" element={<PrivateRoute><SignatureCapturePage /></PrivateRoute>} />
               <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
               <Route path="/parameter-settings" element={<PrivateRoute><ParameterSettings /></PrivateRoute>} />
               <Route path="/full-spec" element={<PrivateRoute><FullSpecPage /></PrivateRoute>} />

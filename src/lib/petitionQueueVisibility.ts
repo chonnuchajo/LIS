@@ -15,11 +15,12 @@ export function isVisibleInQcTestingQueue(petition: Petition): boolean {
 }
 
 export function isVisibleInAssignQueue(petition: Petition): boolean {
+  if (labReceivedAt(petition)) return false;
   return OPEN_TESTING_STATUSES.includes(petition.status) || isReceivedBeforeStatusAdvance(petition);
 }
 
 export function isWaitingForAssignment(petition: Petition): boolean {
-  return !petition.assignedTo && (
+  return !labReceivedAt(petition) && !petition.assignedTo && (
     petition.status === 'sampleSent' ||
     petition.status === 'pendingReview' ||
     isReceivedBeforeStatusAdvance(petition)

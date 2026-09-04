@@ -88,7 +88,7 @@ describe("buildApprovalGroups", () => {
     const row = groups[0].params[0].rows[0];
 
     expect(row.standardText).toContain("ผ่าน 0.9750–1.0250");
-    expect(row.standardText).toContain("หัวหน้าตรวจสอบ 0.9500–1.0500");
+    expect(row.standardText).toContain("เกณฑ์กรม 0.9500–1.0500");
   });
 
   it("รวม lab param เข้ากลุ่มของ lab item พร้อมติด scope=lab (qc param ยัง scope=qc)", () => {

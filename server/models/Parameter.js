@@ -342,7 +342,7 @@ ParameterSchema.pre('validate', function (next) {
           const headIsRange = normalized.headMode === 'range';
           const autoIsRange = normalized.autoMode === 'range';
           if (normalized.autoMode === 'none' && normalized.headMode === 'none') {
-            return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ต้องตั้งช่วงผ่านอัตโนมัติหรือหัวหน้าตรวจสอบอย่างน้อยหนึ่งช่วง`));
+            return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ต้องตั้งช่วงผ่านอัตโนมัติหรือเกณฑ์กรมอย่างน้อยหนึ่งช่วง`));
           }
           if (normalized.autoMode === 'none' && !normalized.headMode) {
             return next(new Error(`field "${f.label}" substance "${s.substance}": autoMode none requires a head-review band`));
@@ -352,18 +352,18 @@ ParameterSchema.pre('validate', function (next) {
           }
           if (normalized.headMode === 'percent') {
             if (s.headPct == null || s.headPct <= 0) {
-              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": หัวหน้าตรวจสอบแบบ % (headPct) ต้องมากกว่า 0`));
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": เกณฑ์กรมแบบ % (headPct) ต้องมากกว่า 0`));
             }
           } else if (normalized.headMode === 'none') {
             // no head-review band
           } else if (normalized.headMode === 'abs') {
             if (s.headAbs == null || s.headAbs <= 0) {
-              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": หัวหน้าตรวจสอบแบบ ±คงที่ (headAbs) ต้องมากกว่า 0`));
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": เกณฑ์กรมแบบ ±คงที่ (headAbs) ต้องมากกว่า 0`));
             }
             headComparableAbs = s.headAbs;
           } else if (headIsRange) {
             if (s.failLow == null || s.failHigh == null) {
-              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": หัวหน้าตรวจสอบแบบค่าระหว่างต้องกรอก failLow และ failHigh`));
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": เกณฑ์กรมแบบค่าระหว่างต้องกรอก failLow และ failHigh`));
             }
             if (s.failLow > s.failHigh) {
               return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": failLow ต้องไม่มากกว่า failHigh`));
@@ -374,10 +374,10 @@ ParameterSchema.pre('validate', function (next) {
               return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ผ่านแบบ % (autoPct) ต้องมากกว่า 0`));
             }
             if (!normalized.legacy && !headConfigured) {
-              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ถ้าช่อง "ผ่าน" ใช้ % ต้องตั้งค่าหัวหน้าตรวจสอบก่อน`));
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ถ้าช่อง "ผ่าน" ใช้ % ต้องตั้งค่าเกณฑ์กรมก่อน`));
             }
             if (headConfigured && s.autoPct > 100) {
-              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ผ่านแบบ % ต้องไม่เกิน 100% ของหัวหน้าตรวจสอบ`));
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ผ่านแบบ % ต้องไม่เกิน 100% ของเกณฑ์กรม`));
             }
             if (normalized.legacy && s.headPct != null && s.headPct < s.autoPct) {
               return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±หัวหน้า (headPct) ต้อง ≥ ±ออโต้`));
@@ -389,7 +389,7 @@ ParameterSchema.pre('validate', function (next) {
               return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ±ผ่าน (autoAbs) ต้องมากกว่า 0`));
             }
             if (headComparableAbs != null && s.autoAbs > headComparableAbs) {
-              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": เกณฑ์ผ่านต้องไม่กว้างกว่าหัวหน้าตรวจสอบ`));
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": เกณฑ์ผ่านต้องไม่กว้างกว่าเกณฑ์กรม`));
             }
           } else if (autoIsRange) {
             if (s.passLow == null || s.passHigh == null) {
@@ -399,7 +399,7 @@ ParameterSchema.pre('validate', function (next) {
               return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": passLow ต้องไม่มากกว่า passHigh`));
             }
             if (headIsRange && (s.passLow < s.failLow || s.passHigh > s.failHigh)) {
-              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": passLow/passHigh ต้องอยู่ในช่วง failLow/failHigh ของหัวหน้าตรวจสอบ`));
+              return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": passLow/passHigh ต้องอยู่ในช่วง failLow/failHigh ของเกณฑ์กรม`));
             }
           }
         }

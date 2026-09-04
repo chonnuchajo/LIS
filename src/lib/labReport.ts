@@ -36,6 +36,7 @@ const DASH = "-";
 const COMPANY_NAME = "บริษัท ไอ ซี พี ลัดดา จำกัด";
 const PHYSICAL_PARAMETER_NAME = "กายภาพ";
 const PHYSICAL_DESCRIPTION_LABEL = "ลักษณะ";
+const PHYSICAL_COLOR_LABEL = "สี";
 
 function cleanText(value?: string | null): string {
   return value?.trim() || "";
@@ -77,7 +78,7 @@ function labReportCriteriaText(standardText: string): string {
     .filter((part) => /\d/.test(part));
 
   if (!numericParts.length) return raw;
-  if (/หัวหน้าตรวจสอบ|หัวหน้า/u.test(raw)) {
+  if (/เกณฑ์กรม|หัวหน้า/u.test(raw)) {
     return numericParts[numericParts.length - 1];
   }
   return numericParts.join(" · ");
@@ -105,12 +106,19 @@ function rowsForItem(group: ApprovalItemGroup | undefined): LabReportRow[] {
 const conditionText = (c?: string) =>
   c === "normal" ? "ปกติ" : c === "defective" ? "บกพร่อง" : DASH;
 
+function physicalFieldValue(rows: ApprovalItemGroup["params"][number]["rows"], label: string): string {
+  const row = rows.find((fieldRow) => fieldRow.label.split(" · ")[0]?.trim() === label);
+  const value = cleanText(row?.value);
+  return value && value !== DASH ? value : "";
+}
+
 function physicalDescription(group: ApprovalItemGroup | undefined): string {
   for (const parameter of group?.params ?? []) {
     if (parameter.parameterName.trim() !== PHYSICAL_PARAMETER_NAME) continue;
-    const row = parameter.rows.find((fieldRow) => fieldRow.label.split(" · ")[0]?.trim() === PHYSICAL_DESCRIPTION_LABEL);
-    const value = cleanText(row?.value);
-    if (value && value !== DASH) return value;
+    const description = physicalFieldValue(parameter.rows, PHYSICAL_DESCRIPTION_LABEL);
+    const color = physicalFieldValue(parameter.rows, PHYSICAL_COLOR_LABEL);
+    const text = [description, color].filter(Boolean).join(" ");
+    if (text) return text;
   }
   return "";
 }

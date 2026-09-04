@@ -269,6 +269,7 @@ function formatUser(user, permissions) {
     department: user.department || 'Unassigned',
     position: user.position || 'Unassigned',
     employeeId: user.employeeId || '',
+    signatureUrl: user.signatureUrl || '',
     status: user.status || 'active',
     lastActive: user.lastActive || 'Never',
     authProvider: user.authProvider || 'local',

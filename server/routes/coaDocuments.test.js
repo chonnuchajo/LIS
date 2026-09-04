@@ -129,7 +129,7 @@ test('buildCoaSnapshots freezes selected sample and lab result data', () => {
     lotNo: 'L-2',
     productionDate: '',
     sampleId: '',
-    condition: 'ของเหลวใส',
+    condition: 'ของเหลวใส สีส้ม',
     manufacturer: 'Manufacturer',
   }]);
   assert.deepEqual(snapshots.resultSnapshots, [

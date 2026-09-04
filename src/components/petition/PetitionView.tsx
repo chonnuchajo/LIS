@@ -108,7 +108,11 @@ export default function PetitionView({ petition: p }: Props) {
             : unit.field.type === 'enum'
               ? (unit.field.expectedValues ?? []).join(', ')
               : describeStandard(effectiveField);
-          return fieldValueList(values, unit.field)
+          const valueList = unit.substanceName !== undefined
+            ? [values[unit.key]]
+            : fieldValueList(values, unit.field);
+
+          return valueList
             .map((value, valueIndex) => ({ value, valueIndex }))
             .filter(({ value }) => value != null && String(value).trim() !== '')
             .map(({ value, valueIndex }) => {

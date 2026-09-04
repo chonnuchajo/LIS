@@ -187,6 +187,13 @@ describe("StockPage delete actions", () => {
     expect(screen.queryByText("ไม่มีข้อมูล")).not.toBeInTheDocument();
   });
 
+  it("does not show the floating stock QR scan button", async () => {
+    renderStock();
+
+    expect(await screen.findByRole("cell", { name: "Pesticide Standard" })).toBeInTheDocument();
+    expect(screen.queryByTitle("สแกน QR ขวด")).not.toBeInTheDocument();
+  });
+
   it("opens a popup with every standard alert from the alert card", async () => {
     apiMock.getStandards.mockResolvedValue(Array.from({ length: 9 }, (_, index) => makeStandardAlertItem(index + 1)));
     apiMock.getStockUnits.mockResolvedValue([]);

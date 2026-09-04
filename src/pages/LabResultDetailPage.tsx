@@ -16,6 +16,12 @@ import LabResultReportTemplate, { LAB_REPORT_CSS } from "@/components/petition/L
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
 import { PETITION_DEPT_LABELS, type QCTestResult } from "@/types/petition.types";
 
+const PHYSICAL_PARAMETER_NAME = "กายภาพ";
+
+function isLabReportSourceParameter(parameter: ParameterItem): boolean {
+  return parameter.scope === "lab" || parameter.name?.trim() === PHYSICAL_PARAMETER_NAME;
+}
+
 export default function LabResultDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -28,12 +34,11 @@ export default function LabResultDetailPage() {
   const [paramsLoaded, setParamsLoaded] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
 
-  // เฉพาะ parameter ฝั่ง Lab เท่านั้น (scope === "lab") — ไม่รวม param ฝั่ง QC ที่แชร์ให้ Lab
-  // (เช่น ค่า ถพ.) เพราะหน้าผลวิเคราะห์ Lab ต้องเห็นเฉพาะผลของ parameter Lab
+  // รายงานต้องใช้ Lab parameters + กายภาพ เพื่อเติมสภาพตัวอย่างใน header
   useEffect(() => {
     api
       .getParameters()
-      .then((all) => setParameters(all.filter((p) => p.scope === "lab")))
+      .then((all) => setParameters(all.filter(isLabReportSourceParameter)))
       .catch(() => setParameters([]))
       .finally(() => setParamsLoaded(true));
   }, []);
@@ -45,7 +50,7 @@ export default function LabResultDetailPage() {
 
   const groups = useMemo(() => {
     if (!petition) return [];
-    return buildApprovalGroups(petition, parameters, results, groupMembership);
+    return buildApprovalGroups(petition, parameters.filter((parameter) => parameter.scope === "lab"), results, groupMembership);
   }, [petition, parameters, results, groupMembership]);
 
   const pages = useMemo(
