@@ -20,12 +20,17 @@ test('extractDensityBatch: keeps suffixes as part of the value', () => {
   assert.equal(extractDensityBatch('26S-OMT50-288 TOP'), '26S-OMT50-288 TOP');
 });
 
-test('batchMatches: exact whole-value matching ignoring letter case', () => {
+test('batchMatches: exact or product-prefixed batch matching ignoring letter case', () => {
   assert.equal(batchMatches('26S-FPN5-GMP-009', '26S-FPN5-GMP-009'), true);
   assert.equal(batchMatches('26S-GLY48-056', '26S-Gly48-056'), true);
+  assert.equal(batchMatches('B.YN2026WM201-P2', 'Pyraclostrobin 25% EC B.YN2026WM201-P2'), true);
+  assert.equal(batchMatches('B.YN2026WM201', 'Pyraclostrobin 25% EC B.YN2026WM201-P2'), true);
+  assert.equal(batchMatches('B.YN2026WM201', 'Pyraclostrobin 25% EC B.YN2026WM201-P1'), true);
+  assert.equal(batchMatches('20260427', 'Pretilachlor30%EC 20260427-P2'), true);
   assert.equal(batchMatches('009', '26S-FPN5-GMP-009'), false);
   assert.equal(batchMatches('9', '26S-FPN5-GMP-009'), false);
   assert.equal(batchMatches('009', '009'), true);
+  assert.equal(batchMatches('009', 'Product 009'), false);
   assert.equal(batchMatches('9', '009'), false);
   assert.equal(batchMatches('095', '26S-ACT50-095 bottom'), false);
   assert.equal(batchMatches('26S-ACT50-095 bottom', '26S-ACT50-095 bottom'), true);
