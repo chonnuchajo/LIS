@@ -74,6 +74,10 @@ function isValidDensityRow(row: Record<string, unknown>): boolean {
 }
 
 export function selectDensitySyncRow(rows: Record<string, unknown>[]): Record<string, unknown> | undefined {
+  if (rows.length === 1) {
+    return isValidDensityRow(rows[0]) && density3Key(rows[0]) ? rows[0] : undefined;
+  }
+
   type DensityRun = { key: string; firstIndex: number; rows: { row: Record<string, unknown>; index: number }[] };
   const runs: DensityRun[] = [];
   let currentRun: DensityRun | null = null;

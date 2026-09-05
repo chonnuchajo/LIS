@@ -297,7 +297,7 @@ export const api = {
     return request<{ docs: Record<string, unknown>[]; total: number; page: number; limit: number }>(`/result-densities${qs}`);
   },
   getResultDensityProducts: () => request<string[]>('/result-densities/products'),
-  // DMA 501 readings whose Sample name matches `batch` directly or as a trailing batch suffix.
+  // DMA 501 readings whose displayed Batch column matches `batch`.
   getResultDensitiesByBatch: (batch: string) =>
     request<{ batch: string; docs: Record<string, unknown>[] }>(
       `/result-densities/by-batch/${encodeURIComponent(batch)}`,

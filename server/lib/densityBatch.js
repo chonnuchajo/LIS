@@ -1,55 +1,77 @@
-// Pure helper for matching a petition batch number to a Result-Density row's
-// "Sample name". DMA exports can store either the batch itself or a product
-// name followed by the batch, often with a DMA repeat suffix like "-P1".
-// Avoid matching short numeric tail segments such as "009" inside
-// "26S-FPN5-GMP-009".
+// Pure helper for deriving and matching the Batch column shown on
+// /density-results. DMA "Sample name" can be the batch itself or product name
+// followed by batch, often with repeat/position suffixes like "-P1" or "TOP".
 
-function extractDensityBatch(sampleName) {
-  if (sampleName == null) return null;
-  const token = String(sampleName).trim();
-  return token || null;
+function stripRepeatSuffix(value) {
+  return value.replace(/-P\d+$/i, '');
 }
 
 function stripBatchPrefix(value) {
   return value.replace(/^B\./i, '');
 }
 
+function normalizeBatch(value) {
+  return stripBatchPrefix(stripRepeatSuffix(String(value || '').trim())).toUpperCase();
+}
+
 function sameBatch(left, right) {
-  const a = String(left || '').trim().toUpperCase();
-  const b = String(right || '').trim().toUpperCase();
-  return a === b || stripBatchPrefix(a) === stripBatchPrefix(b);
+  const a = normalizeBatch(left);
+  const b = normalizeBatch(right);
+  return !!a && !!b && a === b;
 }
 
-function trailingCandidates(sampleName) {
-  const sample = String(sampleName || '').trim();
-  if (!sample) return [];
+function batchLikeToken(value) {
+  const token = String(value || '').trim();
+  if (!token || token.includes('%')) return false;
+  return /\d/.test(token) || /^B\./i.test(token) || token.includes('-');
+}
+
+function extractDensityBatch(sampleName) {
+  if (sampleName == null) return null;
+  const sample = String(sampleName).trim();
+  if (!sample) return null;
   const tokens = sample.split(/\s+/).filter(Boolean);
-  const last = tokens[tokens.length - 1] || '';
-  const previous = tokens[tokens.length - 2] || '';
-  const candidates = [];
 
-  if (tokens.length > 1) candidates.push({ value: last, repeatSuffix: false });
+  if (tokens.length === 1) return stripRepeatSuffix(tokens[0]) || null;
 
-  const compactRepeat = last.match(/^(.+)-P\d+$/i);
-  if (compactRepeat) candidates.push({ value: compactRepeat[1], repeatSuffix: true });
+  for (let i = tokens.length - 1; i >= 0; i -= 1) {
+    const token = tokens[i];
+    if (/^P\d+$/i.test(token) && i > 0) {
+      const previous = stripRepeatSuffix(tokens[i - 1]);
+      if (batchLikeToken(previous)) return previous;
+      continue;
+    }
 
-  if (/^P\d+$/i.test(last) && previous) candidates.push({ value: previous, repeatSuffix: true });
+    const candidate = stripRepeatSuffix(token);
+    if (batchLikeToken(candidate)) return candidate;
+  }
 
-  return candidates;
+  return sample;
 }
 
-function batchMatches(petitionBatchNo, sampleName) {
+function densityBatchForRow(rowOrSampleName) {
+  if (rowOrSampleName && typeof rowOrSampleName === 'object') {
+    const row = rowOrSampleName;
+    const explicitBatch = row.Batch ?? row.batch;
+    if (explicitBatch != null && String(explicitBatch).trim() !== '') {
+      return String(explicitBatch).trim();
+    }
+    return extractDensityBatch(row['Sample name']);
+  }
+  return extractDensityBatch(rowOrSampleName);
+}
+
+function withDensityBatch(row) {
+  const batch = densityBatchForRow(row);
+  return { ...row, Batch: batch || '' };
+}
+
+function batchMatches(petitionBatchNo, rowOrSampleName) {
   const b = petitionBatchNo == null ? '' : String(petitionBatchNo).trim();
   if (!b) return false;
-  const x = extractDensityBatch(sampleName);
+  const x = densityBatchForRow(rowOrSampleName);
   if (!x) return false;
-  if (sameBatch(x, b)) return true;
-
-  const numericOnly = /^\d+$/.test(b);
-  return trailingCandidates(x).some((candidate) => {
-    if (!sameBatch(candidate.value, b)) return false;
-    return !numericOnly || candidate.repeatSuffix || /^B\./i.test(candidate.value);
-  });
+  return sameBatch(x, b);
 }
 
-module.exports = { extractDensityBatch, batchMatches };
+module.exports = { extractDensityBatch, densityBatchForRow, withDensityBatch, batchMatches };

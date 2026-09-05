@@ -29,7 +29,7 @@ describe('DensitySyncButton', () => {
 
   it('does not render a manual sync button', () => {
     renderWith();
-    expect(screen.queryByRole('button', { name: /ดึงค่า ถพ\./ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /ดึงค่า ถพ\\./ })).not.toBeInTheDocument();
   });
 
   it('does not query when batchNo is empty', async () => {
@@ -60,7 +60,7 @@ describe('DensitySyncButton', () => {
     expect(screen.queryByRole('button', { name: /ใช้ค่าที่เลือก/ })).not.toBeInTheDocument();
   });
 
-  it('waits instead of applying a single valid result row', async () => {
+  it('auto applies a single valid result row', async () => {
     const docs = [
       { _id: 'a', 'Sample name': 'Batch 009 A', 'Measurement status': 'valid', 'Density [g/cm³]': '0.991', 'T(block) [°C]': '31.5' },
     ];
@@ -69,8 +69,8 @@ describe('DensitySyncButton', () => {
 
     renderWith({ onRows });
 
-    expect(await screen.findByText(/รอค่า ถพ/)).toBeInTheDocument();
-    expect(onRows).not.toHaveBeenCalled();
+    await waitFor(() => expect(onRows).toHaveBeenCalledWith([docs[0]]));
+    expect(screen.queryByText(/รอค่า ถพ/)).not.toBeInTheDocument();
   });
 
   it('auto applies the repeated 3-decimal density row with T(block) closest to 30', async () => {

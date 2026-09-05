@@ -16,8 +16,8 @@ interface DensitySyncButtonProps {
 const EMPTY_DENSITY_DOCS: Record<string, unknown>[] = [];
 
 /**
- * Pull DMA 501 density readings for `batchNo` from Result-Density. If none exist
- * yet, poll every 30 s until a valid consecutive repeat appears, then apply it.
+ * Pull DMA 501 density readings for `batchNo` from Result-Density. A single
+ * valid row is used immediately; multiple rows use the repeat-selection rule.
  */
 export default function DensitySyncButton({
   batchNo, onRows, disabled = false,
@@ -62,7 +62,7 @@ export default function DensitySyncButton({
   return (
     <div className="flex items-center gap-2 text-xs text-amber-600">
       {isFetching && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-      รอค่า ถพ. valid ที่ Density (3 ตำแหน่ง) เท่ากันต่อเนื่องอย่างน้อย 2 ครั้ง
+      รอค่า ถพ. valid จาก Batch นี้ (ถ้ามีหลายค่า ต้องซ้ำ 3 ตำแหน่งต่อเนื่องอย่างน้อย 2 ครั้ง)
     </div>
   );
 }

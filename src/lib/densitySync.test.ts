@@ -86,6 +86,14 @@ describe('densityRowToEntry', () => {
 });
 
 describe('selectDensitySyncRow', () => {
+  it('uses the only valid result row when the matched batch has one value', () => {
+    const docs = [
+      { _id: 'a', 'Measurement status': 'valid', 'Density [g/cm³]': '0.991', 'T(block) [°C]': '31.5' },
+    ];
+
+    expect(selectDensitySyncRow(docs)).toBe(docs[0]);
+  });
+
   it('chooses the most repeated 3-decimal density, then T(block) closest to 30', () => {
     const docs = [
       { _id: 'a', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '29.80' },

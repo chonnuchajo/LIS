@@ -227,7 +227,7 @@ export default function DensityResultPage() {
                 <tr key={String(row._id)} className="hover:bg-gray-50">
                   <td className="px-4 py-2.5 text-gray-400">{(page - 1) * LIMIT + idx + 1}</td>
                   <td className="px-4 py-2.5 font-mono text-xs text-gray-700">{String(row['Sample ID'] ?? '')}</td>
-                  <td className="px-4 py-2.5 text-gray-800">{String(row['Sample name'] ?? '')}</td>
+                  <td className="px-4 py-2.5 text-gray-800">{String(row.Batch ?? row['Sample name'] ?? '')}</td>
                   <td className="px-4 py-2.5 text-gray-600">{String(row['Product name'] ?? '')}</td>
                   <td className="px-4 py-2.5 text-right font-mono font-semibold text-blue-700">
                     {String(row['Density [g/cm³]'] ?? '')}
