@@ -6,6 +6,7 @@ import StockPage from "../Stock";
 
 const apiMock = vi.hoisted(() => ({
   getStandards: vi.fn(),
+  getSixMonthMedicineStock: vi.fn(),
   getStockUnits: vi.fn(),
   deleteStandard: vi.fn(),
   getSolvents: vi.fn(),
@@ -67,6 +68,7 @@ vi.mock("@/hooks/useAccessibleTabs", () => ({
       { key: "standard", label: "Standards" },
       { key: "solvent", label: "Solvents" },
       { key: "glassware", label: "Glassware" },
+      { key: "medicine-six-months", label: "List ยา 6 เดือน" },
     ],
   }),
 }));
@@ -164,6 +166,62 @@ describe("StockPage delete actions", () => {
       },
     ]);
     apiMock.getStockTransactions.mockResolvedValue([]);
+    apiMock.getSixMonthMedicineStock.mockResolvedValue({
+      serverTime: "2026-09-04T00:00:00.000Z",
+      referenceMonth: "2026-09",
+      items: [
+        {
+          companySource: "ICPL",
+          itemNo: "F-TEST-001",
+          locationCode: "NORMAL",
+          binCode: "DEFAULT",
+          lotNo: "FG260301-001",
+          registeringDate: "2026-03-31T00:00:00.000Z",
+          unit: "KG",
+          stockQty: 10,
+          stockQtyBase: 10,
+          ageMonths: 6,
+        },
+      ],
+    });
+  });
+
+  it("hides the six-month medicine tab for users without admin or QC head", async () => {
+    authMock.user = {
+      email: "qc-staff@example.com",
+      name: "QC Staff",
+      role: "qc-staff",
+      roles: ["qc-staff"],
+    };
+    renderStock();
+
+    expect(await screen.findByText("Pesticide Standard")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "List ยา 6 เดือน" })).not.toBeInTheDocument();
+    expect(apiMock.getSixMonthMedicineStock).not.toHaveBeenCalled();
+  });
+
+  it("shows the six-month medicine tab for admin", async () => {
+    renderStock();
+
+    expect(await screen.findByText("Pesticide Standard")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "List ยา 6 เดือน" })).toBeInTheDocument();
+  });
+
+  it("shows the six-month medicine tab for QC head", async () => {
+    authMock.user = {
+      email: "qc-head@example.com",
+      name: "QC Head",
+      role: "qc-head",
+      roles: ["qc-head"],
+    };
+    renderStock();
+
+    const tab = await screen.findByRole("tab", { name: "List ยา 6 เดือน" });
+    fireEvent.mouseDown(tab, { button: 0, ctrlKey: false });
+
+    await waitFor(() => {
+      expect(screen.getByText("F-TEST-001")).toBeInTheDocument();
+    });
   });
 
   it("confirms and deletes a standard through the MongoDB-backed API", async () => {

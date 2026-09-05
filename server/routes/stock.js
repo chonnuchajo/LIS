@@ -751,6 +751,11 @@ router.post('/barcodes/register', async (req, res) => {
 
 router.get('/medicine-six-months', async (req, res) => {
   try {
+    const actor = await stockManagementActor(req);
+    const actorRoles = normalizeRoles(actor);
+    if (!actorRoles.includes('admin') && !actorRoles.includes('qc-head')) {
+      return res.status(403).json({ error: 'เฉพาะ Admin / QC Head เท่านั้น' });
+    }
     const referenceDate = new Date();
     const rows = await fetchStockAllItems();
     res.json({

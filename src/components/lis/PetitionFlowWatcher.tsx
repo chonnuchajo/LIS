@@ -1,50 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
-import { normalizeRoles } from "@/lib/roles";
 import { audiencesForUser, readSeeAll, SEE_ALL_EVENT } from "@/lib/petitionAudience";
-
-const CURSOR_PREFIX = "lis.petitionNotify.cursor.";
-const LOOKBACK_MS = 24 * 60 * 60 * 1000;
-
-// cursor ผูกกับคน กันเคสสลับ user บนเครื่องเดียวกัน (dev role switcher) แล้วรับ cursor ของคนก่อน
-const cursorKey = (employeeId?: string) => `${CURSOR_PREFIX}${employeeId || "anonymous"}`;
-
-const readCursor = (employeeId?: string): string => {
-  const fallback = new Date(Date.now() - LOOKBACK_MS).toISOString();
-  try {
-    return localStorage.getItem(cursorKey(employeeId)) || fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-/**
- * Whether this poll should actually ask the API for every department's notifications.
- * NotificationBell only *renders* the see-all switch for admins, but its localStorage
- * flag is global and never cleared — so a browser that was ever an admin (DevRoleSwitcher,
- * or a past real role change) would otherwise keep sending all=1 forever with no visible
- * control left to turn it off. Gate it here too, using the same admin check the bell uses.
- */
-export const effectiveSeeAll = (user: Parameters<typeof normalizeRoles>[0], seeAllRaw: boolean): boolean =>
-  seeAllRaw && normalizeRoles(user).includes("admin");
-
-/**
- * ตัดสินใจว่า cursor ที่จะเขียนลง localStorage ควรเป็นค่าไหน — ต้องเดินหน้าอย่างเดียว
- * (never regress) เพราะ query cache หลายคีย์ (เช่น สลับ see-all on/off) แชร์ cursor slot
- * เดียวกันตาม employeeId เฉยๆ — ถ้าปล่อยให้ response เก่าที่ React Query serve แบบ stale
- * เขียนทับ cursor ใหม่กว่าได้ notification ที่ผู้ใช้ลบไปแล้วจะโผล่กลับมาซ้ำ
- */
-export const nextCursor = (stored: string | null | undefined, serverTime: string): string => {
-  if (!stored) return serverTime;
-  const storedMs = Date.parse(stored);
-  if (Number.isNaN(storedMs)) return serverTime;
-  const serverMs = Date.parse(serverTime);
-  if (Number.isNaN(serverMs)) return stored;
-  return serverMs > storedMs ? serverTime : stored;
-};
+import { cursorKey, effectiveSeeAll, nextCursor, readCursor } from "@/lib/petitionFlowWatcher";
+import ApprovalQrPopup from "@/components/petition/ApprovalQrPopup";
+import {
+  APPROVAL_QR_ALERT_EVENT,
+  APPROVAL_QR_POPUP_MS,
+  type ApprovalQrAlertDetail,
+  approvalQrAlertDetailFromNotification,
+  playApprovalQrAlertSound,
+  stopApprovalQrAlertSound,
+} from "@/lib/approvalQrAlert";
+import type { Petition } from "@/types/petition.types";
 
 /**
  * Poll ความเคลื่อนไหวของคำขอทุกนาทีแล้วยิงเข้ากระดิ่ง
@@ -54,13 +24,62 @@ const PetitionFlowWatcher = () => {
   const { user } = useAuth();
   const { push } = useNotifications();
   const [seeAllRaw, setSeeAllRaw] = useState(() => readSeeAll());
+  const [approvalPopupPetition, setApprovalPopupPetition] = useState<Petition | null>(null);
+  const approvalTimerRef = useRef<number | null>(null);
+  const approvalAudioRef = useRef<HTMLAudioElement | null>(null);
+  const watcherMountedAtRef = useRef(Date.now());
+  const shownApprovalPetitionIdsRef = useRef<Set<string>>(new Set());
+  const pendingApprovalPetitionIdsRef = useRef<Set<string>>(new Set());
   const seeAll = effectiveSeeAll(user, seeAllRaw);
+
+  const closeApprovalPopup = useCallback(() => {
+    if (approvalTimerRef.current) {
+      window.clearTimeout(approvalTimerRef.current);
+      approvalTimerRef.current = null;
+    }
+    stopApprovalQrAlertSound(approvalAudioRef.current);
+    approvalAudioRef.current = null;
+    setApprovalPopupPetition(null);
+  }, []);
+
+  const showApprovalPopup = useCallback(async (detail: ApprovalQrAlertDetail) => {
+    const petitionId = detail.petition?._id || detail.petitionId;
+    if (!petitionId) return;
+    if (shownApprovalPetitionIdsRef.current.has(petitionId) || pendingApprovalPetitionIdsRef.current.has(petitionId)) return;
+
+    pendingApprovalPetitionIdsRef.current.add(petitionId);
+    try {
+      const petition = detail.petition ?? await api.getPetition(petitionId);
+      if (petition.status !== "approved") return;
+
+      shownApprovalPetitionIdsRef.current.add(petitionId);
+      closeApprovalPopup();
+      approvalAudioRef.current = playApprovalQrAlertSound();
+      setApprovalPopupPetition(petition);
+      approvalTimerRef.current = window.setTimeout(closeApprovalPopup, APPROVAL_QR_POPUP_MS);
+    } catch {
+      return;
+    } finally {
+      pendingApprovalPetitionIdsRef.current.delete(petitionId);
+    }
+  }, [closeApprovalPopup]);
 
   useEffect(() => {
     const sync = () => setSeeAllRaw(readSeeAll());
     window.addEventListener(SEE_ALL_EVENT, sync);
     return () => window.removeEventListener(SEE_ALL_EVENT, sync);
   }, []);
+
+  useEffect(() => {
+    const handleApprovalQrAlert = (event: Event) => {
+      const detail = (event as CustomEvent<ApprovalQrAlertDetail>).detail;
+      if (detail?.petitionId) void showApprovalPopup(detail);
+    };
+    window.addEventListener(APPROVAL_QR_ALERT_EVENT, handleApprovalQrAlert);
+    return () => window.removeEventListener(APPROVAL_QR_ALERT_EVENT, handleApprovalQrAlert);
+  }, [showApprovalPopup]);
+
+  useEffect(() => () => closeApprovalPopup(), [closeApprovalPopup]);
 
   const audiences = useMemo(() => audiencesForUser(user), [user]);
   const employeeId = user?.employeeId;
@@ -81,6 +100,7 @@ const PetitionFlowWatcher = () => {
 
   useEffect(() => {
     if (!data) return;
+    const approvalAlerts: ApprovalQrAlertDetail[] = [];
     // server เรียงใหม่→เก่า; push ทีละอันแบบกลับด้าน เพื่อให้อันใหม่สุดไปอยู่หัวลิสต์
     for (const item of [...data.items].reverse()) {
       push({
@@ -93,7 +113,14 @@ const PetitionFlowWatcher = () => {
         persistent: true,
         group: "petition",
       });
+      const approvalAlert = approvalQrAlertDetailFromNotification(item);
+      if (approvalAlert) approvalAlerts.push(approvalAlert);
     }
+    approvalAlerts.forEach((detail) => {
+      const createdAtMs = Date.parse(detail.createdAt ?? "");
+      if (!Number.isNaN(createdAtMs) && createdAtMs < watcherMountedAtRef.current - 5_000) return;
+      void showApprovalPopup(detail);
+    });
     try {
       const key = cursorKey(employeeId);
       const stored = localStorage.getItem(key);
@@ -101,9 +128,15 @@ const PetitionFlowWatcher = () => {
     } catch {
       // private mode — รอบหน้าจะดึงย้อนหลัง 24 ชม.ใหม่ ซึ่ง push กันซ้ำด้วย id อยู่แล้ว
     }
-  }, [data, employeeId, push]);
+  }, [data, employeeId, push, showApprovalPopup]);
 
-  return null;
+  return (
+    <ApprovalQrPopup
+      open={!!approvalPopupPetition}
+      petition={approvalPopupPetition}
+      onOpenChange={(open) => { if (!open) closeApprovalPopup(); }}
+    />
+  );
 };
 
 export default PetitionFlowWatcher;

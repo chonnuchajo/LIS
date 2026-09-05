@@ -34,6 +34,7 @@ import type { MethodDoc, MethodInput } from './methodRegistry';
 import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
 import type { GoodsReceipt, GoodsReceiptInput } from "@/types/goodsReceipt.types";
 import type { CoaDocument, EligibleCoaPetition } from "@/types/coa.types";
+import type { PetitionAuditEvent, PetitionStatus } from "@/types/petition.types";
 import type {
   ApiKeyItem,
   ApiKeyInput,
@@ -67,7 +68,11 @@ export interface StockTransactionParams {
 
 export interface PetitionFlowNotification {
   id: string;
+  petitionId?: string;
   petitionNo: string;
+  event?: PetitionAuditEvent;
+  fromStatus?: PetitionStatus;
+  toStatus?: PetitionStatus;
   title: string;
   message?: string;
   level: "info" | "warning" | "success" | "error";

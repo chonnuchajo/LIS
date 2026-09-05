@@ -1,7 +1,7 @@
-import type { EquipmentCheckRecord } from "@/lib/api";
 import { ICP_LADDA_LOGO_URL } from "@/lib/branding";
 import { getDailyCheckPeriod, getDailyCheckPeriodLabel, type DailyCheckPeriod } from "@/lib/dailyCheckPeriod";
 import { A4_PRINT_FONT_FAMILY, A4_PRINT_FONT_SIZE, A4_PRINT_HEADING_FONT_WEIGHT } from "@/lib/printConfig";
+import { dailyCheckRecordInstrumentLabel, type DailyCheckRecordRow } from "@/lib/dailyCheckRecords";
 import {
   fmtDate,
   fmtTime,
@@ -22,7 +22,7 @@ export interface EquipmentCheckReportFilters {
 }
 
 export interface EquipmentCheckReportProps {
-  rows: EquipmentCheckRecord[];
+  rows: DailyCheckRecordRow[];
   filters: EquipmentCheckReportFilters;
   printedBy: string;
   printedAt: string; // ISO
@@ -93,8 +93,8 @@ export default function EquipmentCheckReport({
               <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{fmtDate(h.date)}</td>
               <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{fmtTime(h.checkedAt)}</td>
               <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{getDailyCheckPeriodLabel(h.period ?? getDailyCheckPeriod(h.checkedAt))}</td>
-              <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{roomLabel(h.roomSlug)}</td>
-              <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{h.instrumentName} ({h.instrumentId})</td>
+              <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{h.roomName ?? roomLabel(h.roomSlug)}</td>
+              <td className="border border-black px-2 py-1 align-top whitespace-nowrap">{dailyCheckRecordInstrumentLabel(h)}</td>
               <td className="border border-black px-2 py-1 align-top text-center whitespace-nowrap">{h.status === "normal" ? "ปกติ" : "ผิดปกติ"}</td>
               <td className="border border-black px-2 py-1 align-top text-center">{formatReadings(h.readings)}</td>
               <td className="border border-black px-2 py-1 align-top">{h.note || "—"}</td>

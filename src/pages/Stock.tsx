@@ -1859,12 +1859,17 @@ function StandardDialog({
 // Page
 // ============================================================
 const StockPage = () => {
+  const { user } = useAuth();
   const [scanOpen, setScanOpen] = useState(false);
   const [scannedQr, setScannedQr] = useState<string | null>(null);
   const [scannedUnit, setScannedUnit] = useState<StockUnitItem | null>(null);
   const [action, setAction] = useState<"discard" | null>(null);
   const qc = useQueryClient();
   const { tabs, defaultKey } = useAccessibleTabs("/stock");
+  const stockUserRoles = normalizeRoles(user);
+  const canSeeSixMonthMedicineTab = stockUserRoles.includes("admin") || stockUserRoles.includes("qc-head");
+  const visibleTabs = tabs.filter((tab) => tab.key !== "medicine-six-months" || canSeeSixMonthMedicineTab);
+  const stockDefaultKey = visibleTabs.some((tab) => tab.key === defaultKey) ? defaultKey : visibleTabs[0]?.key;
 
   const onScanned = async (qrId: string) => {
     setScanOpen(false);
@@ -1890,9 +1895,9 @@ const StockPage = () => {
         title={<span className="inline-flex items-center gap-2"><Package className="w-6 h-6" /> Stock Management</span>}
         description="จัดการ inventory: Standards, สารเคมี, เครื่องแก้ว — บันทึกข้อมูลใน MongoDB"
       />
-      <Tabs key={defaultKey} defaultValue={defaultKey}>
+      <Tabs key={stockDefaultKey} defaultValue={stockDefaultKey}>
         <TabsList className="mb-4 flex-wrap h-auto">
-          {tabs.map((t) => (
+          {visibleTabs.map((t) => (
             <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
               {t.icon && <t.icon className="h-4 w-4" />}
               {t.label}
@@ -1902,7 +1907,7 @@ const StockPage = () => {
         <TabsContent value="standard"><StandardsTab /></TabsContent>
         <TabsContent value="solvent"><SolventsTab /></TabsContent>
         <TabsContent value="glassware"><GlasswareTab /></TabsContent>
-        <TabsContent value="medicine-six-months"><MedicineSixMonthTab /></TabsContent>
+        {canSeeSixMonthMedicineTab && <TabsContent value="medicine-six-months"><MedicineSixMonthTab /></TabsContent>}
         <TabsContent value="receive"><ReceiveCart /></TabsContent>
         <TabsContent value="history"><HistoryTab /></TabsContent>
       </Tabs>

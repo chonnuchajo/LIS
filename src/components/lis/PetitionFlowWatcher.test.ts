@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { effectiveSeeAll, nextCursor } from "./PetitionFlowWatcher";
+import { effectiveSeeAll, nextCursor } from "@/lib/petitionFlowWatcher";
+import {
+  APPROVAL_QR_POPUP_MS,
+  approvalQrAlertDetailFromNotification,
+  isFinalApprovalNotification,
+} from "@/lib/approvalQrAlert";
 
 describe("effectiveSeeAll", () => {
   // Finding 2: the "ดูทั้งระบบ" switch only renders for admins (NotificationBell), but its
@@ -28,6 +33,56 @@ describe("effectiveSeeAll", () => {
 
   it("no user → false even with the switch on", () => {
     expect(effectiveSeeAll(null, true)).toBe(false);
+  });
+});
+
+describe("approval QR alert", () => {
+  it("uses a 30 second popup window", () => {
+    expect(APPROVAL_QR_POPUP_MS).toBe(30_000);
+  });
+
+  it("detects only final approval notifications", () => {
+    expect(isFinalApprovalNotification({
+      id: "log1",
+      petitionId: "p1",
+      petitionNo: "P-1",
+      event: "statusChanged",
+      toStatus: "approved",
+      title: "อนุมัติแล้ว",
+      level: "success",
+      link: "/petition/p1",
+      createdAt: "2026-08-01T02:00:00.000Z",
+    })).toBe(true);
+
+    expect(isFinalApprovalNotification({
+      id: "log2",
+      petitionId: "p1",
+      petitionNo: "P-1",
+      event: "created",
+      title: "สร้างคำร้อง",
+      level: "info",
+      link: "/petition/p1",
+      createdAt: "2026-08-01T02:00:00.000Z",
+    })).toBe(false);
+  });
+
+  it("converts final approval notification into QR popup event detail", () => {
+    expect(approvalQrAlertDetailFromNotification({
+      id: "log1",
+      petitionId: "p1",
+      petitionNo: "P-1",
+      event: "statusChanged",
+      toStatus: "approved",
+      title: "อนุมัติแล้ว",
+      level: "success",
+      link: "/petition/p1",
+      createdAt: "2026-08-01T02:00:00.000Z",
+    })).toEqual({
+      notificationId: "log1",
+      petitionId: "p1",
+      petitionNo: "P-1",
+      createdAt: "2026-08-01T02:00:00.000Z",
+    });
   });
 });
 

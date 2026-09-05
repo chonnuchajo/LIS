@@ -11,6 +11,7 @@ const RECEIVED_STATUSES = new Set<Petition['status']>([
   'pendingReview',
   'inProgress',
   'success',
+  'approved',
 ]);
 
 const LAB_BATCH_LAST_DIGITS = new Set(['1', '6']);

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Calendar as CalendarIcon, History, Filter, Pencil, ScanLine, Trash2 } from "lucide-react";
+import { Calendar as CalendarIcon, Camera, History, Filter, Pencil, ScanLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ import { DEDUCTION_RESOLUTION_LABELS } from "@/lib/deductionResolution";
 import { requisitionUser } from "@/lib/standardRequisition";
 import { canManageStockDeduction, deductionAmount } from "@/lib/stockDeduction";
 import { formatStockQuantity } from "@/lib/stockQuantity";
+import { parseScannedQrId } from "@/lib/stockUnit";
 import { getRoomCatalog } from "@/lib/roomEquipment";
 import type { StockTransactionItem } from "@/types/stock";
 
@@ -82,7 +83,10 @@ const StockDeduction = () => {
   const [editing, setEditing] = useState<StockTransactionItem | null>(null);
   const [deleting, setDeleting] = useState<StockTransactionItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [scanSourceOpen, setScanSourceOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [hardwareScannerOpen, setHardwareScannerOpen] = useState(false);
+  const [hardwareScannerText, setHardwareScannerText] = useState("");
   const [scannedQrId, setScannedQrId] = useState<string | null>(null);
   const [lastScanResult, setLastScanResult] = useState<DecodedScanResult | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
@@ -104,12 +108,42 @@ const StockDeduction = () => {
   const applyScannedQrId = useCallback((qrId: string) => {
     setScannedQrId(qrId);
     setScannerOpen(false);
+    setScanSourceOpen(false);
+    setHardwareScannerOpen(false);
     if (queryQrId) {
       const next = new URLSearchParams(searchParams);
       next.delete("qrId");
       setSearchParams(next, { replace: true });
-      }
-    }, [queryQrId, searchParams, setSearchParams]);
+    }
+  }, [queryQrId, searchParams, setSearchParams]);
+
+  const openCameraScanner = useCallback(() => {
+    setScanSourceOpen(false);
+    setScannerOpen(true);
+  }, []);
+
+  const openHardwareScanner = useCallback(() => {
+    setScanSourceOpen(false);
+    setHardwareScannerText("");
+    setHardwareScannerOpen(true);
+  }, []);
+
+  const closeHardwareScanner = useCallback(() => {
+    setHardwareScannerOpen(false);
+    setHardwareScannerText("");
+  }, []);
+
+  const submitHardwareScanner = useCallback((rawInput = hardwareScannerText) => {
+    const raw = rawInput.trim();
+    const qrId = parseScannedQrId(raw);
+    if (!qrId) {
+      toast.error("กรุณายิง QR ข้างขวดด้วยเครื่อง scanner");
+      return;
+    }
+    setHardwareScannerText("");
+    setLastScanResult({ raw, value: qrId, scanMode: "qr" });
+    applyScannedQrId(qrId);
+  }, [applyScannedQrId, hardwareScannerText]);
 
   const refreshStockDeductions = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["stock-deductions"] });
@@ -273,7 +307,7 @@ const StockDeduction = () => {
         description="เบิกสารเคมีให้เครื่อง และดูประวัติการตัด stock"
         actions={
           <>
-            <Button type="button" variant="outline" onClick={() => setScannerOpen(true)}>
+            <Button type="button" variant="outline" onClick={() => setScanSourceOpen(true)}>
               <ScanLine className="mr-1 h-4 w-4" /> สแกน QR ข้างขวด
             </Button>
             <StockRequisitionButton
@@ -406,6 +440,76 @@ const StockDeduction = () => {
         onDecoded={setLastScanResult}
         onScanned={applyScannedQrId}
       />
+
+      <Dialog open={scanSourceOpen} onOpenChange={setScanSourceOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>เลือกวิธีสแกน QR ข้างขวด</DialogTitle>
+            <DialogDescription>
+              เลือกกล้องสำหรับอ่านจากภาพ หรือเครื่อง scanner แบบยิงแล้วส่งค่าเข้าเครื่อง
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              variant="outline"
+              aria-label="เปิดกล้อง"
+              className="h-auto justify-start gap-3 p-4 text-left"
+              onClick={openCameraScanner}
+            >
+              <Camera className="h-5 w-5" />
+              <span>
+                <span className="block font-medium">เปิดกล้อง</span>
+                <span className="block text-xs font-normal text-muted-foreground">ใช้กล้องมือถือหรือ webcam</span>
+              </span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              aria-label="ใช้เครื่อง scanner"
+              className="h-auto justify-start gap-3 p-4 text-left"
+              onClick={openHardwareScanner}
+            >
+              <ScanLine className="h-5 w-5" />
+              <span>
+                <span className="block font-medium">ใช้เครื่อง scanner</span>
+                <span className="block text-xs font-normal text-muted-foreground">ยิง QR แล้วกด Enter อัตโนมัติ</span>
+              </span>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={hardwareScannerOpen} onOpenChange={(open) => (open ? setHardwareScannerOpen(true) : closeHardwareScanner())}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>ใช้เครื่อง scanner</DialogTitle>
+            <DialogDescription>
+              คลิกช่องนี้แล้วยิง QR ข้างขวด เครื่อง scanner จะกรอกค่าเหมือน keyboard
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="stock-deduction-hardware-scanner">ยิง QR ด้วยเครื่อง scanner</Label>
+            <Input
+              id="stock-deduction-hardware-scanner"
+              value={hardwareScannerText}
+              onChange={(event) => setHardwareScannerText(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  submitHardwareScanner(event.currentTarget.value);
+                }
+              }}
+              placeholder="ยิง QR หรือวาง URL/qrId"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={closeHardwareScanner}>ยกเลิก</Button>
+            <Button type="button" onClick={() => submitHardwareScanner()} disabled={!hardwareScannerText.trim()}>ตกลง</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <DeductionDetailSheet
         transaction={selected}

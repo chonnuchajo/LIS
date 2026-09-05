@@ -2,16 +2,13 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Thermometer, Droplets, CheckCircle2, Clock, RotateCcw,
-  List, ClipboardList, Filter, Radio,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { api, type EnvCheckRecord, type LiveTempHum } from "@/lib/api";
 import { evaluateEnv, isReadingStale, type EnvRoom } from "@/lib/dailyCheckEnv";
@@ -32,10 +29,6 @@ const todayStr = () => {
 };
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
-const fmtDate = (s: string) => {
-  const [y, m, d] = s.split("-");
-  return `${d}/${m}/${y}`;
-};
 const emptyDraft = (): EnvDraft => ({ temperature: "", humidity: "", note: "" });
 
 const EnvironmentCheckPage = () => {
@@ -53,10 +46,6 @@ const EnvironmentCheckPage = () => {
 
   const [drafts, setDrafts] = useState<Record<string, EnvDraft>>({});
 
-  const [filterDate, setFilterDate] = useState<string>(todayStr());
-  const [filterRoom, setFilterRoom] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<"all" | "pass" | "fail">("all");
-
   const { data: todayRecords = [] } = useQuery({
     queryKey: ["env-checks", "today"],
     queryFn: () => api.getEnvChecks({ date: todayStr() }),
@@ -68,16 +57,6 @@ const EnvironmentCheckPage = () => {
     queryFn: api.getLiveTempHum,
     refetchInterval: 30000, // Node-RED pushes ~every 60s; poll at 30s
     refetchOnWindowFocus: true,
-  });
-
-  const { data: historyRecords = [], isLoading: historyLoading } = useQuery({
-    queryKey: ["env-checks", "history", filterDate, filterRoom, filterStatus],
-    queryFn: () =>
-      api.getEnvChecks({
-        date: filterDate || todayStr(),
-        room: filterRoom === "all" ? undefined : filterRoom,
-        status: filterStatus === "all" ? undefined : filterStatus,
-      }),
   });
 
   // GET /temphum คืน history เรียงใหม่สุดก่อน → เก็บ "ค่าล่าสุดต่อ board"
@@ -235,18 +214,7 @@ const EnvironmentCheckPage = () => {
         </div>
       )}
 
-      <Tabs defaultValue="check" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="check" className="gap-1.5">
-            <ClipboardList className="w-4 h-4" /> บันทึกผล
-          </TabsTrigger>
-          <TabsTrigger value="history" className="gap-1.5">
-            <List className="w-4 h-4" /> รายการบันทึก
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="check">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {rooms.map((room) => {
               const todayRec = latestByRoom[room.slug];
               const d = getDraft(room);
@@ -402,110 +370,7 @@ const EnvironmentCheckPage = () => {
                 </Card>
               );
             })}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="history">
-          <Card>
-            <CardHeader className="space-y-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <List className="w-4 h-4 text-primary" />
-                ประวัติการตรวจอุณหภูมิ/ความชื้น
-              </CardTitle>
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] text-muted-foreground flex items-center gap-1">
-                    <Filter className="w-3 h-3" /> วันที่
-                  </label>
-                  <Input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} className="h-8 text-xs w-[160px]" />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] text-muted-foreground">ห้อง</label>
-                  <Select value={filterRoom} onValueChange={setFilterRoom}>
-                    <SelectTrigger className="h-8 text-xs w-[160px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">ทั้งหมด</SelectItem>
-                      {rooms.map((r) => (
-                        <SelectItem key={r.slug} value={r.slug}>{r.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[11px] text-muted-foreground">สถานะ</label>
-                  <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as "all" | "pass" | "fail")}>
-                    <SelectTrigger className="h-8 text-xs w-[120px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">ทั้งหมด</SelectItem>
-                      <SelectItem value="pass">ผ่าน</SelectItem>
-                      <SelectItem value="fail">ไม่ผ่าน</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-xs"
-                  onClick={() => { setFilterDate(todayStr()); setFilterRoom("all"); setFilterStatus("all"); }}
-                >
-                  รีเซ็ตตัวกรอง
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {historyLoading ? (
-                <p className="text-sm text-muted-foreground text-center py-8">กำลังโหลด...</p>
-              ) : historyRecords.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">ไม่พบรายการในช่วงที่เลือก</p>
-              ) : (
-                <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-                  <Table className="min-w-[760px]">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>วันที่</TableHead>
-                        <TableHead>เวลา</TableHead>
-                        <TableHead>รอบ</TableHead>
-                        <TableHead>ห้อง</TableHead>
-                        <TableHead className="text-center">อุณหภูมิ (°C)</TableHead>
-                        <TableHead className="text-center">ความชื้น (%RH)</TableHead>
-                        <TableHead className="text-center">สถานะ</TableHead>
-                        <TableHead>หมายเหตุ</TableHead>
-                        <TableHead>ผู้บันทึก</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {historyRecords.map((h) => {
-                        const allPass = h.status === "pass";
-                        return (
-                          <TableRow key={h._id}>
-                            <TableCell className="text-xs whitespace-nowrap">{fmtDate(h.date)}</TableCell>
-                            <TableCell className="text-xs whitespace-nowrap">{fmtTime(h.checkedAt)}</TableCell>
-                            <TableCell className="text-xs whitespace-nowrap">{getDailyCheckPeriodLabel(h.period ?? getDailyCheckPeriod(h.checkedAt))}</TableCell>
-                            <TableCell className="font-medium whitespace-nowrap">{h.roomName}</TableCell>
-                            <TableCell className={`text-center text-xs font-semibold ${h.tempStatus === "pass" ? "text-green-600" : "text-red-600"}`}>
-                              {h.temperature}
-                            </TableCell>
-                            <TableCell className={`text-center text-xs font-semibold ${h.humidityStatus === "pass" ? "text-green-600" : "text-red-600"}`}>
-                              {h.humidity}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Badge className={`text-xs ${allPass ? "bg-green-100 text-green-700 border-green-300" : "bg-red-100 text-red-700 border-red-300"}`}>
-                                {allPass ? "ผ่าน" : "ไม่ผ่าน"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-xs max-w-[180px] truncate">{h.note || "-"}</TableCell>
-                            <TableCell className="text-xs whitespace-nowrap">{h.recorder}</TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      </div>
     </>
   );
 };

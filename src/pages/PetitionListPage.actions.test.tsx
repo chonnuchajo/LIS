@@ -48,6 +48,24 @@ const mocks = vi.hoisted(() => {
 
   return {
     canAccess: vi.fn(() => true),
+    getSixMonthMedicineStock: vi.fn().mockResolvedValue({
+      serverTime: '2026-09-04T00:00:00.000Z',
+      referenceMonth: '2026-09',
+      items: [
+        {
+          companySource: 'ICPL',
+          itemNo: 'F-TEST-001',
+          locationCode: 'NORMAL',
+          binCode: 'DEFAULT',
+          lotNo: 'FG260301-001',
+          registeringDate: '2026-03-31T00:00:00.000Z',
+          unit: 'KG',
+          stockQty: 10,
+          stockQtyBase: 10,
+          ageMonths: 6,
+        },
+      ],
+    }),
     getParameters: vi.fn().mockResolvedValue([]),
     petitions,
     push: vi.fn(),
@@ -111,6 +129,7 @@ vi.mock('@/context/NotificationContext', () => ({
 
 vi.mock('@/lib/api', () => ({
   api: {
+    getSixMonthMedicineStock: mocks.getSixMonthMedicineStock,
     getParameters: mocks.getParameters,
   },
 }));
@@ -139,6 +158,7 @@ describe('PetitionListPage action cues', () => {
   beforeEach(() => {
     mocks.canAccess.mockClear();
     mocks.canAccess.mockImplementation(() => true);
+    mocks.getSixMonthMedicineStock.mockClear();
     mocks.user = {
       employeeId: 'E999',
       email: 'admin@example.test',
@@ -200,6 +220,20 @@ describe('PetitionListPage action cues', () => {
     expect(screen.queryByText('ออก Final Result แล้ว')).not.toBeInTheDocument();
   });
 
+  it('shows completed approved petitions to QC head users', async () => {
+    mocks.user = {
+      employeeId: 'E888',
+      email: 'qc-head@example.test',
+      name: 'QC Head',
+      roles: ['qc-head'],
+    };
+
+    renderPage({}, '/petitions?status=approved');
+
+    expect(await screen.findByText('P-2607-0007')).toBeInTheDocument();
+    expect(screen.queryByText('ยังไม่มีคำร้องที่คุณยื่นหรือได้รับมอบหมาย')).not.toBeInTheDocument();
+  });
+
   it('keeps summary card counts based on all visible petitions when a status card filters the list', async () => {
     renderPage();
 
@@ -225,7 +259,13 @@ describe('PetitionListPage action cues', () => {
     expect(rejectedCard).toHaveTextContent('1');
   });
 
-  it('shows a standalone six-month medicine tab with no petition linkage yet', async () => {
+  it('shows six-month medicine stock rows from the stock API', async () => {
+    mocks.user = {
+      employeeId: 'E888',
+      email: 'qc-head@example.test',
+      name: 'QC Head',
+      roles: ['qc-head'],
+    };
     renderPage();
 
     expect(await screen.findByText('P-2607-0001')).toBeInTheDocument();
@@ -240,9 +280,33 @@ describe('PetitionListPage action cues', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('tab', { name: 'List ยา 6 เดือน' })).toHaveAttribute('aria-selected', 'true');
-      expect(screen.getByText('ยังไม่มีรายการเชื่อมโยงสำหรับยา 6 เดือน')).toBeInTheDocument();
+      expect(screen.getByText('F-TEST-001')).toBeInTheDocument();
+      expect(screen.getByText('FG260301-001')).toBeInTheDocument();
+      expect(screen.getByText('10 KG')).toBeInTheDocument();
       expect(screen.queryByText('P-2607-0001')).not.toBeInTheDocument();
     });
+    expect(mocks.getSixMonthMedicineStock).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the six-month medicine tab for admin users', async () => {
+    renderPage();
+
+    expect(await screen.findByText('P-2607-0001')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'List ยา 6 เดือน' })).toBeInTheDocument();
+  });
+
+  it('hides the six-month medicine tab for users without admin or QC head', async () => {
+    mocks.user = {
+      employeeId: 'E889',
+      email: 'qc-staff@example.test',
+      name: 'QC Staff',
+      roles: ['qc-staff'],
+    };
+    renderPage();
+
+    expect(await screen.findByText('P-2607-0001')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'List ยา 6 เดือน' })).not.toBeInTheDocument();
+    expect(mocks.getSixMonthMedicineStock).not.toHaveBeenCalled();
   });
 
   it('uses production petition_no query as the list search term', async () => {

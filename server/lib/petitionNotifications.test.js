@@ -143,13 +143,36 @@ test('toNotification: id = audit log id, link ชี้หน้า timeline ข
   const desc = { audiences: ['qc'], title: 'T', message: 'M' };
   assert.deepStrictEqual(toNotification(petition, log, desc), {
     id: 'log1',
+    petitionId: 'p1',
     petitionNo: 'P-2606-0018',
+    event: 'created',
+    fromStatus: undefined,
+    toStatus: undefined,
     title: 'T',
     message: 'M',
     level: 'info',
     link: '/petition/p1',
     createdAt: '2026-08-01T02:00:00.000Z',
   });
+});
+
+test('toNotification: statusChanged approved carries final approval metadata for QR popup', () => {
+  const log = {
+    _id: 'log-approved',
+    petitionId: 'p1',
+    event: 'statusChanged',
+    fromStatus: 'success',
+    toStatus: 'approved',
+    createdAt: '2026-08-01T02:00:00.000Z',
+  };
+  const desc = { audiences: ['qc', 'production'], title: 'อนุมัติแล้ว' };
+
+  const notification = toNotification(petition, log, desc);
+
+  assert.strictEqual(notification.petitionId, 'p1');
+  assert.strictEqual(notification.event, 'statusChanged');
+  assert.strictEqual(notification.fromStatus, 'success');
+  assert.strictEqual(notification.toStatus, 'approved');
 });
 
 // Finding 1: resultEntered fires once per form field (qcResultAuditEvent logs every

@@ -115,6 +115,15 @@ function renderPage(initialEntry = "/stock-deduction") {
   );
 }
 
+function openScanSourceChooser() {
+  fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+}
+
+function openCameraScanner() {
+  openScanSourceChooser();
+  fireEvent.click(screen.getByRole("button", { name: "เปิดกล้อง" }));
+}
+
 describe("StockDeduction scan form", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -139,7 +148,7 @@ describe("StockDeduction scan form", () => {
   it("keeps the standard deduction form open after scanning a bottle QR", async () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+    openCameraScanner();
     fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
 
     expect(await screen.findByText("ค่าที่ scanner อ่านได้ล่าสุด")).toBeInTheDocument();
@@ -168,7 +177,7 @@ describe("StockDeduction scan form", () => {
 
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+    openCameraScanner();
     fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
 
     expect(await screen.findByRole("heading", { name: "เบิกสารเคมี" })).toBeInTheDocument();
@@ -178,7 +187,7 @@ describe("StockDeduction scan form", () => {
   it("opens scanner results without writing qrId into the URL", async () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+    openCameraScanner();
     fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
 
     expect(screen.getByTestId("location")).toHaveTextContent("/stock-deduction");
@@ -202,7 +211,7 @@ describe("StockDeduction scan form", () => {
 
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+    openCameraScanner();
     fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
 
     await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith("ขวดนี้หมดอายุแล้วเมื่อ 20/08/2026"));
@@ -229,7 +238,7 @@ describe("StockDeduction scan form", () => {
 
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+    openCameraScanner();
     fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
 
     await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith("ขวดนี้หมดอายุแล้วเมื่อ 19/08/2026"));
@@ -247,7 +256,7 @@ describe("StockDeduction scan form", () => {
 
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+    openCameraScanner();
     fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
 
     await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith("ขวดนี้หมดแล้วเมื่อ 21/08/2026"));
@@ -261,7 +270,7 @@ describe("StockDeduction scan form", () => {
 
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+    openCameraScanner();
     fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
 
     await waitFor(() => expect(toastMock.error).toHaveBeenCalledWith("ขวดนี้ไม่มีประสิทธิภาพแล้วไม่ควรใช้งาน"));
@@ -271,16 +280,42 @@ describe("StockDeduction scan form", () => {
   it("opens the standard deduction form again when scanning the same bottle QR", async () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+    openCameraScanner();
     fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
     expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "ยกเลิก" }));
     expect(screen.queryByRole("heading", { name: "เบิก Standard" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+    openCameraScanner();
     fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
 
+    expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+  });
+
+  it("shows scan source choices before opening the camera", () => {
+    renderPage();
+
+    openScanSourceChooser();
+
+    expect(screen.getByRole("heading", { name: "เลือกวิธีสแกน QR ข้างขวด" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "เปิดกล้อง" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ใช้เครื่อง scanner" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "mock scan" })).not.toBeInTheDocument();
+  });
+
+  it("opens the standard deduction form from a hardware scanner input", async () => {
+    renderPage();
+
+    openScanSourceChooser();
+    fireEvent.click(screen.getByRole("button", { name: "ใช้เครื่อง scanner" }));
+    const input = screen.getByLabelText("ยิง QR ด้วยเครื่อง scanner");
+    fireEvent.change(input, { target: { value: "https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_scan" } });
+    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+
+    expect(await screen.findByText("ค่าที่ scanner อ่านได้ล่าสุด")).toBeInTheDocument();
+    expect(screen.getByText("raw: https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_scan")).toBeInTheDocument();
+    expect(screen.getByText("qrId: u_scan")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
   });
 });

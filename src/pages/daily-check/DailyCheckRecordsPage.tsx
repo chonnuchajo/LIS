@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { List, Filter, Sparkles, Loader2, FileDown } from "lucide-react";
 import { getAiStatus, streamWeeklySummary } from '@/lib/aiApi';
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { api, type EquipmentCheckRecord } from "@/lib/api";
-import { EQUIPMENT_ROOM_SLUGS, getRoomCatalog } from "@/lib/roomEquipment";
-import { filterEquipmentRecords } from "@/lib/equipmentRecords";
+import { api } from "@/lib/api";
+import { EQUIPMENT_ROOM_SLUGS } from "@/lib/roomEquipment";
+import {
+  DAILY_CHECK_RECORD_ROOM_OPTIONS,
+  dailyCheckRecordInstrumentLabel,
+  filterDailyCheckRecordRows,
+  getDailyCheckRecordInstrumentOptions,
+  normalizeDailyCheckRecordRows,
+  type DailyCheckRecordStatus,
+} from "@/lib/dailyCheckRecords";
 import { getDailyCheckPeriod, getDailyCheckPeriodLabel, type DailyCheckPeriod } from "@/lib/dailyCheckPeriod";
 import { fmtDate, fmtTime, roomLabel, formatReadings } from "@/lib/dailyCheckFormat";
 import { useAuth } from "@/context/AuthContext";
@@ -26,7 +33,7 @@ const DailyCheckRecordsPage = () => {
   const [filterRoom, setFilterRoom] = useState<string>("all");
   const [filterInstrument, setFilterInstrument] = useState<string>("all");
   const [filterDate, setFilterDate] = useState<string>(todayStr());
-  const [filterStatus, setFilterStatus] = useState<"all" | "normal" | "abnormal">("all");
+  const [filterStatus, setFilterStatus] = useState<"all" | DailyCheckRecordStatus>("all");
   const [filterPeriod, setFilterPeriod] = useState<"all" | DailyCheckPeriod>("all");
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -39,31 +46,37 @@ const DailyCheckRecordsPage = () => {
     getAiStatus().then((s) => setOllamaAvailable(s.available));
   }, []);
 
-  // ยิง 1 query ต่อห้อง (ทั้ง 3 ห้องเสมอ) ตามวันที่ที่เลือก — รวม client-side
-  const results = useQueries({
+  const equipmentResults = useQueries({
     queries: EQUIPMENT_ROOM_SLUGS.map((slug) => ({
       queryKey: ["equipment-checks", "records", slug, filterDate],
       queryFn: () => api.getEquipmentChecks({ room: slug, date: filterDate || todayStr() }),
     })),
   });
 
-  const isLoading = results.some((r) => r.isLoading);
-  const isError = results.some((r) => r.isError);
+  const { data: balanceRecords = [], isLoading: balanceLoading, isError: balanceError } = useQuery({
+    queryKey: ["daily-checks", "records", filterDate],
+    queryFn: () => api.getDailyChecks({ date: filterDate || todayStr() }),
+  });
 
-  // merge ทุกห้อง → sort ใหม่สุดก่อน
-  const merged: EquipmentCheckRecord[] = [];
-  for (const r of results) if (r.data) merged.push(...r.data);
-  merged.sort((a, b) => (a.checkedAt < b.checkedAt ? 1 : a.checkedAt > b.checkedAt ? -1 : 0));
+  const { data: envRecords = [], isLoading: envLoading, isError: envError } = useQuery({
+    queryKey: ["env-checks", "records", filterDate],
+    queryFn: () => api.getEnvChecks({ date: filterDate || todayStr() }),
+  });
 
-  const rows = filterEquipmentRecords(merged, {
+  const isLoading = equipmentResults.some((r) => r.isLoading) || balanceLoading || envLoading;
+  const isError = equipmentResults.some((r) => r.isError) || balanceError || envError;
+
+  const equipmentRecords = equipmentResults.flatMap((result) => result.data ?? []);
+  const merged = normalizeDailyCheckRecordRows({ equipmentRecords, balanceRecords, envRecords });
+
+  const rows = filterDailyCheckRecordRows(merged, {
     room: filterRoom,
     instrumentId: filterInstrument,
     status: filterStatus,
     period: filterPeriod,
   });
 
-  const roomInstruments =
-    filterRoom === "all" ? [] : getRoomCatalog(filterRoom)?.instruments ?? [];
+  const roomInstruments = getDailyCheckRecordInstrumentOptions(merged, filterRoom);
 
   const handleRoomChange = (v: string) => {
     setFilterRoom(v);
@@ -141,8 +154,8 @@ const DailyCheckRecordsPage = () => {
                 <SelectTrigger className="h-8 text-xs w-[180px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">ทุกห้อง</SelectItem>
-                  {EQUIPMENT_ROOM_SLUGS.map((slug) => (
-                    <SelectItem key={slug} value={slug}>{roomLabel(slug)}</SelectItem>
+                  {DAILY_CHECK_RECORD_ROOM_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -152,13 +165,13 @@ const DailyCheckRecordsPage = () => {
               <Select
                 value={filterInstrument}
                 onValueChange={setFilterInstrument}
-                disabled={filterRoom === "all"}
+                disabled={filterRoom === "all" || roomInstruments.length === 0}
               >
                 <SelectTrigger className="h-8 text-xs w-[200px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">ทั้งหมด</SelectItem>
-                  {roomInstruments.map((i) => (
-                    <SelectItem key={i.id} value={i.id}>{i.name} ({i.id})</SelectItem>
+                  {roomInstruments.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -174,7 +187,7 @@ const DailyCheckRecordsPage = () => {
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-[11px] text-muted-foreground">สถานะ</label>
-              <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as "all" | "normal" | "abnormal")}>
+              <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as "all" | DailyCheckRecordStatus)}>
                 <SelectTrigger className="h-8 text-xs w-[120px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">ทั้งหมด</SelectItem>
@@ -242,8 +255,8 @@ const DailyCheckRecordsPage = () => {
                         <TableCell className="text-xs whitespace-nowrap">{fmtDate(h.date)}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{fmtTime(h.checkedAt)}</TableCell>
                         <TableCell className="text-xs whitespace-nowrap">{getDailyCheckPeriodLabel(h.period ?? getDailyCheckPeriod(h.checkedAt))}</TableCell>
-                        <TableCell className="text-xs whitespace-nowrap">{roomLabel(h.roomSlug)}</TableCell>
-                        <TableCell className="font-medium whitespace-nowrap">{h.instrumentName} <span className="text-muted-foreground">({h.instrumentId})</span></TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{h.roomName ?? roomLabel(h.roomSlug)}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">{dailyCheckRecordInstrumentLabel(h)}</TableCell>
                         <TableCell className="text-center">
                           <Badge className={`text-xs ${normal ? "bg-green-100 text-green-700 border-green-300" : "bg-red-100 text-red-700 border-red-300"}`}>
                             {normal ? "ปกติ" : "ผิดปกติ"}

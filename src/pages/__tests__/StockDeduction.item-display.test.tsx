@@ -83,6 +83,11 @@ function renderPage(initialEntries = ["/stock-deduction"]) {
   );
 }
 
+function openCameraScanner() {
+  fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+  fireEvent.click(screen.getByRole("button", { name: "เปิดกล้อง" }));
+}
+
 function currentMonthParts() {
   const now = new Date();
   return { year: now.getFullYear(), month: now.getMonth() + 1 };
@@ -130,7 +135,7 @@ describe("StockDeduction item display", () => {
   it("puts scanned bottle QR into the deduction flow", async () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+    openCameraScanner();
     fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
 
     await waitFor(() => expect(screen.getByTestId("stock-requisition")).toHaveTextContent("u_scan"));
@@ -139,7 +144,7 @@ describe("StockDeduction item display", () => {
   it("hides manual stock link fallback in the stock deduction scanner", () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
+    openCameraScanner();
 
     expect(screen.queryByText("หรือวางลิงก์/qrId เอง")).not.toBeInTheDocument();
   });

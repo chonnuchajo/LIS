@@ -29,6 +29,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { releaseBodyPointerLock, useConfirm } from "@/context/ConfirmDialog";
 import { RevisionRequestDialog } from "@/components/petition/RevisionRequestDialog";
 import { normalizeRoles } from "@/lib/roles";
+import { dispatchApprovalQrAlert } from "@/lib/approvalQrAlert";
 
 type RejectTarget = "requester" | "qc" | "lab";
 
@@ -249,7 +250,13 @@ export default function QCApprovalReviewPage() {
     if (!petition) return;
     setSubmitting(true);
     try {
-      await api.approvePetition(petition._id, user?.name ?? "system", conclusion, note);
+      const approved = await api.approvePetition(petition._id, user?.name ?? "system", conclusion, note);
+      dispatchApprovalQrAlert({
+        petitionId: approved._id,
+        petitionNo: approved.petitionNo,
+        createdAt: approved.approvedAt ?? new Date().toISOString(),
+        petition: approved,
+      });
       toast.success(conclusion === "accepted-oos" ? "ยอมรับผลเรียบร้อย" : "ออก Final Result เรียบร้อย");
       navigate("/qc-approval");
     } catch {

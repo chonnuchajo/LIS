@@ -64,10 +64,9 @@ describe("EnvironmentCheckPage", () => {
     expect(screen.getByText("ห้องวิเคราะห์")).toBeInTheDocument();
   });
 
-  it("shows the record/history tabs", () => {
+  it("does not show an inline records tab", () => {
     renderPage();
-    expect(screen.getByRole("tab", { name: /บันทึกผล/ })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /รายการบันทึก/ })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /รายการบันทึก/ })).not.toBeInTheDocument();
   });
 
   it("shows the saved recorder when a room already has a record", async () => {
