@@ -70,6 +70,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api, type MachineItem, type ParameterItem, type ItemGroupItem } from "@/lib/api";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
@@ -140,6 +141,14 @@ type SimpleMethodRow = {
   itemNos: string[];
   rawCommonNames: string[];
   items: MasterItem[];
+};
+
+type MasterCommonNameRow = {
+  key: string;
+  commonName: string;
+  rawCommonNames: string[];
+  itemNos: string[];
+  itemCount: number;
 };
 
 type MasterItemForm = {
@@ -647,6 +656,44 @@ export function buildSimpleMethodRows(
   );
 }
 
+function buildMasterCommonNameRows(
+  entries: Array<{
+    originalItemNo: string;
+    rawCommonName: string;
+    displayCommonName: string;
+  }>,
+): MasterCommonNameRow[] {
+  const groups = new Map<string, MasterCommonNameRow>();
+
+  entries.forEach((entry) => {
+    const commonName = String(entry.displayCommonName || entry.rawCommonName || "").trim();
+    if (!commonName) return;
+    const key = normalizeKey(commonName);
+    const rawCommonName = String(entry.rawCommonName || "").trim();
+    const itemNo = String(entry.originalItemNo || "").trim();
+    const existing = groups.get(key);
+
+    if (existing) {
+      existing.itemCount += 1;
+      if (rawCommonName && !existing.rawCommonNames.includes(rawCommonName)) existing.rawCommonNames.push(rawCommonName);
+      if (itemNo && !existing.itemNos.includes(itemNo)) existing.itemNos.push(itemNo);
+      return;
+    }
+
+    groups.set(key, {
+      key,
+      commonName,
+      rawCommonNames: rawCommonName ? [rawCommonName] : [],
+      itemNos: itemNo ? [itemNo] : [],
+      itemCount: 1,
+    });
+  });
+
+  return Array.from(groups.values()).sort((a, b) =>
+    a.commonName.localeCompare(b.commonName, ["th", "en"]),
+  );
+}
+
 function itemToForm(item: MasterItem, metaQty = 0): MasterItemForm {
   const statusValue = firstValue(item, statusKeys);
   const classification = getClassification([
@@ -812,6 +859,7 @@ export default function MasterItems() {
   const [exporting, setExporting] = useState<null | "xlsx" | "pdf">(null);
   const [syncingWeights, setSyncingWeights] = useState(false);
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [editingCommonName, setEditingCommonName] = useState<MasterCommonNameRow | null>(null);
 
   const clearItemDetailClickTimer = () => {
     if (itemDetailClickTimerRef.current) {
@@ -920,6 +968,11 @@ export default function MasterItems() {
       };
     }),
     [items, overrideMap, cnMap],
+  );
+
+  const commonNameRows = useMemo(
+    () => buildMasterCommonNameRows(enrichedItems),
+    [enrichedItems],
   );
 
   const filteredItems = useMemo(() => {
@@ -1085,7 +1138,16 @@ export default function MasterItems() {
           }
         />
 
-        <Card className="overflow-hidden">
+        <Tabs defaultValue="items" className="space-y-4">
+          <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+            <TabsList className="w-max">
+              <TabsTrigger value="items">Master Item</TabsTrigger>
+              <TabsTrigger value="common-names">Master Common Name Item</TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="items" className="mt-0">
+            <Card className="overflow-hidden">
           <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center">
             <div className="relative flex-1 lg:max-w-md">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1300,7 +1362,19 @@ export default function MasterItems() {
               </div>
             </>
           )}
-        </Card>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="common-names" className="mt-0">
+            <MasterCommonNameItemsTab
+              rows={commonNameRows}
+              isLoading={isLoading}
+              isError={isError}
+              error={error}
+              onEdit={setEditingCommonName}
+            />
+          </TabsContent>
+        </Tabs>
 
         {(editing || creating) && (
           <MasterItemDialog
@@ -1334,8 +1408,132 @@ export default function MasterItems() {
           />
         )}
 
+        {editingCommonName && (
+          <CommonNameOverrideDialog
+            rawCommonNames={editingCommonName.rawCommonNames}
+            initialCanonical={editingCommonName.commonName}
+            onClose={() => setEditingCommonName(null)}
+            onSaved={() => queryClient.invalidateQueries({ queryKey: ["common-name-overrides"] })}
+          />
+        )}
+
         <ItemGroupManagerDialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen} items={items} />
     </AppLayout>
+  );
+}
+
+function MasterCommonNameItemsTab({
+  rows,
+  isLoading,
+  isError,
+  error,
+  onEdit,
+}: {
+  rows: MasterCommonNameRow[];
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+  onEdit: (row: MasterCommonNameRow) => void;
+}) {
+  const [searchText, setSearchText] = useState("");
+  const visibleRows = useMemo(() => {
+    const needle = searchText.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((row) => {
+      const haystack = [
+        row.commonName,
+        row.itemNos.join(" "),
+        row.rawCommonNames.join(" "),
+      ].join(" ").toLowerCase();
+      return haystack.includes(needle);
+    });
+  }, [rows, searchText]);
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="flex flex-col gap-3 space-y-0 lg:flex-row lg:items-center lg:justify-between">
+        <CardTitle className="flex items-center gap-2 text-base">
+          Master Common Name Item
+          <Badge variant="outline">{visibleRows.length}/{rows.length}</Badge>
+        </CardTitle>
+        <div className="relative w-full lg:max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+            placeholder="ค้นหา common name หรือ item no"
+            className="h-10 pl-9"
+          />
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        {isError ? (
+          <div className="m-4 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4" />
+            {(error as Error).message}
+          </div>
+        ) : (
+          <Table className="min-w-[820px]" containerClassName="max-h-[calc(100vh-340px)]">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="sticky top-0 z-10 bg-muted">Common Name</TableHead>
+                <TableHead className="sticky top-0 z-10 w-28 bg-muted">จำนวน Item</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-muted">Item No</TableHead>
+                <TableHead className="sticky top-0 z-10 bg-muted">Raw Common Name</TableHead>
+                <TableHead className="sticky top-0 z-10 w-16 bg-muted text-right">จัดการ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                    กำลังโหลด...
+                  </TableCell>
+                </TableRow>
+              ) : visibleRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                    ไม่พบ common name ที่ตรงกับเงื่อนไข
+                  </TableCell>
+                </TableRow>
+              ) : (
+                visibleRows.map((row) => (
+                  <TableRow key={row.key}>
+                    <TableCell className="max-w-[340px] font-semibold text-foreground">
+                      <span className="block truncate" title={row.commonName}>{row.commonName}</span>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                      {row.itemCount} {row.itemCount === 1 ? "item" : "items"}
+                    </TableCell>
+                    <TableCell className="max-w-[260px] text-sm">
+                      <span className="block truncate" title={row.itemNos.join(", ")}>{row.itemNos.join(", ") || "-"}</span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex max-w-[420px] flex-col gap-1 text-sm text-muted-foreground">
+                        {row.rawCommonNames.map((raw) => (
+                          <span key={raw} className="truncate" title={raw}>{raw}</span>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={() => onEdit(row)}
+                        aria-label={`ตั้งชื่อมาตรฐาน ${row.commonName}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

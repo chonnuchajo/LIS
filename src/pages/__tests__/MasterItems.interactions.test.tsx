@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import MasterItems from "../MasterItems";
 import { api, uploadQcPhoto } from "@/lib/api";
@@ -123,6 +123,46 @@ describe("MasterItems interactions", () => {
 
     expect(await screen.findByDisplayValue("FG-001")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Cypermethrin")).toBeDisabled();
+  });
+
+  it("shows grouped common names in a dedicated master common name item tab", async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === "/master-items") {
+        return {
+          data: {
+            data: [
+              { ...masterItem, item_no: "FG-001", common_name: "DIURON + HEXAZINONE 46.8% + 13.2% WG" },
+              { ...masterItem, item_no: "FG-002", common_name: "DIURON 46.8%+HEXAZINONE 13.2% WG" },
+            ],
+          },
+        };
+      }
+      if (path === "/common-name-overrides") {
+        return {
+          data: {
+            data: [
+              { raw: "DIURON + HEXAZINONE 46.8% + 13.2% WG", canonical: "DIURON 13.2% + HEXAZINONE 46.8% WG" },
+              { raw: "DIURON 46.8%+HEXAZINONE 13.2% WG", canonical: "DIURON 13.2% + HEXAZINONE 46.8% WG" },
+            ],
+          },
+        };
+      }
+      if (path === "/master-item-meta") return { data: { data: [] } };
+      if (path === "/item-groups") return { data: { data: [] } };
+      return { data: { data: [] } };
+    });
+
+    renderMasterItems();
+
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Master Common Name Item" }), { button: 0, ctrlKey: false });
+    const commonNameTable = screen.getByRole("columnheader", { name: "Raw Common Name" }).closest("table");
+    expect(commonNameTable).not.toBeNull();
+
+    expect(within(commonNameTable!).getByText("DIURON 13.2% + HEXAZINONE 46.8% WG")).toBeInTheDocument();
+    expect(within(commonNameTable!).getByText("2 items")).toBeInTheDocument();
+    expect(within(commonNameTable!).getByText("FG-001, FG-002")).toBeInTheDocument();
+    expect(within(commonNameTable!).getByText("DIURON + HEXAZINONE 46.8% + 13.2% WG")).toBeInTheDocument();
+    expect(within(commonNameTable!).getByText("DIURON 46.8%+HEXAZINONE 13.2% WG")).toBeInTheDocument();
   });
 
   it("calculates gross kg per unit from kg and units per carton", async () => {
