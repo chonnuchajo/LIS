@@ -453,11 +453,9 @@ export default function PetitionListPage({
     ref?: React.Ref<HTMLDivElement>,
   ) => {
     const statusBadge = petitionStatusBadge(petition);
-    const sampleNames = petition.items
-      .map((item) => item.sampleName)
-      .filter((item): item is string => Boolean(item));
+    const sampleNames = petition.items.map((item) => item.commonName?.trim() || '-');
     const primarySample = sampleNames[0] ?? '-';
-    const extraSamples = Math.max(0, sampleNames.length - 1);
+    const extraSamples = Math.max(0, petition.items.length - 1);
     const testItems = canSeeTestItems
       ? parameterNamesForPetition(petition, displayParameters)
       : [];

@@ -192,6 +192,34 @@ describe('PetitionListPage action cues', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/petition/P-2607-0001');
   });
 
+  it('shows common names instead of product names on petition cards', async () => {
+    const originalPetitions = mocks.petitions;
+    mocks.petitions = [
+      {
+        ...mocks.petitions[0],
+        _id: 'P-COMMON-NAME',
+        petitionNo: 'P-COMMON-NAME',
+        items: [
+          {
+            seq: 1,
+            sampleName: 'พินิก้า',
+            commonName: 'อะบาเมกติน 1.8% W/V EC',
+            batchNo: 'BATCH-002',
+          },
+        ],
+      },
+    ];
+
+    try {
+      renderPage();
+
+      expect(await screen.findByText('อะบาเมกติน 1.8% W/V EC')).toBeInTheDocument();
+      expect(screen.queryByText('พินิก้า')).not.toBeInTheDocument();
+    } finally {
+      mocks.petitions = originalPetitions;
+    }
+  });
+
   it('shows the new petition button for viewer users who can open the canonical form', async () => {
     mocks.user = {
       employeeId: 'E777',
