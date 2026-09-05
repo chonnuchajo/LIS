@@ -1,11 +1,33 @@
 const stockRouter = require('../stock');
 const User = require('../../models/User');
 
+function routeHandler(path, method = 'get') {
+  const layer = stockRouter.stack.find((entry) => entry.route?.path === path && entry.route.methods[method]);
+  if (!layer) throw new Error(`route not found: ${method.toUpperCase()} ${path}`);
+  return layer.route.stack[0].handle;
+}
+
+function mockResponse() {
+  return {
+    statusCode: 200,
+    status: jest.fn(function status(code) {
+      this.statusCode = code;
+      return this;
+    }),
+    json: jest.fn(function json(body) {
+      this.body = body;
+      return this;
+    }),
+  };
+}
+
 describe('stock user metadata', () => {
   const originalFindOne = User.findOne;
+  const originalFetch = global.fetch;
 
   afterEach(() => {
     User.findOne = originalFindOne;
+    global.fetch = originalFetch;
   });
 
   test('resolves logged-in user from X-LIS-User header', async () => {
@@ -68,5 +90,20 @@ describe('stock user metadata', () => {
       userEmail: 'other@icpladda.com',
       createdAt: '2026-08-20T02:00:00.000Z',
     }, { email: 'admin@icpladda.com', roles: ['admin'] }, now)).toBe(false);
+  });
+
+  test('allows synthetic dev QC Head to load six-month medicine stock', async () => {
+    const handler = routeHandler('/medicine-six-months');
+    User.findOne = jest.fn(() => ({ lean: jest.fn().mockResolvedValue(null) }));
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue([]),
+    });
+
+    const res = mockResponse();
+    await handler({ body: {}, headers: { 'x-lis-user': 'qc-head.dev@icpladda.com' }, ip: '127.0.0.1' }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ items: [] });
   });
 });

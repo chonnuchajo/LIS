@@ -8,6 +8,7 @@ const StockUnit = require('../models/StockUnit');
 const User = require('../models/User');
 const crypto = require('crypto');
 const { normalizeRoles } = require('../lib/roles');
+const { mergeBaseRolesForFamilies } = require('../lib/roleFamilies');
 const { isValidReceiveType, isValidUnitType } = require('../lib/stockSource');
 const { sumWeights } = require('../lib/requisitionWeights');
 const { normalizeActorFields } = require('../lib/stockActor');
@@ -222,6 +223,23 @@ function normalizedEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+const SYNTHETIC_DEV_EMAIL_SUFFIX = '.dev@icpladda.com';
+const SYNTHETIC_DEV_ROLE_ID_RX = /^[a-z0-9][a-z0-9_-]*$/;
+
+function isLoopbackIp(value) {
+  const ip = String(value || '').trim().toLowerCase().replace(/^::ffff:/, '');
+  return ip === '127.0.0.1' || ip === '::1';
+}
+
+function syntheticDevRolesFromEmail(email, req) {
+  if (process.env.ALLOW_DEV_STATUS !== 'true' && !isLoopbackIp(req?.ip)) return [];
+  const normalized = normalizedEmail(email);
+  if (!normalized.endsWith(SYNTHETIC_DEV_EMAIL_SUFFIX)) return [];
+  const roleId = normalized.slice(0, -SYNTHETIC_DEV_EMAIL_SUFFIX.length);
+  if (!SYNTHETIC_DEV_ROLE_ID_RX.test(roleId)) return [];
+  return mergeBaseRolesForFamilies([roleId]);
+}
+
 function calendarDayKey(value, timeZone = STOCK_DEDUCTION_ACTION_TIME_ZONE) {
   if (!value) return '';
   const date = value instanceof Date ? value : new Date(value);
@@ -260,11 +278,12 @@ async function stockManagementActor(req) {
   const meta = await userMeta(req);
   const email = normalizedEmail(meta.userEmail);
   const stored = email ? await User.findOne({ email }).lean() : null;
+  const storedRoles = normalizeRoles(stored);
   return {
     email: meta.userEmail,
     userEmail: meta.userEmail,
     name: meta.userName,
-    roles: normalizeRoles(stored),
+    roles: storedRoles.length > 0 ? storedRoles : syntheticDevRolesFromEmail(meta.userEmail, req),
   };
 }
 
