@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { selectDensitySyncRow } from '@/lib/densitySync';
@@ -24,7 +23,7 @@ export default function DensitySyncButton({
 }: DensitySyncButtonProps) {
   const appliedKeyRef = useRef('');
 
-  const { data, isError, error, isFetching } = useQuery({
+  const { data, isError, error } = useQuery({
     queryKey: ['density-by-batch', batchNo],
     queryFn: () => api.getResultDensitiesByBatch(batchNo),
     enabled: !disabled && !!batchNo,
@@ -57,12 +56,5 @@ export default function DensitySyncButton({
     }
   }, [isError, error]);
 
-  if (disabled || !batchNo || selectDensitySyncRow(docs)) return null;
-
-  return (
-    <div className="flex items-center gap-2 text-xs text-amber-600">
-      {isFetching && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-      รอค่า ถพ. valid จาก Batch นี้ (ถ้ามีหลายค่า ต้องซ้ำ 3 ตำแหน่งต่อเนื่องอย่างน้อย 2 ครั้ง)
-    </div>
-  );
+  return null;
 }

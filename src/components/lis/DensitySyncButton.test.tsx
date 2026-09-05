@@ -27,9 +27,10 @@ describe('DensitySyncButton', () => {
     vi.mocked(api.getResultDensitiesByBatch).mockResolvedValue({ batch: '009', docs: [] });
   });
 
-  it('does not render a manual sync button', () => {
+  it('does not render a manual sync button or wait status', () => {
     renderWith();
-    expect(screen.queryByRole('button', { name: /ดึงค่า ถพ\\./ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /ดึงค่า ถพ\./ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/รอค่า ถพ/)).not.toBeInTheDocument();
   });
 
   it('does not query when batchNo is empty', async () => {
@@ -87,7 +88,7 @@ describe('DensitySyncButton', () => {
     await waitFor(() => expect(onRows).toHaveBeenCalledWith([docs[1]]));
   });
 
-  it('does not apply when repeated rows are not valid', async () => {
+  it('does not apply or show wait status when repeated rows are not valid', async () => {
     const docs = [
       { _id: 'a', 'Sample name': 'Batch 009 A', 'Measurement status': 'invalid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.00' },
       { _id: 'b', 'Sample name': 'Batch 009 B', 'Measurement status': 'invalid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.00' },
@@ -97,7 +98,8 @@ describe('DensitySyncButton', () => {
 
     renderWith({ onRows });
 
-    expect(await screen.findByText(/รอค่า ถพ/)).toBeInTheDocument();
+    await waitFor(() => expect(api.getResultDensitiesByBatch).toHaveBeenCalledWith('009'));
+    expect(screen.queryByText(/รอค่า ถพ/)).not.toBeInTheDocument();
     expect(onRows).not.toHaveBeenCalled();
   });
 });
