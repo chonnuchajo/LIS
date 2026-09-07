@@ -167,6 +167,55 @@ describe("MasterItems interactions", () => {
     expect(screen.queryByText("รวบรวมจาก common_name ของ Master Item และแยกชื่อที่คั่นด้วย +")).not.toBeInTheDocument();
   });
 
+  it("opens common name details and saves uploaded photos for an item", async () => {
+    vi.mocked(uploadQcPhoto).mockResolvedValueOnce({ url: "/LIS/uploads/qc-photos/common-name-item.webp" });
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === "/master-items") {
+        return {
+          data: {
+            data: [
+              { ...masterItem, item_no: "FG-001", common_name: "DIURON 80% WP", item_name1: "Diuron 1L" },
+              { ...masterItem, item_no: "FG-002", common_name: "DIURON 80% WP", item_name1: "Diuron 5L" },
+            ],
+          },
+        };
+      }
+      if (path === "/master-item-meta") return { data: { data: [] } };
+      if (path === "/common-name-overrides") return { data: { data: [] } };
+      if (path === "/item-groups") return { data: { data: [] } };
+      return { data: { data: [] } };
+    });
+
+    renderMasterItems();
+
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Master Common Name Item" }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole("button", { name: "ดูรายละเอียด DIURON 80% WP" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("รายละเอียด Common Name")).toBeInTheDocument();
+    expect(within(dialog).getByText("FG-001")).toBeInTheDocument();
+    expect(within(dialog).getByText("FG-002")).toBeInTheDocument();
+
+    const photoInputs = dialog.querySelectorAll('input[type="file"]');
+    expect(photoInputs).toHaveLength(2);
+    fireEvent.change(photoInputs[0], {
+      target: {
+        files: [new File(["photo"], "common-name-item.webp", { type: "image/webp" })],
+      },
+    });
+
+    await waitFor(() => expect(uploadQcPhoto).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith(
+        "/master-item-meta/FG-001",
+        {
+          imageUrl: "/LIS/uploads/qc-photos/common-name-item.webp",
+          imageUrls: ["/LIS/uploads/qc-photos/common-name-item.webp"],
+        },
+      );
+    });
+  });
+
   it("calculates gross kg per unit from kg and units per carton", async () => {
     renderMasterItems();
 

@@ -147,6 +147,18 @@ type MasterCommonNameRow = {
   key: string;
   commonName: string;
   itemCount: number;
+  itemNos: string[];
+  items: MasterCommonNameItem[];
+};
+
+type MasterCommonNameItem = {
+  itemNo: string;
+  itemName: string;
+  rawCommonName: string;
+  category: string;
+  unit: string;
+  packSize: string;
+  imageUrls: string[];
 };
 
 type MasterItemForm = {
@@ -367,6 +379,18 @@ function normalizeImageUrls(value: unknown): string[] {
   }
   const text = String(value ?? "").trim();
   return text ? [text] : [];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  values.forEach((value) => {
+    const text = String(value ?? "").trim();
+    if (!text || seen.has(text)) return;
+    seen.add(text);
+    out.push(text);
+  });
+  return out;
 }
 
 function getImageUrls(item: MasterItem): string[] {
@@ -685,16 +709,29 @@ function splitMasterCommonName(value: string): string[] {
     .filter((part) => part && !/^\d+(?:[.,]\d+)?\s*%/.test(part));
 }
 
-function buildMasterCommonNameRows(entries: Array<{ rawCommonName: string }>): MasterCommonNameRow[] {
+function buildMasterCommonNameRows(entries: Array<{ item: MasterItem; originalItemNo: string; rawCommonName: string }>): MasterCommonNameRow[] {
   const groups = new Map<string, MasterCommonNameRow>();
 
   entries.forEach((entry) => {
+    const itemNo = entry.originalItemNo || String(firstValue(entry.item, codeKeys)).trim();
+    const detail: MasterCommonNameItem = {
+      itemNo,
+      itemName: String(firstValue(entry.item, nameKeys)).trim(),
+      rawCommonName: entry.rawCommonName,
+      category: String(firstValue(entry.item, categoryKeys)).trim(),
+      unit: String(firstValue(entry.item, unitKeys)).trim(),
+      packSize: String(firstValue(entry.item, packSizeKeys)).trim(),
+      imageUrls: getImageUrls(entry.item),
+    };
+
     splitMasterCommonName(entry.rawCommonName).forEach((commonName) => {
       const key = normalizeKey(commonName);
       const existing = groups.get(key);
 
       if (existing) {
         existing.itemCount += 1;
+        if (itemNo && !existing.itemNos.includes(itemNo)) existing.itemNos.push(itemNo);
+        if (!itemNo || !existing.items.some((item) => item.itemNo === itemNo)) existing.items.push(detail);
         return;
       }
 
@@ -702,6 +739,8 @@ function buildMasterCommonNameRows(entries: Array<{ rawCommonName: string }>): M
         key,
         commonName,
         itemCount: 1,
+        itemNos: itemNo ? [itemNo] : [],
+        items: [detail],
       });
     });
   });
@@ -1387,6 +1426,14 @@ export default function MasterItems() {
               isLoading={isLoading}
               isError={isError}
               error={error}
+              onItemImagesSaved={async (itemNo, imageUrls) => {
+                await api.put(`/master-item-meta/${encodeURIComponent(itemNo)}`, {
+                  imageUrl: imageUrls[0] ?? "",
+                  imageUrls,
+                });
+                queryClient.invalidateQueries({ queryKey: ["master-items"] });
+                queryClient.invalidateQueries({ queryKey: ["master-item-meta"] });
+              }}
             />
           </TabsContent>
         </Tabs>
@@ -1433,13 +1480,17 @@ function MasterCommonNameItemsTab({
   isLoading,
   isError,
   error,
+  onItemImagesSaved,
 }: {
   rows: MasterCommonNameRow[];
   isLoading: boolean;
   isError: boolean;
   error: unknown;
+  onItemImagesSaved: (itemNo: string, imageUrls: string[]) => Promise<void>;
 }) {
   const [searchText, setSearchText] = useState("");
+  const [selectedRow, setSelectedRow] = useState<MasterCommonNameRow | null>(null);
+  const dialogRow = selectedRow ? rows.find((row) => row.key === selectedRow.key) ?? selectedRow : null;
   const visibleRows = useMemo(() => {
     const needle = searchText.trim().toLowerCase();
     if (!needle) return rows;
@@ -1477,29 +1528,42 @@ function MasterCommonNameItemsTab({
               <TableRow className="hover:bg-transparent">
                 <TableHead className="sticky top-0 z-10 bg-muted">Common Name</TableHead>
                 <TableHead className="sticky top-0 z-10 w-36 bg-muted">จำนวนที่พบ</TableHead>
+                <TableHead className="sticky top-0 z-10 w-28 bg-muted text-right">รายละเอียด</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={2} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={3} className="h-32 text-center text-muted-foreground">
                     กำลังโหลด...
                   </TableCell>
                 </TableRow>
               ) : visibleRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={2} className="h-32 text-center text-muted-foreground">
+                  <TableCell colSpan={3} className="h-32 text-center text-muted-foreground">
                     ไม่พบ common name ที่ตรงกับเงื่อนไข
                   </TableCell>
                 </TableRow>
               ) : (
                 visibleRows.map((row) => (
-                  <TableRow key={row.key}>
+                  <TableRow key={row.key} className="cursor-pointer" onDoubleClick={() => setSelectedRow(row)}>
                     <TableCell className="max-w-[340px] font-semibold text-foreground">
                       <span className="block truncate" title={row.commonName}>{row.commonName}</span>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                       พบ {row.itemCount} ครั้ง
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 gap-1 px-2 text-xs"
+                        aria-label={`ดูรายละเอียด ${row.commonName}`}
+                        onClick={() => setSelectedRow(row)}
+                      >
+                        <Eye className="h-3.5 w-3.5" /> ดู
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))
@@ -1508,7 +1572,87 @@ function MasterCommonNameItemsTab({
           </Table>
         )}
       </CardContent>
+      <MasterCommonNameDetailDialog
+        row={dialogRow}
+        onClose={() => setSelectedRow(null)}
+        onItemImagesSaved={onItemImagesSaved}
+      />
     </Card>
+  );
+}
+
+function MasterCommonNameDetailDialog({
+  row,
+  onClose,
+  onItemImagesSaved,
+}: {
+  row: MasterCommonNameRow | null;
+  onClose: () => void;
+  onItemImagesSaved: (itemNo: string, imageUrls: string[]) => Promise<void>;
+}) {
+  const [items, setItems] = useState<MasterCommonNameItem[]>([]);
+  const [savingItemNo, setSavingItemNo] = useState<string | null>(null);
+
+  useEffect(() => {
+    setItems(row?.items ?? []);
+  }, [row]);
+
+  const saveImages = (itemNo: string, imageUrls: string[]) => {
+    if (!itemNo) {
+      toast.error("ไม่พบ item no สำหรับบันทึกรูป");
+      return;
+    }
+
+    setItems((current) => current.map((item) => (
+      item.itemNo === itemNo ? { ...item, imageUrls } : item
+    )));
+    setSavingItemNo(itemNo);
+    onItemImagesSaved(itemNo, imageUrls)
+      .then(() => toast.success("บันทึกรูปสินค้าแล้ว"))
+      .catch((err) => toast.error((err as Error).message || "บันทึกรูปไม่สำเร็จ"))
+      .finally(() => {
+        setSavingItemNo((current) => (current === itemNo ? null : current));
+      });
+  };
+
+  return (
+    <Dialog open={!!row} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>รายละเอียด Common Name</DialogTitle>
+          <DialogDescription>
+            {row?.commonName ?? ""} · พบ {row?.itemCount ?? 0} ครั้ง · {row?.itemNos.length ?? 0} item
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {items.map((item) => (
+            <div key={item.itemNo || item.rawCommonName} className="rounded-lg border p-3">
+              <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="font-semibold text-foreground">{item.itemNo || "-"}</div>
+                  <div className="text-sm text-muted-foreground">{item.itemName || "ไม่พบชื่อสินค้า"}</div>
+                </div>
+                <div className="flex flex-wrap gap-1 text-xs text-muted-foreground sm:justify-end">
+                  {item.packSize && <Badge variant="outline">{item.packSize}</Badge>}
+                  {item.category && <Badge variant="outline">{item.category}</Badge>}
+                  {item.unit && <Badge variant="outline">{item.unit}</Badge>}
+                </div>
+              </div>
+              <StockPhotoUploader
+                label={`รูปสินค้า ${item.itemNo || "-"}`}
+                value={item.imageUrls}
+                onChange={(imageUrls) => saveImages(item.itemNo, imageUrls)}
+                disabled={!item.itemNo || savingItemNo === item.itemNo}
+              />
+              {savingItemNo === item.itemNo && (
+                <p className="mt-2 text-xs text-muted-foreground">กำลังบันทึกรูป...</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
