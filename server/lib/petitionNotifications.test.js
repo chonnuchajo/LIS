@@ -156,7 +156,7 @@ test('toNotification: id = audit log id, link ชี้หน้า timeline ข
   });
 });
 
-test('toNotification: statusChanged approved carries final approval metadata for QR popup', () => {
+test('toNotification: statusChanged approved stays a normal bell notification', () => {
   const log = {
     _id: 'log-approved',
     petitionId: 'p1',
