@@ -157,20 +157,20 @@ describe("StockDeduction item display", () => {
     expect(await screen.findByText("ABAMECTIN")).toBeInTheDocument();
   });
 
-  it("hides notification column and sends substance and requester filters", async () => {
+  it("hides notification column and sends a unified search filter", async () => {
     renderPage();
 
     await screen.findByText("ABAMECTIN");
     expect(screen.queryByRole("columnheader", { name: "การแจ้ง" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("กรองคนเบิก")).not.toBeInTheDocument();
 
     apiMock.getStockTransactions.mockClear();
-    fireEvent.change(screen.getByLabelText("ค้นหาชื่อสาร"), { target: { value: "methanol" } });
-    fireEvent.change(screen.getByLabelText("กรองคนเบิก"), { target: { value: "somchai" } });
+    fireEvent.change(screen.getByLabelText("ค้นหาชื่อสารหรือคนเบิก"), { target: { value: "somchai" } });
 
     await waitFor(() => expect(apiMock.getStockTransactions).toHaveBeenLastCalledWith(expect.objectContaining({
-      search: "methanol",
-      user: "somchai",
+      search: "somchai",
     })));
+    expect(apiMock.getStockTransactions.mock.lastCall?.[0].user).toBeUndefined();
   });
 
   it("loads the selected calendar date and summarizes how much stock went out", async () => {

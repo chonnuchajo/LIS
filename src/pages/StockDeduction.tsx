@@ -91,7 +91,6 @@ const StockDeduction = () => {
   const [lastScanResult, setLastScanResult] = useState<DecodedScanResult | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [search, setSearch] = useState("");
-  const [requester, setRequester] = useState("");
   const queryQrId = searchParams.get("qrId")?.trim() || null;
   const initialQrId = scannedQrId ?? queryQrId;
   const clearInitialQrId = useCallback(() => {
@@ -157,15 +156,13 @@ const StockDeduction = () => {
   const selectedDayWindow = selectedDate ? bangkokDayWindow(selectedDate) : undefined;
   const selectedCalendarDate = selectedDate ? dateFromInputValue(selectedDate) : undefined;
   const searchText = search.trim();
-  const requesterText = requester.trim();
   const { data = [], isLoading } = useQuery({
-    queryKey: ["stock-deductions", type, selectedDate, searchText, requesterText],
+    queryKey: ["stock-deductions", type, selectedDate, searchText],
     queryFn: () =>
       api.getStockTransactions({
         action: "deduct",
         itemType: type || undefined,
         ...(searchText ? { search: searchText } : {}),
-        ...(requesterText ? { user: requesterText } : {}),
         ...(selectedDayWindow || {}),
         limit: selectedDayWindow ? 1000 : 200,
       }),
@@ -328,24 +325,14 @@ const StockDeduction = () => {
         </div>
       )}
 
-      <div className="mb-3 grid gap-2 lg:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_auto_auto_auto] lg:items-end">
+      <div className="mb-3 grid gap-2 lg:grid-cols-[minmax(240px,1fr)_auto_auto_auto] lg:items-end">
         <div className="space-y-1">
-          <Label htmlFor="stock-deduction-search" className="text-xs">ค้นหาชื่อสาร</Label>
+          <Label htmlFor="stock-deduction-search" className="text-xs">ค้นหาชื่อสารหรือคนเบิก</Label>
           <Input
             id="stock-deduction-search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="ชื่อสารหรือรหัส stock"
-            className="h-9"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="stock-deduction-requester" className="text-xs">กรองคนเบิก</Label>
-          <Input
-            id="stock-deduction-requester"
-            value={requester}
-            onChange={(event) => setRequester(event.target.value)}
-            placeholder="ชื่อหรืออีเมล"
+            placeholder="ชื่อสาร รหัส stock ชื่อ หรืออีเมล"
             className="h-9"
           />
         </div>

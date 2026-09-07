@@ -156,7 +156,7 @@ function buildTransactionFilter(query = {}) {
   if (action) filter.action = action;
   if (String(search || '').trim()) {
     const regex = new RegExp(escapeRegExp(String(search).trim()), 'i');
-    and.push({ $or: [{ itemName: regex }, { itemCode: regex }] });
+    and.push({ $or: [{ itemName: regex }, { itemCode: regex }, { userName: regex }, { userEmail: regex }] });
   }
   if (String(user || '').trim()) {
     const regex = new RegExp(escapeRegExp(String(user).trim()), 'i');
