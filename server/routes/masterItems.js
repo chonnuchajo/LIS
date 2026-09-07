@@ -104,6 +104,70 @@ function firstValue(item, keys) {
   return '';
 }
 
+function normalizeKey(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function splitMasterCommonName(value) {
+  const parts = [];
+  let currentPart = '';
+  let parenthesisDepth = 0;
+
+  for (const character of String(value || '')) {
+    if (character === '(') {
+      parenthesisDepth += 1;
+      currentPart += character;
+      continue;
+    }
+    if (character === ')') {
+      parenthesisDepth = Math.max(0, parenthesisDepth - 1);
+      currentPart += character;
+      continue;
+    }
+    if (character === '+' && parenthesisDepth === 0) {
+      parts.push(currentPart);
+      currentPart = '';
+      continue;
+    }
+    currentPart += character;
+  }
+
+  parts.push(currentPart);
+
+  return parts
+    .map((part) => part.trim().replace(/\s+/g, ' '))
+    .filter((part) => part && !/^\d+(?:[.,]\d+)?\s*%/.test(part));
+}
+
+function buildCommonNameRows(items) {
+  const groups = new Map();
+
+  for (const item of items) {
+    const itemNo = firstValue(item, MASTER_ITEM_KEYS);
+    const rawCommonName = firstValue(item, COMMON_NAME_KEYS);
+    for (const commonName of splitMasterCommonName(rawCommonName)) {
+      const key = normalizeKey(commonName);
+      const existing = groups.get(key);
+      if (existing) {
+        existing.itemCount += 1;
+        if (itemNo && !existing.itemNos.includes(itemNo)) existing.itemNos.push(itemNo);
+        continue;
+      }
+
+      groups.set(key, {
+        key,
+        commonName,
+        itemCount: 1,
+        itemNos: itemNo ? [itemNo] : [],
+      });
+    }
+  }
+
+  return Array.from(groups.values()).sort((a, b) =>
+    a.commonName.localeCompare(b.commonName, ['th', 'en']),
+  );
+}
+
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -470,6 +534,18 @@ router.get('/slim', async (req, res) => {
   } catch (err) {
     if (slimCache) return res.json({ data: slimCache, cached: true, stale: true });
     return res.status(502).json({ message: 'Cannot connect to master item webhook', error: err.message });
+  }
+});
+
+router.get('/common-names', async (req, res) => {
+  try {
+    const items = await fetchMasterItems();
+    return res.json(buildCommonNameRows(items));
+  } catch (err) {
+    return res.status(err.status || 502).json({
+      message: err.message || 'Cannot connect to master item webhook',
+      error: err.payload || err.message,
+    });
   }
 });
 
