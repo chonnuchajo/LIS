@@ -52,6 +52,18 @@ async function receivePetition(id: string, actor?: string): Promise<Petition> {
   return res.data.data;
 }
 
+function apiErrorMessage(err: unknown, fallback: string): string {
+  const data = (err as { response?: { data?: unknown } })?.response?.data;
+  if (data && typeof data === 'object') {
+    const direct = (data as { message?: unknown }).message;
+    if (typeof direct === 'string' && direct.trim()) return direct;
+    const nested = (data as { error?: { message?: unknown } }).error?.message;
+    if (typeof nested === 'string' && nested.trim()) return nested;
+  }
+  const message = (err as { message?: unknown })?.message;
+  return typeof message === 'string' && message.trim() ? message : fallback;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -183,8 +195,7 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
       }
       setPhase('confirming');
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'ไม่พบข้อมูลคำร้อง';
-      setErrorMsg(msg);
+      setErrorMsg(apiErrorMessage(err, 'ไม่พบข้อมูลคำร้อง'));
       setPhase('error');
     }
   }
@@ -223,8 +234,7 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
         navigate(`/qc-testing/${received._id}`);
       }
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่';
-      setErrorMsg(msg);
+      setErrorMsg(apiErrorMessage(err, 'เกิดข้อผิดพลาด กรุณาลองใหม่'));
       setPhase('error');
     }
   }

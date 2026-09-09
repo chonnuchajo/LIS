@@ -110,4 +110,21 @@ describe('QrReceiveModal manualOnly mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'รับตัวอย่าง' }));
     expect(await screen.findByText('P-2506-0002')).toBeInTheDocument();
   });
+
+  it('แสดงข้อความ error จาก backend เมื่อรับไม่ได้', async () => {
+    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { data: qcPetition } });
+    (api.patch as ReturnType<typeof vi.fn>).mockRejectedValue({
+      response: { data: { error: { message: 'คำขอ R&D ไม่ต้องส่ง QC' } } },
+    });
+    renderManual();
+
+    const input = screen.getByPlaceholderText(/พิมพ์เลขที่คำร้อง/);
+    fireEvent.change(input, { target: { value: 'P-2609-0003' } });
+    fireEvent.click(screen.getByRole('button', { name: 'รับตัวอย่าง' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'ยืนยันรับตัวอย่าง' }));
+
+    expect(await screen.findByText('คำขอ R&D ไม่ต้องส่ง QC')).toBeInTheDocument();
+    expect(screen.queryByText('เกิดข้อผิดพลาด กรุณาลองใหม่')).not.toBeInTheDocument();
+  });
 });
+
