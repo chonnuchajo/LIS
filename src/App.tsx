@@ -15,6 +15,7 @@ import PrivateRoute from "@/components/PrivateRoute";
 import RoutePointerLockGuard from "@/components/RoutePointerLockGuard";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
 import EmployeeLinkGate from "@/components/lis/EmployeeLinkGate";
+import GlobalStockQrScanListener from "@/components/lis/GlobalStockQrScanListener";
 import { RouteLoading } from "@/components/RouteLoading";
 import { StartupLoadingGate } from "@/components/StartupLoadingGate";
 
@@ -100,6 +101,7 @@ const App = () => (
         future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
       >
         <RoutePointerLockGuard />
+        <GlobalStockQrScanListener />
         <AuthProvider>
           <DevRoleSwitcher />
           <EmployeeLinkGate />
