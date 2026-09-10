@@ -18,7 +18,11 @@ import {
   findMatchingPetitionMasterItem,
   normalizeMasterItemPayload,
 } from '@/lib/petitionMasterItem';
-import { isLabBatch, type Petition } from '@/types/petition.types';
+import {
+  labSendOverrideNoteError,
+  shouldSendItemToLab,
+} from '@/lib/petitionRouting';
+import { type Petition } from '@/types/petition.types';
 
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
 const ICP_LADDA_COMPANY = 'ICP Ladda Co., LTD.';
@@ -129,10 +133,10 @@ export function requiresMasterItemSelection({
 
 export function hasRequiredLabRequestStep(
   department: string | null | undefined,
-  items: Array<Pick<ItemRowValues, 'batchNo' | 'testItems'>>,
+  items: Array<{ batchNo: string; testItems?: string; sendToLab?: boolean }>,
 ): boolean {
   if (isResearchAndDevelopmentDepartment(department)) return items.length > 0;
-  return items.some((it) => it.batchNo && isLabBatch(it.batchNo));
+  return items.some((it) => shouldSendItemToLab(it));
 }
 
 function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues | null {
@@ -541,6 +545,7 @@ export default function ProductionPetitionNewPage({
             submissionNo: it.submissionNo ?? '',
             testUnit: it.testUnit ?? '',
             testItems: it.testItems ?? '',
+            sendToLab: it.sendToLab,
             note: it.note ?? '',
           })),
         );
@@ -558,7 +563,7 @@ export default function ProductionPetitionNewPage({
     () => (
       isResearchAndDevelopmentDepartment(submitterDepartment)
         ? items
-        : items.filter((it) => it.batchNo && isLabBatch(it.batchNo))
+        : items.filter((it) => shouldSendItemToLab(it))
     ),
     [items, submitterDepartment],
   );
@@ -569,21 +574,27 @@ export default function ProductionPetitionNewPage({
   useEffect(() => {
     const labItems = isResearchAndDevelopmentDepartment(submitterDepartment)
       ? items
-      : items.filter((it) => it.batchNo && isLabBatch(it.batchNo));
+      : items.filter((it) => shouldSendItemToLab(it));
     if (labItems.length > 0) {
       setLabRequest((prev) => {
-        if (!prev) {
-          const first = labItems[0];
-          return makeBlankLabRequest(
-            first.batchNo,
-            first.seq,
-            first.sampleName,
-            submitter.name,
-            integrationMode ? integrationActor.email : (user?.email ?? ''),
-            submitterDepartment ?? 'ผลิต',
-          );
+        const current = prev ? labItems.find((item) => item.batchNo === prev.batchNo) : null;
+        if (prev && current) {
+          return {
+            ...prev,
+            batchNo: current.batchNo,
+            sampleSeq: current.seq,
+            sampleName: current.sampleName,
+          };
         }
-        return prev;
+        const first = labItems[0];
+        return makeBlankLabRequest(
+          first.batchNo,
+          first.seq,
+          first.sampleName,
+          submitter.name,
+          integrationMode ? integrationActor.email : (user?.email ?? ''),
+          submitterDepartment ?? 'ผลิต',
+        );
       });
     } else {
       setLabRequest(null);
@@ -643,6 +654,11 @@ export default function ProductionPetitionNewPage({
           setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกขนาดบรรจุ`);
           return false;
         }
+      }
+      const overrideNoteError = deliveryAndBatchRequired ? labSendOverrideNoteError(items) : null;
+      if (overrideNoteError) {
+        setStepError(overrideNoteError);
+        return false;
       }
       const seen = new Set<string>();
       for (const it of items) {

@@ -69,6 +69,7 @@ export interface PetitionItem {
   packageUnit?: string;
   testUnit?: string;
   testItems?: string;
+  sendToLab?: boolean;
   note?: string;
   labelManufacturer?: string;
   labelSeller?: string;

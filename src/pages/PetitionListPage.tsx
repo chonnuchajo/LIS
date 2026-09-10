@@ -32,7 +32,6 @@ import {
   canSeePetition,
   canUserCreatePetition as canUserCreatePetitionShared,
   isLabRole,
-  isLabBatchNo,
   petitionHasLabReadableItem,
 } from '@/lib/petitionVisibility';
 import { normalizeRoles } from '@/lib/roles';

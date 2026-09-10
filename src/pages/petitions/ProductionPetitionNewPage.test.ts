@@ -58,6 +58,11 @@ describe('R&D integration request rules', () => {
     expect(hasRequiredLabRequestStep('Production', [{ batchNo: 'BN240601', testItems: '' }])).toBe(true);
   });
 
+  it('uses sendToLab override instead of only the batch suffix', () => {
+    expect(hasRequiredLabRequestStep('Production', [{ batchNo: 'BN240601', sendToLab: false }])).toBe(false);
+    expect(hasRequiredLabRequestStep('Production', [{ batchNo: 'BN240602', sendToLab: true }])).toBe(true);
+  });
+
   it('allows R&D submitters to type item fields without a master item match', () => {
     expect(requiresMasterItemSelection({ department: 'R & D', integrationMode: false })).toBe(false);
     expect(requiresMasterItemSelection({ department: 'Production', integrationMode: false })).toBe(true);

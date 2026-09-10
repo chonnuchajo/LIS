@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  isLabBatch,
-  type Petition,
-  type QCTestResult,
-} from '@/types/petition.types';
+import type { Petition, QCTestResult } from '@/types/petition.types';
 import { useAuth } from '@/hooks/useAuth';
 import { api, type ParameterItem } from '@/lib/api';
 import { normalizeRoles } from "@/lib/roles";
 import { getPetitionCategory, itemGroupKey, matchParametersForItem } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
-import { isResearchAndDevelopmentPetition } from '@/lib/petitionRouting';
+import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
 import {
   expandFieldForItem,
   fieldValueList,
@@ -149,7 +145,7 @@ export default function PetitionView({ petition: p }: Props) {
         </CardHeader>
         <CardContent className="space-y-3">
           {p.items.map((item) => {
-            const lab = isResearchPetition || (item.batchNo && isLabBatch(item.batchNo));
+            const lab = isResearchPetition || shouldSendItemToLab(item);
             const itemCode = item.itemNo?.trim();
             const matchedParams = canSeeTestItems
               ? matchParametersForItem(item, visibleParameters, idsFor(item), { forceLabTrack: isResearchPetition, petitionCategory })

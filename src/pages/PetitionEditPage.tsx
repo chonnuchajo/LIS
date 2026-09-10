@@ -15,7 +15,7 @@ import {
   updateLabRequest,
   createLabRequest,
 } from '@/hooks/usePetition';
-import { isLabBatch } from '@/types/petition.types';
+import { labSendOverrideNoteError, shouldSendItemToLab } from '@/lib/petitionRouting';
 import type { LabRequest } from '@/types/labRequest.types';
 
 type StepKey = 'items' | 'lab';
@@ -112,10 +112,11 @@ export default function PetitionEditPage() {
       submissionNo: it.submissionNo || data.petitionNo, // ใช้ค่าที่บันทึกไว้ ถ้าว่าง default = เลขคำขอ
       testUnit: it.testUnit ?? '',
       testItems: it.testItems ?? '',
+      sendToLab: it.sendToLab,
       note: it.note ?? '',
     }));
     setItems(mappedItems);
-    const labItems = mappedItems.filter((it) => it.batchNo && isLabBatch(it.batchNo));
+    const labItems = mappedItems.filter((it) => shouldSendItemToLab(it));
     if (existingLabRequests.length > 0) {
       const lr = existingLabRequests[0];
       const matchItem = data.items.find((it) => it.batchNo === lr.batchNo);
@@ -163,9 +164,64 @@ export default function PetitionEditPage() {
   }, [data, existingLabRequests, labLoading, initialized]);
 
   const labBatches = useMemo(
-    () => items.filter((it) => it.batchNo && isLabBatch(it.batchNo)),
+    () => items.filter((it) => shouldSendItemToLab(it)),
     [items],
   );
+
+  useEffect(() => {
+    if (!initialized || data?.dept !== 'production') return;
+    if (labBatches.length === 0) {
+      setLabRequest(null);
+      return;
+    }
+    setLabRequest((prev) => {
+      const current = prev ? labBatches.find((item) => item.batchNo === prev.batchNo) : null;
+      if (prev && current) {
+        return {
+          ...prev,
+          batchNo: current.batchNo,
+          sampleSeq: current.seq,
+          sampleName: current.sampleName,
+        };
+      }
+      const first = labBatches[0];
+      return {
+        batchNo: first.batchNo,
+        sampleSeq: first.seq,
+        sampleName: first.sampleName,
+        requester: {
+          fullName: data.submittedBy.name,
+          department: '',
+          address: '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000',
+          phone: '034-305281-2',
+          fax: '',
+          email: '',
+          contactName: data.submittedBy.name,
+          position: '',
+        },
+        serviceAgreement: {
+          sampleDelivery: 'self',
+          testMethod: 'standard',
+          testMethodDoneBefore: null,
+          testMethodDetail: '',
+          testDuration: 'normal',
+          testDurationDays: null,
+          requireUncertainty: false,
+          uncertaintyValue: '',
+        },
+        reportCustomerName: 'ICP Ladda Co., LTD.',
+        reportAddressType: 'default',
+        reportAddressOther: '',
+        invoiceAddressType: 'default',
+        invoiceAddressOther: '',
+        testDelivery: ['email'],
+        storageCondition: ['room'],
+        packageType: ['plasticBag'],
+        packageTypeOther: '',
+        sampleReturn: 'return',
+      };
+    });
+  }, [data?.dept, data?.submittedBy.name, initialized, labBatches]);
 
   const steps = useMemo(() => {
     if (data?.dept !== 'production') return SIMPLE_STEPS;
@@ -198,6 +254,11 @@ export default function PetitionEditPage() {
           setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกเลขแบช`);
           return false;
         }
+      }
+      const overrideNoteError = data?.dept === 'production' ? labSendOverrideNoteError(items) : null;
+      if (overrideNoteError) {
+        setStepError(overrideNoteError);
+        return false;
       }
       const seen = new Set<string>();
       for (const it of items) {

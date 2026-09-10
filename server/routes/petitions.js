@@ -18,7 +18,7 @@ const QCTestResult = require('../models/QCTestResult');
 const Parameter = require('../models/Parameter');
 const LabRequest = require('../models/LabRequest');
 const StandardTime = require('../models/StandardTime');
-const { buildStatusLog, hasLabTrack, isLabBatch, isPetitionComplete } = require('../lib/petitionStatusLog');
+const { buildStatusLog, hasLabTrack, shouldSendItemToLab, isPetitionComplete } = require('../lib/petitionStatusLog');
 const { notifyPetitionEvent } = require('../lib/lineNotify');
 const { normalizeAnalysisName, canonicalAnalysisName } = require('../lib/analysisName');
 const { buildProductionWorkflow } = require('../lib/productionWorkflow');
@@ -510,7 +510,7 @@ router.get('/status-log/:id', async (req, res) => {
     // sampleId has a completed PhysicalResult.
     const isResearchRequest = isResearchAndDevelopmentDepartment(petition.submittedBy?.department);
     const labSampleIds = (petition.items || [])
-      .filter((it) => isResearchRequest || isLabBatch(it.batchNo || ''))
+      .filter((it) => isResearchRequest || shouldSendItemToLab(it))
       .map((it) => it.sampleId || `${petition.petitionNo}-${it.seq}`)
       .filter(Boolean);
     let labDone = !hasLabTrack(petition);

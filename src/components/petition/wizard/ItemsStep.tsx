@@ -22,7 +22,11 @@ import {
   findMatchingPetitionMasterItem,
   type PetitionMasterItemOption,
 } from '@/lib/petitionMasterItem';
-import { isLabBatch } from '@/types/petition.types';
+import {
+  defaultSendItemToLab,
+  hasSendToLabOverride,
+  shouldSendItemToLab,
+} from '@/lib/petitionRouting';
 import SubmitterPicker, { type SubmitterValues } from './SubmitterPicker';
 
 export interface ItemRowValues {
@@ -39,6 +43,7 @@ export interface ItemRowValues {
   submissionNo: string;
   testUnit: string;
   testItems: string;
+  sendToLab?: boolean;
   note: string;
   labelQuantity?: string;
   labelSampledDate?: string;
@@ -79,6 +84,12 @@ export default function ItemsStep({
 }: Props) {
   function setItem(idx: number, patch: Partial<ItemRowValues>) {
     onChange(value.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  }
+
+  function setLabChoice(idx: number, sendToLab: boolean) {
+    const item = value[idx];
+    const defaultSendToLab = defaultSendItemToLab(item);
+    setItem(idx, { sendToLab: sendToLab === defaultSendToLab ? undefined : sendToLab });
   }
 
   function fillEmptyMasterFields(
@@ -163,7 +174,10 @@ export default function ItemsStep({
 
       <div className="space-y-4">
         {value.map((it, idx) => {
-          const lab = requireDeliveryAndBatch ? isLabBatch(it.batchNo) : true;
+          const lab = requireDeliveryAndBatch ? shouldSendItemToLab(it) : true;
+          const labDefault = defaultSendItemToLab(it);
+          const labOverride = requireDeliveryAndBatch && hasSendToLabOverride(it);
+          const batchSuffix = it.batchNo.trim().slice(-1);
           const sampleNameId = `sample-name-${idx}`;
           const commonNameId = `common-name-${idx}`;
           return (
@@ -173,7 +187,12 @@ export default function ItemsStep({
                   <div className="text-base font-semibold">ตัวอย่างที่ {it.seq}</div>
                   {lab && (
                     <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
-                      {requireDeliveryAndBatch ? `ส่ง lab (ลงท้าย ${it.batchNo.slice(-1)})` : 'ส่ง lab'}
+                      {requireDeliveryAndBatch && batchSuffix ? `ส่ง lab (ลงท้าย ${batchSuffix})` : 'ส่ง lab'}
+                    </span>
+                  )}
+                  {labOverride && (
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
+                      เลือกต่างจากค่าเริ่มต้น
                     </span>
                   )}
                 </div>
@@ -220,6 +239,36 @@ export default function ItemsStep({
                       disabled={itemsReadOnly}
                       placeholder="เช่น BN240601"
                     />
+                  </div>
+                )}
+                {requireDeliveryAndBatch && (
+                  <div>
+                    <Label>การส่ง LAB</Label>
+                    <div className="mt-1 flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={lab ? 'primary' : 'outline'}
+                        aria-pressed={lab}
+                        onClick={() => setLabChoice(idx, true)}
+                        disabled={itemsReadOnly}
+                      >
+                        ส่ง LAB
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={!lab ? 'primary' : 'outline'}
+                        aria-pressed={!lab}
+                        onClick={() => setLabChoice(idx, false)}
+                        disabled={itemsReadOnly}
+                      >
+                        ไม่ส่ง LAB
+                      </Button>
+                    </div>
+                    <p className="mt-1 text-xs text-grey-500">
+                      ค่าเริ่มต้น: {labDefault ? 'ส่ง LAB' : 'ไม่ส่ง LAB'}{batchSuffix ? ` (ลงท้าย ${batchSuffix})` : ''}
+                    </p>
                   </div>
                 )}
                 <div>
@@ -275,13 +324,20 @@ export default function ItemsStep({
                   </>
                 )}
                 <div className="sm:col-span-2">
-                  <Label>หมายเหตุ</Label>
+                  <Label>{labOverride ? 'หมายเหตุ (บังคับเมื่อเลือกต่างจากค่าเริ่มต้น)' : 'หมายเหตุ'}</Label>
                   <Textarea
                     rows={2}
                     value={it.note}
                     onChange={(e) => setItem(idx, { note: e.target.value })}
+                    aria-invalid={labOverride && !it.note.trim() ? true : undefined}
+                    placeholder={labOverride ? 'ระบุเหตุผลที่ส่ง/ไม่ส่ง LAB ต่างจากค่าเริ่มต้น' : undefined}
                     disabled={itemsReadOnly}
                   />
+                  {labOverride && !it.note.trim() && (
+                    <p className="mt-1 text-xs text-red-500">
+                      ต้องระบุหมายเหตุเมื่อเลือกส่ง LAB ต่างจากค่าเริ่มต้น
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

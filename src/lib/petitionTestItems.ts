@@ -1,6 +1,6 @@
 import type { ParameterItem, ParameterValueField } from '@/lib/api';
 import type { PetitionItem, Petition } from '@/types/petition.types';
-import { isLabBatch } from '@/types/petition.types';
+import { shouldSendItemToLab } from '@/lib/petitionRouting';
 import { getClassification, getCommonName } from '@/lib/productClassification';
 
 function extractItemNoPrefix(itemNo: string | undefined | null): string {
@@ -191,7 +191,7 @@ export function matchParametersForItem(
   // (lab batch = batchNo ending in 1/6). This gate is independent of the
   // param's "ใช้กับ" classification — applyAll must not leak a lab param
   // onto non-lab items. QC params are unaffected.
-  const itemIsLab = options.forceLabTrack || (item.batchNo ? isLabBatch(item.batchNo) : false);
+  const itemIsLab = options.forceLabTrack || shouldSendItemToLab(item);
   const active = params.filter(
     (p) =>
       p.status !== 'inactive' &&

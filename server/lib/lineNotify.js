@@ -6,7 +6,7 @@
 // (never throws — callers in routes/petitions.js don't await it).
 const LineGroup = require('../models/LineGroup');
 const line = require('./line');
-const { hasLabTrack, isLabBatch } = require('./petitionStatusLog');
+const { hasLabTrack, shouldSendItemToLab } = require('./petitionStatusLog');
 const { requiresQcTrack } = require('./petitionSubmissionRules');
 
 const DEPT_LABELS = { production: 'แผนกผลิต', rm: 'แผนก RM', fg: 'แผนก FG' };
@@ -21,7 +21,7 @@ function assigneeSide(assignee) {
 }
 
 function hasLabItem(petition) {
-  return (petition?.items || []).some((it) => isLabBatch(it.batchNo || ''));
+  return (petition?.items || []).some((it) => shouldSendItemToLab(it));
 }
 
 // Short "N รายการ · <first sample>" summary line for a petition's items.

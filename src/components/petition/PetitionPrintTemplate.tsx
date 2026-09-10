@@ -1,7 +1,7 @@
 import FitToBox from '@/components/petition/FitToBox';
 import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
 import { customerCodeFromDepartment } from '@/lib/customerCode';
-import { isLabBatch } from '@/types/petition.types';
+import { shouldSendItemToLab } from '@/lib/petitionRouting';
 import type { Petition, PetitionItem, QCTestResult } from '@/types/petition.types';
 import type { LabRequest } from '@/types/labRequest.types';
 import { resolveSpecificGravity, type SgParameter } from '@/lib/formSpecificGravity';
@@ -589,7 +589,7 @@ interface Props {
 }
 
 export default function PetitionPrintTemplate({ labRequest, petition, qcResults = [], sgParam = null }: Props) {
-  const labItems = petition.items.filter((it) => isLabBatch(it.batchNo));
+  const labItems = petition.items.filter((it) => shouldSendItemToLab(it));
   const itemsToShow = labItems.length > 0 ? labItems : petition.items.filter((it) => it.seq === labRequest.sampleSeq);
   // เลขที่ใบนำส่งใช้ค่าเดียวทั้งใบ (default = เลขคำขอ) — ดึงจากรายการที่ใบนี้อ้างถึง
   const submissionNo = itemsToShow[0]?.submissionNo ?? petition.items[0]?.submissionNo ?? '';

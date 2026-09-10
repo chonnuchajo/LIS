@@ -34,7 +34,7 @@ import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
 import { getPetitionCategory, itemGroupKey, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { visibleFieldsForPhase } from '@/lib/phaseRetest';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
-import { isResearchAndDevelopmentPetition, isLabBatchNo } from '@/lib/petitionRouting';
+import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
 import {
   PETITION_DEPT_LABELS,
   type Petition,
@@ -70,9 +70,6 @@ function formatTime(d: Date | string | undefined) {
   const date = typeof d === 'string' ? new Date(d) : d;
   return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 }
-
-const isLabBatchNo = (batchNo?: string | null) => /[16]$/.test(String(batchNo ?? '').trim());
-
 
 function resultKey(itemSeq: number, parameterId: string) {
   return `${itemSeq}__${parameterId}`;
@@ -681,7 +678,7 @@ export default function LabTestingDetailPage() {
   // Items with no Lab-readable params should not appear here.
   const allLabBatchItems = isResearchAndDevelopmentPetition(petition)
     ? (petition.items ?? [])
-    : (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
+    : (petition.items ?? []).filter((it) => shouldSendItemToLab(it));
   const labItems = paramsLoaded
     ? allLabBatchItems.filter(
         (it) => matchLabParametersForItem(petition, it, allParameters, idsFor(it)).length > 0,
@@ -889,7 +886,7 @@ export default function LabTestingDetailPage() {
   const switchablePetitions = (worklistData?.items ?? []).filter((p) =>
     !!labReceivedAt(p) && (p.items ?? []).some(
       (it) =>
-        (isResearchAndDevelopmentPetition(p) || isLabBatchNo(it.batchNo)) &&
+        (isResearchAndDevelopmentPetition(p) || shouldSendItemToLab(it)) &&
         matchLabParametersForItem(p, it, allParameters, idsFor(it)).length > 0,
     ),
   );

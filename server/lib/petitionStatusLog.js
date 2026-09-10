@@ -9,9 +9,14 @@ function isLabBatch(batchNo) {
   return last === '1' || last === '6';
 }
 
+function shouldSendItemToLab(item) {
+  if (!item) return false;
+  return typeof item.sendToLab === 'boolean' ? item.sendToLab : isLabBatch(item.batchNo ?? '');
+}
+
 function hasLabTrack(petition) {
   if (isResearchAndDevelopmentDepartment(petition?.submittedBy?.department)) return true;
-  return ((petition ?? {}).items ?? []).some((it) => isLabBatch(it.batchNo ?? ''));
+  return ((petition ?? {}).items ?? []).some((it) => shouldSendItemToLab(it));
 }
 
 // True if a QCTestResult.values object has at least one non-empty field value.
@@ -282,6 +287,7 @@ function buildStatusLog(petition, auditLogs, qcResults, parameters, labDone) {
 
 module.exports = {
   isLabBatch,
+  shouldSendItemToLab,
   hasLabTrack,
   hasFilledValue,
   qcParamAppliesToItem,

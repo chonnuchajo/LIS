@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { hasLabTrack, isResearchAndDevelopmentPetition, requiresQcTrack } from "./petitionRouting";
+import {
+  hasLabTrack,
+  hasSendToLabOverride,
+  labSendOverrideNoteError,
+  isResearchAndDevelopmentPetition,
+  requiresQcTrack,
+  shouldSendItemToLab,
+} from "./petitionRouting";
 import type { Petition } from "@/types/petition.types";
 
 describe("petitionRouting", () => {
@@ -22,5 +29,20 @@ describe("petitionRouting", () => {
     expect(hasLabTrack({ items: [{ seq: 1, sampleName: "S", batchNo: "B-1" }] } as Petition)).toBe(true);
     expect(hasLabTrack({ items: [{ seq: 1, sampleName: "S", batchNo: "B-2" }] } as Petition)).toBe(false);
     expect(requiresQcTrack({ submittedBy: { department: "Production" } } as Petition)).toBe(true);
+  });
+
+  it("lets explicit sendToLab override the batch suffix default", () => {
+    expect(shouldSendItemToLab({ batchNo: "B-1" })).toBe(true);
+    expect(shouldSendItemToLab({ batchNo: "B-1", sendToLab: false })).toBe(false);
+    expect(shouldSendItemToLab({ batchNo: "B-2", sendToLab: true })).toBe(true);
+    expect(hasLabTrack({ items: [{ seq: 1, sampleName: "S", batchNo: "B-1", sendToLab: false }] } as Petition)).toBe(false);
+    expect(hasLabTrack({ items: [{ seq: 1, sampleName: "S", batchNo: "B-2", sendToLab: true }] } as Petition)).toBe(true);
+  });
+
+  it("requires note when sendToLab differs from the default", () => {
+    const override = { seq: 2, sampleName: "S", batchNo: "B-2", sendToLab: true, note: "" };
+    expect(hasSendToLabOverride(override)).toBe(true);
+    expect(labSendOverrideNoteError([override])).toBe("ตัวอย่างลำดับ 2: กรุณาระบุหมายเหตุเมื่อเลือกส่ง LAB ต่างจากค่าเริ่มต้น");
+    expect(labSendOverrideNoteError([{ ...override, note: "ส่งทดสอบเพิ่ม" }])).toBeNull();
   });
 });

@@ -36,7 +36,7 @@ import LabScanAcceptModal from '@/components/petition/LabScanAcceptModal';
 import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
-import { isLabBatchNo, isResearchAndDevelopmentPetition } from '@/lib/petitionRouting';
+import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
 
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
 
@@ -46,7 +46,7 @@ const isLabReadableItem = (
   itemGroupIds: string[] = [],
   petitionCategory: PetitionCategory = '',
 ) =>
-  isLabBatchNo(it.batchNo) && matchParametersForItem(it, params, itemGroupIds, { petitionCategory }).length > 0;
+  shouldSendItemToLab(it) && matchParametersForItem(it, params, itemGroupIds, { petitionCategory }).length > 0;
 
 const isResearchLabReadableItem = (
   it: PetitionItem,
@@ -103,7 +103,7 @@ export default function LabTestingPage() {
         )
         : (paramsLoaded
           ? (p.items ?? []).some((it) => isLabReadableItem(it, labParams, idsFor(it), getPetitionCategory(p)))
-          : (p.items ?? []).some((it) => isLabBatchNo(it.batchNo))),
+          : (p.items ?? []).some((it) => shouldSendItemToLab(it))),
     )
     .filter((p) => isFullAccess || isAssignedTo(p.assignedTo, user));
 
@@ -138,7 +138,7 @@ export default function LabTestingPage() {
         const labItems = (p.items ?? []).filter((it) =>
           isResearchAndDevelopmentPetition(p)
             ? (paramsLoaded ? isResearchLabReadableItem(it, labParametersForPetition(p, labParams), idsFor(it), getPetitionCategory(p)) : true)
-            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it), getPetitionCategory(p)) : isLabBatchNo(it.batchNo)),
+            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it), getPetitionCategory(p)) : shouldSendItemToLab(it)),
         );
         return (
           <>
@@ -170,7 +170,7 @@ export default function LabTestingPage() {
         const labItems = (p.items ?? []).filter((it) =>
           isResearchAndDevelopmentPetition(p)
             ? (paramsLoaded ? isResearchLabReadableItem(it, labParametersForPetition(p, labParams), idsFor(it), getPetitionCategory(p)) : true)
-            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it), getPetitionCategory(p)) : isLabBatchNo(it.batchNo)),
+            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it), getPetitionCategory(p)) : shouldSendItemToLab(it)),
         );
         return labItems.length > 0 ? (
           <div className="space-y-1">

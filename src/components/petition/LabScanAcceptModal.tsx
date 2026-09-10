@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
-import { isLabBatchNo, isResearchAndDevelopmentPetition } from '@/lib/petitionRouting';
+import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
 
 const READER_ID = 'lab-accept-qr-reader';
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
@@ -18,7 +18,7 @@ const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
 const labReceivableItems = (petition: Petition) =>
   isResearchAndDevelopmentPetition(petition)
     ? (petition.items ?? [])
-    : (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
+    : (petition.items ?? []).filter((it) => shouldSendItemToLab(it));
 
 type Phase = 'scanning' | 'confirming' | 'loading' | 'success' | 'error' | 'no-camera';
 

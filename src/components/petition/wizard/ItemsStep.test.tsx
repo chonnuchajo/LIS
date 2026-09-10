@@ -131,6 +131,28 @@ describe('ItemsStep master item selection', () => {
     expect(screen.getByLabelText('หน่วยที่นำส่ง')).toHaveValue('Kg/L');
   });
 
+  it('defaults LAB choice from batch suffix 1/6 and lets user override it', () => {
+    const { onChange } = renderStep();
+
+    expect(screen.getByRole('button', { name: 'ส่ง LAB' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'ไม่ส่ง LAB' }));
+
+    expect(onChange).toHaveBeenCalledWith([{ ...baseItem, sendToLab: false }]);
+  });
+
+  it('defaults LAB choice to not send for other batch suffixes', () => {
+    renderStep({ value: [{ ...baseItem, batchNo: 'BATCH002' }] });
+
+    expect(screen.getByRole('button', { name: 'ไม่ส่ง LAB' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('marks note as required when LAB choice differs from the default', () => {
+    renderStep({ value: [{ ...baseItem, sendToLab: false }] });
+
+    expect(screen.getByText('หมายเหตุ (บังคับเมื่อเลือกต่างจากค่าเริ่มต้น)')).toBeInTheDocument();
+  });
+
   // itemNo ขับ "หมวดหมู่ย่อย (prefix code)" + "กลุ่ม Item" ของ parameter — ถ้าค้างรหัสเก่าไว้
   // ตอนคนพิมพ์ชื่อที่ไม่ตรง master item ไหนเลย พารามิเตอร์จะขึ้นผิดตัว
   it('clears itemNo when a typed sample name matches no master item', () => {
