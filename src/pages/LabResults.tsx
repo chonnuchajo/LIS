@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/lis/AppLayout";
 import { usePetitionList } from "@/hooks/usePetition";
-import { PETITION_DEPT_LABELS, type Petition } from "@/types/petition.types";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
+import type { Petition } from "@/types/petition.types";
 
 export default function LabResults() {
   const navigate = useNavigate();
@@ -61,7 +62,7 @@ export default function LabResults() {
                   className="cursor-pointer border-t hover:bg-gray-50"
                 >
                   <td className="px-3 py-2 font-medium">{p.petitionNo}</td>
-                  <td className="px-3 py-2">{PETITION_DEPT_LABELS[p.dept]}</td>
+                  <td className="px-3 py-2">{petitionDepartmentLabel(p)}</td>
                   <td className="px-3 py-2">{p.submittedBy?.name ?? "-"}</td>
                   <td className="px-3 py-2">
                     {p.labApprovedAt ? new Date(p.labApprovedAt).toLocaleDateString("th-TH") : "-"}

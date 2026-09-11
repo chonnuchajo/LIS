@@ -166,7 +166,7 @@ describe('PetitionDetailPage request summary', () => {
 
     expect(screen.queryByRole('heading', { name: 'ข้อมูลคำขอ' })).not.toBeInTheDocument();
     expect(screen.getByText('แผนกผู้ยื่น')).toBeInTheDocument();
-    expect(screen.getByText('ฝ่าย QA')).toBeInTheDocument();
+    expect(screen.getAllByText('ฝ่าย QA').length).toBeGreaterThan(0);
     expect(screen.getByText('ผู้นำส่ง')).toBeInTheDocument();
     expect(screen.getByText('มาลี นำส่ง')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'รายการตัวอย่าง (1)' })).toBeInTheDocument();

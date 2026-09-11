@@ -16,6 +16,7 @@ import {
   type PetitionProgress,
 } from "@/lib/qcProgress";
 import { shouldSendItemToLab } from "@/lib/petitionRouting";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
 
 type QueueMode = "lab" | "qc";
 
@@ -179,7 +180,7 @@ function QueueCard({
       <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t border-slate-100 pt-3">
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold text-slate-800">{petition.submittedBy?.name ?? '-'}</div>
-          <div className="truncate text-sm text-slate-500">{petition.dept || "-"}</div>
+          <div className="truncate text-sm text-slate-500">{petitionDepartmentLabel(petition)}</div>
         </div>
         <div className="text-right">
           <div className="text-lg font-bold text-primary-700">{updated.time}</div>

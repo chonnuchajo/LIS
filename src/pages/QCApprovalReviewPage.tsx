@@ -19,10 +19,8 @@ import { api, type ParameterItem } from "@/lib/api";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { qcReceivedBy } from "@/lib/receiveStatus";
 import { cn } from "@/lib/utils";
-import {
-  PETITION_DEPT_LABELS,
-  type QCTestResult,
-} from "@/types/petition.types";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
+import type { QCTestResult } from "@/types/petition.types";
 import { buildApprovalGroups } from "@/lib/qcApprovalRows";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -377,7 +375,7 @@ export default function QCApprovalReviewPage() {
         />
 
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+          <Badge variant="blue-soft">{petitionDepartmentLabel(petition)}</Badge>
           <Badge variant="gray-soft" className="font-normal">
             ผู้รับงาน QC: {qcReceivedBy(petition) ?? "-"}
           </Badge>

@@ -37,6 +37,7 @@ import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
 import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
 
@@ -152,7 +153,7 @@ export default function LabTestingPage() {
               )}
             </div>
             <div className="text-xs text-grey-500 mt-0.5">
-              โดย {p.submittedBy?.name ?? '-'} จาก {PETITION_DEPT_LABELS[p.dept]}
+              โดย {p.submittedBy?.name ?? '-'} จาก {petitionDepartmentLabel(p)}
             </div>
             <div className="text-xs text-grey-500 mt-0.5">{labItems.length} รายการ Lab</div>
             {labReceivedBy(p) && (

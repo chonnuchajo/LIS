@@ -26,6 +26,7 @@ import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
 import { qcReceivedAt, qcReceivedBy, qcTrackStatusBadge } from '@/lib/receiveStatus';
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
 import { isVisibleInQcTestingQueue } from '@/lib/petitionQueueVisibility';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 
 
 export default function QCTestingPage() {
@@ -100,7 +101,7 @@ export default function QCTestingPage() {
               )}
             </div>
             <div className="text-xs text-grey-500 mt-0.5">
-              โดย {p.submittedBy?.name ?? '-'} จาก {PETITION_DEPT_LABELS[p.dept]}
+              โดย {p.submittedBy?.name ?? '-'} จาก {petitionDepartmentLabel(p)}
             </div>
             <div className="text-xs text-grey-500 mt-0.5">{items.length} รายการ</div>
           </>

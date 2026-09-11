@@ -37,9 +37,9 @@ import {
 import { normalizeRoles } from '@/lib/roles';
 import { petitionStatusBadge } from '@/lib/statusBadge';
 import { formatStockQuantityWithUnit } from '@/lib/stockQuantity';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 import { cn } from '@/lib/utils';
 import {
-  PETITION_DEPT_LABELS,
   PETITION_STATUS_CONFIG,
   PETITION_STATUSES,
   type Petition,
@@ -85,7 +85,7 @@ export type PetitionListPageProps = {
 function petitionMetaLine(petition: Petition) {
   return [
     petition.submittedBy?.name,
-    PETITION_DEPT_LABELS[petition.dept],
+    petitionDepartmentLabel(petition),
     new Date(petition.createdAt).toLocaleString('th-TH', {
       dateStyle: 'short',
       timeStyle: 'short',
@@ -475,7 +475,7 @@ export default function PetitionListPage({
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-base font-semibold text-primary-500">{petition.petitionNo}</p>
               <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
-              <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+              <Badge variant="blue-soft">{petitionDepartmentLabel(petition)}</Badge>
             </div>
 
             <div className="space-y-1">

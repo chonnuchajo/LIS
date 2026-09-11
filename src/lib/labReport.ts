@@ -1,7 +1,7 @@
 import type { LabRequest } from "@/types/labRequest.types";
 import type { Petition, PetitionItem } from "@/types/petition.types";
-import { PETITION_DEPT_LABELS } from "@/types/petition.types";
 import type { ApprovalItemGroup } from "@/lib/qcApprovalRows";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
 
 export interface LabReportRow {
   testItem: string;
@@ -146,7 +146,7 @@ export function buildLabReportPages(
       customer: {
         name: requesterName,
         company: cleanText(lr?.reportCustomerName) || COMPANY_NAME,
-        department: requester?.department || PETITION_DEPT_LABELS[petition.dept] || DASH,
+        department: requester?.department || petitionDepartmentLabel(petition) || DASH,
         email: requester?.email || DASH,
         phone: requester?.phone || DASH,
       },

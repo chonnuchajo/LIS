@@ -44,6 +44,7 @@ import { DEV_MODE, synthesizeDevAssignees } from '@/config/dev';
 import { parseSubstances } from '@/lib/substances';
 import { readSlotMethods, machineMatchesMethod, type MethodDoc } from '@/lib/methodRegistry';
 import { groupMachineMethods } from '@/lib/assignMachineGrouping';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 import { cn } from '@/lib/utils';
 import {
   type Petition,
@@ -511,7 +512,7 @@ export default function PetitionAssignPage() {
       [
         petition.petitionNo,
         petition.submittedBy?.name,
-        petition.dept,
+        petitionDepartmentLabel(petition),
         petition.assignedTo?.name,
       ]
         .filter(Boolean)
@@ -1063,7 +1064,7 @@ function PetitionCard({
             )}
           </div>
           <div className="mt-0.5 truncate text-[11px] text-grey-500">
-            {petition.submittedBy?.name ?? '-'} · {petition.dept}
+            {petition.submittedBy?.name ?? '-'} · {petitionDepartmentLabel(petition)}
           </div>
         </div>
       </div>

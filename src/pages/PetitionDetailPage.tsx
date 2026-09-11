@@ -42,10 +42,7 @@ import {
   deletePetition,
   useLabRequestsByPetition,
 } from '@/hooks/usePetition';
-import {
-  PETITION_DEPT_LABELS,
-  type Petition,
-} from '@/types/petition.types';
+import { PETITION_DEPT_LABELS, type Petition } from '@/types/petition.types';
 import { useAuth } from '@/hooks/useAuth';
 import { useSamples } from '@/context/SampleContext';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
@@ -58,6 +55,7 @@ import { buildLaLisAssistant, type LaLisIssue } from '@/lib/laLisAssistant';
 import { buildLabResultReportPages } from '@/lib/labResultReport';
 import { canPrintSampleLabel, canPrintPreReport, canPrintLabResult } from '@/lib/petitionPrintability';
 import { isWaitingForAssignment } from '@/lib/petitionQueueVisibility';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 import { cn } from '@/lib/utils';
 
 function detailBannerText(petition: Petition) {
@@ -401,7 +399,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
                       <div>
                         <p className="text-xs uppercase tracking-wide text-grey-500">แผนก</p>
                         <div className="mt-1">
-                          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[data.dept]}</Badge>
+                          <Badge variant="blue-soft">{petitionDepartmentLabel(data)}</Badge>
                         </div>
                       </div>
                       <div>
@@ -488,7 +486,7 @@ export default function PetitionDetailPage({ mode = 'petition' }: PetitionDetail
 
                 <div className="flex flex-wrap items-baseline gap-3">
                   <Badge variant={statusCfg.variant}>{statusCfg.label}</Badge>
-                  <Badge variant="blue-soft">{PETITION_DEPT_LABELS[data.dept]}</Badge>
+                  <Badge variant="blue-soft">{petitionDepartmentLabel(data)}</Badge>
                   <span className="text-xs text-grey-500">
                     ยื่นเมื่อ{' '}
                     {new Date(data.createdAt).toLocaleString('th-TH', {

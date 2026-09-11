@@ -8,8 +8,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { petitionExceptionScore, petitionStatusBadge } from "@/lib/statusBadge";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
 import PetitionStatusTimeline from "@/components/lis/PetitionStatusTimeline";
-import { PETITION_DEPT_LABELS, type Petition, type StatusBadgeVariant } from "@/types/petition.types";
+import type { Petition, StatusBadgeVariant } from "@/types/petition.types";
 
 const STATUS_BAR_CLASS: Record<StatusBadgeVariant, string> = {
   "primary": "bg-primary-500",
@@ -145,7 +146,7 @@ export default function PetitionDashboardTable({
                         <div className="pl-2">
                           <div className="font-semibold text-primary">{petition.petitionNo}</div>
                           <div className="text-[11px] text-muted-foreground">
-                            {PETITION_DEPT_LABELS[petition.dept]}
+                            {petitionDepartmentLabel(petition)}
                           </div>
                         </div>
                       </TableCell>

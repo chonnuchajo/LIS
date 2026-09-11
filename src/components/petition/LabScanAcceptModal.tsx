@@ -4,13 +4,14 @@ import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import { AlertCircle, CheckCircle2, Keyboard, QrCode, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Petition } from '@/types/petition.types';
-import { PETITION_DEPT_LABELS, PETITION_STATUS_CONFIG } from '@/types/petition.types';
+import { PETITION_STATUS_CONFIG } from '@/types/petition.types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
 import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 
 const READER_ID = 'lab-accept-qr-reader';
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
@@ -299,7 +300,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
                 </Badge>
               </div>
               <div className="text-sm space-y-1 text-grey-600">
-                <p>แผนก: <span className="text-grey-900">{PETITION_DEPT_LABELS[petition.dept]}</span></p>
+                <p>แผนก: <span className="text-grey-900">{petitionDepartmentLabel(petition)}</span></p>
                 <p>รายการ Lab: <span className="text-grey-900">{labItemCount} รายการ</span></p>
                 {petition.assignedTo && (
                   <p>มอบหมายให้: <span className="font-medium text-sky-700">{petition.assignedTo.name}</span></p>

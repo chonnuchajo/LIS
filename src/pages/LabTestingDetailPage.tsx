@@ -35,8 +35,8 @@ import { getPetitionCategory, itemGroupKey, matchParametersForItem, visibleEnumO
 import { visibleFieldsForPhase } from '@/lib/phaseRetest';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 import {
-  PETITION_DEPT_LABELS,
   type Petition,
   type PetitionItem,
   type PetitionPhase,
@@ -911,7 +911,7 @@ export default function LabTestingDetailPage() {
           }
         />
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+          <Badge variant="blue-soft">{petitionDepartmentLabel(petition)}</Badge>
           {wasReturned && (
             <span
               className="inline-flex items-center text-orange-500"

@@ -11,10 +11,11 @@ import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { buildApprovalGroups } from "@/lib/qcApprovalRows";
 import { buildLabResultReportPages } from "@/lib/labResultReport";
 import { canPrintLabResult } from "@/lib/petitionPrintability";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
 import LabResultGroups from "@/components/petition/LabResultGroups";
 import LabResultReportTemplate, { LAB_REPORT_CSS } from "@/components/petition/LabResultReportTemplate";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
-import { PETITION_DEPT_LABELS, type QCTestResult } from "@/types/petition.types";
+import type { QCTestResult } from "@/types/petition.types";
 
 const PHYSICAL_PARAMETER_NAME = "กายภาพ";
 
@@ -97,7 +98,7 @@ export default function LabResultDetailPage() {
         />
 
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+          <Badge variant="blue-soft">{petitionDepartmentLabel(petition)}</Badge>
           <Badge variant="gray-soft" className="font-normal">
             ผู้นำส่ง: {petition.submittedBy?.name ?? "-"}
           </Badge>
