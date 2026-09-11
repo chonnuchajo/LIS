@@ -37,6 +37,20 @@ function response() {
   };
 }
 
+function sortedLimitedLean(items) {
+  return {
+    sort() {
+      return {
+        limit() {
+          return { lean: async () => items };
+        },
+        lean: async () => items,
+      };
+    },
+    lean: async () => items,
+  };
+}
+
 async function invoke(path, method, { body = {}, params = {}, query = {} } = {}) {
   const res = response();
   await handler(path, method)({ body, params, query }, res);
@@ -218,6 +232,61 @@ test('actorFromRequest rejects inactive users', async () => {
     );
   } finally {
     restore();
+  }
+});
+
+test('GET / includes requested COA rows for Lab-approved petitions without COA documents', async () => {
+  const originals = {
+    coaFind: CoaDocument.find,
+    petitionFind: Petition.find,
+    labRequestFind: LabRequest.find,
+  };
+  try {
+    CoaDocument.find = () => sortedLimitedLean([]);
+    Petition.find = () => sortedLimitedLean([{
+      _id: 'petition-1',
+      petitionNo: 'P-2609-0002',
+      labApprovedAt: new Date('2026-09-05T09:46:39.203Z'),
+      submittedBy: { name: 'Requester Name', email: 'requester@example.com' },
+      items: [{ seq: 1, sampleName: 'Trade A', commonName: 'Common A', batchNo: 'B-001', lotNo: 'L-001', productionDate: '2026-09-01' }],
+    }]);
+    LabRequest.find = () => ({ lean: async () => [{
+      petitionId: 'petition-1',
+      sampleSeq: 1,
+      reportCustomerName: 'Customer A',
+      requester: { fullName: 'Requester Name', department: 'R&D', email: 'requester@example.com', phone: '1234' },
+    }] });
+
+    const res = await invoke('/', 'get');
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.items.length, 1);
+    assert.deepEqual(res.body.items[0], {
+      _id: 'requested:petition-1',
+      coaNo: null,
+      revision: 0,
+      status: 'requested',
+      petitionId: 'petition-1',
+      petitionNoSnapshot: 'P-2609-0002',
+      selectedItemSeqs: [1],
+      customerSnapshot: {
+        name: 'Requester Name',
+        company: 'Customer A',
+        department: 'R&D',
+        email: 'requester@example.com',
+        phone: '1234',
+      },
+      sampleSnapshots: [{ itemSeq: 1, sampleName: 'Trade A', commonName: 'Common A', batchNo: 'B-001', lotNo: 'L-001', productionDate: '2026-09-01', sampleId: '', condition: '', manufacturer: '' }],
+      resultSnapshots: [],
+      trendSnapshots: [],
+      print: { printCount: 0 },
+      createdAt: new Date('2026-09-05T09:46:39.203Z'),
+      updatedAt: new Date('2026-09-05T09:46:39.203Z'),
+    });
+  } finally {
+    CoaDocument.find = originals.coaFind;
+    Petition.find = originals.petitionFind;
+    LabRequest.find = originals.labRequestFind;
   }
 });
 

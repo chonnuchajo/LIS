@@ -236,6 +236,8 @@ describe("CoaCenterPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /แฟ้มปี 2569/ }));
 
     expect(await screen.findByText("00022026")).toBeInTheDocument();
+    const requestedRow = await screen.findByRole("row", { name: /P-2608-0004/ });
+    expect(within(requestedRow).getByRole("button", { name: /สร้าง COA/ })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "สถานะ" })).not.toBeInTheDocument();
     expect(screen.queryByText("00012025")).not.toBeInTheDocument();
   });

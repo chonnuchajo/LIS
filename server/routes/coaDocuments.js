@@ -136,6 +136,120 @@ function labSeqSet(labRequests = []) {
   return seqs;
 }
 
+function groupLabRequestsByPetition(labRequests = []) {
+  const byPetition = new Map();
+  for (const request of labRequests) {
+    const key = String(request.petitionId);
+    if (!byPetition.has(key)) byPetition.set(key, []);
+    byPetition.get(key).push(request);
+  }
+  return byPetition;
+}
+
+function customerSnapshotFromLabRequests(labRequests = [], petition = {}) {
+  const first = labRequests.find((request) => request.reportCustomerName || request.requester) || {};
+  const requester = first.requester || {};
+  return {
+    name: requester.fullName || petition.submittedBy?.name || '',
+    company: first.reportCustomerName || '',
+    department: requester.department || petition.submittedBy?.department || '',
+    email: requester.email || petition.submittedBy?.email || '',
+    phone: requester.phone || '',
+  };
+}
+
+function sampleSnapshotFromPetitionItem(item = {}) {
+  return {
+    itemSeq: Number(item.seq),
+    sampleName: item.sampleName,
+    commonName: item.commonName,
+    batchNo: item.batchNo,
+    lotNo: item.lotNo,
+    productionDate: item.productionDate,
+    sampleId: item.sampleId || '',
+    condition: item.condition || '',
+    manufacturer: item.labelManufacturer || '',
+  };
+}
+
+function coveredSeqsByPetition(coas = []) {
+  const covered = new Map();
+  for (const coa of coas) {
+    const petitionKey = String(coa.petitionId);
+    if (!covered.has(petitionKey)) covered.set(petitionKey, new Set());
+    const seqs = covered.get(petitionKey);
+    for (const seq of coa.selectedItemSeqs || []) seqs.add(Number(seq));
+  }
+  return covered;
+}
+
+function requestedCoaRowFromPetition(petition, labRequests = [], coveredSeqs = new Set()) {
+  const labSeqs = labSeqSet(labRequests);
+  const selectedItems = (petition.items || [])
+    .filter((item) => labSeqs.size === 0 || labSeqs.has(Number(item.seq)))
+    .filter((item) => !coveredSeqs.has(Number(item.seq)));
+  if (!selectedItems.length) return null;
+
+  const timestamp = petition.labApprovedAt || petition.updatedAt || petition.createdAt || new Date();
+  return {
+    _id: `requested:${petition._id}`,
+    coaNo: null,
+    revision: 0,
+    status: 'requested',
+    petitionId: String(petition._id),
+    petitionNoSnapshot: petition.petitionNo,
+    selectedItemSeqs: selectedItems.map((item) => Number(item.seq)),
+    customerSnapshot: customerSnapshotFromLabRequests(labRequests, petition),
+    sampleSnapshots: selectedItems.map(sampleSnapshotFromPetitionItem),
+    resultSnapshots: [],
+    trendSnapshots: [],
+    print: { printCount: 0 },
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+}
+
+async function requestedCoaRows({ petitionNo } = {}) {
+  const petitionFilter = { labApprovedAt: { $exists: true, $ne: null } };
+  if (petitionNo) petitionFilter.petitionNo = new RegExp(String(petitionNo).trim(), 'i');
+  const petitions = await Petition.find(petitionFilter)
+    .sort({ labApprovedAt: -1 })
+    .limit(100)
+    .lean();
+  const petitionIds = petitions.map((petition) => petition._id);
+  if (!petitionIds.length) return [];
+  const [labRequests, existingCoas] = await Promise.all([
+    labRequestsForPetitionIds(petitionIds),
+    CoaDocument.find({
+      petitionId: { $in: petitionIds },
+      status: { $nin: ['cancelled', 'superseded', 'rejected'] },
+    }).sort({ updatedAt: -1 }).lean(),
+  ]);
+  const labRequestsByPetition = groupLabRequestsByPetition(labRequests);
+  const coveredByPetition = coveredSeqsByPetition(existingCoas);
+  return petitions
+    .map((petition) => requestedCoaRowFromPetition(
+      petition,
+      labRequestsByPetition.get(String(petition._id)) || [],
+      coveredByPetition.get(String(petition._id)) || new Set(),
+    ))
+    .filter(Boolean);
+}
+
+function shouldIncludeRequestedRows(query = {}) {
+  if (query.needsApproval === '1') return false;
+  if (query.coaNo) return false;
+  return !query.status || query.status === 'requested';
+}
+
+function sortCoaRows(items = []) {
+  return [...items].sort((a, b) => {
+    const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return bTime - aTime;
+  });
+}
+
 async function freezeSnapshots(petitionId, selectedItemSeqs) {
   const petition = await assertLabApprovedPetition(petitionId);
   const labRequests = await LabRequest.find({ petitionId: petition._id }).lean();
@@ -191,8 +305,11 @@ router.get('/', async (req, res) => {
     if (req.query.needsApproval === '1') {
       filter.status = { $in: ['pendingApproval', 'pendingRevisionApproval'] };
     }
-    const items = await CoaDocument.find(filter).sort({ updatedAt: -1 }).limit(200).lean();
-    res.json({ items });
+    const documents = await CoaDocument.find(filter).sort({ updatedAt: -1 }).limit(200).lean();
+    const requestedRows = shouldIncludeRequestedRows(req.query)
+      ? await requestedCoaRows({ petitionNo: req.query.petitionNo })
+      : [];
+    res.json({ items: sortCoaRows([...documents, ...requestedRows]).slice(0, 200) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

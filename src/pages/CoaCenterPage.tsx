@@ -846,7 +846,7 @@ export default function CoaCenterPage() {
   ];
 
   const showPrintActions = activeTab !== "all" && activeWorkflowStage === "approved";
-  const showCreateActions = activeTab !== "all" && activeWorkflowStage === "requested";
+  const showCreateActions = (activeTab !== "all" && activeWorkflowStage === "requested") || (activeTab === "all" && Boolean(openAllYear));
   const showEditActions = activeTab !== "all" && activeWorkflowStage === "inProgress";
   const showApprovalActions = activeTab !== "all" && activeWorkflowStage === "pendingApproval";
   const showInProgressReviewColumns = showEditActions;
@@ -1166,6 +1166,10 @@ export default function CoaCenterPage() {
                         setPreviewDoc(doc);
                         return;
                       }
+                      if (workflowStageFor(doc) === "requested") {
+                        handleCreate(doc);
+                        return;
+                      }
                       navigate(`/coa/${doc._id}`);
                     }}
                   >
@@ -1209,19 +1213,21 @@ export default function CoaCenterPage() {
                     )}
                     {showCreateActions && (
                       <td className="px-4 py-3">
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="gap-2 bg-sky-600 text-white shadow-sm hover:bg-sky-700"
-                          aria-label={`สร้าง COA ${doc.petitionNoSnapshot || doc._id}`}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleCreate(doc);
-                          }}
-                        >
-                          <FilePlus2 className="h-4 w-4" />
-                          สร้าง COA
-                        </Button>
+                        {workflowStageFor(doc) === "requested" && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="gap-2 bg-sky-600 text-white shadow-sm hover:bg-sky-700"
+                            aria-label={`สร้าง COA ${doc.petitionNoSnapshot || doc._id}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleCreate(doc);
+                            }}
+                          >
+                            <FilePlus2 className="h-4 w-4" />
+                            สร้าง COA
+                          </Button>
+                        )}
                       </td>
                     )}
                     {showPrintActions && (
