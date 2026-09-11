@@ -163,10 +163,13 @@ describe('ItemsStep master item selection', () => {
     expect(screen.getByRole('button', { name: 'ไม่ส่ง LAB' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('marks note as required when LAB choice differs from the default', () => {
+  it('shows a red note label and reason placeholder when LAB choice differs from the default', () => {
     renderStep({ value: [{ ...baseItem, sendToLab: false }] });
 
-    expect(screen.getByText('หมายเหตุ (บังคับเมื่อเลือกต่างจากค่าเริ่มต้น)')).toBeInTheDocument();
+    expect(screen.queryByText('เลือกต่างจากค่าเริ่มต้น')).not.toBeInTheDocument();
+    expect(screen.queryByText('ต้องระบุหมายเหตุเมื่อเลือกส่ง LAB ต่างจากค่าเริ่มต้น')).not.toBeInTheDocument();
+    expect(screen.getByText('โปรดระบุ')).toHaveClass('text-red-500');
+    expect(screen.getByPlaceholderText('โปรดระบุเหตุผล')).toBeInTheDocument();
   });
 
   // itemNo ขับ "หมวดหมู่ย่อย (prefix code)" + "กลุ่ม Item" ของ parameter — ถ้าค้างรหัสเก่าไว้

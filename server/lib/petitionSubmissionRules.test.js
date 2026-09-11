@@ -55,14 +55,14 @@ test('validatePetitionSubmission requires item note when sendToLab overrides bat
     submittedBy: { name: 'Production User', department: 'Production' },
     deliveredBy: { name: 'Runner' },
     items: [{ seq: 2, sampleName: 'Sample B', batchNo: 'B-002', sendToLab: true, note: '' }],
-  }), /หมายเหตุ/);
+  }), /โปรดระบุเหตุผล/);
 
   assert.match(validatePetitionSubmission({
     dept: 'production',
     submittedBy: { name: 'Production User', department: 'Production' },
     deliveredBy: { name: 'Runner' },
     items: [{ seq: 3, sampleName: 'Sample C', batchNo: 'B-001', sendToLab: false, note: '' }],
-  }), /หมายเหตุ/);
+  }), /โปรดระบุเหตุผล/);
 
   assert.strictEqual(validatePetitionSubmission({
     dept: 'production',

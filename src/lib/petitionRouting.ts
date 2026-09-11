@@ -38,7 +38,7 @@ export function labSendOverrideNoteError(items: LabRouteItem[]): string | null {
   const missing = items.find((item) => hasSendToLabOverride(item) && !String(item.note ?? "").trim());
   if (!missing) return null;
   const label = missing.seq ? `ลำดับ ${missing.seq}` : missing.sampleName || String(missing.batchNo ?? "").trim() || "นี้";
-  return `ตัวอย่าง${label}: กรุณาระบุหมายเหตุเมื่อเลือกส่ง LAB ต่างจากค่าเริ่มต้น`;
+  return `ตัวอย่าง${label}: โปรดระบุเหตุผล`;
 }
 
 export function hasLabTrack(

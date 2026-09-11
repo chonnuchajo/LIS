@@ -42,7 +42,7 @@ describe("petitionRouting", () => {
   it("requires note when sendToLab differs from the default", () => {
     const override = { seq: 2, sampleName: "S", batchNo: "B-2", sendToLab: true, note: "" };
     expect(hasSendToLabOverride(override)).toBe(true);
-    expect(labSendOverrideNoteError([override])).toBe("ตัวอย่างลำดับ 2: กรุณาระบุหมายเหตุเมื่อเลือกส่ง LAB ต่างจากค่าเริ่มต้น");
+    expect(labSendOverrideNoteError([override])).toBe("ตัวอย่างลำดับ 2: โปรดระบุเหตุผล");
     expect(labSendOverrideNoteError([{ ...override, note: "ส่งทดสอบเพิ่ม" }])).toBeNull();
   });
 });

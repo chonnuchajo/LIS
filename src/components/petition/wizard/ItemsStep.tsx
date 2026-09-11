@@ -198,11 +198,6 @@ export default function ItemsStep({
                       {requireDeliveryAndBatch && batchSuffix ? `ส่ง lab (ลงท้าย ${batchSuffix})` : 'ส่ง lab'}
                     </span>
                   )}
-                  {labOverride && (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">
-                      เลือกต่างจากค่าเริ่มต้น
-                    </span>
-                  )}
                 </div>
                 {value.length > 1 && !itemsReadOnly && (
                   <Button size="sm" variant="danger-outline" onClick={() => removeItem(idx)}>
@@ -333,20 +328,17 @@ export default function ItemsStep({
                   </>
                 )}
                 <div className="sm:col-span-2">
-                  <Label>{labOverride ? 'หมายเหตุ (บังคับเมื่อเลือกต่างจากค่าเริ่มต้น)' : 'หมายเหตุ'}</Label>
+                  <Label className={labOverride ? 'text-red-500' : undefined}>
+                    {labOverride ? 'โปรดระบุ' : 'หมายเหตุ'}
+                  </Label>
                   <Textarea
                     rows={2}
                     value={it.note}
                     onChange={(e) => setItem(idx, { note: e.target.value })}
                     aria-invalid={labOverride && !it.note.trim() ? true : undefined}
-                    placeholder={labOverride ? 'ระบุเหตุผลที่ส่ง/ไม่ส่ง LAB ต่างจากค่าเริ่มต้น' : undefined}
+                    placeholder={labOverride ? 'โปรดระบุเหตุผล' : undefined}
                     disabled={itemsReadOnly}
                   />
-                  {labOverride && !it.note.trim() && (
-                    <p className="mt-1 text-xs text-red-500">
-                      ต้องระบุหมายเหตุเมื่อเลือกส่ง LAB ต่างจากค่าเริ่มต้น
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
