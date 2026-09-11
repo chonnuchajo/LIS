@@ -78,6 +78,10 @@ export function pathMatches(pattern: string, pathname: string) {
   return patternParts.every((part, index) => part.startsWith(":") || part === pathParts[index]);
 }
 
+export function isPublicPath(pathname: string) {
+  return PUBLIC_PATHS.some((path) => pathMatches(path, pathname));
+}
+
 export function userCanAccessPath(
   user: AccessUser | null | undefined,
   pathname: string,
@@ -86,7 +90,7 @@ export function userCanAccessPath(
   const roles = normalizeRoles(user);
   if (!user || user.status === "inactive" || roles.length === 0) return false;
   if (roles.includes("admin")) return true;
-  if (PUBLIC_PATHS.some((path) => pathMatches(path, pathname))) return true;
+  if (isPublicPath(pathname)) return true;
 
   const permissions = user.permissions ?? [];
   for (const entry of permissions) {
