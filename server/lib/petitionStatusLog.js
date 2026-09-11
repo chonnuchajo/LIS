@@ -1,17 +1,16 @@
 // Derives a human-readable status_log ({ current, timeline }) for a petition.
 // Pure functions — NO DB access. The route loads inputs and calls buildStatusLog.
-const { isResearchAndDevelopmentDepartment, requiresQcTrack } = require('./petitionSubmissionRules');
+const { defaultSendItemToLab, isLabBatchNo, isResearchAndDevelopmentDepartment, requiresQcTrack } = require('./petitionSubmissionRules');
 
 // Lab batch rule (mirrors src/types/petition.types.ts isLabBatch):
 // last char of trimmed batchNo is '1' or '6'.
 function isLabBatch(batchNo) {
-  const last = String(batchNo ?? '').trim().slice(-1);
-  return last === '1' || last === '6';
+  return isLabBatchNo(batchNo);
 }
 
 function shouldSendItemToLab(item) {
   if (!item) return false;
-  return typeof item.sendToLab === 'boolean' ? item.sendToLab : isLabBatch(item.batchNo ?? '');
+  return typeof item.sendToLab === 'boolean' ? item.sendToLab : defaultSendItemToLab(item);
 }
 
 function hasLabTrack(petition) {

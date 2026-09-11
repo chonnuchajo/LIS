@@ -82,6 +82,22 @@ describe('R&D integration request rules', () => {
     });
   });
 
+  it('sets sendToLab from legacy batch suffix defaults', () => {
+    const items = makeInitialItemsFromQuery(
+      new URLSearchParams('sampleName=Foo,Bar&batchNo=BATCH001,BATCH002'),
+    );
+
+    expect(items.map((item) => item.sendToLab)).toEqual([true, false]);
+  });
+
+  it('uses explicit sendToLab true or false from integration payload', () => {
+    const items = makeInitialItemsFromQuery(
+      new URLSearchParams('sampleName=Foo,Bar&batchNo=BATCH001,BATCH002&sendToLab=false,true'),
+    );
+
+    expect(items.map((item) => item.sendToLab)).toEqual([false, true]);
+  });
+
   it('maps posted integration payloads into the existing query parser', () => {
     const params = objectToSearchParams({
       requestNo: 'SA260805025408',

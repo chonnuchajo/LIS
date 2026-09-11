@@ -87,9 +87,16 @@ export default function ItemsStep({
   }
 
   function setLabChoice(idx: number, sendToLab: boolean) {
+    setItem(idx, { sendToLab });
+  }
+
+  function setBatchNo(idx: number, batchNo: string) {
     const item = value[idx];
-    const defaultSendToLab = defaultSendItemToLab(item);
-    setItem(idx, { sendToLab: sendToLab === defaultSendToLab ? undefined : sendToLab });
+    const followsDefault = typeof item.sendToLab !== 'boolean' || item.sendToLab === defaultSendItemToLab(item);
+    setItem(idx, {
+      batchNo,
+      ...(followsDefault ? { sendToLab: defaultSendItemToLab({ batchNo }) } : {}),
+    });
   }
 
   function fillEmptyMasterFields(
@@ -180,6 +187,7 @@ export default function ItemsStep({
           const batchSuffix = it.batchNo.trim().slice(-1);
           const sampleNameId = `sample-name-${idx}`;
           const commonNameId = `common-name-${idx}`;
+          const batchNoId = `batch-no-${idx}`;
           return (
             <div key={idx} className="rounded-[10px] border border-grey-200 p-4">
               <div className="mb-3 flex items-center justify-between">
@@ -232,10 +240,11 @@ export default function ItemsStep({
                 </div>
                 {requireDeliveryAndBatch && (
                   <div>
-                    <Label>เลขแบช (Batch No.)</Label>
+                    <Label htmlFor={batchNoId}>เลขแบช (Batch No.)</Label>
                     <Input
+                      id={batchNoId}
                       value={it.batchNo}
-                      onChange={(e) => setItem(idx, { batchNo: e.target.value })}
+                      onChange={(e) => setBatchNo(idx, e.target.value)}
                       disabled={itemsReadOnly}
                       placeholder="เช่น BN240601"
                     />

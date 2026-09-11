@@ -141,6 +141,22 @@ describe('ItemsStep master item selection', () => {
     expect(onChange).toHaveBeenCalledWith([{ ...baseItem, sendToLab: false }]);
   });
 
+  it('keeps LAB choice as explicit true when user chooses the default send option', () => {
+    const { onChange } = renderStep();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ส่ง LAB' }));
+
+    expect(onChange).toHaveBeenCalledWith([{ ...baseItem, sendToLab: true }]);
+  });
+
+  it('updates LAB choice to true when batch changes into the legacy Lab suffix', () => {
+    const { onChange } = renderStep({ value: [{ ...baseItem, batchNo: 'BATCH002', sendToLab: false }] });
+
+    fireEvent.change(screen.getByPlaceholderText('เช่น BN240601'), { target: { value: 'BATCH001' } });
+
+    expect(onChange).toHaveBeenCalledWith([{ ...baseItem, batchNo: 'BATCH001', sendToLab: true }]);
+  });
+
   it('defaults LAB choice to not send for other batch suffixes', () => {
     renderStep({ value: [{ ...baseItem, batchNo: 'BATCH002' }] });
 

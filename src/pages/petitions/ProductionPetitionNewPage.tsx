@@ -19,6 +19,7 @@ import {
   normalizeMasterItemPayload,
 } from '@/lib/petitionMasterItem';
 import {
+  defaultSendItemToLab,
   labSendOverrideNoteError,
   shouldSendItemToLab,
 } from '@/lib/petitionRouting';
@@ -53,8 +54,25 @@ function makeBlankItem(seq: number): ItemRowValues {
     submissionNo: '',
     testUnit: '',
     testItems: '',
+    sendToLab: false,
     note: '',
   };
+}
+
+function parseSendToLabValue(value: string | null | undefined): boolean | null {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (['true', '1'].includes(normalized)) return true;
+  if (['false', '0'].includes(normalized)) return false;
+  return null;
+}
+
+function sendToLabFromDefault(item: Pick<ItemRowValues, 'batchNo'>, value?: string): boolean {
+  return parseSendToLabValue(value) ?? defaultSendItemToLab(item);
+}
+
+function sendToLabForSubmit(item: Pick<ItemRowValues, 'batchNo' | 'sendToLab'>, department: string): boolean {
+  if (isResearchAndDevelopmentDepartment(department)) return true;
+  return typeof item.sendToLab === 'boolean' ? item.sendToLab : defaultSendItemToLab(item);
 }
 
 function getQueryValue(searchParams: URLSearchParams, keys: string[]): string {
@@ -151,6 +169,7 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
   const itemNo = getQueryValue(searchParams, ['itemNo']);
   const mfNo = getQueryValue(searchParams, ['mfNo']);
   const priority = getQueryValue(searchParams, ['priority']);
+  const sendToLab = getQueryValue(searchParams, ['sendToLab']);
   const note = [
     getQueryValue(searchParams, ['note']),
     itemNo ? `Item: ${itemNo}` : '',
@@ -175,6 +194,7 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
     packageUnit,
     // submissionNo เว้นว่าง — backend จะเซ็ต = เลขคำขออัตโนมัติตอนบันทึก
     testItems,
+    sendToLab: sendToLabFromDefault({ batchNo }, sendToLab),
     note,
   };
 }
@@ -275,6 +295,7 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
   const itemNos = getSampleOrQueryValues(searchParams, ['itemNo'], { splitComma: true });
   const mfNos = getSampleOrQueryValues(searchParams, ['mfNo'], { splitComma: true });
   const priorities = getSampleOrQueryValues(searchParams, ['priority'], { splitComma: true });
+  const sendToLabs = getSampleOrQueryValues(searchParams, ['sendToLab'], { splitComma: true });
 
   const itemCount = Math.max(
     sampleNames.length,
@@ -290,6 +311,7 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
     itemNos.length,
     mfNos.length,
     priorities.length,
+    sendToLabs.length,
   );
 
   if (itemCount <= 1) {
@@ -329,6 +351,7 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
       productionDate: valueAt(productionDates, i) || null,
       packageUnit: valueAt(packageUnits, i),
       testItems: valueAt(testItems, i),
+      sendToLab: sendToLabFromDefault({ batchNo: valueAt(batchNos, i, false) }, valueAt(sendToLabs, i, false)),
       note,
       labelQuantity: makeQuantityLabel(valueAt(quantities, i, false), valueAt(quantityUnits, i)),
       labelSampledDate: valueAt(productionDates, i),
@@ -545,7 +568,7 @@ export default function ProductionPetitionNewPage({
             submissionNo: it.submissionNo ?? '',
             testUnit: it.testUnit ?? '',
             testItems: it.testItems ?? '',
-            sendToLab: it.sendToLab,
+            sendToLab: sendToLabForSubmit(it, source.submittedBy?.department ?? ''),
             note: it.note ?? '',
           })),
         );
@@ -703,7 +726,7 @@ export default function ProductionPetitionNewPage({
           name: submitter.name,
           department: submitterDepartment || undefined,
         },
-        items: items.map((it, idx) => ({ ...it, seq: idx + 1 })),
+        items: items.map((it, idx) => ({ ...it, seq: idx + 1, sendToLab: sendToLabForSubmit(it, submitterDepartment) })),
         labRequests: [],
         prodOrderNos,
         productionWorkflow: productionRequestNo ? {
