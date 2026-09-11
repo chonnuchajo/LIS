@@ -307,7 +307,7 @@ export default function PrintPreviewDialog({
           <DialogTitle>{previewOnly ? "ตัวอย่างเอกสาร" : "ตัวอย่างก่อนพิมพ์"} — {meta?.label ?? docType}</DialogTitle>
         </DialogHeader>
 
-        <ScaledPreview printRef={printRef} previewClassName={docType === "coa" ? "bg-sky-50" : undefined}>{children}</ScaledPreview>
+        <ScaledPreview printRef={printRef} previewClassName={docType === "coa" ? "bg-muted" : undefined}>{children}</ScaledPreview>
 
         {!previewOnly && !configured && (
           <p className="shrink-0 text-sm text-red-600">

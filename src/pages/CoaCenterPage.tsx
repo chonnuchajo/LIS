@@ -376,63 +376,63 @@ function CoaNotificationAlert({
       : "approved";
 
   return (
-    <Alert data-testid="coa-notification-alert" className="border-violet-200 bg-violet-50/90 text-violet-950 shadow-sm [&>svg]:text-violet-600">
+    <Alert data-testid="coa-notification-alert" className="border-border bg-card text-card-foreground shadow-sm [&>svg]:text-primary-500">
       <BellRing className="h-5 w-5" />
       <AlertTitle className="flex flex-wrap items-center gap-2">
         แจ้งเตือนเอกสาร COA
-        {pendingApprovalDocs.length > 0 && <Badge variant="purple-soft">รออนุมัติ {pendingApprovalDocs.length} รายการ</Badge>}
-        {correctionDocs.length > 0 && <Badge variant="purple-soft">ต้องแก้ไขข้อมูลใหม่ {correctionDocs.length} รายการ</Badge>}
-        {duplicateRequestDocs.length > 0 && <Badge variant="purple-soft">ขอใบซ้ำ {duplicateRequestDocs.length} รายการ</Badge>}
-        {duplicateCommonNameGroups.length > 0 && <Badge variant="purple-soft">ชื่อสามัญซ้ำ {duplicateCommonNameGroups.length} กลุ่ม</Badge>}
-        {duplicateBatchProductionDateGroups.length > 0 && <Badge variant="purple-soft">Batch/วันที่ผลิตซ้ำ {duplicateBatchProductionDateGroups.length} กลุ่ม</Badge>}
-        {approvedDocs.length > 0 && <Badge variant="purple-soft">อนุมัติแล้ว {approvedDocs.length} รายการ</Badge>}
+        {pendingApprovalDocs.length > 0 && <Badge variant="primary-soft">รออนุมัติ {pendingApprovalDocs.length} รายการ</Badge>}
+        {correctionDocs.length > 0 && <Badge variant="primary-soft">ต้องแก้ไขข้อมูลใหม่ {correctionDocs.length} รายการ</Badge>}
+        {duplicateRequestDocs.length > 0 && <Badge variant="primary-soft">ขอใบซ้ำ {duplicateRequestDocs.length} รายการ</Badge>}
+        {duplicateCommonNameGroups.length > 0 && <Badge variant="primary-soft">ชื่อสามัญซ้ำ {duplicateCommonNameGroups.length} กลุ่ม</Badge>}
+        {duplicateBatchProductionDateGroups.length > 0 && <Badge variant="primary-soft">Batch/วันที่ผลิตซ้ำ {duplicateBatchProductionDateGroups.length} กลุ่ม</Badge>}
+        {approvedDocs.length > 0 && <Badge variant="primary-soft">อนุมัติแล้ว {approvedDocs.length} รายการ</Badge>}
       </AlertTitle>
       <AlertDescription>
         <div className="mt-3 grid gap-3 xl:grid-cols-3">
           {pendingApprovalDocs.length > 0 && (
-            <div className="rounded-md border border-violet-200 bg-white/80 p-3">
+            <div className="rounded-md border bg-card p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-violet-900">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <AlertTriangle className="h-4 w-4" />
                     รออนุมัติจาก QC Head
                   </div>
-                  <p className="mt-1 text-xs text-violet-700">มีเอกสารที่ส่งขออนุมัติแล้วแต่ยังไม่ได้รับการอนุมัติ</p>
+                  <p className="mt-1 text-xs text-muted-foreground">มีเอกสารที่ส่งขออนุมัติแล้วแต่ยังไม่ได้รับการอนุมัติ</p>
                 </div>
-                <Button type="button" variant="outline" size="sm" className="border-violet-200 bg-white text-violet-700 hover:bg-violet-50" onClick={() => onOpenStage("pendingApproval")}>
+                <Button type="button" variant="outline" size="sm" onClick={() => onOpenStage("pendingApproval")}>
                   ดูรายการรออนุมัติ
                 </Button>
               </div>
-              <ul className="mt-3 space-y-2 text-xs text-violet-800">
+              <ul className="mt-3 space-y-2 text-xs text-foreground">
                 {pendingApprovalPreviewDocs.map((doc) => (
-                  <li key={doc._id} className="rounded border border-violet-100 bg-violet-50/60 px-2 py-1.5">
+                  <li key={doc._id} className="rounded border bg-muted/50 px-2 py-1.5">
                     <div className="font-semibold">{coaNotificationLabel(doc)}</div>
-                    <div className="text-violet-700">{customerName(doc)} · {joinValues(doc.sampleSnapshots?.map((sample) => sample.sampleName))}</div>
+                    <div className="text-muted-foreground">{customerName(doc)} · {joinValues(doc.sampleSnapshots?.map((sample) => sample.sampleName))}</div>
                   </li>
                 ))}
                 {pendingApprovalDocs.length > pendingApprovalPreviewDocs.length && (
-                  <li className="text-violet-700">และอีก {pendingApprovalDocs.length - pendingApprovalPreviewDocs.length} รายการ</li>
+                  <li className="text-muted-foreground">และอีก {pendingApprovalDocs.length - pendingApprovalPreviewDocs.length} รายการ</li>
                 )}
               </ul>
             </div>
           )}
           {correctionDocs.length > 0 && (
-            <div className="rounded-md border border-violet-200 bg-white/80 p-3">
+            <div className="rounded-md border bg-card p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-violet-800">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <AlertTriangle className="h-4 w-4" />
                     ต้องแก้ไขข้อมูลใหม่
                   </div>
-                  <p className="mt-1 text-xs text-violet-700">เอกสารถูกส่งกลับจากการอนุมัติ โปรดแก้ไขข้อมูลแล้วส่งอนุมัติอีกครั้ง</p>
+                  <p className="mt-1 text-xs text-muted-foreground">เอกสารถูกส่งกลับจากการอนุมัติ โปรดแก้ไขข้อมูลแล้วส่งอนุมัติอีกครั้ง</p>
                 </div>
-                <Button type="button" variant="outline" size="sm" className="border-violet-200 bg-white text-violet-700 hover:bg-violet-50" onClick={() => onOpenStage("inProgress")}>
+                <Button type="button" variant="outline" size="sm" onClick={() => onOpenStage("inProgress")}>
                   ดูรายการต้องแก้ไข
                 </Button>
               </div>
-              <ul className="mt-3 space-y-2 text-xs text-violet-700">
+              <ul className="mt-3 space-y-2 text-xs text-foreground">
                 {correctionPreviewDocs.map((doc) => (
-                  <li key={doc._id} className="rounded border border-violet-100 bg-violet-50/60 px-2 py-1.5">
+                  <li key={doc._id} className="rounded border bg-muted/50 px-2 py-1.5">
                     <div className="font-semibold">{coaNotificationLabel(doc)}</div>
                     <div>{coaCorrectionReason(doc)}</div>
                   </li>
@@ -442,22 +442,22 @@ function CoaNotificationAlert({
             </div>
           )}
           {duplicateRequestDocs.length > 0 && (
-            <div className="rounded-md border border-violet-200 bg-white/80 p-3">
+            <div className="rounded-md border bg-card p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-violet-800">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <AlertTriangle className="h-4 w-4" />
                     เอกสารที่ขอใบซ้ำ
                   </div>
-                  <p className="mt-1 text-xs text-violet-700">พบ COA ที่เป็นใบแก้ไข/ออกซ้ำจากใบเดิม ควรตรวจสอบก่อนอนุมัติหรือพิมพ์</p>
+                  <p className="mt-1 text-xs text-muted-foreground">พบ COA ที่เป็นใบแก้ไข/ออกซ้ำจากใบเดิม ควรตรวจสอบก่อนอนุมัติหรือพิมพ์</p>
                 </div>
-                <Button type="button" variant="outline" size="sm" className="border-violet-200 bg-white text-violet-700 hover:bg-violet-50" onClick={() => onOpenStage(duplicateRequestStage)}>
+                <Button type="button" variant="outline" size="sm" onClick={() => onOpenStage(duplicateRequestStage)}>
                   ดูรายการใบซ้ำ
                 </Button>
               </div>
-              <ul className="mt-3 space-y-2 text-xs text-violet-700">
+              <ul className="mt-3 space-y-2 text-xs text-foreground">
                 {duplicateRequestPreviewDocs.map((doc) => (
-                  <li key={doc._id} className="rounded border border-violet-100 bg-violet-50/60 px-2 py-1.5">
+                  <li key={doc._id} className="rounded border bg-muted/50 px-2 py-1.5">
                     <div className="font-semibold">{coaNotificationLabel(doc)}</div>
                     <div>Rev.{doc.revision || 0} · {customerName(doc)} · {joinValues(doc.sampleSnapshots?.map((sample) => sample.commonName || sample.sampleName))}</div>
                   </li>
@@ -467,38 +467,38 @@ function CoaNotificationAlert({
             </div>
           )}
           {duplicateCommonNameGroups.length > 0 && (
-            <div className="rounded-md border border-violet-200 bg-white/80 p-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-violet-800">
+            <div className="rounded-md border bg-card p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <AlertTriangle className="h-4 w-4" />
                 ชื่อสามัญซ้ำ
               </div>
-              <p className="mt-1 text-xs text-violet-700">พบชื่อสามัญเดียวกันในหลายเอกสาร COA ภายในช่วงที่กำลังดู</p>
-              <ul className="mt-3 space-y-2 text-xs text-violet-800">
+              <p className="mt-1 text-xs text-muted-foreground">พบชื่อสามัญเดียวกันในหลายเอกสาร COA ภายในช่วงที่กำลังดู</p>
+              <ul className="mt-3 space-y-2 text-xs text-foreground">
                 {duplicateCommonNameGroups.map((group) => (
-                  <li key={group.key} className="rounded border border-violet-100 bg-violet-50/60 px-2 py-1.5">
+                  <li key={group.key} className="rounded border bg-muted/50 px-2 py-1.5">
                     <div className="flex flex-wrap items-center gap-2 font-semibold">
                       <span>{group.label}</span>
-                      <Badge variant="purple-soft">{group.documents.length} ใบ</Badge>
+                      <Badge variant="primary-soft">{group.documents.length} ใบ</Badge>
                     </div>
-                    <div className="mt-1 text-violet-700">{group.documents.slice(0, 3).map(coaNotificationLabel).join(" · ")}</div>
+                    <div className="mt-1 text-muted-foreground">{group.documents.slice(0, 3).map(coaNotificationLabel).join(" · ")}</div>
                   </li>
                 ))}
               </ul>
             </div>
           )}
           {duplicateBatchProductionDateGroups.length > 0 && (
-            <div className="rounded-md border border-violet-200 bg-white/80 p-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-violet-800">
+            <div className="rounded-md border bg-card p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <AlertTriangle className="h-4 w-4" />
                 Batch และวันที่ผลิตซ้ำ
               </div>
-              <p className="mt-1 text-xs text-violet-700">พบ Batch No. คู่กับวันที่ผลิตเดียวกันในหลายเอกสาร</p>
-              <ul className="mt-3 space-y-2 text-xs text-violet-700">
+              <p className="mt-1 text-xs text-muted-foreground">พบ Batch No. คู่กับวันที่ผลิตเดียวกันในหลายเอกสาร</p>
+              <ul className="mt-3 space-y-2 text-xs text-foreground">
                 {duplicateBatchProductionDateGroups.map((group) => (
-                  <li key={group.key} className="rounded border border-violet-100 bg-violet-50/60 px-2 py-1.5">
+                  <li key={group.key} className="rounded border bg-muted/50 px-2 py-1.5">
                     <div className="flex flex-wrap items-center gap-2 font-semibold">
                       <span>{group.label}</span>
-                      <Badge variant="purple-soft">{group.documents.length} ใบ</Badge>
+                      <Badge variant="primary-soft">{group.documents.length} ใบ</Badge>
                     </div>
                     <div className="mt-1">{group.documents.slice(0, 3).map(coaNotificationLabel).join(" · ")}</div>
                   </li>
@@ -507,25 +507,25 @@ function CoaNotificationAlert({
             </div>
           )}
           {approvedDocs.length > 0 && (
-            <div data-testid="coa-approved-summary" className="rounded-md border border-violet-200 bg-white/80 p-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-violet-800">
+            <div data-testid="coa-approved-summary" className="rounded-md border bg-card p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <FileCheck2 className="h-4 w-4" />
                 สรุปข้อมูลที่ผ่านการอนุมัติ
               </div>
-              <p className="mt-1 text-xs text-violet-700">รวมเอกสารสถานะอนุมัติแล้ว พิมพ์แล้ว และออกซ้ำที่พร้อมใช้งาน</p>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-violet-700">
-                <div className="rounded border border-violet-100 bg-violet-50/70 p-2">
-                  <div className="text-lg font-bold text-violet-800">{approvedDocs.length}</div>
+              <p className="mt-1 text-xs text-muted-foreground">รวมเอกสารสถานะอนุมัติแล้ว พิมพ์แล้ว และออกซ้ำที่พร้อมใช้งาน</p>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-foreground">
+                <div className="rounded border bg-muted/50 p-2">
+                  <div className="text-lg font-bold text-foreground">{approvedDocs.length}</div>
                   <div>รายการที่ผ่านอนุมัติ</div>
                 </div>
-                <div className="rounded border border-violet-100 bg-violet-50/70 p-2">
-                  <div className="text-lg font-bold text-violet-800">{approvedDocs.filter((doc) => isToday(doc.approval?.approvedAt || doc.updatedAt || doc.createdAt)).length}</div>
+                <div className="rounded border bg-muted/50 p-2">
+                  <div className="text-lg font-bold text-foreground">{approvedDocs.filter((doc) => isToday(doc.approval?.approvedAt || doc.updatedAt || doc.createdAt)).length}</div>
                   <div>อนุมัติวันนี้</div>
                 </div>
               </div>
-              <ul className="mt-3 space-y-2 text-xs text-violet-700">
+              <ul className="mt-3 space-y-2 text-xs text-foreground">
                 {approvedPreviewDocs.map((doc) => (
-                  <li key={doc._id} className="rounded border border-violet-100 bg-violet-50/60 px-2 py-1.5">
+                  <li key={doc._id} className="rounded border bg-muted/50 px-2 py-1.5">
                     <div className="font-semibold">{coaNotificationLabel(doc)}</div>
                     <div>{customerName(doc)} · อนุมัติ {approvedSummaryDate(doc)}</div>
                   </li>
@@ -534,19 +534,19 @@ function CoaNotificationAlert({
             </div>
           )}
           {dailyRequestSummaries.length > 0 && (
-            <div data-testid="coa-daily-request-summary" className="rounded-md border border-violet-200 bg-white/80 p-3">
-              <div className="flex items-center gap-2 text-sm font-semibold text-violet-800">
+            <div data-testid="coa-daily-request-summary" className="rounded-md border bg-card p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <BellRing className="h-4 w-4" />
                 สรุปจำนวนคำขอแต่ละวัน
               </div>
-              <p className="mt-1 text-xs text-violet-700">นับจากวันที่สร้างคำขอ COA ในช่วงข้อมูลที่กำลังดู</p>
-              <ul className="mt-3 space-y-2 text-xs text-violet-700">
+              <p className="mt-1 text-xs text-muted-foreground">นับจากวันที่สร้างคำขอ COA ในช่วงข้อมูลที่กำลังดู</p>
+              <ul className="mt-3 space-y-2 text-xs text-foreground">
                 {dailyRequestSummaries.map((summary) => (
-                  <li key={summary.dateKey} className="flex flex-wrap items-center justify-between gap-2 rounded border border-violet-100 bg-violet-50/60 px-2 py-1.5">
+                  <li key={summary.dateKey} className="flex flex-wrap items-center justify-between gap-2 rounded border bg-muted/50 px-2 py-1.5">
                     <span className="font-semibold">{summary.label}</span>
                     <span className="flex flex-wrap items-center gap-2">
-                      <Badge variant="purple-soft">{summary.count} คำขอ</Badge>
-                      {summary.approvedCount > 0 && <Badge variant="purple-soft">อนุมัติ {summary.approvedCount}</Badge>}
+                      <Badge variant="primary-soft">{summary.count} คำขอ</Badge>
+                      {summary.approvedCount > 0 && <Badge variant="primary-soft">อนุมัติ {summary.approvedCount}</Badge>}
                     </span>
                   </li>
                 ))}
@@ -833,20 +833,20 @@ export default function CoaCenterPage() {
     primary: {
       button: "border border-transparent bg-primary-50 text-primary-600 hover:bg-primary-100",
       selected: "border-primary-200 ring-2 ring-primary-300 shadow-sm",
-      count: "bg-white text-primary-600",
+      count: "bg-card text-primary-600",
     },
     secondary: {
       button: "border border-transparent bg-secondary text-secondary-foreground hover:bg-accent",
       selected: "border-primary-200 ring-2 ring-primary-200 shadow-sm",
-      count: "bg-white text-primary-600",
+      count: "bg-card text-primary-600",
     },
   };
   const workflowTabs: Array<{ key: CoaWorkflowStage; label: string; count: number; className: string; activeClassName: string; countClassName: string }> = [
-    { key: "all", label: "ทุกสถานะ", count: yearItems.length, className: "border border-transparent bg-secondary text-secondary-foreground hover:bg-accent", activeClassName: "border-primary-200 ring-2 ring-primary-200 shadow-sm", countClassName: "bg-white text-primary-600" },
-    { key: "requested", label: workflowStageLabels.requested, count: workflowCounts.requested, className: "border border-transparent bg-primary-50 text-primary-600 hover:bg-primary-100", activeClassName: "border-primary-200 ring-2 ring-primary-300 shadow-sm", countClassName: "bg-white text-primary-600" },
-    { key: "inProgress", label: workflowStageLabels.inProgress, count: workflowCounts.inProgress, className: "border border-transparent bg-green-50 text-green-500 hover:bg-green-50/80", activeClassName: "border-green-500 ring-2 ring-green-50 shadow-sm", countClassName: "bg-white text-green-500" },
-    { key: "pendingApproval", label: workflowStageLabels.pendingApproval, count: workflowCounts.pendingApproval, className: "border border-transparent bg-yellow-50 text-yellow-500 hover:bg-yellow-50/80", activeClassName: "border-yellow-500 ring-2 ring-yellow-50 shadow-sm", countClassName: "bg-white text-yellow-500" },
-    { key: "approved", label: workflowStageLabels.approved, count: workflowCounts.approved, className: "border border-transparent bg-primary-50 text-primary-600 hover:bg-primary-100", activeClassName: "border-primary-200 ring-2 ring-primary-300 shadow-sm", countClassName: "bg-white text-primary-600" },
+    { key: "all", label: "ทุกสถานะ", count: yearItems.length, className: "border border-transparent bg-secondary text-secondary-foreground hover:bg-accent", activeClassName: "border-primary-200 ring-2 ring-primary-200 shadow-sm", countClassName: "bg-card text-primary-600" },
+    { key: "requested", label: workflowStageLabels.requested, count: workflowCounts.requested, className: "border border-transparent bg-primary-50 text-primary-600 hover:bg-primary-100", activeClassName: "border-primary-200 ring-2 ring-primary-300 shadow-sm", countClassName: "bg-card text-primary-600" },
+    { key: "inProgress", label: workflowStageLabels.inProgress, count: workflowCounts.inProgress, className: "border border-transparent bg-green-50 text-green-500 hover:bg-green-50/80", activeClassName: "border-green-500 ring-2 ring-green-50 shadow-sm", countClassName: "bg-card text-green-500" },
+    { key: "pendingApproval", label: workflowStageLabels.pendingApproval, count: workflowCounts.pendingApproval, className: "border border-transparent bg-yellow-50 text-yellow-500 hover:bg-yellow-50/80", activeClassName: "border-yellow-500 ring-2 ring-yellow-50 shadow-sm", countClassName: "bg-card text-yellow-500" },
+    { key: "approved", label: workflowStageLabels.approved, count: workflowCounts.approved, className: "border border-transparent bg-primary-50 text-primary-600 hover:bg-primary-100", activeClassName: "border-primary-200 ring-2 ring-primary-300 shadow-sm", countClassName: "bg-card text-primary-600" },
   ];
 
   const showPrintActions = activeTab !== "all" && activeWorkflowStage === "approved";
@@ -1030,7 +1030,7 @@ export default function CoaCenterPage() {
                     onClick={() => setActiveYear(year)}
                   >
                     {year}
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${selected ? "bg-white/20 text-white" : "bg-white text-primary-600"}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${selected ? "bg-primary-600 text-white" : "bg-card text-primary-600"}`}>
                       {items.filter((doc) => documentYear(doc) === year).length}
                     </span>
                   </button>

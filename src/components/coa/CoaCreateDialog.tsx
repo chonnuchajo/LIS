@@ -90,12 +90,12 @@ export default function CoaCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-sky-100 bg-sky-50 sm:max-w-3xl">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="text-sky-950">สร้าง COA</DialogTitle>
+          <DialogTitle>สร้าง COA</DialogTitle>
         </DialogHeader>
         {reusableActiveCoa && (
-          <Alert className="border-orange-200 bg-orange-50 text-orange-900">
+          <Alert className="border-yellow-500/30 bg-yellow-50 text-yellow-500">
             <AlertTitle>พบประวัติการทำ COA แล้ว</AlertTitle>
             <AlertDescription>
               {reusableActiveCoaFields} เคยออก COA แล้ว เลข COA No. {reusableActiveCoa.coaNo}
@@ -105,32 +105,32 @@ export default function CoaCreateDialog({
           </Alert>
         )}
         <div className="grid gap-4 md:grid-cols-[260px_1fr]">
-          <div className="max-h-80 overflow-auto rounded-md border border-sky-100 bg-sky-50/70">
+          <div className="max-h-80 overflow-auto rounded-md border bg-muted/50">
             {petitions.map((petition) => (
               <button
                 key={petition._id}
                 type="button"
-                className={`block w-full border-b border-sky-100 px-3 py-2 text-left text-sm transition-colors hover:bg-sky-100/80 ${petition._id === petitionId ? "bg-sky-100 text-sky-950" : "text-slate-700"}`}
+                className={`block w-full border-b px-3 py-2 text-left text-sm transition-colors hover:bg-accent ${petition._id === petitionId ? "bg-primary-50 text-foreground" : "text-foreground"}`}
                 onClick={() => {
                   setPetitionId(petition._id);
                   setSelectedSeqs([]);
                 }}
               >
                 <div className="font-medium">{petition.petitionNo}</div>
-                <div className="text-xs text-sky-500">{petition.items.length} รายการ</div>
+                <div className="text-xs text-muted-foreground">{petition.items.length} รายการ</div>
               </button>
             ))}
           </div>
-          <div className="max-h-80 overflow-auto rounded-md border border-sky-100 bg-white/90">
-            {!selectedPetition && <div className="p-6 text-center text-sm text-sky-500">เลือกคำร้องที่อนุมัติผล Lab แล้ว</div>}
+          <div className="max-h-80 overflow-auto rounded-md border bg-card">
+            {!selectedPetition && <div className="p-6 text-center text-sm text-muted-foreground">เลือกคำร้องที่อนุมัติผล Lab แล้ว</div>}
             {selectedPetition?.items.map((item) => (
-              <label key={item.seq} className="flex items-start gap-3 border-b border-sky-50 p-3 text-sm hover:bg-sky-50/80">
+              <label key={item.seq} className="flex items-start gap-3 border-b p-3 text-sm hover:bg-accent">
                 <Checkbox checked={selectedSeqs.includes(item.seq)} onCheckedChange={() => toggleSeq(item.seq)} />
                   <span>
-                    <span className="block font-medium text-sky-950">{item.sampleName || item.commonName || `Sample ${item.seq}`}</span>
-                    <span className="block text-xs text-sky-500">{[item.batchNo || item.lotNo || "-", item.productionDate ? `ผลิต ${formatProductionDate(item.productionDate)}` : null].filter(Boolean).join(" · ")}</span>
+                    <span className="block font-medium text-foreground">{item.sampleName || item.commonName || `Sample ${item.seq}`}</span>
+                    <span className="block text-xs text-muted-foreground">{[item.batchNo || item.lotNo || "-", item.productionDate ? `ผลิต ${formatProductionDate(item.productionDate)}` : null].filter(Boolean).join(" · ")}</span>
                     {item.activeCoa && (
-                      <span className="mt-1 block rounded-md bg-orange-50 px-2 py-1 text-xs text-orange-700">
+                      <span className="mt-1 block rounded-md bg-yellow-50 px-2 py-1 text-xs text-yellow-500">
                       มีประวัติ COA แล้ว: {item.activeCoa.coaNo}
                     </span>
                   )}
@@ -140,17 +140,17 @@ export default function CoaCreateDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" className="border-sky-200 text-sky-700 hover:bg-sky-50" onClick={() => onOpenChange(false)}>ปิด</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>ปิด</Button>
           {reusableActiveCoa ? (
             <Button
-              className="gap-2 bg-orange-600 text-white hover:bg-orange-700"
+              className="gap-2 bg-yellow-500 text-white hover:bg-yellow-500/90"
               disabled={submitExisting.isPending || create.isPending}
               onClick={() => submitExisting.mutate()}
             >
               ส่งใบเดิมไปรออนุมัติ
             </Button>
           ) : (
-            <Button className="gap-2 bg-sky-600 text-white hover:bg-sky-700" disabled={!petitionId || selectedSeqs.length === 0 || create.isPending || submitExisting.isPending} onClick={() => create.mutate()}>
+            <Button className="gap-2 bg-primary-500 text-white hover:bg-primary-600" disabled={!petitionId || selectedSeqs.length === 0 || create.isPending || submitExisting.isPending} onClick={() => create.mutate()}>
               <FilePlus2 className="h-4 w-4" />
               สร้างร่าง COA
             </Button>
