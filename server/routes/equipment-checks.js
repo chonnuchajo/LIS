@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const EquipmentCheck = require('../models/EquipmentCheck');
+const { getDailyCheckPeriod } = require('../lib/dailyCheckPeriod');
 
 const todayStr = () => {
   const d = new Date();
@@ -15,7 +16,7 @@ const todayStr = () => {
 // Default date: today
 router.get('/', async (req, res) => {
   try {
-    const { room, date, from, to, instrumentId, status } = req.query;
+    const { room, date, from, to, instrumentId, status, period } = req.query;
     if (!room) return res.status(400).json({ error: 'room ต้องระบุ' });
 
     const q = { roomSlug: String(room) };
@@ -32,6 +33,7 @@ router.get('/', async (req, res) => {
 
     if (instrumentId) q.instrumentId = String(instrumentId);
     if (status) q.status = String(status);
+    if (period) q.period = String(period);
 
     const records = await EquipmentCheck.find(q).sort({ checkedAt: -1 }).lean();
     res.json({ data: records });
@@ -57,6 +59,11 @@ router.post('/', async (req, res) => {
     }
     if (!recorder || !String(recorder).trim()) {
       return res.status(400).json({ error: 'recorder ต้องระบุ' });
+    }
+    const now = new Date();
+    const period = getDailyCheckPeriod(now);
+    if (!period) {
+      return res.status(400).json({ error: 'Daily Check บันทึกได้เฉพาะช่วงเช้า 08:00-12:00 หรือบ่าย 13:00-17:00' });
     }
 
     let cleanReadings = [];
@@ -86,7 +93,8 @@ router.post('/', async (req, res) => {
       recorderId: recorderId || '',
       recorderEmail: recorderEmail || '',
       date: todayStr(),
-      checkedAt: new Date(),
+      period,
+      checkedAt: now,
     });
 
     res.status(201).json({ data: created });

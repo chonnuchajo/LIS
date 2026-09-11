@@ -24,7 +24,7 @@ import { isAssignedTo } from '@/lib/assignment';
 import { labReceivedAt, labReceivedBy } from '@/lib/receiveStatus';
 import { useConfirm } from '@/context/ConfirmDialog';
 import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues, optionOutputText, enumNormalValues, resolveConditionalOutput, isConditionalOutputAbnormal, resolveLabelTolerance } from '@/lib/parameterValidation';
-import { SG_FIELD_LABEL, FORM_ENTRY_INDEX_KEY } from '@/lib/formSpecificGravity';
+import { SG_FIELD_LABEL, FORM_ENTRY_INDEX_KEY, readSpecificGravityEntryValue } from '@/lib/formSpecificGravity';
 import type { ConditionContext, ResolvedOutput, RenderFieldUnit } from '@/lib/parameterValidation';
 import { describeResolvedStandard, formatLabelToleranceRange, labelToleranceBadge } from '@/lib/standardOperators';
 import { cn } from '@/lib/utils';
@@ -34,9 +34,9 @@ import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
 import { getPetitionCategory, itemGroupKey, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { visibleFieldsForPhase } from '@/lib/phaseRetest';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
-import { isResearchAndDevelopmentPetition, isLabBatchNo } from '@/lib/petitionRouting';
+import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 import {
-  PETITION_DEPT_LABELS,
   type Petition,
   type PetitionItem,
   type PetitionPhase,
@@ -70,9 +70,6 @@ function formatTime(d: Date | string | undefined) {
   const date = typeof d === 'string' ? new Date(d) : d;
   return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 }
-
-const isLabBatchNo = (batchNo?: string | null) => /[16]$/.test(String(batchNo ?? '').trim());
-
 
 function resultKey(itemSeq: number, parameterId: string) {
   return `${itemSeq}__${parameterId}`;
@@ -135,7 +132,7 @@ function describeStandard(field: ParameterValueField): string {
 }
 
 function formatLabLabelToleranceRange(rv: ReturnType<typeof resolveLabelTolerance>, unit: string): string {
-  return formatLabelToleranceRange(rv, unit).replace(/^หัวหน้าตรวจสอบ/, 'เกณฑ์กลาง');
+  return formatLabelToleranceRange(rv, unit);
 }
 
 interface TestFieldProps {
@@ -681,7 +678,7 @@ export default function LabTestingDetailPage() {
   // Items with no Lab-readable params should not appear here.
   const allLabBatchItems = isResearchAndDevelopmentPetition(petition)
     ? (petition.items ?? [])
-    : (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
+    : (petition.items ?? []).filter((it) => shouldSendItemToLab(it));
   const labItems = paramsLoaded
     ? allLabBatchItems.filter(
         (it) => matchLabParametersForItem(petition, it, allParameters, idsFor(it)).length > 0,
@@ -889,7 +886,7 @@ export default function LabTestingDetailPage() {
   const switchablePetitions = (worklistData?.items ?? []).filter((p) =>
     !!labReceivedAt(p) && (p.items ?? []).some(
       (it) =>
-        (isResearchAndDevelopmentPetition(p) || isLabBatchNo(it.batchNo)) &&
+        (isResearchAndDevelopmentPetition(p) || shouldSendItemToLab(it)) &&
         matchLabParametersForItem(p, it, allParameters, idsFor(it)).length > 0,
     ),
   );
@@ -914,7 +911,7 @@ export default function LabTestingDetailPage() {
           }
         />
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+          <Badge variant="blue-soft">{petitionDepartmentLabel(petition)}</Badge>
           {wasReturned && (
             <span
               className="inline-flex items-center text-orange-500"
@@ -1512,14 +1509,15 @@ export default function LabTestingDetailPage() {
                                           <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {entryRows.map((ev, ei) => (
-                                            <SelectItem key={ei} value={String(ei)}>
-                                              รายการที่ {ei + 1}
-                                              {ev?.[SG_FIELD_LABEL] != null && ev[SG_FIELD_LABEL] !== ''
-                                                ? ` (${ev[SG_FIELD_LABEL]})`
-                                                : ''}
-                                            </SelectItem>
-                                          ))}
+                                          {entryRows.map((ev, ei) => {
+                                            const sgValue = readSpecificGravityEntryValue(ev, SG_FIELD_LABEL);
+                                            return (
+                                              <SelectItem key={ei} value={String(ei)}>
+                                                รายการที่ {ei + 1}
+                                                {sgValue != null && sgValue !== '' ? ` (${sgValue})` : ''}
+                                              </SelectItem>
+                                            );
+                                          })}
                                         </SelectContent>
                                       </Select>
                                     </div>

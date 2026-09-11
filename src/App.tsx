@@ -15,6 +15,7 @@ import PrivateRoute from "@/components/PrivateRoute";
 import RoutePointerLockGuard from "@/components/RoutePointerLockGuard";
 import { DevRoleSwitcher } from "@/components/DevRoleSwitcher";
 import EmployeeLinkGate from "@/components/lis/EmployeeLinkGate";
+import GlobalStockQrScanListener from "@/components/lis/GlobalStockQrScanListener";
 import { RouteLoading } from "@/components/RouteLoading";
 import { StartupLoadingGate } from "@/components/StartupLoadingGate";
 
@@ -29,6 +30,7 @@ const LabResults = lazy(() => import("./pages/LabResults"));
 const LabResultDetailPage = lazy(() => import("./pages/LabResultDetailPage"));
 const CoaCenterPage = lazy(() => import("./pages/CoaCenterPage"));
 const CoaDetailPage = lazy(() => import("./pages/CoaDetailPage"));
+const BlankFormPage = lazy(() => import("./pages/BlankFormPage"));
 const Report = lazy(() => import("./pages/Report"));
 const Stock = lazy(() => import("./pages/Stock"));
 const StockUnitScanPage = lazy(() => import("./pages/StockUnitScanPage"));
@@ -46,7 +48,9 @@ const LabApprovalReviewPage = lazy(() => import("./pages/LabApprovalReviewPage")
 const AdminData = lazy(() => import("./pages/AdminData"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const ParameterSettings = lazy(() => import("./pages/ParameterSettings"));
+const FullSpecPage = lazy(() => import("./pages/FullSpecPage"));
 const AccessControl = lazy(() => import("./pages/AccessControl"));
+const SignatureCapturePage = lazy(() => import("./pages/SignatureCapturePage"));
 const StockDeduction = lazy(() => import("./pages/StockDeduction"));
 const StockPublicViewPage = lazy(() => import("./pages/StockPublicViewPage"));
 const DailyCheckLayout = lazy(() => import("./pages/daily-check/DailyCheckLayout"));
@@ -98,6 +102,7 @@ const App = () => (
         future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
       >
         <RoutePointerLockGuard />
+        <GlobalStockQrScanListener />
         <AuthProvider>
           <DevRoleSwitcher />
           <EmployeeLinkGate />
@@ -126,6 +131,7 @@ const App = () => (
               <Route path="/lab-results/:id" element={<PrivateRoute><LabResultDetailPage /></PrivateRoute>} />
               <Route path="/coa" element={<PrivateRoute><CoaCenterPage /></PrivateRoute>} />
               <Route path="/coa/:id" element={<PrivateRoute><CoaDetailPage /></PrivateRoute>} />
+              <Route path="/blank-form" element={<PrivateRoute><BlankFormPage /></PrivateRoute>} />
               <Route path="/qc-approval" element={<PrivateRoute><QCApproval /></PrivateRoute>} />
               <Route path="/qc-approval/:id" element={<PrivateRoute><QCApprovalReviewPage /></PrivateRoute>} />
               <Route path="/lab-approval" element={<PrivateRoute><LabApproval /></PrivateRoute>} />
@@ -150,15 +156,18 @@ const App = () => (
               <Route path="/machines" element={<PrivateRoute><MachinesPage /></PrivateRoute>} />
               <Route path="/admin-data" element={<PrivateRoute><AdminData /></PrivateRoute>} />
               <Route path="/access-control" element={<PrivateRoute><AccessControl /></PrivateRoute>} />
+              <Route path="/profile/signature" element={<PrivateRoute><SignatureCapturePage /></PrivateRoute>} />
               <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
               <Route path="/parameter-settings" element={<PrivateRoute><ParameterSettings /></PrivateRoute>} />
+              <Route path="/full-spec" element={<PrivateRoute><FullSpecPage /></PrivateRoute>} />
               <Route path="/petitions" element={<PrivateRoute><PetitionTimelinePage /></PrivateRoute>} />
               <Route path="/petitions-old" element={<PrivateRoute><PetitionListPage /></PrivateRoute>} />
               <Route path="/petition" element={<PrivateRoute><PetitionTimelinePage /></PrivateRoute>} />
+              <Route path="/petition/assign" element={<PrivateRoute><PetitionAssignPage /></PrivateRoute>} />
               <Route path="/petition/:id" element={<PrivateRoute><PetitionTimelineDetailPage /></PrivateRoute>} />
               <Route path="/adutuilog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
               <Route path="/auditlog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />
-              <Route path="/petitions-old/assign" element={<PrivateRoute><PetitionAssignPage /></PrivateRoute>} />
+              <Route path="/petitions-old/assign" element={<Navigate to="/petition/assign" replace />} />
               <Route path="/petitions-old/new" element={<PrivateRoute><PetitionNewPage /></PrivateRoute>} />
               <Route path="/petitions-old/production/new" element={<PrivateRoute><ProductionIntegrationPetitionNewPage /></PrivateRoute>} />
               <Route path="/petitions/ProductionIntegrationPetitionNewPage" element={<ProductionIntegrationPetitionNewPage />} />

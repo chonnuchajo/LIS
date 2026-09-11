@@ -34,12 +34,38 @@ export type CoaResultSnapshot = {
   unit?: string;
 };
 
+export type CoaTrendSnapshot = {
+  itemSeq: number;
+  sampleName?: string;
+  commonName?: string;
+  aiLabelPercent?: number;
+  aiResultPercent?: number;
+  aiResultText?: string;
+};
+
 export type CoaAuditLogEntry = {
   _id: string;
   event: string;
   actor?: CoaPerson;
   note?: string;
   createdAt: string;
+};
+
+export type ExternalCoaRequestSnapshot = {
+  companySource?: string;
+  saleName?: string;
+  saleOrderNo?: string;
+  line?: number;
+  saleOrderDate?: string;
+  itemNo?: string;
+  packingSize?: string;
+  quantity?: number;
+  outstandingQty?: number;
+  unit?: string;
+  pendingStatus?: string;
+  pendingStatusDetail?: string;
+  shipmentDate?: string;
+  remark?: string;
 };
 
 export type CoaDocument = {
@@ -57,6 +83,7 @@ export type CoaDocument = {
   customerSnapshot?: { name?: string; company?: string; department?: string; email?: string; phone?: string };
   sampleSnapshots: CoaSampleSnapshot[];
   resultSnapshots: CoaResultSnapshot[];
+  trendSnapshots?: CoaTrendSnapshot[];
   remark?: string;
   approval?: {
     submittedBy?: CoaPerson;
@@ -74,6 +101,7 @@ export type CoaDocument = {
   updatedBy?: CoaPerson;
   createdAt?: string;
   updatedAt?: string;
+  externalCoaRequest?: ExternalCoaRequestSnapshot;
 };
 
 export type EligibleCoaPetition = {
@@ -87,6 +115,7 @@ export type EligibleCoaPetition = {
     commonName?: string;
     batchNo?: string;
     lotNo?: string;
+    productionDate?: string;
     activeCoa?: {
       coaId: string;
       coaNo: string;
@@ -94,6 +123,7 @@ export type EligibleCoaPetition = {
       petitionNo?: string;
       commonName?: string;
       batchNo?: string;
+      productionDate?: string;
     } | null;
   }>;
 };

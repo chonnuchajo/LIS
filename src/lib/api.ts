@@ -11,8 +11,10 @@ import type {
   StockPublicScanItem,
   DeductionResolutionReason,
   StandardsInUseResponse,
+  SixMonthMedicineStockResponse,
 } from "@/types/stock";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
+import type { DailyCheckPeriod } from "@/lib/dailyCheckPeriod";
 import type { StandardLabelCodeDefaults } from "@/lib/standardLabelCode";
 import {
   defaultPrinterFor,
@@ -32,6 +34,7 @@ import type { MethodDoc, MethodInput } from './methodRegistry';
 import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
 import type { GoodsReceipt, GoodsReceiptInput } from "@/types/goodsReceipt.types";
 import type { CoaDocument, EligibleCoaPetition } from "@/types/coa.types";
+import type { PetitionAuditEvent, PetitionStatus } from "@/types/petition.types";
 import type {
   ApiKeyItem,
   ApiKeyInput,
@@ -53,7 +56,10 @@ type StockBarcodeRegistration = {
 export interface StockTransactionParams {
   itemType?: string;
   itemId?: string;
+  qrId?: string;
   action?: string;
+  search?: string;
+  user?: string;
   createdFrom?: string;
   createdTo?: string;
   limit?: number;
@@ -62,7 +68,11 @@ export interface StockTransactionParams {
 
 export interface PetitionFlowNotification {
   id: string;
+  petitionId?: string;
   petitionNo: string;
+  event?: PetitionAuditEvent;
+  fromStatus?: PetitionStatus;
+  toStatus?: PetitionStatus;
   title: string;
   message?: string;
   level: "info" | "warning" | "success" | "error";
@@ -71,6 +81,7 @@ export interface PetitionFlowNotification {
 }
 
 export type UserFavorites = { email: string; paths: string[] };
+export type UserSignatureResponse = { signatureUrl: string | null };
 
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
@@ -235,6 +246,7 @@ export const api = {
       permissions?: string[];
       department?: string;
       position?: string;
+      signatureUrl?: string;
       status?: "active" | "inactive";
     }>("/auth/sso", {
       method: "POST",
@@ -242,6 +254,9 @@ export const api = {
     }),
 
   // Samples
+  saveMySignature: (signatureDataUrl: string) =>
+    request<UserSignatureResponse>("/profile/signature", { method: "PUT", body: JSON.stringify({ signatureDataUrl }) }),
+
   getSamples: () => request<SampleItem[]>("/samples"),
   createSample: (data: Partial<SampleItem>) =>
     request<SampleItem>("/samples", { method: "POST", body: JSON.stringify(data) }),
@@ -282,7 +297,7 @@ export const api = {
     return request<{ docs: Record<string, unknown>[]; total: number; page: number; limit: number }>(`/result-densities${qs}`);
   },
   getResultDensityProducts: () => request<string[]>('/result-densities/products'),
-  // All DMA 501 readings whose Sample name trailing batch matches `batch`.
+  // DMA 501 readings whose displayed Batch column matches `batch`.
   getResultDensitiesByBatch: (batch: string) =>
     request<{ batch: string; docs: Record<string, unknown>[] }>(
       `/result-densities/by-batch/${encodeURIComponent(batch)}`,
@@ -331,7 +346,7 @@ export const api = {
   deductSolvent: (id: string, body: { qty: number; sampleId?: string; note?: string } & StockUserPayload) =>
     request<StockSolventItem>(`/stock/solvents/${id}/deduct`, { method: "POST", body: JSON.stringify(body) }),
   receiveSolvent: (id: string, body: { qty: number; lotNo: string; exp: string; sizeLiter: number; price: number; note?: string } & StockUserPayload) =>
-    request<StockSolventItem>(`/stock/solvents/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
+    request<StockSolventItem & { receivedUnits?: StockUnitItem[] }>(`/stock/solvents/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
 
   // Chemical requisition — เบิกสารเคมี (solvent) → เครื่อง (daily-check/analysis)
   getChemicalRequisitions: (params: { room: string; date?: string }) => {
@@ -350,6 +365,7 @@ export const api = {
     instrumentId: string;
     instrumentName: string;
     solventId: string;
+    solventUnitQrId?: string;
     qty: number;
     note?: string;
     requestedBy: { email: string; name: string };
@@ -381,8 +397,10 @@ export const api = {
       : "";
     return request<StockTransactionItem[]>(`/stock/transactions${qs}`);
   },
-  exportStockStandardHistory: (params: { itemId: string; startDate: string; endDate: string }) => {
-    const qs = new URLSearchParams(params).toString();
+  exportStockStandardHistory: (params: { itemId: string; startDate: string; endDate: string; format?: "xlsx" | "pdf" }) => {
+    const qs = new URLSearchParams(
+      Object.entries({ format: "xlsx", ...params }).map(([key, value]) => [key, String(value)]),
+    ).toString();
     return fetchBlob(`/stock/exports/standard?${qs}`);
   },
   exportStockSolventHistory: (params: { solventId: string; date: string }) => {
@@ -412,12 +430,28 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  updateStockDeduction: (
+    id: string,
+    body: { amount?: number; weights?: number[]; note?: string } & StockUserPayload,
+  ) =>
+    request<StockTransactionItem>(`/stock/transactions/${encodeURIComponent(id)}/deduction`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteStockDeduction: (id: string, body?: StockUserPayload) =>
+    request<{ ok: true }>(`/stock/transactions/${encodeURIComponent(id)}/deduction`, {
+      method: "DELETE",
+      body: JSON.stringify(body ?? {}),
+    }),
   getStandardsInUse: () => request<StandardsInUseResponse>("/stock/standards/in-use"),
+  getSixMonthMedicineStock: () => request<SixMonthMedicineStockResponse>("/stock/medicine-six-months"),
 
   // Stock — Units (per-bottle)
-  getStockUnits: (params?: { itemCode?: string; status?: string; kind?: string }) => {
+  getStockUnits: (params?: { itemCode?: string; itemType?: string; itemId?: string; status?: string; kind?: string }) => {
     const q = new URLSearchParams();
     if (params?.itemCode) q.set("itemCode", params.itemCode);
+    if (params?.itemType) q.set("itemType", params.itemType);
+    if (params?.itemId) q.set("itemId", params.itemId);
     if (params?.status) q.set("status", params.status);
     if (params?.kind) q.set("kind", params.kind);
     const qs = q.toString() ? `?${q.toString()}` : "";
@@ -522,6 +556,7 @@ export const api = {
     to?: string;
     scaleId?: string;
     status?: "pass" | "fail";
+    period?: DailyCheckPeriod;
   }) => {
     const qs = params
       ? "?" + new URLSearchParams(
@@ -563,6 +598,7 @@ export const api = {
     to?: string;
     room?: string;
     status?: "pass" | "fail";
+    period?: DailyCheckPeriod;
   }) => {
     const qs = params
       ? "?" + new URLSearchParams(
@@ -587,6 +623,7 @@ export const api = {
     to?: string;
     instrumentId?: string;
     status?: "normal" | "abnormal";
+    period?: DailyCheckPeriod;
   }) => {
     const qs = "?" + new URLSearchParams(
       Object.entries(params).filter(([, v]) => v != null && v !== "").map(([k, v]) => [k, String(v)]),
@@ -936,6 +973,7 @@ export type DailyCheckRecord = {
   recorderId?: string;
   recorderEmail?: string;
   date: string;       // YYYY-MM-DD
+  period?: DailyCheckPeriod | null;
   checkedAt: string;  // ISO
   createdAt?: string;
   updatedAt?: string;
@@ -961,6 +999,11 @@ export type DailyCheckTodaySummary = {
   date: string;
   count: number;
   scaleIds: string[];
+  scaleRecords?: Array<{
+    scaleId: string;
+    checkedAt?: string;
+    period?: DailyCheckPeriod | null;
+  }>;
   allPass: boolean;
 };
 
@@ -979,6 +1022,7 @@ export type EquipmentCheckRecord = {
   recorderId?: string;
   recorderEmail?: string;
   date: string;       // YYYY-MM-DD
+  period?: DailyCheckPeriod | null;
   checkedAt: string;  // ISO
   createdAt?: string;
   updatedAt?: string;
@@ -1014,6 +1058,7 @@ export type EnvCheckRecord = {
   recorderId?: string;
   recorderEmail?: string;
   date: string;       // YYYY-MM-DD
+  period?: DailyCheckPeriod | null;
   checkedAt: string;  // ISO
   createdAt?: string;
   updatedAt?: string;
@@ -1037,6 +1082,11 @@ export type EnvCheckTodaySummary = {
   date: string;
   count: number;
   rooms: string[];
+  roomRecords?: Array<{
+    room: string;
+    checkedAt?: string;
+    period?: DailyCheckPeriod | null;
+  }>;
   allPass: boolean;
 };
 
@@ -1225,7 +1275,7 @@ export type LabelToleranceRule = LabelToleranceStandard & {
   masterCommonName?: string;
   masterRaw?: Record<string, unknown>;
   productTypes?: ("water" | "sand" | "powder")[];
-  // autoMode = "percent" => autoPct เป็น % ที่เว้นจากขอบช่วงหัวหน้าตรวจสอบเข้าด้านใน
+  // autoMode = "percent" => autoPct เป็น % ที่เว้นจากขอบช่วงเกณฑ์กรมเข้าด้านใน
   // headMode = "percent" => headPct เป็น % ของค่ากลางจาก %ฉลาก
   // mode "abs" — ± รอบค่ากลาง (%ฉลาก) เป็นค่าจริงในหน่วยของ field แทน % relative
   autoAbs?: number | null;   // ± ชั้นใน (ผ่านเอง), > 0

@@ -15,6 +15,8 @@ import {
   isSameLocalDay,
   type PetitionProgress,
 } from "@/lib/qcProgress";
+import { shouldSendItemToLab } from "@/lib/petitionRouting";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
 
 type QueueMode = "lab" | "qc";
 
@@ -39,15 +41,9 @@ const REFRESH_MS = 5_000;
 const MAX_ITEMS_PER_GROUP = 9;
 const NEW_WORK_ALERT_MS = 10_000;
 const NEW_SAMPLE_SOUND_URL = `${import.meta.env.BASE_URL}sound/new.mp3`;
-const LAB_BATCH_LAST_DIGITS = new Set(["1", "6"]);
-
-const isLabBatchNo = (batchNo?: string | null) => {
-  const trimmed = String(batchNo ?? "").trim();
-  return trimmed.length > 0 && LAB_BATCH_LAST_DIGITS.has(trimmed.slice(-1));
-};
 
 const petitionHasLabItems = (petition: Petition) =>
-  petition.items.some((item) => isLabBatchNo(item.batchNo));
+  petition.items.some((item) => shouldSendItemToLab(item));
 
 const QUEUE_CONFIG: Record<QueueMode, QueueConfig> = {
   lab: {
@@ -184,7 +180,7 @@ function QueueCard({
       <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t border-slate-100 pt-3">
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold text-slate-800">{petition.submittedBy?.name ?? '-'}</div>
-          <div className="truncate text-sm text-slate-500">{petition.dept || "-"}</div>
+          <div className="truncate text-sm text-slate-500">{petitionDepartmentLabel(petition)}</div>
         </div>
         <div className="text-right">
           <div className="text-lg font-bold text-primary-700">{updated.time}</div>

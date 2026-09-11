@@ -5,6 +5,7 @@ import App from "./App.tsx";
 import "./index.css";
 import { loadAccessControl } from "./lib/accessControlSource";
 import { registerPwaServiceWorker } from "./lib/pwa";
+import { startBuildRefreshWatcher } from "./lib/buildRefresh";
 
 // Resolving the sign-in redirect must never be able to abort the render.
 // MSAL throws `no_token_request_cache_error` whenever sessionStorage still
@@ -96,5 +97,6 @@ resolveActiveAccount().then((account) => {
   );
 
   void registerPwaServiceWorker();
+  startBuildRefreshWatcher();
 });
 

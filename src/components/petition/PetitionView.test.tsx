@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import PetitionView from './PetitionView';
 import type { Petition } from '@/types/petition.types';
 import type { ParameterItem } from '@/lib/api';
@@ -44,6 +44,8 @@ const fixtures = vi.hoisted(() => ({
       valueFields: [{ label: 'ผล QC', type: 'text' }],
     },
   ] as ParameterItem[],
+  getParameters: vi.fn(),
+  getQCResults: vi.fn(),
 }));
 
 vi.mock('@/hooks/useAuth', () => ({
@@ -60,10 +62,15 @@ vi.mock('@/lib/api', async (importOriginal) => {
     ...actual,
     api: {
       ...actual.api,
-      getParameters: vi.fn().mockResolvedValue(fixtures.parameters),
-      getQCResults: vi.fn().mockResolvedValue([]),
+      getParameters: fixtures.getParameters,
+      getQCResults: fixtures.getQCResults,
     },
   };
+});
+
+beforeEach(() => {
+  fixtures.getParameters.mockResolvedValue(fixtures.parameters);
+  fixtures.getQCResults.mockResolvedValue([]);
 });
 
 describe('PetitionView R&D parameter visibility', () => {
@@ -81,5 +88,43 @@ describe('PetitionView R&D parameter visibility', () => {
     expect(screen.getByText('R&D Active')).toBeInTheDocument();
     expect(screen.getByText('รหัสสินค้า')).toBeInTheDocument();
     expect(screen.getByText('FC-QPA50-1X16')).toBeInTheDocument();
+  });
+
+  it('shows saved substance-mode Lab results by substance storage key', async () => {
+    fixtures.getParameters.mockResolvedValue([
+      {
+        _id: 'lab-ai',
+        name: 'Lab%AI',
+        scope: 'lab',
+        applyAll: true,
+        valueFields: [{ label: '%AI', type: 'float', unit: '%', substanceMode: true }],
+      },
+    ] as ParameterItem[]);
+    fixtures.getQCResults.mockResolvedValue([
+      {
+        petitionId: fixtures.petition._id,
+        itemSeq: 1,
+        parameterId: 'lab-ai',
+        parameterName: 'Lab%AI',
+        values: { '%AI::abamectin': '1.7' },
+      },
+    ]);
+    render(
+      <PetitionView
+        petition={{
+          ...fixtures.petition,
+          items: [
+            {
+              ...fixtures.petition.items[0],
+              commonName: 'ABAMECTIN 1.8% W/V EC',
+            },
+          ],
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('Lab%AI')).toBeInTheDocument());
+    expect(screen.queryByText('ยังไม่บันทึก')).not.toBeInTheDocument();
+    expect(screen.getByText('1.7')).toBeInTheDocument();
   });
 });

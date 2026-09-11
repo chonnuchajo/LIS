@@ -1,6 +1,11 @@
-import type { EquipmentReading } from "@/lib/api";
 import { getRoomBySlug } from "@/lib/dailyCheckRooms";
 import { getRoomCatalog } from "@/lib/roomEquipment";
+
+export type DailyCheckDisplayReading = {
+  label: string;
+  value: number | string;
+  unit: string;
+};
 
 export const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
@@ -11,7 +16,8 @@ export const fmtDate = (s: string) => {
   return `${d}/${m}/${y}`;
 };
 
-export const roomLabel = (slug: string) => getRoomBySlug(slug)?.label ?? slug;
+export const roomLabel = (slug: string) =>
+  slug === "environment" ? "อุณหภูมิ/ความชื้น" : getRoomBySlug(slug)?.label ?? slug;
 
 export const roomFilterLabel = (room: string) =>
   room === "all" ? "ทุกห้อง" : roomLabel(room);
@@ -27,5 +33,5 @@ export const instrumentFilterLabel = (room: string, instrumentId: string) => {
 
 export const dateFilterLabel = (date: string) => (date ? fmtDate(date) : "ทุกวัน");
 
-export const formatReadings = (readings: EquipmentReading[]) =>
+export const formatReadings = (readings: readonly DailyCheckDisplayReading[]) =>
   readings.length ? readings.map((x) => `${x.label} ${x.value} ${x.unit}`).join(", ") : "—";

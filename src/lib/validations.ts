@@ -24,6 +24,7 @@ export const petitionItemSchema = z.object({
   packageUnit: z.string().optional().default(''),
   testUnit: z.string().optional().default(''),
   testItems: z.string().optional().default(''),
+  sendToLab: z.boolean().optional(),
   note: z.string().optional().default(''),
   labelManufacturer: z.string().optional().default(''),
   labelSeller: z.string().optional().default(''),

@@ -1,19 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import { AlertCircle, CheckCircle2, Keyboard, QrCode, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Petition } from '@/types/petition.types';
-import { PETITION_DEPT_LABELS, PETITION_STATUS_CONFIG } from '@/types/petition.types';
+import { PETITION_STATUS_CONFIG } from '@/types/petition.types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
+import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 
 const READER_ID = 'lab-accept-qr-reader';
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
-const isLabBatchNo = (batchNo?: string | null) => /[16]$/.test(String(batchNo ?? '').trim());
+
+const labReceivableItems = (petition: Petition) =>
+  isResearchAndDevelopmentPetition(petition)
+    ? (petition.items ?? [])
+    : (petition.items ?? []).filter((it) => shouldSendItemToLab(it));
 
 type Phase = 'scanning' | 'confirming' | 'loading' | 'success' | 'error' | 'no-camera';
 
@@ -74,6 +80,57 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
     }
   }, [open]);
 
+  const fetchAndCheck = useCallback(async (rawCode: string) => {
+    const code = extractScannedCode(rawCode);
+    if (!code) return;
+    setPendingId(code);
+    setPhase('loading');
+    try {
+      const found = await fetchPetitionByScannedCode(code);
+
+      // Must have at least one lab item
+      if (labReceivableItems(found).length === 0) {
+        setErrorMsg('คำร้องนี้ไม่มีรายการ Lab');
+        setPhase('error');
+        return;
+      }
+
+      // Check assignment
+      if (!found.assignedTo) {
+        setErrorMsg('คำร้องนี้ยังไม่ได้รับการมอบหมาย กรุณาติดต่อหัวหน้า');
+        setPhase('error');
+        return;
+      }
+      if (!isFullAccess && !isAssignedTo(found.assignedTo, user)) {
+        setErrorMsg(`คุณไม่ได้ถูก assign งานนี้ (มอบหมายให้: ${found.assignedTo.name})`);
+        setPhase('error');
+        return;
+      }
+
+      // Already completed
+      if (found.status === 'success') {
+        setErrorMsg(`คำร้องนี้ทดสอบเสร็จสิ้นแล้ว`);
+        setPhase('error');
+        return;
+      }
+
+      // Already received by Lab — navigate directly (status อาจ pendingReview จากฝั่ง QC รับก่อน)
+      if (found.labReceivedAt) {
+        onAccepted();
+        navigate(`/lab-testing/${found._id}`);
+        return;
+      }
+
+      setPetition(found);
+      setPendingId(found._id);
+      setPhase('confirming');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'ไม่พบข้อมูลคำร้อง';
+      setErrorMsg(msg);
+      setPhase('error');
+    }
+  }, [isFullAccess, navigate, onAccepted, user]);
+
   useEffect(() => {
     if (!open || phase !== 'scanning' || manualOnly) return;
     let active = true;
@@ -127,59 +184,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
         } catch { /* ignore */ }
       }
     };
-  }, [open, phase, manualOnly]);
-
-  async function fetchAndCheck(rawCode: string) {
-    const code = extractScannedCode(rawCode);
-    if (!code) return;
-    setPendingId(code);
-    setPhase('loading');
-    try {
-      const found = await fetchPetitionByScannedCode(code);
-
-      // Must have at least one lab item
-      const hasLab = (found.items ?? []).some((it) => isLabBatchNo(it.batchNo));
-      if (!hasLab) {
-        setErrorMsg('คำร้องนี้ไม่มีรายการ Lab');
-        setPhase('error');
-        return;
-      }
-
-      // Check assignment
-      if (!found.assignedTo) {
-        setErrorMsg('คำร้องนี้ยังไม่ได้รับการมอบหมาย กรุณาติดต่อหัวหน้า');
-        setPhase('error');
-        return;
-      }
-      if (!isFullAccess && !isAssignedTo(found.assignedTo, user)) {
-        setErrorMsg(`คุณไม่ได้ถูก assign งานนี้ (มอบหมายให้: ${found.assignedTo.name})`);
-        setPhase('error');
-        return;
-      }
-
-      // Already completed
-      if (found.status === 'success') {
-        setErrorMsg(`คำร้องนี้ทดสอบเสร็จสิ้นแล้ว`);
-        setPhase('error');
-        return;
-      }
-
-      // Already received by Lab — navigate directly (status อาจ pendingReview จากฝั่ง QC รับก่อน)
-      if (found.labReceivedAt) {
-        onAccepted();
-        navigate(`/lab-testing/${found._id}`);
-        return;
-      }
-
-      setPetition(found);
-      setPendingId(found._id);
-      setPhase('confirming');
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'ไม่พบข้อมูลคำร้อง';
-      setErrorMsg(msg);
-      setPhase('error');
-    }
-  }
+  }, [open, phase, manualOnly, fetchAndCheck]);
 
   async function confirmAccept() {
     const id = petition?._id || pendingId;
@@ -211,7 +216,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
 
   if (!open) return null;
 
-  const labItemCount = petition ? (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo)).length : 0;
+  const labItemCount = petition ? labReceivableItems(petition).length : 0;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
@@ -295,7 +300,7 @@ export default function LabScanAcceptModal({ open, onClose, onAccepted, manualOn
                 </Badge>
               </div>
               <div className="text-sm space-y-1 text-grey-600">
-                <p>แผนก: <span className="text-grey-900">{PETITION_DEPT_LABELS[petition.dept]}</span></p>
+                <p>แผนก: <span className="text-grey-900">{petitionDepartmentLabel(petition)}</span></p>
                 <p>รายการ Lab: <span className="text-grey-900">{labItemCount} รายการ</span></p>
                 {petition.assignedTo && (
                   <p>มอบหมายให้: <span className="font-medium text-sky-700">{petition.assignedTo.name}</span></p>

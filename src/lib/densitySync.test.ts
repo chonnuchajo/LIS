@@ -4,8 +4,12 @@ import {
   SG_TEMP_LABEL,
   sourceSiblingKey,
   densityRowToEntry,
+  selectDensitySyncRow,
   hasHandTypedEntries,
   formatTSetComparison,
+  formatDensity3,
+  isSgMachineUnitKey,
+  isSgValueKey,
 } from './densitySync';
 
 const ROW = {
@@ -22,12 +26,24 @@ describe('labels', () => {
     expect(SG_TEMP_LABEL).toBe('อุณหภูมิ');
     expect(sourceSiblingKey('อุณหภูมิ')).toBe('อุณหภูมิ__source');
   });
+
+  it('matches base and substance SG value keys, but not provenance keys', () => {
+    expect(isSgValueKey('ค่าถพ.')).toBe(true);
+    expect(isSgValueKey('ค่าถพ.::glyphosate')).toBe(true);
+    expect(isSgValueKey('ค่าถพ.::glyphosate__source')).toBe(false);
+  });
+
+  it('marks SG value and temp render units as machine-only', () => {
+    expect(isSgMachineUnitKey('ค่าถพ.::glyphosate', 'ค่าถพ. — GLYPHOSATE')).toBe(true);
+    expect(isSgMachineUnitKey('อุณหภูมิ', 'อุณหภูมิ')).toBe(true);
+    expect(isSgMachineUnitKey('สี', 'สี')).toBe(false);
+  });
 });
 
 describe('densityRowToEntry', () => {
   it('maps density + T(block) and stores T(set) in provenance', () => {
     const e = densityRowToEntry(ROW, '2026-06-13T03:00:00.000Z');
-    expect(e['ค่าถพ.']).toBe(0.9919);
+    expect(e['ค่าถพ.']).toBe(0.992);
     expect(e['อุณหภูมิ']).toBe(30);
     const tempSrc = e['อุณหภูมิ__source'] as Record<string, unknown>;
     expect(tempSrc.source).toBe('instrument');
@@ -36,6 +52,27 @@ describe('densityRowToEntry', () => {
     expect(tempSrc.tSet).toBe(30);
     expect(tempSrc.fetchedAt).toBe('2026-06-13T03:00:00.000Z');
     const valSrc = e['ค่าถพ.__source'] as Record<string, unknown>;
+    expect(valSrc.source).toBe('instrument');
+  });
+  it('reads temperature from the compact T(block) column name', () => {
+    const { 'T (block) [°C]': _oldTemp, ...row } = ROW;
+    const e = densityRowToEntry({ ...row, 'T(block) [°C]': '31.50' }, '2026-06-13T03:00:00.000Z');
+    expect(e['อุณหภูมิ']).toBe(31.5);
+    expect((e['อุณหภูมิ__source'] as Record<string, unknown>).tBlock).toBe(31.5);
+  });
+  it('prefers the 3-decimal density column when present', () => {
+    const e = densityRowToEntry(
+      { ...ROW, 'Density [g/cm³]': '1.1574', 'Density (3 ตำแหน่ง)': '1.157' },
+      '2026-06-13T03:00:00.000Z',
+    );
+    expect(e['ค่าถพ.']).toBe(1.157);
+  });
+  it('stores density under substance value keys when provided', () => {
+    const e = densityRowToEntry(ROW, '2026-06-13T03:00:00.000Z', ['ค่าถพ.::glyphosate']);
+    expect(e['ค่าถพ.']).toBeUndefined();
+    expect(e['ค่าถพ.::glyphosate']).toBe(0.992);
+    expect(e['อุณหภูมิ']).toBe(30);
+    const valSrc = e['ค่าถพ.::glyphosate__source'] as Record<string, unknown>;
     expect(valSrc.source).toBe('instrument');
   });
   it('leaves value empty when unparseable', () => {
@@ -48,6 +85,72 @@ describe('densityRowToEntry', () => {
   });
 });
 
+describe('selectDensitySyncRow', () => {
+  it('uses the only valid result row when the matched batch has one value', () => {
+    const docs = [
+      { _id: 'a', 'Measurement status': 'valid', 'Density [g/cm³]': '0.991', 'T(block) [°C]': '31.5' },
+    ];
+
+    expect(selectDensitySyncRow(docs)).toBe(docs[0]);
+  });
+
+  it('chooses the most repeated 3-decimal density, then T(block) closest to 30', () => {
+    const docs = [
+      { _id: 'a', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '29.80' },
+      { _id: 'b', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.10' },
+      { _id: 'c', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.158', 'T(block) [°C]': '30.00' },
+    ];
+
+    expect(selectDensitySyncRow(docs)).toBe(docs[1]);
+  });
+
+  it('chooses repeated 3-decimal densities only when rows are consecutive', () => {
+    const docs = [
+      { _id: 'a', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.00' },
+      { _id: 'b', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.158', 'T(block) [°C]': '30.50' },
+      { _id: 'c', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '29.90' },
+      { _id: 'd', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.156', 'T(block) [°C]': '30.20' },
+      { _id: 'e', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.156', 'T(block) [°C]': '30.05' },
+    ];
+
+    expect(selectDensitySyncRow(docs)).toBe(docs[4]);
+  });
+
+  it('uses the displayed 3-decimal density value for consecutive equality', () => {
+    const docs = [
+      { _id: 'a', 'Measurement status': 'valid', 'Density [g/cm³]': '1.1568', 'T(block) [°C]': '30.20' },
+      { _id: 'b', 'Measurement status': 'valid', 'Density [g/cm³]': '1.1567', 'T(block) [°C]': '29.95' },
+      { _id: 'c', 'Measurement status': 'valid', 'Density [g/cm³]': '1.1582', 'T(block) [°C]': '30.00' },
+    ];
+
+    expect(selectDensitySyncRow(docs)).toBe(docs[1]);
+  });
+
+  it('returns nothing until at least two valid rows repeat consecutively', () => {
+    const docs = [
+      { _id: 'a', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.00' },
+      { _id: 'b', 'Measurement status': 'invalid', 'Density (3 ตำแหน่ง)': '1.157', 'T(block) [°C]': '30.00' },
+      { _id: 'c', 'Measurement status': 'valid', 'Density (3 ตำแหน่ง)': '1.158', 'T(block) [°C]': '29.95' },
+    ];
+
+    expect(selectDensitySyncRow(docs)).toBeUndefined();
+  });
+});
+
+describe('formatDensity3', () => {
+  it('uses the reported 3-decimal value when present', () => {
+    expect(formatDensity3({ ...ROW, 'Density (3 ตำแหน่ง)': '1.028' })).toBe('1.028');
+  });
+
+  it('rounds raw density to 3 decimals when the reported value is missing', () => {
+    expect(formatDensity3({ ...ROW, 'Density [g/cm³]': '1.0279' })).toBe('1.028');
+  });
+
+  it('returns empty text for an unparseable density', () => {
+    expect(formatDensity3({ ...ROW, 'Density [g/cm³]': 'n/a' })).toBe('');
+  });
+});
+
 describe('hasHandTypedEntries', () => {
   it('false for empty / instrument-sourced entries', () => {
     expect(hasHandTypedEntries(undefined)).toBe(false);
@@ -56,19 +159,25 @@ describe('hasHandTypedEntries', () => {
   });
   it('true when a value lacks instrument provenance', () => {
     expect(hasHandTypedEntries([{ 'ค่าถพ.': 0.99 }])).toBe(true);
+    expect(hasHandTypedEntries([{ 'ค่าถพ.::glyphosate': 0.99 }])).toBe(true);
     expect(hasHandTypedEntries([{ 'อุณหภูมิ': 30 }])).toBe(true);
+  });
+  it('false for substance values with instrument provenance', () => {
+    expect(hasHandTypedEntries([
+      {
+        'ค่าถพ.::glyphosate': 0.99,
+        'ค่าถพ.::glyphosate__source': { source: 'instrument' },
+      },
+    ])).toBe(false);
   });
 });
 
 describe('formatTSetComparison', () => {
-  it('match / differ / no-standard / null', () => {
-    expect(formatTSetComparison(30, 30)?.status).toBe('match');
-    expect(formatTSetComparison(30, 25)?.status).toBe('differ');
-    expect(formatTSetComparison(30, null)?.status).toBe('no-standard');
+  it('does not build a visible T set comparison message', () => {
+    expect(formatTSetComparison(30, 30)).toBeNull();
+    expect(formatTSetComparison(30, 25)).toBeNull();
+    expect(formatTSetComparison(30, null)).toBeNull();
     expect(formatTSetComparison('', 30)).toBeNull();
     expect(formatTSetComparison(undefined, 30)).toBeNull();
-  });
-  it('text includes both values when standard present', () => {
-    expect(formatTSetComparison(30, 30)?.text).toBe('เครื่องตั้งที่ (T set): 30 • มาตรฐาน: 30');
   });
 });

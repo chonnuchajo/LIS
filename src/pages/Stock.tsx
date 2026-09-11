@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, AlertTriangle, Calendar as CalendarIcon, Clock, Plus, Pencil, ArrowDownToLine, History, Search, ScanLine, Trash2, ChevronDown, Download } from "lucide-react";
+import { Package, AlertTriangle, Calendar as CalendarIcon, Clock, Plus, Pencil, ArrowDownToLine, History, Search, Trash2, ChevronDown, Download, RefreshCw } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 
@@ -22,7 +22,7 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -40,11 +40,13 @@ import {
 } from "@/lib/standardFrequency";
 import StandardDetailDrawer from "@/components/lis/stock/StandardDetailDrawer";
 import StandardUnitsPanel from "@/components/lis/stock/StandardUnitsPanel";
+import SolventUnitsPanel from "@/components/lis/stock/SolventUnitsPanel";
 import ReceiveCart from "@/components/lis/stock/ReceiveCart";
 import StockQrScanner from "@/components/lis/StockQrScanner";
 import DiscardDialog from "@/components/lis/stock/DiscardDialog";
 import StockRawLabelPreviewDialog from "@/components/lis/StockRawLabelPreviewDialog";
 import { buildStockLabelHtml } from "@/lib/stockLabel";
+import { formatStockQuantity, formatStockQuantityWithUnit } from "@/lib/stockQuantity";
 import { visibleBottles } from "@/lib/stockUnit";
 import type {
   StockStandardItem, StockSolventItem, StockGlasswareItem,
@@ -66,6 +68,7 @@ function canDeleteStockItems(user: RoleHolder | null | undefined) {
 }
 
 type StockExportKind = "standard" | "solvent";
+type StockExportFormat = "xlsx" | "pdf";
 
 function localDateInputValue(date = new Date()) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
@@ -103,6 +106,19 @@ function formatExportDateRangeLabel(startDate: string, endDate: string) {
 
 function safeDownloadSegment(value: string | undefined) {
   return (value || "stock").trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, "_") || "stock";
+}
+
+function formatStockDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatStockMonth(value: string | undefined) {
+  if (!value) return "-";
+  const date = new Date(`${value}-01T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("th-TH", { month: "long", year: "numeric" });
 }
 
 function downloadStockExport(blob: Blob, filename: string) {
@@ -159,6 +175,8 @@ function StandardsTab() {
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<StockStandardItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [standardListExporting, setStandardListExporting] = useState<StockExportFormat | null>(null);
+  const [standardAlertsOpen, setStandardAlertsOpen] = useState(false);
 
   const now = Date.now();
 
@@ -192,8 +210,9 @@ function StandardsTab() {
 
   const visibleStandards = data;
   const standardAlerts = visibleStandards.flatMap(s => {
-    const summary = sumOf(s);
-    const alert = getStandardAlertSummary(summary);
+    const units = unitsByCode.get(s.code) ?? [];
+    const summary = summarizeStandard(units, new Date(now));
+    const alert = getStandardAlertSummary(summary, { units, now: new Date(now) });
     return alert ? [{ standard: s, alert }] : [];
   });
 
@@ -218,16 +237,69 @@ function StandardsTab() {
     }
   };
 
+  const buildStandardListExportRows = () => filtered.map((item) => {
+    const units = unitsByCode.get(item.code) ?? [];
+    const summary = summarizeStandard(units, new Date(now));
+    const counts = usableByCode.get(item.code) ?? {};
+    const statusParts = [];
+    if (summary.usable === 0) statusParts.push("หมด");
+    if (summary.expired > 0) statusParts.push(`หมดอายุ ${summary.expired}`);
+    if (summary.expiringSoon > 0) statusParts.push(`ใกล้หมดอายุ ${summary.expiringSoon}`);
+    return {
+      Code: item.code,
+      Name: item.name,
+      "คงเหลือใช้งานได้": summary.usable,
+      Primary: counts.primary ?? 0,
+      Working: counts.working ?? 0,
+      Supplier: counts.supplier ?? 0,
+      Frequency: item.frequency || "",
+      "Storage Temp": item.storageTemp || "",
+      Status: statusParts.join(" · ") || "ปกติ",
+    };
+  });
+
+  const exportStandards = async (format: StockExportFormat) => {
+    const rows = buildStandardListExportRows();
+    if (rows.length === 0) {
+      toast.error("ไม่มีข้อมูล Standard สำหรับ export");
+      return;
+    }
+
+    setStandardListExporting(format);
+    try {
+      const blob = await api.exportMasterItems(format, rows, "Standards");
+      downloadStockExport(blob, `standards-${localDateInputValue()}.${format}`);
+      toast.success("Export Standards สำเร็จ");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setStandardListExporting(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {standardAlerts.length > 0 && (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className="w-5 h-5 text-destructive" />
-              <span className="font-semibold text-destructive">
-                แจ้งเตือน Standard ({standardAlerts.length} รายการ)
-              </span>
+            <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+                <span className="font-semibold text-destructive">
+                  แจ้งเตือน Standard ({standardAlerts.length} รายการ)
+                </span>
+              </div>
+              {standardAlerts.length > 8 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 w-fit border-destructive/30 text-destructive hover:text-destructive"
+                  onClick={() => setStandardAlertsOpen(true)}
+                >
+                  ดูทั้งหมด
+                </Button>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
               {standardAlerts.slice(0, 8).map(({ standard: s, alert }) => {
@@ -245,6 +317,40 @@ function StandardsTab() {
           </CardContent>
         </Card>
       )}
+      <Dialog open={standardAlertsOpen} onOpenChange={setStandardAlertsOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>แจ้งเตือน Standard ทั้งหมด</DialogTitle>
+            <DialogDescription>
+              แสดง Standard ที่ต้องติดตามทั้งหมด {standardAlerts.length} รายการ
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+              {standardAlerts.map(({ standard: s, alert }) => {
+                const Icon = alert.lowStock ? Package : Clock;
+                return (
+                  <div
+                    key={`std-alert-dialog-${s._id}`}
+                    className={`rounded-md border p-3 ${alert.severity === "destructive" ? "border-destructive/30 text-destructive" : "border-amber-300 text-amber-600"}`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <strong className="break-words text-foreground">{s.name}</strong>
+                          <Badge variant="outline" className="text-[10px]">{s.code}</Badge>
+                        </div>
+                        <div>{alert.message}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:space-y-0 space-y-2">
@@ -278,6 +384,27 @@ function StandardsTab() {
                     {o.label}
                   </DropdownMenuCheckboxItem>
                 ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 gap-1.5"
+                  disabled={standardListExporting !== null}
+                >
+                  <Download className="w-4 h-4" /> Export
+                  <ChevronDown className="w-4 h-4 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-32">
+                <DropdownMenuItem onClick={() => exportStandards("xlsx")}>
+                  Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportStandards("pdf")}>
+                  PDF
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button size="sm" onClick={() => setCreating(true)}>
@@ -417,7 +544,7 @@ function SolventDetailDrawer({
 
   return (
     <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-md">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-3xl">
         <SheetHeader className="space-y-2 border-b border-border p-5 pr-16 text-left">
           <SheetTitle className="text-xl font-bold">{item.name}</SheetTitle>
           <SheetDescription>Solvent</SheetDescription>
@@ -436,6 +563,7 @@ function SolventDetailDrawer({
               </div>
             ))}
           </dl>
+          <SolventUnitsPanel solvent={item} />
         </div>
       </SheetContent>
     </Sheet>
@@ -685,12 +813,11 @@ function GlasswareTab() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const visible = data.filter(s => Number(s.qty) > 0);
-    return q ? visible.filter(s => s.name.toLowerCase().includes(q)) : visible;
+    return q ? data.filter(s => s.name.toLowerCase().includes(q)) : data;
   }, [data, search]);
 
   // เครื่องแก้ว: แจ้งเฉพาะตอนหมดจริง (ไม่เตือนตอนใกล้หมด)
-  const visibleGlassware = data.filter(s => Number(s.qty) > 0);
+  const visibleGlassware = data;
   const outList = visibleGlassware.filter(s => glasswareLevel(s.qty) === "out");
 
   const deleteItem = async () => {
@@ -857,6 +984,95 @@ function GlasswareTab() {
 }
 
 // ============================================================
+// Medicine six-month list
+// ============================================================
+function MedicineSixMonthTab() {
+  const [search, setSearch] = useState("");
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
+    queryKey: ["stock", "medicine-six-months"],
+    queryFn: api.getSixMonthMedicineStock,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const items = data?.items ?? [];
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((item) => [
+      item.itemNo,
+      item.lotNo,
+      item.companySource,
+      item.locationCode,
+      item.binCode,
+    ].some((value) => value.toLowerCase().includes(q)));
+  }, [items, search]);
+  const errorMessage = error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ";
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:space-y-0 space-y-2">
+          <div className="space-y-1">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Package className="w-5 h-5" /> List ยา 6 เดือน
+              <Badge variant="outline">{filtered.length}</Badge>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              แสดงล็อตที่อายุ 6, 12, 18... เดือนจาก registering_date · นับเฉพาะเดือน ไม่ดูวันที่ · เดือนอ้างอิง {formatStockMonth(data?.referenceMonth)}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา item / lot / location" className="pl-8 h-9 w-full sm:w-72" />
+            </div>
+            <Button size="sm" variant="outline" onClick={() => void refetch()} disabled={isFetching}>
+              <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} /> รีเฟรช
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+            <Table className="min-w-[900px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Item No</TableHead>
+                  <TableHead>Lot</TableHead>
+                  <TableHead>Registering Date</TableHead>
+                  <TableHead className="text-right">อายุ (เดือน)</TableHead>
+                  <TableHead className="text-right">Stock Qty</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Company</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
+                ) : isError ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-6 text-destructive">{errorMessage}</TableCell></TableRow>
+                ) : filtered.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">ไม่มีข้อมูล</TableCell></TableRow>
+                ) : filtered.map((item) => (
+                  <TableRow key={`${item.itemNo}-${item.lotNo}-${item.locationCode}-${item.binCode}-${item.registeringDate}`}>
+                    <TableCell className="font-medium">{item.itemNo || "-"}</TableCell>
+                    <TableCell>{item.lotNo || "-"}</TableCell>
+                    <TableCell className="text-xs whitespace-nowrap">{formatStockDate(item.registeringDate)}</TableCell>
+                    <TableCell className="text-right"><Badge variant="outline">{item.ageMonths}</Badge></TableCell>
+                    <TableCell className="text-right font-mono">{formatStockQuantityWithUnit(item.stockQty, item.unit)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{item.locationCode || "-"} / {item.binCode || "-"}</TableCell>
+                    <TableCell className="text-xs">{item.companySource || "-"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
 // History Tab
 // ============================================================
 function HistoryTab() {
@@ -864,6 +1080,7 @@ function HistoryTab() {
   const [action, setAction] = useState<string>("");
   const [exportOpen, setExportOpen] = useState(false);
   const [exportKind, setExportKind] = useState<StockExportKind>("standard");
+  const [exportStandardFormat, setExportStandardFormat] = useState<StockExportFormat>("xlsx");
   const [exportStandardId, setExportStandardId] = useState("");
   const [exportStandardStartDate, setExportStandardStartDate] = useState("");
   const [exportStandardEndDate, setExportStandardEndDate] = useState("");
@@ -934,9 +1151,11 @@ function HistoryTab() {
           itemId: exportStandardId,
           startDate: exportStandardStartDate,
           endDate: exportStandardEndDate,
+          format: exportStandardFormat,
         });
         const baseName = safeDownloadSegment(selectedStandard?.code || selectedStandard?.name || "standard");
-        downloadStockExport(blob, `${baseName}-standard-history-${exportStandardStartDate}_to_${exportStandardEndDate}.xlsx`);
+        const extension = exportStandardFormat === "pdf" ? "pdf" : "xlsx";
+        downloadStockExport(blob, `${baseName}-standard-history-${exportStandardStartDate}_to_${exportStandardEndDate}.${extension}`);
       } else {
         const blob = await api.exportStockSolventHistory({ solventId: exportSolventId, date: exportDate });
         const baseName = safeDownloadSegment(selectedSolvent?.name || "solvent");
@@ -1016,10 +1235,10 @@ function HistoryTab() {
                   </TableCell>
                   <TableCell><ActionBadge action={t.action} /></TableCell>
                   <TableCell className={`text-right font-mono ${t.delta != null && t.delta < 0 ? "text-destructive" : t.delta != null && t.delta > 0 ? "text-emerald-600" : ""}`}>
-                    {t.delta != null ? (t.delta > 0 ? `+${t.delta}` : t.delta) : "-"}
+                    {t.delta != null ? `${t.delta > 0 ? "+" : ""}${formatStockQuantity(t.delta)}` : "-"}
                   </TableCell>
                   <TableCell className="text-sm">
-                    {t.beforeQty ?? "-"} → <strong>{t.afterQty ?? "-"}</strong> {t.unit || ""}
+                    {formatStockQuantity(t.beforeQty)} → <strong>{formatStockQuantity(t.afterQty)}</strong> {t.unit || ""}
                   </TableCell>
                   <TableCell className="text-xs">{t.userName || t.userEmail || "-"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{t.note || ""}</TableCell>
@@ -1077,6 +1296,25 @@ function HistoryTab() {
                   </select>
                 </div>
                 <div className="space-y-2">
+                  <Label>รูปแบบไฟล์</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={exportStandardFormat === "xlsx" ? "default" : "outline"}
+                      onClick={() => setExportStandardFormat("xlsx")}
+                    >
+                      Excel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={exportStandardFormat === "pdf" ? "default" : "outline"}
+                      onClick={() => setExportStandardFormat("pdf")}
+                    >
+                      PDF
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
                   <Label>ช่วงวันที่</Label>
                   <Popover>
                     <PopoverTrigger asChild>
@@ -1104,7 +1342,7 @@ function HistoryTab() {
                   </Popover>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  ระบบจะ export เฉพาะประวัติในช่วงวันที่ที่เลือก โดยแยก Lot No. เป็นคนละ sheet ในไฟล์เดียว
+                  ระบบจะ export เฉพาะประวัติในช่วงวันที่ที่เลือก โดย Excel จะแยก Lot No. เป็นคนละ sheet และ PDF จะแยกเป็นคนละหน้า
                 </p>
               </div>
             ) : (
@@ -1621,12 +1859,17 @@ function StandardDialog({
 // Page
 // ============================================================
 const StockPage = () => {
+  const { user } = useAuth();
   const [scanOpen, setScanOpen] = useState(false);
   const [scannedQr, setScannedQr] = useState<string | null>(null);
   const [scannedUnit, setScannedUnit] = useState<StockUnitItem | null>(null);
   const [action, setAction] = useState<"discard" | null>(null);
   const qc = useQueryClient();
   const { tabs, defaultKey } = useAccessibleTabs("/stock");
+  const stockUserRoles = normalizeRoles(user);
+  const canSeeSixMonthMedicineTab = stockUserRoles.includes("admin") || stockUserRoles.includes("qc-head");
+  const visibleTabs = tabs.filter((tab) => tab.key !== "medicine-six-months" || canSeeSixMonthMedicineTab);
+  const stockDefaultKey = visibleTabs.some((tab) => tab.key === defaultKey) ? defaultKey : visibleTabs[0]?.key;
 
   const onScanned = async (qrId: string) => {
     setScanOpen(false);
@@ -1652,9 +1895,9 @@ const StockPage = () => {
         title={<span className="inline-flex items-center gap-2"><Package className="w-6 h-6" /> Stock Management</span>}
         description="จัดการ inventory: Standards, สารเคมี, เครื่องแก้ว — บันทึกข้อมูลใน MongoDB"
       />
-      <Tabs key={defaultKey} defaultValue={defaultKey}>
+      <Tabs key={stockDefaultKey} defaultValue={stockDefaultKey}>
         <TabsList className="mb-4 flex-wrap h-auto">
-          {tabs.map((t) => (
+          {visibleTabs.map((t) => (
             <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
               {t.icon && <t.icon className="h-4 w-4" />}
               {t.label}
@@ -1664,16 +1907,10 @@ const StockPage = () => {
         <TabsContent value="standard"><StandardsTab /></TabsContent>
         <TabsContent value="solvent"><SolventsTab /></TabsContent>
         <TabsContent value="glassware"><GlasswareTab /></TabsContent>
+        {canSeeSixMonthMedicineTab && <TabsContent value="medicine-six-months"><MedicineSixMonthTab /></TabsContent>}
         <TabsContent value="receive"><ReceiveCart /></TabsContent>
         <TabsContent value="history"><HistoryTab /></TabsContent>
       </Tabs>
-
-      <Button
-        className="fixed bottom-6 right-6 rounded-full shadow-lg h-14 w-14 p-0"
-        title="สแกน QR ขวด" onClick={() => setScanOpen(true)}
-      >
-        <ScanLine className="w-6 h-6" />
-      </Button>
 
       <StockQrScanner open={scanOpen} onClose={() => setScanOpen(false)} onScanned={onScanned} />
 
@@ -1683,7 +1920,7 @@ const StockPage = () => {
             <DialogHeader>
               <DialogTitle>{scannedUnit.itemName}</DialogTitle>
               <DialogDescription>
-                {scannedUnit.itemCode} · {scannedUnit.type || "primary"} · เหลือ {scannedUnit.volume?.remaining} {scannedUnit.volume?.unit}
+                {scannedUnit.itemCode} · {scannedUnit.type || "primary"} · เหลือ {formatStockQuantityWithUnit(scannedUnit.volume?.remaining, scannedUnit.volume?.unit)}
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2 py-2">

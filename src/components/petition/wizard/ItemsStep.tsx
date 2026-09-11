@@ -22,7 +22,11 @@ import {
   findMatchingPetitionMasterItem,
   type PetitionMasterItemOption,
 } from '@/lib/petitionMasterItem';
-import { isLabBatch } from '@/types/petition.types';
+import {
+  defaultSendItemToLab,
+  hasSendToLabOverride,
+  shouldSendItemToLab,
+} from '@/lib/petitionRouting';
 import SubmitterPicker, { type SubmitterValues } from './SubmitterPicker';
 
 export interface ItemRowValues {
@@ -39,6 +43,7 @@ export interface ItemRowValues {
   submissionNo: string;
   testUnit: string;
   testItems: string;
+  sendToLab?: boolean;
   note: string;
   labelQuantity?: string;
   labelSampledDate?: string;
@@ -79,6 +84,19 @@ export default function ItemsStep({
 }: Props) {
   function setItem(idx: number, patch: Partial<ItemRowValues>) {
     onChange(value.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  }
+
+  function setLabChoice(idx: number, sendToLab: boolean) {
+    setItem(idx, { sendToLab });
+  }
+
+  function setBatchNo(idx: number, batchNo: string) {
+    const item = value[idx];
+    const followsDefault = typeof item.sendToLab !== 'boolean' || item.sendToLab === defaultSendItemToLab(item);
+    setItem(idx, {
+      batchNo,
+      ...(followsDefault ? { sendToLab: defaultSendItemToLab({ batchNo }) } : {}),
+    });
   }
 
   function fillEmptyMasterFields(
@@ -163,7 +181,13 @@ export default function ItemsStep({
 
       <div className="space-y-4">
         {value.map((it, idx) => {
-          const lab = requireDeliveryAndBatch ? isLabBatch(it.batchNo) : true;
+          const lab = requireDeliveryAndBatch ? shouldSendItemToLab(it) : true;
+          const labDefault = defaultSendItemToLab(it);
+          const labOverride = requireDeliveryAndBatch && hasSendToLabOverride(it);
+          const batchSuffix = it.batchNo.trim().slice(-1);
+          const sampleNameId = `sample-name-${idx}`;
+          const commonNameId = `common-name-${idx}`;
+          const batchNoId = `batch-no-${idx}`;
           return (
             <div key={idx} className="rounded-[10px] border border-grey-200 p-4">
               <div className="mb-3 flex items-center justify-between">
@@ -171,7 +195,7 @@ export default function ItemsStep({
                   <div className="text-base font-semibold">ตัวอย่างที่ {it.seq}</div>
                   {lab && (
                     <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
-                      {requireDeliveryAndBatch ? `ส่ง lab (ลงท้าย ${it.batchNo.slice(-1)})` : 'ส่ง lab'}
+                      {requireDeliveryAndBatch && batchSuffix ? `ส่ง lab (ลงท้าย ${batchSuffix})` : 'ส่ง lab'}
                     </span>
                   )}
                 </div>
@@ -184,26 +208,18 @@ export default function ItemsStep({
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <Label>ชื่อตัวอย่าง</Label>
+                  <Label htmlFor={sampleNameId}>ชื่อตัวอย่าง</Label>
                   {allowManualItemFields ? (
-                    <div className="flex gap-2">
-                      <Input
-                        value={it.sampleName}
-                        onChange={(e) => handleManualSampleNameChange(idx, e.target.value)}
-                        disabled={itemsReadOnly}
-                        placeholder="กรอกชื่อตัวอย่าง"
-                      />
-                      <MasterItemPicker
-                        value={it}
-                        options={masterItemOptions}
-                        loading={masterItemsLoading}
-                        disabled={itemsReadOnly}
-                        compact
-                        onPick={(option) => setItem(idx, fillEmptyMasterFields(it, option))}
-                      />
-                    </div>
+                    <Input
+                      id={sampleNameId}
+                      value={it.sampleName}
+                      onChange={(e) => handleManualSampleNameChange(idx, e.target.value)}
+                      disabled={itemsReadOnly}
+                      placeholder="กรอกชื่อตัวอย่าง"
+                    />
                   ) : (
                     <MasterItemPicker
+                      id={sampleNameId}
                       value={it}
                       options={masterItemOptions}
                       loading={masterItemsLoading}
@@ -219,23 +235,67 @@ export default function ItemsStep({
                 </div>
                 {requireDeliveryAndBatch && (
                   <div>
-                    <Label>เลขแบช (Batch No.)</Label>
+                    <Label htmlFor={batchNoId}>เลขแบช (Batch No.)</Label>
                     <Input
+                      id={batchNoId}
                       value={it.batchNo}
-                      onChange={(e) => setItem(idx, { batchNo: e.target.value })}
+                      onChange={(e) => setBatchNo(idx, e.target.value)}
                       disabled={itemsReadOnly}
                       placeholder="เช่น BN240601"
                     />
                   </div>
                 )}
+                {requireDeliveryAndBatch && (
+                  <div>
+                    <Label>การส่ง LAB</Label>
+                    <div className="mt-1 flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={lab ? 'primary' : 'outline'}
+                        aria-pressed={lab}
+                        onClick={() => setLabChoice(idx, true)}
+                        disabled={itemsReadOnly}
+                      >
+                        ส่ง LAB
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={!lab ? 'primary' : 'outline'}
+                        aria-pressed={!lab}
+                        onClick={() => setLabChoice(idx, false)}
+                        disabled={itemsReadOnly}
+                      >
+                        ไม่ส่ง LAB
+                      </Button>
+                    </div>
+                    <p className="mt-1 text-xs text-grey-500">
+                      ค่าเริ่มต้น: {labDefault ? 'ส่ง LAB' : 'ไม่ส่ง LAB'}{batchSuffix ? ` (ลงท้าย ${batchSuffix})` : ''}
+                    </p>
+                  </div>
+                )}
                 <div>
-                  <Label>ชื่อสามัญ / Active Ingredient</Label>
-                  <Input
-                    value={it.commonName}
-                    onChange={(e) => setItem(idx, { commonName: e.target.value })}
-                    disabled={itemsReadOnly || !allowManualItemFields}
-                    placeholder={allowManualItemFields ? 'กรอกชื่อสามัญ หรือเลือกจาก Master Item' : 'เติมอัตโนมัติจาก Master Item'}
-                  />
+                  <Label htmlFor={commonNameId}>ชื่อสามัญ / Active Ingredient</Label>
+                  {allowManualItemFields ? (
+                    <ManualActiveIngredientMasterPicker
+                      id={commonNameId}
+                      value={it}
+                      options={masterItemOptions}
+                      loading={masterItemsLoading}
+                      disabled={itemsReadOnly}
+                      onActiveIngredientChange={(commonName) => setItem(idx, { commonName })}
+                      onPick={(option) => setItem(idx, fillEmptyMasterFields(it, option))}
+                    />
+                  ) : (
+                    <Input
+                      id={commonNameId}
+                      value={it.commonName}
+                      onChange={(e) => setItem(idx, { commonName: e.target.value })}
+                      disabled
+                      placeholder="เติมอัตโนมัติจาก Master Item"
+                    />
+                  )}
                 </div>
                 <div>
                   <Label>วันผลิต/วันที่รับเข้า</Label>
@@ -268,11 +328,15 @@ export default function ItemsStep({
                   </>
                 )}
                 <div className="sm:col-span-2">
-                  <Label>หมายเหตุ</Label>
+                  <Label className={labOverride ? 'text-red-500' : undefined}>
+                    {labOverride ? 'โปรดระบุ' : 'หมายเหตุ'}
+                  </Label>
                   <Textarea
                     rows={2}
                     value={it.note}
                     onChange={(e) => setItem(idx, { note: e.target.value })}
+                    aria-invalid={labOverride && !it.note.trim() ? true : undefined}
+                    placeholder={labOverride ? 'โปรดระบุเหตุผล' : undefined}
                     disabled={itemsReadOnly}
                   />
                 </div>
@@ -286,6 +350,7 @@ export default function ItemsStep({
 }
 
 function MasterItemPicker({
+  id,
   value,
   options,
   loading,
@@ -293,6 +358,7 @@ function MasterItemPicker({
   compact = false,
   onPick,
 }: {
+  id?: string;
   value: Pick<ItemRowValues, 'sampleName' | 'commonName' | 'packageUnit'>;
   options: PetitionMasterItemOption[];
   loading: boolean;
@@ -319,6 +385,7 @@ function MasterItemPicker({
     <Popover open={open && !disabled} onOpenChange={(nextOpen) => !disabled && setOpen(nextOpen)}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           variant="outline"
           role="combobox"
           aria-label="ชื่อตัวอย่าง"
@@ -343,6 +410,104 @@ function MasterItemPicker({
           <CommandInput placeholder="ค้นหาชื่อตัวอย่างจาก Master Item..." />
           <CommandList>
             <CommandEmpty>ไม่พบชื่อตัวอย่างใน Master Item</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => {
+                const selectedOption = selected === option;
+                const commandValue = [
+                  option.sampleName,
+                  option.commonName,
+                  option.packageUnit,
+                  option.itemNo,
+                ].filter(Boolean).join(' ');
+                return (
+                  <CommandItem
+                    key={`${option.itemNo}-${option.sampleName}-${option.commonName}-${option.packageUnit}`}
+                    value={commandValue}
+                    onSelect={() => pick(option)}
+                  >
+                    <Check
+                      className={cn(
+                        'mr-2 h-4 w-4',
+                        selectedOption ? 'opacity-100' : 'opacity-0',
+                      )}
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate">{option.sampleName}</span>
+                      <span className="block truncate text-xs text-grey-500">
+                        {[option.commonName, option.packageUnit].filter(Boolean).join(' · ') || option.itemNo}
+                      </span>
+                    </span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function ManualActiveIngredientMasterPicker({
+  id,
+  value,
+  options,
+  loading,
+  disabled,
+  onActiveIngredientChange,
+  onPick,
+}: {
+  id: string;
+  value: Pick<ItemRowValues, 'sampleName' | 'commonName' | 'packageUnit'>;
+  options: PetitionMasterItemOption[];
+  loading: boolean;
+  disabled?: boolean;
+  onActiveIngredientChange: (commonName: string) => void;
+  onPick: (option: PetitionMasterItemOption) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = useMemo(() => {
+    if (!value.sampleName) return null;
+    return options.find((option) => (
+      option.sampleName === value.sampleName &&
+      (!value.commonName || option.commonName === value.commonName) &&
+      (!value.packageUnit || option.packageUnit === value.packageUnit)
+    )) ?? null;
+  }, [options, value.commonName, value.packageUnit, value.sampleName]);
+
+  function pick(option: PetitionMasterItemOption) {
+    onPick(option);
+    setOpen(false);
+  }
+
+  return (
+    <Popover open={open && !disabled} onOpenChange={(nextOpen) => !disabled && setOpen(nextOpen)}>
+      <PopoverTrigger asChild>
+        <div className="relative">
+          <Input
+            id={id}
+            value={value.commonName}
+            onChange={(e) => onActiveIngredientChange(e.target.value)}
+            disabled={disabled}
+            placeholder={loading ? 'กำลังโหลด Master Item...' : 'กรอกชื่อสามัญ หรือเลือกจาก Master Item'}
+            className="pr-9"
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={`${id}-master-options`}
+            aria-autocomplete="list"
+          />
+          <ChevronsUpDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 opacity-50" />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] p-0"
+        align="start"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        <Command>
+          <CommandInput placeholder="ค้นหาชื่อตัวอย่างจาก Master Item..." />
+          <CommandList id={`${id}-master-options`}>
+            <CommandEmpty>{loading ? 'กำลังโหลด Master Item...' : 'ไม่พบชื่อตัวอย่างใน Master Item'}</CommandEmpty>
             <CommandGroup>
               {options.map((option) => {
                 const selectedOption = selected === option;

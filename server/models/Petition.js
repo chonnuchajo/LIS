@@ -13,6 +13,7 @@ const PetitionItemSchema = new mongoose.Schema(
     packageUnit: String,
     testUnit: String,
     testItems: String,
+    sendToLab: Boolean,
     note: String,
     labelManufacturer: String,
     labelSeller: String,

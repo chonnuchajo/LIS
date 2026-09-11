@@ -36,6 +36,7 @@ interface Props {
   instruments: { id: string; name: string }[];
   presetInstrumentId?: string;
   initialSolventId?: string | null;
+  initialSolventUnitQrId?: string | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -45,12 +46,14 @@ export default function ChemicalRequisitionDialog({
   instruments,
   presetInstrumentId,
   initialSolventId,
+  initialSolventUnitQrId,
   onClose,
   onSaved,
 }: Props) {
   const { user } = useAuth();
   const [instrumentId, setInstrumentId] = useState(presetInstrumentId ?? "");
   const [solventId, setSolventId] = useState(initialSolventId ?? "");
+  const [solventUnitQrId, setSolventUnitQrId] = useState(initialSolventUnitQrId ?? "");
   const [qty, setQty] = useState("1");
   const [note, setNote] = useState("");
   const [pendingReason, setPendingReason] = useState<DeductionResolutionReason | "">("");
@@ -90,16 +93,37 @@ export default function ChemicalRequisitionDialog({
 
   useEffect(() => {
     if (initialSolventId) setSolventId(initialSolventId);
-  }, [initialSolventId]);
+    if (initialSolventUnitQrId) {
+      setSolventUnitQrId(initialSolventUnitQrId);
+      setQty("1");
+    }
+  }, [initialSolventId, initialSolventUnitQrId]);
 
-  const onScanned = (id: string) => {
+  const onScanned = async (id: string) => {
     setScanOpen(false);
+    try {
+      const unit = await api.getStockUnit(id);
+      if (unit.itemType === "solvent" && unit.itemId) {
+        const found = solvents.find((row) => row._id === unit.itemId);
+        if (!found) {
+          toast.error("ไม่พบสารเคมีจาก QR นี้");
+          return;
+        }
+        setSolventId(found._id);
+        setSolventUnitQrId(unit.qrId);
+        setQty("1");
+        return;
+      }
+    } catch {
+      /* fallback to legacy solvent QR */
+    }
     const found = solvents.find((row) => row._id === id);
     if (!found) {
       toast.error("ไม่พบสารเคมีจาก QR นี้");
       return;
     }
     setSolventId(found._id);
+    setSolventUnitQrId("");
   };
 
   const saveMutation = useMutation({
@@ -117,6 +141,7 @@ export default function ChemicalRequisitionDialog({
         instrumentId,
         instrumentName: instruments.find((row) => row.id === instrumentId)?.name ?? "",
         solventId,
+        solventUnitQrId: solventUnitQrId || undefined,
         qty: qtyNum,
         note: note || undefined,
         requestedBy: { email: user?.email ?? "", name: user?.name ?? "" },
@@ -188,6 +213,7 @@ export default function ChemicalRequisitionDialog({
                             value={row.name}
                             onSelect={() => {
                               setSolventId(row._id);
+                              setSolventUnitQrId("");
                               setPickOpen(false);
                             }}
                           >
@@ -222,7 +248,8 @@ export default function ChemicalRequisitionDialog({
 
             <div>
               <Label className="mb-1.5 block">จำนวน (ขวด)</Label>
-              <Input type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)} />
+              <Input type="number" min="1" value={qty} disabled={Boolean(solventUnitQrId)} onChange={(e) => setQty(e.target.value)} />
+              {solventUnitQrId && <p className="mt-1 text-xs text-muted-foreground">สแกน QR รายขวดแล้ว ระบบจะเบิกขวดนี้ 1 ขวด</p>}
               {qtyError && <p className="mt-1 text-sm text-destructive">{qtyError}</p>}
             </div>
 

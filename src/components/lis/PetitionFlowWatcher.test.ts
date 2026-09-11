@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { effectiveSeeAll, nextCursor } from "./PetitionFlowWatcher";
+import { effectiveSeeAll, nextCursor } from "@/lib/petitionFlowWatcher";
 
 describe("effectiveSeeAll", () => {
   // Finding 2: the "ดูทั้งระบบ" switch only renders for admins (NotificationBell), but its

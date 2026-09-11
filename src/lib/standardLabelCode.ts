@@ -72,7 +72,8 @@ export function standardLabelCodeSuffix(labelCode: string | null | undefined, pr
 
 export function standardLabelCodeFromSuffix(prefix: string, suffixInput: string): string {
   const normalized = String(suffixInput ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const suffix = normalized.startsWith(prefix) ? normalized.slice(prefix.length).replace(/\D/g, "") : normalized.replace(/\D/g, "");
+  const looksLikeFullCode = normalized.startsWith(prefix) && normalized.length >= prefix.length + 4;
+  const suffix = looksLikeFullCode ? normalized.slice(prefix.length).replace(/\D/g, "") : normalized.replace(/\D/g, "");
   return `${prefix}${suffix}`;
 }
 

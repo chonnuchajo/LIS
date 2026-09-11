@@ -111,7 +111,6 @@ export default function ReceiveBottlesDialog({ standard, onClose, onSaved, onPre
     if (trimmedLabelCodes.some((code) => !parseStandardLabelCode(code, standard.code))) {
       toast.error(`Code ต้องขึ้นต้นด้วย ${labelPrefix} และตามด้วยปี/เลขขวด เช่น ${labelPrefix}6901`); return;
     }
-    if (new Set(trimmedLabelCodes).size !== trimmedLabelCodes.length) { toast.error("Code ห้ามซ้ำกันในรายการรับเข้า"); return; }
     if (sameExp) {
       if (!commonExp) { toast.error("กรุณาระบุ EXP"); return; }
     } else if (Array.from({ length: cnt }, (_, i) => !perExp[i]).some(Boolean)) {

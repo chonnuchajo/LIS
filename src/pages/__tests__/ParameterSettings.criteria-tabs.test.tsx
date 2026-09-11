@@ -87,6 +87,43 @@ const renderPage = () => {
   );
 };
 
+const labLabelParameter = (
+  id: string,
+  name: string,
+  substance: string,
+  labelPercent: number,
+): ParameterItem => ({
+  _id: id,
+  name,
+  scope: "lab",
+  status: "active",
+  applyAll: true,
+  valueFields: [
+    {
+      label: "%AI",
+      type: "number",
+      labelToleranceMode: true,
+      labelToleranceStandards: [
+        { substance, labelPercent, autoPct: 5, headPct: 10 },
+      ],
+    },
+  ],
+});
+
+const openLabLabelToleranceTab = async () => {
+  const scopeTabList = await waitFor(() => screen.getAllByRole("tablist")[0]);
+  const labTab = within(scopeTabList).getByRole("tab", { name: /Lab/ });
+  fireEvent.mouseDown(labTab);
+  fireEvent.click(labTab);
+
+  const criteriaTabList = await waitFor(() => screen.getAllByRole("tablist")[1]);
+  const labelToleranceTab = within(criteriaTabList).getByRole("tab", { name: "ตาม %สาร" });
+  fireEvent.mouseDown(labelToleranceTab);
+  fireEvent.click(labelToleranceTab);
+
+  return screen.findByRole("table");
+};
+
 describe("ParameterSettings criteria tabs", () => {
   const parameters: ParameterItem[] = [
     {
@@ -307,6 +344,99 @@ describe("ParameterSettings criteria tabs", () => {
 
     expect(screen.getByText("Label Criteria Parameter")).toBeInTheDocument();
     expect(screen.queryByText("Other Parameter")).not.toBeInTheDocument();
+  });
+
+  it("filters the lab parameter list by the Thai label-tolerance mode name", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      labLabelParameter("p-lab-label-list", "Lab Label List", "GLYPHOSATE", 12.5),
+      {
+        _id: "p-lab-text-list",
+        name: "Lab Text List",
+        scope: "lab",
+        status: "active",
+        applyAll: true,
+        valueFields: [{ label: "Remark", type: "text" }],
+      },
+    ]);
+
+    renderPage();
+
+    const scopeTabList = await waitFor(() => screen.getAllByRole("tablist")[0]);
+    const labTab = within(scopeTabList).getByRole("tab", { name: /Lab/ });
+    fireEvent.mouseDown(labTab);
+    fireEvent.click(labTab);
+
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("Lab Label List")).toBeInTheDocument();
+    expect(within(table).getByText("Lab Text List")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText(/ค้นหาชื่อ/), { target: { value: "ตาม % สาร" } });
+
+    expect(within(table).getByText("Lab Label List")).toBeInTheDocument();
+    expect(within(table).queryByText("Lab Text List")).not.toBeInTheDocument();
+  });
+
+  it("filters lab label-tolerance criteria by displayed drug percent", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      labLabelParameter("p-lab-label-125", "Lab Label 12.5", "GLYPHOSATE", 12.5),
+      labLabelParameter("p-lab-label-30", "Lab Label 30", "ABAMECTIN", 30),
+    ]);
+
+    renderPage();
+
+    const table = await openLabLabelToleranceTab();
+    expect(within(table).getByText("Lab Label 12.5")).toBeInTheDocument();
+    expect(within(table).getByText("Lab Label 30")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("ค้นหาเกณฑ์"), { target: { value: "12.5%" } });
+
+    expect(within(table).getByText("Lab Label 12.5")).toBeInTheDocument();
+    expect(within(table).queryByText("Lab Label 30")).not.toBeInTheDocument();
+  });
+
+  it("filters lab label-tolerance criteria by the Thai label-tolerance mode name", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      labLabelParameter("p-lab-label-mode", "Lab Label Mode", "GLYPHOSATE", 12.5),
+      {
+        _id: "p-lab-substance-mode",
+        name: "Lab Substance Mode",
+        scope: "lab",
+        status: "active",
+        applyAll: true,
+        valueFields: [
+          {
+            label: "Amount",
+            type: "number",
+            substanceMode: true,
+            substanceStandards: [{ substance: "ABAMECTIN", operator: "gte", value: 95 }],
+          },
+        ],
+      },
+    ]);
+
+    renderPage();
+
+    const table = await openLabLabelToleranceTab();
+    fireEvent.change(screen.getByLabelText("ค้นหาเกณฑ์"), { target: { value: "ตาม % สาร" } });
+
+    expect(within(table).getByText("Lab Label Mode")).toBeInTheDocument();
+  });
+
+  it("sorts lab label-tolerance criteria by drug percent by default", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      labLabelParameter("p-lab-high", "Lab High Percent", "HIGH", 30),
+      labLabelParameter("p-lab-low", "Lab Low Percent", "LOW", 5),
+    ]);
+
+    renderPage();
+
+    const table = await openLabLabelToleranceTab();
+
+    const sortSelect = screen.getByLabelText("เรียงลำดับ") as HTMLSelectElement;
+    expect(sortSelect.value).toBe("drugPercentAsc");
+
+    const tableText = table.textContent ?? "";
+    expect(tableText.indexOf("Lab Low Percent")).toBeLessThan(tableText.indexOf("Lab High Percent"));
   });
 
   it("does not show advanced criteria preview text under setup controls", async () => {

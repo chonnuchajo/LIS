@@ -38,11 +38,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePetitionList } from '@/hooks/usePetition';
 import { api, type MachineItem } from '@/lib/api';
 import { hasLabTrack, petitionStatusBadge } from '@/lib/statusBadge';
+import { isVisibleInAssignQueue } from '@/lib/petitionQueueVisibility';
 import { getMachineSuggestions, type MachineSuggestion } from '@/lib/aiApi';
 import { DEV_MODE, synthesizeDevAssignees } from '@/config/dev';
 import { parseSubstances } from '@/lib/substances';
 import { readSlotMethods, machineMatchesMethod, type MethodDoc } from '@/lib/methodRegistry';
 import { groupMachineMethods } from '@/lib/assignMachineGrouping';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 import { cn } from '@/lib/utils';
 import {
   type Petition,
@@ -205,6 +207,15 @@ export default function PetitionAssignPage() {
     { page: 1, limit: 100, status: 'inProgress' },
     { refetchOnFocus: true, pollMs: 30_000 },
   );
+  const {
+    data: staleReceivedData,
+    loading: staleReceivedLoading,
+    error: staleReceivedError,
+    refresh: refreshStaleReceived,
+  } = usePetitionList(
+    { page: 1, limit: 100, status: 'deliveringQC' },
+    { refetchOnFocus: true, pollMs: 30_000 },
+  );
   const [fetchedEmployees, setFetchedEmployees] = useState<EmployeeAssignee[]>([]);
   const [employeesLoading, setEmployeesLoading] = useState(true);
   const [employeesError, setEmployeesError] = useState<string | null>(null);
@@ -297,8 +308,8 @@ export default function PetitionAssignPage() {
     [registryMethods],
   );
 
-  const loading = pendingLoading || inProgressLoading;
-  const error = pendingError || inProgressError;
+  const loading = pendingLoading || inProgressLoading || staleReceivedLoading;
+  const error = pendingError || inProgressError || staleReceivedError;
 
   const { data: masterItems = [] } = useQuery<MasterItemRaw[]>({
     queryKey: ['master-items-for-petition-assign'],
@@ -363,18 +374,27 @@ export default function PetitionAssignPage() {
     return map;
   }, [masterItems, simpleMethods]);
 
+  const queuePetitions = useMemo(
+    () => [
+      ...(pendingData?.items ?? []),
+      ...(inProgressData?.items ?? []),
+      ...(staleReceivedData?.items ?? []),
+    ].filter(isVisibleInAssignQueue),
+    [inProgressData?.items, pendingData?.items, staleReceivedData?.items],
+  );
+
   // Cache substance groups per petition
   const groupsByPetition = useMemo(() => {
     const out = new Map<string, SubstanceGroup[]>();
-    [...(pendingData?.items ?? []), ...(inProgressData?.items ?? [])].forEach((petition) => {
+    queuePetitions.forEach((petition) => {
       out.set(petition._id, buildSubstanceGroups(petition, commonNameToSlots));
     });
     return out;
-  }, [pendingData?.items, inProgressData?.items, commonNameToSlots]);
+  }, [queuePetitions, commonNameToSlots]);
 
   useEffect(() => {
     const seen = new Set<string>();
-    [...(pendingData?.items ?? []), ...(inProgressData?.items ?? [])].forEach((petition) => {
+    queuePetitions.forEach((petition) => {
       const groups = groupsByPetition.get(petition._id) ?? [];
       groups.forEach((g) => {
         if (seen.has(g.groupKey)) return;
@@ -386,7 +406,7 @@ export default function PetitionAssignPage() {
         });
       });
     });
-  }, [pendingData, inProgressData, groupsByPetition]);
+  }, [queuePetitions, groupsByPetition]);
 
   // Baseline (methodCode → machineId) mapping for a group, derived from saved
   // assignedMachines: each saved machine is first-fit matched to a distinct
@@ -467,11 +487,12 @@ export default function PetitionAssignPage() {
   function refreshPetitions() {
     refreshPending();
     refreshInProgress();
+    refreshStaleReceived();
   }
 
   const allPetitions = useMemo(
-    () => [...(pendingData?.items ?? []), ...(inProgressData?.items ?? [])],
-    [inProgressData?.items, pendingData?.items],
+    () => queuePetitions,
+    [queuePetitions],
   );
 
   const phase2Petitions = useMemo(
@@ -491,7 +512,7 @@ export default function PetitionAssignPage() {
       [
         petition.petitionNo,
         petition.submittedBy?.name,
-        petition.dept,
+        petitionDepartmentLabel(petition),
         petition.assignedTo?.name,
       ]
         .filter(Boolean)
@@ -1043,7 +1064,7 @@ function PetitionCard({
             )}
           </div>
           <div className="mt-0.5 truncate text-[11px] text-grey-500">
-            {petition.submittedBy?.name ?? '-'} · {petition.dept}
+            {petition.submittedBy?.name ?? '-'} · {petitionDepartmentLabel(petition)}
           </div>
         </div>
       </div>

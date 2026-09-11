@@ -3,8 +3,9 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import QCApprovalReviewPage from "./QCApprovalReviewPage";
 
-const { navigateMock, rejectPetitionMock } = vi.hoisted(() => ({
+const { navigateMock, approvePetitionMock, rejectPetitionMock } = vi.hoisted(() => ({
   navigateMock: vi.fn(),
+  approvePetitionMock: vi.fn(),
   rejectPetitionMock: vi.fn(),
 }));
 
@@ -64,7 +65,7 @@ vi.mock("@/lib/api", () => ({
     getParameters: vi.fn(async () => []),
     getQCResults: vi.fn(async () => []),
     getAbnormalFlags: vi.fn(async () => ({ p1: false })),
-    approvePetition: vi.fn(async () => ({})),
+    approvePetition: approvePetitionMock,
     rejectPetition: rejectPetitionMock,
   },
 }));
@@ -119,6 +120,13 @@ function renderPage(initialEntry = "/qc-approval/p1") {
 describe("QCApprovalReviewPage reject dialog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    approvePetitionMock.mockResolvedValue({
+      _id: "p1",
+      petitionNo: "P-2607-0001",
+      status: "approved",
+      approvedAt: "2026-07-13T01:00:00.000Z",
+      items: [{ seq: 1, sampleName: "ตัวอย่าง A", batchNo: "RM-1", sampleId: "S-1" }],
+    });
     rejectPetitionMock.mockResolvedValue({});
   });
 
@@ -175,6 +183,16 @@ describe("QCApprovalReviewPage reject dialog", () => {
     expect(actionBar).toHaveClass("bottom-3");
     expect(actionBar).not.toHaveClass("bottom-0");
     expect(actionBar).toHaveClass("pb-[calc(env(safe-area-inset-bottom)+0.75rem)]");
+  });
+
+  it("approves and returns to the QC approval list", async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: /^อนุมัติ$/ }));
+
+    await waitFor(() => expect(approvePetitionMock).toHaveBeenCalledTimes(1));
+    expect(approvePetitionMock).toHaveBeenCalledWith("p1", "หัวหน้า QC", "pass", undefined);
+    expect(navigateMock).toHaveBeenCalledWith("/qc-approval");
   });
 
   it("opens the reject dialog from the decision query", async () => {

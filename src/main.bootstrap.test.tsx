@@ -17,6 +17,7 @@ const handleRedirectPromise = vi.fn();
 const getAllAccounts = vi.fn(() => [] as unknown[]);
 const setActiveAccount = vi.fn();
 const render = vi.fn();
+const startBuildRefreshWatcher = vi.fn();
 
 vi.mock("./lib/msalConfig", () => ({
   msalInstance: {
@@ -40,6 +41,9 @@ vi.mock("./pages/Home", () => ({ default: () => null }));
 vi.mock("./lib/accessControlSource", () => ({
   loadAccessControl: vi.fn(() => Promise.resolve({})),
 }));
+vi.mock("./lib/buildRefresh", () => ({
+  startBuildRefreshWatcher,
+}));
 
 describe("app bootstrap", () => {
   beforeEach(() => {
@@ -59,6 +63,7 @@ describe("app bootstrap", () => {
     await import("./main");
 
     await vi.waitFor(() => expect(render).toHaveBeenCalledTimes(1));
+    expect(startBuildRefreshWatcher).toHaveBeenCalledTimes(1);
   });
 
   it("restores a protected deep link after MSAL redirects back to the app root", async () => {

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PetitionListPage from './PetitionListPage';
 import type { Petition } from '@/types/petition.types';
 
@@ -47,10 +47,35 @@ const mocks = vi.hoisted(() => {
   ];
 
   return {
+    canAccess: vi.fn(() => true),
+    getSixMonthMedicineStock: vi.fn().mockResolvedValue({
+      serverTime: '2026-09-04T00:00:00.000Z',
+      referenceMonth: '2026-09',
+      items: [
+        {
+          companySource: 'ICPL',
+          itemNo: 'F-TEST-001',
+          locationCode: 'NORMAL',
+          binCode: 'DEFAULT',
+          lotNo: 'FG260301-001',
+          registeringDate: '2026-03-31T00:00:00.000Z',
+          unit: 'KG',
+          stockQty: 10,
+          stockQtyBase: 10,
+          ageMonths: 6,
+        },
+      ],
+    }),
     getParameters: vi.fn().mockResolvedValue([]),
     petitions,
     push: vi.fn(),
     refresh: vi.fn(),
+    user: {
+      employeeId: 'E999',
+      email: 'admin@example.test',
+      name: 'Admin',
+      roles: ['admin'],
+    },
   };
 });
 
@@ -59,18 +84,11 @@ vi.mock('@/components/lis/AppLayout', () => ({
 }));
 
 vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({
-    user: {
-      employeeId: 'E999',
-      email: 'admin@example.test',
-      name: 'Admin',
-      roles: ['admin'],
-    },
-  }),
+  useAuth: () => ({ user: mocks.user }),
 }));
 
 vi.mock('@/hooks/useCanAccessPath', () => ({
-  useCanAccessPath: () => () => true,
+  useCanAccessPath: () => mocks.canAccess,
 }));
 
 vi.mock('@/hooks/useItemGroupMembership', () => ({
@@ -111,6 +129,7 @@ vi.mock('@/context/NotificationContext', () => ({
 
 vi.mock('@/lib/api', () => ({
   api: {
+    getSixMonthMedicineStock: mocks.getSixMonthMedicineStock,
     getParameters: mocks.getParameters,
   },
 }));
@@ -135,7 +154,45 @@ function renderPage(props: React.ComponentProps<typeof PetitionListPage> = {}, i
   );
 }
 
+const defaultMatchMedia = window.matchMedia;
+
+function setTouchViewport(matches: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })),
+  });
+}
+
 describe('PetitionListPage action cues', () => {
+  beforeEach(() => {
+    mocks.canAccess.mockClear();
+    mocks.canAccess.mockImplementation(() => true);
+    mocks.getSixMonthMedicineStock.mockClear();
+    mocks.user = {
+      employeeId: 'E999',
+      email: 'admin@example.test',
+      name: 'Admin',
+      roles: ['admin'],
+    };
+    setTouchViewport(false);
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: defaultMatchMedia,
+    });
+  });
+
   it('does not show the per-card action labels on the petitions list', async () => {
     renderPage();
 
@@ -161,12 +218,74 @@ describe('PetitionListPage action cues', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/petition/P-2607-0001');
   });
 
+  it('shows common names instead of product names on petition cards', async () => {
+    const originalPetitions = mocks.petitions;
+    mocks.petitions = [
+      {
+        ...mocks.petitions[0],
+        _id: 'P-COMMON-NAME',
+        petitionNo: 'P-COMMON-NAME',
+        items: [
+          {
+            seq: 1,
+            sampleName: 'พินิก้า',
+            commonName: 'อะบาเมกติน 1.8% W/V EC',
+            batchNo: 'BATCH-002',
+          },
+        ],
+      },
+    ];
+
+    try {
+      renderPage();
+
+      expect(await screen.findByText('อะบาเมกติน 1.8% W/V EC')).toBeInTheDocument();
+      expect(screen.queryByText('พินิก้า')).not.toBeInTheDocument();
+    } finally {
+      mocks.petitions = originalPetitions;
+    }
+  });
+
+  it('shows the new petition button for viewer users who can open the canonical form', async () => {
+    mocks.user = {
+      employeeId: 'E777',
+      email: 'viewer@example.test',
+      name: 'Viewer',
+      roles: ['viewer'],
+    };
+    mocks.canAccess.mockImplementation((path: string) => path === '/petitions/new');
+
+    renderPage();
+
+    const button = await screen.findByRole('button', { name: 'ยื่นคำร้องใหม่' });
+    expect(button.querySelector('svg')).not.toBeNull();
+
+    fireEvent.click(button);
+
+    expect(mocks.canAccess).toHaveBeenCalledWith('/petitions/new');
+    expect(screen.getByTestId('location')).toHaveTextContent('/petitions/new');
+  });
+
   it('shows approved petitions as completed instead of final-result wording', async () => {
     renderPage();
 
     expect(await screen.findByText('P-2607-0007')).toBeInTheDocument();
     expect(screen.getByText('เสร็จสิ้น')).toBeInTheDocument();
     expect(screen.queryByText('ออก Final Result แล้ว')).not.toBeInTheDocument();
+  });
+
+  it('shows completed approved petitions to QC head users', async () => {
+    mocks.user = {
+      employeeId: 'E888',
+      email: 'qc-head@example.test',
+      name: 'QC Head',
+      roles: ['qc-head'],
+    };
+
+    renderPage({}, '/petitions?status=approved');
+
+    expect(await screen.findByText('P-2607-0007')).toBeInTheDocument();
+    expect(screen.queryByText('ยังไม่มีคำร้องที่คุณยื่นหรือได้รับมอบหมาย')).not.toBeInTheDocument();
   });
 
   it('keeps summary card counts based on all visible petitions when a status card filters the list', async () => {
@@ -192,6 +311,95 @@ describe('PetitionListPage action cues', () => {
     expect(waitingCard).toHaveTextContent('1');
     expect(inProgressCard).toHaveTextContent('2');
     expect(rejectedCard).toHaveTextContent('1');
+  });
+
+  it('shows six-month medicine stock rows from the stock API', async () => {
+    mocks.user = {
+      employeeId: 'E888',
+      email: 'qc-head@example.test',
+      name: 'QC Head',
+      roles: ['qc-head'],
+    };
+    renderPage();
+
+    expect(await screen.findByText('P-2607-0001')).toBeInTheDocument();
+
+    const petitionsTab = screen.getByRole('tab', { name: 'รายการคำร้อง' });
+    const sixMonthMedicineTab = screen.getByRole('tab', { name: 'List ยา 6 เดือน' });
+
+    expect(petitionsTab).toHaveAttribute('aria-selected', 'true');
+    expect(sixMonthMedicineTab).toHaveAttribute('aria-selected', 'false');
+
+    fireEvent.mouseDown(sixMonthMedicineTab, { button: 0, ctrlKey: false });
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'List ยา 6 เดือน' })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByText('F-TEST-001')).toBeInTheDocument();
+      expect(screen.getByText('FG260301-001')).toBeInTheDocument();
+      expect(screen.getByText('10 KG')).toBeInTheDocument();
+      expect(screen.queryByText('P-2607-0001')).not.toBeInTheDocument();
+    });
+    expect(mocks.getSixMonthMedicineStock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not show the six-month medicine refresh button', async () => {
+    mocks.user = {
+      employeeId: 'E888',
+      email: 'qc-head@example.test',
+      name: 'QC Head',
+      roles: ['qc-head'],
+    };
+    renderPage();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    expect(await screen.findByText('F-TEST-001')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'รีเฟรช' })).not.toBeInTheDocument();
+  });
+
+  it('refreshes six-month medicine stock after pulling down from the top on touch screens', async () => {
+    setTouchViewport(true);
+    mocks.user = {
+      employeeId: 'E888',
+      email: 'qc-head@example.test',
+      name: 'QC Head',
+      roles: ['qc-head'],
+    };
+    renderPage();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    const stockItem = await screen.findByText('F-TEST-001');
+    expect(mocks.getSixMonthMedicineStock).toHaveBeenCalledTimes(1);
+
+    fireEvent.touchStart(stockItem, { touches: [{ clientY: 8 }] });
+    fireEvent.touchMove(stockItem, { touches: [{ clientY: 96 }] });
+    fireEvent.touchEnd(stockItem);
+
+    await waitFor(() => {
+      expect(mocks.getSixMonthMedicineStock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('shows the six-month medicine tab for admin users', async () => {
+    renderPage();
+
+    expect(await screen.findByText('P-2607-0001')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'List ยา 6 เดือน' })).toBeInTheDocument();
+  });
+
+  it('hides the six-month medicine tab for users without admin or QC head', async () => {
+    mocks.user = {
+      employeeId: 'E889',
+      email: 'qc-staff@example.test',
+      name: 'QC Staff',
+      roles: ['qc-staff'],
+    };
+    renderPage();
+
+    expect(await screen.findByText('P-2607-0001')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'List ยา 6 เดือน' })).not.toBeInTheDocument();
+    expect(mocks.getSixMonthMedicineStock).not.toHaveBeenCalled();
   });
 
   it('uses production petition_no query as the list search term', async () => {

@@ -58,6 +58,7 @@ export function labTrackStatusBadge(p: ReceiveFields & { status: PetitionStatus 
   if (p.status === 'sampleSent' && !p.assignedTo) return toneBadge('info', 'รอ assign');
   if (!labReceivedAt(p)) return toneBadge('warning', 'รอรับ');
   if (['success', 'approved', 'rejected'].includes(p.status)) return statusBadge(p.status);
+  if (p.status === 'deliveringQC') return statusBadge('pendingReview');
   if (p.labApprovedAt) return toneBadge('warning', 'ผล Lab ออกแล้ว · รอ QC');
   if (p.labCompletedAt) return toneBadge('warning', 'รอออกผล');
   if (p.status === 'inProgress') return toneBadge('info', 'Lab กำลังตรวจ');
@@ -73,6 +74,7 @@ export function labTrackStatusBadge(p: ReceiveFields & { status: PetitionStatus 
 export function qcTrackStatusBadge(p: ReceiveFields & { status: PetitionStatus }): StatusBadge {
   if (!qcReceivedAt(p)) return toneBadge('warning', 'รอรับ');
   if (['success', 'approved', 'rejected'].includes(p.status)) return statusBadge(p.status);
+  if (p.status === 'deliveringQC') return statusBadge('pendingReview');
   if (p.qcCompletedAt) return toneBadge('warning', 'รอ Final Result');
   // ค่า config ของ inProgress = "QC กำลังตรวจ" อยู่แล้ว จึงปล่อยผ่านลง statusBadge ได้เลย
   return statusBadge(p.status);

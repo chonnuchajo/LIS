@@ -10,12 +10,49 @@ import StandardRequisitionDialog from "@/components/lis/stock/StandardRequisitio
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { api } from "@/lib/api";
+import type { StockTransactionItem, StockUnitItem } from "@/types/stock";
 
 interface Props {
   roomSlug: string;
   instruments: { id: string; name: string; group?: string }[];
   initialQrId?: string | null;
   onInitialQrConsumed?: () => void;
+}
+
+function formatScanBlockDate(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${date.getFullYear()}`;
+}
+
+function scannedUnitBlockMessage(unit: StockUnitItem, now = new Date()) {
+  const remaining = unit.volume?.remaining;
+  if (unit.status === "empty" || (remaining != null && Number(remaining) <= 0)) {
+    const date = formatScanBlockDate(unit.updatedAt || unit.discardedAt || unit.createdAt);
+    return date ? `ขวดนี้หมดแล้วเมื่อ ${date}` : "ขวดนี้หมดแล้ว";
+  }
+  if (unit.status === "discarded") {
+    return "ขวดนี้ไม่มีประสิทธิภาพแล้วไม่ควรใช้งาน";
+  }
+  if (unit.exp && new Date(unit.exp).getTime() < now.getTime()) {
+    const date = formatScanBlockDate(unit.exp);
+    return date ? `ขวดนี้หมดอายุแล้วเมื่อ ${date}` : "ขวดนี้หมดอายุแล้ว";
+  }
+  return "";
+}
+
+function scannedResolutionBlockMessage(transactions: StockTransactionItem[]) {
+  const resolved = transactions.find((tx) => tx.deductionResolution?.reason);
+  const reason = resolved?.deductionResolution?.reason;
+  if (!resolved || !reason) return "";
+  const date = formatScanBlockDate(resolved.deductionResolution?.resolvedAt || resolved.createdAt);
+  if (reason === "expired") return date ? `ขวดนี้หมดอายุแล้วเมื่อ ${date}` : "ขวดนี้หมดอายุแล้ว";
+  if (reason === "empty") return date ? `ขวดนี้หมดแล้วเมื่อ ${date}` : "ขวดนี้หมดแล้ว";
+  if (reason === "ineffective") return "ขวดนี้ไม่มีประสิทธิภาพแล้วไม่ควรใช้งาน";
+  return "";
 }
 
 export default function StockRequisitionButton({
@@ -29,14 +66,38 @@ export default function StockRequisitionButton({
   const [which, setWhich] = useState<"chemical" | "standard" | null>(null);
   const [initialStandardQrId, setInitialStandardQrId] = useState<string | null>(null);
   const [initialSolventId, setInitialSolventId] = useState<string | null>(null);
+  const [initialSolventUnitQrId, setInitialSolventUnitQrId] = useState<string | null>(null);
   const consumedQrRef = useRef<string | null>(null);
   const normalizedInitialQrId = initialQrId?.trim() ?? "";
   const shouldResolveInitialQr = Boolean(normalizedInitialQrId) && consumedQrRef.current !== normalizedInitialQrId;
 
-  const { data: units = [], isFetched: unitsFetched } = useQuery({
-    queryKey: ["stock", "units"],
-    queryFn: () => api.getStockUnits(),
+  useEffect(() => {
+    if (!normalizedInitialQrId) consumedQrRef.current = null;
+  }, [normalizedInitialQrId]);
+
+  const { data: scannedUnit = null, isFetched: scannedUnitFetched } = useQuery({
+    queryKey: ["stock", "unit", normalizedInitialQrId],
+    queryFn: async () => {
+      try {
+        return await api.getStockUnit(normalizedInitialQrId);
+      } catch {
+        return null;
+      }
+    },
     enabled: shouldResolveInitialQr,
+    retry: false,
+  });
+
+  const { data: resolvedDeductions = [], isFetched: resolvedDeductionsFetched } = useQuery({
+    queryKey: ["stock", "resolved-deductions", normalizedInitialQrId],
+    queryFn: () => api.getStockTransactions({
+      itemType: "standard",
+      action: "deduct",
+      qrId: normalizedInitialQrId,
+      limit: 10,
+    }),
+    enabled: shouldResolveInitialQr,
+    retry: false,
   });
 
   const { data: solvents = [], isFetched: solventsFetched } = useQuery({
@@ -46,13 +107,33 @@ export default function StockRequisitionButton({
   });
 
   useEffect(() => {
-    if (!shouldResolveInitialQr || !unitsFetched || !solventsFetched) return;
+    if (!shouldResolveInitialQr || !scannedUnitFetched || !resolvedDeductionsFetched || !solventsFetched) return;
 
     consumedQrRef.current = normalizedInitialQrId;
-    const matchedUnit = units.find((row) => row.qrId === normalizedInitialQrId);
-    if (matchedUnit) {
-      setInitialStandardQrId(normalizedInitialQrId);
+    if (scannedUnit) {
+      const blockMessage = scannedUnitBlockMessage(scannedUnit) || scannedResolutionBlockMessage(resolvedDeductions);
+      if (blockMessage) {
+        toast.error(blockMessage);
+        onInitialQrConsumed?.();
+        return;
+      }
+      queryClient.setQueryData<StockUnitItem[]>(["stock", "units"], (current = []) => {
+        const existing = current.find((row) => row.qrId === scannedUnit.qrId);
+        if (existing) return current.map((row) => (row.qrId === scannedUnit.qrId ? scannedUnit : row));
+        return [scannedUnit, ...current];
+      });
+      if (scannedUnit.itemType === "solvent") {
+        setInitialStandardQrId(null);
+        setInitialSolventId(scannedUnit.itemId || scannedUnit.itemCode);
+        setInitialSolventUnitQrId(scannedUnit.qrId);
+        setWhich("chemical");
+        setChooser(false);
+        onInitialQrConsumed?.();
+        return;
+      }
+      setInitialStandardQrId(scannedUnit.qrId);
       setInitialSolventId(null);
+      setInitialSolventUnitQrId(null);
       setWhich("standard");
       setChooser(false);
       onInitialQrConsumed?.();
@@ -63,6 +144,7 @@ export default function StockRequisitionButton({
     if (matchedSolvent) {
       setInitialStandardQrId(null);
       setInitialSolventId(normalizedInitialQrId);
+      setInitialSolventUnitQrId(null);
       setWhich("chemical");
       setChooser(false);
       onInitialQrConsumed?.();
@@ -75,10 +157,13 @@ export default function StockRequisitionButton({
     normalizedInitialQrId,
     onInitialQrConsumed,
     shouldResolveInitialQr,
+    scannedUnit,
+    scannedUnitFetched,
+    resolvedDeductions,
+    resolvedDeductionsFetched,
     solvents,
     solventsFetched,
-    units,
-    unitsFetched,
+    queryClient,
   ]);
 
   const refreshStandards = () => {
@@ -90,6 +175,7 @@ export default function StockRequisitionButton({
   const openChooser = (target: "chemical" | "standard") => {
     setInitialStandardQrId(null);
     setInitialSolventId(null);
+    setInitialSolventUnitQrId(null);
     setWhich(target);
     setChooser(false);
   };
@@ -121,11 +207,14 @@ export default function StockRequisitionButton({
           onClose={() => {
             setWhich(null);
             setInitialSolventId(null);
+            setInitialSolventUnitQrId(null);
           }}
+          initialSolventUnitQrId={initialSolventUnitQrId}
           onSaved={() => {
             queryClient.invalidateQueries({ queryKey: ["stock", "pending-deductions"] });
             queryClient.invalidateQueries({ queryKey: ["chemical-requisitions"] });
             queryClient.invalidateQueries({ queryKey: ["stock", "solvents"] });
+            queryClient.invalidateQueries({ queryKey: ["stock", "units"] });
             queryClient.invalidateQueries({ queryKey: ["stock", "transactions"] });
           }}
         />

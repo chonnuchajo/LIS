@@ -25,9 +25,63 @@ describe("dailyCheckProgressFromSources", () => {
     });
 
     expect(progress).toEqual({
-      total: 38,
+      total: 76,
       done: 5,
-      pending: 33,
+      pending: 71,
+    });
+  });
+
+  it("requires morning and afternoon checks for each Daily Check item", () => {
+    const progress = dailyCheckProgressFromSources(
+      {
+        scaleRecords: [
+          { scaleId: "scale-1", checkedAt: "2026-08-28T08:30:00" },
+          { scaleId: "scale-1", checkedAt: "2026-08-28T13:30:00" },
+          { scaleId: "scale-1", checkedAt: "2026-08-28T14:30:00" },
+        ],
+        environmentRecords: [
+          { room: "balance", checkedAt: "2026-08-28T11:59:00" },
+          { room: "balance", checkedAt: "2026-08-28T17:00:00" },
+        ],
+        equipmentRecords: [
+          { roomSlug: "analysis", instrumentId: "LD-001", checkedAt: "2026-08-28T09:00:00" },
+          { roomSlug: "analysis", instrumentId: "LD-001", checkedAt: "2026-08-28T16:00:00" },
+          { roomSlug: "analysis", instrumentId: "LD-001", checkedAt: "2026-08-28T16:30:00" },
+        ],
+      },
+      { scales: 1, environment: 1, equipment: 1 },
+    );
+
+    expect(progress).toEqual({
+      total: 6,
+      done: 6,
+      pending: 0,
+    });
+  });
+
+  it("ignores Daily Check records outside the two allowed periods", () => {
+    const progress = dailyCheckProgressFromSources(
+      {
+        scaleRecords: [
+          { scaleId: "scale-1", checkedAt: "2026-08-28T07:59:00" },
+          { scaleId: "scale-1", checkedAt: "2026-08-28T12:30:00" },
+          { scaleId: "scale-1", checkedAt: "2026-08-28T17:30:00" },
+          { scaleId: "scale-1", checkedAt: "2026-08-28T08:00:00" },
+        ],
+        environmentRecords: [
+          { room: "balance", checkedAt: "2026-08-28T13:00:00" },
+        ],
+        equipmentRecords: [
+          { roomSlug: "analysis", instrumentId: "LD-001", checkedAt: "2026-08-28T18:00:00" },
+        ],
+      },
+      { scales: 1, environment: 1, equipment: 1 },
+    );
+
+    expect(progress).toEqual({
+      total: 6,
+      done: 2,
+      pending: 4,
     });
   });
 
@@ -46,9 +100,9 @@ describe("dailyCheckProgressFromSources", () => {
     );
 
     expect(progress).toEqual({
-      total: 5,
-      done: 5,
-      pending: 0,
+      total: 10,
+      done: 8,
+      pending: 2,
     });
   });
 });

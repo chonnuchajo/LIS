@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 import type { ParameterItem } from "@/lib/api";
-import { ParameterCriteriaTabs } from "./ParameterCriteriaTabs";
+import { ParameterCriteriaTabs, type ParameterCriteriaTab } from "./ParameterCriteriaTabs";
 
 const parameters: ParameterItem[] = [
   {
@@ -102,6 +102,35 @@ const metadataParameters: ParameterItem[] = [
   },
 ];
 
+const specificGravityParameters: ParameterItem[] = [
+  {
+    _id: "p-other-first",
+    name: "ปริมาณสาร",
+    scope: "qc",
+    valueFields: [
+      {
+        label: "Active",
+        type: "number",
+        substanceMode: true,
+        substanceStandards: [{ substance: "ABAMECTIN", operator: "gte", value: 90 }],
+      },
+    ],
+  },
+  {
+    _id: "p-sg",
+    name: "ค่า ถพ.",
+    scope: "qc",
+    valueFields: [
+      {
+        label: "ค่าถพ.",
+        type: "number",
+        substanceMode: true,
+        substanceStandards: [{ substance: "SG", operator: "gte", value: 0.99 }],
+      },
+    ],
+  },
+];
+
 function renderCriteriaTabs(
   props: Partial<ComponentProps<typeof ParameterCriteriaTabs>> = {},
 ) {
@@ -126,7 +155,7 @@ function criteriaSearchInput() {
 }
 
 function bodyRows() {
-  return within(screen.getByRole("table")).getAllByRole("row").slice(1);
+  return within(screen.getByRole("table")).getAllByRole("row").slice(2);
 }
 
 describe("ParameterCriteriaTabs", () => {
@@ -142,8 +171,9 @@ describe("ParameterCriteriaTabs", () => {
 
     const table = screen.getByRole("table");
     const headers = within(table).getAllByRole("columnheader").map((header) => header.textContent ?? "");
-    expect(headers).toHaveLength(5);
-    expect(headers).toContain("Parameter");
+    expect(headers).toHaveLength(8);
+    expect(headers[0]).toBe("Parameter A");
+    expect(headers).not.toContain("Parameter");
     expect(headers.some((text) => text.includes("Field"))).toBe(false);
     expect(headers.some((text) => text.includes("Type"))).toBe(false);
     expect(headers.some((text) => text.includes("หมวดหมู่"))).toBe(false);
@@ -157,6 +187,19 @@ describe("ParameterCriteriaTabs", () => {
     fireEvent.click(within(table).getAllByRole("button")[0]);
     expect(onEditField).toHaveBeenCalledTimes(1);
     expect(onEditField).toHaveBeenCalledWith("substance", "p1", 0, 1);
+  });
+
+  it("defaults the Parameter filter to ค่า ถพ. and removes the all option", () => {
+    renderCriteriaTabs({ value: "substance", parameters: specificGravityParameters });
+
+    const parameterSelect = screen.getByLabelText("เลือก Parameter") as HTMLSelectElement;
+    const optionTexts = within(parameterSelect).getAllByRole("option").map((option) => option.textContent ?? "");
+
+    expect(parameterSelect).toHaveValue("p-sg");
+    expect(optionTexts).not.toContain("ทุก Parameter");
+    expect(within(screen.getByRole("table")).getAllByRole("columnheader")[0]).toHaveTextContent("ค่า ถพ.");
+    expect(within(bodyRows()[0]).getByText("SG")).toBeInTheDocument();
+    expect(screen.queryByText("ABAMECTIN")).not.toBeInTheDocument();
   });
 
   it("opens the row's rule when clicking anywhere on a substance row", () => {
@@ -298,7 +341,8 @@ describe("ParameterCriteriaTabs", () => {
     const table = screen.getByRole("table");
     const headers = within(table).getAllByRole("columnheader").map((header) => header.textContent ?? "");
     expect(headers).toHaveLength(6);
-    expect(headers).toContain("Parameter");
+    expect(headers[0]).toBe("Parameter Conditional");
+    expect(headers).not.toContain("Parameter");
     expect(headers.some((text) => text.includes("Field"))).toBe(false);
     expect(within(table).getByText("Parameter Conditional")).toBeInTheDocument();
     expect(within(table).queryByText("Decision")).not.toBeInTheDocument();
@@ -312,19 +356,18 @@ describe("ParameterCriteriaTabs", () => {
     const table = screen.getByRole("table");
     const headerTexts = within(table).getAllByRole("columnheader").map((header) => header.textContent ?? "");
     expect(headerTexts).toHaveLength(8);
-    expect(headerTexts).toContain("Parameter");
+    expect(headerTexts[0]).toBe("Parameter A");
+    expect(headerTexts).not.toContain("Parameter");
     expect(headerTexts).toContain("เกณฑ์กลาง");
     expect(headerTexts.some((text) => text.includes("(%,+-)"))).toBe(true);
     expect(headerTexts.filter((text) => text.includes("25%"))).toHaveLength(2);
 
-    const bodyCells = within(within(table).getAllByRole("row")[1]).getAllByRole("cell");
-    expect(bodyCells).toHaveLength(8);
-    expect(within(bodyCells[0]).getByText("Parameter A")).toBeInTheDocument();
+    const bodyCells = within(bodyRows()[0]).getAllByRole("cell");
+    expect(bodyCells).toHaveLength(7);
     expect(within(bodyCells[0]).queryByText("Parameter A / %AI")).not.toBeInTheDocument();
     expect(within(bodyCells[0]).getByText("ABAMECTIN / 1%")).toBeInTheDocument();
-    expect(within(bodyCells[1]).getByText("1")).toBeInTheDocument();
-    expect(within(bodyCells[2]).getByText("25%")).toBeInTheDocument();
-    expect(within(bodyCells[3]).getByText("15%")).toBeInTheDocument();
+    expect(within(bodyCells[1]).getByText("25%")).toBeInTheDocument();
+    expect(within(bodyCells[2]).getByText("15%")).toBeInTheDocument();
 
     fireEvent.click(within(table).getAllByRole("button")[0]);
     expect(onEditField).toHaveBeenCalledWith("labelTolerance", "p1", 1);
@@ -336,15 +379,16 @@ describe("ParameterCriteriaTabs", () => {
     const table = screen.getByRole("table");
     const headerTexts = within(table).getAllByRole("columnheader").map((header) => header.textContent ?? "");
     expect(headerTexts).toHaveLength(5);
-    expect(headerTexts).toContain("Parameter");
+    expect(headerTexts[0]).toBe("Parameter A");
+    expect(headerTexts).not.toContain("Parameter");
     expect(headerTexts).toContain("เกณฑ์กลาง");
     expect(headerTexts.some((text) => text.includes("(%,+-)"))).toBe(false);
     expect(headerTexts.some((text) => text.includes("25%"))).toBe(false);
 
-    const cells = within(within(table).getAllByRole("row")[1]).getAllByRole("cell");
-    expect(cells).toHaveLength(5);
-    expect(within(cells[2]).getByText("15%")).toBeInTheDocument();
-    expect(within(cells[3]).queryByText("25%")).not.toBeInTheDocument();
+    const cells = within(bodyRows()[0]).getAllByRole("cell");
+    expect(cells).toHaveLength(4);
+    expect(within(cells[1]).getByText("15%")).toBeInTheDocument();
+    expect(within(cells[2]).queryByText("25%")).not.toBeInTheDocument();
   });
 
   it("filters by parameter and sorts label tolerance rows by substance percent", () => {
@@ -352,18 +396,46 @@ describe("ParameterCriteriaTabs", () => {
 
     fireEvent.change(screen.getByLabelText("เลือก Parameter"), { target: { value: "p2" } });
 
-    const filteredRows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
-    expect(filteredRows).toHaveLength(1);
-    expect(within(filteredRows[0]).queryByText("Parameter A")).not.toBeInTheDocument();
-    expect(within(filteredRows[0]).getByText("Parameter B")).toBeInTheDocument();
-    expect(within(filteredRows[0]).getByText("GLYPHOSATE / 5%")).toBeInTheDocument();
+    expect(bodyRows()).toHaveLength(1);
+    expect(within(screen.getByRole("table")).getAllByRole("columnheader")[0]).toHaveTextContent("Parameter B");
+    expect(within(bodyRows()[0]).queryByText("Parameter A")).not.toBeInTheDocument();
+    expect(within(bodyRows()[0]).getByText("GLYPHOSATE / 5%")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("เลือก Parameter"), { target: { value: "__all__" } });
     fireEvent.change(screen.getByLabelText("เรียงลำดับ"), { target: { value: "drugPercentDesc" } });
 
-    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
-    expect(within(rows[0]).getByText("Parameter B")).toBeInTheDocument();
-    expect(within(rows[1]).getByText("Parameter A")).toBeInTheDocument();
+    expect(within(bodyRows()[0]).getByText("GLYPHOSATE / 5%")).toBeInTheDocument();
+  });
+
+  it("resets the Parameter filter when switching criteria tabs", () => {
+    function Wrapper() {
+      const [tab, setTab] = useState<ParameterCriteriaTab>("labelTolerance");
+      return (
+        <ParameterCriteriaTabs
+          value={tab}
+          onValueChange={setTab}
+          parameters={parameters}
+          scope="qc"
+          canViewHeadCriteriaColumns
+          onEditField={vi.fn()}
+        >
+          <div>original parameter list</div>
+        </ParameterCriteriaTabs>
+      );
+    }
+
+    render(<Wrapper />);
+
+    const parameterSelect = screen.getByLabelText("เลือก Parameter") as HTMLSelectElement;
+    fireEvent.change(parameterSelect, { target: { value: "p2" } });
+    expect(parameterSelect.value).toBe("p2");
+
+    const substanceTab = screen.getByRole("tab", { name: "แยกตามสาร" });
+    fireEvent.mouseDown(substanceTab);
+    fireEvent.click(substanceTab);
+
+    expect((screen.getByLabelText("เลือก Parameter") as HTMLSelectElement).value).toBe("p1");
+    expect(within(screen.getByRole("table")).getAllByRole("columnheader")[0]).toHaveTextContent("Parameter A");
+    expect(bodyRows()).toHaveLength(3);
   });
 
   it("filters criteria rows by hidden parameter metadata", () => {
@@ -376,9 +448,9 @@ describe("ParameterCriteriaTabs", () => {
       target: { value: "hidden owner note" },
     });
 
-    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    const rows = bodyRows();
     expect(rows).toHaveLength(1);
-    expect(within(rows[0]).getByText("Metadata Parameter")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getAllByRole("columnheader")[0]).toHaveTextContent("Metadata Parameter");
     expect(within(rows[0]).getByText("CYPERMETHRIN")).toBeInTheDocument();
     expect(within(screen.getByRole("table")).queryByText("Other Parameter")).not.toBeInTheDocument();
   });
@@ -393,25 +465,26 @@ describe("ParameterCriteriaTabs", () => {
       target: { value: "Trade Alpha" },
     });
 
-    expect(within(screen.getByRole("table")).getAllByRole("row").slice(1)).toHaveLength(1);
-    expect(within(screen.getByRole("table")).getByText("Metadata Parameter")).toBeInTheDocument();
+    expect(bodyRows()).toHaveLength(1);
+    expect(within(screen.getByRole("table")).getAllByRole("columnheader")[0]).toHaveTextContent("Metadata Parameter");
 
     fireEvent.change(criteriaSearchInput(), {
       target: { value: "Hidden Field Label" },
     });
-    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    const rows = bodyRows();
     expect(rows).toHaveLength(1);
-    expect(within(rows[0]).getByText("Metadata Parameter")).toBeInTheDocument();
+    expect(within(rows[0]).getByText("CYPERMETHRIN")).toBeInTheDocument();
   });
 
   it("filters criteria rows by substance search text", () => {
     renderCriteriaTabs();
 
+    fireEvent.change(screen.getByLabelText("เลือก Parameter"), { target: { value: "p2" } });
     fireEvent.change(screen.getByLabelText("ค้นหาเกณฑ์"), { target: { value: "glyph" } });
 
-    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    const rows = bodyRows();
     expect(rows).toHaveLength(1);
-    expect(within(rows[0]).getByText("Parameter B")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getAllByRole("columnheader")[0]).toHaveTextContent("Parameter B");
     expect(within(rows[0]).getByText("GLYPHOSATE / 5%")).toBeInTheDocument();
     expect(screen.queryByText("ABAMECTIN / 1%")).not.toBeInTheDocument();
   });
@@ -467,13 +540,13 @@ describe("ParameterCriteriaTabs", () => {
       ],
     });
 
-    fireEvent.change(screen.getByPlaceholderText(/Parameter/), {
+    fireEvent.change(screen.getByLabelText("ค้นหาเกณฑ์"), {
       target: { value: "trade alpha" },
     });
 
-    const rows = within(screen.getByRole("table")).getAllByRole("row").slice(1);
+    const rows = bodyRows();
     expect(rows).toHaveLength(1);
-    expect(within(rows[0]).getByText("Searchable Parameter")).toBeInTheDocument();
+    expect(within(screen.getByRole("table")).getAllByRole("columnheader")[0]).toHaveTextContent("Searchable Parameter");
     expect(within(rows[0]).getByText("ABAMECTIN")).toBeInTheDocument();
     expect(within(rows[0]).queryByText("Visible Field")).not.toBeInTheDocument();
   });

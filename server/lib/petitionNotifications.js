@@ -111,13 +111,18 @@ function levelForEvent(log) {
 // id = audit log id, so NotificationContext.push() de-dupes on its own when two
 // polls overlap the same window.
 function toNotification(petition, log, desc) {
+  const petitionId = String(petition?._id ?? log?.petitionId ?? '');
   return {
     id: String(log?._id),
+    petitionId,
     petitionNo: petition?.petitionNo || log?.petitionNo || '',
+    event: log?.event,
+    fromStatus: log?.fromStatus,
+    toStatus: log?.toStatus,
     title: desc.title,
     message: desc.message,
     level: levelForEvent(log),
-    link: `/petition/${petition?._id ?? log?.petitionId}`,
+    link: `/petition/${petitionId}`,
     createdAt: log?.createdAt,
   };
 }

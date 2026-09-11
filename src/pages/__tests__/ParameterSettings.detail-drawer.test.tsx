@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -160,5 +160,97 @@ describe("ParameterSettings row click/double-click opens detail drawer", () => {
 
     expect(await screen.findByText("ยืนยันการลบ")).toBeInTheDocument();
     expect(screen.queryByText(/ช่องค่า \(/)).not.toBeInTheDocument();
+  });
+
+  it("clears the Parameter list search when switching between QC and Lab", async () => {
+    vi.mocked(api.getParameters).mockResolvedValueOnce([
+      {
+        _id: "p-sg",
+        name: "ค่า ถพ.",
+        scope: "qc",
+        status: "active",
+        applyAll: true,
+        valueFields: [{ label: "ค่าถพ.", type: "number", unit: "", standardOperator: "gte", standardValue: 0 }],
+      },
+      {
+        _id: "p-lab",
+        name: "ปริมาณสาร Lab",
+        scope: "lab",
+        status: "active",
+        applyAll: true,
+        valueFields: [{ label: "%AI", type: "number", unit: "%", standardOperator: "gte", standardValue: 0 }],
+      },
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByText("ค่า ถพ.")).toBeInTheDocument();
+
+    const search = screen.getByPlaceholderText("ค้นหาชื่อ / สาร / ใช้กับ / ช่อง...") as HTMLInputElement;
+    fireEvent.change(search, { target: { value: "ถพ." } });
+    expect(search.value).toBe("ถพ.");
+
+    const scopeTabs = screen.getAllByRole("tablist")[0];
+    const labTab = within(scopeTabs).getByRole("tab", { name: /Lab/ });
+    fireEvent.mouseDown(labTab);
+    fireEvent.click(labTab);
+
+    expect(search.value).toBe("");
+    expect(await screen.findByText("ปริมาณสาร Lab")).toBeInTheDocument();
+  });
+
+  it("keeps the criteria tab and resets the Parameter filter when switching scope", async () => {
+    vi.mocked(api.getParameters).mockResolvedValueOnce([
+      {
+        _id: "p-sg",
+        name: "ค่า ถพ.",
+        scope: "qc",
+        status: "active",
+        applyAll: true,
+        valueFields: [
+          {
+            label: "ค่าถพ.",
+            type: "number",
+            substanceMode: true,
+            substanceStandards: [{ substance: "SG", operator: "gte", value: 0 }],
+          },
+        ],
+      },
+      {
+        _id: "p-lab",
+        name: "ปริมาณสาร Lab",
+        scope: "lab",
+        status: "active",
+        applyAll: true,
+        valueFields: [
+          {
+            label: "%AI",
+            type: "number",
+            unit: "%",
+            substanceMode: true,
+            substanceStandards: [{ substance: "LAB", operator: "gte", value: 0 }],
+          },
+        ],
+      },
+    ]);
+
+    renderPage();
+    expect(await screen.findByText("ค่า ถพ.")).toBeInTheDocument();
+
+    const criteriaTab = screen.getByRole("tab", { name: "แยกตามสาร" });
+    fireEvent.mouseDown(criteriaTab);
+    fireEvent.click(criteriaTab);
+    expect(await screen.findByLabelText("ค้นหาเกณฑ์")).toBeInTheDocument();
+
+    const scopeTabs = screen.getAllByRole("tablist")[0];
+    const labTab = within(scopeTabs).getByRole("tab", { name: /Lab/ });
+    fireEvent.mouseDown(labTab);
+    fireEvent.click(labTab);
+
+    expect(await screen.findByLabelText("ค้นหาเกณฑ์")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "แยกตามสาร" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("เลือก Parameter")).toHaveValue("p-lab");
+    expect(within(screen.getByRole("table")).getAllByRole("columnheader")[0]).toHaveTextContent("ปริมาณสาร Lab");
+    expect(await screen.findByText("LAB")).toBeInTheDocument();
   });
 });

@@ -70,6 +70,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api, type MachineItem, type ParameterItem, type ItemGroupItem } from "@/lib/api";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
@@ -140,6 +141,24 @@ type SimpleMethodRow = {
   itemNos: string[];
   rawCommonNames: string[];
   items: MasterItem[];
+};
+
+type MasterCommonNameRow = {
+  key: string;
+  commonName: string;
+  itemCount: number;
+  itemNos: string[];
+  items: MasterCommonNameItem[];
+};
+
+type MasterCommonNameItem = {
+  itemNo: string;
+  itemName: string;
+  rawCommonName: string;
+  category: string;
+  unit: string;
+  packSize: string;
+  imageUrls: string[];
 };
 
 type MasterItemForm = {
@@ -360,6 +379,18 @@ function normalizeImageUrls(value: unknown): string[] {
   }
   const text = String(value ?? "").trim();
   return text ? [text] : [];
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  values.forEach((value) => {
+    const text = String(value ?? "").trim();
+    if (!text || seen.has(text)) return;
+    seen.add(text);
+    out.push(text);
+  });
+  return out;
 }
 
 function getImageUrls(item: MasterItem): string[] {
@@ -647,6 +678,78 @@ export function buildSimpleMethodRows(
   );
 }
 
+function splitMasterCommonName(value: string): string[] {
+  const parts: string[] = [];
+  let currentPart = "";
+  let parenthesisDepth = 0;
+
+  for (const character of String(value || "")) {
+    if (character === "(") {
+      parenthesisDepth += 1;
+      currentPart += character;
+      continue;
+    }
+    if (character === ")") {
+      parenthesisDepth = Math.max(0, parenthesisDepth - 1);
+      currentPart += character;
+      continue;
+    }
+    if (character === "+" && parenthesisDepth === 0) {
+      parts.push(currentPart);
+      currentPart = "";
+      continue;
+    }
+    currentPart += character;
+  }
+
+  parts.push(currentPart);
+
+  return parts
+    .map((part) => part.trim().replace(/\s+/g, " "))
+    .filter((part) => part && !/^\d+(?:[.,]\d+)?\s*%/.test(part));
+}
+
+function buildMasterCommonNameRows(entries: Array<{ item: MasterItem; originalItemNo: string; rawCommonName: string }>): MasterCommonNameRow[] {
+  const groups = new Map<string, MasterCommonNameRow>();
+
+  entries.forEach((entry) => {
+    const itemNo = entry.originalItemNo || String(firstValue(entry.item, codeKeys)).trim();
+    const detail: MasterCommonNameItem = {
+      itemNo,
+      itemName: String(firstValue(entry.item, nameKeys)).trim(),
+      rawCommonName: entry.rawCommonName,
+      category: String(firstValue(entry.item, categoryKeys)).trim(),
+      unit: String(firstValue(entry.item, unitKeys)).trim(),
+      packSize: String(firstValue(entry.item, packSizeKeys)).trim(),
+      imageUrls: getImageUrls(entry.item),
+    };
+
+    splitMasterCommonName(entry.rawCommonName).forEach((commonName) => {
+      const key = normalizeKey(commonName);
+      const existing = groups.get(key);
+
+      if (existing) {
+        existing.itemCount += 1;
+        if (itemNo && !existing.itemNos.includes(itemNo)) existing.itemNos.push(itemNo);
+        if (!itemNo || !existing.items.some((item) => item.itemNo === itemNo)) existing.items.push(detail);
+        return;
+      }
+
+      groups.set(key, {
+        key,
+        commonName,
+        itemCount: 1,
+        itemNos: itemNo ? [itemNo] : [],
+        items: [detail],
+      });
+    });
+  });
+
+  return Array.from(groups.values()).sort((a, b) =>
+    a.commonName.localeCompare(b.commonName, ["th", "en"]),
+  );
+}
+
 function itemToForm(item: MasterItem, metaQty = 0): MasterItemForm {
   const statusValue = firstValue(item, statusKeys);
   const classification = getClassification([
@@ -922,6 +1025,11 @@ export default function MasterItems() {
     [items, overrideMap, cnMap],
   );
 
+  const commonNameRows = useMemo(
+    () => buildMasterCommonNameRows(enrichedItems),
+    [enrichedItems],
+  );
+
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
     return enrichedItems.filter(({ item, originalItemNo, rawCommonName, displayCommonName }) => {
@@ -1085,7 +1193,16 @@ export default function MasterItems() {
           }
         />
 
-        <Card className="overflow-hidden">
+        <Tabs defaultValue="items" className="space-y-4">
+          <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
+            <TabsList className="w-max">
+              <TabsTrigger value="items">Master Item</TabsTrigger>
+              <TabsTrigger value="common-names">Master Common Name Item</TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="items" className="mt-0">
+            <Card className="overflow-hidden">
           <div className="flex flex-col gap-3 border-b border-border p-4 lg:flex-row lg:items-center">
             <div className="relative flex-1 lg:max-w-md">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1300,7 +1417,26 @@ export default function MasterItems() {
               </div>
             </>
           )}
-        </Card>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="common-names" className="mt-0">
+            <MasterCommonNameItemsTab
+              rows={commonNameRows}
+              isLoading={isLoading}
+              isError={isError}
+              error={error}
+              onItemImagesSaved={async (itemNo, imageUrls) => {
+                await api.put(`/master-item-meta/${encodeURIComponent(itemNo)}`, {
+                  imageUrl: imageUrls[0] ?? "",
+                  imageUrls,
+                });
+                queryClient.invalidateQueries({ queryKey: ["master-items"] });
+                queryClient.invalidateQueries({ queryKey: ["master-item-meta"] });
+              }}
+            />
+          </TabsContent>
+        </Tabs>
 
         {(editing || creating) && (
           <MasterItemDialog
@@ -1336,6 +1472,187 @@ export default function MasterItems() {
 
         <ItemGroupManagerDialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen} items={items} />
     </AppLayout>
+  );
+}
+
+function MasterCommonNameItemsTab({
+  rows,
+  isLoading,
+  isError,
+  error,
+  onItemImagesSaved,
+}: {
+  rows: MasterCommonNameRow[];
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+  onItemImagesSaved: (itemNo: string, imageUrls: string[]) => Promise<void>;
+}) {
+  const [searchText, setSearchText] = useState("");
+  const [selectedRow, setSelectedRow] = useState<MasterCommonNameRow | null>(null);
+  const dialogRow = selectedRow ? rows.find((row) => row.key === selectedRow.key) ?? selectedRow : null;
+  const visibleRows = useMemo(() => {
+    const needle = searchText.trim().toLowerCase();
+    if (!needle) return rows;
+    return rows.filter((row) => {
+      return row.commonName.toLowerCase().includes(needle);
+    });
+  }, [rows, searchText]);
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="flex flex-col gap-3 space-y-0 lg:flex-row lg:items-center lg:justify-between">
+        <CardTitle className="flex items-center gap-2 text-base">
+          Master Common Name Item
+          <Badge variant="outline">{visibleRows.length}/{rows.length}</Badge>
+        </CardTitle>
+        <div className="relative w-full lg:max-w-sm">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+            placeholder="ค้นหา common name"
+            className="h-10 pl-9"
+          />
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        {isError ? (
+          <div className="m-4 flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4" />
+            {(error as Error).message}
+          </div>
+        ) : (
+          <Table className="min-w-[520px]" containerClassName="max-h-[calc(100vh-340px)]">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="sticky top-0 z-10 bg-muted">Common Name</TableHead>
+                <TableHead className="sticky top-0 z-10 w-36 bg-muted">จำนวนที่พบ</TableHead>
+                <TableHead className="sticky top-0 z-10 w-28 bg-muted text-right">รายละเอียด</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="h-32 text-center text-muted-foreground">
+                    กำลังโหลด...
+                  </TableCell>
+                </TableRow>
+              ) : visibleRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="h-32 text-center text-muted-foreground">
+                    ไม่พบ common name ที่ตรงกับเงื่อนไข
+                  </TableCell>
+                </TableRow>
+              ) : (
+                visibleRows.map((row) => (
+                  <TableRow key={row.key} className="cursor-pointer" onDoubleClick={() => setSelectedRow(row)}>
+                    <TableCell className="max-w-[340px] font-semibold text-foreground">
+                      <span className="block truncate" title={row.commonName}>{row.commonName}</span>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                      พบ {row.itemCount} ครั้ง
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 gap-1 px-2 text-xs"
+                        aria-label={`ดูรายละเอียด ${row.commonName}`}
+                        onClick={() => setSelectedRow(row)}
+                      >
+                        <Eye className="h-3.5 w-3.5" /> ดู
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+      <MasterCommonNameDetailDialog
+        row={dialogRow}
+        onClose={() => setSelectedRow(null)}
+        onItemImagesSaved={onItemImagesSaved}
+      />
+    </Card>
+  );
+}
+
+function MasterCommonNameDetailDialog({
+  row,
+  onClose,
+  onItemImagesSaved,
+}: {
+  row: MasterCommonNameRow | null;
+  onClose: () => void;
+  onItemImagesSaved: (itemNo: string, imageUrls: string[]) => Promise<void>;
+}) {
+  const [items, setItems] = useState<MasterCommonNameItem[]>([]);
+  const [savingItemNo, setSavingItemNo] = useState<string | null>(null);
+
+  useEffect(() => {
+    setItems(row?.items ?? []);
+  }, [row]);
+
+  const saveImages = (itemNo: string, imageUrls: string[]) => {
+    if (!itemNo) {
+      toast.error("ไม่พบ item no สำหรับบันทึกรูป");
+      return;
+    }
+
+    setItems((current) => current.map((item) => (
+      item.itemNo === itemNo ? { ...item, imageUrls } : item
+    )));
+    setSavingItemNo(itemNo);
+    onItemImagesSaved(itemNo, imageUrls)
+      .then(() => toast.success("บันทึกรูปสินค้าแล้ว"))
+      .catch((err) => toast.error((err as Error).message || "บันทึกรูปไม่สำเร็จ"))
+      .finally(() => {
+        setSavingItemNo((current) => (current === itemNo ? null : current));
+      });
+  };
+
+  return (
+    <Dialog open={!!row} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>รายละเอียด Common Name</DialogTitle>
+          <DialogDescription>
+            {row?.commonName ?? ""} · พบ {row?.itemCount ?? 0} ครั้ง · {row?.itemNos.length ?? 0} item
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {items.map((item) => (
+            <div key={item.itemNo || item.rawCommonName} className="rounded-lg border p-3">
+              <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="font-semibold text-foreground">{item.itemNo || "-"}</div>
+                  <div className="text-sm text-muted-foreground">{item.itemName || "ไม่พบชื่อสินค้า"}</div>
+                </div>
+                <div className="flex flex-wrap gap-1 text-xs text-muted-foreground sm:justify-end">
+                  {item.packSize && <Badge variant="outline">{item.packSize}</Badge>}
+                  {item.category && <Badge variant="outline">{item.category}</Badge>}
+                  {item.unit && <Badge variant="outline">{item.unit}</Badge>}
+                </div>
+              </div>
+              <StockPhotoUploader
+                label={`รูปสินค้า ${item.itemNo || "-"}`}
+                value={item.imageUrls}
+                onChange={(imageUrls) => saveImages(item.itemNo, imageUrls)}
+                disabled={!item.itemNo || savingItemNo === item.itemNo}
+              />
+              {savingItemNo === item.itemNo && (
+                <p className="mt-2 text-xs text-muted-foreground">กำลังบันทึกรูป...</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

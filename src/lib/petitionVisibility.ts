@@ -1,6 +1,7 @@
 import type { ParameterItem } from '@/lib/api';
 import { isAssignedTo } from '@/lib/assignment';
 import { getPetitionCategory, itemGroupKey, matchParametersForItem } from '@/lib/petitionTestItems';
+import { shouldSendItemToLab } from '@/lib/petitionRouting';
 import { normalizeRoles } from '@/lib/roles';
 import type { Petition } from '@/types/petition.types';
 
@@ -11,9 +12,8 @@ const RECEIVED_STATUSES = new Set<Petition['status']>([
   'pendingReview',
   'inProgress',
   'success',
+  'approved',
 ]);
-
-const LAB_BATCH_LAST_DIGITS = new Set(['1', '6']);
 
 export type PetitionVisibilityUser = {
   email?: string;
@@ -23,13 +23,8 @@ export type PetitionVisibilityUser = {
   roles?: string[];
 };
 
-export const isLabBatchNo = (batchNo?: string | null) => {
-  const trimmed = String(batchNo ?? '').trim();
-  return trimmed.length > 0 && LAB_BATCH_LAST_DIGITS.has(trimmed.slice(-1));
-};
-
 export const petitionHasLabItems = (petition: Petition) =>
-  petition.items.some((item) => isLabBatchNo(item.batchNo));
+  petition.items.some((item) => shouldSendItemToLab(item));
 
 export const petitionHasLabReadableItem = (
   petition: Petition,
@@ -38,7 +33,7 @@ export const petitionHasLabReadableItem = (
 ) =>
   petition.items.some(
     (item) =>
-      isLabBatchNo(item.batchNo) &&
+      shouldSendItemToLab(item) &&
       matchParametersForItem(
         item,
         labParams,

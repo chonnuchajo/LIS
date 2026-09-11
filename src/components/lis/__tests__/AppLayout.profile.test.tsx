@@ -84,4 +84,17 @@ describe("AppLayout profile placement", () => {
 
     expect(wrapper).toHaveClass("sticky", "z-40");
   });
+
+  it("lets the desktop sidebar collapse toggle overhang render as a full circle", () => {
+    renderLayout();
+
+    const wrapper = screen
+      .getAllByTestId("app-sidebar")
+      .map((s) => s.parentElement)
+      .find((el) => el?.className.includes("sticky"));
+    if (!wrapper) throw new Error("Desktop sidebar rail wrapper not found");
+
+    expect(wrapper).toHaveClass("overflow-visible");
+    expect(wrapper).not.toHaveClass("overflow-hidden");
+  });
 });

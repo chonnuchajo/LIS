@@ -75,7 +75,7 @@ describe('ItemsStep master item selection', () => {
       requireDeliveryAndBatch: false,
     });
 
-    fireEvent.change(screen.getAllByRole('textbox')[0], {
+    fireEvent.change(screen.getByLabelText('ชื่อตัวอย่าง'), {
       target: { value: 'Product A 1.8 EC' },
     });
 
@@ -102,7 +102,7 @@ describe('ItemsStep master item selection', () => {
       requireDeliveryAndBatch: false,
     });
 
-    fireEvent.click(screen.getByText('Master'));
+    fireEvent.click(screen.getByLabelText('ชื่อสามัญ / Active Ingredient'));
     fireEvent.click(screen.getByText('Product A 1.8 EC'));
 
     // itemNo คือตัวตนของ master item ที่เลือก ไม่ใช่ค่าที่คนพิมพ์เอง — ต้องตามของที่เลือกเสมอ
@@ -117,7 +117,6 @@ describe('ItemsStep master item selection', () => {
     ]);
   });
 
-<<<<<<< HEAD
   it('shows submitted quantity and unit from integration payload as read-only fields', () => {
     renderStep({
       value: [{
@@ -130,7 +129,49 @@ describe('ItemsStep master item selection', () => {
 
     expect(screen.getByLabelText('ปริมาณที่ส่งตัวอย่าง')).toHaveValue('9478.67');
     expect(screen.getByLabelText('หน่วยที่นำส่ง')).toHaveValue('Kg/L');
-=======
+  });
+
+  it('defaults LAB choice from batch suffix 1/6 and lets user override it', () => {
+    const { onChange } = renderStep();
+
+    expect(screen.getByRole('button', { name: 'ส่ง LAB' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'ไม่ส่ง LAB' }));
+
+    expect(onChange).toHaveBeenCalledWith([{ ...baseItem, sendToLab: false }]);
+  });
+
+  it('keeps LAB choice as explicit true when user chooses the default send option', () => {
+    const { onChange } = renderStep();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ส่ง LAB' }));
+
+    expect(onChange).toHaveBeenCalledWith([{ ...baseItem, sendToLab: true }]);
+  });
+
+  it('updates LAB choice to true when batch changes into the legacy Lab suffix', () => {
+    const { onChange } = renderStep({ value: [{ ...baseItem, batchNo: 'BATCH002', sendToLab: false }] });
+
+    fireEvent.change(screen.getByPlaceholderText('เช่น BN240601'), { target: { value: 'BATCH001' } });
+
+    expect(onChange).toHaveBeenCalledWith([{ ...baseItem, batchNo: 'BATCH001', sendToLab: true }]);
+  });
+
+  it('defaults LAB choice to not send for other batch suffixes', () => {
+    renderStep({ value: [{ ...baseItem, batchNo: 'BATCH002' }] });
+
+    expect(screen.getByRole('button', { name: 'ไม่ส่ง LAB' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('shows a red note label and reason placeholder when LAB choice differs from the default', () => {
+    renderStep({ value: [{ ...baseItem, sendToLab: false }] });
+
+    expect(screen.queryByText('เลือกต่างจากค่าเริ่มต้น')).not.toBeInTheDocument();
+    expect(screen.queryByText('ต้องระบุหมายเหตุเมื่อเลือกส่ง LAB ต่างจากค่าเริ่มต้น')).not.toBeInTheDocument();
+    expect(screen.getByText('โปรดระบุ')).toHaveClass('text-red-500');
+    expect(screen.getByPlaceholderText('โปรดระบุเหตุผล')).toBeInTheDocument();
+  });
+
   // itemNo ขับ "หมวดหมู่ย่อย (prefix code)" + "กลุ่ม Item" ของ parameter — ถ้าค้างรหัสเก่าไว้
   // ตอนคนพิมพ์ชื่อที่ไม่ตรง master item ไหนเลย พารามิเตอร์จะขึ้นผิดตัว
   it('clears itemNo when a typed sample name matches no master item', () => {
@@ -140,13 +181,25 @@ describe('ItemsStep master item selection', () => {
       requireDeliveryAndBatch: false,
     });
 
-    fireEvent.change(screen.getAllByRole('textbox')[0], {
+    fireEvent.change(screen.getByLabelText('ชื่อตัวอย่าง'), {
       target: { value: 'Something nobody sells' },
     });
 
     expect(onChange).toHaveBeenCalledWith([
       { ...baseItem, itemNo: '', sampleName: 'Something nobody sells' },
     ]);
->>>>>>> 7d8ec2a00d5f954c5c9eb8c6d156e9b30d7568ea
+  });
+
+  it('uses the R&D active ingredient field as the master item picker trigger', () => {
+    renderStep({
+      allowManualItemFields: true,
+      requireDeliveryAndBatch: false,
+    });
+
+    expect(screen.queryByText('Master')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('ชื่อสามัญ / Active Ingredient'));
+
+    expect(screen.getByText('Product A 1.8 EC')).toBeInTheDocument();
   });
 });

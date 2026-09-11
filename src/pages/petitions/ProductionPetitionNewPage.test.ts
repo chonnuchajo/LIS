@@ -58,6 +58,11 @@ describe('R&D integration request rules', () => {
     expect(hasRequiredLabRequestStep('Production', [{ batchNo: 'BN240601', testItems: '' }])).toBe(true);
   });
 
+  it('uses sendToLab override instead of only the batch suffix', () => {
+    expect(hasRequiredLabRequestStep('Production', [{ batchNo: 'BN240601', sendToLab: false }])).toBe(false);
+    expect(hasRequiredLabRequestStep('Production', [{ batchNo: 'BN240602', sendToLab: true }])).toBe(true);
+  });
+
   it('allows R&D submitters to type item fields without a master item match', () => {
     expect(requiresMasterItemSelection({ department: 'R & D', integrationMode: false })).toBe(false);
     expect(requiresMasterItemSelection({ department: 'Production', integrationMode: false })).toBe(true);
@@ -75,6 +80,22 @@ describe('R&D integration request rules', () => {
       batchNo: '',
       testItems: 'Assay',
     });
+  });
+
+  it('sets sendToLab from legacy batch suffix defaults', () => {
+    const items = makeInitialItemsFromQuery(
+      new URLSearchParams('sampleName=Foo,Bar&batchNo=BATCH001,BATCH002'),
+    );
+
+    expect(items.map((item) => item.sendToLab)).toEqual([true, false]);
+  });
+
+  it('uses explicit sendToLab true or false from integration payload', () => {
+    const items = makeInitialItemsFromQuery(
+      new URLSearchParams('sampleName=Foo,Bar&batchNo=BATCH001,BATCH002&sendToLab=false,true'),
+    );
+
+    expect(items.map((item) => item.sendToLab)).toEqual([false, true]);
   });
 
   it('maps posted integration payloads into the existing query parser', () => {

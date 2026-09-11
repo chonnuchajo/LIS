@@ -10,7 +10,12 @@ const COA_STATUSES = [
   'superseded',
   'rejected',
 ];
-const { aiToleranceCriteriaForCommonName, isAiContentTestItem } = require('./aiToleranceCriteria');
+const { aiPercentFromCommonName, aiToleranceCriteriaForCommonName, isAiContentTestItem } = require('./aiToleranceCriteria');
+
+const COMPANY_NAME = 'บริษัท ไอ ซี พี ลัดดา จำกัด';
+const PHYSICAL_PARAMETER_NAME = 'กายภาพ';
+const PHYSICAL_DESCRIPTION_LABEL = 'ลักษณะ';
+const PHYSICAL_COLOR_LABEL = 'สี';
 
 const transitions = {
   submit: new Set(['draft', 'revisionDraft']),
@@ -87,6 +92,17 @@ function valueText(value) {
   return String(value);
 }
 
+function cleanString(value) {
+  return String(value || '').trim();
+}
+
+function parsePercentValue(value) {
+  const match = String(value || '').replace(/,/g, '').match(/-?\d+(?:\.\d+)?/);
+  if (!match) return undefined;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function visibleResultEntries(result = {}) {
   const valueRows = Array.isArray(result.entries) && result.entries.length
     ? result.entries
@@ -104,6 +120,39 @@ function isVisibleResultField(key) {
     !String(key).endsWith('__source') &&
     !String(key).endsWith('__provenance')
   );
+}
+
+function meaningfulResultText(value) {
+  const text = valueText(value).trim();
+  return text === '-' ? '' : text;
+}
+
+function isPhysicalParameter(parameter = {}, result = {}) {
+  return cleanString(parameter.name || result.parameterName) === PHYSICAL_PARAMETER_NAME;
+}
+
+function physicalDescriptionFromRow(row = {}) {
+  return [
+    meaningfulResultText(row[PHYSICAL_DESCRIPTION_LABEL]),
+    meaningfulResultText(row[PHYSICAL_COLOR_LABEL]),
+  ].filter(Boolean).join(' ');
+}
+
+function physicalDescriptionBySeq(qcResults, parameterById, selectedSeqs) {
+  const descriptions = new Map();
+  for (const result of qcResults || []) {
+    const itemSeq = Number(result.itemSeq);
+    if (!selectedSeqs.has(itemSeq) || descriptions.has(itemSeq)) continue;
+    const parameter = parameterById.get(String(result.parameterId));
+    if (!isPhysicalParameter(parameter, result)) continue;
+    for (const row of visibleResultEntries(result)) {
+      const description = physicalDescriptionFromRow(row);
+      if (!description) continue;
+      descriptions.set(itemSeq, description);
+      break;
+    }
+  }
+  return descriptions;
 }
 
 function assertCanTransition(fromStatus, action, actor) {
@@ -438,7 +487,7 @@ function selectedItemsFromPetition(petition, selectedItemSeqs) {
   return selected;
 }
 
-function itemSnapshot(item) {
+function itemSnapshot(item, condition) {
   return {
     itemSeq: item.seq,
     sampleName: item.sampleName || item.commonName || '-',
@@ -447,7 +496,7 @@ function itemSnapshot(item) {
     lotNo: item.lotNo || '',
     productionDate: item.productionDate || '',
     sampleId: item.sampleId || '',
-    condition: item.condition || '',
+    condition: condition || item.condition || '',
     manufacturer: item.labelManufacturer || item.labelSeller || '',
   };
 }
@@ -456,6 +505,30 @@ function criteriaForResult(testItem, itemSeq, selectedItemsBySeq) {
   if (!isAiContentTestItem(testItem)) return '-';
   const sample = selectedItemsBySeq.get(Number(itemSeq));
   return aiToleranceCriteriaForCommonName(sample?.commonName) || '-';
+}
+
+function buildTrendSnapshots(selectedItems, resultSnapshots) {
+  const aiResultBySeq = new Map();
+  for (const row of resultSnapshots || []) {
+    if (!isAiContentTestItem(row.testItem)) continue;
+    const key = Number(row.itemSeq);
+    if (aiResultBySeq.has(key)) continue;
+    aiResultBySeq.set(key, {
+      text: row.result || '',
+      percent: parsePercentValue(row.result),
+    });
+  }
+  return selectedItems.map((item) => {
+    const aiResult = aiResultBySeq.get(Number(item.seq));
+    return {
+      itemSeq: item.seq,
+      sampleName: item.sampleName || item.commonName || '-',
+      commonName: item.commonName || '',
+      aiLabelPercent: parsePercentValue(aiPercentFromCommonName(item.commonName)),
+      aiResultPercent: aiResult?.percent,
+      aiResultText: aiResult?.text || '',
+    };
+  });
 }
 
 function buildCoaSnapshots({
@@ -471,6 +544,7 @@ function buildCoaSnapshots({
   const parameterById = new Map(parameters.map((parameter) => [String(parameter._id), parameter]));
   const firstLabRequest = labRequests[0] || {};
   const requester = firstLabRequest.requester || {};
+  const physicalDescriptions = physicalDescriptionBySeq(qcResults, parameterById, selectedSeqs);
   const resultSnapshots = [];
 
   for (const result of qcResults) {
@@ -497,14 +571,15 @@ function buildCoaSnapshots({
   return {
     petitionNoSnapshot: petition.petitionNo,
     customerSnapshot: {
-      name: firstLabRequest.reportCustomerName || requester.fullName || petition.submittedBy?.name || '-',
-      company: 'บริษัท ไอ ซี พี ลัดดา จำกัด',
+      name: cleanString(requester.fullName) || cleanString(petition.submittedBy?.name) || '-',
+      company: cleanString(firstLabRequest.reportCustomerName) || COMPANY_NAME,
       department: requester.department || '',
       email: requester.email || '',
       phone: requester.phone || '',
     },
-    sampleSnapshots: selectedItems.map(itemSnapshot),
+    sampleSnapshots: selectedItems.map((item) => itemSnapshot(item, physicalDescriptions.get(Number(item.seq)))),
     resultSnapshots,
+    trendSnapshots: buildTrendSnapshots(selectedItems, resultSnapshots),
   };
 }
 

@@ -385,21 +385,14 @@ function buildStandardWorksheetParts({ standard, lotNo, units, transactions }) {
   ], 22));
   sheetRows.push(xlsxRow(6, emptyStyledCells(6, 1, 6, 0), 14));
   sheetRows.push(xlsxRow(7, [
-    xlsxCell(7, 1, 'วัน/เดือน/ปี', 4),
-    xlsxCell(7, 2, 'Total  weight', 4),
-    xlsxCell(7, 3, 'น้ำหนักที่ใช้', 4),
-    xlsxCell(7, 4, 'น้ำหนักที่เหลือ', 4),
+    xlsxCell(7, 1, 'วัน/เดือน/ปี ที่รับ/ใช้', 4),
+    xlsxCell(7, 2, 'Total weight (mg)', 4),
+    xlsxCell(7, 3, 'น้ำหนักที่ใช้ (mg)', 4),
+    xlsxCell(7, 4, 'น้ำหนักที่เหลือ (mg)', 4),
     xlsxCell(7, 5, 'ผู้รับ / ผู้ใช้', 4),
     xlsxCell(7, 6, 'หมายเหตุ', 4),
   ], 18));
-  sheetRows.push(xlsxRow(8, [
-    xlsxCell(8, 1, 'ที่รับ/ใช้', 5),
-    xlsxCell(8, 2, '(mg)', 5),
-    xlsxCell(8, 3, '(mg)', 5),
-    xlsxCell(8, 4, '(mg)', 5),
-    xlsxCell(8, 5, '', 5),
-    xlsxCell(8, 6, '', 5),
-  ], 18));
+  sheetRows.push(xlsxRow(8, emptyStyledCells(8, 1, 6, 5), 18));
 
   for (let index = 0; index < dataRowCount; index += 1) {
     const tx = sortedTransactions[index];
@@ -420,7 +413,10 @@ function buildStandardWorksheetParts({ standard, lotNo, units, transactions }) {
     ], 18));
   }
 
-  const merges = ['B1:F1', 'D2:F2', 'B3:C3', 'E3:F3', 'B4:C4', 'E4:F4', 'B5:C5', 'E5:F5'];
+  const merges = [
+    'B1:F1', 'D2:F2', 'B3:C3', 'E3:F3', 'B4:C4', 'E4:F4', 'B5:C5', 'E5:F5',
+    'A7:A8', 'B7:B8', 'C7:C8', 'D7:D8', 'E7:E8', 'F7:F8',
+  ];
   return { rows: sheetRows, merges, lastRow };
 }
 
@@ -504,6 +500,110 @@ function buildStandardLotExportWorkbook({ standard, units = [], transactions = [
     buffer: createStandardWorkbook(sheets),
     sheetCount: sheets.length,
   };
+}
+
+function buildStandardLotExportHtml({ standard, units = [], transactions = [] }) {
+  const groups = buildStandardLotGroups({ units, transactions });
+  if (groups.length === 0) return null;
+
+  const sections = groups.map((group) => {
+    const unitByQrId = new Map(group.units.map((unit) => [String(unit.qrId || ''), unit]));
+    const sortedTransactions = group.transactions.slice().sort(standardTxSort);
+    const rows = sortedTransactions.map((tx) => {
+      const unit = unitByQrId.get(String(tx.qrId || ''));
+      const amount = transactionAmount(tx);
+      return `
+        <tr>
+          <td>${escapeHtml(formatDateForDocument(tx.createdAt))}</td>
+          <td class="number">${escapeHtml(tx.action === 'receive' ? amount : '')}</td>
+          <td class="number">${escapeHtml(tx.action === 'deduct' ? amount : '')}</td>
+          <td class="number">${escapeHtml(asNumberOrBlank(tx.afterQty))}</td>
+          <td>${escapeHtml(transactionActor(tx))}</td>
+          <td>${escapeHtml(transactionNote(tx, unit))}</td>
+        </tr>`;
+    }).join('');
+
+    return `
+      <section class="lot-section">
+        <h1>${escapeHtml(STANDARD_TITLE)}</h1>
+        <table class="meta-table">
+          <colgroup>
+            <col class="meta-label" />
+            <col class="meta-value" />
+            <col class="meta-label" />
+            <col class="meta-value" />
+            <col class="meta-label" />
+            <col class="meta-value" />
+          </colgroup>
+          <tbody>
+            <tr>
+              <th>Product Name :</th>
+              <td colspan="5">${escapeHtml(standard?.name || '')}</td>
+            </tr>
+            <tr>
+              <th>Code Number :</th>
+              <td>${escapeHtml(standard?.code || '')}</td>
+              <th>Expiry Date:</th>
+              <td>${escapeHtml(uniqueJoined(group.units.map((unit) => formatDateForDocument(unit.exp))))}</td>
+              <th data-export-label="Batch/Lot no.: ${escapeHtml(group.lotNo || UNKNOWN_LOT)}">Batch/Lot no.:</th>
+              <td>${escapeHtml(group.lotNo || UNKNOWN_LOT)}</td>
+            </tr>
+            <tr>
+              <th>Uncertainty:</th>
+              <td></td>
+              <th>% Purity:</th>
+              <td></td>
+              <th>อุณหภูมิที่เก็บ :</th>
+              <td>${escapeHtml(standard?.storageTemp || '')}</td>
+            </tr>
+          </tbody>
+        </table>
+        <table class="usage-table">
+          <thead>
+            <tr>
+              <th>วัน/เดือน/ปี ที่รับ/ใช้</th>
+              <th>Total weight (mg)</th>
+              <th>น้ำหนักที่ใช้ (mg)</th>
+              <th>น้ำหนักที่เหลือ (mg)</th>
+              <th>ผู้รับ / ผู้ใช้</th>
+              <th>หมายเหตุ</th>
+            </tr>
+          </thead>
+          <tbody>${rows || '<tr><td colspan="6">ไม่มีข้อมูล</td></tr>'}</tbody>
+        </table>
+      </section>`;
+  }).join('');
+
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(STANDARD_TITLE)}</title>
+  <style>
+    @page { size: A4 landscape; margin: 8mm; }
+    body { font-family: "TH Sarabun New", Tahoma, Arial, sans-serif; font-size: 15pt; line-height: 1.25; color: #000; }
+    h1 { text-align: center; font-size: 22pt; margin: 0 0 10px; }
+    .lot-section { page-break-after: always; }
+    .lot-section:last-child { page-break-after: auto; }
+    .meta-table { width: 100%; border-collapse: separate; border-spacing: 0 3px; table-layout: fixed; margin: 0 0 10px; }
+    .meta-table .meta-label { width: 14%; }
+    .meta-table .meta-value { width: 19%; }
+    .meta-table th,
+    .meta-table td { border: 0; padding: 0 6px 2px; text-align: left; vertical-align: bottom; line-height: 1.25; word-break: break-word; }
+    .meta-table th { font-weight: 700; }
+    .meta-table td { border-bottom: 1px solid #000; min-height: 20px; }
+    .usage-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .usage-table th,
+    .usage-table td { border: 1px solid #000; padding: 5px 6px; text-align: center; vertical-align: middle; line-height: 1.2; word-break: break-word; }
+    .usage-table th { font-weight: 700; }
+    .usage-table td:last-child { text-align: left; }
+    .number { text-align: right; }
+  </style>
+</head>
+<body>${sections}</body>
+</html>`;
+
+  return Buffer.from(html, 'utf8');
 }
 
 function escapeHtml(value) {
@@ -673,6 +773,7 @@ module.exports = {
   CHEMICAL_TITLE,
   UNKNOWN_LOT,
   buildStandardExportDateRange,
+  buildStandardLotExportHtml,
   buildStandardLotExportWorkbook,
   buildSolventRequisitionDoc,
   createStandardUsageWorkbook,

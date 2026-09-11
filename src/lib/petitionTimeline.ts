@@ -1,4 +1,4 @@
-import { isLabBatchNo } from "@/lib/petitionVisibility";
+import { shouldSendItemToLab } from "@/lib/petitionRouting";
 import type { Petition } from "@/types/petition.types";
 
 export type TimelineTone = "intake" | "receive" | "testing" | "lab" | "final" | "closed" | "blocked";
@@ -48,7 +48,7 @@ function submittedAt(petition: Petition): string {
 }
 
 function hasLabTrack(petition: Petition): boolean {
-  return Boolean(petition.labReceivedAt || petition.labCompletedAt || petition.labApprovedAt || petition.items.some((item) => isLabBatchNo(item.batchNo)));
+  return Boolean(petition.labReceivedAt || petition.labCompletedAt || petition.labApprovedAt || petition.items.some((item) => shouldSendItemToLab(item)));
 }
 
 function compactMilestones(items: PetitionTimelineMilestone[]): PetitionTimelineMilestone[] {

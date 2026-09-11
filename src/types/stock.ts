@@ -83,6 +83,7 @@ export interface StockTransactionItem {
   instrumentGroup?: "gc" | "hplc" | null;
   qrId?: string;
   unit?: string;
+  volumeUnit?: string;
   sampleId?: string;
   note?: string;
   deductionResolution?: DeductionResolution;
@@ -113,6 +114,8 @@ export interface StockUnitItem {
   qrId: string;
   itemCode: string;
   itemName: string;
+  itemType?: StockItemType;
+  itemId?: string;
   kind: StockUnitKind;
   source?: StockUnitSource;
   type?: "primary" | "supplier" | "working" | "";
@@ -161,6 +164,25 @@ export interface StandardsInUseResponse {
   items: StandardInUseItem[];
 }
 
+export interface SixMonthMedicineStockItem {
+  companySource: string;
+  itemNo: string;
+  locationCode: string;
+  binCode: string;
+  lotNo: string;
+  registeringDate: string;
+  unit: string;
+  stockQty: number;
+  stockQtyBase: number;
+  ageMonths: number;
+}
+
+export interface SixMonthMedicineStockResponse {
+  serverTime: string;
+  referenceMonth: string;
+  items: SixMonthMedicineStockItem[];
+}
+
 export type StockPublicScanItem =
   | {
       kind: "standard";
@@ -184,6 +206,11 @@ export type StockPublicScanItem =
       name: string;
       sizeLiter: number;
       qty: number;
+      lotNo?: string;
+      lotBottleNo?: number | null;
+      exp?: string | null;
+      volume?: StockUnitVolume;
+      status?: StockUnitStatus;
       note?: string;
       latestReceiveNote?: string;
       photoUrls?: string[];

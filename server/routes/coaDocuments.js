@@ -23,6 +23,11 @@ const {
 
 const router = express.Router();
 
+const DEFAULT_COA_REQUESTS_WEBHOOK_URL = 'https://n8n-plant.icpladda.com/webhook/API/COA';
+const COA_REQUESTS_WEBHOOK_URL = process.env.COA_REQUESTS_WEBHOOK_URL || DEFAULT_COA_REQUESTS_WEBHOOK_URL;
+const COA_REQUESTS_WEBHOOK_TIMEOUT_MS = Number(process.env.COA_REQUESTS_WEBHOOK_TIMEOUT_MS || 8000);
+const EXTERNAL_COA_STATUS = 'requested';
+
 function objectId(id) {
   if (!mongoose.Types.ObjectId.isValid(id)) throw new Error('Invalid id');
   return new mongoose.Types.ObjectId(id);
@@ -67,6 +72,7 @@ function activeCoaSummary(coa, sample) {
     petitionNo: coa.petitionNoSnapshot,
     commonName: sample.commonName,
     batchNo: sample.batchNo,
+    productionDate: sample.productionDate,
   };
 }
 
@@ -81,6 +87,159 @@ function firstActiveCoaByHistoryKey(coas = []) {
     }
   }
   return activeByHistoryKey;
+}
+
+function normalizeExternalPayload(payload) {
+  if (typeof payload === 'string') {
+    try {
+      return normalizeExternalPayload(JSON.parse(payload));
+    } catch (_error) {
+      return [];
+    }
+  }
+  if (Array.isArray(payload)) return payload.filter((item) => item && typeof item === 'object');
+  if (payload && typeof payload === 'object') {
+    for (const key of ['items', 'data', 'rows', 'result']) {
+      const rows = normalizeExternalPayload(payload[key]);
+      if (rows.length) return rows;
+    }
+  }
+  return [];
+}
+
+function firstExternalValue(row, keys) {
+  for (const key of keys) {
+    const value = row && row[key];
+    if (value !== undefined && value !== null) {
+      const text = String(value).trim();
+      if (text) return text;
+    }
+  }
+  return '';
+}
+
+function externalNumber(row, keys) {
+  const value = Number(firstExternalValue(row, keys));
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function externalCoaRemark(row) {
+  return firstExternalValue(row, ['remark', 'Remark']);
+}
+
+function isExternalCoaRequest(row) {
+  return /\bcoa\b/i.test(externalCoaRemark(row));
+}
+
+function externalCoaRequestId(row) {
+  return [
+    'external-coa-request',
+    firstExternalValue(row, ['SaleOrderNo']) || 'no-order',
+    firstExternalValue(row, ['Line']) || firstExternalValue(row, ['ItemNo']) || 'no-line',
+  ].map((part) => String(part).replace(/[^A-Za-z0-9_-]+/g, '-')).join('-');
+}
+
+function externalCoaDate(row) {
+  return firstExternalValue(row, ['UpdateDate', 'SaleOrderDate', 'ShipmentDate', 'ActionDate']);
+}
+
+function externalCoaRowToDocument(row) {
+  const itemSeq = externalNumber(row, ['Line']) || 1;
+  const saleOrderNo = firstExternalValue(row, ['SaleOrderNo']);
+  const itemNo = firstExternalValue(row, ['ItemNo']);
+  const tradeName = firstExternalValue(row, ['TradeName']);
+  const commonName = firstExternalValue(row, ['CommonName']);
+  const date = externalCoaDate(row);
+  const updatedAt = firstExternalValue(row, ['UpdateDate']) || date;
+  return {
+    _id: externalCoaRequestId(row),
+    coaNo: null,
+    revision: 0,
+    status: EXTERNAL_COA_STATUS,
+    petitionId: externalCoaRequestId(row),
+    petitionNoSnapshot: saleOrderNo,
+    selectedItemSeqs: [itemSeq],
+    customerSnapshot: {
+      name: firstExternalValue(row, ['CustomerName']),
+      company: firstExternalValue(row, ['CompanySource']),
+      department: firstExternalValue(row, ['Zone']),
+    },
+    sampleSnapshots: [{
+      itemSeq,
+      sampleName: tradeName || itemNo || saleOrderNo,
+      commonName,
+      sampleId: itemNo,
+      condition: firstExternalValue(row, ['PackingSize']),
+    }],
+    resultSnapshots: [],
+    trendSnapshots: commonName ? [{ itemSeq, sampleName: tradeName || itemNo, commonName }] : [],
+    remark: externalCoaRemark(row),
+    print: { printCount: 0 },
+    createdAt: date,
+    updatedAt,
+    externalCoaRequest: {
+      companySource: firstExternalValue(row, ['CompanySource']),
+      saleName: firstExternalValue(row, ['SaleName']),
+      saleOrderNo,
+      line: itemSeq,
+      saleOrderDate: firstExternalValue(row, ['SaleOrderDate']),
+      itemNo,
+      packingSize: firstExternalValue(row, ['PackingSize']),
+      quantity: externalNumber(row, ['Quantity']),
+      outstandingQty: externalNumber(row, ['OutstandingQty']),
+      unit: firstExternalValue(row, ['Unit', 'SaleUnit', 'BaseUnit']),
+      pendingStatus: firstExternalValue(row, ['PendingStatus']),
+      pendingStatusDetail: firstExternalValue(row, ['PendingStatusDetail']),
+      shipmentDate: firstExternalValue(row, ['ShipmentDate']),
+      remark: externalCoaRemark(row),
+    },
+  };
+}
+
+function externalCoaRowsToDocuments(payload) {
+  const seen = new Set();
+  const documents = [];
+  for (const row of normalizeExternalPayload(payload)) {
+    if (!isExternalCoaRequest(row)) continue;
+    const doc = externalCoaRowToDocument(row);
+    if (seen.has(doc._id)) continue;
+    seen.add(doc._id);
+    documents.push(doc);
+  }
+  return documents;
+}
+
+async function fetchExternalCoaDocuments() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), COA_REQUESTS_WEBHOOK_TIMEOUT_MS);
+  try {
+    const response = await fetch(new URL(COA_REQUESTS_WEBHOOK_URL), {
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    const payload = JSON.parse(text);
+    if (!response.ok) {
+      const error = new Error('COA requests webhook request failed');
+      error.status = response.status;
+      throw error;
+    }
+    return externalCoaRowsToDocuments(payload);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function shouldFetchExternalCoaRequests(query = {}) {
+  return query.needsApproval !== '1'
+    && !query.coaNo
+    && (!query.status || query.status === EXTERNAL_COA_STATUS);
+}
+
+function filterExternalCoaDocuments(items, query = {}) {
+  const petitionNo = String(query.petitionNo || '').trim().toLowerCase();
+  if (!petitionNo) return items;
+  return items.filter((item) => String(item.petitionNoSnapshot || '').toLowerCase().includes(petitionNo));
 }
 
 async function permissionsForRoles(roles) {
@@ -133,6 +292,120 @@ function labSeqSet(labRequests = []) {
     if (request.sampleSeq != null) seqs.add(Number(request.sampleSeq));
   }
   return seqs;
+}
+
+function groupLabRequestsByPetition(labRequests = []) {
+  const byPetition = new Map();
+  for (const request of labRequests) {
+    const key = String(request.petitionId);
+    if (!byPetition.has(key)) byPetition.set(key, []);
+    byPetition.get(key).push(request);
+  }
+  return byPetition;
+}
+
+function customerSnapshotFromLabRequests(labRequests = [], petition = {}) {
+  const first = labRequests.find((request) => request.reportCustomerName || request.requester) || {};
+  const requester = first.requester || {};
+  return {
+    name: requester.fullName || petition.submittedBy?.name || '',
+    company: first.reportCustomerName || '',
+    department: requester.department || petition.submittedBy?.department || '',
+    email: requester.email || petition.submittedBy?.email || '',
+    phone: requester.phone || '',
+  };
+}
+
+function sampleSnapshotFromPetitionItem(item = {}) {
+  return {
+    itemSeq: Number(item.seq),
+    sampleName: item.sampleName,
+    commonName: item.commonName,
+    batchNo: item.batchNo,
+    lotNo: item.lotNo,
+    productionDate: item.productionDate,
+    sampleId: item.sampleId || '',
+    condition: item.condition || '',
+    manufacturer: item.labelManufacturer || '',
+  };
+}
+
+function coveredSeqsByPetition(coas = []) {
+  const covered = new Map();
+  for (const coa of coas) {
+    const petitionKey = String(coa.petitionId);
+    if (!covered.has(petitionKey)) covered.set(petitionKey, new Set());
+    const seqs = covered.get(petitionKey);
+    for (const seq of coa.selectedItemSeqs || []) seqs.add(Number(seq));
+  }
+  return covered;
+}
+
+function requestedCoaRowFromPetition(petition, labRequests = [], coveredSeqs = new Set()) {
+  const labSeqs = labSeqSet(labRequests);
+  const selectedItems = (petition.items || [])
+    .filter((item) => labSeqs.size === 0 || labSeqs.has(Number(item.seq)))
+    .filter((item) => !coveredSeqs.has(Number(item.seq)));
+  if (!selectedItems.length) return null;
+
+  const timestamp = petition.labApprovedAt || petition.updatedAt || petition.createdAt || new Date();
+  return {
+    _id: `requested:${petition._id}`,
+    coaNo: null,
+    revision: 0,
+    status: 'requested',
+    petitionId: String(petition._id),
+    petitionNoSnapshot: petition.petitionNo,
+    selectedItemSeqs: selectedItems.map((item) => Number(item.seq)),
+    customerSnapshot: customerSnapshotFromLabRequests(labRequests, petition),
+    sampleSnapshots: selectedItems.map(sampleSnapshotFromPetitionItem),
+    resultSnapshots: [],
+    trendSnapshots: [],
+    print: { printCount: 0 },
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+}
+
+async function requestedCoaRows({ petitionNo } = {}) {
+  const petitionFilter = { labApprovedAt: { $exists: true, $ne: null } };
+  if (petitionNo) petitionFilter.petitionNo = new RegExp(String(petitionNo).trim(), 'i');
+  const petitions = await Petition.find(petitionFilter)
+    .sort({ labApprovedAt: -1 })
+    .limit(100)
+    .lean();
+  const petitionIds = petitions.map((petition) => petition._id);
+  if (!petitionIds.length) return [];
+  const [labRequests, existingCoas] = await Promise.all([
+    labRequestsForPetitionIds(petitionIds),
+    CoaDocument.find({
+      petitionId: { $in: petitionIds },
+      status: { $nin: ['cancelled', 'superseded', 'rejected'] },
+    }).sort({ updatedAt: -1 }).lean(),
+  ]);
+  const labRequestsByPetition = groupLabRequestsByPetition(labRequests);
+  const coveredByPetition = coveredSeqsByPetition(existingCoas);
+  return petitions
+    .map((petition) => requestedCoaRowFromPetition(
+      petition,
+      labRequestsByPetition.get(String(petition._id)) || [],
+      coveredByPetition.get(String(petition._id)) || new Set(),
+    ))
+    .filter(Boolean);
+}
+
+function shouldIncludeRequestedRows(query = {}) {
+  if (query.needsApproval === '1') return false;
+  if (query.coaNo) return false;
+  return !query.status || query.status === 'requested';
+}
+
+function sortCoaRows(items = []) {
+  return [...items].sort((a, b) => {
+    const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return bTime - aTime;
+  });
 }
 
 async function freezeSnapshots(petitionId, selectedItemSeqs) {
@@ -190,8 +463,26 @@ router.get('/', async (req, res) => {
     if (req.query.needsApproval === '1') {
       filter.status = { $in: ['pendingApproval', 'pendingRevisionApproval'] };
     }
-    const items = await CoaDocument.find(filter).sort({ updatedAt: -1 }).limit(200).lean();
-    res.json({ items });
+    const externalPromise = shouldFetchExternalCoaRequests(req.query)
+      ? fetchExternalCoaDocuments().catch((error) => {
+          console.warn('[coa-documents] external COA request sync failed:', error.message);
+          return [];
+        })
+      : Promise.resolve([]);
+    const [documents, requestedRows, externalRows] = await Promise.all([
+      CoaDocument.find(filter).sort({ updatedAt: -1 }).limit(200).lean(),
+      shouldIncludeRequestedRows(req.query)
+        ? requestedCoaRows({ petitionNo: req.query.petitionNo })
+        : Promise.resolve([]),
+      externalPromise,
+    ]);
+    res.json({
+      items: sortCoaRows([
+        ...documents,
+        ...requestedRows,
+        ...filterExternalCoaDocuments(externalRows, req.query),
+      ]).slice(0, 200),
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -230,11 +521,8 @@ router.get('/eligible-petitions', async (_req, res) => {
       for (const seq of coa.selectedItemSeqs || []) {
         const key = `${coa.petitionId}:${seq}`;
         if (!activeByPetitionSeq.has(key)) {
-          activeByPetitionSeq.set(key, {
-            coaId: coa._id,
-            coaNo: coa.coaNo,
-            revision: coa.revision,
-          });
+          const sample = (coa.sampleSnapshots || []).find((item) => Number(item.itemSeq) === Number(seq)) || {};
+          activeByPetitionSeq.set(key, activeCoaSummary(coa, sample));
         }
       }
     }
@@ -260,6 +548,7 @@ router.get('/eligible-petitions', async (_req, res) => {
               commonName: item.commonName,
               batchNo: item.batchNo,
               lotNo: item.lotNo,
+              productionDate: item.productionDate,
               activeCoa: activeByPetitionSeq.get(`${petition._id}:${item.seq}`)
                 || activeByHistoryKey.get(coaHistoryKey(item.commonName, item.batchNo))
                 || null,
@@ -368,7 +657,7 @@ router.post('/:id/approve', async (req, res) => {
     if (!doc) return res.status(404).json({ error: 'ไม่พบ COA' });
     assertCanTransition(doc.status, 'approve', actor);
     await assertLabApprovedPetition(doc.petitionId);
-    const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length;
+    const missingSnapshots = !doc.sampleSnapshots?.length || !doc.resultSnapshots?.length || !doc.trendSnapshots?.length;
     const snapshots = missingSnapshots ? await freezeSnapshots(doc.petitionId, doc.selectedItemSeqs) : {};
     const update = {
       ...snapshots,
@@ -455,6 +744,7 @@ router.post('/:id/revise', async (req, res) => {
         customerSnapshot: source.customerSnapshot,
         sampleSnapshots: source.sampleSnapshots,
         resultSnapshots: source.resultSnapshots,
+        trendSnapshots: source.trendSnapshots,
         sourceCoaId: source._id,
         remark: source.remark,
         createdBy: actor,
@@ -537,3 +827,4 @@ module.exports = router;
 module.exports.freezeSnapshots = freezeSnapshots;
 module.exports.actorFromRequest = actorFromRequest;
 module.exports.withCoaTransaction = withCoaTransaction;
+module.exports.externalCoaRowsToDocuments = externalCoaRowsToDocuments;

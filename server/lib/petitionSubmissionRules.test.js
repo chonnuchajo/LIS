@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   isResearchAndDevelopmentDepartment,
+  normalizePetitionItems,
   requiresDeliveryAndBatch,
   requiresQcTrack,
   validatePetitionSubmission,
@@ -46,4 +47,47 @@ test('validatePetitionSubmission still requires deliverer and batch for non-R&D 
     deliveredBy: { name: 'Runner' },
     items: [{ seq: 1, sampleName: 'Sample A', batchNo: '' }],
   }), /แบช/);
+});
+
+test('validatePetitionSubmission requires item note when sendToLab overrides batch suffix default', () => {
+  assert.match(validatePetitionSubmission({
+    dept: 'production',
+    submittedBy: { name: 'Production User', department: 'Production' },
+    deliveredBy: { name: 'Runner' },
+    items: [{ seq: 2, sampleName: 'Sample B', batchNo: 'B-002', sendToLab: true, note: '' }],
+  }), /โปรดระบุเหตุผล/);
+
+  assert.match(validatePetitionSubmission({
+    dept: 'production',
+    submittedBy: { name: 'Production User', department: 'Production' },
+    deliveredBy: { name: 'Runner' },
+    items: [{ seq: 3, sampleName: 'Sample C', batchNo: 'B-001', sendToLab: false, note: '' }],
+  }), /โปรดระบุเหตุผล/);
+
+  assert.strictEqual(validatePetitionSubmission({
+    dept: 'production',
+    submittedBy: { name: 'Production User', department: 'Production' },
+    deliveredBy: { name: 'Runner' },
+    items: [{ seq: 4, sampleName: 'Sample D', batchNo: 'B-002', sendToLab: true, note: 'ส่งตรวจเพิ่ม' }],
+  }), null);
+});
+
+test('normalizePetitionItems fills boolean sendToLab from legacy batch suffix defaults', () => {
+  assert.deepStrictEqual(
+    normalizePetitionItems([
+      { seq: 1, batchNo: 'B-001' },
+      { seq: 2, batchNo: 'B-002' },
+      { seq: 3, batchNo: 'B-003', sendToLab: true },
+    ], { department: 'Production', petitionNo: 'P-1' }).map((item) => item.sendToLab),
+    [true, false, true],
+  );
+});
+
+test('normalizePetitionItems sets R&D items to sendToLab true by default', () => {
+  assert.deepStrictEqual(
+    normalizePetitionItems([
+      { seq: 1, batchNo: '' },
+    ], { department: 'R & D', petitionNo: 'P-2' }),
+    [{ seq: 1, batchNo: '', sendToLab: true, submissionNo: 'P-2' }],
+  );
 });

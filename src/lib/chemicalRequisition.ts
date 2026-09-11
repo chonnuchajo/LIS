@@ -6,6 +6,7 @@ export interface ChemicalRequisition {
   instrumentName: string;
   itemType: "solvent";
   solventId: string;
+  solventUnitQrId?: string;
   solventName: string;
   qty: number;
   unit: string;
@@ -34,7 +35,7 @@ export function groupRequisitionsByInstrument(
 
 /** "" = ok; otherwise a Thai error message. */
 export function validateRequisitionQty(qty: number, remaining: number): string {
-  if (!Number.isFinite(qty) || qty <= 0) return "กรุณาระบุจำนวน";
+  if (!Number.isInteger(qty) || qty <= 0) return "จำนวนต้องเป็นจำนวนเต็มบวก";
   if (qty > remaining) return "จำนวน stock ไม่พอ";
   return "";
 }

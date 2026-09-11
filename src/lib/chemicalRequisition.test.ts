@@ -32,9 +32,10 @@ describe("groupRequisitionsByInstrument", () => {
 describe("validateRequisitionQty", () => {
   it("ok within stock", () => expect(validateRequisitionQty(2, 5)).toBe(""));
   it("ok exactly at stock", () => expect(validateRequisitionQty(5, 5)).toBe(""));
-  it("zero / negative invalid", () => {
-    expect(validateRequisitionQty(0, 5)).toBe("กรุณาระบุจำนวน");
-    expect(validateRequisitionQty(-1, 5)).toBe("กรุณาระบุจำนวน");
+  it("requires a positive whole bottle count", () => {
+    expect(validateRequisitionQty(0, 5)).toBe("จำนวนต้องเป็นจำนวนเต็มบวก");
+    expect(validateRequisitionQty(-1, 5)).toBe("จำนวนต้องเป็นจำนวนเต็มบวก");
+    expect(validateRequisitionQty(1.5, 5)).toBe("จำนวนต้องเป็นจำนวนเต็มบวก");
   });
   it("over stock", () => expect(validateRequisitionQty(6, 5)).toBe("จำนวน stock ไม่พอ"));
 });

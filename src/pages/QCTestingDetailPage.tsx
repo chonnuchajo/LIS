@@ -21,8 +21,8 @@ import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
 import { getPetitionCategory, itemGroupKey, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { visibleFieldsForPhase } from '@/lib/phaseRetest';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 import {
-  PETITION_DEPT_LABELS,
   type Petition,
   type PetitionItem,
   type PetitionPhase,
@@ -47,9 +47,9 @@ import { normalizeRoles } from '@/lib/roles';
 import {
   SG_VALUE_LABEL,
   SG_TEMP_LABEL,
-  hasHandTypedEntries,
   densityRowToEntry,
   formatTSetComparison,
+  isSgMachineUnitKey,
 } from '@/lib/densitySync';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -118,6 +118,9 @@ function TestField({
   const requireNoteOn = field.requireNoteOn ?? [];
   const showNote = field.type === 'enum' && requireNoteOn.includes(strVal);
   const isAbnormal = hideStandard ? false : (outputResult ? outputResult.kind === 'abnormal' : isFieldAbnormal(field, value));
+  const numericBounds = field.type !== 'text'
+    ? (field as ParameterValueField & { min?: number; max?: number })
+    : undefined;
   const customText = optionOutputText(field, value);
 
   return (
@@ -199,8 +202,8 @@ function TestField({
         <Input
           type={field.type === 'number' || field.type === 'float' ? 'number' : 'text'}
           step={field.type === 'float' ? 'any' : undefined}
-          min={field.type !== 'text' ? (field as any).min : undefined}
-          max={field.type !== 'text' ? (field as any).max : undefined}
+          min={numericBounds?.min}
+          max={numericBounds?.max}
           value={strVal}
           onChange={(e) => onChange(e.target.value)}
           // เลื่อนเมาส์ (wheel) ห้ามเปลี่ยนค่าตัวเลข — พิมพ์อย่างเดียว: blur ทิ้งโฟกัสตอน scroll
@@ -645,7 +648,7 @@ export default function QCTestingDetailPage() {
     [user, entriesByKey, id, loadResults],
   );
 
-  // Density sync: replace the SG param's entries with one entry per matched
+  // Density sync: replace the SG param's entries with the selected valid
   // Result-Density row (Density + T block; T set lives in provenance only).
   const applyDensityRows = useCallback(
     async (
@@ -656,7 +659,11 @@ export default function QCTestingDetailPage() {
     ) => {
       const k = resultKey(item.seq, param._id!);
       const fetchedAt = new Date().toISOString();
-      const rows = docs.map((d) => densityRowToEntry(d, fetchedAt));
+      const sgValueField = (param.valueFields ?? []).find((field) => field.label === SG_VALUE_LABEL);
+      const sgValueKeys = sgValueField
+        ? expandFieldForItem(sgValueField, item.commonName, { category: petitionCategory }).map((unit) => unit.key)
+        : [SG_VALUE_LABEL];
+      const rows = docs.map((d) => densityRowToEntry(d, fetchedAt, sgValueKeys));
       setEntriesByKey((prev) => ({ ...prev, [k]: rows.map((e) => ({ ...e })) }));
       setEntryRowCounts((c) => ({ ...c, [k]: Math.max(rows.length, 1) }));
       advanceToInProgress();
@@ -678,7 +685,7 @@ export default function QCTestingDetailPage() {
         toast.error('บันทึกค่าไม่สำเร็จ');
       }
     },
-    [user, advanceToInProgress, id, loadResults],
+    [user, advanceToInProgress, id, loadResults, petitionCategory],
   );
 
   const handleOutlierCheck = useCallback(
@@ -1020,7 +1027,7 @@ export default function QCTestingDetailPage() {
         }
       />
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+        <Badge variant="blue-soft">{petitionDepartmentLabel(petition)}</Badge>
         {wasReturned && (
           <span
             className="inline-flex items-center text-orange-500"
@@ -1078,7 +1085,7 @@ export default function QCTestingDetailPage() {
                     : 'bg-white text-grey-700 border-grey-200 hover:border-primary-300 hover:bg-primary-50',
                 )}
                 disabled={isActive}
-                title={`${PETITION_DEPT_LABELS[p.dept]} · ${p.items?.length ?? 0} รายการ`}
+                title={`${petitionDepartmentLabel(p)} · ${p.items?.length ?? 0} รายการ`}
               >
                 <span
                   className={cn(
@@ -1241,12 +1248,11 @@ export default function QCTestingDetailPage() {
                       ? lastBatch?.values?.[unit.field.label]
                       : undefined;
 
-                    // Specific-gravity (ค่า ถพ.) value + temperature are filled only by the
-                    // density sync (instrument readings), never typed by hand — render them
-                    // read-only so the only way to populate them is the "ดึงค่า ถพ." button.
+                    // Specific-gravity (ค่า ถพ.) value + temperature are filled only by
+                    // validated Result-Density rows, never typed by hand.
                     const isSgMachineField =
                       (param.valueFields ?? []).some((f) => f.label === SG_VALUE_LABEL) &&
-                      (unit.field.label === SG_VALUE_LABEL || unit.field.label === SG_TEMP_LABEL);
+                      isSgMachineUnitKey(unit.key, unit.field.label);
                     const unitDisabled = fieldDisabled || isSgMachineField;
 
                     // Field-level `multiple` — repeatable list of inputs sharing the
@@ -1428,10 +1434,9 @@ export default function QCTestingDetailPage() {
                           return (
                             <div className="space-y-4">
                               {isSgParam && !fieldDisabled && (
-                                <div className="flex justify-end">
+                                <div>
                                   <DensitySyncButton
                                     batchNo={item.batchNo?.trim() ?? ''}
-                                    hasHandTyped={hasHandTypedEntries(savedRows)}
                                     onRows={(docs) => applyDensityRows(petition, item, param, docs)}
                                   />
                                 </div>

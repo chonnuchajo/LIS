@@ -39,6 +39,24 @@ describe("receiveCart.helpers", () => {
     expect(validateRow({ ...base, sizeMl: "100.1234", count: "2", type: "primary", lotNo: "L1", purity: "99.5", commonExp: "2027-01-01" })).toBeNull();
   });
 
+  it("validateRow: standard receive ยอมให้ Code ซ้ำกัน", () => {
+    const row = {
+      ...makeEmptyRow(),
+      category: "standard" as const,
+      itemId: "s1",
+      itemCode: "STD-001",
+      sizeMl: "100",
+      count: "2",
+      type: "primary" as const,
+      lotNo: "L1",
+      purity: "99.5",
+      commonExp: "2027-01-01",
+      labelCodes: ["016901", "016901"],
+    };
+
+    expect(validateRow(row)).toBeNull();
+  });
+
   it("validateRow: scanned standard defaults to primary type before receive", () => {
     const scanned = {
       ...makeEmptyRow(),

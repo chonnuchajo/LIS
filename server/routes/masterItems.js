@@ -18,6 +18,8 @@ const UNIT_KEYS = ['base_unit_of_mea', 'unit', 'uom', 'UOM', 'unitName'];
 const UNIT_COST_KEYS = ['unit_cost', 'unitCost', 'unit_cost_lcy', 'Unit Cost', 'UNIT_COST'];
 const META_STRING_FIELDS = ['itemCode', 'itemName', 'itemType', 'category', 'unit', 'status', 'description', 'imageUrl'];
 const META_ARRAY_FIELDS = ['imageUrls'];
+const IMAGE_URL_KEYS = ['imageUrl', 'image_url', 'photoUrl', 'photo_url', 'pictureUrl', 'picture_url'];
+const IMAGE_URLS_KEYS = ['imageUrls', 'image_urls', 'photoUrls', 'photo_urls', 'pictureUrls', 'picture_urls'];
 const META_KEYS = [
   'kgPerCarton',
   'grossKgPerUnit',
@@ -61,6 +63,18 @@ function normalizeStringArray(value) {
   return text ? [text] : [];
 }
 
+function uniqueStrings(values) {
+  const seen = new Set();
+  const out = [];
+  for (const value of values) {
+    const text = String(value ?? '').trim();
+    if (!text || seen.has(text)) continue;
+    seen.add(text);
+    out.push(text);
+  }
+  return out;
+}
+
 const CLASSIFICATION_TYPES = [
   { code: 'SG', group: 'sand' },
   { code: 'ULV', group: 'water' },
@@ -102,6 +116,82 @@ function firstValue(item, keys) {
     if (v !== undefined && v !== null && v !== '') return String(v).trim();
   }
   return '';
+}
+
+function getImageUrls(item) {
+  const urls = [];
+  for (const key of IMAGE_URLS_KEYS) urls.push(...normalizeStringArray(item && item[key]));
+  for (const key of IMAGE_URL_KEYS) urls.push(...normalizeStringArray(item && item[key]));
+  return uniqueStrings(urls);
+}
+
+function normalizeKey(value) {
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function splitMasterCommonName(value) {
+  const parts = [];
+  let currentPart = '';
+  let parenthesisDepth = 0;
+
+  for (const character of String(value || '')) {
+    if (character === '(') {
+      parenthesisDepth += 1;
+      currentPart += character;
+      continue;
+    }
+    if (character === ')') {
+      parenthesisDepth = Math.max(0, parenthesisDepth - 1);
+      currentPart += character;
+      continue;
+    }
+    if (character === '+' && parenthesisDepth === 0) {
+      parts.push(currentPart);
+      currentPart = '';
+      continue;
+    }
+    currentPart += character;
+  }
+
+  parts.push(currentPart);
+
+  return parts
+    .map((part) => part.trim().replace(/\s+/g, ' '))
+    .filter((part) => part && !/^\d+(?:[.,]\d+)?\s*%/.test(part));
+}
+
+function buildCommonNameRows(items) {
+  const groups = new Map();
+
+  for (const item of items) {
+    const itemNo = firstValue(item, MASTER_ITEM_KEYS);
+    const rawCommonName = firstValue(item, COMMON_NAME_KEYS);
+    const imageUrls = getImageUrls(item);
+    for (const commonName of splitMasterCommonName(rawCommonName)) {
+      const key = normalizeKey(commonName);
+      const existing = groups.get(key);
+      if (existing) {
+        existing.itemCount += 1;
+        if (itemNo && !existing.itemNos.includes(itemNo)) existing.itemNos.push(itemNo);
+        existing.imageUrls = uniqueStrings([...existing.imageUrls, ...imageUrls]);
+        existing.imageUrl = existing.imageUrls[0] || '';
+        continue;
+      }
+
+      groups.set(key, {
+        key,
+        commonName,
+        itemCount: 1,
+        itemNos: itemNo ? [itemNo] : [],
+        imageUrl: imageUrls[0] || '',
+        imageUrls,
+      });
+    }
+  }
+
+  return Array.from(groups.values()).sort((a, b) =>
+    a.commonName.localeCompare(b.commonName, ['th', 'en']),
+  );
 }
 
 function escapeRegExp(value) {
@@ -211,6 +301,24 @@ function applyMeta(item, meta) {
   return out;
 }
 
+function mergeItemsWithMeta(items, metas) {
+  const metaByItemNo = new Map(metas.map((m) => [String(m.itemNo || '').trim().toUpperCase(), m]));
+  const seen = new Set();
+  const merged = items.map((item) => {
+    const itemNo = firstValue(item, MASTER_ITEM_KEYS).toUpperCase();
+    if (itemNo) seen.add(itemNo);
+    return addItemTypeAliases(applyMeta(item, metaByItemNo.get(itemNo)));
+  });
+
+  for (const meta of metas) {
+    const itemNo = String(meta.itemNo || '').trim().toUpperCase();
+    if (!itemNo || seen.has(itemNo)) continue;
+    merged.push(addItemTypeAliases(applyMeta(buildMetaOnlyItem(meta), meta)));
+  }
+
+  return merged;
+}
+
 function buildMetaOnlyItem(meta) {
   const itemNo = String(meta.itemNo || meta.itemCode || '').trim();
   return {
@@ -238,19 +346,7 @@ async function getMergedMasterItems(req, res) {
   try {
     const items = await fetchMasterItems();
     const metas = await MasterItemMeta.find().lean();
-    const metaByItemNo = new Map(metas.map((m) => [String(m.itemNo || '').trim().toUpperCase(), m]));
-    const seen = new Set();
-    const merged = items.map((item) => {
-      const itemNo = firstValue(item, MASTER_ITEM_KEYS).toUpperCase();
-      if (itemNo) seen.add(itemNo);
-      return addItemTypeAliases(applyMeta(item, metaByItemNo.get(itemNo)));
-    });
-
-    for (const meta of metas) {
-      const itemNo = String(meta.itemNo || '').trim().toUpperCase();
-      if (!itemNo || seen.has(itemNo)) continue;
-      merged.push(addItemTypeAliases(applyMeta(buildMetaOnlyItem(meta), meta)));
-    }
+    const merged = mergeItemsWithMeta(items, metas);
 
     return res.json(merged);
   } catch (err) {
@@ -470,6 +566,19 @@ router.get('/slim', async (req, res) => {
   } catch (err) {
     if (slimCache) return res.json({ data: slimCache, cached: true, stale: true });
     return res.status(502).json({ message: 'Cannot connect to master item webhook', error: err.message });
+  }
+});
+
+router.get('/common-names', async (req, res) => {
+  try {
+    const items = await fetchMasterItems();
+    const metas = await MasterItemMeta.find().lean();
+    return res.json(buildCommonNameRows(mergeItemsWithMeta(items, metas)));
+  } catch (err) {
+    return res.status(err.status || 502).json({
+      message: err.message || 'Cannot connect to master item webhook',
+      error: err.payload || err.message,
+    });
   }
 });
 

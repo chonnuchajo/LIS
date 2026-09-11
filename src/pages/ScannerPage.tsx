@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ICP_LADDA_LOGO_URL } from '@/lib/branding';
 import { useAuth } from '@/hooks/useAuth';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 
 const READER_ID = 'icp-qr-reader';
 type Phase = 'idle' | 'scanning' | 'confirming' | 'loading' | 'success' | 'error' | 'no-camera';
@@ -294,7 +295,7 @@ export default function ScannerPage() {
 
               <div className="flex gap-2 text-sm">
                 <Building2 className="w-4 h-4 text-grey-400 mt-0.5 shrink-0" />
-                <span className="text-grey-600">{petition.dept}</span>
+                <span className="text-grey-600">{petitionDepartmentLabel(petition)}</span>
               </div>
 
               {petition.items.length > 0 && (
@@ -346,7 +347,7 @@ export default function ScannerPage() {
               <span className="font-semibold text-black-500">{petition.petitionNo}</span>
             </p>
             <p className="text-xs text-grey-400">
-              {petition.submittedBy?.name ?? '-'} · {petition.dept}
+              {petition.submittedBy?.name ?? '-'} · {petitionDepartmentLabel(petition)}
             </p>
             <Button variant="primary" className="mt-2 w-full" onClick={reset}>
               กลับ

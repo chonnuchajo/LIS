@@ -36,7 +36,8 @@ import LabScanAcceptModal from '@/components/petition/LabScanAcceptModal';
 import { normalizeRoles } from '@/lib/roles';
 import { isAssignedTo } from '@/lib/assignment';
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
-import { isLabBatchNo, isResearchAndDevelopmentPetition } from '@/lib/petitionRouting';
+import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 
 const FULL_ACCESS_ROLES = new Set(['admin', 'lab-head']);
 
@@ -46,7 +47,7 @@ const isLabReadableItem = (
   itemGroupIds: string[] = [],
   petitionCategory: PetitionCategory = '',
 ) =>
-  isLabBatchNo(it.batchNo) && matchParametersForItem(it, params, itemGroupIds, { petitionCategory }).length > 0;
+  shouldSendItemToLab(it) && matchParametersForItem(it, params, itemGroupIds, { petitionCategory }).length > 0;
 
 const isResearchLabReadableItem = (
   it: PetitionItem,
@@ -103,7 +104,7 @@ export default function LabTestingPage() {
         )
         : (paramsLoaded
           ? (p.items ?? []).some((it) => isLabReadableItem(it, labParams, idsFor(it), getPetitionCategory(p)))
-          : (p.items ?? []).some((it) => isLabBatchNo(it.batchNo))),
+          : (p.items ?? []).some((it) => shouldSendItemToLab(it))),
     )
     .filter((p) => isFullAccess || isAssignedTo(p.assignedTo, user));
 
@@ -138,7 +139,7 @@ export default function LabTestingPage() {
         const labItems = (p.items ?? []).filter((it) =>
           isResearchAndDevelopmentPetition(p)
             ? (paramsLoaded ? isResearchLabReadableItem(it, labParametersForPetition(p, labParams), idsFor(it), getPetitionCategory(p)) : true)
-            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it), getPetitionCategory(p)) : isLabBatchNo(it.batchNo)),
+            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it), getPetitionCategory(p)) : shouldSendItemToLab(it)),
         );
         return (
           <>
@@ -152,7 +153,7 @@ export default function LabTestingPage() {
               )}
             </div>
             <div className="text-xs text-grey-500 mt-0.5">
-              โดย {p.submittedBy?.name ?? '-'} จาก {PETITION_DEPT_LABELS[p.dept]}
+              โดย {p.submittedBy?.name ?? '-'} จาก {petitionDepartmentLabel(p)}
             </div>
             <div className="text-xs text-grey-500 mt-0.5">{labItems.length} รายการ Lab</div>
             {labReceivedBy(p) && (
@@ -170,7 +171,7 @@ export default function LabTestingPage() {
         const labItems = (p.items ?? []).filter((it) =>
           isResearchAndDevelopmentPetition(p)
             ? (paramsLoaded ? isResearchLabReadableItem(it, labParametersForPetition(p, labParams), idsFor(it), getPetitionCategory(p)) : true)
-            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it), getPetitionCategory(p)) : isLabBatchNo(it.batchNo)),
+            : (paramsLoaded ? isLabReadableItem(it, labParams, idsFor(it), getPetitionCategory(p)) : shouldSendItemToLab(it)),
         );
         return labItems.length > 0 ? (
           <div className="space-y-1">

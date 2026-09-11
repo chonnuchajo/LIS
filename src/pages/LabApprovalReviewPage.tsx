@@ -10,7 +10,8 @@ import { usePetition, useLabRequestsByPetition, saveLabAgreementReview } from "@
 import { api, type ParameterItem } from "@/lib/api";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { labReceivedBy } from "@/lib/receiveStatus";
-import { PETITION_DEPT_LABELS, type QCTestResult } from "@/types/petition.types";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
+import type { QCTestResult } from "@/types/petition.types";
 import { buildApprovalGroups } from "@/lib/qcApprovalRows";
 import LabResultGroups from "@/components/petition/LabResultGroups";
 import { toast } from "sonner";
@@ -153,7 +154,7 @@ export default function LabApprovalReviewPage() {
         />
 
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+          <Badge variant="blue-soft">{petitionDepartmentLabel(petition)}</Badge>
           <Badge variant="gray-soft" className="font-normal">
             ผู้รับงาน Lab: {labReceivedBy(petition) ?? "-"}
           </Badge>

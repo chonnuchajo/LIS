@@ -16,6 +16,22 @@ export interface SgParameter {
   fieldLabel: string;
 }
 
+function isFilled(value: unknown): boolean {
+  return value != null && value !== '';
+}
+
+export function readSpecificGravityEntryValue(
+  row: Record<string, unknown> | undefined,
+  fieldLabel: string = SG_FIELD_LABEL,
+): unknown {
+  if (!row) return undefined;
+  const direct = row[fieldLabel];
+  if (isFilled(direct)) return direct;
+  const prefix = `${fieldLabel}::`;
+  const key = Object.keys(row).find((entryKey) => entryKey.startsWith(prefix) && isFilled(row[entryKey]));
+  return key ? row[key] : direct;
+}
+
 // Locate the QC parameter that holds the ถพ. reading shared with the lab.
 export function findSgParameter(parameters: ParameterItem[] | null | undefined): SgParameter | null {
   for (const p of parameters ?? []) {
@@ -49,6 +65,6 @@ export function resolveSpecificGravity(
     row = result.values ?? {};
   }
 
-  const value = row?.[sgParam.fieldLabel];
+  const value = readSpecificGravityEntryValue(row, sgParam.fieldLabel);
   return value == null || value === '' ? '' : String(value);
 }

@@ -43,6 +43,9 @@ export function petitionStatusBadge(petition: Petition): StatusBadge {
   if (["success", "approved", "rejected"].includes(petition.status)) {
     return statusBadge(petition.status);
   }
+  if (petition.status === "deliveringQC" && (petition.qcReceivedAt || petition.labReceivedAt || petition.receivedAt)) {
+    return statusBadge("pendingReview");
+  }
   const hasQc = requiresQcTrack(petition);
   // ทั้ง QC และ Lab บันทึกผลครบแล้ว เหลือเพียงหัวหน้า Lab ออกผล — ต้องมาก่อน
   // สาขา qcCompletedAt ด้านล่าง ไม่งั้นจะถูกกลืนเป็น "รอส่วนอื่น" ทั้งที่ Lab ตรวจครบแล้ว

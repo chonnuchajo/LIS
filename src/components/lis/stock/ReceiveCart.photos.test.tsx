@@ -183,7 +183,43 @@ describe("ReceiveCart receive flow", () => {
       { _id: "sol1", name: "Methanol", barcodes: [], sizeLiter: 2.5, qty: 0, price: 0, note: "" },
     ]);
     apiMock.getGlassware.mockResolvedValue([]);
-    apiMock.receiveSolvent.mockResolvedValue({ _id: "sol1", name: "Methanol", qty: 2 });
+    apiMock.receiveSolvent.mockResolvedValue({
+      _id: "sol1",
+      name: "Methanol",
+      qty: 2,
+      receivedUnits: [
+        {
+          _id: "unit-sol-1",
+          qrId: "u_sol_1",
+          itemType: "solvent",
+          itemId: "sol1",
+          itemCode: "sol1",
+          itemName: "Methanol",
+          kind: "sealed",
+          lotNo: "B-001",
+          lotBottleNo: 1,
+          exp: "2027-01-01T00:00:00.000Z",
+          receivedDate: "2026-08-19T00:00:00.000Z",
+          volume: { initial: 2500, remaining: 2500, unit: "ml" },
+          status: "active",
+        },
+        {
+          _id: "unit-sol-2",
+          qrId: "u_sol_2",
+          itemType: "solvent",
+          itemId: "sol1",
+          itemCode: "sol1",
+          itemName: "Methanol",
+          kind: "sealed",
+          lotNo: "B-001",
+          lotBottleNo: 2,
+          exp: "2027-01-01T00:00:00.000Z",
+          receivedDate: "2026-08-19T00:00:00.000Z",
+          volume: { initial: 2500, remaining: 2500, unit: "ml" },
+          status: "active",
+        },
+      ],
+    });
 
     renderCart();
 
@@ -213,12 +249,14 @@ describe("ReceiveCart receive flow", () => {
     expect(solventPayload).not.toHaveProperty("photoUrls");
     expect(buildSolventLabelHtmlMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
       name: "Methanol",
+      idForQr: "u_sol_1",
       lotNo: "B-001",
-      exp: "2027-01-01",
+      exp: "2027-01-01T00:00:00.000Z",
       bottleNo: 1,
-      receivedDate: expect.any(String),
+      receivedDate: "2026-08-19T00:00:00.000Z",
     }));
     expect(buildSolventLabelHtmlMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      idForQr: "u_sol_2",
       bottleNo: 2,
     }));
   });

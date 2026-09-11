@@ -1,11 +1,16 @@
 import { useNavigate } from "react-router-dom";
-import { Check, LogOut, User, UserPlus, Users } from "lucide-react";
+import { Check, LogOut, PenLine, User, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/context/AuthContext";
 import { normalizeRoles } from "@/lib/roles";
+import {
+  SIGNATURE_DEVICE_UNSUPPORTED_MESSAGE,
+  canManageSignature,
+  isSignatureDeviceSupported,
+} from "@/lib/signatureAccess";
 import { cn } from "@/lib/utils";
 
 interface UserProfileMenuProps {
@@ -26,6 +31,7 @@ const UserProfileMenu = ({ className }: UserProfileMenuProps) => {
   const roleLabel = roles.length > 0 ? roles.join(", ") : "No role";
   const assignment = [user.department, user.position].filter(Boolean).join(" / ") || "Unassigned";
   const showAccountSwitcher = isPwa && accounts.length > 0;
+  const showSignatureAction = canManageSignature(roles);
 
   const handleSwitchAccount = (accountId: string) => {
     if (accountId === activeAccountId) return;
@@ -44,6 +50,14 @@ const UserProfileMenu = ({ className }: UserProfileMenuProps) => {
     logout();
     toast.success("Signed out");
     navigate("/login", { replace: true });
+  };
+
+  const handleAddSignature = () => {
+    if (!isSignatureDeviceSupported()) {
+      toast.error(SIGNATURE_DEVICE_UNSUPPORTED_MESSAGE);
+      return;
+    }
+    navigate("/profile/signature");
   };
 
   return (
@@ -138,6 +152,20 @@ const UserProfileMenu = ({ className }: UserProfileMenuProps) => {
             >
               <UserPlus />
               Add account
+            </Button>
+          </div>
+        )}
+
+        {showSignatureAction && (
+          <div className="border-t p-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={handleAddSignature}
+            >
+              <PenLine />
+              เพิ่มลายเซ็น
             </Button>
           </div>
         )}

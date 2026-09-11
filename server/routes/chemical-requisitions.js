@@ -3,6 +3,7 @@ const router = express.Router();
 const { StockSolvent } = require('../models/Stock');
 const StockTransaction = require('../models/StockTransaction');
 const ChemicalRequisition = require('../models/ChemicalRequisition');
+const StockUnit = require('../models/StockUnit');
 const User = require('../models/User');
 const { buildDeductNote, normalizeReqInput } = require('../lib/chemicalRequisition');
 const { normalizeActorFields } = require('../lib/stockActor');
@@ -12,6 +13,61 @@ async function logTx(data) {
   catch (err) { console.error('logTransaction failed:', err.message); }
 }
 
+
+function wholeBottleCount(value) {
+  const count = Number(value);
+  if (!Number.isInteger(count) || count < 1) return 0;
+  return count;
+}
+
+async function markSolventUnitsEmptyForDeduction(solventId, qty) {
+  const count = wholeBottleCount(qty);
+  if (!count) return;
+  const units = await StockUnit.find({ itemType: 'solvent', itemId: String(solventId), status: 'active' })
+    .sort({ receivedDate: 1, createdAt: 1, _id: 1 })
+    .limit(count);
+  for (const unit of units) {
+    unit.status = 'empty';
+    if (unit.volume) unit.volume.remaining = 0;
+    await unit.save();
+  }
+}
+
+async function markSpecificSolventUnitEmptyForDeduction(solventId, qrId) {
+  const unit = await StockUnit.findOneAndUpdate(
+    { qrId: String(qrId).trim(), itemType: 'solvent', itemId: String(solventId), status: 'active' },
+    { $set: { status: 'empty', 'volume.remaining': 0 } },
+    { new: true },
+  );
+  if (!unit) throw new Error('ขวดนี้ถูกเบิกไปแล้วหรือไม่พร้อมใช้งาน');
+  return unit;
+}
+
+async function restoreSolventUnitsFromCancelledDeduction(solventId, qty) {
+  const count = wholeBottleCount(qty);
+  if (!count) return;
+  const units = await StockUnit.find({ itemType: 'solvent', itemId: String(solventId), status: 'empty' })
+    .sort({ updatedAt: -1, _id: -1 })
+    .limit(count);
+  for (const unit of units) {
+    unit.status = 'active';
+    if (unit.volume && Number(unit.volume.remaining) <= 0) {
+      unit.volume.remaining = Number(unit.volume.initial) || 0;
+    }
+    await unit.save();
+  }
+}
+
+async function restoreSpecificSolventUnitFromCancelledDeduction(solventId, qrId) {
+  const unit = await StockUnit.findOne({ itemType: 'solvent', itemId: String(solventId), qrId: String(qrId).trim(), status: 'empty' });
+  if (!unit) return null;
+  unit.status = 'active';
+  if (unit.volume && Number(unit.volume.remaining) <= 0) {
+    unit.volume.remaining = Number(unit.volume.initial) || 0;
+  }
+  await unit.save();
+  return unit;
+}
 async function resolveRequestedBy(requestedBy) {
   const email = String(requestedBy?.email || '').trim().toLowerCase();
   const stored = email ? await User.findOne({ email }).lean() : null;
@@ -51,12 +107,22 @@ router.post('/', async (req, res) => {
       { new: true },
     );
     if (!updated) return res.status(400).json({ error: 'จำนวน stock ไม่พอ' });
+    let deductedUnit = null;
+    try {
+      if (v.solventUnitQrId) deductedUnit = await markSpecificSolventUnitEmptyForDeduction(solvent._id, v.solventUnitQrId);
+      else await markSolventUnitsEmptyForDeduction(solvent._id, v.qty);
+    } catch (err) {
+      await StockSolvent.findByIdAndUpdate(solvent._id, { $inc: { qty: v.qty } });
+      throw err;
+    }
 
     await logTx({
       itemType: 'solvent',
       itemId: solvent._id.toString(),
       itemName: solvent.name,
       action: 'deduct',
+      unitId: deductedUnit?._id?.toString?.() || undefined,
+      qrId: v.solventUnitQrId || undefined,
       beforeQty: updated.qty + v.qty,
       afterQty: updated.qty,
       delta: -v.qty,
@@ -75,6 +141,7 @@ router.post('/', async (req, res) => {
       instrumentName: v.instrumentName,
       itemType: 'solvent',
       solventId: solvent._id.toString(),
+      solventUnitQrId: v.solventUnitQrId || '',
       solventName: solvent.name,
       qty: v.qty,
       unit: 'bottle',
@@ -103,11 +170,14 @@ router.delete('/:id', async (req, res) => {
       );
     }
     if (restored) {
+      if (doc.solventUnitQrId) await restoreSpecificSolventUnitFromCancelledDeduction(doc.solventId, doc.solventUnitQrId);
+      else await restoreSolventUnitsFromCancelledDeduction(doc.solventId, doc.qty);
       await logTx({
         itemType: 'solvent',
         itemId: doc.solventId,
         itemName: doc.solventName,
         action: 'receive',
+        qrId: doc.solventUnitQrId || undefined,
         beforeQty: restored.qty - doc.qty,
         afterQty: restored.qty,
         delta: doc.qty,

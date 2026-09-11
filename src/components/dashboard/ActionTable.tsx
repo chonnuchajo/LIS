@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
 import {
   PETITION_STATUS_CONFIG,
-  PETITION_DEPT_LABELS,
   type Petition,
   type StatusBadgeVariant,
 } from "@/types/petition.types";
@@ -89,7 +89,7 @@ export default function ActionTable({
                   >
                     <TableCell>
                       <div className="font-semibold text-primary">{p.petitionNo}</div>
-                      <div className="text-[11px] text-muted-foreground">{PETITION_DEPT_LABELS[p.dept]}</div>
+                      <div className="text-[11px] text-muted-foreground">{petitionDepartmentLabel(p)}</div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell text-sm">{p.submittedBy?.name ?? "-"}</TableCell>
                     <TableCell><Badge variant={status?.variant ?? "gray-soft"}>{status?.label}</Badge></TableCell>

@@ -278,7 +278,7 @@ test('rejects labelTolerance headPct < autoPct', async () => {
     valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
       labelToleranceStandards: [{ substance: 'A', autoPct: 5, headPct: 3 }] }],
   });
-  await assert.rejects(() => doc.validate(), /headPct|หัวหน้า/);
+  await assert.rejects(() => doc.validate(), /headPct|เกณฑ์กรม/);
 });
 
 test('accepts labelTolerance abs mode and persists autoAbs/headAbs', async () => {
@@ -309,7 +309,7 @@ test('rejects labelTolerance abs headAbs < autoAbs', async () => {
     valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
       labelToleranceStandards: [{ substance: 'A', mode: 'abs', autoAbs: 0.05, headAbs: 0.02 }] }],
   });
-  await assert.rejects(() => doc.validate(), /headAbs|หัวหน้า/);
+  await assert.rejects(() => doc.validate(), /headAbs|เกณฑ์กรม/);
 });
 
 test('accepts split modes where pass percent is derived from head reviewer band', async () => {
@@ -327,7 +327,7 @@ test('rejects split percent pass when head reviewer band is missing', async () =
     valueFields: [{ label: 'v', type: 'number', unit: '%', labelToleranceMode: true,
       labelToleranceStandards: [{ substance: 'A', autoMode: 'percent', autoPct: 50 }] }],
   });
-  await assert.rejects(() => doc.validate(), /หัวหน้าตรวจสอบ/);
+  await assert.rejects(() => doc.validate(), /เกณฑ์กรม/);
 });
 
 test('rejects split percent pass when head reviewer band is explicitly none', async () => {
@@ -337,7 +337,7 @@ test('rejects split percent pass when head reviewer band is explicitly none', as
       labelToleranceStandards: [{ substance: 'A', autoMode: 'percent', headMode: 'none', autoPct: 50 }] }],
   });
 
-  await assert.rejects(() => doc.validate(), /หัวหน้าตรวจสอบ|headMode|head reviewer band/);
+  await assert.rejects(() => doc.validate(), /เกณฑ์กรม|headMode|head reviewer band/);
 });
 
 test('accepts split range modes for labelTolerance pass and head bands', async () => {
@@ -407,7 +407,7 @@ test('rejects labelTolerance when both split bands are none', async () => {
       labelToleranceStandards: [{ substance: 'A', autoMode: 'none', headMode: 'none' }] }],
   });
 
-  await assert.rejects(() => doc.validate(), /อย่างน้อยหนึ่งช่วง|usable threshold|หัวหน้าตรวจสอบ|ผ่าน/);
+  await assert.rejects(() => doc.validate(), /อย่างน้อยหนึ่งช่วง|usable threshold|เกณฑ์กรม|ผ่าน/);
 });
 
 test('rejects multiple + labelToleranceMode', async () => {

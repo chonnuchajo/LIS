@@ -1,8 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import QRCode from 'qrcode';
-import { ArrowLeft, ArrowRight, CheckCircle2, Factory, Printer, RotateCcw, Save } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Factory, RotateCcw, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -11,8 +10,6 @@ import PageHeader from '@/components/lis/PageHeader';
 import ItemsStep, { type ItemRowValues } from '@/components/petition/wizard/ItemsStep';
 import type { SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
 import LabRequestStep, { type LabRequestRowValues } from '@/components/petition/wizard/LabRequestStep';
-import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
-import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
 import { createPetition, createLabRequest } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
@@ -21,7 +18,12 @@ import {
   findMatchingPetitionMasterItem,
   normalizeMasterItemPayload,
 } from '@/lib/petitionMasterItem';
-import { isLabBatch, type Petition } from '@/types/petition.types';
+import {
+  defaultSendItemToLab,
+  labSendOverrideNoteError,
+  shouldSendItemToLab,
+} from '@/lib/petitionRouting';
+import { type Petition } from '@/types/petition.types';
 
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
 const ICP_LADDA_COMPANY = 'ICP Ladda Co., LTD.';
@@ -52,8 +54,25 @@ function makeBlankItem(seq: number): ItemRowValues {
     submissionNo: '',
     testUnit: '',
     testItems: '',
+    sendToLab: false,
     note: '',
   };
+}
+
+function parseSendToLabValue(value: string | null | undefined): boolean | null {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (['true', '1'].includes(normalized)) return true;
+  if (['false', '0'].includes(normalized)) return false;
+  return null;
+}
+
+function sendToLabFromDefault(item: Pick<ItemRowValues, 'batchNo'>, value?: string): boolean {
+  return parseSendToLabValue(value) ?? defaultSendItemToLab(item);
+}
+
+function sendToLabForSubmit(item: Pick<ItemRowValues, 'batchNo' | 'sendToLab'>, department: string): boolean {
+  if (isResearchAndDevelopmentDepartment(department)) return true;
+  return typeof item.sendToLab === 'boolean' ? item.sendToLab : defaultSendItemToLab(item);
 }
 
 function getQueryValue(searchParams: URLSearchParams, keys: string[]): string {
@@ -132,10 +151,10 @@ export function requiresMasterItemSelection({
 
 export function hasRequiredLabRequestStep(
   department: string | null | undefined,
-  items: Array<Pick<ItemRowValues, 'batchNo' | 'testItems'>>,
+  items: Array<{ batchNo: string; testItems?: string; sendToLab?: boolean }>,
 ): boolean {
   if (isResearchAndDevelopmentDepartment(department)) return items.length > 0;
-  return items.some((it) => it.batchNo && isLabBatch(it.batchNo));
+  return items.some((it) => shouldSendItemToLab(it));
 }
 
 function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues | null {
@@ -150,6 +169,7 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
   const itemNo = getQueryValue(searchParams, ['itemNo']);
   const mfNo = getQueryValue(searchParams, ['mfNo']);
   const priority = getQueryValue(searchParams, ['priority']);
+  const sendToLab = getQueryValue(searchParams, ['sendToLab']);
   const note = [
     getQueryValue(searchParams, ['note']),
     itemNo ? `Item: ${itemNo}` : '',
@@ -174,6 +194,7 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
     packageUnit,
     // submissionNo เว้นว่าง — backend จะเซ็ต = เลขคำขออัตโนมัติตอนบันทึก
     testItems,
+    sendToLab: sendToLabFromDefault({ batchNo }, sendToLab),
     note,
   };
 }
@@ -274,6 +295,7 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
   const itemNos = getSampleOrQueryValues(searchParams, ['itemNo'], { splitComma: true });
   const mfNos = getSampleOrQueryValues(searchParams, ['mfNo'], { splitComma: true });
   const priorities = getSampleOrQueryValues(searchParams, ['priority'], { splitComma: true });
+  const sendToLabs = getSampleOrQueryValues(searchParams, ['sendToLab'], { splitComma: true });
 
   const itemCount = Math.max(
     sampleNames.length,
@@ -289,6 +311,7 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
     itemNos.length,
     mfNos.length,
     priorities.length,
+    sendToLabs.length,
   );
 
   if (itemCount <= 1) {
@@ -328,6 +351,7 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
       productionDate: valueAt(productionDates, i) || null,
       packageUnit: valueAt(packageUnits, i),
       testItems: valueAt(testItems, i),
+      sendToLab: sendToLabFromDefault({ batchNo: valueAt(batchNos, i, false) }, valueAt(sendToLabs, i, false)),
       note,
       labelQuantity: makeQuantityLabel(valueAt(quantities, i, false), valueAt(quantityUnits, i)),
       labelSampledDate: valueAt(productionDates, i),
@@ -352,187 +376,6 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
   }
 
   return items;
-}
-
-function toBuddhistShort(iso?: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yy = String((d.getFullYear() + 543) % 100).padStart(2, '0');
-  return `${dd}/${mm}/${yy}`;
-}
-
-function currentBuddhistYearShort(): string {
-  return String((new Date().getFullYear() + 543) % 100).padStart(2, '0');
-}
-
-const LABEL_HEADER_LINE_1 = 'ป้ายนำส่งตัวอย่าง บริษัท ไอ ซี พี';
-const LABEL_HEADER_LINE_2 = 'ลัดดา จำกัด';
-const LABEL_HEADER_TEXT = `${LABEL_HEADER_LINE_1} ${LABEL_HEADER_LINE_2}`;
-const DOCUMENT_NUMBER_LABEL = 'เลขที่';
-
-function getQrValue(petition: Petition, item: Petition['items'][number]): string {
-  return JSON.stringify({
-    id: petition._id,
-    petitionNo: petition.petitionNo,
-    sampleId: item.sampleId || '',
-    itemSeq: item.seq,
-  });
-}
-
-function PreviewQrCode({
-  value,
-  sizeClass = 'h-32 w-32',
-}: {
-  value: string;
-  sizeClass?: string;
-}) {
-  const qr = QRCode.create(value, { errorCorrectionLevel: 'M' });
-  const size = qr.modules.size;
-  const modules = Array.from(qr.modules.data as Uint8Array);
-
-  return (
-    <svg
-      viewBox={`0 0 ${size} ${size}`}
-      className={`${sizeClass} shrink-0`}
-      role="img"
-      aria-label={`QR ${value}`}
-      shapeRendering="crispEdges"
-    >
-      <rect width={size} height={size} fill="#fff" />
-      {modules.map((filled, index) => {
-        if (!filled) return null;
-        const x = index % size;
-        const y = Math.floor(index / size);
-        return <rect key={index} x={x} y={y} width="1" height="1" fill="#000" />;
-      })}
-    </svg>
-  );
-}
-
-function LabelPreview({ petition }: { petition: Petition }) {
-  const yearShort = currentBuddhistYearShort();
-
-  return (
-    <div className="space-y-3">
-      {petition.items.map((item) => {
-        const productLine = [item.sampleName, item.commonName].filter(Boolean).join(' ');
-        const sampledByName = petition.submittedBy?.name || item.labelSampledBy || '';
-        return (
-          <div
-            key={item.seq}
-            className="mx-auto w-full max-w-[760px] rounded-md border border-black bg-white p-4 font-semibold text-black shadow-sm"
-            style={{ fontFamily: 'Tahoma, Arial, sans-serif' }}
-          >
-            <div className="mb-3 flex items-start gap-3">
-              <div className="flex shrink-0 flex-col items-center">
-                <div className="border border-black bg-white p-1">
-                  <PreviewQrCode value={getQrValue(petition, item)} />
-                </div>
-                <div className="mt-1 w-32 break-all text-center text-xs font-bold leading-tight">
-                  {petition.petitionNo}
-                </div>
-                {item.batchNo ? (
-                  <>
-                    <PreviewQrCode value={item.batchNo} sizeClass="mt-1 h-14 w-14" />
-                    <div className="mt-1 w-32 break-all text-center text-[10px] font-bold leading-tight">
-                      {item.batchNo}
-                    </div>
-                  </>
-                ) : null}
-              </div>
-              <div className="min-w-0 flex-1 space-y-2">
-                <div className="grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                  <div className="min-w-0 px-2 text-center text-[13px] font-bold leading-tight">
-                    <span className="block whitespace-nowrap">{LABEL_HEADER_TEXT}</span>
-                  </div>
-                  <div className="flex items-end gap-1 whitespace-nowrap text-[11px]">
-                    <span>{DOCUMENT_NUMBER_LABEL}</span>
-                    <span className="inline-block min-w-[2.5rem] border-b border-black px-1 text-center">
-                      {item.sampleId || '\u00a0'}
-                    </span>
-                    <span>/</span>
-                    <span className="inline-block min-w-[1.25rem] border-b border-black px-1 text-center">
-                      {yearShort}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-sm">
-                  <PreviewStackedField label="ชื่อผลิตภัณฑ์ และสารสำคัญ" value={productLine} />
-                </div>
-                <div className="text-sm">
-                  <PreviewField label="วัน เดือน ปี ที่ผลิต/นำเข้า" value={toBuddhistShort(item.productionDate)} />
-                </div>
-                <div className="text-sm">
-                  <PreviewField
-                    label="Batch No."
-                    value={item.batchNo}
-                    valueClassName="text-xs leading-tight"
-                    multiline
-                  />
-                </div>
-                <div className="grid gap-2 text-sm sm:grid-cols-2">
-                  <PreviewField label="ผู้ผลิต" value={item.labelManufacturer} />
-                  <PreviewField label="ผู้ขาย" value={item.labelSeller} />
-                </div>
-                <div className="text-sm">
-                  <PreviewField label="ปริมาณ" value={item.labelQuantity} />
-                </div>
-                <div className="grid gap-2 text-sm sm:grid-cols-[1.4fr_1fr]">
-                  <PreviewField label="สุ่มโดย" value={sampledByName} />
-                  <PreviewField label="ว/ด/ป" value={toBuddhistShort(item.labelSampledDate)} />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2 text-sm">
-              <PreviewField label="หมายเหตุ" value={item.labelRemark} />
-            </div>
-
-            <div className="mt-3 text-[10px]">F-LAB-01-10 Rev : 01 01/04/67</div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function PreviewField({
-  label,
-  value,
-  valueClassName = '',
-  multiline = false,
-}: {
-  label: string;
-  value?: string;
-  valueClassName?: string;
-  multiline?: boolean;
-}) {
-  const valueBaseClass = multiline
-    ? 'min-h-[1.25rem] min-w-0 flex-1 overflow-visible whitespace-normal break-words border-b border-black px-1 font-bold'
-    : 'min-h-[1.25rem] min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap border-b border-black px-1 font-bold';
-
-  return (
-    <div className="flex min-w-0 items-end gap-1">
-      <span className="whitespace-nowrap">{label}</span>
-      <span className={`${valueBaseClass} ${valueClassName}`}>
-        {value || ''}
-      </span>
-    </div>
-  );
-}
-
-function PreviewStackedField({ label, value }: { label: string; value?: string }) {
-  return (
-    <div className="min-w-0">
-      <div className="whitespace-nowrap">{label}</div>
-      <div className="min-h-[1.25rem] min-w-0 overflow-visible whitespace-normal break-words border-b border-black px-1 font-bold leading-tight">
-        {value || ''}
-      </div>
-    </div>
-  );
 }
 
 function makeBlankLabRequest(
@@ -725,6 +568,7 @@ export default function ProductionPetitionNewPage({
             submissionNo: it.submissionNo ?? '',
             testUnit: it.testUnit ?? '',
             testItems: it.testItems ?? '',
+            sendToLab: sendToLabForSubmit(it, source.submittedBy?.department ?? ''),
             note: it.note ?? '',
           })),
         );
@@ -742,7 +586,7 @@ export default function ProductionPetitionNewPage({
     () => (
       isResearchAndDevelopmentDepartment(submitterDepartment)
         ? items
-        : items.filter((it) => it.batchNo && isLabBatch(it.batchNo))
+        : items.filter((it) => shouldSendItemToLab(it))
     ),
     [items, submitterDepartment],
   );
@@ -753,21 +597,27 @@ export default function ProductionPetitionNewPage({
   useEffect(() => {
     const labItems = isResearchAndDevelopmentDepartment(submitterDepartment)
       ? items
-      : items.filter((it) => it.batchNo && isLabBatch(it.batchNo));
+      : items.filter((it) => shouldSendItemToLab(it));
     if (labItems.length > 0) {
       setLabRequest((prev) => {
-        if (!prev) {
-          const first = labItems[0];
-          return makeBlankLabRequest(
-            first.batchNo,
-            first.seq,
-            first.sampleName,
-            submitter.name,
-            integrationMode ? integrationActor.email : (user?.email ?? ''),
-            submitterDepartment ?? 'ผลิต',
-          );
+        const current = prev ? labItems.find((item) => item.batchNo === prev.batchNo) : null;
+        if (prev && current) {
+          return {
+            ...prev,
+            batchNo: current.batchNo,
+            sampleSeq: current.seq,
+            sampleName: current.sampleName,
+          };
         }
-        return prev;
+        const first = labItems[0];
+        return makeBlankLabRequest(
+          first.batchNo,
+          first.seq,
+          first.sampleName,
+          submitter.name,
+          integrationMode ? integrationActor.email : (user?.email ?? ''),
+          submitterDepartment ?? 'ผลิต',
+        );
       });
     } else {
       setLabRequest(null);
@@ -778,7 +628,6 @@ export default function ProductionPetitionNewPage({
   const [error, setError] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
   const [createdPetition, setCreatedPetition] = useState<Petition | null>(null);
-  const [labelPrintOpen, setLabelPrintOpen] = useState(false);
 
   function validateStep(): boolean {
     setStepError(null);
@@ -829,6 +678,11 @@ export default function ProductionPetitionNewPage({
           return false;
         }
       }
+      const overrideNoteError = deliveryAndBatchRequired ? labSendOverrideNoteError(items) : null;
+      if (overrideNoteError) {
+        setStepError(overrideNoteError);
+        return false;
+      }
       const seen = new Set<string>();
       for (const it of items) {
         const key = it.batchNo.trim();
@@ -872,7 +726,7 @@ export default function ProductionPetitionNewPage({
           name: submitter.name,
           department: submitterDepartment || undefined,
         },
-        items: items.map((it, idx) => ({ ...it, seq: idx + 1 })),
+        items: items.map((it, idx) => ({ ...it, seq: idx + 1, sendToLab: sendToLabForSubmit(it, submitterDepartment) })),
         labRequests: [],
         prodOrderNos,
         productionWorkflow: productionRequestNo ? {
@@ -921,11 +775,6 @@ export default function ProductionPetitionNewPage({
     navigate('/petition');
   }
 
-  function printCreatedLabels() {
-    if (!createdPetition) return;
-    setLabelPrintOpen(true);
-  }
-
   const successContent = createdPetition ? (
     <div className="space-y-4">
       <div className="print:hidden space-y-4">
@@ -942,16 +791,12 @@ export default function ProductionPetitionNewPage({
                     เลขที่คำขอ: <span className="font-semibold text-foreground">{createdPetition.petitionNo}</span>
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    จำนวนสติกเกอร์: {createdPetition.items.length} รายการ
+                    จำนวนตัวอย่าง: {createdPetition.items.length} รายการ
                   </p>
                 </div>
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
-                <Button onClick={printCreatedLabels} className="w-full sm:w-auto">
-                  <Printer className="h-4 w-4" />
-                  พิมพ์สติกเกอร์
-                </Button>
                 <Button variant="primary-outline" onClick={handlePageBack} className="w-full sm:w-auto">
                   กลับ Production System
                 </Button>
@@ -959,25 +804,7 @@ export default function ProductionPetitionNewPage({
             </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardContent className="p-5">
-            <div className="mb-4">
-              <h2 className="text-base font-semibold text-foreground">Preview สติกเกอร์</h2>
-              <p className="text-sm text-muted-foreground">แสดงตัวอย่างบนหน้าเว็บก่อนสั่งพิมพ์จริง</p>
-            </div>
-            <LabelPreview petition={createdPetition} />
-          </CardContent>
-        </Card>
       </div>
-
-      <PrintPreviewDialog
-        open={labelPrintOpen}
-        onOpenChange={setLabelPrintOpen}
-        docType="sample-label"
-      >
-        <SampleLabelPrintTemplate petition={createdPetition} />
-      </PrintPreviewDialog>
     </div>
   ) : null;
 
