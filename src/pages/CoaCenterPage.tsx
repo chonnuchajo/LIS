@@ -269,6 +269,10 @@ function isCoaApprovedDocument(doc: CoaDocument) {
   return doc.status === "approved" || doc.status === "printed" || doc.status === "reissued";
 }
 
+function isExternalCoaRequestDocument(doc: CoaDocument) {
+  return Boolean(doc.externalCoaRequest);
+}
+
 function addDocumentToDuplicateGroup(groups: Map<string, CoaDuplicateGroup>, key: string, label: string, doc: CoaDocument) {
   const group = groups.get(key) ?? { key, label, documents: [] };
   if (!group.documents.some((item) => item._id === doc._id)) group.documents.push(doc);
@@ -1157,11 +1161,14 @@ export default function CoaCenterPage() {
                     <td colSpan={tableColumnCount} className="px-4 py-10 text-center text-sky-500">ยังไม่มีเอกสาร COA</td>
                   </tr>
                 )}
-                {rows.map((doc) => (
+                {rows.map((doc) => {
+                  const externalRequest = isExternalCoaRequestDocument(doc) ? doc.externalCoaRequest : undefined;
+                  return (
                   <tr
                     key={doc._id}
-                    className="cursor-pointer text-slate-700 transition-colors hover:bg-sky-50/80"
+                    className={`${externalRequest ? "" : "cursor-pointer"} text-slate-700 transition-colors hover:bg-sky-50/80`}
                     onClick={() => {
+                      if (externalRequest) return;
                       if (isDemoCoaDocument(doc)) {
                         setPreviewDoc(doc);
                         return;
@@ -1178,9 +1185,12 @@ export default function CoaCenterPage() {
                     )}
                     <td className="px-4 py-3">
                       <div className="flex flex-col items-start gap-1">
-                        <span>{doc.coaNo || "ร่าง"}</span>
+                        <span>{externalRequest ? "คำขอจาก ERP" : doc.coaNo || "ร่าง"}</span>
+                        {externalRequest && (
+                          <Badge variant="blue-soft">{externalRequest.pendingStatus || "ERP"}</Badge>
+                        )}
                         {needsCoaCorrection(doc) && (
-                          <Badge variant="purple-soft">ต้องแก้ไขข้อมูลใหม่</Badge>
+                          <Badge variant="red-soft">ต้องแก้ไขข้อมูลใหม่</Badge>
                         )}
                       </div>
                     </td>
@@ -1213,7 +1223,12 @@ export default function CoaCenterPage() {
                     )}
                     {showCreateActions && (
                       <td className="px-4 py-3">
-                        {workflowStageFor(doc) === "requested" && (
+                        {externalRequest ? (
+                          <div className="flex flex-col items-start gap-1 text-xs text-slate-500">
+                            <Badge variant="blue-soft">ERP</Badge>
+                            {externalRequest.shipmentDate && <span>กำหนดส่ง {formatProductionDate(externalRequest.shipmentDate)}</span>}
+                          </div>
+                        ) : workflowStageFor(doc) === "requested" && (
                           <Button
                             type="button"
                             size="sm"
@@ -1376,7 +1391,8 @@ export default function CoaCenterPage() {
                       </td>
                     )}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             </div>

@@ -23,6 +23,11 @@ const {
 
 const router = express.Router();
 
+const DEFAULT_COA_REQUESTS_WEBHOOK_URL = 'https://n8n-plant.icpladda.com/webhook/API/COA';
+const COA_REQUESTS_WEBHOOK_URL = process.env.COA_REQUESTS_WEBHOOK_URL || DEFAULT_COA_REQUESTS_WEBHOOK_URL;
+const COA_REQUESTS_WEBHOOK_TIMEOUT_MS = Number(process.env.COA_REQUESTS_WEBHOOK_TIMEOUT_MS || 8000);
+const EXTERNAL_COA_STATUS = 'requested';
+
 function objectId(id) {
   if (!mongoose.Types.ObjectId.isValid(id)) throw new Error('Invalid id');
   return new mongoose.Types.ObjectId(id);
@@ -82,6 +87,159 @@ function firstActiveCoaByHistoryKey(coas = []) {
     }
   }
   return activeByHistoryKey;
+}
+
+function normalizeExternalPayload(payload) {
+  if (typeof payload === 'string') {
+    try {
+      return normalizeExternalPayload(JSON.parse(payload));
+    } catch (_error) {
+      return [];
+    }
+  }
+  if (Array.isArray(payload)) return payload.filter((item) => item && typeof item === 'object');
+  if (payload && typeof payload === 'object') {
+    for (const key of ['items', 'data', 'rows', 'result']) {
+      const rows = normalizeExternalPayload(payload[key]);
+      if (rows.length) return rows;
+    }
+  }
+  return [];
+}
+
+function firstExternalValue(row, keys) {
+  for (const key of keys) {
+    const value = row && row[key];
+    if (value !== undefined && value !== null) {
+      const text = String(value).trim();
+      if (text) return text;
+    }
+  }
+  return '';
+}
+
+function externalNumber(row, keys) {
+  const value = Number(firstExternalValue(row, keys));
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function externalCoaRemark(row) {
+  return firstExternalValue(row, ['remark', 'Remark']);
+}
+
+function isExternalCoaRequest(row) {
+  return /\bcoa\b/i.test(externalCoaRemark(row));
+}
+
+function externalCoaRequestId(row) {
+  return [
+    'external-coa-request',
+    firstExternalValue(row, ['SaleOrderNo']) || 'no-order',
+    firstExternalValue(row, ['Line']) || firstExternalValue(row, ['ItemNo']) || 'no-line',
+  ].map((part) => String(part).replace(/[^A-Za-z0-9_-]+/g, '-')).join('-');
+}
+
+function externalCoaDate(row) {
+  return firstExternalValue(row, ['UpdateDate', 'SaleOrderDate', 'ShipmentDate', 'ActionDate']);
+}
+
+function externalCoaRowToDocument(row) {
+  const itemSeq = externalNumber(row, ['Line']) || 1;
+  const saleOrderNo = firstExternalValue(row, ['SaleOrderNo']);
+  const itemNo = firstExternalValue(row, ['ItemNo']);
+  const tradeName = firstExternalValue(row, ['TradeName']);
+  const commonName = firstExternalValue(row, ['CommonName']);
+  const date = externalCoaDate(row);
+  const updatedAt = firstExternalValue(row, ['UpdateDate']) || date;
+  return {
+    _id: externalCoaRequestId(row),
+    coaNo: null,
+    revision: 0,
+    status: EXTERNAL_COA_STATUS,
+    petitionId: externalCoaRequestId(row),
+    petitionNoSnapshot: saleOrderNo,
+    selectedItemSeqs: [itemSeq],
+    customerSnapshot: {
+      name: firstExternalValue(row, ['CustomerName']),
+      company: firstExternalValue(row, ['CompanySource']),
+      department: firstExternalValue(row, ['Zone']),
+    },
+    sampleSnapshots: [{
+      itemSeq,
+      sampleName: tradeName || itemNo || saleOrderNo,
+      commonName,
+      sampleId: itemNo,
+      condition: firstExternalValue(row, ['PackingSize']),
+    }],
+    resultSnapshots: [],
+    trendSnapshots: commonName ? [{ itemSeq, sampleName: tradeName || itemNo, commonName }] : [],
+    remark: externalCoaRemark(row),
+    print: { printCount: 0 },
+    createdAt: date,
+    updatedAt,
+    externalCoaRequest: {
+      companySource: firstExternalValue(row, ['CompanySource']),
+      saleName: firstExternalValue(row, ['SaleName']),
+      saleOrderNo,
+      line: itemSeq,
+      saleOrderDate: firstExternalValue(row, ['SaleOrderDate']),
+      itemNo,
+      packingSize: firstExternalValue(row, ['PackingSize']),
+      quantity: externalNumber(row, ['Quantity']),
+      outstandingQty: externalNumber(row, ['OutstandingQty']),
+      unit: firstExternalValue(row, ['Unit', 'SaleUnit', 'BaseUnit']),
+      pendingStatus: firstExternalValue(row, ['PendingStatus']),
+      pendingStatusDetail: firstExternalValue(row, ['PendingStatusDetail']),
+      shipmentDate: firstExternalValue(row, ['ShipmentDate']),
+      remark: externalCoaRemark(row),
+    },
+  };
+}
+
+function externalCoaRowsToDocuments(payload) {
+  const seen = new Set();
+  const documents = [];
+  for (const row of normalizeExternalPayload(payload)) {
+    if (!isExternalCoaRequest(row)) continue;
+    const doc = externalCoaRowToDocument(row);
+    if (seen.has(doc._id)) continue;
+    seen.add(doc._id);
+    documents.push(doc);
+  }
+  return documents;
+}
+
+async function fetchExternalCoaDocuments() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), COA_REQUESTS_WEBHOOK_TIMEOUT_MS);
+  try {
+    const response = await fetch(new URL(COA_REQUESTS_WEBHOOK_URL), {
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    });
+    const text = await response.text();
+    const payload = JSON.parse(text);
+    if (!response.ok) {
+      const error = new Error('COA requests webhook request failed');
+      error.status = response.status;
+      throw error;
+    }
+    return externalCoaRowsToDocuments(payload);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function shouldFetchExternalCoaRequests(query = {}) {
+  return query.needsApproval !== '1'
+    && !query.coaNo
+    && (!query.status || query.status === EXTERNAL_COA_STATUS);
+}
+
+function filterExternalCoaDocuments(items, query = {}) {
+  const petitionNo = String(query.petitionNo || '').trim().toLowerCase();
+  if (!petitionNo) return items;
+  return items.filter((item) => String(item.petitionNoSnapshot || '').toLowerCase().includes(petitionNo));
 }
 
 async function permissionsForRoles(roles) {
@@ -305,11 +463,26 @@ router.get('/', async (req, res) => {
     if (req.query.needsApproval === '1') {
       filter.status = { $in: ['pendingApproval', 'pendingRevisionApproval'] };
     }
-    const documents = await CoaDocument.find(filter).sort({ updatedAt: -1 }).limit(200).lean();
-    const requestedRows = shouldIncludeRequestedRows(req.query)
-      ? await requestedCoaRows({ petitionNo: req.query.petitionNo })
-      : [];
-    res.json({ items: sortCoaRows([...documents, ...requestedRows]).slice(0, 200) });
+    const externalPromise = shouldFetchExternalCoaRequests(req.query)
+      ? fetchExternalCoaDocuments().catch((error) => {
+          console.warn('[coa-documents] external COA request sync failed:', error.message);
+          return [];
+        })
+      : Promise.resolve([]);
+    const [documents, requestedRows, externalRows] = await Promise.all([
+      CoaDocument.find(filter).sort({ updatedAt: -1 }).limit(200).lean(),
+      shouldIncludeRequestedRows(req.query)
+        ? requestedCoaRows({ petitionNo: req.query.petitionNo })
+        : Promise.resolve([]),
+      externalPromise,
+    ]);
+    res.json({
+      items: sortCoaRows([
+        ...documents,
+        ...requestedRows,
+        ...filterExternalCoaDocuments(externalRows, req.query),
+      ]).slice(0, 200),
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -654,3 +827,4 @@ module.exports = router;
 module.exports.freezeSnapshots = freezeSnapshots;
 module.exports.actorFromRequest = actorFromRequest;
 module.exports.withCoaTransaction = withCoaTransaction;
+module.exports.externalCoaRowsToDocuments = externalCoaRowsToDocuments;
