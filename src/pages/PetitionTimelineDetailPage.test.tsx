@@ -199,6 +199,15 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.getByLabelText("petition timeline")).not.toHaveTextContent("Required checks");
   });
 
+  it("keeps the sample image placeholder compact on tablet and mobile", async () => {
+    renderDetail();
+
+    const imageArea = await screen.findByLabelText("พื้นที่รูปตัวอย่าง");
+
+    expect(imageArea).toHaveClass("h-20", "w-20", "sm:h-24", "sm:w-24", "xl:h-28", "xl:w-28", "justify-self-start");
+    expect(imageArea).not.toHaveClass("aspect-square", "w-full");
+  });
+
   it("highlights unreceived estimate status in large orange text", async () => {
     Object.assign(mocks.petition, {
       assignedTo: undefined,
