@@ -39,3 +39,7 @@ server/uploads/param-files/*
 .playwright-mcp/
 .claude/scheduled_tasks.lock
 .worktrees/
+
+# Build output assets
+/assets/
+/asset/
