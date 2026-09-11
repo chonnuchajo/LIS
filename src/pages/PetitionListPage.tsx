@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -6,7 +6,6 @@ import {
   ChevronLeft,
   ChevronRight,
   FilePlus2,
-  RefreshCw,
   X,
 } from 'lucide-react';
 import AppLayout from '@/components/lis/AppLayout';
@@ -51,6 +50,8 @@ const NEW_PETITION_PATH = '/petitions/new';
 // How long a petition arriving from a dashboard drill-down stays visually marked
 // before it settles back into an ordinary list card.
 const HIGHLIGHT_GLOW_MS = 5000;
+const PULL_TO_REFRESH_DEVICE_QUERY = '(max-width: 1023px), (pointer: coarse), (any-pointer: coarse)';
+const PULL_TO_REFRESH_THRESHOLD_PX = 72;
 
 const SUMMARY_STATUS_GROUPS: Array<{
   key: string;
@@ -131,15 +132,117 @@ function formatSixMonthReferenceMonth(value?: string) {
   return date.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 }
 
+function canUseTouchPullToRefresh() {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(PULL_TO_REFRESH_DEVICE_QUERY).matches;
+}
+
+function findScrollableParent(element: HTMLElement | null) {
+  let current: HTMLElement | null = element;
+  while (current && current !== document.body) {
+    const overflowY = window.getComputedStyle(current).overflowY;
+    if (/(auto|scroll|overlay)/.test(overflowY) && current.scrollHeight > current.clientHeight) return current;
+    current = current.parentElement;
+  }
+  return null;
+}
+
+function isAtPullRefreshTop(element: HTMLElement | null) {
+  const scrollableParent = findScrollableParent(element);
+  if (scrollableParent) return scrollableParent.scrollTop <= 0;
+  return window.scrollY <= 0 && document.documentElement.scrollTop <= 0 && document.body.scrollTop <= 0;
+}
+
+function useTouchPullToRefresh(onRefresh: () => Promise<unknown>) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const startYRef = useRef<number | null>(null);
+  const startXRef = useRef(0);
+  const armedRef = useRef(false);
+  const refreshingRef = useRef(false);
+  const [pullState, setPullState] = useState<'idle' | 'pulling' | 'ready' | 'refreshing'>('idle');
+
+  const resetPull = useCallback(() => {
+    startYRef.current = null;
+    armedRef.current = false;
+    if (!refreshingRef.current) setPullState('idle');
+  }, []);
+
+  const handleTouchStart = useCallback((event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    if (!touch || event.touches.length !== 1 || refreshingRef.current || !canUseTouchPullToRefresh()) {
+      resetPull();
+      return;
+    }
+    if (!isAtPullRefreshTop(rootRef.current)) {
+      resetPull();
+      return;
+    }
+    startYRef.current = touch.clientY;
+    startXRef.current = touch.clientX;
+    armedRef.current = false;
+  }, [resetPull]);
+
+  const handleTouchMove = useCallback((event: TouchEvent<HTMLDivElement>) => {
+    const startY = startYRef.current;
+    const touch = event.touches[0];
+    if (startY === null || !touch) return;
+    const deltaY = touch.clientY - startY;
+    const deltaX = Math.abs(touch.clientX - startXRef.current);
+    if (deltaY <= 0 || deltaX > deltaY || !isAtPullRefreshTop(rootRef.current)) {
+      armedRef.current = false;
+      setPullState('idle');
+      return;
+    }
+    if (deltaY > 8) event.preventDefault();
+    armedRef.current = deltaY >= PULL_TO_REFRESH_THRESHOLD_PX;
+    setPullState(armedRef.current ? 'ready' : 'pulling');
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    const shouldRefresh = armedRef.current && !refreshingRef.current;
+    startYRef.current = null;
+    armedRef.current = false;
+    if (!shouldRefresh) {
+      setPullState('idle');
+      return;
+    }
+    refreshingRef.current = true;
+    setPullState('refreshing');
+    void onRefresh().finally(() => {
+      refreshingRef.current = false;
+      setPullState('idle');
+    });
+  }, [onRefresh]);
+
+  return {
+    rootRef,
+    pullState,
+    pullMessage:
+      pullState === 'refreshing'
+        ? 'กำลังรีเฟรช...'
+        : pullState === 'ready'
+          ? 'ปล่อยเพื่อรีเฟรช'
+          : 'ดึงลงเพื่อรีเฟรช',
+    pullHandlers: {
+      onTouchStart: handleTouchStart,
+      onTouchMove: handleTouchMove,
+      onTouchEnd: handleTouchEnd,
+      onTouchCancel: resetPull,
+    },
+  };
+}
+
 function SixMonthMedicineTab() {
   const [sixMonthSearch, setSixMonthSearch] = useState('');
-  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['stock', 'medicine-six-months'],
     queryFn: api.getSixMonthMedicineStock,
     staleTime: 5 * 60 * 1000,
   });
-  const items = data?.items ?? [];
+  const pullToRefresh = useTouchPullToRefresh(async () => {
+    await refetch();
+  });
   const filtered = useMemo(() => {
+    const items = data?.items ?? [];
     const q = sixMonthSearch.trim().toLowerCase();
     if (!q) return items;
     return items.filter((item) => [
@@ -149,68 +252,75 @@ function SixMonthMedicineTab() {
       item.binCode,
       item.companySource,
     ].some((value) => value.toLowerCase().includes(q)));
-  }, [items, sixMonthSearch]);
+  }, [data?.items, sixMonthSearch]);
   const errorMessage = error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ';
 
   return (
-    <Card className="border-black-50 shadow-none">
-      <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <CardTitle className="text-base">List ยา 6 เดือน</CardTitle>
-          <p className="mt-1 text-sm text-grey-500">
-            แสดงล็อตที่อายุ 6, 12, 18... เดือนจาก registering_date · นับเฉพาะเดือน ไม่ดูวันที่ · เดือนอ้างอิง {formatSixMonthReferenceMonth(data?.referenceMonth)}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            value={sixMonthSearch}
-            onChange={(event) => setSixMonthSearch(event.target.value)}
-            placeholder="ค้นหา item / lot / location"
-            className="h-9 w-full min-w-[220px] sm:w-72"
-          />
-          <Button size="sm" variant="primary-outline" onClick={() => void refetch()} disabled={isFetching}>
-            <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
-            รีเฟรช
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <Table className="min-w-[900px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Item No</TableHead>
-                <TableHead>Lot</TableHead>
-                <TableHead>Registering Date</TableHead>
-                <TableHead className="text-right">อายุ (เดือน)</TableHead>
-                <TableHead className="text-right">Stock Qty</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Company</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-grey-500">กำลังโหลดข้อมูล...</TableCell></TableRow>
-              ) : isError ? (
-                <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-red-500">{errorMessage}</TableCell></TableRow>
-              ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-grey-500">ไม่มีข้อมูลครบ 6 เดือน</TableCell></TableRow>
-              ) : filtered.map((item) => (
-                <TableRow key={`${item.itemNo}-${item.lotNo}-${item.locationCode}-${item.binCode}-${item.registeringDate}`}>
-                  <TableCell className="font-medium text-black-500">{item.itemNo || '-'}</TableCell>
-                  <TableCell>{item.lotNo || '-'}</TableCell>
-                  <TableCell className="whitespace-nowrap text-xs text-grey-600">{formatSixMonthStockDate(item.registeringDate)}</TableCell>
-                  <TableCell className="text-right"><Badge variant="outline">{item.ageMonths}</Badge></TableCell>
-                  <TableCell className="text-right font-mono">{formatStockQuantityWithUnit(item.stockQty, item.unit)}</TableCell>
-                  <TableCell className="text-xs text-grey-600">{item.locationCode || '-'} / {item.binCode || '-'}</TableCell>
-                  <TableCell className="text-xs text-grey-600">{item.companySource || '-'}</TableCell>
+    <div ref={pullToRefresh.rootRef} className="space-y-3 overscroll-y-contain" {...pullToRefresh.pullHandlers}>
+      <div
+        aria-live="polite"
+        className={cn(
+          'overflow-hidden rounded-xl border border-primary-100 bg-primary-50 text-center text-sm font-medium text-primary-600 transition-all',
+          pullToRefresh.pullState === 'idle' ? 'h-0 border-transparent py-0 opacity-0' : 'py-2 opacity-100',
+        )}
+      >
+        {pullToRefresh.pullMessage}
+      </div>
+      <Card className="border-black-50 shadow-none">
+        <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle className="text-base">List ยา 6 เดือน</CardTitle>
+            <p className="mt-1 text-sm text-grey-500">
+              แสดงล็อตที่อายุ 6, 12, 18... เดือนจาก registering_date · นับเฉพาะเดือน ไม่ดูวันที่ · เดือนอ้างอิง {formatSixMonthReferenceMonth(data?.referenceMonth)}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              value={sixMonthSearch}
+              onChange={(event) => setSixMonthSearch(event.target.value)}
+              placeholder="ค้นหา item / lot / location"
+              className="h-9 w-full min-w-[220px] sm:w-72"
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table className="min-w-[900px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Item No</TableHead>
+                  <TableHead>Lot</TableHead>
+                  <TableHead>Registering Date</TableHead>
+                  <TableHead className="text-right">อายุ (เดือน)</TableHead>
+                  <TableHead className="text-right">Stock Qty</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Company</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-grey-500">กำลังโหลดข้อมูล...</TableCell></TableRow>
+                ) : isError ? (
+                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-red-500">{errorMessage}</TableCell></TableRow>
+                ) : filtered.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-grey-500">ไม่มีข้อมูลครบ 6 เดือน</TableCell></TableRow>
+                ) : filtered.map((item) => (
+                  <TableRow key={`${item.itemNo}-${item.lotNo}-${item.locationCode}-${item.binCode}-${item.registeringDate}`}>
+                    <TableCell className="font-medium text-black-500">{item.itemNo || '-'}</TableCell>
+                    <TableCell>{item.lotNo || '-'}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-grey-600">{formatSixMonthStockDate(item.registeringDate)}</TableCell>
+                    <TableCell className="text-right"><Badge variant="outline">{item.ageMonths}</Badge></TableCell>
+                    <TableCell className="text-right font-mono">{formatStockQuantityWithUnit(item.stockQty, item.unit)}</TableCell>
+                    <TableCell className="text-xs text-grey-600">{item.locationCode || '-'} / {item.binCode || '-'}</TableCell>
+                    <TableCell className="text-xs text-grey-600">{item.companySource || '-'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

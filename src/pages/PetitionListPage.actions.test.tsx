@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PetitionListPage from './PetitionListPage';
 import type { Petition } from '@/types/petition.types';
 
@@ -154,6 +154,24 @@ function renderPage(props: React.ComponentProps<typeof PetitionListPage> = {}, i
   );
 }
 
+const defaultMatchMedia = window.matchMedia;
+
+function setTouchViewport(matches: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })),
+  });
+}
+
 describe('PetitionListPage action cues', () => {
   beforeEach(() => {
     mocks.canAccess.mockClear();
@@ -165,6 +183,14 @@ describe('PetitionListPage action cues', () => {
       name: 'Admin',
       roles: ['admin'],
     };
+    setTouchViewport(false);
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: defaultMatchMedia,
+    });
   });
 
   it('does not show the per-card action labels on the petitions list', async () => {
@@ -314,6 +340,45 @@ describe('PetitionListPage action cues', () => {
       expect(screen.queryByText('P-2607-0001')).not.toBeInTheDocument();
     });
     expect(mocks.getSixMonthMedicineStock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not show the six-month medicine refresh button', async () => {
+    mocks.user = {
+      employeeId: 'E888',
+      email: 'qc-head@example.test',
+      name: 'QC Head',
+      roles: ['qc-head'],
+    };
+    renderPage();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    expect(await screen.findByText('F-TEST-001')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'รีเฟรช' })).not.toBeInTheDocument();
+  });
+
+  it('refreshes six-month medicine stock after pulling down from the top on touch screens', async () => {
+    setTouchViewport(true);
+    mocks.user = {
+      employeeId: 'E888',
+      email: 'qc-head@example.test',
+      name: 'QC Head',
+      roles: ['qc-head'],
+    };
+    renderPage();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    const stockItem = await screen.findByText('F-TEST-001');
+    expect(mocks.getSixMonthMedicineStock).toHaveBeenCalledTimes(1);
+
+    fireEvent.touchStart(stockItem, { touches: [{ clientY: 8 }] });
+    fireEvent.touchMove(stockItem, { touches: [{ clientY: 96 }] });
+    fireEvent.touchEnd(stockItem);
+
+    await waitFor(() => {
+      expect(mocks.getSixMonthMedicineStock).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('shows the six-month medicine tab for admin users', async () => {
