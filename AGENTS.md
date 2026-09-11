@@ -1,5 +1,11 @@
 # ข้อตกลงสำหรับ AI ทุกค่าย
 
+## ข้อตกลง Design กลาง
+
+- ก่อนแก้ไขไฟล์ใด ๆ ใน repository นี้ ต้องอ่าน `design.md` ที่ root ก่อนทุกครั้ง
+- เมื่อแก้ UI, layout, component, style หรือข้อความบนหน้า ต้องทำตาม `design.md` และตรวจ checklist ในไฟล์นั้นก่อนสรุปงาน
+- ถ้าจำเป็นต้องออกนอก `design.md` ให้ระบุเหตุผลในสรุปงานหรือเอกสาร design ที่เกี่ยวข้อง
+
 ## ข้อตกลงห้ามรัน Build
 
 - ห้าม run `npm run build`, `npm run build:dev`, `npm run build:watch`, `vite build` หรือคำสั่ง build ที่เทียบเท่า เว้นแต่ผู้ใช้จะสั่งให้ build อย่างชัดเจนในบทสนทนาปัจจุบัน
