@@ -77,4 +77,23 @@ describe('ScannerPage camera failure fallback', () => {
     expect(await screen.findByText('ตรวจสอบคำร้องก่อนยืนยัน')).toBeInTheDocument();
     expect(screen.getAllByText('P-2506-0003').length).toBeGreaterThan(0);
   });
+
+  it('สแกนด้วยเครื่องสแกนเนอร์ได้ทันทีโดยไม่ต้องโฟกัสช่องเลขคำร้อง', async () => {
+    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { data: petition } });
+    renderPage();
+
+    expect(document.activeElement).not.toBe(screen.getByPlaceholderText(/พิมพ์เลขที่คำร้อง/));
+
+    for (const key of 'P-2506-0003') {
+      fireEvent.keyDown(window, { key });
+    }
+    fireEvent.keyDown(window, { key: 'Enter' });
+
+    await waitFor(() =>
+      expect(api.get).toHaveBeenCalledWith(
+        expect.stringContaining('/petitions/scan/P-2506-0003'),
+      ),
+    );
+    expect(await screen.findByText('ตรวจสอบคำร้องก่อนยืนยัน')).toBeInTheDocument();
+  });
 });
