@@ -45,6 +45,7 @@ export interface ItemRowValues {
   testItems: string;
   sendToLab?: boolean;
   note: string;
+  sampleQuantity?: number;
   labelQuantity?: string;
   labelSampledDate?: string;
   submittedQuantity?: string;
@@ -65,6 +66,12 @@ interface Props {
   allowManualItemFields?: boolean;
   masterItemOptions?: PetitionMasterItemOption[];
   masterItemsLoading?: boolean;
+}
+
+function normalizeSampleQuantityInput(value: string): number {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+  return parsed;
 }
 
 export default function ItemsStep({
@@ -140,6 +147,7 @@ export default function ItemsStep({
         submissionNo: '',
         testUnit: '',
         testItems: '',
+        sampleQuantity: 1,
         note: '',
       },
     ]);
@@ -313,6 +321,19 @@ export default function ItemsStep({
                     onChange={(e) => setItem(idx, { packageUnit: e.target.value })}
                     disabled={itemsReadOnly || !allowManualItemFields}
                     placeholder={allowManualItemFields ? 'กรอกขนาดบรรจุ หรือเลือกจาก Master Item' : 'เติมอัตโนมัติจาก Master Item'}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`sample-quantity-${idx}`}>จำนวนตัวอย่าง</Label>
+                  <Input
+                    id={`sample-quantity-${idx}`}
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={it.sampleQuantity ?? 1}
+                    onChange={(e) => setItem(idx, { sampleQuantity: normalizeSampleQuantityInput(e.target.value) })}
+                    disabled={itemsReadOnly}
                   />
                 </div>
                 {(it.submittedQuantity || it.submittedUnit) && (

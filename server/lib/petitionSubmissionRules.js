@@ -72,6 +72,13 @@ function labSendOverrideNoteError(items) {
   return `ตัวอย่าง${label}: โปรดระบุเหตุผล`;
 }
 
+function normalizeSampleQuantity(value) {
+  if (value == null || value === '') return 1;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) return value;
+  return parsed;
+}
+
 function normalizePetitionItems(items, { department, petitionNo } = {}) {
   const isResearchRequest = isResearchAndDevelopmentDepartment(department);
   return (items || []).map((item) => {
@@ -81,6 +88,7 @@ function normalizePetitionItems(items, { department, petitionNo } = {}) {
     return {
       ...item,
       ...commonNamePatch,
+      sampleQuantity: normalizeSampleQuantity(item.sampleQuantity),
       submissionNo: String(item.submissionNo ?? '').trim() || petitionNo,
       sendToLab: isResearchRequest
         ? true
@@ -107,6 +115,12 @@ function validatePetitionSubmission(body) {
     for (const item of body.items) {
       const batch = String(item.batchNo || '').trim();
       if (!batch) return `ตัวอย่าง "${item.sampleName || item.seq}": กรุณากรอกเลขแบช`;
+    }
+  }
+  for (const item of body.items) {
+    const quantity = item.sampleQuantity == null || item.sampleQuantity === '' ? 1 : Number(item.sampleQuantity);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return `ตัวอย่าง "${item.sampleName || item.seq}": กรุณากรอกจำนวนตัวอย่างเป็นเลขจำนวนเต็มตั้งแต่ 1 ขึ้นไป`;
     }
   }
   const overrideNoteError = labSendOverrideNoteError(body.items);

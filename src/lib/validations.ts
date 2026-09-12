@@ -26,6 +26,7 @@ export const petitionItemSchema = z.object({
   testItems: z.string().optional().default(''),
   sendToLab: z.boolean().optional(),
   note: z.string().optional().default(''),
+  sampleQuantity: z.number().int().positive().optional().default(1),
   labelManufacturer: z.string().optional().default(''),
   labelSeller: z.string().optional().default(''),
   labelQuantity: z.string().optional().default(''),

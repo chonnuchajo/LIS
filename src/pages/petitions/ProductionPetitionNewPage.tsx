@@ -55,6 +55,7 @@ function makeBlankItem(seq: number): ItemRowValues {
     testUnit: '',
     testItems: '',
     sendToLab: false,
+    sampleQuantity: 1,
     note: '',
   };
 }
@@ -611,6 +612,7 @@ export default function ProductionPetitionNewPage({
             testUnit: it.testUnit ?? '',
             testItems: it.testItems ?? '',
             sendToLab: sendToLabForSubmit(it, source.submittedBy?.department ?? ''),
+            sampleQuantity: it.sampleQuantity ?? 1,
             note: it.note ?? '',
           })),
         );
@@ -717,6 +719,10 @@ export default function ProductionPetitionNewPage({
         }
         if (!it.packageUnit.trim()) {
           setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกขนาดบรรจุ`);
+          return false;
+        }
+        if (!Number.isInteger(it.sampleQuantity ?? 1) || (it.sampleQuantity ?? 1) < 1) {
+          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกจำนวนตัวอย่างเป็นเลขจำนวนเต็มตั้งแต่ 1 ขึ้นไป`);
           return false;
         }
       }

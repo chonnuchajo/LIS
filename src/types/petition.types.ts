@@ -71,6 +71,7 @@ export interface PetitionItem {
   testItems?: string;
   sendToLab?: boolean;
   note?: string;
+  sampleQuantity?: number;
   labelManufacturer?: string;
   labelSeller?: string;
   labelQuantity?: string;
