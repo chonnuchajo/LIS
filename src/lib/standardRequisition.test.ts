@@ -64,6 +64,11 @@ describe("standard requisition search", () => {
     expect(findStandardBottleBySearch(units, "676902")?.qrId).toBe("qr-working-1");
   });
 
+  it("เลือกขวดได้เมื่อพิมพ์เลขขวดตอนแป้นเป็นไทย", () => {
+    expect(standardMatchesRequisitionSearch({ code: "67", name: "Metalaxyl" }, units, "ุึุตจ/")).toBe(true);
+    expect(findStandardBottleBySearch(units, "ุึุตจ/")?.qrId).toBe("qr-working-1");
+  });
+
   it("ยังค้นหาด้วยชื่อและ code ของ standard ได้เหมือนเดิม", () => {
     expect(standardMatchesRequisitionSearch({ code: "67", name: "Metalaxyl" }, units, "Metal")).toBe(true);
     expect(standardMatchesRequisitionSearch({ code: "67", name: "Metalaxyl" }, units, "67")).toBe(true);
