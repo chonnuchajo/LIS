@@ -23,6 +23,48 @@ function hasSendToLabOverride(item) {
   return item.sendToLab !== defaultSendItemToLab(item);
 }
 
+function normalizeProductionCommonName(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw.includes('+')) return raw;
+
+  const segments = raw.split('+').map((segment) => segment.trim()).filter(Boolean);
+  if (segments.length < 3) return raw;
+
+  const concentrationPattern = /\b\d+(?:[.,]\d+)?\s*%(?:\s*(?:w\/w|w\/v|v\/v))?/i;
+  const firstConcentrationIndex = segments.findIndex((segment) => concentrationPattern.test(segment));
+  if (firstConcentrationIndex <= 0) return raw;
+
+  const names = segments.slice(0, firstConcentrationIndex);
+  const concentrations = [];
+  let formulation = '';
+
+  for (let index = firstConcentrationIndex; index < segments.length; index += 1) {
+    const segment = segments[index];
+    const match = segment.match(concentrationPattern);
+    if (!match || match.index == null) return raw;
+
+    const before = segment.slice(0, match.index).trim();
+    const after = segment.slice(match.index + match[0].length).trim();
+
+    if (index === firstConcentrationIndex) {
+      if (!before) return raw;
+      names.push(before);
+    } else if (before) {
+      return raw;
+    }
+
+    concentrations.push(match[0].replace(/\s+%/, '%').replace(/\s+/g, ' ').trim());
+    if (after) {
+      if (index !== segments.length - 1) return raw;
+      formulation = after;
+    }
+  }
+
+  if (names.length !== concentrations.length || names.some((name) => !name)) return raw;
+  const normalized = names.map((name, index) => `${name} ${concentrations[index]}`).join(' + ');
+  return formulation ? `${normalized} ${formulation}` : normalized;
+}
+
 function labSendOverrideNoteError(items) {
   const missing = (items || []).find((item) => hasSendToLabOverride(item) && !String(item.note ?? '').trim());
   if (!missing) return null;
@@ -32,13 +74,19 @@ function labSendOverrideNoteError(items) {
 
 function normalizePetitionItems(items, { department, petitionNo } = {}) {
   const isResearchRequest = isResearchAndDevelopmentDepartment(department);
-  return (items || []).map((item) => ({
-    ...item,
-    submissionNo: String(item.submissionNo ?? '').trim() || petitionNo,
-    sendToLab: isResearchRequest
-      ? true
-      : (typeof item.sendToLab === 'boolean' ? item.sendToLab : defaultSendItemToLab(item)),
-  }));
+  return (items || []).map((item) => {
+    const commonNamePatch = item.commonName == null
+      ? {}
+      : { commonName: normalizeProductionCommonName(item.commonName) };
+    return {
+      ...item,
+      ...commonNamePatch,
+      submissionNo: String(item.submissionNo ?? '').trim() || petitionNo,
+      sendToLab: isResearchRequest
+        ? true
+        : (typeof item.sendToLab === 'boolean' ? item.sendToLab : defaultSendItemToLab(item)),
+    };
+  });
 }
 
 function validatePetitionSubmission(body) {
@@ -72,6 +120,7 @@ module.exports = {
   isResearchAndDevelopmentDepartment,
   isLabBatchNo,
   labSendOverrideNoteError,
+  normalizeProductionCommonName,
   normalizePetitionItems,
   requiresDeliveryAndBatch,
   requiresQcTrack,

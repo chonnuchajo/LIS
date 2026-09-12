@@ -83,6 +83,15 @@ test('normalizePetitionItems fills boolean sendToLab from legacy batch suffix de
   );
 });
 
+test('normalizePetitionItems pairs active ingredients with their percentages', () => {
+  assert.strictEqual(
+    normalizePetitionItems([
+      { seq: 1, commonName: 'CYMOXANIL + MANCOZEB 8% + 64% WP' },
+    ], { department: 'Production', petitionNo: 'P-1' })[0].commonName,
+    'CYMOXANIL 8% + MANCOZEB 64% WP',
+  );
+});
+
 test('normalizePetitionItems sets R&D items to sendToLab true by default', () => {
   assert.deepStrictEqual(
     normalizePetitionItems([

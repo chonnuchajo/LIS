@@ -83,6 +83,48 @@ function getQueryValue(searchParams: URLSearchParams, keys: string[]): string {
   return '';
 }
 
+function normalizeProductionCommonName(value: string): string {
+  const raw = String(value ?? '').trim();
+  if (!raw.includes('+')) return raw;
+
+  const segments = raw.split('+').map((segment) => segment.trim()).filter(Boolean);
+  if (segments.length < 3) return raw;
+
+  const concentrationPattern = /\b\d+(?:[.,]\d+)?\s*%(?:\s*(?:w\/w|w\/v|v\/v))?/i;
+  const firstConcentrationIndex = segments.findIndex((segment) => concentrationPattern.test(segment));
+  if (firstConcentrationIndex <= 0) return raw;
+
+  const names = segments.slice(0, firstConcentrationIndex);
+  const concentrations: string[] = [];
+  let formulation = '';
+
+  for (let index = firstConcentrationIndex; index < segments.length; index += 1) {
+    const segment = segments[index];
+    const match = segment.match(concentrationPattern);
+    if (!match || match.index == null) return raw;
+
+    const before = segment.slice(0, match.index).trim();
+    const after = segment.slice(match.index + match[0].length).trim();
+
+    if (index === firstConcentrationIndex) {
+      if (!before) return raw;
+      names.push(before);
+    } else if (before) {
+      return raw;
+    }
+
+    concentrations.push(match[0].replace(/\s+%/, '%').replace(/\s+/g, ' ').trim());
+    if (after) {
+      if (index !== segments.length - 1) return raw;
+      formulation = after;
+    }
+  }
+
+  if (names.length !== concentrations.length || names.some((name) => !name)) return raw;
+  const normalized = names.map((name, index) => `${name} ${concentrations[index]}`).join(' + ');
+  return formulation ? `${normalized} ${formulation}` : normalized;
+}
+
 export function objectToSearchParams(input: unknown): URLSearchParams {
   const params = new URLSearchParams();
   const append = (key: string, value: unknown) => {
@@ -161,7 +203,7 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
   const sampleName = getQueryValue(searchParams, ['sampleName', 'itemName', 'productName']);
   const batchNo = getQueryValue(searchParams, ['batchNo', 'batch']);
   const lotNo = getQueryValue(searchParams, ['lotNo', 'lot']);
-  const commonName = getQueryValue(searchParams, ['commonName', 'activeIngredient']);
+  const commonName = normalizeProductionCommonName(getQueryValue(searchParams, ['commonName', 'activeIngredient']));
   const productionDate = getQueryValue(searchParams, ['productionDate', 'requestDate', 'mfgDate']);
   const packageUnit = getQueryValue(searchParams, ['quantity', 'packageUnit', 'packSize']);
   const submissionNo = getQueryValue(searchParams, ['submissionNo', 'requestNo', 'request_no']);
@@ -285,7 +327,7 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
   const sampleNames = getSampleOrQueryValues(searchParams, ['sampleName', 'itemName', 'productName'], { splitComma: true });
   const batchNos = getSampleOrQueryValues(searchParams, ['batchNo', 'batch'], { splitComma: true });
   const lotNos = getSampleOrQueryValues(searchParams, ['lotNo', 'lot'], { splitComma: true });
-  const commonNames = getSampleOrQueryValues(searchParams, ['commonName', 'activeIngredient']);
+  const commonNames = getSampleOrQueryValues(searchParams, ['commonName', 'activeIngredient']).map(normalizeProductionCommonName);
   const productionDates = getSampleOrQueryValues(searchParams, ['productionDate', 'requestDate', 'mfgDate'], { splitComma: true });
   const packageUnits = getSampleOrQueryValues(searchParams, ['quantity', 'packageUnit', 'packSize', 'packsize']);
   const quantities = getSampleOrQueryValues(searchParams, ['qty', 'quantityValue', 'amount'], { splitComma: true });
