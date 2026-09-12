@@ -90,6 +90,31 @@ describe('R&D integration request rules', () => {
     expect(items.map((item) => item.sendToLab)).toEqual([true, false]);
   });
 
+  it('dedupes identical repeated production integration items', () => {
+    const items = makeInitialItemsFromQuery(
+      new URLSearchParams(
+        'sampleName=Foo,Foo,Foo&batchNo=BATCH001,BATCH001,BATCH001&commonName=AI&requestDate=2026-09-12&quantity=1 ขวด&mfNo=MF26090136,MF26090136,MF26090136',
+      ),
+    );
+
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      seq: 1,
+      sampleName: 'Foo',
+      batchNo: 'BATCH001',
+      commonName: 'AI',
+      note: 'MF: MF26090136',
+    });
+  });
+
+  it('keeps repeated batch rows when imported item details differ', () => {
+    const items = makeInitialItemsFromQuery(
+      new URLSearchParams('sampleName=Foo,Bar&batchNo=BATCH001,BATCH001&commonName=AI'),
+    );
+
+    expect(items.map((item) => item.sampleName)).toEqual(['Foo', 'Bar']);
+  });
+
   it('uses explicit sendToLab true or false from integration payload', () => {
     const items = makeInitialItemsFromQuery(
       new URLSearchParams('sampleName=Foo,Bar&batchNo=BATCH001,BATCH002&sendToLab=false,true'),

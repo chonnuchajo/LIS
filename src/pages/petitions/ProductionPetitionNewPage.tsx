@@ -249,6 +249,23 @@ function makeQuantityLabel(qty: string, unit: string): string {
   return [qty, unit].filter(Boolean).join(' ');
 }
 
+function dedupeImportedItems(items: ItemRowValues[]): ItemRowValues[] {
+  const seen = new Set<string>();
+  const unique: ItemRowValues[] = [];
+  for (const item of items) {
+    const { seq: _seq, ...rest } = item;
+    const key = JSON.stringify(rest);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+  }
+  return unique.map((item, index) => ({ ...item, seq: index + 1 }));
+}
+
+function uniqueValues(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
 function getNestedSampleValues(
   searchParams: URLSearchParams,
   keys: string[],
@@ -375,7 +392,7 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
     }
   }
 
-  return items;
+  return dedupeImportedItems(items);
 }
 
 function makeBlankLabRequest(
@@ -453,7 +470,7 @@ export default function ProductionPetitionNewPage({
     const plural = getQueryValues(effectiveSearchParams, ['prodOrderNos'], { splitComma: true });
     const singular = getQueryValues(effectiveSearchParams, ['prodOrderNo'], { splitComma: true });
     const mfNo = getSampleOrQueryValues(effectiveSearchParams, ['mfNo'], { splitComma: true });
-    return [...plural, ...singular, ...mfNo];
+    return uniqueValues([...plural, ...singular, ...mfNo]);
   }, [effectiveSearchParams]);
   const prodOrderNos = prodOrderNosFromState?.length ? prodOrderNosFromState : prodOrderNosFromQuery;
   const productionRequestNo = getQueryValue(effectiveSearchParams, ['requestNo', 'request_no', 'submissionNo']);
