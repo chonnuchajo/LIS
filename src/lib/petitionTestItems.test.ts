@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   getItemProductType,
+  getItemWarehouseCategory,
   getItemSubCategory,
   matchParametersForItem,
   visibleEnumOptions,
@@ -81,6 +82,32 @@ describe('getItemProductType', () => {
   });
 });
 
+describe('product type physical aliases', () => {
+  it('matches liquid when the detected common name group is water', () => {
+    const param = makeParam({ applyAll: false, productTypes: ['liquid'], scope: 'qc' });
+    expect(matchParametersForItem(makeItem({ commonName: 'EW' }), [param])).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ commonName: 'WP', sampleName: 'Foo WP' }), [param])).toHaveLength(0);
+  });
+
+  it('matches solid when the detected common name group is powder or sand', () => {
+    const param = makeParam({ applyAll: false, productTypes: ['solid'], scope: 'qc' });
+    expect(matchParametersForItem(makeItem({ commonName: 'WP', sampleName: 'Foo WP' }), [param])).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ commonName: 'GR', sampleName: 'Foo GR' }), [param])).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ commonName: 'EW' }), [param])).toHaveLength(0);
+  });
+});
+
+describe('getItemWarehouseCategory', () => {
+  it('uses item code prefix F as FG warehouse and R as RM warehouse', () => {
+    expect(getItemWarehouseCategory(makeItem({ itemNo: 'F-ABMTK-1000X12' }))).toBe('FG');
+    expect(getItemWarehouseCategory(makeItem({ itemNo: 'RO-0123' }))).toBe('RM');
+  });
+
+  it('falls back to sampleId only when itemNo is blank', () => {
+    expect(getItemWarehouseCategory(makeItem({ itemNo: ' ', sampleId: 'R-LEGACY' }))).toBe('RM');
+  });
+});
+
 describe('getItemSubCategory', () => {
   it('extracts prefix before first dash from sampleId', () => {
     expect(getItemSubCategory(makeItem({ sampleId: 'ULV-001' }))).toBe('ULV');
@@ -122,34 +149,34 @@ describe('subCategory prefix matching', () => {
   });
 });
 
-describe('category (RM/FG) scoping', () => {
+describe('itemNo matching', () => {
+  it('matches parameter by exact item code', () => {
+    const param = makeParam({ applyAll: false, itemNos: ['F-ABMTK-1000X12'], scope: 'qc' });
+    expect(matchParametersForItem(makeItem({ itemNo: 'F-ABMTK-1000X12' }), [param])).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ itemNo: 'F-OTHER' }), [param])).toHaveLength(0);
+  });
+});
+
+describe('warehouse category (RM/FG) scoping', () => {
   // หมวดหมู่ทำหน้าที่เป็น "ประตู" (AND) ไม่ใช่มิติ OR ตัวที่หก — ตรงกับหน้าจอ
   // ที่ให้เลือกหมวดหมู่ย่อยได้ต่อเมื่อเลือก RM/FG แล้ว
-  it('matches a category-only param on a petition of that category', () => {
+  it('matches a category-only param by item code warehouse', () => {
     const param = makeParam({ applyAll: false, categories: ['RM'], scope: 'qc' });
     const item = makeItem({ itemNo: 'RS-0100' });
-    expect(matchParametersForItem(item, [param], [], { petitionCategory: 'RM' })).toHaveLength(1);
+    expect(matchParametersForItem(item, [param])).toHaveLength(1);
   });
 
-  it('drops a category-only param on a petition of another category', () => {
+  it('drops a category-only param on item code from another warehouse', () => {
     const param = makeParam({ applyAll: false, categories: ['RM'], scope: 'qc' });
     const item = makeItem({ itemNo: 'F-1200' });
-    expect(matchParametersForItem(item, [param], [], { petitionCategory: 'FG' })).toHaveLength(0);
-    // คำขอฝ่ายผลิตไม่ใช่ทั้ง RM และ FG
-    expect(matchParametersForItem(item, [param], [], { petitionCategory: '' })).toHaveLength(0);
     expect(matchParametersForItem(item, [param])).toHaveLength(0);
   });
 
   it('narrows (AND) when both category and subCategory are set', () => {
     const param = makeParam({ applyAll: false, categories: ['RM'], subCategories: ['RO'], scope: 'qc' });
-    const opts = { petitionCategory: 'RM' as const };
-    expect(matchParametersForItem(makeItem({ itemNo: 'RO-0123' }), [param], [], opts)).toHaveLength(1);
-    // อยู่ในคำขอ RM แต่รหัสไม่ใช่ RO → ไม่ขึ้น
-    expect(matchParametersForItem(makeItem({ itemNo: 'RI-0044' }), [param], [], opts)).toHaveLength(0);
-    // รหัส RO แต่คนละหมวดหมู่ → ไม่ขึ้น
-    expect(
-      matchParametersForItem(makeItem({ itemNo: 'RO-0123' }), [param], [], { petitionCategory: 'FG' }),
-    ).toHaveLength(0);
+    expect(matchParametersForItem(makeItem({ itemNo: 'RO-0123' }), [param])).toHaveLength(1);
+    // อยู่ในคลัง RM แต่รหัสไม่ใช่ RO → ไม่ขึ้น
+    expect(matchParametersForItem(makeItem({ itemNo: 'RI-0044' }), [param])).toHaveLength(0);
   });
 
   it('keeps the OR across the other dimensions inside the category gate', () => {
@@ -173,14 +200,14 @@ describe('category (RM/FG) scoping', () => {
 
   it('applyAll still respects the category gate', () => {
     const param = makeParam({ applyAll: true, categories: ['RM'], scope: 'qc' });
-    expect(matchParametersForItem(makeItem(), [param], [], { petitionCategory: 'RM' })).toHaveLength(1);
-    expect(matchParametersForItem(makeItem(), [param], [], { petitionCategory: 'FG' })).toHaveLength(0);
+    expect(matchParametersForItem(makeItem({ itemNo: 'R-1000' }), [param])).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ itemNo: 'F-1000' }), [param])).toHaveLength(0);
   });
 
-  it('excludeCategories drops the param for that petition category', () => {
+  it('excludeCategories drops the param for that item warehouse', () => {
     const param = makeParam({ applyAll: true, excludeCategories: ['RM'], scope: 'qc' });
-    expect(matchParametersForItem(makeItem(), [param], [], { petitionCategory: 'RM' })).toHaveLength(0);
-    expect(matchParametersForItem(makeItem(), [param], [], { petitionCategory: 'FG' })).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ itemNo: 'R-1000' }), [param])).toHaveLength(0);
+    expect(matchParametersForItem(makeItem({ itemNo: 'F-1000' }), [param])).toHaveLength(1);
   });
 
   it('excludeSubCategories matches by prefix too', () => {
@@ -286,6 +313,16 @@ describe('visibleEnumOptions', () => {
     });
     expect(visibleEnumOptions(field, makeItem({ sampleName: 'Imidacloprid 10% EW' }))).toContain('ของเหลวใส');
     expect(visibleEnumOptions(field, makeItem({ sampleName: 'Other Item' }))).not.toContain('ของเหลวใส');
+  });
+
+  it('matches by itemNos (exact item code)', () => {
+    const field = makeEnumField({
+      optionFilters: {
+        'ของเหลวใส': { itemNos: ['F-ABMTK-1000X12'] },
+      },
+    });
+    expect(visibleEnumOptions(field, makeItem({ itemNo: 'F-ABMTK-1000X12' }))).toContain('ของเหลวใส');
+    expect(visibleEnumOptions(field, makeItem({ itemNo: 'F-OTHER' }))).not.toContain('ของเหลวใส');
   });
 
   it('matches by commonNames (case-insensitive)', () => {

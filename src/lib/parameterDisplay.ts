@@ -100,6 +100,7 @@ export const FIELD_TYPE_META: Record<
 };
 
 export type OptionFilter = {
+  itemNos?: string[];
   itemNames?: string[];
   commonNames?: string[];
   productTypes?: string[];
@@ -114,6 +115,9 @@ export function summarizeOptionFilter(
 ): string {
   if (!f) return '';
   const parts: string[] = [];
+  if ((f.itemNos?.length ?? 0) > 0) {
+    parts.push(`รหัส: ${(f.itemNos ?? []).slice(0, 2).join('/')}${(f.itemNos?.length ?? 0) > 2 ? `+${(f.itemNos?.length ?? 0) - 2}` : ''}`);
+  }
   if ((f.itemNames?.length ?? 0) > 0) {
     parts.push(`item: ${(f.itemNames ?? []).slice(0, 2).join('/')}${(f.itemNames?.length ?? 0) > 2 ? `+${(f.itemNames?.length ?? 0) - 2}` : ''}`);
   }

@@ -5,6 +5,7 @@ import { getClassification, getCommonName } from "./productClassification";
 export type MasterItemRecord = Record<string, unknown>;
 
 export type ParameterExcludeOptionSet = {
+  itemNos: { show: boolean; values: string[] };
   itemNames: { show: boolean; values: string[] };
   commonNames: { show: boolean; values: string[] };
   productTypes: { show: boolean; values: string[] };
@@ -68,6 +69,14 @@ export function getParameterOptionSubCategory(item: MasterItemRecord): string {
   return extractItemNoPrefix(getParameterOptionItemNo(item));
 }
 
+export function getParameterOptionWarehouseCategory(item: MasterItemRecord): "RM" | "FG" | "" {
+  const code = getParameterOptionItemNo(item).trim();
+  const first = code.charAt(0).toUpperCase();
+  if (first === "F") return "FG";
+  if (first === "R") return "RM";
+  return "";
+}
+
 export function getParameterOptionProductType(item: MasterItemRecord): string {
   const source = PRODUCT_TYPE_SOURCE_KEYS
     .map((k) => item[k])
@@ -77,7 +86,7 @@ export function getParameterOptionProductType(item: MasterItemRecord): string {
 }
 
 export function getParameterOptionCategory(item: MasterItemRecord): string {
-  return firstString(item, CATEGORY_KEYS);
+  return getParameterOptionWarehouseCategory(item) || firstString(item, CATEGORY_KEYS);
 }
 
 export function getParameterOptionCommonName(item: MasterItemRecord): string {
@@ -99,6 +108,7 @@ function itemMatchesIncludeCriteria(
   // ที่นี่กำลังสร้างตัวเลือกของช่องยกเว้นเอง ถ้าเอาไปกรองด้วยจะกินหางตัวเอง
   const includeOnly: ParameterItem = {
     ...(form as ParameterItem),
+    excludeItemNos: [],
     excludeItemNames: [],
     excludeCommonNames: [],
     excludeProductTypes: [],
@@ -108,6 +118,7 @@ function itemMatchesIncludeCriteria(
   };
 
   return parameterMatchesFacets(includeOnly, {
+    itemNo: getParameterOptionItemNo(item),
     itemName: getParameterOptionItemName(item),
     commonName: getParameterOptionCommonName(item),
     productType: getParameterOptionProductType(item),
@@ -119,7 +130,8 @@ function itemMatchesIncludeCriteria(
 
 function hasIncludeCriteria(form: Partial<ParameterItem>): boolean {
   return !!form.applyAll || (
-    (form.itemNames?.length ?? 0) +
+    (form.itemNos?.length ?? 0) +
+      (form.itemNames?.length ?? 0) +
       (form.commonNames?.length ?? 0) +
       (form.productTypes?.length ?? 0) +
       (form.categories?.length ?? 0) +
@@ -149,6 +161,7 @@ export function buildParameterExcludeOptions(args: {
       )
     : [];
 
+  const itemNos = uniqueSorted(matchedItems.map(getParameterOptionItemNo));
   const itemNames = uniqueSorted(matchedItems.map(getParameterOptionItemName));
   const commonNames = uniqueSorted(matchedItems.map(getParameterOptionCommonName));
   const productTypes = uniqueSorted(matchedItems.map(getParameterOptionProductType));
@@ -159,7 +172,8 @@ export function buildParameterExcludeOptions(args: {
   );
 
   return {
-    itemNames: field(itemNames, itemNames.length > 0),
+    itemNos: field(itemNos, itemNos.length > 0),
+    itemNames: field(itemNames, (form.itemNames?.length ?? 0) > 0 && itemNames.length > 0),
     commonNames: field(commonNames, (form.commonNames?.length ?? 0) === 0 && commonNames.length > 1),
     productTypes: field(productTypes, (form.productTypes?.length ?? 0) === 0 && productTypes.length > 1),
     categories: field(categories, (form.categories?.length ?? 0) === 0 && categories.length > 1),

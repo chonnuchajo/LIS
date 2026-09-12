@@ -134,6 +134,7 @@ const ValueFieldSchema = new mongoose.Schema({
   optionFilters: {
     type: Map,
     of: new mongoose.Schema({
+      itemNos: { type: [String], default: [] },
       itemNames: { type: [String], default: [] },
       commonNames: { type: [String], default: [] },
       productTypes: { type: [String], default: [] },
@@ -166,12 +167,14 @@ const ParameterSchema = new mongoose.Schema({
   status: { type: String, enum: ['active', 'inactive'], default: 'active', index: true },
   applyAll: { type: Boolean, default: false },
   commonNames: { type: [String], default: [] },
+  itemNos: { type: [String], default: [] },
   itemNames: { type: [String], default: [] },
   productTypes: { type: [String], default: [] },
   categories: { type: [String], default: [] },
   subCategories: { type: [String], default: [] },
   itemGroups: { type: [String], default: [] },
   excludeCommonNames: { type: [String], default: [] },
+  excludeItemNos: { type: [String], default: [] },
   excludeItemNames: { type: [String], default: [] },
   excludeProductTypes: { type: [String], default: [] },
   excludeCategories: { type: [String], default: [] },

@@ -532,6 +532,14 @@ function getItemCategory(item: MasterItem) {
   return String(firstValue(item, categoryKeys)).trim();
 }
 
+function getItemWarehouseCategory(item: MasterItem) {
+  const code = String(firstValue(item, codeKeys)).trim();
+  const first = code.charAt(0).toUpperCase();
+  if (first === "F") return "FG";
+  if (first === "R") return "RM";
+  return getItemCategory(item);
+}
+
 function getItemSubCategory(item: MasterItem) {
   const cleaned = String(firstValue(item, codeKeys)).trim();
   if (!cleaned) return "";
@@ -569,9 +577,10 @@ function getParametersFor(
   itemGroupIds: string[] = [],
 ): ParameterItem[] {
   if (parameters.length === 0) return [];
+  const itemNo = String(firstValue(item, codeKeys)).trim();
   const itemName = getItemNameForParam(item);
   const productType = getProductTypeGroup(item);
-  const category = getItemCategory(item);
+  const category = getItemWarehouseCategory(item);
   const subCategory = getItemSubCategory(item);
   const commonName = getCommonName(firstValue(item, commonNameKeys))
     || getCommonName(firstValue(item, nameKeys));
@@ -581,6 +590,7 @@ function getParametersFor(
   // testing (categories จับแบบ OR, subCategories จับแบบตรงตัว) — พรีวิวเลยบอกว่าใช้ได้
   // ทั้งที่หน้ากรอกผลไม่ขึ้น
   const facets: ParameterMatchFacets = {
+    itemNo,
     itemName,
     commonName,
     productType,
