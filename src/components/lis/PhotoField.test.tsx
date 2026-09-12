@@ -14,7 +14,7 @@ describe('PhotoField', () => {
     const { container } = render(
       <PhotoField
         field={field}
-        value={['/LIS/uploads/qc-photos/a.webp', '/LIS/uploads/qc-photos/b.mp4']}
+        value={['/LIS/uploads/qc-photos/a.webp', '/LIS/api/uploads/qc-photos/b.mp4']}
         onChange={() => {}}
       />,
     );

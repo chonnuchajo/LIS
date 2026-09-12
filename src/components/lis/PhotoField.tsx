@@ -19,6 +19,12 @@ interface PhotoFieldProps {
 const ACCEPTED_MEDIA = 'image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime';
 const VIDEO_EXT_RE = /\.(mp4|webm|mov)(?:$|[?#])/i;
 
+function publicMediaUrl(url: string) {
+  return url
+    .replace(/^\/LIS\/api\/uploads\//, '/LIS/uploads/')
+    .replace(/^\/api\/uploads\//, '/uploads/');
+}
+
 function isVideoUrl(url: string) {
   return VIDEO_EXT_RE.test(url);
 }
@@ -65,18 +71,19 @@ export function PhotoField({ field, value, onChange, disabled = false }: PhotoFi
       {value.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {value.map((url) => {
-            const isVideo = isVideoUrl(url);
+            const displayUrl = publicMediaUrl(url);
+            const isVideo = isVideoUrl(displayUrl);
             return (
               <div key={url} className="relative group">
                 <button
                   type="button"
-                  onClick={() => setLightbox(url)}
+                  onClick={() => setLightbox(displayUrl)}
                   className="block w-20 h-20 rounded-md overflow-hidden border border-grey-200 bg-grey-50 hover:border-pink-300 transition-colors"
                 >
                   {isVideo ? (
                     <span className="relative block h-full w-full">
                       <video
-                        src={url}
+                        src={displayUrl}
                         muted
                         preload="metadata"
                         className="h-full w-full object-cover"
@@ -88,7 +95,7 @@ export function PhotoField({ field, value, onChange, disabled = false }: PhotoFi
                     </span>
                   ) : (
                     <img
-                      src={url}
+                      src={displayUrl}
                       alt="QC photo"
                       className="w-full h-full object-cover"
                     />
