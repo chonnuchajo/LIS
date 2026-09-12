@@ -841,9 +841,16 @@ export default function StockQrScanner({
               <Label>{manualLabel}</Label>
               <div className="flex gap-2">
                 <Input
+                  type="url"
                   value={manual}
                   onChange={(e) => setManual(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && manual.trim()) submitManual(); }}
+                  inputMode="url"
+                  enterKeyHint="done"
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   placeholder={manualPlaceholder}
                 />
                 <Button onClick={submitManual} disabled={!manual.trim()}>ตกลง</Button>

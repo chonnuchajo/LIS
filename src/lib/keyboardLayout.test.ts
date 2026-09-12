@@ -7,6 +7,10 @@ describe("thaiKedmaneeToEnglish", () => {
     expect(thaiKedmaneeToEnglish("ุึุตจ/")).toBe("676902");
   });
 
+  it("แปลงเลขไทยจากแป้นมือถือหรือ iPad เป็นเลขอังกฤษ", () => {
+    expect(withThaiKedmaneeFallbacks("๖๗๖๙๐๒")).toContain("676902");
+  });
+
   it("แปลง URL จากเครื่องสแกนที่ยิงตอนแป้นเป็นไทยกลับเป็น URL อังกฤษ", () => {
     expect(thaiKedmaneeToEnglish("้ะะยห://ฟยย-ยสฟืะ.รแยสฟกกฟ.แนท/ศณฆ/หะนแา-กำกีแะรนื?ๆพณก=ี๘ฟิแ๑๒๓")).toBe(
       "https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_abc123",

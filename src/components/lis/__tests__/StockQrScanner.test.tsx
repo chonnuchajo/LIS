@@ -245,4 +245,25 @@ describe("StockQrScanner", () => {
     });
     expect(onScanned).toHaveBeenCalledWith("u_ea3be3c6fb7b");
   });
+
+  it("uses mobile-friendly manual input settings for phone and iPad keyboards", async () => {
+    render(
+      <StockQrScanner
+        open
+        onClose={() => {}}
+        onScanned={() => {}}
+      />,
+    );
+
+    await waitFor(() => expect(html5QrMock.start).toHaveBeenCalled());
+    const input = screen.getByPlaceholderText("u_xxxxxxxx หรือ URL");
+
+    expect(input).toHaveAttribute("type", "url");
+    expect(input).toHaveAttribute("inputmode", "url");
+    expect(input).toHaveAttribute("enterkeyhint", "done");
+    expect(input).toHaveAttribute("autocapitalize", "none");
+    expect(input).toHaveAttribute("autocomplete", "off");
+    expect(input).toHaveAttribute("autocorrect", "off");
+    expect(input).toHaveAttribute("spellcheck", "false");
+  });
 });

@@ -303,9 +303,20 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
                   <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-80 p-0" align="start">
+              <PopoverContent className="w-[min(calc(100vw-2rem),32rem)] p-0 sm:w-96" align="start">
                 <Command shouldFilter={false}>
-                  <CommandInput placeholder="ค้นหาชื่อ/code/เลขขวด" value={standardSearch} onValueChange={setStandardSearch} />
+                  <CommandInput
+                    type="search"
+                    placeholder="ค้นหาชื่อ/code/เลขขวด"
+                    value={standardSearch}
+                    onValueChange={setStandardSearch}
+                    inputMode="search"
+                    enterKeyHint="search"
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
                   <CommandList>
                     {visibleStandards.length === 0 && <CommandEmpty>ไม่พบ standard หรือเลขขวด</CommandEmpty>}
                     {visibleStandards.map((stockStandard) => {
@@ -318,8 +329,8 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
                       return (
                         <CommandItem key={stockStandard.code} value={`${stockStandard.name} ${stockStandard.code}`} onSelect={() => pickStandard(stockStandard.code, matchedBottle?.qrId)}>
                           <Check className={cn("mr-2 h-4 w-4", code === stockStandard.code ? "opacity-100" : "opacity-0")} />
-                          <span className="flex-1">{stockStandard.name}</span>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="min-w-0 flex-1 truncate">{stockStandard.name}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
                             {units.length} ขวด{labelPreview ? ` · เลขขวด ${labelPreview}` : ""}
                           </span>
                         </CommandItem>
@@ -359,7 +370,7 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
               </div>
 
               {/* ประเภทขวด (ซ้าย) + ขวด (ขวา) — คนละกล่อง */}
-              <div className="grid grid-cols-[minmax(7rem,auto)_1fr] gap-4 items-start">
+              <div className="grid grid-cols-1 gap-4 items-start sm:grid-cols-[minmax(7rem,auto)_1fr]">
                 {/* ประเภทขวด */}
                 <div className="rounded-lg border p-3">
                   <Label className="mb-1.5 block">ประเภทขวด</Label>
