@@ -1,6 +1,6 @@
 import { type TouchEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Html5Qrcode, Html5QrcodeScannerState, Html5QrcodeSupportedFormats } from "html5-qrcode";
-import { AlertCircle, Flashlight, X } from "lucide-react";
+import { AlertCircle, Camera, Flashlight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -95,6 +95,23 @@ function getReaderVideoElement(): HTMLVideoElement | null {
 
 function canReadVideoFrame(video: HTMLVideoElement) {
   return video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
+}
+
+function captureReaderFrameDataUrl() {
+  const video = getReaderVideoElement();
+  if (!video || !canReadVideoFrame(video)) return "";
+
+  const maxDimension = 1280;
+  const scale = Math.min(1, maxDimension / video.videoWidth, maxDimension / video.videoHeight);
+  const width = Math.max(1, Math.round(video.videoWidth * scale));
+  const height = Math.max(1, Math.round(video.videoHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) return "";
+  context.drawImage(video, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", 0.85);
 }
 
 function otsuThreshold(histogram: number[], total: number) {
@@ -299,9 +316,11 @@ interface Props {
   title?: string;
   showManualEntry?: boolean;
   scanMode?: ScanMode;
+  captureImageLabel?: string;
   onClose: () => void;
   onDecoded?: (result: DecodedScanResult) => void;
   onScanned: (qrId: string) => void;
+  onCaptureImage?: (imageDataUrl: string) => void | Promise<void>;
 }
 
 function scanHint(scanMode: ScanMode) {
@@ -335,9 +354,11 @@ export default function StockQrScanner({
   title = "สแกน QR ขวด",
   showManualEntry = true,
   scanMode = "qr",
+  captureImageLabel = "ถ่ายรูปอ่านเลขใต้ QR",
   onClose,
   onDecoded,
   onScanned,
+  onCaptureImage,
 }: Props) {
   const [phase, setPhase] = useState<"scanning" | "no-camera" | "error">("scanning");
   const [errorMsg, setErrorMsg] = useState("");
@@ -349,6 +370,7 @@ export default function StockQrScanner({
   const [zoom, setZoom] = useState(1);
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
+  const [captureBusy, setCaptureBusy] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const firedRef = useRef(false);
   const decodeMissCountRef = useRef(0);
@@ -382,6 +404,7 @@ export default function StockQrScanner({
       setZoom(1);
       setTorchSupported(false);
       setTorchOn(false);
+      setCaptureBusy(false);
       firedRef.current = false;
       decodeMissCountRef.current = 0;
       fallbackFrameIndexRef.current = 0;
@@ -689,6 +712,26 @@ export default function StockQrScanner({
     pinchRef.current = null;
   };
 
+  const captureFrameForOcr = async () => {
+    if (!onCaptureImage || captureBusy) return;
+    const imageDataUrl = captureReaderFrameDataUrl();
+    if (!imageDataUrl) {
+      setScanFeedback("ยังจับภาพจากกล้องไม่ได้ — ถือให้นิ่งแล้วลองถ่ายใหม่");
+      return;
+    }
+
+    setCaptureBusy(true);
+    setScanFeedback("กำลังอ่านเลขใต้ QR...");
+    try {
+      await onCaptureImage(imageDataUrl);
+      setScanFeedback("");
+    } catch (err) {
+      setScanFeedback((err as Error).message || "อ่านเลขใต้ QR ไม่สำเร็จ");
+    } finally {
+      setCaptureBusy(false);
+    }
+  };
+
   const manualLabel = scanMode === "barcode" ? "หรือกรอก/วาง Barcode เอง" : "หรือวางลิงก์/qrId เอง";
   const manualPlaceholder = scanMode === "barcode" ? "Barcode" : "u_xxxxxxxx หรือ URL";
   const cameraStatusText = cameraStatus === "found"
@@ -722,6 +765,17 @@ export default function StockQrScanner({
                 <div aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center">
                   <div className="h-[80%] max-h-80 min-h-44 w-[80%] max-w-80 min-w-44 rounded-2xl border-2 border-white/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.16)]" />
                 </div>
+              )}
+              {scanMode === "qr" && onCaptureImage && (
+                <button
+                  type="button"
+                  aria-label={captureImageLabel}
+                  disabled={captureBusy}
+                  onClick={captureFrameForOcr}
+                  className="absolute bottom-4 left-1/2 flex h-16 w-16 -translate-x-1/2 items-center justify-center rounded-full border-4 border-white/70 bg-white text-slate-950 shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Camera className="h-6 w-6" aria-hidden="true" />
+                </button>
               )}
             </div>
             <p className="mt-3 text-center text-sm font-medium text-foreground" aria-live="polite">

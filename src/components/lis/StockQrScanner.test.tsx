@@ -249,6 +249,41 @@ describe("StockQrScanner", () => {
     await waitFor(() => expect(scannerState.successCallbacks).toHaveLength(1));
   });
 
+  it("captures the current QR camera frame from a white shutter button for OCR", async () => {
+    const onCaptureImage = vi.fn().mockResolvedValue(undefined);
+    const getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
+    const toDataUrlSpy = vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/jpeg;base64,ocr-frame");
+
+    render(
+      <StockQrScanner
+        open
+        title="สแกน QR ข้างขวดเพื่อเบิก"
+        showManualEntry={false}
+        onClose={vi.fn()}
+        onScanned={vi.fn()}
+        onCaptureImage={onCaptureImage}
+      />,
+    );
+
+    await waitFor(() => expect(scannerState.successCallbacks).toHaveLength(1));
+    const video = document.createElement("video");
+    Object.defineProperty(video, "readyState", { configurable: true, value: 2 });
+    Object.defineProperty(video, "videoWidth", { configurable: true, value: 1280 });
+    Object.defineProperty(video, "videoHeight", { configurable: true, value: 720 });
+    document.getElementById("stock-qr-reader")?.appendChild(video);
+
+    const shutter = screen.getByRole("button", { name: "ถ่ายรูปอ่านเลขใต้ QR" });
+    expect(shutter).toHaveClass("rounded-full", "bg-white");
+
+    fireEvent.click(shutter);
+
+    await waitFor(() => expect(onCaptureImage).toHaveBeenCalledWith("data:image/jpeg;base64,ocr-frame"));
+    getContextSpy.mockRestore();
+    toDataUrlSpy.mockRestore();
+  });
+
   it("does not contain known Thai mojibake sequences", () => {
     const source = readFileSync(resolve("src/components/lis/StockQrScanner.tsx"), "utf8");
 

@@ -1,5 +1,6 @@
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const OPENAI_VISION_MODEL = process.env.OPENAI_VISION_MODEL || OPENAI_MODEL;
 
 function isOpenAIConfigured() {
   return Boolean(OPENAI_API_KEY);
@@ -85,6 +86,44 @@ async function generateJSON(prompt, options = {}) {
   return JSON.parse(content);
 }
 
+async function generateJSONFromImage(prompt, imageDataUrl, options = {}) {
+  if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: options.model || OPENAI_VISION_MODEL,
+      messages: [
+        ...(options.system ? [{ role: 'system', content: options.system }] : []),
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: imageDataUrl, detail: options.detail || 'high' } },
+          ],
+        },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: options.temperature ?? 0.2,
+      max_tokens: options.maxTokens ?? 800,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(`OpenAI request failed: ${response.status} ${errText}`);
+  }
+
+  const json = await response.json();
+  const content = json.choices?.[0]?.message?.content;
+  if (!content) throw new Error('OpenAI returned empty content');
+  return JSON.parse(content);
+}
+
 // Non-streaming plain-text completion. Returns the assistant message text (or '').
 // Used where the caller needs the full answer in one shot (e.g. a LINE reply).
 async function generateText(prompt, options = {}) {
@@ -116,4 +155,4 @@ async function generateText(prompt, options = {}) {
   return json.choices?.[0]?.message?.content ?? '';
 }
 
-module.exports = { isOpenAIConfigured, generateStream, generateJSON, generateText, OPENAI_MODEL };
+module.exports = { isOpenAIConfigured, generateStream, generateJSON, generateJSONFromImage, generateText, OPENAI_MODEL };
