@@ -682,6 +682,7 @@ function splitMasterCommonName(value: string): string[] {
   const parts: string[] = [];
   let currentPart = "";
   let parenthesisDepth = 0;
+  let hasTopLevelPlus = false;
 
   for (const character of String(value || "")) {
     if (character === "(") {
@@ -695,6 +696,7 @@ function splitMasterCommonName(value: string): string[] {
       continue;
     }
     if (character === "+" && parenthesisDepth === 0) {
+      hasTopLevelPlus = true;
       parts.push(currentPart);
       currentPart = "";
       continue;
@@ -704,12 +706,15 @@ function splitMasterCommonName(value: string): string[] {
 
   parts.push(currentPart);
 
-  return parts
+  const rawCommonName = String(value || "").trim().replace(/\s+/g, " ");
+  const splitParts = parts
     .map((part) => part.trim().replace(/\s+/g, " "))
     .filter((part) => part && !/^\d+(?:[.,]\d+)?\s*%/.test(part));
+
+  return Array.from(new Set(hasTopLevelPlus && rawCommonName ? [...splitParts, rawCommonName] : splitParts));
 }
 
-function buildMasterCommonNameRows(entries: Array<{ item: MasterItem; originalItemNo: string; rawCommonName: string }>): MasterCommonNameRow[] {
+export function buildMasterCommonNameRows(entries: Array<{ item: MasterItem; originalItemNo: string; rawCommonName: string }>): MasterCommonNameRow[] {
   const groups = new Map<string, MasterCommonNameRow>();
 
   entries.forEach((entry) => {

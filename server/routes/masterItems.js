@@ -133,6 +133,7 @@ function splitMasterCommonName(value) {
   const parts = [];
   let currentPart = '';
   let parenthesisDepth = 0;
+  let hasTopLevelPlus = false;
 
   for (const character of String(value || '')) {
     if (character === '(') {
@@ -146,6 +147,7 @@ function splitMasterCommonName(value) {
       continue;
     }
     if (character === '+' && parenthesisDepth === 0) {
+      hasTopLevelPlus = true;
       parts.push(currentPart);
       currentPart = '';
       continue;
@@ -155,9 +157,12 @@ function splitMasterCommonName(value) {
 
   parts.push(currentPart);
 
-  return parts
+  const rawCommonName = String(value || '').trim().replace(/\s+/g, ' ');
+  const splitParts = parts
     .map((part) => part.trim().replace(/\s+/g, ' '))
     .filter((part) => part && !/^\d+(?:[.,]\d+)?\s*%/.test(part));
+
+  return Array.from(new Set(hasTopLevelPlus && rawCommonName ? [...splitParts, rawCommonName] : splitParts));
 }
 
 function buildCommonNameRows(items) {
