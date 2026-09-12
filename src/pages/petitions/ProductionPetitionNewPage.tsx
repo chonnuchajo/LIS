@@ -1,15 +1,17 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, CheckCircle2, Factory, RotateCcw, Save } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Factory, Printer, RotateCcw, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import PageHeader from '@/components/lis/PageHeader';
+import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
 import ItemsStep, { type ItemRowValues } from '@/components/petition/wizard/ItemsStep';
 import type { SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
 import LabRequestStep, { type LabRequestRowValues } from '@/components/petition/wizard/LabRequestStep';
+import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
 import { createPetition, createLabRequest } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
@@ -24,6 +26,7 @@ import {
   labSendOverrideNoteError,
   shouldSendItemToLab,
 } from '@/lib/petitionRouting';
+import { canPrintSampleLabel } from '@/lib/petitionPrintability';
 import { type Petition } from '@/types/petition.types';
 
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
@@ -646,6 +649,7 @@ export default function ProductionPetitionNewPage({
   const [error, setError] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
   const [createdPetition, setCreatedPetition] = useState<Petition | null>(null);
+  const [labelPrintOpen, setLabelPrintOpen] = useState(false);
 
   function validateStep(): boolean {
     setStepError(null);
@@ -810,6 +814,12 @@ export default function ProductionPetitionNewPage({
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
+                {canPrintSampleLabel(createdPetition) && (
+                  <Button onClick={() => setLabelPrintOpen(true)} className="w-full sm:w-auto">
+                    <Printer className="h-4 w-4" />
+                    พิมพ์สติกเกอร์
+                  </Button>
+                )}
                 <Button variant="primary-outline" onClick={handlePageBack} className="w-full sm:w-auto">
                   กลับ Production System
                 </Button>
@@ -818,6 +828,11 @@ export default function ProductionPetitionNewPage({
           </CardContent>
         </Card>
       </div>
+      {labelPrintOpen && (
+        <PrintPreviewDialog open={labelPrintOpen} onOpenChange={setLabelPrintOpen} docType="sample-label">
+          <SampleLabelPrintTemplate petition={createdPetition} />
+        </PrintPreviewDialog>
+      )}
     </div>
   ) : null;
 
