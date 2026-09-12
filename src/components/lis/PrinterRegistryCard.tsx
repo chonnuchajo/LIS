@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { Monitor, Pencil, Plus, Server, Star, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,13 +13,10 @@ import {
   PRINT_DOC_TYPES,
   PRINTER_KINDS,
   docTypeToKind,
-  getPrintOutputMode,
   normalizeDepartment,
-  setPrintOutputMode,
   validatePrinterUrl,
   type PaperSize,
   type PrintDocType,
-  type PrintOutputMode,
   type PrinterAssignment,
   type PrinterConfig,
   type PrinterConfigInput,
@@ -40,7 +38,6 @@ interface Props {
   onCreate: (input: PrinterConfigInput) => Promise<unknown>;
   onUpdate: (id: string, input: Partial<PrinterConfigInput>) => Promise<unknown>;
   onDelete: (id: string) => Promise<unknown>;
-  onSetDefault: (id: string) => Promise<unknown>;
   onTestPrint: (id: string) => Promise<unknown>;
 }
 
@@ -192,21 +189,17 @@ export default function PrinterRegistryCard({
   onCreate,
   onUpdate,
   onDelete,
-  onSetDefault,
   onTestPrint,
 }: Props) {
   const [addingKind, setAddingKind] = useState<PrinterKind | null>(null);
   const [addDraft, setAddDraft] = useState<Draft>(() => emptyDraft("a4"));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Draft>(() => emptyDraft("a4"));
-  const [outputModes, setOutputModes] = useState<Record<PrinterKind, PrintOutputMode>>(() => ({
-    a4: getPrintOutputMode("a4"),
-    sticker: getPrintOutputMode("sticker"),
-  }));
   const groupByKind = useMemo(
     () => new Map(PRINTER_KINDS.map((meta) => [meta.kind, configs.filter((config) => config.kind === meta.kind)])),
     [configs],
   );
+  const addingMeta = PRINTER_KINDS.find((meta) => meta.kind === addingKind);
 
   function startAdd(kind: PrinterKind) {
     setEditingId(null);
@@ -231,12 +224,6 @@ export default function PrinterRegistryCard({
       return false;
     }
     return true;
-  }
-
-  function handleOutputModeChange(kind: PrinterKind, mode: PrintOutputMode) {
-    setPrintOutputMode(kind, mode);
-    setOutputModes((prev) => ({ ...prev, [kind]: mode }));
-    toast.success(mode === "local" ? "ตั้งค่าให้พิมพ์จากเครื่องนี้แล้ว" : "ตั้งค่าให้พิมพ์ผ่าน Server/CUPS แล้ว");
   }
 
   async function handleCreate(kind: PrinterKind) {
@@ -281,10 +268,10 @@ export default function PrinterRegistryCard({
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <>
+      <div className="grid gap-4 lg:grid-cols-2">
       {PRINTER_KINDS.map((meta) => {
         const group = groupByKind.get(meta.kind) ?? [];
-        const isAdding = addingKind === meta.kind;
 
         return (
           <Card key={meta.kind}>
@@ -308,33 +295,6 @@ export default function PrinterRegistryCard({
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="rounded-md border bg-muted/30 p-3 space-y-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-medium">แหล่งพิมพ์เริ่มต้น</p>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant={outputModes[meta.kind] === "server" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handleOutputModeChange(meta.kind, "server")}
-                    >
-                      <Server className="h-4 w-4" />
-                      Server/CUPS
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={outputModes[meta.kind] === "local" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => handleOutputModeChange(meta.kind, "local")}
-                    >
-                      <Monitor className="h-4 w-4" />
-                      เครื่องนี้
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">โหมดเครื่องนี้จะเปิด print dialog ของ Windows/Browser ทันที โดยรายชื่อ printer local จะแสดงใน dialog นั้น</p>
-              </div>
-
               {group.length === 0 ? (
                 <div className="rounded-md border border-dashed px-4 py-5 text-sm text-muted-foreground">ยังไม่มีเครื่องพิมพ์ในกลุ่มนี้</div>
               ) : (
@@ -395,19 +355,12 @@ export default function PrinterRegistryCard({
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="font-medium">{printerName(config)}</p>
-                                {config.isDefault && (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                                    <Star className="h-3 w-3" />
-                                    ค่าเริ่มต้น
-                                  </span>
-                                )}
                               </div>
                               <p className="break-all text-sm text-muted-foreground">{config.cupsPrinterUrl}</p>
                             </div>
                           </div>
                           <AssignmentSummary config={config} />
                           <div className="flex flex-wrap gap-2">
-                            <Button type="button" variant={config.isDefault ? "secondary" : "outline"} size="sm" onClick={() => void onSetDefault(config.id)} disabled={saving || config.isDefault}>ใช้เป็นค่าเริ่มต้น</Button>
                             <Button type="button" variant="outline" size="sm" onClick={() => void handleTestPrint(config)} disabled={saving}>พิมพ์ทดสอบ</Button>
                             <Button type="button" variant="outline" size="sm" onClick={() => startEdit(config)} disabled={saving}>
                               <Pencil className="h-4 w-4" />
@@ -425,60 +378,70 @@ export default function PrinterRegistryCard({
                 })
               )}
 
-              {isAdding && (
-                <div className="rounded-lg border border-dashed p-3">
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs" htmlFor={`new-printer-label-${meta.kind}`}>ชื่อเรียก</Label>
-                      <Input
-                        id={`new-printer-label-${meta.kind}`}
-                        aria-label="ชื่อเรียก"
-                        value={addDraft.label}
-                        onChange={(event) => setAddDraft((prev) => ({ ...prev, label: event.target.value }))}
-                        placeholder="เช่น Zebra Label Printer"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs" htmlFor={`new-printer-url-${meta.kind}`}>Printer IP / URL</Label>
-                      <Input
-                        id={`new-printer-url-${meta.kind}`}
-                        aria-label="Printer IP / URL"
-                        value={addDraft.cupsPrinterUrl}
-                        onChange={(event) => setAddDraft((prev) => ({ ...prev, cupsPrinterUrl: event.target.value }))}
-                        placeholder="192.168.1.50 หรือ http://192.168.1.10:631/printers/Zebra"
-                      />
-                      <p className="text-xs text-muted-foreground">ใส่ IP เครื่องปริ้นโดยตรงได้ถ้าเครื่องรองรับ IPP หรือใส่ CUPS URL เต็มได้เหมือนเดิม</p>
-                    </div>
-                    <AssignmentFields
-                      kind={meta.kind}
-                      scope={`new-${meta.kind}`}
-                      draft={addDraft}
-                      departmentOptions={departmentOptions}
-                      disabled={saving}
-                      onChange={(patch) => setAddDraft((prev) => ({ ...prev, ...patch }))}
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <Button size="sm" onClick={() => void handleCreate(meta.kind)} disabled={saving}>บันทึก</Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setAddingKind(null);
-                          setAddDraft(emptyDraft(meta.kind));
-                        }}
-                        disabled={saving}
-                      >
-                        ยกเลิก
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         );
       })}
-    </div>
+      </div>
+
+      <Dialog
+        open={Boolean(addingKind)}
+        onOpenChange={(open) => {
+          if (!open) {
+            const kind = addingKind ?? "a4";
+            setAddingKind(null);
+            setAddDraft(emptyDraft(kind));
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          {addingMeta && (
+            <>
+              <DialogHeader>
+                <DialogTitle>เพิ่มเครื่องพิมพ์ {addingMeta.label}</DialogTitle>
+                <DialogDescription>เพิ่มปลายทาง Server/CUPS พร้อมกำหนดแผนก ขนาดกระดาษ และเอกสารที่ใช้เครื่องนี้</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs" htmlFor={`new-printer-label-${addingMeta.kind}`}>ชื่อเรียก</Label>
+                    <Input
+                      id={`new-printer-label-${addingMeta.kind}`}
+                      aria-label="ชื่อเรียก"
+                      value={addDraft.label}
+                      onChange={(event) => setAddDraft((prev) => ({ ...prev, label: event.target.value }))}
+                      placeholder="เช่น Zebra Label Printer"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs" htmlFor={`new-printer-url-${addingMeta.kind}`}>Printer IP / URL</Label>
+                    <Input
+                      id={`new-printer-url-${addingMeta.kind}`}
+                      aria-label="Printer IP / URL"
+                      value={addDraft.cupsPrinterUrl}
+                      onChange={(event) => setAddDraft((prev) => ({ ...prev, cupsPrinterUrl: event.target.value }))}
+                      placeholder="192.168.1.50 หรือ http://192.168.1.10:631/printers/Zebra"
+                    />
+                    <p className="text-xs text-muted-foreground">ใส่ IP เครื่องปริ้นโดยตรงได้ถ้าเครื่องรองรับ IPP หรือใส่ CUPS URL เต็มได้เหมือนเดิม</p>
+                  </div>
+                </div>
+                <AssignmentFields
+                  kind={addingMeta.kind}
+                  scope={`new-${addingMeta.kind}`}
+                  draft={addDraft}
+                  departmentOptions={departmentOptions}
+                  disabled={saving}
+                  onChange={(patch) => setAddDraft((prev) => ({ ...prev, ...patch }))}
+                />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setAddingKind(null)} disabled={saving}>ยกเลิก</Button>
+                <Button type="button" onClick={() => void handleCreate(addingMeta.kind)} disabled={saving}>บันทึก</Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

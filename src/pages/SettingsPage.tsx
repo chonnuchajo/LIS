@@ -84,16 +84,6 @@ const SettingsPage = () => {
       toast.error(err instanceof Error ? err.message : "ลบเครื่องพิมพ์ไม่สำเร็จ");
     },
   });
-  const setDefaultPrinterMutation = useMutation({
-    mutationFn: api.setDefaultPrinterConfig,
-    onSuccess: () => {
-      toast.success("อัปเดตเครื่องพิมพ์ค่าเริ่มต้นแล้ว");
-      queryClient.invalidateQueries({ queryKey: ["printer-configs"] });
-    },
-    onError: (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : "อัปเดตค่าเริ่มต้นไม่สำเร็จ");
-    },
-  });
   const testPrinterMutation = useMutation({ mutationFn: api.testPrinterConfig });
 
   const { data: docNumberConfigs = [] } = useQuery({
@@ -139,7 +129,6 @@ const SettingsPage = () => {
     createPrinterMutation.isPending ||
     updatePrinterMutation.isPending ||
     deletePrinterMutation.isPending ||
-    setDefaultPrinterMutation.isPending ||
     testPrinterMutation.isPending;
 
   return (
@@ -186,7 +175,7 @@ const SettingsPage = () => {
 
         <TabsContent value="printers" className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            จัดการปลายทางเครื่องพิมพ์แยกตามชนิด A4 และ Sticker เลือกได้ว่าจะพิมพ์ผ่าน Server/CUPS หรือเปิดรายชื่อ printer local ใน print dialog ของเครื่องนี้
+            จัดการปลายทางเครื่องพิมพ์ Server/CUPS แยกตามชนิด A4 และ Sticker ส่วนผู้ใช้จะเลือก Server/CUPS หรือเครื่องนี้ตอนพิมพ์เอกสาร
           </p>
           <PrinterRegistryCard
             configs={printerConfigs}
@@ -195,7 +184,6 @@ const SettingsPage = () => {
             onCreate={createPrinterMutation.mutateAsync}
             onUpdate={(id, input) => updatePrinterMutation.mutateAsync({ id, input })}
             onDelete={deletePrinterMutation.mutateAsync}
-            onSetDefault={setDefaultPrinterMutation.mutateAsync}
             onTestPrint={testPrinterMutation.mutateAsync}
           />
         </TabsContent>

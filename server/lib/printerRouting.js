@@ -75,10 +75,11 @@ function validatePrinterInput(input, opts) {
   return null;
 }
 
-// Pure: the printer used for a kind — the explicit default, else the first.
+// Pure: the printer explicitly marked as default. New registry flow no longer
+// creates one automatically; users choose the print source at print time.
 function pickDefault(configs, kind) {
   const ofKind = (configs || []).filter((c) => c.kind === kind);
-  return ofKind.find((c) => c.isDefault) || ofKind[0] || null;
+  return ofKind.find((c) => c.isDefault) || null;
 }
 
 function normalizeDepartment(value) {
@@ -147,7 +148,7 @@ function pickPrinterAssignmentRoute(configs, docType, department) {
   const exactCandidates = candidates.filter((candidate) => candidate.exact);
   const usable = exactCandidates.length ? exactCandidates : candidates.filter((candidate) => !candidate.assignment.department);
   if (!usable.length) return null;
-  const picked = usable.find((candidate) => candidate.printerConfig.isDefault) || usable[0];
+  const picked = usable[0];
   return {
     printerConfig: picked.printerConfig,
     assignment: picked.assignment,

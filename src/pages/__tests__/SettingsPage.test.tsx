@@ -166,6 +166,17 @@ describe("SettingsPage", () => {
     expect(screen.getAllByText("label-65x25").length).toBeGreaterThanOrEqual(1);
   });
 
+  it("does not show a default print source setting", async () => {
+    accessibleTabsMock.defaultKey = "printers";
+
+    renderPage();
+
+    await screen.findByRole("heading", { name: "A4" });
+    expect(screen.queryByText("แหล่งพิมพ์เริ่มต้น")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Server/CUPS" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "เครื่องนี้" })).not.toBeInTheDocument();
+  });
+
   it("creates a printer with department, paper size, and more than one document assignment", async () => {
     vi.mocked(api.getPrinterConfigs).mockResolvedValueOnce([]);
     vi.mocked(api.get).mockResolvedValueOnce({
@@ -176,6 +187,7 @@ describe("SettingsPage", () => {
     renderPage();
 
     fireEvent.click(await screen.findAllByRole("button", { name: /เพิ่มเครื่องพิมพ์/ }).then((buttons) => buttons[1]));
+    expect(await screen.findByRole("dialog", { name: "เพิ่มเครื่องพิมพ์ Sticker (ฉลาก)" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("ชื่อเรียก"), { target: { value: "Zebra QC" } });
     fireEvent.change(screen.getByLabelText("Printer IP / URL"), { target: { value: "192.168.1.51" } });
     expect(screen.getByRole("combobox", { name: "แผนกประจำเครื่อง" })).toBeInTheDocument();
