@@ -314,7 +314,10 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
     () =>
       mode === "qc"
         ? allItems
-            .filter((p) => p.status === "pendingReview" || p.status === "inProgress" || p.status === "sampleSent")
+            .filter((p) => {
+              const queueStatus = queueStatusFor(p, mode);
+              return queueStatus === "pendingReview" || queueStatus === "inProgress" || queueStatus === "sampleSent";
+            })
             .map((p) => p._id)
             .join(",")
         : "",

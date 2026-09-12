@@ -48,8 +48,19 @@ describe("QueueDisplay", () => {
       error: null,
       refresh: vi.fn(),
     });
-    mockedApi.getParameters.mockResolvedValue([]);
-    mockedApi.getQCProgress.mockResolvedValue({});
+    mockedApi.getParameters.mockResolvedValue([
+      {
+        _id: "param-1",
+        name: "สี",
+        status: "active",
+        scope: "qc",
+        applyAll: true,
+        valueFields: [{ label: "สี", type: "text" }],
+      },
+    ]);
+    mockedApi.getQCProgress.mockResolvedValue({
+      [petition._id]: [{ itemSeq: 1, parameterId: "param-1", filledLabels: ["สี"] }],
+    });
     mockedApi.getReturnedFlags.mockResolvedValue({});
   });
 
@@ -63,5 +74,14 @@ describe("QueueDisplay", () => {
     await waitFor(() => {
       expect(within(progressSection as HTMLElement).getByText("P-2609-0004")).toBeInTheDocument();
     });
+  });
+
+  it("loads progress for stale received deliveringQC petitions", async () => {
+    render(<QueueDisplay mode="qc" />);
+
+    await waitFor(() => {
+      expect(mockedApi.getQCProgress).toHaveBeenCalledWith([petition._id]);
+    });
+    expect(await screen.findByText("100%")).toBeInTheDocument();
   });
 });
