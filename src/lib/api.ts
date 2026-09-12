@@ -78,6 +78,7 @@ export interface PetitionFlowNotification {
   level: "info" | "warning" | "success" | "error";
   link: string;
   createdAt: string;
+  playSound?: boolean;
 }
 
 export type UserFavorites = { email: string; paths: string[] };

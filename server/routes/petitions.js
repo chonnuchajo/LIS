@@ -390,7 +390,7 @@ router.get('/notifications', async (req, res) => {
       const desc = bellDescribe(petition, log);
       if (!desc) continue;
       if (!isRelevant(desc, petition, viewer)) continue;
-      items.push(toNotification(petition, log, desc));
+      items.push(toNotification(petition, log, desc, viewer));
     }
 
     // Client uses serverTime as its next cursor — avoids client/server clock skew.
