@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -61,6 +61,11 @@ describe("SettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     accessibleTabsMock.defaultKey = "environment";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("renders a config card for each of the 3 env rooms", async () => {
@@ -211,6 +216,29 @@ describe("SettingsPage", () => {
         },
       ],
     }));
+  });
+
+  it("lists printer departments from the employee webhook", async () => {
+    vi.mocked(api.getPrinterConfigs).mockResolvedValueOnce([]);
+    vi.mocked(api.get).mockResolvedValueOnce({
+      data: { data: { roles: [], users: [{ id: "u1", department: "Old Access Department" }] } },
+    });
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        { employee_id: "1", name: "A", department: "Lab/วิเคราะห์", is_active: 1 },
+        { employee_id: "2", name: "B", department: "IT", is_active: 1 },
+        { employee_id: "3", name: "C", department: "Lab/วิเคราะห์", is_active: 1 },
+      ],
+    } as Response);
+    accessibleTabsMock.defaultKey = "printers";
+
+    renderPage();
+
+    fireEvent.click(await screen.findAllByRole("button", { name: /เพิ่มเครื่องพิมพ์/ }).then((buttons) => buttons[1]));
+    expect(await screen.findByRole("option", { name: "Lab/วิเคราะห์" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "IT" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Old Access Department" })).not.toBeInTheDocument();
   });
 
   it("edits printer department, paper size, and document assignment", async () => {

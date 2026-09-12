@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useEnvRooms } from "@/hooks/useEnvRooms";
+import { useEmployeeDepartmentOptions } from "@/hooks/useExternalLookups";
 import { api } from "@/lib/api";
 import type { EnvRoom, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import { DOC_NUMBER_TYPES, type DocumentNumberConfig, type DocumentNumberConfigInput, type DocNumberType } from "@/lib/documentNumberConfig";
@@ -26,6 +27,7 @@ const SettingsPage = () => {
   const { user } = useAuth();
   const isAdmin = normalizeRoles(user).includes("admin");
   const { rooms, isLoading } = useEnvRooms();
+  const { departments: employeeDepartments } = useEmployeeDepartmentOptions();
 
   const { data: liveReadings = [] } = useQuery({
     queryKey: ["temphum", "live"],
@@ -113,13 +115,14 @@ const SettingsPage = () => {
     },
   });
   const roleOptions = (accessMatrix?.roles ?? []).map((r) => ({ id: r.id, name: r.name }));
-  const departmentOptions = useMemo(
+  const accessControlDepartmentOptions = useMemo(
     () => Array.from(new Set((accessMatrix?.users ?? [])
       .map((u: { department?: string }) => u.department?.trim())
       .filter((department): department is string => Boolean(department && department !== "Unassigned"))))
       .sort((a, b) => a.localeCompare(b, "th")),
     [accessMatrix?.users],
   );
+  const departmentOptions = employeeDepartments.length > 0 ? employeeDepartments : accessControlDepartmentOptions;
 
   const { tabs, isVisible, defaultKey } = useAccessibleTabs("/settings");
   const [activeTab, setActiveTab] = useState<string | undefined>(defaultKey);
