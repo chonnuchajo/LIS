@@ -96,6 +96,7 @@ import { buildItemGroupIndex } from "@/lib/itemGroups";
 import {
   buildParameterExcludeOptions,
   getParameterOptionCommonName,
+  getParameterOptionFullCommonName,
   getParameterOptionItemName,
   getParameterOptionItemNo,
   getParameterOptionWarehouseCategory,
@@ -288,6 +289,7 @@ const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
   commonNames: [],
   itemNos: [],
   itemNames: [],
+  fullCommonNames: [],
   productTypes: [],
   categories: [],
   subCategories: [],
@@ -295,6 +297,7 @@ const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
   excludeCommonNames: [],
   excludeItemNos: [],
   excludeItemNames: [],
+  excludeFullCommonNames: [],
   excludeProductTypes: [],
   excludeCategories: [],
   excludeSubCategories: [],
@@ -316,6 +319,7 @@ type MultiSelectPopoverProps = {
   disabled?: boolean;
   emptyText?: string;
   labelFor?: (value: string) => string;
+  allowCustom?: boolean;
   // คำอธิบายใต้ช่อง — ใช้บอกกฎที่มองไม่เห็นจากตัวเลือก เช่น หมวดหมู่เป็นเงื่อนไขบังคับ
   hint?: string;
 };
@@ -330,6 +334,7 @@ function MultiSelectPopover({
   disabled,
   emptyText = "ไม่มีตัวเลือก",
   labelFor,
+  allowCustom = false,
   hint,
 }: MultiSelectPopoverProps) {
   const [open, setOpen] = useState(false);
@@ -351,6 +356,17 @@ function MultiSelectPopover({
 
   const clear = () => onChange([]);
   const selectAll = () => onChange([...flatOptions]);
+  const customValue = search.trim();
+  const canAddCustom =
+    allowCustom &&
+    customValue !== "" &&
+    !values.includes(customValue) &&
+    !flatOptions.some((opt) => opt.toLowerCase() === customValue.toLowerCase());
+  const addCustom = () => {
+    if (!canAddCustom) return;
+    onChange([...values, customValue]);
+    setSearch("");
+  };
 
   return (
     <div className="space-y-1.5">
@@ -414,6 +430,15 @@ function MultiSelectPopover({
                 ล้างทั้งหมด
               </button>
             </div>
+            {canAddCustom ? (
+              <button
+                type="button"
+                onClick={addCustom}
+                className="mt-2 w-full rounded-md border border-dashed px-2 py-1.5 text-left text-xs text-primary hover:bg-muted"
+              >
+                เพิ่ม "{customValue}"
+              </button>
+            ) : null}
           </div>
           <div className="max-h-72 overflow-y-auto p-1">
             {flatOptions.length === 0 ? (
@@ -754,6 +779,7 @@ type ValueFieldEditorProps = {
   siblingFields?: ParameterValueField[];
   itemNoOptions?: string[];
   itemNoLabelByNo?: Map<string, string>;
+  fullCommonNameOptions?: string[];
   commonNameOptions?: string[];
   commonNameLabelByCode?: Map<string, string>;
   productTypeOptions?: string[];
@@ -780,6 +806,7 @@ function OptionFilterDialog({
   filter,
   itemNoOptions,
   itemNoLabelByNo,
+  fullCommonNameOptions,
   commonNameOptions,
   commonNameLabelByCode,
   productTypeOptions,
@@ -795,6 +822,7 @@ function OptionFilterDialog({
   filter?: OptionFilter;
   itemNoOptions: string[];
   itemNoLabelByNo: Map<string, string>;
+  fullCommonNameOptions: string[];
   commonNameOptions: string[];
   commonNameLabelByCode: Map<string, string>;
   productTypeOptions: string[];
@@ -810,6 +838,7 @@ function OptionFilterDialog({
   const hasAny =
     (filter?.itemNos?.length ?? 0) +
       (filter?.itemNames?.length ?? 0) +
+      (filter?.fullCommonNames?.length ?? 0) +
       (filter?.commonNames?.length ?? 0) +
       (filter?.productTypes?.length ?? 0) +
       (filter?.categories?.length ?? 0) +
@@ -857,6 +886,15 @@ function OptionFilterDialog({
             options={itemNoOptions}
             labelFor={(itemNo) => itemNoLabelByNo.get(itemNo) ?? itemNo}
             emptyText="ยังไม่มี master items"
+          />
+          <MultiSelectPopover
+            label="Common Name"
+            placeholder="พิมพ์หรือเลือก common name"
+            values={filter?.fullCommonNames ?? []}
+            onChange={(v) => onSetFilter({ fullCommonNames: v })}
+            options={fullCommonNameOptions}
+            allowCustom
+            emptyText="ยังไม่มี common name ใน master items"
           />
           <MultiSelectPopover
             label="ประเภท Common Name"
@@ -952,6 +990,7 @@ function ValueFieldEditor({
   siblingFields = [],
   itemNoOptions = [],
   itemNoLabelByNo = new Map(),
+  fullCommonNameOptions = [],
   commonNameOptions = [],
   commonNameLabelByCode = new Map(),
   productTypeOptions = [],
@@ -1024,6 +1063,7 @@ function ValueFieldEditor({
     const nonEmpty: OptionFilter = {};
     if ((merged.itemNos?.length ?? 0) > 0) nonEmpty.itemNos = merged.itemNos;
     if ((merged.itemNames?.length ?? 0) > 0) nonEmpty.itemNames = merged.itemNames;
+    if ((merged.fullCommonNames?.length ?? 0) > 0) nonEmpty.fullCommonNames = merged.fullCommonNames;
     if ((merged.commonNames?.length ?? 0) > 0) nonEmpty.commonNames = merged.commonNames;
     if ((merged.productTypes?.length ?? 0) > 0) nonEmpty.productTypes = merged.productTypes;
     if ((merged.categories?.length ?? 0) > 0) nonEmpty.categories = merged.categories;
@@ -1577,6 +1617,7 @@ function ValueFieldEditor({
                                 filter={field.optionFilters?.[opt]}
                                 itemNoOptions={itemNoOptions}
                                 itemNoLabelByNo={itemNoLabelByNo}
+                                fullCommonNameOptions={fullCommonNameOptions}
                                 commonNameOptions={commonNameOptions}
                                 commonNameLabelByCode={commonNameLabelByCode}
                                 productTypeOptions={productTypeOptions}
@@ -1866,6 +1907,7 @@ type DialogProps = {
   itemGroupMembership: Map<string, string[]>;
   itemNoOptions: string[];
   itemNoLabelByNo: Map<string, string>;
+  fullCommonNameOptions: string[];
   commonNameOptions: string[];
   commonNameLabelByCode: Map<string, string>;
   productTypeOptions: string[];
@@ -1887,6 +1929,7 @@ function ParameterDialog({
   itemGroupMembership,
   itemNoOptions,
   itemNoLabelByNo,
+  fullCommonNameOptions,
   commonNameOptions,
   commonNameLabelByCode,
   productTypeOptions,
@@ -1998,6 +2041,7 @@ function ParameterDialog({
         (form.commonNames?.length ?? 0) +
         (form.itemNos?.length ?? 0) +
         (form.itemNames?.length ?? 0) +
+        (form.fullCommonNames?.length ?? 0) +
         (form.productTypes?.length ?? 0) +
         (form.categories?.length ?? 0) +
         (form.subCategories?.length ?? 0) +
@@ -2104,6 +2148,7 @@ function ParameterDialog({
       commonNames: form.applyAll ? [] : form.commonNames ?? [],
       itemNos: form.applyAll ? [] : form.itemNos ?? [],
       itemNames: form.applyAll ? [] : form.itemNames ?? [],
+      fullCommonNames: form.applyAll ? [] : form.fullCommonNames ?? [],
       productTypes: form.applyAll ? [] : form.productTypes ?? [],
       categories: form.applyAll ? [] : form.categories ?? [],
       subCategories: form.applyAll ? [] : form.subCategories ?? [],
@@ -2111,6 +2156,7 @@ function ParameterDialog({
       excludeCommonNames: keepVisible(form.excludeCommonNames, contextualExcludeOptions.commonNames),
       excludeItemNos: keepVisible(form.excludeItemNos, contextualExcludeOptions.itemNos),
       excludeItemNames: keepVisible(form.excludeItemNames, contextualExcludeOptions.itemNames),
+      excludeFullCommonNames: keepVisible(form.excludeFullCommonNames, contextualExcludeOptions.fullCommonNames),
       excludeProductTypes: keepVisible(form.excludeProductTypes, contextualExcludeOptions.productTypes),
       excludeCategories: keepVisible(form.excludeCategories, contextualExcludeOptions.categories),
       excludeSubCategories: keepVisible(form.excludeSubCategories, contextualExcludeOptions.subCategories),
@@ -2306,7 +2352,7 @@ function ParameterDialog({
               <div>
                 <h3 className="text-base font-semibold">ใช้กับ</h3>
                 <p className="text-xs text-muted-foreground">
-                  เลือกได้หลายมิติพร้อมกัน — Item Name / ประเภท Common Name / ประเภทสาร / หมวดหมู่
+                  เลือกได้หลายมิติพร้อมกัน — Item Name / Common Name / ประเภท Common Name / ประเภทสาร / หมวดหมู่
                 </p>
               </div>
               <label className="flex items-center gap-2 text-sm">
@@ -2334,6 +2380,17 @@ function ParameterDialog({
                 disabled={form.applyAll}
                 emptyText="ยังไม่มี master items"
                 hint="แสดงจากรหัสสินค้า + ชื่อสินค้า เช่น F-ABMTK-1000X12 อะบาแมวทองคำ"
+              />
+              <MultiSelectPopover
+                label="Common Name"
+                placeholder="พิมพ์หรือเลือก common name"
+                values={form.fullCommonNames ?? []}
+                onChange={(v) => set("fullCommonNames", v)}
+                options={fullCommonNameOptions}
+                allowCustom
+                disabled={form.applyAll}
+                emptyText="ยังไม่มี common name ใน master items"
+                hint="ใช้เมื่อต้องล็อกด้วย common name แบบเต็ม เช่น ABAMECTIN 1.8% EC"
               />
               <MultiSelectPopover
                 label="ประเภท Common Name"
@@ -2470,6 +2527,17 @@ function ParameterDialog({
                       emptyText="ไม่มี item name ในขอบเขตนี้"
                     />
                   ) : null}
+                  {contextualExcludeOptions.fullCommonNames.show ? (
+                    <MultiSelectPopover
+                      label="Common Name"
+                      placeholder="พิมพ์หรือเลือก common name ที่ไม่ต้องใช้ parameter นี้"
+                      values={form.excludeFullCommonNames ?? []}
+                      onChange={(v) => set("excludeFullCommonNames", v)}
+                      options={contextualExcludeOptions.fullCommonNames.values}
+                      allowCustom
+                      emptyText="ไม่มี common name ในขอบเขตนี้"
+                    />
+                  ) : null}
                   {contextualExcludeOptions.commonNames.show ? (
                     <MultiSelectPopover
                       label="ประเภท Common Name"
@@ -2563,6 +2631,7 @@ function ParameterDialog({
                     siblingFields={(form.valueFields ?? []).filter((_, idx) => idx !== i)}
                     itemNoOptions={itemNoOptions}
                     itemNoLabelByNo={itemNoLabelByNo}
+                    fullCommonNameOptions={fullCommonNameOptions}
                     commonNameOptions={commonNameOptions}
                     commonNameLabelByCode={commonNameLabelByCode}
                     productTypeOptions={productTypeOptions}
@@ -2696,6 +2765,10 @@ export default function ParameterSettings() {
     [masterItems],
   );
   const categoryOptions = WAREHOUSE_CATEGORY_OPTIONS;
+  const fullCommonNameOptions = useMemo(
+    () => uniqueSorted(masterItems.map((item) => getParameterOptionFullCommonName(item as ParameterMasterItemRecord))),
+    [masterItems],
+  );
   const commonNameOptions = useMemo(
     () => uniqueSorted(masterItems.map(getItemCommonName)),
     [masterItems],
@@ -2794,12 +2867,14 @@ export default function ParameterSettings() {
         ...(p.commonNames ?? []),
         ...(p.itemNos ?? []),
         ...(p.itemNames ?? []),
+        ...(p.fullCommonNames ?? []),
         ...(p.productTypes ?? []),
         ...(p.categories ?? []),
         ...(p.subCategories ?? []),
         ...(p.excludeCommonNames ?? []),
         ...(p.excludeItemNos ?? []),
         ...(p.excludeItemNames ?? []),
+        ...(p.excludeFullCommonNames ?? []),
         ...(p.excludeProductTypes ?? []),
         ...(p.excludeCategories ?? []),
         ...(p.excludeSubCategories ?? []),
@@ -2909,7 +2984,7 @@ export default function ParameterSettings() {
             พารามิเตอร์การตรวจสอบ
           </span>
         }
-        description="กำหนดพารามิเตอร์ที่ต้องตรวจ — เลือกใช้กับ Item Name / ประเภท Common Name / ประเภทสาร / หมวดหมู่ ได้พร้อมกัน"
+        description="กำหนดพารามิเตอร์ที่ต้องตรวจ — เลือกใช้กับ Item Name / Common Name / ประเภท Common Name / ประเภทสาร / หมวดหมู่ ได้พร้อมกัน"
         actions={
           <>
             <Button
@@ -3132,6 +3207,7 @@ export default function ParameterSettings() {
         itemGroupMembership={itemGroupMembership}
         itemNoOptions={itemNoOptions}
         itemNoLabelByNo={itemNoLabelByNo}
+        fullCommonNameOptions={fullCommonNameOptions}
         commonNameOptions={commonNameOptions}
         commonNameLabelByCode={commonNameLabelByCode}
         productTypeOptions={productTypeOptions}
@@ -3266,8 +3342,9 @@ function ApplyToBadges({
   itemNoLabelByNo: Map<string, string>;
 }) {
   const hasExcludes =
-    (item.excludeItemNos?.length ?? 0) +
+      (item.excludeItemNos?.length ?? 0) +
       (item.excludeItemNames?.length ?? 0) +
+      (item.excludeFullCommonNames?.length ?? 0) +
       (item.excludeCommonNames?.length ?? 0) +
       (item.excludeProductTypes?.length ?? 0) +
       (item.excludeCategories?.length ?? 0) +
@@ -3293,7 +3370,12 @@ function ApplyToBadges({
       color: "bg-violet-50 text-violet-700",
     },
     {
-      label: "Common",
+      label: "Common Name",
+      values: item.fullCommonNames ?? [],
+      color: "bg-blue-50 text-blue-700",
+    },
+    {
+      label: "ประเภท Common Name",
       values: item.commonNames ?? [],
       color: "bg-blue-50 text-blue-700",
     },
@@ -3328,7 +3410,8 @@ function ApplyToBadges({
   const excludes: { label: string; values: string[] }[] = [
     { label: "Item", values: (item.excludeItemNos ?? []).map((itemNo) => itemNoLabelByNo.get(itemNo) ?? itemNo) },
     { label: "Item เดิม", values: item.excludeItemNames ?? [] },
-    { label: "Common", values: item.excludeCommonNames ?? [] },
+    { label: "Common Name", values: item.excludeFullCommonNames ?? [] },
+    { label: "ประเภท Common Name", values: item.excludeCommonNames ?? [] },
     { label: "ประเภท", values: (item.excludeProductTypes ?? []).map(formatProductTypeOption) },
     { label: "หมวดหมู่", values: (item.excludeCategories ?? []).map(formatWarehouseCategoryOption) },
     { label: "หมวดย่อย", values: item.excludeSubCategories ?? [] },

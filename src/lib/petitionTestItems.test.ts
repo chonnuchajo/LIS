@@ -157,6 +157,19 @@ describe('itemNo matching', () => {
   });
 });
 
+describe('full common name matching', () => {
+  it('matches parameter by exact full common name', () => {
+    const param = makeParam({ applyAll: false, fullCommonNames: ['ABAMECTIN 1.8% EC'], scope: 'qc' });
+    expect(matchParametersForItem(makeItem({ commonName: 'ABAMECTIN 1.8% EC' }), [param])).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ commonName: 'ABAMECTIN 3.6% EC' }), [param])).toHaveLength(0);
+  });
+
+  it('still matches type common name when petition commonName is full text', () => {
+    const param = makeParam({ applyAll: false, commonNames: ['EC'], scope: 'qc' });
+    expect(matchParametersForItem(makeItem({ commonName: 'ABAMECTIN 1.8% EC' }), [param])).toHaveLength(1);
+  });
+});
+
 describe('warehouse category (RM/FG) scoping', () => {
   // หมวดหมู่ทำหน้าที่เป็น "ประตู" (AND) ไม่ใช่มิติ OR ตัวที่หก — ตรงกับหน้าจอ
   // ที่ให้เลือกหมวดหมู่ย่อยได้ต่อเมื่อเลือก RM/FG แล้ว
@@ -323,6 +336,16 @@ describe('visibleEnumOptions', () => {
     });
     expect(visibleEnumOptions(field, makeItem({ itemNo: 'F-ABMTK-1000X12' }))).toContain('ของเหลวใส');
     expect(visibleEnumOptions(field, makeItem({ itemNo: 'F-OTHER' }))).not.toContain('ของเหลวใส');
+  });
+
+  it('matches by fullCommonNames (exact common name)', () => {
+    const field = makeEnumField({
+      optionFilters: {
+        'ของเหลวใส': { fullCommonNames: ['ABAMECTIN 1.8% EC'] },
+      },
+    });
+    expect(visibleEnumOptions(field, makeItem({ commonName: 'ABAMECTIN 1.8% EC' }))).toContain('ของเหลวใส');
+    expect(visibleEnumOptions(field, makeItem({ commonName: 'ABAMECTIN 3.6% EC' }))).not.toContain('ของเหลวใส');
   });
 
   it('matches by commonNames (case-insensitive)', () => {

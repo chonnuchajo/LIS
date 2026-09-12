@@ -65,6 +65,7 @@ function categoryListed(categories: string[] | undefined, category: string): boo
 function hasAnyCriteria(criteria: {
   itemNos?: string[];
   itemNames?: string[];
+  fullCommonNames?: string[];
   commonNames?: string[];
   productTypes?: string[];
   subCategories?: string[];
@@ -73,6 +74,7 @@ function hasAnyCriteria(criteria: {
   return (
     (criteria.itemNos?.length ?? 0) +
       (criteria.itemNames?.length ?? 0) +
+      (criteria.fullCommonNames?.length ?? 0) +
       (criteria.commonNames?.length ?? 0) +
       (criteria.productTypes?.length ?? 0) +
       (criteria.subCategories?.length ?? 0) +
@@ -87,6 +89,7 @@ function hasAnyCriteria(criteria: {
 export interface ParameterMatchFacets {
   itemNo?: string;
   itemName?: string;
+  fullCommonName?: string;
   commonName?: string;
   productType?: string;
   subCategory?: string;
@@ -102,7 +105,8 @@ export function facetsForPetitionItem(
   return {
     itemNo: item.itemNo,
     itemName: item.sampleName,
-    commonName: item.commonName?.trim() || getCommonName(item.sampleName),
+    fullCommonName: item.commonName?.trim(),
+    commonName: getCommonName(item.commonName) || getCommonName(item.sampleName),
     productType: getItemProductType(item),
     subCategory: getItemSubCategory(item),
     itemGroupIds,
@@ -125,6 +129,7 @@ function criteriaMatchesFacets(
   criteria: {
     itemNos?: string[];
     itemNames?: string[];
+    fullCommonNames?: string[];
     commonNames?: string[];
     productTypes?: string[];
     subCategories?: string[];
@@ -137,6 +142,11 @@ function criteriaMatchesFacets(
 
   const itemName = facets.itemName?.trim() ?? '';
   if (itemName && (criteria.itemNames ?? []).some((n) => n.trim() === itemName)) return true;
+
+  const fullCommonName = facets.fullCommonName?.trim().toUpperCase() ?? '';
+  if (fullCommonName && (criteria.fullCommonNames ?? []).some((n) => n.trim().toUpperCase() === fullCommonName)) {
+    return true;
+  }
 
   const commonName = (facets.commonName ?? '').trim().toUpperCase();
   if (commonName && (criteria.commonNames ?? []).some((c) => c.trim().toUpperCase() === commonName)) {
@@ -171,6 +181,7 @@ export function parameterMatchesFacets(param: ParameterItem, facets: ParameterMa
   const excludeCriteria = {
     itemNos: param.excludeItemNos,
     itemNames: param.excludeItemNames,
+    fullCommonNames: param.excludeFullCommonNames,
     commonNames: param.excludeCommonNames,
     productTypes: param.excludeProductTypes,
     subCategories: param.excludeSubCategories,
@@ -188,6 +199,7 @@ export function parameterMatchesFacets(param: ParameterItem, facets: ParameterMa
   const includeCriteria = {
     itemNos: param.itemNos,
     itemNames: param.itemNames,
+    fullCommonNames: param.fullCommonNames,
     commonNames: param.commonNames,
     productTypes: param.productTypes,
     subCategories: param.subCategories,
@@ -277,8 +289,9 @@ export function visibleEnumOptions(
 
   const itemNo = item.itemNo?.trim().toUpperCase() ?? '';
   const sampleName = item.sampleName?.trim() ?? '';
+  const fullCommonName = item.commonName?.trim().toUpperCase() ?? '';
   const itemCommonName = (
-    item.commonName?.trim() || getCommonName(item.sampleName)
+    getCommonName(item.commonName) || getCommonName(item.sampleName)
   ).toUpperCase();
   const itemProductType = getItemProductType(item);
   const itemSubCat = getItemSubCategory(item);
@@ -288,6 +301,7 @@ export function visibleEnumOptions(
     if (!f) return true;
     const itemNos = f.itemNos ?? [];
     const itemNames = f.itemNames ?? [];
+    const fullCommonNames = f.fullCommonNames ?? [];
     const commonNames = f.commonNames ?? [];
     const productTypes = f.productTypes ?? [];
     const subCategories = f.subCategories ?? [];
@@ -295,6 +309,7 @@ export function visibleEnumOptions(
     if (
       itemNos.length === 0 &&
       itemNames.length === 0 &&
+      fullCommonNames.length === 0 &&
       commonNames.length === 0 &&
       productTypes.length === 0 &&
       subCategories.length === 0 &&
@@ -304,6 +319,7 @@ export function visibleEnumOptions(
     }
     if (itemNo && itemNos.some((n) => n.trim().toUpperCase() === itemNo)) return true;
     if (sampleName && itemNames.some((n) => n.trim() === sampleName)) return true;
+    if (fullCommonName && fullCommonNames.some((n) => n.trim().toUpperCase() === fullCommonName)) return true;
     if (
       itemCommonName &&
       commonNames.some((c) => c.toUpperCase() === itemCommonName)

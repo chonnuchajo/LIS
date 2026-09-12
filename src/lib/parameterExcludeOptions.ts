@@ -7,6 +7,7 @@ export type MasterItemRecord = Record<string, unknown>;
 export type ParameterExcludeOptionSet = {
   itemNos: { show: boolean; values: string[] };
   itemNames: { show: boolean; values: string[] };
+  fullCommonNames: { show: boolean; values: string[] };
   commonNames: { show: boolean; values: string[] };
   productTypes: { show: boolean; values: string[] };
   categories: { show: boolean; values: string[] };
@@ -65,6 +66,10 @@ export function getParameterOptionItemName(item: MasterItemRecord): string {
   return firstString(item, ITEM_NAME_KEYS);
 }
 
+export function getParameterOptionFullCommonName(item: MasterItemRecord): string {
+  return firstString(item, [...COMMON_NAME_DIRECT_KEYS, "item_name2", "description"]);
+}
+
 export function getParameterOptionSubCategory(item: MasterItemRecord): string {
   return extractItemNoPrefix(getParameterOptionItemNo(item));
 }
@@ -110,6 +115,7 @@ function itemMatchesIncludeCriteria(
     ...(form as ParameterItem),
     excludeItemNos: [],
     excludeItemNames: [],
+    excludeFullCommonNames: [],
     excludeCommonNames: [],
     excludeProductTypes: [],
     excludeCategories: [],
@@ -120,6 +126,7 @@ function itemMatchesIncludeCriteria(
   return parameterMatchesFacets(includeOnly, {
     itemNo: getParameterOptionItemNo(item),
     itemName: getParameterOptionItemName(item),
+    fullCommonName: getParameterOptionFullCommonName(item),
     commonName: getParameterOptionCommonName(item),
     productType: getParameterOptionProductType(item),
     subCategory: getParameterOptionSubCategory(item),
@@ -130,8 +137,9 @@ function itemMatchesIncludeCriteria(
 
 function hasIncludeCriteria(form: Partial<ParameterItem>): boolean {
   return !!form.applyAll || (
-    (form.itemNos?.length ?? 0) +
+      (form.itemNos?.length ?? 0) +
       (form.itemNames?.length ?? 0) +
+      (form.fullCommonNames?.length ?? 0) +
       (form.commonNames?.length ?? 0) +
       (form.productTypes?.length ?? 0) +
       (form.categories?.length ?? 0) +
@@ -163,6 +171,7 @@ export function buildParameterExcludeOptions(args: {
 
   const itemNos = uniqueSorted(matchedItems.map(getParameterOptionItemNo));
   const itemNames = uniqueSorted(matchedItems.map(getParameterOptionItemName));
+  const fullCommonNames = uniqueSorted(matchedItems.map(getParameterOptionFullCommonName));
   const commonNames = uniqueSorted(matchedItems.map(getParameterOptionCommonName));
   const productTypes = uniqueSorted(matchedItems.map(getParameterOptionProductType));
   const categories = uniqueSorted(matchedItems.map(getParameterOptionCategory));
@@ -174,6 +183,7 @@ export function buildParameterExcludeOptions(args: {
   return {
     itemNos: field(itemNos, itemNos.length > 0),
     itemNames: field(itemNames, (form.itemNames?.length ?? 0) > 0 && itemNames.length > 0),
+    fullCommonNames: field(fullCommonNames, fullCommonNames.length > 0),
     commonNames: field(commonNames, (form.commonNames?.length ?? 0) === 0 && commonNames.length > 1),
     productTypes: field(productTypes, (form.productTypes?.length ?? 0) === 0 && productTypes.length > 1),
     categories: field(categories, (form.categories?.length ?? 0) === 0 && categories.length > 1),

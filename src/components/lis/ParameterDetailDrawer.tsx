@@ -95,8 +95,9 @@ function ApplyToSection({
   groupNameById: Map<string, string>;
 }) {
   const hasExcludes =
-    (parameter.excludeItemNos?.length ?? 0) +
+      (parameter.excludeItemNos?.length ?? 0) +
       (parameter.excludeItemNames?.length ?? 0) +
+      (parameter.excludeFullCommonNames?.length ?? 0) +
       (parameter.excludeCommonNames?.length ?? 0) +
       (parameter.excludeProductTypes?.length ?? 0) +
       (parameter.excludeCategories?.length ?? 0) +
@@ -109,7 +110,8 @@ function ApplyToSection({
   const groups: { label: string; values: string[]; color: string }[] = [
     { label: "รหัสสินค้า", values: parameter.itemNos ?? [], color: "bg-violet-50 text-violet-700" },
     { label: "Item", values: parameter.itemNames ?? [], color: "bg-violet-50 text-violet-700" },
-    { label: "Common", values: parameter.commonNames ?? [], color: "bg-blue-50 text-blue-700" },
+    { label: "Common Name", values: parameter.fullCommonNames ?? [], color: "bg-blue-50 text-blue-700" },
+    { label: "ประเภท Common Name", values: parameter.commonNames ?? [], color: "bg-blue-50 text-blue-700" },
     {
       label: "ประเภท",
       values: (parameter.productTypes ?? []).map((v) => productTypeLabels[v] ?? v),
@@ -129,7 +131,8 @@ function ApplyToSection({
   const excludes: { label: string; values: string[] }[] = [
     { label: "รหัสสินค้า", values: parameter.excludeItemNos ?? [] },
     { label: "Item", values: parameter.excludeItemNames ?? [] },
-    { label: "Common", values: parameter.excludeCommonNames ?? [] },
+    { label: "Common Name", values: parameter.excludeFullCommonNames ?? [] },
+    { label: "ประเภท Common Name", values: parameter.excludeCommonNames ?? [] },
     {
       label: "ประเภท",
       values: (parameter.excludeProductTypes ?? []).map((v) => productTypeLabels[v] ?? v),

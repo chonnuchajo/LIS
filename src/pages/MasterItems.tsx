@@ -582,7 +582,8 @@ function getParametersFor(
   const productType = getProductTypeGroup(item);
   const category = getItemWarehouseCategory(item);
   const subCategory = getItemSubCategory(item);
-  const commonName = getCommonName(firstValue(item, commonNameKeys))
+  const fullCommonName = String(firstValue(item, commonNameKeys)).trim();
+  const commonName = getCommonName(fullCommonName)
     || getCommonName(firstValue(item, nameKeys));
 
   // กฎ "ใช้กับ" มีชุดเดียว (parameterMatchesFacets) — หน้านี้แค่สกัดข้อเท็จจริงจากแถว
@@ -592,6 +593,7 @@ function getParametersFor(
   const facets: ParameterMatchFacets = {
     itemNo,
     itemName,
+    fullCommonName,
     commonName,
     productType,
     subCategory,

@@ -136,6 +136,7 @@ const ValueFieldSchema = new mongoose.Schema({
     of: new mongoose.Schema({
       itemNos: { type: [String], default: [] },
       itemNames: { type: [String], default: [] },
+      fullCommonNames: { type: [String], default: [] },
       commonNames: { type: [String], default: [] },
       productTypes: { type: [String], default: [] },
       categories: { type: [String], default: [] },
@@ -169,6 +170,7 @@ const ParameterSchema = new mongoose.Schema({
   commonNames: { type: [String], default: [] },
   itemNos: { type: [String], default: [] },
   itemNames: { type: [String], default: [] },
+  fullCommonNames: { type: [String], default: [] },
   productTypes: { type: [String], default: [] },
   categories: { type: [String], default: [] },
   subCategories: { type: [String], default: [] },
@@ -176,6 +178,7 @@ const ParameterSchema = new mongoose.Schema({
   excludeCommonNames: { type: [String], default: [] },
   excludeItemNos: { type: [String], default: [] },
   excludeItemNames: { type: [String], default: [] },
+  excludeFullCommonNames: { type: [String], default: [] },
   excludeProductTypes: { type: [String], default: [] },
   excludeCategories: { type: [String], default: [] },
   excludeSubCategories: { type: [String], default: [] },

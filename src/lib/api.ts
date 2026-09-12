@@ -1363,6 +1363,7 @@ export type ParameterValueField = {
   optionFilters?: Record<string, {
     itemNos?: string[];        // exact match กับ item.itemNo / รหัสสินค้า
     itemNames?: string[];      // exact match กับ item.sampleName
+    fullCommonNames?: string[];// exact match กับ item.commonName แบบเต็ม
     commonNames?: string[];    // 'EW' | 'WP' | 'ULV' ... (uppercase)
     productTypes?: string[];   // 'water' | 'sand' | 'powder' | 'liquid' | 'solid'
     categories?: string[];     // 'RM' | 'FG' จากคลังตาม prefix รหัสสินค้า F/R
@@ -1383,6 +1384,7 @@ export type ParameterItem = {
   commonNames?: string[];
   itemNos?: string[];
   itemNames?: string[];
+  fullCommonNames?: string[];
   productTypes?: string[];
   // 'RM' | 'FG' — ประตูแบบ AND เทียบกับคลังจาก prefix รหัสสินค้า F/R (ไม่ใช่มิติ OR ตัวที่หก)
   categories?: string[];
@@ -1392,6 +1394,7 @@ export type ParameterItem = {
   excludeCommonNames?: string[];
   excludeItemNos?: string[];
   excludeItemNames?: string[];
+  excludeFullCommonNames?: string[];
   excludeProductTypes?: string[];
   excludeCategories?: string[];
   excludeSubCategories?: string[];
