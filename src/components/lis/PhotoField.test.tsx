@@ -19,8 +19,8 @@ describe('PhotoField', () => {
       />,
     );
 
-    expect(screen.getByAltText('QC photo')).toHaveAttribute('src', '/LIS/uploads/qc-photos/a.webp');
-    expect(screen.getByLabelText('QC video')).toHaveAttribute('src', '/LIS/uploads/qc-photos/b.mp4');
+    expect(screen.getByAltText('QC photo')).toHaveAttribute('src', '/LIS/uploads/qc-photos/a.webp?lis_media=1');
+    expect(screen.getByLabelText('QC video')).toHaveAttribute('src', '/LIS/uploads/qc-photos/b.mp4?lis_media=1');
     expect(container.querySelector('input[type="file"]')).toHaveAttribute(
       'accept',
       'image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime',

@@ -17,12 +17,19 @@ interface PhotoFieldProps {
 }
 
 const ACCEPTED_MEDIA = 'image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime';
+const MEDIA_CACHE_BUSTER = 'lis_media=1';
 const VIDEO_EXT_RE = /\.(mp4|webm|mov)(?:$|[?#])/i;
 
 function publicMediaUrl(url: string) {
   return url
     .replace(/^\/LIS\/api\/uploads\//, '/LIS/uploads/')
     .replace(/^\/api\/uploads\//, '/uploads/');
+}
+
+function displayMediaUrl(url: string) {
+  const publicUrl = publicMediaUrl(url);
+  const separator = publicUrl.includes('?') ? '&' : '?';
+  return `${publicUrl}${separator}${MEDIA_CACHE_BUSTER}`;
 }
 
 function isVideoUrl(url: string) {
@@ -71,7 +78,7 @@ export function PhotoField({ field, value, onChange, disabled = false }: PhotoFi
       {value.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {value.map((url) => {
-            const displayUrl = publicMediaUrl(url);
+            const displayUrl = displayMediaUrl(url);
             const isVideo = isVideoUrl(displayUrl);
             return (
               <div key={url} className="relative group">
