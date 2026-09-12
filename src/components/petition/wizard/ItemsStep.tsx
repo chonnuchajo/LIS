@@ -24,7 +24,6 @@ import {
 } from '@/lib/petitionMasterItem';
 import {
   defaultSendItemToLab,
-  hasSendToLabOverride,
   shouldSendItemToLab,
 } from '@/lib/petitionRouting';
 import SubmitterPicker, { type SubmitterValues } from './SubmitterPicker';
@@ -91,10 +90,6 @@ export default function ItemsStep({
 }: Props) {
   function setItem(idx: number, patch: Partial<ItemRowValues>) {
     onChange(value.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
-  }
-
-  function setLabChoice(idx: number, sendToLab: boolean) {
-    setItem(idx, { sendToLab });
   }
 
   function setBatchNo(idx: number, batchNo: string) {
@@ -191,7 +186,6 @@ export default function ItemsStep({
         {value.map((it, idx) => {
           const lab = requireDeliveryAndBatch ? shouldSendItemToLab(it) : true;
           const labDefault = defaultSendItemToLab(it);
-          const labOverride = requireDeliveryAndBatch && hasSendToLabOverride(it);
           const batchSuffix = it.batchNo.trim().slice(-1);
           const sampleNameId = `sample-name-${idx}`;
           const commonNameId = `common-name-${idx}`;
@@ -254,33 +248,8 @@ export default function ItemsStep({
                   </div>
                 )}
                 {requireDeliveryAndBatch && (
-                  <div>
-                    <Label>การส่ง LAB</Label>
-                    <div className="mt-1 flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={lab ? 'primary' : 'outline'}
-                        aria-pressed={lab}
-                        onClick={() => setLabChoice(idx, true)}
-                        disabled={itemsReadOnly}
-                      >
-                        ส่ง LAB
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={!lab ? 'primary' : 'outline'}
-                        aria-pressed={!lab}
-                        onClick={() => setLabChoice(idx, false)}
-                        disabled={itemsReadOnly}
-                      >
-                        ไม่ส่ง LAB
-                      </Button>
-                    </div>
-                    <p className="mt-1 text-xs text-grey-500">
-                      ค่าเริ่มต้น: {labDefault ? 'ส่ง LAB' : 'ไม่ส่ง LAB'}{batchSuffix ? ` (ลงท้าย ${batchSuffix})` : ''}
-                    </p>
+                  <div className="sm:col-span-2 text-xs text-grey-500">
+                    ระบบกำหนดการส่ง LAB จากเลขแบชอัตโนมัติ: {labDefault ? 'ส่ง LAB' : 'ไม่ส่ง LAB'}{batchSuffix ? ` (ลงท้าย ${batchSuffix})` : ''}
                   </div>
                 )}
                 <div>
@@ -349,15 +318,11 @@ export default function ItemsStep({
                   </>
                 )}
                 <div className="sm:col-span-2">
-                  <Label className={labOverride ? 'text-red-500' : undefined}>
-                    {labOverride ? 'โปรดระบุ' : 'หมายเหตุ'}
-                  </Label>
+                  <Label>หมายเหตุ</Label>
                   <Textarea
                     rows={2}
                     value={it.note}
                     onChange={(e) => setItem(idx, { note: e.target.value })}
-                    aria-invalid={labOverride && !it.note.trim() ? true : undefined}
-                    placeholder={labOverride ? 'โปรดระบุเหตุผล' : undefined}
                     disabled={itemsReadOnly}
                   />
                 </div>

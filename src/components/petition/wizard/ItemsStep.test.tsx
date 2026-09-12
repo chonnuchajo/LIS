@@ -141,22 +141,12 @@ describe('ItemsStep master item selection', () => {
     expect(onChange).toHaveBeenCalledWith([{ ...baseItem, sampleQuantity: 3 }]);
   });
 
-  it('defaults LAB choice from batch suffix 1/6 and lets user override it', () => {
-    const { onChange } = renderStep();
+  it('shows LAB routing as automatic instead of user-selectable buttons', () => {
+    renderStep();
 
-    expect(screen.getByRole('button', { name: 'ส่ง LAB' })).toHaveAttribute('aria-pressed', 'true');
-
-    fireEvent.click(screen.getByRole('button', { name: 'ไม่ส่ง LAB' }));
-
-    expect(onChange).toHaveBeenCalledWith([{ ...baseItem, sendToLab: false }]);
-  });
-
-  it('keeps LAB choice as explicit true when user chooses the default send option', () => {
-    const { onChange } = renderStep();
-
-    fireEvent.click(screen.getByRole('button', { name: 'ส่ง LAB' }));
-
-    expect(onChange).toHaveBeenCalledWith([{ ...baseItem, sendToLab: true }]);
+    expect(screen.queryByRole('button', { name: 'ส่ง LAB' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'ไม่ส่ง LAB' })).not.toBeInTheDocument();
+    expect(screen.getByText(/ระบบกำหนดการส่ง LAB จากเลขแบชอัตโนมัติ/)).toHaveTextContent('ส่ง LAB');
   });
 
   it('updates LAB choice to true when batch changes into the legacy Lab suffix', () => {
@@ -167,19 +157,19 @@ describe('ItemsStep master item selection', () => {
     expect(onChange).toHaveBeenCalledWith([{ ...baseItem, batchNo: 'BATCH001', sendToLab: true }]);
   });
 
-  it('defaults LAB choice to not send for other batch suffixes', () => {
+  it('shows automatic not-send LAB routing for other batch suffixes', () => {
     renderStep({ value: [{ ...baseItem, batchNo: 'BATCH002' }] });
 
-    expect(screen.getByRole('button', { name: 'ไม่ส่ง LAB' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(/ระบบกำหนดการส่ง LAB จากเลขแบชอัตโนมัติ/)).toHaveTextContent('ไม่ส่ง LAB');
   });
 
-  it('shows a red note label and reason placeholder when LAB choice differs from the default', () => {
+  it('keeps note as a normal field even when sendToLab differs from the default', () => {
     renderStep({ value: [{ ...baseItem, sendToLab: false }] });
 
     expect(screen.queryByText('เลือกต่างจากค่าเริ่มต้น')).not.toBeInTheDocument();
     expect(screen.queryByText('ต้องระบุหมายเหตุเมื่อเลือกส่ง LAB ต่างจากค่าเริ่มต้น')).not.toBeInTheDocument();
-    expect(screen.getByText('โปรดระบุ')).toHaveClass('text-red-500');
-    expect(screen.getByPlaceholderText('โปรดระบุเหตุผล')).toBeInTheDocument();
+    expect(screen.getByText('หมายเหตุ')).not.toHaveClass('text-red-500');
+    expect(screen.queryByPlaceholderText('โปรดระบุเหตุผล')).not.toBeInTheDocument();
   });
 
   // itemNo ขับ "หมวดหมู่ย่อย (prefix code)" + "กลุ่ม Item" ของ parameter — ถ้าค้างรหัสเก่าไว้
