@@ -20,6 +20,7 @@ import {
 } from '@/lib/petitionMasterItem';
 import {
   defaultSendItemToLab,
+  duplicateBatchError,
   labSendOverrideNoteError,
   shouldSendItemToLab,
 } from '@/lib/petitionRouting';
@@ -700,15 +701,10 @@ export default function ProductionPetitionNewPage({
         setStepError(overrideNoteError);
         return false;
       }
-      const seen = new Set<string>();
-      for (const it of items) {
-        const key = it.batchNo.trim();
-        if (!key) continue;
-        if (seen.has(key)) {
-          setStepError(`พบ batch ซ้ำ: ${key}`);
-          return false;
-        }
-        seen.add(key);
+      const duplicateError = duplicateBatchError(items, { department: submitterDepartment, labOnly: true });
+      if (duplicateError) {
+        setStepError(duplicateError);
+        return false;
       }
     }
     return true;

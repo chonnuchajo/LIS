@@ -41,6 +41,22 @@ export function labSendOverrideNoteError(items: LabRouteItem[]): string | null {
   return `ตัวอย่าง${label}: โปรดระบุเหตุผล`;
 }
 
+export function duplicateBatchError(
+  items: Pick<LabRouteItem, "batchNo" | "sendToLab">[],
+  options: { department?: unknown; labOnly?: boolean } = {},
+): string | null {
+  const seen = new Set<string>();
+  const allItemsSendToLab = isResearchAndDevelopmentDepartment(options.department);
+  for (const item of items) {
+    if (options.labOnly && !allItemsSendToLab && !shouldSendItemToLab(item)) continue;
+    const key = String(item.batchNo ?? "").trim();
+    if (!key) continue;
+    if (seen.has(key)) return `พบ batch ซ้ำ: ${key}`;
+    seen.add(key);
+  }
+  return null;
+}
+
 export function hasLabTrack(
   petition: Pick<Petition, "submittedBy" | "items" | "labReceivedAt" | "labCompletedAt" | "labApprovedAt">,
 ): boolean {
