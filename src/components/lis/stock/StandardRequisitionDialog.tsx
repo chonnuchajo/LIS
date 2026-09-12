@@ -15,7 +15,15 @@ import { api } from "@/lib/api";
 import { isDeductionResolutionReady } from "@/lib/deductionResolution";
 import { isUsableBottle } from "@/lib/stockStatus";
 import { formatStockQuantityWithUnit } from "@/lib/stockQuantity";
-import { defaultWeightCount, requisitionUser, sumWeights, validateWeights } from "@/lib/standardRequisition";
+import {
+  defaultWeightCount,
+  findStandardBottleBySearch,
+  requisitionUser,
+  standardMatchesRequisitionSearch,
+  standardRequisitionUnitLabelCode,
+  sumWeights,
+  validateWeights,
+} from "@/lib/standardRequisition";
 import { buildSubstanceGroups, resolveGroups, type InstrumentGroup } from "@/lib/standardInstrumentGroups";
 import { cn } from "@/lib/utils";
 import type { DeductionResolutionReason, StockUnitItem } from "@/types/stock";
@@ -41,6 +49,7 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
   const { user } = useAuth();
   const [code, setCode] = useState("");
   const [pickOpen, setPickOpen] = useState(false);
+  const [standardSearch, setStandardSearch] = useState("");
   const [bottleType, setBottleType] = useState<BottleType>("primary");
   const [qrId, setQrId] = useState(initialQrId ?? "");
   const [pickedGroup, setPickedGroup] = useState<InstrumentGroup | null>(null);
@@ -102,6 +111,10 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
   const inStock = useMemo(
     () => standards.filter((s) => (usableByCode.get(s.code)?.length ?? 0) > 0),
     [standards, usableByCode],
+  );
+  const visibleStandards = useMemo(
+    () => inStock.filter((stockStandard) => standardMatchesRequisitionSearch(stockStandard, usableByCode.get(stockStandard.code) ?? [], standardSearch)),
+    [inStock, standardSearch, usableByCode],
   );
   const standard = standards.find((s) => s.code === code) ?? null;
 
@@ -190,13 +203,28 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
   // sync buffer ช่องจำนวนน้ำหนักให้ตรง weights.length เมื่อจำนวนถูกเปลี่ยนโดยระบบ (เลือกกลุ่ม/custom/resync)
   useEffect(() => { setCountText(String(weights.length)); }, [weights.length]);
 
-  const pickStandard = (c: string) => {
-    setCode(c); setPickOpen(false); setQrId(""); setPickedGroup(null); setCustomCount(false);
+  const handlePickOpenChange = (open: boolean) => {
+    setPickOpen(open);
+    if (!open) setStandardSearch("");
+  };
+
+  const pickStandard = (selectedCode: string, preferredQrId?: string | null) => {
+    const availableUnits = usableByCode.get(selectedCode) ?? [];
+    const searchedBottle = preferredQrId
+      ? availableUnits.find((unit) => unit.qrId === preferredQrId) ?? null
+      : findStandardBottleBySearch(availableUnits, standardSearch);
+
+    setCode(selectedCode);
+    setPickOpen(false);
+    setStandardSearch("");
+    setQrId(searchedBottle?.qrId ?? "");
+    setPickedGroup(null);
+    setCustomCount(false);
     const counts = { primary: 0, working: 0, supplier: 0 } as Record<BottleType, number>;
-    for (const u of usableByCode.get(c) ?? []) counts[((u.type || "primary") as BottleType)] += 1;
-    setBottleType(TYPES.find((t) => counts[t] > 0) ?? "primary");
-    const s = standards.find((x) => x.code === c) ?? null;
-    const groups = s ? resolveGroups(s.name, substanceGroups) : [];
+    for (const unit of availableUnits) counts[((unit.type || "primary") as BottleType)] += 1;
+    setBottleType(searchedBottle ? stockUnitBottleType(searchedBottle.type) : TYPES.find((type) => counts[type] > 0) ?? "primary");
+    const selectedStandard = standards.find((stockStandard) => stockStandard.code === selectedCode) ?? null;
+    const groups = selectedStandard ? resolveGroups(selectedStandard.name, substanceGroups) : [];
     const n = groups.length === 1 ? defaultWeightCount(groups[0]) : 1;
     setWeights(Array.from({ length: n }, () => ""));
     setCountCustomized(false);
@@ -268,7 +296,7 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
           {/* สาร (เฉพาะที่มีขวด) */}
           <div>
             <Label className="mb-1.5 block">Standard (มีของในสต็อก)</Label>
-            <Popover open={pickOpen} onOpenChange={setPickOpen}>
+            <Popover open={pickOpen} onOpenChange={handlePickOpenChange}>
               <PopoverTrigger asChild>
                 <Button type="button" variant="outline" role="combobox" className="w-full justify-between font-normal">
                   <span className="truncate">{standard ? `${standard.name} (${standard.code})` : "เลือก standard..."}</span>
@@ -276,17 +304,27 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-80 p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="ค้นหาชื่อ/code" />
+                <Command shouldFilter={false}>
+                  <CommandInput placeholder="ค้นหาชื่อ/code/เลขขวด" value={standardSearch} onValueChange={setStandardSearch} />
                   <CommandList>
-                    <CommandEmpty>ไม่มีสารที่มีขวดใช้ได้</CommandEmpty>
-                    {inStock.map((s) => (
-                      <CommandItem key={s.code} value={`${s.name} ${s.code}`} onSelect={() => pickStandard(s.code)}>
-                        <Check className={cn("mr-2 h-4 w-4", code === s.code ? "opacity-100" : "opacity-0")} />
-                        <span className="flex-1">{s.name}</span>
-                        <span className="text-xs text-muted-foreground">{usableByCode.get(s.code)?.length ?? 0} ขวด</span>
-                      </CommandItem>
-                    ))}
+                    {visibleStandards.length === 0 && <CommandEmpty>ไม่พบ standard หรือเลขขวด</CommandEmpty>}
+                    {visibleStandards.map((stockStandard) => {
+                      const units = usableByCode.get(stockStandard.code) ?? [];
+                      const matchedBottle = findStandardBottleBySearch(units, standardSearch);
+                      const labelPreview = matchedBottle
+                        ? standardRequisitionUnitLabelCode(matchedBottle) || matchedBottle.qrId
+                        : units.map((unit) => standardRequisitionUnitLabelCode(unit)).filter(Boolean).slice(0, 2).join(", ");
+
+                      return (
+                        <CommandItem key={stockStandard.code} value={`${stockStandard.name} ${stockStandard.code}`} onSelect={() => pickStandard(stockStandard.code, matchedBottle?.qrId)}>
+                          <Check className={cn("mr-2 h-4 w-4", code === stockStandard.code ? "opacity-100" : "opacity-0")} />
+                          <span className="flex-1">{stockStandard.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {units.length} ขวด{labelPreview ? ` · เลขขวด ${labelPreview}` : ""}
+                          </span>
+                        </CommandItem>
+                      );
+                    })}
                   </CommandList>
                 </Command>
               </PopoverContent>
@@ -343,16 +381,23 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
                     <p className="text-sm text-muted-foreground">ไม่มีขวดประเภทนี้</p>
                   ) : (
                     <div className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
-                      {bottlesOfType.map((u) => (
-                        <label key={u.qrId} className={cn(
-                          "flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm",
-                          (bottle?.qrId === u.qrId) ? "border-primary bg-primary/5" : "hover:bg-muted/50")}>
-                          <input type="radio" name="bottle" checked={bottle?.qrId === u.qrId} onChange={() => setQrId(u.qrId)} />
-                          <span className="text-xs text-muted-foreground">
-                            Lot {u.lotNo || "-"} · เหลือ {formatStockQuantityWithUnit(u.volume?.remaining, u.volume?.unit)} · EXP {u.exp ? new Date(u.exp).toLocaleDateString("th-TH") : "-"}
-                          </span>
-                        </label>
-                      ))}
+                      {bottlesOfType.map((u) => {
+                        const labelCode = standardRequisitionUnitLabelCode(u);
+
+                        return (
+                          <label key={u.qrId} className={cn(
+                            "flex cursor-pointer items-start gap-2 rounded-lg border p-2 text-sm",
+                            (bottle?.qrId === u.qrId) ? "border-primary bg-primary/5" : "hover:bg-muted/50")}>
+                            <input type="radio" name="bottle" className="mt-0.5" checked={bottle?.qrId === u.qrId} onChange={() => setQrId(u.qrId)} />
+                            <span className="min-w-0">
+                              <span className="block text-xs font-medium text-foreground">เลขขวด {labelCode || u.qrId}</span>
+                              <span className="block text-xs text-muted-foreground">
+                                Lot {u.lotNo || "-"} · เหลือ {formatStockQuantityWithUnit(u.volume?.remaining, u.volume?.unit)} · EXP {u.exp ? new Date(u.exp).toLocaleDateString("th-TH") : "-"}
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

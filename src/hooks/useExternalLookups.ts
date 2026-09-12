@@ -25,6 +25,7 @@ export interface EmployeeOption {
   id: string;
   label: string;
   name: string;
+  department: string;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -111,16 +112,35 @@ function normalizeEmployeeOptions(payload: unknown): EmployeeOption[] {
     .map((row, idx) => {
       const employeeId = pickString(row, ['employee_id', 'employeeId', 'code', 'id']);
       const name = pickString(row, ['name', 'employee_name', 'fullName']);
-      const department = pickString(row, ['department', 'department_name']);
+      const department = pickString(row, ['department', 'department_name', 'Department', 'DEPARTMENT']);
       const position = pickString(row, ['position']);
       const detail = [employeeId, department, position].filter(Boolean).join(' | ');
       return {
         id: employeeId || String(idx),
         label: detail ? `${name} (${detail})` : name,
         name,
+        department,
       };
     })
     .filter((option) => option.name);
+}
+
+function isInactiveEmployee(row: Record<string, unknown>): boolean {
+  const active = row.is_active ?? row.active ?? row.status;
+  if (active !== undefined && active !== null) {
+    const normalized = String(active).trim().toLowerCase();
+    if (normalized === '0' || normalized === 'false' || normalized === 'inactive') return true;
+  }
+  return Boolean(pickString(row, ['deleted_at', 'deletedAt', 'delete_after', 'deleted_by']));
+}
+
+export function normalizeEmployeeDepartments(payload: unknown): string[] {
+  return Array.from(new Set(
+    rowsFromPayload(payload)
+      .filter((row) => !isInactiveEmployee(row))
+      .map((row) => pickString(row, ['department', 'department_name', 'Department', 'DEPARTMENT']))
+      .filter((department) => Boolean(department && department !== 'Unassigned')),
+  )).sort((a, b) => a.localeCompare(b, 'th'));
 }
 
 export function useLotOptions() {
@@ -210,4 +230,31 @@ export function useEmployeeOptions() {
   }, [options]);
 
   return { options, loading, optionMap };
+}
+
+export function useEmployeeDepartmentOptions() {
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetch(EMPLOYEE_API_URL)
+      .then((res) => {
+        if (!res.ok) throw new Error(`Employee HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((payload) => {
+        if (alive) setDepartments(normalizeEmployeeDepartments(payload));
+      })
+      .catch(() => {
+        if (alive) setDepartments([]);
+      })
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  return { departments, loading };
 }

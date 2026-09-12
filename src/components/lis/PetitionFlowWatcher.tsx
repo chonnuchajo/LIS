@@ -1,10 +1,40 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { audiencesForUser, readSeeAll, SEE_ALL_EVENT } from "@/lib/petitionAudience";
 import { cursorKey, effectiveSeeAll, nextCursor, readCursor } from "@/lib/petitionFlowWatcher";
+
+const playSampleArrivalSound = () => {
+  if (typeof window === "undefined") return;
+  const AudioContextCtor =
+    window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AudioContextCtor) return;
+
+  try {
+    const audioContext = new AudioContextCtor();
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    const start = audioContext.currentTime;
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(880, start);
+    oscillator.frequency.exponentialRampToValueAtTime(1320, start + 0.08);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.16, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.45);
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+    oscillator.start(start);
+    oscillator.stop(start + 0.45);
+    oscillator.onended = () => {
+      if (audioContext.state !== "closed") void audioContext.close().catch(() => undefined);
+    };
+  } catch {
+    return;
+  }
+};
 
 /**
  * Poll ความเคลื่อนไหวของคำขอทุกนาทีแล้วยิงเข้ากระดิ่ง
@@ -13,6 +43,7 @@ import { cursorKey, effectiveSeeAll, nextCursor, readCursor } from "@/lib/petiti
 const PetitionFlowWatcher = () => {
   const { user } = useAuth();
   const { push } = useNotifications();
+  const playedSoundIdsRef = useRef<Set<string>>(new Set());
   const [seeAllRaw, setSeeAllRaw] = useState(() => readSeeAll());
   const seeAll = effectiveSeeAll(user, seeAllRaw);
 
@@ -41,8 +72,21 @@ const PetitionFlowWatcher = () => {
 
   useEffect(() => {
     if (!data) return;
+    let shouldPlaySound = false;
+    let hasExistingCursor = false;
+    const key = cursorKey(employeeId);
+    try {
+      hasExistingCursor = !!localStorage.getItem(key);
+    } catch {
+      hasExistingCursor = false;
+    }
+
     // server เรียงใหม่→เก่า; push ทีละอันแบบกลับด้าน เพื่อให้อันใหม่สุดไปอยู่หัวลิสต์
     for (const item of [...data.items].reverse()) {
+      if (item.playSound && !playedSoundIdsRef.current.has(item.id)) {
+        playedSoundIdsRef.current.add(item.id);
+        shouldPlaySound = shouldPlaySound || hasExistingCursor;
+      }
       push({
         id: item.id,
         title: item.title,
@@ -54,8 +98,8 @@ const PetitionFlowWatcher = () => {
         group: "petition",
       });
     }
+    if (shouldPlaySound) playSampleArrivalSound();
     try {
-      const key = cursorKey(employeeId);
       const stored = localStorage.getItem(key);
       localStorage.setItem(key, nextCursor(stored, data.serverTime));
     } catch {

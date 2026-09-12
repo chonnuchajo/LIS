@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
@@ -25,7 +25,7 @@ function renderDialog(ui: React.ReactElement) {
 }
 
 describe("PrintPreviewDialog auto print", () => {
-  it("prints once when opened with autoPrint and a configured stock-label printer", async () => {
+  it("waits for the user to choose local or server before printing", async () => {
     apiMock.getPrinterConfigs.mockResolvedValue([
       {
         id: "printer-1",
@@ -50,6 +50,41 @@ describe("PrintPreviewDialog auto print", () => {
       </PrintPreviewDialog>,
     );
 
+    expect(await screen.findByRole("button", { name: "เครื่องนี้" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Server/CUPS" })).toBeInTheDocument();
+    await waitFor(() => expect(printDocumentMock).not.toHaveBeenCalled());
+  });
+
+  it("prints to the logged-in department server printer after choosing Server/CUPS", async () => {
+    apiMock.getPrinterConfigs.mockResolvedValue([
+      {
+        id: "printer-1",
+        kind: "sticker",
+        label: "Sticker",
+        cupsPrinterUrl: "ipp://printer/sticker",
+        isDefault: false,
+        assignments: [{ department: "QC", docTypes: ["stock-label"], paperSize: "label-65x25" }],
+      },
+      {
+        id: "printer-2",
+        kind: "sticker",
+        label: "Other Dept",
+        cupsPrinterUrl: "ipp://printer/other",
+        isDefault: false,
+        assignments: [{ department: "ผลิต", docTypes: ["stock-label"], paperSize: "label-100x50" }],
+      },
+    ]);
+    printDocumentMock.mockResolvedValue({ printer: "Sticker", copies: 1 });
+
+    renderDialog(
+      <PrintPreviewDialog open onOpenChange={vi.fn()} docType="stock-label">
+        <div>stock label html</div>
+      </PrintPreviewDialog>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Server/CUPS" }));
+    fireEvent.click(screen.getByRole("button", { name: "พิมพ์ผ่าน Server" }));
+
     await waitFor(() => expect(printDocumentMock).toHaveBeenCalledTimes(1));
     expect(printDocumentMock).toHaveBeenCalledWith(
       "stock-label",
@@ -60,5 +95,25 @@ describe("PrintPreviewDialog auto print", () => {
         paperSize: "label-65x25",
       }),
     );
+  });
+
+  it("prints locally after choosing this machine", async () => {
+    apiMock.getPrinterConfigs.mockResolvedValue([]);
+    printDocumentMock.mockResolvedValue({ printer: "เครื่องนี้", copies: 1 });
+
+    renderDialog(
+      <PrintPreviewDialog open onOpenChange={vi.fn()} docType="coa">
+        <div>coa html</div>
+      </PrintPreviewDialog>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "เครื่องนี้" }));
+    fireEvent.click(screen.getByRole("button", { name: "พิมพ์จากเครื่องนี้" }));
+
+    await waitFor(() => expect(printDocumentMock).toHaveBeenCalledWith(
+      "coa",
+      expect.any(HTMLDivElement),
+      expect.objectContaining({ outputMode: "local", printerConfigId: undefined }),
+    ));
   });
 });

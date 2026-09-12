@@ -7,7 +7,7 @@ const PrinterConfigSchema = new mongoose.Schema({
   kind: { type: String, enum: ['a4', 'sticker'], required: true, index: true },
   label: { type: String, default: '' },            // display name, optional
   cupsPrinterUrl: { type: String, default: '' },   // e.g. https://192.168.0.237:631/printers/HP-A4
-  isDefault: { type: Boolean, default: false },    // the printer used when printing this kind
+  isDefault: { type: Boolean, default: false },    // legacy flag; new printers are not auto-defaulted
   assignments: [{
     department: { type: String, default: '' },
     docTypes: [{ type: String, enum: ['sample-label', 'stock-label', 'coa', 'service-request', 'daily-check-report', 'goods-receipt'] }],

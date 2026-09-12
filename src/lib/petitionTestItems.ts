@@ -25,6 +25,14 @@ export function getItemSubCategory(item: PetitionItem): string {
   return extractItemNoPrefix(item.itemNo) || extractItemNoPrefix(item.sampleId);
 }
 
+export function getItemWarehouseCategory(item: PetitionItem): 'RM' | 'FG' | '' {
+  const code = String(item.itemNo ?? '').trim() || String(item.sampleId ?? '').trim();
+  const first = code.charAt(0).toUpperCase();
+  if (first === 'F') return 'FG';
+  if (first === 'R') return 'RM';
+  return '';
+}
+
 // "หมวดหมู่ย่อย" ครอบคลุมทุก code ที่ขึ้นต้นด้วย prefix ที่เลือก — เลือก RO ได้ ROLS/ROPH
 // ด้วย (ตรงกับข้อความกำกับในหน้า Parameter Settings)
 function subCategoryMatches(prefixes: string[] | undefined, subCategory: string): boolean {
@@ -55,14 +63,18 @@ function categoryListed(categories: string[] | undefined, category: string): boo
 }
 
 function hasAnyCriteria(criteria: {
+  itemNos?: string[];
   itemNames?: string[];
+  fullCommonNames?: string[];
   commonNames?: string[];
   productTypes?: string[];
   subCategories?: string[];
   itemGroups?: string[];
 }): boolean {
   return (
-    (criteria.itemNames?.length ?? 0) +
+    (criteria.itemNos?.length ?? 0) +
+      (criteria.itemNames?.length ?? 0) +
+      (criteria.fullCommonNames?.length ?? 0) +
       (criteria.commonNames?.length ?? 0) +
       (criteria.productTypes?.length ?? 0) +
       (criteria.subCategories?.length ?? 0) +
@@ -75,7 +87,9 @@ function hasAnyCriteria(criteria: {
 // คำขอ (PetitionItem) และหน้า Master Item (แถว master item ดิบ) ใช้กฎชุดเดียวกัน
 // ต่างกันแค่วิธีสกัดข้อเท็จจริง
 export interface ParameterMatchFacets {
+  itemNo?: string;
   itemName?: string;
+  fullCommonName?: string;
   commonName?: string;
   productType?: string;
   subCategory?: string;
@@ -89,18 +103,33 @@ export function facetsForPetitionItem(
   petitionCategory: PetitionCategory = '',
 ): ParameterMatchFacets {
   return {
+    itemNo: item.itemNo,
     itemName: item.sampleName,
-    commonName: item.commonName?.trim() || getCommonName(item.sampleName),
+    fullCommonName: item.commonName?.trim(),
+    commonName: getCommonName(item.commonName) || getCommonName(item.sampleName),
     productType: getItemProductType(item),
     subCategory: getItemSubCategory(item),
     itemGroupIds,
-    category: petitionCategory,
+    category: getItemWarehouseCategory(item) || petitionCategory,
   };
+}
+
+function productTypeMatches(criteriaTypes: string[] | undefined, productType: string): boolean {
+  if (!productType) return false;
+  return (criteriaTypes ?? []).some((type) => {
+    const normalized = type.trim();
+    if (normalized === productType) return true;
+    if (normalized === 'liquid') return productType === 'water';
+    if (normalized === 'solid') return productType === 'sand' || productType === 'powder';
+    return false;
+  });
 }
 
 function criteriaMatchesFacets(
   criteria: {
+    itemNos?: string[];
     itemNames?: string[];
+    fullCommonNames?: string[];
     commonNames?: string[];
     productTypes?: string[];
     subCategories?: string[];
@@ -108,8 +137,16 @@ function criteriaMatchesFacets(
   },
   facets: ParameterMatchFacets,
 ): boolean {
+  const itemNo = facets.itemNo?.trim().toUpperCase() ?? '';
+  if (itemNo && (criteria.itemNos ?? []).some((n) => n.trim().toUpperCase() === itemNo)) return true;
+
   const itemName = facets.itemName?.trim() ?? '';
   if (itemName && (criteria.itemNames ?? []).some((n) => n.trim() === itemName)) return true;
+
+  const fullCommonName = facets.fullCommonName?.trim().toUpperCase() ?? '';
+  if (fullCommonName && (criteria.fullCommonNames ?? []).some((n) => n.trim().toUpperCase() === fullCommonName)) {
+    return true;
+  }
 
   const commonName = (facets.commonName ?? '').trim().toUpperCase();
   if (commonName && (criteria.commonNames ?? []).some((c) => c.trim().toUpperCase() === commonName)) {
@@ -117,7 +154,7 @@ function criteriaMatchesFacets(
   }
 
   const productType = facets.productType ?? '';
-  if (productType && (criteria.productTypes ?? []).includes(productType)) return true;
+  if (productTypeMatches(criteria.productTypes, productType)) return true;
 
   if (subCategoryMatches(criteria.subCategories, (facets.subCategory ?? '').trim().toUpperCase())) return true;
 
@@ -130,20 +167,21 @@ function criteriaMatchesFacets(
 
 // Returns true when the parameter's "ใช้กับ" criteria fit this petition item.
 //
-// หมวดหมู่ (RM/FG) เป็น "ประตู" แบบ AND ไม่ใช่มิติ OR ตัวที่หก — ตรงกับหน้าจอที่ปลด
-// ล็อกหมวดหมู่ย่อยให้เลือกต่อเมื่อเลือก RM/FG แล้ว. ค่ามาจาก petition.dept
-// (getPetitionCategory) เพราะตัว item ไม่ได้พก category มาเอง.
-//   ตั้ง RM + RO  → คำขอฝ่าย RM และรหัสสินค้าขึ้นต้น RO
-//   ตั้ง RM เปล่า → ทุก item ของคำขอฝ่าย RM
-// เมื่อผ่านประตูแล้ว applyAll → ผ่านเลย; ที่เหลือเป็น OR ข้าม 5 มิติที่ derive จาก item
-// ได้ (itemName / commonName / productType / subCategory / itemGroups)
+// หมวดหมู่ (คลัง RM/FG) เป็น "ประตู" แบบ AND ไม่ใช่มิติ OR ตัวที่หก.
+// คลังได้จาก prefix รหัสสินค้า: F = FG, R = RM; fallback petition.dept มีไว้ให้ข้อมูลเก่า.
+//   ตั้ง RM + RO  → รหัสสินค้าขึ้นต้น R และ prefix code ขึ้นต้น RO
+//   ตั้ง RM เปล่า → ทุก item ในคลัง RM
+// เมื่อผ่านประตูแล้ว applyAll → ผ่านเลย; ที่เหลือเป็น OR ข้ามมิติที่ derive จาก item
+// ได้ (itemNo / itemName / commonName / productType / subCategory / itemGroups)
 export function parameterMatchesFacets(param: ParameterItem, facets: ParameterMatchFacets): boolean {
   const category = (facets.category ?? '').trim().toUpperCase();
 
   if (categoryListed(param.excludeCategories, category)) return false;
 
   const excludeCriteria = {
+    itemNos: param.excludeItemNos,
     itemNames: param.excludeItemNames,
+    fullCommonNames: param.excludeFullCommonNames,
     commonNames: param.excludeCommonNames,
     productTypes: param.excludeProductTypes,
     subCategories: param.excludeSubCategories,
@@ -159,7 +197,9 @@ export function parameterMatchesFacets(param: ParameterItem, facets: ParameterMa
   if (param.applyAll) return true;
 
   const includeCriteria = {
+    itemNos: param.itemNos,
     itemNames: param.itemNames,
+    fullCommonNames: param.fullCommonNames,
     commonNames: param.commonNames,
     productTypes: param.productTypes,
     subCategories: param.subCategories,
@@ -247,9 +287,11 @@ export function visibleEnumOptions(
   const filters = field.optionFilters;
   if (!filters) return options;
 
+  const itemNo = item.itemNo?.trim().toUpperCase() ?? '';
   const sampleName = item.sampleName?.trim() ?? '';
+  const fullCommonName = item.commonName?.trim().toUpperCase() ?? '';
   const itemCommonName = (
-    item.commonName?.trim() || getCommonName(item.sampleName)
+    getCommonName(item.commonName) || getCommonName(item.sampleName)
   ).toUpperCase();
   const itemProductType = getItemProductType(item);
   const itemSubCat = getItemSubCategory(item);
@@ -257,13 +299,17 @@ export function visibleEnumOptions(
   return options.filter((opt) => {
     const f = filters[opt];
     if (!f) return true;
+    const itemNos = f.itemNos ?? [];
     const itemNames = f.itemNames ?? [];
+    const fullCommonNames = f.fullCommonNames ?? [];
     const commonNames = f.commonNames ?? [];
     const productTypes = f.productTypes ?? [];
     const subCategories = f.subCategories ?? [];
     const itemGroups = f.itemGroups ?? [];
     if (
+      itemNos.length === 0 &&
       itemNames.length === 0 &&
+      fullCommonNames.length === 0 &&
       commonNames.length === 0 &&
       productTypes.length === 0 &&
       subCategories.length === 0 &&
@@ -271,14 +317,16 @@ export function visibleEnumOptions(
     ) {
       return true;
     }
+    if (itemNo && itemNos.some((n) => n.trim().toUpperCase() === itemNo)) return true;
     if (sampleName && itemNames.some((n) => n.trim() === sampleName)) return true;
+    if (fullCommonName && fullCommonNames.some((n) => n.trim().toUpperCase() === fullCommonName)) return true;
     if (
       itemCommonName &&
       commonNames.some((c) => c.toUpperCase() === itemCommonName)
     ) {
       return true;
     }
-    if (itemProductType && productTypes.includes(itemProductType)) return true;
+    if (productTypeMatches(productTypes, itemProductType)) return true;
     if (subCategoryMatches(subCategories, itemSubCat)) return true;
     if (itemGroups.length > 0 && itemGroups.some((gid) => itemGroupIds.includes(gid))) return true;
     return false;

@@ -5,6 +5,7 @@ const {
   isCollapsibleDuplicate,
   isRelevant,
   levelForEvent,
+  shouldPlaySampleArrivalSound,
   toNotification,
 } = require('./petitionNotifications');
 
@@ -119,6 +120,19 @@ test('isRelevant: seeAll ผ่านหมด', () => {
   assert.strictEqual(isRelevant(desc, petition, { audiences: [], seeAll: true }), true);
 });
 
+test('shouldPlaySampleArrivalSound: เล่นเสียงเฉพาะตัวอย่างที่ส่งเข้ามาและ assign ให้ผู้ดู', () => {
+  const assigned = { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง' } };
+  const log = { event: 'statusChanged', toStatus: 'sampleSent' };
+
+  assert.strictEqual(shouldPlaySampleArrivalSound(assigned, log, { employeeId: 'E200' }), true);
+  assert.strictEqual(shouldPlaySampleArrivalSound(assigned, log, { employeeId: 'E201' }), false);
+  assert.strictEqual(shouldPlaySampleArrivalSound(petition, log, { employeeId: 'E100' }), false);
+  assert.strictEqual(
+    shouldPlaySampleArrivalSound(assigned, { event: 'statusChanged', toStatus: 'approved' }, { employeeId: 'E200' }),
+    false,
+  );
+});
+
 test('levelForEvent: rejected/success/approved/ผิดปกติ/อื่น', () => {
   assert.strictEqual(levelForEvent({ event: 'statusChanged', toStatus: 'rejected' }), 'error');
   assert.strictEqual(levelForEvent({ event: 'statusChanged', toStatus: 'success' }), 'success');
@@ -173,6 +187,21 @@ test('toNotification: statusChanged approved stays a normal bell notification', 
   assert.strictEqual(notification.event, 'statusChanged');
   assert.strictEqual(notification.fromStatus, 'success');
   assert.strictEqual(notification.toStatus, 'approved');
+});
+
+test('toNotification: sampleSent งานตัวเองแนบ playSound ให้ client', () => {
+  const assigned = { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง' } };
+  const log = {
+    _id: 'log-sent',
+    petitionId: 'p1',
+    event: 'statusChanged',
+    toStatus: 'sampleSent',
+    createdAt: '2026-08-01T02:00:00.000Z',
+  };
+
+  const notification = toNotification(assigned, log, { audiences: ['qc'], title: 'ส่งตัวอย่างแล้ว' }, { employeeId: 'E200' });
+
+  assert.strictEqual(notification.playSound, true);
 });
 
 // Finding 1: resultEntered fires once per form field (qcResultAuditEvent logs every

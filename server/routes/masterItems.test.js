@@ -89,6 +89,7 @@ describe('masterItems route', () => {
       { key: 'abamectin 1.8% ec', commonName: 'ABAMECTIN 1.8% EC', itemCount: 1, itemNos: ['RM-001'], imageUrl: '', imageUrls: [] },
       { key: 'cymoxanil (mix a+b)', commonName: 'CYMOXANIL (MIX A+B)', itemCount: 1, itemNos: ['FG-003'], imageUrl: '', imageUrls: [] },
       { key: 'diuron 80% wp', commonName: 'DIURON 80% WP', itemCount: 2, itemNos: ['FG-001', 'FG-002'], imageUrl: '', imageUrls: [] },
+      { key: 'diuron 80% wp + hexazinone 13.2% sl', commonName: 'DIURON 80% WP + HEXAZINONE 13.2% SL', itemCount: 1, itemNos: ['FG-001'], imageUrl: '', imageUrls: [] },
       { key: 'hexazinone 13.2% sl', commonName: 'HEXAZINONE 13.2% SL', itemCount: 2, itemNos: ['FG-001', 'LDI-001'], imageUrl: '', imageUrls: [] },
     ]);
     expect(global.fetch).toHaveBeenCalledTimes(2);

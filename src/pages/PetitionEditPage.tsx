@@ -113,6 +113,7 @@ export default function PetitionEditPage() {
       testUnit: it.testUnit ?? '',
       testItems: it.testItems ?? '',
       sendToLab: it.sendToLab,
+      sampleQuantity: it.sampleQuantity ?? 1,
       note: it.note ?? '',
     }));
     setItems(mappedItems);
@@ -252,6 +253,10 @@ export default function PetitionEditPage() {
         }
         if (!it.batchNo.trim()) {
           setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกเลขแบช`);
+          return false;
+        }
+        if (!Number.isInteger(it.sampleQuantity ?? 1) || (it.sampleQuantity ?? 1) < 1) {
+          setStepError(`ตัวอย่างลำดับ ${it.seq}: กรุณากรอกจำนวนตัวอย่างเป็นเลขจำนวนเต็มตั้งแต่ 1 ขึ้นไป`);
           return false;
         }
       }

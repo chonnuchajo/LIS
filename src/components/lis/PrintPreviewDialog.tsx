@@ -2,30 +2,29 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Maximize2, Minus, Plus, Printer, ZoomIn, ZoomOut } from "lucide-react";
+import { Maximize2, Minus, Monitor, Plus, Printer, Server, ZoomIn, ZoomOut } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/lib/api";
 import { printDocument } from "@/lib/print";
 import {
-  defaultPrinterFor,
-  docTypeToKind,
+  eligiblePrintersForDocument,
   getPrintDocType,
-  getPrintOutputModeForDocType,
+  paperSizeForPrinterDocument,
   pickPrinterAssignment,
   type PrintDocType,
   type PrintOutputMode,
 } from "@/lib/printConfig";
+import { normalizeRoles } from "@/lib/roles";
 
 interface Props {
   open: boolean;
@@ -221,47 +220,56 @@ export default function PrintPreviewDialog({
 }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
   const autoPrintDoneKeyRef = useRef<string | number | null>(null);
-  const [copies, setCopies] = useState(1);
+  const copies = 1;
   const [printing, setPrinting] = useState(false);
+  const [outputMode, setOutputMode] = useState<PrintOutputMode | "">("");
   const [selectedPrinterId, setSelectedPrinterId] = useState("");
   const { user } = useAuth();
   const meta = getPrintDocType(docType);
   const widthClass = docType === "sample-label" || docType === "stock-label" ? "sm:max-w-2xl" : "sm:max-w-4xl";
-  const outputMode = getPrintOutputModeForDocType(docType);
+  const isAdmin = normalizeRoles(user).includes("admin");
 
   const { data: configs } = useQuery({
     queryKey: ["printer-configs"],
     queryFn: api.getPrinterConfigs,
     enabled: open,
   });
-  const printerKind = docTypeToKind(docType);
-  const serverPrinters = useMemo(
-    () => (configs ?? []).filter((printer) => printer.kind === printerKind && printer.cupsPrinterUrl?.trim()),
-    [configs, printerKind],
-  );
   const userDepartment = user?.department?.trim() ?? "";
+  const serverPrinters = useMemo(
+    () => eligiblePrintersForDocument(configs, docType, userDepartment, { includeAnyDepartment: isAdmin })
+      .filter((printer) => printer.cupsPrinterUrl?.trim()),
+    [configs, docType, isAdmin, userDepartment],
+  );
   const assignmentRoute = useMemo(() => pickPrinterAssignment(configs, docType, userDepartment), [configs, docType, userDepartment]);
-  const cfg = selectedPrinterId
-    ? serverPrinters.find((printer) => printer.id === selectedPrinterId)
-    : assignmentRoute?.printer ?? defaultPrinterFor(configs, printerKind);
-  const selectedAssignment = cfg ? pickPrinterAssignment([cfg], docType, userDepartment) : undefined;
-  const paperSize = selectedPrinterId
-    ? selectedAssignment?.paperSize ?? meta?.defaultPaper
+  const cfg = selectedPrinterId ? serverPrinters.find((printer) => printer.id === selectedPrinterId) : undefined;
+  const paperSize = cfg
+    ? paperSizeForPrinterDocument(cfg, docType, userDepartment, { includeAnyDepartment: isAdmin }) ?? meta?.defaultPaper
     : assignmentRoute?.paperSize ?? meta?.defaultPaper;
-  const serverConfigured = Boolean(cfg?.cupsPrinterUrl?.trim());
+  const serverConfigured = outputMode === "server" && Boolean(cfg?.cupsPrinterUrl?.trim());
   const configured = outputMode === "local" || serverConfigured;
   const printerTarget = outputMode === "local" ? "เครื่องนี้" : (cfg?.label?.trim() || cfg?.cupsPrinterUrl?.trim());
 
   useEffect(() => {
+    if (!open) {
+      setOutputMode("");
+      setSelectedPrinterId("");
+      autoPrintDoneKeyRef.current = null;
+    }
+  }, [open]);
+
+  useEffect(() => {
     if (!open || outputMode !== "server") return;
     if (selectedPrinterId && serverPrinters.some((printer) => printer.id === selectedPrinterId)) return;
-    const fallback = assignmentRoute?.printer ?? defaultPrinterFor(configs, printerKind) ?? serverPrinters[0];
-    setSelectedPrinterId(fallback?.id ?? "");
-  }, [assignmentRoute, configs, open, outputMode, printerKind, selectedPrinterId, serverPrinters]);
+    setSelectedPrinterId(serverPrinters.length === 1 ? serverPrinters[0].id : "");
+  }, [open, outputMode, selectedPrinterId, serverPrinters]);
 
-  const handlePrint = useCallback(async (mode: PrintOutputMode = outputMode) => {
-    if (mode === "server" && !serverConfigured) {
-      toast.error("ยังไม่ได้ตั้งค่าเครื่องพิมพ์ Server สำหรับเอกสารนี้");
+  const handlePrint = useCallback(async (mode: PrintOutputMode | "" = outputMode) => {
+    if (!mode) {
+      toast.error("กรุณาเลือกว่าจะพิมพ์จากเครื่องนี้หรือผ่าน Server/CUPS");
+      return;
+    }
+    if (mode === "server" && !cfg?.id) {
+      toast.error(serverPrinters.length > 0 ? "กรุณาเลือกเครื่องพิมพ์ Server" : "ยังไม่ได้ตั้งค่าเครื่องพิมพ์ Server สำหรับเอกสารนี้");
       return;
     }
     setPrinting(true);
@@ -286,7 +294,7 @@ export default function PrintPreviewDialog({
     } finally {
       setPrinting(false);
     }
-  }, [cfg?.id, copies, css, docType, onOpenChange, onPrinted, outputMode, paperSize, serverConfigured, userDepartment]);
+  }, [cfg?.id, copies, css, docType, onOpenChange, onPrinted, outputMode, paperSize, serverPrinters.length, userDepartment]);
 
   useEffect(() => {
     if (!open) {
@@ -305,17 +313,28 @@ export default function PrintPreviewDialog({
       <DialogContent className={`${widthClass} flex max-h-[90vh] min-h-[70vh] flex-col overflow-hidden`}>
         <DialogHeader className="shrink-0">
           <DialogTitle>{previewOnly ? "ตัวอย่างเอกสาร" : "ตัวอย่างก่อนพิมพ์"} — {meta?.label ?? docType}</DialogTitle>
+          {!previewOnly && (
+            <DialogDescription>
+              เลือกพิมพ์จากเครื่องนี้เพื่อเปิด print dialog หรือเลือก Server/CUPS เพื่อส่งไปเครื่องที่ตั้งค่าไว้
+            </DialogDescription>
+          )}
         </DialogHeader>
 
         <ScaledPreview printRef={printRef} previewClassName={docType === "coa" ? "bg-muted" : undefined}>{children}</ScaledPreview>
 
-        {!previewOnly && !configured && (
+        {!previewOnly && outputMode === "server" && !serverConfigured && (
           <p className="shrink-0 text-sm text-red-600">
-            ยังไม่ได้ตั้งค่าเครื่องพิมพ์สำหรับเอกสารนี้{" "}
-            <Link to="/settings" className="underline" onClick={() => onOpenChange(false)}>
-              ไปหน้าตั้งค่าระบบ
-            </Link>
+            {serverPrinters.length > 0 ? "กรุณาเลือกเครื่องพิมพ์ Server" : "ยังไม่ได้ตั้งค่าเครื่องพิมพ์ Server สำหรับเอกสารนี้"}{" "}
+            {serverPrinters.length === 0 && (
+              <Link to="/settings" className="underline" onClick={() => onOpenChange(false)}>
+                ไปหน้าตั้งค่าระบบ
+              </Link>
+            )}
           </p>
+        )}
+
+        {!previewOnly && !outputMode && (
+          <p className="shrink-0 text-sm text-muted-foreground">เลือกแหล่งพิมพ์ก่อนกดพิมพ์</p>
         )}
 
         <DialogFooter className="shrink-0 items-center gap-3 sm:justify-between">
@@ -327,7 +346,30 @@ export default function PrintPreviewDialog({
             </div>
           ) : (
             <>
-              <div className="flex min-w-0 flex-1 items-center gap-2">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <div className="flex gap-2 rounded-md border bg-muted/30 p-1">
+                  <Button
+                    type="button"
+                    variant={outputMode === "local" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => {
+                      setOutputMode("local");
+                      setSelectedPrinterId("");
+                    }}
+                  >
+                    <Monitor className="h-4 w-4" />
+                    เครื่องนี้
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={outputMode === "server" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setOutputMode("server")}
+                  >
+                    <Server className="h-4 w-4" />
+                    Server/CUPS
+                  </Button>
+                </div>
                 {outputMode === "server" && serverPrinters.length > 0 && (
                   <Select value={cfg?.id ?? ""} onValueChange={setSelectedPrinterId}>
                     <SelectTrigger className="h-9 w-[220px]">
@@ -351,7 +393,7 @@ export default function PrintPreviewDialog({
                 </Button>
                 <Button onClick={() => void handlePrint()} disabled={!configured || printing} className="gap-2">
                   <Printer className="h-4 w-4" />
-                  {printing ? "กำลังพิมพ์..." : outputMode === "local" ? "พิมพ์จากเครื่องนี้" : "พิมพ์ผ่าน Server"}
+                  {printing ? "กำลังพิมพ์..." : outputMode === "local" ? "พิมพ์จากเครื่องนี้" : outputMode === "server" ? "พิมพ์ผ่าน Server" : "พิมพ์"}
                 </Button>
               </div>
             </>

@@ -131,6 +131,16 @@ describe('ItemsStep master item selection', () => {
     expect(screen.getByLabelText('หน่วยที่นำส่ง')).toHaveValue('Kg/L');
   });
 
+  it('lets users enter sample quantity for one item', () => {
+    const { onChange } = renderStep();
+
+    fireEvent.change(screen.getByLabelText('จำนวนตัวอย่าง'), {
+      target: { value: '3' },
+    });
+
+    expect(onChange).toHaveBeenCalledWith([{ ...baseItem, sampleQuantity: 3 }]);
+  });
+
   it('defaults LAB choice from batch suffix 1/6 and lets user override it', () => {
     const { onChange } = renderStep();
 

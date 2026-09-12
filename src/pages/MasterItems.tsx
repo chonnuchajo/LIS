@@ -532,6 +532,14 @@ function getItemCategory(item: MasterItem) {
   return String(firstValue(item, categoryKeys)).trim();
 }
 
+function getItemWarehouseCategory(item: MasterItem) {
+  const code = String(firstValue(item, codeKeys)).trim();
+  const first = code.charAt(0).toUpperCase();
+  if (first === "F") return "FG";
+  if (first === "R") return "RM";
+  return getItemCategory(item);
+}
+
 function getItemSubCategory(item: MasterItem) {
   const cleaned = String(firstValue(item, codeKeys)).trim();
   if (!cleaned) return "";
@@ -569,11 +577,13 @@ function getParametersFor(
   itemGroupIds: string[] = [],
 ): ParameterItem[] {
   if (parameters.length === 0) return [];
+  const itemNo = String(firstValue(item, codeKeys)).trim();
   const itemName = getItemNameForParam(item);
   const productType = getProductTypeGroup(item);
-  const category = getItemCategory(item);
+  const category = getItemWarehouseCategory(item);
   const subCategory = getItemSubCategory(item);
-  const commonName = getCommonName(firstValue(item, commonNameKeys))
+  const fullCommonName = String(firstValue(item, commonNameKeys)).trim();
+  const commonName = getCommonName(fullCommonName)
     || getCommonName(firstValue(item, nameKeys));
 
   // กฎ "ใช้กับ" มีชุดเดียว (parameterMatchesFacets) — หน้านี้แค่สกัดข้อเท็จจริงจากแถว
@@ -581,7 +591,9 @@ function getParametersFor(
   // testing (categories จับแบบ OR, subCategories จับแบบตรงตัว) — พรีวิวเลยบอกว่าใช้ได้
   // ทั้งที่หน้ากรอกผลไม่ขึ้น
   const facets: ParameterMatchFacets = {
+    itemNo,
     itemName,
+    fullCommonName,
     commonName,
     productType,
     subCategory,
@@ -682,6 +694,7 @@ function splitMasterCommonName(value: string): string[] {
   const parts: string[] = [];
   let currentPart = "";
   let parenthesisDepth = 0;
+  let hasTopLevelPlus = false;
 
   for (const character of String(value || "")) {
     if (character === "(") {
@@ -695,6 +708,7 @@ function splitMasterCommonName(value: string): string[] {
       continue;
     }
     if (character === "+" && parenthesisDepth === 0) {
+      hasTopLevelPlus = true;
       parts.push(currentPart);
       currentPart = "";
       continue;
@@ -704,12 +718,15 @@ function splitMasterCommonName(value: string): string[] {
 
   parts.push(currentPart);
 
-  return parts
+  const rawCommonName = String(value || "").trim().replace(/\s+/g, " ");
+  const splitParts = parts
     .map((part) => part.trim().replace(/\s+/g, " "))
     .filter((part) => part && !/^\d+(?:[.,]\d+)?\s*%/.test(part));
+
+  return Array.from(new Set(hasTopLevelPlus && rawCommonName ? [...splitParts, rawCommonName] : splitParts));
 }
 
-function buildMasterCommonNameRows(entries: Array<{ item: MasterItem; originalItemNo: string; rawCommonName: string }>): MasterCommonNameRow[] {
+export function buildMasterCommonNameRows(entries: Array<{ item: MasterItem; originalItemNo: string; rawCommonName: string }>): MasterCommonNameRow[] {
   const groups = new Map<string, MasterCommonNameRow>();
 
   entries.forEach((entry) => {

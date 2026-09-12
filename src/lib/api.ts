@@ -78,6 +78,7 @@ export interface PetitionFlowNotification {
   level: "info" | "warning" | "success" | "error";
   link: string;
   createdAt: string;
+  playSound?: boolean;
 }
 
 export type UserFavorites = { email: string; paths: string[] };
@@ -1360,10 +1361,12 @@ export type ParameterValueField = {
   // ถ้ามี key แต่ทุกมิติเป็น array ว่าง = แสดงเสมอ.
   // หากตั้งค่าอย่างน้อย 1 มิติ — OR ข้ามมิติ (เหมือน parameter-level "ใช้กับ").
   optionFilters?: Record<string, {
+    itemNos?: string[];        // exact match กับ item.itemNo / รหัสสินค้า
     itemNames?: string[];      // exact match กับ item.sampleName
+    fullCommonNames?: string[];// exact match กับ item.commonName แบบเต็ม
     commonNames?: string[];    // 'EW' | 'WP' | 'ULV' ... (uppercase)
-    productTypes?: string[];   // 'water' | 'sand' | 'powder'
-    categories?: string[];     // 'RM' | 'FG' (UI parity เท่านั้น — ไม่ enforce ที่ runtime)
+    productTypes?: string[];   // 'water' | 'sand' | 'powder' | 'liquid' | 'solid'
+    categories?: string[];     // 'RM' | 'FG' จากคลังตาม prefix รหัสสินค้า F/R
     subCategories?: string[];  // prefix code เช่น 'F', 'FC', 'RO' (uppercase)
     itemGroups?: string[];     // group ID ที่ option นี้จำกัดให้แสดง
   }>;
@@ -1379,15 +1382,19 @@ export type ParameterItem = {
   status?: "active" | "inactive";
   applyAll?: boolean;
   commonNames?: string[];
+  itemNos?: string[];
   itemNames?: string[];
+  fullCommonNames?: string[];
   productTypes?: string[];
-  // 'RM' | 'FG' — ประตูแบบ AND เทียบกับ petition.dept (ไม่ใช่มิติ OR ตัวที่หก)
+  // 'RM' | 'FG' — ประตูแบบ AND เทียบกับคลังจาก prefix รหัสสินค้า F/R (ไม่ใช่มิติ OR ตัวที่หก)
   categories?: string[];
   // prefix code ของรหัสสินค้า เช่น 'RO' — จับแบบ "ขึ้นต้นด้วย" (RO ครอบ ROPH/ROLS)
   subCategories?: string[];
   itemGroups?: string[];
   excludeCommonNames?: string[];
+  excludeItemNos?: string[];
   excludeItemNames?: string[];
+  excludeFullCommonNames?: string[];
   excludeProductTypes?: string[];
   excludeCategories?: string[];
   excludeSubCategories?: string[];

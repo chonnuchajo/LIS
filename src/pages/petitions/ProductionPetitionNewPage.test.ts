@@ -40,6 +40,18 @@ describe('makeInitialItemsFromQuery — itemNo', () => {
   });
 });
 
+describe('makeInitialItemsFromQuery — active ingredient format', () => {
+  it('pairs active ingredients with their percentages from production payloads', () => {
+    const [item] = makeInitialItemsFromQuery(
+      new URLSearchParams(
+        'sampleName=%E0%B9%84%E0%B8%8B%E0%B9%82%E0%B8%99%E0%B8%A5%E0%B8%B4%E0%B8%99&commonName=CYMOXANIL%20%2B%20MANCOZEB%208%25%20%2B%2064%25%20WP',
+      ),
+    );
+
+    expect(item.commonName).toBe('CYMOXANIL 8% + MANCOZEB 64% WP');
+  });
+});
+
 describe('R&D integration request rules', () => {
   it('recognizes the HR department name regardless of spacing/case', () => {
     expect(isResearchAndDevelopmentDepartment('R & D')).toBe(true);

@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { Calendar as CalendarIcon, Camera, History, Filter, Pencil, ScanLine, Trash2 } from "lucide-react";
+import { Calendar as CalendarIcon, History, Filter, Pencil, ScanLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import AppLayout from "@/components/lis/AppLayout";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import { readStockLabelCodeFromImage } from "@/lib/aiApi";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import StockRequisitionButton from "@/components/lis/stock/StockRequisitionButton";
@@ -73,6 +74,73 @@ function deductionUnitLabel(transaction: StockTransactionItem) {
   return transaction.unit || transaction.volumeUnit || (transaction.weights?.length ? "mg" : "");
 }
 
+const HARDWARE_SCAN_MAX_GAP_MS = 80;
+const HARDWARE_SCAN_MAX_DURATION_MS = 1200;
+const HARDWARE_SCAN_MIN_LENGTH = 6;
+
+type EditableScanTarget = HTMLInputElement | HTMLTextAreaElement;
+
+interface EditableSnapshot {
+  target: EditableScanTarget;
+  value: string;
+  selectionStart: number | null;
+  selectionEnd: number | null;
+}
+
+interface HardwareScanBuffer {
+  text: string;
+  firstAt: number;
+  lastAt: number;
+  snapshot: EditableSnapshot | null;
+}
+
+function editableScanTarget(target: EventTarget | null): EditableScanTarget | null {
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return target;
+  return null;
+}
+
+function editableSnapshot(target: EditableScanTarget): EditableSnapshot {
+  return {
+    target,
+    value: target.value,
+    selectionStart: target.selectionStart,
+    selectionEnd: target.selectionEnd,
+  };
+}
+
+function setEditableValue(target: EditableScanTarget, value: string) {
+  const valueSetter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(target), "value")?.set;
+  if (valueSetter) valueSetter.call(target, value);
+  else target.value = value;
+  target.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function restoreEditableSnapshot(snapshot: EditableSnapshot | null) {
+  if (!snapshot || !document.contains(snapshot.target)) return;
+  setEditableValue(snapshot.target, snapshot.value);
+  if (snapshot.selectionStart == null || snapshot.selectionEnd == null) return;
+  try {
+    snapshot.target.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+  } catch {
+    return;
+  }
+}
+
+function isLikelyHardwareStockScan(raw: string, elapsedMs: number) {
+  const text = raw.trim();
+  if (text.length < HARDWARE_SCAN_MIN_LENGTH || elapsedMs > HARDWARE_SCAN_MAX_DURATION_MS) return false;
+  if (/^https?:\/\//i.test(text)) {
+    return /\/stock\/(?:view|scan)\b|\/stock-deduction\b|[?&](?:qrId|id|solventId)=/i.test(text);
+  }
+  if (text.startsWith("{") && /"(?:qrId|id|solventId)"/i.test(text)) return true;
+  return /^u_[a-z0-9_-]{4,}$/i.test(text);
+}
+
+function normalizeStockLabelCandidate(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 5 ? digits : "";
+}
+
 const StockDeduction = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -83,14 +151,12 @@ const StockDeduction = () => {
   const [editing, setEditing] = useState<StockTransactionItem | null>(null);
   const [deleting, setDeleting] = useState<StockTransactionItem | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const [scanSourceOpen, setScanSourceOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [hardwareScannerOpen, setHardwareScannerOpen] = useState(false);
-  const [hardwareScannerText, setHardwareScannerText] = useState("");
   const [scannedQrId, setScannedQrId] = useState<string | null>(null);
   const [lastScanResult, setLastScanResult] = useState<DecodedScanResult | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [search, setSearch] = useState("");
+  const hardwareScanRef = useRef<HardwareScanBuffer>({ text: "", firstAt: 0, lastAt: 0, snapshot: null });
   const queryQrId = searchParams.get("qrId")?.trim() || null;
   const initialQrId = scannedQrId ?? queryQrId;
   const clearInitialQrId = useCallback(() => {
@@ -107,8 +173,6 @@ const StockDeduction = () => {
   const applyScannedQrId = useCallback((qrId: string) => {
     setScannedQrId(qrId);
     setScannerOpen(false);
-    setScanSourceOpen(false);
-    setHardwareScannerOpen(false);
     if (queryQrId) {
       const next = new URLSearchParams(searchParams);
       next.delete("qrId");
@@ -117,32 +181,97 @@ const StockDeduction = () => {
   }, [queryQrId, searchParams, setSearchParams]);
 
   const openCameraScanner = useCallback(() => {
-    setScanSourceOpen(false);
     setScannerOpen(true);
   }, []);
 
-  const openHardwareScanner = useCallback(() => {
-    setScanSourceOpen(false);
-    setHardwareScannerText("");
-    setHardwareScannerOpen(true);
-  }, []);
-
-  const closeHardwareScanner = useCallback(() => {
-    setHardwareScannerOpen(false);
-    setHardwareScannerText("");
-  }, []);
-
-  const submitHardwareScanner = useCallback((rawInput = hardwareScannerText) => {
+  const applyHardwareScan = useCallback((rawInput: string) => {
     const raw = rawInput.trim();
     const qrId = parseScannedQrId(raw);
     if (!qrId) {
       toast.error("กรุณายิง QR ข้างขวดด้วยเครื่อง scanner");
       return;
     }
-    setHardwareScannerText("");
     setLastScanResult({ raw, value: qrId, scanMode: "qr" });
     applyScannedQrId(qrId);
-  }, [applyScannedQrId, hardwareScannerText]);
+  }, [applyScannedQrId]);
+
+  const handleCaptureImage = useCallback(async (imageDataUrl: string) => {
+    const ocr = await readStockLabelCodeFromImage(imageDataUrl);
+    const candidates = [...new Set([ocr.labelCode, ...ocr.candidates].map(normalizeStockLabelCandidate).filter(Boolean))];
+    if (candidates.length === 0) {
+      toast.error(ocr.error || "อ่านเลขใต้ QR ไม่ได้ กรุณาถ่ายให้เห็นเลขชัดขึ้น");
+      return;
+    }
+
+    try {
+      const units = await api.getStockUnits({ itemType: "standard" });
+      const matches = units.filter((unit) => candidates.includes(normalizeStockLabelCandidate(unit.labelCode || "")));
+      const matchedUnit = matches.find((unit) => unit.status === "active") ?? matches[0];
+      if (!matchedUnit) {
+        toast.error(`ไม่พบขวด stock ที่มีเลข ${candidates.join(", ")}`);
+        return;
+      }
+
+      const raw = ocr.rawText?.trim() || candidates.join(", ");
+      setLastScanResult({ raw: `OCR: ${raw}`, value: matchedUnit.qrId, scanMode: "qr" });
+      applyScannedQrId(matchedUnit.qrId);
+    } catch (err) {
+      toast.error((err as Error).message || "ค้นหาเลขใต้ QR ไม่สำเร็จ");
+    }
+  }, [applyScannedQrId]);
+
+  useEffect(() => {
+    const resetBuffer = () => {
+      hardwareScanRef.current = { text: "", firstAt: 0, lastAt: 0, snapshot: null };
+    };
+
+    const handleHardwareScannerKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return;
+      const now = performance.now();
+      const buffer = hardwareScanRef.current;
+
+      if (event.key === "Enter") {
+        const raw = buffer.text.trim();
+        const elapsedMs = buffer.firstAt ? now - buffer.firstAt : Number.POSITIVE_INFINITY;
+        const shouldApply = isLikelyHardwareStockScan(raw, elapsedMs);
+        const snapshot = buffer.snapshot;
+        resetBuffer();
+        if (!shouldApply) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        restoreEditableSnapshot(snapshot);
+        applyHardwareScan(raw);
+        return;
+      }
+
+      if (event.key.length !== 1) {
+        if (buffer.lastAt && now - buffer.lastAt > HARDWARE_SCAN_MAX_GAP_MS) resetBuffer();
+        return;
+      }
+
+      const isContinuation = Boolean(buffer.text) && now - buffer.lastAt <= HARDWARE_SCAN_MAX_GAP_MS;
+      if (!isContinuation) {
+        const target = editableScanTarget(event.target);
+        hardwareScanRef.current = {
+          text: event.key,
+          firstAt: now,
+          lastAt: now,
+          snapshot: target ? editableSnapshot(target) : null,
+        };
+        return;
+      }
+
+      hardwareScanRef.current = {
+        ...buffer,
+        text: buffer.text + event.key,
+        lastAt: now,
+      };
+    };
+
+    window.addEventListener("keydown", handleHardwareScannerKeyDown, true);
+    return () => window.removeEventListener("keydown", handleHardwareScannerKeyDown, true);
+  }, [applyHardwareScan]);
 
   const refreshStockDeductions = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["stock-deductions"] });
@@ -304,7 +433,7 @@ const StockDeduction = () => {
         description="เบิกสารเคมีให้เครื่อง และดูประวัติการตัด stock"
         actions={
           <>
-            <Button type="button" variant="outline" onClick={() => setScanSourceOpen(true)}>
+            <Button type="button" variant="outline" onClick={openCameraScanner}>
               <ScanLine className="mr-1 h-4 w-4" /> สแกน QR ข้างขวด
             </Button>
             <StockRequisitionButton
@@ -426,77 +555,8 @@ const StockDeduction = () => {
         onClose={() => setScannerOpen(false)}
         onDecoded={setLastScanResult}
         onScanned={applyScannedQrId}
+        onCaptureImage={handleCaptureImage}
       />
-
-      <Dialog open={scanSourceOpen} onOpenChange={setScanSourceOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>เลือกวิธีสแกน QR ข้างขวด</DialogTitle>
-            <DialogDescription>
-              เลือกกล้องสำหรับอ่านจากภาพ หรือเครื่อง scanner แบบยิงแล้วส่งค่าเข้าเครื่อง
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Button
-              type="button"
-              variant="outline"
-              aria-label="เปิดกล้อง"
-              className="h-auto justify-start gap-3 p-4 text-left"
-              onClick={openCameraScanner}
-            >
-              <Camera className="h-5 w-5" />
-              <span>
-                <span className="block font-medium">เปิดกล้อง</span>
-                <span className="block text-xs font-normal text-muted-foreground">ใช้กล้องมือถือหรือ webcam</span>
-              </span>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              aria-label="ใช้เครื่อง scanner"
-              className="h-auto justify-start gap-3 p-4 text-left"
-              onClick={openHardwareScanner}
-            >
-              <ScanLine className="h-5 w-5" />
-              <span>
-                <span className="block font-medium">ใช้เครื่อง scanner</span>
-                <span className="block text-xs font-normal text-muted-foreground">ยิง QR แล้วกด Enter อัตโนมัติ</span>
-              </span>
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={hardwareScannerOpen} onOpenChange={(open) => (open ? setHardwareScannerOpen(true) : closeHardwareScanner())}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>ใช้เครื่อง scanner</DialogTitle>
-            <DialogDescription>
-              คลิกช่องนี้แล้วยิง QR ข้างขวด เครื่อง scanner จะกรอกค่าเหมือน keyboard
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="stock-deduction-hardware-scanner">ยิง QR ด้วยเครื่อง scanner</Label>
-            <Input
-              id="stock-deduction-hardware-scanner"
-              value={hardwareScannerText}
-              onChange={(event) => setHardwareScannerText(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  submitHardwareScanner(event.currentTarget.value);
-                }
-              }}
-              placeholder="ยิง QR หรือวาง URL/qrId"
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={closeHardwareScanner}>ยกเลิก</Button>
-            <Button type="button" onClick={() => submitHardwareScanner()} disabled={!hardwareScannerText.trim()}>ตกลง</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <DeductionDetailSheet
         transaction={selected}

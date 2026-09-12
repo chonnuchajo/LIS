@@ -110,9 +110,16 @@ function levelForEvent(log) {
 
 // id = audit log id, so NotificationContext.push() de-dupes on its own when two
 // polls overlap the same window.
-function toNotification(petition, log, desc) {
+function shouldPlaySampleArrivalSound(petition, log, viewer) {
+  if (log?.event !== 'statusChanged' || log?.toStatus !== 'sampleSent') return false;
+  const empId = String(viewer?.employeeId || '').trim();
+  if (!empId) return false;
+  return String(petition?.assignedTo?.employeeId || '').trim() === empId;
+}
+
+function toNotification(petition, log, desc, viewer) {
   const petitionId = String(petition?._id ?? log?.petitionId ?? '');
-  return {
+  const notification = {
     id: String(log?._id),
     petitionId,
     petitionNo: petition?.petitionNo || log?.petitionNo || '',
@@ -125,6 +132,17 @@ function toNotification(petition, log, desc) {
     link: `/petition/${petitionId}`,
     createdAt: log?.createdAt,
   };
+  if (shouldPlaySampleArrivalSound(petition, log, viewer)) {
+    notification.playSound = true;
+  }
+  return notification;
 }
 
-module.exports = { bellDescribe, isCollapsibleDuplicate, isRelevant, levelForEvent, toNotification };
+module.exports = {
+  bellDescribe,
+  isCollapsibleDuplicate,
+  isRelevant,
+  levelForEvent,
+  shouldPlaySampleArrivalSound,
+  toNotification,
+};

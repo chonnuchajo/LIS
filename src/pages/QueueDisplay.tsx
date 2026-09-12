@@ -16,6 +16,7 @@ import {
   type PetitionProgress,
 } from "@/lib/qcProgress";
 import { shouldSendItemToLab } from "@/lib/petitionRouting";
+import { isVisibleInQcTestingQueue } from "@/lib/petitionQueueVisibility";
 import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
 
 type QueueMode = "lab" | "qc";
@@ -44,6 +45,13 @@ const NEW_SAMPLE_SOUND_URL = `${import.meta.env.BASE_URL}sound/new.mp3`;
 
 const petitionHasLabItems = (petition: Petition) =>
   petition.items.some((item) => shouldSendItemToLab(item));
+
+const queueStatusFor = (petition: Petition, mode: QueueMode): PetitionStatus => {
+  if (mode === "qc" && petition.status === "deliveringQC" && isVisibleInQcTestingQueue(petition)) {
+    return "inProgress";
+  }
+  return petition.status;
+};
 
 const QUEUE_CONFIG: Record<QueueMode, QueueConfig> = {
   lab: {
@@ -133,16 +141,19 @@ function getSampleSummary(petition: Petition) {
 
 function QueueCard({
   petition,
+  displayStatus,
   progress,
   returned,
 }: {
   petition: Petition;
+  displayStatus?: PetitionStatus;
   progress?: PetitionProgress;
   returned?: boolean;
 }) {
   const updated = formatDateTime(petition.updatedAt);
-  const statusCfg = PETITION_STATUS_CONFIG[petition.status] ?? {
-    label: petition.status,
+  const status = displayStatus ?? petition.status;
+  const statusCfg = PETITION_STATUS_CONFIG[status] ?? {
+    label: status,
     variant: "gray-soft" as const,
   };
 
@@ -259,13 +270,13 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
   const allItems = useMemo(() => {
     const groupStatuses = config.groups.flatMap((group) => group.statuses);
     return (data?.items ?? [])
-      .filter((petition) => groupStatuses.includes(petition.status))
+      .filter((petition) => groupStatuses.includes(queueStatusFor(petition, mode)))
       .filter((petition) => (mode === "lab" ? petitionHasLabItems(petition) : true))
       .filter((petition) =>
         // Only the "done" board resets per local day so finished samples don't
         // pile up across days. New / in-progress rows stay visible regardless
         // of when they entered the queue.
-        petition.status === "success"
+        queueStatusFor(petition, mode) === "success"
           ? isSameLocalDay(petition.completedAt ?? petition.updatedAt, today)
           : true,
       )
@@ -303,7 +314,10 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
     () =>
       mode === "qc"
         ? allItems
-            .filter((p) => p.status === "pendingReview" || p.status === "inProgress" || p.status === "sampleSent")
+            .filter((p) => {
+              const queueStatus = queueStatusFor(p, mode);
+              return queueStatus === "pendingReview" || queueStatus === "inProgress" || queueStatus === "sampleSent";
+            })
             .map((p) => p._id)
             .join(",")
         : "",
@@ -328,9 +342,9 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
   const itemsByGroup = useMemo(() => {
     return config.groups.map((group) => ({
       ...group,
-      items: allItems.filter((petition) => group.statuses.includes(petition.status)),
+      items: allItems.filter((petition) => group.statuses.includes(queueStatusFor(petition, mode))),
     }));
-  }, [allItems, config.groups]);
+  }, [allItems, config.groups, mode]);
 
   const newGroupItems = useMemo(() => {
     return itemsByGroup.find((group) => group.id === "new")?.items ?? [];
@@ -497,14 +511,15 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
                       </div>
                     ) : (
                       visibleItems.map((petition) => {
+                        const queueStatus = queueStatusFor(petition, mode);
                         // Bar is only meaningful for QC mode rows that QC is
                         // actively (or about to be) filling. "Done" rows are
                         // implicitly 100% and would add visual noise.
                         const showProgress =
                           mode === "qc" &&
-                          (petition.status === "sampleSent" ||
-                            petition.status === "pendingReview" ||
-                            petition.status === "inProgress");
+                          (queueStatus === "sampleSent" ||
+                            queueStatus === "pendingReview" ||
+                            queueStatus === "inProgress");
                         const progress = showProgress
                           ? computePetitionProgress(petition, parameters, progressMap[petition._id])
                           : undefined;
@@ -512,6 +527,7 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
                           <QueueCard
                             key={petition._id}
                             petition={petition}
+                            displayStatus={queueStatus}
                             progress={progress}
                             returned={returnedMap[petition._id]}
                           />

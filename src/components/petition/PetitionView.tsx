@@ -165,6 +165,7 @@ export default function PetitionView({ petition: p }: Props) {
                   <Field label="Batch No." value={item.batchNo} />
                   <Field label="วันที่ผลิต" value={item.productionDate} />
                   <Field label="ขนาดบรรจุ" value={item.packageUnit} />
+                  <Field label="จำนวนตัวอย่าง" value={String(item.sampleQuantity ?? 1)} />
                   <Field
                     label="ชื่อสามัญ"
                     value={

@@ -15,6 +15,7 @@ const PetitionItemSchema = new mongoose.Schema(
     testItems: String,
     sendToLab: Boolean,
     note: String,
+    sampleQuantity: { type: Number, default: 1 },
     labelManufacturer: String,
     labelSeller: String,
     labelQuantity: String,

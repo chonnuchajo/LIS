@@ -95,7 +95,9 @@ function ApplyToSection({
   groupNameById: Map<string, string>;
 }) {
   const hasExcludes =
-    (parameter.excludeItemNames?.length ?? 0) +
+      (parameter.excludeItemNos?.length ?? 0) +
+      (parameter.excludeItemNames?.length ?? 0) +
+      (parameter.excludeFullCommonNames?.length ?? 0) +
       (parameter.excludeCommonNames?.length ?? 0) +
       (parameter.excludeProductTypes?.length ?? 0) +
       (parameter.excludeCategories?.length ?? 0) +
@@ -106,14 +108,16 @@ function ApplyToSection({
     return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">ทั้งหมด</Badge>;
   }
   const groups: { label: string; values: string[]; color: string }[] = [
+    { label: "รหัสสินค้า", values: parameter.itemNos ?? [], color: "bg-violet-50 text-violet-700" },
     { label: "Item", values: parameter.itemNames ?? [], color: "bg-violet-50 text-violet-700" },
-    { label: "Common", values: parameter.commonNames ?? [], color: "bg-blue-50 text-blue-700" },
+    { label: "Common Name", values: parameter.fullCommonNames ?? [], color: "bg-blue-50 text-blue-700" },
+    { label: "ประเภท Common Name", values: parameter.commonNames ?? [], color: "bg-blue-50 text-blue-700" },
     {
       label: "ประเภท",
       values: (parameter.productTypes ?? []).map((v) => productTypeLabels[v] ?? v),
       color: "bg-emerald-50 text-emerald-700",
     },
-    { label: "หมวดหมู่", values: parameter.categories ?? [], color: "bg-amber-50 text-amber-700" },
+    { label: "หมวดหมู่", values: (parameter.categories ?? []).map((v) => v === "RM" ? "คลัง RM" : v === "FG" ? "คลัง FG" : v), color: "bg-amber-50 text-amber-700" },
     { label: "หมวดย่อย", values: parameter.subCategories ?? [], color: "bg-orange-50 text-orange-700" },
     {
       label: "กลุ่ม",
@@ -125,13 +129,15 @@ function ApplyToSection({
     groups.unshift({ label: "ทั้งหมด", values: ["ทั้งหมด"], color: "bg-amber-100 text-amber-800" });
   }
   const excludes: { label: string; values: string[] }[] = [
+    { label: "รหัสสินค้า", values: parameter.excludeItemNos ?? [] },
     { label: "Item", values: parameter.excludeItemNames ?? [] },
-    { label: "Common", values: parameter.excludeCommonNames ?? [] },
+    { label: "Common Name", values: parameter.excludeFullCommonNames ?? [] },
+    { label: "ประเภท Common Name", values: parameter.excludeCommonNames ?? [] },
     {
       label: "ประเภท",
       values: (parameter.excludeProductTypes ?? []).map((v) => productTypeLabels[v] ?? v),
     },
-    { label: "หมวดหมู่", values: parameter.excludeCategories ?? [] },
+    { label: "หมวดหมู่", values: (parameter.excludeCategories ?? []).map((v) => v === "RM" ? "คลัง RM" : v === "FG" ? "คลัง FG" : v) },
     { label: "หมวดย่อย", values: parameter.excludeSubCategories ?? [] },
     {
       label: "กลุ่ม",

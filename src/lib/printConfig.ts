@@ -142,7 +142,7 @@ export function defaultPrinterFor(
   kind: PrinterKind,
 ): PrinterConfig | undefined {
   const ofKind = (configs ?? []).filter((c) => c.kind === kind);
-  return ofKind.find((c) => c.isDefault) ?? ofKind[0];
+  return ofKind.find((c) => c.isDefault);
 }
 
 export function normalizeDepartment(value: unknown): string {
@@ -176,9 +176,67 @@ export function pickPrinterAssignment(
 
   const exact = candidates.filter(({ assignment }) => assignment.department === normalizedDepartment);
   const usable = exact.length > 0 ? exact : candidates.filter(({ assignment }) => assignment.department === "");
-  const picked = usable.find(({ printer }) => printer.isDefault) ?? usable[0];
+  const picked = usable[0];
   if (!picked) return undefined;
   return { ...picked, paperSize: picked.assignment.paperSize };
+}
+
+function uniquePrinters(routes: { printer: PrinterConfig }[]): PrinterConfig[] {
+  const seen = new Set<string>();
+  const printers: PrinterConfig[] = [];
+  for (const route of routes) {
+    if (seen.has(route.printer.id)) continue;
+    seen.add(route.printer.id);
+    printers.push(route.printer);
+  }
+  return printers;
+}
+
+export function eligiblePrintersForDocument(
+  configs: PrinterConfig[] | undefined | null,
+  docType: PrintDocType,
+  department?: string,
+  options?: { includeAnyDepartment?: boolean },
+): PrinterConfig[] {
+  const kind = docTypeToKind(docType);
+  const normalizedDepartment = normalizeDepartment(department);
+  const printers = (configs ?? []).filter((printer) => printer.kind === kind);
+  const assignmentRoutes = printers.flatMap((printer) =>
+    (printer.assignments ?? [])
+      .filter((assignment) => assignment.docTypes.includes(docType))
+      .map((assignment) => ({
+        printer,
+        department: normalizeDepartment(assignment.department),
+      })),
+  );
+
+  if (options?.includeAnyDepartment) {
+    const assigned = uniquePrinters(assignmentRoutes.map(({ printer }) => ({ printer })));
+    return assigned.length > 0 ? assigned : printers.filter((printer) => (printer.assignments ?? []).length === 0);
+  }
+
+  const exact = assignmentRoutes.filter((route) => route.department === normalizedDepartment);
+  if (exact.length > 0) return uniquePrinters(exact.map(({ printer }) => ({ printer })));
+
+  const fallback = assignmentRoutes.filter((route) => route.department === "");
+  if (fallback.length > 0) return uniquePrinters(fallback.map(({ printer }) => ({ printer })));
+
+  return printers.filter((printer) => (printer.assignments ?? []).length === 0);
+}
+
+export function paperSizeForPrinterDocument(
+  printer: PrinterConfig | undefined,
+  docType: PrintDocType,
+  department?: string,
+  options?: { includeAnyDepartment?: boolean },
+): PaperSize | undefined {
+  if (!printer) return undefined;
+  const normalizedDepartment = normalizeDepartment(department);
+  const assignments = (printer.assignments ?? []).filter((assignment) => assignment.docTypes.includes(docType));
+  if (options?.includeAnyDepartment) return assignments[0]?.paperSize;
+  const exact = assignments.find((assignment) => normalizeDepartment(assignment.department) === normalizedDepartment);
+  if (exact) return exact.paperSize;
+  return assignments.find((assignment) => normalizeDepartment(assignment.department) === "")?.paperSize;
 }
 
 export function isPrinterConfigured(config?: PrintConfig | null): boolean {

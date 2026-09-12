@@ -26,6 +26,8 @@ export const productTypeLabels: Record<string, string> = {
   water: "น้ำ",
   sand: "ทราย",
   powder: "ผง",
+  liquid: "ของเหลว",
+  solid: "ของแข็ง",
 };
 
 function normalizeClassificationValue(value: unknown) {

@@ -24,8 +24,11 @@ const toastMock = vi.hoisted(() => ({
   success: vi.fn(),
 }));
 
+const readStockLabelCodeFromImageMock = vi.hoisted(() => vi.fn());
+
 vi.mock("@/lib/api", () => ({ api: apiMock }));
 vi.mock("sonner", () => ({ toast: toastMock }));
+vi.mock("@/lib/aiApi", () => ({ readStockLabelCodeFromImage: readStockLabelCodeFromImageMock }));
 
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: { email: "qa@example.com", name: "QA Tester" } }),
@@ -46,21 +49,27 @@ vi.mock("@/components/lis/PageHeader", () => ({
 }));
 
 vi.mock("@/components/lis/StockQrScanner", () => ({
-  default: ({ open, onDecoded, onScanned }: {
+  default: ({ open, onDecoded, onScanned, onCaptureImage }: {
     open: boolean;
     onDecoded?: (result: { raw: string; value: string; scanMode: "qr" }) => void;
     onScanned: (qrId: string) => void;
+    onCaptureImage?: (imageDataUrl: string) => void | Promise<void>;
   }) => (
     open ? (
-      <button
-        type="button"
-        onClick={() => {
-          onDecoded?.({ raw: "https://app-plant.icpladda.com/LIS/stock/view?qrId=u_scan", value: "u_scan", scanMode: "qr" });
-          onScanned("u_scan");
-        }}
-      >
-        mock scan
-      </button>
+      <div>
+        <button
+          type="button"
+          onClick={() => {
+            onDecoded?.({ raw: "https://app-plant.icpladda.com/LIS/stock/view?qrId=u_scan", value: "u_scan", scanMode: "qr" });
+            onScanned("u_scan");
+          }}
+        >
+          mock scan
+        </button>
+        {onCaptureImage ? (
+          <button type="button" onClick={() => onCaptureImage("data:image/jpeg;base64,ocr-frame")}>mock OCR capture</button>
+        ) : null}
+      </div>
     ) : null
   ),
 }));
@@ -115,13 +124,15 @@ function renderPage(initialEntry = "/stock-deduction") {
   );
 }
 
-function openScanSourceChooser() {
+function openCameraScanner() {
   fireEvent.click(screen.getByRole("button", { name: /สแกน QR ข้างขวด/ }));
 }
 
-function openCameraScanner() {
-  openScanSourceChooser();
-  fireEvent.click(screen.getByRole("button", { name: "เปิดกล้อง" }));
+function scanWithHardwareKeyboard(raw: string) {
+  for (const key of raw) {
+    fireEvent.keyDown(window, { key });
+  }
+  fireEvent.keyDown(window, { key: "Enter", code: "Enter" });
 }
 
 describe("StockDeduction scan form", () => {
@@ -135,6 +146,7 @@ describe("StockDeduction scan form", () => {
     apiMock.getStockUnit.mockResolvedValue(stockUnit());
     apiMock.getStockUnits.mockResolvedValue([stockUnit()]);
     apiMock.getPendingStockDeductions.mockResolvedValue([]);
+    readStockLabelCodeFromImageMock.mockResolvedValue({ labelCode: "", candidates: [], rawText: "" });
     apiMock.getMethods.mockResolvedValue([
       { code: "GC-001", requiresMachine: true, machinePrefix: "GC" },
     ]);
@@ -293,29 +305,43 @@ describe("StockDeduction scan form", () => {
     expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
   });
 
-  it("shows scan source choices before opening the camera", () => {
+  it("opens the camera scanner directly without a source chooser", () => {
     renderPage();
 
-    openScanSourceChooser();
+    openCameraScanner();
 
-    expect(screen.getByRole("heading", { name: "เลือกวิธีสแกน QR ข้างขวด" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "เปิดกล้อง" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "ใช้เครื่อง scanner" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "mock scan" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "เลือกวิธีสแกน QR ข้างขวด" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "เปิดกล้อง" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "ใช้เครื่อง scanner" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "mock scan" })).toBeInTheDocument();
   });
 
-  it("opens the standard deduction form from a hardware scanner input", async () => {
+  it("opens the standard deduction form from hardware scanner keyboard input without pressing scan first", async () => {
     renderPage();
 
-    openScanSourceChooser();
-    fireEvent.click(screen.getByRole("button", { name: "ใช้เครื่อง scanner" }));
-    const input = screen.getByLabelText("ยิง QR ด้วยเครื่อง scanner");
-    fireEvent.change(input, { target: { value: "https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_scan" } });
-    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
+    scanWithHardwareKeyboard("https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_scan");
 
     expect(await screen.findByText("ค่าที่ scanner อ่านได้ล่าสุด")).toBeInTheDocument();
     expect(screen.getByText("raw: https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_scan")).toBeInTheDocument();
     expect(screen.getByText("qrId: u_scan")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+  });
+
+  it("opens the standard deduction form from an OCR label code captured by camera", async () => {
+    const ocrUnit = stockUnit({ qrId: "u_ocr", labelCode: "1016801" });
+    readStockLabelCodeFromImageMock.mockResolvedValue({ labelCode: "1016801", candidates: ["1016801"], rawText: "1016801" });
+    apiMock.getStockUnit.mockImplementation((qrId: string) => Promise.resolve(qrId === "u_ocr" ? ocrUnit : stockUnit()));
+    apiMock.getStockUnits.mockResolvedValue([ocrUnit]);
+
+    renderPage();
+
+    openCameraScanner();
+    fireEvent.click(screen.getByRole("button", { name: "mock OCR capture" }));
+
+    await waitFor(() => expect(readStockLabelCodeFromImageMock).toHaveBeenCalledWith("data:image/jpeg;base64,ocr-frame"));
+    expect(await screen.findByText("ค่าที่ scanner อ่านได้ล่าสุด")).toBeInTheDocument();
+    expect(screen.getByText("raw: OCR: 1016801")).toBeInTheDocument();
+    expect(screen.getByText("qrId: u_ocr")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
   });
 });

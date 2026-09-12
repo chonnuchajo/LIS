@@ -72,6 +72,15 @@ test('validatePetitionSubmission requires item note when sendToLab overrides bat
   }), null);
 });
 
+test('validatePetitionSubmission requires sampleQuantity to be a positive integer', () => {
+  assert.match(validatePetitionSubmission({
+    dept: 'production',
+    submittedBy: { name: 'Production User', department: 'Production' },
+    deliveredBy: { name: 'Runner' },
+    items: [{ seq: 1, sampleName: 'Sample A', batchNo: 'B-001', sampleQuantity: 0 }],
+  }), /จำนวนตัวอย่าง/);
+});
+
 test('normalizePetitionItems fills boolean sendToLab from legacy batch suffix defaults', () => {
   assert.deepStrictEqual(
     normalizePetitionItems([
@@ -83,11 +92,30 @@ test('normalizePetitionItems fills boolean sendToLab from legacy batch suffix de
   );
 });
 
+test('normalizePetitionItems defaults sampleQuantity to 1 and preserves entered quantity', () => {
+  assert.deepStrictEqual(
+    normalizePetitionItems([
+      { seq: 1, batchNo: 'B-001' },
+      { seq: 2, batchNo: 'B-002', sampleQuantity: '3' },
+    ], { department: 'Production', petitionNo: 'P-1' }).map((item) => item.sampleQuantity),
+    [1, 3],
+  );
+});
+
+test('normalizePetitionItems pairs active ingredients with their percentages', () => {
+  assert.strictEqual(
+    normalizePetitionItems([
+      { seq: 1, commonName: 'CYMOXANIL + MANCOZEB 8% + 64% WP' },
+    ], { department: 'Production', petitionNo: 'P-1' })[0].commonName,
+    'CYMOXANIL 8% + MANCOZEB 64% WP',
+  );
+});
+
 test('normalizePetitionItems sets R&D items to sendToLab true by default', () => {
   assert.deepStrictEqual(
     normalizePetitionItems([
       { seq: 1, batchNo: '' },
     ], { department: 'R & D', petitionNo: 'P-2' }),
-    [{ seq: 1, batchNo: '', sendToLab: true, submissionNo: 'P-2' }],
+    [{ seq: 1, batchNo: '', sampleQuantity: 1, sendToLab: true, submissionNo: 'P-2' }],
   );
 });
