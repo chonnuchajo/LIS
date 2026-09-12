@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Loader2, Plus, X } from 'lucide-react';
+import { FileVideo, Loader2, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { uploadQcPhoto, deleteQcPhoto, type ParameterValueField } from '@/lib/api';
@@ -14,6 +14,13 @@ interface PhotoFieldProps {
   value: string[];
   onChange: (urls: string[]) => void;
   disabled?: boolean;
+}
+
+const ACCEPTED_MEDIA = 'image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime';
+const VIDEO_EXT_RE = /\.(mp4|webm|mov)(?:$|[?#])/i;
+
+function isVideoUrl(url: string) {
+  return VIDEO_EXT_RE.test(url);
 }
 
 export function PhotoField({ field, value, onChange, disabled = false }: PhotoFieldProps) {
@@ -57,37 +64,55 @@ export function PhotoField({ field, value, onChange, disabled = false }: PhotoFi
       {/* Thumbnail grid */}
       {value.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {value.map((url) => (
-            <div key={url} className="relative group">
-              <button
-                type="button"
-                onClick={() => setLightbox(url)}
-                className="block w-20 h-20 rounded-md overflow-hidden border border-grey-200 bg-grey-50 hover:border-pink-300 transition-colors"
-              >
-                <img
-                  src={url}
-                  alt="QC photo"
-                  className="w-full h-full object-cover"
-                />
-              </button>
-              {!disabled && (
+          {value.map((url) => {
+            const isVideo = isVideoUrl(url);
+            return (
+              <div key={url} className="relative group">
                 <button
                   type="button"
-                  onClick={() => handleDelete(url)}
-                  disabled={deletingUrl === url}
-                  className={cn(
-                    'absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5',
-                    'flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity',
-                    'hover:bg-red-600',
-                    deletingUrl === url && 'opacity-50 cursor-not-allowed',
-                  )}
-                  title="ลบภาพ"
+                  onClick={() => setLightbox(url)}
+                  className="block w-20 h-20 rounded-md overflow-hidden border border-grey-200 bg-grey-50 hover:border-pink-300 transition-colors"
                 >
-                  <X className="h-3 w-3" />
+                  {isVideo ? (
+                    <span className="relative block h-full w-full">
+                      <video
+                        src={url}
+                        muted
+                        preload="metadata"
+                        className="h-full w-full object-cover"
+                        aria-label="QC video"
+                      />
+                      <span className="absolute inset-0 flex items-center justify-center bg-foreground/30 text-background">
+                        <FileVideo className="h-6 w-6" />
+                      </span>
+                    </span>
+                  ) : (
+                    <img
+                      src={url}
+                      alt="QC photo"
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                 </button>
-              )}
-            </div>
-          ))}
+                {!disabled && (
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(url)}
+                    disabled={deletingUrl === url}
+                    className={cn(
+                      'absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-5 h-5',
+                      'flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity',
+                      'hover:bg-red-600',
+                      deletingUrl === url && 'opacity-50 cursor-not-allowed',
+                    )}
+                    title="ลบไฟล์"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -108,7 +133,7 @@ export function PhotoField({ field, value, onChange, disabled = false }: PhotoFi
           ) : (
             <Plus className="h-4 w-4" />
           )}
-          {uploading ? 'กำลังอัปโหลด...' : 'เพิ่มภาพ'}
+          {uploading ? 'กำลังอัปโหลด...' : 'เพิ่มไฟล์'}
           {!uploading && (
             <span className="text-pink-400 text-xs">
               ({value.length}/{maxPhotos})
@@ -119,14 +144,14 @@ export function PhotoField({ field, value, onChange, disabled = false }: PhotoFi
 
       {/* Count display when at max */}
       {!canAdd && !disabled && (
-        <p className="text-xs text-grey-400">ครบ {maxPhotos} ภาพแล้ว</p>
+        <p className="text-xs text-grey-400">ครบ {maxPhotos} ไฟล์แล้ว</p>
       )}
 
       {/* Hidden file input */}
       <input
         ref={inputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept={ACCEPTED_MEDIA}
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
       />
@@ -136,12 +161,20 @@ export function PhotoField({ field, value, onChange, disabled = false }: PhotoFi
         <DialogContent className="sm:max-w-3xl p-2 bg-black/90 border-0">
           {lightbox && (
             <>
-              <DialogTitle className="sr-only">ภาพ QC</DialogTitle>
-              <img
-                src={lightbox}
-                alt="QC photo full"
-                className="w-full max-h-[80vh] object-contain rounded"
-              />
+              <DialogTitle className="sr-only">ไฟล์ QC</DialogTitle>
+              {isVideoUrl(lightbox) ? (
+                <video
+                  src={lightbox}
+                  controls
+                  className="w-full max-h-[80vh] rounded"
+                />
+              ) : (
+                <img
+                  src={lightbox}
+                  alt="QC photo full"
+                  className="w-full max-h-[80vh] object-contain rounded"
+                />
+              )}
             </>
           )}
         </DialogContent>
