@@ -119,6 +119,7 @@ function AssignmentFields({
 }) {
   const options = docOptionsForKind(kind);
   const departmentId = `printer-department-${scope}`;
+  const departmentListId = `${departmentId}-options`;
   const paperId = `printer-paper-${scope}`;
 
   function toggleDoc(docType: PrintDocType, checked: boolean) {
@@ -132,20 +133,22 @@ function AssignmentFields({
     <div className="rounded-md border bg-muted/20 p-3 space-y-3">
       <div className="space-y-1">
         <Label className="text-xs" htmlFor={departmentId}>แผนกประจำเครื่อง</Label>
-        <select
+        <Input
           id={departmentId}
           aria-label="แผนกประจำเครื่อง"
+          list={departmentListId}
           value={draft.department}
           onChange={(event) => onChange({ department: event.target.value })}
           disabled={disabled}
-          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-        >
-          <option value="">ทุกแผนก</option>
+          placeholder="เว้นว่าง = ทุกแผนก, เช่น IT"
+          className="h-9"
+        />
+        <datalist id={departmentListId}>
           {departmentOptions.map((department) => (
-            <option key={department} value={department}>{department}</option>
+            <option key={department} value={department} />
           ))}
-        </select>
-        <p className="text-xs text-muted-foreground">เลือกทุกแผนกเป็นค่า fallback หรือเลือกแผนกเฉพาะเพื่อให้ระบบใช้เมื่อผู้พิมพ์อยู่แผนกนั้น</p>
+        </datalist>
+        <p className="text-xs text-muted-foreground">เว้นว่างเพื่อใช้กับทุกแผนก หรือใส่ชื่อแผนกให้ตรงกับโปรไฟล์ผู้ใช้ เช่น IT</p>
       </div>
 
       <div className="space-y-1">
@@ -361,7 +364,7 @@ export default function PrinterRegistryCard({
                               aria-label="Printer IP / URL"
                               value={editDraft.cupsPrinterUrl}
                               onChange={(event) => setEditDraft((prev) => ({ ...prev, cupsPrinterUrl: event.target.value }))}
-                              placeholder="192.168.1.50 หรือ http://192.168.1.10:631/printers/Zebra"
+                              placeholder="https://192.168.0.237:631/printers/ZD-230-P1"
                             />
                             <p className="text-xs text-muted-foreground">ใส่ IP เครื่องปริ้นโดยตรงได้ถ้าเครื่องรองรับ IPP หรือใส่ CUPS URL เต็มได้เหมือนเดิม</p>
                           </div>
@@ -445,7 +448,7 @@ export default function PrinterRegistryCard({
                         aria-label="Printer IP / URL"
                         value={addDraft.cupsPrinterUrl}
                         onChange={(event) => setAddDraft((prev) => ({ ...prev, cupsPrinterUrl: event.target.value }))}
-                        placeholder="192.168.1.50 หรือ http://192.168.1.10:631/printers/Zebra"
+                        placeholder="https://192.168.0.237:631/printers/ZD-230-P1"
                       />
                       <p className="text-xs text-muted-foreground">ใส่ IP เครื่องปริ้นโดยตรงได้ถ้าเครื่องรองรับ IPP หรือใส่ CUPS URL เต็มได้เหมือนเดิม</p>
                     </div>

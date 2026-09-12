@@ -122,7 +122,7 @@ describe("SettingsPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "แก้ไข" }));
 
     expect(screen.getByText("Printer IP / URL")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("192.168.1.50 หรือ http://192.168.1.10:631/printers/Zebra")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("https://192.168.0.237:631/printers/ZD-230-P1")).toBeInTheDocument();
     expect(
       screen.getByText("ใส่ IP เครื่องปริ้นโดยตรงได้ถ้าเครื่องรองรับ IPP หรือใส่ CUPS URL เต็มได้เหมือนเดิม"),
     ).toBeInTheDocument();
@@ -166,7 +166,7 @@ describe("SettingsPage", () => {
     expect(screen.getAllByText("label-65x25").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("creates a printer with department, paper size, and more than one document assignment", async () => {
+  it("creates a printer with a custom department, paper size, and more than one document assignment", async () => {
     vi.mocked(api.getPrinterConfigs).mockResolvedValueOnce([]);
     vi.mocked(api.get).mockResolvedValueOnce({
       data: { data: { roles: [], users: [{ id: "u1", department: "QC" }, { id: "u2", department: "Lab/วิเคราะห์" }] } },
@@ -176,12 +176,11 @@ describe("SettingsPage", () => {
     renderPage();
 
     fireEvent.click(await screen.findAllByRole("button", { name: /เพิ่มเครื่องพิมพ์/ }).then((buttons) => buttons[1]));
-    fireEvent.change(screen.getByLabelText("ชื่อเรียก"), { target: { value: "Zebra QC" } });
-    fireEvent.change(screen.getByLabelText("Printer IP / URL"), { target: { value: "192.168.1.51" } });
-    expect(screen.getByRole("combobox", { name: "แผนกประจำเครื่อง" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "QC" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Lab/วิเคราะห์" })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("แผนกประจำเครื่อง"), { target: { value: "QC" } });
+    fireEvent.change(screen.getByLabelText("ชื่อเรียก"), { target: { value: "ZD-230-P1 IT" } });
+    fireEvent.change(screen.getByLabelText("Printer IP / URL"), { target: { value: "https://192.168.0.237:631/printers/ZD-230-P1" } });
+    const departmentInput = screen.getByRole("combobox", { name: "แผนกประจำเครื่อง" });
+    expect(departmentInput).toHaveAttribute("list");
+    fireEvent.change(departmentInput, { target: { value: "IT" } });
     fireEvent.change(screen.getByLabelText("ขนาดกระดาษ"), { target: { value: "label-65x25" } });
     fireEvent.click(screen.getByLabelText("ป้ายนำส่งตัวอย่าง"));
     fireEvent.click(screen.getByLabelText("ฉลากขวด Stock"));
@@ -189,11 +188,11 @@ describe("SettingsPage", () => {
 
     await waitFor(() => expect(api.createPrinterConfig).toHaveBeenCalledWith({
       kind: "sticker",
-      label: "Zebra QC",
-      cupsPrinterUrl: "192.168.1.51",
+      label: "ZD-230-P1 IT",
+      cupsPrinterUrl: "https://192.168.0.237:631/printers/ZD-230-P1",
       assignments: [
         {
-          department: "QC",
+          department: "IT",
           paperSize: "label-65x25",
           docTypes: ["sample-label", "stock-label"],
         },
