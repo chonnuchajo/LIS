@@ -3,14 +3,14 @@ import test from "node:test";
 
 import { createDevEnvironments, stopChildProcessTree } from "./dev-process-tree.mjs";
 
-test("dev-all uses port 3002 by default so local service can keep port 3001", () => {
+test("dev-all uses port 3001 by default", () => {
   const env = { PATH: "C:\\\\tools" };
 
   const result = createDevEnvironments(env);
 
-  assert.equal(result.apiPort, "3002");
-  assert.equal(result.serverEnv.PORT, "3002");
-  assert.equal(result.frontendEnv.VITE_API_PROXY_TARGET, "http://localhost:3002");
+  assert.equal(result.apiPort, "3001");
+  assert.equal(result.serverEnv.PORT, "3001");
+  assert.equal(result.frontendEnv.VITE_API_PROXY_TARGET, "http://localhost:3001");
   assert.equal(env.PORT, undefined);
 });
 

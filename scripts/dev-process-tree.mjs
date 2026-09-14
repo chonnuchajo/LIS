@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 
-const DEFAULT_DEV_API_PORT = "3002";
+const DEFAULT_DEV_API_PORT = "3001";
 
 function envValue(value) {
   return value == null ? "" : String(value).trim();
