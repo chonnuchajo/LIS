@@ -35,6 +35,7 @@ const Report = lazy(() => import("./pages/Report"));
 const Stock = lazy(() => import("./pages/Stock"));
 const StockUnitScanPage = lazy(() => import("./pages/StockUnitScanPage"));
 const MasterItems = lazy(() => import("./pages/MasterItems"));
+const MfGapMedicinesPage = lazy(() => import("./pages/MfGapMedicinesPage"));
 const SimpleMethodPage = lazy(() =>
   import("./pages/MasterItems").then((m) => ({ default: m.SimpleMethodPage })),
 );
@@ -152,6 +153,7 @@ const App = () => (
               <Route path="/stock" element={<PrivateRoute><Stock /></PrivateRoute>} />
               <Route path="/stock/scan/:qrId" element={<PrivateRoute><StockUnitScanPage /></PrivateRoute>} />
               <Route path="/master-items" element={<PrivateRoute><MasterItems /></PrivateRoute>} />
+              <Route path="/mf-gap-medicines" element={<PrivateRoute><MfGapMedicinesPage /></PrivateRoute>} />
               <Route path="/simple-method" element={<PrivateRoute><SimpleMethodPage /></PrivateRoute>} />
               <Route path="/machines" element={<PrivateRoute><MachinesPage /></PrivateRoute>} />
               <Route path="/admin-data" element={<PrivateRoute><AdminData /></PrivateRoute>} />
