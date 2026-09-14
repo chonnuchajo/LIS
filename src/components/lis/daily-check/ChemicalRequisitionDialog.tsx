@@ -4,7 +4,6 @@ import { Check, ChevronsUpDown, QrCode } from "lucide-react";
 import { toast } from "sonner";
 
 import StockQrScanner from "@/components/lis/StockQrScanner";
-import PendingDeductionResolutionFields from "@/components/lis/stock/PendingDeductionResolutionFields";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -27,9 +26,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { todayStr, validateRequisitionQty } from "@/lib/chemicalRequisition";
-import { isDeductionResolutionReady } from "@/lib/deductionResolution";
 import { cn } from "@/lib/utils";
-import type { DeductionResolutionReason } from "@/types/stock";
 
 interface Props {
   roomSlug: string;
@@ -56,8 +53,6 @@ export default function ChemicalRequisitionDialog({
   const [solventUnitQrId, setSolventUnitQrId] = useState(initialSolventUnitQrId ?? "");
   const [qty, setQty] = useState("1");
   const [note, setNote] = useState("");
-  const [pendingReason, setPendingReason] = useState<DeductionResolutionReason | "">("");
-  const [pendingNote, setPendingNote] = useState("");
   const [pickOpen, setPickOpen] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
 
@@ -72,24 +67,7 @@ export default function ChemicalRequisitionDialog({
   );
   const qtyNum = Number(qty);
   const qtyError = solvent ? validateRequisitionQty(qtyNum, solvent.qty) : "";
-  const { data: pendingDeductions = [] } = useQuery({
-    queryKey: ["stock", "pending-deductions", "solvent", solventId, instrumentId],
-    enabled: Boolean(instrumentId && solventId),
-    queryFn: () =>
-      api.getPendingStockDeductions({
-        itemType: "solvent",
-        itemId: solventId,
-        instrumentId,
-      }),
-  });
-  const pendingDeduction = pendingDeductions[0] ?? null;
-  const pendingReady = !pendingDeduction || isDeductionResolutionReady(pendingReason, pendingNote);
-  const canSave = Boolean(instrumentId && solventId && !qtyError && user?.name && pendingReady);
-
-  useEffect(() => {
-    setPendingReason("");
-    setPendingNote("");
-  }, [pendingDeduction?._id]);
+  const canSave = Boolean(instrumentId && solventId && !qtyError && user?.name);
 
   useEffect(() => {
     if (initialSolventId) setSolventId(initialSolventId);
@@ -128,13 +106,6 @@ export default function ChemicalRequisitionDialog({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (pendingDeduction && pendingReason) {
-        await api.resolveStockDeduction(pendingDeduction._id, {
-          reason: pendingReason,
-          note: pendingNote.trim() || undefined,
-          _user: { email: user?.email ?? "", name: user?.name ?? "" },
-        });
-      }
       return api.createChemicalRequisition({
         roomSlug,
         date: todayStr(),
@@ -252,16 +223,6 @@ export default function ChemicalRequisitionDialog({
               {solventUnitQrId && <p className="mt-1 text-xs text-muted-foreground">สแกน QR รายขวดแล้ว ระบบจะเบิกขวดนี้ 1 ขวด</p>}
               {qtyError && <p className="mt-1 text-sm text-destructive">{qtyError}</p>}
             </div>
-
-            {pendingDeduction && (
-              <PendingDeductionResolutionFields
-                transaction={pendingDeduction}
-                reason={pendingReason}
-                note={pendingNote}
-                onReasonChange={setPendingReason}
-                onNoteChange={setPendingNote}
-              />
-            )}
 
             <div>
               <Label className="mb-1.5 block">หมายเหตุ</Label>

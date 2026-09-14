@@ -9,10 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import PendingDeductionResolutionFields from "@/components/lis/stock/PendingDeductionResolutionFields";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
-import { isDeductionResolutionReady } from "@/lib/deductionResolution";
 import { isUsableBottle } from "@/lib/stockStatus";
 import { formatStockQuantityWithUnit } from "@/lib/stockQuantity";
 import {
@@ -26,7 +24,7 @@ import {
 } from "@/lib/standardRequisition";
 import { buildSubstanceGroups, resolveGroups, type InstrumentGroup } from "@/lib/standardInstrumentGroups";
 import { cn } from "@/lib/utils";
-import type { DeductionResolutionReason, StockUnitItem } from "@/types/stock";
+import type { StockUnitItem } from "@/types/stock";
 
 const TYPES = ["primary", "working", "supplier"] as const;
 type BottleType = (typeof TYPES)[number];
@@ -57,8 +55,6 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
   const [weights, setWeights] = useState<string[]>([""]);
   const [countText, setCountText] = useState("1"); // buffer ช่องจำนวนน้ำหนัก — ให้ว่างชั่วคราวได้ตอนแก้
   const [note, setNote] = useState("");
-  const [pendingReason, setPendingReason] = useState<DeductionResolutionReason | "">("");
-  const [pendingNote, setPendingNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [countCustomized, setCountCustomized] = useState(false);
   const appliedInitialQrRef = useRef<string | null>(null);
@@ -148,26 +144,7 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
     ? (resolvedGroups.length === 1 ? resolvedGroups[0] : undefined)
     : (effectiveGroup ?? undefined);
 
-  const { data: pendingDeductions = [] } = useQuery({
-    queryKey: ["stock", "pending-deductions", "standard", standard?._id, standard?.code, submitGroup ?? "", bottle?.qrId ?? ""],
-    enabled: Boolean(standard && bottle),
-    queryFn: () =>
-      api.getPendingStockDeductions({
-        itemType: "standard",
-        itemId: standard!._id,
-        itemCode: standard!.code,
-        instrumentGroup: submitGroup,
-        excludeQrId: bottle!.qrId,
-      }),
-  });
-  const pendingDeduction = pendingDeductions[0] ?? null;
-  const pendingReady = !pendingDeduction || isDeductionResolutionReady(pendingReason, pendingNote);
-  const canSave = !!(bottle && !weightError && user?.name && (!needsGroupPick || pickedGroup || customCount) && pendingReady);
-
-  useEffect(() => {
-    setPendingReason("");
-    setPendingNote("");
-  }, [pendingDeduction?._id]);
+  const canSave = !!(bottle && !weightError && user?.name && (!needsGroupPick || pickedGroup || customCount));
 
   useEffect(() => {
     const qrIdToApply = initialQrId?.trim();
@@ -256,13 +233,6 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
     if (!bottle) return;
     setBusy(true);
     try {
-      if (pendingDeduction && pendingReason) {
-        await api.resolveStockDeduction(pendingDeduction._id, {
-          reason: pendingReason,
-          note: pendingNote.trim() || undefined,
-          _user: requisitionUser(user),
-        });
-      }
       await api.deductStockUnitMg(bottle.qrId, {
         weights: nums,
         instrumentGroup: submitGroup,
@@ -448,16 +418,6 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
                   </p>
                   {weightError && <p className="mt-1 text-sm text-destructive">{weightError}</p>}
                 </div>
-              )}
-
-              {pendingDeduction && (
-                <PendingDeductionResolutionFields
-                  transaction={pendingDeduction}
-                  reason={pendingReason}
-                  note={pendingNote}
-                  onReasonChange={setPendingReason}
-                  onNoteChange={setPendingNote}
-                />
               )}
 
               <div>
