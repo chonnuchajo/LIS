@@ -1025,9 +1025,6 @@ function MedicineSixMonthTab() {
               <Package className="w-5 h-5" /> List ยา 6 เดือน
               <Badge variant="outline">{filtered.length}</Badge>
             </CardTitle>
-            <p className="text-xs text-muted-foreground">
-              แสดง Item No ที่ขึ้นต้นด้วย R/F และอายุมากกว่า 6 เดือนจาก registering_date · นับเฉพาะเดือน ไม่ดูวันที่ · เดือนอ้างอิง {formatStockMonth(data?.referenceMonth)}
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={kindFilter} onValueChange={(value) => setKindFilter(value as "all" | "rm" | "fg")}>

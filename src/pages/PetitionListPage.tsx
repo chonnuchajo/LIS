@@ -279,9 +279,6 @@ function SixMonthMedicineTab() {
         <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="text-base">List ยา 6 เดือน</CardTitle>
-            <p className="mt-1 text-sm text-grey-500">
-              แสดง Item No ที่ขึ้นต้นด้วย R/F และอายุมากกว่า 6 เดือนจาก registering_date · นับเฉพาะเดือน ไม่ดูวันที่ · เดือนอ้างอิง {formatSixMonthReferenceMonth(data?.referenceMonth)}
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={kindFilter} onValueChange={(value) => setKindFilter(value as 'all' | 'rm' | 'fg')}>
