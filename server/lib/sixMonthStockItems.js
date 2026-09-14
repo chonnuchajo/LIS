@@ -26,15 +26,20 @@ function numericValue(...values) {
   return 0;
 }
 
+function isMedicineItemNo(value) {
+  return /^[RF]/i.test(textValue(value));
+}
+
 function normalizeSixMonthStockItem(row, referenceDate = new Date()) {
   const ageMonths = monthAge(row.registering_date ?? row.registeringDate, referenceDate);
-  if (ageMonths == null || ageMonths < 6 || ageMonths % 6 !== 0) return null;
+  const itemNo = textValue(row.item_no ?? row.itemNo);
+  if (ageMonths == null || ageMonths <= 6 || !isMedicineItemNo(itemNo)) return null;
   const registered = parseRegisteringDate(row.registering_date ?? row.registeringDate);
   if (!registered) return null;
 
   return {
     companySource: textValue(row.company_source ?? row.companySource),
-    itemNo: textValue(row.item_no ?? row.itemNo),
+    itemNo,
     locationCode: textValue(row.loca_code ?? row.locationCode),
     binCode: textValue(row.bin_code ?? row.binCode),
     lotNo: textValue(row.lot_no ?? row.lotNo),

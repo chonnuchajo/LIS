@@ -271,7 +271,7 @@ function SixMonthMedicineTab() {
           <div>
             <CardTitle className="text-base">List ยา 6 เดือน</CardTitle>
             <p className="mt-1 text-sm text-grey-500">
-              แสดงล็อตที่อายุ 6, 12, 18... เดือนจาก registering_date · นับเฉพาะเดือน ไม่ดูวันที่ · เดือนอ้างอิง {formatSixMonthReferenceMonth(data?.referenceMonth)}
+              แสดง Item No ที่ขึ้นต้นด้วย R/F และอายุมากกว่า 6 เดือนจาก registering_date · นับเฉพาะเดือน ไม่ดูวันที่ · เดือนอ้างอิง {formatSixMonthReferenceMonth(data?.referenceMonth)}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -303,7 +303,7 @@ function SixMonthMedicineTab() {
                 ) : isError ? (
                   <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-red-500">{errorMessage}</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-grey-500">ไม่มีข้อมูลครบ 6 เดือน</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-grey-500">ไม่มีข้อมูลที่อายุมากกว่า 6 เดือน</TableCell></TableRow>
                 ) : filtered.map((item) => (
                   <TableRow key={`${item.itemNo}-${item.lotNo}-${item.locationCode}-${item.binCode}-${item.registeringDate}`}>
                     <TableCell className="font-medium text-black-500">{item.itemNo || '-'}</TableCell>

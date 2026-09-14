@@ -994,7 +994,7 @@ function MedicineSixMonthTab() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const items = data?.items ?? [];
+  const items = useMemo(() => data?.items ?? [], [data?.items]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return items;
@@ -1018,7 +1018,7 @@ function MedicineSixMonthTab() {
               <Badge variant="outline">{filtered.length}</Badge>
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              แสดงล็อตที่อายุ 6, 12, 18... เดือนจาก registering_date · นับเฉพาะเดือน ไม่ดูวันที่ · เดือนอ้างอิง {formatStockMonth(data?.referenceMonth)}
+              แสดง Item No ที่ขึ้นต้นด้วย R/F และอายุมากกว่า 6 เดือนจาก registering_date · นับเฉพาะเดือน ไม่ดูวันที่ · เดือนอ้างอิง {formatStockMonth(data?.referenceMonth)}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
