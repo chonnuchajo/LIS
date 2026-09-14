@@ -62,7 +62,19 @@ const mocks = vi.hoisted(() => {
           unit: 'KG',
           stockQty: 10,
           stockQtyBase: 10,
-          ageMonths: 6,
+          ageMonths: 7,
+        },
+        {
+          companySource: 'ICPL',
+          itemNo: 'R-TEST-002',
+          locationCode: 'NORMAL',
+          binCode: 'DEFAULT',
+          lotNo: 'RM260201-002',
+          registeringDate: '2026-02-28T00:00:00.000Z',
+          unit: 'KG',
+          stockQty: 5,
+          stockQtyBase: 5,
+          ageMonths: 7,
         },
       ],
     }),
@@ -355,6 +367,33 @@ describe('PetitionListPage action cues', () => {
 
     expect(await screen.findByText('F-TEST-001')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'รีเฟรช' })).not.toBeInTheDocument();
+  });
+
+  it('filters six-month medicine rows by RM and FG item prefixes', async () => {
+    mocks.user = {
+      employeeId: 'E888',
+      email: 'qc-head@example.test',
+      name: 'QC Head',
+      roles: ['qc-head'],
+    };
+    renderPage();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    expect(await screen.findByText('F-TEST-001')).toBeInTheDocument();
+    expect(screen.getByText('R-TEST-002')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'ประเภทสินค้า' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'RM' }));
+
+    expect(screen.getByText('R-TEST-002')).toBeInTheDocument();
+    expect(screen.queryByText('F-TEST-001')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'ประเภทสินค้า' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'FG' }));
+
+    expect(screen.getByText('F-TEST-001')).toBeInTheDocument();
+    expect(screen.queryByText('R-TEST-002')).not.toBeInTheDocument();
   });
 
   it('refreshes six-month medicine stock after pulling down from the top on touch screens', async () => {

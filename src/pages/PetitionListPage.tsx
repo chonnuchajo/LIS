@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNotifications } from '@/context/NotificationContext';
@@ -233,6 +234,7 @@ function useTouchPullToRefresh(onRefresh: () => Promise<unknown>) {
 
 function SixMonthMedicineTab() {
   const [sixMonthSearch, setSixMonthSearch] = useState('');
+  const [kindFilter, setKindFilter] = useState<'all' | 'rm' | 'fg'>('all');
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['stock', 'medicine-six-months'],
     queryFn: api.getSixMonthMedicineStock,
@@ -244,15 +246,22 @@ function SixMonthMedicineTab() {
   const filtered = useMemo(() => {
     const items = data?.items ?? [];
     const q = sixMonthSearch.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((item) => [
-      item.itemNo,
-      item.lotNo,
-      item.locationCode,
-      item.binCode,
-      item.companySource,
-    ].some((value) => value.toLowerCase().includes(q)));
-  }, [data?.items, sixMonthSearch]);
+    return items.filter((item) => {
+      const itemNo = item.itemNo.trim().toUpperCase();
+      const matchesKind = kindFilter === 'all'
+        || (kindFilter === 'rm' && itemNo.startsWith('R'))
+        || (kindFilter === 'fg' && itemNo.startsWith('F'));
+      if (!matchesKind) return false;
+      if (!q) return true;
+      return [
+        item.itemNo,
+        item.lotNo,
+        item.locationCode,
+        item.binCode,
+        item.companySource,
+      ].some((value) => value.toLowerCase().includes(q));
+    });
+  }, [data?.items, sixMonthSearch, kindFilter]);
   const errorMessage = error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ';
 
   return (
@@ -275,6 +284,14 @@ function SixMonthMedicineTab() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Select value={kindFilter} onValueChange={(value) => setKindFilter(value as 'all' | 'rm' | 'fg')}>
+              <SelectTrigger aria-label="ประเภทสินค้า" className="h-9 w-full sm:w-28"><SelectValue placeholder="ทั้งหมด" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทั้งหมด</SelectItem>
+                <SelectItem value="rm">RM</SelectItem>
+                <SelectItem value="fg">FG</SelectItem>
+              </SelectContent>
+            </Select>
             <Input
               value={sixMonthSearch}
               onChange={(event) => setSixMonthSearch(event.target.value)}
