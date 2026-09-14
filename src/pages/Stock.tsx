@@ -28,6 +28,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import { usePetitionList } from "@/hooks/usePetition";
 import { normalizeRoles, type RoleHolder } from "@/lib/roles";
 import { requisitionUser } from "@/lib/standardRequisition";
 import {
@@ -52,7 +53,10 @@ import type {
   StockStandardItem, StockSolventItem, StockGlasswareItem,
   StockTransactionItem, StockUnitItem,
 } from "@/types/stock";
+import type { Petition } from "@/types/petition.types";
 import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
+
+const FG_WAREHOUSE_DEPARTMENT = "คลังสินค้า FG";
 
 const STANDARD_STATUS_OPTIONS: { value: StandardStatus; label: string }[] = [
   { value: "ok", label: "ปกติ" },
@@ -119,6 +123,19 @@ function formatStockMonth(value: string | undefined) {
   const date = new Date(`${value}-01T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("th-TH", { month: "long", year: "numeric" });
+}
+
+function firstPetitionItem(petition: Petition) {
+  return petition.items[0];
+}
+
+function petitionItemCountLabel(petition: Petition) {
+  return petition.items.length > 1 ? ` +${petition.items.length - 1} รายการ` : "";
+}
+
+function petitionBatchLotLabel(petition: Petition) {
+  const firstItem = firstPetitionItem(petition);
+  return [firstItem?.batchNo, firstItem?.lotNo].filter(Boolean).join(" / ") || "-";
 }
 
 function downloadStockExport(blob: Blob, filename: string) {
@@ -1086,6 +1103,67 @@ function MedicineSixMonthTab() {
 }
 
 // ============================================================
+// FG quality inspection alerts
+// ============================================================
+function FgQualityAlertsTab() {
+  const { data, loading, error, refresh } = usePetitionList({ dept: "fg", status: "deliveringQC", limit: 100 });
+  const petitions = data?.items ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:space-y-0 space-y-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" /> แจ้งเตือนส่งตรวจคุณภาพ
+            <Badge variant="outline">{petitions.length}</Badge>
+          </CardTitle>
+          <Button size="sm" variant="outline" onClick={refresh} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 mr-1 ${loading ? "animate-spin" : ""}`} /> รีเฟรช
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
+            <Table className="min-w-[900px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>เลขคำร้อง</TableHead>
+                  <TableHead>ผู้ยื่น</TableHead>
+                  <TableHead>วันที่ยื่น</TableHead>
+                  <TableHead>สินค้า</TableHead>
+                  <TableHead>Batch / Lot</TableHead>
+                  <TableHead>สถานะ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow><TableCell colSpan={6} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
+                ) : error ? (
+                  <TableRow><TableCell colSpan={6} className="text-center py-6 text-destructive">{error}</TableCell></TableRow>
+                ) : petitions.length === 0 ? (
+                  <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">ไม่มีรายการแจ้งเตือน</TableCell></TableRow>
+                ) : petitions.map((petition) => {
+                  const firstItem = firstPetitionItem(petition);
+                  return (
+                    <TableRow key={petition._id}>
+                      <TableCell className="font-medium">{petition.petitionNo || "-"}</TableCell>
+                      <TableCell>{petition.submittedBy?.name || "-"}</TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">{formatStockDate(petition.submittedBy?.submittedAt || petition.createdAt)}</TableCell>
+                      <TableCell>{firstItem?.sampleName || "-"}{petitionItemCountLabel(petition)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{petitionBatchLotLabel(petition)}</TableCell>
+                      <TableCell><Badge variant="primary-soft">ส่งตรวจคุณภาพ</Badge></TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ============================================================
 // History Tab
 // ============================================================
 function HistoryTab() {
@@ -1881,8 +1959,13 @@ const StockPage = () => {
   const { tabs, defaultKey } = useAccessibleTabs("/stock");
   const stockUserRoles = normalizeRoles(user);
   const stockUserDepartment = String(user?.department ?? "").trim();
-  const canSeeSixMonthMedicineTab = stockUserRoles.includes("admin") || stockUserRoles.includes("qc-head") || stockUserDepartment === "คลังสินค้า FG";
-  const visibleTabs = tabs.filter((tab) => tab.key !== "medicine-six-months" || canSeeSixMonthMedicineTab);
+  const canSeeSixMonthMedicineTab = stockUserRoles.includes("admin") || stockUserRoles.includes("qc-head") || stockUserDepartment === FG_WAREHOUSE_DEPARTMENT;
+  const canSeeFgQualityAlertsTab = stockUserDepartment === FG_WAREHOUSE_DEPARTMENT;
+  const visibleTabs = tabs.filter((tab) => {
+    if (tab.key === "medicine-six-months") return canSeeSixMonthMedicineTab;
+    if (tab.key === "fg-quality-alerts") return canSeeFgQualityAlertsTab;
+    return true;
+  });
   const stockDefaultKey = visibleTabs.some((tab) => tab.key === defaultKey) ? defaultKey : visibleTabs[0]?.key;
 
   const onScanned = async (qrId: string) => {
@@ -1922,6 +2005,7 @@ const StockPage = () => {
         <TabsContent value="solvent"><SolventsTab /></TabsContent>
         <TabsContent value="glassware"><GlasswareTab /></TabsContent>
         {canSeeSixMonthMedicineTab && <TabsContent value="medicine-six-months"><MedicineSixMonthTab /></TabsContent>}
+        {canSeeFgQualityAlertsTab && <TabsContent value="fg-quality-alerts"><FgQualityAlertsTab /></TabsContent>}
         <TabsContent value="receive"><ReceiveCart /></TabsContent>
         <TabsContent value="history"><HistoryTab /></TabsContent>
       </Tabs>

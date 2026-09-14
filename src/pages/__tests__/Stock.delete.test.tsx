@@ -16,6 +16,44 @@ const apiMock = vi.hoisted(() => ({
 const tabsMock = vi.hoisted(() => ({
   defaultKey: "standard",
 }));
+const petitionListMock = vi.hoisted(() => ({
+  refresh: vi.fn(),
+  response: {
+    data: {
+      items: [
+        {
+          _id: "petition-fg-1",
+          petitionNo: "P-FG-0001",
+          dept: "fg",
+          status: "deliveringQC",
+          submittedBy: {
+            employeeId: "E900",
+            name: "FG Requester",
+            department: "คลังสินค้า FG",
+            submittedAt: "2026-09-10T02:30:00.000Z",
+          },
+          items: [
+            {
+              seq: 1,
+              sampleName: "FG Product A",
+              batchNo: "FG260910-001",
+              lotNo: "LOT-FG-001",
+            },
+          ],
+          reviewHistory: [],
+          createdAt: "2026-09-10T02:30:00.000Z",
+          updatedAt: "2026-09-10T02:30:00.000Z",
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 100,
+    },
+    loading: false,
+    error: null,
+    refresh: vi.fn(),
+  },
+}));
 const authMock = vi.hoisted(() => ({
   user: {
     email: "tester@example.com",
@@ -69,8 +107,13 @@ vi.mock("@/hooks/useAccessibleTabs", () => ({
       { key: "solvent", label: "Solvents" },
       { key: "glassware", label: "Glassware" },
       { key: "medicine-six-months", label: "List ยา 6 เดือน" },
+      { key: "fg-quality-alerts", label: "แจ้งเตือนส่งตรวจคุณภาพ" },
     ],
   }),
+}));
+
+vi.mock("@/hooks/usePetition", () => ({
+  usePetitionList: vi.fn(() => petitionListMock.response),
 }));
 
 vi.mock("sonner", () => ({
@@ -209,6 +252,7 @@ describe("StockPage delete actions", () => {
 
     expect(await screen.findByText("Pesticide Standard")).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "List ยา 6 เดือน" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "แจ้งเตือนส่งตรวจคุณภาพ" })).not.toBeInTheDocument();
     expect(apiMock.getSixMonthMedicineStock).not.toHaveBeenCalled();
   });
 
@@ -248,6 +292,23 @@ describe("StockPage delete actions", () => {
 
     expect(await screen.findByText("Pesticide Standard")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "List ยา 6 เดือน" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "แจ้งเตือนส่งตรวจคุณภาพ" })).toBeInTheDocument();
+  });
+
+  it("shows FG quality inspection alerts for FG warehouse department", async () => {
+    authMock.user = {
+      email: "fg-warehouse@example.com",
+      name: "FG Warehouse",
+      role: "viewer",
+      roles: ["viewer"],
+      department: "คลังสินค้า FG",
+    };
+    renderStock("fg-quality-alerts");
+
+    expect(await screen.findByText("P-FG-0001")).toBeInTheDocument();
+    expect(screen.getByText("FG Product A")).toBeInTheDocument();
+    expect(screen.getByText("FG260910-001 / LOT-FG-001")).toBeInTheDocument();
+    expect(screen.getByText("ส่งตรวจคุณภาพ")).toBeInTheDocument();
   });
 
   it("filters six-month medicine rows by RM and FG item prefixes", async () => {
