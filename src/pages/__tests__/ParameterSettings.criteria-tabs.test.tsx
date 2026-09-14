@@ -154,11 +154,16 @@ describe("ParameterSettings criteria tabs", () => {
   it("opens substance tab and saves a single-substance quick edit", async () => {
     renderPage();
 
-    const criteriaTabList = screen.getAllByRole("tablist")[1];
+    const criteriaTabList = await waitFor(() => {
+      const tabList = screen.getAllByRole("tablist")[1];
+      expect(within(tabList).getByRole("tab", { name: "แยกตามสาร" })).toBeInTheDocument();
+      return tabList;
+    });
     const criteriaTabs = within(criteriaTabList).getAllByRole("tab");
-    expect(criteriaTabs).toHaveLength(4);
+    expect(criteriaTabs.map((tab) => tab.textContent)).toEqual(["ทั้งหมด", "แยกตามสาร"]);
+    expect(within(criteriaTabList).queryByRole("tab", { name: "ตาม %สาร" })).not.toBeInTheDocument();
 
-    const substancesTab = criteriaTabs[1];
+    const substancesTab = within(criteriaTabList).getByRole("tab", { name: "แยกตามสาร" });
     fireEvent.mouseDown(substancesTab);
     fireEvent.click(substancesTab);
 
@@ -194,8 +199,12 @@ describe("ParameterSettings criteria tabs", () => {
   it("keeps the quick-edit dialog open when save fails", async () => {
     renderPage();
 
-    const criteriaTabList = screen.getAllByRole("tablist")[1];
-    const substancesTab = within(criteriaTabList).getAllByRole("tab")[1];
+    const criteriaTabList = await waitFor(() => {
+      const tabList = screen.getAllByRole("tablist")[1];
+      expect(within(tabList).getByRole("tab", { name: "แยกตามสาร" })).toBeInTheDocument();
+      return tabList;
+    });
+    const substancesTab = within(criteriaTabList).getByRole("tab", { name: "แยกตามสาร" });
     fireEvent.mouseDown(substancesTab);
     fireEvent.click(substancesTab);
 
@@ -386,7 +395,7 @@ describe("ParameterSettings criteria tabs", () => {
 
     const table = await openLabLabelToleranceTab();
     expect(within(table).getByText("Lab Label 12.5")).toBeInTheDocument();
-    expect(within(table).getByText("Lab Label 30")).toBeInTheDocument();
+    expect(within(table).queryByText("Lab Label 30")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("ค้นหาเกณฑ์"), { target: { value: "12.5%" } });
 
@@ -585,7 +594,7 @@ describe("ParameterSettings criteria tabs", () => {
     renderPage();
 
     const criteriaTabList = await waitFor(() => screen.getAllByRole("tablist")[1]);
-    const labelToleranceTab = within(criteriaTabList).getAllByRole("tab")[3];
+    const labelToleranceTab = within(criteriaTabList).getByRole("tab", { name: "ตาม %สาร" });
     fireEvent.mouseDown(labelToleranceTab);
     fireEvent.click(labelToleranceTab);
     await screen.findByText("ABAMECTIN / 1%");
@@ -621,7 +630,7 @@ describe("ParameterSettings criteria tabs", () => {
     renderPage();
 
     const criteriaTabList = await waitFor(() => screen.getAllByRole("tablist")[1]);
-    const labelToleranceTab = within(criteriaTabList).getAllByRole("tab")[3];
+    const labelToleranceTab = within(criteriaTabList).getByRole("tab", { name: "ตาม %สาร" });
     fireEvent.mouseDown(labelToleranceTab);
     fireEvent.click(labelToleranceTab);
     await screen.findByText("ABAMECTIN / 1%");

@@ -126,7 +126,27 @@ export function ParameterCriteriaTabs({
   });
   const [criteriaSearch, setCriteriaSearch] = useState("");
   const showHeadCriteriaColumns = canViewHeadCriteriaColumns === true;
-  const activeCriteriaTab = value === "list" ? "substance" : value;
+  const substanceRows = useMemo(() => buildSubstanceCriteriaRows(parameters, scope), [parameters, scope]);
+  const conditionalRows = useMemo(() => buildConditionalCriteriaRows(parameters, scope), [parameters, scope]);
+  const labelRows = useMemo(() => buildLabelToleranceCriteriaRows(parameters, scope), [parameters, scope]);
+  const criteriaTabOptions = useMemo(
+    () =>
+      [
+        { value: "substance" as const, label: "แยกตามสาร", rows: substanceRows },
+        { value: "conditional" as const, label: "เงื่อนไขพิเศษ", rows: conditionalRows },
+        { value: "labelTolerance" as const, label: "ตาม %สาร", rows: labelRows },
+      ].filter((tab) => tab.rows.length > 0),
+    [conditionalRows, labelRows, substanceRows],
+  );
+  const availableCriteriaTabValues = useMemo(
+    () => criteriaTabOptions.map((tab) => tab.value),
+    [criteriaTabOptions],
+  );
+  const isRequestedCriteriaTabAvailable = value !== "list" && availableCriteriaTabValues.includes(value);
+  const selectedTabValue: ParameterCriteriaTab = isRequestedCriteriaTabAvailable ? value : "list";
+  const activeCriteriaTab = isRequestedCriteriaTabAvailable
+    ? value
+    : criteriaTabOptions[0]?.value ?? "substance";
   const sortOptions =
     activeCriteriaTab === "substance"
       ? SUBSTANCE_SORT_OPTIONS
@@ -147,17 +167,31 @@ export function ParameterCriteriaTabs({
     scopedParameters.forEach((parameter, index) => order.set(parameter._id, index));
     return order;
   }, [scopedParameters]);
-  const defaultParameterFilter = useMemo(
-    () => scopedParameters.find(isSpecificGravityParameter)?._id ?? scopedParameters[0]?._id ?? "",
-    [scopedParameters],
+  const activeCriteriaRows =
+    activeCriteriaTab === "substance"
+      ? substanceRows
+      : activeCriteriaTab === "conditional"
+        ? conditionalRows
+        : labelRows;
+  const activeParameterIds = useMemo(
+    () => new Set(activeCriteriaRows.map((row) => row.parameterId)),
+    [activeCriteriaRows],
   );
-  const activeParameterFilter = parameterOrder.has(parameterFilter) ? parameterFilter : defaultParameterFilter;
+  const parameterOptions = useMemo(
+    () => scopedParameters.filter((parameter) => activeParameterIds.has(parameter._id)),
+    [activeParameterIds, scopedParameters],
+  );
+  const parameterOptionIds = useMemo(
+    () => new Set(parameterOptions.map((parameter) => parameter._id)),
+    [parameterOptions],
+  );
+  const defaultParameterFilter = useMemo(
+    () => parameterOptions.find(isSpecificGravityParameter)?._id ?? parameterOptions[0]?._id ?? "",
+    [parameterOptions],
+  );
+  const activeParameterFilter = parameterOptionIds.has(parameterFilter) ? parameterFilter : defaultParameterFilter;
   const selectedParameterName =
-    scopedParameters.find((parameter) => parameter._id === activeParameterFilter)?.name ?? "ยังไม่มี Parameter";
-
-  const substanceRows = useMemo(() => buildSubstanceCriteriaRows(parameters, scope), [parameters, scope]);
-  const conditionalRows = useMemo(() => buildConditionalCriteriaRows(parameters, scope), [parameters, scope]);
-  const labelRows = useMemo(() => buildLabelToleranceCriteriaRows(parameters, scope), [parameters, scope]);
+    parameterOptions.find((parameter) => parameter._id === activeParameterFilter)?.name ?? "ยังไม่มี Parameter";
   const normalizedCriteriaSearch = normalizeCriteriaSearchText(criteriaSearch);
   const visibleSubstanceRows = useMemo(
     () => filterAndSortRows(substanceRows, activeParameterFilter, normalizedCriteriaSearch, sortKey, parameterOrder),
@@ -175,24 +209,30 @@ export function ParameterCriteriaTabs({
   useEffect(() => {
     setParameterFilter(defaultParameterFilter);
     setCriteriaSearch("");
-  }, [defaultParameterFilter]);
+  }, [activeCriteriaTab, defaultParameterFilter]);
+
+  useEffect(() => {
+    if (value !== "list" && !availableCriteriaTabValues.includes(value)) {
+      onValueChange("list");
+    }
+  }, [availableCriteriaTabValues, onValueChange, value]);
 
   const handleTabChange = (next: string) => {
-    setParameterFilter(defaultParameterFilter);
+    setParameterFilter("");
     setCriteriaSearch("");
     onValueChange(next as ParameterCriteriaTab);
   };
 
   return (
-    <Tabs value={value} onValueChange={handleTabChange}>
-      <TabsList className="mb-4 grid w-full grid-cols-2 lg:inline-grid lg:w-auto lg:grid-cols-4">
+    <Tabs value={selectedTabValue} onValueChange={handleTabChange}>
+      <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1 lg:w-auto">
         <TabsTrigger value="list">ทั้งหมด</TabsTrigger>
-        <TabsTrigger value="substance">แยกตามสาร</TabsTrigger>
-        <TabsTrigger value="conditional">เงื่อนไขพิเศษ</TabsTrigger>
-        <TabsTrigger value="labelTolerance">ตาม %สาร</TabsTrigger>
+        {criteriaTabOptions.map((tab) => (
+          <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+        ))}
       </TabsList>
 
-      {value !== "list" ? (
+      {selectedTabValue !== "list" ? (
         <div className="mb-4 flex flex-col gap-3 rounded-md border bg-muted/20 p-3 sm:flex-row sm:items-end">
           <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-muted-foreground sm:min-w-[260px] sm:flex-1">
             ค้นหาเกณฑ์
@@ -215,7 +255,7 @@ export function ParameterCriteriaTabs({
               value={activeParameterFilter}
               onChange={(event) => setParameterFilter(event.target.value)}
             >
-              {scopedParameters.map((parameter) => (
+              {parameterOptions.map((parameter) => (
                 <option key={parameter._id} value={parameter._id}>
                   {parameter.name}
                 </option>
