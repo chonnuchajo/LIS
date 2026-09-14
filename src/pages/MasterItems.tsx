@@ -86,6 +86,11 @@ import {
 } from "@/lib/productClassification";
 import { getMasterItemRegulatoryType } from "@/lib/masterItemRegulatoryType";
 import { parameterMatchesFacets, type ParameterMatchFacets } from "@/lib/petitionTestItems";
+import {
+  addMfDateFields,
+  MF_CURRENT_API_URL,
+  MF_HISTORICAL_API_URL,
+} from "@/lib/mfItemDates";
 
 export { getMasterItemRegulatoryType } from "@/lib/masterItemRegulatoryType";
 
@@ -227,6 +232,8 @@ type MasterItemOverrideMap = Record<string, MasterItemOverride>;
 
 const DIRECT_MASTER_ITEM_URL = "https://n8n-plant.icpladda.com/webhook/API/Item-production";
 const MASTER_ITEM_DETAIL_CLICK_DELAY_MS = 250;
+const MF_EXTRA_KEYS = ["MF_Before", "MF_Lasted"];
+const EMPTY_MF_ITEM_PAYLOADS: { historical: unknown; current: unknown } = { historical: [], current: [] };
 
 const idKeys = ["_id", "id", "itemId", "item_id", "item_no", "code", "itemCode"];
 const codeKeys = ["item_no", "itemCode", "item_code", "code", "Code", "ITEM_CODE"];
@@ -917,6 +924,24 @@ async function fetchDirectMasterItems() {
   return normalizeItems(await response.json());
 }
 
+async function fetchOptionalJson(url: string): Promise<unknown> {
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) return [];
+    return response.json();
+  } catch {
+    return [];
+  }
+}
+
+async function fetchMfItemPayloads(): Promise<{ historical: unknown; current: unknown }> {
+  const [historical, current] = await Promise.all([
+    fetchOptionalJson(MF_HISTORICAL_API_URL),
+    fetchOptionalJson(MF_CURRENT_API_URL),
+  ]);
+  return { historical, current };
+}
+
 export default function MasterItems() {
   const queryClient = useQueryClient();
   const itemDetailClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -970,6 +995,11 @@ export default function MasterItems() {
         return fetchDirectMasterItems();
       }
     },
+  });
+
+  const { data: mfItemPayloads = EMPTY_MF_ITEM_PAYLOADS } = useQuery({
+    queryKey: ["master-item-mf-dates"],
+    queryFn: fetchMfItemPayloads,
   });
 
   const { data: overrideMap = {} } = useQuery<MasterItemOverrideMap>({
@@ -1026,8 +1056,13 @@ export default function MasterItems() {
 
   const cnMap = useMemo(() => buildOverrideMap(cnOverrides), [cnOverrides]);
 
+  const itemsWithMfDates = useMemo(
+    () => addMfDateFields(items, mfItemPayloads.historical, mfItemPayloads.current),
+    [items, mfItemPayloads],
+  );
+
   const enrichedItems = useMemo(
-    () => items.map((item) => {
+    () => itemsWithMfDates.map((item) => {
       const originalItemNo = String(firstValue(item, codeKeys)).trim();
       const override = overrideMap[originalItemNo];
       const rawCommonName = String(firstValue(item, commonNameKeys)).trim();
@@ -1039,7 +1074,7 @@ export default function MasterItems() {
         displayCommonName: normalizeCommonName(rawCommonName, cnMap),
       };
     }),
-    [items, overrideMap, cnMap],
+    [itemsWithMfDates, overrideMap, cnMap],
   );
 
   const commonNameRows = useMemo(
@@ -1110,14 +1145,22 @@ export default function MasterItems() {
       ...hiddenTableKeys,
     ]);
     const keys: string[] = [];
-    for (const item of items) {
+    for (const key of MF_EXTRA_KEYS) {
+      if (itemsWithMfDates.some((item) => String(item[key] ?? "").trim() !== "")) keys.push(key);
+    }
+    for (const item of itemsWithMfDates) {
       Object.keys(item).forEach((key) => {
         if (!used.has(key) && !keys.includes(key)) keys.push(key);
       });
       if (keys.length >= 3) break;
     }
     return keys;
-  }, [items]);
+  }, [itemsWithMfDates]);
+
+  const viewingItem = useMemo(() => {
+    if (!viewing) return null;
+    return enrichedItems.find((entry) => entry.originalItemNo === viewing.originalItemNo) ?? viewing;
+  }, [enrichedItems, viewing]);
 
   const handleExport = async (format: "xlsx" | "pdf") => {
     if (filteredItems.length === 0) {
@@ -1471,17 +1514,17 @@ export default function MasterItems() {
           />
         )}
 
-        {viewing && (
+        {viewingItem && (
           <MasterItemDetailDrawer
-            item={viewing.item}
-            originalItemNo={viewing.originalItemNo}
-            parameters={getParametersFor(viewing.item, parameters, groupIdsFor(viewing.originalItemNo))}
+            item={viewingItem.item}
+            originalItemNo={viewingItem.originalItemNo}
+            parameters={getParametersFor(viewingItem.item, parameters, groupIdsFor(viewingItem.originalItemNo))}
             groups={itemGroups}
-            itemGroupIds={groupIdsFor(viewing.originalItemNo)}
+            itemGroupIds={groupIdsFor(viewingItem.originalItemNo)}
             extraColumns={extraColumns}
             onClose={() => setViewing(null)}
             onEdit={() => {
-              setEditing(viewing);
+              setEditing(viewingItem);
               setViewing(null);
             }}
           />

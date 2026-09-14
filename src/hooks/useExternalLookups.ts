@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { buildOverrideMap, normalizeCommonName } from '@/lib/commonNameOverride';
 import type { CommonNameOverrideRow } from '@/lib/commonNameOverride';
-import { appendMfDateNote, mergeMfItemRows, normalizeMfDate } from '@/lib/mfItemDates';
-
-export const MF_HISTORICAL_API_URL = 'https://n8n-plant.icpladda.com/webhook/item-MF-CLOSE';
-export const MF_CURRENT_API_URL = 'https://n8n-plant.icpladda.com/webhook/api/item-MF';
+import {
+  appendMfDateNote,
+  mergeMfItemRows,
+  MF_CURRENT_API_URL,
+  MF_HISTORICAL_API_URL,
+  normalizeMfDate,
+} from '@/lib/mfItemDates';
 export const MF_LOT_API_URLS = [
   { source: 'Historical', url: MF_HISTORICAL_API_URL },
   { source: 'Current', url: MF_CURRENT_API_URL },

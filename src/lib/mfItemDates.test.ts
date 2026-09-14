@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendMfDateNote, mergeMfItemRows } from "./mfItemDates";
+import { addMfDateFields, appendMfDateNote, mergeMfItemRows } from "./mfItemDates";
 
 describe("mergeMfItemRows", () => {
   it("sorts distinct create_date values and picks previous and latest dates", () => {
@@ -85,5 +85,33 @@ describe("appendMfDateNote", () => {
 
   it("uses dash for missing MF dates", () => {
     expect(appendMfDateNote("", { MF_Before: null, MF_Lasted: null })).toBe("MF_Before: - | MF_Lasted: -");
+  });
+});
+
+describe("addMfDateFields", () => {
+  it("adds MF dates to existing target rows matched by item key", () => {
+    const result = addMfDateFields(
+      [
+        { item_no: "F-NADNG-15", item_name1: "นาแดน-จี" },
+        { item_no: "NO-DATE", item_name1: "ไม่มีวันที่" },
+      ],
+      [{ item_no: "F-NADNG-15", create_date: "2026-09-12T00:00:00Z" }],
+      [{ item_no: "F-NADNG-15", create_date: "2026-09-14T00:00:00Z" }],
+    );
+
+    expect(result).toEqual([
+      {
+        item_no: "F-NADNG-15",
+        item_name1: "นาแดน-จี",
+        MF_Before: "2026-09-12",
+        MF_Lasted: "2026-09-14",
+      },
+      {
+        item_no: "NO-DATE",
+        item_name1: "ไม่มีวันที่",
+        MF_Before: null,
+        MF_Lasted: null,
+      },
+    ]);
   });
 });

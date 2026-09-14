@@ -10,6 +10,9 @@ export interface MfItemDateOptions {
   dateFields?: string[];
 }
 
+export const MF_HISTORICAL_API_URL = 'https://n8n-plant.icpladda.com/webhook/item-MF-CLOSE';
+export const MF_CURRENT_API_URL = 'https://n8n-plant.icpladda.com/webhook/api/item-MF';
+
 export const MF_ITEM_KEY_FIELDS = [
   'item_id',
   'itemId',
@@ -152,4 +155,17 @@ export function mergeMfItemRows(
   const dateIndex = buildDateIndex(historicalRows, currentRows, options);
 
   return enrichRows([...currentRows, ...fallbackHistoricalRows], dateIndex, options);
+}
+
+export function addMfDateFields(
+  targetPayload: unknown,
+  historicalPayload: unknown,
+  currentPayload: unknown,
+  options: MfItemDateOptions = {},
+): Array<MfItemRow & MfItemDateFields> {
+  const targetRows = rowsFromMfPayload(targetPayload);
+  const historicalRows = rowsFromMfPayload(historicalPayload);
+  const currentRows = rowsFromMfPayload(currentPayload);
+  const dateIndex = buildDateIndex(historicalRows, currentRows, options);
+  return enrichRows(targetRows, dateIndex, options);
 }
