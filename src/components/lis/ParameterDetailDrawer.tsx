@@ -418,6 +418,7 @@ export function ParameterDetailDrawer({
         <div className="flex-1 space-y-5 p-6">
           <section className="space-y-2">
             <h3 className="text-sm font-semibold">ใช้กับ</h3>
+            <p className="text-xs text-muted-foreground">ต้องตรงทุกมิติที่เลือกพร้อมกัน</p>
             <ApplyToSection parameter={parameter} groupNameById={groupNameById} />
           </section>
 

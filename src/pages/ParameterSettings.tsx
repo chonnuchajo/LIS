@@ -2352,7 +2352,7 @@ function ParameterDialog({
               <div>
                 <h3 className="text-base font-semibold">ใช้กับ</h3>
                 <p className="text-xs text-muted-foreground">
-                  เลือกได้หลายมิติพร้อมกัน — Item Name / Common Name / ประเภท Common Name / ประเภทสาร / หมวดหมู่
+                  เลือกได้หลายมิติพร้อมกัน — item ต้องตรงทุกมิติที่เลือก (OR เฉพาะตัวเลือกในมิติเดียวกัน)
                 </p>
               </div>
               <label className="flex items-center gap-2 text-sm">
@@ -2984,7 +2984,7 @@ export default function ParameterSettings() {
             พารามิเตอร์การตรวจสอบ
           </span>
         }
-        description="กำหนดพารามิเตอร์ที่ต้องตรวจ — เลือกใช้กับ Item Name / Common Name / ประเภท Common Name / ประเภทสาร / หมวดหมู่ ได้พร้อมกัน"
+        description="กำหนดพารามิเตอร์ที่ต้องตรวจ — เลือกหลายมิติพร้อมกันแล้ว item ต้องตรงทุกมิติที่เลือก"
         actions={
           <>
             <Button

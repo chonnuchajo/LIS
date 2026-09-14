@@ -1359,7 +1359,7 @@ export type ParameterValueField = {
   // Per-option filter: keyed by option string.
   // ถ้า key ไม่มี = option แสดงให้ทุก item (default).
   // ถ้ามี key แต่ทุกมิติเป็น array ว่าง = แสดงเสมอ.
-  // หากตั้งค่าอย่างน้อย 1 มิติ — OR ข้ามมิติ (เหมือน parameter-level "ใช้กับ").
+  // หากตั้งค่าอย่างน้อย 1 มิติ — OR ข้ามมิติ เฉพาะ option filter.
   optionFilters?: Record<string, {
     itemNos?: string[];        // exact match กับ item.itemNo / รหัสสินค้า
     itemNames?: string[];      // exact match กับ item.sampleName
@@ -1386,7 +1386,7 @@ export type ParameterItem = {
   itemNames?: string[];
   fullCommonNames?: string[];
   productTypes?: string[];
-  // 'RM' | 'FG' — ประตูแบบ AND เทียบกับคลังจาก prefix รหัสสินค้า F/R (ไม่ใช่มิติ OR ตัวที่หก)
+  // 'RM' | 'FG' — ประตูแบบ AND เทียบกับคลังจาก prefix รหัสสินค้า F/R
   categories?: string[];
   // prefix code ของรหัสสินค้า เช่น 'RO' — จับแบบ "ขึ้นต้นด้วย" (RO ครอบ ROPH/ROLS)
   subCategories?: string[];

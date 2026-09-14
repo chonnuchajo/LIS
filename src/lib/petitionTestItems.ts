@@ -165,14 +165,59 @@ function criteriaMatchesFacets(
   return false;
 }
 
+function criteriaMatchesEveryFacet(
+  criteria: {
+    itemNos?: string[];
+    itemNames?: string[];
+    fullCommonNames?: string[];
+    commonNames?: string[];
+    productTypes?: string[];
+    subCategories?: string[];
+    itemGroups?: string[];
+  },
+  facets: ParameterMatchFacets,
+): boolean {
+  const itemNo = facets.itemNo?.trim().toUpperCase() ?? '';
+  const itemNos = criteria.itemNos ?? [];
+  if (itemNos.length > 0 && !itemNos.some((n) => n.trim().toUpperCase() === itemNo)) return false;
+
+  const itemName = facets.itemName?.trim() ?? '';
+  const itemNames = criteria.itemNames ?? [];
+  if (itemNames.length > 0 && !itemNames.some((n) => n.trim() === itemName)) return false;
+
+  const fullCommonName = facets.fullCommonName?.trim().toUpperCase() ?? '';
+  const fullCommonNames = criteria.fullCommonNames ?? [];
+  if (fullCommonNames.length > 0 && !fullCommonNames.some((n) => n.trim().toUpperCase() === fullCommonName)) {
+    return false;
+  }
+
+  const commonName = (facets.commonName ?? '').trim().toUpperCase();
+  const commonNames = criteria.commonNames ?? [];
+  if (commonNames.length > 0 && !commonNames.some((c) => c.trim().toUpperCase() === commonName)) return false;
+
+  const productTypes = criteria.productTypes ?? [];
+  if (productTypes.length > 0 && !productTypeMatches(productTypes, facets.productType ?? '')) return false;
+
+  const subCategories = criteria.subCategories ?? [];
+  if (subCategories.length > 0 && !subCategoryMatches(subCategories, (facets.subCategory ?? '').trim().toUpperCase())) {
+    return false;
+  }
+
+  const itemGroups = criteria.itemGroups ?? [];
+  const itemGroupIds = facets.itemGroupIds ?? [];
+  if (itemGroups.length > 0 && !itemGroups.some((g) => itemGroupIds.includes(g))) return false;
+
+  return true;
+}
+
 // Returns true when the parameter's "ใช้กับ" criteria fit this petition item.
 //
 // หมวดหมู่ (คลัง RM/FG) เป็น "ประตู" แบบ AND ไม่ใช่มิติ OR ตัวที่หก.
 // คลังได้จาก prefix รหัสสินค้า: F = FG, R = RM; fallback petition.dept มีไว้ให้ข้อมูลเก่า.
 //   ตั้ง RM + RO  → รหัสสินค้าขึ้นต้น R และ prefix code ขึ้นต้น RO
 //   ตั้ง RM เปล่า → ทุก item ในคลัง RM
-// เมื่อผ่านประตูแล้ว applyAll → ผ่านเลย; ที่เหลือเป็น OR ข้ามมิติที่ derive จาก item
-// ได้ (itemNo / itemName / commonName / productType / subCategory / itemGroups)
+// เมื่อผ่านประตูแล้ว applyAll → ผ่านเลย; ที่เหลือเป็น AND ข้ามมิติที่ derive จาก item
+// ได้ (itemNo / itemName / commonName / productType / subCategory / itemGroups), OR เฉพาะค่าภายในมิติเดียวกัน
 export function parameterMatchesFacets(param: ParameterItem, facets: ParameterMatchFacets): boolean {
   const category = (facets.category ?? '').trim().toUpperCase();
 
@@ -208,7 +253,7 @@ export function parameterMatchesFacets(param: ParameterItem, facets: ParameterMa
   // เลือกแค่หมวดหมู่ ไม่ระบุอะไรต่อ = ทั้งหมวด
   if (!hasAnyCriteria(includeCriteria)) return hasCategoryGate;
 
-  return criteriaMatchesFacets(includeCriteria, facets);
+  return criteriaMatchesEveryFacet(includeCriteria, facets);
 }
 
 export function parameterAppliesToItem(

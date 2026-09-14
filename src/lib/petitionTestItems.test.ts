@@ -192,7 +192,15 @@ describe('warehouse category (RM/FG) scoping', () => {
     expect(matchParametersForItem(makeItem({ itemNo: 'RI-0044' }), [param])).toHaveLength(0);
   });
 
-  it('keeps the OR across the other dimensions inside the category gate', () => {
+  it('requires product type and subCategory to both match when both are set', () => {
+    const param = makeParam({ applyAll: false, categories: ['RM'], subCategories: ['RI'], productTypes: ['sand'], scope: 'qc' });
+
+    expect(matchParametersForItem(makeItem({ itemNo: 'RI-0044', sampleName: 'Foo SG', commonName: 'SG' }), [param])).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ itemNo: 'RI-0045', commonName: 'EW' }), [param])).toHaveLength(0);
+    expect(matchParametersForItem(makeItem({ itemNo: 'RO-0044', sampleName: 'Foo SG', commonName: 'SG' }), [param])).toHaveLength(0);
+  });
+
+  it('requires every selected dimension inside the category gate to match', () => {
     const param = makeParam({
       applyAll: false,
       categories: ['RM'],
@@ -201,8 +209,9 @@ describe('warehouse category (RM/FG) scoping', () => {
       scope: 'qc',
     });
     const opts = { petitionCategory: 'RM' as const };
-    // ไม่ใช่ RO แต่ commonName ตรง → ยังขึ้น (OR ภายในประตู RM)
-    expect(matchParametersForItem(makeItem({ itemNo: 'RI-0044', commonName: 'EW' }), [param], [], opts)).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ itemNo: 'RO-0044', commonName: 'EW' }), [param], [], opts)).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ itemNo: 'RI-0044', commonName: 'EW' }), [param], [], opts)).toHaveLength(0);
+    expect(matchParametersForItem(makeItem({ itemNo: 'RO-0044', commonName: 'SC' }), [param], [], opts)).toHaveLength(0);
   });
 
   it('leaves params without categories unaffected by petition category', () => {
