@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeMfItemRows } from "./mfItemDates";
+import { appendMfDateNote, mergeMfItemRows } from "./mfItemDates";
 
 describe("mergeMfItemRows", () => {
   it("sorts distinct create_date values and picks previous and latest dates", () => {
@@ -72,5 +72,18 @@ describe("mergeMfItemRows", () => {
 
     expect(historical).toEqual([{ item_id: "E", create_date: "2026-09-10" }]);
     expect(current).toEqual([{ item_id: "E", create_date: "2026-09-14" }]);
+  });
+});
+
+describe("appendMfDateNote", () => {
+  it("adds MF dates into existing additional info", () => {
+    expect(appendMfDateNote("MF: F-NADNG-15", {
+      MF_Before: "2026-09-12",
+      MF_Lasted: "2026-09-14",
+    })).toBe("MF: F-NADNG-15 | MF_Before: 2026-09-12 | MF_Lasted: 2026-09-14");
+  });
+
+  it("uses dash for missing MF dates", () => {
+    expect(appendMfDateNote("", { MF_Before: null, MF_Lasted: null })).toBe("MF_Before: - | MF_Lasted: -");
   });
 });

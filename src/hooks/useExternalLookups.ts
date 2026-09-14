@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { buildOverrideMap, normalizeCommonName } from '@/lib/commonNameOverride';
 import type { CommonNameOverrideRow } from '@/lib/commonNameOverride';
-import { mergeMfItemRows, normalizeMfDate } from '@/lib/mfItemDates';
+import { appendMfDateNote, mergeMfItemRows, normalizeMfDate } from '@/lib/mfItemDates';
 
 export const MF_HISTORICAL_API_URL = 'https://n8n-plant.icpladda.com/webhook/item-MF-CLOSE';
 export const MF_CURRENT_API_URL = 'https://n8n-plant.icpladda.com/webhook/api/item-MF';
@@ -100,6 +100,10 @@ function normalizeLotOptions(payload: unknown, source: string, cnMap: Map<string
       const mfLasted = normalizeDate(pickString(row, ['MF_Lasted'])) ?? rowProductionDate;
       const itemNo = pickString(row, ['item_no', 'itemNo', 'code', 'short_dm1_code']);
       const labelParts = [sampleName, batchNo ? `Lot ${batchNo}` : '', itemNo ? `Item ${itemNo}` : ''];
+      const note = appendMfDateNote(itemNo ? `${source}: ${itemNo}` : source, {
+        MF_Before: mfBefore,
+        MF_Lasted: mfLasted,
+      });
       return {
         id: `${source}-${batchNo || itemNo || idx}`,
         source,
@@ -112,7 +116,7 @@ function normalizeLotOptions(payload: unknown, source: string, cnMap: Map<string
         MF_Lasted: mfLasted,
         packageUnit: packsize,
         commonName,
-        note: itemNo ? `${source}: ${itemNo}` : source,
+        note,
       };
     })
     .filter((option) => option.sampleName);

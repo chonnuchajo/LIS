@@ -64,6 +64,14 @@ export function normalizeMfDate(value: unknown): string | null {
   return null;
 }
 
+export function appendMfDateNote(note: string, fields: MfItemDateFields): string {
+  const mfNote = [
+    `MF_Before: ${fields.MF_Before ?? '-'}`,
+    `MF_Lasted: ${fields.MF_Lasted ?? '-'}`,
+  ].join(' | ');
+  return [note.trim(), mfNote].filter(Boolean).join(' | ');
+}
+
 export function getMfItemKey(row: MfItemRow, itemKeyFields: readonly string[] = MF_ITEM_KEY_FIELDS): string {
   return pickString(row, itemKeyFields);
 }
