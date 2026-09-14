@@ -236,6 +236,20 @@ describe("StockPage delete actions", () => {
     });
   });
 
+  it("shows the six-month medicine tab for FG warehouse department", async () => {
+    authMock.user = {
+      email: "fg-warehouse@example.com",
+      name: "FG Warehouse",
+      role: "viewer",
+      roles: ["viewer"],
+      department: "คลังสินค้า FG",
+    };
+    renderStock();
+
+    expect(await screen.findByText("Pesticide Standard")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "List ยา 6 เดือน" })).toBeInTheDocument();
+  });
+
   it("filters six-month medicine rows by RM and FG item prefixes", async () => {
     renderStock("medicine-six-months");
 

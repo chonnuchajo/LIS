@@ -38,6 +38,7 @@ const {
 
 const STOCK_ALL_ITEM_URL = process.env.STOCK_ALL_ITEM_URL || 'https://n8n-plant.icpladda.com/webhook/api/stock-all-item';
 const STOCK_ALL_ITEM_TIMEOUT_MS = 15_000;
+const SIX_MONTH_MEDICINE_DEPARTMENT = 'คลังสินค้า FG';
 
 async function genUniqueQrId() {
   for (let i = 0; i < 5; i++) {
@@ -283,6 +284,7 @@ async function stockManagementActor(req) {
     email: meta.userEmail,
     userEmail: meta.userEmail,
     name: meta.userName,
+    department: String(stored?.department || '').trim(),
     roles: storedRoles.length > 0 ? storedRoles : syntheticDevRolesFromEmail(meta.userEmail, req),
   };
 }
@@ -772,8 +774,8 @@ router.get('/medicine-six-months', async (req, res) => {
   try {
     const actor = await stockManagementActor(req);
     const actorRoles = normalizeRoles(actor);
-    if (!actorRoles.includes('admin') && !actorRoles.includes('qc-head')) {
-      return res.status(403).json({ error: 'เฉพาะ Admin / QC Head เท่านั้น' });
+    if (!actorRoles.includes('admin') && !actorRoles.includes('qc-head') && actor.department !== SIX_MONTH_MEDICINE_DEPARTMENT) {
+      return res.status(403).json({ error: 'เฉพาะ Admin / QC Head / คลังสินค้า FG เท่านั้น' });
     }
     const referenceDate = new Date();
     const rows = await fetchStockAllItems();

@@ -427,6 +427,19 @@ describe('PetitionListPage action cues', () => {
     expect(screen.getByRole('tab', { name: 'List ยา 6 เดือน' })).toBeInTheDocument();
   });
 
+  it('shows the six-month medicine tab for FG warehouse department users', async () => {
+    mocks.user = {
+      employeeId: 'E890',
+      email: 'fg-warehouse@example.test',
+      name: 'FG Warehouse',
+      roles: ['viewer'],
+      department: 'คลังสินค้า FG',
+    };
+    renderPage();
+
+    expect(screen.getByRole('tab', { name: 'List ยา 6 เดือน' })).toBeInTheDocument();
+  });
+
   it('hides the six-month medicine tab for users without admin or QC head', async () => {
     mocks.user = {
       employeeId: 'E889',

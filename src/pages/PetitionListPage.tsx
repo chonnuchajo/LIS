@@ -352,7 +352,8 @@ export default function PetitionListPage({
   const createdNo = (location.state as { createdNo?: string } | null)?.createdNo;
   const roles = normalizeRoles(user);
   const canViewAll = roles.includes('admin');
-  const canSeeSixMonthMedicineTab = roles.includes('admin') || roles.includes('qc-head');
+  const department = String(user?.department ?? '').trim();
+  const canSeeSixMonthMedicineTab = roles.includes('admin') || roles.includes('qc-head') || department === 'คลังสินค้า FG';
   const canCreatePetition = canUserCreatePetition(user, canAccess(NEW_PETITION_PATH));
   const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
   const groupMembership = useItemGroupMembership();

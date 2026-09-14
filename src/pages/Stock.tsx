@@ -1880,7 +1880,8 @@ const StockPage = () => {
   const qc = useQueryClient();
   const { tabs, defaultKey } = useAccessibleTabs("/stock");
   const stockUserRoles = normalizeRoles(user);
-  const canSeeSixMonthMedicineTab = stockUserRoles.includes("admin") || stockUserRoles.includes("qc-head");
+  const stockUserDepartment = String(user?.department ?? "").trim();
+  const canSeeSixMonthMedicineTab = stockUserRoles.includes("admin") || stockUserRoles.includes("qc-head") || stockUserDepartment === "คลังสินค้า FG";
   const visibleTabs = tabs.filter((tab) => tab.key !== "medicine-six-months" || canSeeSixMonthMedicineTab);
   const stockDefaultKey = visibleTabs.some((tab) => tab.key === defaultKey) ? defaultKey : visibleTabs[0]?.key;
 
