@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
+const apiProxyTarget = process.env.VITE_API_PROXY_TARGET || "http://localhost:3001";
+
 export default defineConfig(({ mode }) => ({
   base: "/LIS/",
 
@@ -15,13 +17,13 @@ export default defineConfig(({ mode }) => ({
     },
     proxy: {
       "/LIS/api": {
-        target: "http://localhost:3001",
+        target: apiProxyTarget,
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/LIS/, ""),
       },
       "/LIS/uploads": {
-        target: "http://localhost:3001",
+        target: apiProxyTarget,
         changeOrigin: true,
         secure: false,
         rewrite: (path) => path.replace(/^\/LIS/, ""),

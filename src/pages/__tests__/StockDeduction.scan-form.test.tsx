@@ -146,6 +146,7 @@ describe("StockDeduction scan form", () => {
     apiMock.getStockUnit.mockResolvedValue(stockUnit());
     apiMock.getStockUnits.mockResolvedValue([stockUnit()]);
     apiMock.getPendingStockDeductions.mockResolvedValue([]);
+    apiMock.createChemicalRequisition.mockResolvedValue({});
     readStockLabelCodeFromImageMock.mockResolvedValue({ labelCode: "", candidates: [], rawText: "" });
     apiMock.getMethods.mockResolvedValue([
       { code: "GC-001", requiresMachine: true, machinePrefix: "GC" },
@@ -172,6 +173,28 @@ describe("StockDeduction scan form", () => {
     expect(screen.getByText(/Lot 123 · เหลือ 100 mg/)).toBeInTheDocument();
   });
 
+  it("does not show previous pending deduction close-out fields in the standard form", async () => {
+    apiMock.getPendingStockDeductions.mockResolvedValue([
+      {
+        _id: "tx-pending-standard",
+        itemType: "standard",
+        itemId: "std-1",
+        itemCode: "1",
+        itemName: "2,4-D Acid",
+        createdAt: "2026-08-21T10:00:00.000Z",
+      },
+    ]);
+
+    renderPage();
+
+    openCameraScanner();
+    fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
+
+    expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+    expect(screen.queryByText("มีรายการเบิกก่อนหน้ายังไม่ได้แจ้งหมด/ปัญหา")).not.toBeInTheDocument();
+    expect(apiMock.getPendingStockDeductions).not.toHaveBeenCalled();
+  });
+
   it("opens the chemical form when scanning a solvent bottle QR", async () => {
     const solventUnit = stockUnit({
       _id: "unit-solvent-1",
@@ -194,6 +217,52 @@ describe("StockDeduction scan form", () => {
 
     expect(await screen.findByRole("heading", { name: "เบิกสารเคมี" })).toBeInTheDocument();
     expect(await screen.findByText("Methanol (คงเหลือ 2)")).toBeInTheDocument();
+  });
+
+  it("allows chemical requisition without closing a previous pending deduction", async () => {
+    const solventUnit = stockUnit({
+      _id: "unit-solvent-1",
+      qrId: "u_scan",
+      itemType: "solvent",
+      itemId: "sol1",
+      itemCode: "sol1",
+      itemName: "Methanol",
+      lotNo: "B-001",
+      volume: { initial: 2500, remaining: 2500, unit: "ml" },
+      status: "active",
+    });
+    apiMock.getStockUnit.mockResolvedValue(solventUnit);
+    apiMock.getSolvents.mockResolvedValue([{ _id: "sol1", name: "Methanol", qty: 2 }]);
+    apiMock.getPendingStockDeductions.mockResolvedValue([
+      {
+        _id: "tx-pending",
+        itemType: "solvent",
+        itemId: "sol1",
+        itemName: "Methanol",
+        createdAt: "2026-08-21T10:00:00.000Z",
+      },
+    ]);
+
+    renderPage();
+
+    openCameraScanner();
+    fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
+
+    expect(await screen.findByRole("heading", { name: "เบิกสารเคมี" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "GC 7890A" }));
+
+    expect(screen.queryByText("มีรายการเบิกก่อนหน้ายังไม่ได้แจ้งหมด/ปัญหา")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^เบิก$/ })).toBeEnabled();
+    expect(apiMock.getPendingStockDeductions).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /^เบิก$/ }));
+
+    await waitFor(() => expect(apiMock.createChemicalRequisition).toHaveBeenCalledWith(expect.objectContaining({
+      instrumentId: "LD-003",
+      solventId: "sol1",
+      solventUnitQrId: "u_scan",
+      qty: 1,
+    })));
   });
 
   it("opens scanner results without writing qrId into the URL", async () => {

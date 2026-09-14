@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  duplicateBatchError,
+  defaultSendItemToLab,
   hasLabTrack,
   hasSendToLabOverride,
   labSendOverrideNoteError,
@@ -38,6 +38,17 @@ describe("petitionRouting", () => {
     expect(shouldSendItemToLab({ batchNo: "B-2", sendToLab: true })).toBe(true);
     expect(hasLabTrack({ items: [{ seq: 1, sampleName: "S", batchNo: "B-1", sendToLab: false }] } as Petition)).toBe(false);
     expect(hasLabTrack({ items: [{ seq: 1, sampleName: "S", batchNo: "B-2", sendToLab: true }] } as Petition)).toBe(true);
+  });
+
+  it("always routes PUBLIC HEALTH and LIVE STOCK products to Lab", () => {
+    const publicHealth = { sampleName: "S", commonName: "DELTAMETHRIN 1% W/V EC (PUBLIC HEALTH)", batchNo: "B-2", sendToLab: false };
+    const liveStock = { sampleName: "BIFENTHRIN 10% W/V EC (LIVE STOCK)", batchNo: "B-2" };
+
+    expect(defaultSendItemToLab(publicHealth)).toBe(true);
+    expect(shouldSendItemToLab(publicHealth)).toBe(true);
+    expect(shouldSendItemToLab(liveStock)).toBe(true);
+    expect(hasSendToLabOverride(publicHealth)).toBe(false);
+    expect(hasLabTrack({ items: [publicHealth] } as Petition)).toBe(true);
   });
 
   it("requires note when sendToLab differs from the default", () => {

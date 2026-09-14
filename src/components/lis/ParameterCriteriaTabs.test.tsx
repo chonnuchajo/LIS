@@ -22,7 +22,7 @@ const parameters: ParameterItem[] = [
             value2: 80,
             productTypes: ["water"],
             categories: ["RM"],
-          } as any,
+          },
           {
             substance: "ABAMECTIN",
             operator: "between",
@@ -30,7 +30,7 @@ const parameters: ParameterItem[] = [
             value2: 110,
             productTypes: ["water"],
             categories: ["RM"],
-          } as any,
+          },
           {
             substance: "BIFENTHRIN",
             operator: "gte",
@@ -38,7 +38,7 @@ const parameters: ParameterItem[] = [
             value2: null,
             productTypes: ["water"],
             categories: ["RM"],
-          } as any,
+          },
         ],
       },
       {
@@ -163,7 +163,11 @@ describe("ParameterCriteriaTabs", () => {
     renderCriteriaTabs({ value: "list" });
 
     expect(screen.getByText("original parameter list")).toBeInTheDocument();
-    expect(screen.getAllByRole("tab")).toHaveLength(4);
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "ทั้งหมด",
+      "แยกตามสาร",
+      "ตาม %สาร",
+    ]);
   });
 
   it("renders substance table rows without field, type, category, condition, or head-only columns", () => {
@@ -200,6 +204,40 @@ describe("ParameterCriteriaTabs", () => {
     expect(within(screen.getByRole("table")).getAllByRole("columnheader")[0]).toHaveTextContent("ค่า ถพ.");
     expect(within(bodyRows()[0]).getByText("SG")).toBeInTheDocument();
     expect(screen.queryByText("ABAMECTIN")).not.toBeInTheDocument();
+  });
+
+  it("only shows parameters that have rows in the active criteria tab", () => {
+    renderCriteriaTabs({
+      value: "substance",
+      parameters: [
+        {
+          _id: "p-substance",
+          name: "Substance Parameter",
+          scope: "qc",
+          valueFields: [
+            {
+              label: "Active",
+              type: "number",
+              substanceMode: true,
+              substanceStandards: [{ substance: "ABAMECTIN", operator: "gte", value: 90 }],
+            },
+          ],
+        },
+        {
+          _id: "p-density",
+          name: "Density Parameter",
+          scope: "qc",
+          valueFields: [{ label: "Density", type: "number" }],
+        },
+      ],
+    });
+
+    const optionTexts = within(screen.getByLabelText("เลือก Parameter"))
+      .getAllByRole("option")
+      .map((option) => option.textContent ?? "");
+
+    expect(optionTexts).toEqual(["Substance Parameter"]);
+    expect(screen.queryByRole("option", { name: "Density Parameter" })).not.toBeInTheDocument();
   });
 
   it("opens the row's rule when clicking anywhere on a substance row", () => {
@@ -551,10 +589,11 @@ describe("ParameterCriteriaTabs", () => {
     expect(within(rows[0]).queryByText("Visible Field")).not.toBeInTheDocument();
   });
 
-  it("renders an empty state for a tab with no rows", () => {
+  it("hides a criteria tab with no rows", () => {
     renderCriteriaTabs({ value: "conditional" });
 
-    expect(screen.getByText("ไม่มีรายการเกณฑ์ในแท็บนี้")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "เงื่อนไขพิเศษ" })).not.toBeInTheDocument();
+    expect(screen.getByText("original parameter list")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 });

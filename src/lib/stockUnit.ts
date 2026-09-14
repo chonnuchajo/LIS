@@ -1,8 +1,8 @@
 import type { StockUnitItem } from "@/types/stock";
+import { withThaiKedmaneeFallbacks } from "./keyboardLayout";
 
 /** ดึง qrId จากผลสแกน — รองรับ id เปล่า / URL .../stock/scan/<id> / JSON {qrId} */
-export function parseScannedQrId(raw: string): string {
-  const text = (raw || "").trim();
+function parseStructuredQrId(text: string): string | null {
   if (!text) return "";
   try {
     const payload = JSON.parse(text) as { qrId?: unknown; id?: unknown };
@@ -13,13 +13,37 @@ export function parseScannedQrId(raw: string): string {
   }
   try {
     const url = new URL(text);
-    const fromQuery = url.searchParams.get("qrId") ?? url.searchParams.get("id") ?? url.searchParams.get("solventId");
+    let fromQuery = url.searchParams.get("qrId") ?? url.searchParams.get("id") ?? url.searchParams.get("solventId");
+    if (!fromQuery) {
+      for (const [key, value] of url.searchParams.entries()) {
+        const normalizedKey = key.toLocaleLowerCase("en-US");
+        if (["qrid", "id", "solventid"].includes(normalizedKey)) {
+          fromQuery = value;
+          break;
+        }
+      }
+    }
     if (fromQuery) return fromQuery.trim();
     const parts = url.pathname.split("/").filter(Boolean);
     return decodeURIComponent(parts[parts.length - 1] || text).trim();
   } catch {
-    return text;
+    return null;
   }
+}
+
+export function parseScannedQrId(raw: string): string {
+  const text = (raw || "").trim();
+  if (!text) return "";
+
+  for (const candidate of withThaiKedmaneeFallbacks(text).map((value) => value.trim()).filter(Boolean)) {
+    const parsed = parseStructuredQrId(candidate);
+    if (parsed != null) return parsed;
+  }
+
+  const plainId = withThaiKedmaneeFallbacks(text)
+    .map((value) => value.trim())
+    .find((value) => /^[A-Za-z0-9_-]+$/.test(value));
+  return plainId ?? text;
 }
 
 export type UnitDerivedStatus = "active" | "empty" | "discarded" | "expired";

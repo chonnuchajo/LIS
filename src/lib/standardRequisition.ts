@@ -1,6 +1,7 @@
 // ตรรกะเบิก Standard: จำนวนน้ำหนัก default ตามเครื่อง + รวม/ตรวจ mg รายน้ำหนัก.
 
 import { standardLabelCodeFromStockUnit } from "./standardLabelCode";
+import { withThaiKedmaneeFallbacks } from "./keyboardLayout";
 
 interface StandardRequisitionSearchStandard {
   code?: string | number | null;
@@ -79,9 +80,12 @@ export function standardMatchesRequisitionSearch(
   units: StandardRequisitionSearchUnit[],
   query: string,
 ): boolean {
-  const normalizedQuery = normalizeSearchText(query);
-  if (!normalizedQuery) return true;
-  return normalizeSearchText(standardRequisitionSearchText(standard, units)).includes(normalizedQuery);
+  const normalizedQueries = withThaiKedmaneeFallbacks(query)
+    .map(normalizeSearchText)
+    .filter(Boolean);
+  if (normalizedQueries.length === 0) return true;
+  const normalizedSearchText = normalizeSearchText(standardRequisitionSearchText(standard, units));
+  return normalizedQueries.some((normalizedQuery) => normalizedSearchText.includes(normalizedQuery));
 }
 
 function stockUnitIdentifierTerms(unit: StandardRequisitionSearchUnit): string[] {
@@ -96,9 +100,9 @@ export function findStandardBottleBySearch<Unit extends StandardRequisitionSearc
   units: Unit[],
   query: string,
 ): Unit | null {
-  const normalizedQuery = normalizeSearchText(query);
-  const compactQuery = normalizeCompactSearchText(query);
-  if (!normalizedQuery) return null;
+  const normalizedQueries = withThaiKedmaneeFallbacks(query).map(normalizeSearchText).filter(Boolean);
+  const compactQueries = withThaiKedmaneeFallbacks(query).map(normalizeCompactSearchText).filter(Boolean);
+  if (normalizedQueries.length === 0) return null;
 
   const candidates = units.map((unit) => ({
     unit,
@@ -106,7 +110,7 @@ export function findStandardBottleBySearch<Unit extends StandardRequisitionSearc
     compactTerms: stockUnitIdentifierTerms(unit).map((term) => normalizeCompactSearchText(term)),
   }));
 
-  return candidates.find((candidate) => candidate.terms.some((term) => term === normalizedQuery))?.unit
-    ?? candidates.find((candidate) => compactQuery && candidate.compactTerms.some((term) => term === compactQuery))?.unit
+  return candidates.find((candidate) => candidate.terms.some((term) => normalizedQueries.includes(term)))?.unit
+    ?? candidates.find((candidate) => candidate.compactTerms.some((term) => compactQueries.includes(term)))?.unit
     ?? null;
 }

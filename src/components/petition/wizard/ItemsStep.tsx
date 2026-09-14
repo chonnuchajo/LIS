@@ -24,7 +24,7 @@ import {
 } from '@/lib/petitionMasterItem';
 import {
   defaultSendItemToLab,
-  hasSendToLabOverride,
+  isMandatoryLabProduct,
   shouldSendItemToLab,
 } from '@/lib/petitionRouting';
 import SubmitterPicker, { type SubmitterValues } from './SubmitterPicker';
@@ -93,17 +93,35 @@ export default function ItemsStep({
     onChange(value.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   }
 
-  function setLabChoice(idx: number, sendToLab: boolean) {
-    setItem(idx, { sendToLab });
+  function patchWithLabDefault(
+    item: ItemRowValues,
+    patch: Partial<ItemRowValues>,
+    { syncDefault = false }: { syncDefault?: boolean } = {},
+  ) {
+    const followsDefault = typeof item.sendToLab !== 'boolean' || item.sendToLab === defaultSendItemToLab(item);
+    const next = { ...item, ...patch };
+    if (isMandatoryLabProduct(next)) return { ...patch, sendToLab: true };
+    if (!syncDefault && !isMandatoryLabProduct(item)) return patch;
+    return followsDefault ? { ...patch, sendToLab: defaultSendItemToLab(next) } : patch;
   }
 
   function setBatchNo(idx: number, batchNo: string) {
     const item = value[idx];
-    const followsDefault = typeof item.sendToLab !== 'boolean' || item.sendToLab === defaultSendItemToLab(item);
-    setItem(idx, {
-      batchNo,
-      ...(followsDefault ? { sendToLab: defaultSendItemToLab({ batchNo }) } : {}),
-    });
+    setItem(idx, patchWithLabDefault(item, { batchNo }, { syncDefault: true }));
+  }
+
+  function setCommonName(idx: number, commonName: string) {
+    const item = value[idx];
+    setItem(idx, patchWithLabDefault(item, { commonName }));
+  }
+
+  function setMasterOptionPicked(idx: number, item: ItemRowValues, option: PetitionMasterItemOption) {
+    setItem(idx, patchWithLabDefault(item, {
+      itemNo: option.itemNo,
+      sampleName: option.sampleName,
+      commonName: option.commonName,
+      packageUnit: option.packageUnit,
+    }));
   }
 
   function fillEmptyMasterFields(
@@ -127,10 +145,10 @@ export default function ItemsStep({
     const match = findMatchingPetitionMasterItem(masterItemOptions, { sampleName });
     if (!match) {
       // ล้างรหัสเก่าทิ้ง ไม่งั้นชื่อที่พิมพ์ใหม่จะยังลาก parameter ของสินค้าตัวก่อนมาด้วย
-      setItem(idx, { sampleName, itemNo: '' });
+      setItem(idx, patchWithLabDefault(item, { sampleName, itemNo: '' }));
       return;
     }
-    setItem(idx, fillEmptyMasterFields(item, match, { sampleName }));
+    setItem(idx, patchWithLabDefault(item, fillEmptyMasterFields(item, match, { sampleName })));
   }
 
   function addItem() {
@@ -191,8 +209,8 @@ export default function ItemsStep({
         {value.map((it, idx) => {
           const lab = requireDeliveryAndBatch ? shouldSendItemToLab(it) : true;
           const labDefault = defaultSendItemToLab(it);
-          const labOverride = requireDeliveryAndBatch && hasSendToLabOverride(it);
           const batchSuffix = it.batchNo.trim().slice(-1);
+          const labBatchSuffix = ['1', '6'].includes(batchSuffix);
           const sampleNameId = `sample-name-${idx}`;
           const commonNameId = `common-name-${idx}`;
           const batchNoId = `batch-no-${idx}`;
@@ -203,7 +221,7 @@ export default function ItemsStep({
                   <div className="text-base font-semibold">ตัวอย่างที่ {it.seq}</div>
                   {lab && (
                     <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
-                      {requireDeliveryAndBatch && batchSuffix ? `ส่ง lab (ลงท้าย ${batchSuffix})` : 'ส่ง lab'}
+                      {requireDeliveryAndBatch && labBatchSuffix ? `ส่ง lab (ลงท้าย ${batchSuffix})` : 'ส่ง lab'}
                     </span>
                   )}
                 </div>
@@ -232,12 +250,7 @@ export default function ItemsStep({
                       options={masterItemOptions}
                       loading={masterItemsLoading}
                       disabled={itemsReadOnly}
-                      onPick={(option) => setItem(idx, {
-                        itemNo: option.itemNo,
-                        sampleName: option.sampleName,
-                        commonName: option.commonName,
-                        packageUnit: option.packageUnit,
-                      })}
+                      onPick={(option) => setMasterOptionPicked(idx, it, option)}
                     />
                   )}
                 </div>
@@ -254,33 +267,8 @@ export default function ItemsStep({
                   </div>
                 )}
                 {requireDeliveryAndBatch && (
-                  <div>
-                    <Label>การส่ง LAB</Label>
-                    <div className="mt-1 flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={lab ? 'primary' : 'outline'}
-                        aria-pressed={lab}
-                        onClick={() => setLabChoice(idx, true)}
-                        disabled={itemsReadOnly}
-                      >
-                        ส่ง LAB
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={!lab ? 'primary' : 'outline'}
-                        aria-pressed={!lab}
-                        onClick={() => setLabChoice(idx, false)}
-                        disabled={itemsReadOnly}
-                      >
-                        ไม่ส่ง LAB
-                      </Button>
-                    </div>
-                    <p className="mt-1 text-xs text-grey-500">
-                      ค่าเริ่มต้น: {labDefault ? 'ส่ง LAB' : 'ไม่ส่ง LAB'}{batchSuffix ? ` (ลงท้าย ${batchSuffix})` : ''}
-                    </p>
+                  <div className="sm:col-span-2 text-xs text-grey-500">
+                    ระบบกำหนดการส่ง LAB จากเลขแบชหรือกลุ่ม PUBLIC HEALTH/LIVE STOCK: {labDefault ? 'ส่ง LAB' : 'ไม่ส่ง LAB'}{labBatchSuffix ? ` (ลงท้าย ${batchSuffix})` : ''}
                   </div>
                 )}
                 <div>
@@ -292,14 +280,14 @@ export default function ItemsStep({
                       options={masterItemOptions}
                       loading={masterItemsLoading}
                       disabled={itemsReadOnly}
-                      onActiveIngredientChange={(commonName) => setItem(idx, { commonName })}
-                      onPick={(option) => setItem(idx, fillEmptyMasterFields(it, option))}
+                      onActiveIngredientChange={(commonName) => setCommonName(idx, commonName)}
+                      onPick={(option) => setItem(idx, patchWithLabDefault(it, fillEmptyMasterFields(it, option)))}
                     />
                   ) : (
                     <Input
                       id={commonNameId}
                       value={it.commonName}
-                      onChange={(e) => setItem(idx, { commonName: e.target.value })}
+                      onChange={(e) => setCommonName(idx, e.target.value)}
                       disabled
                       placeholder="เติมอัตโนมัติจาก Master Item"
                     />
@@ -349,15 +337,11 @@ export default function ItemsStep({
                   </>
                 )}
                 <div className="sm:col-span-2">
-                  <Label className={labOverride ? 'text-red-500' : undefined}>
-                    {labOverride ? 'โปรดระบุ' : 'หมายเหตุ'}
-                  </Label>
+                  <Label>หมายเหตุ</Label>
                   <Textarea
                     rows={2}
                     value={it.note}
                     onChange={(e) => setItem(idx, { note: e.target.value })}
-                    aria-invalid={labOverride && !it.note.trim() ? true : undefined}
-                    placeholder={labOverride ? 'โปรดระบุเหตุผล' : undefined}
                     disabled={itemsReadOnly}
                   />
                 </div>
