@@ -44,6 +44,11 @@ export interface ItemRowValues {
   testUnit: string;
   testItems: string;
   sendToLab?: boolean;
+  MF_Before?: string | null;
+  MF_Lasted?: string | null;
+  MF_GapDays?: number | null;
+  MF_BatchAfterGap?: number | null;
+  MF_ConsecutivePassCount?: number | null;
   note: string;
   sampleQuantity?: number;
   labelQuantity?: string;
@@ -74,6 +79,33 @@ function normalizeSampleQuantityInput(value: string): number {
   return parsed;
 }
 
+const mfFieldKeys = [
+  'MF_Before',
+  'MF_Lasted',
+  'MF_GapDays',
+  'MF_BatchAfterGap',
+  'MF_ConsecutivePassCount',
+] as const;
+
+function mfFieldsFromOption(option: PetitionMasterItemOption): Partial<ItemRowValues> {
+  const patch: Partial<ItemRowValues> = {};
+  mfFieldKeys.forEach((key) => {
+    if (option[key] !== undefined) patch[key] = option[key] as never;
+  });
+  return patch;
+}
+
+function clearMfFieldsIfPresent(item: ItemRowValues): Partial<ItemRowValues> {
+  if (!mfFieldKeys.some((key) => item[key] !== undefined)) return {};
+  return {
+    MF_Before: null,
+    MF_Lasted: null,
+    MF_GapDays: null,
+    MF_BatchAfterGap: null,
+    MF_ConsecutivePassCount: null,
+  };
+}
+
 export default function ItemsStep({
   value,
   onChange,
@@ -98,11 +130,15 @@ export default function ItemsStep({
     patch: Partial<ItemRowValues>,
     { syncDefault = false }: { syncDefault?: boolean } = {},
   ) {
-    const followsDefault = typeof item.sendToLab !== 'boolean' || item.sendToLab === defaultSendItemToLab(item);
+    const previousDefault = defaultSendItemToLab(item);
+    const followsDefault = typeof item.sendToLab !== 'boolean' || item.sendToLab === previousDefault;
     const next = { ...item, ...patch };
+    const nextDefault = defaultSendItemToLab(next);
     if (isMandatoryLabProduct(next)) return { ...patch, sendToLab: true };
-    if (!syncDefault && !isMandatoryLabProduct(item)) return patch;
-    return followsDefault ? { ...patch, sendToLab: defaultSendItemToLab(next) } : patch;
+    if (!syncDefault && !isMandatoryLabProduct(item)) {
+      return followsDefault && !previousDefault && nextDefault ? { ...patch, sendToLab: true } : patch;
+    }
+    return followsDefault ? { ...patch, sendToLab: nextDefault } : patch;
   }
 
   function setBatchNo(idx: number, batchNo: string) {
@@ -121,6 +157,7 @@ export default function ItemsStep({
       sampleName: option.sampleName,
       commonName: option.commonName,
       packageUnit: option.packageUnit,
+      ...mfFieldsFromOption(option),
     }));
   }
 
@@ -137,6 +174,7 @@ export default function ItemsStep({
       sampleName: item.sampleName.trim() ? (patch.sampleName ?? item.sampleName) : option.sampleName,
       commonName: item.commonName.trim() ? item.commonName : option.commonName,
       packageUnit: item.packageUnit.trim() ? item.packageUnit : option.packageUnit,
+      ...mfFieldsFromOption(option),
     };
   }
 
@@ -145,7 +183,11 @@ export default function ItemsStep({
     const match = findMatchingPetitionMasterItem(masterItemOptions, { sampleName });
     if (!match) {
       // ล้างรหัสเก่าทิ้ง ไม่งั้นชื่อที่พิมพ์ใหม่จะยังลาก parameter ของสินค้าตัวก่อนมาด้วย
-      setItem(idx, patchWithLabDefault(item, { sampleName, itemNo: '' }));
+      setItem(idx, patchWithLabDefault(item, {
+        sampleName,
+        itemNo: '',
+        ...clearMfFieldsIfPresent(item),
+      }));
       return;
     }
     setItem(idx, patchWithLabDefault(item, fillEmptyMasterFields(item, match, { sampleName })));

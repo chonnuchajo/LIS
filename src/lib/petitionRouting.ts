@@ -19,6 +19,11 @@ export type LabRouteItem = {
   batchNo?: unknown;
   sendToLab?: unknown;
   note?: unknown;
+  MF_Before?: unknown;
+  MF_Lasted?: unknown;
+  MF_GapDays?: unknown;
+  MF_BatchAfterGap?: unknown;
+  MF_ConsecutivePassCount?: unknown;
 };
 
 export function isMandatoryLabProduct(item: Pick<LabRouteItem, "sampleName" | "commonName"> | null | undefined): boolean {
@@ -28,8 +33,42 @@ export function isMandatoryLabProduct(item: Pick<LabRouteItem, "sampleName" | "c
   return normalized.includes("PUBLIC HEALTH") || normalized.includes("LIVE STOCK");
 }
 
-export function defaultSendItemToLab(item: Pick<LabRouteItem, "batchNo" | "sampleName" | "commonName">): boolean {
-  return isMandatoryLabProduct(item) || isLabBatchNo(item.batchNo);
+function numberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizedDate(value: unknown): string | null {
+  const text = String(value ?? "").trim();
+  const match = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (!match) return null;
+  return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+}
+
+function mfGapDays(item: Pick<LabRouteItem, "MF_Before" | "MF_Lasted" | "MF_GapDays">): number | null {
+  const explicit = numberOrNull(item.MF_GapDays);
+  if (explicit !== null) return explicit;
+  const before = normalizedDate(item.MF_Before);
+  const lasted = normalizedDate(item.MF_Lasted);
+  if (!before || !lasted) return null;
+  const diff = (Date.parse(`${lasted}T00:00:00Z`) - Date.parse(`${before}T00:00:00Z`)) / 86_400_000;
+  return Number.isFinite(diff) ? diff : null;
+}
+
+export function isMfFiveBatchLabHold(item: Pick<LabRouteItem, "MF_Before" | "MF_Lasted" | "MF_GapDays" | "MF_BatchAfterGap" | "MF_ConsecutivePassCount">): boolean {
+  const gap = mfGapDays(item);
+  if (gap === null || gap < 30) return false;
+
+  const passCount = numberOrNull(item.MF_ConsecutivePassCount);
+  if (passCount !== null && passCount >= 5) return false;
+
+  const batchAfterGap = numberOrNull(item.MF_BatchAfterGap);
+  return batchAfterGap === null || batchAfterGap <= 5;
+}
+
+export function defaultSendItemToLab(item: Pick<LabRouteItem, "batchNo" | "sampleName" | "commonName" | "MF_Before" | "MF_Lasted" | "MF_GapDays" | "MF_BatchAfterGap" | "MF_ConsecutivePassCount">): boolean {
+  return isMandatoryLabProduct(item) || isMfFiveBatchLabHold(item) || isLabBatchNo(item.batchNo);
 }
 
 export function shouldSendItemToLab(item: LabRouteItem | null | undefined): boolean {

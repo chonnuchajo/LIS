@@ -105,13 +105,37 @@ describe("addMfDateFields", () => {
         item_name1: "นาแดน-จี",
         MF_Before: "2026-09-12",
         MF_Lasted: "2026-09-14",
+        MF_GapDays: 2,
+        MF_BatchAfterGap: null,
       },
       {
         item_no: "NO-DATE",
         item_name1: "ไม่มีวันที่",
         MF_Before: null,
         MF_Lasted: null,
+        MF_GapDays: null,
+        MF_BatchAfterGap: null,
       },
     ]);
+  });
+
+  it("counts batches after the latest 30-day MF gap", () => {
+    const result = addMfDateFields(
+      [{ item_no: "A" }],
+      [
+        { item_no: "A", prod_order_no: "MF-1", create_date: "2026-07-01" },
+        { item_no: "A", prod_order_no: "MF-2", create_date: "2026-08-01" },
+        { item_no: "A", prod_order_no: "MF-3", create_date: "2026-08-02" },
+        { item_no: "A", prod_order_no: "MF-4", create_date: "2026-08-03" },
+      ],
+      [{ item_no: "A", prod_order_no: "MF-5", create_date: "2026-08-04" }],
+    );
+
+    expect(result[0]).toMatchObject({
+      MF_Before: "2026-08-03",
+      MF_Lasted: "2026-08-04",
+      MF_GapDays: 1,
+      MF_BatchAfterGap: 4,
+    });
   });
 });

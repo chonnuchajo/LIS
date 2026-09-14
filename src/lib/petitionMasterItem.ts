@@ -7,6 +7,11 @@ export interface PetitionMasterItemOption {
   sampleName: string;
   commonName: string;
   packageUnit: string;
+  MF_Before?: string | null;
+  MF_Lasted?: string | null;
+  MF_GapDays?: number | null;
+  MF_BatchAfterGap?: number | null;
+  MF_ConsecutivePassCount?: number | null;
 }
 
 export interface PetitionMasterItemSelection {
@@ -36,6 +41,19 @@ function sameText(left?: string, right?: string): boolean {
   return normalized(left) === normalized(right);
 }
 
+function optionalString(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  return String(value);
+}
+
+function optionalNumber(value: unknown): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function buildPetitionMasterItemOptions(items: MasterItemRaw[]): PetitionMasterItemOption[] {
   const seen = new Set<string>();
   const options: PetitionMasterItemOption[] = [];
@@ -46,6 +64,11 @@ export function buildPetitionMasterItemOptions(items: MasterItemRaw[]): Petition
       sampleName: getSampleName(item),
       commonName: getRawCommonName(item),
       packageUnit: getPackSize(item),
+      MF_Before: optionalString(item.MF_Before),
+      MF_Lasted: optionalString(item.MF_Lasted),
+      MF_GapDays: optionalNumber(item.MF_GapDays),
+      MF_BatchAfterGap: optionalNumber(item.MF_BatchAfterGap),
+      MF_ConsecutivePassCount: optionalNumber(item.MF_ConsecutivePassCount),
     };
     if (!option.sampleName) continue;
 

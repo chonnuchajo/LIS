@@ -5,6 +5,11 @@ export interface MfItemDateFields {
   MF_Lasted: string | null;
 }
 
+export interface MfItemRoutingFields {
+  MF_GapDays: number | null;
+  MF_BatchAfterGap: number | null;
+}
+
 export interface MfItemDateOptions {
   itemKeyFields?: string[];
   dateFields?: string[];
@@ -87,6 +92,16 @@ function getRowDate(row: MfItemRow, dateFields: readonly string[]): string | nul
   return null;
 }
 
+function dayValue(date: string): number {
+  return Date.parse(`${date}T00:00:00Z`) / 86_400_000;
+}
+
+function diffDays(later: string | null, earlier: string | null): number | null {
+  if (!later || !earlier) return null;
+  const diff = dayValue(later) - dayValue(earlier);
+  return Number.isFinite(diff) ? diff : null;
+}
+
 function buildDateIndex(
   historicalRows: MfItemRow[],
   currentRows: MfItemRow[],
@@ -115,6 +130,49 @@ function calculateDateFields(dates?: Set<string>): MfItemDateFields {
     MF_Before: sortedDates.length > 1 ? sortedDates[sortedDates.length - 2] : null,
     MF_Lasted: sortedDates[sortedDates.length - 1] ?? null,
   };
+}
+
+function calculateRoutingFields(dates?: Set<string>, batchAfterGap: number | null = null): MfItemRoutingFields {
+  const fields = calculateDateFields(dates);
+  return {
+    MF_GapDays: diffDays(fields.MF_Lasted, fields.MF_Before),
+    MF_BatchAfterGap: batchAfterGap,
+  };
+}
+
+function buildBatchAfterGapIndex(
+  historicalRows: MfItemRow[],
+  currentRows: MfItemRow[],
+  options: MfItemDateOptions = {},
+): Map<string, number | null> {
+  const itemKeyFields = options.itemKeyFields ?? MF_ITEM_KEY_FIELDS;
+  const dateFields = options.dateFields ?? MF_CREATE_DATE_FIELDS;
+  const groups = new Map<string, Array<{ date: string; order: number; mfNo: string }>>();
+
+  [...historicalRows, ...currentRows].forEach((row, order) => {
+    const itemKey = getMfItemKey(row, itemKeyFields);
+    const date = getRowDate(row, dateFields);
+    if (!itemKey || !date) return;
+    const rows = groups.get(itemKey) ?? [];
+    rows.push({ date, order, mfNo: pickString(row, ['prod_order_no', 'prodOrderNo', 'mf_no', 'mfNo']) });
+    groups.set(itemKey, rows);
+  });
+
+  const index = new Map<string, number | null>();
+  groups.forEach((rows, itemKey) => {
+    const sortedRows = rows.sort((a, b) => (
+      a.date.localeCompare(b.date) ||
+      a.mfNo.localeCompare(b.mfNo, undefined, { numeric: true }) ||
+      a.order - b.order
+    ));
+    let latestGapStartIndex = -1;
+    for (let index = 1; index < sortedRows.length; index += 1) {
+      const gap = diffDays(sortedRows[index].date, sortedRows[index - 1].date);
+      if (gap !== null && gap >= 30) latestGapStartIndex = index;
+    }
+    index.set(itemKey, latestGapStartIndex >= 0 ? sortedRows.length - latestGapStartIndex : null);
+  });
+  return index;
 }
 
 function fallbackDateFields(row: MfItemRow, dateFields: readonly string[]): MfItemDateFields {
@@ -162,10 +220,18 @@ export function addMfDateFields(
   historicalPayload: unknown,
   currentPayload: unknown,
   options: MfItemDateOptions = {},
-): Array<MfItemRow & MfItemDateFields> {
+): Array<MfItemRow & MfItemDateFields & MfItemRoutingFields> {
+  const itemKeyFields = options.itemKeyFields ?? MF_ITEM_KEY_FIELDS;
   const targetRows = rowsFromMfPayload(targetPayload);
   const historicalRows = rowsFromMfPayload(historicalPayload);
   const currentRows = rowsFromMfPayload(currentPayload);
   const dateIndex = buildDateIndex(historicalRows, currentRows, options);
-  return enrichRows(targetRows, dateIndex, options);
+  const batchAfterGapIndex = buildBatchAfterGapIndex(historicalRows, currentRows, options);
+  return enrichRows(targetRows, dateIndex, options).map((row) => {
+    const itemKey = getMfItemKey(row, itemKeyFields);
+    return {
+      ...row,
+      ...calculateRoutingFields(dateIndex.get(itemKey), itemKey ? batchAfterGapIndex.get(itemKey) ?? null : null),
+    };
+  });
 }

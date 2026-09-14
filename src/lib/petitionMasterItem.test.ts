@@ -38,6 +38,28 @@ describe('petition master item helpers', () => {
     ]);
   });
 
+  it('carries MF routing fields from enriched master items', () => {
+    const [option] = buildPetitionMasterItemOptions([
+      {
+        item_no: 'P001',
+        item_name1: 'Product A',
+        common_name: 'ABAMECTIN 1.8% W/V EC',
+        MF_Before: '2026-08-01',
+        MF_Lasted: '2026-09-01',
+        MF_GapDays: 31,
+        MF_BatchAfterGap: 3,
+      },
+    ]);
+
+    expect(option).toMatchObject({
+      itemNo: 'P001',
+      MF_Before: '2026-08-01',
+      MF_Lasted: '2026-09-01',
+      MF_GapDays: 31,
+      MF_BatchAfterGap: 3,
+    });
+  });
+
   it('matches a selected petition row against the same master option values', () => {
     const options = buildPetitionMasterItemOptions([
       {

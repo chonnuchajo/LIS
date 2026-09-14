@@ -23,6 +23,11 @@ import {
   labSendOverrideNoteError,
   shouldSendItemToLab,
 } from '@/lib/petitionRouting';
+import {
+  addMfDateFields,
+  MF_CURRENT_API_URL,
+  MF_HISTORICAL_API_URL,
+} from '@/lib/mfItemDates';
 import { type Petition } from '@/types/petition.types';
 
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
@@ -65,6 +70,16 @@ function parseSendToLabValue(value: string | null | undefined): boolean | null {
   if (['true', '1'].includes(normalized)) return true;
   if (['false', '0'].includes(normalized)) return false;
   return null;
+}
+
+async function fetchOptionalJson(url: string): Promise<unknown> {
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
 }
 
 function sendToLabFromDefault(item: Pick<ItemRowValues, 'sampleName' | 'commonName' | 'batchNo'>, value?: string): boolean {
@@ -542,7 +557,12 @@ export default function ProductionPetitionNewPage({
     queryKey: ['master-items-for-petition-new'],
     queryFn: async () => {
       const res = await api.get<unknown>('/master-items');
-      return normalizeMasterItemPayload(res.data.data);
+      const masterItems = normalizeMasterItemPayload(res.data.data);
+      const [historical, current] = await Promise.all([
+        fetchOptionalJson(MF_HISTORICAL_API_URL),
+        fetchOptionalJson(MF_CURRENT_API_URL),
+      ]);
+      return addMfDateFields(masterItems, historical, current);
     },
   });
   const masterItemOptions = useMemo(
