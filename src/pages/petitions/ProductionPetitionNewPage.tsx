@@ -67,13 +67,17 @@ function parseSendToLabValue(value: string | null | undefined): boolean | null {
   return null;
 }
 
-function sendToLabFromDefault(item: Pick<ItemRowValues, 'batchNo'>, value?: string): boolean {
-  return parseSendToLabValue(value) ?? defaultSendItemToLab(item);
+function sendToLabFromDefault(item: Pick<ItemRowValues, 'sampleName' | 'commonName' | 'batchNo'>, value?: string): boolean {
+  const parsed = parseSendToLabValue(value);
+  return parsed == null ? defaultSendItemToLab(item) : shouldSendItemToLab({ ...item, sendToLab: parsed });
 }
 
-function sendToLabForSubmit(item: Pick<ItemRowValues, 'batchNo' | 'sendToLab'>, department: string): boolean {
+function sendToLabForSubmit(
+  item: Pick<ItemRowValues, 'sampleName' | 'commonName' | 'batchNo' | 'sendToLab'>,
+  department: string,
+): boolean {
   if (isResearchAndDevelopmentDepartment(department)) return true;
-  return typeof item.sendToLab === 'boolean' ? item.sendToLab : defaultSendItemToLab(item);
+  return shouldSendItemToLab(item);
 }
 
 function getQueryValue(searchParams: URLSearchParams, keys: string[]): string {
@@ -194,7 +198,7 @@ export function requiresMasterItemSelection({
 
 export function hasRequiredLabRequestStep(
   department: string | null | undefined,
-  items: Array<{ batchNo: string; testItems?: string; sendToLab?: boolean }>,
+  items: Array<{ sampleName?: string; commonName?: string; batchNo: string; testItems?: string; sendToLab?: boolean }>,
 ): boolean {
   if (isResearchAndDevelopmentDepartment(department)) return items.length > 0;
   return items.some((it) => shouldSendItemToLab(it));
@@ -237,7 +241,7 @@ function makeInitialItemFromQuery(searchParams: URLSearchParams): ItemRowValues 
     packageUnit,
     // submissionNo เว้นว่าง — backend จะเซ็ต = เลขคำขออัตโนมัติตอนบันทึก
     testItems,
-    sendToLab: sendToLabFromDefault({ batchNo }, sendToLab),
+    sendToLab: sendToLabFromDefault({ sampleName, commonName, batchNo }, sendToLab),
     note,
   };
 }
@@ -394,7 +398,11 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
       productionDate: valueAt(productionDates, i) || null,
       packageUnit: valueAt(packageUnits, i),
       testItems: valueAt(testItems, i),
-      sendToLab: sendToLabFromDefault({ batchNo: valueAt(batchNos, i, false) }, valueAt(sendToLabs, i, false)),
+      sendToLab: sendToLabFromDefault({
+        sampleName: valueAt(sampleNames, i),
+        commonName: valueAt(commonNames, i),
+        batchNo: valueAt(batchNos, i, false),
+      }, valueAt(sendToLabs, i, false)),
       note,
       labelQuantity: makeQuantityLabel(valueAt(quantities, i, false), valueAt(quantityUnits, i)),
       labelSampledDate: valueAt(productionDates, i),

@@ -36,6 +36,12 @@ test('shouldSendItemToLab: explicit sendToLab overrides batch suffix default', (
   assert.strictEqual(hasLabTrack({ items: [{ batchNo: 'AB2', sendToLab: true }] }), true);
 });
 
+test('shouldSendItemToLab: PUBLIC HEALTH and LIVE STOCK always route to Lab', () => {
+  assert.strictEqual(shouldSendItemToLab({ commonName: 'DELTAMETHRIN 1% W/V EC (PUBLIC HEALTH)', batchNo: 'AB2', sendToLab: false }), true);
+  assert.strictEqual(shouldSendItemToLab({ sampleName: 'BIFENTHRIN 10% W/V EC (LIVE STOCK)', batchNo: 'AB2' }), true);
+  assert.strictEqual(hasLabTrack({ items: [{ commonName: 'DELTAMETHRIN 1% W/V EC (PUBLIC HEALTH)', batchNo: 'AB2', sendToLab: false }] }), true);
+});
+
 test('hasFilledValue: empty/blank → false, value → true', () => {
   assert.strictEqual(hasFilledValue({}), false);
   assert.strictEqual(hasFilledValue({ a: '' }), false);

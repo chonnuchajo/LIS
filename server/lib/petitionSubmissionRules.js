@@ -14,12 +14,20 @@ function isLabBatchNo(batchNo) {
   return /[16]$/.test(String(batchNo ?? '').trim());
 }
 
+function isMandatoryLabProduct(item) {
+  const normalized = [item?.sampleName, item?.commonName]
+    .map((value) => String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase())
+    .join(' ');
+  return normalized.includes('PUBLIC HEALTH') || normalized.includes('LIVE STOCK');
+}
+
 function defaultSendItemToLab(item) {
-  return isLabBatchNo(item?.batchNo);
+  return isMandatoryLabProduct(item) || isLabBatchNo(item?.batchNo);
 }
 
 function hasSendToLabOverride(item) {
   if (!item || typeof item.sendToLab !== 'boolean') return false;
+  if (isMandatoryLabProduct(item)) return false;
   return item.sendToLab !== defaultSendItemToLab(item);
 }
 
@@ -85,14 +93,17 @@ function normalizePetitionItems(items, { department, petitionNo } = {}) {
     const commonNamePatch = item.commonName == null
       ? {}
       : { commonName: normalizeProductionCommonName(item.commonName) };
-    return {
+    const normalizedItem = {
       ...item,
       ...commonNamePatch,
       sampleQuantity: normalizeSampleQuantity(item.sampleQuantity),
       submissionNo: String(item.submissionNo ?? '').trim() || petitionNo,
-      sendToLab: isResearchRequest
+    };
+    return {
+      ...normalizedItem,
+      sendToLab: isResearchRequest || isMandatoryLabProduct(normalizedItem)
         ? true
-        : (typeof item.sendToLab === 'boolean' ? item.sendToLab : defaultSendItemToLab(item)),
+        : (typeof item.sendToLab === 'boolean' ? item.sendToLab : defaultSendItemToLab(normalizedItem)),
     };
   });
 }
@@ -131,6 +142,7 @@ function validatePetitionSubmission(body) {
 module.exports = {
   defaultSendItemToLab,
   hasSendToLabOverride,
+  isMandatoryLabProduct,
   isResearchAndDevelopmentDepartment,
   isLabBatchNo,
   labSendOverrideNoteError,

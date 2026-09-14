@@ -75,6 +75,15 @@ describe('R&D integration request rules', () => {
     expect(hasRequiredLabRequestStep('Production', [{ batchNo: 'BN240602', sendToLab: true }])).toBe(true);
   });
 
+  it('always requires a lab request for PUBLIC HEALTH and LIVE STOCK products', () => {
+    expect(hasRequiredLabRequestStep('Production', [
+      { batchNo: 'BN240602', commonName: 'DELTAMETHRIN 1% W/V EC (PUBLIC HEALTH)', sendToLab: false },
+    ])).toBe(true);
+    expect(hasRequiredLabRequestStep('Production', [
+      { batchNo: 'BN240602', sampleName: 'BIFENTHRIN 10% W/V EC (LIVE STOCK)', sendToLab: false },
+    ])).toBe(true);
+  });
+
   it('allows R&D submitters to type item fields without a master item match', () => {
     expect(requiresMasterItemSelection({ department: 'R & D', integrationMode: false })).toBe(false);
     expect(requiresMasterItemSelection({ department: 'Production', integrationMode: false })).toBe(true);
@@ -108,6 +117,24 @@ describe('R&D integration request rules', () => {
     );
 
     expect(items.map((item) => item.sendToLab)).toEqual([false, true]);
+  });
+
+  it('sets PUBLIC HEALTH and LIVE STOCK query items to Lab even when batch is non-Lab', () => {
+    const items = makeInitialItemsFromQuery(
+      new URLSearchParams(
+        'sampleName=Foo,Bar&commonName=DELTAMETHRIN%201%25%20W%2FV%20EC%20(PUBLIC%20HEALTH),BIFENTHRIN%2010%25%20W%2FV%20EC%20(LIVE%20STOCK)&batchNo=BATCH002,BATCH002&sendToLab=false,false',
+      ),
+    );
+
+    expect(items.map((item) => item.sendToLab)).toEqual([true, true]);
+  });
+
+  it('sets a single PUBLIC HEALTH query item to Lab even when sendToLab is false', () => {
+    const [item] = makeInitialItemsFromQuery(
+      new URLSearchParams('sampleName=Foo&commonName=DELTAMETHRIN%201%25%20W%2FV%20EC%20(PUBLIC%20HEALTH)&batchNo=BATCH002&sendToLab=false'),
+    );
+
+    expect(item.sendToLab).toBe(true);
   });
 
   it('maps posted integration payloads into the existing query parser', () => {

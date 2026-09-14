@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const {
+  defaultSendItemToLab,
   isResearchAndDevelopmentDepartment,
   normalizePetitionItems,
   requiresDeliveryAndBatch,
@@ -72,6 +73,15 @@ test('validatePetitionSubmission requires item note when sendToLab overrides bat
   }), null);
 });
 
+test('validatePetitionSubmission does not require override note for mandatory Lab product groups', () => {
+  assert.strictEqual(validatePetitionSubmission({
+    dept: 'production',
+    submittedBy: { name: 'Production User', department: 'Production' },
+    deliveredBy: { name: 'Runner' },
+    items: [{ seq: 5, sampleName: 'Sample E', commonName: 'DELTAMETHRIN 1% W/V EC (PUBLIC HEALTH)', batchNo: 'B-002', sendToLab: false, note: '' }],
+  }), null);
+});
+
 test('validatePetitionSubmission requires sampleQuantity to be a positive integer', () => {
   assert.match(validatePetitionSubmission({
     dept: 'production',
@@ -89,6 +99,17 @@ test('normalizePetitionItems fills boolean sendToLab from legacy batch suffix de
       { seq: 3, batchNo: 'B-003', sendToLab: true },
     ], { department: 'Production', petitionNo: 'P-1' }).map((item) => item.sendToLab),
     [true, false, true],
+  );
+});
+
+test('normalizePetitionItems forces PUBLIC HEALTH and LIVE STOCK products to Lab', () => {
+  assert.strictEqual(defaultSendItemToLab({ commonName: 'CYPERMETHRIN 10% W/V EC (PUBLIC HEALTH)', batchNo: 'B-002' }), true);
+  assert.deepStrictEqual(
+    normalizePetitionItems([
+      { seq: 1, commonName: 'CYPERMETHRIN 10% W/V EC (PUBLIC HEALTH)', batchNo: 'B-002', sendToLab: false },
+      { seq: 2, sampleName: 'BIFENTHRIN 10% W/V EC (LIVE STOCK)', batchNo: 'B-002' },
+    ], { department: 'Production', petitionNo: 'P-1' }).map((item) => item.sendToLab),
+    [true, true],
   );
 });
 
