@@ -47,6 +47,7 @@ import {
 
 const PAGE_SIZE = 20;
 const NEW_PETITION_PATH = '/petitions/new';
+const FG_WAREHOUSE_DEPARTMENT = 'คลังสินค้า FG';
 
 // How long a petition arriving from a dashboard drill-down stays visually marked
 // before it settles back into an ordinary list card.
@@ -132,6 +133,23 @@ function formatSixMonthReferenceMonth(value?: string) {
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 }
+
+function firstPetitionItem(petition: Petition) {
+  return petition.items[0];
+}
+
+function petitionItemCountLabel(petition: Petition) {
+  return petition.items.length > 1 ? ` +${petition.items.length - 1} รายการ` : '';
+}
+
+function petitionBatchLotLabel(petition: Petition) {
+  const firstItem = firstPetitionItem(petition);
+  return [firstItem?.batchNo, firstItem?.lotNo].filter(Boolean).join(' / ') || '-';
+}
+
+type SixMonthMedicineTabProps = {
+  showFgQualityAlerts: boolean;
+};
 
 function canUseTouchPullToRefresh() {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(PULL_TO_REFRESH_DEVICE_QUERY).matches;
@@ -232,7 +250,7 @@ function useTouchPullToRefresh(onRefresh: () => Promise<unknown>) {
   };
 }
 
-function SixMonthMedicineTab() {
+function SixMonthMedicineStockTab() {
   const [sixMonthSearch, setSixMonthSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<'all' | 'rm' | 'fg'>('all');
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -278,7 +296,7 @@ function SixMonthMedicineTab() {
       <Card className="border-black-50 shadow-none">
         <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle className="text-base">List ยา 6 เดือน</CardTitle>
+            <CardTitle className="text-base">รายการยาเกิน 6 เดือน</CardTitle>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={kindFilter} onValueChange={(value) => setKindFilter(value as 'all' | 'rm' | 'fg')}>
@@ -338,6 +356,81 @@ function SixMonthMedicineTab() {
   );
 }
 
+function FgQualityAlertsTab() {
+  const { data, loading, error } = usePetitionList({ dept: 'fg', status: 'deliveringQC', limit: 100 });
+  const petitions = data?.items ?? [];
+
+  return (
+    <Card className="border-black-50 shadow-none">
+      <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <CardTitle className="text-base">แจ้งเตือนส่งตรวจคุณภาพ</CardTitle>
+          <p className="mt-1 text-sm text-grey-500">คำร้อง FG ที่อยู่สถานะกำลังส่งตัวอย่าง</p>
+        </div>
+        <Badge variant="outline">{petitions.length}</Badge>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>เลขคำร้อง</TableHead>
+                <TableHead>ผู้ยื่น</TableHead>
+                <TableHead>วันที่ยื่น</TableHead>
+                <TableHead>สินค้า</TableHead>
+                <TableHead>Batch / Lot</TableHead>
+                <TableHead>สถานะ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-grey-500">กำลังโหลดรายการแจ้งเตือน...</TableCell></TableRow>
+              ) : error ? (
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-red-500">{error}</TableCell></TableRow>
+              ) : petitions.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-grey-500">ไม่มีรายการแจ้งเตือน</TableCell></TableRow>
+              ) : petitions.map((petition) => {
+                const firstItem = firstPetitionItem(petition);
+                return (
+                  <TableRow key={petition._id}>
+                    <TableCell className="font-medium text-black-500">{petition.petitionNo || '-'}</TableCell>
+                    <TableCell>{petition.submittedBy?.name || '-'}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-grey-600">{formatSixMonthStockDate(petition.submittedBy?.submittedAt || petition.createdAt)}</TableCell>
+                    <TableCell>{firstItem?.sampleName || '-'}{petitionItemCountLabel(petition)}</TableCell>
+                    <TableCell className="text-xs text-grey-600">{petitionBatchLotLabel(petition)}</TableCell>
+                    <TableCell><Badge variant="primary-soft">ส่งตรวจคุณภาพ</Badge></TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SixMonthMedicineTab({ showFgQualityAlerts }: SixMonthMedicineTabProps) {
+  if (!showFgQualityAlerts) return <SixMonthMedicineStockTab />;
+
+  return (
+    <Tabs defaultValue="six-month-stock" className="space-y-3">
+      <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+        <TabsList className="w-max">
+          <TabsTrigger value="six-month-stock">รายการยาเกิน 6 เดือน</TabsTrigger>
+          <TabsTrigger value="fg-quality-alerts">แจ้งเตือนส่งตรวจคุณภาพ</TabsTrigger>
+        </TabsList>
+      </div>
+      <TabsContent value="six-month-stock" className="mt-0">
+        <SixMonthMedicineStockTab />
+      </TabsContent>
+      <TabsContent value="fg-quality-alerts" className="mt-0">
+        <FgQualityAlertsTab />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
 export default function PetitionListPage({
   petitionDetailPath = (petition) => `/petition/${petition._id}`,
   title = 'รายการคำร้อง',
@@ -353,7 +446,8 @@ export default function PetitionListPage({
   const roles = normalizeRoles(user);
   const canViewAll = roles.includes('admin');
   const department = String(user?.department ?? '').trim();
-  const canSeeSixMonthMedicineTab = roles.includes('admin') || roles.includes('qc-head') || department === 'คลังสินค้า FG';
+  const canSeeSixMonthMedicineTab = roles.includes('admin') || roles.includes('qc-head') || department === FG_WAREHOUSE_DEPARTMENT;
+  const canSeeFgQualityAlertsTab = department === FG_WAREHOUSE_DEPARTMENT;
   const canCreatePetition = canUserCreatePetition(user, canAccess(NEW_PETITION_PATH));
   const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
   const groupMembership = useItemGroupMembership();
@@ -843,7 +937,7 @@ export default function PetitionListPage({
 
           {canSeeSixMonthMedicineTab && (
             <TabsContent value="six-month-medicine">
-              <SixMonthMedicineTab />
+              <SixMonthMedicineTab showFgQualityAlerts={canSeeFgQualityAlertsTab} />
             </TabsContent>
           )}
         </Tabs>

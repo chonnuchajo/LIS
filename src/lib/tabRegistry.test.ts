@@ -32,8 +32,8 @@ describe("tabRegistry", () => {
     expect(tabsFor("/stock").map((tab) => tab.key)).toContain("medicine-six-months");
   });
 
-  it("stock includes the FG quality inspection alert tab", () => {
-    expect(tabsFor("/stock").map((tab) => tab.key)).toContain("fg-quality-alerts");
+  it("stock does not include the FG quality inspection alert tab", () => {
+    expect(tabsFor("/stock").map((tab) => tab.key)).not.toContain("fg-quality-alerts");
   });
 
   it("builds tab + deny tokens", () => {
