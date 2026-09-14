@@ -146,7 +146,7 @@ describe('ItemsStep master item selection', () => {
 
     expect(screen.queryByRole('button', { name: 'ส่ง LAB' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'ไม่ส่ง LAB' })).not.toBeInTheDocument();
-    expect(screen.getByText(/ระบบกำหนดการส่ง LAB จากเลขแบชอัตโนมัติ/)).toHaveTextContent('ส่ง LAB');
+    expect(screen.getByText(/ระบบกำหนดการส่ง LAB จากเลขแบชหรือกลุ่ม/)).toHaveTextContent('ส่ง LAB');
   });
 
   it('updates LAB choice to true when batch changes into the legacy Lab suffix', () => {
@@ -160,7 +160,56 @@ describe('ItemsStep master item selection', () => {
   it('shows automatic not-send LAB routing for other batch suffixes', () => {
     renderStep({ value: [{ ...baseItem, batchNo: 'BATCH002' }] });
 
-    expect(screen.getByText(/ระบบกำหนดการส่ง LAB จากเลขแบชอัตโนมัติ/)).toHaveTextContent('ไม่ส่ง LAB');
+    expect(screen.getByText(/ระบบกำหนดการส่ง LAB จากเลขแบชหรือกลุ่ม/)).toHaveTextContent('ไม่ส่ง LAB');
+  });
+
+  it('changes PUBLIC HEALTH master item selection to sendToLab true', () => {
+    const { onChange } = renderStep({
+      value: [{ ...baseItem, batchNo: 'BATCH002', sendToLab: false }],
+      masterItemOptions: [
+        {
+          itemNo: 'P002',
+          sampleName: 'Public Health Product',
+          commonName: 'DELTAMETHRIN 1% W/V EC (PUBLIC HEALTH)',
+          packageUnit: '1 L x 12 bottles',
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole('combobox', { name: /ชื่อตัวอย่าง/ }));
+    fireEvent.click(screen.getByText('Public Health Product'));
+
+    expect(onChange).toHaveBeenCalledWith([
+      {
+        ...baseItem,
+        itemNo: 'P002',
+        sampleName: 'Public Health Product',
+        commonName: 'DELTAMETHRIN 1% W/V EC (PUBLIC HEALTH)',
+        packageUnit: '1 L x 12 bottles',
+        batchNo: 'BATCH002',
+        sendToLab: true,
+      },
+    ]);
+  });
+
+  it('changes LIVE STOCK manual active ingredient to sendToLab true', () => {
+    const { onChange } = renderStep({
+      value: [{ ...baseItem, batchNo: 'BATCH002', sendToLab: false }],
+      allowManualItemFields: true,
+    });
+
+    fireEvent.change(screen.getByLabelText('ชื่อสามัญ / Active Ingredient'), {
+      target: { value: 'BIFENTHRIN 10% W/V EC (LIVE STOCK)' },
+    });
+
+    expect(onChange).toHaveBeenCalledWith([
+      {
+        ...baseItem,
+        commonName: 'BIFENTHRIN 10% W/V EC (LIVE STOCK)',
+        batchNo: 'BATCH002',
+        sendToLab: true,
+      },
+    ]);
   });
 
   it('keeps note as a normal field even when sendToLab differs from the default', () => {

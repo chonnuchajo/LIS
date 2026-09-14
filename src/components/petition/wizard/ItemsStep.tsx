@@ -24,6 +24,7 @@ import {
 } from '@/lib/petitionMasterItem';
 import {
   defaultSendItemToLab,
+  isMandatoryLabProduct,
   shouldSendItemToLab,
 } from '@/lib/petitionRouting';
 import SubmitterPicker, { type SubmitterValues } from './SubmitterPicker';
@@ -92,15 +93,21 @@ export default function ItemsStep({
     onChange(value.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   }
 
-  function patchWithLabDefault(item: ItemRowValues, patch: Partial<ItemRowValues>) {
+  function patchWithLabDefault(
+    item: ItemRowValues,
+    patch: Partial<ItemRowValues>,
+    { syncDefault = false }: { syncDefault?: boolean } = {},
+  ) {
     const followsDefault = typeof item.sendToLab !== 'boolean' || item.sendToLab === defaultSendItemToLab(item);
     const next = { ...item, ...patch };
+    if (isMandatoryLabProduct(next)) return { ...patch, sendToLab: true };
+    if (!syncDefault && !isMandatoryLabProduct(item)) return patch;
     return followsDefault ? { ...patch, sendToLab: defaultSendItemToLab(next) } : patch;
   }
 
   function setBatchNo(idx: number, batchNo: string) {
     const item = value[idx];
-    setItem(idx, patchWithLabDefault(item, { batchNo }));
+    setItem(idx, patchWithLabDefault(item, { batchNo }, { syncDefault: true }));
   }
 
   function setCommonName(idx: number, commonName: string) {
