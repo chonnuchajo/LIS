@@ -100,6 +100,19 @@ describe("buildParameterExcludeOptions", () => {
     expect(result.productTypes.show).toBe(true);
   });
 
+  it("uses OR across applyRules when building exclusion options", () => {
+    const result = build({
+      applyRules: [
+        { productTypes: ["powder"] },
+        { commonNames: ["EC"] },
+      ],
+    });
+
+    expect(result.itemNames.values).toEqual(["Powder WP RM", "Water EC FG", "Water EC RM"]);
+    expect(result.commonNames.values).toEqual(["EC", "WP"]);
+    expect(result.productTypes.values).toEqual(["powder", "water"]);
+  });
+
   it("hides dimensions that do not narrow the current matched set", () => {
     const result = build({ commonNames: ["SC"] });
 

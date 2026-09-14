@@ -214,6 +214,21 @@ describe('warehouse category (RM/FG) scoping', () => {
     expect(matchParametersForItem(makeItem({ itemNo: 'RO-0044', commonName: 'SC' }), [param], [], opts)).toHaveLength(0);
   });
 
+  it('matches any applyRule while each rule still requires all selected dimensions', () => {
+    const param = makeParam({
+      applyAll: false,
+      scope: 'qc',
+      applyRules: [
+        { productTypes: ['powder'] },
+        { commonNames: ['EC'] },
+      ],
+    });
+
+    expect(matchParametersForItem(makeItem({ commonName: 'ABAMECTIN 1.8% W/V EC' }), [param])).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ sampleName: 'METALAXYL 35% DS (PINK)', commonName: 'METALAXYL 35% DS (PINK)' }), [param])).toHaveLength(1);
+    expect(matchParametersForItem(makeItem({ sampleName: 'CHLOROTHALONIL 50% W/V SC', commonName: 'CHLOROTHALONIL 50% W/V SC' }), [param])).toHaveLength(0);
+  });
+
   it('leaves params without categories unaffected by petition category', () => {
     const param = makeParam({ applyAll: false, commonNames: ['EW'], scope: 'qc' });
     expect(matchParametersForItem(makeItem(), [param], [], { petitionCategory: 'RM' })).toHaveLength(1);

@@ -68,6 +68,7 @@ import {
   type LabelToleranceRule,
   type OptionOutput,
   type OptionOutputKind,
+  type ParameterApplyRule,
   type ParameterItem,
   type ParameterScope,
   type ParameterValueField,
@@ -215,6 +216,92 @@ function formatProductTypeOption(value: string): string {
   return productTypeLabels[value] ?? value;
 }
 
+const APPLY_RULE_KEYS = [
+  "itemNos",
+  "itemNames",
+  "fullCommonNames",
+  "commonNames",
+  "productTypes",
+  "categories",
+  "subCategories",
+  "itemGroups",
+] as const satisfies readonly (keyof ParameterApplyRule)[];
+
+function cleanStringList(values: string[] | undefined): string[] {
+  return Array.from(new Set((values ?? []).map((value) => value.trim()).filter(Boolean)));
+}
+
+function cleanApplyRule(rule: ParameterApplyRule): ParameterApplyRule {
+  const cleaned: ParameterApplyRule = {};
+  for (const key of APPLY_RULE_KEYS) {
+    const values = cleanStringList(rule[key]);
+    if (values.length > 0) cleaned[key] = values;
+  }
+  return cleaned;
+}
+
+function applyRuleHasCriteria(rule: ParameterApplyRule): boolean {
+  return APPLY_RULE_KEYS.some((key) => (rule[key]?.length ?? 0) > 0);
+}
+
+function currentApplyRule(form: ParameterItem): ParameterApplyRule {
+  return cleanApplyRule({
+    itemNos: form.itemNos,
+    itemNames: form.itemNames,
+    fullCommonNames: form.fullCommonNames,
+    commonNames: form.commonNames,
+    productTypes: form.productTypes,
+    categories: form.categories,
+    subCategories: form.subCategories,
+    itemGroups: form.itemGroups,
+  });
+}
+
+function normalizedApplyRules(rules: ParameterApplyRule[] | undefined): ParameterApplyRule[] {
+  return (rules ?? [])
+    .map(cleanApplyRule)
+    .filter(applyRuleHasCriteria);
+}
+
+function clearCurrentApplyRule(form: ParameterItem): ParameterItem {
+  return {
+    ...form,
+    itemNos: [],
+    itemNames: [],
+    fullCommonNames: [],
+    commonNames: [],
+    productTypes: [],
+    categories: [],
+    subCategories: [],
+    itemGroups: [],
+  };
+}
+
+function summarizeApplyRule(
+  rule: ParameterApplyRule,
+  context: {
+    groupNameById?: Map<string, string>;
+    itemNoLabelByNo?: Map<string, string>;
+  } = {},
+): string {
+  const parts: string[] = [];
+  const add = (label: string, values: string[] | undefined, mapValue?: (value: string) => string) => {
+    const displayValues = cleanStringList(values).map((value) => mapValue?.(value) ?? value);
+    if (displayValues.length > 0) parts.push(`${label}: ${displayValues.join(', ')}`);
+  };
+
+  add("Item", rule.itemNos, (itemNo) => context.itemNoLabelByNo?.get(itemNo) ?? itemNo);
+  add("Item เดิม", rule.itemNames);
+  add("Common Name", rule.fullCommonNames);
+  add("ประเภท Common Name", rule.commonNames);
+  add("ประเภทสาร", rule.productTypes, formatProductTypeOption);
+  add("หมวดหมู่", rule.categories, formatWarehouseCategoryOption);
+  add("หมวดย่อย", rule.subCategories);
+  add("กลุ่ม", rule.itemGroups, (id) => context.groupNameById?.get(id) ?? id);
+
+  return parts.join(" · ") || "ทุก item";
+}
+
 function getItemCommonName(item: MasterItemRecord): string {
   for (const key of COMMON_NAME_DIRECT_KEYS) {
     const direct = getCommonName(item[key]);
@@ -294,6 +381,7 @@ const emptyForm = (scope: ParameterScope = "qc"): ParameterItem => ({
   categories: [],
   subCategories: [],
   itemGroups: [],
+  applyRules: [],
   excludeCommonNames: [],
   excludeItemNos: [],
   excludeItemNames: [],
@@ -527,7 +615,15 @@ function OptionRow({
         checked && "bg-muted",
       )}
     >
-      <Checkbox checked={checked} className="pointer-events-none" />
+      <span
+        aria-hidden="true"
+        className={cn(
+          "flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-primary",
+          checked && "bg-primary text-primary-foreground",
+        )}
+      >
+        {checked ? <Check className="h-3 w-3" /> : null}
+      </span>
       <span className="flex-1 truncate">{label ?? value}</span>
       {checked ? <Check className="h-4 w-4 text-primary" /> : null}
     </button>
@@ -2037,6 +2133,9 @@ function ParameterDialog({
   const validate = (): string | null => {
     if (!form.name?.trim()) return "กรุณากรอกชื่อพารามิเตอร์";
     if (!form.applyAll) {
+      const savedApplyRules = normalizedApplyRules(form.applyRules);
+      const draftApplyRule = currentApplyRule(form);
+      const hasDraftApplyRule = applyRuleHasCriteria(draftApplyRule);
       const total =
         (form.commonNames?.length ?? 0) +
         (form.itemNos?.length ?? 0) +
@@ -2045,9 +2144,13 @@ function ParameterDialog({
         (form.productTypes?.length ?? 0) +
         (form.categories?.length ?? 0) +
         (form.subCategories?.length ?? 0) +
-        (form.itemGroups?.length ?? 0);
+        (form.itemGroups?.length ?? 0) +
+        savedApplyRules.length;
       if (total === 0) {
         return "กรุณาเลือก 'ใช้กับ' อย่างน้อย 1 รายการ หรือเลือก 'ใช้กับทั้งหมด'";
+      }
+      if (savedApplyRules.length > 0 && hasDraftApplyRule) {
+        return "กรุณากดเพิ่มกฎ เพื่อยืนยันเงื่อนไขปัจจุบันก่อนบันทึก";
       }
     }
     const fields = form.valueFields ?? [];
@@ -2139,20 +2242,23 @@ function ParameterDialog({
     const scope = form.scope ?? "qc";
     const keepVisible = (values: string[] | undefined, visible: { show: boolean; values: string[] }) =>
       visible.show ? (values ?? []).filter((value) => visible.values.includes(value)) : [];
+    const applyRules = form.applyAll ? [] : normalizedApplyRules(form.applyRules);
+    const usesApplyRules = applyRules.length > 0;
     const payload: Partial<ParameterItem> = {
       name: form.name.trim(),
       scope,
       shareWithLab: scope === "qc" ? !!form.shareWithLab : false,
       status: form.status ?? "active",
       applyAll: !!form.applyAll,
-      commonNames: form.applyAll ? [] : form.commonNames ?? [],
-      itemNos: form.applyAll ? [] : form.itemNos ?? [],
-      itemNames: form.applyAll ? [] : form.itemNames ?? [],
-      fullCommonNames: form.applyAll ? [] : form.fullCommonNames ?? [],
-      productTypes: form.applyAll ? [] : form.productTypes ?? [],
-      categories: form.applyAll ? [] : form.categories ?? [],
-      subCategories: form.applyAll ? [] : form.subCategories ?? [],
-      itemGroups: form.applyAll ? [] : form.itemGroups ?? [],
+      commonNames: form.applyAll || usesApplyRules ? [] : form.commonNames ?? [],
+      itemNos: form.applyAll || usesApplyRules ? [] : form.itemNos ?? [],
+      itemNames: form.applyAll || usesApplyRules ? [] : form.itemNames ?? [],
+      fullCommonNames: form.applyAll || usesApplyRules ? [] : form.fullCommonNames ?? [],
+      productTypes: form.applyAll || usesApplyRules ? [] : form.productTypes ?? [],
+      categories: form.applyAll || usesApplyRules ? [] : form.categories ?? [],
+      subCategories: form.applyAll || usesApplyRules ? [] : form.subCategories ?? [],
+      itemGroups: form.applyAll || usesApplyRules ? [] : form.itemGroups ?? [],
+      applyRules,
       excludeCommonNames: keepVisible(form.excludeCommonNames, contextualExcludeOptions.commonNames),
       excludeItemNos: keepVisible(form.excludeItemNos, contextualExcludeOptions.itemNos),
       excludeItemNames: keepVisible(form.excludeItemNames, contextualExcludeOptions.itemNames),
@@ -2189,6 +2295,28 @@ function ParameterDialog({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     await saveForm();
+  };
+
+  const addedApplyRules = normalizedApplyRules(form.applyRules);
+  const draftApplyRule = currentApplyRule(form);
+  const hasDraftApplyRule = applyRuleHasCriteria(draftApplyRule);
+
+  const addApplyRule = () => {
+    setForm((prev) => {
+      const rule = currentApplyRule(prev);
+      if (!applyRuleHasCriteria(rule)) return prev;
+      return {
+        ...clearCurrentApplyRule(prev),
+        applyRules: [...normalizedApplyRules(prev.applyRules), rule],
+      };
+    });
+  };
+
+  const removeApplyRule = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      applyRules: normalizedApplyRules(prev.applyRules).filter((_, i) => i !== index),
+    }));
   };
 
   const requestClose = () => {
@@ -2495,6 +2623,62 @@ function ParameterDialog({
                   </div>
                 );
               })()}
+              <div className="md:col-span-2 space-y-3 rounded-lg border bg-muted/20 p-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-semibold">กฎการใช้ parameter</h4>
+                    <p className="text-xs text-muted-foreground">
+                      ใน 1 กฎต้องตรงทุกมิติที่เลือกพร้อมกัน; กฎหลาย item จะเป็น OR
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={form.applyAll || !hasDraftApplyRule}
+                    onClick={addApplyRule}
+                  >
+                    <Plus className="h-4 w-4" />
+                    เพิ่มกฎ
+                  </Button>
+                </div>
+
+                {hasDraftApplyRule ? (
+                  <div className="rounded-md border bg-background p-2 text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">กำลังเลือก:</span>{" "}
+                    {summarizeApplyRule(draftApplyRule, { groupNameById, itemNoLabelByNo })}
+                  </div>
+                ) : null}
+
+                {addedApplyRules.length > 0 ? (
+                  <div className="space-y-2">
+                    {addedApplyRules.map((rule, index) => (
+                      <div key={index} className="flex items-start justify-between gap-2 rounded-md border bg-background p-2">
+                        <div className="space-y-1 text-xs">
+                          <Badge variant="secondary">item {index + 1}</Badge>
+                          <p className="text-muted-foreground">
+                            {summarizeApplyRule(rule, { groupNameById, itemNoLabelByNo })}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={form.applyAll}
+                          onClick={() => removeApplyRule(index)}
+                          title={`ลบ item ${index + 1}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    ถ้ามีหลายทางเลือก ให้เลือกเงื่อนไขชุดแรกแล้วกดเพิ่มกฎ จากนั้นเลือกชุดถัดไป
+                  </p>
+                )}
+              </div>
             </div>
 
             {hasContextualExcludeOptions ? (
@@ -2871,6 +3055,7 @@ export default function ParameterSettings() {
         ...(p.productTypes ?? []),
         ...(p.categories ?? []),
         ...(p.subCategories ?? []),
+        ...(p.applyRules ?? []).flatMap((rule) => APPLY_RULE_KEYS.flatMap((key) => rule[key] ?? [])),
         ...(p.excludeCommonNames ?? []),
         ...(p.excludeItemNos ?? []),
         ...(p.excludeItemNames ?? []),
@@ -3351,7 +3536,8 @@ function ApplyToBadges({
       (item.excludeSubCategories?.length ?? 0) +
       (item.excludeItemGroups?.length ?? 0) >
     0;
-  if (item.applyAll && !hasExcludes) {
+  const applyRules = normalizedApplyRules(item.applyRules);
+  if (item.applyAll && !hasExcludes && applyRules.length === 0) {
     return (
       <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
         ทั้งหมด
@@ -3418,29 +3604,44 @@ function ApplyToBadges({
     { label: "กลุ่ม", values: (item.excludeItemGroups ?? []).map((id) => groupNameById.get(id) ?? id) },
   ].filter((g) => g.values.length > 0);
 
-  if (groups.length === 0 && excludes.length === 0) {
+  if (applyRules.length === 0 && groups.length === 0 && excludes.length === 0) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
   return (
     <div className="space-y-1">
-      <div className="flex flex-wrap gap-1">
-      {groups.map((g) => (
-        <span
-          key={g.label}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs",
-            g.color,
-          )}
-          title={g.values.join(", ")}
-        >
-          <span className="font-semibold">{g.label}:</span>
-          <span className="truncate max-w-[180px]">
-            {g.values.slice(0, 2).join(", ")}
-            {g.values.length > 2 ? ` +${g.values.length - 2}` : ""}
-          </span>
-        </span>
-      ))}
-      </div>
+      {applyRules.length > 0 || groups.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {applyRules.map((rule, index) => {
+            const summary = summarizeApplyRule(rule, { groupNameById, itemNoLabelByNo });
+            return (
+              <span
+                key={`rule-${index}`}
+                className="inline-flex items-center gap-1 rounded-md bg-card px-2 py-0.5 text-xs text-card-foreground ring-1 ring-border"
+                title={summary}
+              >
+                <span className="font-semibold">item {index + 1}:</span>
+                <span className="truncate max-w-[180px]">{summary}</span>
+              </span>
+            );
+          })}
+          {groups.map((g) => (
+            <span
+              key={g.label}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs",
+                g.color,
+              )}
+              title={g.values.join(", ")}
+            >
+              <span className="font-semibold">{g.label}:</span>
+              <span className="truncate max-w-[180px]">
+                {g.values.slice(0, 2).join(", ")}
+                {g.values.length > 2 ? ` +${g.values.length - 2}` : ""}
+              </span>
+            </span>
+          ))}
+        </div>
+      ) : null}
       {excludes.length > 0 ? (
         <div className="flex flex-wrap gap-1">
           {excludes.map((g) => (

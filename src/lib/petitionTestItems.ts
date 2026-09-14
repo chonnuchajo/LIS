@@ -1,4 +1,4 @@
-import type { ParameterItem, ParameterValueField } from '@/lib/api';
+import type { ParameterApplyRule, ParameterItem, ParameterValueField } from '@/lib/api';
 import type { PetitionItem, Petition } from '@/types/petition.types';
 import { shouldSendItemToLab } from '@/lib/petitionRouting';
 import { getClassification, getCommonName } from '@/lib/productClassification';
@@ -68,6 +68,7 @@ function hasAnyCriteria(criteria: {
   fullCommonNames?: string[];
   commonNames?: string[];
   productTypes?: string[];
+  categories?: string[];
   subCategories?: string[];
   itemGroups?: string[];
 }): boolean {
@@ -77,6 +78,7 @@ function hasAnyCriteria(criteria: {
       (criteria.fullCommonNames?.length ?? 0) +
       (criteria.commonNames?.length ?? 0) +
       (criteria.productTypes?.length ?? 0) +
+      (criteria.categories?.length ?? 0) +
       (criteria.subCategories?.length ?? 0) +
       (criteria.itemGroups?.length ?? 0) >
     0
@@ -166,17 +168,13 @@ function criteriaMatchesFacets(
 }
 
 function criteriaMatchesEveryFacet(
-  criteria: {
-    itemNos?: string[];
-    itemNames?: string[];
-    fullCommonNames?: string[];
-    commonNames?: string[];
-    productTypes?: string[];
-    subCategories?: string[];
-    itemGroups?: string[];
-  },
+  criteria: ParameterApplyRule,
   facets: ParameterMatchFacets,
 ): boolean {
+  const category = (facets.category ?? '').trim().toUpperCase();
+  const categories = criteria.categories ?? [];
+  if (categories.length > 0 && !categoryListed(categories, category)) return false;
+
   const itemNo = facets.itemNo?.trim().toUpperCase() ?? '';
   const itemNos = criteria.itemNos ?? [];
   if (itemNos.length > 0 && !itemNos.some((n) => n.trim().toUpperCase() === itemNo)) return false;
@@ -210,6 +208,10 @@ function criteriaMatchesEveryFacet(
   return true;
 }
 
+function normalizedApplyRules(param: ParameterItem): ParameterApplyRule[] {
+  return (param.applyRules ?? []).filter((rule) => hasAnyCriteria(rule));
+}
+
 // Returns true when the parameter's "ใช้กับ" criteria fit this petition item.
 //
 // หมวดหมู่ (คลัง RM/FG) เป็น "ประตู" แบบ AND ไม่ใช่มิติ OR ตัวที่หก.
@@ -240,6 +242,11 @@ export function parameterMatchesFacets(param: ParameterItem, facets: ParameterMa
   if (hasCategoryGate && !categoryListed(param.categories, category)) return false;
 
   if (param.applyAll) return true;
+
+  const applyRules = normalizedApplyRules(param);
+  if (applyRules.length > 0) {
+    return applyRules.some((rule) => criteriaMatchesEveryFacet(rule, facets));
+  }
 
   const includeCriteria = {
     itemNos: param.itemNos,

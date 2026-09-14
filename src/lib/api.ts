@@ -1374,6 +1374,17 @@ export type ParameterValueField = {
 
 export type ParameterScope = "lab" | "qc";
 
+export type ParameterApplyRule = {
+  itemNos?: string[];
+  itemNames?: string[];
+  fullCommonNames?: string[];
+  commonNames?: string[];
+  productTypes?: string[];
+  categories?: string[];
+  subCategories?: string[];
+  itemGroups?: string[];
+};
+
 export type ParameterItem = {
   _id?: string;
   name: string;
@@ -1391,6 +1402,7 @@ export type ParameterItem = {
   // prefix code ของรหัสสินค้า เช่น 'RO' — จับแบบ "ขึ้นต้นด้วย" (RO ครอบ ROPH/ROLS)
   subCategories?: string[];
   itemGroups?: string[];
+  applyRules?: ParameterApplyRule[];
   excludeCommonNames?: string[];
   excludeItemNos?: string[];
   excludeItemNames?: string[];

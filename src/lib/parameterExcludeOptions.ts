@@ -136,6 +136,18 @@ function itemMatchesIncludeCriteria(
 }
 
 function hasIncludeCriteria(form: Partial<ParameterItem>): boolean {
+  const hasApplyRules = (form.applyRules ?? []).some(
+    (rule) =>
+      (rule.itemNos?.length ?? 0) +
+        (rule.itemNames?.length ?? 0) +
+        (rule.fullCommonNames?.length ?? 0) +
+        (rule.commonNames?.length ?? 0) +
+        (rule.productTypes?.length ?? 0) +
+        (rule.categories?.length ?? 0) +
+        (rule.subCategories?.length ?? 0) +
+        (rule.itemGroups?.length ?? 0) >
+      0,
+  );
   return !!form.applyAll || (
       (form.itemNos?.length ?? 0) +
       (form.itemNames?.length ?? 0) +
@@ -145,7 +157,7 @@ function hasIncludeCriteria(form: Partial<ParameterItem>): boolean {
       (form.categories?.length ?? 0) +
       (form.subCategories?.length ?? 0) +
       (form.itemGroups?.length ?? 0) >
-    0
+    0 || hasApplyRules
   );
 }
 
@@ -182,7 +194,7 @@ export function buildParameterExcludeOptions(args: {
 
   return {
     itemNos: field(itemNos, itemNos.length > 0),
-    itemNames: field(itemNames, (form.itemNames?.length ?? 0) > 0 && itemNames.length > 0),
+    itemNames: field(itemNames, itemNames.length > 0),
     fullCommonNames: field(fullCommonNames, fullCommonNames.length > 0),
     commonNames: field(commonNames, (form.commonNames?.length ?? 0) === 0 && commonNames.length > 1),
     productTypes: field(productTypes, (form.productTypes?.length ?? 0) === 0 && productTypes.length > 1),
