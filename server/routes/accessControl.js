@@ -23,7 +23,7 @@ const {
 
 const defaultGroups = [
   { id: 'dashboard', name: 'หน้าหลัก', description: 'ภาพรวมแล็บและงานที่กำลังดำเนินการ', paths: ['/', '/home', '/dashboard/lab'], locked: false, sortOrder: 10 },
-  { id: 'samples', name: 'งานตัวอย่าง', description: 'รับ ส่ง และตรวจกายภาพตัวอย่าง', paths: ['/petition', '/petition/:id', '/petitions/new', '/physical-inspection'], locked: false, sortOrder: 20 },
+  { id: 'samples', name: 'งานตัวอย่าง', description: 'รับ ส่ง และตรวจกายภาพตัวอย่าง', paths: ['/petition', '/petition/:id', '/lab-send-conditions', '/petitions/new', '/physical-inspection'], locked: false, sortOrder: 20 },
   { id: 'audit-log', name: 'Audit Log', description: 'ประวัติการเปลี่ยนสถานะคำร้อง', paths: ['/adutuilog', '/auditlog'], locked: false, sortOrder: 25 },
   { id: 'results', name: 'ผลวิเคราะห์', description: 'บันทึกผลและมาตรฐาน', paths: ['/record-results', '/stock-deduction', '/daily-check'], locked: false, sortOrder: 30 },
   { id: 'qc', name: 'ควบคุมคุณภาพ', description: 'อนุมัติหรือปฏิเสธผล', paths: ['/dashboard/qc', '/qc-approval', '/coa', '/coa/:id'], locked: false, sortOrder: 40 },
@@ -155,7 +155,7 @@ async function ensureGroups() {
       { $addToSet: { paths: { $each: orphanPaths } } },
     );
   }
-  const petitionListPaths = findOrphanBackfillPaths(existingGroups, ['/petition', '/petition/:id']);
+  const petitionListPaths = findOrphanBackfillPaths(existingGroups, ['/petition', '/petition/:id', '/lab-send-conditions']);
   const petitionListGroupId = findGroupForBackfill(existingGroups, 'samples', '/petition');
   if (petitionListPaths.length && petitionListGroupId) {
     await AccessGroup.updateOne(

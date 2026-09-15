@@ -11,6 +11,14 @@ describe("NAV_ITEMS", () => {
     expect(NAV_ITEMS.map((item) => item.path)).toContain("/petition");
   });
 
+  it("exposes the lab sending conditions page in the main nav", () => {
+    expect(
+      NAV_ITEMS.some(
+        (item) => item.path === "/lab-send-conditions" && item.label === "เงื่อนไขส่ง Lab",
+      ),
+    ).toBe(true);
+  });
+
   it("exposes Assign Lab under the current petition route", () => {
     expect(
       NAV_ITEMS.some(
