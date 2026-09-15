@@ -58,7 +58,7 @@ export default function SubmitterPicker({ value, onChange, readOnly, department 
           </div>
         </div>
         <div>
-          <Label>แผนก (จากระบบ HR)</Label>
+          <Label>แผนก</Label>
           <div className="mt-1 rounded-[10px] border border-black-50 bg-grey-50 px-3 py-2 text-sm text-black-500">
             {department || '-'}
           </div>
