@@ -4,7 +4,12 @@ const router = express.Router();
 const User = require('../models/User');
 const Role = require('../models/Role');
 const AccessGroup = require('../models/AccessGroup');
-const { findOrphanBackfillPaths, findGroupForBackfill } = require('../lib/accessGroups');
+const {
+  DEFAULT_ACCESS_GROUPS: defaultGroups,
+  PETITION_BACKFILL_PATHS,
+  findOrphanBackfillPaths,
+  findGroupForBackfill,
+} = require('../lib/accessGroups');
 const { resolveHrField } = require('../lib/userProfile');
 const { primaryRole, normalizeRoles, unionPermissions } = require('../lib/roles');
 const { fetchMonthlyEmployees } = require('../lib/employeeDirectory');
@@ -20,19 +25,6 @@ const {
   mergeBaseRolesForFamilies,
   applyBaseRolesToUser,
 } = require('../lib/roleFamilies');
-
-const defaultGroups = [
-  { id: 'dashboard', name: 'หน้าหลัก', description: 'ภาพรวมแล็บและงานที่กำลังดำเนินการ', paths: ['/', '/home', '/dashboard/lab'], locked: false, sortOrder: 10 },
-  { id: 'samples', name: 'งานตัวอย่าง', description: 'รับ ส่ง และตรวจกายภาพตัวอย่าง', paths: ['/petition', '/petition/:id', '/lab-send-conditions', '/petitions/new', '/physical-inspection'], locked: false, sortOrder: 20 },
-  { id: 'audit-log', name: 'Audit Log', description: 'ประวัติการเปลี่ยนสถานะคำร้อง', paths: ['/adutuilog', '/auditlog'], locked: false, sortOrder: 25 },
-  { id: 'results', name: 'ผลวิเคราะห์', description: 'บันทึกผลและมาตรฐาน', paths: ['/record-results', '/stock-deduction', '/daily-check'], locked: false, sortOrder: 30 },
-  { id: 'qc', name: 'ควบคุมคุณภาพ', description: 'อนุมัติหรือปฏิเสธผล', paths: ['/dashboard/qc', '/qc-approval', '/coa', '/coa/:id'], locked: false, sortOrder: 40 },
-  { id: 'stock', name: 'สต๊อก', description: 'จัดการ standard ตัวทำละลาย master item simple method และเครื่องมือ', paths: ['/stock', '/master-items', '/simple-method', '/machines'], locked: false, sortOrder: 50 },
-  { id: 'reports', name: 'รายงาน', description: 'ดูรายงานและส่งออกข้อมูล', paths: ['/report'], locked: false, sortOrder: 60 },
-  { id: 'admin', name: 'ข้อมูลแอดมิน', description: 'ข้อมูลที่อนุมัติแล้วและบันทึกการใช้งาน', paths: ['/admin-data'], locked: false, sortOrder: 70 },
-  { id: 'access', name: 'สิทธิ์เข้าใช้งาน', description: 'จัดการผู้ใช้ บทบาท และสิทธิ์', paths: ['/access-control', '/settings'], locked: false, sortOrder: 80 },
-  { id: 'others', name: 'อื่นๆ', description: 'หน้าที่ยังไม่ถูกกำหนดกลุ่ม (รับช่วงต่ออัตโนมัติเมื่อลบกลุ่มอื่น)', paths: [], locked: true, sortOrder: 999 },
-];
 
 const defaultRoles = [
   { id: 'admin', name: 'Administrator', description: 'Full system access', locked: true, permissions: defaultGroups.map(g => g.id), family: '' },
@@ -155,7 +147,7 @@ async function ensureGroups() {
       { $addToSet: { paths: { $each: orphanPaths } } },
     );
   }
-  const petitionListPaths = findOrphanBackfillPaths(existingGroups, ['/petition', '/petition/:id', '/lab-send-conditions']);
+  const petitionListPaths = findOrphanBackfillPaths(existingGroups, PETITION_BACKFILL_PATHS);
   const petitionListGroupId = findGroupForBackfill(existingGroups, 'samples', '/petition');
   if (petitionListPaths.length && petitionListGroupId) {
     await AccessGroup.updateOne(
