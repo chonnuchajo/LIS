@@ -14,11 +14,26 @@ function isLabBatchNo(batchNo) {
   return /[16]$/.test(String(batchNo ?? '').trim());
 }
 
+const RODENTICIDE_PATTERNS = [
+  /BROMADIOLONE/i,
+  /BRODIFACOUM/i,
+  /DIFENACOUM/i,
+  /DIFETHIALONE/i,
+  /COUMATETRALYL/i,
+  /CHLOROPHACINONE/i,
+  /FLOCOUMAFEN/i,
+  /ZINC\s+PHOSPHIDE/i,
+  /RODENTICIDE/i,
+  /RAT\s+BAIT/i,
+  /ยาหนู/,
+  /กำจัดหนู/,
+];
+
 function isMandatoryLabProduct(item) {
   const normalized = [item?.sampleName, item?.commonName]
     .map((value) => String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase())
     .join(' ');
-  return normalized.includes('PUBLIC HEALTH') || normalized.includes('LIVE STOCK');
+  return normalized.includes('PUBLIC HEALTH') || normalized.includes('LIVE STOCK') || RODENTICIDE_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
 function defaultSendItemToLab(item) {

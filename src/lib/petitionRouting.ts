@@ -26,11 +26,26 @@ export type LabRouteItem = {
   MF_ConsecutivePassCount?: unknown;
 };
 
+const RODENTICIDE_PATTERNS = [
+  /BROMADIOLONE/i,
+  /BRODIFACOUM/i,
+  /DIFENACOUM/i,
+  /DIFETHIALONE/i,
+  /COUMATETRALYL/i,
+  /CHLOROPHACINONE/i,
+  /FLOCOUMAFEN/i,
+  /ZINC\s+PHOSPHIDE/i,
+  /RODENTICIDE/i,
+  /RAT\s+BAIT/i,
+  /ยาหนู/,
+  /กำจัดหนู/,
+];
+
 export function isMandatoryLabProduct(item: Pick<LabRouteItem, "sampleName" | "commonName"> | null | undefined): boolean {
   const normalized = [item?.sampleName, item?.commonName]
     .map((value) => String(value ?? "").trim().replace(/\s+/g, " ").toUpperCase())
     .join(" ");
-  return normalized.includes("PUBLIC HEALTH") || normalized.includes("LIVE STOCK");
+  return normalized.includes("PUBLIC HEALTH") || normalized.includes("LIVE STOCK") || RODENTICIDE_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
 function numberOrNull(value: unknown): number | null {

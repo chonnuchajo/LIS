@@ -51,6 +51,15 @@ describe("petitionRouting", () => {
     expect(hasLabTrack({ items: [publicHealth] } as Petition)).toBe(true);
   });
 
+  it("always routes rodenticide products to Lab for every batch", () => {
+    const rodenticide = { sampleName: "โบรมาดิโอโลน", commonName: "BROMADIOLONE 0.005% W/W SAND GRANULE", batchNo: "B-2", sendToLab: false };
+
+    expect(defaultSendItemToLab(rodenticide)).toBe(true);
+    expect(shouldSendItemToLab(rodenticide)).toBe(true);
+    expect(hasSendToLabOverride(rodenticide)).toBe(false);
+    expect(hasLabTrack({ items: [rodenticide] } as Petition)).toBe(true);
+  });
+
   it("routes MF items to Lab for the first 5 batches after a 30-day gap", () => {
     expect(defaultSendItemToLab({
       batchNo: "BN240602",
