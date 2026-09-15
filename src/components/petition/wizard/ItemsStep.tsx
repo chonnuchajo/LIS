@@ -73,9 +73,11 @@ interface Props {
   masterItemsLoading?: boolean;
 }
 
-function normalizeSampleQuantityInput(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+function parseSampleQuantityInput(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) return undefined;
   return parsed;
 }
 
@@ -173,7 +175,7 @@ export default function ItemsStep({
       itemNo: option.itemNo,
       sampleName: item.sampleName.trim() ? (patch.sampleName ?? item.sampleName) : option.sampleName,
       commonName: item.commonName.trim() ? item.commonName : option.commonName,
-      packageUnit: item.packageUnit.trim() ? item.packageUnit : option.packageUnit,
+      packageUnit: option.packageUnit,
       ...mfFieldsFromOption(option),
     };
   }
@@ -208,6 +210,7 @@ export default function ItemsStep({
         testUnit: '',
         testItems: '',
         sampleQuantity: 1,
+        labelQuantity: '',
         note: '',
       },
     ]);
@@ -256,6 +259,8 @@ export default function ItemsStep({
           const sampleNameId = `sample-name-${idx}`;
           const commonNameId = `common-name-${idx}`;
           const batchNoId = `batch-no-${idx}`;
+          const packageUnitId = `package-unit-${idx}`;
+          const labelQuantityId = `label-quantity-${idx}`;
           return (
             <div key={idx} className="rounded-[10px] border border-grey-200 p-4">
               <div className="mb-3 flex items-center justify-between">
@@ -345,12 +350,23 @@ export default function ItemsStep({
                   />
                 </div>
                 <div>
-                  <Label>ขนาดบรรจุ / จำนวน</Label>
+                  <Label htmlFor={packageUnitId}>ขนาดบรรจุ</Label>
                   <Input
+                    id={packageUnitId}
                     value={it.packageUnit}
                     onChange={(e) => setItem(idx, { packageUnit: e.target.value })}
                     disabled={itemsReadOnly || !allowManualItemFields}
                     placeholder={allowManualItemFields ? 'กรอกขนาดบรรจุ หรือเลือกจาก Master Item' : 'เติมอัตโนมัติจาก Master Item'}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={labelQuantityId}>ปริมาณที่ส่ง</Label>
+                  <Input
+                    id={labelQuantityId}
+                    value={it.labelQuantity ?? ''}
+                    onChange={(e) => setItem(idx, { labelQuantity: e.target.value })}
+                    disabled={itemsReadOnly}
+                    placeholder="เช่น 100 ml"
                   />
                 </div>
                 <div>
@@ -361,23 +377,11 @@ export default function ItemsStep({
                     min={1}
                     step={1}
                     inputMode="numeric"
-                    value={it.sampleQuantity ?? 1}
-                    onChange={(e) => setItem(idx, { sampleQuantity: normalizeSampleQuantityInput(e.target.value) })}
+                    value={it.sampleQuantity ?? ''}
+                    onChange={(e) => setItem(idx, { sampleQuantity: parseSampleQuantityInput(e.target.value) })}
                     disabled={itemsReadOnly}
                   />
                 </div>
-                {(it.submittedQuantity || it.submittedUnit) && (
-                  <>
-                    <div>
-                      <Label htmlFor={`submitted-quantity-${idx}`}>ปริมาณที่ส่งตัวอย่าง</Label>
-                      <Input id={`submitted-quantity-${idx}`} value={it.submittedQuantity ?? ''} disabled />
-                    </div>
-                    <div>
-                      <Label htmlFor={`submitted-unit-${idx}`}>หน่วยที่นำส่ง</Label>
-                      <Input id={`submitted-unit-${idx}`} value={it.submittedUnit ?? ''} disabled />
-                    </div>
-                  </>
-                )}
                 <div className="sm:col-span-2">
                   <Label>หมายเหตุ</Label>
                   <Textarea

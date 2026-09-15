@@ -114,6 +114,7 @@ export default function PetitionEditPage() {
       testItems: it.testItems ?? '',
       sendToLab: it.sendToLab,
       sampleQuantity: it.sampleQuantity ?? 1,
+      labelQuantity: it.labelQuantity ?? '',
       note: it.note ?? '',
     }));
     setItems(mappedItems);

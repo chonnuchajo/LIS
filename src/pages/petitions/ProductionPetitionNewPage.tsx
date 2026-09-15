@@ -61,6 +61,7 @@ function makeBlankItem(seq: number): ItemRowValues {
     testItems: '',
     sendToLab: false,
     sampleQuantity: 1,
+    labelQuantity: '',
     note: '',
   };
 }
@@ -641,6 +642,7 @@ export default function ProductionPetitionNewPage({
             testItems: it.testItems ?? '',
             sendToLab: sendToLabForSubmit(it, source.submittedBy?.department ?? ''),
             sampleQuantity: it.sampleQuantity ?? 1,
+            labelQuantity: it.labelQuantity ?? '',
             note: it.note ?? '',
           })),
         );

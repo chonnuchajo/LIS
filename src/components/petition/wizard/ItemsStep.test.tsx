@@ -90,7 +90,7 @@ describe('ItemsStep master item selection', () => {
     ]);
   });
 
-  it('does not overwrite R&D item fields that were already typed when selecting a master item', () => {
+  it('keeps typed R&D names but uses package size from the selected master item', () => {
     const { onChange } = renderStep({
       value: [{
         ...baseItem,
@@ -112,23 +112,39 @@ describe('ItemsStep master item selection', () => {
         itemNo: 'P001',
         sampleName: 'Typed sample',
         commonName: 'Typed common',
-        packageUnit: 'Typed package',
+        packageUnit: '1 L x 12 bottles',
       },
     ]);
   });
 
-  it('shows submitted quantity and unit from integration payload as read-only fields', () => {
+  it('shows submitted quantity from integration payload as a single sent quantity field', () => {
     renderStep({
       value: [{
         ...baseItem,
+        labelQuantity: '9478.67 Kg/L',
         submittedQuantity: '9478.67',
         submittedUnit: 'Kg/L',
       }],
       itemsReadOnly: true,
     });
 
-    expect(screen.getByLabelText('ปริมาณที่ส่งตัวอย่าง')).toHaveValue('9478.67');
-    expect(screen.getByLabelText('หน่วยที่นำส่ง')).toHaveValue('Kg/L');
+    expect(screen.getByLabelText('ปริมาณที่ส่ง')).toHaveValue('9478.67 Kg/L');
+    expect(screen.queryByLabelText('หน่วยที่นำส่ง')).not.toBeInTheDocument();
+  });
+
+  it('renames package size field and keeps sent quantity as a separate value', () => {
+    const { onChange } = renderStep({
+      value: [{ ...baseItem, packageUnit: '500 ml', labelQuantity: '12 ml' }],
+    });
+
+    expect(screen.getByLabelText('ขนาดบรรจุ')).toHaveValue('500 ml');
+    expect(screen.queryByText('ขนาดบรรจุ / จำนวน')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('ปริมาณที่ส่ง'), {
+      target: { value: '25 ml' },
+    });
+
+    expect(onChange).toHaveBeenCalledWith([{ ...baseItem, packageUnit: '500 ml', labelQuantity: '25 ml' }]);
   });
 
   it('lets users enter sample quantity for one item', () => {
@@ -139,6 +155,16 @@ describe('ItemsStep master item selection', () => {
     });
 
     expect(onChange).toHaveBeenCalledWith([{ ...baseItem, sampleQuantity: 3 }]);
+  });
+
+  it('lets users clear sample quantity before typing a new number', () => {
+    const { onChange } = renderStep({ value: [{ ...baseItem, sampleQuantity: 12 }] });
+
+    fireEvent.change(screen.getByLabelText('จำนวนตัวอย่าง'), {
+      target: { value: '' },
+    });
+
+    expect(onChange).toHaveBeenCalledWith([{ ...baseItem, sampleQuantity: undefined }]);
   });
 
   it('shows LAB routing as automatic instead of user-selectable buttons', () => {
