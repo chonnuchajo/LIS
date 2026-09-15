@@ -26,15 +26,11 @@ import {
   labSendOverrideNoteError,
   shouldSendItemToLab,
 } from '@/lib/petitionRouting';
-<<<<<<< HEAD
-import { canPrintSampleLabel } from '@/lib/petitionPrintability';
-=======
 import {
   addMfDateFields,
   MF_CURRENT_API_URL,
   MF_HISTORICAL_API_URL,
 } from '@/lib/mfItemDates';
->>>>>>> 29e48226d11b2a2d113796ce3a89c02572e8cd9a
 import { type Petition } from '@/types/petition.types';
 
 const ICP_LADDA_ADDRESS = '151 ม.8 ต.สามควายเผือก อ.เมืองนครปฐม จ.นครปฐม 73000';
