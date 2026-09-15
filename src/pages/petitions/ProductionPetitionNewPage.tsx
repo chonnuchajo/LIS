@@ -64,6 +64,8 @@ function makeBlankItem(seq: number): ItemRowValues {
     testItems: '',
     sendToLab: false,
     sampleQuantity: 1,
+    labelQuantity: '',
+    labelQuantities: [],
     note: '',
   };
 }
@@ -401,11 +403,13 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
     const productionDate = productionDates[0] || singleItem.productionDate || '';
     const submittedQuantity = quantities[0] ?? '';
     const submittedUnit = quantityUnits[0] ?? '';
+    const labelQuantity = makeQuantityLabel(submittedQuantity, submittedUnit);
     return [{
       ...singleItem,
       productionDate: productionDate || null,
       packageUnit: packageUnits[0] || singleItem.packageUnit,
-      labelQuantity: makeQuantityLabel(submittedQuantity, submittedUnit),
+      labelQuantity,
+      labelQuantities: labelQuantity ? [labelQuantity] : [],
       labelSampledDate: productionDate,
       submittedQuantity,
       submittedUnit,
@@ -423,6 +427,7 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
       .filter(Boolean)
       .join(' | ');
 
+    const labelQuantity = makeQuantityLabel(valueAt(quantities, i, false), valueAt(quantityUnits, i));
     const item = {
       ...makeBlankItem(i + 1),
       itemNo: valueAt(itemNos, i, false),
@@ -439,7 +444,8 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
         batchNo: valueAt(batchNos, i, false),
       }, valueAt(sendToLabs, i, false)),
       note,
-      labelQuantity: makeQuantityLabel(valueAt(quantities, i, false), valueAt(quantityUnits, i)),
+      labelQuantity,
+      labelQuantities: labelQuantity ? [labelQuantity] : [],
       labelSampledDate: valueAt(productionDates, i),
       submittedQuantity: valueAt(quantities, i, false),
       submittedUnit: valueAt(quantityUnits, i),
@@ -661,6 +667,8 @@ export default function ProductionPetitionNewPage({
             testItems: it.testItems ?? '',
             sendToLab: sendToLabForSubmit(it, source.submittedBy?.department ?? ''),
             sampleQuantity: it.sampleQuantity ?? 1,
+            labelQuantity: it.labelQuantity ?? '',
+            labelQuantities: it.labelQuantities ?? [],
             note: it.note ?? '',
           })),
         );

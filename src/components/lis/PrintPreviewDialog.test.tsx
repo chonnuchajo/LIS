@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import PrintPreviewDialog from "./PrintPreviewDialog";
 
@@ -24,8 +24,13 @@ function renderDialog(ui: React.ReactElement) {
   );
 }
 
+beforeEach(() => {
+  apiMock.getPrinterConfigs.mockReset();
+  printDocumentMock.mockReset();
+});
+
 describe("PrintPreviewDialog auto print", () => {
-  it("waits for the user to choose local or server before printing", async () => {
+  it("defaults to server and auto prints when a matching server printer exists", async () => {
     apiMock.getPrinterConfigs.mockResolvedValue([
       {
         id: "printer-1",
@@ -52,7 +57,33 @@ describe("PrintPreviewDialog auto print", () => {
 
     expect(await screen.findByRole("button", { name: "เครื่องนี้" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Server/CUPS" })).toBeInTheDocument();
-    await waitFor(() => expect(printDocumentMock).not.toHaveBeenCalled());
+    await waitFor(() => expect(printDocumentMock).toHaveBeenCalledWith(
+      "stock-label",
+      expect.any(HTMLDivElement),
+      expect.objectContaining({
+        outputMode: "server",
+        printerConfigId: "printer-1",
+        paperSize: "label-65x25",
+      }),
+    ));
+  });
+
+  it("falls back to this machine by default when no matching server printer exists", async () => {
+    apiMock.getPrinterConfigs.mockResolvedValue([]);
+    printDocumentMock.mockResolvedValue({ printer: "เครื่องนี้", copies: 1 });
+
+    renderDialog(
+      <PrintPreviewDialog open onOpenChange={vi.fn()} docType="coa" autoPrint autoPrintKey="coa-1">
+        <div>coa html</div>
+      </PrintPreviewDialog>,
+    );
+
+    expect(await screen.findByRole("button", { name: "เครื่องนี้" })).toBeInTheDocument();
+    await waitFor(() => expect(printDocumentMock).toHaveBeenCalledWith(
+      "coa",
+      expect.any(HTMLDivElement),
+      expect.objectContaining({ outputMode: "local", printerConfigId: undefined }),
+    ));
   });
 
   it("prints to the logged-in department server printer after choosing Server/CUPS", async () => {

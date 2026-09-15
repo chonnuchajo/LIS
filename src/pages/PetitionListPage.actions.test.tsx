@@ -451,6 +451,17 @@ describe('PetitionListPage action cues', () => {
     expect(screen.getByRole('tab', { name: 'List ยา 6 เดือน' })).toBeInTheDocument();
   });
 
+  it('shows FG quality inspection alerts as a sub-tab for admin users', async () => {
+    renderPage({}, '/petition');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+    fireEvent.mouseDown(await screen.findByRole('tab', { name: 'แจ้งเตือนส่งตรวจคุณภาพ' }), { button: 0, ctrlKey: false });
+
+    expect(await screen.findByText('P-FG-QC-0001')).toBeInTheDocument();
+    expect(screen.getByText('FG Product A')).toBeInTheDocument();
+    expect(screen.getByText('ส่งตรวจคุณภาพ')).toBeInTheDocument();
+  });
+
   it('shows the six-month medicine tab for FG warehouse department users', async () => {
     mocks.user = {
       employeeId: 'E890',

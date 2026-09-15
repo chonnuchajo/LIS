@@ -113,6 +113,16 @@ test('normalizePetitionItems forces PUBLIC HEALTH and LIVE STOCK products to Lab
   );
 });
 
+test('normalizePetitionItems forces rodenticide products to Lab every batch', () => {
+  assert.strictEqual(defaultSendItemToLab({ commonName: 'BROMADIOLONE 0.005% W/W SAND GRANULE', batchNo: 'B-002' }), true);
+  assert.deepStrictEqual(
+    normalizePetitionItems([
+      { seq: 1, sampleName: 'โบรมาดิโอโลน', commonName: 'BROMADIOLONE 0.005% W/W SAND GRANULE', batchNo: 'B-002', sendToLab: false },
+    ], { department: 'Production', petitionNo: 'P-1' }).map((item) => item.sendToLab),
+    [true],
+  );
+});
+
 test('normalizePetitionItems defaults sampleQuantity to 1 and preserves entered quantity', () => {
   assert.deepStrictEqual(
     normalizePetitionItems([

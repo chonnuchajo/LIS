@@ -80,6 +80,7 @@ export interface PetitionItem {
   labelManufacturer?: string;
   labelSeller?: string;
   labelQuantity?: string;
+  labelQuantities?: string[];
   labelSampledBy?: string;
   labelSampledDate?: string;
   labelRemark?: string;

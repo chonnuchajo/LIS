@@ -31,6 +31,7 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   { icon: Home, label: "หน้าแรก", path: "/home" },
   { icon: FileText, label: "รายการคำร้อง", path: "/petition" },
+  { icon: FlaskConical, label: "เงื่อนไขส่ง Lab", path: "/lab-send-conditions" },
   { icon: ClipboardList, label: "ผลวิเคราะห์", path: "/record-results" },
   { icon: ClipboardList, label: "ผลวิเคราะห์ Lab", path: "/lab-results" },
   { icon: FileCheck2, label: "ออกเอกสาร COA", path: "/coa" },

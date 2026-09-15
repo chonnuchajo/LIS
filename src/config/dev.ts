@@ -145,6 +145,7 @@ const devDepartment = (roleId: string): string => {
 export const DEV_DEPARTMENTS = [
   "R&D",
   "คลังสินค้า RM",
+  "คลังสินค้า FG",
   "ผลิต 1",
   "ผลิต 2",
   "ผลิต 3",

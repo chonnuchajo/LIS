@@ -64,6 +64,7 @@ const StandardTimePage = lazy(() => import("./pages/StandardTimePage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ScannerPage = lazy(() => import("./pages/ScannerPage"));
 const PetitionListPage = lazy(() => import("./pages/PetitionListPage"));
+const LabSendConditionsPage = lazy(() => import("./pages/LabSendConditionsPage"));
 const PetitionTimelinePage = lazy(() => import("./pages/PetitionTimelinePage"));
 const PetitionTimelineDetailPage = lazy(() => import("./pages/PetitionTimelineDetailPage"));
 const PetitionNewPage = lazy(() => import("./pages/PetitionNewPage"));
@@ -165,6 +166,7 @@ const App = () => (
               <Route path="/petitions" element={<PrivateRoute><PetitionTimelinePage /></PrivateRoute>} />
               <Route path="/petitions-old" element={<PrivateRoute><PetitionListPage /></PrivateRoute>} />
               <Route path="/petition" element={<PrivateRoute><PetitionTimelinePage /></PrivateRoute>} />
+              <Route path="/lab-send-conditions" element={<PrivateRoute><LabSendConditionsPage /></PrivateRoute>} />
               <Route path="/petition/assign" element={<PrivateRoute><PetitionAssignPage /></PrivateRoute>} />
               <Route path="/petition/:id" element={<PrivateRoute><PetitionTimelineDetailPage /></PrivateRoute>} />
               <Route path="/adutuilog" element={<PrivateRoute><PetitionAuditLogPage /></PrivateRoute>} />

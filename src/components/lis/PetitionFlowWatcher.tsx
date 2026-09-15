@@ -6,6 +6,15 @@ import { useNotifications } from "@/context/NotificationContext";
 import { audiencesForUser, readSeeAll, SEE_ALL_EVENT } from "@/lib/petitionAudience";
 import { cursorKey, effectiveSeeAll, nextCursor, readCursor } from "@/lib/petitionFlowWatcher";
 
+const FIRST_POLL_SOUND_GRACE_MS = 65_000;
+
+const isFreshOnFirstPoll = (createdAt: string | undefined, serverTime: string | undefined) => {
+  const createdAtMs = Date.parse(createdAt || "");
+  const serverTimeMs = Date.parse(serverTime || "");
+  if (Number.isNaN(createdAtMs) || Number.isNaN(serverTimeMs)) return false;
+  return serverTimeMs - createdAtMs <= FIRST_POLL_SOUND_GRACE_MS && createdAtMs <= serverTimeMs + 5_000;
+};
+
 const playSampleArrivalSound = () => {
   if (typeof window === "undefined") return;
   const AudioContextCtor =
@@ -85,7 +94,7 @@ const PetitionFlowWatcher = () => {
     for (const item of [...data.items].reverse()) {
       if (item.playSound && !playedSoundIdsRef.current.has(item.id)) {
         playedSoundIdsRef.current.add(item.id);
-        shouldPlaySound = shouldPlaySound || hasExistingCursor;
+        shouldPlaySound = shouldPlaySound || hasExistingCursor || isFreshOnFirstPoll(item.createdAt, data.serverTime);
       }
       push({
         id: item.id,
