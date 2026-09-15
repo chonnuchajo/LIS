@@ -447,7 +447,7 @@ export default function PetitionListPage({
   const canViewAll = roles.includes('admin');
   const department = String(user?.department ?? '').trim();
   const canSeeSixMonthMedicineTab = roles.includes('admin') || roles.includes('qc-head') || department === FG_WAREHOUSE_DEPARTMENT;
-  const canSeeFgQualityAlertsTab = department === FG_WAREHOUSE_DEPARTMENT;
+  const canSeeFgQualityAlertsTab = roles.includes('admin') || department === FG_WAREHOUSE_DEPARTMENT;
   const canCreatePetition = canUserCreatePetition(user, canAccess(NEW_PETITION_PATH));
   const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
   const groupMembership = useItemGroupMembership();
