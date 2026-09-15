@@ -111,7 +111,7 @@ function levelForEvent(log) {
 // id = audit log id, so NotificationContext.push() de-dupes on its own when two
 // polls overlap the same window.
 function shouldPlaySampleArrivalSound(petition, log, viewer, desc = {}) {
-  if (log?.event !== 'statusChanged' || log?.toStatus !== 'sampleSent') return false;
+  if (log?.event !== 'statusChanged' || log?.fromStatus !== 'deliveringQC' || log?.toStatus !== 'sampleSent') return false;
   if (viewer?.seeAll) return true;
   const mine = viewer?.audiences || [];
   if ((desc?.audiences || []).some((a) => mine.includes(a))) return true;

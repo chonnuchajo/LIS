@@ -122,12 +122,16 @@ test('isRelevant: seeAll ผ่านหมด', () => {
 
 test('shouldPlaySampleArrivalSound: เล่นเสียงเมื่อ sampleSent ตรงผู้รับหรือ audience', () => {
   const assigned = { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง' } };
-  const log = { event: 'statusChanged', toStatus: 'sampleSent' };
+  const log = { event: 'statusChanged', fromStatus: 'deliveringQC', toStatus: 'sampleSent' };
 
   assert.strictEqual(shouldPlaySampleArrivalSound(assigned, log, { employeeId: 'E200' }), true);
   assert.strictEqual(shouldPlaySampleArrivalSound(petition, log, { audiences: ['qc'] }, { audiences: ['qc'] }), true);
   assert.strictEqual(shouldPlaySampleArrivalSound(assigned, log, { employeeId: 'E201' }), false);
   assert.strictEqual(shouldPlaySampleArrivalSound(petition, log, { employeeId: 'E100' }), false);
+  assert.strictEqual(
+    shouldPlaySampleArrivalSound(petition, { event: 'statusChanged', fromStatus: 'inProgress', toStatus: 'sampleSent' }, { audiences: ['qc'] }, { audiences: ['qc'] }),
+    false,
+  );
   assert.strictEqual(
     shouldPlaySampleArrivalSound(assigned, { event: 'statusChanged', toStatus: 'approved' }, { employeeId: 'E200' }),
     false,
@@ -196,6 +200,7 @@ test('toNotification: sampleSent งานตัวเองแนบ playSound 
     _id: 'log-sent',
     petitionId: 'p1',
     event: 'statusChanged',
+    fromStatus: 'deliveringQC',
     toStatus: 'sampleSent',
     createdAt: '2026-08-01T02:00:00.000Z',
   };
@@ -210,6 +215,7 @@ test('toNotification: sampleSent ที่ตรง audience ผู้รับ 
     _id: 'log-sent-audience',
     petitionId: 'p1',
     event: 'statusChanged',
+    fromStatus: 'deliveringQC',
     toStatus: 'sampleSent',
     createdAt: '2026-08-01T02:00:00.000Z',
   };
