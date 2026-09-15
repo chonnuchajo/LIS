@@ -19,6 +19,7 @@ const PetitionItemSchema = new mongoose.Schema(
     labelManufacturer: String,
     labelSeller: String,
     labelQuantity: String,
+    labelQuantities: [String],
     labelSampledBy: String,
     labelSampledDate: String,
     labelRemark: String,

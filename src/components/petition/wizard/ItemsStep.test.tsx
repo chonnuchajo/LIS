@@ -144,7 +144,33 @@ describe('ItemsStep master item selection', () => {
       target: { value: '25 ml' },
     });
 
-    expect(onChange).toHaveBeenCalledWith([{ ...baseItem, packageUnit: '500 ml', labelQuantity: '25 ml' }]);
+    expect(onChange).toHaveBeenCalledWith([{ ...baseItem, packageUnit: '500 ml', labelQuantity: '25 ml', labelQuantities: ['25 ml'] }]);
+  });
+
+  it('shows one sent quantity input per sample quantity', () => {
+    const { onChange } = renderStep({
+      value: [{
+        ...baseItem,
+        sampleQuantity: 3,
+        labelQuantity: '5 g, 6 g',
+        labelQuantities: ['5 g', '6 g'],
+      }],
+    });
+
+    expect(screen.getByLabelText('ปริมาณที่ส่ง 1')).toHaveValue('5 g');
+    expect(screen.getByLabelText('ปริมาณที่ส่ง 2')).toHaveValue('6 g');
+    expect(screen.getByLabelText('ปริมาณที่ส่ง 3')).toHaveValue('');
+
+    fireEvent.change(screen.getByLabelText('ปริมาณที่ส่ง 3'), {
+      target: { value: '7 g' },
+    });
+
+    expect(onChange).toHaveBeenCalledWith([{
+      ...baseItem,
+      sampleQuantity: 3,
+      labelQuantity: '5 g, 6 g, 7 g',
+      labelQuantities: ['5 g', '6 g', '7 g'],
+    }]);
   });
 
   it('lets users enter sample quantity for one item', () => {

@@ -53,4 +53,18 @@ describe("SampleLabelPrintTemplate", () => {
     expect(container).not.toHaveTextContent("Uncertainty");
     expect(container).not.toHaveTextContent("±0.12");
   });
+
+  it("พิมพ์ปริมาณแยกตามจำนวนตัวอย่าง", () => {
+    render(<SampleLabelPrintTemplate petition={petitionWith({
+      sampleName: "PROCHLORAZ 45% W/V EC",
+      commonName: "PROCHLORAZ 45% W/V EC",
+      batchNo: "B-001",
+      sampleQuantity: 2,
+      labelQuantities: ["5 g", "6 g"],
+    })} />);
+
+    expect(screen.getByText("5 g")).toBeInTheDocument();
+    expect(screen.getByText("6 g")).toBeInTheDocument();
+    expect(screen.getAllByText("Batch No.")).toHaveLength(2);
+  });
 });

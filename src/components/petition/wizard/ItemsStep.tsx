@@ -52,6 +52,7 @@ export interface ItemRowValues {
   note: string;
   sampleQuantity?: number;
   labelQuantity?: string;
+  labelQuantities?: string[];
   labelSampledDate?: string;
   submittedQuantity?: string;
   submittedUnit?: string;
@@ -79,6 +80,36 @@ function parseSampleQuantityInput(value: string): number | undefined {
   const parsed = Number(trimmed);
   if (!Number.isFinite(parsed)) return undefined;
   return parsed;
+}
+
+function sampleQuantityInputCount(value: number | undefined): number {
+  if (!Number.isInteger(value) || (value ?? 0) < 1) return 1;
+  return value ?? 1;
+}
+
+function splitLabelQuantity(value: string | undefined): string[] {
+  return String(value ?? '')
+    .split(/[\n,;|]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function labelQuantityInputs(item: ItemRowValues): string[] {
+  const count = sampleQuantityInputCount(item.sampleQuantity);
+  const fromArray = Array.isArray(item.labelQuantities)
+    ? item.labelQuantities.map((entry) => String(entry ?? ''))
+    : [];
+  const source = fromArray.length ? fromArray : splitLabelQuantity(item.labelQuantity);
+  return Array.from({ length: count }, (_, index) => source[index] ?? (count === 1 ? item.labelQuantity ?? '' : ''));
+}
+
+function labelQuantityPatch(item: ItemRowValues, quantityIndex: number, nextValue: string): Pick<ItemRowValues, 'labelQuantity' | 'labelQuantities'> {
+  const quantities = labelQuantityInputs(item);
+  quantities[quantityIndex] = nextValue;
+  return {
+    labelQuantity: quantities.filter((entry) => entry.trim()).join(', '),
+    labelQuantities: quantities,
+  };
 }
 
 const mfFieldKeys = [
@@ -261,6 +292,7 @@ export default function ItemsStep({
           const batchNoId = `batch-no-${idx}`;
           const packageUnitId = `package-unit-${idx}`;
           const labelQuantityId = `label-quantity-${idx}`;
+          const sentQuantityInputs = labelQuantityInputs(it);
           return (
             <div key={idx} className="rounded-[10px] border border-grey-200 p-4">
               <div className="mb-3 flex items-center justify-between">
@@ -360,16 +392,6 @@ export default function ItemsStep({
                   />
                 </div>
                 <div>
-                  <Label htmlFor={labelQuantityId}>ปริมาณที่ส่ง</Label>
-                  <Input
-                    id={labelQuantityId}
-                    value={it.labelQuantity ?? ''}
-                    onChange={(e) => setItem(idx, { labelQuantity: e.target.value })}
-                    disabled={itemsReadOnly}
-                    placeholder="เช่น 100 ml"
-                  />
-                </div>
-                <div>
                   <Label htmlFor={`sample-quantity-${idx}`}>จำนวนตัวอย่าง</Label>
                   <Input
                     id={`sample-quantity-${idx}`}
@@ -382,6 +404,42 @@ export default function ItemsStep({
                     disabled={itemsReadOnly}
                   />
                 </div>
+                {sentQuantityInputs.length === 1 ? (
+                  <div>
+                    <Label htmlFor={labelQuantityId}>ปริมาณที่ส่ง</Label>
+                    <Input
+                      id={labelQuantityId}
+                      value={sentQuantityInputs[0] ?? ''}
+                      onChange={(e) => setItem(idx, labelQuantityPatch(it, 0, e.target.value))}
+                      disabled={itemsReadOnly}
+                      placeholder="เช่น 100 ml"
+                    />
+                  </div>
+                ) : (
+                  <div className="sm:col-span-2 rounded-lg border bg-card p-3">
+                    <div className="mb-3 text-sm font-medium text-foreground">ปริมาณที่ส่งแต่ละตัวอย่าง</div>
+                    <div className="space-y-2">
+                      {sentQuantityInputs.map((sentQuantity, quantityIndex) => {
+                        const inputId = `${labelQuantityId}-${quantityIndex}`;
+                        return (
+                          <div key={inputId} className="grid gap-2 sm:grid-cols-[7rem_minmax(0,1fr)] sm:items-end">
+                            <div className="pb-2 text-sm font-semibold text-primary">รายการที่ {quantityIndex + 1}</div>
+                            <div>
+                              <Label htmlFor={inputId} className="sr-only">ปริมาณที่ส่ง {quantityIndex + 1}</Label>
+                              <Input
+                                id={inputId}
+                                value={sentQuantity}
+                                onChange={(e) => setItem(idx, labelQuantityPatch(it, quantityIndex, e.target.value))}
+                                disabled={itemsReadOnly}
+                                placeholder="เช่น 100 ml"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className="sm:col-span-2">
                   <Label>หมายเหตุ</Label>
                   <Textarea
