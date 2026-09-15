@@ -142,6 +142,33 @@ describe("PetitionFlowWatcher approval notifications", () => {
     expect(audio.AudioContextMock).toHaveBeenCalledTimes(1);
   });
 
+  it("plays a sound for a newly sent sample on first live poll even before a cursor exists", async () => {
+    mocks.getPetitionNotifications.mockResolvedValue({
+      serverTime: "2026-09-05T04:00:00.000Z",
+      items: [
+        {
+          id: "log-first-live-sample-sent",
+          petitionId: "p1",
+          petitionNo: "P-2609-0002",
+          event: "statusChanged",
+          toStatus: "sampleSent",
+          title: "ส่งตัวอย่างแล้ว",
+          level: "info",
+          link: "/petition/p1",
+          createdAt: "2026-09-05T04:00:00.000Z",
+          playSound: true,
+        },
+      ],
+    });
+    const audio = mockAudioContext();
+
+    renderWatcher();
+
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
+
+    expect(audio.AudioContextMock).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps old backfilled assigned samples silent when no cursor exists yet", async () => {
     mocks.getPetitionNotifications.mockResolvedValue({
       serverTime: "2026-09-05T04:00:00.000Z",
