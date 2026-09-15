@@ -180,7 +180,19 @@ describe("StockPage delete actions", () => {
           unit: "KG",
           stockQty: 10,
           stockQtyBase: 10,
-          ageMonths: 6,
+          ageMonths: 7,
+        },
+        {
+          companySource: "ICPL",
+          itemNo: "R-TEST-002",
+          locationCode: "NORMAL",
+          binCode: "DEFAULT",
+          lotNo: "RM260201-002",
+          registeringDate: "2026-02-28T00:00:00.000Z",
+          unit: "KG",
+          stockQty: 5,
+          stockQtyBase: 5,
+          ageMonths: 7,
         },
       ],
     });
@@ -197,6 +209,7 @@ describe("StockPage delete actions", () => {
 
     expect(await screen.findByText("Pesticide Standard")).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "List ยา 6 เดือน" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "แจ้งเตือนส่งตรวจคุณภาพ" })).not.toBeInTheDocument();
     expect(apiMock.getSixMonthMedicineStock).not.toHaveBeenCalled();
   });
 
@@ -222,6 +235,40 @@ describe("StockPage delete actions", () => {
     await waitFor(() => {
       expect(screen.getByText("F-TEST-001")).toBeInTheDocument();
     });
+  });
+
+  it("shows the six-month medicine tab for FG warehouse department", async () => {
+    authMock.user = {
+      email: "fg-warehouse@example.com",
+      name: "FG Warehouse",
+      role: "viewer",
+      roles: ["viewer"],
+      department: "คลังสินค้า FG",
+    };
+    renderStock();
+
+    expect(await screen.findByText("Pesticide Standard")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "List ยา 6 เดือน" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "แจ้งเตือนส่งตรวจคุณภาพ" })).not.toBeInTheDocument();
+  });
+
+  it("filters six-month medicine rows by RM and FG item prefixes", async () => {
+    renderStock("medicine-six-months");
+
+    expect(await screen.findByText("F-TEST-001")).toBeInTheDocument();
+    expect(screen.getByText("R-TEST-002")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "ประเภทสินค้า" }));
+    fireEvent.click(await screen.findByRole("option", { name: "RM" }));
+
+    expect(screen.getByText("R-TEST-002")).toBeInTheDocument();
+    expect(screen.queryByText("F-TEST-001")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "ประเภทสินค้า" }));
+    fireEvent.click(await screen.findByRole("option", { name: "FG" }));
+
+    expect(screen.getByText("F-TEST-001")).toBeInTheDocument();
+    expect(screen.queryByText("R-TEST-002")).not.toBeInTheDocument();
   });
 
   it("confirms and deletes a standard through the MongoDB-backed API", async () => {

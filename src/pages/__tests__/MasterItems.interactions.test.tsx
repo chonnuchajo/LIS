@@ -66,10 +66,12 @@ describe("MasterItems interactions", () => {
     });
     vi.mocked(api.getParameters).mockResolvedValue([]);
     vi.mocked(uploadQcPhoto).mockResolvedValue({ url: "/LIS/uploads/qc-photos/master-item.webp" });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })));
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("opens item details on row single click", async () => {
@@ -88,6 +90,35 @@ describe("MasterItems interactions", () => {
     });
 
     expect(screen.getByText("Kg/Unit")).toBeInTheDocument();
+  });
+
+  it("shows MF_Before and MF_Lasted in additional info", async () => {
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("item-MF-CLOSE")) {
+        return new Response(JSON.stringify([
+          { item_no: "FG-001", create_date: "2026-09-12T00:00:00Z" },
+        ]), { status: 200 });
+      }
+      if (url.includes("/api/item-MF")) {
+        return new Response(JSON.stringify([
+          { item_no: "FG-001", create_date: "2026-09-14T00:00:00Z" },
+        ]), { status: 200 });
+      }
+      return new Response(JSON.stringify([]), { status: 200 });
+    });
+
+    renderMasterItems();
+
+    const row = (await screen.findByText("FG-001")).closest("tr");
+    expect(row).not.toBeNull();
+    fireEvent.doubleClick(row!);
+
+    expect(await screen.findByText("ข้อมูลเพิ่มเติม")).toBeInTheDocument();
+    expect(await screen.findByText("MF_Before")).toBeInTheDocument();
+    expect(screen.getByText("2026-09-12")).toBeInTheDocument();
+    expect(screen.getByText("MF_Lasted")).toBeInTheDocument();
+    expect(screen.getByText("2026-09-14")).toBeInTheDocument();
   });
 
   it("opens item details after a real double-click sequence", async () => {

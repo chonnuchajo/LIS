@@ -54,6 +54,8 @@ import type {
 } from "@/types/stock";
 import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
 
+const FG_WAREHOUSE_DEPARTMENT = "คลังสินค้า FG";
+
 const STANDARD_STATUS_OPTIONS: { value: StandardStatus; label: string }[] = [
   { value: "ok", label: "ปกติ" },
   { value: "out", label: "หมด" },
@@ -988,24 +990,32 @@ function GlasswareTab() {
 // ============================================================
 function MedicineSixMonthTab() {
   const [search, setSearch] = useState("");
+  const [kindFilter, setKindFilter] = useState<"all" | "rm" | "fg">("all");
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ["stock", "medicine-six-months"],
     queryFn: api.getSixMonthMedicineStock,
     staleTime: 5 * 60 * 1000,
   });
 
-  const items = data?.items ?? [];
+  const items = useMemo(() => data?.items ?? [], [data?.items]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((item) => [
-      item.itemNo,
-      item.lotNo,
-      item.companySource,
-      item.locationCode,
-      item.binCode,
-    ].some((value) => value.toLowerCase().includes(q)));
-  }, [items, search]);
+    return items.filter((item) => {
+      const itemNo = item.itemNo.trim().toUpperCase();
+      const matchesKind = kindFilter === "all"
+        || (kindFilter === "rm" && itemNo.startsWith("R"))
+        || (kindFilter === "fg" && itemNo.startsWith("F"));
+      if (!matchesKind) return false;
+      if (!q) return true;
+      return [
+        item.itemNo,
+        item.lotNo,
+        item.companySource,
+        item.locationCode,
+        item.binCode,
+      ].some((value) => value.toLowerCase().includes(q));
+    });
+  }, [items, search, kindFilter]);
   const errorMessage = error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ";
 
   return (
@@ -1017,11 +1027,16 @@ function MedicineSixMonthTab() {
               <Package className="w-5 h-5" /> List ยา 6 เดือน
               <Badge variant="outline">{filtered.length}</Badge>
             </CardTitle>
-            <p className="text-xs text-muted-foreground">
-              แสดงล็อตที่อายุ 6, 12, 18... เดือนจาก registering_date · นับเฉพาะเดือน ไม่ดูวันที่ · เดือนอ้างอิง {formatStockMonth(data?.referenceMonth)}
-            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Select value={kindFilter} onValueChange={(value) => setKindFilter(value as "all" | "rm" | "fg")}>
+              <SelectTrigger aria-label="ประเภทสินค้า" className="h-9 w-full sm:w-28"><SelectValue placeholder="ทั้งหมด" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทั้งหมด</SelectItem>
+                <SelectItem value="rm">RM</SelectItem>
+                <SelectItem value="fg">FG</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา item / lot / location" className="pl-8 h-9 w-full sm:w-72" />
@@ -1867,8 +1882,12 @@ const StockPage = () => {
   const qc = useQueryClient();
   const { tabs, defaultKey } = useAccessibleTabs("/stock");
   const stockUserRoles = normalizeRoles(user);
-  const canSeeSixMonthMedicineTab = stockUserRoles.includes("admin") || stockUserRoles.includes("qc-head");
-  const visibleTabs = tabs.filter((tab) => tab.key !== "medicine-six-months" || canSeeSixMonthMedicineTab);
+  const stockUserDepartment = String(user?.department ?? "").trim();
+  const canSeeSixMonthMedicineTab = stockUserRoles.includes("admin") || stockUserRoles.includes("qc-head") || stockUserDepartment === FG_WAREHOUSE_DEPARTMENT;
+  const visibleTabs = tabs.filter((tab) => {
+    if (tab.key === "medicine-six-months") return canSeeSixMonthMedicineTab;
+    return true;
+  });
   const stockDefaultKey = visibleTabs.some((tab) => tab.key === defaultKey) ? defaultKey : visibleTabs[0]?.key;
 
   const onScanned = async (qrId: string) => {

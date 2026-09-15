@@ -392,14 +392,16 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
                       จำนวนน้ำหนัก
                       {isCustom && <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">custom</span>}
                     </Label>
-                    <Input type="number" min={1} max={20} value={countText} className="h-8 w-20"
+                    <Input type="number" min={1} max={20} value={countText} disabled={!customCount} className="h-8 w-20"
                       onChange={(e) => {
+                        if (!customCount) return;
                         const raw = e.target.value;
                         setCountText(raw); // ปล่อยว่าง/ค่ากลางๆ ได้ระหว่างพิมพ์
                         const n = Number(raw);
                         if (raw !== "" && Number.isInteger(n) && n >= 1 && n <= 20) setCount(n);
                       }}
                       onBlur={() => {
+                        if (!customCount) return;
                         const n = Number(countText);
                         if (!(Number.isInteger(n) && n >= 1 && n <= 20)) setCountText(String(weights.length));
                       }} />

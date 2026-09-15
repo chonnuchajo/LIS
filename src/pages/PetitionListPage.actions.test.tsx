@@ -46,6 +46,25 @@ const mocks = vi.hoisted(() => {
     petition('P-2607-0007', 'approved'),
   ];
 
+  const fgQualityAlerts = [
+    petition('P-FG-QC-0001', 'deliveringQC', {
+      dept: 'fg',
+      submittedBy: {
+        employeeId: 'E890',
+        name: 'FG Requester',
+        submittedAt: '2026-09-10T02:30:00.000Z',
+      },
+      items: [
+        {
+          seq: 1,
+          sampleName: 'FG Product A',
+          batchNo: 'FG260910-001',
+          lotNo: 'LOT-FG-001',
+        },
+      ],
+    }),
+  ];
+
   return {
     canAccess: vi.fn(() => true),
     getSixMonthMedicineStock: vi.fn().mockResolvedValue({
@@ -62,12 +81,25 @@ const mocks = vi.hoisted(() => {
           unit: 'KG',
           stockQty: 10,
           stockQtyBase: 10,
-          ageMonths: 6,
+          ageMonths: 7,
+        },
+        {
+          companySource: 'ICPL',
+          itemNo: 'R-TEST-002',
+          locationCode: 'NORMAL',
+          binCode: 'DEFAULT',
+          lotNo: 'RM260201-002',
+          registeringDate: '2026-02-28T00:00:00.000Z',
+          unit: 'KG',
+          stockQty: 5,
+          stockQtyBase: 5,
+          ageMonths: 7,
         },
       ],
     }),
     getParameters: vi.fn().mockResolvedValue([]),
     petitions,
+    fgQualityAlerts,
     push: vi.fn(),
     refresh: vi.fn(),
     user: {
@@ -96,9 +128,13 @@ vi.mock('@/hooks/useItemGroupMembership', () => ({
 }));
 
 vi.mock('@/hooks/usePetition', () => ({
-  usePetitionList: (params: { status?: string; search?: string }) => {
+  usePetitionList: (params: { status?: string; search?: string; dept?: string }) => {
     const search = params.search?.trim().toLowerCase();
-    const items = mocks.petitions
+    const source = params.dept === 'fg' && params.status === 'deliveringQC'
+      ? mocks.fgQualityAlerts
+      : mocks.petitions;
+    const items = source
+      .filter((petition) => (params.dept ? petition.dept === params.dept : true))
       .filter((petition) =>
         params.status ? params.status.split(',').includes(petition.status) : true,
       )
@@ -357,6 +393,33 @@ describe('PetitionListPage action cues', () => {
     expect(screen.queryByRole('button', { name: 'รีเฟรช' })).not.toBeInTheDocument();
   });
 
+  it('filters six-month medicine rows by RM and FG item prefixes', async () => {
+    mocks.user = {
+      employeeId: 'E888',
+      email: 'qc-head@example.test',
+      name: 'QC Head',
+      roles: ['qc-head'],
+    };
+    renderPage();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    expect(await screen.findByText('F-TEST-001')).toBeInTheDocument();
+    expect(screen.getByText('R-TEST-002')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'ประเภทสินค้า' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'RM' }));
+
+    expect(screen.getByText('R-TEST-002')).toBeInTheDocument();
+    expect(screen.queryByText('F-TEST-001')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'ประเภทสินค้า' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'FG' }));
+
+    expect(screen.getByText('F-TEST-001')).toBeInTheDocument();
+    expect(screen.queryByText('R-TEST-002')).not.toBeInTheDocument();
+  });
+
   it('refreshes six-month medicine stock after pulling down from the top on touch screens', async () => {
     setTouchViewport(true);
     mocks.user = {
@@ -386,6 +449,53 @@ describe('PetitionListPage action cues', () => {
 
     expect(await screen.findByText('P-2607-0001')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'List ยา 6 เดือน' })).toBeInTheDocument();
+  });
+
+  it('shows the six-month medicine tab for FG warehouse department users', async () => {
+    mocks.user = {
+      employeeId: 'E890',
+      email: 'fg-warehouse@example.test',
+      name: 'FG Warehouse',
+      roles: ['viewer'],
+      department: 'คลังสินค้า FG',
+    };
+    renderPage();
+
+    expect(screen.getByRole('tab', { name: 'List ยา 6 เดือน' })).toBeInTheDocument();
+  });
+
+  it('shows FG quality inspection alerts as a sub-tab inside six-month medicine for FG warehouse users', async () => {
+    mocks.user = {
+      employeeId: 'E890',
+      email: 'fg-warehouse@example.test',
+      name: 'FG Warehouse',
+      roles: ['viewer'],
+      department: 'คลังสินค้า FG',
+    };
+    renderPage({}, '/petition');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+    fireEvent.mouseDown(await screen.findByRole('tab', { name: 'แจ้งเตือนส่งตรวจคุณภาพ' }), { button: 0, ctrlKey: false });
+
+    expect(await screen.findByText('P-FG-QC-0001')).toBeInTheDocument();
+    expect(screen.getByText('FG Product A')).toBeInTheDocument();
+    expect(screen.getByText('FG260910-001 / LOT-FG-001')).toBeInTheDocument();
+    expect(screen.getByText('ส่งตรวจคุณภาพ')).toBeInTheDocument();
+  });
+
+  it('hides FG quality inspection alerts sub-tab from non-FG users', async () => {
+    mocks.user = {
+      employeeId: 'E888',
+      email: 'qc-head@example.test',
+      name: 'QC Head',
+      roles: ['qc-head'],
+    };
+    renderPage({}, '/petition');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    expect(await screen.findByText('F-TEST-001')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'แจ้งเตือนส่งตรวจคุณภาพ' })).not.toBeInTheDocument();
   });
 
   it('hides the six-month medicine tab for users without admin or QC head', async () => {

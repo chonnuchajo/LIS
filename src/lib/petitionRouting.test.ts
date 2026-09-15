@@ -51,6 +51,38 @@ describe("petitionRouting", () => {
     expect(hasLabTrack({ items: [publicHealth] } as Petition)).toBe(true);
   });
 
+  it("routes MF items to Lab for the first 5 batches after a 30-day gap", () => {
+    expect(defaultSendItemToLab({
+      batchNo: "BN240602",
+      MF_Before: "2026-08-01",
+      MF_Lasted: "2026-09-01",
+      MF_BatchAfterGap: 1,
+    })).toBe(true);
+
+    expect(defaultSendItemToLab({
+      batchNo: "BN240602",
+      MF_Before: "2026-08-01",
+      MF_Lasted: "2026-09-01",
+      MF_BatchAfterGap: 5,
+    })).toBe(true);
+  });
+
+  it("returns to the legacy 1/6 batch rule after the 5-batch MF hold is cleared", () => {
+    expect(defaultSendItemToLab({
+      batchNo: "BN240602",
+      MF_Before: "2026-08-01",
+      MF_Lasted: "2026-09-01",
+      MF_BatchAfterGap: 6,
+    })).toBe(false);
+
+    expect(defaultSendItemToLab({
+      batchNo: "BN240606",
+      MF_Before: "2026-08-01",
+      MF_Lasted: "2026-09-01",
+      MF_ConsecutivePassCount: 5,
+    })).toBe(true);
+  });
+
   it("requires note when sendToLab differs from the default", () => {
     const override = { seq: 2, sampleName: "S", batchNo: "B-2", sendToLab: true, note: "" };
     expect(hasSendToLabOverride(override)).toBe(true);

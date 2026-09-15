@@ -70,6 +70,11 @@ export interface PetitionItem {
   testUnit?: string;
   testItems?: string;
   sendToLab?: boolean;
+  MF_Before?: string | null;
+  MF_Lasted?: string | null;
+  MF_GapDays?: number | null;
+  MF_BatchAfterGap?: number | null;
+  MF_ConsecutivePassCount?: number | null;
   note?: string;
   sampleQuantity?: number;
   labelManufacturer?: string;

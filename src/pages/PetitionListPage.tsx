@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNotifications } from '@/context/NotificationContext';
@@ -46,6 +47,7 @@ import {
 
 const PAGE_SIZE = 20;
 const NEW_PETITION_PATH = '/petitions/new';
+const FG_WAREHOUSE_DEPARTMENT = 'คลังสินค้า FG';
 
 // How long a petition arriving from a dashboard drill-down stays visually marked
 // before it settles back into an ordinary list card.
@@ -131,6 +133,23 @@ function formatSixMonthReferenceMonth(value?: string) {
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 }
+
+function firstPetitionItem(petition: Petition) {
+  return petition.items[0];
+}
+
+function petitionItemCountLabel(petition: Petition) {
+  return petition.items.length > 1 ? ` +${petition.items.length - 1} รายการ` : '';
+}
+
+function petitionBatchLotLabel(petition: Petition) {
+  const firstItem = firstPetitionItem(petition);
+  return [firstItem?.batchNo, firstItem?.lotNo].filter(Boolean).join(' / ') || '-';
+}
+
+type SixMonthMedicineTabProps = {
+  showFgQualityAlerts: boolean;
+};
 
 function canUseTouchPullToRefresh() {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(PULL_TO_REFRESH_DEVICE_QUERY).matches;
@@ -231,8 +250,9 @@ function useTouchPullToRefresh(onRefresh: () => Promise<unknown>) {
   };
 }
 
-function SixMonthMedicineTab() {
+function SixMonthMedicineStockTab() {
   const [sixMonthSearch, setSixMonthSearch] = useState('');
+  const [kindFilter, setKindFilter] = useState<'all' | 'rm' | 'fg'>('all');
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['stock', 'medicine-six-months'],
     queryFn: api.getSixMonthMedicineStock,
@@ -244,15 +264,22 @@ function SixMonthMedicineTab() {
   const filtered = useMemo(() => {
     const items = data?.items ?? [];
     const q = sixMonthSearch.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((item) => [
-      item.itemNo,
-      item.lotNo,
-      item.locationCode,
-      item.binCode,
-      item.companySource,
-    ].some((value) => value.toLowerCase().includes(q)));
-  }, [data?.items, sixMonthSearch]);
+    return items.filter((item) => {
+      const itemNo = item.itemNo.trim().toUpperCase();
+      const matchesKind = kindFilter === 'all'
+        || (kindFilter === 'rm' && itemNo.startsWith('R'))
+        || (kindFilter === 'fg' && itemNo.startsWith('F'));
+      if (!matchesKind) return false;
+      if (!q) return true;
+      return [
+        item.itemNo,
+        item.lotNo,
+        item.locationCode,
+        item.binCode,
+        item.companySource,
+      ].some((value) => value.toLowerCase().includes(q));
+    });
+  }, [data?.items, sixMonthSearch, kindFilter]);
   const errorMessage = error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ';
 
   return (
@@ -269,12 +296,17 @@ function SixMonthMedicineTab() {
       <Card className="border-black-50 shadow-none">
         <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle className="text-base">List ยา 6 เดือน</CardTitle>
-            <p className="mt-1 text-sm text-grey-500">
-              แสดงล็อตที่อายุ 6, 12, 18... เดือนจาก registering_date · นับเฉพาะเดือน ไม่ดูวันที่ · เดือนอ้างอิง {formatSixMonthReferenceMonth(data?.referenceMonth)}
-            </p>
+            <CardTitle className="text-base">รายการยาเกิน 6 เดือน</CardTitle>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Select value={kindFilter} onValueChange={(value) => setKindFilter(value as 'all' | 'rm' | 'fg')}>
+              <SelectTrigger aria-label="ประเภทสินค้า" className="h-9 w-full sm:w-28"><SelectValue placeholder="ทั้งหมด" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทั้งหมด</SelectItem>
+                <SelectItem value="rm">RM</SelectItem>
+                <SelectItem value="fg">FG</SelectItem>
+              </SelectContent>
+            </Select>
             <Input
               value={sixMonthSearch}
               onChange={(event) => setSixMonthSearch(event.target.value)}
@@ -303,7 +335,7 @@ function SixMonthMedicineTab() {
                 ) : isError ? (
                   <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-red-500">{errorMessage}</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-grey-500">ไม่มีข้อมูลครบ 6 เดือน</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-grey-500">ไม่มีข้อมูลที่อายุมากกว่า 6 เดือน</TableCell></TableRow>
                 ) : filtered.map((item) => (
                   <TableRow key={`${item.itemNo}-${item.lotNo}-${item.locationCode}-${item.binCode}-${item.registeringDate}`}>
                     <TableCell className="font-medium text-black-500">{item.itemNo || '-'}</TableCell>
@@ -324,6 +356,81 @@ function SixMonthMedicineTab() {
   );
 }
 
+function FgQualityAlertsTab() {
+  const { data, loading, error } = usePetitionList({ dept: 'fg', status: 'deliveringQC', limit: 100 });
+  const petitions = data?.items ?? [];
+
+  return (
+    <Card className="border-black-50 shadow-none">
+      <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <CardTitle className="text-base">แจ้งเตือนส่งตรวจคุณภาพ</CardTitle>
+          <p className="mt-1 text-sm text-grey-500">คำร้อง FG ที่อยู่สถานะกำลังส่งตัวอย่าง</p>
+        </div>
+        <Badge variant="outline">{petitions.length}</Badge>
+      </CardHeader>
+      <CardContent>
+        <div className="overflow-x-auto">
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>เลขคำร้อง</TableHead>
+                <TableHead>ผู้ยื่น</TableHead>
+                <TableHead>วันที่ยื่น</TableHead>
+                <TableHead>สินค้า</TableHead>
+                <TableHead>Batch / Lot</TableHead>
+                <TableHead>สถานะ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-grey-500">กำลังโหลดรายการแจ้งเตือน...</TableCell></TableRow>
+              ) : error ? (
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-red-500">{error}</TableCell></TableRow>
+              ) : petitions.length === 0 ? (
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-grey-500">ไม่มีรายการแจ้งเตือน</TableCell></TableRow>
+              ) : petitions.map((petition) => {
+                const firstItem = firstPetitionItem(petition);
+                return (
+                  <TableRow key={petition._id}>
+                    <TableCell className="font-medium text-black-500">{petition.petitionNo || '-'}</TableCell>
+                    <TableCell>{petition.submittedBy?.name || '-'}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-grey-600">{formatSixMonthStockDate(petition.submittedBy?.submittedAt || petition.createdAt)}</TableCell>
+                    <TableCell>{firstItem?.sampleName || '-'}{petitionItemCountLabel(petition)}</TableCell>
+                    <TableCell className="text-xs text-grey-600">{petitionBatchLotLabel(petition)}</TableCell>
+                    <TableCell><Badge variant="primary-soft">ส่งตรวจคุณภาพ</Badge></TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SixMonthMedicineTab({ showFgQualityAlerts }: SixMonthMedicineTabProps) {
+  if (!showFgQualityAlerts) return <SixMonthMedicineStockTab />;
+
+  return (
+    <Tabs defaultValue="six-month-stock" className="space-y-3">
+      <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
+        <TabsList className="w-max">
+          <TabsTrigger value="six-month-stock">รายการยาเกิน 6 เดือน</TabsTrigger>
+          <TabsTrigger value="fg-quality-alerts">แจ้งเตือนส่งตรวจคุณภาพ</TabsTrigger>
+        </TabsList>
+      </div>
+      <TabsContent value="six-month-stock" className="mt-0">
+        <SixMonthMedicineStockTab />
+      </TabsContent>
+      <TabsContent value="fg-quality-alerts" className="mt-0">
+        <FgQualityAlertsTab />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
 export default function PetitionListPage({
   petitionDetailPath = (petition) => `/petition/${petition._id}`,
   title = 'รายการคำร้อง',
@@ -338,7 +445,9 @@ export default function PetitionListPage({
   const createdNo = (location.state as { createdNo?: string } | null)?.createdNo;
   const roles = normalizeRoles(user);
   const canViewAll = roles.includes('admin');
-  const canSeeSixMonthMedicineTab = roles.includes('admin') || roles.includes('qc-head');
+  const department = String(user?.department ?? '').trim();
+  const canSeeSixMonthMedicineTab = roles.includes('admin') || roles.includes('qc-head') || department === FG_WAREHOUSE_DEPARTMENT;
+  const canSeeFgQualityAlertsTab = department === FG_WAREHOUSE_DEPARTMENT;
   const canCreatePetition = canUserCreatePetition(user, canAccess(NEW_PETITION_PATH));
   const canSeeTestItems = roles.length > 0 && roles.some((r) => r !== 'viewer');
   const groupMembership = useItemGroupMembership();
@@ -828,7 +937,7 @@ export default function PetitionListPage({
 
           {canSeeSixMonthMedicineTab && (
             <TabsContent value="six-month-medicine">
-              <SixMonthMedicineTab />
+              <SixMonthMedicineTab showFgQualityAlerts={canSeeFgQualityAlertsTab} />
             </TabsContent>
           )}
         </Tabs>

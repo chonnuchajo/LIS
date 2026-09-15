@@ -192,6 +192,43 @@ describe('ItemsStep master item selection', () => {
     ]);
   });
 
+  it('changes MF gap master item selection to sendToLab true for the five-batch hold', () => {
+    const { onChange } = renderStep({
+      value: [{ ...baseItem, batchNo: 'BATCH002', sendToLab: false }],
+      masterItemOptions: [
+        {
+          itemNo: 'P003',
+          sampleName: 'Restarted Product',
+          commonName: 'ABAMECTIN 1.8% W/V EC',
+          packageUnit: '1 L x 12 bottles',
+          MF_Before: '2026-08-01',
+          MF_Lasted: '2026-09-01',
+          MF_GapDays: 31,
+          MF_BatchAfterGap: 3,
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByRole('combobox', { name: /ชื่อตัวอย่าง/ }));
+    fireEvent.click(screen.getByText('Restarted Product'));
+
+    expect(onChange).toHaveBeenCalledWith([
+      {
+        ...baseItem,
+        itemNo: 'P003',
+        sampleName: 'Restarted Product',
+        commonName: 'ABAMECTIN 1.8% W/V EC',
+        packageUnit: '1 L x 12 bottles',
+        batchNo: 'BATCH002',
+        sendToLab: true,
+        MF_Before: '2026-08-01',
+        MF_Lasted: '2026-09-01',
+        MF_GapDays: 31,
+        MF_BatchAfterGap: 3,
+      },
+    ]);
+  });
+
   it('changes LIVE STOCK manual active ingredient to sendToLab true', () => {
     const { onChange } = renderStep({
       value: [{ ...baseItem, batchNo: 'BATCH002', sendToLab: false }],

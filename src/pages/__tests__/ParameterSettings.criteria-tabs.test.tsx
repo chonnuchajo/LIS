@@ -572,6 +572,58 @@ describe("ParameterSettings criteria tabs", () => {
     expect(api.updateParameter).not.toHaveBeenCalled();
   });
 
+  it("saves multiple apply rules as OR items", async () => {
+    const masterItems = [
+      { item_no: "R-001", item_name1: "ABAMECTIN 1.8% W/V EC", common_name: "ABAMECTIN 1.8% W/V EC" },
+      { item_no: "R-002", item_name1: "METALAXYL 35% DS (PINK)", common_name: "METALAXYL 35% DS (PINK)" },
+      { item_no: "R-003", item_name1: "CHLOROTHALONIL 50% W/V SC", common_name: "CHLOROTHALONIL 50% W/V SC" },
+    ];
+    vi.mocked(api.get).mockImplementation((path) => Promise.resolve({
+      data: { data: path === "/master-items" ? masterItems : [] },
+    } as Awaited<ReturnType<typeof api.get<unknown>>>));
+    api.getParameters.mockResolvedValueOnce([
+      {
+        _id: "p-rules",
+        name: "parameter ทดสอบ",
+        scope: "qc",
+        status: "active",
+        applyAll: false,
+        valueFields: [{ label: "Result", type: "text" }],
+      },
+    ]);
+    api.updateParameter.mockResolvedValueOnce({} as ParameterItem);
+
+    renderPage();
+
+    const parameterName = await screen.findByText("parameter ทดสอบ");
+    const row = parameterName.closest("tr");
+    expect(row).not.toBeNull();
+    fireEvent.click(within(row as HTMLTableRowElement).getByTitle("แก้ไข"));
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "เลือกประเภทสาร (น้ำ / ทราย / ผง / ของเหลว / ของแข็ง)" }));
+    fireEvent.click(await screen.findByRole("button", { name: "ผง" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "เพิ่มกฎ" }));
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "เลือกประเภท common name (EC / SC / WP ...)" }));
+    fireEvent.click(await screen.findByRole("button", { name: /EC - น้ำ/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "เพิ่มกฎ" }));
+
+    expect(within(dialog).getByText("item 1")).toBeInTheDocument();
+    expect(within(dialog).getByText("item 2")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "บันทึกการแก้ไข" }));
+
+    await waitFor(() => expect(api.updateParameter).toHaveBeenCalledTimes(1));
+    const [, payload] = api.updateParameter.mock.calls[0] as [string, ParameterItem];
+    expect(payload.applyRules).toEqual([
+      { productTypes: ["powder"] },
+      { commonNames: ["EC"] },
+    ]);
+    expect(payload.productTypes).toEqual([]);
+    expect(payload.commonNames).toEqual([]);
+  });
+
   it("shows head criteria columns for admin in label tolerance tab", async () => {
     api.getParameters.mockResolvedValueOnce([
       {

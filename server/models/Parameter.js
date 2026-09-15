@@ -86,6 +86,17 @@ const StandardRuleSchema = new mongoose.Schema({
   outputKind: { type: String, enum: ['normal', 'abnormal'], default: 'normal' },
 }, { _id: false });
 
+const ApplyRuleSchema = new mongoose.Schema({
+  itemNos: { type: [String], default: [] },
+  itemNames: { type: [String], default: [] },
+  fullCommonNames: { type: [String], default: [] },
+  commonNames: { type: [String], default: [] },
+  productTypes: { type: [String], default: [] },
+  categories: { type: [String], default: [] },
+  subCategories: { type: [String], default: [] },
+  itemGroups: { type: [String], default: [] },
+}, { _id: false });
+
 const ValueFieldSchema = new mongoose.Schema({
   label: { type: String, required: true, trim: true },
   type: { type: String, enum: ['text', 'number', 'float', 'enum', 'photo', 'file', 'timer', 'reference'], required: true },
@@ -175,6 +186,7 @@ const ParameterSchema = new mongoose.Schema({
   categories: { type: [String], default: [] },
   subCategories: { type: [String], default: [] },
   itemGroups: { type: [String], default: [] },
+  applyRules: { type: [ApplyRuleSchema], default: [] },
   excludeCommonNames: { type: [String], default: [] },
   excludeItemNos: { type: [String], default: [] },
   excludeItemNames: { type: [String], default: [] },

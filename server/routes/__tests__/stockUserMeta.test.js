@@ -106,4 +106,26 @@ describe('stock user metadata', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({ items: [] });
   });
+
+  test('allows FG warehouse department to load six-month medicine stock', async () => {
+    const handler = routeHandler('/medicine-six-months');
+    User.findOne = jest.fn(() => ({
+      lean: jest.fn().mockResolvedValue({
+        email: 'fg-warehouse@icpladda.com',
+        name: 'FG Warehouse',
+        roles: ['viewer'],
+        department: 'คลังสินค้า FG',
+      }),
+    }));
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue([]),
+    });
+
+    const res = mockResponse();
+    await handler({ body: {}, headers: { 'x-lis-user': 'fg-warehouse@icpladda.com' }, ip: '10.0.0.1' }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ items: [] });
+  });
 });

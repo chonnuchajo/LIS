@@ -2,9 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
 import { buildOverrideMap, normalizeCommonName } from '@/lib/commonNameOverride';
 import type { CommonNameOverrideRow } from '@/lib/commonNameOverride';
-
+import {
+  appendMfDateNote,
+  mergeMfItemRows,
+  MF_CURRENT_API_URL,
+  MF_HISTORICAL_API_URL,
+  normalizeMfDate,
+} from '@/lib/mfItemDates';
 export const MF_LOT_API_URLS = [
-  { source: 'LDI', url: 'https://n8n-plant.icpladda.com/webhook/API/findlot-ldi' },
+  { source: 'Historical', url: MF_HISTORICAL_API_URL },
+  { source: 'Current', url: MF_CURRENT_API_URL },
 ] as const;
 
 export const EMPLOYEE_API_URL = 'https://n8n-plant.icpladda.com/webhook/api/employee';
@@ -15,7 +22,10 @@ export interface MfLotOption {
   label: string;
   sampleName: string;
   batchNo: string;
+  itemNo: string;
   productionDate: string | null;
+  MF_Before: string | null;
+  MF_Lasted: string | null;
   packageUnit: string;
   commonName: string;
   note: string;
@@ -54,12 +64,7 @@ function pickString(row: Record<string, unknown>, keys: string[]): string {
 }
 
 function normalizeDate(value: string): string | null {
-  if (!value) return null;
-  const iso = value.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-  if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`;
-  const dmy = value.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
-  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}-${dmy[1].padStart(2, '0')}`;
-  return null;
+  return normalizeMfDate(value);
 }
 
 function normalizeLotOptions(payload: unknown, source: string, cnMap: Map<string, string>): MfLotOption[] {
@@ -83,25 +88,38 @@ function normalizeLotOptions(payload: unknown, source: string, cnMap: Map<string
         'lotNo',
         'lot',
         'LOT_NO',
+        'prod_order_no',
+        'prodOrderNo',
+        'mf_no',
+        'mfNo',
         'batch_no',
         'batchNo',
         'batch',
       ]);
-      const productionDate = normalizeDate(
+      const rowProductionDate = normalizeDate(
         pickString(row, ['productionDate', 'production_date', 'mfg_date', 'manufacture_date', 'create_date']),
       );
+      const mfBefore = normalizeDate(pickString(row, ['MF_Before']));
+      const mfLasted = normalizeDate(pickString(row, ['MF_Lasted'])) ?? rowProductionDate;
       const itemNo = pickString(row, ['item_no', 'itemNo', 'code', 'short_dm1_code']);
       const labelParts = [sampleName, batchNo ? `Lot ${batchNo}` : '', itemNo ? `Item ${itemNo}` : ''];
+      const note = appendMfDateNote(itemNo ? `${source}: ${itemNo}` : source, {
+        MF_Before: mfBefore,
+        MF_Lasted: mfLasted,
+      });
       return {
         id: `${source}-${batchNo || itemNo || idx}`,
         source,
         label: `[${source}] ${labelParts.filter(Boolean).join(' | ')}`,
         sampleName,
         batchNo,
-        productionDate,
+        itemNo,
+        productionDate: mfLasted,
+        MF_Before: mfBefore,
+        MF_Lasted: mfLasted,
         packageUnit: packsize,
         commonName,
-        note: itemNo ? `${source}: ${itemNo}` : source,
+        note,
       };
     })
     .filter((option) => option.sampleName);
@@ -143,6 +161,12 @@ export function normalizeEmployeeDepartments(payload: unknown): string[] {
   )).sort((a, b) => a.localeCompare(b, 'th'));
 }
 
+async function fetchMfPayload(source: string, url: string): Promise<unknown> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${source} HTTP ${res.status}`);
+  return res.json();
+}
+
 export function useLotOptions() {
   const [options, setOptions] = useState<MfLotOption[]>([]);
   const [loading, setLoading] = useState(false);
@@ -161,17 +185,15 @@ export function useLotOptions() {
         // overrides are optional — fall back to raw names
       }
       const results = await Promise.allSettled(
-        MF_LOT_API_URLS.map(async ({ source, url }) => {
-          const res = await fetch(url);
-          if (!res.ok) throw new Error(`${source} HTTP ${res.status}`);
-          return normalizeLotOptions(await res.json(), source, cnMap);
-        }),
+        MF_LOT_API_URLS.map(({ source, url }) => fetchMfPayload(source, url)),
       );
       if (!alive) return;
-      const opts = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+      const historicalPayload = results[0]?.status === 'fulfilled' ? results[0].value : [];
+      const currentPayload = results[1]?.status === 'fulfilled' ? results[1].value : [];
+      const opts = normalizeLotOptions(mergeMfItemRows(historicalPayload, currentPayload), 'MF', cnMap);
       const failed = results.filter((r) => r.status === 'rejected').length;
       setOptions(opts);
-      setError(failed ? 'โหลดตัวเลือกจาก LDI API ไม่สำเร็จ' : null);
+      setError(failed === results.length ? 'โหลดข้อมูล MF จาก API ไม่สำเร็จ' : failed ? 'โหลดข้อมูล MF บางส่วนไม่สำเร็จ' : null);
       setLoading(false);
     })().catch((e: Error) => {
       if (alive) {
