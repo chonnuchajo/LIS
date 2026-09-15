@@ -229,7 +229,7 @@ export default function PrintPreviewDialog({
   const widthClass = docType === "sample-label" || docType === "stock-label" ? "sm:max-w-2xl" : "sm:max-w-4xl";
   const isAdmin = normalizeRoles(user).includes("admin");
 
-  const { data: configs } = useQuery({
+  const { data: configs, isFetched: printerConfigsLoaded } = useQuery({
     queryKey: ["printer-configs"],
     queryFn: api.getPrinterConfigs,
     enabled: open,
@@ -256,6 +256,11 @@ export default function PrintPreviewDialog({
       autoPrintDoneKeyRef.current = null;
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open || previewOnly || !printerConfigsLoaded || outputMode) return;
+    setOutputMode(serverPrinters.length > 0 ? "server" : "local");
+  }, [open, outputMode, previewOnly, printerConfigsLoaded, serverPrinters.length]);
 
   useEffect(() => {
     if (!open || outputMode !== "server") return;
