@@ -61,10 +61,11 @@ describe("synthesizeDevUser", () => {
 });
 
 describe("dev department override", () => {
-  it("offers R&D, คลังสินค้า RM and ผลิต 1–5", () => {
+  it("offers R&D, คลังสินค้า RM, คลังสินค้า FG and ผลิต 1–5", () => {
     expect([...DEV_DEPARTMENTS]).toEqual([
       "R&D",
       "คลังสินค้า RM",
+      "คลังสินค้า FG",
       "ผลิต 1",
       "ผลิต 2",
       "ผลิต 3",
@@ -78,6 +79,12 @@ describe("dev department override", () => {
 
     expect(user.department).toBe("R&D");
     expect(user.role).toBe("admin"); // เลือกแผนกแล้วบทบาทไม่เปลี่ยน
+  });
+
+  it("can impersonate the FG warehouse department", () => {
+    const user = synthesizeDevUser([{ id: "admin", name: "Admin" }], "คลังสินค้า FG");
+
+    expect(user.department).toBe("คลังสินค้า FG");
   });
 
   it("keeps the role-derived department when no override is given", () => {
