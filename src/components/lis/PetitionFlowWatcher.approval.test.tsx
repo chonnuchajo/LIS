@@ -35,6 +35,19 @@ function renderWatcher() {
 }
 
 const originalAudioContext = window.AudioContext;
+const originalAudio = window.Audio;
+
+function mockAudio() {
+  const audio = {
+    play: vi.fn().mockResolvedValue(undefined),
+    preload: "",
+    volume: 0,
+  } as unknown as HTMLAudioElement;
+  const AudioMock = vi.fn(() => audio);
+  Object.defineProperty(window, "Audio", { configurable: true, writable: true, value: AudioMock });
+  Object.defineProperty(globalThis, "Audio", { configurable: true, writable: true, value: AudioMock });
+  return { AudioMock, audio };
+}
 
 function mockAudioContext() {
   const oscillator = {
@@ -99,6 +112,8 @@ describe("PetitionFlowWatcher approval notifications", () => {
 
   afterEach(() => {
     localStorage.clear();
+    Object.defineProperty(window, "Audio", { configurable: true, writable: true, value: originalAudio });
+    Object.defineProperty(globalThis, "Audio", { configurable: true, writable: true, value: originalAudio });
     Object.defineProperty(window, "AudioContext", { configurable: true, writable: true, value: originalAudioContext });
   });
 
@@ -114,7 +129,7 @@ describe("PetitionFlowWatcher approval notifications", () => {
     expect(screen.queryByText(/QR Code พร้อมใช้งาน/)).not.toBeInTheDocument();
   });
 
-  it("plays a sound once when a newly sent sample belongs to the current assignee", async () => {
+  it("plays the uploaded sample arrival sound once when a newly sent sample belongs to the current assignee", async () => {
     localStorage.setItem(cursorKey("E001"), "2026-09-05T03:59:00.000Z");
     mocks.getPetitionNotifications.mockResolvedValue({
       serverTime: "2026-09-05T04:00:00.000Z",
@@ -133,16 +148,17 @@ describe("PetitionFlowWatcher approval notifications", () => {
         },
       ],
     });
+    const uploadedAudio = mockAudio();
     const audio = mockAudioContext();
 
     renderWatcher();
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
 
-    expect(audio.AudioContextMock).toHaveBeenCalledTimes(1);
-    expect(audio.audioContext.createOscillator).toHaveBeenCalledTimes(3);
-    expect(audio.audioContext.createGain).toHaveBeenCalledTimes(3);
-    expect(audio.gain.gain.exponentialRampToValueAtTime).toHaveBeenCalledWith(0.55, 0.03);
+    expect(uploadedAudio.AudioMock).toHaveBeenCalledWith(`${import.meta.env.BASE_URL}sound/sample-arrival.mp3`);
+    expect(uploadedAudio.audio.volume).toBe(1);
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
+    expect(audio.AudioContextMock).not.toHaveBeenCalled();
   });
 
   it("plays a sound for a newly sent sample on first live poll even before a cursor exists", async () => {
@@ -163,13 +179,16 @@ describe("PetitionFlowWatcher approval notifications", () => {
         },
       ],
     });
+    const uploadedAudio = mockAudio();
     const audio = mockAudioContext();
 
     renderWatcher();
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
 
-    expect(audio.AudioContextMock).toHaveBeenCalledTimes(1);
+    expect(uploadedAudio.AudioMock).toHaveBeenCalledWith(`${import.meta.env.BASE_URL}sound/sample-arrival.mp3`);
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
+    expect(audio.AudioContextMock).not.toHaveBeenCalled();
   });
 
   it("keeps old backfilled assigned samples silent when no cursor exists yet", async () => {

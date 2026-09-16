@@ -7,6 +7,7 @@ import { audiencesForUser, readSeeAll, SEE_ALL_EVENT } from "@/lib/petitionAudie
 import { cursorKey, effectiveSeeAll, nextCursor, readCursor } from "@/lib/petitionFlowWatcher";
 
 const FIRST_POLL_SOUND_GRACE_MS = 65_000;
+const SAMPLE_ARRIVAL_SOUND_URL = `${import.meta.env.BASE_URL}sound/sample-arrival.mp3`;
 const SAMPLE_ARRIVAL_TONE_COUNT = 3;
 const SAMPLE_ARRIVAL_TONE_INTERVAL_SEC = 0.27;
 const SAMPLE_ARRIVAL_TONE_DURATION_SEC = 0.22;
@@ -20,7 +21,7 @@ const isFreshOnFirstPoll = (createdAt: string | undefined, serverTime: string | 
   return serverTimeMs - createdAtMs <= FIRST_POLL_SOUND_GRACE_MS && createdAtMs <= serverTimeMs + 5_000;
 };
 
-const playSampleArrivalSound = () => {
+const playSampleArrivalFallbackTone = () => {
   if (typeof window === "undefined") return;
   const AudioContextCtor =
     window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -56,6 +57,23 @@ const playSampleArrivalSound = () => {
     }
   } catch {
     return;
+  }
+};
+
+const playSampleArrivalSound = () => {
+  if (typeof window === "undefined") return;
+  if (typeof window.Audio !== "function") {
+    playSampleArrivalFallbackTone();
+    return;
+  }
+
+  try {
+    const audio = new window.Audio(SAMPLE_ARRIVAL_SOUND_URL);
+    audio.preload = "auto";
+    audio.volume = 1;
+    void audio.play().catch(() => playSampleArrivalFallbackTone());
+  } catch {
+    playSampleArrivalFallbackTone();
   }
 };
 
