@@ -141,11 +141,14 @@ const devDepartment = (roleId: string): string => {
 // Departments a dev can impersonate from the DevRoleSwitcher. Department is
 // free-text from HR in prod, but these are the values that actually change
 // behaviour — IT lets dev roles share the IT department with separate identities,
-// R&D skips ผู้นำส่ง/เลขแบช on the production petition form
+// R&D skips ผู้นำส่ง/เลขแบช on the production petition form, Lab/QC lets
+// dev users impersonate the departments used by lab and quality flows,
 // (requiresDeliveryAndBatch), and ผลิต 1–5 / RM drive customerCodeFromDepartment.
 export const DEV_DEPARTMENTS = [
   "IT",
   "R&D",
+  "Lab/วิเคราะห์",
+  "ควบคุมคุณภาพ",
   "คลังสินค้า RM",
   "คลังสินค้า FG",
   "ผลิต 1",
