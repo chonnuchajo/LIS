@@ -10,6 +10,7 @@ const { hasLabTrack } = require('./petitionStatusLog');
 const { requiresQcTrack } = require('./petitionSubmissionRules');
 
 const SIDE_LABELS = { lab: 'Lab', qc: 'QC' };
+const SOUND_AUDIENCES = new Set(['qc', 'lab']);
 
 // describeEvent builds ONE multi-line LINE message; the bell wants a short title plus
 // a secondary line. First line = title, everything else collapses into message.
@@ -128,18 +129,15 @@ function levelForEvent(log) {
 // polls overlap the same window.
 function shouldPlaySampleArrivalSound(petition, log, viewer, desc = {}) {
   if (log?.event !== 'statusChanged' || log?.fromStatus !== 'deliveringQC' || log?.toStatus !== 'sampleSent') return false;
-  if (viewer?.seeAll) return true;
   const mine = viewer?.audiences || [];
-  if ((desc?.audiences || []).some((a) => mine.includes(a))) return true;
-  const empId = String(viewer?.employeeId || '').trim();
-  if (!empId) return false;
-  return String(petition?.assignedTo?.employeeId || '').trim() === empId;
+  return (desc?.audiences || []).some((a) => SOUND_AUDIENCES.has(a) && mine.includes(a));
 }
 
 function shouldPlayLabAssignedSound(petition, log, viewer) {
   if (log?.event !== 'assigned') return false;
   const assignee = log?.metadata?.assignee || petition?.assignedTo;
   if (assigneeSide(assignee) !== 'lab') return false;
+  if (!(viewer?.audiences || []).includes('lab')) return false;
   const empId = String(viewer?.employeeId || '').trim();
   if (!empId) return false;
   return String(assignee?.employeeId || petition?.assignedTo?.employeeId || '').trim() === empId;

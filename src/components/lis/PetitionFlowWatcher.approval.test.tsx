@@ -92,6 +92,7 @@ function mockAudioContext() {
 
 describe("PetitionFlowWatcher approval notifications", () => {
   beforeEach(() => {
+    window.history.pushState({}, "", "/");
     localStorage.clear();
     vi.clearAllMocks();
     mocks.getPetition.mockResolvedValue({
@@ -173,6 +174,38 @@ describe("PetitionFlowWatcher approval notifications", () => {
     expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(3);
     uploadedAudio.endPlayback();
     expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(3);
+    expect(audio.AudioContextMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps scanner route silent while still pushing sample sent notification", async () => {
+    window.history.pushState({}, "", "/LIS/scanner");
+    localStorage.setItem(cursorKey("E001"), "2026-09-05T03:59:00.000Z");
+    mocks.getPetitionNotifications.mockResolvedValue({
+      serverTime: "2026-09-05T04:00:00.000Z",
+      items: [
+        {
+          id: "log-scanner-sample-sent",
+          petitionId: "p1",
+          petitionNo: "P-2609-0002",
+          event: "statusChanged",
+          toStatus: "sampleSent",
+          title: "ส่งตัวอย่างแล้ว",
+          level: "info",
+          link: "/petition/p1",
+          createdAt: "2026-09-05T04:00:00.000Z",
+          playSound: true,
+        },
+      ],
+    });
+    const uploadedAudio = mockAudio();
+    const audio = mockAudioContext();
+
+    renderWatcher();
+
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
+
+    expect(uploadedAudio.AudioMock).not.toHaveBeenCalled();
+    expect(uploadedAudio.audio.play).not.toHaveBeenCalled();
     expect(audio.AudioContextMock).not.toHaveBeenCalled();
   });
 
