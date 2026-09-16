@@ -110,7 +110,8 @@ describe("QueueDisplay", () => {
     expect(mockedUsePetitionList).toHaveBeenCalledWith({ page: 1, limit: 200, status: "sampleSent" });
   });
 
-  it("expands one active queue group across empty columns", async () => {
+  it("keeps empty queue groups visible while the overflowing column slides", async () => {
+    vi.useFakeTimers();
     const queueItems = Array.from({ length: 6 }, (_, index) => makeQueuePetition(index + 1));
 
     mockedUsePetitionList.mockImplementation((params) => {
@@ -127,11 +128,19 @@ describe("QueueDisplay", () => {
     render(<QueueDisplay mode="lab" />);
 
     expect(screen.getByRole("heading", { name: "ตัวอย่างใหม่" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "กำลังดำเนินการ" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "เรียบร้อยแล้ว" })).toBeInTheDocument();
     expect(screen.getByText("P-2609-0001")).toBeInTheDocument();
+    expect(screen.getByText("P-2609-0003")).toBeInTheDocument();
+    expect(screen.queryByText("P-2609-0004")).not.toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(8_000);
+    });
+
+    expect(screen.queryByText("P-2609-0001")).not.toBeInTheDocument();
+    expect(screen.getByText("P-2609-0004")).toBeInTheDocument();
     expect(screen.getByText("P-2609-0006")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "กำลังดำเนินการ" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "เรียบร้อยแล้ว" })).not.toBeInTheDocument();
-    await waitFor(() => expect(mockedApi.getReturnedFlags).toHaveBeenCalled());
   });
 
   it("cycles overflowing queue columns automatically so every petition is shown", async () => {
@@ -152,15 +161,17 @@ describe("QueueDisplay", () => {
     render(<QueueDisplay mode="lab" />);
 
     expect(screen.getByText("P-2609-0001")).toBeInTheDocument();
-    expect(screen.queryByText("P-2609-0010")).not.toBeInTheDocument();
-    expect(screen.getByText(/แสดง 1-9 จาก 10 รายการ • วนหน้า 1\/2 อัตโนมัติ/)).toBeInTheDocument();
+    expect(screen.getByText("P-2609-0003")).toBeInTheDocument();
+    expect(screen.queryByText("P-2609-0004")).not.toBeInTheDocument();
+    expect(screen.getByText(/แสดง 1-3 จาก 10 รายการ • วนหน้า 1\/4 อัตโนมัติ/)).toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(8_000);
     });
 
-    expect(screen.getByText("P-2609-0010")).toBeInTheDocument();
+    expect(screen.getByText("P-2609-0004")).toBeInTheDocument();
+    expect(screen.getByText("P-2609-0006")).toBeInTheDocument();
     expect(screen.queryByText("P-2609-0001")).not.toBeInTheDocument();
-    expect(screen.getByText(/แสดง 10-10 จาก 10 รายการ • วนหน้า 2\/2 อัตโนมัติ/)).toBeInTheDocument();
+    expect(screen.getByText(/แสดง 4-6 จาก 10 รายการ • วนหน้า 2\/4 อัตโนมัติ/)).toBeInTheDocument();
   });
 });

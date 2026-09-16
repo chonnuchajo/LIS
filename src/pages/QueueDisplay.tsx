@@ -38,12 +38,8 @@ type QueueConfig = {
   groups: QueueGroup[];
 };
 
-type QueueGroupView = QueueGroup & { items: Petition[] };
-
 const REFRESH_MS = 5_000;
 const MAX_ITEMS_PER_COLUMN = 3;
-const SPOTLIGHT_COLUMN_COUNT = 3;
-const MAX_SPOTLIGHT_ITEMS_PER_PAGE = MAX_ITEMS_PER_COLUMN * SPOTLIGHT_COLUMN_COUNT;
 const QUEUE_PAGE_MS = 8_000;
 const NEW_WORK_ALERT_MS = 10_000;
 const NEW_SAMPLE_SOUND_URL = `${import.meta.env.BASE_URL}sound/new.mp3`;
@@ -399,21 +395,9 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
     }));
   }, [allItems, config.groups, mode]);
 
-  const activeGroups = useMemo(() => itemsByGroup.filter((group) => group.items.length > 0), [itemsByGroup]);
-
-  const spotlightGroup = useMemo<QueueGroupView | null>(() => {
-    const [onlyActiveGroup] = activeGroups;
-    return activeGroups.length === 1 && onlyActiveGroup.items.length > MAX_ITEMS_PER_COLUMN
-      ? onlyActiveGroup
-      : null;
-  }, [activeGroups]);
-
   const hasOverflowingGroup = useMemo(
-    () =>
-      spotlightGroup
-        ? spotlightGroup.items.length > MAX_SPOTLIGHT_ITEMS_PER_PAGE
-        : itemsByGroup.some((group) => group.items.length > MAX_ITEMS_PER_COLUMN),
-    [itemsByGroup, spotlightGroup],
+    () => itemsByGroup.some((group) => group.items.length > MAX_ITEMS_PER_COLUMN),
+    [itemsByGroup],
   );
 
   useEffect(() => {
@@ -590,43 +574,7 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-5">
-            {spotlightGroup ? (() => {
-              const GroupIcon = spotlightGroup.icon;
-              const totalPages = Math.ceil(spotlightGroup.items.length / MAX_SPOTLIGHT_ITEMS_PER_PAGE);
-              const currentPageIndex = totalPages > 1 ? queuePageTick % totalPages : 0;
-              const firstVisibleIndex = currentPageIndex * MAX_SPOTLIGHT_ITEMS_PER_PAGE;
-              const visibleItems = spotlightGroup.items.slice(
-                firstVisibleIndex,
-                firstVisibleIndex + MAX_SPOTLIGHT_ITEMS_PER_PAGE,
-              );
-              const pageStart = firstVisibleIndex + 1;
-              const pageEnd = firstVisibleIndex + visibleItems.length;
-              const subtitle =
-                totalPages > 1
-                  ? `${spotlightGroup.subtitle} • แสดง ${pageStart}-${pageEnd} จาก ${spotlightGroup.items.length} รายการ • วนหน้า ${currentPageIndex + 1}/${totalPages} อัตโนมัติ`
-                  : spotlightGroup.subtitle;
-
-              return (
-                <section key={spotlightGroup.id} className="col-span-3 min-h-[620px] rounded-lg border border-primary-100 bg-white/70">
-                  <div className={cn("flex items-center justify-between border-b px-5 py-4", spotlightGroup.tone)}>
-                    <div className="flex min-w-0 items-center gap-3">
-                      <GroupIcon className="h-7 w-7 shrink-0" />
-                      <div className="min-w-0">
-                        <h2 className="truncate text-3xl font-bold">{spotlightGroup.title}</h2>
-                        <p className="truncate text-base opacity-80">{subtitle}</p>
-                      </div>
-                    </div>
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-white/80 text-3xl font-bold">
-                      {spotlightGroup.items.length}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3 p-4">
-                    {visibleItems.map(renderQueueCard)}
-                  </div>
-                </section>
-              );
-            })() : itemsByGroup.map((group) => {
+            {itemsByGroup.map((group) => {
               const GroupIcon = group.icon;
               const totalPages = Math.ceil(group.items.length / MAX_ITEMS_PER_COLUMN);
               const currentPageIndex = totalPages > 1 ? queuePageTick % totalPages : 0;
@@ -660,7 +608,9 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
                         ไม่มีรายการ
                       </div>
                     ) : (
-                      visibleItems.map(renderQueueCard)
+                      <div key={`${group.id}-${currentPageIndex}`} className="space-y-3 animate-in slide-in-from-right-4 duration-500">
+                        {visibleItems.map(renderQueueCard)}
+                      </div>
                     )}
                   </div>
                 </section>
