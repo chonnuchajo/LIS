@@ -4,9 +4,16 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
 import { audiencesForUser, readSeeAll, SEE_ALL_EVENT } from "@/lib/petitionAudience";
-import { cursorKey, effectiveSeeAll, nextCursor, readCursor } from "@/lib/petitionFlowWatcher";
+import {
+  PETITION_NOTIFICATIONS_REFRESH_EVENT,
+  cursorKey,
+  effectiveSeeAll,
+  nextCursor,
+  readCursor,
+} from "@/lib/petitionFlowWatcher";
 
 const FIRST_POLL_SOUND_GRACE_MS = 65_000;
+const NOTIFICATION_REFETCH_INTERVAL_MS = 10_000;
 const SAMPLE_ARRIVAL_SOUND_URL = `${import.meta.env.BASE_URL}sound/sample-arrival.mp3`;
 const LAB_ASSIGNED_SOUND_URL = `${import.meta.env.BASE_URL}sound/lab-assigned.mp3`;
 const SAMPLE_ARRIVAL_PLAY_COUNT = 3;
@@ -100,7 +107,7 @@ const playNotificationSound = (sound: PetitionNotificationSound = "sampleArrival
 };
 
 /**
- * Poll ความเคลื่อนไหวของคำขอทุกนาทีแล้วยิงเข้ากระดิ่ง
+ * Poll ความเคลื่อนไหวของคำขอถี่พอสำหรับแจ้งเตือนงานใหม่ แล้วยิงเข้ากระดิ่ง
  * cursor เดินหน้าเฉพาะตอน query สำเร็จ — เน็ตกระตุกแล้วต้องไม่กลืน event ที่ยังไม่เคยแสดง
  */
 const PetitionFlowWatcher = () => {
@@ -120,7 +127,7 @@ const PetitionFlowWatcher = () => {
   const employeeId = user?.employeeId;
   const enabled = !!user && (audiences.length > 0 || !!employeeId || seeAll);
 
-  const { data } = useQuery({
+  const { data, refetch } = useQuery({
     queryKey: ["petition-notifications", employeeId ?? "", audiences.join(","), seeAll],
     queryFn: () =>
       api.getPetitionNotifications({
@@ -129,9 +136,19 @@ const PetitionFlowWatcher = () => {
         employeeId,
         all: seeAll,
       }),
-    refetchInterval: 60_000,
+    refetchInterval: NOTIFICATION_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
     enabled,
   });
+
+  useEffect(() => {
+    if (!enabled) return;
+    const refreshNow = () => {
+      void refetch();
+    };
+    window.addEventListener(PETITION_NOTIFICATIONS_REFRESH_EVENT, refreshNow);
+    return () => window.removeEventListener(PETITION_NOTIFICATIONS_REFRESH_EVENT, refreshNow);
+  }, [enabled, refetch]);
 
   useEffect(() => {
     if (!data) return;

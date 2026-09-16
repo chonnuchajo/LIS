@@ -3,6 +3,13 @@ import { normalizeRoles } from "@/lib/roles";
 const CURSOR_PREFIX = "lis.petitionNotify.cursor.";
 const LOOKBACK_MS = 24 * 60 * 60 * 1000;
 
+export const PETITION_NOTIFICATIONS_REFRESH_EVENT = "lis.petitionNotify.refresh";
+
+export const requestPetitionNotificationsRefresh = () => {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(PETITION_NOTIFICATIONS_REFRESH_EVENT));
+};
+
 export const cursorKey = (employeeId?: string) => `${CURSOR_PREFIX}${employeeId || "anonymous"}`;
 
 export const readCursor = (employeeId?: string): string => {

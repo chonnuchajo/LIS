@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PetitionFlowWatcher from "./PetitionFlowWatcher";
-import { cursorKey } from "@/lib/petitionFlowWatcher";
+import { PETITION_NOTIFICATIONS_REFRESH_EVENT, cursorKey } from "@/lib/petitionFlowWatcher";
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
@@ -239,6 +239,46 @@ describe("PetitionFlowWatcher approval notifications", () => {
     expect(uploadedAudio.audio.volume).toBe(1);
     expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
     uploadedAudio.endPlayback();
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
+    expect(audio.AudioContextMock).not.toHaveBeenCalled();
+  });
+
+  it("refetches immediately on assignment refresh event and plays the lab assigned sound", async () => {
+    localStorage.setItem(cursorKey("E001"), "2026-09-05T03:59:00.000Z");
+    mocks.getPetitionNotifications
+      .mockResolvedValueOnce({
+        serverTime: "2026-09-05T04:00:00.000Z",
+        items: [],
+      })
+      .mockResolvedValueOnce({
+        serverTime: "2026-09-05T04:00:10.000Z",
+        items: [
+          {
+            id: "log-lab-assigned-refresh",
+            petitionId: "p1",
+            petitionNo: "P-2609-0002",
+            event: "assigned",
+            title: "มอบหมายงาน",
+            level: "info",
+            link: "/petition/p1",
+            createdAt: "2026-09-05T04:00:10.000Z",
+            playSound: true,
+            sound: "labAssigned",
+          },
+        ],
+      });
+    const uploadedAudio = mockAudio();
+    const audio = mockAudioContext();
+
+    renderWatcher();
+
+    await waitFor(() => expect(mocks.getPetitionNotifications).toHaveBeenCalledTimes(1));
+    window.dispatchEvent(new Event(PETITION_NOTIFICATIONS_REFRESH_EVENT));
+
+    await waitFor(() => expect(mocks.getPetitionNotifications).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
+
+    expect(uploadedAudio.AudioMock).toHaveBeenCalledWith(`${import.meta.env.BASE_URL}sound/lab-assigned.mp3`);
     expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
     expect(audio.AudioContextMock).not.toHaveBeenCalled();
   });

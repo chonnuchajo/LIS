@@ -46,6 +46,7 @@ import { parseSubstances } from '@/lib/substances';
 import { readSlotMethods, machineMatchesMethod, type MethodDoc } from '@/lib/methodRegistry';
 import { groupMachineMethods } from '@/lib/assignMachineGrouping';
 import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
+import { requestPetitionNotificationsRefresh } from '@/lib/petitionFlowWatcher';
 import { cn } from '@/lib/utils';
 import {
   type Petition,
@@ -568,6 +569,7 @@ export default function PetitionAssignPage() {
         ? ` (เครื่อง: ${machinesPayload.map((m) => m.code).join(', ')})`
         : '';
       toast.success(`Assign ${petition.petitionNo} ให้ ${employee.name}${machineSummary} แล้ว`);
+      requestPetitionNotificationsRefresh();
       refreshPetitions();
       return true;
     } catch (err) {
