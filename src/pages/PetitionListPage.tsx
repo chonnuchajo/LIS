@@ -98,29 +98,6 @@ function petitionMetaLine(petition: Petition) {
     .join(' • ');
 }
 
-function displayPerson(name?: string | null) {
-  const value = (name ?? '').trim();
-  return value || 'ยังไม่มี';
-}
-
-function petitionOwnerLine(petition: Petition) {
-  const qcOwner = petition.qcReceivedBy?.trim();
-  const labOwner = petition.labReceivedBy?.trim();
-  return `QC: ${displayPerson(qcOwner)} | Lab: ${displayPerson(labOwner)}`;
-}
-
-function petitionNextStepText(petition: Petition) {
-  if (petition.status === 'sampleSent') return 'สิ่งที่ต้องทำ: รอรับตัวอย่างเข้ากระบวนการ';
-  if (petition.status === 'pendingReview' && !petition.assignedTo) {
-    return 'สิ่งที่ต้องทำ: รอ assign ผู้รับงาน';
-  }
-  if (petition.status === 'rejected') return 'หมายเหตุ: คำร้องนี้ถูกส่งกลับเพื่อแก้ไข';
-  if (petition.qcReceivedBy || petition.labReceivedBy) return `ผู้รับผิดชอบ: ${petitionOwnerLine(petition)}`;
-  if (petition.status === 'inProgress') return 'สิ่งที่ต้องทำ: อยู่ระหว่างดำเนินการ';
-  if (petition.status === 'approved' || petition.status === 'success') return 'สถานะ: งานนี้เสร็จสิ้นแล้ว';
-  return 'สิ่งที่ต้องทำ: ตรวจสอบรายละเอียดคำร้อง';
-}
-
 function formatSixMonthStockDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
@@ -710,10 +687,6 @@ export default function PetitionListPage({
                 </p>
               )}
               <p className="text-xs text-grey-500">{petitionMetaLine(petition)}</p>
-            </div>
-
-            <div className="rounded-xl bg-grey-50 px-3 py-2 text-sm text-grey-700">
-              {petitionNextStepText(petition)}
             </div>
 
             <PetitionStatusTimeline petition={petition} compact />

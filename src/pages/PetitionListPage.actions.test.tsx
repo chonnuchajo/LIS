@@ -246,6 +246,13 @@ describe('PetitionListPage action cues', () => {
     }
   });
 
+  it('does not show the next-step helper box on petition cards', async () => {
+    renderPage();
+
+    expect(await screen.findByText('P-2607-0006')).toBeInTheDocument();
+    expect(screen.queryByText(/สิ่งที่ต้องทำ:/)).not.toBeInTheDocument();
+  });
+
   it('uses a configured destination when a petition row is opened', async () => {
     renderPage({ petitionDetailPath: (petition) => `/petition/${petition._id}` });
 
