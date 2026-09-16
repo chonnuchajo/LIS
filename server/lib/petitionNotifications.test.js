@@ -121,6 +121,12 @@ test('isRelevant: assigned notification ที่ระบุ targetEmployeeId �
   assert.strictEqual(isRelevant(desc, petition, { audiences: ['lab'], employeeId: 'E201' }), false);
 });
 
+test('isRelevant: assigned notification ส่วนตัวต้องไม่ fallback เป็นทั้งแผนกเมื่อไม่มี employeeId', () => {
+  const desc = { audiences: ['lab'], title: 't', personal: true };
+  assert.strictEqual(isRelevant(desc, petition, { audiences: ['lab'], employeeId: 'E201' }), false);
+  assert.strictEqual(isRelevant(desc, petition, { audiences: ['lab'], employeeId: '' }), false);
+});
+
 test('isRelevant: งานที่ตัวเองถือ / คำขอที่ตัวเองยื่น → true แม้ audience ไม่ตรง', () => {
   const desc = { audiences: ['qc'], title: 't' };
   const assigned = { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง' } };

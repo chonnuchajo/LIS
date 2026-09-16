@@ -5,9 +5,11 @@ import { MemoryRouter } from "react-router-dom";
 import { NotificationProvider, useNotifications } from "@/context/NotificationContext";
 import NotificationBell from "../NotificationBell";
 
+let authUser = { employeeId: "E001", email: "admin@example.com", name: "Admin", roles: ["admin"] };
+
 vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({
-    user: { email: "admin@example.com", name: "Admin", roles: ["admin"] },
+    user: authUser,
     logout: vi.fn(),
   }),
 }));
@@ -36,6 +38,7 @@ function renderBell() {
 describe("NotificationBell open behavior", () => {
   beforeEach(() => {
     localStorage.clear();
+    authUser = { employeeId: "E001", email: "admin@example.com", name: "Admin", roles: ["admin"] };
   });
 
   afterEach(() => {
@@ -53,5 +56,34 @@ describe("NotificationBell open behavior", () => {
     await waitFor(() => {
       expect(screen.queryByText("2")).not.toBeInTheDocument();
     });
+  });
+
+  it("loads persisted notifications only for the current employee", async () => {
+    localStorage.setItem(
+      "lis.notifications.v1",
+      JSON.stringify([
+        {
+          id: "other-user",
+          title: "แจ้งเตือนของคนอื่น",
+          level: "info",
+          createdAt: 1,
+          read: false,
+          persistent: true,
+        },
+      ]),
+    );
+
+    render(
+      <MemoryRouter>
+        <NotificationProvider>
+          <NotificationBell />
+        </NotificationProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "การแจ้งเตือน" }));
+
+    expect(screen.queryByText("แจ้งเตือนของคนอื่น")).not.toBeInTheDocument();
+    expect(screen.getByText("ยังไม่มีการแจ้งเตือน")).toBeInTheDocument();
   });
 });

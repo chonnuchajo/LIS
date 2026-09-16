@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useAuth } from "./AuthContext";
 import { sanitizePersistedNotifications } from "./notificationStorage";
 
 export type NotificationLevel = "info" | "warning" | "success" | "error";
@@ -30,7 +31,7 @@ interface NotificationContextType {
   clearAll: () => void;
 }
 
-const STORAGE_KEY = "lis.notifications.v1";
+const STORAGE_KEY_PREFIX = "lis.notifications.v1";
 
 const NotificationContext = createContext<NotificationContextType | null>(null);
 
@@ -40,10 +41,15 @@ export const useNotifications = () => {
   return ctx;
 };
 
-const loadPersisted = (): AppNotification[] => {
+const notificationStorageKey = (user: { employeeId?: string; email?: string; name?: string } | null | undefined) => {
+  const identity = user?.employeeId?.trim() || user?.email?.trim() || user?.name?.trim() || "anonymous";
+  return `${STORAGE_KEY_PREFIX}:${encodeURIComponent(identity)}`;
+};
+
+const loadPersisted = (storageKey: string): AppNotification[] => {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? sanitizePersistedNotifications(parsed) : [];
@@ -52,47 +58,59 @@ const loadPersisted = (): AppNotification[] => {
   }
 };
 
-const persist = (list: AppNotification[]) => {
+const persist = (storageKey: string, list: AppNotification[]) => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitizePersistedNotifications(list)));
+    localStorage.setItem(storageKey, JSON.stringify(sanitizePersistedNotifications(list)));
   } catch {
     // ignore quota errors
   }
 };
 
 export const NotificationProvider = ({ children }: { children: ReactNode }) => {
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => loadPersisted());
+  const { user } = useAuth();
+  const storageKey = notificationStorageKey(user);
+  const [state, setState] = useState(() => ({
+    storageKey,
+    notifications: loadPersisted(storageKey),
+  }));
+  const notifications = state.notifications;
 
   useEffect(() => {
-    persist(notifications);
-  }, [notifications]);
+    setState(prev => prev.storageKey === storageKey ? prev : { storageKey, notifications: loadPersisted(storageKey) });
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (state.storageKey !== storageKey) return;
+    persist(storageKey, state.notifications);
+  }, [state, storageKey]);
 
   const push: NotificationContextType["push"] = useCallback((n) => {
-    setNotifications(prev => {
+    setState(prevState => {
+      const prev = prevState.storageKey === storageKey ? prevState.notifications : loadPersisted(storageKey);
       // ห้ามซ้ำตาม id — ถ้ามีอยู่แล้วให้คงของเดิม (ไม่ override read state)
-      if (prev.some(p => p.id === n.id)) return prev;
+      if (prev.some(p => p.id === n.id)) return { storageKey, notifications: prev };
       const next: AppNotification = {
         createdAt: n.createdAt ?? Date.now(),
         read: n.read ?? false,
         ...n,
       };
-      return [next, ...prev];
+      return { storageKey, notifications: [next, ...prev] };
     });
-  }, []);
+  }, [storageKey]);
 
   const dismiss = useCallback((id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    setState(prev => ({ ...prev, notifications: prev.notifications.filter(n => n.id !== id) }));
   }, []);
 
   const markRead = useCallback((id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    setState(prev => ({ ...prev, notifications: prev.notifications.map(n => n.id === id ? { ...n, read: true } : n) }));
   }, []);
 
   const markAllRead = useCallback(() => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setState(prev => ({ ...prev, notifications: prev.notifications.map(n => ({ ...n, read: true })) }));
   }, []);
 
-  const clearAll = useCallback(() => setNotifications([]), []);
+  const clearAll = useCallback(() => setState(prev => ({ ...prev, notifications: [] })), []);
 
   const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
 

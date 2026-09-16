@@ -31,6 +31,7 @@ function bellDescribe(petition, log) {
     const targetEmployeeId = String(assignee?.employeeId || '').trim() || undefined;
     return {
       audiences: shared.audiences,
+      personal: true,
       targetEmployeeId,
       title: `มอบหมายงาน ${no} ให้คุณแล้ว`,
       message: `ตัวอย่าง: ${itemsSummary(petition)}`,
@@ -101,6 +102,7 @@ function isRelevant(desc, petition, viewer) {
   if (desc?.targetEmployeeId) {
     return String(viewer?.employeeId || '').trim() === String(desc.targetEmployeeId).trim();
   }
+  if (desc?.personal) return false;
   const mine = viewer?.audiences || [];
   if ((desc?.audiences || []).some((a) => mine.includes(a))) return true;
 
