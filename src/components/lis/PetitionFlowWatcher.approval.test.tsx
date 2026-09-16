@@ -38,15 +38,24 @@ const originalAudioContext = window.AudioContext;
 const originalAudio = window.Audio;
 
 function mockAudio() {
+  const listeners = new Map<string, Array<() => void>>();
   const audio = {
     play: vi.fn().mockResolvedValue(undefined),
+    addEventListener: vi.fn((event: string, listener: () => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), listener]);
+    }),
     preload: "",
     volume: 0,
+    currentTime: 0,
   } as unknown as HTMLAudioElement;
   const AudioMock = vi.fn(() => audio);
   Object.defineProperty(window, "Audio", { configurable: true, writable: true, value: AudioMock });
   Object.defineProperty(globalThis, "Audio", { configurable: true, writable: true, value: AudioMock });
-  return { AudioMock, audio };
+  return {
+    AudioMock,
+    audio,
+    endPlayback: () => listeners.get("ended")?.forEach((listener) => listener()),
+  };
 }
 
 function mockAudioContext() {
@@ -129,7 +138,7 @@ describe("PetitionFlowWatcher approval notifications", () => {
     expect(screen.queryByText(/QR Code พร้อมใช้งาน/)).not.toBeInTheDocument();
   });
 
-  it("plays the uploaded sample arrival sound once when a newly sent sample belongs to the current assignee", async () => {
+  it("plays the uploaded sample arrival sound three times when a newly sent sample belongs to the current assignee", async () => {
     localStorage.setItem(cursorKey("E001"), "2026-09-05T03:59:00.000Z");
     mocks.getPetitionNotifications.mockResolvedValue({
       serverTime: "2026-09-05T04:00:00.000Z",
@@ -158,6 +167,12 @@ describe("PetitionFlowWatcher approval notifications", () => {
     expect(uploadedAudio.AudioMock).toHaveBeenCalledWith(`${import.meta.env.BASE_URL}sound/sample-arrival.mp3`);
     expect(uploadedAudio.audio.volume).toBe(1);
     expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
+    uploadedAudio.endPlayback();
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(2);
+    uploadedAudio.endPlayback();
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(3);
+    uploadedAudio.endPlayback();
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(3);
     expect(audio.AudioContextMock).not.toHaveBeenCalled();
   });
 
@@ -188,6 +203,9 @@ describe("PetitionFlowWatcher approval notifications", () => {
 
     expect(uploadedAudio.AudioMock).toHaveBeenCalledWith(`${import.meta.env.BASE_URL}sound/sample-arrival.mp3`);
     expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
+    uploadedAudio.endPlayback();
+    uploadedAudio.endPlayback();
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(3);
     expect(audio.AudioContextMock).not.toHaveBeenCalled();
   });
 

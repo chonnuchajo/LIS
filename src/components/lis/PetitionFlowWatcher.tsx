@@ -8,6 +8,7 @@ import { cursorKey, effectiveSeeAll, nextCursor, readCursor } from "@/lib/petiti
 
 const FIRST_POLL_SOUND_GRACE_MS = 65_000;
 const SAMPLE_ARRIVAL_SOUND_URL = `${import.meta.env.BASE_URL}sound/sample-arrival.mp3`;
+const SAMPLE_ARRIVAL_PLAY_COUNT = 3;
 const SAMPLE_ARRIVAL_TONE_COUNT = 3;
 const SAMPLE_ARRIVAL_TONE_INTERVAL_SEC = 0.27;
 const SAMPLE_ARRIVAL_TONE_DURATION_SEC = 0.22;
@@ -69,9 +70,19 @@ const playSampleArrivalSound = () => {
 
   try {
     const audio = new window.Audio(SAMPLE_ARRIVAL_SOUND_URL);
+    let playCount = 0;
+    const playCurrentRound = () => {
+      playCount += 1;
+      audio.currentTime = 0;
+      void audio.play().catch(() => playSampleArrivalFallbackTone());
+    };
+
     audio.preload = "auto";
     audio.volume = 1;
-    void audio.play().catch(() => playSampleArrivalFallbackTone());
+    audio.addEventListener("ended", () => {
+      if (playCount < SAMPLE_ARRIVAL_PLAY_COUNT) playCurrentRound();
+    });
+    playCurrentRound();
   } catch {
     playSampleArrivalFallbackTone();
   }
