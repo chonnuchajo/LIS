@@ -395,6 +395,19 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
     }));
   }, [allItems, config.groups, mode]);
 
+  const queueResetKey = useMemo(
+    () =>
+      itemsByGroup
+        .map((group) =>
+          [
+            group.id,
+            group.items.map((petition) => `${petition._id}:${queueStatusFor(petition, mode)}:${petition.updatedAt}`).join("|"),
+          ].join("="),
+        )
+        .join(";"),
+    [itemsByGroup, mode],
+  );
+
   const hasOverflowingGroup = useMemo(
     () => itemsByGroup.some((group) => group.items.length > MAX_ITEMS_PER_COLUMN),
     [itemsByGroup],
@@ -402,7 +415,7 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
 
   useEffect(() => {
     setQueuePageTick(0);
-  }, [mode]);
+  }, [mode, queueResetKey]);
 
   useEffect(() => {
     if (!hasOverflowingGroup) {
@@ -508,7 +521,7 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
   };
 
   return (
-    <main className="min-h-screen bg-primary-50 text-slate-800">
+    <main className="flex h-screen flex-col overflow-hidden bg-primary-50 text-slate-800">
       {newWorkPopup && (
         <div className="fixed inset-x-0 top-8 z-50 flex justify-center px-6">
           <div className="flex min-w-[420px] max-w-[720px] items-center gap-5 rounded-lg border border-primary-200 bg-white px-7 py-5 shadow-xl">
@@ -526,7 +539,7 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
         </div>
       )}
 
-      <header className="border-b border-primary-100 bg-white px-10 py-6 shadow-sm">
+      <header className="shrink-0 border-b border-primary-100 bg-white px-10 py-6 shadow-sm">
         <div className="flex items-center justify-between gap-8">
         <div className="flex min-w-0 items-center gap-5">
           <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-primary-100 bg-white p-2 shadow-sm">
@@ -551,7 +564,7 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
         </div>
       </header>
 
-      <section className="flex items-center justify-between border-b border-primary-100 bg-white px-10 py-5">
+      <section className="flex shrink-0 items-center justify-between border-b border-primary-100 bg-white px-10 py-5">
         <div className="rounded-lg bg-primary-50 px-5 py-3">
           <div className="text-lg text-slate-500">ในคิว</div>
           <div className="text-4xl font-bold text-primary-700">{allItems.length}</div>
@@ -562,18 +575,18 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
         </div>
       </section>
 
-      <section className="px-10 py-6">
+      <section data-testid="queue-board" className="min-h-0 flex-1 overflow-hidden px-10 py-6">
         {loading ? (
-          <div className="flex min-h-[520px] items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-3xl text-slate-500">
+          <div className="flex h-full min-h-0 items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-3xl text-slate-500">
             <Clock className="h-8 w-8 animate-pulse" />
             กำลังโหลดรายการคิว...
           </div>
         ) : error ? (
-          <div className="flex min-h-[520px] items-center justify-center rounded-lg border border-red-200 bg-white text-3xl font-semibold text-red-600">
+          <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-red-200 bg-white text-3xl font-semibold text-red-600">
             โหลดรายการคิวไม่สำเร็จ: {error}
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-5">
+          <div className="grid h-full min-h-0 grid-cols-3 gap-5 overflow-hidden">
             {itemsByGroup.map((group) => {
               const GroupIcon = group.icon;
               const totalPages = Math.ceil(group.items.length / MAX_ITEMS_PER_COLUMN);
@@ -592,7 +605,7 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
                   : group.subtitle;
 
               return (
-                <section key={group.id} className="min-h-[620px] rounded-lg border border-primary-100 bg-white/70">
+                <section key={group.id} className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-primary-100 bg-white/70">
                   <div className={cn("flex items-center justify-between border-b px-5 py-4", group.tone)}>
                     <div className="flex min-w-0 items-center gap-3">
                       <GroupIcon className="h-7 w-7 shrink-0" />
@@ -606,16 +619,16 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
                     </div>
                   </div>
 
-                  <div className="space-y-3 p-4">
+                  <div className="min-h-0 flex-1 overflow-hidden p-4">
                     {currentPageItems.length === 0 ? (
-                      <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/70 text-2xl font-semibold text-slate-400">
+                      <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/70 text-2xl font-semibold text-slate-400">
                         ไม่มีรายการ
                       </div>
                     ) : (
                       <div className="overflow-hidden">
                         <div
-                          className="flex transition-transform duration-1000 ease-in-out will-change-transform motion-reduce:transition-none"
-                          style={{ transform: `translateX(-${currentPageIndex * 100}%)` }}
+                          className="flex flex-row-reverse transition-transform duration-1000 ease-in-out will-change-transform motion-reduce:transition-none"
+                          style={{ transform: `translateX(${currentPageIndex * 100}%)` }}
                         >
                           {itemPages.map((pageItems, pageIndex) => (
                             <div

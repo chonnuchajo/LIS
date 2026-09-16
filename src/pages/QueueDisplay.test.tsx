@@ -130,6 +130,8 @@ describe("QueueDisplay", () => {
     expect(screen.getByRole("heading", { name: "ตัวอย่างใหม่" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "กำลังดำเนินการ" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "เรียบร้อยแล้ว" })).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveClass("h-screen", "overflow-hidden");
+    expect(screen.getByTestId("queue-board")).toHaveClass("overflow-hidden");
     const firstPage = screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 1" });
     expect(within(firstPage).getByText("P-2609-0001")).toBeInTheDocument();
     expect(within(firstPage).getByText("P-2609-0003")).toBeInTheDocument();
@@ -147,6 +149,38 @@ describe("QueueDisplay", () => {
     const secondPage = screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 2" });
     expect(within(secondPage).getByText("P-2609-0004")).toBeInTheDocument();
     expect(within(secondPage).getByText("P-2609-0006")).toBeInTheDocument();
+  });
+
+  it("resets overflowing columns to the first slide when queue items update", async () => {
+    vi.useFakeTimers();
+    let queueItems = Array.from({ length: 6 }, (_, index) => makeQueuePetition(index + 1));
+
+    mockedUsePetitionList.mockImplementation((params) => {
+      const statuses = params.status?.split(",") ?? [];
+      const items = statuses.includes("sampleSent") ? queueItems : [];
+      return {
+        data: { items, total: items.length, page: 1, limit: 100 },
+        loading: false,
+        error: null,
+        refresh: vi.fn(),
+      };
+    });
+
+    const { rerender } = render(<QueueDisplay mode="lab" />);
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(within(screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 2" })).getByText("P-2609-0004")).toBeInTheDocument();
+
+    queueItems = queueItems.map((item, index) =>
+      index === 0 ? ({ ...item, updatedAt: "2026-09-11T11:00:10.866Z" } as Petition) : item,
+    );
+    await act(async () => {
+      rerender(<QueueDisplay mode="lab" />);
+    });
+
+    expect(within(screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 1" })).getByText("P-2609-0001")).toBeInTheDocument();
   });
 
   it("cycles overflowing queue columns automatically so every petition is shown", async () => {
