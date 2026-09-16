@@ -175,6 +175,14 @@ describe('qcTrackStatusSteps', () => {
     expect(steps.map((s) => s.label)).toEqual(['รับตัวอย่าง', 'Assign', 'QC', 'ออก Final Result']);
   });
 
+  it('delivering sample is current while QC receive stays pending', () => {
+    const steps = qcTrackStatusSteps({ status: 'deliveringQC' } as Petition);
+    expect(steps.find((s) => s.key === 'delivering')?.label).toBe('กำลังส่งตัวอย่าง');
+    expect(steps.find((s) => s.key === 'delivering')?.current).toBe(true);
+    expect(steps.find((s) => s.key === 'received')?.done).toBe(false);
+    expect(steps.find((s) => s.key === 'received')?.current).toBeFalsy();
+  });
+
   it('qc completed but not approved → ออก Final Result is current', () => {
     const p = {
       status: 'inProgress',

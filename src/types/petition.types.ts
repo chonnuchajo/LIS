@@ -31,7 +31,7 @@ export const PETITION_STATUS_CONFIG: Record<
   PetitionStatus,
   { label: string; variant: StatusBadgeVariant }
 > = {
-  deliveringQC:  { label: 'กำลังส่งตัวอย่าง', variant: 'gray-soft' },
+  deliveringQC:  { label: 'กำลังส่งตัวอย่าง', variant: 'yellow-soft' },
   sampleSent:    { label: 'ส่งตัวอย่างแล้ว',  variant: 'primary-soft' },
   pendingReview: { label: 'รับตัวอย่างแล้ว',  variant: 'yellow-soft' },
   inProgress:    { label: 'กำลังดำเนินการ',     variant: 'blue-soft' },
