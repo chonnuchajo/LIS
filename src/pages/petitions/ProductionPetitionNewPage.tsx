@@ -15,6 +15,7 @@ import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemp
 import { createPetition, createLabRequest } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
+import { canPrintSampleLabel } from '@/lib/petitionPrintability';
 import {
   buildPetitionMasterItemOptions,
   findMatchingPetitionMasterItem,
