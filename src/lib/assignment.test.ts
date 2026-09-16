@@ -43,6 +43,12 @@ describe('isAssignedTo', () => {
       'Dev Lab Analyst',
     ]);
     expect(isAssignedTo({ name: 'Dev Lab Analyst' }, { name: 'Dev Lab Analyze' })).toBe(true);
+    expect(
+      isAssignedTo(
+        { employeeId: 'DEV-lab-analyst-dept-lab-2s2', name: 'Dev Lab Analyst' },
+        { employeeId: 'DEV-lab-analyze-dept-lab-2s2', name: 'Dev Lab Analyze' },
+      ),
+    ).toBe(true);
   });
 
   it('never matches on two absent values', () => {

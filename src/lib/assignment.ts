@@ -34,8 +34,11 @@ export function isAssignedTo(
   user: AssigneeRef | null | undefined,
 ): boolean {
   if (!assignedTo || !user) return false;
+  const matchedNames = assigneeNamesForUser(user);
   if (user.employeeId && assignedTo.employeeId) {
-    return assignedTo.employeeId === user.employeeId;
+    if (assignedTo.employeeId === user.employeeId) return true;
+    const userName = user.name?.trim();
+    return Boolean(assignedTo.name && matchedNames.some((name) => name !== userName && name === assignedTo.name));
   }
-  return Boolean(assignedTo.name && assigneeNamesForUser(user).includes(assignedTo.name));
+  return Boolean(assignedTo.name && matchedNames.includes(assignedTo.name));
 }
