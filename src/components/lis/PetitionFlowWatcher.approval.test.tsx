@@ -140,6 +140,9 @@ describe("PetitionFlowWatcher approval notifications", () => {
     await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
 
     expect(audio.AudioContextMock).toHaveBeenCalledTimes(1);
+    expect(audio.audioContext.createOscillator).toHaveBeenCalledTimes(3);
+    expect(audio.audioContext.createGain).toHaveBeenCalledTimes(3);
+    expect(audio.gain.gain.exponentialRampToValueAtTime).toHaveBeenCalledWith(0.55, 0.03);
   });
 
   it("plays a sound for a newly sent sample on first live poll even before a cursor exists", async () => {

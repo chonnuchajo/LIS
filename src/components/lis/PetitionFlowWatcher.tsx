@@ -7,6 +7,11 @@ import { audiencesForUser, readSeeAll, SEE_ALL_EVENT } from "@/lib/petitionAudie
 import { cursorKey, effectiveSeeAll, nextCursor, readCursor } from "@/lib/petitionFlowWatcher";
 
 const FIRST_POLL_SOUND_GRACE_MS = 65_000;
+const SAMPLE_ARRIVAL_TONE_COUNT = 3;
+const SAMPLE_ARRIVAL_TONE_INTERVAL_SEC = 0.27;
+const SAMPLE_ARRIVAL_TONE_DURATION_SEC = 0.22;
+const SAMPLE_ARRIVAL_TONE_ATTACK_SEC = 0.03;
+const SAMPLE_ARRIVAL_TONE_PEAK_GAIN = 0.55;
 
 const isFreshOnFirstPoll = (createdAt: string | undefined, serverTime: string | undefined) => {
   const createdAtMs = Date.parse(createdAt || "");
@@ -23,23 +28,32 @@ const playSampleArrivalSound = () => {
 
   try {
     const audioContext = new AudioContextCtor();
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
     const start = audioContext.currentTime;
 
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(880, start);
-    oscillator.frequency.exponentialRampToValueAtTime(1320, start + 0.08);
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(0.16, start + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.45);
-    oscillator.connect(gain);
-    gain.connect(audioContext.destination);
-    oscillator.start(start);
-    oscillator.stop(start + 0.45);
-    oscillator.onended = () => {
-      if (audioContext.state !== "closed") void audioContext.close().catch(() => undefined);
-    };
+    for (let toneIndex = 0; toneIndex < SAMPLE_ARRIVAL_TONE_COUNT; toneIndex += 1) {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      const toneStart = start + toneIndex * SAMPLE_ARRIVAL_TONE_INTERVAL_SEC;
+      const toneEnd = toneStart + SAMPLE_ARRIVAL_TONE_DURATION_SEC;
+
+      oscillator.type = "square";
+      oscillator.frequency.setValueAtTime(1046.5, toneStart);
+      oscillator.frequency.exponentialRampToValueAtTime(1760, toneStart + 0.08);
+      gain.gain.setValueAtTime(0.0001, toneStart);
+      gain.gain.exponentialRampToValueAtTime(SAMPLE_ARRIVAL_TONE_PEAK_GAIN, toneStart + SAMPLE_ARRIVAL_TONE_ATTACK_SEC);
+      gain.gain.setValueAtTime(SAMPLE_ARRIVAL_TONE_PEAK_GAIN, toneEnd - 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.0001, toneEnd);
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+      oscillator.start(toneStart);
+      oscillator.stop(toneEnd);
+
+      if (toneIndex === SAMPLE_ARRIVAL_TONE_COUNT - 1) {
+        oscillator.onended = () => {
+          if (audioContext.state !== "closed") void audioContext.close().catch(() => undefined);
+        };
+      }
+    }
   } catch {
     return;
   }
