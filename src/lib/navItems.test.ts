@@ -19,6 +19,10 @@ describe("NAV_ITEMS", () => {
     ).toBe(true);
   });
 
+  it("does not expose the MF gap medicine list as a separate nav page", () => {
+    expect(NAV_ITEMS.map((item) => item.path)).not.toContain("/mf-gap-medicines");
+  });
+
   it("exposes Assign Lab under the current petition route", () => {
     expect(
       NAV_ITEMS.some(

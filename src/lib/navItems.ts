@@ -49,7 +49,6 @@ export const NAV_ITEMS: NavItem[] = [
   { icon: UserCheck, label: "Assign Lab", path: "/petition/assign" },
   { icon: Package, label: "Stock Management", path: "/stock" },
   { icon: Database, label: "Master Item", path: "/master-items" },
-  { icon: Package, label: "List ยา MF ≥ 30 วัน", path: "/mf-gap-medicines" },
   { icon: FlaskConical, label: "Simple Method", path: "/simple-method" },
   { icon: FileText, label: "Full spec", path: "/full-spec" },
   { icon: Wrench, label: "รายการเครื่อง", path: "/machines" },
