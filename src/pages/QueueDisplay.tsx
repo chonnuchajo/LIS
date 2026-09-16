@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Clock, FlaskConical, RefreshCw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ import {
 import { shouldSendItemToLab } from "@/lib/petitionRouting";
 import { isVisibleInQcTestingQueue } from "@/lib/petitionQueueVisibility";
 import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
+import { calculateQueueItemsPerColumn } from "@/lib/queueDisplayRows";
 
 type QueueMode = "lab" | "qc";
 
@@ -39,7 +40,7 @@ type QueueConfig = {
 };
 
 const REFRESH_MS = 5_000;
-const MAX_ITEMS_PER_COLUMN = 3;
+const DEFAULT_ITEMS_PER_COLUMN = 3;
 const QUEUE_PAGE_MS = 10_000;
 const NEW_WORK_ALERT_MS = 10_000;
 const NEW_SAMPLE_SOUND_URL = `${import.meta.env.BASE_URL}sound/new.mp3`;
@@ -273,6 +274,8 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
   const [now, setNow] = useState(() => new Date());
   const [newWorkPopup, setNewWorkPopup] = useState<{ count: number; petitionNos: string[] } | null>(null);
   const [queuePageTick, setQueuePageTick] = useState(0);
+  const [itemsPerColumn, setItemsPerColumn] = useState(DEFAULT_ITEMS_PER_COLUMN);
+  const columnBodyRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const previousNewIdsRef = useRef<Set<string>>(new Set());
   const initializedNewIdsRef = useRef(false);
   const popupTimerRef = useRef<number | null>(null);
@@ -409,13 +412,50 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
   );
 
   const hasOverflowingGroup = useMemo(
-    () => itemsByGroup.some((group) => group.items.length > MAX_ITEMS_PER_COLUMN),
-    [itemsByGroup],
+    () => itemsByGroup.some((group) => group.items.length > itemsPerColumn),
+    [itemsByGroup, itemsPerColumn],
   );
+
+  const updateItemsPerColumn = useCallback(() => {
+    const bodyHeights = config.groups
+      .map((group) => columnBodyRefs.current[group.id]?.clientHeight ?? 0)
+      .filter((height) => height > 0);
+    if (bodyHeights.length === 0) return;
+
+    const nextItemsPerColumn = Math.min(
+      ...bodyHeights.map((height) => calculateQueueItemsPerColumn(height)),
+    );
+    setItemsPerColumn((current) => (current === nextItemsPerColumn ? current : nextItemsPerColumn));
+  }, [config.groups]);
+
+  useLayoutEffect(() => {
+    updateItemsPerColumn();
+  });
+
+  useEffect(() => {
+    updateItemsPerColumn();
+    const bodyElements = config.groups
+      .map((group) => columnBodyRefs.current[group.id])
+      .filter((element): element is HTMLDivElement => Boolean(element));
+
+    const handleResize = () => updateItemsPerColumn();
+    window.addEventListener("resize", handleResize);
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => window.removeEventListener("resize", handleResize);
+    }
+
+    const observer = new ResizeObserver(handleResize);
+    bodyElements.forEach((element) => observer.observe(element));
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      observer.disconnect();
+    };
+  }, [config.groups, updateItemsPerColumn]);
 
   useEffect(() => {
     setQueuePageTick(0);
-  }, [mode, queueResetKey]);
+  }, [itemsPerColumn, mode, queueResetKey]);
 
   useEffect(() => {
     if (!hasOverflowingGroup) {
@@ -589,13 +629,13 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
           <div className="grid h-full min-h-0 grid-cols-3 gap-5 overflow-hidden">
             {itemsByGroup.map((group) => {
               const GroupIcon = group.icon;
-              const totalPages = Math.ceil(group.items.length / MAX_ITEMS_PER_COLUMN);
+              const totalPages = Math.ceil(group.items.length / itemsPerColumn);
               const currentPageIndex = totalPages > 1 ? queuePageTick % totalPages : 0;
-              const firstVisibleIndex = currentPageIndex * MAX_ITEMS_PER_COLUMN;
-              const currentPageItems = group.items.slice(firstVisibleIndex, firstVisibleIndex + MAX_ITEMS_PER_COLUMN);
+              const firstVisibleIndex = currentPageIndex * itemsPerColumn;
+              const currentPageItems = group.items.slice(firstVisibleIndex, firstVisibleIndex + itemsPerColumn);
               const itemPages = Array.from({ length: totalPages }, (_, pageIndex) => {
-                const pageStartIndex = pageIndex * MAX_ITEMS_PER_COLUMN;
-                return group.items.slice(pageStartIndex, pageStartIndex + MAX_ITEMS_PER_COLUMN);
+                const pageStartIndex = pageIndex * itemsPerColumn;
+                return group.items.slice(pageStartIndex, pageStartIndex + itemsPerColumn);
               });
               const subtitle =
                 totalPages > 1
@@ -617,7 +657,11 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
                     </div>
                   </div>
 
-                  <div className="min-h-0 flex-1 overflow-hidden p-4">
+                  <div
+                    ref={(element) => { columnBodyRefs.current[group.id] = element; }}
+                    data-testid={`queue-column-body-${group.id}`}
+                    className="min-h-0 flex-1 overflow-hidden p-4"
+                  >
                     {currentPageItems.length === 0 ? (
                       <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/70 text-2xl font-semibold text-slate-400">
                         ไม่มีรายการ

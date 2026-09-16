@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import QueueDisplay from "./QueueDisplay";
 import { usePetitionList } from "@/hooks/usePetition";
 import { api } from "@/lib/api";
+import { calculateQueueItemsPerColumn } from "@/lib/queueDisplayRows";
 import type { Petition } from "@/types/petition.types";
 
 vi.mock("@/hooks/usePetition", () => ({
@@ -51,6 +52,13 @@ function makeQueuePetition(index: number): Petition {
 }
 
 describe("QueueDisplay", () => {
+  it("calculates visible queue rows from the available column height", () => {
+    expect(calculateQueueItemsPerColumn(240)).toBe(1);
+    expect(calculateQueueItemsPerColumn(380)).toBe(2);
+    expect(calculateQueueItemsPerColumn(560)).toBe(3);
+    expect(calculateQueueItemsPerColumn(736)).toBe(4);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockedUsePetitionList.mockImplementation((params) => {
