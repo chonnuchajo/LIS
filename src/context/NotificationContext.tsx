@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "./AuthContext";
-import { sanitizePersistedNotifications } from "./notificationStorage";
+import { notificationStorageKey, sanitizePersistedNotifications } from "./notificationStorage";
 
 export type NotificationLevel = "info" | "warning" | "success" | "error";
 
@@ -31,19 +31,12 @@ interface NotificationContextType {
   clearAll: () => void;
 }
 
-const STORAGE_KEY_PREFIX = "lis.notifications.v1";
-
 const NotificationContext = createContext<NotificationContextType | null>(null);
 
 export const useNotifications = () => {
   const ctx = useContext(NotificationContext);
   if (!ctx) throw new Error("useNotifications must be inside NotificationProvider");
   return ctx;
-};
-
-const notificationStorageKey = (user: { employeeId?: string; email?: string; name?: string } | null | undefined) => {
-  const identity = user?.employeeId?.trim() || user?.email?.trim() || user?.name?.trim() || "anonymous";
-  return `${STORAGE_KEY_PREFIX}:${encodeURIComponent(identity)}`;
 };
 
 const loadPersisted = (storageKey: string): AppNotification[] => {

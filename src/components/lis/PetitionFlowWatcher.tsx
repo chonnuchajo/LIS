@@ -8,8 +8,10 @@ import {
   PETITION_NOTIFICATIONS_REFRESH_EVENT,
   cursorKey,
   effectiveSeeAll,
+  markPetitionNotificationsBackfilled,
   nextCursor,
-  readCursor,
+  petitionNotificationSince,
+  shouldBackfillPetitionNotifications,
 } from "@/lib/petitionFlowWatcher";
 
 const FIRST_POLL_SOUND_GRACE_MS = 65_000;
@@ -114,6 +116,7 @@ const PetitionFlowWatcher = () => {
   const { user } = useAuth();
   const { push } = useNotifications();
   const playedSoundIdsRef = useRef<Set<string>>(new Set());
+  const shouldMarkBackfilledRef = useRef(false);
   const [seeAllRaw, setSeeAllRaw] = useState(() => readSeeAll());
   const seeAll = effectiveSeeAll(user, seeAllRaw);
 
@@ -129,13 +132,15 @@ const PetitionFlowWatcher = () => {
 
   const { data, refetch } = useQuery({
     queryKey: ["petition-notifications", employeeId ?? "", audiences.join(","), seeAll],
-    queryFn: () =>
-      api.getPetitionNotifications({
-        since: readCursor(employeeId),
+    queryFn: () => {
+      shouldMarkBackfilledRef.current = shouldBackfillPetitionNotifications(employeeId, user);
+      return api.getPetitionNotifications({
+        since: petitionNotificationSince(employeeId, user),
         audiences,
         employeeId,
         all: seeAll,
-      }),
+      });
+    },
     refetchInterval: NOTIFICATION_REFETCH_INTERVAL_MS,
     refetchIntervalInBackground: true,
     enabled,
@@ -184,10 +189,12 @@ const PetitionFlowWatcher = () => {
     try {
       const stored = localStorage.getItem(key);
       localStorage.setItem(key, nextCursor(stored, data.serverTime));
+      if (shouldMarkBackfilledRef.current) markPetitionNotificationsBackfilled(user);
+      shouldMarkBackfilledRef.current = false;
     } catch {
       // private mode — รอบหน้าจะดึงย้อนหลัง 24 ชม.ใหม่ ซึ่ง push กันซ้ำด้วย id อยู่แล้ว
     }
-  }, [data, employeeId, push]);
+  }, [data, employeeId, push, user]);
 
   return null;
 };
