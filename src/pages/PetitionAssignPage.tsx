@@ -37,7 +37,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useAuth } from '@/hooks/useAuth';
 import { usePetitionList } from '@/hooks/usePetition';
 import { api, type MachineItem } from '@/lib/api';
-import { hasLabTrack, petitionStatusBadge } from '@/lib/statusBadge';
+import { hasLabTrack } from '@/lib/statusBadge';
+import { labAssignBoardStatusBadge } from '@/lib/receiveStatus';
 import { isVisibleInAssignQueue } from '@/lib/petitionQueueVisibility';
 import { getMachineSuggestions, type MachineSuggestion } from '@/lib/aiApi';
 import { DEV_MODE, synthesizeDevAssignees } from '@/config/dev';
@@ -1022,7 +1023,7 @@ function PetitionCard({
   showPhase2Badge,
   assigned,
 }: PetitionCardProps) {
-  const statusCfg = petitionStatusBadge(petition);
+  const statusCfg = labAssignBoardStatusBadge(petition, assigned);
   const showStatusBadge = hasLabTrack(petition);
   const machineCodes = (petition.assignedMachines ?? [])
     .map((m) => m.code)

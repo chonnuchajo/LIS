@@ -65,6 +65,15 @@ export function labTrackStatusBadge(p: ReceiveFields & { status: PetitionStatus 
   return statusBadge(p.status);
 }
 
+export function labAssignBoardStatusBadge(
+  p: ReceiveFields & { status: PetitionStatus },
+  assigned?: boolean,
+): StatusBadge {
+  if (assigned) return toneBadge('info', 'assign แล้ว');
+  if (!labReceivedAt(p)) return statusBadge('sampleSent');
+  return statusBadge('pendingReview');
+}
+
 /**
  * สถานะที่โชว์ในลิสต์ "การทดสอบ QC" — อิง track ของ QC เอง (คู่ขนานกับ labTrackStatusBadge).
  *
