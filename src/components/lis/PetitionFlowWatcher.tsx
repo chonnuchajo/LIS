@@ -25,6 +25,12 @@ const SAMPLE_ARRIVAL_TONE_DURATION_SEC = 0.22;
 const SAMPLE_ARRIVAL_TONE_ATTACK_SEC = 0.03;
 const SAMPLE_ARRIVAL_TONE_PEAK_GAIN = 0.55;
 
+const isScannerRoute = () => {
+  if (typeof window === "undefined") return false;
+  const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+  return pathname === "/scanner" || pathname.endsWith("/scanner");
+};
+
 const isFreshOnFirstPoll = (createdAt: string | undefined, serverTime: string | undefined) => {
   const createdAtMs = Date.parse(createdAt || "");
   const serverTimeMs = Date.parse(serverTime || "");
@@ -185,7 +191,9 @@ const PetitionFlowWatcher = () => {
         group: "petition",
       });
     }
-    soundsToPlay.forEach((sound) => playNotificationSound(sound));
+    if (!isScannerRoute()) {
+      soundsToPlay.forEach((sound) => playNotificationSound(sound));
+    }
     try {
       const stored = localStorage.getItem(key);
       localStorage.setItem(key, nextCursor(stored, data.serverTime));

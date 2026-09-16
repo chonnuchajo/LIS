@@ -144,12 +144,14 @@ test('isRelevant: seeAll ผ่านหมด', () => {
   assert.strictEqual(isRelevant(desc, petition, { audiences: [], seeAll: true }), true);
 });
 
-test('shouldPlaySampleArrivalSound: เล่นเสียงเมื่อ sampleSent ตรงผู้รับหรือ audience', () => {
+test('shouldPlaySampleArrivalSound: เล่นเสียงเมื่อ sampleSent ตรง audience qc/lab เท่านั้น', () => {
   const assigned = { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง' } };
   const log = { event: 'statusChanged', fromStatus: 'deliveringQC', toStatus: 'sampleSent' };
 
-  assert.strictEqual(shouldPlaySampleArrivalSound(assigned, log, { employeeId: 'E200' }), true);
   assert.strictEqual(shouldPlaySampleArrivalSound(petition, log, { audiences: ['qc'] }, { audiences: ['qc'] }), true);
+  assert.strictEqual(shouldPlaySampleArrivalSound(petition, log, { audiences: ['lab'] }, { audiences: ['lab'] }), true);
+  assert.strictEqual(shouldPlaySampleArrivalSound(assigned, log, { employeeId: 'E200', audiences: ['viewer'] }, { audiences: ['qc'] }), false);
+  assert.strictEqual(shouldPlaySampleArrivalSound(assigned, log, { employeeId: 'E200', seeAll: true }, { audiences: ['qc'] }), false);
   assert.strictEqual(shouldPlaySampleArrivalSound(assigned, log, { employeeId: 'E201' }), false);
   assert.strictEqual(shouldPlaySampleArrivalSound(petition, log, { employeeId: 'E100' }), false);
   assert.strictEqual(
@@ -240,7 +242,7 @@ test('toNotification: statusChanged approved stays a normal bell notification', 
   assert.strictEqual(notification.toStatus, 'approved');
 });
 
-test('toNotification: sampleSent งานตัวเองแนบ playSound ให้ client', () => {
+test('toNotification: sampleSent งานตัวเองแต่ไม่มี audience qc/lab ไม่แนบ playSound', () => {
   const assigned = { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง' } };
   const log = {
     _id: 'log-sent',
@@ -253,7 +255,7 @@ test('toNotification: sampleSent งานตัวเองแนบ playSound 
 
   const notification = toNotification(assigned, log, { audiences: ['qc'], title: 'ส่งตัวอย่างแล้ว' }, { employeeId: 'E200' });
 
-  assert.strictEqual(notification.playSound, true);
+  assert.strictEqual(notification.playSound, undefined);
 });
 
 test('toNotification: sampleSent ที่ตรง audience ผู้รับ แนบ playSound ให้ client', () => {
@@ -308,6 +310,22 @@ test('toNotification: assigned ฝั่ง Lab เล่นเสียงเ�
       { audiences: ['qc'], title: '👤 มอบหมายงาน P-2606-0018' },
       { employeeId: 'E200', audiences: ['qc'] },
     ).playSound,
+    undefined,
+  );
+});
+
+test('toNotification: assigned ฝั่ง Lab ไม่เล่นเสียงถ้าผู้รับเป็น viewer ไม่ใช่ lab', () => {
+  const log = {
+    _id: 'log-lab-assigned-viewer',
+    petitionId: 'p1',
+    event: 'assigned',
+    createdAt: '2026-08-01T02:00:00.000Z',
+    metadata: { assignee: { employeeId: 'E200', name: 'สมหญิง', department: 'Lab วิเคราะห์' } },
+  };
+  const assigned = { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง', department: 'Lab วิเคราะห์' } };
+
+  assert.strictEqual(
+    toNotification(assigned, log, { audiences: ['lab'], title: '👤 มอบหมายงาน P-2606-0018' }, { employeeId: 'E200', audiences: ['viewer'] }).playSound,
     undefined,
   );
 });
