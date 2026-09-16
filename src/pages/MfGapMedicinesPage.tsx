@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, Package, RefreshCw, Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
@@ -65,6 +66,7 @@ function itemKind(itemNo: string): "RM" | "FG" | "" {
 }
 
 export default function MfGapMedicinesPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [kindFilter, setKindFilter] = useState<MedicineKindFilter>("all");
   const { data = [], isLoading, isFetching, isError, error, refetch } = useQuery({
@@ -95,6 +97,7 @@ export default function MfGapMedicinesPage() {
         <PageHeader
           title="List ยา MF ≥ 30 วัน"
           description="รายการยาและวัตถุดิบที่ MF_Lasted - MF_Before ตั้งแต่ 30 วันขึ้นไป"
+          onBack={() => navigate(-1)}
           actions={(
             <Button size="sm" variant="outline" onClick={() => void refetch()} disabled={isFetching}>
               <RefreshCw className={`mr-1 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
