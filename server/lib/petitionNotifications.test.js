@@ -247,6 +247,47 @@ test('toNotification: sampleSent ที่ตรง audience ผู้รับ 
   assert.strictEqual(notification.playSound, true);
 });
 
+test('toNotification: assigned ฝั่ง Lab เล่นเสียงเฉพาะคนที่ถูก assign', () => {
+  const log = {
+    _id: 'log-lab-assigned',
+    petitionId: 'p1',
+    event: 'assigned',
+    createdAt: '2026-08-01T02:00:00.000Z',
+    metadata: { assignee: { employeeId: 'E200', name: 'สมหญิง', department: 'Lab วิเคราะห์' } },
+  };
+  const assigned = { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง', department: 'Lab วิเคราะห์' } };
+  const desc = { audiences: ['lab'], title: '👤 มอบหมายงาน P-2606-0018' };
+
+  assert.deepStrictEqual(
+    toNotification(assigned, log, desc, { employeeId: 'E200', audiences: ['lab'] }),
+    {
+      id: 'log-lab-assigned',
+      petitionId: 'p1',
+      petitionNo: 'P-2606-0018',
+      event: 'assigned',
+      fromStatus: undefined,
+      toStatus: undefined,
+      title: '👤 มอบหมายงาน P-2606-0018',
+      message: undefined,
+      level: 'info',
+      link: '/petition/p1',
+      createdAt: '2026-08-01T02:00:00.000Z',
+      playSound: true,
+      sound: 'labAssigned',
+    },
+  );
+  assert.strictEqual(toNotification(assigned, log, desc, { employeeId: 'E201', audiences: ['lab'] }).playSound, undefined);
+  assert.strictEqual(
+    toNotification(
+      { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง', department: 'QC' } },
+      { ...log, metadata: { assignee: { employeeId: 'E200', name: 'สมหญิง', department: 'QC' } } },
+      { audiences: ['qc'], title: '👤 มอบหมายงาน P-2606-0018' },
+      { employeeId: 'E200', audiences: ['qc'] },
+    ).playSound,
+    undefined,
+  );
+});
+
 // Finding 1: resultEntered fires once per form field (qcResultAuditEvent logs every
 // field), so a burst of rows for one petition must collapse to just the newest — or
 // it fills the capped /notifications response and crowds out real milestones.

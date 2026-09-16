@@ -8,6 +8,7 @@ import { cursorKey, effectiveSeeAll, nextCursor, readCursor } from "@/lib/petiti
 
 const FIRST_POLL_SOUND_GRACE_MS = 65_000;
 const SAMPLE_ARRIVAL_SOUND_URL = `${import.meta.env.BASE_URL}sound/sample-arrival.mp3`;
+const LAB_ASSIGNED_SOUND_URL = `${import.meta.env.BASE_URL}sound/lab-assigned.mp3`;
 const SAMPLE_ARRIVAL_PLAY_COUNT = 3;
 const SAMPLE_ARRIVAL_TONE_COUNT = 3;
 const SAMPLE_ARRIVAL_TONE_INTERVAL_SEC = 0.27;
@@ -61,31 +62,41 @@ const playSampleArrivalFallbackTone = () => {
   }
 };
 
-const playSampleArrivalSound = () => {
+type PetitionNotificationSound = "sampleArrival" | "labAssigned";
+
+const playAudioFile = ({ fallback, repeat = 1, url }: { fallback?: () => void; repeat?: number; url: string }) => {
   if (typeof window === "undefined") return;
   if (typeof window.Audio !== "function") {
-    playSampleArrivalFallbackTone();
+    fallback?.();
     return;
   }
 
   try {
-    const audio = new window.Audio(SAMPLE_ARRIVAL_SOUND_URL);
+    const audio = new window.Audio(url);
     let playCount = 0;
     const playCurrentRound = () => {
       playCount += 1;
       audio.currentTime = 0;
-      void audio.play().catch(() => playSampleArrivalFallbackTone());
+      void audio.play().catch(() => fallback?.());
     };
 
     audio.preload = "auto";
     audio.volume = 1;
     audio.addEventListener("ended", () => {
-      if (playCount < SAMPLE_ARRIVAL_PLAY_COUNT) playCurrentRound();
+      if (playCount < repeat) playCurrentRound();
     });
     playCurrentRound();
   } catch {
-    playSampleArrivalFallbackTone();
+    fallback?.();
   }
+};
+
+const playNotificationSound = (sound: PetitionNotificationSound = "sampleArrival") => {
+  if (sound === "labAssigned") {
+    playAudioFile({ fallback: playSampleArrivalFallbackTone, url: LAB_ASSIGNED_SOUND_URL });
+    return;
+  }
+  playAudioFile({ fallback: playSampleArrivalFallbackTone, repeat: SAMPLE_ARRIVAL_PLAY_COUNT, url: SAMPLE_ARRIVAL_SOUND_URL });
 };
 
 /**
@@ -124,7 +135,7 @@ const PetitionFlowWatcher = () => {
 
   useEffect(() => {
     if (!data) return;
-    let shouldPlaySound = false;
+    const soundsToPlay = new Set<PetitionNotificationSound>();
     let hasExistingCursor = false;
     const key = cursorKey(employeeId);
     try {
@@ -137,7 +148,9 @@ const PetitionFlowWatcher = () => {
     for (const item of [...data.items].reverse()) {
       if (item.playSound && !playedSoundIdsRef.current.has(item.id)) {
         playedSoundIdsRef.current.add(item.id);
-        shouldPlaySound = shouldPlaySound || hasExistingCursor || isFreshOnFirstPoll(item.createdAt, data.serverTime);
+        if (hasExistingCursor || isFreshOnFirstPoll(item.createdAt, data.serverTime)) {
+          soundsToPlay.add(item.sound ?? "sampleArrival");
+        }
       }
       push({
         id: item.id,
@@ -150,7 +163,7 @@ const PetitionFlowWatcher = () => {
         group: "petition",
       });
     }
-    if (shouldPlaySound) playSampleArrivalSound();
+    soundsToPlay.forEach((sound) => playNotificationSound(sound));
     try {
       const stored = localStorage.getItem(key);
       localStorage.setItem(key, nextCursor(stored, data.serverTime));

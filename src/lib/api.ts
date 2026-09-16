@@ -79,6 +79,7 @@ export interface PetitionFlowNotification {
   link: string;
   createdAt: string;
   playSound?: boolean;
+  sound?: "sampleArrival" | "labAssigned";
 }
 
 export type UserFavorites = { email: string; paths: string[] };

@@ -5,7 +5,7 @@
 // LINE groups can never drift apart. The bell tolerates finer-grained events than a
 // LINE group does, so the two events describeEvent deliberately skips (received /
 // resultEntered) get a bell-only fallback here.
-const { describeEvent } = require('./lineNotify');
+const { assigneeSide, describeEvent } = require('./lineNotify');
 const { hasLabTrack } = require('./petitionStatusLog');
 const { requiresQcTrack } = require('./petitionSubmissionRules');
 
@@ -120,6 +120,15 @@ function shouldPlaySampleArrivalSound(petition, log, viewer, desc = {}) {
   return String(petition?.assignedTo?.employeeId || '').trim() === empId;
 }
 
+function shouldPlayLabAssignedSound(petition, log, viewer) {
+  if (log?.event !== 'assigned') return false;
+  const assignee = log?.metadata?.assignee || petition?.assignedTo;
+  if (assigneeSide(assignee) !== 'lab') return false;
+  const empId = String(viewer?.employeeId || '').trim();
+  if (!empId) return false;
+  return String(assignee?.employeeId || petition?.assignedTo?.employeeId || '').trim() === empId;
+}
+
 function toNotification(petition, log, desc, viewer) {
   const petitionId = String(petition?._id ?? log?.petitionId ?? '');
   const notification = {
@@ -137,6 +146,10 @@ function toNotification(petition, log, desc, viewer) {
   };
   if (shouldPlaySampleArrivalSound(petition, log, viewer, desc)) {
     notification.playSound = true;
+  }
+  if (shouldPlayLabAssignedSound(petition, log, viewer)) {
+    notification.playSound = true;
+    notification.sound = 'labAssigned';
   }
   return notification;
 }

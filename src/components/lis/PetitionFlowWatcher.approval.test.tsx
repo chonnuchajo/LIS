@@ -209,6 +209,40 @@ describe("PetitionFlowWatcher approval notifications", () => {
     expect(audio.AudioContextMock).not.toHaveBeenCalled();
   });
 
+  it("plays the lab assigned sound once for a fresh assigned notification", async () => {
+    localStorage.setItem(cursorKey("E001"), "2026-09-05T03:59:00.000Z");
+    mocks.getPetitionNotifications.mockResolvedValue({
+      serverTime: "2026-09-05T04:00:00.000Z",
+      items: [
+        {
+          id: "log-lab-assigned",
+          petitionId: "p1",
+          petitionNo: "P-2609-0002",
+          event: "assigned",
+          title: "มอบหมายงาน",
+          level: "info",
+          link: "/petition/p1",
+          createdAt: "2026-09-05T04:00:00.000Z",
+          playSound: true,
+          sound: "labAssigned",
+        },
+      ],
+    });
+    const uploadedAudio = mockAudio();
+    const audio = mockAudioContext();
+
+    renderWatcher();
+
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
+
+    expect(uploadedAudio.AudioMock).toHaveBeenCalledWith(`${import.meta.env.BASE_URL}sound/lab-assigned.mp3`);
+    expect(uploadedAudio.audio.volume).toBe(1);
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
+    uploadedAudio.endPlayback();
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
+    expect(audio.AudioContextMock).not.toHaveBeenCalled();
+  });
+
   it("keeps old backfilled assigned samples silent when no cursor exists yet", async () => {
     mocks.getPetitionNotifications.mockResolvedValue({
       serverTime: "2026-09-05T04:00:00.000Z",
