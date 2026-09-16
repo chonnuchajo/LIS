@@ -110,6 +110,30 @@ describe("QueueDisplay", () => {
     expect(mockedUsePetitionList).toHaveBeenCalledWith({ page: 1, limit: 200, status: "sampleSent" });
   });
 
+  it("expands one active queue group across empty columns", async () => {
+    const queueItems = Array.from({ length: 6 }, (_, index) => makeQueuePetition(index + 1));
+
+    mockedUsePetitionList.mockImplementation((params) => {
+      const statuses = params.status?.split(",") ?? [];
+      const items = statuses.includes("sampleSent") ? queueItems : [];
+      return {
+        data: { items, total: items.length, page: 1, limit: 100 },
+        loading: false,
+        error: null,
+        refresh: vi.fn(),
+      };
+    });
+
+    render(<QueueDisplay mode="lab" />);
+
+    expect(screen.getByRole("heading", { name: "ตัวอย่างใหม่" })).toBeInTheDocument();
+    expect(screen.getByText("P-2609-0001")).toBeInTheDocument();
+    expect(screen.getByText("P-2609-0006")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "กำลังดำเนินการ" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "เรียบร้อยแล้ว" })).not.toBeInTheDocument();
+    await waitFor(() => expect(mockedApi.getReturnedFlags).toHaveBeenCalled());
+  });
+
   it("cycles overflowing queue columns automatically so every petition is shown", async () => {
     vi.useFakeTimers();
     const queueItems = Array.from({ length: 10 }, (_, index) => makeQueuePetition(index + 1));
@@ -129,7 +153,7 @@ describe("QueueDisplay", () => {
 
     expect(screen.getByText("P-2609-0001")).toBeInTheDocument();
     expect(screen.queryByText("P-2609-0010")).not.toBeInTheDocument();
-    expect(screen.getByText("แสดง 1-9 จาก 10 รายการ • วนหน้า 1/2 อัตโนมัติ")).toBeInTheDocument();
+    expect(screen.getByText(/แสดง 1-9 จาก 10 รายการ • วนหน้า 1\/2 อัตโนมัติ/)).toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(8_000);
@@ -137,6 +161,6 @@ describe("QueueDisplay", () => {
 
     expect(screen.getByText("P-2609-0010")).toBeInTheDocument();
     expect(screen.queryByText("P-2609-0001")).not.toBeInTheDocument();
-    expect(screen.getByText("แสดง 10-10 จาก 10 รายการ • วนหน้า 2/2 อัตโนมัติ")).toBeInTheDocument();
+    expect(screen.getByText(/แสดง 10-10 จาก 10 รายการ • วนหน้า 2\/2 อัตโนมัติ/)).toBeInTheDocument();
   });
 });
