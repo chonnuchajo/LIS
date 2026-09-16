@@ -121,6 +121,8 @@ interface PetitionListParams {
   status?: string;
   search?: string;
   dept?: PetitionDept;
+  assignedToEmployeeId?: string;
+  assignedToName?: string;
   awaitingLabApproval?: boolean;
   labApproved?: boolean;
 }
@@ -149,6 +151,8 @@ export function usePetitionList(params: PetitionListParams, options: PetitionRef
     if (params.status) sp.set('status', params.status);
     if (params.search) sp.set('search', params.search);
     if (params.dept) sp.set('dept', params.dept);
+    if (params.assignedToEmployeeId) sp.set('assignedToEmployeeId', params.assignedToEmployeeId);
+    if (params.assignedToName) sp.set('assignedToName', params.assignedToName);
     if (params.awaitingLabApproval) sp.set('awaitingLabApproval', 'true');
     if (params.labApproved) sp.set('labApproved', 'true');
     return sp.toString();

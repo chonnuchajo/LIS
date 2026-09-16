@@ -93,6 +93,24 @@ describe('usePetitionList auto-refetch', () => {
 
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(afterMount));
   });
+
+  it('includes assigned-to filters in the petition list request', async () => {
+    const { result } = renderHook(() =>
+      usePetitionList({
+        page: 1,
+        limit: 50,
+        status: 'sampleSent,pendingReview,inProgress',
+        assignedToEmployeeId: 'E123',
+        assignedToName: 'Analyst A',
+      }),
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const requestedUrl = new URL(String(fetchMock.mock.calls[0][0]), 'http://localhost');
+    expect(requestedUrl.searchParams.get('assignedToEmployeeId')).toBe('E123');
+    expect(requestedUrl.searchParams.get('assignedToName')).toBe('Analyst A');
+  });
 });
 
 describe('usePetition auto-refetch', () => {

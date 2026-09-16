@@ -67,6 +67,8 @@ export default function LabTestingPage() {
   const { user } = useAuth();
   const flashId = useArrivalFlashId();
   const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
+  const assignedToEmployeeId = !isFullAccess ? user?.employeeId?.trim() || undefined : undefined;
+  const assignedToName = !isFullAccess ? user?.name?.trim() || undefined : undefined;
   const [search, setSearch] = useState('');
   const [dept, setDept] = useState<PetitionDept | ''>('');
   const [scanOpen, setScanOpen] = useState(false);
@@ -93,6 +95,8 @@ export default function LabTestingPage() {
     status: 'sampleSent,pendingReview,inProgress',
     search,
     dept: dept || undefined,
+    assignedToEmployeeId,
+    assignedToName,
     limit: 50,
   });
 

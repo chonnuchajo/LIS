@@ -94,20 +94,36 @@ router.get('/', async (req, res) => {
     const status = req.query.status;
     const dept = req.query.dept;
     const search = (req.query.search || '').trim();
+    const assignedToEmployeeId = String(req.query.assignedToEmployeeId || '').trim();
+    const assignedToName = String(req.query.assignedToName || '').trim();
 
     const q = {};
     if (dept && ['production', 'rm', 'fg'].includes(String(dept))) q.dept = dept;
+    const andConditions = [];
+    if (assignedToEmployeeId && assignedToName) {
+      andConditions.push({
+        $or: [
+          { 'assignedTo.employeeId': assignedToEmployeeId },
+          { 'assignedTo.name': assignedToName },
+        ],
+      });
+    } else if (assignedToEmployeeId) q['assignedTo.employeeId'] = assignedToEmployeeId;
+    else if (assignedToName) q['assignedTo.name'] = assignedToName;
     if (search) {
       const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      q.$or = [
-        { petitionNo: rx },
-        { prodOrderNos: rx },
-        { 'productionWorkflow.requestNo': rx },
-        { 'productionWorkflow.lisPetitionNo': rx },
-        { 'submittedBy.name': rx },
-        { 'items.batchNo': rx },
-      ];
+      andConditions.push({
+        $or: [
+          { petitionNo: rx },
+          { prodOrderNos: rx },
+          { 'productionWorkflow.requestNo': rx },
+          { 'productionWorkflow.lisPetitionNo': rx },
+          { 'submittedBy.name': rx },
+          { 'items.batchNo': rx },
+        ],
+      });
     }
+    if (andConditions.length === 1) Object.assign(q, andConditions[0]);
+    else if (andConditions.length > 1) q.$and = andConditions;
     const summaryQ = { ...q };
 
     if (status) {
