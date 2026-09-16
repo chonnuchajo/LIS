@@ -1,6 +1,6 @@
 import type { Petition } from '@/types/petition.types';
 import { labReceivedAt, qcReceivedAt } from './receiveStatus';
-import { requiresQcTrack } from './petitionRouting';
+import { hasLabTrack, requiresQcTrack } from './petitionRouting';
 
 const OPEN_TESTING_STATUSES: readonly Petition['status'][] = ['sampleSent', 'pendingReview', 'inProgress'];
 
@@ -15,6 +15,7 @@ export function isVisibleInQcTestingQueue(petition: Petition): boolean {
 }
 
 export function isVisibleInAssignQueue(petition: Petition): boolean {
+  if (!hasLabTrack(petition)) return false;
   if (labReceivedAt(petition)) return false;
   return OPEN_TESTING_STATUSES.includes(petition.status) || isReceivedBeforeStatusAdvance(petition);
 }

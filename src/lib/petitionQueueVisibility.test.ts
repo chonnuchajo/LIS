@@ -32,6 +32,22 @@ describe('petitionQueueVisibility', () => {
     expect(isWaitingForAssignment(receivedStalePetition)).toBe(true);
   });
 
+  it('hides QC-only sample-sent petitions from Assign queue', () => {
+    expect(isVisibleInAssignQueue({
+      status: 'sampleSent',
+      submittedBy: { department: 'Production' },
+      items: [{ seq: 1, sampleName: 'QC-only sample', batchNo: 'B-2' }],
+    } as Petition)).toBe(false);
+  });
+
+  it('keeps Lab-track sample-sent petitions visible in Assign queue', () => {
+    expect(isVisibleInAssignQueue({
+      status: 'sampleSent',
+      submittedBy: { department: 'Production' },
+      items: [{ seq: 1, sampleName: 'Lab sample', batchNo: 'B-1' }],
+    } as Petition)).toBe(true);
+  });
+
   it('hides Lab-received petitions from Assign queue', () => {
     const labReceivedPetition = {
       ...receivedStalePetition,
