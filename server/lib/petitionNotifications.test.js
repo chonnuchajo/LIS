@@ -138,6 +138,28 @@ test('shouldPlaySampleArrivalSound: เล่นเสียงเมื่อ s
   );
 });
 
+test('toNotification: sampleSent sentToLab=true เล่นเสียงให้ทั้ง QC และ Lab, sentToLab=false เล่นเฉพาะ QC', () => {
+  const log = {
+    _id: 'log-sent-lab-routing',
+    petitionId: 'p1',
+    event: 'statusChanged',
+    fromStatus: 'deliveringQC',
+    toStatus: 'sampleSent',
+    createdAt: '2026-08-01T02:00:00.000Z',
+  };
+  const sentToLab = { ...petition, sentToLab: true, items: [{ batchNo: '320', sampleName: 'QC only by batch' }] };
+  const qcOnly = { ...petition, sentToLab: false, items: [labItem] };
+  const sentToLabDesc = bellDescribe(sentToLab, log);
+  const qcOnlyDesc = bellDescribe(qcOnly, log);
+
+  assert.deepStrictEqual(sentToLabDesc.audiences, ['qc', 'lab']);
+  assert.strictEqual(toNotification(sentToLab, log, sentToLabDesc, { audiences: ['qc'] }).playSound, true);
+  assert.strictEqual(toNotification(sentToLab, log, sentToLabDesc, { audiences: ['lab'] }).playSound, true);
+  assert.deepStrictEqual(qcOnlyDesc.audiences, ['qc']);
+  assert.strictEqual(toNotification(qcOnly, log, qcOnlyDesc, { audiences: ['qc'] }).playSound, true);
+  assert.strictEqual(toNotification(qcOnly, log, qcOnlyDesc, { audiences: ['lab'] }).playSound, undefined);
+});
+
 test('levelForEvent: rejected/success/approved/ผิดปกติ/อื่น', () => {
   assert.strictEqual(levelForEvent({ event: 'statusChanged', toStatus: 'rejected' }), 'error');
   assert.strictEqual(levelForEvent({ event: 'statusChanged', toStatus: 'success' }), 'success');
