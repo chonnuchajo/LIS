@@ -394,15 +394,15 @@ function SixMonthMedicineTab({ showFgQualityAlerts }: SixMonthMedicineTabProps) 
     <Tabs defaultValue="six-month-stock" className="space-y-3">
       <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
         <TabsList className="w-max">
-          <TabsTrigger value="six-month-stock">รายการยาเกิน 6 เดือน</TabsTrigger>
           <TabsTrigger value="fg-quality-alerts">แจ้งเตือนส่งตรวจคุณภาพ</TabsTrigger>
+          <TabsTrigger value="six-month-stock">รายการยาเกิน 6 เดือน</TabsTrigger>
         </TabsList>
       </div>
-      <TabsContent value="six-month-stock" className="mt-0">
-        <SixMonthMedicineStockTab />
-      </TabsContent>
       <TabsContent value="fg-quality-alerts" className="mt-0">
         <FgQualityAlertsTab />
+      </TabsContent>
+      <TabsContent value="six-month-stock" className="mt-0">
+        <SixMonthMedicineStockTab />
       </TabsContent>
     </Tabs>
   );

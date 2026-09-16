@@ -469,6 +469,17 @@ describe('PetitionListPage action cues', () => {
     expect(screen.getByText('ส่งตรวจคุณภาพ')).toBeInTheDocument();
   });
 
+  it('shows FG quality inspection alerts before six-month medicine stock', async () => {
+    renderPage({}, '/petition');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    const tabLabels = (await screen.findAllByRole('tab')).map((tab) => tab.textContent);
+    expect(tabLabels.indexOf('แจ้งเตือนส่งตรวจคุณภาพ')).toBeLessThan(
+      tabLabels.indexOf('รายการยาเกิน 6 เดือน'),
+    );
+  });
+
   it('shows the six-month medicine tab for FG warehouse department users', async () => {
     mocks.user = {
       employeeId: 'E890',
