@@ -40,6 +40,7 @@ type QueueConfig = {
 
 const REFRESH_MS = 5_000;
 const MAX_ITEMS_PER_GROUP = 9;
+const QUEUE_PAGE_MS = 8_000;
 const NEW_WORK_ALERT_MS = 10_000;
 const NEW_SAMPLE_SOUND_URL = `${import.meta.env.BASE_URL}sound/new.mp3`;
 
@@ -271,6 +272,7 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
   }, [refreshDoneQueue, refreshNewQueue, refreshProgressQueue]);
   const [now, setNow] = useState(() => new Date());
   const [newWorkPopup, setNewWorkPopup] = useState<{ count: number; petitionNos: string[] } | null>(null);
+  const [queuePageTick, setQueuePageTick] = useState(0);
   const previousNewIdsRef = useRef<Set<string>>(new Set());
   const initializedNewIdsRef = useRef(false);
   const popupTimerRef = useRef<number | null>(null);
@@ -392,6 +394,27 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
       items: allItems.filter((petition) => group.statuses.includes(queueStatusFor(petition, mode))),
     }));
   }, [allItems, config.groups, mode]);
+
+  const hasOverflowingGroup = useMemo(
+    () => itemsByGroup.some((group) => group.items.length > MAX_ITEMS_PER_GROUP),
+    [itemsByGroup],
+  );
+
+  useEffect(() => {
+    setQueuePageTick(0);
+  }, [mode]);
+
+  useEffect(() => {
+    if (!hasOverflowingGroup) {
+      setQueuePageTick(0);
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setQueuePageTick((tick) => tick + 1);
+    }, QUEUE_PAGE_MS);
+    return () => window.clearInterval(timer);
+  }, [hasOverflowingGroup]);
 
   const newGroupItems = useMemo(() => {
     return itemsByGroup.find((group) => group.id === "new")?.items ?? [];
@@ -533,8 +556,12 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
           <div className="grid grid-cols-3 gap-5">
             {itemsByGroup.map((group) => {
               const GroupIcon = group.icon;
-              const visibleItems = group.items.slice(0, MAX_ITEMS_PER_GROUP);
-              const hiddenCount = Math.max(group.items.length - visibleItems.length, 0);
+              const totalPages = Math.ceil(group.items.length / MAX_ITEMS_PER_GROUP);
+              const currentPageIndex = totalPages > 1 ? queuePageTick % totalPages : 0;
+              const firstVisibleIndex = currentPageIndex * MAX_ITEMS_PER_GROUP;
+              const visibleItems = group.items.slice(firstVisibleIndex, firstVisibleIndex + MAX_ITEMS_PER_GROUP);
+              const pageStart = firstVisibleIndex + 1;
+              const pageEnd = firstVisibleIndex + visibleItems.length;
 
               return (
                 <section key={group.id} className="min-h-[620px] rounded-lg border border-primary-100 bg-white/70">
@@ -581,9 +608,9 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
                         );
                       })
                     )}
-                    {hiddenCount > 0 && (
-                      <div className="rounded-lg bg-primary px-4 py-3 text-center text-xl font-semibold text-primary-foreground">
-                        อีก {hiddenCount} รายการ
+                    {totalPages > 1 && visibleItems.length > 0 && (
+                      <div className="rounded-lg border border-primary-100 bg-primary-50 px-4 py-3 text-center text-base font-semibold text-primary-700">
+                        แสดง {pageStart}-{pageEnd} จาก {group.items.length} รายการ • วนหน้า {currentPageIndex + 1}/{totalPages} อัตโนมัติ
                       </div>
                     )}
                   </div>

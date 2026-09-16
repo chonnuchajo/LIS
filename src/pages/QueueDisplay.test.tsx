@@ -1,5 +1,5 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import QueueDisplay from "./QueueDisplay";
 import { usePetitionList } from "@/hooks/usePetition";
 import { api } from "@/lib/api";
@@ -40,6 +40,16 @@ const petition = {
   qcCompletedAt: "2026-09-11T10:04:10.860Z",
 } as Petition;
 
+function makeQueuePetition(index: number): Petition {
+  return {
+    ...petition,
+    _id: `petition-${index}`,
+    petitionNo: `P-2609-${String(index).padStart(4, "0")}`,
+    status: "sampleSent",
+    updatedAt: `2026-09-11T10:${String(60 - index).padStart(2, "0")}:10.866Z`,
+  } as Petition;
+}
+
 describe("QueueDisplay", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -69,6 +79,10 @@ describe("QueueDisplay", () => {
     mockedApi.getReturnedFlags.mockResolvedValue({});
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("shows stale received deliveringQC petitions in the QC progress column", async () => {
     render(<QueueDisplay mode="qc" />);
 
@@ -94,5 +108,35 @@ describe("QueueDisplay", () => {
     render(<QueueDisplay mode="lab" />);
 
     expect(mockedUsePetitionList).toHaveBeenCalledWith({ page: 1, limit: 200, status: "sampleSent" });
+  });
+
+  it("cycles overflowing queue columns automatically so every petition is shown", async () => {
+    vi.useFakeTimers();
+    const queueItems = Array.from({ length: 10 }, (_, index) => makeQueuePetition(index + 1));
+
+    mockedUsePetitionList.mockImplementation((params) => {
+      const statuses = params.status?.split(",") ?? [];
+      const items = statuses.includes("sampleSent") ? queueItems : [];
+      return {
+        data: { items, total: items.length, page: 1, limit: 100 },
+        loading: false,
+        error: null,
+        refresh: vi.fn(),
+      };
+    });
+
+    render(<QueueDisplay mode="lab" />);
+
+    expect(screen.getByText("P-2609-0001")).toBeInTheDocument();
+    expect(screen.queryByText("P-2609-0010")).not.toBeInTheDocument();
+    expect(screen.getByText("แสดง 1-9 จาก 10 รายการ • วนหน้า 1/2 อัตโนมัติ")).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(8_000);
+    });
+
+    expect(screen.getByText("P-2609-0010")).toBeInTheDocument();
+    expect(screen.queryByText("P-2609-0001")).not.toBeInTheDocument();
+    expect(screen.getByText("แสดง 10-10 จาก 10 รายการ • วนหน้า 2/2 อัตโนมัติ")).toBeInTheDocument();
   });
 });
