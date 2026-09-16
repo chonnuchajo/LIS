@@ -27,6 +27,18 @@ test('bellDescribe: created ใช้ถ้อยคำร่วมกับ LIN
   assert.match(d.message, / · /); // หลายบรรทัดถูกรวบด้วย " · "
 });
 
+test('bellDescribe: assigned ในกระดิ่งบอกว่ามอบหมายให้คุณแล้ว ไม่แสดงชื่อผู้รับผิดชอบซ้ำ', () => {
+  const d = bellDescribe(
+    { ...petition, petitionNo: 'P-2609-0013', items: [{ batchNo: '326', sampleName: 'โบร์แลน' }] },
+    { event: 'assigned', metadata: { assignee: { employeeId: 'E200', name: 'Dev Lab Analyst', department: 'Lab วิเคราะห์' } } },
+  );
+
+  assert.deepStrictEqual(d.audiences, ['lab']);
+  assert.strictEqual(d.targetEmployeeId, 'E200');
+  assert.strictEqual(d.title, 'มอบหมายงาน P-2609-0013 ให้คุณแล้ว');
+  assert.strictEqual(d.message, 'ตัวอย่าง: 1 รายการ · โบร์แลน');
+});
+
 test('bellDescribe: received — LINE ไม่ส่ง แต่กระดิ่งส่ง โดยดู side จาก metadata', () => {
   const d = bellDescribe(petition, { event: 'received', metadata: { side: 'lab' } });
   assert.deepStrictEqual(d.audiences, ['lab']);
@@ -101,6 +113,12 @@ test('isRelevant: audience ตัดกัน → true', () => {
   const desc = { audiences: ['qc'], title: 't' };
   assert.strictEqual(isRelevant(desc, petition, { audiences: ['qc'], employeeId: 'E999' }), true);
   assert.strictEqual(isRelevant(desc, petition, { audiences: ['lab'], employeeId: 'E999' }), false);
+});
+
+test('isRelevant: assigned notification ที่ระบุ targetEmployeeId เห็นเฉพาะคนถูกมอบหมาย', () => {
+  const desc = { audiences: ['lab'], title: 't', targetEmployeeId: 'E200' };
+  assert.strictEqual(isRelevant(desc, petition, { audiences: ['lab'], employeeId: 'E200' }), true);
+  assert.strictEqual(isRelevant(desc, petition, { audiences: ['lab'], employeeId: 'E201' }), false);
 });
 
 test('isRelevant: งานที่ตัวเองถือ / คำขอที่ตัวเองยื่น → true แม้ audience ไม่ตรง', () => {

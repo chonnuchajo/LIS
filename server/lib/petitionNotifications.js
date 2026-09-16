@@ -5,7 +5,7 @@
 // LINE groups can never drift apart. The bell tolerates finer-grained events than a
 // LINE group does, so the two events describeEvent deliberately skips (received /
 // resultEntered) get a bell-only fallback here.
-const { assigneeSide, describeEvent } = require('./lineNotify');
+const { assigneeSide, describeEvent, itemsSummary } = require('./lineNotify');
 const { hasLabTrack } = require('./petitionStatusLog');
 const { requiresQcTrack } = require('./petitionSubmissionRules');
 
@@ -25,6 +25,17 @@ function bothSides(petition) {
 
 function bellDescribe(petition, log) {
   const shared = describeEvent(petition, log);
+  if (shared && log?.event === 'assigned') {
+    const no = petition?.petitionNo || log?.petitionNo || '(ไม่ทราบเลข)';
+    const assignee = log?.metadata?.assignee || petition?.assignedTo;
+    const targetEmployeeId = String(assignee?.employeeId || '').trim() || undefined;
+    return {
+      audiences: shared.audiences,
+      targetEmployeeId,
+      title: `มอบหมายงาน ${no} ให้คุณแล้ว`,
+      message: `ตัวอย่าง: ${itemsSummary(petition)}`,
+    };
+  }
   if (shared) return { audiences: shared.audiences, ...splitText(shared.text) };
 
   const no = petition?.petitionNo || log?.petitionNo || '(ไม่ทราบเลข)';
@@ -87,6 +98,9 @@ function isCollapsibleDuplicate(log, seenPetitionIds) {
 // Does this viewer care? Audience match OR it is their own job.
 function isRelevant(desc, petition, viewer) {
   if (viewer?.seeAll) return true;
+  if (desc?.targetEmployeeId) {
+    return String(viewer?.employeeId || '').trim() === String(desc.targetEmployeeId).trim();
+  }
   const mine = viewer?.audiences || [];
   if ((desc?.audiences || []).some((a) => mine.includes(a))) return true;
 
