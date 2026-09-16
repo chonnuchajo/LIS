@@ -40,7 +40,7 @@ type QueueConfig = {
 
 const REFRESH_MS = 5_000;
 const MAX_ITEMS_PER_COLUMN = 3;
-const QUEUE_PAGE_MS = 8_000;
+const QUEUE_PAGE_MS = 10_000;
 const NEW_WORK_ALERT_MS = 10_000;
 const NEW_SAMPLE_SOUND_URL = `${import.meta.env.BASE_URL}sound/new.mp3`;
 
@@ -579,9 +579,13 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
               const totalPages = Math.ceil(group.items.length / MAX_ITEMS_PER_COLUMN);
               const currentPageIndex = totalPages > 1 ? queuePageTick % totalPages : 0;
               const firstVisibleIndex = currentPageIndex * MAX_ITEMS_PER_COLUMN;
-              const visibleItems = group.items.slice(firstVisibleIndex, firstVisibleIndex + MAX_ITEMS_PER_COLUMN);
+              const currentPageItems = group.items.slice(firstVisibleIndex, firstVisibleIndex + MAX_ITEMS_PER_COLUMN);
+              const itemPages = Array.from({ length: totalPages }, (_, pageIndex) => {
+                const pageStartIndex = pageIndex * MAX_ITEMS_PER_COLUMN;
+                return group.items.slice(pageStartIndex, pageStartIndex + MAX_ITEMS_PER_COLUMN);
+              });
               const pageStart = firstVisibleIndex + 1;
-              const pageEnd = firstVisibleIndex + visibleItems.length;
+              const pageEnd = firstVisibleIndex + currentPageItems.length;
               const subtitle =
                 totalPages > 1
                   ? `${group.subtitle} • แสดง ${pageStart}-${pageEnd} จาก ${group.items.length} รายการ • วนหน้า ${currentPageIndex + 1}/${totalPages} อัตโนมัติ`
@@ -603,13 +607,28 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
                   </div>
 
                   <div className="space-y-3 p-4">
-                    {visibleItems.length === 0 ? (
+                    {currentPageItems.length === 0 ? (
                       <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/70 text-2xl font-semibold text-slate-400">
                         ไม่มีรายการ
                       </div>
                     ) : (
-                      <div key={`${group.id}-${currentPageIndex}`} className="space-y-3 animate-in slide-in-from-right-4 duration-500">
-                        {visibleItems.map(renderQueueCard)}
+                      <div className="overflow-hidden">
+                        <div
+                          className="flex transition-transform duration-1000 ease-in-out will-change-transform motion-reduce:transition-none"
+                          style={{ transform: `translateX(-${currentPageIndex * 100}%)` }}
+                        >
+                          {itemPages.map((pageItems, pageIndex) => (
+                            <div
+                              key={`${group.id}-${pageIndex}`}
+                              role={pageIndex === currentPageIndex ? "group" : undefined}
+                              aria-label={pageIndex === currentPageIndex ? `${group.title} หน้า ${pageIndex + 1}` : undefined}
+                              aria-hidden={pageIndex !== currentPageIndex}
+                              className="w-full shrink-0 space-y-3"
+                            >
+                              {pageItems.map(renderQueueCard)}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>

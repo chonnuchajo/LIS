@@ -130,17 +130,23 @@ describe("QueueDisplay", () => {
     expect(screen.getByRole("heading", { name: "ตัวอย่างใหม่" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "กำลังดำเนินการ" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "เรียบร้อยแล้ว" })).toBeInTheDocument();
-    expect(screen.getByText("P-2609-0001")).toBeInTheDocument();
-    expect(screen.getByText("P-2609-0003")).toBeInTheDocument();
-    expect(screen.queryByText("P-2609-0004")).not.toBeInTheDocument();
+    const firstPage = screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 1" });
+    expect(within(firstPage).getByText("P-2609-0001")).toBeInTheDocument();
+    expect(within(firstPage).getByText("P-2609-0003")).toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(8_000);
     });
 
-    expect(screen.queryByText("P-2609-0001")).not.toBeInTheDocument();
-    expect(screen.getByText("P-2609-0004")).toBeInTheDocument();
-    expect(screen.getByText("P-2609-0006")).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 1" })).getByText("P-2609-0001")).toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(2_000);
+    });
+
+    const secondPage = screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 2" });
+    expect(within(secondPage).getByText("P-2609-0004")).toBeInTheDocument();
+    expect(within(secondPage).getByText("P-2609-0006")).toBeInTheDocument();
   });
 
   it("cycles overflowing queue columns automatically so every petition is shown", async () => {
@@ -160,18 +166,16 @@ describe("QueueDisplay", () => {
 
     render(<QueueDisplay mode="lab" />);
 
-    expect(screen.getByText("P-2609-0001")).toBeInTheDocument();
-    expect(screen.getByText("P-2609-0003")).toBeInTheDocument();
-    expect(screen.queryByText("P-2609-0004")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 1" })).getByText("P-2609-0001")).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 1" })).getByText("P-2609-0003")).toBeInTheDocument();
     expect(screen.getByText(/แสดง 1-3 จาก 10 รายการ • วนหน้า 1\/4 อัตโนมัติ/)).toBeInTheDocument();
 
     await act(async () => {
-      vi.advanceTimersByTime(8_000);
+      vi.advanceTimersByTime(10_000);
     });
 
-    expect(screen.getByText("P-2609-0004")).toBeInTheDocument();
-    expect(screen.getByText("P-2609-0006")).toBeInTheDocument();
-    expect(screen.queryByText("P-2609-0001")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 2" })).getByText("P-2609-0004")).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 2" })).getByText("P-2609-0006")).toBeInTheDocument();
     expect(screen.getByText(/แสดง 4-6 จาก 10 รายการ • วนหน้า 2\/4 อัตโนมัติ/)).toBeInTheDocument();
   });
 });
