@@ -202,7 +202,8 @@ describe("QueueDisplay", () => {
 
     expect(within(screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 1" })).getByText("P-2609-0001")).toBeInTheDocument();
     expect(within(screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 1" })).getByText("P-2609-0003")).toBeInTheDocument();
-    expect(screen.getByText(/แสดง 1-3 จาก 10 รายการ • วนหน้า 1\/4 อัตโนมัติ/)).toBeInTheDocument();
+    expect(screen.getByText(/หน้า 1\/4/)).toBeInTheDocument();
+    expect(screen.queryByText(/แสดง 1-3 จาก 10 รายการ/)).not.toBeInTheDocument();
 
     await act(async () => {
       vi.advanceTimersByTime(10_000);
@@ -210,6 +211,7 @@ describe("QueueDisplay", () => {
 
     expect(within(screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 2" })).getByText("P-2609-0004")).toBeInTheDocument();
     expect(within(screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 2" })).getByText("P-2609-0006")).toBeInTheDocument();
-    expect(screen.getByText(/แสดง 4-6 จาก 10 รายการ • วนหน้า 2\/4 อัตโนมัติ/)).toBeInTheDocument();
+    expect(screen.getByText(/หน้า 2\/4/)).toBeInTheDocument();
+    expect(screen.queryByText(/แสดง 4-6 จาก 10 รายการ/)).not.toBeInTheDocument();
   });
 });

@@ -597,11 +597,9 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
                 const pageStartIndex = pageIndex * MAX_ITEMS_PER_COLUMN;
                 return group.items.slice(pageStartIndex, pageStartIndex + MAX_ITEMS_PER_COLUMN);
               });
-              const pageStart = firstVisibleIndex + 1;
-              const pageEnd = firstVisibleIndex + currentPageItems.length;
               const subtitle =
                 totalPages > 1
-                  ? `${group.subtitle} • แสดง ${pageStart}-${pageEnd} จาก ${group.items.length} รายการ • วนหน้า ${currentPageIndex + 1}/${totalPages} อัตโนมัติ`
+                  ? `${group.subtitle} • หน้า ${currentPageIndex + 1}/${totalPages}`
                   : group.subtitle;
 
               return (
