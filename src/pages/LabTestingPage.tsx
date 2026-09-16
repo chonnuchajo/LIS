@@ -34,7 +34,7 @@ import PetitionStatusTimeline from '@/components/lis/PetitionStatusTimeline';
 import { labReceivedAt, labReceivedBy, labTrackStatusBadge } from '@/lib/receiveStatus';
 import LabScanAcceptModal from '@/components/petition/LabScanAcceptModal';
 import { normalizeRoles } from '@/lib/roles';
-import { isAssignedTo } from '@/lib/assignment';
+import { assigneeNamesForUser, isAssignedTo } from '@/lib/assignment';
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
 import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
 import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
@@ -68,7 +68,7 @@ export default function LabTestingPage() {
   const flashId = useArrivalFlashId();
   const isFullAccess = normalizeRoles(user).some((r) => FULL_ACCESS_ROLES.has(r));
   const assignedToEmployeeId = !isFullAccess ? user?.employeeId?.trim() || undefined : undefined;
-  const assignedToName = !isFullAccess ? user?.name?.trim() || undefined : undefined;
+  const assignedToNames = !isFullAccess ? assigneeNamesForUser(user) : undefined;
   const [search, setSearch] = useState('');
   const [dept, setDept] = useState<PetitionDept | ''>('');
   const [scanOpen, setScanOpen] = useState(false);
@@ -96,7 +96,7 @@ export default function LabTestingPage() {
     search,
     dept: dept || undefined,
     assignedToEmployeeId,
-    assignedToName,
+    assignedToNames,
     limit: 50,
   });
 

@@ -16,12 +16,12 @@ const mocks = vi.hoisted(() => {
       submittedAt: '2026-09-16T01:00:00.000Z',
     },
     assignedTo: {
-      employeeId: 'E123',
-      name: 'Analyst A',
+      employeeId: 'DEV-lab-analyst-dept-lab-2s2',
+      name: 'Dev Lab Analyst',
       assignedAt: '2026-09-16T02:00:00.000Z',
     },
     labReceivedAt: '2026-09-16T02:30:00.000Z',
-    labReceivedBy: 'Analyst A',
+    labReceivedBy: 'Dev Lab Analyst',
     items: [
       {
         seq: 1,
@@ -50,10 +50,10 @@ const mocks = vi.hoisted(() => {
     ]),
     getReturnedFlags: vi.fn(async () => ({ 'petition-assigned-to-current-user': false })),
     user: {
-      employeeId: 'E123',
+      employeeId: 'DEV-lab-analyze-dept-lab-2s2',
       email: 'analyst@example.test',
-      name: 'Analyst A',
-      roles: ['lab-analyst'],
+      name: 'Dev Lab Analyze',
+      roles: ['lab-analyze'],
     },
   };
 });
@@ -75,8 +75,9 @@ vi.mock('@/hooks/useItemGroupMembership', () => ({
 }));
 
 vi.mock('@/hooks/usePetition', () => ({
-  usePetitionList: (params: { assignedToEmployeeId?: string; assignedToName?: string }) => {
-    const items = params.assignedToEmployeeId === 'E123' && params.assignedToName === 'Analyst A'
+  usePetitionList: (params: { assignedToEmployeeId?: string; assignedToNames?: string[] }) => {
+    const items = params.assignedToEmployeeId === 'DEV-lab-analyze-dept-lab-2s2'
+      && params.assignedToNames?.includes('Dev Lab Analyst')
       ? [mocks.assignedPetition]
       : [];
     return {

@@ -101,7 +101,7 @@ describe('usePetitionList auto-refetch', () => {
         limit: 50,
         status: 'sampleSent,pendingReview,inProgress',
         assignedToEmployeeId: 'E123',
-        assignedToName: 'Analyst A',
+        assignedToNames: ['Analyst A', 'Analyst Alias'],
       }),
     );
 
@@ -109,7 +109,7 @@ describe('usePetitionList auto-refetch', () => {
 
     const requestedUrl = new URL(String(fetchMock.mock.calls[0][0]), 'http://localhost');
     expect(requestedUrl.searchParams.get('assignedToEmployeeId')).toBe('E123');
-    expect(requestedUrl.searchParams.get('assignedToName')).toBe('Analyst A');
+    expect(requestedUrl.searchParams.getAll('assignedToName')).toEqual(['Analyst A', 'Analyst Alias']);
   });
 });
 

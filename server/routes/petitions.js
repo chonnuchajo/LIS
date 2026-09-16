@@ -67,6 +67,14 @@ function machineTypeOf(machine) {
   return '';
 }
 
+function queryStringList(value) {
+  const raw = Array.isArray(value) ? value : [value];
+  return raw
+    .flatMap((entry) => String(entry || '').split(','))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 async function matchStandardTime(machine) {
   const commonName = normalizeAnalysisName(machine.commonName);
   const machineType = machineTypeOf(machine);
@@ -95,20 +103,19 @@ router.get('/', async (req, res) => {
     const dept = req.query.dept;
     const search = (req.query.search || '').trim();
     const assignedToEmployeeId = String(req.query.assignedToEmployeeId || '').trim();
-    const assignedToName = String(req.query.assignedToName || '').trim();
+    const assignedToNames = queryStringList(req.query.assignedToName);
 
     const q = {};
     if (dept && ['production', 'rm', 'fg'].includes(String(dept))) q.dept = dept;
     const andConditions = [];
-    if (assignedToEmployeeId && assignedToName) {
+    const assigneeConditions = [];
+    if (assignedToEmployeeId) assigneeConditions.push({ 'assignedTo.employeeId': assignedToEmployeeId });
+    assignedToNames.forEach((name) => assigneeConditions.push({ 'assignedTo.name': name }));
+    if (assigneeConditions.length > 1) {
       andConditions.push({
-        $or: [
-          { 'assignedTo.employeeId': assignedToEmployeeId },
-          { 'assignedTo.name': assignedToName },
-        ],
+        $or: assigneeConditions,
       });
-    } else if (assignedToEmployeeId) q['assignedTo.employeeId'] = assignedToEmployeeId;
-    else if (assignedToName) q['assignedTo.name'] = assignedToName;
+    } else if (assigneeConditions.length === 1) Object.assign(q, assigneeConditions[0]);
     if (search) {
       const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
       andConditions.push({
