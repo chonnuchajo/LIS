@@ -55,8 +55,9 @@ describe("QueueDisplay", () => {
   it("calculates visible queue rows from the available column height", () => {
     expect(calculateQueueItemsPerColumn(240)).toBe(1);
     expect(calculateQueueItemsPerColumn(380)).toBe(2);
+    expect(calculateQueueItemsPerColumn(476)).toBe(3);
     expect(calculateQueueItemsPerColumn(560)).toBe(3);
-    expect(calculateQueueItemsPerColumn(736)).toBe(4);
+    expect(calculateQueueItemsPerColumn(736)).toBe(5);
   });
 
   beforeEach(() => {

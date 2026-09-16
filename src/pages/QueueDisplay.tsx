@@ -182,11 +182,11 @@ function QueueCard({
     : "";
 
   return (
-    <article className="rounded-lg border border-primary-100 bg-white p-4 shadow-sm">
+    <article className="rounded-lg border border-primary-100 bg-white px-4 py-3 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate text-2xl font-bold text-primary-700">{petition.petitionNo}</span>
+            <span className="truncate text-xl font-bold text-primary-700">{petition.petitionNo}</span>
             {returned && (
               <RotateCcw
                 className="h-5 w-5 shrink-0 text-orange-500"
@@ -194,7 +194,7 @@ function QueueCard({
               />
             )}
           </div>
-          <div className="mt-1 truncate text-base font-medium text-slate-700">
+          <div className="mt-1 truncate text-sm font-medium text-slate-700">
             {getSampleSummary(petition)}
           </div>
         </div>
@@ -203,21 +203,21 @@ function QueueCard({
         </Badge>
       </div>
 
-      <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t border-slate-100 pt-3">
+      <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-t border-slate-100 pt-2">
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold text-slate-800">{petition.submittedBy?.name ?? '-'}</div>
           <div className="truncate text-sm text-slate-500">{petitionDepartmentLabel(petition)}</div>
         </div>
         <div className="text-right">
-          <div className="text-lg font-bold text-primary-700">{updated.time}</div>
+          <div className="text-base font-bold text-primary-700">{updated.time}</div>
           <div className="text-xs text-slate-500">{updated.date}</div>
         </div>
       </div>
 
       {showBar && (
-        <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-3">
+        <div className="mt-2 flex items-center gap-3 border-t border-slate-100 pt-2">
           <div
-            className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-slate-100"
+            className="relative h-2 flex-1 overflow-hidden rounded-full bg-slate-100"
             role="progressbar"
             aria-valuenow={progress.percent}
             aria-valuemin={0}
