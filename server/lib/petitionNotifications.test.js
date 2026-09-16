@@ -288,6 +288,27 @@ test('toNotification: assigned ฝั่ง Lab เล่นเสียงเ�
   );
 });
 
+test('toNotification: role-sourced Dev Administrator lab assignment gets labAssigned sound', () => {
+  const log = {
+    _id: 'log-dev-admin-assigned',
+    petitionId: 'p1',
+    event: 'assigned',
+    createdAt: '2026-08-01T02:00:00.000Z',
+    metadata: { assignee: { employeeId: 'dev', name: 'Dev Administrator', department: 'Lab/วิเคราะห์', position: 'Lab Analyst' } },
+  };
+  const assigned = { ...petition, assignedTo: log.metadata.assignee };
+
+  const notification = toNotification(
+    assigned,
+    log,
+    { audiences: ['lab'], title: '👤 มอบหมายงาน P-2606-0018' },
+    { employeeId: 'dev', audiences: ['lab'] },
+  );
+
+  assert.strictEqual(notification.playSound, true);
+  assert.strictEqual(notification.sound, 'labAssigned');
+});
+
 // Finding 1: resultEntered fires once per form field (qcResultAuditEvent logs every
 // field), so a burst of rows for one petition must collapse to just the newest — or
 // it fills the capped /notifications response and crowds out real milestones.
