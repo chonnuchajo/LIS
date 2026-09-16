@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Clock, FlaskConical, RefreshCw, RotateCcw, ShieldCheck, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -120,6 +120,19 @@ const QUEUE_CONFIG: Record<QueueMode, QueueConfig> = {
   },
 };
 
+const QUEUE_STATUS_QUERIES: Record<QueueMode, Record<QueueGroup["id"], string>> = {
+  lab: {
+    new: "sampleSent",
+    progress: "pendingReview,inProgress",
+    done: "success",
+  },
+  qc: {
+    new: "sampleSent",
+    progress: "pendingReview,inProgress,deliveringQC",
+    done: "success",
+  },
+};
+
 function formatDateTime(value: string) {
   const date = new Date(value);
   return {
@@ -230,7 +243,32 @@ function QueueCard({
 export default function QueueDisplay({ mode }: { mode: QueueMode }) {
   const config = QUEUE_CONFIG[mode];
   const HeaderIcon = config.icon;
-  const { data, loading, error, refresh } = usePetitionList({ page: 1, limit: 200 });
+  const statusQueries = QUEUE_STATUS_QUERIES[mode];
+  const {
+    data: newQueueData,
+    loading: newQueueLoading,
+    error: newQueueError,
+    refresh: refreshNewQueue,
+  } = usePetitionList({ page: 1, limit: 200, status: statusQueries.new });
+  const {
+    data: progressQueueData,
+    loading: progressQueueLoading,
+    error: progressQueueError,
+    refresh: refreshProgressQueue,
+  } = usePetitionList({ page: 1, limit: 200, status: statusQueries.progress });
+  const {
+    data: doneQueueData,
+    loading: doneQueueLoading,
+    error: doneQueueError,
+    refresh: refreshDoneQueue,
+  } = usePetitionList({ page: 1, limit: 200, status: statusQueries.done });
+  const loading = newQueueLoading || progressQueueLoading || doneQueueLoading;
+  const error = newQueueError ?? progressQueueError ?? doneQueueError;
+  const refresh = useCallback(() => {
+    refreshNewQueue();
+    refreshProgressQueue();
+    refreshDoneQueue();
+  }, [refreshDoneQueue, refreshNewQueue, refreshProgressQueue]);
   const [now, setNow] = useState(() => new Date());
   const [newWorkPopup, setNewWorkPopup] = useState<{ count: number; petitionNos: string[] } | null>(null);
   const previousNewIdsRef = useRef<Set<string>>(new Set());
@@ -269,19 +307,28 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
 
   const allItems = useMemo(() => {
     const groupStatuses = config.groups.flatMap((group) => group.statuses);
-    return (data?.items ?? [])
+    const petitionsById = new Map<string, Petition>();
+    for (const petition of [
+      ...(newQueueData?.items ?? []),
+      ...(progressQueueData?.items ?? []),
+      ...(doneQueueData?.items ?? []),
+    ]) {
+      petitionsById.set(petition._id, petition);
+    }
+
+    return Array.from(petitionsById.values())
       .filter((petition) => groupStatuses.includes(queueStatusFor(petition, mode)))
       .filter((petition) => (mode === "lab" ? petitionHasLabItems(petition) : true))
       .filter((petition) =>
         // Only the "done" board resets per local day so finished samples don't
-        // pile up across days. New / in-progress rows stay visible regardless
+        // pile up across days. Waiting / in-progress rows stay visible regardless
         // of when they entered the queue.
         queueStatusFor(petition, mode) === "success"
           ? isSameLocalDay(petition.completedAt ?? petition.updatedAt, today)
           : true,
       )
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  }, [config.groups, data?.items, mode, today]);
+  }, [config.groups, doneQueueData?.items, mode, newQueueData?.items, progressQueueData?.items, today]);
 
   // Flag petitions that QC approval has sent back for re-entry. Re-fetches on
   // the same cadence as the petition list and keys off every visible petition

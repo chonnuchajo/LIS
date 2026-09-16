@@ -42,11 +42,16 @@ const petition = {
 
 describe("QueueDisplay", () => {
   beforeEach(() => {
-    mockedUsePetitionList.mockReturnValue({
-      data: { items: [petition], total: 1, page: 1, limit: 100 },
-      loading: false,
-      error: null,
-      refresh: vi.fn(),
+    vi.clearAllMocks();
+    mockedUsePetitionList.mockImplementation((params) => {
+      const statuses = params.status?.split(",") ?? [];
+      const items = statuses.includes(petition.status) ? [petition] : [];
+      return {
+        data: { items, total: items.length, page: 1, limit: 100 },
+        loading: false,
+        error: null,
+        refresh: vi.fn(),
+      };
     });
     mockedApi.getParameters.mockResolvedValue([
       {
@@ -83,5 +88,11 @@ describe("QueueDisplay", () => {
       expect(mockedApi.getQCProgress).toHaveBeenCalledWith([petition._id]);
     });
     expect(await screen.findByText("100%")).toBeInTheDocument();
+  });
+
+  it("loads Lab waiting samples from the sampleSent queue directly", () => {
+    render(<QueueDisplay mode="lab" />);
+
+    expect(mockedUsePetitionList).toHaveBeenCalledWith({ page: 1, limit: 200, status: "sampleSent" });
   });
 });
