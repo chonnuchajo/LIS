@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { AppPreferencesProvider } from "@/context/AppPreferencesContext";
 import UserProfileMenu from "../UserProfileMenu";
 
 const { toastError } = vi.hoisted(() => ({
@@ -21,9 +22,11 @@ vi.mock("sonner", () => ({
 
 function renderMenu() {
   return render(
-    <MemoryRouter initialEntries={["/home"]}>
-      <UserProfileMenu />
-    </MemoryRouter>,
+    <AppPreferencesProvider>
+      <MemoryRouter initialEntries={["/home"]}>
+        <UserProfileMenu />
+      </MemoryRouter>
+    </AppPreferencesProvider>,
   );
 }
 
@@ -147,6 +150,8 @@ describe("UserProfileMenu signature entry", () => {
     renderMenu();
 
     fireEvent.click(screen.getByRole("button", { name: "User profile" }));
+    expect(screen.queryByRole("button", { name: "เพิ่มลายเซ็น" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "ตั้งค่า" }));
 
     expect(screen.getByRole("button", { name: "เพิ่มลายเซ็น" })).toBeInTheDocument();
   });
@@ -172,6 +177,7 @@ describe("UserProfileMenu signature entry", () => {
     renderMenu();
 
     fireEvent.click(screen.getByRole("button", { name: "User profile" }));
+    fireEvent.click(screen.getByRole("button", { name: "ตั้งค่า" }));
 
     expect(screen.queryByRole("button", { name: "เพิ่มลายเซ็น" })).not.toBeInTheDocument();
   });
@@ -180,8 +186,25 @@ describe("UserProfileMenu signature entry", () => {
     renderMenu();
 
     fireEvent.click(screen.getByRole("button", { name: "User profile" }));
+    fireEvent.click(screen.getByRole("button", { name: "ตั้งค่า" }));
     fireEvent.click(screen.getByRole("button", { name: "เพิ่มลายเซ็น" }));
 
     expect(toastError).toHaveBeenCalledWith("โปรดเข้าใน Tablet, iPad หรือโทรศัพท์ของคุณ อุปกรณ์นี้ไม่รองรับ");
+  });
+
+  it("opens profile settings with display and notification sound controls", () => {
+    renderMenu();
+
+    fireEvent.click(screen.getByRole("button", { name: "User profile" }));
+    fireEvent.click(screen.getByRole("button", { name: "ตั้งค่า" }));
+
+    expect(screen.getByRole("dialog", { name: "ตั้งค่าโปรไฟล์" })).toBeInTheDocument();
+    expect(screen.getByLabelText("โหมดการแสดงผล")).toBeInTheDocument();
+    expect(screen.getByLabelText("ภาษาเว็บ")).toBeInTheDocument();
+    expect(screen.getByLabelText("ฟ้อนต์")).toBeInTheDocument();
+    expect(screen.getByLabelText("ขนาดฟ้อนต์")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "เสียงแจ้งเตือนทั้งหมด" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "ตัวอย่างใหม่เข้าระบบ" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "งาน Lab ใหม่" })).toBeChecked();
   });
 });

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
+import { AppPreferencesProvider } from "@/context/AppPreferencesContext";
 import AppLayout from "../AppLayout";
 
 vi.mock("@/components/lis/AppSidebar", () => ({
@@ -47,11 +48,13 @@ function renderLayout() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/home"]}>
-        <AppLayout>
-          <div>Page content</div>
-        </AppLayout>
-      </MemoryRouter>
+      <AppPreferencesProvider>
+        <MemoryRouter initialEntries={["/home"]}>
+          <AppLayout>
+            <div>Page content</div>
+          </AppLayout>
+        </MemoryRouter>
+      </AppPreferencesProvider>
     </QueryClientProvider>,
   );
 }

@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SampleProvider } from "@/context/SampleContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { AppPreferencesProvider } from "@/context/AppPreferencesContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { ConfirmProvider } from "@/context/ConfirmDialog";
 import DailyCheckReminderWatcher from "@/components/lis/DailyCheckReminderWatcher";
@@ -94,14 +95,15 @@ const queryClient = new QueryClient({
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <ConfirmProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter
-        basename={import.meta.env.BASE_URL}
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-      >
+    <AppPreferencesProvider>
+      <TooltipProvider>
+        <ConfirmProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter
+          basename={import.meta.env.BASE_URL}
+          future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+        >
         <RoutePointerLockGuard />
         <GlobalStockQrScanListener />
         <AuthProvider>
@@ -189,9 +191,10 @@ const App = () => (
             </SampleProvider>
           </NotificationProvider>
         </AuthProvider>
-      </BrowserRouter>
-      </ConfirmProvider>
-    </TooltipProvider>
+        </BrowserRouter>
+        </ConfirmProvider>
+      </TooltipProvider>
+    </AppPreferencesProvider>
   </QueryClientProvider>
 );
 

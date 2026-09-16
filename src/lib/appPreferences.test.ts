@@ -1,0 +1,53 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  DEFAULT_APP_PREFERENCES,
+  applyAppPreferences,
+  isNotificationSoundEnabled,
+  readAppPreferences,
+  writeAppPreferences,
+} from "./appPreferences";
+
+describe("appPreferences", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.className = "";
+    document.documentElement.lang = "";
+    document.documentElement.style.cssText = "";
+  });
+
+  it("reads defaults when nothing is saved", () => {
+    expect(readAppPreferences()).toEqual(DEFAULT_APP_PREFERENCES);
+  });
+
+  it("applies display preferences to the document", () => {
+    applyAppPreferences({
+      ...DEFAULT_APP_PREFERENCES,
+      fontFamily: "sarabun",
+      fontSize: "large",
+      language: "en",
+      theme: "dark",
+    });
+
+    expect(document.documentElement).toHaveClass("dark");
+    expect(document.documentElement.lang).toBe("en");
+    expect(document.documentElement.style.getPropertyValue("--lis-font-family")).toContain("Sarabun");
+    expect(document.documentElement.style.fontSize).toBe("17px");
+  });
+
+  it("respects global and per-sound notification settings", () => {
+    writeAppPreferences({
+      ...DEFAULT_APP_PREFERENCES,
+      notificationSounds: { ...DEFAULT_APP_PREFERENCES.notificationSounds, labAssigned: false },
+    });
+
+    expect(isNotificationSoundEnabled("sampleArrival")).toBe(true);
+    expect(isNotificationSoundEnabled("labAssigned")).toBe(false);
+
+    writeAppPreferences({
+      ...DEFAULT_APP_PREFERENCES,
+      soundEnabled: false,
+    });
+
+    expect(isNotificationSoundEnabled("sampleArrival")).toBe(false);
+  });
+});
