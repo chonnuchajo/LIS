@@ -561,16 +561,16 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
   };
 
   return (
-    <main className="flex h-screen flex-col overflow-hidden bg-primary-50 text-slate-800">
+    <main className="flex min-h-screen flex-col overflow-x-hidden bg-primary-50 text-slate-800 lg:h-screen lg:overflow-hidden">
       {newWorkPopup && (
-        <div className="fixed inset-x-0 top-8 z-50 flex justify-center px-6">
-          <div className="flex min-w-[420px] max-w-[720px] items-center gap-5 rounded-lg border border-primary-200 bg-white px-7 py-5 shadow-xl">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Sparkles className="h-9 w-9" />
+        <div className="fixed inset-x-0 top-4 z-50 flex justify-center px-3 sm:top-8 sm:px-6">
+          <div className="flex w-full max-w-[720px] items-center gap-3 rounded-lg border border-primary-200 bg-white px-4 py-4 shadow-xl sm:w-auto sm:min-w-[420px] sm:gap-5 sm:px-7 sm:py-5">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground sm:h-16 sm:w-16">
+              <Sparkles className="h-7 w-7 sm:h-9 sm:w-9" />
             </div>
             <div className="min-w-0">
-              <div className="text-3xl font-bold text-primary-700">มีงานใหม่</div>
-              <div className="mt-1 truncate text-xl text-slate-600">
+              <div className="text-2xl font-bold text-primary-700 sm:text-3xl">มีงานใหม่</div>
+              <div className="mt-1 truncate text-base text-slate-600 sm:text-xl">
                 {config.title}: {newWorkPopup.count} รายการ
                 {newWorkPopup.petitionNos.length > 0 ? ` (${newWorkPopup.petitionNos.join(", ")})` : ""}
               </div>
@@ -579,54 +579,54 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
         </div>
       )}
 
-      <header className="shrink-0 border-b border-primary-100 bg-white px-10 py-6 shadow-sm">
-        <div className="flex items-center justify-between gap-8">
-        <div className="flex min-w-0 items-center gap-5">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-primary-100 bg-white p-2 shadow-sm">
+      <header className="shrink-0 border-b border-primary-100 bg-white px-4 py-4 shadow-sm sm:px-6 lg:px-10 lg:py-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+        <div className="flex min-w-0 items-center gap-3 sm:gap-5">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-primary-100 bg-white p-2 shadow-sm sm:h-20 sm:w-20">
             <img
               src={ICP_LADDA_LOGO_URL}
               alt="ICP Ladda"
               className="h-full w-full object-contain"
             />
           </div>
-          <div className={cn("flex h-16 w-16 shrink-0 items-center justify-center rounded-lg", config.accent)}>
-            <HeaderIcon className="h-9 w-9" />
+          <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-lg sm:h-16 sm:w-16", config.accent)}>
+            <HeaderIcon className="h-7 w-7 sm:h-9 sm:w-9" />
           </div>
           <div className="min-w-0">
-            <h1 className="truncate text-5xl font-bold tracking-normal text-primary-700">{config.title}</h1>
-            <p className="mt-2 truncate text-2xl text-slate-600">{config.subtitle}</p>
+            <h1 className="truncate text-3xl font-bold tracking-normal text-primary-700 sm:text-5xl">{config.title}</h1>
+            <p className="mt-1 line-clamp-2 text-base text-slate-600 sm:mt-2 sm:truncate sm:text-2xl">{config.subtitle}</p>
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-5xl font-bold leading-none text-primary-700">{currentTime}</div>
-          <div className="mt-2 text-xl text-slate-600">{currentDate}</div>
+        <div className="text-left sm:text-right">
+          <div className="text-4xl font-bold leading-none text-primary-700 sm:text-5xl">{currentTime}</div>
+          <div className="mt-2 text-base text-slate-600 sm:text-xl">{currentDate}</div>
         </div>
         </div>
       </header>
 
-      <section className="flex shrink-0 items-center justify-between border-b border-primary-100 bg-white px-10 py-5">
+      <section className="flex shrink-0 flex-col gap-4 border-b border-primary-100 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-10 lg:py-5">
         <div className="rounded-lg bg-primary-50 px-5 py-3">
           <div className="text-lg text-slate-500">ในคิว</div>
           <div className="text-4xl font-bold text-primary-700">{allItems.length}</div>
         </div>
-        <div className="flex items-center gap-2 text-xl text-slate-600">
+        <div className="flex items-center gap-2 text-base text-slate-600 sm:text-xl">
           <RefreshCw className="h-5 w-5" />
           อัปเดตอัตโนมัติทุก 5 วินาที
         </div>
       </section>
 
-      <section data-testid="queue-board" className="min-h-0 flex-1 overflow-hidden px-10 py-6">
+      <section data-testid="queue-board" className="min-h-0 flex-1 px-3 py-4 sm:px-6 lg:overflow-hidden lg:px-10 lg:py-6">
         {loading ? (
-          <div className="flex h-full min-h-0 items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white text-3xl text-slate-500">
-            <Clock className="h-8 w-8 animate-pulse" />
+          <div className="flex h-full min-h-[260px] flex-col items-center justify-center gap-3 rounded-lg border border-slate-200 bg-white px-4 text-center text-xl text-slate-500 sm:flex-row sm:text-3xl lg:min-h-0">
+            <Clock className="h-7 w-7 animate-pulse sm:h-8 sm:w-8" />
             กำลังโหลดรายการคิว...
           </div>
         ) : error ? (
-          <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-red-200 bg-white text-3xl font-semibold text-red-600">
+          <div className="flex h-full min-h-[260px] items-center justify-center rounded-lg border border-red-200 bg-white px-4 text-center text-xl font-semibold text-red-600 sm:text-3xl lg:min-h-0">
             โหลดรายการคิวไม่สำเร็จ: {error}
           </div>
         ) : (
-          <div className="grid h-full min-h-0 grid-cols-3 gap-5 overflow-hidden">
+          <div data-testid="queue-grid" className="grid min-h-0 grid-cols-1 gap-4 sm:gap-5 lg:h-full lg:grid-cols-3 lg:overflow-hidden">
             {itemsByGroup.map((group) => {
               const GroupIcon = group.icon;
               const totalPages = Math.ceil(group.items.length / itemsPerColumn);
@@ -643,16 +643,16 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
                   : group.subtitle;
 
               return (
-                <section key={group.id} className="flex h-full min-h-0 flex-col overflow-hidden rounded-lg border border-primary-100 bg-white/70">
-                  <div className={cn("flex items-center justify-between border-b px-5 py-4", group.tone)}>
-                    <div className="flex min-w-0 items-center gap-3">
-                      <GroupIcon className="h-7 w-7 shrink-0" />
+                <section key={group.id} className="flex min-h-[360px] flex-col overflow-hidden rounded-lg border border-primary-100 bg-white/70 lg:h-full lg:min-h-0">
+                  <div className={cn("flex items-center justify-between border-b px-4 py-3 sm:px-5 sm:py-4", group.tone)}>
+                    <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                      <GroupIcon className="h-6 w-6 shrink-0 sm:h-7 sm:w-7" />
                       <div className="min-w-0">
-                        <h2 className="truncate text-3xl font-bold">{group.title}</h2>
-                        <p className="truncate text-base opacity-80">{subtitle}</p>
+                        <h2 className="truncate text-2xl font-bold sm:text-3xl">{group.title}</h2>
+                        <p className="truncate text-sm opacity-80 sm:text-base">{subtitle}</p>
                       </div>
                     </div>
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-white/80 text-3xl font-bold">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-white/80 text-2xl font-bold sm:h-14 sm:w-14 sm:text-3xl">
                       {group.items.length}
                     </div>
                   </div>
@@ -660,10 +660,10 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
                   <div
                     ref={(element) => { columnBodyRefs.current[group.id] = element; }}
                     data-testid={`queue-column-body-${group.id}`}
-                    className="min-h-0 flex-1 overflow-hidden p-4"
+                    className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4"
                   >
                     {currentPageItems.length === 0 ? (
-                      <div className="flex h-full min-h-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/70 text-2xl font-semibold text-slate-400">
+                      <div className="flex h-full min-h-[220px] items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/70 text-2xl font-semibold text-slate-400 lg:min-h-0">
                         ไม่มีรายการ
                       </div>
                     ) : (

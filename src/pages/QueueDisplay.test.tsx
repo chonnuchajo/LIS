@@ -139,8 +139,9 @@ describe("QueueDisplay", () => {
     expect(screen.getByRole("heading", { name: "ตัวอย่างใหม่" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "กำลังดำเนินการ" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "เรียบร้อยแล้ว" })).toBeInTheDocument();
-    expect(screen.getByRole("main")).toHaveClass("h-screen", "overflow-hidden");
-    expect(screen.getByTestId("queue-board")).toHaveClass("overflow-hidden");
+    expect(screen.getByRole("main")).toHaveClass("min-h-screen", "overflow-x-hidden", "lg:h-screen", "lg:overflow-hidden");
+    expect(screen.getByTestId("queue-board")).toHaveClass("lg:overflow-hidden");
+    expect(screen.getByTestId("queue-grid")).toHaveClass("grid-cols-1", "lg:grid-cols-3");
     const firstPage = screen.getByRole("group", { name: "ตัวอย่างใหม่ หน้า 1" });
     expect(within(firstPage).getByText("P-2609-0001")).toBeInTheDocument();
     expect(within(firstPage).getByText("P-2609-0003")).toBeInTheDocument();
