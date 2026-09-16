@@ -203,16 +203,31 @@ function requestHeader(req, name) {
   return req.get?.(name) || req.headers?.[String(name).toLowerCase()] || '';
 }
 
+function decodedHeader(req, name) {
+  const value = requestHeader(req, name);
+  if (!value) return '';
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return String(value);
+  }
+}
+
 async function userMeta(req) {
   if (req._stockUserMeta) return req._stockUserMeta;
   const raw = {
     email: req.body?._user?.email || requestHeader(req, 'x-user-email') || requestHeader(req, 'x-lis-user') || '',
     name: req.body?._user?.name || requestHeader(req, 'x-user-name') || '',
+    department: req.body?._user?.department || decodedHeader(req, 'x-user-department') || decodedHeader(req, 'x-lis-department') || '',
   };
   const email = String(raw.email || '').trim().toLowerCase();
   const stored = email ? await User.findOne({ email }).lean() : null;
   const actor = normalizeActorFields(raw, stored || {});
-  req._stockUserMeta = { userEmail: actor.email, userName: actor.name };
+  req._stockUserMeta = {
+    userEmail: actor.email,
+    userName: actor.name,
+    userDepartment: String(stored?.department || raw.department || '').trim(),
+  };
   return req._stockUserMeta;
 }
 
@@ -284,7 +299,7 @@ async function stockManagementActor(req) {
     email: meta.userEmail,
     userEmail: meta.userEmail,
     name: meta.userName,
-    department: String(stored?.department || '').trim(),
+    department: String(stored?.department || meta.userDepartment || '').trim(),
     roles: storedRoles.length > 0 ? storedRoles : syntheticDevRolesFromEmail(meta.userEmail, req),
   };
 }

@@ -107,13 +107,23 @@ const API_BASES = Array.from(
 // backend ตรวจสิทธิ์ admin ของ route /api-keys ได้ (AuthContext เป็นคนตั้งค่า)
 // ⚠️ ไม่ใช่ security จริง (ปลอมได้) เฟส 2 จะเปลี่ยนไปใช้ Azure AD token
 let currentUserEmail = "";
+const DEV_EMAIL_SUFFIX = ".dev@icpladda.com";
 
 export function setApiUserEmail(email?: string | null) {
   currentUserEmail = email ? String(email) : "";
 }
 
+function devDepartmentHeader() {
+  if (!currentUserEmail.toLowerCase().endsWith(DEV_EMAIL_SUFFIX)) return "";
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem("dev_department")?.trim() || "";
+}
+
 function identityHeaders(): Record<string, string> {
-  return currentUserEmail ? { "X-LIS-User": currentUserEmail } : {};
+  const headers: Record<string, string> = currentUserEmail ? { "X-LIS-User": currentUserEmail } : {};
+  const devDepartment = devDepartmentHeader();
+  if (devDepartment) headers["X-LIS-Department"] = encodeURIComponent(devDepartment);
+  return headers;
 }
 
 async function fetchApi(path: string, options?: RequestInit): Promise<unknown> {
