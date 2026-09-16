@@ -98,4 +98,31 @@ describe("petitionRouting", () => {
     expect(labSendOverrideNoteError([override])).toBe("ตัวอย่างลำดับ 2: โปรดระบุเหตุผล");
     expect(labSendOverrideNoteError([{ ...override, note: "ส่งทดสอบเพิ่ม" }])).toBeNull();
   });
+
+  it("allows duplicate production batch text for QC-only rows", () => {
+    const items = [
+      { batchNo: "*ขายต.ย.ให้ QC = 1 ขวด", sendToLab: false },
+      { batchNo: "*ขายต.ย.ให้ QC = 1 ขวด", sendToLab: false },
+    ];
+
+    expect(duplicateBatchError(items, { department: "Production", labOnly: true })).toBeNull();
+  });
+
+  it("still rejects duplicate lab batches", () => {
+    const items = [
+      { batchNo: "BATCH001", sendToLab: true },
+      { batchNo: "BATCH001", sendToLab: true },
+    ];
+
+    expect(duplicateBatchError(items, { department: "Production", labOnly: true })).toBe("พบ batch ซ้ำ: BATCH001");
+  });
+
+  it("keeps all-batch duplicate checks when labOnly is off", () => {
+    const items = [
+      { batchNo: "BATCH002", sendToLab: false },
+      { batchNo: "BATCH002", sendToLab: false },
+    ];
+
+    expect(duplicateBatchError(items)).toBe("พบ batch ซ้ำ: BATCH002");
+  });
 });

@@ -15,7 +15,7 @@ import {
   updateLabRequest,
   createLabRequest,
 } from '@/hooks/usePetition';
-import { labSendOverrideNoteError, shouldSendItemToLab } from '@/lib/petitionRouting';
+import { duplicateBatchError, labSendOverrideNoteError, shouldSendItemToLab } from '@/lib/petitionRouting';
 import type { LabRequest } from '@/types/labRequest.types';
 
 type StepKey = 'items' | 'lab';
@@ -267,14 +267,13 @@ export default function PetitionEditPage() {
         setStepError(overrideNoteError);
         return false;
       }
-      const seen = new Set<string>();
-      for (const it of items) {
-        const key = it.batchNo.trim();
-        if (seen.has(key)) {
-          setStepError(`พบ batch ซ้ำ: ${key}`);
-          return false;
-        }
-        seen.add(key);
+      const duplicateError = duplicateBatchError(items, {
+        department: data?.submittedBy?.department,
+        labOnly: data?.dept === 'production',
+      });
+      if (duplicateError) {
+        setStepError(duplicateError);
+        return false;
       }
     }
     return true;

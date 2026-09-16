@@ -1,15 +1,17 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, CheckCircle2, Factory, RotateCcw, Save } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Factory, Printer, RotateCcw, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import AppLayout from '@/components/lis/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import PageHeader from '@/components/lis/PageHeader';
+import PrintPreviewDialog from '@/components/lis/PrintPreviewDialog';
 import ItemsStep, { type ItemRowValues } from '@/components/petition/wizard/ItemsStep';
 import type { SubmitterValues } from '@/components/petition/wizard/SubmitterPicker';
 import LabRequestStep, { type LabRequestRowValues } from '@/components/petition/wizard/LabRequestStep';
+import SampleLabelPrintTemplate from '@/components/petition/SampleLabelPrintTemplate';
 import { createPetition, createLabRequest } from '@/hooks/usePetition';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
@@ -20,6 +22,7 @@ import {
 } from '@/lib/petitionMasterItem';
 import {
   defaultSendItemToLab,
+  duplicateBatchError,
   labSendOverrideNoteError,
   shouldSendItemToLab,
 } from '@/lib/petitionRouting';
@@ -313,6 +316,23 @@ function makeQuantityLabel(qty: string, unit: string): string {
   return [qty, unit].filter(Boolean).join(' ');
 }
 
+function dedupeImportedItems(items: ItemRowValues[]): ItemRowValues[] {
+  const seen = new Set<string>();
+  const unique: ItemRowValues[] = [];
+  for (const item of items) {
+    const { seq: _seq, ...rest } = item;
+    const key = JSON.stringify(rest);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+  }
+  return unique.map((item, index) => ({ ...item, seq: index + 1 }));
+}
+
+function uniqueValues(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
 function getNestedSampleValues(
   searchParams: URLSearchParams,
   keys: string[],
@@ -447,7 +467,7 @@ export function makeInitialItemsFromQuery(searchParams: URLSearchParams): ItemRo
     }
   }
 
-  return items;
+  return dedupeImportedItems(items);
 }
 
 function makeBlankLabRequest(
@@ -525,7 +545,7 @@ export default function ProductionPetitionNewPage({
     const plural = getQueryValues(effectiveSearchParams, ['prodOrderNos'], { splitComma: true });
     const singular = getQueryValues(effectiveSearchParams, ['prodOrderNo'], { splitComma: true });
     const mfNo = getSampleOrQueryValues(effectiveSearchParams, ['mfNo'], { splitComma: true });
-    return [...plural, ...singular, ...mfNo];
+    return uniqueValues([...plural, ...singular, ...mfNo]);
   }, [effectiveSearchParams]);
   const prodOrderNos = prodOrderNosFromState?.length ? prodOrderNosFromState : prodOrderNosFromQuery;
   const productionRequestNo = getQueryValue(effectiveSearchParams, ['requestNo', 'request_no', 'submissionNo']);
@@ -708,6 +728,7 @@ export default function ProductionPetitionNewPage({
   const [error, setError] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
   const [createdPetition, setCreatedPetition] = useState<Petition | null>(null);
+  const [labelPrintOpen, setLabelPrintOpen] = useState(false);
 
   function validateStep(): boolean {
     setStepError(null);
@@ -767,15 +788,10 @@ export default function ProductionPetitionNewPage({
         setStepError(overrideNoteError);
         return false;
       }
-      const seen = new Set<string>();
-      for (const it of items) {
-        const key = it.batchNo.trim();
-        if (!key) continue;
-        if (seen.has(key)) {
-          setStepError(`พบ batch ซ้ำ: ${key}`);
-          return false;
-        }
-        seen.add(key);
+      const duplicateError = duplicateBatchError(items, { department: submitterDepartment, labOnly: true });
+      if (duplicateError) {
+        setStepError(duplicateError);
+        return false;
       }
     }
     return true;
@@ -881,6 +897,12 @@ export default function ProductionPetitionNewPage({
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
+                {canPrintSampleLabel(createdPetition) && (
+                  <Button onClick={() => setLabelPrintOpen(true)} className="w-full sm:w-auto">
+                    <Printer className="h-4 w-4" />
+                    พิมพ์สติกเกอร์
+                  </Button>
+                )}
                 <Button variant="primary-outline" onClick={handlePageBack} className="w-full sm:w-auto">
                   กลับ Production System
                 </Button>
@@ -889,6 +911,11 @@ export default function ProductionPetitionNewPage({
           </CardContent>
         </Card>
       </div>
+      {labelPrintOpen && (
+        <PrintPreviewDialog open={labelPrintOpen} onOpenChange={setLabelPrintOpen} docType="sample-label">
+          <SampleLabelPrintTemplate petition={createdPetition} />
+        </PrintPreviewDialog>
+      )}
     </div>
   ) : null;
 

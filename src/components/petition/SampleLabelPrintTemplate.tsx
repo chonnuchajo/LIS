@@ -59,10 +59,12 @@ const LABEL_HEADER_LINE_1 = 'ป้ายนำส่งตัวอย่าง
 const LABEL_HEADER_LINE_2 = 'ลัดดา จำกัด';
 const LABEL_HEADER_TEXT = `${LABEL_HEADER_LINE_1} ${LABEL_HEADER_LINE_2}`;
 const DOCUMENT_NUMBER_LABEL = 'เลขที่';
+const SAMPLE_QR_SIZE_CLASS = 'h-[18mm] w-[18mm]';
+const SAMPLE_QR_TEXT_WIDTH_CLASS = 'w-[18mm]';
 
 function QrCodeSvg({
   value,
-  sizeClass = 'h-[24mm] w-[24mm]',
+  sizeClass = SAMPLE_QR_SIZE_CLASS,
 }: {
   value: string;
   sizeClass?: string;
@@ -166,15 +168,15 @@ function LabelCard({
       <div className="mb-1 flex items-start gap-1.5">
         <div className="flex shrink-0 flex-col items-center pt-0.5">
           <QrCodeSvg value={qrValue} />
-          <div className="mt-0.5 w-[24mm] break-all text-center text-[7px] font-bold leading-tight">
+          <div className={`mt-0.5 ${SAMPLE_QR_TEXT_WIDTH_CLASS} break-all text-center text-[7px] font-bold leading-tight`}>
             {petition.petitionNo}
           </div>
           {item.batchNo ? (
             <>
-              <QrCodeSvg value={item.batchNo} sizeClass="mt-0.5 h-[9mm] w-[9mm]" />
+              <QrCodeSvg value={item.batchNo} sizeClass={`mt-0.5 ${SAMPLE_QR_SIZE_CLASS}`} />
               <div
                 data-testid="sample-label-batch-qr-text"
-                className="mt-0.5 w-[24mm] break-all text-center text-[5.5px] font-bold leading-none"
+                className={`mt-0.5 ${SAMPLE_QR_TEXT_WIDTH_CLASS} break-all text-center text-[5.5px] font-bold leading-none`}
               >
                 {item.batchNo}
               </div>

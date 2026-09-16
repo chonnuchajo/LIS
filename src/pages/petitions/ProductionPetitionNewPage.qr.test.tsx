@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,6 +23,15 @@ vi.mock("@/lib/api", () => ({
   api: {
     get: apiGetMock,
   },
+}));
+
+vi.mock("@/components/lis/PrintPreviewDialog", () => ({
+  default: ({ open, children }: { open: boolean; children: ReactNode }) =>
+    open ? <div>Preview สติกเกอร์{children}</div> : null,
+}));
+
+vi.mock("@/components/petition/SampleLabelPrintTemplate", () => ({
+  default: () => <div>Sticker Template</div>,
 }));
 
 vi.mock("sonner", () => ({
@@ -79,5 +89,16 @@ describe("ProductionPetitionNewPage approval QR timing", () => {
     await screen.findByText("บันทึกคำขอสำเร็จ");
     expect(screen.queryByText("Preview สติกเกอร์")).not.toBeInTheDocument();
     await waitFor(() => expect(createPetitionMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("opens sticker print preview from the success page", async () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: /บันทึก/ }));
+
+    await screen.findByText("บันทึกคำขอสำเร็จ");
+    fireEvent.click(screen.getByRole("button", { name: "พิมพ์สติกเกอร์" }));
+
+    expect(screen.getByText("Preview สติกเกอร์")).toBeInTheDocument();
   });
 });

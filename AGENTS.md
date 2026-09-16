@@ -12,6 +12,8 @@
 - ห้าม run script ที่ไป trigger build หรือ workflow `postbuild` ทางอ้อม เว้นแต่ได้รับอนุญาตจากผู้ใช้อย่างชัดเจน
 - สำหรับการตรวจสอบทั่วไป ให้ใช้ `npx tsc --noEmit`, `npm run test`, `npm run lint` หรือคำสั่ง test แบบเจาะจงแทน
 - Build flow ของ repository นี้จะเขียนทับไฟล์ production ที่ root เช่น `app.html` และ `assets/` ดังนั้นการ build โดยไม่ได้รับคำสั่งอาจรบกวน working tree และสถานะ deployment ได้
+- ทุกครั้งที่แก้โค้ดที่เกี่ยวกับ build, base path, routing, asset URL, รูปภาพ, วิดีโอ หรือไฟล์อัปโหลด ต้องตรวจว่า path หลัง build ยังแสดงผลได้ถูกต้องทั้งบน local และ production path เช่น `/LIS/...`
+- ถ้าจำเป็นต้อง build ตามคำสั่งผู้ใช้ ต้อง QA การแสดงผลรูปภาพและวิดีโอหลัง build ก่อนสรุปงาน โดยเฉพาะ URL ที่ถูกแปลงจาก relative path, absolute path, `import.meta.env.BASE_URL`, `public/`, `assets/` และไฟล์อัปโหลดจาก server
 
 ## ข้อตกลงการซิ้ง Branch ประจำวัน
 

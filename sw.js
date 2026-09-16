@@ -1,4 +1,4 @@
-const CACHE_VERSION = "lis-pwa-v4";
+const CACHE_VERSION = "lis-pwa-v1";
 const APP_SHELL = [
   "./",
   "./index.html",

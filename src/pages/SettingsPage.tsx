@@ -22,6 +22,11 @@ import { DOC_NUMBER_TYPES, type DocumentNumberConfig, type DocumentNumberConfigI
 import type { PrinterConfigInput } from "@/lib/printConfig";
 import { normalizeRoles } from "@/lib/roles";
 
+type AccessMatrix = {
+  roles?: { id: string; name: string }[];
+  users?: { department?: string }[];
+};
+
 const SettingsPage = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -110,14 +115,14 @@ const SettingsPage = () => {
   const { data: accessMatrix } = useQuery({
     queryKey: ["access-control-roles"],
     queryFn: async () => {
-      const res = await api.get<{ roles?: { id: string; name: string }[] }>("/access-control");
+      const res = await api.get<AccessMatrix>("/access-control");
       return res.data.data;
     },
   });
   const roleOptions = (accessMatrix?.roles ?? []).map((r) => ({ id: r.id, name: r.name }));
   const accessControlDepartmentOptions = useMemo(
     () => Array.from(new Set((accessMatrix?.users ?? [])
-      .map((u: { department?: string }) => u.department?.trim())
+      .map((u) => u.department?.trim())
       .filter((department): department is string => Boolean(department && department !== "Unassigned"))))
       .sort((a, b) => a.localeCompare(b, "th")),
     [accessMatrix?.users],
