@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { capPersisted } from "./notificationStorage";
+import { sanitizePersistedNotifications } from "./notificationStorage";
 
 export type NotificationLevel = "info" | "warning" | "success" | "error";
 
@@ -46,7 +46,7 @@ const loadPersisted = (): AppNotification[] => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? sanitizePersistedNotifications(parsed) : [];
   } catch {
     return [];
   }
@@ -54,7 +54,7 @@ const loadPersisted = (): AppNotification[] => {
 
 const persist = (list: AppNotification[]) => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(capPersisted(list)));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitizePersistedNotifications(list)));
   } catch {
     // ignore quota errors
   }
