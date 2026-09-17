@@ -28,13 +28,19 @@ export function isLikelyHardwareStockScan(raw: string, elapsedMs: number, option
     .some(isLikelyHardwareStockScanCandidate);
 }
 
+function normalizeScannedQrIdValue(value: string) {
+  const text = value.trim();
+  const unitQrId = text.match(/\bu_[A-Za-z0-9_-]{4,}/)?.[0];
+  return unitQrId ?? text;
+}
+
 /** ดึง qrId จากผลสแกน — รองรับ id เปล่า / URL .../stock/scan/<id> / JSON {qrId} */
 function parseStructuredQrId(text: string): string | null {
   if (!text) return "";
   try {
     const payload = JSON.parse(text) as { qrId?: unknown; id?: unknown };
     const v = payload.qrId ?? payload.id;
-    if (v) return String(v).trim();
+    if (v) return normalizeScannedQrIdValue(String(v));
   } catch {
     /* not JSON */
   }
@@ -50,9 +56,12 @@ function parseStructuredQrId(text: string): string | null {
         }
       }
     }
-    if (fromQuery) return fromQuery.trim();
+    if (fromQuery) return normalizeScannedQrIdValue(fromQuery);
     const parts = url.pathname.split("/").filter(Boolean);
-    return decodeURIComponent(parts[parts.length - 1] || text).trim();
+    const stockSegmentIndex = parts.findIndex((part) => part.toLocaleLowerCase("en-US") === "stock");
+    const stockRoute = stockSegmentIndex >= 0 ? parts[stockSegmentIndex + 1]?.toLocaleLowerCase("en-US") : "";
+    const pathQrId = stockRoute && ["scan", "view"].includes(stockRoute) ? parts[stockSegmentIndex + 2] : "";
+    return normalizeScannedQrIdValue(decodeURIComponent(pathQrId || parts[parts.length - 1] || text));
   } catch {
     return null;
   }
