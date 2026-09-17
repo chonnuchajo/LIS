@@ -66,10 +66,14 @@ export function petitionStatusSteps(petition: Petition): PetitionStatusStep[] {
   const qcDone = !hasQc || !!petition.qcCompletedAt || closed;
   const labDone = !hasLab || !!petition.labCompletedAt || closed;
   const labApproved = !hasLab || !!petition.labApprovedAt || closed;
-  const steps: PetitionStatusStep[] = [
-    { key: "received", label: "รับตัวอย่าง", done: !!(petition.qcReceivedAt || petition.labReceivedAt || petition.receivedAt) || closed },
+  const received = !!(petition.qcReceivedAt || petition.labReceivedAt || petition.receivedAt);
+  const steps: PetitionStatusStep[] = petition.status === "deliveringQC" && !received
+    ? [{ key: "delivering", label: "กำลังส่งตัวอย่าง", done: false }]
+    : [];
+  steps.push(
+    { key: "received", label: "รับตัวอย่าง", done: received || closed },
     { key: "assigned", label: "Assign", done: !!petition.assignedTo || closed },
-  ];
+  );
   if (hasQc) {
     steps.push({ key: "qc", label: "QC", done: qcDone });
   }

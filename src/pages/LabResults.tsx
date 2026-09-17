@@ -23,10 +23,10 @@ export default function LabResults() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-4">
+      <div className="space-y-4">
         <div>
-          <h1 className="text-xl font-bold text-lis-text">ผลวิเคราะห์ Lab</h1>
-          <p className="text-sm text-gray-500">คำร้องที่หัวหน้าห้องปฏิบัติการออกผลแล้ว</p>
+          <h1 className="text-xl font-bold text-foreground">ผลวิเคราะห์ Lab</h1>
+          <p className="text-sm text-muted-foreground">คำร้องที่หัวหน้าห้องปฏิบัติการออกผลแล้ว</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -34,13 +34,13 @@ export default function LabResults() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ค้นหาเลขคำร้อง / ผู้ส่ง"
-            className="rounded-md border px-3 py-1.5 text-sm"
+            className="rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
 
-        <div className="overflow-x-auto rounded-lg border bg-white">
+        <div className="overflow-x-auto rounded-lg border bg-card text-card-foreground shadow-sm">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs text-gray-500">
+            <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">เลขคำร้อง</th>
                 <th className="px-3 py-2">แผนก</th>
@@ -50,16 +50,16 @@ export default function LabResults() {
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">กำลังโหลด…</td></tr>
+                <tr><td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">กำลังโหลด…</td></tr>
               )}
               {!loading && rows.length === 0 && (
-                <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">ยังไม่มีคำร้องที่หัวหน้า Lab ออกผล</td></tr>
+                <tr><td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">ยังไม่มีคำร้องที่หัวหน้า Lab ออกผล</td></tr>
               )}
               {rows.map((p) => (
                 <tr
                   key={p._id}
                   onClick={() => navigate(`/lab-results/${p._id}`)}
-                  className="cursor-pointer border-t hover:bg-gray-50"
+                  className="cursor-pointer border-t border-border hover:bg-accent/60"
                 >
                   <td className="px-3 py-2 font-medium">{p.petitionNo}</td>
                   <td className="px-3 py-2">{petitionDepartmentLabel(p)}</td>

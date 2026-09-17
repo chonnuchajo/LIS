@@ -274,7 +274,7 @@ describe("StockQrScanner", () => {
     Object.defineProperty(video, "videoHeight", { configurable: true, value: 720 });
     document.getElementById("stock-qr-reader")?.appendChild(video);
 
-    const shutter = screen.getByRole("button", { name: "ถ่ายรูปอ่านเลขใต้ QR" });
+    const shutter = screen.getByRole("button", { name: "ถ่ายรูปอ่าน Code บนสติ๊กเกอร์" });
     expect(shutter).toHaveClass("rounded-full", "bg-white");
 
     fireEvent.click(shutter);

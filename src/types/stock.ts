@@ -166,6 +166,8 @@ export interface StandardsInUseResponse {
 
 export interface SixMonthMedicineStockItem {
   companySource: string;
+  commonName?: string;
+  itemName?: string;
   itemNo: string;
   locationCode: string;
   binCode: string;

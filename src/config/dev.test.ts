@@ -24,8 +24,8 @@ describe("synthesizeDevUser", () => {
     const user = synthesizeDevUser([{ id: "qc", name: "QC Reviewer" }]);
 
     expect(user).toEqual({
-      id: "dev-qc",
-      email: "qc.dev@icpladda.com",
+      id: "dev-qc-dept-qc-2s2",
+      email: "qc-dept-qc-2s2.dev@icpladda.com",
       name: "Dev QC Reviewer",
       role: "qc",
       roles: ["qc"],
@@ -33,15 +33,15 @@ describe("synthesizeDevUser", () => {
       department: "qc",
       position: "QC Reviewer",
       status: "active",
-      employeeId: "DEV-qc",
+      employeeId: "DEV-qc-dept-qc-2s2",
     });
   });
 
   it("uses the role id (not name) in email and id fields so custom role names cannot break the email", () => {
     const user = synthesizeDevUser([{ id: "custom-role", name: "ผู้ตรวจ" }]);
 
-    expect(user.id).toBe("dev-custom-role");
-    expect(user.email).toBe("custom-role.dev@icpladda.com");
+    expect(user.id).toMatch(/^dev-custom-role-dept-custom-role-/);
+    expect(user.email).toMatch(/^custom-role-dept-custom-role-.+\.dev@icpladda\.com$/);
     expect(user.role).toBe("custom-role");
     expect(user.name).toBe("Dev ผู้ตรวจ");
   });
@@ -55,15 +55,30 @@ describe("synthesizeDevUser", () => {
     // lab and qc are both "other" priority roles, so the first selected role wins.
     expect(user.role).toBe("lab");
     expect(user.roles).toEqual(["lab", "qc"]);
-    expect(user.id).toBe("dev-lab");
+    expect(user.id).toMatch(/^dev-lab-qc-dept-lab-/);
     expect(user.name).toBe("Dev Lab");
+  });
+
+  it("treats each dev role and department combination as a separate account", () => {
+    const adminIt = synthesizeDevUser([{ id: "admin", name: "Admin" }]);
+    const labAnalyzeIt = synthesizeDevUser([{ id: "lab-analyze", name: "Lab Analyze" }], "IT");
+    const adminRnD = synthesizeDevUser([{ id: "admin", name: "Admin" }], "R&D");
+
+    expect(adminIt.department).toBe("IT");
+    expect(labAnalyzeIt.department).toBe("IT");
+    expect(new Set([adminIt.id, labAnalyzeIt.id, adminRnD.id]).size).toBe(3);
+    expect(new Set([adminIt.email, labAnalyzeIt.email, adminRnD.email]).size).toBe(3);
+    expect(new Set([adminIt.employeeId, labAnalyzeIt.employeeId, adminRnD.employeeId]).size).toBe(3);
   });
 });
 
 describe("dev department override", () => {
-  it("offers R&D, คลังสินค้า RM, คลังสินค้า FG and ผลิต 1–5", () => {
+  it("offers IT, R&D, Lab, ควบคุมคุณภาพ, คลังสินค้า RM, คลังสินค้า FG and ผลิต 1–5", () => {
     expect([...DEV_DEPARTMENTS]).toEqual([
+      "IT",
       "R&D",
+      "Lab/วิเคราะห์",
+      "ควบคุมคุณภาพ",
       "คลังสินค้า RM",
       "คลังสินค้า FG",
       "ผลิต 1",
@@ -85,6 +100,11 @@ describe("dev department override", () => {
     const user = synthesizeDevUser([{ id: "admin", name: "Admin" }], "คลังสินค้า FG");
 
     expect(user.department).toBe("คลังสินค้า FG");
+  });
+
+  it("can impersonate Lab and QC departments", () => {
+    expect(synthesizeDevUser([{ id: "admin", name: "Admin" }], "Lab/วิเคราะห์").department).toBe("Lab/วิเคราะห์");
+    expect(synthesizeDevUser([{ id: "admin", name: "Admin" }], "ควบคุมคุณภาพ").department).toBe("ควบคุมคุณภาพ");
   });
 
   it("keeps the role-derived department when no override is given", () => {
@@ -192,10 +212,10 @@ describe("synthesizeDevAssignees", () => {
     // assignee name must equal the synthesized dev user's name for that role.
     const assignees = synthesizeDevAssignees();
     const analyst = assignees.find((a) => a.position === "Lab Analyst");
+    const analystUser = synthesizeDevUser([{ id: "lab-analyst", name: "Lab Analyst" }]);
 
-    expect(analyst?.name).toBe(
-      synthesizeDevUser([{ id: "lab-analyst", name: "Lab Analyst" }]).name,
-    );
+    expect(analyst?.name).toBe(analystUser.name);
+    expect(analyst?.employeeId).toBe(analystUser.employeeId);
   });
 
   it("gives each dev assignee a unique employeeId that cannot collide with real numeric HR ids", () => {

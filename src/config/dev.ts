@@ -140,10 +140,15 @@ const devDepartment = (roleId: string): string => {
 
 // Departments a dev can impersonate from the DevRoleSwitcher. Department is
 // free-text from HR in prod, but these are the values that actually change
-// behaviour — R&D skips ผู้นำส่ง/เลขแบช on the production petition form
+// behaviour — IT lets dev roles share the IT department with separate identities,
+// R&D skips ผู้นำส่ง/เลขแบช on the production petition form, Lab/QC lets
+// dev users impersonate the departments used by lab and quality flows,
 // (requiresDeliveryAndBatch), and ผลิต 1–5 / RM drive customerCodeFromDepartment.
 export const DEV_DEPARTMENTS = [
+  "IT",
   "R&D",
+  "Lab/วิเคราะห์",
+  "ควบคุมคุณภาพ",
   "คลังสินค้า RM",
   "คลังสินค้า FG",
   "ผลิต 1",
@@ -161,6 +166,32 @@ export function normalizeDevDepartment(value: unknown): string {
   return (DEV_DEPARTMENTS as readonly string[]).includes(dept) ? dept : "";
 }
 
+function asciiSlug(value: string) {
+  return value
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function hashSlug(value: string) {
+  let hash = 0;
+  for (const char of value) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+function departmentIdentitySlug(department: string) {
+  const readable = asciiSlug(department) || "dept";
+  return `${readable}-${hashSlug(department)}`;
+}
+
+function devAccountSlug(roleIds: string[], department: string) {
+  const rolesPart = uniqueRoleIds(roleIds).sort().join("-") || DEV_DEFAULT_ROLE;
+  return `${rolesPart}-dept-${departmentIdentitySlug(department)}`;
+}
+
 export const synthesizeDevUser = (
   roles: DevRoleOption[],
   departmentOverride?: string | null,
@@ -168,16 +199,18 @@ export const synthesizeDevUser = (
   const ids = roles.map((r) => r.id);
   const primaryId = primaryRole(ids);
   const primary = roles.find((r) => r.id === primaryId) ?? roles[0];
+  const department = normalizeDevDepartment(departmentOverride) || devDepartment(primary.id);
+  const accountSlug = devAccountSlug(ids, department);
   return {
-    id: `dev-${primary.id}`,
-    email: `${primary.id}.dev@icpladda.com`,
+    id: `dev-${accountSlug}`,
+    email: `${accountSlug}.dev@icpladda.com`,
     name: `Dev ${primary.name}`,
     role: primary.id,
     roles: ids,
     permissions: [],
-    department: normalizeDevDepartment(departmentOverride) || devDepartment(primary.id),
+    department,
     position: primary.name,
-    employeeId: `DEV-${primary.id}`,
+    employeeId: `DEV-${accountSlug}`,
     status: "active",
   };
 };
@@ -204,12 +237,15 @@ export type DevAssignee = {
 // `name` mirrors synthesizeDevUser so LabTestingPage's
 // `assignedTo?.name === user?.name` filter matches after switching dev role.
 export const synthesizeDevAssignees = (): DevAssignee[] =>
-  DEV_LAB_ROLES.map((role, index) => ({
-    id: -(index + 1),
-    employeeId: `DEV-${role.id}`,
-    name: synthesizeDevUser([role]).name,
-    department: "Lab/วิเคราะห์",
-    position: role.name,
-    empType: "รายเดือน",
-    isActive: true,
-  }));
+  DEV_LAB_ROLES.map((role, index) => {
+    const user = synthesizeDevUser([role]);
+    return {
+      id: -(index + 1),
+      employeeId: user.employeeId,
+      name: user.name,
+      department: "Lab/วิเคราะห์",
+      position: role.name,
+      empType: "รายเดือน",
+      isActive: true,
+    };
+  });

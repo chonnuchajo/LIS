@@ -44,7 +44,7 @@ describe('stock user metadata', () => {
     });
 
     expect(User.findOne).toHaveBeenCalledWith({ email: 'analyst@icpladda.com' });
-    expect(meta).toEqual({ userEmail: 'analyst@icpladda.com', userName: 'สมชาย' });
+    expect(meta).toEqual({ userEmail: 'analyst@icpladda.com', userName: 'สมชาย', userDepartment: '' });
   });
 
   test('allows deduction management only for owner on the same Bangkok day', () => {
@@ -107,6 +107,25 @@ describe('stock user metadata', () => {
     expect(res.body).toMatchObject({ items: [] });
   });
 
+  test('allows current multi-role synthetic dev QC Head to load six-month medicine stock', async () => {
+    const handler = routeHandler('/medicine-six-months');
+    User.findOne = jest.fn(() => ({ lean: jest.fn().mockResolvedValue(null) }));
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue([]),
+    });
+
+    const res = mockResponse();
+    await handler({
+      body: {},
+      headers: { 'x-lis-user': 'qc-head-qc-staff-dept-dept-123.dev@icpladda.com' },
+      ip: '127.0.0.1',
+    }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ items: [] });
+  });
+
   test('allows FG warehouse department to load six-month medicine stock', async () => {
     const handler = routeHandler('/medicine-six-months');
     User.findOne = jest.fn(() => ({
@@ -124,6 +143,28 @@ describe('stock user metadata', () => {
 
     const res = mockResponse();
     await handler({ body: {}, headers: { 'x-lis-user': 'fg-warehouse@icpladda.com' }, ip: '10.0.0.1' }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ items: [] });
+  });
+
+  test('allows dev viewer with FG warehouse department header to load six-month medicine stock', async () => {
+    const handler = routeHandler('/medicine-six-months');
+    User.findOne = jest.fn(() => ({ lean: jest.fn().mockResolvedValue(null) }));
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue([]),
+    });
+
+    const res = mockResponse();
+    await handler({
+      body: {},
+      headers: {
+        'x-lis-user': 'viewer.dev@icpladda.com',
+        'x-lis-department': encodeURIComponent('คลังสินค้า FG'),
+      },
+      ip: '127.0.0.1',
+    }, res);
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toMatchObject({ items: [] });

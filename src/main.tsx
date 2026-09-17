@@ -6,6 +6,7 @@ import "./index.css";
 import { loadAccessControl } from "./lib/accessControlSource";
 import { registerPwaServiceWorker } from "./lib/pwa";
 import { startBuildRefreshWatcher } from "./lib/buildRefresh";
+import { applyAppPreferences, readAppPreferences } from "./lib/appPreferences";
 
 // Resolving the sign-in redirect must never be able to abort the render.
 // MSAL throws `no_token_request_cache_error` whenever sessionStorage still
@@ -79,6 +80,8 @@ async function resolveActiveAccount() {
 }
 
 resolveActiveAccount().then((account) => {
+  applyAppPreferences(readAppPreferences());
+
   if (account) {
     msalInstance.setActiveAccount(account);
     // Authenticated session: warm the landing route's chunk (Vite also preloads

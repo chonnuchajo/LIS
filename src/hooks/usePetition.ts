@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import type {
   Petition,
   PetitionAuditLogEntry,
@@ -13,6 +13,7 @@ import type {
 import type { LabRequest, LabAgreementReview } from '@/types/labRequest.types';
 
 const BASE = import.meta.env.BASE_URL + 'api';
+const DEFAULT_PETITION_POLL_MS = 30_000;
 
 interface ApiError extends Error {
   response?: { data?: { error?: { message?: string } } };
@@ -33,27 +34,71 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
+interface PetitionRefreshOptions {
+  refetchOnFocus?: boolean;
+  pollMs?: number;
+}
+
+function usePetitionAutoRefresh(
+  refresh: () => void,
+  { refetchOnFocus = true, pollMs = DEFAULT_PETITION_POLL_MS }: PetitionRefreshOptions = {},
+) {
+  useEffect(() => {
+    if (!refetchOnFocus || typeof window === 'undefined' || typeof document === 'undefined') return;
+    const onFocus = () => refresh();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refetchOnFocus, refresh]);
+
+  useEffect(() => {
+    if (!pollMs || pollMs <= 0 || typeof window === 'undefined' || typeof document === 'undefined') return;
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refresh();
+    }, pollMs);
+    return () => window.clearInterval(id);
+  }, [pollMs, refresh]);
+}
+
 // ===== Single petition =====
-export function usePetition(id: string | undefined) {
+export function usePetition(id: string | undefined, options: PetitionRefreshOptions = {}) {
   const [data, setData] = useState<Petition | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const hasDataRef = useRef(false);
+  const lastIdRef = useRef<string | undefined>();
 
   const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
+  usePetitionAutoRefresh(refresh, options);
 
   useEffect(() => {
     if (!id) {
+      hasDataRef.current = false;
+      lastIdRef.current = undefined;
+      setData(null);
       setLoading(false);
       setError('ไม่พบ id');
       return;
     }
+    if (lastIdRef.current !== id) {
+      hasDataRef.current = false;
+      lastIdRef.current = id;
+      setData(null);
+    }
     let alive = true;
-    setLoading(true);
+    if (!hasDataRef.current) setLoading(true);
     setError(null);
     apiFetch<Petition>(`/petitions/${id}`)
       .then((p) => {
         if (!alive) return;
+        hasDataRef.current = true;
         setData(p);
       })
       .catch((e: Error) => {
@@ -76,6 +121,9 @@ interface PetitionListParams {
   status?: string;
   search?: string;
   dept?: PetitionDept;
+  assignedToEmployeeId?: string;
+  assignedToName?: string;
+  assignedToNames?: string[];
   awaitingLabApproval?: boolean;
   labApproved?: boolean;
 }
@@ -88,22 +136,14 @@ interface PetitionListResponse {
   statusCounts?: Partial<Record<Petition['status'], number>>;
 }
 
-interface PetitionListOptions {
-  // Opt-in: refetch in the background when the tab regains focus/visibility, so a
-  // page kept open picks up server-side changes without a manual refresh.
-  refetchOnFocus?: boolean;
-  // Opt-in: poll every `pollMs` while the tab is visible (off when ≤ 0/undefined).
-  pollMs?: number;
-}
-
-export function usePetitionList(params: PetitionListParams, options: PetitionListOptions = {}) {
-  const { refetchOnFocus = false, pollMs } = options;
+export function usePetitionList(params: PetitionListParams, options: PetitionRefreshOptions = {}) {
   const [data, setData] = useState<PetitionListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
+  usePetitionAutoRefresh(refresh, options);
 
   const queryString = (() => {
     const sp = new URLSearchParams();
@@ -112,6 +152,9 @@ export function usePetitionList(params: PetitionListParams, options: PetitionLis
     if (params.status) sp.set('status', params.status);
     if (params.search) sp.set('search', params.search);
     if (params.dept) sp.set('dept', params.dept);
+    if (params.assignedToEmployeeId) sp.set('assignedToEmployeeId', params.assignedToEmployeeId);
+    if (params.assignedToName) sp.set('assignedToName', params.assignedToName);
+    params.assignedToNames?.filter(Boolean).forEach((name) => sp.append('assignedToName', name));
     if (params.awaitingLabApproval) sp.set('awaitingLabApproval', 'true');
     if (params.labApproved) sp.set('labApproved', 'true');
     return sp.toString();
@@ -135,30 +178,6 @@ export function usePetitionList(params: PetitionListParams, options: PetitionLis
       alive = false;
     };
   }, [queryString, reloadKey]);
-
-  // Background refetch when the tab regains focus or becomes visible again.
-  useEffect(() => {
-    if (!refetchOnFocus) return;
-    const onFocus = () => refresh();
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') refresh();
-    };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [refetchOnFocus, refresh]);
-
-  // Optional polling while the tab is visible.
-  useEffect(() => {
-    if (!pollMs || pollMs <= 0) return;
-    const id = setInterval(() => {
-      if (document.visibilityState === 'visible') refresh();
-    }, pollMs);
-    return () => clearInterval(id);
-  }, [pollMs, refresh]);
 
   return { data, loading, error, refresh };
 }

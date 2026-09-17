@@ -65,6 +65,15 @@ export function labTrackStatusBadge(p: ReceiveFields & { status: PetitionStatus 
   return statusBadge(p.status);
 }
 
+export function labAssignBoardStatusBadge(
+  p: ReceiveFields & { status: PetitionStatus },
+  assigned?: boolean,
+): StatusBadge {
+  if (assigned) return toneBadge('info', 'assign แล้ว');
+  if (!labReceivedAt(p)) return statusBadge('sampleSent');
+  return statusBadge('pendingReview');
+}
+
 /**
  * สถานะที่โชว์ในลิสต์ "การทดสอบ QC" — อิง track ของ QC เอง (คู่ขนานกับ labTrackStatusBadge).
  *
@@ -112,10 +121,15 @@ export function labTrackStatusSteps(petition: Petition): PetitionStatusStep[] {
  */
 export function qcTrackStatusSteps(petition: Petition): PetitionStatusStep[] {
   const closed = isClosedStatus(petition.status);
-  return withCurrentStep([
-    { key: 'received', label: 'รับตัวอย่าง', done: !!qcReceivedAt(petition) || closed },
+  const received = !!qcReceivedAt(petition);
+  const steps: PetitionStatusStep[] = petition.status === 'deliveringQC' && !received
+    ? [{ key: 'delivering', label: 'กำลังส่งตัวอย่าง', done: false }]
+    : [];
+  steps.push(
+    { key: 'received', label: 'รับตัวอย่าง', done: received || closed },
     { key: 'assigned', label: 'Assign', done: !!petition.assignedTo || closed },
     { key: 'qc', label: 'QC', done: !!petition.qcCompletedAt || closed },
     { key: 'qc-approval', label: 'ออก Final Result', done: petition.status === 'approved' },
-  ]);
+  );
+  return withCurrentStep(steps);
 }

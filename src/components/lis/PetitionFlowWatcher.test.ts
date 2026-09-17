@@ -1,5 +1,13 @@
-import { describe, it, expect } from "vitest";
-import { effectiveSeeAll, nextCursor } from "@/lib/petitionFlowWatcher";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { notificationStorageKey, LEGACY_NOTIFICATION_STORAGE_KEY } from "@/context/notificationStorage";
+import {
+  cursorKey,
+  effectiveSeeAll,
+  markPetitionNotificationsBackfilled,
+  nextCursor,
+  petitionNotificationSince,
+  shouldBackfillPetitionNotifications,
+} from "@/lib/petitionFlowWatcher";
 
 describe("effectiveSeeAll", () => {
   // Finding 2: the "ดูทั้งระบบ" switch only renders for admins (NotificationBell), but its
@@ -67,5 +75,42 @@ describe("nextCursor", () => {
   it("stored unparseable garbage → takes the server time", () => {
     const serverTime = "2026-08-01T10:00:00.000Z";
     expect(nextCursor("not-a-real-date", serverTime)).toBe(serverTime);
+  });
+});
+
+describe("petition notification backfill", () => {
+  const user = { employeeId: "E001", email: "qc@example.com", name: "QC User" };
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-05T04:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    localStorage.clear();
+  });
+
+  it("uses the 24h lookback once when legacy bell storage exists but current scoped storage is empty", () => {
+    localStorage.setItem(LEGACY_NOTIFICATION_STORAGE_KEY, JSON.stringify([{ id: "legacy-petition", persistent: true }]));
+    localStorage.setItem(cursorKey("E001"), "2026-09-05T03:59:00.000Z");
+
+    expect(shouldBackfillPetitionNotifications("E001", user)).toBe(true);
+    expect(petitionNotificationSince("E001", user)).toBe("2026-09-04T04:00:00.000Z");
+
+    markPetitionNotificationsBackfilled(user);
+
+    expect(shouldBackfillPetitionNotifications("E001", user)).toBe(false);
+    expect(petitionNotificationSince("E001", user)).toBe("2026-09-05T03:59:00.000Z");
+  });
+
+  it("keeps the stored cursor when current scoped storage already has notifications", () => {
+    localStorage.setItem(LEGACY_NOTIFICATION_STORAGE_KEY, JSON.stringify([{ id: "legacy-petition", persistent: true }]));
+    localStorage.setItem(notificationStorageKey(user), JSON.stringify([{ id: "current-petition", persistent: true }]));
+    localStorage.setItem(cursorKey("E001"), "2026-09-05T03:59:00.000Z");
+
+    expect(shouldBackfillPetitionNotifications("E001", user)).toBe(false);
+    expect(petitionNotificationSince("E001", user)).toBe("2026-09-05T03:59:00.000Z");
   });
 });

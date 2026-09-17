@@ -28,8 +28,8 @@ describe("tabRegistry", () => {
     expect(PAGES_WITH_TABS).not.toContain("/stock-deduction");
   });
 
-  it("stock includes the six month medicine list tab", () => {
-    expect(tabsFor("/stock").map((tab) => tab.key)).toContain("medicine-six-months");
+  it("stock does not include the six month medicine list tab", () => {
+    expect(tabsFor("/stock").map((tab) => tab.key)).not.toContain("medicine-six-months");
   });
 
   it("stock does not include the FG quality inspection alert tab", () => {

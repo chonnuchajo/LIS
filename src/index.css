@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -35,6 +35,7 @@
     --ring: 210 70% 45%;
 
     --radius: 0.75rem;
+    --lis-font-family: 'Kanit', sans-serif;
 
     /* LIS custom tokens */
     --lis-sidebar: 210 70% 45%;
@@ -64,6 +65,63 @@
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
+  .dark {
+    --background: 215 28% 10%;
+    --foreground: 210 22% 94%;
+
+    --card: 215 25% 14%;
+    --card-foreground: 210 22% 94%;
+
+    --popover: 215 25% 14%;
+    --popover-foreground: 210 22% 94%;
+
+    --primary: 210 80% 60%;
+    --primary-foreground: 215 28% 10%;
+
+    --secondary: 215 18% 20%;
+    --secondary-foreground: 210 22% 94%;
+
+    --muted: 215 18% 20%;
+    --muted-foreground: 214 12% 68%;
+
+    --accent: 215 20% 24%;
+    --accent-foreground: 210 22% 94%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 18% 24%;
+    --input: 215 18% 24%;
+    --ring: 210 80% 60%;
+
+    --lis-sidebar: 215 32% 13%;
+    --lis-sidebar-active: 210 80% 40%;
+    --lis-sidebar-foreground: 210 22% 94%;
+    --lis-stat-blue: 210 60% 16%;
+    --lis-stat-blue-icon: 210 80% 65%;
+    --lis-stat-amber: 38 70% 16%;
+    --lis-stat-amber-icon: 38 90% 60%;
+    --lis-stat-green: 145 45% 16%;
+    --lis-stat-green-icon: 145 65% 55%;
+    --lis-stat-red: 0 55% 16%;
+    --lis-stat-red-icon: 0 75% 65%;
+    --lis-status-pending: 38 90% 60%;
+    --lis-status-progress: 210 80% 65%;
+    --lis-status-done: 145 65% 55%;
+    --lis-column-sent: 215 22% 14%;
+    --lis-column-testing: 38 38% 15%;
+    --lis-column-done: 145 28% 14%;
+
+    --sidebar-background: 215 32% 13%;
+    --sidebar-foreground: 210 22% 94%;
+    --sidebar-primary: 210 80% 60%;
+    --sidebar-primary-foreground: 215 28% 10%;
+    --sidebar-accent: 215 22% 20%;
+    --sidebar-accent-foreground: 210 22% 94%;
+    --sidebar-border: 215 18% 24%;
+    --sidebar-ring: 210 80% 60%;
+  }
 }
 
 @layer base {
@@ -73,7 +131,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Kanit', sans-serif;
+    font-family: var(--lis-font-family);
   }
 
   /* ซ่อนปุ่มลูกศร (spinner) ของ input[type=number] ทั้งโปรแกรม — กรอกด้วยการพิมพ์เท่านั้น */
@@ -96,5 +154,107 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;                  /* Chrome/Edge/Safari */
+  }
+
+  /*
+    Legacy dark-mode bridge:
+    หลายหน้ารุ่นเก่ายังใช้สีคงที่เช่น bg-white, text-grey-* และ bg-slate-*.
+    ใน dark mode ให้ map สีเหล่านี้กลับเข้า token กลาง เพื่อกันข้อความจาง/พื้นขาวหลุดธีมทุกหน้า.
+  */
+  .dark :is(.bg-white, [class~="bg-white/95"], [class~="bg-white/90"], [class~="bg-white/80"], [class~="bg-white/70"], [class~="bg-white/60"]) {
+    background-color: hsl(var(--card));
+  }
+
+  .dark :is(.bg-gray-50, .bg-gray-100, .bg-grey-50, .bg-grey-100, .bg-slate-50, .bg-slate-100, .bg-zinc-50, .bg-zinc-100) {
+    background-color: hsl(var(--muted));
+  }
+
+  .dark :is(.bg-gray-200, .bg-gray-300, .bg-grey-200, .bg-grey-300, .bg-slate-200, .bg-slate-300, .bg-zinc-200, .bg-zinc-300) {
+    background-color: hsl(var(--border));
+  }
+
+  .dark :is(.hover\:bg-gray-50:hover, .hover\:bg-gray-100:hover, .hover\:bg-grey-50:hover, .hover\:bg-grey-100:hover, .hover\:bg-slate-50:hover, .hover\:bg-slate-100:hover, .hover\:bg-zinc-50:hover, .hover\:bg-zinc-100:hover) {
+    background-color: hsl(var(--accent));
+  }
+
+  .dark :is(.disabled\:bg-gray-50:disabled, .disabled\:bg-grey-50:disabled, .disabled\:bg-slate-50:disabled, .disabled\:bg-zinc-50:disabled) {
+    background-color: hsl(var(--muted));
+  }
+
+  .dark :is(.border-gray-100, .border-gray-200, .border-gray-300, .border-grey-100, .border-grey-200, .border-grey-300, .border-black-50, .border-black-100, .border-slate-100, .border-slate-200, .border-slate-300, .border-zinc-100, .border-zinc-200, .border-zinc-300) {
+    border-color: hsl(var(--border));
+  }
+
+  .dark :is(.text-gray-400, .text-gray-500, .text-gray-600, .text-grey-400, .text-grey-500, .text-grey-600, .text-slate-400, .text-slate-500, .text-slate-600, .text-zinc-400, .text-zinc-500, .text-zinc-600) {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .dark :is(.text-gray-700, .text-gray-800, .text-gray-900, .text-grey-700, .text-grey-800, .text-grey-900, .text-black-500, .text-black-600, .text-black-700, .text-slate-700, .text-slate-800, .text-slate-900, .text-zinc-700, .text-zinc-800, .text-zinc-900) {
+    color: hsl(var(--foreground));
+  }
+
+  .dark .placeholder\:text-gray-400::placeholder,
+  .dark .placeholder\:text-gray-500::placeholder,
+  .dark .placeholder\:text-grey-400::placeholder,
+  .dark .placeholder\:text-grey-500::placeholder,
+  .dark .placeholder\:text-slate-400::placeholder,
+  .dark .placeholder\:text-slate-500::placeholder {
+    color: hsl(var(--muted-foreground));
+  }
+
+  .dark :is(.bg-sky-50, .bg-blue-50, .bg-indigo-50, .bg-violet-50, .bg-purple-50) {
+    background-color: hsl(var(--primary) / 0.12);
+  }
+
+  .dark :is(.border-sky-100, .border-sky-200, .border-blue-100, .border-blue-200, .border-indigo-100, .border-indigo-200, .border-violet-100, .border-violet-200, .border-purple-100, .border-purple-200) {
+    border-color: hsl(var(--primary) / 0.35);
+  }
+
+  .dark :is(.text-sky-500, .text-sky-600, .text-sky-700, .text-sky-800, .text-blue-500, .text-blue-600, .text-blue-700, .text-blue-800, .text-indigo-500, .text-indigo-600, .text-indigo-700, .text-indigo-800, .text-violet-500, .text-violet-600, .text-violet-700, .text-violet-800, .text-purple-500, .text-purple-600, .text-purple-700, .text-purple-800) {
+    color: hsl(var(--primary));
+  }
+
+  .dark :is(.bg-green-50, .bg-emerald-50) {
+    background-color: hsl(145 65% 45% / 0.12);
+  }
+
+  .dark :is(.border-green-100, .border-green-200, .border-emerald-100, .border-emerald-200) {
+    border-color: hsl(145 65% 55% / 0.35);
+  }
+
+  .dark :is(.text-green-500, .text-green-600, .text-green-700, .text-green-800, .text-emerald-500, .text-emerald-600, .text-emerald-700, .text-emerald-800) {
+    color: hsl(145 65% 60%);
+  }
+
+  .dark :is(.bg-yellow-50, .bg-amber-50, .bg-orange-50) {
+    background-color: hsl(38 90% 50% / 0.14);
+  }
+
+  .dark :is(.border-yellow-100, .border-yellow-200, .border-amber-100, .border-amber-200, .border-orange-100, .border-orange-200) {
+    border-color: hsl(38 90% 60% / 0.35);
+  }
+
+  .dark :is(.text-yellow-500, .text-yellow-600, .text-yellow-700, .text-yellow-800, .text-amber-500, .text-amber-600, .text-amber-700, .text-amber-800, .text-orange-500, .text-orange-600, .text-orange-700, .text-orange-800) {
+    color: hsl(38 90% 64%);
+  }
+
+  .dark :is(.bg-red-50, .bg-rose-50) {
+    background-color: hsl(var(--destructive) / 0.12);
+  }
+
+  .dark :is(.border-red-100, .border-red-200, .border-rose-100, .border-rose-200) {
+    border-color: hsl(var(--destructive) / 0.35);
+  }
+
+  .dark :is(.text-red-400, .text-red-500, .text-red-600, .text-red-700, .text-red-800, .text-rose-400, .text-rose-500, .text-rose-600, .text-rose-700, .text-rose-800) {
+    color: hsl(var(--destructive));
+  }
+
+  .dark :is(.eqr.bg-white, canvas.bg-white, img.bg-white) {
+    background-color: #fff;
+  }
+
+  .dark :is(.eqr.text-black, canvas.text-black, img.text-black) {
+    color: #000;
   }
 }

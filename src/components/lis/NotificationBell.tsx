@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Bell, Check, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useNotifications, type NotificationLevel } from "@/context/NotificationContext";
@@ -109,7 +108,10 @@ const NotificationBell = ({ className, iconClassName }: NotificationBellProps) =
             ยังไม่มีการแจ้งเตือน
           </div>
         ) : (
-          <ScrollArea className="max-h-[400px]">
+          <div
+            data-testid="notification-scroll-list"
+            className="max-h-[calc(100vh-12rem)] overflow-y-auto overscroll-contain md:max-h-[400px]"
+          >
             <ul className="divide-y">
               {notifications.map(n => (
                 <li
@@ -146,7 +148,7 @@ const NotificationBell = ({ className, iconClassName }: NotificationBellProps) =
                 </li>
               ))}
             </ul>
-          </ScrollArea>
+          </div>
         )}
       </PopoverContent>
     </Popover>

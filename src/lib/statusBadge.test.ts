@@ -34,6 +34,12 @@ describe("toneBadge", () => {
 });
 
 describe("petitionStatusBadge", () => {
+  it("shows delivering sample as an active yellow status before receive", () => {
+    const badge = petitionStatusBadge({ status: "deliveringQC" } as Petition);
+    expect(badge.label).toBe("กำลังส่งตัวอย่าง");
+    expect(badge.variant).toBe("yellow-soft");
+  });
+
   it("shows received label for stale deliveringQC petitions that already have a receive timestamp", () => {
     const badge = petitionStatusBadge({
       status: "deliveringQC",
@@ -108,6 +114,14 @@ describe("hasLabTrack", () => {
 });
 
 describe("petitionStatusSteps", () => {
+  it("marks delivering as current while receive stays pending", () => {
+    const steps = petitionStatusSteps({ status: "deliveringQC" } as Petition);
+    expect(steps.find((s) => s.key === "delivering")?.label).toBe("กำลังส่งตัวอย่าง");
+    expect(steps.find((s) => s.key === "delivering")?.current).toBe(true);
+    expect(steps.find((s) => s.key === "received")?.done).toBe(false);
+    expect(steps.find((s) => s.key === "received")?.current).toBeFalsy();
+  });
+
   it("marks the next open gate as current", () => {
     const steps = petitionStatusSteps({
       status: "inProgress",

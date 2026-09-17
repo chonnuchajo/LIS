@@ -1,3 +1,6 @@
+import { ArrowUpRight } from "lucide-react";
+import { Link } from "react-router-dom";
+
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +27,7 @@ type LabSendCondition = {
   title: string;
   source: string;
   details: string[];
+  path?: string;
 };
 
 const LAB_SEND_CONDITIONS: LabSendCondition[] = [
@@ -54,6 +58,7 @@ const LAB_SEND_CONDITIONS: LabSendCondition[] = [
   {
     title: "ยา MF หลังเว้นช่วง 30 วันขึ้นไป",
     source: "ระดับรายการตัวอย่าง",
+    path: "/mf-gap-medicines",
     details: [
       "ใช้ MF_GapDays ก่อน ถ้าไม่มีจะคำนวณจาก MF_Lasted - MF_Before",
       "ส่ง Lab เมื่อ gap ตั้งแต่ 30 วันขึ้นไป และ MF_BatchAfterGap ยังไม่เกิน 5 หรือยังไม่ระบุ",
@@ -94,22 +99,46 @@ export default function LabSendConditionsPage() {
             <CardDescription>อ้างอิงกฎเดียวกับการส่งคำร้องไป Lab/QC</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {LAB_SEND_CONDITIONS.map((condition, index) => (
-              <div key={condition.title} className="rounded-lg border bg-card p-4 text-card-foreground">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-muted-foreground">เงื่อนไขที่ {index + 1}</p>
-                    <h2 className="mt-1 text-base font-semibold text-foreground">{condition.title}</h2>
+            {LAB_SEND_CONDITIONS.map((condition, index) => {
+              const conditionContent = (
+                <>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-muted-foreground">เงื่อนไขที่ {index + 1}</p>
+                      <h2 className="mt-1 text-base font-semibold text-foreground">{condition.title}</h2>
+                    </div>
+                    <Badge variant="secondary">{condition.source}</Badge>
                   </div>
-                  <Badge variant="secondary">{condition.source}</Badge>
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                    {condition.details.map((detail) => (
+                      <li key={detail}>{detail}</li>
+                    ))}
+                  </ul>
+                </>
+              );
+
+              if (condition.path) {
+                return (
+                  <Link
+                    key={condition.title}
+                    to={condition.path}
+                    className="group relative block rounded-lg border bg-card p-4 pb-12 text-card-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    {conditionContent}
+                    <span className="absolute bottom-4 right-4 inline-flex h-8 w-8 items-center justify-center rounded-full border bg-background text-muted-foreground transition-colors group-hover:text-foreground">
+                      <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                      <span className="sr-only">เปิดรายการยา MF</span>
+                    </span>
+                  </Link>
+                );
+              }
+
+              return (
+                <div key={condition.title} className="rounded-lg border bg-card p-4 text-card-foreground">
+                  {conditionContent}
                 </div>
-                <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                  {condition.details.map((detail) => (
-                    <li key={detail}>{detail}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       </div>

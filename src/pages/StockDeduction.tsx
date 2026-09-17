@@ -19,14 +19,14 @@ import { readStockLabelCodeFromImage } from "@/lib/aiApi";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import StockRequisitionButton from "@/components/lis/stock/StockRequisitionButton";
-import StockQrScanner, { type DecodedScanResult } from "@/components/lis/StockQrScanner";
+import StockQrScanner from "@/components/lis/StockQrScanner";
 import DeductionResolutionDialog from "@/components/lis/stock/DeductionResolutionDialog";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
 import { DEDUCTION_RESOLUTION_LABELS } from "@/lib/deductionResolution";
-import { requisitionUser } from "@/lib/standardRequisition";
+import { requisitionUser, standardRequisitionUnitLabelCode } from "@/lib/standardRequisition";
 import { canManageStockDeduction, deductionAmount } from "@/lib/stockDeduction";
 import { formatStockQuantity } from "@/lib/stockQuantity";
-import { parseScannedQrId } from "@/lib/stockUnit";
+import { isLikelyHardwareStockScan, parseScannedQrId } from "@/lib/stockUnit";
 import { getRoomCatalog } from "@/lib/roomEquipment";
 import type { StockTransactionItem } from "@/types/stock";
 
@@ -126,16 +126,6 @@ function restoreEditableSnapshot(snapshot: EditableSnapshot | null) {
   }
 }
 
-function isLikelyHardwareStockScan(raw: string, elapsedMs: number) {
-  const text = raw.trim();
-  if (text.length < HARDWARE_SCAN_MIN_LENGTH || elapsedMs > HARDWARE_SCAN_MAX_DURATION_MS) return false;
-  if (/^https?:\/\//i.test(text)) {
-    return /\/stock\/(?:view|scan)\b|\/stock-deduction\b|[?&](?:qrId|id|solventId)=/i.test(text);
-  }
-  if (text.startsWith("{") && /"(?:qrId|id|solventId)"/i.test(text)) return true;
-  return /^u_[a-z0-9_-]{4,}$/i.test(text);
-}
-
 function normalizeStockLabelCandidate(value: string) {
   const digits = value.replace(/\D/g, "");
   return digits.length >= 5 ? digits : "";
@@ -153,7 +143,6 @@ const StockDeduction = () => {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannedQrId, setScannedQrId] = useState<string | null>(null);
-  const [lastScanResult, setLastScanResult] = useState<DecodedScanResult | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [search, setSearch] = useState("");
   const hardwareScanRef = useRef<HardwareScanBuffer>({ text: "", firstAt: 0, lastAt: 0, snapshot: null });
@@ -191,7 +180,6 @@ const StockDeduction = () => {
       toast.error("กรุณายิง QR ข้างขวดด้วยเครื่อง scanner");
       return;
     }
-    setLastScanResult({ raw, value: qrId, scanMode: "qr" });
     applyScannedQrId(qrId);
   }, [applyScannedQrId]);
 
@@ -204,21 +192,33 @@ const StockDeduction = () => {
     }
 
     try {
-      const units = await api.getStockUnits({ itemType: "standard" });
-      const matches = units.filter((unit) => candidates.includes(normalizeStockLabelCandidate(unit.labelCode || "")));
+      const [standards, ...unitGroups] = await Promise.all([
+        queryClient.fetchQuery({ queryKey: ["stock", "standards"], queryFn: api.getStandards }),
+        ...candidates.map((candidate) => api.getStockUnits({ labelCode: candidate })),
+      ]);
+      const standardCodes = new Set(standards.map((standard) => String(standard.code)));
+      const findMatches = (units: Awaited<ReturnType<typeof api.getStockUnits>>) => units.filter((unit) => (
+        standardCodes.has(String(unit.itemCode))
+        && candidates.includes(normalizeStockLabelCandidate(standardRequisitionUnitLabelCode(unit)))
+      ));
+
+      const units = unitGroups.flat();
+      let matches = findMatches(units);
+      if (matches.length === 0) {
+        const pickerUnits = await queryClient.fetchQuery({ queryKey: ["stock", "units"], queryFn: () => api.getStockUnits() });
+        matches = findMatches(pickerUnits);
+      }
       const matchedUnit = matches.find((unit) => unit.status === "active") ?? matches[0];
       if (!matchedUnit) {
         toast.error(`ไม่พบขวด stock ที่มีเลข ${candidates.join(", ")}`);
         return;
       }
 
-      const raw = ocr.rawText?.trim() || candidates.join(", ");
-      setLastScanResult({ raw: `OCR: ${raw}`, value: matchedUnit.qrId, scanMode: "qr" });
       applyScannedQrId(matchedUnit.qrId);
     } catch (err) {
       toast.error((err as Error).message || "ค้นหาเลขใต้ QR ไม่สำเร็จ");
     }
-  }, [applyScannedQrId]);
+  }, [applyScannedQrId, queryClient]);
 
   useEffect(() => {
     const resetBuffer = () => {
@@ -233,7 +233,10 @@ const StockDeduction = () => {
       if (event.key === "Enter") {
         const raw = buffer.text.trim();
         const elapsedMs = buffer.firstAt ? now - buffer.firstAt : Number.POSITIVE_INFINITY;
-        const shouldApply = isLikelyHardwareStockScan(raw, elapsedMs);
+        const shouldApply = isLikelyHardwareStockScan(raw, elapsedMs, {
+          minLength: HARDWARE_SCAN_MIN_LENGTH,
+          maxDurationMs: HARDWARE_SCAN_MAX_DURATION_MS,
+        });
         const snapshot = buffer.snapshot;
         resetBuffer();
         if (!shouldApply) return;
@@ -446,14 +449,6 @@ const StockDeduction = () => {
         }
       />
 
-      {lastScanResult && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          <div className="font-medium">ค่าที่ scanner อ่านได้ล่าสุด</div>
-          <div className="mt-1 break-all text-xs">raw: {lastScanResult.raw}</div>
-          <div className="mt-1 break-all text-xs">qrId: {lastScanResult.value}</div>
-        </div>
-      )}
-
       <div className="mb-3 grid gap-2 lg:grid-cols-[minmax(240px,1fr)_auto_auto_auto] lg:items-end">
         <div className="space-y-1">
           <Label htmlFor="stock-deduction-search" className="text-xs">ค้นหาชื่อสารหรือคนเบิก</Label>
@@ -550,10 +545,9 @@ const StockDeduction = () => {
       />
       <StockQrScanner
         open={scannerOpen}
-        title="สแกน QR ข้างขวดเพื่อเบิก"
+        title="สแกน QR หรือถ่าย Code บนสติ๊กเกอร์เพื่อเบิก"
         showManualEntry={false}
         onClose={() => setScannerOpen(false)}
-        onDecoded={setLastScanResult}
         onScanned={applyScannedQrId}
         onCaptureImage={handleCaptureImage}
       />

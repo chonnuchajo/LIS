@@ -6,6 +6,7 @@ import {
   qcReceivedAt,
   qcReceivedBy,
   labTrackStatusBadge,
+  labAssignBoardStatusBadge,
   qcTrackStatusBadge,
   labTrackStatusSteps,
   qcTrackStatusSteps,
@@ -83,6 +84,23 @@ describe('labTrackStatusBadge', () => {
   it('Lab completed shows pending result while petition waits for other gates', () => {
     const p = { status: 'inProgress' as const, labReceivedAt: T1, labCompletedAt: T2 };
     expect(labTrackStatusBadge(p).label).toBe('รอออกผล');
+  });
+});
+
+describe('labAssignBoardStatusBadge', () => {
+  it('Lab not received yet shows sent sample even if QC already received', () => {
+    const p = { status: 'pendingReview' as const, qcReceivedAt: T1 };
+    expect(labAssignBoardStatusBadge(p).label).toBe('ส่งตัวอย่างแล้ว');
+  });
+
+  it('assigned card shows assigned wording on the Lab assign board', () => {
+    const p = { status: 'sampleSent' as const, assignedTo: { userId: 'u1' } };
+    expect(labAssignBoardStatusBadge(p, true).label).toBe('assign แล้ว');
+  });
+
+  it('Lab received card still shows received wording', () => {
+    const p = { status: 'inProgress' as const, labReceivedAt: T1 };
+    expect(labAssignBoardStatusBadge(p).label).toBe('รับตัวอย่างแล้ว');
   });
 });
 
@@ -173,6 +191,14 @@ describe('qcTrackStatusSteps', () => {
   it('4 steps in QC-only order: รับตัวอย่าง → Assign → QC → ออก Final Result', () => {
     const steps = qcTrackStatusSteps({ status: 'sampleSent' } as Petition);
     expect(steps.map((s) => s.label)).toEqual(['รับตัวอย่าง', 'Assign', 'QC', 'ออก Final Result']);
+  });
+
+  it('delivering sample is current while QC receive stays pending', () => {
+    const steps = qcTrackStatusSteps({ status: 'deliveringQC' } as Petition);
+    expect(steps.find((s) => s.key === 'delivering')?.label).toBe('กำลังส่งตัวอย่าง');
+    expect(steps.find((s) => s.key === 'delivering')?.current).toBe(true);
+    expect(steps.find((s) => s.key === 'received')?.done).toBe(false);
+    expect(steps.find((s) => s.key === 'received')?.current).toBeFalsy();
   });
 
   it('qc completed but not approved → ออก Final Result is current', () => {

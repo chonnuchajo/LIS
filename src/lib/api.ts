@@ -79,6 +79,7 @@ export interface PetitionFlowNotification {
   link: string;
   createdAt: string;
   playSound?: boolean;
+  sound?: "sampleArrival" | "labAssigned";
 }
 
 export type UserFavorites = { email: string; paths: string[] };
@@ -106,13 +107,23 @@ const API_BASES = Array.from(
 // backend ตรวจสิทธิ์ admin ของ route /api-keys ได้ (AuthContext เป็นคนตั้งค่า)
 // ⚠️ ไม่ใช่ security จริง (ปลอมได้) เฟส 2 จะเปลี่ยนไปใช้ Azure AD token
 let currentUserEmail = "";
+const DEV_EMAIL_SUFFIX = ".dev@icpladda.com";
 
 export function setApiUserEmail(email?: string | null) {
   currentUserEmail = email ? String(email) : "";
 }
 
+function devDepartmentHeader() {
+  if (!currentUserEmail.toLowerCase().endsWith(DEV_EMAIL_SUFFIX)) return "";
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem("dev_department")?.trim() || "";
+}
+
 function identityHeaders(): Record<string, string> {
-  return currentUserEmail ? { "X-LIS-User": currentUserEmail } : {};
+  const headers: Record<string, string> = currentUserEmail ? { "X-LIS-User": currentUserEmail } : {};
+  const devDepartment = devDepartmentHeader();
+  if (devDepartment) headers["X-LIS-Department"] = encodeURIComponent(devDepartment);
+  return headers;
 }
 
 async function fetchApi(path: string, options?: RequestInit): Promise<unknown> {
@@ -448,13 +459,14 @@ export const api = {
   getSixMonthMedicineStock: () => request<SixMonthMedicineStockResponse>("/stock/medicine-six-months"),
 
   // Stock — Units (per-bottle)
-  getStockUnits: (params?: { itemCode?: string; itemType?: string; itemId?: string; status?: string; kind?: string }) => {
+  getStockUnits: (params?: { itemCode?: string; itemType?: string; itemId?: string; status?: string; kind?: string; labelCode?: string }) => {
     const q = new URLSearchParams();
     if (params?.itemCode) q.set("itemCode", params.itemCode);
     if (params?.itemType) q.set("itemType", params.itemType);
     if (params?.itemId) q.set("itemId", params.itemId);
     if (params?.status) q.set("status", params.status);
     if (params?.kind) q.set("kind", params.kind);
+    if (params?.labelCode) q.set("labelCode", params.labelCode);
     const qs = q.toString() ? `?${q.toString()}` : "";
     return request<StockUnitItem[]>(`/stock/units${qs}`);
   },

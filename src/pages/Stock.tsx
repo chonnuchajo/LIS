@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Package, AlertTriangle, Calendar as CalendarIcon, Clock, Plus, Pencil, ArrowDownToLine, History, Search, Trash2, ChevronDown, Download, RefreshCw } from "lucide-react";
+import { Package, AlertTriangle, Calendar as CalendarIcon, Clock, Plus, Pencil, ArrowDownToLine, History, Search, Trash2, ChevronDown, Download } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 
@@ -53,8 +53,6 @@ import type {
   StockTransactionItem, StockUnitItem,
 } from "@/types/stock";
 import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
-
-const FG_WAREHOUSE_DEPARTMENT = "คลังสินค้า FG";
 
 const STANDARD_STATUS_OPTIONS: { value: StandardStatus; label: string }[] = [
   { value: "ok", label: "ปกติ" },
@@ -986,108 +984,6 @@ function GlasswareTab() {
 }
 
 // ============================================================
-// Medicine six-month list
-// ============================================================
-function MedicineSixMonthTab() {
-  const [search, setSearch] = useState("");
-  const [kindFilter, setKindFilter] = useState<"all" | "rm" | "fg">("all");
-  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ["stock", "medicine-six-months"],
-    queryFn: api.getSixMonthMedicineStock,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const items = useMemo(() => data?.items ?? [], [data?.items]);
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return items.filter((item) => {
-      const itemNo = item.itemNo.trim().toUpperCase();
-      const matchesKind = kindFilter === "all"
-        || (kindFilter === "rm" && itemNo.startsWith("R"))
-        || (kindFilter === "fg" && itemNo.startsWith("F"));
-      if (!matchesKind) return false;
-      if (!q) return true;
-      return [
-        item.itemNo,
-        item.lotNo,
-        item.companySource,
-        item.locationCode,
-        item.binCode,
-      ].some((value) => value.toLowerCase().includes(q));
-    });
-  }, [items, search, kindFilter]);
-  const errorMessage = error instanceof Error ? error.message : "โหลดข้อมูลไม่สำเร็จ";
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:space-y-0 space-y-2">
-          <div className="space-y-1">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Package className="w-5 h-5" /> List ยา 6 เดือน
-              <Badge variant="outline">{filtered.length}</Badge>
-            </CardTitle>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={kindFilter} onValueChange={(value) => setKindFilter(value as "all" | "rm" | "fg")}>
-              <SelectTrigger aria-label="ประเภทสินค้า" className="h-9 w-full sm:w-28"><SelectValue placeholder="ทั้งหมด" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">ทั้งหมด</SelectItem>
-                <SelectItem value="rm">RM</SelectItem>
-                <SelectItem value="fg">FG</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="ค้นหา item / lot / location" className="pl-8 h-9 w-full sm:w-72" />
-            </div>
-            <Button size="sm" variant="outline" onClick={() => void refetch()} disabled={isFetching}>
-              <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} /> รีเฟรช
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-            <Table className="min-w-[900px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item No</TableHead>
-                  <TableHead>Lot</TableHead>
-                  <TableHead>Registering Date</TableHead>
-                  <TableHead className="text-right">อายุ (เดือน)</TableHead>
-                  <TableHead className="text-right">Stock Qty</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Company</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-6">กำลังโหลด...</TableCell></TableRow>
-                ) : isError ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-6 text-destructive">{errorMessage}</TableCell></TableRow>
-                ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">ไม่มีข้อมูล</TableCell></TableRow>
-                ) : filtered.map((item) => (
-                  <TableRow key={`${item.itemNo}-${item.lotNo}-${item.locationCode}-${item.binCode}-${item.registeringDate}`}>
-                    <TableCell className="font-medium">{item.itemNo || "-"}</TableCell>
-                    <TableCell>{item.lotNo || "-"}</TableCell>
-                    <TableCell className="text-xs whitespace-nowrap">{formatStockDate(item.registeringDate)}</TableCell>
-                    <TableCell className="text-right"><Badge variant="outline">{item.ageMonths}</Badge></TableCell>
-                    <TableCell className="text-right font-mono">{formatStockQuantityWithUnit(item.stockQty, item.unit)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{item.locationCode || "-"} / {item.binCode || "-"}</TableCell>
-                    <TableCell className="text-xs">{item.companySource || "-"}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// ============================================================
 // History Tab
 // ============================================================
 function HistoryTab() {
@@ -1874,21 +1770,13 @@ function StandardDialog({
 // Page
 // ============================================================
 const StockPage = () => {
-  const { user } = useAuth();
   const [scanOpen, setScanOpen] = useState(false);
   const [scannedQr, setScannedQr] = useState<string | null>(null);
   const [scannedUnit, setScannedUnit] = useState<StockUnitItem | null>(null);
   const [action, setAction] = useState<"discard" | null>(null);
   const qc = useQueryClient();
   const { tabs, defaultKey } = useAccessibleTabs("/stock");
-  const stockUserRoles = normalizeRoles(user);
-  const stockUserDepartment = String(user?.department ?? "").trim();
-  const canSeeSixMonthMedicineTab = stockUserRoles.includes("admin") || stockUserRoles.includes("qc-head") || stockUserDepartment === FG_WAREHOUSE_DEPARTMENT;
-  const visibleTabs = tabs.filter((tab) => {
-    if (tab.key === "medicine-six-months") return canSeeSixMonthMedicineTab;
-    return true;
-  });
-  const stockDefaultKey = visibleTabs.some((tab) => tab.key === defaultKey) ? defaultKey : visibleTabs[0]?.key;
+  const stockDefaultKey = tabs.some((tab) => tab.key === defaultKey) ? defaultKey : tabs[0]?.key;
 
   const onScanned = async (qrId: string) => {
     setScanOpen(false);
@@ -1916,7 +1804,7 @@ const StockPage = () => {
       />
       <Tabs key={stockDefaultKey} defaultValue={stockDefaultKey}>
         <TabsList className="mb-4 flex-wrap h-auto">
-          {visibleTabs.map((t) => (
+          {tabs.map((t) => (
             <TabsTrigger key={t.key} value={t.key} className="gap-1.5">
               {t.icon && <t.icon className="h-4 w-4" />}
               {t.label}
@@ -1926,7 +1814,6 @@ const StockPage = () => {
         <TabsContent value="standard"><StandardsTab /></TabsContent>
         <TabsContent value="solvent"><SolventsTab /></TabsContent>
         <TabsContent value="glassware"><GlasswareTab /></TabsContent>
-        {canSeeSixMonthMedicineTab && <TabsContent value="medicine-six-months"><MedicineSixMonthTab /></TabsContent>}
         <TabsContent value="receive"><ReceiveCart /></TabsContent>
         <TabsContent value="history"><HistoryTab /></TabsContent>
       </Tabs>

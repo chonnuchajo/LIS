@@ -60,6 +60,14 @@ function audiencesForEvent(petition, payload) {
   const qcTrack = requiresQcTrack(petition);
   const labTrack = hasLabTrack(petition);
   const bothSides = [qcTrack ? 'qc' : null, labTrack ? 'lab' : null].filter(Boolean);
+  const sampleSentAudiences = () => {
+    if (!qcTrack) return ['lab'];
+    const sentToLab =
+      petition?.sentToLab === true ||
+      petition?.sendToLab === true ||
+      ((petition ?? {}).items ?? []).some((item) => item?.sentToLab === true || item?.sendToLab === true);
+    return ['qc', sentToLab ? 'lab' : null].filter(Boolean);
+  };
   switch (payload?.event) {
     case 'created':
       return qcTrack ? ['qc'] : ['lab'];
@@ -69,7 +77,7 @@ function audiencesForEvent(petition, payload) {
     }
     case 'statusChanged':
       switch (payload?.toStatus) {
-        case 'sampleSent': return bothSides;
+        case 'sampleSent': return sampleSentAudiences();
         // ผลออก/ปิดงาน → แจ้งฝ่ายตรวจ + แจ้งกลับแผนกผู้ยื่นคำขอ (petition.dept ตรงกับ audience key)
         case 'success':    return [...bothSides, petition?.dept].filter(Boolean);
         case 'approved':   return [qcTrack ? 'qc' : null, petition?.dept].filter(Boolean);

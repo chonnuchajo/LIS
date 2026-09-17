@@ -26,11 +26,53 @@ function response() {
   };
 }
 
-async function invoke(path, method, { body = {}, params = {} } = {}) {
+async function invoke(path, method, { body = {}, params = {}, query = {} } = {}) {
   const res = response();
-  await handler(path, method)({ body, params }, res);
+  await handler(path, method)({ body, params, query }, res);
   return res;
 }
+
+test('GET / filters assigned petitions by current assignee before pagination', async () => {
+  const originals = {
+    petitionFind: Petition.find,
+    petitionCountDocuments: Petition.countDocuments,
+    petitionAggregate: Petition.aggregate,
+  };
+  let findQuery;
+  try {
+    Petition.find = (query) => {
+      findQuery = query;
+      return {
+        sort: () => ({
+          skip: () => ({
+            limit: async () => [],
+          }),
+        }),
+      };
+    };
+    Petition.countDocuments = async () => 0;
+    Petition.aggregate = async () => [];
+
+    const res = await invoke('/', 'get', {
+      query: {
+        status: 'sampleSent,pendingReview,inProgress',
+        assignedToEmployeeId: 'E123',
+        assignedToName: 'Analyst A',
+      },
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(findQuery.$or, [
+      { 'assignedTo.employeeId': 'E123' },
+      { 'assignedTo.name': 'Analyst A' },
+    ]);
+    assert.deepEqual(findQuery.status, { $in: ['sampleSent', 'pendingReview', 'inProgress'] });
+  } finally {
+    Petition.find = originals.petitionFind;
+    Petition.countDocuments = originals.petitionCountDocuments;
+    Petition.aggregate = originals.petitionAggregate;
+  }
+});
 
 test('POST / rejects sendToLab override without item note before creating petition', async () => {
   const originals = {

@@ -17,12 +17,14 @@ function hasLabAnalystRole(roles) {
 /** Map a User doc to the assignee shape used by the /petitions/assign picker.
  *  empType 'role' marks it as role-sourced (not from the HR monthly list). */
 function userToAssignee(user) {
+  const roles = [...(Array.isArray(user?.roles) ? user.roles : []), user?.role].filter(Boolean);
+  const labRole = hasLabAnalystRole(roles);
   return {
     id: 0,
     employeeId: String(user.employeeId || '').trim(),
     name: String(user.name || '').trim(),
-    department: user.department || '',
-    position: user.position || '',
+    department: labRole ? 'Lab/วิเคราะห์' : user.department || '',
+    position: labRole ? 'Lab Analyst' : user.position || '',
     empType: 'role',
     isActive: (user.status || 'active') !== 'inactive',
   };

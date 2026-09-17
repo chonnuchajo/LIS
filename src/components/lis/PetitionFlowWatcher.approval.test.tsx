@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PetitionFlowWatcher from "./PetitionFlowWatcher";
-import { cursorKey } from "@/lib/petitionFlowWatcher";
+import { PETITION_NOTIFICATIONS_REFRESH_EVENT, cursorKey } from "@/lib/petitionFlowWatcher";
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
@@ -35,6 +35,28 @@ function renderWatcher() {
 }
 
 const originalAudioContext = window.AudioContext;
+const originalAudio = window.Audio;
+
+function mockAudio() {
+  const listeners = new Map<string, Array<() => void>>();
+  const audio = {
+    play: vi.fn().mockResolvedValue(undefined),
+    addEventListener: vi.fn((event: string, listener: () => void) => {
+      listeners.set(event, [...(listeners.get(event) ?? []), listener]);
+    }),
+    preload: "",
+    volume: 0,
+    currentTime: 0,
+  } as unknown as HTMLAudioElement;
+  const AudioMock = vi.fn(() => audio);
+  Object.defineProperty(window, "Audio", { configurable: true, writable: true, value: AudioMock });
+  Object.defineProperty(globalThis, "Audio", { configurable: true, writable: true, value: AudioMock });
+  return {
+    AudioMock,
+    audio,
+    endPlayback: () => listeners.get("ended")?.forEach((listener) => listener()),
+  };
+}
 
 function mockAudioContext() {
   const oscillator = {
@@ -70,6 +92,7 @@ function mockAudioContext() {
 
 describe("PetitionFlowWatcher approval notifications", () => {
   beforeEach(() => {
+    window.history.pushState({}, "", "/");
     localStorage.clear();
     vi.clearAllMocks();
     mocks.getPetition.mockResolvedValue({
@@ -99,6 +122,8 @@ describe("PetitionFlowWatcher approval notifications", () => {
 
   afterEach(() => {
     localStorage.clear();
+    Object.defineProperty(window, "Audio", { configurable: true, writable: true, value: originalAudio });
+    Object.defineProperty(globalThis, "Audio", { configurable: true, writable: true, value: originalAudio });
     Object.defineProperty(window, "AudioContext", { configurable: true, writable: true, value: originalAudioContext });
   });
 
@@ -114,7 +139,7 @@ describe("PetitionFlowWatcher approval notifications", () => {
     expect(screen.queryByText(/QR Code พร้อมใช้งาน/)).not.toBeInTheDocument();
   });
 
-  it("plays a sound once when a newly sent sample belongs to the current assignee", async () => {
+  it("plays the uploaded sample arrival sound three times when a newly sent sample belongs to the current assignee", async () => {
     localStorage.setItem(cursorKey("E001"), "2026-09-05T03:59:00.000Z");
     mocks.getPetitionNotifications.mockResolvedValue({
       serverTime: "2026-09-05T04:00:00.000Z",
@@ -133,13 +158,55 @@ describe("PetitionFlowWatcher approval notifications", () => {
         },
       ],
     });
+    const uploadedAudio = mockAudio();
     const audio = mockAudioContext();
 
     renderWatcher();
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
 
-    expect(audio.AudioContextMock).toHaveBeenCalledTimes(1);
+    expect(uploadedAudio.AudioMock).toHaveBeenCalledWith(`${import.meta.env.BASE_URL}sound/sample-arrival.mp3`);
+    expect(uploadedAudio.audio.volume).toBe(1);
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
+    uploadedAudio.endPlayback();
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(2);
+    uploadedAudio.endPlayback();
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(3);
+    uploadedAudio.endPlayback();
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(3);
+    expect(audio.AudioContextMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps scanner route silent while still pushing sample sent notification", async () => {
+    window.history.pushState({}, "", "/LIS/scanner");
+    localStorage.setItem(cursorKey("E001"), "2026-09-05T03:59:00.000Z");
+    mocks.getPetitionNotifications.mockResolvedValue({
+      serverTime: "2026-09-05T04:00:00.000Z",
+      items: [
+        {
+          id: "log-scanner-sample-sent",
+          petitionId: "p1",
+          petitionNo: "P-2609-0002",
+          event: "statusChanged",
+          toStatus: "sampleSent",
+          title: "ส่งตัวอย่างแล้ว",
+          level: "info",
+          link: "/petition/p1",
+          createdAt: "2026-09-05T04:00:00.000Z",
+          playSound: true,
+        },
+      ],
+    });
+    const uploadedAudio = mockAudio();
+    const audio = mockAudioContext();
+
+    renderWatcher();
+
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
+
+    expect(uploadedAudio.AudioMock).not.toHaveBeenCalled();
+    expect(uploadedAudio.audio.play).not.toHaveBeenCalled();
+    expect(audio.AudioContextMock).not.toHaveBeenCalled();
   });
 
   it("plays a sound for a newly sent sample on first live poll even before a cursor exists", async () => {
@@ -160,13 +227,93 @@ describe("PetitionFlowWatcher approval notifications", () => {
         },
       ],
     });
+    const uploadedAudio = mockAudio();
     const audio = mockAudioContext();
 
     renderWatcher();
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
 
-    expect(audio.AudioContextMock).toHaveBeenCalledTimes(1);
+    expect(uploadedAudio.AudioMock).toHaveBeenCalledWith(`${import.meta.env.BASE_URL}sound/sample-arrival.mp3`);
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
+    uploadedAudio.endPlayback();
+    uploadedAudio.endPlayback();
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(3);
+    expect(audio.AudioContextMock).not.toHaveBeenCalled();
+  });
+
+  it("plays the lab assigned sound once for a fresh assigned notification", async () => {
+    localStorage.setItem(cursorKey("E001"), "2026-09-05T03:59:00.000Z");
+    mocks.getPetitionNotifications.mockResolvedValue({
+      serverTime: "2026-09-05T04:00:00.000Z",
+      items: [
+        {
+          id: "log-lab-assigned",
+          petitionId: "p1",
+          petitionNo: "P-2609-0002",
+          event: "assigned",
+          title: "มอบหมายงาน",
+          level: "info",
+          link: "/petition/p1",
+          createdAt: "2026-09-05T04:00:00.000Z",
+          playSound: true,
+          sound: "labAssigned",
+        },
+      ],
+    });
+    const uploadedAudio = mockAudio();
+    const audio = mockAudioContext();
+
+    renderWatcher();
+
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
+
+    expect(uploadedAudio.AudioMock).toHaveBeenCalledWith(`${import.meta.env.BASE_URL}sound/lab-assigned.mp3`);
+    expect(uploadedAudio.audio.volume).toBe(1);
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
+    uploadedAudio.endPlayback();
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
+    expect(audio.AudioContextMock).not.toHaveBeenCalled();
+  });
+
+  it("refetches immediately on assignment refresh event and plays the lab assigned sound", async () => {
+    localStorage.setItem(cursorKey("E001"), "2026-09-05T03:59:00.000Z");
+    mocks.getPetitionNotifications
+      .mockResolvedValueOnce({
+        serverTime: "2026-09-05T04:00:00.000Z",
+        items: [],
+      })
+      .mockResolvedValueOnce({
+        serverTime: "2026-09-05T04:00:10.000Z",
+        items: [
+          {
+            id: "log-lab-assigned-refresh",
+            petitionId: "p1",
+            petitionNo: "P-2609-0002",
+            event: "assigned",
+            title: "มอบหมายงาน",
+            level: "info",
+            link: "/petition/p1",
+            createdAt: "2026-09-05T04:00:10.000Z",
+            playSound: true,
+            sound: "labAssigned",
+          },
+        ],
+      });
+    const uploadedAudio = mockAudio();
+    const audio = mockAudioContext();
+
+    renderWatcher();
+
+    await waitFor(() => expect(mocks.getPetitionNotifications).toHaveBeenCalledTimes(1));
+    window.dispatchEvent(new Event(PETITION_NOTIFICATIONS_REFRESH_EVENT));
+
+    await waitFor(() => expect(mocks.getPetitionNotifications).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledTimes(1));
+
+    expect(uploadedAudio.AudioMock).toHaveBeenCalledWith(`${import.meta.env.BASE_URL}sound/lab-assigned.mp3`);
+    expect(uploadedAudio.audio.play).toHaveBeenCalledTimes(1);
+    expect(audio.AudioContextMock).not.toHaveBeenCalled();
   });
 
   it("keeps old backfilled assigned samples silent when no cursor exists yet", async () => {

@@ -327,7 +327,7 @@ function scanHint(scanMode: ScanMode) {
   if (scanMode === "barcode") {
     return "เล็งกล้องไปที่ Barcode ให้เส้นอยู่ในกรอบ — ถือให้นิ่งและมีแสงเพียงพอ";
   }
-  return "ให้ QR อยู่ในภาพกล้อง — ไม่ต้องตรงกลางเป๊ะ ถือให้นิ่งและลดแสงสะท้อน";
+  return "ให้ QR หรือเลข Code บนสติ๊กเกอร์อยู่ในภาพกล้อง — เห็นแค่บางส่วนของฉลากได้ ไม่ต้องถ่ายทั้งขวด";
 }
 
 function cameraErrorMessage(scanMode: ScanMode, showManualEntry: boolean) {
@@ -354,7 +354,7 @@ export default function StockQrScanner({
   title = "สแกน QR ขวด",
   showManualEntry = true,
   scanMode = "qr",
-  captureImageLabel = "ถ่ายรูปอ่านเลขใต้ QR",
+  captureImageLabel = "ถ่ายรูปอ่าน Code บนสติ๊กเกอร์",
   onClose,
   onDecoded,
   onScanned,
@@ -738,7 +738,7 @@ export default function StockQrScanner({
     ? (scanMode === "barcode" ? "พบ Barcode แล้ว" : "พบ QR Code แล้ว")
     : cameraStatus === "initializing"
       ? "กำลังเปิดกล้อง..."
-      : (scanMode === "barcode" ? "กำลังค้นหา Barcode" : "กำลังค้นหา QR Code จากทั้งภาพกล้อง");
+      : (scanMode === "barcode" ? "กำลังค้นหา Barcode" : "กำลังค้นหา QR หรือรอถ่าย Code บนสติ๊กเกอร์");
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">

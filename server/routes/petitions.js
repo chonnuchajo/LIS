@@ -67,6 +67,14 @@ function machineTypeOf(machine) {
   return '';
 }
 
+function queryStringList(value) {
+  const raw = Array.isArray(value) ? value : [value];
+  return raw
+    .flatMap((entry) => String(entry || '').split(','))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 async function matchStandardTime(machine) {
   const commonName = normalizeAnalysisName(machine.commonName);
   const machineType = machineTypeOf(machine);
@@ -94,20 +102,35 @@ router.get('/', async (req, res) => {
     const status = req.query.status;
     const dept = req.query.dept;
     const search = (req.query.search || '').trim();
+    const assignedToEmployeeId = String(req.query.assignedToEmployeeId || '').trim();
+    const assignedToNames = queryStringList(req.query.assignedToName);
 
     const q = {};
     if (dept && ['production', 'rm', 'fg'].includes(String(dept))) q.dept = dept;
+    const andConditions = [];
+    const assigneeConditions = [];
+    if (assignedToEmployeeId) assigneeConditions.push({ 'assignedTo.employeeId': assignedToEmployeeId });
+    assignedToNames.forEach((name) => assigneeConditions.push({ 'assignedTo.name': name }));
+    if (assigneeConditions.length > 1) {
+      andConditions.push({
+        $or: assigneeConditions,
+      });
+    } else if (assigneeConditions.length === 1) Object.assign(q, assigneeConditions[0]);
     if (search) {
       const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      q.$or = [
-        { petitionNo: rx },
-        { prodOrderNos: rx },
-        { 'productionWorkflow.requestNo': rx },
-        { 'productionWorkflow.lisPetitionNo': rx },
-        { 'submittedBy.name': rx },
-        { 'items.batchNo': rx },
-      ];
+      andConditions.push({
+        $or: [
+          { petitionNo: rx },
+          { prodOrderNos: rx },
+          { 'productionWorkflow.requestNo': rx },
+          { 'productionWorkflow.lisPetitionNo': rx },
+          { 'submittedBy.name': rx },
+          { 'items.batchNo': rx },
+        ],
+      });
     }
+    if (andConditions.length === 1) Object.assign(q, andConditions[0]);
+    else if (andConditions.length > 1) q.$and = andConditions;
     const summaryQ = { ...q };
 
     if (status) {

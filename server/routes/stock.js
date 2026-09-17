@@ -100,6 +100,73 @@ function normalizeUnitLabelCodeUpdate(labelCode, itemCode) {
   return parsedCode.labelCode;
 }
 
+function normalizeUnitLabelCodeSearch(labelCode) {
+  return String(labelCode ?? '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function applyStockUnitItemTypeFilter(filter, itemType) {
+  const normalizedItemType = String(itemType ?? '').trim();
+  if (!normalizedItemType) return;
+  if (normalizedItemType === 'standard') {
+    filter.$and = [
+      ...(Array.isArray(filter.$and) ? filter.$and : []),
+      { $or: [{ itemType: 'standard' }, { itemType: { $exists: false } }, { itemType: null }, { itemType: '' }] },
+    ];
+    return;
+  }
+  filter.itemType = normalizedItemType;
+}
+
+function displayCodeYearCandidatesFromBuddhistTwoDigits(buddhistYear) {
+  const gregorianTwoDigits = (buddhistYear + 100 - 43) % 100;
+  return [...new Set([
+    buddhistYear,
+    2500 + buddhistYear,
+    2000 + gregorianTwoDigits,
+    1900 + gregorianTwoDigits,
+  ])];
+}
+
+function parseStandardUnitDisplayCodeQuery(labelCode) {
+  const normalized = normalizeUnitLabelCodeSearch(labelCode);
+  if (!/^.{2}\d{2}\d+$/.test(normalized)) return null;
+  const buddhistYear = Number(normalized.slice(2, 4));
+  const bottleNo = Number(normalized.slice(4));
+  if (!Number.isInteger(buddhistYear) || !Number.isInteger(bottleNo) || bottleNo < 1) return null;
+  return {
+    normalized,
+    bottleNo,
+    labelRunYears: displayCodeYearCandidatesFromBuddhistTwoDigits(buddhistYear),
+  };
+}
+
+function standardUnitDisplayCode(unit) {
+  const labelCode = normalizeUnitLabelCodeSearch(unit?.labelCode);
+  if (labelCode) return labelCode;
+  const labelRunNo = Number(unit?.labelRunNo);
+  const labelRunYear = Number(unit?.labelRunYear);
+  if (!Number.isInteger(labelRunNo) || labelRunNo < 1 || !Number.isInteger(labelRunYear) || labelRunYear <= 0) return '';
+  let buddhistYear = labelRunYear % 100;
+  if (labelRunYear >= 1900 && labelRunYear < 2400) buddhistYear = (labelRunYear + 543) % 100;
+  try {
+    return normalizeUnitLabelCodeSearch(formatStandardLabelCode(unit?.itemCode ?? '', buddhistYear, labelRunNo));
+  } catch {
+    return '';
+  }
+}
+
+function uniqueStockUnits(units) {
+  const seen = new Set();
+  const out = [];
+  for (const unit of units) {
+    const key = String(unit?._id || unit?.qrId || '');
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    out.push(unit);
+  }
+  return out;
+}
+
 async function personOf(req) {
   const m = await userMeta(req);
   return m.userName ? { email: m.userEmail, name: m.userName } : undefined;
@@ -203,16 +270,31 @@ function requestHeader(req, name) {
   return req.get?.(name) || req.headers?.[String(name).toLowerCase()] || '';
 }
 
+function decodedHeader(req, name) {
+  const value = requestHeader(req, name);
+  if (!value) return '';
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return String(value);
+  }
+}
+
 async function userMeta(req) {
   if (req._stockUserMeta) return req._stockUserMeta;
   const raw = {
     email: req.body?._user?.email || requestHeader(req, 'x-user-email') || requestHeader(req, 'x-lis-user') || '',
     name: req.body?._user?.name || requestHeader(req, 'x-user-name') || '',
+    department: req.body?._user?.department || decodedHeader(req, 'x-user-department') || decodedHeader(req, 'x-lis-department') || '',
   };
   const email = String(raw.email || '').trim().toLowerCase();
   const stored = email ? await User.findOne({ email }).lean() : null;
   const actor = normalizeActorFields(raw, stored || {});
-  req._stockUserMeta = { userEmail: actor.email, userName: actor.name };
+  req._stockUserMeta = {
+    userEmail: actor.email,
+    userName: actor.name,
+    userDepartment: String(stored?.department || raw.department || '').trim(),
+  };
   return req._stockUserMeta;
 }
 
@@ -226,6 +308,38 @@ function normalizedEmail(value) {
 
 const SYNTHETIC_DEV_EMAIL_SUFFIX = '.dev@icpladda.com';
 const SYNTHETIC_DEV_ROLE_ID_RX = /^[a-z0-9][a-z0-9_-]*$/;
+const SYNTHETIC_DEV_KNOWN_ROLE_IDS = [
+  'lab-data-config',
+  'lab-inventory',
+  'lab-analyze',
+  'lab-analyst',
+  'qc-data-config',
+  'qc-reviewer',
+  'lab-config',
+  'lab-head',
+  'qc-staff',
+  'qc-head',
+  'viewer',
+  'admin',
+  'lab',
+  'qc',
+].sort((a, b) => b.length - a.length);
+
+function syntheticDevRoleIdsFromSlug(slug) {
+  const rolesPart = String(slug || '').split('-dept-')[0];
+  if (!rolesPart) return [];
+  const roleIds = [];
+  let remaining = rolesPart;
+  while (remaining) {
+    const roleId = SYNTHETIC_DEV_KNOWN_ROLE_IDS.find((candidate) => (
+      remaining === candidate || remaining.startsWith(`${candidate}-`)
+    ));
+    if (!roleId) return [];
+    roleIds.push(roleId);
+    remaining = remaining.length === roleId.length ? '' : remaining.slice(roleId.length + 1);
+  }
+  return roleIds;
+}
 
 function isLoopbackIp(value) {
   const ip = String(value || '').trim().toLowerCase().replace(/^::ffff:/, '');
@@ -236,9 +350,10 @@ function syntheticDevRolesFromEmail(email, req) {
   if (process.env.ALLOW_DEV_STATUS !== 'true' && !isLoopbackIp(req?.ip)) return [];
   const normalized = normalizedEmail(email);
   if (!normalized.endsWith(SYNTHETIC_DEV_EMAIL_SUFFIX)) return [];
-  const roleId = normalized.slice(0, -SYNTHETIC_DEV_EMAIL_SUFFIX.length);
-  if (!SYNTHETIC_DEV_ROLE_ID_RX.test(roleId)) return [];
-  return mergeBaseRolesForFamilies([roleId]);
+  const roleSlug = normalized.slice(0, -SYNTHETIC_DEV_EMAIL_SUFFIX.length);
+  if (!SYNTHETIC_DEV_ROLE_ID_RX.test(roleSlug)) return [];
+  const roleIds = syntheticDevRoleIdsFromSlug(roleSlug);
+  return mergeBaseRolesForFamilies(roleIds.length > 0 ? roleIds : [roleSlug]);
 }
 
 function calendarDayKey(value, timeZone = STOCK_DEDUCTION_ACTION_TIME_ZONE) {
@@ -284,7 +399,7 @@ async function stockManagementActor(req) {
     email: meta.userEmail,
     userEmail: meta.userEmail,
     name: meta.userName,
-    department: String(stored?.department || '').trim(),
+    department: String(stored?.department || meta.userDepartment || '').trim(),
     roles: storedRoles.length > 0 ? storedRoles : syntheticDevRolesFromEmail(meta.userEmail, req),
   };
 }
@@ -1162,16 +1277,34 @@ router.patch('/units/:qrId', async (req, res) => {
   }
 });
 
-// list units: GET /units?itemCode=&status=&kind=
+// list units: GET /units?itemCode=&status=&kind=&labelCode=
 router.get('/units', async (req, res) => {
   try {
-    const { itemCode, itemType, itemId, status, kind } = req.query;
+    const { itemCode, itemType, itemId, status, kind, labelCode } = req.query;
     const f = {};
     if (itemCode) f.itemCode = itemCode;
-    if (itemType) f.itemType = String(itemType).trim();
+    applyStockUnitItemTypeFilter(f, itemType);
     if (itemId) f.itemId = String(itemId).trim();
     if (status) f.status = status;
     if (kind) f.kind = kind;
+
+    const normalizedLabelCode = normalizeUnitLabelCodeSearch(labelCode);
+    if (normalizedLabelCode) {
+      const directUnits = await StockUnit.find({ ...f, labelCode: normalizedLabelCode }).sort({ createdAt: -1 }).limit(2000);
+      const parsedDisplayCode = parseStandardUnitDisplayCodeQuery(normalizedLabelCode);
+      const displayCodeUnits = parsedDisplayCode
+        ? await StockUnit.find({
+          ...f,
+          labelRunNo: parsedDisplayCode.bottleNo,
+          labelRunYear: { $in: parsedDisplayCode.labelRunYears },
+          $or: [{ labelCode: '' }, { labelCode: null }, { labelCode: { $exists: false } }],
+        }).sort({ createdAt: -1 }).limit(2000)
+        : [];
+      const units = uniqueStockUnits([...directUnits, ...displayCodeUnits])
+        .filter((unit) => standardUnitDisplayCode(unit) === normalizedLabelCode);
+      return res.json(units);
+    }
+
     const units = await StockUnit.find(f).sort({ createdAt: -1 }).limit(2000);
     res.json(units);
   } catch (err) {

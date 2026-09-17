@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { capPersisted, MAX_PERSISTED_PER_GROUP } from "./notificationStorage";
+import { capPersisted, MAX_PERSISTED_PER_GROUP, sanitizePersistedNotifications } from "./notificationStorage";
 import type { AppNotification } from "./NotificationContext";
 
 const n = (id: string, extra: Partial<AppNotification> = {}): AppNotification => ({
@@ -40,5 +40,18 @@ describe("capPersisted", () => {
   it("รักษาลำดับเดิมของลิสต์", () => {
     const out = capPersisted([n("3", { group: "petition", createdAt: 3 }), n("1", { group: "petition", createdAt: 1 })]);
     expect(out.map(x => x.id)).toEqual(["3", "1"]);
+  });
+});
+
+describe("sanitizePersistedNotifications", () => {
+  it("ลบแจ้งเตือน stock in-use เดิมที่ feature ถูกถอดออกแล้ว", () => {
+    const out = sanitizePersistedNotifications([
+      n("std-inuse:tx-exp:expired", { group: "standard-expiry" }),
+      n("std-inuse:tx-soon:soon"),
+      n("petition:1", { group: "petition" }),
+      n("daily-check-reminder-morning"),
+    ]);
+
+    expect(out.map(x => x.id)).toEqual(["petition:1", "daily-check-reminder-morning"]);
   });
 });

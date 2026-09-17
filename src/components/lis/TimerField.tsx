@@ -3,6 +3,7 @@ import { CheckCircle2, Play, RotateCcw, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ParameterValueField } from "@/lib/api";
+import { isNotificationSoundEnabled } from "@/lib/appPreferences";
 import { timerDurationMs, timerRemainingMs, isTimerDone, formatTimerHuman } from "@/lib/parameterValidation";
 
 interface TimerFieldProps {
@@ -152,7 +153,7 @@ function TimerDone({
   disabled?: boolean;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [soundPlaying, setSoundPlaying] = useState(true);
+  const [soundPlaying, setSoundPlaying] = useState(() => isNotificationSoundEnabled("timerDone"));
   const endedAt = new Date(
     new Date(startedAt).getTime() + (timerDurationMs(field) ?? 0),
   );

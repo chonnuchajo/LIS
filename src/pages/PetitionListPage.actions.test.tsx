@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PetitionListPage from './PetitionListPage';
@@ -65,14 +65,36 @@ const mocks = vi.hoisted(() => {
     }),
   ];
 
+  const masterItems = [
+    {
+      item_no: 'F-TEST-001',
+      item_name1: 'ยาทดสอบ FG',
+      commonname: 'อะบาเมกติน 1.8% EC',
+    },
+    {
+      item_no: 'R-TEST-002',
+      item_name1: 'ยาทดสอบ RM',
+      commonname: 'แมนโคเซบ 80% WP',
+    },
+  ];
+
   return {
     canAccess: vi.fn(() => true),
+    makePetition: petition,
+    get: vi.fn((path: string) => {
+      if (path === '/master-items') {
+        return Promise.resolve({ data: { data: masterItems } });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${path}`));
+    }),
     getSixMonthMedicineStock: vi.fn().mockResolvedValue({
       serverTime: '2026-09-04T00:00:00.000Z',
       referenceMonth: '2026-09',
       items: [
         {
           companySource: 'ICPL',
+          commonName: '',
+          itemName: 'ยาทดสอบ FG',
           itemNo: 'F-TEST-001',
           locationCode: 'NORMAL',
           binCode: 'DEFAULT',
@@ -85,6 +107,8 @@ const mocks = vi.hoisted(() => {
         },
         {
           companySource: 'ICPL',
+          commonName: '',
+          itemName: 'ยาทดสอบ RM',
           itemNo: 'R-TEST-002',
           locationCode: 'NORMAL',
           binCode: 'DEFAULT',
@@ -98,6 +122,21 @@ const mocks = vi.hoisted(() => {
       ],
     }),
     getParameters: vi.fn().mockResolvedValue([]),
+    createPetition: vi.fn(async (payload: Partial<Petition>) => {
+      const created = petition('P-FG-QC-0002', 'deliveringQC', {
+        _id: 'P-FG-QC-0002',
+        dept: 'fg',
+        submittedBy: {
+          employeeId: payload.submittedBy?.employeeId,
+          name: payload.submittedBy?.name || 'Admin',
+          department: payload.submittedBy?.department,
+          submittedAt: '2026-09-17T00:00:00.000Z',
+        },
+        items: payload.items ?? [],
+      });
+      fgQualityAlerts.push(created);
+      return created;
+    }),
     petitions,
     fgQualityAlerts,
     push: vi.fn(),
@@ -128,9 +167,10 @@ vi.mock('@/hooks/useItemGroupMembership', () => ({
 }));
 
 vi.mock('@/hooks/usePetition', () => ({
+  createPetition: mocks.createPetition,
   usePetitionList: (params: { status?: string; search?: string; dept?: string }) => {
     const search = params.search?.trim().toLowerCase();
-    const source = params.dept === 'fg' && params.status === 'deliveringQC'
+    const source = params.dept === 'fg'
       ? mocks.fgQualityAlerts
       : mocks.petitions;
     const items = source
@@ -165,6 +205,7 @@ vi.mock('@/context/NotificationContext', () => ({
 
 vi.mock('@/lib/api', () => ({
   api: {
+    get: mocks.get,
     getSixMonthMedicineStock: mocks.getSixMonthMedicineStock,
     getParameters: mocks.getParameters,
   },
@@ -212,7 +253,10 @@ describe('PetitionListPage action cues', () => {
   beforeEach(() => {
     mocks.canAccess.mockClear();
     mocks.canAccess.mockImplementation(() => true);
+    mocks.get.mockClear();
+    mocks.createPetition.mockClear();
     mocks.getSixMonthMedicineStock.mockClear();
+    mocks.fgQualityAlerts.splice(1);
     mocks.user = {
       employeeId: 'E999',
       email: 'admin@example.test',
@@ -244,6 +288,13 @@ describe('PetitionListPage action cues', () => {
     ]) {
       expect(screen.queryByText(label)).not.toBeInTheDocument();
     }
+  });
+
+  it('does not show the next-step helper box on petition cards', async () => {
+    renderPage();
+
+    expect(await screen.findByText('P-2607-0006')).toBeInTheDocument();
+    expect(screen.queryByText(/สิ่งที่ต้องทำ:/)).not.toBeInTheDocument();
   });
 
   it('uses a configured destination when a petition row is opened', async () => {
@@ -371,11 +422,102 @@ describe('PetitionListPage action cues', () => {
     await waitFor(() => {
       expect(screen.getByRole('tab', { name: 'List ยา 6 เดือน' })).toHaveAttribute('aria-selected', 'true');
       expect(screen.getByText('F-TEST-001')).toBeInTheDocument();
+      expect(screen.getByText('อะบาเมกติน 1.8% EC')).toBeInTheDocument();
       expect(screen.getByText('FG260301-001')).toBeInTheDocument();
       expect(screen.getByText('10 KG')).toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Location' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Company' })).not.toBeInTheDocument();
       expect(screen.queryByText('P-2607-0001')).not.toBeInTheDocument();
     });
     expect(mocks.getSixMonthMedicineStock).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides six-month stock lots already submitted for quality within six months', async () => {
+    mocks.fgQualityAlerts.push(mocks.makePetition('P-FG-QC-0002', 'deliveringQC', {
+      dept: 'fg',
+      submittedBy: {
+        employeeId: 'E890',
+        name: 'FG Requester',
+        submittedAt: '2026-08-15T00:00:00.000Z',
+      },
+      items: [
+        {
+          seq: 1,
+          sampleName: 'ยาทดสอบ FG',
+          batchNo: 'FG260301-001',
+          lotNo: 'FG260301-001',
+        },
+      ],
+    }));
+    renderPage({}, '/petition');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    expect(await screen.findByText('R-TEST-002')).toBeInTheDocument();
+    expect(screen.queryByText('F-TEST-001')).not.toBeInTheDocument();
+  });
+
+  it('shows submitted six-month stock lots again after six months', async () => {
+    mocks.getSixMonthMedicineStock.mockResolvedValueOnce({
+      serverTime: '2027-03-16T00:00:00.000Z',
+      referenceMonth: '2027-03',
+      items: [
+        {
+          companySource: 'ICPL',
+          commonName: '',
+          itemName: 'ยาทดสอบ FG',
+          itemNo: 'F-TEST-001',
+          locationCode: 'NORMAL',
+          binCode: 'DEFAULT',
+          lotNo: 'FG260301-001',
+          registeringDate: '2026-03-31T00:00:00.000Z',
+          unit: 'KG',
+          stockQty: 10,
+          stockQtyBase: 10,
+          ageMonths: 13,
+        },
+      ],
+    });
+    mocks.fgQualityAlerts.push(mocks.makePetition('P-FG-QC-0002', 'deliveringQC', {
+      dept: 'fg',
+      submittedBy: {
+        employeeId: 'E890',
+        name: 'FG Requester',
+        submittedAt: '2026-09-15T00:00:00.000Z',
+      },
+      items: [
+        {
+          seq: 1,
+          sampleName: 'ยาทดสอบ FG',
+          batchNo: 'FG260301-001',
+          lotNo: 'FG260301-001',
+        },
+      ],
+    }));
+    renderPage({}, '/petition');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    expect(await screen.findByText('F-TEST-001')).toBeInTheDocument();
+  });
+
+  it('opens six-month medicine details in a side drawer', async () => {
+    mocks.user = {
+      employeeId: 'E888',
+      email: 'qc-head@example.test',
+      name: 'QC Head',
+      roles: ['qc-head'],
+    };
+    renderPage();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByText('F-TEST-001'));
+
+    const drawer = await screen.findByRole('dialog', { name: 'F-TEST-001' });
+    expect(within(drawer).getByText('ยาทดสอบ FG')).toBeInTheDocument();
+    expect(within(drawer).getByText('อะบาเมกติน 1.8% EC')).toBeInTheDocument();
+    expect(within(drawer).getByText('FG260301-001')).toBeInTheDocument();
+    expect(within(drawer).getByText('NORMAL / DEFAULT')).toBeInTheDocument();
   });
 
   it('does not show the six-month medicine refresh button', async () => {
@@ -460,6 +602,58 @@ describe('PetitionListPage action cues', () => {
     expect(await screen.findByText('P-FG-QC-0001')).toBeInTheDocument();
     expect(screen.getByText('FG Product A')).toBeInTheDocument();
     expect(screen.getByText('ส่งตรวจคุณภาพ')).toBeInTheDocument();
+  });
+
+  it('submits selected six-month FG stock and switches to quality alerts', async () => {
+    renderPage({}, '/petition');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'เลือก F-TEST-001 FG260301-001' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ส่งตรวจคุณภาพ (1)' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'แจ้งเตือนส่งตรวจคุณภาพ', selected: true })).toBeInTheDocument();
+    });
+    expect(await screen.findByText('P-FG-QC-0002')).toBeInTheDocument();
+    expect(screen.getByText('ยาทดสอบ FG')).toBeInTheDocument();
+    expect(mocks.createPetition).toHaveBeenCalledWith(expect.objectContaining({
+      dept: 'fg',
+      items: [expect.objectContaining({
+        itemNo: 'F-TEST-001',
+        sampleName: 'ยาทดสอบ FG',
+        batchNo: 'FG260301-001',
+      })],
+    }));
+  });
+
+  it('submits all visible six-month stock rows when select all is checked', async () => {
+    renderPage({}, '/petition');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'เลือกทั้งหมดในรายการยาเกิน 6 เดือน' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ส่งตรวจคุณภาพ (2)' }));
+
+    await waitFor(() => expect(mocks.createPetition).toHaveBeenCalledTimes(1));
+    expect(mocks.createPetition).toHaveBeenCalledWith(expect.objectContaining({
+      items: [
+        expect.objectContaining({ itemNo: 'F-TEST-001', batchNo: 'FG260301-001' }),
+        expect.objectContaining({ itemNo: 'R-TEST-002', batchNo: 'RM260201-002' }),
+      ],
+    }));
+    expect(await screen.findByText('ยาทดสอบ FG +1 รายการ')).toBeInTheDocument();
+  });
+
+  it('shows FG quality inspection alerts before six-month medicine stock', async () => {
+    renderPage({}, '/petition');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    const tabLabels = (await screen.findAllByRole('tab')).map((tab) => tab.textContent);
+    expect(tabLabels.indexOf('แจ้งเตือนส่งตรวจคุณภาพ')).toBeLessThan(
+      tabLabels.indexOf('รายการยาเกิน 6 เดือน'),
+    );
   });
 
   it('shows the six-month medicine tab for FG warehouse department users', async () => {

@@ -37,7 +37,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useAuth } from '@/hooks/useAuth';
 import { usePetitionList } from '@/hooks/usePetition';
 import { api, type MachineItem } from '@/lib/api';
-import { hasLabTrack, petitionStatusBadge } from '@/lib/statusBadge';
+import { hasLabTrack } from '@/lib/statusBadge';
+import { labAssignBoardStatusBadge } from '@/lib/receiveStatus';
 import { isVisibleInAssignQueue } from '@/lib/petitionQueueVisibility';
 import { getMachineSuggestions, type MachineSuggestion } from '@/lib/aiApi';
 import { DEV_MODE, synthesizeDevAssignees } from '@/config/dev';
@@ -45,6 +46,7 @@ import { parseSubstances } from '@/lib/substances';
 import { readSlotMethods, machineMatchesMethod, type MethodDoc } from '@/lib/methodRegistry';
 import { groupMachineMethods } from '@/lib/assignMachineGrouping';
 import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
+import { requestPetitionNotificationsRefresh } from '@/lib/petitionFlowWatcher';
 import { cn } from '@/lib/utils';
 import {
   type Petition,
@@ -567,6 +569,7 @@ export default function PetitionAssignPage() {
         ? ` (เครื่อง: ${machinesPayload.map((m) => m.code).join(', ')})`
         : '';
       toast.success(`Assign ${petition.petitionNo} ให้ ${employee.name}${machineSummary} แล้ว`);
+      requestPetitionNotificationsRefresh();
       refreshPetitions();
       return true;
     } catch (err) {
@@ -611,35 +614,35 @@ export default function PetitionAssignPage() {
           />
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <Card className="border-black-50 shadow-none">
+            <Card className="border-border shadow-none">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Flow การมอบหมาย</CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-3 text-sm text-grey-600 md:grid-cols-3">
-                <div className="rounded-xl bg-grey-50 px-3 py-3">
-                  <p className="font-medium text-black-500">1. เลือกคำร้อง</p>
+              <CardContent className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
+                <div className="rounded-xl bg-muted px-3 py-3">
+                  <p className="font-medium text-foreground">1. เลือกคำร้อง</p>
                   <p className="mt-1 text-xs">เริ่มจากกองงานที่ยังไม่ถูก assign หรือรอทำ Phase 2</p>
                 </div>
-                <div className="rounded-xl bg-grey-50 px-3 py-3">
-                  <p className="font-medium text-black-500">2. เลือกผู้รับงาน</p>
+                <div className="rounded-xl bg-muted px-3 py-3">
+                  <p className="font-medium text-foreground">2. เลือกผู้รับงาน</p>
                   <p className="mt-1 text-xs">ลากคำร้องไปวางบนการ์ดเจ้าหน้าที่ของขั้นงานนั้น โดยผู้รับผิดชอบ QC และ Lab อาจเป็นคนละคนได้</p>
                 </div>
-                <div className="rounded-xl bg-grey-50 px-3 py-3">
-                  <p className="font-medium text-black-500">3. ยืนยันเครื่องมือ</p>
+                <div className="rounded-xl bg-muted px-3 py-3">
+                  <p className="font-medium text-foreground">3. ยืนยันเครื่องมือ</p>
                   <p className="mt-1 text-xs">ตรวจสอบเครื่องมือและบันทึกให้จบใน dialog เดียว</p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-black-50 shadow-none">
+            <Card className="border-border shadow-none">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">สรุปก่อน assign</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm text-grey-600">
-                <p>งานรอ assign: <span className="font-medium text-black-500">{allPetitions.filter((petition) => !petition.assignedTo).length}</span></p>
-                <p>คำร้องพร้อมทำต่อ: <span className="font-medium text-black-500">{normalPetitions.length}</span></p>
-                <p>คำร้อง Phase 2: <span className="font-medium text-black-500">{phase2Petitions.length}</span></p>
-                <p>หลักการ assign: <span className="font-medium text-black-500">แยกผู้รับผิดชอบตามฝั่ง QC และ Lab</span></p>
+              <CardContent className="space-y-2 text-sm text-muted-foreground">
+                <p>งานรอ assign: <span className="font-medium text-foreground">{allPetitions.filter((petition) => !petition.assignedTo).length}</span></p>
+                <p>คำร้องพร้อมทำต่อ: <span className="font-medium text-foreground">{normalPetitions.length}</span></p>
+                <p>คำร้อง Phase 2: <span className="font-medium text-foreground">{phase2Petitions.length}</span></p>
+                <p>หลักการ assign: <span className="font-medium text-foreground">แยกผู้รับผิดชอบตามฝั่ง QC และ Lab</span></p>
               </CardContent>
             </Card>
           </div>
@@ -687,7 +690,7 @@ export default function PetitionAssignPage() {
           </div>
 
           {(error || employeesError || machinesError) && (
-            <div className="rounded-[10px] border border-red-500 bg-red-50 p-3 text-sm text-red-500">
+            <div className="rounded-[10px] border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
               {error
                 ? `โหลดคำร้องไม่สำเร็จ: ${error}`
                 : employeesError
@@ -714,9 +717,9 @@ export default function PetitionAssignPage() {
               </TabsTrigger>
             </TabsList>
 
-            <div className="hidden mt-3 rounded-[10px] border border-black-50 bg-white p-3">
+            <div className="hidden mt-3 rounded-[10px] border border-border bg-card p-3 text-card-foreground">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-grey-500" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
@@ -726,7 +729,7 @@ export default function PetitionAssignPage() {
               </div>
             </div>
 
-            <div className="mt-3 rounded-2xl border border-black-50 bg-white p-4">
+            <div className="mt-3 rounded-2xl border border-border bg-card p-4 text-card-foreground">
               <PageToolbar
                 search={{
                   value: search,
@@ -734,7 +737,7 @@ export default function PetitionAssignPage() {
                   placeholder: 'ค้นหาเลขคำร้อง, ผู้ยื่น, แผนก, ผู้รับงาน',
                 }}
                 right={
-                  <div className="rounded-xl bg-grey-50 px-3 py-2 text-xs text-grey-600">
+                  <div className="rounded-xl bg-muted px-3 py-2 text-xs text-muted-foreground">
                     คลิกการ์ดคำร้องเพื่อดูรายละเอียดก่อน assign ได้
                   </div>
                 }
@@ -873,7 +876,7 @@ function AssignBoard({
 
   if (loading) {
     return (
-      <div className="rounded-[10px] border border-black-50 bg-white py-12 text-center text-grey-500">
+      <div className="rounded-[10px] border border-border bg-card py-12 text-center text-muted-foreground">
         กำลังโหลดข้อมูล...
       </div>
     );
@@ -882,17 +885,17 @@ function AssignBoard({
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)] items-start">
       {/* Unassigned pool */}
-      <div className="rounded-[10px] border border-black-50 bg-grey-50/40 p-3">
+      <div className="rounded-[10px] border border-border bg-muted/50 p-3">
         <div className="mb-2 flex items-center gap-2">
-          <Inbox className="h-4 w-4 text-grey-500" />
-          <span className="text-sm font-semibold text-black-500">งานรอมอบหมาย</span>
+          <Inbox className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-semibold text-foreground">งานรอมอบหมาย</span>
           <Badge variant="gray-soft" className="ml-auto font-normal">
             {unassigned.length}
           </Badge>
         </div>
         <div className="max-h-[72vh] space-y-2 overflow-y-auto pr-0.5">
           {unassigned.length === 0 ? (
-            <div className="rounded-md border border-dashed border-grey-200 py-8 text-center text-xs text-grey-400">
+            <div className="rounded-md border border-dashed border-border py-8 text-center text-xs text-muted-foreground">
               {emptyPoolText}
             </div>
           ) : (
@@ -916,7 +919,7 @@ function AssignBoard({
       {/* Staff cards (drop zones) */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
         {columns.length === 0 ? (
-          <div className="rounded-[10px] border border-dashed border-grey-200 py-10 text-center text-sm text-grey-400 sm:col-span-2 2xl:col-span-3">
+          <div className="rounded-[10px] border border-dashed border-border py-10 text-center text-sm text-muted-foreground sm:col-span-2 2xl:col-span-3">
             ไม่มีเจ้าหน้าที่ให้มอบหมาย
           </div>
         ) : (
@@ -942,18 +945,18 @@ function AssignBoard({
                   handleDrop(col.employeeId);
                 }}
                 className={cn(
-                  'flex flex-col rounded-[10px] border bg-white p-3 transition-colors',
-                  isOver ? 'border-primary-400 bg-primary-50/40 ring-2 ring-primary-200' : 'border-black-50',
+                  'flex flex-col rounded-[10px] border bg-card p-3 text-card-foreground transition-colors',
+                  isOver ? 'border-primary/60 bg-primary/10 ring-2 ring-primary/30' : 'border-border',
                 )}
               >
                 <div className="mb-2 flex items-center gap-2">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-500">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                     <Users className="h-4 w-4" />
                   </span>
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold text-black-500">{col.name}</div>
+                    <div className="truncate text-sm font-semibold text-foreground">{col.name}</div>
                     {col.department && (
-                      <div className="truncate text-[11px] text-grey-500">{col.department}</div>
+                      <div className="truncate text-[11px] text-muted-foreground">{col.department}</div>
                     )}
                   </div>
                   <Badge variant="gray-soft" className="ml-auto font-normal">
@@ -966,7 +969,7 @@ function AssignBoard({
                     <div
                       className={cn(
                         'flex h-16 items-center justify-center rounded-md border border-dashed text-xs',
-                        isOver ? 'border-primary-300 text-primary-500' : 'border-grey-200 text-grey-400',
+                        isOver ? 'border-primary/50 text-primary' : 'border-border text-muted-foreground',
                       )}
                     >
                       ลากงานมาวางที่นี่
@@ -1022,7 +1025,7 @@ function PetitionCard({
   showPhase2Badge,
   assigned,
 }: PetitionCardProps) {
-  const statusCfg = petitionStatusBadge(petition);
+  const statusCfg = labAssignBoardStatusBadge(petition, assigned);
   const showStatusBadge = hasLabTrack(petition);
   const machineCodes = (petition.assignedMachines ?? [])
     .map((m) => m.code)
@@ -1040,12 +1043,12 @@ function PetitionCard({
       }}
       onDragEnd={onDragEnd}
       className={cn(
-        'group cursor-grab rounded-lg border-grey-200 bg-white p-2.5 shadow-sm transition active:cursor-grabbing hover:border-primary-200 hover:shadow',
+        'group cursor-grab rounded-lg border-border bg-card p-2.5 text-card-foreground shadow-sm transition active:cursor-grabbing hover:border-primary/40 hover:bg-accent/40 hover:shadow',
         dragging && 'opacity-40',
       )}
     >
       <div className="flex items-start gap-1.5">
-        <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-grey-300 group-hover:text-grey-400" />
+        <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground group-hover:text-foreground" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <button
@@ -1063,7 +1066,7 @@ function PetitionCard({
               </Badge>
             )}
           </div>
-          <div className="mt-0.5 truncate text-[11px] text-grey-500">
+          <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
             {petition.submittedBy?.name ?? '-'} · {petitionDepartmentLabel(petition)}
           </div>
         </div>
@@ -1074,14 +1077,14 @@ function PetitionCard({
           {groups.map((group) => (
             <span
               key={group.groupKey}
-              className="inline-flex max-w-full items-center gap-1 rounded bg-grey-50 px-1.5 py-0.5 text-[10px] text-black-500"
+              className="inline-flex max-w-full items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-foreground"
               title={group.commonName || group.sampleName}
             >
               <span className="truncate">
                 {group.commonName || group.sampleName || '(ไม่มีชื่อ)'}
               </span>
               {sampleSeqLabel(group) && (
-                <span className="text-grey-400">#{sampleSeqLabel(group)}</span>
+                <span className="text-muted-foreground">#{sampleSeqLabel(group)}</span>
               )}
             </span>
           ))}
@@ -1095,8 +1098,8 @@ function PetitionCard({
           </Badge>
         )}
         {assigned && machineCodes.length > 0 && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-grey-500">
-            <Cog className="h-3 w-3 text-grey-400" />
+          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+            <Cog className="h-3 w-3 text-muted-foreground" />
             {machineCodes.join(', ')}
           </span>
         )}
@@ -1167,7 +1170,7 @@ function MachineAssignDialog({
             <DialogHeader>
               <DialogTitle className="flex flex-wrap items-center gap-2">
                 <span className="text-primary-500">{petition.petitionNo}</span>
-                <ArrowRight className="h-4 w-4 text-grey-400" />
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
                 <span className="inline-flex items-center gap-1.5">
                   <UserCheck className="h-4 w-4 text-green-500" />
                   {employee.name}
@@ -1181,7 +1184,7 @@ function MachineAssignDialog({
 
             <div className="max-h-[60vh] space-y-3 overflow-y-auto">
               {groups.length === 0 ? (
-                <div className="rounded-md border border-grey-200 py-6 text-center text-sm text-grey-500">
+                <div className="rounded-md border border-border py-6 text-center text-sm text-muted-foreground">
                   ไม่มีตัวอย่างให้ assign
                 </div>
               ) : (
@@ -1207,23 +1210,23 @@ function MachineAssignDialog({
                   });
                   const seqLabel = sampleSeqLabel(group);
                   return (
-                    <div key={group.groupKey} className="rounded-lg border border-grey-100 p-3">
+                    <div key={group.groupKey} className="rounded-lg border border-border bg-card p-3 text-card-foreground">
                       <div className="mb-2 flex items-center gap-2">
-                        <span className="font-medium text-black-500">
+                        <span className="font-medium text-foreground">
                           {group.commonName || group.sampleName || '(ไม่มีชื่อ)'}
                         </span>
                         {seqLabel && (
-                          <span className="text-xs text-grey-400">ตัวอย่าง #{seqLabel}</span>
+                          <span className="text-xs text-muted-foreground">ตัวอย่าง #{seqLabel}</span>
                         )}
                       </div>
 
                       {(machineSuggestions[group.groupKey] ?? []).length > 0 && (
                         <div className="mb-2 flex flex-wrap items-center gap-1">
-                          <span className="text-[11px] text-grey-400">AI แนะนำ:</span>
+                          <span className="text-[11px] text-muted-foreground">AI แนะนำ:</span>
                           {machineSuggestions[group.groupKey].map((s) => (
                             <span
                               key={s.machineCode}
-                              className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600"
+                              className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] text-primary"
                               title={`ใช้ ${s.usageCount} ครั้งใน 10 batches ล่าสุด`}
                             >
                               {s.machineCode} ({s.usageCount}/10)
@@ -1254,7 +1257,7 @@ function MachineAssignDialog({
                                 }
                               />
                               {filteredMachines.length === 0 && (
-                                <div className="mt-0.5 text-[11px] text-red-500">
+                                <div className="mt-0.5 text-[11px] text-destructive">
                                   ไม่พบเครื่องสำหรับ {gm.method.label}
                                 </div>
                               )}
@@ -1262,7 +1265,7 @@ function MachineAssignDialog({
                           );
                         })}
                         {notSet.length > 0 && (
-                          <div className="w-[170px] shrink-0 rounded-md border border-amber-200 bg-amber-50/50 px-2 py-1.5 text-[10px] text-amber-700">
+                          <div className="w-[170px] shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-700 dark:text-amber-300">
                             <div className="truncate font-medium" title={notSet.join(', ')}>
                               {notSet.join(', ')}
                             </div>
@@ -1369,10 +1372,10 @@ function SingleMachinePicker({
     return (
       <div
         title={substanceName}
-        className="w-[170px] shrink-0 rounded-md border border-grey-100 bg-grey-50/60 px-2 py-1.5"
+        className="w-[170px] shrink-0 rounded-md border border-border bg-muted/60 px-2 py-1.5"
       >
         <div className="flex items-center gap-1">
-          <span className="truncate text-[11px] font-medium text-black-500">
+          <span className="truncate text-[11px] font-medium text-foreground">
             {substanceName || slotLabel}
           </span>
           <Badge
@@ -1382,12 +1385,12 @@ function SingleMachinePicker({
             {methodLabel}
           </Badge>
         </div>
-        {slotLabel && <div className="text-[9px] text-grey-400">{slotLabel}</div>}
+        {slotLabel && <div className="text-[9px] text-muted-foreground">{slotLabel}</div>}
         <div className="mt-0.5 flex items-center gap-1">
-          <Cog className="h-3 w-3 shrink-0 text-grey-400" />
+          <Cog className="h-3 w-3 shrink-0 text-muted-foreground" />
           <span
             className={`truncate text-xs ${
-              selected ? 'font-medium text-black-500' : 'text-grey-400'
+              selected ? 'font-medium text-foreground' : 'text-muted-foreground'
             }`}
           >
             {selected ? machineLabel(selected) : 'ไม่ได้เลือก'}
@@ -1403,10 +1406,10 @@ function SingleMachinePicker({
         <button
           type="button"
           title={substanceName}
-          className="w-[170px] shrink-0 rounded-md border border-grey-200 bg-white px-2 py-1.5 text-left transition-colors hover:border-primary-300 hover:bg-primary-50/30 data-[state=open]:border-primary-400"
+          className="w-[170px] shrink-0 rounded-md border border-border bg-background px-2 py-1.5 text-left text-foreground transition-colors hover:border-primary/50 hover:bg-primary/10 data-[state=open]:border-primary"
         >
           <div className="flex items-center gap-1">
-            <span className="truncate text-[11px] font-medium text-black-500">
+            <span className="truncate text-[11px] font-medium text-foreground">
               {substanceName || slotLabel}
             </span>
             <Badge
@@ -1416,12 +1419,12 @@ function SingleMachinePicker({
               {methodLabel}
             </Badge>
           </div>
-          {slotLabel && <div className="text-[9px] text-grey-400">{slotLabel}</div>}
+          {slotLabel && <div className="text-[9px] text-muted-foreground">{slotLabel}</div>}
           <div className="mt-0.5 flex items-center gap-1">
-            <Cog className="h-3 w-3 shrink-0 text-grey-400" />
+            <Cog className="h-3 w-3 shrink-0 text-muted-foreground" />
             <span
               className={`truncate text-xs ${
-                selected ? 'font-medium text-black-500' : 'text-grey-400'
+                selected ? 'font-medium text-foreground' : 'text-muted-foreground'
               }`}
             >
               {selected ? machineLabel(selected) : 'เลือกเครื่อง'}
@@ -1431,7 +1434,7 @@ function SingleMachinePicker({
       </PopoverTrigger>
       <PopoverContent className="w-72 p-3" align="start">
         <div className="relative mb-2">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-grey-500" />
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -1441,7 +1444,7 @@ function SingleMachinePicker({
         </div>
         <div className="max-h-64 overflow-y-auto space-y-1">
           {filtered.length === 0 ? (
-            <div className="py-4 text-center text-xs text-grey-500">ไม่พบเครื่อง</div>
+            <div className="py-4 text-center text-xs text-muted-foreground">ไม่พบเครื่อง</div>
           ) : (
             filtered.map((machine) => {
               const key = machine._id || machine.code;
@@ -1454,23 +1457,23 @@ function SingleMachinePicker({
                     onSelect(key);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-start gap-2 rounded px-2 py-1.5 text-left hover:bg-grey-50 ${
-                    checked ? 'bg-primary-50' : ''
+                  className={`flex w-full items-start gap-2 rounded px-2 py-1.5 text-left hover:bg-accent ${
+                    checked ? 'bg-primary/10' : ''
                   }`}
                 >
                   <span
                     className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border ${
-                      checked ? 'border-primary-500' : 'border-grey-300'
+                      checked ? 'border-primary' : 'border-border'
                     }`}
                   >
-                    {checked && <span className="h-1.5 w-1.5 rounded-full bg-primary-500" />}
+                    {checked && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-medium text-black-500">
+                    <span className="block truncate text-xs font-medium text-foreground">
                       {machineLabel(machine)}
                     </span>
                     {machine.location && (
-                      <span className="block truncate text-[11px] text-grey-500">
+                      <span className="block truncate text-[11px] text-muted-foreground">
                         {machine.location}
                       </span>
                     )}

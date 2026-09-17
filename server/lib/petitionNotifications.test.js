@@ -27,6 +27,18 @@ test('bellDescribe: created ใช้ถ้อยคำร่วมกับ LIN
   assert.match(d.message, / · /); // หลายบรรทัดถูกรวบด้วย " · "
 });
 
+test('bellDescribe: assigned ในกระดิ่งบอกว่ามอบหมายให้คุณแล้ว ไม่แสดงชื่อผู้รับผิดชอบซ้ำ', () => {
+  const d = bellDescribe(
+    { ...petition, petitionNo: 'P-2609-0013', items: [{ batchNo: '326', sampleName: 'โบร์แลน' }] },
+    { event: 'assigned', metadata: { assignee: { employeeId: 'E200', name: 'Dev Lab Analyst', department: 'Lab วิเคราะห์' } } },
+  );
+
+  assert.deepStrictEqual(d.audiences, ['lab']);
+  assert.strictEqual(d.targetEmployeeId, 'E200');
+  assert.strictEqual(d.title, 'มอบหมายงาน P-2609-0013 ให้คุณแล้ว');
+  assert.strictEqual(d.message, 'ตัวอย่าง: 1 รายการ · โบร์แลน');
+});
+
 test('bellDescribe: received — LINE ไม่ส่ง แต่กระดิ่งส่ง โดยดู side จาก metadata', () => {
   const d = bellDescribe(petition, { event: 'received', metadata: { side: 'lab' } });
   assert.deepStrictEqual(d.audiences, ['lab']);
@@ -103,6 +115,18 @@ test('isRelevant: audience ตัดกัน → true', () => {
   assert.strictEqual(isRelevant(desc, petition, { audiences: ['lab'], employeeId: 'E999' }), false);
 });
 
+test('isRelevant: assigned notification ที่ระบุ targetEmployeeId เห็นเฉพาะคนถูกมอบหมาย', () => {
+  const desc = { audiences: ['lab'], title: 't', targetEmployeeId: 'E200' };
+  assert.strictEqual(isRelevant(desc, petition, { audiences: ['lab'], employeeId: 'E200' }), true);
+  assert.strictEqual(isRelevant(desc, petition, { audiences: ['lab'], employeeId: 'E201' }), false);
+});
+
+test('isRelevant: assigned notification ส่วนตัวต้องไม่ fallback เป็นทั้งแผนกเมื่อไม่มี employeeId', () => {
+  const desc = { audiences: ['lab'], title: 't', personal: true };
+  assert.strictEqual(isRelevant(desc, petition, { audiences: ['lab'], employeeId: 'E201' }), false);
+  assert.strictEqual(isRelevant(desc, petition, { audiences: ['lab'], employeeId: '' }), false);
+});
+
 test('isRelevant: งานที่ตัวเองถือ / คำขอที่ตัวเองยื่น → true แม้ audience ไม่ตรง', () => {
   const desc = { audiences: ['qc'], title: 't' };
   const assigned = { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง' } };
@@ -120,12 +144,14 @@ test('isRelevant: seeAll ผ่านหมด', () => {
   assert.strictEqual(isRelevant(desc, petition, { audiences: [], seeAll: true }), true);
 });
 
-test('shouldPlaySampleArrivalSound: เล่นเสียงเมื่อ sampleSent ตรงผู้รับหรือ audience', () => {
+test('shouldPlaySampleArrivalSound: เล่นเสียงเมื่อ sampleSent ตรง audience qc/lab เท่านั้น', () => {
   const assigned = { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง' } };
   const log = { event: 'statusChanged', fromStatus: 'deliveringQC', toStatus: 'sampleSent' };
 
-  assert.strictEqual(shouldPlaySampleArrivalSound(assigned, log, { employeeId: 'E200' }), true);
   assert.strictEqual(shouldPlaySampleArrivalSound(petition, log, { audiences: ['qc'] }, { audiences: ['qc'] }), true);
+  assert.strictEqual(shouldPlaySampleArrivalSound(petition, log, { audiences: ['lab'] }, { audiences: ['lab'] }), true);
+  assert.strictEqual(shouldPlaySampleArrivalSound(assigned, log, { employeeId: 'E200', audiences: ['viewer'] }, { audiences: ['qc'] }), false);
+  assert.strictEqual(shouldPlaySampleArrivalSound(assigned, log, { employeeId: 'E200', seeAll: true }, { audiences: ['qc'] }), false);
   assert.strictEqual(shouldPlaySampleArrivalSound(assigned, log, { employeeId: 'E201' }), false);
   assert.strictEqual(shouldPlaySampleArrivalSound(petition, log, { employeeId: 'E100' }), false);
   assert.strictEqual(
@@ -136,6 +162,28 @@ test('shouldPlaySampleArrivalSound: เล่นเสียงเมื่อ s
     shouldPlaySampleArrivalSound(assigned, { event: 'statusChanged', toStatus: 'approved' }, { employeeId: 'E200' }),
     false,
   );
+});
+
+test('toNotification: sampleSent sentToLab=true เล่นเสียงให้ทั้ง QC และ Lab, sentToLab=false เล่นเฉพาะ QC', () => {
+  const log = {
+    _id: 'log-sent-lab-routing',
+    petitionId: 'p1',
+    event: 'statusChanged',
+    fromStatus: 'deliveringQC',
+    toStatus: 'sampleSent',
+    createdAt: '2026-08-01T02:00:00.000Z',
+  };
+  const sentToLab = { ...petition, sentToLab: true, items: [{ batchNo: '320', sampleName: 'QC only by batch' }] };
+  const qcOnly = { ...petition, sentToLab: false, items: [labItem] };
+  const sentToLabDesc = bellDescribe(sentToLab, log);
+  const qcOnlyDesc = bellDescribe(qcOnly, log);
+
+  assert.deepStrictEqual(sentToLabDesc.audiences, ['qc', 'lab']);
+  assert.strictEqual(toNotification(sentToLab, log, sentToLabDesc, { audiences: ['qc'] }).playSound, true);
+  assert.strictEqual(toNotification(sentToLab, log, sentToLabDesc, { audiences: ['lab'] }).playSound, true);
+  assert.deepStrictEqual(qcOnlyDesc.audiences, ['qc']);
+  assert.strictEqual(toNotification(qcOnly, log, qcOnlyDesc, { audiences: ['qc'] }).playSound, true);
+  assert.strictEqual(toNotification(qcOnly, log, qcOnlyDesc, { audiences: ['lab'] }).playSound, undefined);
 });
 
 test('levelForEvent: rejected/success/approved/ผิดปกติ/อื่น', () => {
@@ -194,7 +242,7 @@ test('toNotification: statusChanged approved stays a normal bell notification', 
   assert.strictEqual(notification.toStatus, 'approved');
 });
 
-test('toNotification: sampleSent งานตัวเองแนบ playSound ให้ client', () => {
+test('toNotification: sampleSent งานตัวเองแต่ไม่มี audience qc/lab ไม่แนบ playSound', () => {
   const assigned = { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง' } };
   const log = {
     _id: 'log-sent',
@@ -207,7 +255,7 @@ test('toNotification: sampleSent งานตัวเองแนบ playSound 
 
   const notification = toNotification(assigned, log, { audiences: ['qc'], title: 'ส่งตัวอย่างแล้ว' }, { employeeId: 'E200' });
 
-  assert.strictEqual(notification.playSound, true);
+  assert.strictEqual(notification.playSound, undefined);
 });
 
 test('toNotification: sampleSent ที่ตรง audience ผู้รับ แนบ playSound ให้ client', () => {
@@ -223,6 +271,84 @@ test('toNotification: sampleSent ที่ตรง audience ผู้รับ 
   const notification = toNotification(petition, log, { audiences: ['qc'], title: 'ส่งตัวอย่างแล้ว' }, { audiences: ['qc'] });
 
   assert.strictEqual(notification.playSound, true);
+});
+
+test('toNotification: assigned ฝั่ง Lab เล่นเสียงเฉพาะคนที่ถูก assign', () => {
+  const log = {
+    _id: 'log-lab-assigned',
+    petitionId: 'p1',
+    event: 'assigned',
+    createdAt: '2026-08-01T02:00:00.000Z',
+    metadata: { assignee: { employeeId: 'E200', name: 'สมหญิง', department: 'Lab วิเคราะห์' } },
+  };
+  const assigned = { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง', department: 'Lab วิเคราะห์' } };
+  const desc = { audiences: ['lab'], title: '👤 มอบหมายงาน P-2606-0018' };
+
+  assert.deepStrictEqual(
+    toNotification(assigned, log, desc, { employeeId: 'E200', audiences: ['lab'] }),
+    {
+      id: 'log-lab-assigned',
+      petitionId: 'p1',
+      petitionNo: 'P-2606-0018',
+      event: 'assigned',
+      fromStatus: undefined,
+      toStatus: undefined,
+      title: '👤 มอบหมายงาน P-2606-0018',
+      message: undefined,
+      level: 'info',
+      link: '/petition/p1',
+      createdAt: '2026-08-01T02:00:00.000Z',
+      playSound: true,
+      sound: 'labAssigned',
+    },
+  );
+  assert.strictEqual(toNotification(assigned, log, desc, { employeeId: 'E201', audiences: ['lab'] }).playSound, undefined);
+  assert.strictEqual(
+    toNotification(
+      { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง', department: 'QC' } },
+      { ...log, metadata: { assignee: { employeeId: 'E200', name: 'สมหญิง', department: 'QC' } } },
+      { audiences: ['qc'], title: '👤 มอบหมายงาน P-2606-0018' },
+      { employeeId: 'E200', audiences: ['qc'] },
+    ).playSound,
+    undefined,
+  );
+});
+
+test('toNotification: assigned ฝั่ง Lab ไม่เล่นเสียงถ้าผู้รับเป็น viewer ไม่ใช่ lab', () => {
+  const log = {
+    _id: 'log-lab-assigned-viewer',
+    petitionId: 'p1',
+    event: 'assigned',
+    createdAt: '2026-08-01T02:00:00.000Z',
+    metadata: { assignee: { employeeId: 'E200', name: 'สมหญิง', department: 'Lab วิเคราะห์' } },
+  };
+  const assigned = { ...petition, assignedTo: { employeeId: 'E200', name: 'สมหญิง', department: 'Lab วิเคราะห์' } };
+
+  assert.strictEqual(
+    toNotification(assigned, log, { audiences: ['lab'], title: '👤 มอบหมายงาน P-2606-0018' }, { employeeId: 'E200', audiences: ['viewer'] }).playSound,
+    undefined,
+  );
+});
+
+test('toNotification: role-sourced Dev Administrator lab assignment gets labAssigned sound', () => {
+  const log = {
+    _id: 'log-dev-admin-assigned',
+    petitionId: 'p1',
+    event: 'assigned',
+    createdAt: '2026-08-01T02:00:00.000Z',
+    metadata: { assignee: { employeeId: 'dev', name: 'Dev Administrator', department: 'Lab/วิเคราะห์', position: 'Lab Analyst' } },
+  };
+  const assigned = { ...petition, assignedTo: log.metadata.assignee };
+
+  const notification = toNotification(
+    assigned,
+    log,
+    { audiences: ['lab'], title: '👤 มอบหมายงาน P-2606-0018' },
+    { employeeId: 'dev', audiences: ['lab'] },
+  );
+
+  assert.strictEqual(notification.playSound, true);
+  assert.strictEqual(notification.sound, 'labAssigned');
 });
 
 // Finding 1: resultEntered fires once per form field (qcResultAuditEvent logs every
