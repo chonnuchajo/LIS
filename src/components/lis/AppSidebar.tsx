@@ -16,6 +16,7 @@ import { pathMatches, userCanAccessPath } from "@/lib/accessControl";
 import { api } from "@/lib/api";
 import { normalizeRoles, unionPermissions } from "@/lib/roles";
 import { useIsTablet } from "@/hooks/use-mobile";
+import { DEV_MODE } from "@/config/dev";
 
 type RoleOption = {
   id: string;
@@ -374,7 +375,7 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
               </div>
             </div>
           )}
-          {userCanAccessPath(effectiveUser, "/validation", navGroups) &&
+          {(DEV_MODE || userCanAccessPath(effectiveUser, "/validation", navGroups)) &&
             "validation".includes(menuQuery.trim().toLowerCase()) && (
             <Link to="/validation" title="Validation" aria-label="Validation" aria-current={location.pathname === "/validation" ? "page" : undefined}
               onClick={() => { persistNavScroll(); onNavigate?.(); }}
@@ -484,6 +485,8 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
           })}
           {!collapsed &&
             menuQuery.trim() !== "" &&
+            !((DEV_MODE || userCanAccessPath(effectiveUser, "/validation", navGroups)) &&
+              "validation".includes(menuQuery.trim().toLowerCase())) &&
             allSections.every(
               (s) =>
                 s.items.filter(
