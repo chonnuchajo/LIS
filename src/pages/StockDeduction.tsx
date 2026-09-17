@@ -194,7 +194,11 @@ const StockDeduction = () => {
     try {
       const unitGroups = await Promise.all(candidates.map((candidate) => api.getStockUnits({ itemType: "standard", labelCode: candidate })));
       const units = unitGroups.flat();
-      const matches = units.filter((unit) => candidates.includes(normalizeStockLabelCandidate(standardRequisitionUnitLabelCode(unit))));
+      let matches = units.filter((unit) => candidates.includes(normalizeStockLabelCandidate(standardRequisitionUnitLabelCode(unit))));
+      if (matches.length === 0) {
+        const pickerUnits = await api.getStockUnits({ itemType: "standard" });
+        matches = pickerUnits.filter((unit) => candidates.includes(normalizeStockLabelCandidate(standardRequisitionUnitLabelCode(unit))));
+      }
       const matchedUnit = matches.find((unit) => unit.status === "active") ?? matches[0];
       if (!matchedUnit) {
         toast.error(`ไม่พบขวด stock ที่มีเลข ${candidates.join(", ")}`);
