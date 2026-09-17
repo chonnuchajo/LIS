@@ -26,7 +26,7 @@ import { DEDUCTION_RESOLUTION_LABELS } from "@/lib/deductionResolution";
 import { requisitionUser } from "@/lib/standardRequisition";
 import { canManageStockDeduction, deductionAmount } from "@/lib/stockDeduction";
 import { formatStockQuantity } from "@/lib/stockQuantity";
-import { parseScannedQrId } from "@/lib/stockUnit";
+import { isLikelyHardwareStockScan, parseScannedQrId } from "@/lib/stockUnit";
 import { getRoomCatalog } from "@/lib/roomEquipment";
 import type { StockTransactionItem } from "@/types/stock";
 
@@ -126,16 +126,6 @@ function restoreEditableSnapshot(snapshot: EditableSnapshot | null) {
   }
 }
 
-function isLikelyHardwareStockScan(raw: string, elapsedMs: number) {
-  const text = raw.trim();
-  if (text.length < HARDWARE_SCAN_MIN_LENGTH || elapsedMs > HARDWARE_SCAN_MAX_DURATION_MS) return false;
-  if (/^https?:\/\//i.test(text)) {
-    return /\/stock\/(?:view|scan)\b|\/stock-deduction\b|[?&](?:qrId|id|solventId)=/i.test(text);
-  }
-  if (text.startsWith("{") && /"(?:qrId|id|solventId)"/i.test(text)) return true;
-  return /^u_[a-z0-9_-]{4,}$/i.test(text);
-}
-
 function normalizeStockLabelCandidate(value: string) {
   const digits = value.replace(/\D/g, "");
   return digits.length >= 5 ? digits : "";
@@ -233,7 +223,10 @@ const StockDeduction = () => {
       if (event.key === "Enter") {
         const raw = buffer.text.trim();
         const elapsedMs = buffer.firstAt ? now - buffer.firstAt : Number.POSITIVE_INFINITY;
-        const shouldApply = isLikelyHardwareStockScan(raw, elapsedMs);
+        const shouldApply = isLikelyHardwareStockScan(raw, elapsedMs, {
+          minLength: HARDWARE_SCAN_MIN_LENGTH,
+          maxDurationMs: HARDWARE_SCAN_MAX_DURATION_MS,
+        });
         const snapshot = buffer.snapshot;
         resetBuffer();
         if (!shouldApply) return;

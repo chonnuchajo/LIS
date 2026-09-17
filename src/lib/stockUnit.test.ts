@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  isLikelyHardwareStockScan,
   parseScannedQrId,
   unitDerivedStatus,
   visibleBottles,
@@ -17,6 +18,20 @@ describe("parseScannedQrId", () => {
   it("from JSON payload", () =>
     expect(parseScannedQrId('{"qrId":"u_abc123"}')).toBe("u_abc123"));
   it("empty → empty", () => expect(parseScannedQrId("  ")).toBe(""));
+});
+
+describe("isLikelyHardwareStockScan", () => {
+  it("accepts stock deduction URL typed while keyboard is Thai Kedmanee", () => {
+    expect(isLikelyHardwareStockScan("้ะะยห://ฟยย-ยสฟืะ.รแยสฟกกฟ.แนท/ศณฆ/หะนแา-กำกีแะรนื?ๆพณก=ี๘ฟิแ๑๒๓", 300)).toBe(true);
+  });
+
+  it("accepts plain qrId typed while keyboard is Thai Kedmanee", () => {
+    expect(isLikelyHardwareStockScan("ี๘ฟิแ๑๒๓", 300)).toBe(true);
+  });
+
+  it("rejects slow hardware scan text", () => {
+    expect(isLikelyHardwareStockScan("u_abc123", 1300)).toBe(false);
+  });
 });
 
 describe("unitDerivedStatus", () => {
