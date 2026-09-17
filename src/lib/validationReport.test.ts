@@ -3,8 +3,15 @@ import { createValidationReport, escapeReport } from "./validationReport";
 import { defaultPrecisionSettings, defaultQcSettings, evaluatePrecision, evaluateQc } from "./validationAdvanced";
 import { defaultSpecificitySettings, specificitySnapshot } from "./validationSpecificity";
 import type { LinkedMeasurements } from "./validationMeasurements";
+import { defaultPreparationLevels, changePreparationUnit } from "./validationPreparation";
 
 describe("รายงาน Validation", () => {
+  it("แสดงหน่วย Target ต้นทางและใช้ mg/mL ในตาราง Linearity", () => {
+    const levels = [changePreparationUnit(defaultPreparationLevels()[2], "µg/mL")!];
+    const html = createValidationReport({ title: "Report", analyte: "Test", method: "GC", analyst: "A", reviewer: "B", protocol: "SOP", calibration: "CAL", notes: "", prep: ["50", "100", "25"], levels, texts: ["", "0.5,125\n0.5,125\n0.5,125", ""], blank: "", checks: [], errors: [], precision: evaluatePrecision(defaultPrecisionSettings(), [], ""), qc: evaluateQc(defaultQcSettings()), includeQc: false });
+    expect(html).toContain("<td>500 µg/mL</td>");
+    expect(html).toContain("<td>0.5</td><td>0.5</td><td>3</td><td>125</td>");
+  });
   it("escape ข้อความนำเข้าและมีตาราง สูตร ข้อมูลดิบครบ", () => {
     const html = createValidationReport({ title: '<img src=x onerror="alert(1)">', analyte: "Test", method: "GC", analyst: "A", reviewer: "B", protocol: "SOP", calibration: "CAL-1", notes: "", prep: ["54.25", "92.7", "25"], levels: [], texts: ["4.4,250", "1,3\n2,5\n3,7", "0.5,0.5,0.49"], blank: "0", checks: [{ name: "test", value: "", criteria: "", pass: null }], errors: [], precision: evaluatePrecision(defaultPrecisionSettings(), [0.5], ""), qc: evaluateQc(defaultQcSettings()), includeQc: false });
     expect(html).not.toContain('<img src=x');

@@ -35,6 +35,7 @@ export type PreparationLevel = {
   id: string;
   purpose: "linearity" | "accuracy" | "suitability" | "qc";
   target: string;
+  targetUnit?: ConcentrationUnit;
   aliquot: string;
   finalVolume: string;
   matrix: string;
@@ -48,13 +49,33 @@ export type ValidationStock = {
   certificate: string; preparedOn: string;
 };
 
+/** All downstream calculations and measurement tables use mg/mL. */
+export function targetConcentration(level: Pick<PreparationLevel, "target" | "targetUnit">) {
+  const value = positiveNumber(level.target);
+  const unit = level.targetUnit ?? "mg/mL";
+  if (value == null || !Object.prototype.hasOwnProperty.call(concentrationFactor, unit)) return null;
+  const normalized = unit === "mg/mL" ? value : value / 1000;
+  return Number.isFinite(normalized) && normalized > 0 ? normalized : null;
+}
+
+/** Changing the display unit preserves the physical target, rather than relabeling it. */
+export function changePreparationUnit(level: PreparationLevel, unit: ConcentrationUnit): PreparationLevel | null {
+  if (!level.target.trim()) return { ...level, targetUnit: unit };
+  const normalized = targetConcentration(level);
+  if (normalized == null) return null;
+  const value = unit === "mg/mL" ? normalized : normalized * 1000;
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return { ...level, target: String(value), targetUnit: unit };
+}
+
 export function preparationResult(level: PreparationLevel, mainStock: number | null, stocks: ValidationStock[]) {
   const selected = stocks.find(stock => stock.id === level.stockId);
   const concentration = level.stockId
     ? selected ? stockConcentration(Number(selected.weight), Number(selected.purity), Number(selected.volume)) : null
     : mainStock;
-  if (concentration == null || !level.matrix.trim()) return null;
-  return dilution({ stockMgMl: concentration, target: Number(level.target), unit: "mg/mL", finalUl: Number(level.finalVolume), actualAliquotUl: Number(level.aliquot), matrixUl: Number(level.matrix) });
+  const target = targetConcentration(level);
+  if (concentration == null || target == null || !level.matrix.trim()) return null;
+  return dilution({ stockMgMl: concentration, target, unit: "mg/mL", finalUl: Number(level.finalVolume), actualAliquotUl: Number(level.aliquot), matrixUl: Number(level.matrix) });
 }
 
 /** Build input scaffolding only; measured Area/Found must always remain blank. */
@@ -65,7 +86,7 @@ export function preparationTemplate(purpose: "linearity" | "accuracy", levels: P
   if (prepared.some(row => !row.result)) return null;
   return prepared.flatMap(({ level, result }) => Array.from({ length: replicates }, () => purpose === "linearity"
     ? `${result!.actual}\t`
-    : `${level.target}\t${result!.actual}\t`)).join("\n");
+    : `${targetConcentration(level)}\t${result!.actual}\t`)).join("\n");
 }
 
 export type LinearitySettings = { minReplicates: string; r2Min: string; areaRsdMax: string; concentrationTolerance: string };

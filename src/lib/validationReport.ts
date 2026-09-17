@@ -1,7 +1,7 @@
 import type { ValidationCheck, evaluatePrecision, evaluateQc } from "./validationAdvanced";
 import { formatValidationNumber as fmt } from "./validationAdvanced";
 import type { PreparationLevel, ValidationStock, LinearitySettings } from "./validationPreparation";
-import { preparationResult, stockConcentration, defaultLinearitySettings, checkLinearityPreparation } from "./validationPreparation";
+import { preparationResult, targetConcentration, stockConcentration, defaultLinearitySettings, checkLinearityPreparation } from "./validationPreparation";
 import { parseMeasurements, regression, stats } from "./validationCalculator";
 import { defaultSpecificitySettings, evaluateSpecificity, type SpecificitySettings } from "./validationSpecificity";
 import { evaluateLinkedMeasurements, measurementLabels, type LinkedMeasurements } from "./validationMeasurements";
@@ -54,7 +54,7 @@ export function createValidationReport(input: ValidationReportInput) {
   const groupedLinearity = linearPreparation.prepared.map(({ level, actual }, index) => {
     const data = linearPreparation.groups[index].map(row => row[1]);
     const result = stats(data);
-    return [level.target, fmt(actual), data.length, fmt(result?.mean), fmt(result?.sd), fmt(result?.rsd)];
+    return [fmt(targetConcentration(level)), fmt(actual), data.length, fmt(result?.mean), fmt(result?.sd), fmt(result?.rsd)];
   });
   return `<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><title>${e(input.title)}</title><style>
   *{box-sizing:border-box}body{font:14px/1.65 Tahoma,Arial,sans-serif;color:#172033;margin:0;background:#eef2f6}main{max-width:1000px;margin:32px auto;padding:40px;background:white}h1{font-size:25px;margin:0}h2{font-size:19px;border-bottom:2px solid #2563eb;padding-bottom:8px;margin-top:30px}h3{font-size:15px}p{white-space:pre-wrap}table{width:100%;border-collapse:collapse;margin:12px 0 20px;font-size:12px;table-layout:auto}th,td{border:1px solid #cbd5e1;padding:7px;vertical-align:top;overflow-wrap:anywhere}th{background:#eff4fa;text-align:left}tr{break-inside:avoid}thead{display:table-header-group}.muted{color:#64748b}.notice{padding:14px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc}.errors{color:#991b1b}figure{margin:12px 0;break-inside:avoid}figcaption{font-weight:bold}svg{width:100%;max-height:360px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}pre{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #cbd5e1;padding:12px;font-size:11px}@page{size:A4;margin:15mm}@media print{body{background:white}main{margin:0;padding:0;max-width:none}.screen{display:none}h2,h3{break-after:avoid}a{color:inherit;text-decoration:none}}@media(max-width:640px){main{margin:0;padding:16px}.two{display:block}table{font-size:10px}}
@@ -64,7 +64,7 @@ export function createValidationReport(input: ValidationReportInput) {
   ${table(["น้ำหนักมาตรฐาน (mg)", "Purity (%)", "ปริมาตร Stock (mL)", "C stock (mg/mL)"], [[input.prep[0], input.prep[1], input.prep[2], fmt(stock)]])}
   ${stocks.length ? table(["Stock เพิ่มเติม", "รหัส", "น้ำหนัก mg", "Purity %", "V mL", "C stock mg/mL", "Certificate / Lot", "วันที่เตรียม / ผู้เตรียม"], stocks.map(source => [source.name, source.id, source.weight, source.purity, source.volume, fmt(stockConcentration(Number(source.weight), Number(source.purity), Number(source.volume))), source.certificate, source.preparedOn])) : ""}
   <p>C stock = W × Purity/100 ÷ V; C actual = C stock × ปริมาตรที่ปิเปตจริง ÷ ปริมาตรสุดท้าย เก็บทศนิยมเต็มในการคำนวณ ปัดเศษเฉพาะการแสดงผล</p>
-  ${table(["ใช้สำหรับ", "Stock", "Target mg/mL", "ปิเปต µL", "ปริมาตรสุดท้าย µL", "Matrix µL", "Actual mg/mL", "Diluent µL"], input.levels.map(row => { const d = preparationResult(row, stock, stocks); return [row.purpose, row.stockId ? stocks.find(source => source.id === row.stockId)?.name || row.stockId : "Stock หลัก",row.target,row.aliquot,row.finalVolume,row.matrix,fmt(d?.actual),fmt(d?.diluentUl)]; }))}
+  ${table(["ใช้สำหรับ", "Stock", "Target ตามหน่วยที่กรอก", "ปิเปต µL", "ปริมาตรสุดท้าย µL", "Matrix µL", "Actual mg/mL", "Diluent µL"], input.levels.map(row => { const d = preparationResult(row, stock, stocks); return [row.purpose, row.stockId ? stocks.find(source => source.id === row.stockId)?.name || row.stockId : "Stock หลัก",`${row.target} ${row.targetUnit ?? "mg/mL"}`,row.aliquot,row.finalVolume,row.matrix,fmt(d?.actual),fmt(d?.diluentUl)]; }))}
   <h2>7. เกณฑ์และผลตรวจสอบ</h2>${table(["รายการ", "ผลคำนวณ", "เกณฑ์", "สถานะ"], input.checks.map(c => [c.name,c.value,c.criteria,c.pass == null ? "รอตรวจสอบ" : c.pass ? "Passed" : "Failed"]))}
   <h2>1. Specificity</h2><p>Standard อย่างน้อย ${e(specificity.minStandards)} ครั้ง; RT %CV ≤ ${e(specificity.rtLimit)}%; Area %RSD ≤ ${e(specificity.areaLimit)}%; Blank แต่ละชนิดอย่างน้อย ${e(specificity.minBlanks)} ครั้ง โดย Area สูงสุด / Mean Standard Area × 100 ≤ ${e(specificity.blankLimit)}%</p>
   ${specificity.peakMode ? `<p>โหมดรายพีค: RT %CV ประเมินแต่ละพีค; Area %RSD ใช้ผลรวมต่อ Injection; Blank รายพีคใช้ฐาน ${e(specificity.peakBlankBasis === "individual" ? "Mean Standard Area ของพีคนั้น" : "Mean ผลรวม Standard Area")} และผลรวม Blank ใช้ Mean ผลรวม Standard Area</p>

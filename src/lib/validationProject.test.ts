@@ -22,6 +22,11 @@ describe("เปิดงาน Validation", () => {
     expect(() => readValidationProject(JSON.stringify({ ...project, prep: [] }))).toThrow();
     expect(() => readValidationProject(JSON.stringify({ ...project, preparationLevels: [project.preparationLevels[0], project.preparationLevels[0]] }))).toThrow();
   });
+  it("เก็บหน่วย Target รายระดับและปฏิเสธหน่วยที่ระบบไม่รองรับ", () => {
+    const preparationLevels = [{ ...project.preparationLevels[0], target: "100", targetUnit: "µg/mL" }];
+    expect(readValidationProject(JSON.stringify({ ...project, preparationLevels })).preparationLevels).toEqual(preparationLevels);
+    expect(() => readValidationProject(JSON.stringify({ ...project, preparationLevels: [{ ...preparationLevels[0], targetUnit: "ppm" }] }))).toThrow();
+  });
   it("เก็บข้อมูลทบทวน Specificity และปฏิเสธค่าผลทบทวนที่ไม่รู้จัก", () => {
     const specificity = { ...defaultSpecificitySettings(), matrixReference: "MB-1", reviewedAt: "2026-09-17T00:00:00Z", reviewedSnapshot: "source" };
     expect(readValidationProject(JSON.stringify({ ...project, specificity })).specificity).toEqual(specificity);

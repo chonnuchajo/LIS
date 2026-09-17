@@ -1,8 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { dilution, stockConcentration, preparationResult, preparationTemplate, checkLinearityPreparation, defaultPreparationLevels, defaultLinearitySettings } from "./validationPreparation";
+import { dilution, stockConcentration, preparationResult, preparationTemplate, checkLinearityPreparation, defaultPreparationLevels, defaultLinearitySettings, targetConcentration, changePreparationUnit } from "./validationPreparation";
 import { parseMeasurements } from "./validationCalculator";
 
 describe("การเตรียมสารสำหรับหัวข้อ 6 และ 7", () => {
+  it("เปลี่ยนหน่วย Target โดยคงความเข้มข้นและสร้างผลวัดใน mg/mL", () => {
+    const original = defaultPreparationLevels().find(level => level.purpose === "accuracy" && level.target === "0.5")!;
+    const changed = changePreparationUnit(original, "µg/mL")!;
+    expect(changed.target).toBe("500");
+    expect(targetConcentration(changed)).toBe(0.5);
+    expect(preparationResult(changed, 2.01159, [])).toEqual(preparationResult(original, 2.01159, []));
+    expect(preparationTemplate("accuracy", [changed], 2.01159, [], 2)).toBe("0.5\t0.5028975\t\n0.5\t0.5028975\t");
+    expect(changePreparationUnit(changed, "mg/L")?.target).toBe("500");
+    expect(changePreparationUnit(changed, "mg/mL")?.target).toBe("0.5");
+  });
+  it("ตรวจค่า Target ที่ไม่สามารถแปลงหน่วยได้", () => {
+    expect(targetConcentration({ target: "5e-324", targetUnit: "µg/mL" })).toBeNull();
+    expect(targetConcentration({ target: "", targetUnit: "mg/L" })).toBeNull();
+    expect(changePreparationUnit({ ...defaultPreparationLevels()[0], target: "1e308" }, "mg/L")).toBeNull();
+    expect(changePreparationUnit({ ...defaultPreparationLevels()[0], target: "" }, "mg/L")?.target).toBe("");
+  });
   it("คำนวณความเข้มข้นจริงจากรายงานโดยไม่แทนด้วย Target", () => {
     const stock = stockConcentration(54.25, 92.7, 25);
     expect(stock).toBeCloseTo(2.01159, 8);

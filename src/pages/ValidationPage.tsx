@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parseMeasurements, regression, stats } from "@/lib/validationCalculator";
 import ValidationDataGrid from "@/components/lis/ValidationDataGrid";
 import ValidationPreparation from "@/components/lis/ValidationPreparation";
-import { defaultPreparationLevels, positiveNumber, stockConcentration, defaultLinearitySettings, checkLinearityPreparation, preparationTemplate, type ValidationStock } from "@/lib/validationPreparation";
+import { defaultPreparationLevels, targetConcentration, positiveNumber, stockConcentration, defaultLinearitySettings, checkLinearityPreparation, preparationTemplate, type ValidationStock } from "@/lib/validationPreparation";
 import ValidationStocks from "@/components/lis/ValidationStocks";
 import { PrecisionPanel, QcPanel, ValidationResults as Results } from "@/components/lis/ValidationAdvanced";
 import { defaultPrecisionSettings, defaultQcSettings, evaluatePrecision, evaluateQc } from "@/lib/validationAdvanced";
@@ -65,16 +65,16 @@ export default function ValidationPage() {
   const fit = parsed[1].errors.length ? null : regression(parsed[1].rows);
   const plannedLinearity = preparationLevels.filter(r => r.purpose === "linearity");
   const plannedAccuracy = preparationLevels.filter(r => r.purpose === "accuracy");
-  const accuracyTargets = plannedAccuracy.map(r => Number(r.target));
+  const accuracyTargets = plannedAccuracy.map(r => targetConcentration(r) ?? NaN);
   const planErrors: string[] = [];
   if (plannedLinearity.length < 3) planErrors.push("แผน Linearity: ต้องกำหนดอย่างน้อย 3 ระดับ");
   if (!plannedAccuracy.length) planErrors.push("แผน Accuracy: ต้องกำหนดระดับที่ต้องการทดสอบ");
-  if (preparationLevels.some(r => positiveNumber(r.target) == null)) planErrors.push("แผนเตรียมสาร: Target ต้องมากกว่า 0");
+  if (preparationLevels.some(r => targetConcentration(r) == null)) planErrors.push("แผนเตรียมสาร: Target ต้องมากกว่า 0");
   if (new Set(accuracyTargets).size !== accuracyTargets.length) planErrors.push("แผน Accuracy: ระดับเป้าหมายซ้ำกัน");
   if (plannedAccuracy.some(r => positiveNumber(r.recoveryLow) == null || positiveNumber(r.recoveryHigh) == null || Number(r.recoveryLow) >= Number(r.recoveryHigh))) planErrors.push("แผน Accuracy: ตรวจเกณฑ์ Recovery ต่ำและสูง");
   const linearPreparation = checkLinearityPreparation(parsed[1].rows, preparationLevels, stock, stocks, linearity);
   const linearReady = planErrors.length === 0 && !!fit && linearPreparation.ready;
-  const linearStats = linearPreparation.prepared.map(({ level, actual }, index) => ({ id: level.id, x: actual, target: level.target, stats: stats(linearPreparation.groups[index].map(row => row[1])) }));
+  const linearStats = linearPreparation.prepared.map(({ level, actual }, index) => ({ id: level.id, x: actual, target: targetConcentration(level), stats: stats(linearPreparation.groups[index].map(row => row[1])) }));
   const specificityChecks = specificityResult.checks;
   const linearityChecks: Check[] = [
     { name: "R²", value: fmt(fit?.r2), criteria: `≥ ${linearity.r2Min} · ${plannedLinearity.length} ระดับ ระดับละ ≥ ${linearity.minReplicates} ครั้ง`, pass: linearReady ? fit.r2 >= Number(linearity.r2Min) : null },
@@ -82,7 +82,7 @@ export default function ValidationPage() {
   ];
   const recoveryPoints = parsed[2].rows.map(([level, expected, found], i) => ({ index: i + 1, level, expected, found, recovery: expected > 0 ? found / expected * 100 : null }));
   const accuracyChecks: Check[] = plannedAccuracy.map(planned => {
-    const level = Number(planned.target);
+    const level = targetConcentration(planned) ?? NaN;
     const rows = recoveryPoints.filter(r => r.level === level);
     const values = rows.flatMap(r => r.recovery == null ? [] : [r.recovery]);
     const summary = stats(values);
