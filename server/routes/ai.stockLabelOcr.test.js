@@ -77,7 +77,11 @@ describe('stock label OCR route', () => {
     expect(mockGenerateJSONFromImage).toHaveBeenCalledWith(
       expect.stringContaining('เลขใต้ QR'),
       'data:image/jpeg;base64,abc',
-      expect.objectContaining({ temperature: 0, maxTokens: 300 }),
+      expect.objectContaining({
+        system: expect.stringContaining('บางส่วนของสติ๊กเกอร์'),
+        temperature: 0,
+        maxTokens: 300,
+      }),
     );
   });
 });
