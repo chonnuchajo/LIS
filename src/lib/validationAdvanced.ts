@@ -53,7 +53,8 @@ export function evaluatePrecision(settings: PrecisionSettings, targets: number[]
     return { level, c, predictedR, predictedRepeatability, repeatability, ratio, days, anova, intermediateRatio };
   });
   if (errors.length) checks.forEach(c => { c.pass = null; });
-  return { checks, errors, summaries, rawDaily: daily.rows };
+  return { checks, errors, summaries, rawDaily: daily.rows,
+    source: { dailyData: settings.dailyData, massFractions: settings.massFractions, repeatabilityFactor: settings.repeatabilityFactor } };
 }
 
 export type QcSettings = {

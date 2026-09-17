@@ -56,6 +56,13 @@ export function createValidationReport(input: ValidationReportInput) {
   const linkedSources = linkedResult?.sources.filter(source => linkedRows.some(result => result.row.calibrationId === source.calibration.id)) ?? [];
   const status = input.errors.length || reportChecks.some(c => c.pass === false) ? "พบข้อผิดพลาด / ต้องทบทวน" : reportChecks.every(c => c.pass === true) && reportChecks.length ? "ผ่านเงื่อนไขที่คำนวณ — รออนุมัติรายงาน" : "ข้อมูลหรือการทบทวนยังไม่ครบ";
   const accuracyRows = (parsed[2]?.rows ?? []).map(([level, expected, found], i) => [i + 1, level, expected, found, expected > 0 ? fmt(found / expected * 100) : "คำนวณไม่ได้", expected > 0 ? fmt((found - expected) / expected * 100) : "คำนวณไม่ได้"]);
+  const accuracySummary = input.levels.filter(level => level.purpose === "accuracy").map(level => {
+    const target = targetConcentration(level);
+    const rows = parsed[2].rows.filter(row => row[0] === target);
+    const found = stats(rows.map(row => row[2]));
+    const recovery = rows.every(row => row[1] > 0) ? stats(rows.map(row => row[2] / row[1] * 100)) : null;
+    return [target, rows.length, fmt(found?.mean), fmt(found?.sd), fmt(found?.rsd), fmt(recovery?.mean), fmt(recovery?.sd), `${level.recoveryLow}–${level.recoveryHigh}%`];
+  });
   const linearPreparation = checkLinearityPreparation(parsed[1]?.rows ?? [], input.levels, stock, stocks, linearity);
   const groupedLinearity = linearPreparation.prepared.map(({ level, actual }, index) => {
     const data = linearPreparation.groups[index].map(row => row[1]);
@@ -99,9 +106,10 @@ export function createValidationReport(input: ValidationReportInput) {
   ${table(["Target mg/mL", "Actual ตามแผน mg/mL", "n", "Mean Area", "Sample SD", "%RSD"], groupedLinearity)}
   ${fit ? `<div class="two">${scatter(fit.points.map(p=>({x:p.concentration,y:p.area})),"Calibration Curve","Concentration (mg/mL)","Area",fit)}${scatter(fit.points.map(p=>({x:p.concentration,y:p.residual})),"Residual Plot","Concentration (mg/mL)","Residual (Area)")}</div>` : ""}
   ${table(["Injection", "Actual mg/mL", "Area", "Predicted Area", "Residual", "Back-calculated mg/mL"], (fit?.points ?? []).map((p,i)=>[i+1,p.concentration,p.area,fmt(p.predicted),fmt(p.residual),fmt((p.area-fit!.intercept)/fit!.slope)]))}
-  <h3>8.3 Accuracy &amp; Precision</h3><p>Recovery = Found / Actual fortified × 100; Bias = (Found − Actual fortified) / Actual fortified × 100 สำหรับ Matrix Blank ที่ไม่มีสารเป้าหมาย; Sample SD ใช้ n−1</p>
+  <h3>8.3 Accuracy</h3><p>Recovery = Found / Actual fortified × 100; Bias = (Found − Actual fortified) / Actual fortified × 100 สำหรับ Matrix Blank ที่ไม่มีสารเป้าหมาย; Sample SD ใช้ n−1</p>
   ${table(["ตัวอย่าง", "Target mg/mL", "Actual fortified mg/mL", "Found mg/mL", "Recovery %", "Bias %"], accuracyRows)}
-  <h3>Repeatability และฐาน Horwitz</h3>${table(["ระดับ mg/mL", "C (g/g)", "Horwitz RSDR", "RSD อ้างอิง Repeatability", "RSD ที่วัดได้", "HorRat(r)"], input.precision.summaries.map(s=>[s.level,fmt(s.c),fmt(s.predictedR),fmt(s.predictedRepeatability),fmt(s.repeatability?.rsd),fmt(s.ratio)]))}
+  ${table(["Target mg/mL", "n", "Mean Found mg/mL", "SD Found mg/mL", "RSD Found %", "Mean Recovery %", "SD Recovery", "เกณฑ์ Recovery รายตัวอย่าง"], accuracySummary)}
+  <h3>8.4 Precision · Repeatability และฐาน Horwitz</h3><p>RSD/HorRat ของ Precision ใช้ Recovery รายตัวอย่าง เพื่อรองรับ Actual ที่ต่างกันแต่ละชุดเตรียม; RSD Found ในตาราง Accuracy เป็นสถิติเชิงพรรณนาของค่าความเข้มข้น Factor ของ Repeatability = ${e(input.precision.source.repeatabilityFactor)} × Horwitz RSDR</p>${table(["ระดับ mg/mL", "C (g/g)", "Horwitz RSDR", "RSD อ้างอิง Repeatability", "RSD ที่วัดได้", "HorRat(r)"], input.precision.summaries.map(s=>[s.level,fmt(s.c),fmt(s.predictedR),fmt(s.predictedRepeatability),fmt(s.repeatability?.rsd),fmt(s.ratio)]))}
   <h3>Intermediate Precision · balanced one-way ANOVA ของ Recovery</h3>${table(["ระดับ", "จำนวนวัน", "Mean Recovery", "SD ภายในวัน", "SD ระหว่างวัน", "SD รวม", "RSD รวม", "HorRat(IP)"],input.precision.summaries.map(s=>[s.level,s.days.length,fmt(s.anova?.mean),fmt(s.anova?.withinSd),fmt(s.anova?.betweenSd),fmt(s.anova?.sd),fmt(s.anova?.rsd),fmt(s.intermediateRatio)]))}
   <p>SD รวม = √(MSwithin + max(0, (MSbetween − MSwithin)/n)) ใช้จำนวนซ้ำเท่ากันทุกวัน ค่าเฉลี่ยรายวันอย่างเดียวไม่เพียงพอสำหรับคำนวณนี้</p>
   ${table(["Day", "Target mg/mL", "Actual fortified mg/mL", "Found mg/mL"],input.precision.rawDaily)}
@@ -114,6 +122,7 @@ export function createValidationReport(input: ValidationReportInput) {
   <h2>ภาคผนวก · ข้อมูลที่นำเข้า</h2>${input.texts.map((text,i)=>i === 0 && specificity.peakMode ? "" : `<h3>${["Specificity","Linearity","Accuracy"][i]}</h3><pre>${e(text || "ยังไม่มีข้อมูล")}</pre>`).join("")}
   ${specificity.peakMode ? `<h3>Specificity · Standard รายพีค</h3><p>${e(specificity.peakNames.flatMap(name => [`${name} RT`, `${name} Area`]).join(", "))}</p><pre>${e(specificity.peakStandardData || "ยังไม่มีข้อมูล")}</pre><h3>Specificity · Blank รายพีค</h3><p>${e(specificity.peakNames.flatMap(name => [`${name} Solvent Area`, `${name} Matrix Area`]).join(", "))}</p><pre>${e(specificity.peakBlankData || "ยังไม่มีข้อมูล")}</pre>` : `<h3>Specificity · Solvent Blank, Matrix Blank</h3><pre>${e(specificity.blankData || "ยังไม่มีข้อมูล")}</pre>`}
   ${input.includeQc ? Object.entries(input.qc.rawInputs).map(([name,text])=>`<h3>QC · ${e(name)} · ข้อมูลต้นทาง</h3><pre>${e(text || "ยังไม่มีข้อมูล")}</pre>`).join("") : ""}
+  <h3>Precision · ข้อมูลรายวันต้นทาง</h3><pre>${e(input.precision.source.dailyData || "ยังไม่มีข้อมูล")}</pre><h3>Precision · ฐาน C (Target mg/mL, mass fraction g/g)</h3><pre>${e(input.precision.source.massFractions || "ยังไม่มีข้อมูล")}</pre>
   <h3>แหล่งอ้างอิงสูตร</h3><p><a href="https://www.cipac.org/images/pdf/validat.pdf">CIPAC 3807 · Horwitz / mass fraction</a><br><a href="https://eurachem.org/images/stories/Guides/pdf/MV_Guide_planning_supplement_2nd_ed_EN.pdf">Eurachem · Planning and Reporting Method Validation Studies (2025)</a></p>
   </main></body></html>`;
 }

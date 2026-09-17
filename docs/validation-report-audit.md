@@ -99,3 +99,14 @@
 - เพิ่ม trace ของ Standard QC (Found/Actual) และ Matrix Spike (Found/Unspiked/Added) รายแถวพร้อมหน่วย mg/mL และ Recovery ในรายงาน แทนตารางสองคอลัมน์ที่อาจซ่อนแถวเกินจำนวน
 - เก็บข้อความ QC ดิบทั้งชุดในภาคผนวก รวมแถวผิดรูปแบบโดย escape HTML; ผลคำนวณที่ล้นช่วงตัวเลขและ Spike ที่ Found ต่ำกว่า Unspiked คืนค่าไม่พร้อมคำนวณ ไม่แสดงเป็นผลผ่าน
 - ตรวจสูตร/รายงาน/รายละเอียดวิธี 13 รายการและ ESLint ผ่าน; ยังต้องตรวจรายงานกรอกครบในการพิมพ์หลายหน้า
+
+### ตรวจงานครบชุดในหน้าเว็บ
+
+- เพิ่ม regression fixture `src/lib/validationFullReport.test.ts`: Accuracy ใช้ค่า Found ที่พิมพ์ในหน้า 17; Standard/Blank, Linearity และรายวันเป็นข้อมูลจำลองที่ติดป้าย QA เท่านั้น ไม่ใช่หลักฐานจริงของวิธี
+- เปิดไฟล์ QA JSON ในเว็บจริงแล้วคำนวณใหม่ได้ Passed 26/26, Failed 0, Pending 0; รายงานยังระบุฉบับร่างรออนุมัติ ไม่อนุมัติวิธีโดยอัตโนมัติ
+- ตรวจแท็บมือถือ 390×844: Linearity 15 แถว, Accuracy 30 แถว, ข้อมูลรายวัน 180 แถว และ Summary/QC แสดงครบ หน้าไม่มี horizontal overflow (scrollWidth 375, viewport 390)
+- เพิ่มตาราง Accuracy สรุป n, Mean/SD/RSD ของ Found และ Mean/SD Recovery แยกฐานชัดเจน ค่า Mean Found ได้ 0.10022, 0.49843, 1.00341 mg/mL; SD Found ระดับกลางเทียบต้นฉบับได้ 3.22354 µg/mL
+- รายงานแยกหัวข้อ 8.3 Accuracy และ 8.4 Precision แสดง factor ของ Repeatability และเก็บข้อมูลรายวัน/ฐาน C ต้นทางในภาคผนวก
+- ชุดทดสอบที่เกี่ยวข้อง 14 ข้อและ ESLint ผ่าน ไม่พบ TypeScript error ในส่วน Validation (ทั้ง repository ยังมี error เดิม)
+- เปิดรายงานเต็มแยกหน้าและตรวจ preview ได้ แต่ Ctrl+P ของ in-app browser ไม่เปิด print preview ที่เครื่องมือเข้าถึงได้ จึงยังไม่ยืนยัน pagination/PDF หลายหน้า
+- ตรวจการเชื่อมต่อฐานข้อมูลแบบ read-only โดยจำกัดเวลา 4 วินาที: DATABASE_UNAVAILABLE; รอข้อมูลเรื่อง VPN/เครือข่ายจากผู้ใช้เพื่อทดสอบ AI ผ่าน backend หลักต่อ
