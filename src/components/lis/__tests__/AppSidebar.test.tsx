@@ -150,7 +150,8 @@ describe("AppSidebar", () => {
     expect(headings[0]).toBe("รายการโปรด");
 
     const links = Array.from(nav.querySelectorAll("a")).map((el) => el.getAttribute("href"));
-    expect(links.slice(0, 2)).toEqual(["/stock", "/petition"]);
+    expect(links.slice(0, 3)).toEqual(["/validation", "/stock", "/petition"]);
+    expect(links.filter(path => path === "/validation")).toHaveLength(1);
   });
 
   it("ไม่แสดงรายการโปรดที่ชี้ path ซึ่งไม่มีใน NAV_ITEMS", async () => {

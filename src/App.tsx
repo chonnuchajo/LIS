@@ -22,6 +22,7 @@ import { StartupLoadingGate } from "@/components/StartupLoadingGate";
 // Route-level code splitting: each page is its own chunk, loaded on demand.
 // Keeps the initial bundle to the app shell + only the landing route.
 const Home = lazy(() => import("./pages/Home"));
+const ValidationPage = lazy(() => import("./pages/ValidationPage"));
 const QueueDisplay = lazy(() => import("./pages/QueueDisplay"));
 const Login = lazy(() => import("./pages/Login"));
 const Logout = lazy(() => import("./pages/Logout"));
@@ -126,6 +127,7 @@ const App = () => (
               <Route path="/queue/lab" element={<QueueDisplay mode="lab" />} />
               <Route path="/queue/qc" element={<QueueDisplay mode="qc" />} />
               <Route path="/home" element={<PrivateRoute><Home /></PrivateRoute>} />
+              <Route path="/validation" element={<PrivateRoute><ValidationPage /></PrivateRoute>} />
               <Route path="/stock-deduction" element={<PrivateRoute><StockDeduction /></PrivateRoute>} />
               <Route path="/record-results" element={<PrivateRoute><AnalysisResults /></PrivateRoute>} />
               <Route path="/record-results/:id" element={<PrivateRoute><PetitionDetailPage mode="result" /></PrivateRoute>} />
