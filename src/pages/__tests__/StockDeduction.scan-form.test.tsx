@@ -468,4 +468,19 @@ describe("StockDeduction scan form", () => {
     expect(await screen.findByRole("radio", { name: /เลขขวด 026601/ })).toBeChecked();
     expect(toastMock.error).not.toHaveBeenCalledWith("ไม่พบขวด stock ที่มีเลข 026601");
   });
+
+  it("searches OCR label codes directly instead of relying on the limited stock unit list", async () => {
+    const oldUnit = stockUnit({ qrId: "u_old", labelCode: "026601" });
+    readStockLabelCodeFromImageMock.mockResolvedValue({ labelCode: "026601", candidates: ["026601"], rawText: "026601" });
+    apiMock.getStockUnit.mockImplementation((qrId: string) => Promise.resolve(qrId === "u_old" ? oldUnit : stockUnit()));
+    apiMock.getStockUnits.mockImplementation((params?: { labelCode?: string }) => Promise.resolve(params?.labelCode === "026601" ? [oldUnit] : []));
+
+    renderPage();
+
+    openCameraScanner();
+    fireEvent.click(screen.getByRole("button", { name: "mock OCR capture" }));
+
+    expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+    expect(apiMock.getStockUnits).toHaveBeenCalledWith({ itemType: "standard", labelCode: "026601" });
+  });
 });

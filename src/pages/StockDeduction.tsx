@@ -192,7 +192,8 @@ const StockDeduction = () => {
     }
 
     try {
-      const units = await api.getStockUnits({ itemType: "standard" });
+      const unitGroups = await Promise.all(candidates.map((candidate) => api.getStockUnits({ itemType: "standard", labelCode: candidate })));
+      const units = unitGroups.flat();
       const matches = units.filter((unit) => candidates.includes(normalizeStockLabelCandidate(standardRequisitionUnitLabelCode(unit))));
       const matchedUnit = matches.find((unit) => unit.status === "active") ?? matches[0];
       if (!matchedUnit) {

@@ -33,6 +33,12 @@ function chainLean(result) {
   };
 }
 
+function chainSortLimit(result) {
+  const limit = jest.fn().mockResolvedValue(result);
+  const sort = jest.fn(() => ({ limit }));
+  return { sort, limit, query: { sort } };
+}
+
 describe('stock standard label code duplicates', () => {
   const originals = {
     findStandardById: StockStandard.findById,
@@ -151,5 +157,35 @@ describe('stock standard label code duplicates', () => {
     expect(res.statusCode).toBe(200);
     expect(unit.labelCode).toBe('536901');
     expect(unit.save).toHaveBeenCalled();
+  });
+
+  test('listing units by Code finds legacy label run fields', async () => {
+    const handler = routeHandler('/units', 'get');
+    const matchingLegacyUnit = {
+      qrId: 'u_legacy',
+      itemType: 'standard',
+      itemCode: '2',
+      labelCode: '',
+      labelRunNo: 1,
+      labelRunYear: 2023,
+    };
+    const wrongPrefixUnit = {
+      qrId: 'u_wrong',
+      itemType: 'standard',
+      itemCode: '3',
+      labelCode: '',
+      labelRunNo: 1,
+      labelRunYear: 2023,
+    };
+    StockUnit.find = jest.fn()
+      .mockReturnValueOnce(chainSortLimit([]).query)
+      .mockReturnValueOnce(chainSortLimit([matchingLegacyUnit, wrongPrefixUnit]).query);
+
+    const req = { query: { itemType: 'standard', labelCode: '026601' }, headers: {} };
+    const res = mockResponse();
+
+    await handler(req, res);
+
+    expect(res.json).toHaveBeenCalledWith([matchingLegacyUnit]);
   });
 });
