@@ -17,6 +17,7 @@ import ValidationStocks from "@/components/lis/ValidationStocks";
 import { PrecisionPanel, QcPanel, ValidationResults as Results } from "@/components/lis/ValidationAdvanced";
 import { defaultPrecisionSettings, defaultQcSettings, evaluatePrecision, evaluateQc } from "@/lib/validationAdvanced";
 import { createValidationReport } from "@/lib/validationReport";
+import { exportValidationPdf } from "@/lib/validationReportExport";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { readValidationProject } from "@/lib/validationProject";
 import ValidationSpecificity from "@/components/lis/ValidationSpecificity";
@@ -53,6 +54,7 @@ export default function ValidationPage() {
   const [reportMeta, setReportMeta] = useState({ analyst: "", reviewer: "", protocol: "WI-06-04-03 rev.04 (ปรับเกณฑ์ตามวิธีที่ใช้)", calibration: "", notes: "" });
   const [notice, setNotice] = useState("");
   const [previewHtml, setPreviewHtml] = useState("");
+  const [pdfBusy, setPdfBusy] = useState(false), [pdfError, setPdfError] = useState("");
   const projectFile = useRef<HTMLInputElement>(null);
   const [weight, purity, volume, aliquot, finalVolume] = prep.map(Number);
   const validPrep = prep.every(v => v.trim() !== "" && Number.isFinite(Number(v)) && Number(v) > 0) && purity <= 100 && aliquot <= finalVolume;
@@ -120,7 +122,7 @@ export default function ValidationPage() {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setNotice("ดาวน์โหลดรายงาน HTML แล้ว เปิดไฟล์เพื่ออ่านหรือใช้ Ctrl+P บันทึกเป็น PDF");
   };
-  const previewReport = () => setPreviewHtml(createValidationReport({ title, analyte, method, ...reportMeta, prep, levels: preparationLevels, texts, blank, checks, errors, precision: precisionResult, qc: qcResult, includeQc: qc.enabled, specificity, stocks, linearity, linkedMeasurements, protocolDetails }));
+  const previewReport = () => { setPdfError(""); setPreviewHtml(createValidationReport({ title, analyte, method, ...reportMeta, prep, levels: preparationLevels, texts, blank, checks, errors, precision: precisionResult, qc: qcResult, includeQc: qc.enabled, specificity, stocks, linearity, linkedMeasurements, protocolDetails })); };
   const updateText = (value: string) => setTexts(old => old.map((v, i) => i === Number(tab) ? value : v));
   const templates = [null, preparationTemplate("linearity", preparationLevels, stock, stocks, Number(linearity.minReplicates)), preparationTemplate("accuracy", preparationLevels, stock, stocks, Number(precision.minReplicates))];
   const fillPreparationTemplate = (index: number) => {
@@ -144,9 +146,19 @@ export default function ValidationPage() {
     }} />
     <Dialog open={!!previewHtml} onOpenChange={open => { if (!open) setPreviewHtml(""); }}>
       <DialogContent className="sm:max-w-6xl">
-        <DialogHeader><DialogTitle>ตัวอย่างรายงาน Validation</DialogTitle><DialogDescription>ตรวจตารางและกราฟก่อนดาวน์โหลด เปิดไฟล์ HTML แล้วใช้ Ctrl+P เพื่อบันทึก PDF</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>ตัวอย่างรายงาน Validation</DialogTitle><DialogDescription>ตรวจตารางและกราฟก่อนดาวน์โหลด PDF พร้อมเลขหน้า หรือเก็บ HTML เพื่อเปิดและพิมพ์ภายหลัง</DialogDescription></DialogHeader>
         <iframe title="ตัวอย่างรายงาน Validation" sandbox="" srcDoc={previewHtml} className="h-[65vh] w-full rounded-lg border" />
-        <Button onClick={downloadReadableReport}><Download className="mr-2 h-4 w-4" />ดาวน์โหลดรายงาน HTML สำหรับพิมพ์</Button>
+        <div className="flex flex-wrap gap-2"><Button disabled={pdfBusy} onClick={async () => {
+          setPdfBusy(true); setPdfError("");
+          try {
+            const blob = await exportValidationPdf(previewHtml);
+            const url = URL.createObjectURL(blob), link = document.createElement("a");
+            link.href = url; link.download = "method-validation-report.pdf"; link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          } catch (error) { setPdfError(error instanceof Error ? error.message : "สร้าง PDF ไม่สำเร็จ"); }
+          finally { setPdfBusy(false); }
+        }}><Download className="mr-2 h-4 w-4" />{pdfBusy ? "กำลังสร้าง PDF…" : "ดาวน์โหลด PDF พร้อมเลขหน้า"}</Button><Button variant="outline" onClick={downloadReadableReport}>ดาวน์โหลด HTML สำหรับพิมพ์</Button></div>
+        {pdfError && <p role="alert" className="text-sm text-destructive">{pdfError}</p>}
       </DialogContent>
     </Dialog>
     <PageHeader title="Validation" description="AI Data & Document Validation Checker · ตรวจข้อมูล คำนวณ และสรุปผลในพื้นที่เดียว" actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => projectFile.current?.click()}>เปิดงาน</Button><Button onClick={previewReport}><FileCheck2 className="mr-2 h-4 w-4" />ออกรายงาน</Button><Button variant="outline" onClick={download}><Download className="mr-2 h-4 w-4" />บันทึกงาน JSON</Button></div>} />

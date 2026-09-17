@@ -4,19 +4,19 @@
 
 ## ขอบเขตงานที่ต้องทำให้ครบ
 
-- [ ] หน้าทำงาน 4 แท็บชัดเจน รองรับมือถือและตารางแก้ไขง่าย
-- [ ] กำหนดสาร วิธี หน่วย ชุดเตรียมสาร ระดับและเกณฑ์ได้ ไม่ล็อก Cypermethrin
-- [ ] หัวข้อ 6: Stock, Matrix Blank, Linearity, Accuracy, การเตรียมรายวัน, Sample และ QC
-- [ ] หัวข้อ 7: สูตร เกณฑ์ จำนวนซ้ำ หลักฐาน และข้อมูลดิบที่เชื่อมกับชุดเตรียมสาร
-- [ ] Specificity: Blank, Matrix Blank, Standard, RT และ Area รายพีค พร้อมผู้ทบทวน
-- [ ] Linearity: ตารางราย Injection, สมการ, R², Residual, Back calculation และ Calibration ID
-- [ ] Accuracy: Found/Actual, Recovery และ Bias รายตัวอย่าง พร้อมเกณฑ์รายระดับ
-- [ ] Repeatability: Sample SD, RSD, Horwitz/HorRat ที่ระบุฐานคำนวณ
-- [ ] Intermediate Precision: ข้อมูลดิบต่อวัน แยก within/between-day ด้วย ANOVA
-- [ ] Sample/QC: %w/w, ความหนาแน่นเพื่อแปลง %w/v, spike baseline, duplicate difference
-- [ ] รายงานอ่านได้และพิมพ์ PDF พร้อมตาราง สูตร กราฟ ข้อมูลดิบ และข้อจำกัด
-- [ ] บันทึก/เปิดงานเดิม นำเข้าข้อมูล และตรวจความถูกต้องก่อนยอมรับข้อมูล
-- [ ] ทดสอบสูตรกับรายงาน ตรวจหน้าจอและรายงานจริงก่อนสรุปครบ
+- [x] หน้าทำงาน 4 แท็บชัดเจน รองรับมือถือและตารางแก้ไขง่าย
+- [x] กำหนดสาร วิธี หน่วย ชุดเตรียมสาร ระดับและเกณฑ์ได้ ไม่ล็อก Cypermethrin
+- [x] หัวข้อ 6: Stock, Matrix Blank, Linearity, Accuracy, การเตรียมรายวัน, Sample และ QC
+- [x] หัวข้อ 7: สูตร เกณฑ์ จำนวนซ้ำ หลักฐาน และข้อมูลดิบที่เชื่อมกับชุดเตรียมสาร
+- [x] Specificity: Blank, Matrix Blank, Standard, RT และ Area รายพีค พร้อมผู้ทบทวน
+- [x] Linearity: ตารางราย Injection, สมการ, R², Residual, Back calculation และ Calibration ID
+- [x] Accuracy: Found/Actual, Recovery และ Bias รายตัวอย่าง พร้อมเกณฑ์รายระดับ
+- [x] Repeatability: Sample SD, RSD, Horwitz/HorRat ที่ระบุฐานคำนวณ
+- [x] Intermediate Precision: ข้อมูลดิบต่อวัน แยก within/between-day ด้วย ANOVA
+- [x] Sample/QC: %w/w, ความหนาแน่นเพื่อแปลง %w/v, spike baseline, duplicate difference
+- [x] รายงานอ่านได้และพิมพ์ PDF พร้อมตาราง สูตร กราฟ ข้อมูลดิบ และข้อจำกัด
+- [x] บันทึก/เปิดงานเดิม นำเข้าข้อมูล และตรวจความถูกต้องก่อนยอมรับข้อมูล
+- [x] ทดสอบสูตรกับรายงาน ตรวจหน้าจอและรายงานจริงก่อนสรุปครบ
 
 ## ประเด็นจากต้นฉบับที่ต้องไม่คัดลอกโดยไม่มีการตรวจ
 
@@ -110,3 +110,14 @@
 - ชุดทดสอบที่เกี่ยวข้อง 14 ข้อและ ESLint ผ่าน ไม่พบ TypeScript error ในส่วน Validation (ทั้ง repository ยังมี error เดิม)
 - เปิดรายงานเต็มแยกหน้าและตรวจ preview ได้ แต่ Ctrl+P ของ in-app browser ไม่เปิด print preview ที่เครื่องมือเข้าถึงได้ จึงยังไม่ยืนยัน pagination/PDF หลายหน้า
 - ตรวจการเชื่อมต่อฐานข้อมูลแบบ read-only โดยจำกัดเวลา 4 วินาที: DATABASE_UNAVAILABLE; รอข้อมูลเรื่อง VPN/เครือข่ายจากผู้ใช้เพื่อทดสอบ AI ผ่าน backend หลักต่อ
+
+### PDF โดยตรงและผลตรวจขั้นสุดท้าย
+
+- เพิ่มดาวน์โหลด PDF จากรายงานที่แสดงใน preview ผ่าน `/LIS/api/print/pdf` โดยใช้ A4 และเลขหน้าอัตโนมัติ ไม่อ่านการตั้งค่าเครื่องพิมพ์สำหรับรายงาน Validation
+- สร้าง PDF ชุด QA ผ่าน handler จริงได้ 22 หน้า ตรวจภาพทุกหน้าและเลขหน้า Page 1 / 22 ถึง Page 22 / 22 ครบ แก้สถานะ Passed ที่ตัดคำและตัวเลขทศนิยมจาก floating-point เฉพาะการแสดงผล
+- Client export 2 tests และ server print 3 tests ผ่าน รวมถึงตรวจชนิดไฟล์ PDF และการไม่เรียกฐานข้อมูลเครื่องพิมพ์; ชุด report 9 tests และ ESLint ผ่าน
+- ตรวจ UI ปุ่ม PDF/HTML และข้อความเมื่อ backend ไม่พร้อมแล้ว หน้าใช้ component/token กลางตาม design.md; สีและระยะ mm ในรายงานเป็นข้อกำหนดเอกสารพิมพ์
+- Checklist ข้างต้นยืนยันการพัฒนาและ QA ด้วยข้อมูลทดสอบ ไม่ใช่การอนุมัติวิธีหรือผลวิเคราะห์จริง
+- [ ] ทดสอบ AI และดาวน์โหลด PDF จากหน้าเว็บผ่าน backend หลักครบเส้นทาง: ยังติดฐานข้อมูลเดิมเชื่อมต่อไม่ได้ ต้องกู้การเชื่อมต่อ/VPN ก่อน ไม่ได้เปลี่ยน key หรือฐานข้อมูล
+- ไม่ได้ build หรือ push; ไม่ยืนยันผล production deployment ส่วน HTML ยังดาวน์โหลดและพิมพ์จากเบราว์เซอร์ได้
+- ตรวจขั้นสุดท้าย: Vitest ส่วน Validation 13 ไฟล์ รวม 64 tests ผ่าน และ ESLint ของไฟล์ frontend ที่แก้ผ่าน
