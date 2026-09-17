@@ -1,7 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { parseMeasurements, regression, stats } from "./validationCalculator";
+import { horwitz, intermediatePrecision, parseMeasurements, regression, stats } from "./validationCalculator";
 
 describe("validation calculations", () => {
+  it("uses decimal mass fraction for Horwitz and explicit CIPAC factor", () => {
+    expect(horwitz(1)).toBe(2);
+    expect(horwitz(1, 0.67)).toBe(1.34);
+    expect(horwitz(0.01)).toBe(4);
+    expect(horwitz(25)).toBeNull();
+  });
+  it("includes within-day variation rather than only SD of daily means", () => {
+    const result = intermediatePrecision([[99, 101], [101, 103]]);
+    expect(result?.mean).toBe(101);
+    expect(result?.msWithin).toBeCloseTo(2);
+    expect(result?.msBetween).toBeCloseTo(4);
+    expect(result?.sd).toBeCloseTo(Math.sqrt(3));
+    expect(intermediatePrecision([[99, 101], [101]])).toBeNull();
+    expect(intermediatePrecision([[99, 101], [99, 101]])?.betweenSd).toBe(0);
+  });
   it("reproduces report repeatability using sample SD", () => {
     const result = stats([102.1, 98.8, 99.1, 101.7, 95.8, 101.3, 100.8, 100.1, 101.2, 101.3]);
     expect(result?.mean).toBeCloseTo(100.22, 5);

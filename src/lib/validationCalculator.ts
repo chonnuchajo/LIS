@@ -6,7 +6,7 @@ export function stats(values: number[]) {
 }
 
 export function regression(rows: number[][]) {
-  if (rows.length < 3) return null;
+  if (rows.length < 3 || rows.some(row => row.length !== 2 || row.some(v => !Number.isFinite(v)))) return null;
   const x = rows.map(r => r[0]);
   const y = rows.map(r => r[1]);
   const mx = x.reduce((a, b) => a + b, 0) / x.length;
@@ -19,6 +19,28 @@ export function regression(rows: number[][]) {
   const intercept = my - slope * mx;
   const points = rows.map(([concentration, area]) => ({ concentration, area, predicted: slope * concentration + intercept, residual: area - slope * concentration - intercept }));
   return { slope, intercept, r2: 1 - points.reduce((a, p) => a + p.residual ** 2, 0) / yy, points };
+}
+
+/** Original Horwitz RSDR. C is analyte mass fraction, never mg/mL. */
+export function horwitz(massFraction: number, repeatabilityFactor = 1) {
+  if (!Number.isFinite(massFraction) || massFraction <= 0 || massFraction > 1 ||
+    !Number.isFinite(repeatabilityFactor) || repeatabilityFactor <= 0) return null;
+  return 2 ** (1 - 0.5 * Math.log10(massFraction)) * repeatabilityFactor;
+}
+
+/** Balanced one-way random-effects ANOVA: repeated independent preparations per day. */
+export function intermediatePrecision(groups: number[][]) {
+  if (groups.length < 2 || groups.some(g => g.length < 2 || g.length !== groups[0].length || g.some(v => !Number.isFinite(v)))) return null;
+  const n = groups[0].length;
+  const k = groups.length;
+  const summaries = groups.map(g => stats(g)!);
+  const mean = summaries.reduce((a, s) => a + s.mean, 0) / k;
+  if (mean <= 0) return null;
+  const msWithin = summaries.reduce((a, s) => a + s.sd ** 2, 0) / k;
+  const msBetween = n * summaries.reduce((a, s) => a + (s.mean - mean) ** 2, 0) / (k - 1);
+  const betweenVariance = Math.max(0, (msBetween - msWithin) / n);
+  const sd = Math.sqrt(msWithin + betweenVariance);
+  return { mean, msWithin, msBetween, withinSd: Math.sqrt(msWithin), betweenSd: Math.sqrt(betweenVariance), sd, rsd: sd / mean * 100, summaries, truncatedBetweenVariance: msBetween < msWithin };
 }
 
 /** Numeric CSV/TSV only. Reject incomplete rows instead of silently discarding data. */
