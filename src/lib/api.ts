@@ -459,13 +459,14 @@ export const api = {
   getSixMonthMedicineStock: () => request<SixMonthMedicineStockResponse>("/stock/medicine-six-months"),
 
   // Stock — Units (per-bottle)
-  getStockUnits: (params?: { itemCode?: string; itemType?: string; itemId?: string; status?: string; kind?: string }) => {
+  getStockUnits: (params?: { itemCode?: string; itemType?: string; itemId?: string; status?: string; kind?: string; labelCode?: string }) => {
     const q = new URLSearchParams();
     if (params?.itemCode) q.set("itemCode", params.itemCode);
     if (params?.itemType) q.set("itemType", params.itemType);
     if (params?.itemId) q.set("itemId", params.itemId);
     if (params?.status) q.set("status", params.status);
     if (params?.kind) q.set("kind", params.kind);
+    if (params?.labelCode) q.set("labelCode", params.labelCode);
     const qs = q.toString() ? `?${q.toString()}` : "";
     return request<StockUnitItem[]>(`/stock/units${qs}`);
   },

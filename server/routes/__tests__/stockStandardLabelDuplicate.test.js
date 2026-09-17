@@ -33,6 +33,12 @@ function chainLean(result) {
   };
 }
 
+function chainSortLimit(result) {
+  const limit = jest.fn().mockResolvedValue(result);
+  const sort = jest.fn(() => ({ limit }));
+  return { sort, limit, query: { sort } };
+}
+
 describe('stock standard label code duplicates', () => {
   const originals = {
     findStandardById: StockStandard.findById,
@@ -151,5 +157,57 @@ describe('stock standard label code duplicates', () => {
     expect(res.statusCode).toBe(200);
     expect(unit.labelCode).toBe('536901');
     expect(unit.save).toHaveBeenCalled();
+  });
+
+  test('listing units by Code treats missing itemType as standard', async () => {
+    const handler = routeHandler('/units', 'get');
+    const labelledUnit = {
+      qrId: 'u_labelled',
+      itemType: 'standard',
+      itemCode: '2',
+      labelCode: '026601',
+    };
+    StockUnit.find = jest.fn(() => chainSortLimit([labelledUnit]).query);
+
+    const req = { query: { itemType: 'standard', labelCode: '026601' }, headers: {} };
+    const res = mockResponse();
+
+    await handler(req, res);
+
+    expect(StockUnit.find).toHaveBeenCalledWith({
+      $and: [{ $or: [{ itemType: 'standard' }, { itemType: { $exists: false } }, { itemType: null }, { itemType: '' }] }],
+      labelCode: '026601',
+    });
+    expect(res.json).toHaveBeenCalledWith([labelledUnit]);
+  });
+
+  test('listing units by Code finds the same displayed Code as the picker', async () => {
+    const handler = routeHandler('/units', 'get');
+    const displayCodeUnit = {
+      qrId: 'u_display_code',
+      itemType: 'standard',
+      itemCode: '2',
+      labelCode: '',
+      labelRunNo: 1,
+      labelRunYear: 2023,
+    };
+    const wrongDisplayCodeUnit = {
+      qrId: 'u_wrong_display_code',
+      itemType: 'standard',
+      itemCode: '3',
+      labelCode: '',
+      labelRunNo: 1,
+      labelRunYear: 2023,
+    };
+    StockUnit.find = jest.fn()
+      .mockReturnValueOnce(chainSortLimit([]).query)
+      .mockReturnValueOnce(chainSortLimit([displayCodeUnit, wrongDisplayCodeUnit]).query);
+
+    const req = { query: { itemType: 'standard', labelCode: '026601' }, headers: {} };
+    const res = mockResponse();
+
+    await handler(req, res);
+
+    expect(res.json).toHaveBeenCalledWith([displayCodeUnit]);
   });
 });

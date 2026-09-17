@@ -192,8 +192,22 @@ const StockDeduction = () => {
     }
 
     try {
-      const units = await api.getStockUnits({ itemType: "standard" });
-      const matches = units.filter((unit) => candidates.includes(normalizeStockLabelCandidate(standardRequisitionUnitLabelCode(unit))));
+      const [standards, ...unitGroups] = await Promise.all([
+        queryClient.fetchQuery({ queryKey: ["stock", "standards"], queryFn: api.getStandards }),
+        ...candidates.map((candidate) => api.getStockUnits({ labelCode: candidate })),
+      ]);
+      const standardCodes = new Set(standards.map((standard) => String(standard.code)));
+      const findMatches = (units: Awaited<ReturnType<typeof api.getStockUnits>>) => units.filter((unit) => (
+        standardCodes.has(String(unit.itemCode))
+        && candidates.includes(normalizeStockLabelCandidate(standardRequisitionUnitLabelCode(unit)))
+      ));
+
+      const units = unitGroups.flat();
+      let matches = findMatches(units);
+      if (matches.length === 0) {
+        const pickerUnits = await queryClient.fetchQuery({ queryKey: ["stock", "units"], queryFn: () => api.getStockUnits() });
+        matches = findMatches(pickerUnits);
+      }
       const matchedUnit = matches.find((unit) => unit.status === "active") ?? matches[0];
       if (!matchedUnit) {
         toast.error(`ไม่พบขวด stock ที่มีเลข ${candidates.join(", ")}`);
@@ -204,7 +218,7 @@ const StockDeduction = () => {
     } catch (err) {
       toast.error((err as Error).message || "ค้นหาเลขใต้ QR ไม่สำเร็จ");
     }
-  }, [applyScannedQrId]);
+  }, [applyScannedQrId, queryClient]);
 
   useEffect(() => {
     const resetBuffer = () => {
@@ -531,7 +545,7 @@ const StockDeduction = () => {
       />
       <StockQrScanner
         open={scannerOpen}
-        title="สแกน QR ข้างขวดเพื่อเบิก"
+        title="สแกน QR หรือถ่าย Code บนสติ๊กเกอร์เพื่อเบิก"
         showManualEntry={false}
         onClose={() => setScannerOpen(false)}
         onScanned={applyScannedQrId}

@@ -52,6 +52,7 @@ import type { SixMonthMedicineStockItem } from '@/types/stock';
 const PAGE_SIZE = 20;
 const NEW_PETITION_PATH = '/petitions/new';
 const FG_WAREHOUSE_DEPARTMENT = 'คลังสินค้า FG';
+const QUALITY_RESUBMISSION_WAIT_MONTHS = 6;
 
 // How long a petition arriving from a dashboard drill-down stays visually marked
 // before it settles back into an ordinary list card.
@@ -177,6 +178,37 @@ function petitionItemCountLabel(petition: Petition) {
 function petitionBatchLotLabel(petition: Petition) {
   const firstItem = firstPetitionItem(petition);
   return [firstItem?.batchNo, firstItem?.lotNo].filter(Boolean).join(' / ') || '-';
+}
+
+function sixMonthStockLotKey(value?: string | null) {
+  return String(value ?? '').trim().toUpperCase();
+}
+
+function addMonths(date: Date, months: number) {
+  const next = new Date(date);
+  next.setMonth(next.getMonth() + months);
+  return next;
+}
+
+function parseValidDate(value?: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function buildRecentQualityLotKeys(petitions: Petition[], currentDate: Date) {
+  const lotKeys = new Set<string>();
+  petitions.forEach((petition) => {
+    const submittedAt = parseValidDate(petition.submittedBy?.submittedAt) ?? parseValidDate(petition.createdAt);
+    if (!submittedAt) return;
+    if (currentDate >= addMonths(submittedAt, QUALITY_RESUBMISSION_WAIT_MONTHS)) return;
+
+    petition.items.forEach((item) => {
+      const lotKey = sixMonthStockLotKey(item.lotNo || item.batchNo);
+      if (lotKey) lotKeys.add(lotKey);
+    });
+  });
+  return lotKeys;
 }
 
 type SixMonthMedicineTabProps = {
@@ -343,6 +375,7 @@ function SixMonthMedicineStockTab({ onQualitySubmissionCreated }: SixMonthMedici
   const [kindFilter, setKindFilter] = useState<'all' | 'rm' | 'fg'>('all');
   const [selectedItem, setSelectedItem] = useState<SixMonthMedicineStockItem | null>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(() => new Set());
+  const [localSubmittedQualityLotKeys, setLocalSubmittedQualityLotKeys] = useState<Set<string>>(() => new Set());
   const [isSubmittingQuality, setIsSubmittingQuality] = useState(false);
   const [qualitySubmitError, setQualitySubmitError] = useState<string | null>(null);
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -358,6 +391,7 @@ function SixMonthMedicineStockTab({ onQualitySubmissionCreated }: SixMonthMedici
     },
     staleTime: 5 * 60 * 1000,
   });
+  const { data: fgQualityPetitionData } = usePetitionList({ dept: 'fg', limit: 100 });
   const pullToRefresh = useTouchPullToRefresh(async () => {
     await Promise.all([refetch(), refetchMasterItems()]);
   });
@@ -369,9 +403,19 @@ function SixMonthMedicineStockTab({ onQualitySubmissionCreated }: SixMonthMedici
     () => (data?.items ?? []).map((item) => enrichSixMonthStockItem(item, masterItemLookup)),
     [data?.items, masterItemLookup],
   );
+  const qualityCooldownLotKeys = useMemo(() => {
+    const serverDate = parseValidDate(data?.serverTime) ?? new Date();
+    const recentLotKeys = buildRecentQualityLotKeys(fgQualityPetitionData?.items ?? [], serverDate);
+    localSubmittedQualityLotKeys.forEach((lotKey) => recentLotKeys.add(lotKey));
+    return recentLotKeys;
+  }, [data?.serverTime, fgQualityPetitionData?.items, localSubmittedQualityLotKeys]);
+  const availableStockItems = useMemo(
+    () => stockItems.filter((item) => !qualityCooldownLotKeys.has(sixMonthStockLotKey(item.lotNo))),
+    [qualityCooldownLotKeys, stockItems],
+  );
   const filtered = useMemo(() => {
     const q = sixMonthSearch.trim().toLowerCase();
-    return stockItems.filter((item) => {
+    return availableStockItems.filter((item) => {
       const itemNo = item.itemNo.trim().toUpperCase();
       const matchesKind = kindFilter === 'all'
         || (kindFilter === 'rm' && itemNo.startsWith('R'))
@@ -384,13 +428,13 @@ function SixMonthMedicineStockTab({ onQualitySubmissionCreated }: SixMonthMedici
         item.lotNo,
       ].some((value) => (value ?? '').toLowerCase().includes(q));
     });
-  }, [stockItems, sixMonthSearch, kindFilter]);
+  }, [availableStockItems, sixMonthSearch, kindFilter]);
   const filteredKeys = useMemo(() => filtered.map(sixMonthStockRowKey), [filtered]);
   const allFilteredSelected = filteredKeys.length > 0 && filteredKeys.every((key) => selectedRowKeys.has(key));
   const someFilteredSelected = filteredKeys.some((key) => selectedRowKeys.has(key));
   const selectedItems = useMemo(
-    () => stockItems.filter((item) => selectedRowKeys.has(sixMonthStockRowKey(item))),
-    [stockItems, selectedRowKeys],
+    () => availableStockItems.filter((item) => selectedRowKeys.has(sixMonthStockRowKey(item))),
+    [availableStockItems, selectedRowKeys],
   );
   const errorMessage = error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ';
 
@@ -448,6 +492,14 @@ function SixMonthMedicineStockTab({ onQualitySubmissionCreated }: SixMonthMedici
         })),
         cause: 'ส่งตรวจคุณภาพจากรายการยาเกิน 6 เดือน',
       } as Parameters<typeof createPetition>[0]);
+      setLocalSubmittedQualityLotKeys((current) => {
+        const next = new Set(current);
+        selectedItems.forEach((item) => {
+          const lotKey = sixMonthStockLotKey(item.lotNo);
+          if (lotKey) next.add(lotKey);
+        });
+        return next;
+      });
       setSelectedRowKeys(new Set());
       onQualitySubmissionCreated?.();
     } catch (submitError) {

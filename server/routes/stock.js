@@ -100,6 +100,73 @@ function normalizeUnitLabelCodeUpdate(labelCode, itemCode) {
   return parsedCode.labelCode;
 }
 
+function normalizeUnitLabelCodeSearch(labelCode) {
+  return String(labelCode ?? '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function applyStockUnitItemTypeFilter(filter, itemType) {
+  const normalizedItemType = String(itemType ?? '').trim();
+  if (!normalizedItemType) return;
+  if (normalizedItemType === 'standard') {
+    filter.$and = [
+      ...(Array.isArray(filter.$and) ? filter.$and : []),
+      { $or: [{ itemType: 'standard' }, { itemType: { $exists: false } }, { itemType: null }, { itemType: '' }] },
+    ];
+    return;
+  }
+  filter.itemType = normalizedItemType;
+}
+
+function displayCodeYearCandidatesFromBuddhistTwoDigits(buddhistYear) {
+  const gregorianTwoDigits = (buddhistYear + 100 - 43) % 100;
+  return [...new Set([
+    buddhistYear,
+    2500 + buddhistYear,
+    2000 + gregorianTwoDigits,
+    1900 + gregorianTwoDigits,
+  ])];
+}
+
+function parseStandardUnitDisplayCodeQuery(labelCode) {
+  const normalized = normalizeUnitLabelCodeSearch(labelCode);
+  if (!/^.{2}\d{2}\d+$/.test(normalized)) return null;
+  const buddhistYear = Number(normalized.slice(2, 4));
+  const bottleNo = Number(normalized.slice(4));
+  if (!Number.isInteger(buddhistYear) || !Number.isInteger(bottleNo) || bottleNo < 1) return null;
+  return {
+    normalized,
+    bottleNo,
+    labelRunYears: displayCodeYearCandidatesFromBuddhistTwoDigits(buddhistYear),
+  };
+}
+
+function standardUnitDisplayCode(unit) {
+  const labelCode = normalizeUnitLabelCodeSearch(unit?.labelCode);
+  if (labelCode) return labelCode;
+  const labelRunNo = Number(unit?.labelRunNo);
+  const labelRunYear = Number(unit?.labelRunYear);
+  if (!Number.isInteger(labelRunNo) || labelRunNo < 1 || !Number.isInteger(labelRunYear) || labelRunYear <= 0) return '';
+  let buddhistYear = labelRunYear % 100;
+  if (labelRunYear >= 1900 && labelRunYear < 2400) buddhistYear = (labelRunYear + 543) % 100;
+  try {
+    return normalizeUnitLabelCodeSearch(formatStandardLabelCode(unit?.itemCode ?? '', buddhistYear, labelRunNo));
+  } catch {
+    return '';
+  }
+}
+
+function uniqueStockUnits(units) {
+  const seen = new Set();
+  const out = [];
+  for (const unit of units) {
+    const key = String(unit?._id || unit?.qrId || '');
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    out.push(unit);
+  }
+  return out;
+}
+
 async function personOf(req) {
   const m = await userMeta(req);
   return m.userName ? { email: m.userEmail, name: m.userName } : undefined;
@@ -1210,16 +1277,34 @@ router.patch('/units/:qrId', async (req, res) => {
   }
 });
 
-// list units: GET /units?itemCode=&status=&kind=
+// list units: GET /units?itemCode=&status=&kind=&labelCode=
 router.get('/units', async (req, res) => {
   try {
-    const { itemCode, itemType, itemId, status, kind } = req.query;
+    const { itemCode, itemType, itemId, status, kind, labelCode } = req.query;
     const f = {};
     if (itemCode) f.itemCode = itemCode;
-    if (itemType) f.itemType = String(itemType).trim();
+    applyStockUnitItemTypeFilter(f, itemType);
     if (itemId) f.itemId = String(itemId).trim();
     if (status) f.status = status;
     if (kind) f.kind = kind;
+
+    const normalizedLabelCode = normalizeUnitLabelCodeSearch(labelCode);
+    if (normalizedLabelCode) {
+      const directUnits = await StockUnit.find({ ...f, labelCode: normalizedLabelCode }).sort({ createdAt: -1 }).limit(2000);
+      const parsedDisplayCode = parseStandardUnitDisplayCodeQuery(normalizedLabelCode);
+      const displayCodeUnits = parsedDisplayCode
+        ? await StockUnit.find({
+          ...f,
+          labelRunNo: parsedDisplayCode.bottleNo,
+          labelRunYear: { $in: parsedDisplayCode.labelRunYears },
+          $or: [{ labelCode: '' }, { labelCode: null }, { labelCode: { $exists: false } }],
+        }).sort({ createdAt: -1 }).limit(2000)
+        : [];
+      const units = uniqueStockUnits([...directUnits, ...displayCodeUnits])
+        .filter((unit) => standardUnitDisplayCode(unit) === normalizedLabelCode);
+      return res.json(units);
+    }
+
     const units = await StockUnit.find(f).sort({ createdAt: -1 }).limit(2000);
     res.json(units);
   } catch (err) {

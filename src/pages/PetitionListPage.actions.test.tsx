@@ -80,6 +80,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     canAccess: vi.fn(() => true),
+    makePetition: petition,
     get: vi.fn((path: string) => {
       if (path === '/master-items') {
         return Promise.resolve({ data: { data: masterItems } });
@@ -169,7 +170,7 @@ vi.mock('@/hooks/usePetition', () => ({
   createPetition: mocks.createPetition,
   usePetitionList: (params: { status?: string; search?: string; dept?: string }) => {
     const search = params.search?.trim().toLowerCase();
-    const source = params.dept === 'fg' && params.status === 'deliveringQC'
+    const source = params.dept === 'fg'
       ? mocks.fgQualityAlerts
       : mocks.petitions;
     const items = source
@@ -429,6 +430,75 @@ describe('PetitionListPage action cues', () => {
       expect(screen.queryByText('P-2607-0001')).not.toBeInTheDocument();
     });
     expect(mocks.getSixMonthMedicineStock).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides six-month stock lots already submitted for quality within six months', async () => {
+    mocks.fgQualityAlerts.push(mocks.makePetition('P-FG-QC-0002', 'deliveringQC', {
+      dept: 'fg',
+      submittedBy: {
+        employeeId: 'E890',
+        name: 'FG Requester',
+        submittedAt: '2026-08-15T00:00:00.000Z',
+      },
+      items: [
+        {
+          seq: 1,
+          sampleName: 'ยาทดสอบ FG',
+          batchNo: 'FG260301-001',
+          lotNo: 'FG260301-001',
+        },
+      ],
+    }));
+    renderPage({}, '/petition');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    expect(await screen.findByText('R-TEST-002')).toBeInTheDocument();
+    expect(screen.queryByText('F-TEST-001')).not.toBeInTheDocument();
+  });
+
+  it('shows submitted six-month stock lots again after six months', async () => {
+    mocks.getSixMonthMedicineStock.mockResolvedValueOnce({
+      serverTime: '2027-03-16T00:00:00.000Z',
+      referenceMonth: '2027-03',
+      items: [
+        {
+          companySource: 'ICPL',
+          commonName: '',
+          itemName: 'ยาทดสอบ FG',
+          itemNo: 'F-TEST-001',
+          locationCode: 'NORMAL',
+          binCode: 'DEFAULT',
+          lotNo: 'FG260301-001',
+          registeringDate: '2026-03-31T00:00:00.000Z',
+          unit: 'KG',
+          stockQty: 10,
+          stockQtyBase: 10,
+          ageMonths: 13,
+        },
+      ],
+    });
+    mocks.fgQualityAlerts.push(mocks.makePetition('P-FG-QC-0002', 'deliveringQC', {
+      dept: 'fg',
+      submittedBy: {
+        employeeId: 'E890',
+        name: 'FG Requester',
+        submittedAt: '2026-09-15T00:00:00.000Z',
+      },
+      items: [
+        {
+          seq: 1,
+          sampleName: 'ยาทดสอบ FG',
+          batchNo: 'FG260301-001',
+          lotNo: 'FG260301-001',
+        },
+      ],
+    }));
+    renderPage({}, '/petition');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    expect(await screen.findByText('F-TEST-001')).toBeInTheDocument();
   });
 
   it('opens six-month medicine details in a side drawer', async () => {
