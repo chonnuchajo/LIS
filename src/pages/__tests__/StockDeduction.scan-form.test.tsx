@@ -445,35 +445,11 @@ describe("StockDeduction scan form", () => {
     expect(screen.queryByText("ค่าที่ scanner อ่านได้ล่าสุด")).not.toBeInTheDocument();
   });
 
-  it("opens the standard deduction form from an OCR label code generated from legacy label run fields", async () => {
-    const legacyUnit = stockUnit({
-      qrId: "u_legacy",
-      itemCode: "2",
-      itemName: "Legacy Standard",
-      labelCode: "",
-      labelRunNo: 1,
-      labelRunYear: 2023,
-    });
-    readStockLabelCodeFromImageMock.mockResolvedValue({ labelCode: "026601", candidates: ["026601"], rawText: "026601" });
-    apiMock.getStandards.mockResolvedValue([{ _id: "std-2", code: "2", name: "Legacy Standard" }]);
-    apiMock.getStockUnit.mockImplementation((qrId: string) => Promise.resolve(qrId === "u_legacy" ? legacyUnit : stockUnit()));
-    apiMock.getStockUnits.mockResolvedValue([legacyUnit]);
-
-    renderPage();
-
-    openCameraScanner();
-    fireEvent.click(screen.getByRole("button", { name: "mock OCR capture" }));
-
-    expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
-    expect(await screen.findByRole("radio", { name: /เลขขวด 026601/ })).toBeChecked();
-    expect(toastMock.error).not.toHaveBeenCalledWith("ไม่พบขวด stock ที่มีเลข 026601");
-  });
-
   it("searches OCR label codes directly instead of relying on the limited stock unit list", async () => {
-    const oldUnit = stockUnit({ qrId: "u_old", labelCode: "026601" });
+    const labelledUnit = stockUnit({ qrId: "u_labelled", labelCode: "026601" });
     readStockLabelCodeFromImageMock.mockResolvedValue({ labelCode: "026601", candidates: ["026601"], rawText: "026601" });
-    apiMock.getStockUnit.mockImplementation((qrId: string) => Promise.resolve(qrId === "u_old" ? oldUnit : stockUnit()));
-    apiMock.getStockUnits.mockImplementation((params?: { labelCode?: string }) => Promise.resolve(params?.labelCode === "026601" ? [oldUnit] : []));
+    apiMock.getStockUnit.mockImplementation((qrId: string) => Promise.resolve(qrId === "u_labelled" ? labelledUnit : stockUnit()));
+    apiMock.getStockUnits.mockImplementation((params?: { labelCode?: string }) => Promise.resolve(params?.labelCode === "026601" ? [labelledUnit] : []));
 
     renderPage();
 

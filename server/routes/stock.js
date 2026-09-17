@@ -104,57 +104,6 @@ function normalizeUnitLabelCodeSearch(labelCode) {
   return String(labelCode ?? '').trim().toUpperCase().replace(/\s+/g, '');
 }
 
-function labelRunYearCandidatesFromBuddhistTwoDigits(buddhistYear) {
-  const gregorianTwoDigits = (buddhistYear + 100 - 43) % 100;
-  return [...new Set([
-    buddhistYear,
-    2500 + buddhistYear,
-    2000 + gregorianTwoDigits,
-    1900 + gregorianTwoDigits,
-  ])];
-}
-
-function parseUnitLabelCodeSearch(labelCode) {
-  const normalized = normalizeUnitLabelCodeSearch(labelCode);
-  if (!/^.{2}\d{2}\d+$/.test(normalized)) return null;
-  const buddhistYear = Number(normalized.slice(2, 4));
-  const bottleNo = Number(normalized.slice(4));
-  if (!Number.isInteger(buddhistYear) || !Number.isInteger(bottleNo) || bottleNo < 1) return null;
-  return {
-    normalized,
-    buddhistYear,
-    bottleNo,
-    labelRunYears: labelRunYearCandidatesFromBuddhistTwoDigits(buddhistYear),
-  };
-}
-
-function stockUnitEffectiveLabelCode(unit) {
-  const labelCode = normalizeUnitLabelCodeSearch(unit?.labelCode);
-  if (labelCode) return labelCode;
-  const labelRunNo = Number(unit?.labelRunNo);
-  const labelRunYear = Number(unit?.labelRunYear);
-  if (!Number.isInteger(labelRunNo) || labelRunNo < 1 || !Number.isInteger(labelRunYear) || labelRunYear <= 0) return '';
-  let buddhistYear = labelRunYear % 100;
-  if (labelRunYear >= 1900 && labelRunYear < 2400) buddhistYear = (labelRunYear + 543) % 100;
-  try {
-    return normalizeUnitLabelCodeSearch(formatStandardLabelCode(unit?.itemCode ?? '', buddhistYear, labelRunNo));
-  } catch {
-    return '';
-  }
-}
-
-function uniqueStockUnits(units) {
-  const seen = new Set();
-  const out = [];
-  for (const unit of units) {
-    const key = String(unit?._id || unit?.qrId || '');
-    if (key && seen.has(key)) continue;
-    if (key) seen.add(key);
-    out.push(unit);
-  }
-  return out;
-}
-
 async function personOf(req) {
   const m = await userMeta(req);
   return m.userName ? { email: m.userEmail, name: m.userName } : undefined;
@@ -1278,18 +1227,7 @@ router.get('/units', async (req, res) => {
 
     const normalizedLabelCode = normalizeUnitLabelCodeSearch(labelCode);
     if (normalizedLabelCode) {
-      const exactUnits = await StockUnit.find({ ...f, labelCode: normalizedLabelCode }).sort({ createdAt: -1 }).limit(2000);
-      const parsedLabelCode = parseUnitLabelCodeSearch(normalizedLabelCode);
-      const legacyUnits = parsedLabelCode
-        ? await StockUnit.find({
-          ...f,
-          labelRunNo: parsedLabelCode.bottleNo,
-          labelRunYear: { $in: parsedLabelCode.labelRunYears },
-          $or: [{ labelCode: '' }, { labelCode: null }, { labelCode: { $exists: false } }],
-        }).sort({ createdAt: -1 }).limit(2000)
-        : [];
-      const units = uniqueStockUnits([...exactUnits, ...legacyUnits])
-        .filter((unit) => stockUnitEffectiveLabelCode(unit) === normalizedLabelCode);
+      const units = await StockUnit.find({ ...f, labelCode: normalizedLabelCode }).sort({ createdAt: -1 }).limit(2000);
       return res.json(units);
     }
 

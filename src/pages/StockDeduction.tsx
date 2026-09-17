@@ -23,7 +23,7 @@ import StockQrScanner from "@/components/lis/StockQrScanner";
 import DeductionResolutionDialog from "@/components/lis/stock/DeductionResolutionDialog";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
 import { DEDUCTION_RESOLUTION_LABELS } from "@/lib/deductionResolution";
-import { requisitionUser, standardRequisitionUnitLabelCode } from "@/lib/standardRequisition";
+import { requisitionUser } from "@/lib/standardRequisition";
 import { canManageStockDeduction, deductionAmount } from "@/lib/stockDeduction";
 import { formatStockQuantity } from "@/lib/stockQuantity";
 import { isLikelyHardwareStockScan, parseScannedQrId } from "@/lib/stockUnit";
@@ -194,7 +194,7 @@ const StockDeduction = () => {
     try {
       const unitGroups = await Promise.all(candidates.map((candidate) => api.getStockUnits({ itemType: "standard", labelCode: candidate })));
       const units = unitGroups.flat();
-      const matches = units.filter((unit) => candidates.includes(normalizeStockLabelCandidate(standardRequisitionUnitLabelCode(unit))));
+      const matches = units.filter((unit) => candidates.includes(normalizeStockLabelCandidate(unit.labelCode || "")));
       const matchedUnit = matches.find((unit) => unit.status === "active") ?? matches[0];
       if (!matchedUnit) {
         toast.error(`ไม่พบขวด stock ที่มีเลข ${candidates.join(", ")}`);

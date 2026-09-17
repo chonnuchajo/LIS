@@ -159,33 +159,22 @@ describe('stock standard label code duplicates', () => {
     expect(unit.save).toHaveBeenCalled();
   });
 
-  test('listing units by Code finds legacy label run fields', async () => {
+  test('listing units by Code filters direct labelCode', async () => {
     const handler = routeHandler('/units', 'get');
-    const matchingLegacyUnit = {
-      qrId: 'u_legacy',
+    const labelledUnit = {
+      qrId: 'u_labelled',
       itemType: 'standard',
       itemCode: '2',
-      labelCode: '',
-      labelRunNo: 1,
-      labelRunYear: 2023,
+      labelCode: '026601',
     };
-    const wrongPrefixUnit = {
-      qrId: 'u_wrong',
-      itemType: 'standard',
-      itemCode: '3',
-      labelCode: '',
-      labelRunNo: 1,
-      labelRunYear: 2023,
-    };
-    StockUnit.find = jest.fn()
-      .mockReturnValueOnce(chainSortLimit([]).query)
-      .mockReturnValueOnce(chainSortLimit([matchingLegacyUnit, wrongPrefixUnit]).query);
+    StockUnit.find = jest.fn(() => chainSortLimit([labelledUnit]).query);
 
     const req = { query: { itemType: 'standard', labelCode: '026601' }, headers: {} };
     const res = mockResponse();
 
     await handler(req, res);
 
-    expect(res.json).toHaveBeenCalledWith([matchingLegacyUnit]);
+    expect(StockUnit.find).toHaveBeenCalledWith({ itemType: 'standard', labelCode: '026601' });
+    expect(res.json).toHaveBeenCalledWith([labelledUnit]);
   });
 });
