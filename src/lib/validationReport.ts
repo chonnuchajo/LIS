@@ -4,6 +4,7 @@ import type { PreparationLevel, ValidationStock, LinearitySettings } from "./val
 import { preparationResult, stockConcentration, defaultLinearitySettings, checkLinearityPreparation } from "./validationPreparation";
 import { parseMeasurements, regression, stats } from "./validationCalculator";
 import { defaultSpecificitySettings, evaluateSpecificity, type SpecificitySettings } from "./validationSpecificity";
+import { evaluateLinkedMeasurements, measurementLabels, type LinkedMeasurements } from "./validationMeasurements";
 
 export type ValidationReportInput = {
   title: string; analyte: string; method: string; analyst: string; reviewer: string;
@@ -14,6 +15,7 @@ export type ValidationReportInput = {
   qc: ReturnType<typeof evaluateQc>; includeQc: boolean;
   specificity?: SpecificitySettings;
   stocks?: ValidationStock[]; linearity?: LinearitySettings;
+  linkedMeasurements?: LinkedMeasurements;
 };
 
 export function escapeReport(value: unknown) {
@@ -43,6 +45,9 @@ export function createValidationReport(input: ValidationReportInput) {
   const fit = parsed[1]?.errors.length ? null : regression(parsed[1]?.rows ?? []);
   const [weight, purity, volume] = input.prep.map(Number);
   const stock = stockConcentration(weight, purity, volume);
+  const linkedResult = input.linkedMeasurements ? evaluateLinkedMeasurements(input.linkedMeasurements, stock, stocks, Number(linearity.r2Min)) : null;
+  const linkedRows = linkedResult?.results.filter(result => input.linkedMeasurements!.enabled.includes(result.row.kind)) ?? [];
+  const linkedSources = linkedResult?.sources.filter(source => linkedRows.some(result => result.row.calibrationId === source.calibration.id)) ?? [];
   const status = input.errors.length || input.checks.some(c => c.pass === false) ? "พบข้อผิดพลาด / ต้องทบทวน" : input.checks.every(c => c.pass === true) && input.checks.length ? "ผ่านเงื่อนไขที่คำนวณ — รออนุมัติรายงาน" : "ข้อมูลหรือการทบทวนยังไม่ครบ";
   const accuracyRows = (parsed[2]?.rows ?? []).map(([level, expected, found], i) => [i + 1, level, expected, found, expected > 0 ? fmt(found / expected * 100) : "คำนวณไม่ได้", expected > 0 ? fmt((found - expected) / expected * 100) : "คำนวณไม่ได้"]);
   const linearPreparation = checkLinearityPreparation(parsed[1]?.rows ?? [], input.levels, stock, stocks, linearity);
@@ -54,7 +59,7 @@ export function createValidationReport(input: ValidationReportInput) {
   return `<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><title>${e(input.title)}</title><style>
   *{box-sizing:border-box}body{font:14px/1.65 Tahoma,Arial,sans-serif;color:#172033;margin:0;background:#eef2f6}main{max-width:1000px;margin:32px auto;padding:40px;background:white}h1{font-size:25px;margin:0}h2{font-size:19px;border-bottom:2px solid #2563eb;padding-bottom:8px;margin-top:30px}h3{font-size:15px}p{white-space:pre-wrap}table{width:100%;border-collapse:collapse;margin:12px 0 20px;font-size:12px;table-layout:auto}th,td{border:1px solid #cbd5e1;padding:7px;vertical-align:top;overflow-wrap:anywhere}th{background:#eff4fa;text-align:left}tr{break-inside:avoid}thead{display:table-header-group}.muted{color:#64748b}.notice{padding:14px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc}.errors{color:#991b1b}figure{margin:12px 0;break-inside:avoid}figcaption{font-weight:bold}svg{width:100%;max-height:360px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}pre{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #cbd5e1;padding:12px;font-size:11px}@page{size:A4;margin:15mm}@media print{body{background:white}main{margin:0;padding:0;max-width:none}.screen{display:none}h2,h3{break-after:avoid}a{color:inherit;text-decoration:none}}@media(max-width:640px){main{margin:0;padding:16px}.two{display:block}table{font-size:10px}}
   </style></head><body><main><p class="screen notice">รายงาน HTML พร้อมพิมพ์: ใช้เมนูพิมพ์ของเบราว์เซอร์ (Ctrl+P) และเลือก Save as PDF</p><header><p class="muted">LIS · METHOD VALIDATION REPORT · ฉบับร่าง</p><h1>${e(input.title)}</h1><p>${e(input.analyte)} · ${e(input.method)}</p><p class="notice">${e(status)}</p></header>
-  ${table(["ข้อมูลรายงาน", "รายละเอียด"], [["วันที่สร้าง", new Date().toISOString()], ["วิธี / SOP และเวอร์ชัน", input.protocol], ["Calibration ID ของข้อมูลในหน้านี้", input.calibration], ["ผู้จัดทำ", input.analyst], ["ผู้ทบทวน (ยังไม่ใช่ลายเซ็นอนุมัติ)", input.reviewer]])}
+  ${table(["ข้อมูลรายงาน", "รายละเอียด"], [["วันที่สร้าง", new Date().toISOString()], ["วิธี / SOP และเวอร์ชัน", input.protocol], ["Calibration ID ของ Linearity / ข้อมูลกรอกตรง", input.calibration], ["ผู้จัดทำ", input.analyst], ["ผู้ทบทวน (ยังไม่ใช่ลายเซ็นอนุมัติ)", input.reviewer]])}
   <h2>6. การเตรียมสารและความเข้มข้น</h2>
   ${table(["น้ำหนักมาตรฐาน (mg)", "Purity (%)", "ปริมาตร Stock (mL)", "C stock (mg/mL)"], [[input.prep[0], input.prep[1], input.prep[2], fmt(stock)]])}
   ${stocks.length ? table(["Stock เพิ่มเติม", "รหัส", "น้ำหนัก mg", "Purity %", "V mL", "C stock mg/mL", "Certificate / Lot", "วันที่เตรียม / ผู้เตรียม"], stocks.map(source => [source.name, source.id, source.weight, source.purity, source.volume, fmt(stockConcentration(Number(source.weight), Number(source.purity), Number(source.volume))), source.certificate, source.preparedOn])) : ""}
@@ -68,6 +73,12 @@ export function createValidationReport(input: ValidationReportInput) {
   ${table(["หลักฐานอ้างอิง", "เอกสาร / หน้า / Injection ID"], [["Standard Chromatogram", specificity.standardReference], ["Solvent Blank", specificity.solventReference], ["Matrix Blank", specificity.matrixReference]])}
   <p>บันทึกทบทวน: ${e(specificity.reviewNotes || "ยังไม่ระบุ")}</p><p>ผลทบทวนปัจจุบัน: ${specificityResult.current ? e(specificity.decision === "passed" ? "ผ่าน" : "ไม่ผ่าน") : "ยังไม่ครบ / ต้องทบทวนใหม่"} · ผู้ทบทวน ${e(input.reviewer || "ยังไม่ระบุ")} · เวลาบันทึกล่าสุด ${e(specificity.reviewedAt || "ยังไม่บันทึก")} (ไม่ใช่ลายเซ็นอนุมัติ)</p>
   ${input.blank ? `<p>ข้อมูลเดิม: Blank Area สูงสุด ${e(input.blank)} เก็บเพื่ออ้างอิง ไม่ใช้ตัดสินแทนข้อมูล Blank รายครั้ง</p>` : ""}
+  ${linkedRows.length ? `<h2>Calibration และการเตรียมรายตัวอย่าง</h2>
+  <p>Found = (Area − Intercept) / Slope; Actual/Added = C stock × ปิเปตจริง / ปริมาตรสุดท้าย ทุกความเข้มข้นเป็น mg/mL ผลนอกช่วง Calibration หรือข้อมูลไม่ครบจะไม่ถูกส่งไปตัดสินผลของหัวข้อนั้น</p>
+  ${table(["Calibration ID", "แหล่งสมการ", "Slope", "Intercept", "R²", "ช่วงต่ำ–สูง mg/mL", "หลักฐาน"], linkedSources.map(({ calibration, fit }) => [calibration.name, calibration.mode === "points" ? "OLS จากข้อมูลดิบ" : "สมการจากเครื่อง", fmt(fit?.slope), fmt(fit?.intercept), fmt(fit?.r2), `${fmt(fit?.min)}–${fmt(fit?.max)}`, calibration.reference]))}
+  ${table(["หัวข้อ", "ตัวอย่าง/การเตรียม", "วัน", "Calibration", "Area", "Found mg/mL", "Actual/Added mg/mL", "ข้อผิดพลาด"], linkedRows.map(result => [measurementLabels[result.row.kind], result.row.sampleId, result.row.kind === "daily" ? result.row.day : "—", result.calibrationName, result.row.area, fmt(result.found), fmt(result.actual), result.errors.join("; ")]))}
+  ${table(["ตัวอย่าง/การเตรียม", "Target mg/mL", "Stock", "ปิเปต µL", "ปริมาตรสุดท้าย µL", "Matrix µL", "Unspiked mg/mL"], linkedRows.filter(result => result.row.kind !== "sample").map(({ row }) => [row.sampleId, row.target, row.stockId ? stocks.find(source => source.id === row.stockId)?.name || row.stockId : "Stock หลัก", row.aliquot, row.finalVolume, row.matrix, row.kind === "spike" ? row.unspiked : "—"]))}
+  ${linkedSources.filter(source => source.calibration.mode === "points").map(({ calibration }) => `<h3>ข้อมูลดิบ Calibration ${e(calibration.name)}</h3><pre>${e(calibration.points)}</pre>`).join("")}` : ""}
   <h2>2. Linearity</h2><p>Area = ${fmt(fit?.slope)} × Concentration + (${fmt(fit?.intercept)}); R² = ${fmt(fit?.r2)} · OLS จากทุก Injection โดยไม่บังคับผ่านจุดศูนย์</p>
   <p>เกณฑ์ R² ≥ ${e(linearity.r2Min)}; Area %RSD ≤ ${e(linearity.areaRsdMax)}%; จำนวนซ้ำ ≥ ${e(linearity.minReplicates)} ต่อระดับ; Actual คลาดเคลื่อนจากแผนไม่เกิน ${e(linearity.concentrationTolerance)} mg/mL</p>
   ${table(["Target mg/mL", "Actual ตามแผน mg/mL", "n", "Mean Area", "Sample SD", "%RSD"], groupedLinearity)}

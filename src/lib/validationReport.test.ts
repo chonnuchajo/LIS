@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createValidationReport, escapeReport } from "./validationReport";
 import { defaultPrecisionSettings, defaultQcSettings, evaluatePrecision, evaluateQc } from "./validationAdvanced";
 import { defaultSpecificitySettings, specificitySnapshot } from "./validationSpecificity";
+import type { LinkedMeasurements } from "./validationMeasurements";
 
 describe("รายงาน Validation", () => {
   it("escape ข้อความนำเข้าและมีตาราง สูตร ข้อมูลดิบครบ", () => {
@@ -24,5 +25,13 @@ describe("รายงาน Validation", () => {
     expect(html).toContain("&lt;MB-1&gt;");
     expect(html).toContain("Solvent Blank Area");
     expect(createValidationReport({ ...input, specificity, calibration: "CAL-2" })).toContain("ผลทบทวนปัจจุบัน: ยังไม่ครบ / ต้องทบทวนใหม่");
+  });
+  it("รายงานตามรอย Area ไปยังสมการและการเตรียมของตัวอย่างได้", () => {
+    const linkedMeasurements: LinkedMeasurements = { enabled: ["accuracy"], calibrations: [{ id: "CAL", name: "CAL-DAY-2", mode: "equation", points: "", slope: "250", intercept: "1", min: "0.1", max: "1", r2: "1", reference: "instrument<2>.pdf" }], rows: [{ id: "S1", sampleId: "PREP-A1", kind: "accuracy", day: "1", target: "0.5", calibrationId: "CAL", area: "126.3", stockId: "", aliquot: "250", finalVolume: "1000", matrix: "4", weight: "", volume: "25", df: "1", density: "0", unspiked: "" }] };
+    const html = createValidationReport({ title: "Report", analyte: "Other", method: "GC", analyst: "A", reviewer: "B", protocol: "SOP", calibration: "", notes: "", prep: ["54.25", "92.7", "25", "250", "1000"], levels: [], texts: ["", "", "0.5,0.5028975,0.5012"], blank: "", checks: [], errors: [], precision: evaluatePrecision(defaultPrecisionSettings(), [0.5], ""), qc: evaluateQc(defaultQcSettings()), includeQc: false, linkedMeasurements });
+    expect(html).toContain("CAL-DAY-2");
+    expect(html).toContain("PREP-A1");
+    expect(html).toContain("instrument&lt;2&gt;.pdf");
+    expect(html).toContain("<td>126.3</td><td>0.5012</td><td>0.502898</td>");
   });
 });

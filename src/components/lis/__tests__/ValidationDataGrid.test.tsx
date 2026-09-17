@@ -33,4 +33,11 @@ describe("ValidationDataGrid", () => {
     fireEvent.click(screen.getByRole("button", { name: "ลบ ผลวัด แถว 2" }));
     expect(screen.getByTestId("raw").textContent).toBe("4.4\t248\n4.6\t250");
   });
+  it("keeps derived measurements read-only in both table and text modes", () => {
+    render(<ValidationDataGrid label="ผลคำนวณ" columns={["Actual", "Found"]} value="0.5\t0.5012" onChange={() => { throw new Error("derived data must not be edited"); }} readOnly />);
+    expect((screen.getByLabelText("ผลคำนวณ แถว 1 Actual") as HTMLInputElement).readOnly).toBe(true);
+    expect((screen.getByRole("button", { name: "เพิ่มแถว" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "วางข้อมูล / ดูข้อความ" }));
+    expect((screen.getByLabelText("ผลคำนวณ", { selector: "textarea" }) as HTMLTextAreaElement).readOnly).toBe(true);
+  });
 });

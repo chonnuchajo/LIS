@@ -9,8 +9,9 @@ export function ValidationResults({ checks }: { checks: ValidationCheck[] }) {
   return <div className="overflow-x-auto rounded-lg border bg-card shadow-sm"><table className="w-full text-left text-sm"><thead className="bg-muted text-muted-foreground"><tr>{["รายการตรวจ", "ผลคำนวณ", "เกณฑ์", "สถานะ"].map(h => <th className="p-3 font-medium" key={h}>{h}</th>)}</tr></thead><tbody className="divide-y">{checks.map((c, i) => <tr key={`${c.name}-${i}`} className="hover:bg-accent"><td className="p-3">{c.name}</td><td className="p-3 tabular-nums">{c.value}</td><td className="p-3">{c.criteria}</td><td className="p-3"><Badge variant={c.pass === false ? "red-soft" : c.pass ? "green-soft" : "yellow-soft"}>{c.pass == null ? "รอตรวจสอบ" : c.pass ? "Passed" : "Failed"}</Badge></td></tr>)}</tbody></table></div>;
 }
 
-export function PrecisionPanel({ settings, onChange, result }: {
+export function PrecisionPanel({ settings, onChange, result, dailyLinked = false }: {
   settings: PrecisionSettings; onChange: (value: PrecisionSettings) => void;
+  dailyLinked?: boolean;
   result: ReturnType<typeof evaluatePrecision>;
 }) {
   const update = (key: keyof PrecisionSettings, value: string) => onChange({ ...settings, [key]: value });
@@ -22,7 +23,7 @@ export function PrecisionPanel({ settings, onChange, result }: {
     <p className="text-sm text-muted-foreground">Horwitz RSDR = 2^(1 − 0.5 log10 C) โดย C เป็น mass fraction ของสารในวัสดุที่ประเมิน (เช่น 25% w/w = 0.25) ไม่ใช่ mg/mL · ตัวคูณ 1 ใช้ Horwitz เดิม; 0.67 ใช้แนวทาง Repeatability ของ CIPAC 3807 ต้องเลือกให้ตรง SOP</p>
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="space-y-2 text-sm">ฐาน Horwitz: Target level (mg/mL), C (g/g)<ValidationDataGrid label="ฐาน Horwitz" columns={["Target (mg/mL)", "C (g/g)"]} value={settings.massFractions} onChange={value => update("massFractions", value)} /><span className="block text-muted-foreground">กรอกหนึ่งแถวต่อระดับ เลือกฐาน C จากวิธีที่อนุมัติ ไม่แปลงจากความเข้มข้นใน vial อัตโนมัติ</span></div>
-      <div className="space-y-2 text-sm">ข้อมูลรายวัน: Day, Target level, Actual fortified, Found<ValidationDataGrid label="ข้อมูลรายวัน" columns={["วัน", "Target (mg/mL)", "Actual (mg/mL)", "Found (mg/mL)"]} value={settings.dailyData} onChange={value => update("dailyData", value)} /><span className="block text-muted-foreground">ความเข้มข้นเป็น mg/mL · หนึ่งแถวต่อตัวอย่างที่เตรียมแยกกัน · จำนวนซ้ำเท่ากันทุกวัน</span></div>
+      <div className="space-y-2 text-sm">ข้อมูลรายวัน: Day, Target level, Actual fortified, Found<ValidationDataGrid readOnly={dailyLinked} label="ข้อมูลรายวัน" columns={["วัน", "Target (mg/mL)", "Actual (mg/mL)", "Found (mg/mL)"]} value={settings.dailyData} onChange={value => update("dailyData", value)} /><span className="block text-muted-foreground">ความเข้มข้นเป็น mg/mL · หนึ่งแถวต่อตัวอย่างที่เตรียมแยกกัน · จำนวนซ้ำเท่ากันทุกวัน</span></div>
     </div>
     <ValidationResults checks={result.checks} />
     <div className="overflow-x-auto rounded-lg border bg-card"><table className="w-full text-left text-sm"><thead className="bg-muted text-muted-foreground"><tr>{["ระดับ", "วัน", "Mean Recovery", "SD ภายในวัน", "SD ระหว่างวัน", "SD รวม", "RSD รวม"].map(h => <th key={h} className="p-3">{h}</th>)}</tr></thead><tbody className="divide-y">{result.summaries.map(s => <tr key={s.level}><td className="p-3">{s.level}</td><td className="p-3">{s.days.length}</td><td className="p-3">{fmt(s.anova?.mean)}</td><td className="p-3">{fmt(s.anova?.withinSd)}</td><td className="p-3">{fmt(s.anova?.betweenSd)}</td><td className="p-3">{fmt(s.anova?.sd)}</td><td className="p-3">{fmt(s.anova?.rsd)}%</td></tr>)}</tbody></table></div>
@@ -31,8 +32,9 @@ export function PrecisionPanel({ settings, onChange, result }: {
   </CardContent></Card>;
 }
 
-export function QcPanel({ settings, onChange, result }: {
+export function QcPanel({ settings, onChange, result, linkedKinds = [] }: {
   settings: QcSettings; onChange: (value: QcSettings) => void;
+  linkedKinds?: string[];
   result: ReturnType<typeof evaluateQc>;
 }) {
   const update = (key: keyof QcSettings, value: string | boolean) => onChange({ ...settings, [key]: value });
@@ -45,10 +47,10 @@ export function QcPanel({ settings, onChange, result }: {
       ] as const).map(([key, label]) => <label key={key} className="space-y-2 text-sm">{label}<Input type="number" step="any" value={settings[key]} onChange={e => update(key, e.target.value)} /></label>)}
         <label className="space-y-2 text-sm">หน่วยเกณฑ์ผลิตภัณฑ์<NativeSelect value={settings.productUnit} onChange={e => update("productUnit", e.target.value)}><option value="ww">%w/w</option><option value="wv">%w/v</option></NativeSelect></label>
       </div>
-      <div className="block space-y-2 text-sm">Sample: Weight (mg), Found (mg/mL), Volume (mL), DF, Density (g/mL)<ValidationDataGrid label="ผลตัวอย่าง" columns={["Weight (mg)", "Found (mg/mL)", "Volume (mL)", "DF", "Density (g/mL)"]} value={settings.sampleData} onChange={value => update("sampleData", value)} /><span className="block text-muted-foreground">DF คือการเจือจางเพิ่มเติมเท่านั้น · Density กรอก 0 เมื่อไม่ทราบและรายงานเฉพาะ %w/w; ต้องมีค่าที่วัดได้เพื่อประเมิน %w/v</span></div>
+      <div className="block space-y-2 text-sm">Sample: Weight (mg), Found (mg/mL), Volume (mL), DF, Density (g/mL)<ValidationDataGrid readOnly={linkedKinds.includes("sample")} label="ผลตัวอย่าง" columns={["Weight (mg)", "Found (mg/mL)", "Volume (mL)", "DF", "Density (g/mL)"]} value={settings.sampleData} onChange={value => update("sampleData", value)} /><span className="block text-muted-foreground">DF คือการเจือจางเพิ่มเติมเท่านั้น · Density กรอก 0 เมื่อไม่ทราบและรายงานเฉพาะ %w/w; ต้องมีค่าที่วัดได้เพื่อประเมิน %w/v</span></div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="space-y-2 text-sm">Standard Check: Found, Actual standard (mg/mL) · 2 ชุด<ValidationDataGrid label="Standard Check" columns={["Found (mg/mL)", "Actual (mg/mL)"]} value={settings.standardData} onChange={value => update("standardData", value)} /></div>
-        <div className="space-y-2 text-sm">Matrix Spike: Found หลังเติม, Unspiked, Added (mg/mL) · 2 ชุด<ValidationDataGrid label="Matrix Spike" columns={["Found (mg/mL)", "Unspiked (mg/mL)", "Added (mg/mL)"]} value={settings.spikeData} onChange={value => update("spikeData", value)} /><span className="block text-muted-foreground">Unspiked เป็นผลวัดก่อนเติมที่ปรับ dilution ให้เท่ากับสารละลายสุดท้ายแล้ว ไม่ใช้ค่าฉลากแทนโดยอัตโนมัติ</span></div>
+        <div className="space-y-2 text-sm">Standard Check: Found, Actual standard (mg/mL) · 2 ชุด<ValidationDataGrid readOnly={linkedKinds.includes("standard")} label="Standard Check" columns={["Found (mg/mL)", "Actual (mg/mL)"]} value={settings.standardData} onChange={value => update("standardData", value)} /></div>
+        <div className="space-y-2 text-sm">Matrix Spike: Found หลังเติม, Unspiked, Added (mg/mL) · 2 ชุด<ValidationDataGrid readOnly={linkedKinds.includes("spike")} label="Matrix Spike" columns={["Found (mg/mL)", "Unspiked (mg/mL)", "Added (mg/mL)"]} value={settings.spikeData} onChange={value => update("spikeData", value)} /><span className="block text-muted-foreground">Unspiked เป็นผลวัดก่อนเติมที่ปรับ dilution ให้เท่ากับสารละลายสุดท้ายแล้ว ไม่ใช้ค่าฉลากแทนโดยอัตโนมัติ</span></div>
       </div>
       <ValidationResults checks={result.checks} />
       <p className="text-sm text-muted-foreground">%w/w = Found × V × DF × 100 / W · %w/v = %w/w × Density · Spike Recovery = (Found − Unspiked) / Added × 100 · %Difference คำนวณจาก Recovery ของคู่ซ้ำ</p>
