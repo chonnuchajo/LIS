@@ -5,6 +5,7 @@ import { NativeSelect } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { prepareValidationImport } from "@/lib/validationImport";
 import type { ConcentrationUnit } from "@/lib/validationPreparation";
+import ValidationDocumentPicker from "./ValidationDocumentPicker";
 
 export default function ValidationImportDialog({ label, columns, hasData, onApply }: {
   label: string; columns: string[]; hasData: boolean; onApply: (text: string) => void;
@@ -24,7 +25,8 @@ export default function ValidationImportDialog({ label, columns, hasData, onAppl
   return <>
     <Button type="button" size="sm" variant="outline" onClick={() => { setSource(""); setUnits({}); setHasHeader(false); setFileError(""); changeOpen(true); }}>นำเข้า / แปลงหน่วย</Button>
     <Dialog open={open} onOpenChange={changeOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-      <DialogHeader><DialogTitle>นำเข้า {label}</DialogTitle><DialogDescription>วางตารางจาก Excel หรือเลือก CSV / TSV แล้วตรวจตัวอย่างก่อนนำไปคำนวณ</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>นำเข้า {label}</DialogTitle><DialogDescription>วางข้อความหรือเลือก CSV, Excel หรือ PDF แล้วตรวจตัวอย่างก่อนนำไปคำนวณ</DialogDescription></DialogHeader>
+      <ValidationDocumentPicker columns={columns} onSelect={text => { setSource(text); setHasHeader(false); setFileError(""); }} />
       <div className="flex flex-wrap items-center gap-3">
         <Button type="button" variant="outline" disabled={loading} onClick={() => file.current?.click()}>เลือก CSV / TSV</Button>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={hasHeader} onChange={e => setHasHeader(e.target.checked)} />แถวแรกเป็นหัวตาราง</label>
