@@ -42,6 +42,16 @@ describe("appPreferences", () => {
     expect(readAppPreferences().fontSize).toBe("17px");
   });
 
+  it("accepts font sizes from 10px through 48px", () => {
+    localStorage.setItem("lis.appPreferences.v1", JSON.stringify({ fontSize: "48px" }));
+
+    expect(readAppPreferences().fontSize).toBe("48px");
+
+    localStorage.setItem("lis.appPreferences.v1", JSON.stringify({ fontSize: "49px" }));
+
+    expect(readAppPreferences().fontSize).toBe(DEFAULT_APP_PREFERENCES.fontSize);
+  });
+
   it("respects global and per-sound notification settings", () => {
     writeAppPreferences({
       ...DEFAULT_APP_PREFERENCES,

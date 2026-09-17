@@ -1,7 +1,7 @@
 export type AppThemePreference = "light" | "dark";
 export type AppLanguagePreference = "th" | "en";
 export type AppFontFamilyPreference = "kanit" | "sarabun" | "system";
-export type AppFontSizePreference = "15px" | "16px" | "17px";
+export type AppFontSizePreference = `${number}px`;
 export type NotificationSoundPreference = "sampleArrival" | "labAssigned" | "queueNew" | "timerDone";
 
 export interface AppPreferences {
@@ -39,7 +39,14 @@ export const DEFAULT_APP_PREFERENCES: AppPreferences = {
 const THEMES: AppThemePreference[] = ["light", "dark"];
 const LANGUAGES: AppLanguagePreference[] = ["th", "en"];
 const FONT_FAMILIES: AppFontFamilyPreference[] = ["kanit", "sarabun", "system"];
-const FONT_SIZES: AppFontSizePreference[] = ["15px", "16px", "17px"];
+const MIN_FONT_SIZE_PX = 10;
+const MAX_FONT_SIZE_PX = 48;
+
+export const FONT_SIZE_OPTIONS: AppFontSizePreference[] = Array.from(
+  { length: MAX_FONT_SIZE_PX - MIN_FONT_SIZE_PX + 1 },
+  (_, index) => `${MIN_FONT_SIZE_PX + index}px` as AppFontSizePreference,
+);
+
 const LEGACY_FONT_SIZE_VALUES: Record<string, AppFontSizePreference> = {
   small: "15px",
   normal: "16px",
@@ -60,7 +67,7 @@ const pick = <T extends string>(value: unknown, allowed: T[], fallback: T): T =>
 
 const normalizeFontSize = (value: unknown): AppFontSizePreference => {
   if (typeof value !== "string") return DEFAULT_APP_PREFERENCES.fontSize;
-  if (FONT_SIZES.includes(value as AppFontSizePreference)) return value as AppFontSizePreference;
+  if (FONT_SIZE_OPTIONS.includes(value as AppFontSizePreference)) return value as AppFontSizePreference;
   return LEGACY_FONT_SIZE_VALUES[value] ?? DEFAULT_APP_PREFERENCES.fontSize;
 };
 

@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { useAppPreferences } from "@/context/AppPreferencesContext";
+import { FONT_SIZE_OPTIONS } from "@/lib/appPreferences";
 import type {
   AppFontFamilyPreference,
   AppFontSizePreference,
@@ -153,9 +154,11 @@ const ProfileSettingsDialog = ({
                   value={preferences.fontSize}
                   onChange={(event) => setPreference("fontSize", event.target.value as AppFontSizePreference)}
                 >
-                  <option value="15px">15 px</option>
-                  <option value="16px">16 px</option>
-                  <option value="17px">17 px</option>
+                  {FONT_SIZE_OPTIONS.map((fontSize) => (
+                    <option key={fontSize} value={fontSize}>
+                      {fontSize.replace("px", " px")}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>
