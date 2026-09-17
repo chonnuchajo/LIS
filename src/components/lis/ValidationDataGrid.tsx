@@ -3,6 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import ValidationImportDialog from "./ValidationImportDialog";
 
 /** Keep invalid and extra cells visible: editing must never silently discard evidence. */
 export default function ValidationDataGrid({ label, columns, value, onChange, placeholder, readOnly = false }: {
@@ -23,7 +24,7 @@ export default function ValidationDataGrid({ label, columns, value, onChange, pl
   return <div className="space-y-3" role="group" aria-labelledby={id}>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <p id={id} className="text-sm font-medium">{label}</p>
-      <Button type="button" size="sm" variant="outline" aria-pressed={raw} onClick={() => setRaw(!raw)}>{raw ? "แสดงตาราง" : "วางข้อมูล / ดูข้อความ"}</Button>
+      <div className="flex flex-wrap gap-2">{!readOnly && <ValidationImportDialog label={label} columns={columns} hasData={value !== ""} onApply={onChange} />}<Button type="button" size="sm" variant="outline" aria-pressed={raw} onClick={() => setRaw(!raw)}>{raw ? "แสดงตาราง" : "วางข้อมูล / ดูข้อความ"}</Button></div>
     </div>
     {readOnly && <p className="text-xs text-muted-foreground">คำนวณจาก Area · แก้ข้อมูลในส่วน Calibration และการเตรียมรายตัวอย่าง</p>}
     {raw ? <Textarea readOnly={readOnly} aria-label={label} className="min-h-40 font-mono text-sm" value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} /> : <>

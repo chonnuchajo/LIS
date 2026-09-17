@@ -37,6 +37,7 @@ describe("ValidationDataGrid", () => {
     render(<ValidationDataGrid label="ผลคำนวณ" columns={["Actual", "Found"]} value="0.5\t0.5012" onChange={() => { throw new Error("derived data must not be edited"); }} readOnly />);
     expect((screen.getByLabelText("ผลคำนวณ แถว 1 Actual") as HTMLInputElement).readOnly).toBe(true);
     expect((screen.getByRole("button", { name: "เพิ่มแถว" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "นำเข้า / แปลงหน่วย" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "วางข้อมูล / ดูข้อความ" }));
     expect((screen.getByLabelText("ผลคำนวณ", { selector: "textarea" }) as HTMLTextAreaElement).readOnly).toBe(true);
   });
