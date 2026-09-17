@@ -202,7 +202,10 @@ export const DevRoleSwitcher = () => {
         </button>
       </div>
       {!collapsed && (
-        <>
+        <div
+          data-dev-role-switcher-flyout
+          className="absolute right-0 top-full mt-1 flex flex-col items-end gap-1"
+        >
           <div className="flex flex-wrap gap-1 rounded-md border border-orange-300 bg-white p-1 shadow-md">
             {devRoles.map((role) => {
               const active = devRoleIds.includes(role.id);
@@ -238,7 +241,7 @@ export const DevRoleSwitcher = () => {
               </select>
             </label>
           )}
-        </>
+        </div>
       )}
     </div>
   );

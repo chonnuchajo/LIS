@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useNotifications } from "@/context/NotificationContext";
+import { isNotificationSoundEnabled } from "@/lib/appPreferences";
 import { audiencesForUser, readSeeAll, SEE_ALL_EVENT } from "@/lib/petitionAudience";
 import {
   PETITION_NOTIFICATIONS_REFRESH_EVENT,
@@ -107,6 +108,7 @@ const playAudioFile = ({ fallback, repeat = 1, url }: { fallback?: () => void; r
 };
 
 const playNotificationSound = (sound: PetitionNotificationSound = "sampleArrival") => {
+  if (!isNotificationSoundEnabled(sound)) return;
   if (sound === "labAssigned") {
     playAudioFile({ fallback: playSampleArrivalFallbackTone, url: LAB_ASSIGNED_SOUND_URL });
     return;

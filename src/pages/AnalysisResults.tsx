@@ -14,9 +14,9 @@ function resolveConclusion(p: Petition): ConclusionKey {
 }
 
 const CONCLUSION_META: Record<ConclusionKey, { label: string; cls: string }> = {
-  "pass": { label: "ผ่าน", cls: "bg-green-100 text-green-700 border-green-200" },
-  "accepted-oos": { label: "ยอมรับผลไม่ปกติ", cls: "bg-yellow-100 text-yellow-800 border-yellow-200" },
-  "returned-to-requester": { label: "ส่งคืนผู้ส่ง", cls: "bg-orange-100 text-orange-700 border-orange-200" },
+  "pass": { label: "ผ่าน", cls: "border-green-200 bg-green-50 text-green-700 dark:border-green-500/30 dark:bg-green-500/15 dark:text-green-300" },
+  "accepted-oos": { label: "ยอมรับผลไม่ปกติ", cls: "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-500/30 dark:bg-yellow-500/15 dark:text-yellow-300" },
+  "returned-to-requester": { label: "ส่งคืนผู้ส่ง", cls: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/30 dark:bg-orange-500/15 dark:text-orange-300" },
 };
 
 export default function AnalysisResults() {
@@ -41,10 +41,10 @@ export default function AnalysisResults() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-4">
+      <div className="space-y-4">
         <div>
-          <h1 className="text-xl font-bold text-lis-text">ผลวิเคราะห์</h1>
-          <p className="text-sm text-gray-500">ประวัติคำร้องที่ผ่านการตัดสินจากหัวหน้า QC แล้ว</p>
+          <h1 className="text-xl font-bold text-foreground">ผลวิเคราะห์</h1>
+          <p className="text-sm text-muted-foreground">ประวัติคำร้องที่ผ่านการตัดสินจากหัวหน้า QC แล้ว</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -52,22 +52,22 @@ export default function AnalysisResults() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ค้นหาเลขคำร้อง / ผู้ส่ง"
-            className="rounded-md border px-3 py-1.5 text-sm"
+            className="rounded-md border border-input bg-background px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
           {(["all", "pass", "accepted-oos", "returned-to-requester"] as const).map((k) => (
             <button
               key={k}
               onClick={() => setFilter(k)}
-              className={`rounded-full border px-3 py-1 text-xs ${filter === k ? "bg-lis-sidebar text-white" : "bg-white text-gray-600"}`}
+              className={`rounded-full border px-3 py-1 text-xs transition-colors ${filter === k ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground"}`}
             >
               {k === "all" ? "ทั้งหมด" : CONCLUSION_META[k].label}
             </button>
           ))}
         </div>
 
-        <div className="overflow-x-auto rounded-lg border bg-white">
+        <div className="overflow-x-auto rounded-lg border bg-card text-card-foreground shadow-sm">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs text-gray-500">
+            <thead className="bg-muted text-left text-xs text-muted-foreground">
               <tr>
                 <th className="px-3 py-2">เลขคำร้อง</th>
                 <th className="px-3 py-2">แผนก</th>
@@ -78,10 +78,10 @@ export default function AnalysisResults() {
             </thead>
             <tbody>
               {loading && (
-                <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">กำลังโหลด…</td></tr>
+                <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">กำลังโหลด…</td></tr>
               )}
               {!loading && rows.length === 0 && (
-                <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">ยังไม่มีประวัติ</td></tr>
+                <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">ยังไม่มีประวัติ</td></tr>
               )}
               {rows.map(({ p, conclusion }) => {
                 const meta = CONCLUSION_META[conclusion];
@@ -90,7 +90,7 @@ export default function AnalysisResults() {
                   <tr
                     key={p._id}
                     onClick={() => navigate(`/record-results/${p._id}`)}
-                    className="cursor-pointer border-t hover:bg-gray-50"
+                    className="cursor-pointer border-t border-border hover:bg-accent/60"
                   >
                     <td className="px-3 py-2 font-medium">{p.petitionNo}</td>
                     <td className="px-3 py-2">{petitionDepartmentLabel(p)}</td>

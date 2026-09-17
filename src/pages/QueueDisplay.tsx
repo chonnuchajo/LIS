@@ -19,6 +19,7 @@ import { shouldSendItemToLab } from "@/lib/petitionRouting";
 import { isVisibleInQcTestingQueue } from "@/lib/petitionQueueVisibility";
 import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
 import { calculateQueueItemsPerColumn } from "@/lib/queueDisplayRows";
+import { isNotificationSoundEnabled } from "@/lib/appPreferences";
 
 type QueueMode = "lab" | "qc";
 
@@ -494,12 +495,12 @@ export default function QueueDisplay({ mode }: { mode: QueueMode }) {
       alertAudioRef.current.currentTime = 0;
     }
 
-    const audio = new Audio(`${NEW_SAMPLE_SOUND_URL}?v=${Date.now()}`);
-    audio.loop = true;
-    alertAudioRef.current = audio;
-    audio.play().catch(() => {
-      // Browsers may block autoplay until the TV/browser session has interacted once.
-    });
+    if (isNotificationSoundEnabled("queueNew")) {
+      const audio = new Audio(`${NEW_SAMPLE_SOUND_URL}?v=${Date.now()}`);
+      audio.loop = true;
+      alertAudioRef.current = audio;
+      audio.play().catch(() => undefined);
+    }
 
     setNewWorkPopup({
       count: incomingItems.length,

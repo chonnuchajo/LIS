@@ -19,14 +19,17 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNotifications } from '@/context/NotificationContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useCanAccessPath } from '@/hooks/useCanAccessPath';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
-import { usePetitionList } from '@/hooks/usePetition';
+import { createPetition, usePetitionList } from '@/hooks/usePetition';
 import { api, type ParameterItem } from '@/lib/api';
+import { getItemNo, getRawCommonName, getSampleName } from '@/lib/masterItemFields';
+import { normalizeMasterItemPayload } from '@/lib/petitionMasterItem';
 import { parameterNamesForPetition } from '@/lib/petitionTestItems';
 import {
   canSeePetition,
@@ -44,6 +47,7 @@ import {
   PETITION_STATUSES,
   type Petition,
 } from '@/types/petition.types';
+import type { SixMonthMedicineStockItem } from '@/types/stock';
 
 const PAGE_SIZE = 20;
 const NEW_PETITION_PATH = '/petitions/new';
@@ -111,6 +115,57 @@ function formatSixMonthReferenceMonth(value?: string) {
   return date.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 }
 
+function sixMonthStockRowKey(item: SixMonthMedicineStockItem) {
+  return `${item.itemNo}-${item.lotNo}-${item.locationCode}-${item.binCode}-${item.registeringDate}`;
+}
+
+function sixMonthStockItemNoKey(value?: string | null) {
+  return String(value ?? '').trim().toUpperCase();
+}
+
+function sixMonthStockValue(value?: string | number | null) {
+  const text = String(value ?? '').trim();
+  return text || '-';
+}
+
+function preferMasterText(masterValue?: string, fallbackValue?: string) {
+  return String(masterValue ?? '').trim() || String(fallbackValue ?? '').trim();
+}
+
+function sixMonthStockLocation(item: SixMonthMedicineStockItem) {
+  return [item.locationCode, item.binCode].map(sixMonthStockValue).join(' / ');
+}
+
+function buildSixMonthMasterItemLookup(payload: unknown) {
+  const lookup = new Map<string, { commonName: string; itemName: string }>();
+  normalizeMasterItemPayload(payload).forEach((item) => {
+    const key = sixMonthStockItemNoKey(getItemNo(item));
+    if (!key) return;
+    lookup.set(key, {
+      commonName: getRawCommonName(item),
+      itemName: getSampleName(item),
+    });
+  });
+  return lookup;
+}
+
+function enrichSixMonthStockItem(
+  item: SixMonthMedicineStockItem,
+  masterItemLookup: Map<string, { commonName: string; itemName: string }>,
+): SixMonthMedicineStockItem {
+  const masterItem = masterItemLookup.get(sixMonthStockItemNoKey(item.itemNo));
+  if (!masterItem) return item;
+  return {
+    ...item,
+    commonName: preferMasterText(masterItem.commonName, item.commonName),
+    itemName: preferMasterText(masterItem.itemName, item.itemName),
+  };
+}
+
+function sixMonthStockSampleName(item: SixMonthMedicineStockItem) {
+  return [item.itemName, item.commonName, item.itemNo].map(sixMonthStockValue).find((value) => value !== '-') || 'รายการยา';
+}
+
 function firstPetitionItem(petition: Petition) {
   return petition.items[0];
 }
@@ -126,6 +181,10 @@ function petitionBatchLotLabel(petition: Petition) {
 
 type SixMonthMedicineTabProps = {
   showFgQualityAlerts: boolean;
+};
+
+type SixMonthMedicineStockTabProps = {
+  onQualitySubmissionCreated?: () => void;
 };
 
 function canUseTouchPullToRefresh() {
@@ -227,21 +286,92 @@ function useTouchPullToRefresh(onRefresh: () => Promise<unknown>) {
   };
 }
 
-function SixMonthMedicineStockTab() {
+function SixMonthMedicineDetailDrawer({
+  item,
+  onClose,
+}: {
+  item: SixMonthMedicineStockItem;
+  onClose: () => void;
+}) {
+  const itemName = sixMonthStockValue(item.itemName);
+  const commonName = sixMonthStockValue(item.commonName);
+  const Field = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="space-y-0.5">
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="break-words text-sm font-medium text-foreground">{value}</div>
+    </div>
+  );
+
+  return (
+    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-md">
+        <SheetHeader className="space-y-1 border-b border-border p-6 pr-12 text-left">
+          <SheetTitle className="text-xl font-bold text-primary">{sixMonthStockValue(item.itemNo)}</SheetTitle>
+          <SheetDescription className="sr-only">รายละเอียดสต๊อกยาเกิน 6 เดือน</SheetDescription>
+          <p className="text-sm text-muted-foreground">{itemName}</p>
+        </SheetHeader>
+
+        <div className="flex-1 space-y-6 p-6">
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ข้อมูลหลัก</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="commonname" value={commonName} />
+              <Field label="Lot" value={sixMonthStockValue(item.lotNo)} />
+              <Field label="Registering Date" value={formatSixMonthStockDate(item.registeringDate)} />
+              <Field label="อายุ (เดือน)" value={<Badge variant="outline">{item.ageMonths}</Badge>} />
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ข้อมูลคลัง</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Stock Qty" value={formatStockQuantityWithUnit(item.stockQty, item.unit)} />
+              <Field label="Stock Qty Base" value={formatStockQuantityWithUnit(item.stockQtyBase, item.unit)} />
+              <Field label="ตำแหน่ง" value={sixMonthStockLocation(item)} />
+              <Field label="Company" value={sixMonthStockValue(item.companySource)} />
+            </div>
+          </section>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function SixMonthMedicineStockTab({ onQualitySubmissionCreated }: SixMonthMedicineStockTabProps = {}) {
+  const { user } = useAuth();
   const [sixMonthSearch, setSixMonthSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<'all' | 'rm' | 'fg'>('all');
+  const [selectedItem, setSelectedItem] = useState<SixMonthMedicineStockItem | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(() => new Set());
+  const [isSubmittingQuality, setIsSubmittingQuality] = useState(false);
+  const [qualitySubmitError, setQualitySubmitError] = useState<string | null>(null);
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['stock', 'medicine-six-months'],
     queryFn: api.getSixMonthMedicineStock,
     staleTime: 5 * 60 * 1000,
   });
-  const pullToRefresh = useTouchPullToRefresh(async () => {
-    await refetch();
+  const { data: masterItemsPayload, refetch: refetchMasterItems } = useQuery({
+    queryKey: ['master-items', 'six-month-medicine-commonname'],
+    queryFn: async () => {
+      const res = await api.get<unknown>('/master-items');
+      return res.data.data;
+    },
+    staleTime: 5 * 60 * 1000,
   });
+  const pullToRefresh = useTouchPullToRefresh(async () => {
+    await Promise.all([refetch(), refetchMasterItems()]);
+  });
+  const masterItemLookup = useMemo(
+    () => buildSixMonthMasterItemLookup(masterItemsPayload),
+    [masterItemsPayload],
+  );
+  const stockItems = useMemo(
+    () => (data?.items ?? []).map((item) => enrichSixMonthStockItem(item, masterItemLookup)),
+    [data?.items, masterItemLookup],
+  );
   const filtered = useMemo(() => {
-    const items = data?.items ?? [];
     const q = sixMonthSearch.trim().toLowerCase();
-    return items.filter((item) => {
+    return stockItems.filter((item) => {
       const itemNo = item.itemNo.trim().toUpperCase();
       const matchesKind = kindFilter === 'all'
         || (kindFilter === 'rm' && itemNo.startsWith('R'))
@@ -250,32 +380,110 @@ function SixMonthMedicineStockTab() {
       if (!q) return true;
       return [
         item.itemNo,
+        item.commonName,
         item.lotNo,
-        item.locationCode,
-        item.binCode,
-        item.companySource,
-      ].some((value) => value.toLowerCase().includes(q));
+      ].some((value) => (value ?? '').toLowerCase().includes(q));
     });
-  }, [data?.items, sixMonthSearch, kindFilter]);
+  }, [stockItems, sixMonthSearch, kindFilter]);
+  const filteredKeys = useMemo(() => filtered.map(sixMonthStockRowKey), [filtered]);
+  const allFilteredSelected = filteredKeys.length > 0 && filteredKeys.every((key) => selectedRowKeys.has(key));
+  const someFilteredSelected = filteredKeys.some((key) => selectedRowKeys.has(key));
+  const selectedItems = useMemo(
+    () => stockItems.filter((item) => selectedRowKeys.has(sixMonthStockRowKey(item))),
+    [stockItems, selectedRowKeys],
+  );
   const errorMessage = error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ';
+
+  const toggleRowSelection = useCallback((item: SixMonthMedicineStockItem, checked: boolean) => {
+    const key = sixMonthStockRowKey(item);
+    setSelectedRowKeys((current) => {
+      const next = new Set(current);
+      if (checked) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const toggleAllFiltered = useCallback((checked: boolean) => {
+    setSelectedRowKeys((current) => {
+      const next = new Set(current);
+      filteredKeys.forEach((key) => {
+        if (checked) next.add(key);
+        else next.delete(key);
+      });
+      return next;
+    });
+  }, [filteredKeys]);
+
+  const handleCreateQualityPetition = useCallback(async () => {
+    if (selectedItems.length === 0) return;
+    setIsSubmittingQuality(true);
+    setQualitySubmitError(null);
+    const actorName = user?.name?.trim() || user?.email?.trim() || 'system';
+    const actorDepartment = user?.department?.trim() || FG_WAREHOUSE_DEPARTMENT;
+
+    try {
+      await createPetition({
+        dept: 'fg',
+        submittedBy: {
+          employeeId: user?.employeeId || undefined,
+          name: actorName,
+          department: actorDepartment,
+        },
+        deliveredBy: {
+          employeeId: user?.employeeId || undefined,
+          name: actorName,
+        },
+        items: selectedItems.map((item, index) => ({
+          seq: index + 1,
+          sampleName: sixMonthStockSampleName(item),
+          commonName: item.commonName || '',
+          batchNo: sixMonthStockValue(item.lotNo) !== '-' ? item.lotNo : item.itemNo,
+          lotNo: item.lotNo || undefined,
+          itemNo: item.itemNo || undefined,
+          testItems: 'ส่งตรวจคุณภาพ',
+          sendToLab: false,
+          note: 'ส่งตรวจคุณภาพจากรายการยาเกิน 6 เดือน',
+          sampleQuantity: 1,
+        })),
+        cause: 'ส่งตรวจคุณภาพจากรายการยาเกิน 6 เดือน',
+      } as Parameters<typeof createPetition>[0]);
+      setSelectedRowKeys(new Set());
+      onQualitySubmissionCreated?.();
+    } catch (submitError) {
+      setQualitySubmitError(submitError instanceof Error ? submitError.message : 'ยื่นคำร้องไม่สำเร็จ');
+    } finally {
+      setIsSubmittingQuality(false);
+    }
+  }, [onQualitySubmissionCreated, selectedItems, user?.department, user?.email, user?.employeeId, user?.name]);
 
   return (
     <div ref={pullToRefresh.rootRef} className="space-y-3 overscroll-y-contain" {...pullToRefresh.pullHandlers}>
       <div
         aria-live="polite"
         className={cn(
-          'overflow-hidden rounded-xl border border-primary-100 bg-primary-50 text-center text-sm font-medium text-primary-600 transition-all',
+          'overflow-hidden rounded-xl border border-primary/30 bg-primary/10 text-center text-sm font-medium text-primary transition-all',
           pullToRefresh.pullState === 'idle' ? 'h-0 border-transparent py-0 opacity-0' : 'py-2 opacity-100',
         )}
       >
         {pullToRefresh.pullMessage}
       </div>
-      <Card className="border-black-50 shadow-none">
+      <Card className="border-border shadow-none">
         <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <CardTitle className="text-base">รายการยาเกิน 6 เดือน</CardTitle>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {onQualitySubmissionCreated && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleCreateQualityPetition}
+                disabled={selectedItems.length === 0 || isSubmittingQuality}
+              >
+                {isSubmittingQuality ? 'กำลังส่ง...' : `ส่งตรวจคุณภาพ (${selectedItems.length})`}
+              </Button>
+            )}
             <Select value={kindFilter} onValueChange={(value) => setKindFilter(value as 'all' | 'rm' | 'fg')}>
               <SelectTrigger aria-label="ประเภทสินค้า" className="h-9 w-full sm:w-28"><SelectValue placeholder="ทั้งหมด" /></SelectTrigger>
               <SelectContent>
@@ -287,41 +495,75 @@ function SixMonthMedicineStockTab() {
             <Input
               value={sixMonthSearch}
               onChange={(event) => setSixMonthSearch(event.target.value)}
-              placeholder="ค้นหา item / lot / location"
+              placeholder="ค้นหา item / lot / commonname"
               className="h-9 w-full min-w-[220px] sm:w-72"
             />
           </div>
         </CardHeader>
         <CardContent>
+          {qualitySubmitError && (
+            <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {qualitySubmitError}
+            </div>
+          )}
           <div className="overflow-x-auto">
             <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
+                  {onQualitySubmissionCreated && (
+                    <TableHead className="w-10">
+                      <Checkbox
+                        aria-label="เลือกทั้งหมดในรายการยาเกิน 6 เดือน"
+                        checked={allFilteredSelected ? true : someFilteredSelected ? 'indeterminate' : false}
+                        disabled={filteredKeys.length === 0 || isSubmittingQuality}
+                        onCheckedChange={(checked) => toggleAllFiltered(checked === true)}
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>Item No</TableHead>
+                  <TableHead>commonname</TableHead>
                   <TableHead>Lot</TableHead>
                   <TableHead>Registering Date</TableHead>
                   <TableHead className="text-right">อายุ (เดือน)</TableHead>
                   <TableHead className="text-right">Stock Qty</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Company</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-grey-500">กำลังโหลดข้อมูล...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={onQualitySubmissionCreated ? 7 : 6} className="py-8 text-center text-sm text-muted-foreground">กำลังโหลดข้อมูล...</TableCell></TableRow>
                 ) : isError ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-red-500">{errorMessage}</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={onQualitySubmissionCreated ? 7 : 6} className="py-8 text-center text-sm text-red-500">{errorMessage}</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-grey-500">ไม่มีข้อมูลที่อายุมากกว่า 6 เดือน</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={onQualitySubmissionCreated ? 7 : 6} className="py-8 text-center text-sm text-muted-foreground">ไม่มีข้อมูลที่อายุมากกว่า 6 เดือน</TableCell></TableRow>
                 ) : filtered.map((item) => (
-                  <TableRow key={`${item.itemNo}-${item.lotNo}-${item.locationCode}-${item.binCode}-${item.registeringDate}`}>
-                    <TableCell className="font-medium text-black-500">{item.itemNo || '-'}</TableCell>
+                  <TableRow
+                    key={sixMonthStockRowKey(item)}
+                    tabIndex={0}
+                    className="cursor-pointer hover:bg-accent"
+                    onClick={() => setSelectedItem(item)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedItem(item);
+                      }
+                    }}
+                  >
+                    {onQualitySubmissionCreated && (
+                      <TableCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                        <Checkbox
+                          aria-label={`เลือก ${item.itemNo || '-'} ${item.lotNo || '-'}`}
+                          checked={selectedRowKeys.has(sixMonthStockRowKey(item))}
+                          disabled={isSubmittingQuality}
+                          onCheckedChange={(checked) => toggleRowSelection(item, checked === true)}
+                        />
+                      </TableCell>
+                    )}
+                    <TableCell className="font-medium text-foreground">{item.itemNo || '-'}</TableCell>
+                    <TableCell>{item.commonName || '-'}</TableCell>
                     <TableCell>{item.lotNo || '-'}</TableCell>
-                    <TableCell className="whitespace-nowrap text-xs text-grey-600">{formatSixMonthStockDate(item.registeringDate)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatSixMonthStockDate(item.registeringDate)}</TableCell>
                     <TableCell className="text-right"><Badge variant="outline">{item.ageMonths}</Badge></TableCell>
                     <TableCell className="text-right font-mono">{formatStockQuantityWithUnit(item.stockQty, item.unit)}</TableCell>
-                    <TableCell className="text-xs text-grey-600">{item.locationCode || '-'} / {item.binCode || '-'}</TableCell>
-                    <TableCell className="text-xs text-grey-600">{item.companySource || '-'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -329,6 +571,9 @@ function SixMonthMedicineStockTab() {
           </div>
         </CardContent>
       </Card>
+      {selectedItem && (
+        <SixMonthMedicineDetailDrawer item={selectedItem} onClose={() => setSelectedItem(null)} />
+      )}
     </div>
   );
 }
@@ -338,11 +583,11 @@ function FgQualityAlertsTab() {
   const petitions = data?.items ?? [];
 
   return (
-    <Card className="border-black-50 shadow-none">
+    <Card className="border-border shadow-none">
       <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <CardTitle className="text-base">แจ้งเตือนส่งตรวจคุณภาพ</CardTitle>
-          <p className="mt-1 text-sm text-grey-500">คำร้อง FG ที่อยู่สถานะกำลังส่งตัวอย่าง</p>
+          <p className="mt-1 text-sm text-muted-foreground">คำร้อง FG ที่อยู่สถานะกำลังส่งตัวอย่าง</p>
         </div>
         <Badge variant="outline">{petitions.length}</Badge>
       </CardHeader>
@@ -361,20 +606,20 @@ function FgQualityAlertsTab() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-grey-500">กำลังโหลดรายการแจ้งเตือน...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">กำลังโหลดรายการแจ้งเตือน...</TableCell></TableRow>
               ) : error ? (
                 <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-red-500">{error}</TableCell></TableRow>
               ) : petitions.length === 0 ? (
-                <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-grey-500">ไม่มีรายการแจ้งเตือน</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">ไม่มีรายการแจ้งเตือน</TableCell></TableRow>
               ) : petitions.map((petition) => {
                 const firstItem = firstPetitionItem(petition);
                 return (
                   <TableRow key={petition._id}>
-                    <TableCell className="font-medium text-black-500">{petition.petitionNo || '-'}</TableCell>
+                    <TableCell className="font-medium text-foreground">{petition.petitionNo || '-'}</TableCell>
                     <TableCell>{petition.submittedBy?.name || '-'}</TableCell>
-                    <TableCell className="whitespace-nowrap text-xs text-grey-600">{formatSixMonthStockDate(petition.submittedBy?.submittedAt || petition.createdAt)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatSixMonthStockDate(petition.submittedBy?.submittedAt || petition.createdAt)}</TableCell>
                     <TableCell>{firstItem?.sampleName || '-'}{petitionItemCountLabel(petition)}</TableCell>
-                    <TableCell className="text-xs text-grey-600">{petitionBatchLotLabel(petition)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{petitionBatchLotLabel(petition)}</TableCell>
                     <TableCell><Badge variant="primary-soft">ส่งตรวจคุณภาพ</Badge></TableCell>
                   </TableRow>
                 );
@@ -388,10 +633,11 @@ function FgQualityAlertsTab() {
 }
 
 function SixMonthMedicineTab({ showFgQualityAlerts }: SixMonthMedicineTabProps) {
+  const [activeTab, setActiveTab] = useState('six-month-stock');
   if (!showFgQualityAlerts) return <SixMonthMedicineStockTab />;
 
   return (
-    <Tabs defaultValue="six-month-stock" className="space-y-3">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
       <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
         <TabsList className="w-max">
           <TabsTrigger value="fg-quality-alerts">แจ้งเตือนส่งตรวจคุณภาพ</TabsTrigger>
@@ -402,7 +648,7 @@ function SixMonthMedicineTab({ showFgQualityAlerts }: SixMonthMedicineTabProps) 
         <FgQualityAlertsTab />
       </TabsContent>
       <TabsContent value="six-month-stock" className="mt-0">
-        <SixMonthMedicineStockTab />
+        <SixMonthMedicineStockTab onQualitySubmissionCreated={() => setActiveTab('fg-quality-alerts')} />
       </TabsContent>
     </Tabs>
   );
@@ -662,8 +908,8 @@ export default function PetitionListPage({
         data-highlight={isGlowing ? 'on' : undefined}
         onOpen={() => navigate(petitionDetailPath(petition))}
         className={cn(
-          'w-full rounded-2xl border-black-50 p-4 text-left transition duration-700 hover:border-primary-200 hover:bg-grey-50/40',
-          isGlowing && 'border-amber-300 bg-amber-50 ring-2 ring-amber-200 hover:bg-amber-50',
+          'w-full rounded-2xl border-border p-4 text-left transition duration-700 hover:border-primary/40 hover:bg-accent/50',
+          isGlowing && 'border-amber-300 bg-amber-50 ring-2 ring-amber-200 hover:bg-amber-50 dark:border-amber-500/50 dark:bg-amber-500/10 dark:ring-amber-500/30 dark:hover:bg-amber-500/10',
         )}
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -676,17 +922,17 @@ export default function PetitionListPage({
 
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-medium text-black-500">{primarySample}</p>
+                <p className="text-sm font-medium text-foreground">{primarySample}</p>
                 {extraSamples > 0 && <Badge variant="gray-soft">+อีก {extraSamples}</Badge>}
-                <span className="text-xs text-grey-500">{petition.items.length} รายการ</span>
+                <span className="text-xs text-muted-foreground">{petition.items.length} รายการ</span>
               </div>
               {testItems.length > 0 && (
-                <p className="line-clamp-2 text-sm text-grey-600">
+                <p className="line-clamp-2 text-sm text-muted-foreground">
                   {testItems.slice(0, 4).join(' • ')}
                   {testItems.length > 4 ? ` • +อีก ${testItems.length - 4}` : ''}
                 </p>
               )}
-              <p className="text-xs text-grey-500">{petitionMetaLine(petition)}</p>
+              <p className="text-xs text-muted-foreground">{petitionMetaLine(petition)}</p>
             </div>
 
             <PetitionStatusTimeline petition={petition} compact />
@@ -745,18 +991,18 @@ export default function PetitionListPage({
               className={cn(
                 "rounded-2xl p-4 text-left transition-all",
                 card.active
-                  ? "border-primary-300 bg-primary-50 shadow-sm ring-1 ring-primary-100"
-                  : "border-black-50 hover:border-primary-200 hover:bg-grey-50/50",
+                  ? "border-primary/50 bg-primary/10 shadow-sm ring-1 ring-primary/20"
+                  : "border-border hover:border-primary/40 hover:bg-accent/50",
               )}
             >
-              <p className="text-sm font-medium text-grey-600">{card.label}</p>
-              <p className="mt-2 text-3xl font-bold text-black-500">{card.count}</p>
-              <p className="mt-1 text-xs text-grey-500">{card.hint}</p>
+              <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
+              <p className="mt-2 text-3xl font-bold text-foreground">{card.count}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{card.hint}</p>
             </Card>
           ))}
         </div>
 
-        <div className="rounded-2xl border border-black-50 bg-white p-4">
+        <div className="rounded-2xl border border-border bg-card p-4 text-card-foreground">
           <PageToolbar
             search={{
               value: searchInput,
@@ -770,7 +1016,7 @@ export default function PetitionListPage({
                     type="button"
                     className={cn(
                       'flex h-10 min-w-[210px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-                      selectedStatuses.length === 0 && 'text-grey-500',
+                      selectedStatuses.length === 0 && 'text-muted-foreground',
                     )}
                   >
                     <span className="truncate text-left">
@@ -784,8 +1030,8 @@ export default function PetitionListPage({
                   </button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-2">
-                  <div className="mb-1 flex items-center justify-between border-b border-black-50 px-1 pb-2">
-                    <span className="text-xs font-medium text-grey-700">เลือกสถานะ</span>
+                  <div className="mb-1 flex items-center justify-between border-b border-border px-1 pb-2">
+                    <span className="text-xs font-medium text-foreground">เลือกสถานะ</span>
                     {selectedStatuses.length > 0 && (
                       <button
                         type="button"
@@ -837,17 +1083,17 @@ export default function PetitionListPage({
           />
         </div>
 
-        <Card className="border-black-50 shadow-none">
+        <Card className="border-border shadow-none">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <CardTitle className="text-base">รายการคำร้อง</CardTitle>
-                <p className="mt-1 text-sm text-grey-500">
+                <p className="mt-1 text-sm text-muted-foreground">
                   เลือกคำร้องที่ต้องการดูต่อหรือดำเนินการขั้นถัดไป
                 </p>
               </div>
               {data && totalCount > 0 && (
-                <span className="text-sm text-grey-500">
+                <span className="text-sm text-muted-foreground">
                   แสดง {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, totalCount)} จาก {totalCount} รายการ
                 </span>
               )}
@@ -855,13 +1101,13 @@ export default function PetitionListPage({
           </CardHeader>
           <CardContent className="space-y-3">
             {loading ? (
-              <div className="rounded-[10px] border border-dashed border-grey-200 py-12 text-center text-grey-500">
+              <div className="rounded-[10px] border border-dashed border-border py-12 text-center text-muted-foreground">
                 กำลังโหลดรายการคำร้อง...
               </div>
             ) : listItems.length === 0 ? (
-              <div className="rounded-[10px] border border-dashed border-grey-200 py-12 text-center">
-                <p className="text-sm font-medium text-black-500">{emptyTitle}</p>
-                <p className="mt-1 text-xs text-grey-500">ลองเปลี่ยนตัวกรองหรือค้นหาด้วยคำอื่น</p>
+              <div className="rounded-[10px] border border-dashed border-border py-12 text-center">
+                <p className="text-sm font-medium text-foreground">{emptyTitle}</p>
+                <p className="mt-1 text-xs text-muted-foreground">ลองเปลี่ยนตัวกรองหรือค้นหาด้วยคำอื่น</p>
               </div>
             ) : (
               listItems.map((petition) => {
@@ -878,7 +1124,7 @@ export default function PetitionListPage({
 
         {data && totalCount > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-            <span className="text-grey-500">
+            <span className="text-muted-foreground">
               แสดง {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, totalCount)} จาก {totalCount} รายการ
             </span>
             <div className="flex items-center gap-2">
@@ -891,7 +1137,7 @@ export default function PetitionListPage({
                 <ChevronLeft className="h-4 w-4" />
                 ก่อนหน้า
               </Button>
-              <span className="font-medium text-black-500">
+              <span className="font-medium text-foreground">
                 หน้า {page} / {totalPages}
               </span>
               <Button

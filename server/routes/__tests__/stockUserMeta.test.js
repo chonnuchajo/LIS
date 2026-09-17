@@ -107,6 +107,25 @@ describe('stock user metadata', () => {
     expect(res.body).toMatchObject({ items: [] });
   });
 
+  test('allows current multi-role synthetic dev QC Head to load six-month medicine stock', async () => {
+    const handler = routeHandler('/medicine-six-months');
+    User.findOne = jest.fn(() => ({ lean: jest.fn().mockResolvedValue(null) }));
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue([]),
+    });
+
+    const res = mockResponse();
+    await handler({
+      body: {},
+      headers: { 'x-lis-user': 'qc-head-qc-staff-dept-dept-123.dev@icpladda.com' },
+      ip: '127.0.0.1',
+    }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ items: [] });
+  });
+
   test('allows FG warehouse department to load six-month medicine stock', async () => {
     const handler = routeHandler('/medicine-six-months');
     User.findOne = jest.fn(() => ({

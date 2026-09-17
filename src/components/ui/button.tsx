@@ -18,10 +18,10 @@ const buttonVariants = cva(
         // ===== extended =====
         primary: "bg-primary-500 text-white hover:bg-primary-600",
         "primary-outline":
-          "border border-primary-500 text-primary-500 bg-white hover:bg-primary-50",
+          "border border-primary text-primary bg-background hover:bg-primary/10",
         danger: "bg-red-500 text-white hover:bg-red-500/90",
         "danger-outline":
-          "border border-red-500 text-red-500 bg-white hover:bg-red-50",
+          "border border-red-500 text-red-500 bg-background hover:bg-red-500/10",
         success: "bg-green-500 text-white hover:bg-green-500/90",
       },
       size: {

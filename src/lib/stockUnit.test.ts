@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  isLikelyHardwareStockScan,
   parseScannedQrId,
   unitDerivedStatus,
   visibleBottles,
@@ -14,9 +15,29 @@ describe("parseScannedQrId", () => {
     expect(parseScannedQrId("https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_abc123")).toBe("u_abc123"));
   it("from stock deduction URL query typed while keyboard is Thai Kedmanee", () =>
     expect(parseScannedQrId("้ะะยห://ฟยย-ยสฟืะ.รแยสฟกกฟ.แนท/ศณฆ/หะนแา-กำกีแะรนื?ๆพณก=ี๘ฟิแ๑๒๓")).toBe("u_abc123"));
+  it("trims scanner suffix after a Thai Kedmanee stock QR query", () =>
+    expect(parseScannedQrId("้ะะยหซฝฝฟยยขยสฟืะใรแยสฟกกฟใแนทฝศณฆฝหะนแาฝอรำไฦๆพณกชี๘ุุฟุๅคจตถต/-")).toBe("u_66a618095923"));
   it("from JSON payload", () =>
     expect(parseScannedQrId('{"qrId":"u_abc123"}')).toBe("u_abc123"));
   it("empty → empty", () => expect(parseScannedQrId("  ")).toBe(""));
+});
+
+describe("isLikelyHardwareStockScan", () => {
+  it("accepts stock deduction URL typed while keyboard is Thai Kedmanee", () => {
+    expect(isLikelyHardwareStockScan("้ะะยห://ฟยย-ยสฟืะ.รแยสฟกกฟ.แนท/ศณฆ/หะนแา-กำกีแะรนื?ๆพณก=ี๘ฟิแ๑๒๓", 300)).toBe(true);
+  });
+
+  it("accepts plain qrId typed while keyboard is Thai Kedmanee", () => {
+    expect(isLikelyHardwareStockScan("ี๘ฟิแ๑๒๓", 300)).toBe(true);
+  });
+
+  it("accepts stock view URL with scanner suffix typed while keyboard is Thai Kedmanee", () => {
+    expect(isLikelyHardwareStockScan("้ะะยหซฝฝฟยยขยสฟืะใรแยสฟกกฟใแนทฝศณฆฝหะนแาฝอรำไฦๆพณกชี๘ุุฟุๅคจตถต/-", 300)).toBe(true);
+  });
+
+  it("rejects slow hardware scan text", () => {
+    expect(isLikelyHardwareStockScan("u_abc123", 1300)).toBe(false);
+  });
 });
 
 describe("unitDerivedStatus", () => {

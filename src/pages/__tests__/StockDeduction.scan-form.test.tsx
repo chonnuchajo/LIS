@@ -164,13 +164,48 @@ describe("StockDeduction scan form", () => {
     openCameraScanner();
     fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
 
-    expect(await screen.findByText("ค่าที่ scanner อ่านได้ล่าสุด")).toBeInTheDocument();
-    expect(screen.getByText("raw: https://app-plant.icpladda.com/LIS/stock/view?qrId=u_scan")).toBeInTheDocument();
-    expect(screen.getByText("qrId: u_scan")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+    expect(screen.queryByText("ค่าที่ scanner อ่านได้ล่าสุด")).not.toBeInTheDocument();
     expect(await screen.findByText("2,4-D Acid (1)")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /GC\s*\(3\)/ })).toBeInTheDocument();
     expect(screen.getByText(/Lot 123 · เหลือ 100 mg/)).toBeInTheDocument();
+  });
+
+  it("keeps the scanned standard bottle selected after the unit list refreshes", async () => {
+    let resolveUnits: (units: ReturnType<typeof stockUnit>[]) => void = () => undefined;
+    const unitsPromise = new Promise<ReturnType<typeof stockUnit>[]>((resolve) => {
+      resolveUnits = resolve;
+    });
+    const scannedUnit = stockUnit({
+      qrId: "u_scan",
+      type: "working",
+      lotNo: "SCAN",
+      labelCode: "026602",
+      exp: "2030-01-01T00:00:00.000Z",
+    });
+    const refreshedUnit = stockUnit({
+      _id: "unit-refreshed",
+      qrId: "u_refreshed",
+      type: "working",
+      lotNo: "REFRESH",
+      labelCode: "999999",
+      exp: "2031-01-01T00:00:00.000Z",
+    });
+    apiMock.getStockUnit.mockResolvedValue(scannedUnit);
+    apiMock.getStockUnits.mockReturnValue(unitsPromise);
+
+    renderPage();
+
+    openCameraScanner();
+    fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
+
+    expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: /เลขขวด 026602/ })).toBeChecked();
+
+    resolveUnits([refreshedUnit]);
+
+    expect(await screen.findByText("เลขขวด 999999")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /เลขขวด 026602/ })).toBeChecked();
   });
 
   it("does not show previous pending deduction close-out fields in the standard form", async () => {
@@ -390,10 +425,8 @@ describe("StockDeduction scan form", () => {
 
     scanWithHardwareKeyboard("https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_scan");
 
-    expect(await screen.findByText("ค่าที่ scanner อ่านได้ล่าสุด")).toBeInTheDocument();
-    expect(screen.getByText("raw: https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_scan")).toBeInTheDocument();
-    expect(screen.getByText("qrId: u_scan")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+    expect(screen.queryByText("ค่าที่ scanner อ่านได้ล่าสุด")).not.toBeInTheDocument();
   });
 
   it("opens the standard deduction form from an OCR label code captured by camera", async () => {
@@ -408,9 +441,31 @@ describe("StockDeduction scan form", () => {
     fireEvent.click(screen.getByRole("button", { name: "mock OCR capture" }));
 
     await waitFor(() => expect(readStockLabelCodeFromImageMock).toHaveBeenCalledWith("data:image/jpeg;base64,ocr-frame"));
-    expect(await screen.findByText("ค่าที่ scanner อ่านได้ล่าสุด")).toBeInTheDocument();
-    expect(screen.getByText("raw: OCR: 1016801")).toBeInTheDocument();
-    expect(screen.getByText("qrId: u_ocr")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+    expect(screen.queryByText("ค่าที่ scanner อ่านได้ล่าสุด")).not.toBeInTheDocument();
+  });
+
+  it("opens the standard deduction form from an OCR label code generated from legacy label run fields", async () => {
+    const legacyUnit = stockUnit({
+      qrId: "u_legacy",
+      itemCode: "2",
+      itemName: "Legacy Standard",
+      labelCode: "",
+      labelRunNo: 1,
+      labelRunYear: 2023,
+    });
+    readStockLabelCodeFromImageMock.mockResolvedValue({ labelCode: "026601", candidates: ["026601"], rawText: "026601" });
+    apiMock.getStandards.mockResolvedValue([{ _id: "std-2", code: "2", name: "Legacy Standard" }]);
+    apiMock.getStockUnit.mockImplementation((qrId: string) => Promise.resolve(qrId === "u_legacy" ? legacyUnit : stockUnit()));
+    apiMock.getStockUnits.mockResolvedValue([legacyUnit]);
+
+    renderPage();
+
+    openCameraScanner();
+    fireEvent.click(screen.getByRole("button", { name: "mock OCR capture" }));
+
+    expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: /เลขขวด 026601/ })).toBeChecked();
+    expect(toastMock.error).not.toHaveBeenCalledWith("ไม่พบขวด stock ที่มีเลข 026601");
   });
 });
