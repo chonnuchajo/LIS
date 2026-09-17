@@ -164,10 +164,8 @@ describe("StockDeduction scan form", () => {
     openCameraScanner();
     fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
 
-    expect(await screen.findByText("ค่าที่ scanner อ่านได้ล่าสุด")).toBeInTheDocument();
-    expect(screen.getByText("raw: https://app-plant.icpladda.com/LIS/stock/view?qrId=u_scan")).toBeInTheDocument();
-    expect(screen.getByText("qrId: u_scan")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+    expect(screen.queryByText("ค่าที่ scanner อ่านได้ล่าสุด")).not.toBeInTheDocument();
     expect(await screen.findByText("2,4-D Acid (1)")).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: /GC\s*\(3\)/ })).toBeInTheDocument();
     expect(screen.getByText(/Lot 123 · เหลือ 100 mg/)).toBeInTheDocument();
@@ -427,10 +425,8 @@ describe("StockDeduction scan form", () => {
 
     scanWithHardwareKeyboard("https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_scan");
 
-    expect(await screen.findByText("ค่าที่ scanner อ่านได้ล่าสุด")).toBeInTheDocument();
-    expect(screen.getByText("raw: https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_scan")).toBeInTheDocument();
-    expect(screen.getByText("qrId: u_scan")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+    expect(screen.queryByText("ค่าที่ scanner อ่านได้ล่าสุด")).not.toBeInTheDocument();
   });
 
   it("opens the standard deduction form from an OCR label code captured by camera", async () => {
@@ -445,9 +441,7 @@ describe("StockDeduction scan form", () => {
     fireEvent.click(screen.getByRole("button", { name: "mock OCR capture" }));
 
     await waitFor(() => expect(readStockLabelCodeFromImageMock).toHaveBeenCalledWith("data:image/jpeg;base64,ocr-frame"));
-    expect(await screen.findByText("ค่าที่ scanner อ่านได้ล่าสุด")).toBeInTheDocument();
-    expect(screen.getByText("raw: OCR: 1016801")).toBeInTheDocument();
-    expect(screen.getByText("qrId: u_ocr")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+    expect(screen.queryByText("ค่าที่ scanner อ่านได้ล่าสุด")).not.toBeInTheDocument();
   });
 });

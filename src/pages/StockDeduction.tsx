@@ -19,7 +19,7 @@ import { readStockLabelCodeFromImage } from "@/lib/aiApi";
 import PageHeader from "@/components/lis/PageHeader";
 import { DataTable, type DataTableColumn } from "@/components/lis/DataTable";
 import StockRequisitionButton from "@/components/lis/stock/StockRequisitionButton";
-import StockQrScanner, { type DecodedScanResult } from "@/components/lis/StockQrScanner";
+import StockQrScanner from "@/components/lis/StockQrScanner";
 import DeductionResolutionDialog from "@/components/lis/stock/DeductionResolutionDialog";
 import { ANALYSIS_ROOM_SLUG } from "@/lib/analysisInstruments";
 import { DEDUCTION_RESOLUTION_LABELS } from "@/lib/deductionResolution";
@@ -143,7 +143,6 @@ const StockDeduction = () => {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannedQrId, setScannedQrId] = useState<string | null>(null);
-  const [lastScanResult, setLastScanResult] = useState<DecodedScanResult | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [search, setSearch] = useState("");
   const hardwareScanRef = useRef<HardwareScanBuffer>({ text: "", firstAt: 0, lastAt: 0, snapshot: null });
@@ -181,7 +180,6 @@ const StockDeduction = () => {
       toast.error("กรุณายิง QR ข้างขวดด้วยเครื่อง scanner");
       return;
     }
-    setLastScanResult({ raw, value: qrId, scanMode: "qr" });
     applyScannedQrId(qrId);
   }, [applyScannedQrId]);
 
@@ -202,8 +200,6 @@ const StockDeduction = () => {
         return;
       }
 
-      const raw = ocr.rawText?.trim() || candidates.join(", ");
-      setLastScanResult({ raw: `OCR: ${raw}`, value: matchedUnit.qrId, scanMode: "qr" });
       applyScannedQrId(matchedUnit.qrId);
     } catch (err) {
       toast.error((err as Error).message || "ค้นหาเลขใต้ QR ไม่สำเร็จ");
@@ -439,14 +435,6 @@ const StockDeduction = () => {
         }
       />
 
-      {lastScanResult && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          <div className="font-medium">ค่าที่ scanner อ่านได้ล่าสุด</div>
-          <div className="mt-1 break-all text-xs">raw: {lastScanResult.raw}</div>
-          <div className="mt-1 break-all text-xs">qrId: {lastScanResult.value}</div>
-        </div>
-      )}
-
       <div className="mb-3 grid gap-2 lg:grid-cols-[minmax(240px,1fr)_auto_auto_auto] lg:items-end">
         <div className="space-y-1">
           <Label htmlFor="stock-deduction-search" className="text-xs">ค้นหาชื่อสารหรือคนเบิก</Label>
@@ -546,7 +534,6 @@ const StockDeduction = () => {
         title="สแกน QR ข้างขวดเพื่อเบิก"
         showManualEntry={false}
         onClose={() => setScannerOpen(false)}
-        onDecoded={setLastScanResult}
         onScanned={applyScannedQrId}
         onCaptureImage={handleCaptureImage}
       />
