@@ -121,6 +121,21 @@ const mocks = vi.hoisted(() => {
       ],
     }),
     getParameters: vi.fn().mockResolvedValue([]),
+    createPetition: vi.fn(async (payload: Partial<Petition>) => {
+      const created = petition('P-FG-QC-0002', 'deliveringQC', {
+        _id: 'P-FG-QC-0002',
+        dept: 'fg',
+        submittedBy: {
+          employeeId: payload.submittedBy?.employeeId,
+          name: payload.submittedBy?.name || 'Admin',
+          department: payload.submittedBy?.department,
+          submittedAt: '2026-09-17T00:00:00.000Z',
+        },
+        items: payload.items ?? [],
+      });
+      fgQualityAlerts.push(created);
+      return created;
+    }),
     petitions,
     fgQualityAlerts,
     push: vi.fn(),
@@ -151,6 +166,7 @@ vi.mock('@/hooks/useItemGroupMembership', () => ({
 }));
 
 vi.mock('@/hooks/usePetition', () => ({
+  createPetition: mocks.createPetition,
   usePetitionList: (params: { status?: string; search?: string; dept?: string }) => {
     const search = params.search?.trim().toLowerCase();
     const source = params.dept === 'fg' && params.status === 'deliveringQC'
@@ -237,7 +253,9 @@ describe('PetitionListPage action cues', () => {
     mocks.canAccess.mockClear();
     mocks.canAccess.mockImplementation(() => true);
     mocks.get.mockClear();
+    mocks.createPetition.mockClear();
     mocks.getSixMonthMedicineStock.mockClear();
+    mocks.fgQualityAlerts.splice(1);
     mocks.user = {
       employeeId: 'E999',
       email: 'admin@example.test',
@@ -514,6 +532,47 @@ describe('PetitionListPage action cues', () => {
     expect(await screen.findByText('P-FG-QC-0001')).toBeInTheDocument();
     expect(screen.getByText('FG Product A')).toBeInTheDocument();
     expect(screen.getByText('ส่งตรวจคุณภาพ')).toBeInTheDocument();
+  });
+
+  it('submits selected six-month FG stock and switches to quality alerts', async () => {
+    renderPage({}, '/petition');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'เลือก F-TEST-001 FG260301-001' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ส่งตรวจคุณภาพ (1)' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: 'แจ้งเตือนส่งตรวจคุณภาพ', selected: true })).toBeInTheDocument();
+    });
+    expect(await screen.findByText('P-FG-QC-0002')).toBeInTheDocument();
+    expect(screen.getByText('ยาทดสอบ FG')).toBeInTheDocument();
+    expect(mocks.createPetition).toHaveBeenCalledWith(expect.objectContaining({
+      dept: 'fg',
+      items: [expect.objectContaining({
+        itemNo: 'F-TEST-001',
+        sampleName: 'ยาทดสอบ FG',
+        batchNo: 'FG260301-001',
+      })],
+    }));
+  });
+
+  it('submits all visible six-month stock rows when select all is checked', async () => {
+    renderPage({}, '/petition');
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'เลือกทั้งหมดในรายการยาเกิน 6 เดือน' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ส่งตรวจคุณภาพ (2)' }));
+
+    await waitFor(() => expect(mocks.createPetition).toHaveBeenCalledTimes(1));
+    expect(mocks.createPetition).toHaveBeenCalledWith(expect.objectContaining({
+      items: [
+        expect.objectContaining({ itemNo: 'F-TEST-001', batchNo: 'FG260301-001' }),
+        expect.objectContaining({ itemNo: 'R-TEST-002', batchNo: 'RM260201-002' }),
+      ],
+    }));
+    expect(await screen.findByText('ยาทดสอบ FG +1 รายการ')).toBeInTheDocument();
   });
 
   it('shows FG quality inspection alerts before six-month medicine stock', async () => {

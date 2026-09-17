@@ -26,7 +26,7 @@ import { useNotifications } from '@/context/NotificationContext';
 import { useAuth } from '@/hooks/useAuth';
 import { useCanAccessPath } from '@/hooks/useCanAccessPath';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
-import { usePetitionList } from '@/hooks/usePetition';
+import { createPetition, usePetitionList } from '@/hooks/usePetition';
 import { api, type ParameterItem } from '@/lib/api';
 import { getItemNo, getRawCommonName, getSampleName } from '@/lib/masterItemFields';
 import { normalizeMasterItemPayload } from '@/lib/petitionMasterItem';
@@ -162,6 +162,10 @@ function enrichSixMonthStockItem(
   };
 }
 
+function sixMonthStockSampleName(item: SixMonthMedicineStockItem) {
+  return [item.itemName, item.commonName, item.itemNo].map(sixMonthStockValue).find((value) => value !== '-') || 'รายการยา';
+}
+
 function firstPetitionItem(petition: Petition) {
   return petition.items[0];
 }
@@ -177,6 +181,10 @@ function petitionBatchLotLabel(petition: Petition) {
 
 type SixMonthMedicineTabProps = {
   showFgQualityAlerts: boolean;
+};
+
+type SixMonthMedicineStockTabProps = {
+  onQualitySubmissionCreated?: () => void;
 };
 
 function canUseTouchPullToRefresh() {
@@ -329,10 +337,14 @@ function SixMonthMedicineDetailDrawer({
   );
 }
 
-function SixMonthMedicineStockTab() {
+function SixMonthMedicineStockTab({ onQualitySubmissionCreated }: SixMonthMedicineStockTabProps = {}) {
+  const { user } = useAuth();
   const [sixMonthSearch, setSixMonthSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<'all' | 'rm' | 'fg'>('all');
   const [selectedItem, setSelectedItem] = useState<SixMonthMedicineStockItem | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Set<string>>(() => new Set());
+  const [isSubmittingQuality, setIsSubmittingQuality] = useState(false);
+  const [qualitySubmitError, setQualitySubmitError] = useState<string | null>(null);
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['stock', 'medicine-six-months'],
     queryFn: api.getSixMonthMedicineStock,
@@ -373,7 +385,77 @@ function SixMonthMedicineStockTab() {
       ].some((value) => (value ?? '').toLowerCase().includes(q));
     });
   }, [stockItems, sixMonthSearch, kindFilter]);
+  const filteredKeys = useMemo(() => filtered.map(sixMonthStockRowKey), [filtered]);
+  const allFilteredSelected = filteredKeys.length > 0 && filteredKeys.every((key) => selectedRowKeys.has(key));
+  const someFilteredSelected = filteredKeys.some((key) => selectedRowKeys.has(key));
+  const selectedItems = useMemo(
+    () => stockItems.filter((item) => selectedRowKeys.has(sixMonthStockRowKey(item))),
+    [stockItems, selectedRowKeys],
+  );
   const errorMessage = error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ';
+
+  const toggleRowSelection = useCallback((item: SixMonthMedicineStockItem, checked: boolean) => {
+    const key = sixMonthStockRowKey(item);
+    setSelectedRowKeys((current) => {
+      const next = new Set(current);
+      if (checked) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  const toggleAllFiltered = useCallback((checked: boolean) => {
+    setSelectedRowKeys((current) => {
+      const next = new Set(current);
+      filteredKeys.forEach((key) => {
+        if (checked) next.add(key);
+        else next.delete(key);
+      });
+      return next;
+    });
+  }, [filteredKeys]);
+
+  const handleCreateQualityPetition = useCallback(async () => {
+    if (selectedItems.length === 0) return;
+    setIsSubmittingQuality(true);
+    setQualitySubmitError(null);
+    const actorName = user?.name?.trim() || user?.email?.trim() || 'system';
+    const actorDepartment = user?.department?.trim() || FG_WAREHOUSE_DEPARTMENT;
+
+    try {
+      await createPetition({
+        dept: 'fg',
+        submittedBy: {
+          employeeId: user?.employeeId || undefined,
+          name: actorName,
+          department: actorDepartment,
+        },
+        deliveredBy: {
+          employeeId: user?.employeeId || undefined,
+          name: actorName,
+        },
+        items: selectedItems.map((item, index) => ({
+          seq: index + 1,
+          sampleName: sixMonthStockSampleName(item),
+          commonName: item.commonName || '',
+          batchNo: sixMonthStockValue(item.lotNo) !== '-' ? item.lotNo : item.itemNo,
+          lotNo: item.lotNo || undefined,
+          itemNo: item.itemNo || undefined,
+          testItems: 'ส่งตรวจคุณภาพ',
+          sendToLab: false,
+          note: 'ส่งตรวจคุณภาพจากรายการยาเกิน 6 เดือน',
+          sampleQuantity: 1,
+        })),
+        cause: 'ส่งตรวจคุณภาพจากรายการยาเกิน 6 เดือน',
+      } as Parameters<typeof createPetition>[0]);
+      setSelectedRowKeys(new Set());
+      onQualitySubmissionCreated?.();
+    } catch (submitError) {
+      setQualitySubmitError(submitError instanceof Error ? submitError.message : 'ยื่นคำร้องไม่สำเร็จ');
+    } finally {
+      setIsSubmittingQuality(false);
+    }
+  }, [onQualitySubmissionCreated, selectedItems, user?.department, user?.email, user?.employeeId, user?.name]);
 
   return (
     <div ref={pullToRefresh.rootRef} className="space-y-3 overscroll-y-contain" {...pullToRefresh.pullHandlers}>
@@ -392,6 +474,16 @@ function SixMonthMedicineStockTab() {
             <CardTitle className="text-base">รายการยาเกิน 6 เดือน</CardTitle>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {onQualitySubmissionCreated && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleCreateQualityPetition}
+                disabled={selectedItems.length === 0 || isSubmittingQuality}
+              >
+                {isSubmittingQuality ? 'กำลังส่ง...' : `ส่งตรวจคุณภาพ (${selectedItems.length})`}
+              </Button>
+            )}
             <Select value={kindFilter} onValueChange={(value) => setKindFilter(value as 'all' | 'rm' | 'fg')}>
               <SelectTrigger aria-label="ประเภทสินค้า" className="h-9 w-full sm:w-28"><SelectValue placeholder="ทั้งหมด" /></SelectTrigger>
               <SelectContent>
@@ -409,10 +501,25 @@ function SixMonthMedicineStockTab() {
           </div>
         </CardHeader>
         <CardContent>
+          {qualitySubmitError && (
+            <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {qualitySubmitError}
+            </div>
+          )}
           <div className="overflow-x-auto">
-            <Table className="min-w-[820px]">
+            <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow>
+                  {onQualitySubmissionCreated && (
+                    <TableHead className="w-10">
+                      <Checkbox
+                        aria-label="เลือกทั้งหมดในรายการยาเกิน 6 เดือน"
+                        checked={allFilteredSelected ? true : someFilteredSelected ? 'indeterminate' : false}
+                        disabled={filteredKeys.length === 0 || isSubmittingQuality}
+                        onCheckedChange={(checked) => toggleAllFiltered(checked === true)}
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>Item No</TableHead>
                   <TableHead>commonname</TableHead>
                   <TableHead>Lot</TableHead>
@@ -423,11 +530,11 @@ function SixMonthMedicineStockTab() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">กำลังโหลดข้อมูล...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={onQualitySubmissionCreated ? 7 : 6} className="py-8 text-center text-sm text-muted-foreground">กำลังโหลดข้อมูล...</TableCell></TableRow>
                 ) : isError ? (
-                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-red-500">{errorMessage}</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={onQualitySubmissionCreated ? 7 : 6} className="py-8 text-center text-sm text-red-500">{errorMessage}</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">ไม่มีข้อมูลที่อายุมากกว่า 6 เดือน</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={onQualitySubmissionCreated ? 7 : 6} className="py-8 text-center text-sm text-muted-foreground">ไม่มีข้อมูลที่อายุมากกว่า 6 เดือน</TableCell></TableRow>
                 ) : filtered.map((item) => (
                   <TableRow
                     key={sixMonthStockRowKey(item)}
@@ -441,6 +548,16 @@ function SixMonthMedicineStockTab() {
                       }
                     }}
                   >
+                    {onQualitySubmissionCreated && (
+                      <TableCell onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                        <Checkbox
+                          aria-label={`เลือก ${item.itemNo || '-'} ${item.lotNo || '-'}`}
+                          checked={selectedRowKeys.has(sixMonthStockRowKey(item))}
+                          disabled={isSubmittingQuality}
+                          onCheckedChange={(checked) => toggleRowSelection(item, checked === true)}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="font-medium text-foreground">{item.itemNo || '-'}</TableCell>
                     <TableCell>{item.commonName || '-'}</TableCell>
                     <TableCell>{item.lotNo || '-'}</TableCell>
@@ -516,10 +633,11 @@ function FgQualityAlertsTab() {
 }
 
 function SixMonthMedicineTab({ showFgQualityAlerts }: SixMonthMedicineTabProps) {
+  const [activeTab, setActiveTab] = useState('six-month-stock');
   if (!showFgQualityAlerts) return <SixMonthMedicineStockTab />;
 
   return (
-    <Tabs defaultValue="fg-quality-alerts" className="space-y-3">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
       <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
         <TabsList className="w-max">
           <TabsTrigger value="fg-quality-alerts">แจ้งเตือนส่งตรวจคุณภาพ</TabsTrigger>
@@ -530,7 +648,7 @@ function SixMonthMedicineTab({ showFgQualityAlerts }: SixMonthMedicineTabProps) 
         <FgQualityAlertsTab />
       </TabsContent>
       <TabsContent value="six-month-stock" className="mt-0">
-        <SixMonthMedicineStockTab />
+        <SixMonthMedicineStockTab onQualitySubmissionCreated={() => setActiveTab('fg-quality-alerts')} />
       </TabsContent>
     </Tabs>
   );
