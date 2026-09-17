@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Bell, Check, Trash2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -41,6 +42,7 @@ const NotificationBell = ({ className, iconClassName }: NotificationBellProps) =
   const { user } = useAuth();
   const isAdmin = normalizeRoles(user).includes("admin");
   const [seeAll, setSeeAll] = useState(() => readSeeAll());
+  const [open, setOpen] = useState(false);
 
   // สองอินสแตนซ์ของ bell (มือถือ + desktop) mount พร้อมกันเสมอ (แค่ CSS ซ่อน) — ต้อง
   // ฟัง SEE_ALL_EVENT เพื่อ sync สถานะสวิตช์ข้ามกันเมื่ออีกฝั่งกดสลับ
@@ -51,29 +53,41 @@ const NotificationBell = ({ className, iconClassName }: NotificationBellProps) =
   }, []);
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-label="การแจ้งเตือน"
-          onClick={() => {
-            if (unreadCount > 0) markAllRead();
-          }}
-          className={cn(
-            "relative inline-flex items-center justify-center h-10 w-10 rounded-md hover:bg-accent transition-colors",
-            className,
-          )}
-        >
-          <Bell className={cn("h-5 w-5 text-foreground", iconClassName)} />
-          {unreadCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </button>
-      </PopoverTrigger>
+    <>
+      {open
+        ? createPortal(
+            <div
+              aria-hidden="true"
+              data-testid="notification-blur-backdrop"
+              className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm transition-opacity"
+              onClick={() => setOpen(false)}
+            />,
+            document.body,
+          )
+        : null}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            aria-label="การแจ้งเตือน"
+            onClick={() => {
+              if (unreadCount > 0) markAllRead();
+            }}
+            className={cn(
+              "relative inline-flex items-center justify-center h-10 w-10 rounded-md hover:bg-accent transition-colors",
+              className,
+            )}
+          >
+            <Bell className={cn("h-5 w-5 text-foreground", iconClassName)} />
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-[10px] font-bold text-white flex items-center justify-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </button>
+        </PopoverTrigger>
 
-      <PopoverContent align="end" className="w-[340px] p-0">
+        <PopoverContent align="end" className="z-50 w-[340px] p-0">
         <div className="flex items-center justify-between px-3 py-2 border-b">
           <div className="text-sm font-semibold">การแจ้งเตือน</div>
           <div className="flex items-center gap-1">
@@ -150,8 +164,9 @@ const NotificationBell = ({ className, iconClassName }: NotificationBellProps) =
             </ul>
           </div>
         )}
-      </PopoverContent>
-    </Popover>
+        </PopoverContent>
+      </Popover>
+    </>
   );
 };
 

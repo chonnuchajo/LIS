@@ -59,6 +59,20 @@ describe("NotificationBell open behavior", () => {
     });
   });
 
+  it("blurs the page behind the notification panel while open", async () => {
+    renderBell();
+
+    expect(await screen.findByText("2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "การแจ้งเตือน" }));
+
+    expect(screen.getByTestId("notification-blur-backdrop")).toHaveClass(
+      "fixed",
+      "inset-0",
+      "bg-background/60",
+      "backdrop-blur-sm",
+    );
+  });
+
   it("loads persisted notifications only for the current employee", async () => {
     localStorage.setItem(
       "lis.notifications.v1",
