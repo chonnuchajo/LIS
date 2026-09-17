@@ -41,4 +41,9 @@ describe("validation calculations", () => {
     expect(result.rows).toEqual([[1, 2]]);
     expect(result.errors).toHaveLength(3);
   });
+  it("rejects overflowing numerical results", () => {
+    expect(stats([1e308, 1e308])).toBeNull();
+    expect(regression([[1e308, 1e308], [1, 2], [2, 4]])).toBeNull();
+    expect(intermediatePrecision([[1e308, 1e308], [1e308, 1e308]])).toBeNull();
+  });
 });

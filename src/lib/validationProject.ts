@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { defaultSpecificitySettings } from "./validationSpecificity";
 
 const text = z.string().max(200000);
 const short = z.string().max(2000);
@@ -9,6 +10,13 @@ export const validationProjectSchema = z.object({
   title: short, analyte: short, method: short,
   prep: z.array(numericText).length(5), texts: z.array(text).length(3), blank: numericText,
   preparationLevels: z.array(level).max(100),
+  specificity: z.object({
+    blankData: text, minStandards: numericText, minBlanks: numericText,
+    rtLimit: numericText, areaLimit: numericText, blankLimit: numericText,
+    standardReference: short, solventReference: short, matrixReference: short,
+    reviewNotes: text, decision: z.enum(["pending", "passed", "failed"]),
+    reviewedAt: short, reviewedSnapshot: z.string().max(1000000),
+  }).default(defaultSpecificitySettings),
   reportMeta: z.object({ analyst: short, reviewer: short, protocol: short, calibration: short, notes: text }),
   precision: z.object({ massFractions: text, repeatabilityFactor: numericText, repeatabilityLimit: numericText, intermediateLimit: numericText, minDays: numericText, minReplicates: numericText, dailyData: text }),
   qc: z.object({ enabled: z.boolean(), sampleData: text, standardData: text, spikeData: text, recoveryLow: numericText, recoveryHigh: numericText, differenceLimit: numericText, productLow: numericText, productHigh: numericText, productUnit: z.enum(["ww", "wv"]) }),

@@ -3,6 +3,7 @@ import { formatValidationNumber as fmt } from "./validationAdvanced";
 import type { PreparationLevel } from "./validationPreparation";
 import { dilution } from "./validationPreparation";
 import { parseMeasurements, regression, stats } from "./validationCalculator";
+import { defaultSpecificitySettings, evaluateSpecificity, type SpecificitySettings } from "./validationSpecificity";
 
 export type ValidationReportInput = {
   title: string; analyte: string; method: string; analyst: string; reviewer: string;
@@ -11,6 +12,7 @@ export type ValidationReportInput = {
   checks: ValidationCheck[]; errors: string[];
   precision: ReturnType<typeof evaluatePrecision>;
   qc: ReturnType<typeof evaluateQc>; includeQc: boolean;
+  specificity?: SpecificitySettings;
 };
 
 export function escapeReport(value: unknown) {
@@ -33,6 +35,8 @@ function scatter(points: { x: number; y: number }[], title: string, xLabel: stri
 export function createValidationReport(input: ValidationReportInput) {
   const e = escapeReport;
   const parsed = input.texts.map((text, i) => parseMeasurements(text, i === 2 ? 3 : 2));
+  const specificity = input.specificity ?? defaultSpecificitySettings();
+  const specificityResult = evaluateSpecificity(specificity, { standardData: input.texts[0], analyte: input.analyte, method: input.method, protocol: input.protocol, calibration: input.calibration, reviewer: input.reviewer, preparation: JSON.stringify({ prep: input.prep, preparationLevels: input.levels }) });
   const fit = parsed[1]?.errors.length ? null : regression(parsed[1]?.rows ?? []);
   const [weight, purity, volume] = input.prep.map(Number);
   const stock = weight > 0 && purity > 0 && purity <= 100 && volume > 0 ? weight * purity / 100 / volume : null;
@@ -52,8 +56,13 @@ export function createValidationReport(input: ValidationReportInput) {
   <p>C stock = W × Purity/100 ÷ V; C actual = C stock × ปริมาตรที่ปิเปตจริง ÷ ปริมาตรสุดท้าย เก็บทศนิยมเต็มในการคำนวณ ปัดเศษเฉพาะการแสดงผล</p>
   ${table(["ใช้สำหรับ", "Target mg/mL", "ปิเปต µL", "ปริมาตรสุดท้าย µL", "Matrix µL", "Actual mg/mL", "Diluent µL"], input.levels.map(row => { const d = stock == null ? null : dilution({stockMgMl:stock,target:Number(row.target),unit:"mg/mL",finalUl:Number(row.finalVolume),actualAliquotUl:Number(row.aliquot),matrixUl:Number(row.matrix)}); return [row.purpose,row.target,row.aliquot,row.finalVolume,row.matrix,fmt(d?.actual),fmt(d?.diluentUl)]; }))}
   <h2>7. เกณฑ์และผลตรวจสอบ</h2>${table(["รายการ", "ผลคำนวณ", "เกณฑ์", "สถานะ"], input.checks.map(c => [c.name,c.value,c.criteria,c.pass == null ? "รอตรวจสอบ" : c.pass ? "Passed" : "Failed"]))}
-  <h2>1. Specificity</h2><p>Blank Area ที่ระบุ: ${e(input.blank || "ยังไม่ระบุ")} · ต้องตรวจ Chromatogram และ Matrix Blank ประกอบ</p>
+  <h2>1. Specificity</h2><p>Standard อย่างน้อย ${e(specificity.minStandards)} ครั้ง; RT %CV ≤ ${e(specificity.rtLimit)}%; Area %RSD ≤ ${e(specificity.areaLimit)}%; Blank แต่ละชนิดอย่างน้อย ${e(specificity.minBlanks)} ครั้ง โดย Area สูงสุด / Mean Standard Area × 100 ≤ ${e(specificity.blankLimit)}%</p>
   ${table(["Injection", "RT (min)", "ผลรวม Area"], (parsed[0]?.rows ?? []).map((r,i)=>[i+1,...r]))}
+  ${table(["ครั้ง", "Solvent Blank Area", "Matrix Blank Area"], specificityResult.blankRows.map((row, i) => [i + 1, ...row]))}
+  ${table(["ผลตรวจ Specificity", "ค่า", "เกณฑ์", "สถานะ"], specificityResult.checks.map(c => [c.name, c.value, c.criteria, c.pass == null ? "รอตรวจสอบ" : c.pass ? "Passed" : "Failed"]))}
+  ${table(["หลักฐานอ้างอิง", "เอกสาร / หน้า / Injection ID"], [["Standard Chromatogram", specificity.standardReference], ["Solvent Blank", specificity.solventReference], ["Matrix Blank", specificity.matrixReference]])}
+  <p>บันทึกทบทวน: ${e(specificity.reviewNotes || "ยังไม่ระบุ")}</p><p>ผลทบทวนปัจจุบัน: ${specificityResult.current ? e(specificity.decision === "passed" ? "ผ่าน" : "ไม่ผ่าน") : "ยังไม่ครบ / ต้องทบทวนใหม่"} · ผู้ทบทวน ${e(input.reviewer || "ยังไม่ระบุ")} · เวลาบันทึกล่าสุด ${e(specificity.reviewedAt || "ยังไม่บันทึก")} (ไม่ใช่ลายเซ็นอนุมัติ)</p>
+  ${input.blank ? `<p>ข้อมูลเดิม: Blank Area สูงสุด ${e(input.blank)} เก็บเพื่ออ้างอิง ไม่ใช้ตัดสินแทนข้อมูล Blank รายครั้ง</p>` : ""}
   <h2>2. Linearity</h2><p>Area = ${fmt(fit?.slope)} × Concentration + (${fmt(fit?.intercept)}); R² = ${fmt(fit?.r2)} · OLS จากทุก Injection โดยไม่บังคับผ่านจุดศูนย์</p>
   ${table(["Actual mg/mL", "n", "Mean Area", "Sample SD", "%RSD"], groupedLinearity)}
   ${fit ? `<div class="two">${scatter(fit.points.map(p=>({x:p.concentration,y:p.area})),"Calibration Curve","Concentration (mg/mL)","Area",fit)}${scatter(fit.points.map(p=>({x:p.concentration,y:p.residual})),"Residual Plot","Concentration (mg/mL)","Residual (Area)")}</div>` : ""}
@@ -69,6 +78,7 @@ export function createValidationReport(input: ValidationReportInput) {
   ${input.errors.length ? `<h3 class="errors">รายการที่ต้องแก้ไข</h3><ul class="errors">${input.errors.map(error=>`<li>${e(error)}</li>`).join("")}</ul>` : ""}
   <p class="notice">รายงานนี้แสดงผลคำนวณและเกณฑ์ของงานที่กรอก ไม่ใช่การอนุมัติวิธีวิเคราะห์อัตโนมัติ เกณฑ์และความเหมาะสมสำหรับสาร/เมทริกซ์ต้องอ้างอิง SOP ที่ระบุ หากมีแถวผิดรูปแบบ ให้ตรวจข้อมูลดิบด้านล่างก่อนใช้ผล</p>
   <h2>ภาคผนวก · ข้อมูลที่นำเข้า</h2>${input.texts.map((text,i)=>`<h3>${["Specificity","Linearity","Accuracy"][i]}</h3><pre>${e(text || "ยังไม่มีข้อมูล")}</pre>`).join("")}
+  <h3>Specificity · Solvent Blank, Matrix Blank</h3><pre>${e(specificity.blankData || "ยังไม่มีข้อมูล")}</pre>
   <h3>แหล่งอ้างอิงสูตร</h3><p><a href="https://www.cipac.org/images/pdf/validat.pdf">CIPAC 3807 · Horwitz / mass fraction</a><br><a href="https://eurachem.org/images/stories/Guides/pdf/MV_Guide_planning_supplement_2nd_ed_EN.pdf">Eurachem · Planning and Reporting Method Validation Studies (2025)</a></p>
   </main></body></html>`;
 }

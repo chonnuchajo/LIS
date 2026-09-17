@@ -2,6 +2,7 @@ export function stats(values: number[]) {
   if (values.length < 2 || values.some(v => !Number.isFinite(v))) return null;
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
   const sd = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / (values.length - 1));
+  if (!Number.isFinite(mean) || !Number.isFinite(sd) || (mean > 0 && !Number.isFinite(sd / mean * 100))) return null;
   return { mean, sd, rsd: mean > 0 ? sd / mean * 100 : null };
 }
 
@@ -18,7 +19,9 @@ export function regression(rows: number[][]) {
   if (slope <= 0) return null;
   const intercept = my - slope * mx;
   const points = rows.map(([concentration, area]) => ({ concentration, area, predicted: slope * concentration + intercept, residual: area - slope * concentration - intercept }));
-  return { slope, intercept, r2: 1 - points.reduce((a, p) => a + p.residual ** 2, 0) / yy, points };
+  const r2 = 1 - points.reduce((a, p) => a + p.residual ** 2, 0) / yy;
+  if (![slope, intercept, r2].every(Number.isFinite) || points.some(p => !Number.isFinite(p.predicted) || !Number.isFinite(p.residual))) return null;
+  return { slope, intercept, r2, points };
 }
 
 /** Original Horwitz RSDR. C is analyte mass fraction, never mg/mL. */
@@ -34,12 +37,14 @@ export function intermediatePrecision(groups: number[][]) {
   const n = groups[0].length;
   const k = groups.length;
   const summaries = groups.map(g => stats(g)!);
+  if (summaries.some(s => !s)) return null;
   const mean = summaries.reduce((a, s) => a + s.mean, 0) / k;
   if (mean <= 0) return null;
   const msWithin = summaries.reduce((a, s) => a + s.sd ** 2, 0) / k;
   const msBetween = n * summaries.reduce((a, s) => a + (s.mean - mean) ** 2, 0) / (k - 1);
   const betweenVariance = Math.max(0, (msBetween - msWithin) / n);
   const sd = Math.sqrt(msWithin + betweenVariance);
+  if (![mean, msWithin, msBetween, sd, sd / mean * 100].every(Number.isFinite)) return null;
   return { mean, msWithin, msBetween, withinSd: Math.sqrt(msWithin), betweenSd: Math.sqrt(betweenVariance), sd, rsd: sd / mean * 100, summaries, truncatedBetweenVariance: msBetween < msWithin };
 }
 
