@@ -241,6 +241,38 @@ function normalizedEmail(value) {
 
 const SYNTHETIC_DEV_EMAIL_SUFFIX = '.dev@icpladda.com';
 const SYNTHETIC_DEV_ROLE_ID_RX = /^[a-z0-9][a-z0-9_-]*$/;
+const SYNTHETIC_DEV_KNOWN_ROLE_IDS = [
+  'lab-data-config',
+  'lab-inventory',
+  'lab-analyze',
+  'lab-analyst',
+  'qc-data-config',
+  'qc-reviewer',
+  'lab-config',
+  'lab-head',
+  'qc-staff',
+  'qc-head',
+  'viewer',
+  'admin',
+  'lab',
+  'qc',
+].sort((a, b) => b.length - a.length);
+
+function syntheticDevRoleIdsFromSlug(slug) {
+  const rolesPart = String(slug || '').split('-dept-')[0];
+  if (!rolesPart) return [];
+  const roleIds = [];
+  let remaining = rolesPart;
+  while (remaining) {
+    const roleId = SYNTHETIC_DEV_KNOWN_ROLE_IDS.find((candidate) => (
+      remaining === candidate || remaining.startsWith(`${candidate}-`)
+    ));
+    if (!roleId) return [];
+    roleIds.push(roleId);
+    remaining = remaining.length === roleId.length ? '' : remaining.slice(roleId.length + 1);
+  }
+  return roleIds;
+}
 
 function isLoopbackIp(value) {
   const ip = String(value || '').trim().toLowerCase().replace(/^::ffff:/, '');
@@ -251,9 +283,10 @@ function syntheticDevRolesFromEmail(email, req) {
   if (process.env.ALLOW_DEV_STATUS !== 'true' && !isLoopbackIp(req?.ip)) return [];
   const normalized = normalizedEmail(email);
   if (!normalized.endsWith(SYNTHETIC_DEV_EMAIL_SUFFIX)) return [];
-  const roleId = normalized.slice(0, -SYNTHETIC_DEV_EMAIL_SUFFIX.length);
-  if (!SYNTHETIC_DEV_ROLE_ID_RX.test(roleId)) return [];
-  return mergeBaseRolesForFamilies([roleId]);
+  const roleSlug = normalized.slice(0, -SYNTHETIC_DEV_EMAIL_SUFFIX.length);
+  if (!SYNTHETIC_DEV_ROLE_ID_RX.test(roleSlug)) return [];
+  const roleIds = syntheticDevRoleIdsFromSlug(roleSlug);
+  return mergeBaseRolesForFamilies(roleIds.length > 0 ? roleIds : [roleSlug]);
 }
 
 function calendarDayKey(value, timeZone = STOCK_DEDUCTION_ACTION_TIME_ZONE) {
