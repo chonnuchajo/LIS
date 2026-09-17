@@ -39,4 +39,29 @@ describe("Specificity evidence review", () => {
     const second = { reviewer: context.reviewer, ...context, preparation: '{"purity":99,"weight":1}' };
     expect(specificitySnapshot(settings, first)).toBe(specificitySnapshot(settings, second));
   });
+  it("computes RT per peak and sample SD of summed injection areas rather than averaging individual RSDs", () => {
+    const settings = { ...complete(), peakMode: true, peakNames: ["cis", "trans"], minStandards: "3", peakStandardData: "4,10,6,30\n4,12,6,28\n4,8,6,32", peakBlankData: "0,0,0,0\n0,0,0,0\n0,0,0,0" };
+    const result = evaluateSpecificity(settings, context);
+    expect(result.peaks[0].area?.rsd).toBe(20);
+    expect(result.area?.mean).toBe(40);
+    expect(result.area?.sd).toBe(0);
+    expect(result.checks.find(check => check.name === "ผลรวม Area %RSD")?.pass).toBe(true);
+    expect(result.peaks.map(peak => peak.rt?.mean)).toEqual([4, 6]);
+  });
+  it("checks both combined interference and an explicitly chosen per-peak denominator", () => {
+    const settings = { ...complete(), peakMode: true, peakNames: ["P1", "P2"], peakStandardData: Array(6).fill("4,10,6,90").join("\n"), peakBlankData: "0,0.1,0,0\n0,0.1,0,0\n0,0.1,0,0" };
+    expect(evaluateSpecificity(settings, context).checks.find(check => check.name === "Matrix Blank · P1")?.pass).toBe(true);
+    expect(evaluateSpecificity({ ...settings, peakBlankBasis: "individual" }, context).checks.find(check => check.name === "Matrix Blank · P1")?.pass).toBe(false);
+    const combined = evaluateSpecificity({ ...settings, peakBlankData: Array(3).fill("0,0.3,0,0.3").join("\n") }, context);
+    expect(combined.matrixInterference).toBeCloseTo(0.6);
+    expect(combined.checks.find(check => check.name === "Matrix Blank interference")?.pass).toBe(false);
+  });
+  it("requires a complete paired row for every peak and invalidates review when peak names change", () => {
+    const settings = { ...complete(), peakMode: true, peakNames: ["P1", "P2"], peakStandardData: Array(6).fill("4,10,6,90").join("\n"), peakBlankData: Array(3).fill("0,0,0,0").join("\n") };
+    const reviewed = { ...settings, reviewedAt: "2026-09-17T13:00:00Z", reviewedSnapshot: specificitySnapshot(settings, context) };
+    expect(evaluateSpecificity(reviewed, context).current).toBe(true);
+    expect(evaluateSpecificity({ ...reviewed, peakNames: ["P1", "changed"] }, context).current).toBe(false);
+    expect(evaluateSpecificity({ ...settings, peakNames: ["P1"] }, context).canRecord).toBe(false);
+    expect(evaluateSpecificity({ ...settings, peakStandardData: settings.peakStandardData + "\n4,10,6," }, context).checks.every(check => check.pass == null)).toBe(true);
+  });
 });

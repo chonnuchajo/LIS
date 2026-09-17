@@ -53,4 +53,10 @@ describe("เปิดงาน Validation", () => {
     expect(() => readValidationProject(JSON.stringify({ ...source, linkedMeasurements: { ...linkedMeasurements, calibrations: [] } }))).toThrow();
     expect(() => readValidationProject(JSON.stringify({ ...source, linkedMeasurements: { ...linkedMeasurements, rows: [row, row] } }))).toThrow();
   });
+  it("เปิดงานก่อนมีโหมดรายพีคได้และเก็บตารางรายพีคเมื่อบันทึกใหม่", () => {
+    const { peakMode: _mode, peakNames: _names, peakStandardData: _standard, peakBlankData: _blank, peakBlankBasis: _basis, ...legacySpecificity } = defaultSpecificitySettings();
+    expect(readValidationProject(JSON.stringify({ ...project, specificity: legacySpecificity })).specificity.peakMode).toBe(false);
+    const specificity = { ...defaultSpecificitySettings(), peakMode: true, peakNames: ["P1", "P2"], peakStandardData: "4,10,6,90", peakBlankData: "0,0,0,0", peakBlankBasis: "individual" };
+    expect(readValidationProject(JSON.stringify({ ...project, specificity })).specificity).toEqual(specificity);
+  });
 });

@@ -34,4 +34,14 @@ describe("รายงาน Validation", () => {
     expect(html).toContain("instrument&lt;2&gt;.pdf");
     expect(html).toContain("<td>126.3</td><td>0.5012</td><td>0.502898</td>");
   });
+  it("แสดงข้อมูลรายพีคและผลรวมต่อ Injection โดยไม่ใช้ตาราง Specificity เดิมปน", () => {
+    const specificity = { ...defaultSpecificitySettings(), peakMode: true, peakNames: ["cis", "trans"], minStandards: "3", peakStandardData: "4,10,6,30\n4,12,6,28\n4,8,6,32", peakBlankData: "0,0,0,0\n0,0,0,0\n0,0,0,0", peakBlankBasis: "individual" as const };
+    const html = createValidationReport({ title: "Report", analyte: "Other", method: "GC", analyst: "A", reviewer: "B", protocol: "SOP", calibration: "CAL", notes: "", prep: ["54.25", "92.7", "25", "250", "1000"], levels: [], texts: ["OLD UNUSED DATA", "", ""], blank: "", checks: [], errors: [], precision: evaluatePrecision(defaultPrecisionSettings(), [0.5], ""), qc: evaluateQc(defaultQcSettings()), includeQc: false, specificity });
+    expect(html).toContain("<h3>cis</h3>");
+    expect(html).toContain("<h3>trans</h3>");
+    expect(html).toContain("<td>1</td><td>40</td>");
+    expect(html).toContain("Mean Standard Area ของพีคนั้น");
+    expect(html).toContain("cis RT, cis Area, trans RT, trans Area");
+    expect(html).not.toContain("OLD UNUSED DATA");
+  });
 });

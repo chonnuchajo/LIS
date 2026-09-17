@@ -25,6 +25,7 @@ export const validationProjectSchema = z.object({
     standardReference: short, solventReference: short, matrixReference: short,
     reviewNotes: text, decision: z.enum(["pending", "passed", "failed"]),
     reviewedAt: short, reviewedSnapshot: z.string().max(1000000),
+    peakMode: z.boolean().default(false), peakNames: z.array(short).max(20).default(["Peak 1"]), peakStandardData: text.default(""), peakBlankData: text.default(""), peakBlankBasis: z.enum(["individual", "total"]).default("total"),
   }).default(defaultSpecificitySettings),
   reportMeta: z.object({ analyst: short, reviewer: short, protocol: short, calibration: short, notes: text }),
   precision: z.object({ massFractions: text, repeatabilityFactor: numericText, repeatabilityLimit: numericText, intermediateLimit: numericText, minDays: numericText, minReplicates: numericText, dailyData: text }),
