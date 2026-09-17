@@ -16,7 +16,7 @@ describe("parseScannedQrId", () => {
   it("from stock deduction URL query typed while keyboard is Thai Kedmanee", () =>
     expect(parseScannedQrId("้ะะยห://ฟยย-ยสฟืะ.รแยสฟกกฟ.แนท/ศณฆ/หะนแา-กำกีแะรนื?ๆพณก=ี๘ฟิแ๑๒๓")).toBe("u_abc123"));
   it("trims scanner suffix after a Thai Kedmanee stock QR query", () =>
-    expect(parseScannedQrId("้ะะยหซฝฝฟยยขยสฟืะใรแยสฟกกฟใแนทฝศณฆฝหะนแาฝอรำไฦๆพณกชี๘ุุฟุๅคจตถต/-")).toBe("u_66a6180959"));
+    expect(parseScannedQrId("้ะะยหซฝฝฟยยขยสฟืะใรแยสฟกกฟใแนทฝศณฆฝหะนแาฝอรำไฦๆพณกชี๘ุุฟุๅคจตถต/-")).toBe("u_66a618095923"));
   it("from JSON payload", () =>
     expect(parseScannedQrId('{"qrId":"u_abc123"}')).toBe("u_abc123"));
   it("empty → empty", () => expect(parseScannedQrId("  ")).toBe(""));

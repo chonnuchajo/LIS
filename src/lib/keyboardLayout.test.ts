@@ -16,6 +16,12 @@ describe("thaiKedmaneeToEnglish", () => {
       "https://app-plant.icpladda.com/LIS/stock-deduction?qrId=u_abc123",
     );
   });
+
+  it("แปลงเลข 2 และ 3 ในท้าย qrId จากเครื่องสแกนตอนแป้นเป็นไทย", () => {
+    expect(thaiKedmaneeToEnglish("้ะะยหซฝฝฟยยขยสฟืะใรแยสฟกกฟใแนทฝศณฆฝหะนแาฝอรำไฦๆพณกชี๘ุุฟุๅคจตถต/-")).toBe(
+      "https://app-plant.icpladda.com/LIS/stock/view?qrId=u_66a618095923",
+    );
+  });
 });
 
 describe("withThaiKedmaneeFallbacks", () => {

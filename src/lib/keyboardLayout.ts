@@ -90,7 +90,7 @@ const URL_PUNCTUATION = new Set(["/", "-"]);
 
 function looksUrlLike(value: string): boolean {
   const lower = value.toLocaleLowerCase("th-TH");
-  return lower.includes("://") || lower.includes("้ะะยห") || lower.includes("้ะะย") || lower.includes("?");
+  return lower.includes("://") || lower.includes("้ะะยห") || lower.includes("้ะะย") || lower.includes("?") || lower.includes("ฦ");
 }
 
 function unique(values: string[]): string[] {
@@ -102,8 +102,10 @@ function thaiDigitsToArabic(value: string): string {
 }
 
 function convertThaiKedmanee(value: string, preserveUrlPunctuation: boolean): string {
-  return Array.from(value, (char) => {
-    if (preserveUrlPunctuation && URL_PUNCTUATION.has(char)) return char;
+  const queryStartIndex = value.search(/[?ฦ]/);
+  return Array.from(value, (char, index) => {
+    const isBeforeUrlQuery = queryStartIndex < 0 || index < queryStartIndex;
+    if (preserveUrlPunctuation && isBeforeUrlQuery && URL_PUNCTUATION.has(char)) return char;
     if (char === "/") return "2";
     if (char === "-") return "3";
     if (char === "๘") return "_";
