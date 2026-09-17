@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import PetitionListPage from './PetitionListPage';
@@ -73,6 +73,8 @@ const mocks = vi.hoisted(() => {
       items: [
         {
           companySource: 'ICPL',
+          commonName: 'อะบาเมกติน 1.8% EC',
+          itemName: 'ยาทดสอบ FG',
           itemNo: 'F-TEST-001',
           locationCode: 'NORMAL',
           binCode: 'DEFAULT',
@@ -85,6 +87,8 @@ const mocks = vi.hoisted(() => {
         },
         {
           companySource: 'ICPL',
+          commonName: 'แมนโคเซบ 80% WP',
+          itemName: 'ยาทดสอบ RM',
           itemNo: 'R-TEST-002',
           locationCode: 'NORMAL',
           binCode: 'DEFAULT',
@@ -378,11 +382,33 @@ describe('PetitionListPage action cues', () => {
     await waitFor(() => {
       expect(screen.getByRole('tab', { name: 'List ยา 6 เดือน' })).toHaveAttribute('aria-selected', 'true');
       expect(screen.getByText('F-TEST-001')).toBeInTheDocument();
+      expect(screen.getByText('อะบาเมกติน 1.8% EC')).toBeInTheDocument();
       expect(screen.getByText('FG260301-001')).toBeInTheDocument();
       expect(screen.getByText('10 KG')).toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Location' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: 'Company' })).not.toBeInTheDocument();
       expect(screen.queryByText('P-2607-0001')).not.toBeInTheDocument();
     });
     expect(mocks.getSixMonthMedicineStock).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens six-month medicine details in a side drawer', async () => {
+    mocks.user = {
+      employeeId: 'E888',
+      email: 'qc-head@example.test',
+      name: 'QC Head',
+      roles: ['qc-head'],
+    };
+    renderPage();
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: 'List ยา 6 เดือน' }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByText('F-TEST-001'));
+
+    const drawer = await screen.findByRole('dialog', { name: 'F-TEST-001' });
+    expect(within(drawer).getByText('ยาทดสอบ FG')).toBeInTheDocument();
+    expect(within(drawer).getByText('อะบาเมกติน 1.8% EC')).toBeInTheDocument();
+    expect(within(drawer).getByText('FG260301-001')).toBeInTheDocument();
+    expect(within(drawer).getByText('NORMAL / DEFAULT')).toBeInTheDocument();
   });
 
   it('does not show the six-month medicine refresh button', async () => {

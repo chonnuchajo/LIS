@@ -39,6 +39,8 @@ function normalizeSixMonthStockItem(row, referenceDate = new Date()) {
 
   return {
     companySource: textValue(row.company_source ?? row.companySource),
+    commonName: textValue(row.common_name ?? row.commonname ?? row.commonName ?? row.item_name2 ?? row.itemType),
+    itemName: textValue(row.item_name1 ?? row.itemName ?? row.item_name ?? row.name ?? row.description),
     itemNo,
     locationCode: textValue(row.loca_code ?? row.locationCode),
     binCode: textValue(row.bin_code ?? row.binCode),

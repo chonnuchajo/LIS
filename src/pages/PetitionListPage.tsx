@@ -19,6 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useNotifications } from '@/context/NotificationContext';
@@ -44,6 +45,7 @@ import {
   PETITION_STATUSES,
   type Petition,
 } from '@/types/petition.types';
+import type { SixMonthMedicineStockItem } from '@/types/stock';
 
 const PAGE_SIZE = 20;
 const NEW_PETITION_PATH = '/petitions/new';
@@ -109,6 +111,19 @@ function formatSixMonthReferenceMonth(value?: string) {
   const date = new Date(`${value}-01T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+}
+
+function sixMonthStockRowKey(item: SixMonthMedicineStockItem) {
+  return `${item.itemNo}-${item.lotNo}-${item.locationCode}-${item.binCode}-${item.registeringDate}`;
+}
+
+function sixMonthStockValue(value?: string | number | null) {
+  const text = String(value ?? '').trim();
+  return text || '-';
+}
+
+function sixMonthStockLocation(item: SixMonthMedicineStockItem) {
+  return [item.locationCode, item.binCode].map(sixMonthStockValue).join(' / ');
 }
 
 function firstPetitionItem(petition: Petition) {
@@ -227,9 +242,61 @@ function useTouchPullToRefresh(onRefresh: () => Promise<unknown>) {
   };
 }
 
+function SixMonthMedicineDetailDrawer({
+  item,
+  onClose,
+}: {
+  item: SixMonthMedicineStockItem;
+  onClose: () => void;
+}) {
+  const itemName = sixMonthStockValue(item.itemName);
+  const commonName = sixMonthStockValue(item.commonName);
+  const Field = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div className="space-y-0.5">
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="break-words text-sm font-medium text-foreground">{value}</div>
+    </div>
+  );
+
+  return (
+    <Sheet open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent side="right" className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-md">
+        <SheetHeader className="space-y-1 border-b border-border p-6 pr-12 text-left">
+          <SheetTitle className="text-xl font-bold text-primary">{sixMonthStockValue(item.itemNo)}</SheetTitle>
+          <SheetDescription className="sr-only">รายละเอียดสต๊อกยาเกิน 6 เดือน</SheetDescription>
+          <p className="text-sm text-muted-foreground">{itemName}</p>
+        </SheetHeader>
+
+        <div className="flex-1 space-y-6 p-6">
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ข้อมูลหลัก</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="commonname" value={commonName} />
+              <Field label="Lot" value={sixMonthStockValue(item.lotNo)} />
+              <Field label="Registering Date" value={formatSixMonthStockDate(item.registeringDate)} />
+              <Field label="อายุ (เดือน)" value={<Badge variant="outline">{item.ageMonths}</Badge>} />
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ข้อมูลคลัง</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Stock Qty" value={formatStockQuantityWithUnit(item.stockQty, item.unit)} />
+              <Field label="Stock Qty Base" value={formatStockQuantityWithUnit(item.stockQtyBase, item.unit)} />
+              <Field label="ตำแหน่ง" value={sixMonthStockLocation(item)} />
+              <Field label="Company" value={sixMonthStockValue(item.companySource)} />
+            </div>
+          </section>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 function SixMonthMedicineStockTab() {
   const [sixMonthSearch, setSixMonthSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<'all' | 'rm' | 'fg'>('all');
+  const [selectedItem, setSelectedItem] = useState<SixMonthMedicineStockItem | null>(null);
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['stock', 'medicine-six-months'],
     queryFn: api.getSixMonthMedicineStock,
@@ -250,11 +317,9 @@ function SixMonthMedicineStockTab() {
       if (!q) return true;
       return [
         item.itemNo,
+        item.commonName,
         item.lotNo,
-        item.locationCode,
-        item.binCode,
-        item.companySource,
-      ].some((value) => value.toLowerCase().includes(q));
+      ].some((value) => (value ?? '').toLowerCase().includes(q));
     });
   }, [data?.items, sixMonthSearch, kindFilter]);
   const errorMessage = error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ';
@@ -287,41 +352,50 @@ function SixMonthMedicineStockTab() {
             <Input
               value={sixMonthSearch}
               onChange={(event) => setSixMonthSearch(event.target.value)}
-              placeholder="ค้นหา item / lot / location"
+              placeholder="ค้นหา item / lot / commonname"
               className="h-9 w-full min-w-[220px] sm:w-72"
             />
           </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <Table className="min-w-[900px]">
+            <Table className="min-w-[820px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Item No</TableHead>
+                  <TableHead>commonname</TableHead>
                   <TableHead>Lot</TableHead>
                   <TableHead>Registering Date</TableHead>
                   <TableHead className="text-right">อายุ (เดือน)</TableHead>
                   <TableHead className="text-right">Stock Qty</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Company</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">กำลังโหลดข้อมูล...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">กำลังโหลดข้อมูล...</TableCell></TableRow>
                 ) : isError ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-red-500">{errorMessage}</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-red-500">{errorMessage}</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">ไม่มีข้อมูลที่อายุมากกว่า 6 เดือน</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">ไม่มีข้อมูลที่อายุมากกว่า 6 เดือน</TableCell></TableRow>
                 ) : filtered.map((item) => (
-                  <TableRow key={`${item.itemNo}-${item.lotNo}-${item.locationCode}-${item.binCode}-${item.registeringDate}`}>
+                  <TableRow
+                    key={sixMonthStockRowKey(item)}
+                    tabIndex={0}
+                    className="cursor-pointer hover:bg-accent"
+                    onClick={() => setSelectedItem(item)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedItem(item);
+                      }
+                    }}
+                  >
                     <TableCell className="font-medium text-foreground">{item.itemNo || '-'}</TableCell>
+                    <TableCell>{item.commonName || '-'}</TableCell>
                     <TableCell>{item.lotNo || '-'}</TableCell>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatSixMonthStockDate(item.registeringDate)}</TableCell>
                     <TableCell className="text-right"><Badge variant="outline">{item.ageMonths}</Badge></TableCell>
                     <TableCell className="text-right font-mono">{formatStockQuantityWithUnit(item.stockQty, item.unit)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{item.locationCode || '-'} / {item.binCode || '-'}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{item.companySource || '-'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -329,6 +403,9 @@ function SixMonthMedicineStockTab() {
           </div>
         </CardContent>
       </Card>
+      {selectedItem && (
+        <SixMonthMedicineDetailDrawer item={selectedItem} onClose={() => setSelectedItem(null)} />
+      )}
     </div>
   );
 }
