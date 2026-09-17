@@ -28,6 +28,8 @@ import { useCanAccessPath } from '@/hooks/useCanAccessPath';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
 import { usePetitionList } from '@/hooks/usePetition';
 import { api, type ParameterItem } from '@/lib/api';
+import { getItemNo, getRawCommonName, getSampleName } from '@/lib/masterItemFields';
+import { normalizeMasterItemPayload } from '@/lib/petitionMasterItem';
 import { parameterNamesForPetition } from '@/lib/petitionTestItems';
 import {
   canSeePetition,
@@ -117,13 +119,47 @@ function sixMonthStockRowKey(item: SixMonthMedicineStockItem) {
   return `${item.itemNo}-${item.lotNo}-${item.locationCode}-${item.binCode}-${item.registeringDate}`;
 }
 
+function sixMonthStockItemNoKey(value?: string | null) {
+  return String(value ?? '').trim().toUpperCase();
+}
+
 function sixMonthStockValue(value?: string | number | null) {
   const text = String(value ?? '').trim();
   return text || '-';
 }
 
+function preferMasterText(masterValue?: string, fallbackValue?: string) {
+  return String(masterValue ?? '').trim() || String(fallbackValue ?? '').trim();
+}
+
 function sixMonthStockLocation(item: SixMonthMedicineStockItem) {
   return [item.locationCode, item.binCode].map(sixMonthStockValue).join(' / ');
+}
+
+function buildSixMonthMasterItemLookup(payload: unknown) {
+  const lookup = new Map<string, { commonName: string; itemName: string }>();
+  normalizeMasterItemPayload(payload).forEach((item) => {
+    const key = sixMonthStockItemNoKey(getItemNo(item));
+    if (!key) return;
+    lookup.set(key, {
+      commonName: getRawCommonName(item),
+      itemName: getSampleName(item),
+    });
+  });
+  return lookup;
+}
+
+function enrichSixMonthStockItem(
+  item: SixMonthMedicineStockItem,
+  masterItemLookup: Map<string, { commonName: string; itemName: string }>,
+): SixMonthMedicineStockItem {
+  const masterItem = masterItemLookup.get(sixMonthStockItemNoKey(item.itemNo));
+  if (!masterItem) return item;
+  return {
+    ...item,
+    commonName: preferMasterText(masterItem.commonName, item.commonName),
+    itemName: preferMasterText(masterItem.itemName, item.itemName),
+  };
 }
 
 function firstPetitionItem(petition: Petition) {
@@ -302,13 +338,28 @@ function SixMonthMedicineStockTab() {
     queryFn: api.getSixMonthMedicineStock,
     staleTime: 5 * 60 * 1000,
   });
-  const pullToRefresh = useTouchPullToRefresh(async () => {
-    await refetch();
+  const { data: masterItemsPayload, refetch: refetchMasterItems } = useQuery({
+    queryKey: ['master-items', 'six-month-medicine-commonname'],
+    queryFn: async () => {
+      const res = await api.get<unknown>('/master-items');
+      return res.data.data;
+    },
+    staleTime: 5 * 60 * 1000,
   });
+  const pullToRefresh = useTouchPullToRefresh(async () => {
+    await Promise.all([refetch(), refetchMasterItems()]);
+  });
+  const masterItemLookup = useMemo(
+    () => buildSixMonthMasterItemLookup(masterItemsPayload),
+    [masterItemsPayload],
+  );
+  const stockItems = useMemo(
+    () => (data?.items ?? []).map((item) => enrichSixMonthStockItem(item, masterItemLookup)),
+    [data?.items, masterItemLookup],
+  );
   const filtered = useMemo(() => {
-    const items = data?.items ?? [];
     const q = sixMonthSearch.trim().toLowerCase();
-    return items.filter((item) => {
+    return stockItems.filter((item) => {
       const itemNo = item.itemNo.trim().toUpperCase();
       const matchesKind = kindFilter === 'all'
         || (kindFilter === 'rm' && itemNo.startsWith('R'))
@@ -321,7 +372,7 @@ function SixMonthMedicineStockTab() {
         item.lotNo,
       ].some((value) => (value ?? '').toLowerCase().includes(q));
     });
-  }, [data?.items, sixMonthSearch, kindFilter]);
+  }, [stockItems, sixMonthSearch, kindFilter]);
   const errorMessage = error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ';
 
   return (

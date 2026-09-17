@@ -65,15 +65,34 @@ const mocks = vi.hoisted(() => {
     }),
   ];
 
+  const masterItems = [
+    {
+      item_no: 'F-TEST-001',
+      item_name1: 'ยาทดสอบ FG',
+      commonname: 'อะบาเมกติน 1.8% EC',
+    },
+    {
+      item_no: 'R-TEST-002',
+      item_name1: 'ยาทดสอบ RM',
+      commonname: 'แมนโคเซบ 80% WP',
+    },
+  ];
+
   return {
     canAccess: vi.fn(() => true),
+    get: vi.fn((path: string) => {
+      if (path === '/master-items') {
+        return Promise.resolve({ data: { data: masterItems } });
+      }
+      return Promise.reject(new Error(`Unexpected GET ${path}`));
+    }),
     getSixMonthMedicineStock: vi.fn().mockResolvedValue({
       serverTime: '2026-09-04T00:00:00.000Z',
       referenceMonth: '2026-09',
       items: [
         {
           companySource: 'ICPL',
-          commonName: 'อะบาเมกติน 1.8% EC',
+          commonName: '',
           itemName: 'ยาทดสอบ FG',
           itemNo: 'F-TEST-001',
           locationCode: 'NORMAL',
@@ -87,7 +106,7 @@ const mocks = vi.hoisted(() => {
         },
         {
           companySource: 'ICPL',
-          commonName: 'แมนโคเซบ 80% WP',
+          commonName: '',
           itemName: 'ยาทดสอบ RM',
           itemNo: 'R-TEST-002',
           locationCode: 'NORMAL',
@@ -169,6 +188,7 @@ vi.mock('@/context/NotificationContext', () => ({
 
 vi.mock('@/lib/api', () => ({
   api: {
+    get: mocks.get,
     getSixMonthMedicineStock: mocks.getSixMonthMedicineStock,
     getParameters: mocks.getParameters,
   },
@@ -216,6 +236,7 @@ describe('PetitionListPage action cues', () => {
   beforeEach(() => {
     mocks.canAccess.mockClear();
     mocks.canAccess.mockImplementation(() => true);
+    mocks.get.mockClear();
     mocks.getSixMonthMedicineStock.mockClear();
     mocks.user = {
       employeeId: 'E999',
