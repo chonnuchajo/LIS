@@ -519,7 +519,7 @@ function SixMonthMedicineTab({ showFgQualityAlerts }: SixMonthMedicineTabProps) 
   if (!showFgQualityAlerts) return <SixMonthMedicineStockTab />;
 
   return (
-    <Tabs defaultValue="six-month-stock" className="space-y-3">
+    <Tabs defaultValue="fg-quality-alerts" className="space-y-3">
       <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:px-0">
         <TabsList className="w-max">
           <TabsTrigger value="fg-quality-alerts">แจ้งเตือนส่งตรวจคุณภาพ</TabsTrigger>
