@@ -173,6 +173,43 @@ describe("StockDeduction scan form", () => {
     expect(screen.getByText(/Lot 123 · เหลือ 100 mg/)).toBeInTheDocument();
   });
 
+  it("keeps the scanned standard bottle selected after the unit list refreshes", async () => {
+    let resolveUnits: (units: ReturnType<typeof stockUnit>[]) => void = () => undefined;
+    const unitsPromise = new Promise<ReturnType<typeof stockUnit>[]>((resolve) => {
+      resolveUnits = resolve;
+    });
+    const scannedUnit = stockUnit({
+      qrId: "u_scan",
+      type: "working",
+      lotNo: "SCAN",
+      labelCode: "026602",
+      exp: "2030-01-01T00:00:00.000Z",
+    });
+    const refreshedUnit = stockUnit({
+      _id: "unit-refreshed",
+      qrId: "u_refreshed",
+      type: "working",
+      lotNo: "REFRESH",
+      labelCode: "999999",
+      exp: "2031-01-01T00:00:00.000Z",
+    });
+    apiMock.getStockUnit.mockResolvedValue(scannedUnit);
+    apiMock.getStockUnits.mockReturnValue(unitsPromise);
+
+    renderPage();
+
+    openCameraScanner();
+    fireEvent.click(screen.getByRole("button", { name: "mock scan" }));
+
+    expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: /เลขขวด 026602/ })).toBeChecked();
+
+    resolveUnits([refreshedUnit]);
+
+    expect(await screen.findByText("เลขขวด 999999")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /เลขขวด 026602/ })).toBeChecked();
+  });
+
   it("does not show previous pending deduction close-out fields in the standard form", async () => {
     apiMock.getPendingStockDeductions.mockResolvedValue([
       {

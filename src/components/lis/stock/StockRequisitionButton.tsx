@@ -65,6 +65,7 @@ export default function StockRequisitionButton({
   const [chooser, setChooser] = useState(false);
   const [which, setWhich] = useState<"chemical" | "standard" | null>(null);
   const [initialStandardQrId, setInitialStandardQrId] = useState<string | null>(null);
+  const [initialStandardUnit, setInitialStandardUnit] = useState<StockUnitItem | null>(null);
   const [initialSolventId, setInitialSolventId] = useState<string | null>(null);
   const [initialSolventUnitQrId, setInitialSolventUnitQrId] = useState<string | null>(null);
   const consumedQrRef = useRef<string | null>(null);
@@ -124,6 +125,7 @@ export default function StockRequisitionButton({
       });
       if (scannedUnit.itemType === "solvent") {
         setInitialStandardQrId(null);
+        setInitialStandardUnit(null);
         setInitialSolventId(scannedUnit.itemId || scannedUnit.itemCode);
         setInitialSolventUnitQrId(scannedUnit.qrId);
         setWhich("chemical");
@@ -132,6 +134,7 @@ export default function StockRequisitionButton({
         return;
       }
       setInitialStandardQrId(scannedUnit.qrId);
+      setInitialStandardUnit(scannedUnit);
       setInitialSolventId(null);
       setInitialSolventUnitQrId(null);
       setWhich("standard");
@@ -143,6 +146,7 @@ export default function StockRequisitionButton({
     const matchedSolvent = solvents.find((row) => row._id === normalizedInitialQrId);
     if (matchedSolvent) {
       setInitialStandardQrId(null);
+      setInitialStandardUnit(null);
       setInitialSolventId(normalizedInitialQrId);
       setInitialSolventUnitQrId(null);
       setWhich("chemical");
@@ -174,6 +178,7 @@ export default function StockRequisitionButton({
 
   const openChooser = (target: "chemical" | "standard") => {
     setInitialStandardQrId(null);
+    setInitialStandardUnit(null);
     setInitialSolventId(null);
     setInitialSolventUnitQrId(null);
     setWhich(target);
@@ -222,9 +227,11 @@ export default function StockRequisitionButton({
       {which === "standard" && (
         <StandardRequisitionDialog
           initialQrId={initialStandardQrId}
+          initialUnit={initialStandardUnit}
           onClose={() => {
             setWhich(null);
             setInitialStandardQrId(null);
+            setInitialStandardUnit(null);
           }}
           onSaved={refreshStandards}
         />

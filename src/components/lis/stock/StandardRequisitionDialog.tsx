@@ -31,18 +31,19 @@ type BottleType = (typeof TYPES)[number];
 type MasterItemRaw = Record<string, unknown>;
 const GROUP_LABEL: Record<InstrumentGroup, string> = { gc: "GC", hplc: "HPLC" };
 
-function stockUnitBottleType(type: StockUnitItem["type"]): BottleType {
-  const value = type || "primary";
+function stockUnitBottleType(unit: Pick<StockUnitItem, "type" | "kind" | "source"> | null | undefined): BottleType {
+  const value = unit?.type || (unit?.kind === "working" ? "working" : unit?.source === "supply" ? "supplier" : "primary");
   return TYPES.includes(value as BottleType) ? (value as BottleType) : "primary";
 }
 
 interface Props {
   initialQrId?: string | null;
+  initialUnit?: StockUnitItem | null;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export default function StandardRequisitionDialog({ initialQrId, onClose, onSaved }: Props) {
+export default function StandardRequisitionDialog({ initialQrId, initialUnit, onClose, onSaved }: Props) {
   const qc = useQueryClient();
   const { user } = useAuth();
   const [code, setCode] = useState("");
@@ -92,17 +93,22 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
     [masterItems, simpleMethods, methodByCode],
   );
 
+  const unitsWithInitialSelection = useMemo(() => {
+    if (!initialUnit?.qrId) return allUnits;
+    return [initialUnit, ...allUnits.filter((unit) => unit.qrId !== initialUnit.qrId)];
+  }, [allUnits, initialUnit]);
+
   // สารที่มีขวดใช้ได้จริง ≥ 1 (ทุก type)
   const usableByCode = useMemo(() => {
     const m = new Map<string, StockUnitItem[]>();
-    for (const u of allUnits) {
+    for (const u of unitsWithInitialSelection) {
       if (!isUsableBottle(u)) continue;
       const list = m.get(u.itemCode);
       if (list) list.push(u);
       else m.set(u.itemCode, [u]);
     }
     return m;
-  }, [allUnits]);
+  }, [unitsWithInitialSelection]);
 
   const inStock = useMemo(
     () => standards.filter((s) => (usableByCode.get(s.code)?.length ?? 0) > 0),
@@ -122,13 +128,13 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
   const effectiveGroup: InstrumentGroup | null = resolvedGroups.length === 1 ? resolvedGroups[0] : pickedGroup;
 
   const bottlesOfType = useMemo(
-    () => (usableByCode.get(code) ?? []).filter((u) => (u.type || "primary") === bottleType)
+    () => (usableByCode.get(code) ?? []).filter((u) => stockUnitBottleType(u) === bottleType)
       .sort((a, b) => (a.exp ? +new Date(a.exp) : Infinity) - (b.exp ? +new Date(b.exp) : Infinity)),
     [usableByCode, code, bottleType],
   );
   const typeCounts = useMemo(() => {
     const c: Record<BottleType, number> = { primary: 0, working: 0, supplier: 0 };
-    for (const u of usableByCode.get(code) ?? []) c[((u.type || "primary") as BottleType)] += 1;
+    for (const u of usableByCode.get(code) ?? []) c[stockUnitBottleType(u)] += 1;
     return c;
   }, [usableByCode, code]);
 
@@ -150,7 +156,7 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
     const qrIdToApply = initialQrId?.trim();
     if (!qrIdToApply || appliedInitialQrRef.current === qrIdToApply) return;
 
-    const selectedUnit = allUnits.find((row) => row.qrId === qrIdToApply);
+    const selectedUnit = unitsWithInitialSelection.find((row) => row.qrId === qrIdToApply);
     if (!selectedUnit) return;
 
     appliedInitialQrRef.current = qrIdToApply;
@@ -158,7 +164,7 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
     setCode(selectedCode);
     setPickOpen(false);
     setQrId(selectedUnit.qrId);
-    setBottleType(stockUnitBottleType(selectedUnit.type));
+    setBottleType(stockUnitBottleType(selectedUnit));
     setPickedGroup(null);
     setCustomCount(false);
 
@@ -167,7 +173,7 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
     const weightCount = selectedGroups.length === 1 ? defaultWeightCount(selectedGroups[0]) : 1;
     setWeights(Array.from({ length: weightCount }, () => ""));
     setCountCustomized(false);
-  }, [allUnits, initialQrId, standards, substanceGroups]);
+  }, [initialQrId, standards, substanceGroups, unitsWithInitialSelection]);
 
   // ถ้า group index (master-items/simple-methods) โหลดเสร็จหลังเลือกสารแล้ว → resync
   // จำนวนน้ำหนัก default ให้ตรงกลุ่มที่ resolve ได้ (ไม่ทับถ้าผู้ใช้ปรับเอง). loop-safe: set เฉพาะเมื่อ length ต่าง.
@@ -198,8 +204,8 @@ export default function StandardRequisitionDialog({ initialQrId, onClose, onSave
     setPickedGroup(null);
     setCustomCount(false);
     const counts = { primary: 0, working: 0, supplier: 0 } as Record<BottleType, number>;
-    for (const unit of availableUnits) counts[((unit.type || "primary") as BottleType)] += 1;
-    setBottleType(searchedBottle ? stockUnitBottleType(searchedBottle.type) : TYPES.find((type) => counts[type] > 0) ?? "primary");
+    for (const unit of availableUnits) counts[stockUnitBottleType(unit)] += 1;
+    setBottleType(searchedBottle ? stockUnitBottleType(searchedBottle) : TYPES.find((type) => counts[type] > 0) ?? "primary");
     const selectedStandard = standards.find((stockStandard) => stockStandard.code === selectedCode) ?? null;
     const groups = selectedStandard ? resolveGroups(selectedStandard.name, substanceGroups) : [];
     const n = groups.length === 1 ? defaultWeightCount(groups[0]) : 1;
