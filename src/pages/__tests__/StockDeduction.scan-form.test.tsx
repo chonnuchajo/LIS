@@ -459,4 +459,27 @@ describe("StockDeduction scan form", () => {
     expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
     expect(apiMock.getStockUnits).toHaveBeenCalledWith({ itemType: "standard", labelCode: "026601" });
   });
+
+  it("matches OCR against the same displayed Code used by the standard picker", async () => {
+    const displayCodeUnit = stockUnit({
+      qrId: "u_display_code",
+      itemCode: "2",
+      itemName: "2,4-D dimethyl ammonium",
+      labelCode: "",
+      labelRunNo: 1,
+      labelRunYear: 2023,
+    });
+    readStockLabelCodeFromImageMock.mockResolvedValue({ labelCode: "026601", candidates: ["026601"], rawText: "026601" });
+    apiMock.getStandards.mockResolvedValue([{ _id: "std-2", code: "2", name: "2,4-D dimethyl ammonium" }]);
+    apiMock.getStockUnit.mockImplementation((qrId: string) => Promise.resolve(qrId === "u_display_code" ? displayCodeUnit : stockUnit()));
+    apiMock.getStockUnits.mockResolvedValue([displayCodeUnit]);
+
+    renderPage();
+
+    openCameraScanner();
+    fireEvent.click(screen.getByRole("button", { name: "mock OCR capture" }));
+
+    expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: /เลขขวด 026601/ })).toBeChecked();
+  });
 });

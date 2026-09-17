@@ -177,4 +177,34 @@ describe('stock standard label code duplicates', () => {
     expect(StockUnit.find).toHaveBeenCalledWith({ itemType: 'standard', labelCode: '026601' });
     expect(res.json).toHaveBeenCalledWith([labelledUnit]);
   });
+
+  test('listing units by Code finds the same displayed Code as the picker', async () => {
+    const handler = routeHandler('/units', 'get');
+    const displayCodeUnit = {
+      qrId: 'u_display_code',
+      itemType: 'standard',
+      itemCode: '2',
+      labelCode: '',
+      labelRunNo: 1,
+      labelRunYear: 2023,
+    };
+    const wrongDisplayCodeUnit = {
+      qrId: 'u_wrong_display_code',
+      itemType: 'standard',
+      itemCode: '3',
+      labelCode: '',
+      labelRunNo: 1,
+      labelRunYear: 2023,
+    };
+    StockUnit.find = jest.fn()
+      .mockReturnValueOnce(chainSortLimit([]).query)
+      .mockReturnValueOnce(chainSortLimit([displayCodeUnit, wrongDisplayCodeUnit]).query);
+
+    const req = { query: { itemType: 'standard', labelCode: '026601' }, headers: {} };
+    const res = mockResponse();
+
+    await handler(req, res);
+
+    expect(res.json).toHaveBeenCalledWith([displayCodeUnit]);
+  });
 });
