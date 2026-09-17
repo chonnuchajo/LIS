@@ -42,12 +42,20 @@ describe("appPreferences", () => {
     expect(readAppPreferences().fontSize).toBe("17px");
   });
 
-  it("accepts font sizes from 10px through 48px", () => {
-    localStorage.setItem("lis.appPreferences.v1", JSON.stringify({ fontSize: "48px" }));
+  it("accepts font sizes from 14px through 24px", () => {
+    localStorage.setItem("lis.appPreferences.v1", JSON.stringify({ fontSize: "14px" }));
 
-    expect(readAppPreferences().fontSize).toBe("48px");
+    expect(readAppPreferences().fontSize).toBe("14px");
 
-    localStorage.setItem("lis.appPreferences.v1", JSON.stringify({ fontSize: "49px" }));
+    localStorage.setItem("lis.appPreferences.v1", JSON.stringify({ fontSize: "24px" }));
+
+    expect(readAppPreferences().fontSize).toBe("24px");
+
+    localStorage.setItem("lis.appPreferences.v1", JSON.stringify({ fontSize: "13px" }));
+
+    expect(readAppPreferences().fontSize).toBe(DEFAULT_APP_PREFERENCES.fontSize);
+
+    localStorage.setItem("lis.appPreferences.v1", JSON.stringify({ fontSize: "25px" }));
 
     expect(readAppPreferences().fontSize).toBe(DEFAULT_APP_PREFERENCES.fontSize);
   });

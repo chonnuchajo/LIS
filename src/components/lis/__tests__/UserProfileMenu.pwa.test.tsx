@@ -207,10 +207,10 @@ describe("UserProfileMenu signature entry", () => {
     expect(screen.getByLabelText("ภาษาเว็บ")).toBeInTheDocument();
     expect(screen.getByLabelText("ฟ้อนต์")).toBeInTheDocument();
     expect(screen.getByLabelText("ขนาดฟ้อนต์")).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "10 px" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "14 px" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "16 px" })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "48 px" })).toBeInTheDocument();
-    expect(screen.getByLabelText("ขนาดฟ้อนต์").querySelectorAll("option")).toHaveLength(39);
+    expect(screen.getByRole("option", { name: "24 px" })).toBeInTheDocument();
+    expect(screen.getByLabelText("ขนาดฟ้อนต์").querySelectorAll("option")).toHaveLength(11);
     expect(screen.getByRole("switch", { name: "เสียงแจ้งเตือนทั้งหมด" })).toBeChecked();
     expect(screen.getByRole("switch", { name: "ตัวอย่างใหม่เข้าระบบ" })).toBeChecked();
     expect(screen.getByRole("switch", { name: "งาน Lab ใหม่" })).toBeChecked();

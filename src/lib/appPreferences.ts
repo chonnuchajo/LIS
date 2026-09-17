@@ -39,8 +39,8 @@ export const DEFAULT_APP_PREFERENCES: AppPreferences = {
 const THEMES: AppThemePreference[] = ["light", "dark"];
 const LANGUAGES: AppLanguagePreference[] = ["th", "en"];
 const FONT_FAMILIES: AppFontFamilyPreference[] = ["kanit", "sarabun", "system"];
-const MIN_FONT_SIZE_PX = 10;
-const MAX_FONT_SIZE_PX = 48;
+const MIN_FONT_SIZE_PX = 14;
+const MAX_FONT_SIZE_PX = 24;
 
 export const FONT_SIZE_OPTIONS: AppFontSizePreference[] = Array.from(
   { length: MAX_FONT_SIZE_PX - MIN_FONT_SIZE_PX + 1 },
