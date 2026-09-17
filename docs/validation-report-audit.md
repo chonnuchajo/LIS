@@ -40,3 +40,13 @@
 - Eurachem Planning and Reporting Method Validation Studies (2025): https://eurachem.org/images/stories/Guides/pdf/MV_Guide_planning_supplement_2nd_ed_EN.pdf (การออกแบบ nested study และ ANOVA)
 
 เกณฑ์ของสารอื่นต้องมาจาก protocol/SOP ที่เลือกโดยผู้ใช้ การคำนวณผ่านไม่ใช่การรับรองวิธีโดยอัตโนมัติ
+
+## ความคืบหน้าที่มีหลักฐานตรวจแล้ว
+
+- เพิ่มหน้า Precision ที่รับฐาน C แยกตามระดับและข้อมูลดิบรายวัน คำนวณ balanced ANOVA, Horwitz และ HorRat พร้อมปฏิเสธจำนวนซ้ำไม่เท่ากัน
+- เพิ่ม Sample/QC แบบเลือกแนบรายงาน คำนวณ %w/w, %w/v โดยต้องมี density, Standard Recovery, Matrix Spike และ %Difference
+- เพิ่มรายงาน HTML แบบ standalone พร้อมตัวอย่างใน iframe ที่ไม่อนุญาต script ตารางและ SVG กราฟสร้างจากข้อมูลเดียวกับหน้าเว็บ
+- เพิ่มไฟล์งาน JSON รุ่น 1 บันทึกและเปิดกลับโดยตรวจ schema ก่อนเปลี่ยน state ไม่รับผลคำนวณที่ฝังมาในไฟล์เป็นผลจริง
+- ทดสอบสูตร/รายงาน/ไฟล์งานรวม 15 ข้อผ่าน และ ESLint ของไฟล์ที่เกี่ยวข้องผ่าน
+- ตรวจตัวอย่างรายงานบนหน้าเว็บแล้ว ยังต้อง QA รายงานที่กรอกครบและการพิมพ์หลายหน้า รวมถึงตารางบนมือถือ
+- ยังเหลือหลักฐาน Specificity, ตารางกรอกแบบแยกช่อง, ชุดเตรียมสาร/Calibration หลายชุด, เกณฑ์ที่ปรับได้ครบทุกหัวข้อ และการนำเข้า Excel/PDF โดยตรง
