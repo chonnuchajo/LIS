@@ -199,6 +199,10 @@ describe("UserProfileMenu signature entry", () => {
     fireEvent.click(screen.getByRole("button", { name: "ตั้งค่า" }));
 
     expect(screen.getByRole("dialog", { name: "ตั้งค่าโปรไฟล์" })).toBeInTheDocument();
+    expect(screen.getByTestId("profile-settings-blur-backdrop")).toHaveClass(
+      "bg-background/60",
+      "backdrop-blur-sm",
+    );
     expect(screen.getByLabelText("โหมดการแสดงผล")).toBeInTheDocument();
     expect(screen.getByLabelText("ภาษาเว็บ")).toBeInTheDocument();
     expect(screen.getByLabelText("ฟ้อนต์")).toBeInTheDocument();

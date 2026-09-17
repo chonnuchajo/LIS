@@ -64,7 +64,11 @@ const ProfileSettingsDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent
+        className="sm:max-w-2xl"
+        overlayClassName="bg-background/60 backdrop-blur-sm"
+        overlayTestId="profile-settings-blur-backdrop"
+      >
         <DialogHeader>
           <DialogTitle>ตั้งค่าโปรไฟล์</DialogTitle>
           <DialogDescription>ตั้งค่าการแสดงผล ภาษา ฟ้อนต์ และเสียงแจ้งเตือนของผู้ใช้นี้</DialogDescription>
