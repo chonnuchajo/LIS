@@ -445,7 +445,7 @@ describe("StockDeduction scan form", () => {
     expect(screen.queryByText("ค่าที่ scanner อ่านได้ล่าสุด")).not.toBeInTheDocument();
   });
 
-  it("searches OCR label codes directly instead of relying on the limited stock unit list", async () => {
+  it("searches OCR label codes directly with the same source used by the picker", async () => {
     const labelledUnit = stockUnit({ qrId: "u_labelled", labelCode: "026601" });
     readStockLabelCodeFromImageMock.mockResolvedValue({ labelCode: "026601", candidates: ["026601"], rawText: "026601" });
     apiMock.getStockUnit.mockImplementation((qrId: string) => Promise.resolve(qrId === "u_labelled" ? labelledUnit : stockUnit()));
@@ -457,7 +457,7 @@ describe("StockDeduction scan form", () => {
     fireEvent.click(screen.getByRole("button", { name: "mock OCR capture" }));
 
     expect(await screen.findByRole("heading", { name: "เบิก Standard" })).toBeInTheDocument();
-    expect(apiMock.getStockUnits).toHaveBeenCalledWith({ itemType: "standard", labelCode: "026601" });
+    expect(apiMock.getStockUnits).toHaveBeenCalledWith({ labelCode: "026601" });
   });
 
   it("matches OCR against the same displayed Code used by the standard picker", async () => {
@@ -495,9 +495,9 @@ describe("StockDeduction scan form", () => {
     readStockLabelCodeFromImageMock.mockResolvedValue({ labelCode: "026601", candidates: ["026601"], rawText: "026601" });
     apiMock.getStandards.mockResolvedValue([{ _id: "std-2", code: "2", name: "2,4-D dimethyl ammonium" }]);
     apiMock.getStockUnit.mockImplementation((qrId: string) => Promise.resolve(qrId === "u_picker_fallback" ? displayCodeUnit : stockUnit()));
-    apiMock.getStockUnits.mockImplementation((params?: { itemType?: string; labelCode?: string }) => {
+    apiMock.getStockUnits.mockImplementation((params?: { labelCode?: string }) => {
       if (params?.labelCode === "026601") return Promise.resolve([]);
-      if (params?.itemType === "standard") return Promise.resolve([displayCodeUnit]);
+      if (!params) return Promise.resolve([displayCodeUnit]);
       return Promise.resolve([]);
     });
 

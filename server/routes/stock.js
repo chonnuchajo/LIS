@@ -104,6 +104,19 @@ function normalizeUnitLabelCodeSearch(labelCode) {
   return String(labelCode ?? '').trim().toUpperCase().replace(/\s+/g, '');
 }
 
+function applyStockUnitItemTypeFilter(filter, itemType) {
+  const normalizedItemType = String(itemType ?? '').trim();
+  if (!normalizedItemType) return;
+  if (normalizedItemType === 'standard') {
+    filter.$and = [
+      ...(Array.isArray(filter.$and) ? filter.$and : []),
+      { $or: [{ itemType: 'standard' }, { itemType: { $exists: false } }, { itemType: null }, { itemType: '' }] },
+    ];
+    return;
+  }
+  filter.itemType = normalizedItemType;
+}
+
 function displayCodeYearCandidatesFromBuddhistTwoDigits(buddhistYear) {
   const gregorianTwoDigits = (buddhistYear + 100 - 43) % 100;
   return [...new Set([
@@ -1270,7 +1283,7 @@ router.get('/units', async (req, res) => {
     const { itemCode, itemType, itemId, status, kind, labelCode } = req.query;
     const f = {};
     if (itemCode) f.itemCode = itemCode;
-    if (itemType) f.itemType = String(itemType).trim();
+    applyStockUnitItemTypeFilter(f, itemType);
     if (itemId) f.itemId = String(itemId).trim();
     if (status) f.status = status;
     if (kind) f.kind = kind;

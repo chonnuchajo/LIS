@@ -192,12 +192,21 @@ const StockDeduction = () => {
     }
 
     try {
-      const unitGroups = await Promise.all(candidates.map((candidate) => api.getStockUnits({ itemType: "standard", labelCode: candidate })));
+      const [standards, ...unitGroups] = await Promise.all([
+        queryClient.fetchQuery({ queryKey: ["stock", "standards"], queryFn: api.getStandards }),
+        ...candidates.map((candidate) => api.getStockUnits({ labelCode: candidate })),
+      ]);
+      const standardCodes = new Set(standards.map((standard) => String(standard.code)));
+      const findMatches = (units: Awaited<ReturnType<typeof api.getStockUnits>>) => units.filter((unit) => (
+        standardCodes.has(String(unit.itemCode))
+        && candidates.includes(normalizeStockLabelCandidate(standardRequisitionUnitLabelCode(unit)))
+      ));
+
       const units = unitGroups.flat();
-      let matches = units.filter((unit) => candidates.includes(normalizeStockLabelCandidate(standardRequisitionUnitLabelCode(unit))));
+      let matches = findMatches(units);
       if (matches.length === 0) {
-        const pickerUnits = await api.getStockUnits({ itemType: "standard" });
-        matches = pickerUnits.filter((unit) => candidates.includes(normalizeStockLabelCandidate(standardRequisitionUnitLabelCode(unit))));
+        const pickerUnits = await queryClient.fetchQuery({ queryKey: ["stock", "units"], queryFn: () => api.getStockUnits() });
+        matches = findMatches(pickerUnits);
       }
       const matchedUnit = matches.find((unit) => unit.status === "active") ?? matches[0];
       if (!matchedUnit) {
@@ -209,7 +218,7 @@ const StockDeduction = () => {
     } catch (err) {
       toast.error((err as Error).message || "ค้นหาเลขใต้ QR ไม่สำเร็จ");
     }
-  }, [applyScannedQrId]);
+  }, [applyScannedQrId, queryClient]);
 
   useEffect(() => {
     const resetBuffer = () => {

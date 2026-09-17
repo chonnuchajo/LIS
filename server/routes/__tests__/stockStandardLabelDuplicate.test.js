@@ -159,7 +159,7 @@ describe('stock standard label code duplicates', () => {
     expect(unit.save).toHaveBeenCalled();
   });
 
-  test('listing units by Code filters direct labelCode', async () => {
+  test('listing units by Code treats missing itemType as standard', async () => {
     const handler = routeHandler('/units', 'get');
     const labelledUnit = {
       qrId: 'u_labelled',
@@ -174,7 +174,10 @@ describe('stock standard label code duplicates', () => {
 
     await handler(req, res);
 
-    expect(StockUnit.find).toHaveBeenCalledWith({ itemType: 'standard', labelCode: '026601' });
+    expect(StockUnit.find).toHaveBeenCalledWith({
+      $and: [{ $or: [{ itemType: 'standard' }, { itemType: { $exists: false } }, { itemType: null }, { itemType: '' }] }],
+      labelCode: '026601',
+    });
     expect(res.json).toHaveBeenCalledWith([labelledUnit]);
   });
 
