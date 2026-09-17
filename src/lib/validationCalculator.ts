@@ -48,8 +48,8 @@ export function parseMeasurements(text: string, columns: number) {
   const rows: number[][] = [];
   const errors: string[] = [];
   text.split(/\r?\n/).forEach((line, i) => {
-    if (!line.trim()) return;
-    const cells = line.trim().split(/[,;\t]/).map(s => s.trim());
+    if (!line.trim() && !/[,;\t]/.test(line)) return;
+    const cells = line.split(/[,;\t]/).map(s => s.trim());
     if (cells.length !== columns || cells.some(s => !s || !Number.isFinite(Number(s)) || Number(s) < 0)) {
       errors.push(`แถว ${i + 1}: ต้องมีตัวเลขไม่ติดลบ ${columns} ช่อง คั่นด้วย comma หรือ Tab`);
     } else rows.push(cells.map(Number));

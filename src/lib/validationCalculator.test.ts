@@ -36,4 +36,9 @@ describe("validation calculations", () => {
     expect(result.rows).toEqual([[0.1, 25]]);
     expect(result.errors).toHaveLength(3);
   });
+  it("does not trim away empty edge columns or an unfinished table row", () => {
+    const result = parseMeasurements("\t1\t2\n1\t2\t\n\t\n 1 \t 2 ", 2);
+    expect(result.rows).toEqual([[1, 2]]);
+    expect(result.errors).toHaveLength(3);
+  });
 });
