@@ -81,3 +81,17 @@
 - PDF worker ใช้ Vite `?url` asset import เพื่อรองรับ base `/LIS/` ไม่มี URL ชี้ root/CDN แบบตายตัว ตรวจ runtime local แล้ว ยังไม่ได้ build ตามข้อกำหนด repository
 - ชุดทดสอบตัวอ่าน/จับคู่/แปลงหน่วย/หน้าต่าง/ตารางผ่าน 15 ข้อ และ ESLint ผ่าน; ข้อจำกัดที่เหลือคือ OCR ภาพสแกน, .xls เก่า (ต้องแปลงเป็น .xlsx), การอ่านเอกสารด้วย AI และ QA รายงานครบพร้อมพิมพ์หลายหน้า
 - แหล่ง API ที่ใช้: https://github.com/exceljs/exceljs และ https://mozilla.github.io/pdf.js/api/draft/module-pdfjsLib-PDFDocumentProxy.html
+
+### รายละเอียดวิธีและ AI — 17 กันยายน 2026
+
+- เพิ่มช่องเนื้อหารายงานหัวข้อ 1–10: วัตถุประสงค์ ขอบเขต อ้างอิง เครื่องมือ/สารเคมี สภาวะ เตรียมสาร แผนทดสอบ ข้อเบี่ยงเบน และบทสรุป บันทึกใน JSON โดยไฟล์รุ่นเดิมเริ่มด้วยช่องว่าง
+- ตรวจความครบถ้วนของหัวข้อหลักแยกจากการอนุมัติทางวิชาการ และรวมรายละเอียดวิธีที่กรอกใน fingerprint ของ Specificity; รายงานเรียงหัวข้อ 1–10 และ 11 เมื่อเปิด QC
+- ผู้ใช้ยืนยันใช้ key เดิม: ใช้ OPENAI_API_KEY ฝั่ง server โดยไม่เขียน/ย้าย secret และไม่ส่ง key ให้ frontend
+- เพิ่ม `/LIS/api/validation-ai` (พร้อม `/api/validation-ai`) สำหรับทบทวนข้อความและ OCR ภาพหน้า PDF ผ่าน Chat Completions แบบ strict JSON Schema, store=false, timeout 60 วินาที; จำกัดขนาดข้อมูล จำนวนคำขอ และ concurrent calls
+- API ต้องมี signed LIS session หรือ local development ที่เปิด ALLOW_DEV_STATUS และไม่ใช่ production; ไม่เชื่อ header อีเมลเป็นหลักฐาน login
+- ผู้ใช้เลือกส่งข้อความ/ภาพหน้า PDF ทีละหน้าอย่างชัดเจน; ผล OCR ต้องจับคู่คอลัมน์และตรวจเทียบก่อนนำเข้า ไม่เปลี่ยนหน่วยเอง ไม่เปลี่ยน Passed/Failed จากคำตอบ AI
+- QA จริงด้วย key เดิม: ทบทวนข้อมูลสมมติสำเร็จ, authenticated HTTP route บน server ทดสอบแยกตอบ 200, OCR ภาพตารางสมมติถอด Target 0.5 / Actual 0.5028975 / Found 501.2 และ 503.4 พร้อมหน่วยต้นฉบับได้
+- QA หน้าเว็บที่กว้าง 390 px: ช่องเนื้อหารายงานไม่ล้นแนวนอน และข้อความวัตถุประสงค์ปรากฏใน preview จริง
+- ข้อจำกัด runtime: backend หลักไม่มี listener บนพอร์ต 3001 ขณะ QA ทำให้ Vite proxy ตอบ 500; การเรียกจากหน้าเว็บจริงยังรอ backend หลักเริ่มสำเร็จ ไม่ได้แก้ฐานข้อมูลหรือการตั้งค่า deployment
+- ข้อจำกัดที่ยังต้องตรวจต่อ: รายงานกรอกครบและพิมพ์หลายหน้า, raw trace ของ QC, OCR จาก PDF สแกนจริงหลายรูปแบบ และการเก็บประวัติข้อเสนอ AI (ขณะนี้แสดงในหน้าเท่านั้น)
+- API อ้างอิง: https://developers.openai.com/api/docs/guides/structured-outputs

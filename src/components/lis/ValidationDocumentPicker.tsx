@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/select";
 import { mapDocumentRows, type DocumentPart, type ValidationDocument } from "@/lib/validationDocumentData";
+import { requestValidationAi } from "@/lib/validationAi";
 
 export default function ValidationDocumentPicker({ columns, onSelect }: { columns: string[]; onSelect: (text: string) => void }) {
   const [reader, setReader] = useState<ValidationDocument | null>(null);
@@ -14,7 +15,8 @@ export default function ValidationDocumentPicker({ columns, onSelect }: { column
   const [reviewed, setReviewed] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const input = useRef<HTMLInputElement>(null), active = useRef<ValidationDocument | null>(null), version = useRef(0);
-  useEffect(() => () => { version.current++; void active.current?.dispose(); active.current = null; }, []);
+  const aiController = useRef<AbortController | null>(null);
+  useEffect(() => () => { version.current++; aiController.current?.abort(); void active.current?.dispose(); active.current = null; }, []);
   const loadPart = async (document: ValidationDocument, index: number) => {
     const token = ++version.current;
     setBusy(true); setError(""); setPart(null); setPartIndex(index); setReviewed(false); onSelect("");
@@ -42,13 +44,26 @@ export default function ValidationDocumentPicker({ columns, onSelect }: { column
         active.current = next; setReader(next); await loadPart(next, 0);
       } catch (caught) { if (token === version.current) { setBusy(false); setError(caught instanceof Error ? caught.message : "อ่านไฟล์ไม่สำเร็จ"); } }
     }} />
-    <p className="text-xs text-muted-foreground">อ่าน .xlsx และ PDF ในเบราว์เซอร์ · เลือกช่วงแถวและคอลัมน์ที่ต้องใช้ · PDF แบบสแกนยังต้องใช้ OCR</p>
+    <p className="text-xs text-muted-foreground">อ่าน .xlsx และ PDF ในเบราว์เซอร์ · เลือกช่วงแถวและคอลัมน์ที่ต้องใช้ · ใช้ AI อ่านภาพหน้า PDF ได้เมื่อข้อความไม่ครบ</p>
     {busy && <p role="status" className="text-sm">กำลังอ่านเอกสาร…</p>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {reader && <label className="block space-y-2 text-sm">{reader.name}<NativeSelect aria-label="ชีตหรือหน้าเอกสาร" disabled={busy} value={partIndex} onChange={e => void loadPart(reader, Number(e.target.value))}>{reader.parts.map((name, index) => <option key={index} value={index}>{name}</option>)}</NativeSelect></label>}
     {part && <>
       <p className="text-sm text-muted-foreground">{part.warning}</p>
       {part.preview && <details><summary className="cursor-pointer text-sm font-medium">ดูภาพหน้า PDF ต้นฉบับ</summary><img src={part.preview} alt={`${reader?.name} ${reader?.parts[partIndex]}`} className="mt-2 h-auto w-full rounded-lg border" /></details>}
+      {part.preview && <div className="space-y-2 rounded-lg border p-3"><p className="text-xs text-muted-foreground">ปุ่มนี้ส่งภาพหน้า PDF ที่เลือกให้ OpenAI ผ่าน server ด้วย key เดิม ผลเป็นร่าง OCR ต้องตรวจเทียบตัวเลขและหน่วยก่อนนำเข้า</p><Button type="button" variant="outline" disabled={busy} onClick={async () => {
+        const token = ++version.current, controller = new AbortController(); aiController.current = controller;
+        setBusy(true); setError(""); resetReview();
+        const timeout = setTimeout(() => controller.abort(), 70000);
+        try {
+          const result = await requestValidationAi({ mode: "extract", image: part.preview }, controller.signal);
+          if (token !== version.current || controller.signal.aborted) return;
+          resetReview();
+          setPart({ ...part, rows: result.rows, warning: ["ร่าง OCR จาก AI — ตรวจทุกช่องเทียบภาพต้นฉบับ", result.summary, ...result.warnings].join(" · ") });
+          setFirst("1"); setLast(String(result.rows.length)); setMapping(columns.map(() => -1)); setPreviewPage(0);
+        } catch (caught) { if (token === version.current) setError(controller.signal.aborted ? "AI หมดเวลา กรุณาลองใหม่" : caught instanceof Error ? caught.message : "อ่านภาพไม่สำเร็จ"); }
+        finally { clearTimeout(timeout); if (token === version.current) setBusy(false); }
+      }}>ส่งหน้านี้ให้ AI อ่านตาราง</Button></div>}
       <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-medium">ข้อมูลต้นทาง {part.rows.length} แถว · แสดงแถว {part.rows.length ? previewPage * 100 + 1 : 0}–{Math.min((previewPage + 1) * 100, part.rows.length)}</p><div className="flex gap-2"><Button type="button" size="sm" variant="outline" disabled={previewPage === 0} onClick={() => setPreviewPage(page => page - 1)}>แถวก่อนหน้า</Button><Button type="button" size="sm" variant="outline" disabled={(previewPage + 1) * 100 >= part.rows.length} onClick={() => setPreviewPage(page => page + 1)}>แถวถัดไป</Button></div></div>
       <div className="max-h-64 overflow-auto rounded-lg border bg-card shadow-sm"><table className="w-full text-left text-xs"><thead className="bg-muted text-muted-foreground"><tr><th className="p-2">แถว</th>{Array.from({ length: width }, (_, index) => <th className="p-2" key={index}>คอลัมน์ {index + 1}</th>)}</tr></thead><tbody className="divide-y">{part.rows.slice(previewPage * 100, (previewPage + 1) * 100).map((row, index) => <tr key={index} className="hover:bg-accent"><td className="p-2">{previewPage * 100 + index + 1}</td>{Array.from({ length: width }, (_, column) => <td key={column} className="max-w-64 whitespace-pre-wrap break-words p-2">{row[column] ?? ""}</td>)}</tr>)}</tbody></table></div>
       <div className="grid gap-3 sm:grid-cols-2"><label className="space-y-2 text-sm">แถวเริ่มต้น<Input aria-label="แถวเริ่มต้น" type="number" min="1" value={first} onChange={e => { setFirst(e.target.value); resetReview(); }} /></label><label className="space-y-2 text-sm">แถวสุดท้าย<Input aria-label="แถวสุดท้าย" type="number" min="1" value={last} onChange={e => { setLast(e.target.value); resetReview(); }} /></label></div>

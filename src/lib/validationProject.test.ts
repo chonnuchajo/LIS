@@ -4,6 +4,7 @@ import { defaultPreparationLevels, defaultLinearitySettings } from "./validation
 import { readValidationProject } from "./validationProject";
 import { defaultSpecificitySettings, specificitySnapshot, evaluateSpecificity } from "./validationSpecificity";
 import { defaultLinkedMeasurements } from "./validationMeasurements";
+import { defaultProtocolDetails } from "./validationProtocol";
 
 describe("เปิดงาน Validation", () => {
   const project = {
@@ -14,8 +15,13 @@ describe("เปิดงาน Validation", () => {
   };
   it("คืนข้อมูลต้นทางครบและไม่รับผลคำนวณจากไฟล์มาเป็นผลจริง", () => {
     const result = readValidationProject(JSON.stringify({ ...project, checks: [{ pass: true }] }));
-    expect(result).toEqual({ ...project, specificity: defaultSpecificitySettings(), stocks: [], linearity: defaultLinearitySettings(), linkedMeasurements: defaultLinkedMeasurements() });
+    expect(result).toEqual({ ...project, specificity: defaultSpecificitySettings(), stocks: [], linearity: defaultLinearitySettings(), linkedMeasurements: defaultLinkedMeasurements(), protocolDetails: defaultProtocolDetails() });
     expect(result).not.toHaveProperty("checks");
+  });
+  it("บันทึกรายละเอียดวิธีครบและจำกัดขนาดข้อความแต่ละหัวข้อ", () => {
+    const protocolDetails = { ...defaultProtocolDetails(), purpose: "ตรวจสารอื่น", conditions: "HPLC; mobile phase...", matrixBlank: "Matrix A" };
+    expect(readValidationProject(JSON.stringify({ ...project, protocolDetails })).protocolDetails).toEqual(protocolDetails);
+    expect(() => readValidationProject(JSON.stringify({ ...project, protocolDetails: { ...protocolDetails, scope: "x".repeat(10001) } }))).toThrow();
   });
   it("ปฏิเสธไฟล์ผิดเวอร์ชันและแถวซ้ำก่อนเปลี่ยนงาน", () => {
     expect(() => readValidationProject(JSON.stringify({ ...project, version: 99 }))).toThrow();

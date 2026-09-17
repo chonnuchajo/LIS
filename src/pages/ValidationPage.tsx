@@ -23,6 +23,9 @@ import ValidationSpecificity from "@/components/lis/ValidationSpecificity";
 import { defaultSpecificitySettings, evaluateSpecificity } from "@/lib/validationSpecificity";
 import ValidationMeasurements from "@/components/lis/ValidationMeasurements";
 import { defaultLinkedMeasurements, evaluateLinkedMeasurements } from "@/lib/validationMeasurements";
+import ValidationProtocol from "@/components/lis/ValidationProtocol";
+import ValidationAiReview from "@/components/lis/ValidationAiReview";
+import { defaultProtocolDetails, evaluateProtocolDetails, hasProtocolDetails } from "@/lib/validationProtocol";
 
 const names = ["Specificity", "Linearity", "Accuracy & Precision", "Overall Summary"];
 const fmt = (n: number | null | undefined) => n == null || !Number.isFinite(n) ? "—" : n.toLocaleString("en-US", { maximumFractionDigits: 5 });
@@ -45,6 +48,8 @@ export default function ValidationPage() {
   const [inputPrecision, setPrecision] = useState(defaultPrecisionSettings);
   const [inputQc, setQc] = useState(defaultQcSettings);
   const [linkedMeasurements, setLinkedMeasurements] = useState(defaultLinkedMeasurements);
+  const [protocolDetails, setProtocolDetails] = useState(defaultProtocolDetails);
+  const protocolResult = evaluateProtocolDetails(protocolDetails);
   const [reportMeta, setReportMeta] = useState({ analyst: "", reviewer: "", protocol: "WI-06-04-03 rev.04 (ปรับเกณฑ์ตามวิธีที่ใช้)", calibration: "", notes: "" });
   const [notice, setNotice] = useState("");
   const [previewHtml, setPreviewHtml] = useState("");
@@ -59,7 +64,7 @@ export default function ValidationPage() {
   const precision = { ...inputPrecision, dailyData: linked.includes("daily") ? linkedResult.outputs.daily : inputPrecision.dailyData };
   const qc = { ...inputQc, sampleData: linked.includes("sample") ? linkedResult.outputs.sample : inputQc.sampleData, standardData: linked.includes("standard") ? linkedResult.outputs.standard : inputQc.standardData, spikeData: linked.includes("spike") ? linkedResult.outputs.spike : inputQc.spikeData };
   const parsed = texts.map((t, i) => parseMeasurements(t, i === 2 ? 3 : 2));
-  const specificityContext = { standardData: texts[0], analyte, method, protocol: reportMeta.protocol, calibration: reportMeta.calibration, reviewer: reportMeta.reviewer, preparation: JSON.stringify({ prep, preparationLevels, ...(stocks.length ? { stocks } : {}) }) };
+  const specificityContext = { standardData: texts[0], analyte, method, protocol: reportMeta.protocol, calibration: reportMeta.calibration, reviewer: reportMeta.reviewer, preparation: JSON.stringify({ prep, preparationLevels, ...(stocks.length ? { stocks } : {}), ...(hasProtocolDetails(protocolDetails) ? { protocolDetails } : {}) }) };
   const specificityResult = evaluateSpecificity(specificity, specificityContext);
   const { rt, area } = specificityResult;
   const fit = parsed[1].errors.length ? null : regression(parsed[1].rows);
@@ -92,7 +97,7 @@ export default function ValidationPage() {
   });
   const precisionResult = evaluatePrecision(precision, accuracyTargets, texts[2]);
   const qcResult = evaluateQc(qc);
-  const checks: Check[] = [...specificityChecks, ...linearityChecks, ...accuracyChecks, ...precisionResult.checks, ...qcResult.checks];
+  const checks: Check[] = [protocolResult.check, ...specificityChecks, ...linearityChecks, ...accuracyChecks, ...precisionResult.checks, ...qcResult.checks];
   const errors = [...planErrors, ...linkedResult.errors, ...(texts[1] ? linearPreparation.errors : []), ...specificityResult.errors, ...precisionResult.errors, ...qcResult.errors, ...parsed.flatMap((p, i) => i === 0 ? [] : p.errors.map(e => `${names[i]} · ${e}`))];
   if (recoveryPoints.some(p => p.expected <= 0 || !accuracyTargets.includes(p.level))) errors.push("Accuracy: Actual ต้องมากกว่า 0 และระดับเป้าหมายต้องตรงกับแผนเตรียมสาร");
   const invalidAccuracy = errors.some(e => e.startsWith("Accuracy"));
@@ -103,19 +108,19 @@ export default function ValidationPage() {
   const passed = checks.filter(c => c.pass === true).length;
   const failed = checks.filter(c => c.pass === false).length;
   const download = () => {
-    const report = { format: "lis-validation-project", version: 1, title, analyte, method, reportMeta, preparationLevels, stocks, linearity, precision: inputPrecision, qc: inputQc, specificity, prep, texts: inputTexts, blank, linkedMeasurements };
+    const report = { format: "lis-validation-project", version: 1, title, analyte, method, reportMeta, preparationLevels, stocks, linearity, precision: inputPrecision, qc: inputQc, specificity, prep, texts: inputTexts, blank, linkedMeasurements, protocolDetails };
     const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: "application/json;charset=utf-8" }));
     const a = document.createElement("a"); a.href = url; a.download = "validation-project.json"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   const downloadReadableReport = () => {
-    const html = createValidationReport({ title, analyte, method, ...reportMeta, prep, levels: preparationLevels, texts, blank, checks, errors, precision: precisionResult, qc: qcResult, includeQc: qc.enabled, specificity, stocks, linearity, linkedMeasurements });
+    const html = createValidationReport({ title, analyte, method, ...reportMeta, prep, levels: preparationLevels, texts, blank, checks, errors, precision: precisionResult, qc: qcResult, includeQc: qc.enabled, specificity, stocks, linearity, linkedMeasurements, protocolDetails });
     const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url; link.download = "method-validation-report.html"; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setNotice("ดาวน์โหลดรายงาน HTML แล้ว เปิดไฟล์เพื่ออ่านหรือใช้ Ctrl+P บันทึกเป็น PDF");
   };
-  const previewReport = () => setPreviewHtml(createValidationReport({ title, analyte, method, ...reportMeta, prep, levels: preparationLevels, texts, blank, checks, errors, precision: precisionResult, qc: qcResult, includeQc: qc.enabled, specificity, stocks, linearity, linkedMeasurements }));
+  const previewReport = () => setPreviewHtml(createValidationReport({ title, analyte, method, ...reportMeta, prep, levels: preparationLevels, texts, blank, checks, errors, precision: precisionResult, qc: qcResult, includeQc: qc.enabled, specificity, stocks, linearity, linkedMeasurements, protocolDetails }));
   const updateText = (value: string) => setTexts(old => old.map((v, i) => i === Number(tab) ? value : v));
   const templates = [null, preparationTemplate("linearity", preparationLevels, stock, stocks, Number(linearity.minReplicates)), preparationTemplate("accuracy", preparationLevels, stock, stocks, Number(precision.minReplicates))];
   const fillPreparationTemplate = (index: number) => {
@@ -130,7 +135,7 @@ export default function ValidationPage() {
       if (selected.size > 3 * 1024 * 1024) { setNotice("ไฟล์งานต้องไม่เกิน 3 MB"); return; }
       try {
         const project = readValidationProject(await selected.text());
-        setTitle(project.title); setAnalyte(project.analyte); setMethod(project.method);
+        setProtocolDetails(project.protocolDetails); setTitle(project.title); setAnalyte(project.analyte); setMethod(project.method);
         setPrep(project.prep); setTexts(project.texts); setBlank(project.blank); setSpecificity(project.specificity);
         setPreparationLevels(project.preparationLevels); setStocks(project.stocks); setLinearity(project.linearity); setReportMeta(project.reportMeta);
         setPrecision(project.precision); setQc(project.qc); setLinkedMeasurements(project.linkedMeasurements); setPreviewHtml("");
@@ -147,6 +152,8 @@ export default function ValidationPage() {
     <PageHeader title="Validation" description="AI Data & Document Validation Checker · ตรวจข้อมูล คำนวณ และสรุปผลในพื้นที่เดียว" actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => projectFile.current?.click()}>เปิดงาน</Button><Button onClick={previewReport}><FileCheck2 className="mr-2 h-4 w-4" />ออกรายงาน</Button><Button variant="outline" onClick={download}><Download className="mr-2 h-4 w-4" />บันทึกงาน JSON</Button></div>} />
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm"><div className="flex items-center gap-3"><ShieldCheck className="h-8 w-8 text-primary" /><div><h2 className="text-base font-semibold">พื้นที่ตรวจสอบวิธีวิเคราะห์</h2><p className="text-sm text-muted-foreground">{analyte || "ยังไม่ระบุสาร"} · {method || "ยังไม่ระบุวิธี"} · กำหนดช่วงความเข้มข้นในแผนเตรียมสาร</p></div></div><Badge variant="secondary">ฉบับร่าง · รอผู้ทบทวน</Badge></div>
     <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">{[["รายการตรวจ", checks.length], ["Passed", passed], ["Failed", failed], ["รอตรวจสอบ", checks.length - passed - failed]].map(([label, value]) => <Card key={label}><CardContent className="p-4"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p></CardContent></Card>)}</div>
+    <ValidationProtocol value={protocolDetails} onChange={setProtocolDetails} missing={protocolResult.missing} />
+    <ValidationAiReview />
     <details className="rounded-lg border bg-card p-4 shadow-sm"><summary className="cursor-pointer text-base font-semibold">ตั้งค่างานและเตรียมสาร · หัวข้อ 6–7</summary><div className="mt-4 space-y-4"><Panel title="ข้อมูลการเตรียมสาร"><label className="block space-y-2 text-sm">ชื่องาน / เลขที่รายงาน<Input value={title} onChange={e => setTitle(e.target.value)} /></label><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">{["น้ำหนักมาตรฐาน (mg)", "Purity (%)", "ปริมาตร Stock (mL)", "ปริมาตรที่ปิเปต (µL)", "ปริมาตรสุดท้าย (µL)"].map((label, i) => <label className="space-y-2 text-sm" key={label}>{label}<Input type="number" min="0" step="any" value={prep[i]} onChange={e => setPrep(old => old.map((v, n) => n === i ? e.target.value : v))} /></label>)}</div><div className="flex flex-wrap gap-4 rounded-md bg-muted p-3 text-sm"><span>C stock: <strong>{fmt(stock)} mg/mL</strong></span><span>C actual: <strong>{fmt(actual)} mg/mL</strong></span><span className="text-muted-foreground">C stock = น้ำหนัก × Purity/100 ÷ ปริมาตร</span></div><p className="text-sm text-muted-foreground">Stock หลักใช้กับระดับที่เลือก Stock หลักด้านล่าง เพิ่ม Stock แยกสำหรับชุดชั่งอื่น แล้วใช้ปุ่มสร้างแถวจากแผนในแท็บ Linearity/Accuracy บันทึกงาน JSON ก่อนออกจากหน้า แล้วใช้เปิดงานเพื่อกลับมาทำต่อ</p>{!validPrep && prep[0] && prep[1] && <p className="text-sm text-destructive">ตรวจค่าบวกทุกช่อง, Purity ไม่เกิน 100% และปริมาตรที่ปิเปตไม่เกินปริมาตรสุดท้าย</p>}</Panel>
     <Panel title="กำหนดสารและวิธีสำหรับรายงาน">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -181,6 +188,6 @@ export default function ValidationPage() {
     </Tabs>
     {notice && <p role="status" className="text-sm">{notice}</p>}
     {errors.length > 0 && <Panel title="รายการที่ต้องแก้ไข"><ul className="space-y-2 text-sm text-destructive">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></Panel>}
-    <div className="flex items-start gap-3 rounded-lg border bg-card p-4 text-sm text-muted-foreground"><FlaskConical className="h-5 w-5 shrink-0" /><p>ตรวจด้วยสูตรและเกณฑ์ที่ระบุ รองรับ CSV/TSV, Excel .xlsx และ PDF ที่มีข้อความ พร้อมเลือกชีต/หน้าและจับคู่คอลัมน์ การอ่านภาพสแกนด้วย OCR และการวิเคราะห์เอกสารด้วย AI ยังไม่ได้เชื่อมต่อ</p></div>
+    <div className="flex items-start gap-3 rounded-lg border bg-card p-4 text-sm text-muted-foreground"><FlaskConical className="h-5 w-5 shrink-0" /><p>ตรวจด้วยสูตรและเกณฑ์ที่ระบุ รองรับ CSV/TSV, Excel .xlsx และ PDF พร้อมเลือกชีต/หน้าและจับคู่คอลัมน์ AI ช่วยทบทวนข้อความและอ่านภาพ PDF ตามที่เลือกส่ง โดยต้องตรวจเทียบผลก่อนนำไปคำนวณ</p></div>
   </div></AppLayout>;
 }

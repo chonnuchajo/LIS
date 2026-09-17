@@ -2,6 +2,7 @@ import { z } from "zod";
 import { defaultSpecificitySettings } from "./validationSpecificity";
 import { defaultLinearitySettings } from "./validationPreparation";
 import { defaultLinkedMeasurements, measurementKinds } from "./validationMeasurements";
+import { defaultProtocolDetails, protocolFields } from "./validationProtocol";
 
 const text = z.string().max(200000);
 const short = z.string().max(2000);
@@ -10,6 +11,7 @@ const level = z.object({ id: short, purpose: z.enum(["linearity", "accuracy", "s
 export const validationProjectSchema = z.object({
   format: z.literal("lis-validation-project"), version: z.literal(1),
   title: short, analyte: short, method: short,
+  protocolDetails: z.object(Object.fromEntries(protocolFields.map(([key]) => [key, z.string().max(10000)])) as Record<keyof ReturnType<typeof defaultProtocolDetails>, z.ZodString>).default(defaultProtocolDetails),
   prep: z.array(numericText).length(5), texts: z.array(text).length(3), blank: numericText,
   preparationLevels: z.array(level).max(100),
   stocks: z.array(z.object({ id: short.min(1), name: short, weight: numericText, purity: numericText, volume: numericText, certificate: short, preparedOn: short })).max(100).default([]),
