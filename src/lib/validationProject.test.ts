@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultPrecisionSettings, defaultQcSettings } from "./validationAdvanced";
-import { defaultPreparationLevels } from "./validationPreparation";
+import { defaultPreparationLevels, defaultLinearitySettings } from "./validationPreparation";
 import { readValidationProject } from "./validationProject";
 import { defaultSpecificitySettings, specificitySnapshot, evaluateSpecificity } from "./validationSpecificity";
 
@@ -13,7 +13,7 @@ describe("เปิดงาน Validation", () => {
   };
   it("คืนข้อมูลต้นทางครบและไม่รับผลคำนวณจากไฟล์มาเป็นผลจริง", () => {
     const result = readValidationProject(JSON.stringify({ ...project, checks: [{ pass: true }] }));
-    expect(result).toEqual({ ...project, specificity: defaultSpecificitySettings() });
+    expect(result).toEqual({ ...project, specificity: defaultSpecificitySettings(), stocks: [], linearity: defaultLinearitySettings() });
     expect(result).not.toHaveProperty("checks");
   });
   it("ปฏิเสธไฟล์ผิดเวอร์ชันและแถวซ้ำก่อนเปลี่ยนงาน", () => {
@@ -33,5 +33,12 @@ describe("เปิดงาน Validation", () => {
     const specificity = { ...settings, reviewedAt: "2026-09-17T00:00:00Z", reviewedSnapshot: specificitySnapshot(settings, context) };
     const loaded = readValidationProject(JSON.stringify({ ...source, specificity }));
     expect(evaluateSpecificity(loaded.specificity, { ...context, preparation: JSON.stringify({ prep: loaded.prep, preparationLevels: loaded.preparationLevels }) }).current).toBe(true);
+  });
+  it("ไม่ยอมรับ Stock ID ซ้ำหรือแผนอ้างอิง Stock ที่ไม่มีอยู่", () => {
+    const stock = { id: "S-1", name: "Stock 2", weight: "50", purity: "99", volume: "25", certificate: "COA", preparedOn: "" };
+    expect(() => readValidationProject(JSON.stringify({ ...project, stocks: [stock, stock] }))).toThrow();
+    expect(() => readValidationProject(JSON.stringify({ ...project, preparationLevels: [{ ...project.preparationLevels[0], stockId: "missing" }] }))).toThrow();
+    const linked = { ...project, stocks: [stock], preparationLevels: [{ ...project.preparationLevels[0], stockId: "S-1" }] };
+    expect(readValidationProject(JSON.stringify(linked)).preparationLevels[0].stockId).toBe("S-1");
   });
 });

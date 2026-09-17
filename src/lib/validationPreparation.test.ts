@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { dilution, stockConcentration } from "./validationPreparation";
+import { dilution, stockConcentration, preparationResult, preparationTemplate, checkLinearityPreparation, defaultPreparationLevels, defaultLinearitySettings } from "./validationPreparation";
+import { parseMeasurements } from "./validationCalculator";
 
 describe("การเตรียมสารสำหรับหัวข้อ 6 และ 7", () => {
   it("คำนวณความเข้มข้นจริงจากรายงานโดยไม่แทนด้วย Target", () => {
@@ -19,5 +20,36 @@ describe("การเตรียมสารสำหรับหัวข้�
     expect(stockConcentration(50, 101, 25)).toBeNull();
     expect(dilution({ stockMgMl: 1, target: 2, unit: "mg/mL", finalUl: 1000, actualAliquotUl: 100, matrixUl: 0 })).toBeNull();
     expect(dilution({ stockMgMl: 1, target: 0.5, unit: "mg/mL", finalUl: 1000, actualAliquotUl: 999, matrixUl: 4 })).toBeNull();
+  });
+  it("เลือก Stock ตามรหัสและไม่ใช้ Stock หลักแทนรหัสที่หายไป", () => {
+    const level = { ...defaultPreparationLevels()[2], stockId: "S2" };
+    const stocks = [{ id: "S2", name: "Accuracy", weight: "54.25", purity: "92.7", volume: "25", certificate: "COA", preparedOn: "" }];
+    expect(preparationResult(level, 2, stocks)?.actual).toBeCloseTo(0.5028975, 8);
+    expect(preparationResult(level, 2, [])).toBeNull();
+    expect(preparationResult({ ...level, stockId: "" }, 2, stocks)?.actual).toBe(0.5);
+  });
+  it("สร้าง Actual เต็มทศนิยมและเว้นผลวัด ไม่สร้างค่าผ่านจำลอง", () => {
+    const data = preparationTemplate("accuracy", defaultPreparationLevels(), 2.01159, [], 10)!;
+    expect(data.split("\n")).toHaveLength(30);
+    expect(data).toContain("0.5\t0.5028975\t");
+    expect(parseMeasurements(data, 3).rows).toHaveLength(0);
+    expect(parseMeasurements(data, 3).errors).toHaveLength(30);
+    expect(preparationTemplate("linearity", defaultPreparationLevels(), null, [], 3)).toBeNull();
+  });
+  it("ไม่ผ่านเมื่อจำนวนระดับครบแต่ Actual ไม่ตรงกับแผน", () => {
+    const levels = defaultPreparationLevels();
+    const rows = [0.1, 0.25, 0.5, 0.75, 1].flatMap(x => [[x, x * 250], [x, x * 250], [x, x * 250]]);
+    expect(checkLinearityPreparation(rows, levels, 2, [], defaultLinearitySettings()).ready).toBe(true);
+    const changedStock = checkLinearityPreparation(rows, levels, 2.01159, [], defaultLinearitySettings());
+    expect(changedStock.ready).toBe(false);
+    expect(changedStock.errors).toHaveLength(15);
+  });
+  it("รวมแถวที่ปัดเศษภายใน tolerance และปฏิเสธช่วงระดับทับกัน", () => {
+    const levels = defaultPreparationLevels();
+    const rows = [0.1, 0.25, 0.5, 0.75, 1].flatMap(x => [[x, 100], [x + 0.0000001, 101], [x - 0.0000001, 99]]);
+    const result = checkLinearityPreparation(rows, levels, 2, [], defaultLinearitySettings());
+    expect(result.ready).toBe(true);
+    expect(result.groups.map(group => group.length)).toEqual([3, 3, 3, 3, 3]);
+    expect(checkLinearityPreparation(rows, levels, 2, [], { ...defaultLinearitySettings(), concentrationTolerance: "0.2" }).ready).toBe(false);
   });
 });

@@ -1,15 +1,18 @@
 import { z } from "zod";
 import { defaultSpecificitySettings } from "./validationSpecificity";
+import { defaultLinearitySettings } from "./validationPreparation";
 
 const text = z.string().max(200000);
 const short = z.string().max(2000);
 const numericText = z.string().max(40);
-const level = z.object({ id: short, purpose: z.enum(["linearity", "accuracy", "suitability", "qc"]), target: numericText, aliquot: numericText, finalVolume: numericText, matrix: numericText, recoveryLow: numericText, recoveryHigh: numericText });
+const level = z.object({ id: short, purpose: z.enum(["linearity", "accuracy", "suitability", "qc"]), target: numericText, aliquot: numericText, finalVolume: numericText, matrix: numericText, recoveryLow: numericText, recoveryHigh: numericText, stockId: short.optional() });
 export const validationProjectSchema = z.object({
   format: z.literal("lis-validation-project"), version: z.literal(1),
   title: short, analyte: short, method: short,
   prep: z.array(numericText).length(5), texts: z.array(text).length(3), blank: numericText,
   preparationLevels: z.array(level).max(100),
+  stocks: z.array(z.object({ id: short.min(1), name: short, weight: numericText, purity: numericText, volume: numericText, certificate: short, preparedOn: short })).max(100).default([]),
+  linearity: z.object({ minReplicates: numericText, r2Min: numericText, areaRsdMax: numericText, concentrationTolerance: numericText }).default(defaultLinearitySettings),
   specificity: z.object({
     blankData: text, minStandards: numericText, minBlanks: numericText,
     rtLimit: numericText, areaLimit: numericText, blankLimit: numericText,
@@ -29,5 +32,7 @@ export type ValidationProject = RequiredFields<z.infer<typeof validationProjectS
 export function readValidationProject(source: string) {
   const project = validationProjectSchema.parse(JSON.parse(source));
   if (new Set(project.preparationLevels.map(l => l.id)).size !== project.preparationLevels.length) throw new Error("รหัสระดับซ้ำกัน");
+  if (new Set(project.stocks.map(stock => stock.id)).size !== project.stocks.length) throw new Error("รหัส Stock ซ้ำกัน");
+  if (project.preparationLevels.some(level => level.stockId && !project.stocks.some(stock => stock.id === level.stockId))) throw new Error("ไม่พบ Stock ที่แผนเตรียมสารอ้างอิง");
   return project as ValidationProject;
 }
