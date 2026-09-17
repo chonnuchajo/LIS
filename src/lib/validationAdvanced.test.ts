@@ -2,6 +2,17 @@ import { describe, expect, it } from "vitest";
 import { defaultPrecisionSettings, defaultQcSettings, duplicateDifference, evaluatePrecision, evaluateQc } from "./validationAdvanced";
 
 describe("ผล Precision และ QC", () => {
+  it("เก็บข้อมูล QC ต้นทางและปฏิเสธผลล้นช่วงตัวเลข", () => {
+    const settings = { ...defaultQcSettings(), enabled: true, standardData: "1e308,1e-100\ninvalid", spikeData: "0.1,0.2,0.1", sampleData: "1,1e308,100,1,1" };
+    const result = evaluateQc(settings);
+    expect(result.rawInputs.standard).toBe(settings.standardData);
+    expect(result.standardRows).toEqual([[1e308,1e-100]]);
+    expect(result.standardRecoveries).toEqual([null]);
+    expect(result.spikeRecoveries).toEqual([null]);
+    expect(result.sampleResults[0].ww).toBeNull();
+    expect(result.checks.every(check => check.pass === null)).toBe(true);
+    expect(duplicateDifference(1e308, 5e307)).toBeCloseTo(200 / 3);
+  });
   it("ใช้ข้อมูลรายวันจริงและไม่ผ่านเมื่อฐาน C ยังไม่ระบุ", () => {
     const settings = { ...defaultPrecisionSettings(), minDays: "2", minReplicates: "2", dailyData: "1,0.5,0.5,0.495\n1,0.5,0.5,0.505\n2,0.5,0.5,0.505\n2,0.5,0.5,0.515" };
     const pending = evaluatePrecision(settings, [0.5], "0.5,0.5,0.495\n0.5,0.5,0.505");

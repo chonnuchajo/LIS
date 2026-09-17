@@ -6,6 +6,14 @@ import type { LinkedMeasurements } from "./validationMeasurements";
 import { defaultPreparationLevels, changePreparationUnit } from "./validationPreparation";
 
 describe("รายงาน Validation", () => {
+  it("แสดง Actual และ Added ของ QC พร้อมเก็บแถวผิดรูปแบบในภาคผนวก", () => {
+    const qc = evaluateQc({ ...defaultQcSettings(), enabled: true, standardData: "0.505,0.5028975\n<invalid>", spikeData: "0.515,0.302,0.201159" });
+    const html = createValidationReport({ title: "QC", analyte: "Test", method: "GC", analyst: "A", reviewer: "B", protocol: "SOP", calibration: "CAL", notes: "", prep: ["50", "100", "25"], levels: [], texts: ["", "", ""], blank: "", checks: qc.checks, errors: qc.errors, precision: evaluatePrecision(defaultPrecisionSettings(), [], ""), qc, includeQc: true });
+    expect(html).toContain("<td>0.505</td><td>0.5028975</td>");
+    expect(html).toContain("<td>0.515</td><td>0.302</td><td>0.201159</td>");
+    expect(html).toContain("0.505,0.5028975\n&lt;invalid&gt;");
+    expect(html).not.toContain("<invalid>");
+  });
   it("แสดงหน่วย Target ต้นทางและใช้ mg/mL ในตาราง Linearity", () => {
     const levels = [changePreparationUnit(defaultPreparationLevels()[2], "µg/mL")!];
     const html = createValidationReport({ title: "Report", analyte: "Test", method: "GC", analyst: "A", reviewer: "B", protocol: "SOP", calibration: "CAL", notes: "", prep: ["50", "100", "25"], levels, texts: ["", "0.5,125\n0.5,125\n0.5,125", ""], blank: "", checks: [], errors: [], precision: evaluatePrecision(defaultPrecisionSettings(), [], ""), qc: evaluateQc(defaultQcSettings()), includeQc: false });

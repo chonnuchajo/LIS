@@ -71,7 +71,8 @@ export type QcSettings = {
 export const defaultQcSettings = (): QcSettings => ({ enabled: false, sampleData: "", standardData: "", spikeData: "", recoveryLow: "90", recoveryHigh: "107", differenceLimit: "5", productLow: "", productHigh: "", productUnit: "ww" });
 
 export function duplicateDifference(a: number, b: number) {
-  return [a, b].every(v => Number.isFinite(v) && v >= 0) && a + b > 0 ? Math.abs(a - b) / ((a + b) / 2) * 100 : null;
+  const mean = a / 2 + b / 2;
+  return [a, b].every(v => Number.isFinite(v) && v >= 0) && mean > 0 ? Math.abs(a - b) / mean * 100 : null;
 }
 
 export function evaluateQc(settings: QcSettings) {
@@ -83,18 +84,24 @@ export function evaluateQc(settings: QcSettings) {
   if (!low || !high || low >= high || !limit) errors.push("QC: ตรวจเกณฑ์ Recovery และ %Difference");
   const productLow = positiveNumber(settings.productLow), productHigh = positiveNumber(settings.productHigh);
   const sampleResults = samples.rows.map(([weight, concentration, volume, df, density], i) => {
-    const ww = weight > 0 && volume > 0 && df >= 1 ? concentration * volume * df * 100 / weight : null;
-    const wv = ww != null && density > 0 ? ww * density : null;
+    const rawWw = weight > 0 && volume > 0 && df >= 1 ? concentration * volume * df * 100 / weight : NaN;
+    const ww = Number.isFinite(rawWw) ? rawWw : null;
+    const rawWv = ww != null && density > 0 ? ww * density : NaN;
+    const wv = Number.isFinite(rawWv) ? rawWv : null;
     if (ww == null || (settings.productUnit === "wv" && wv == null)) errors.push(`Sample ${i + 1}: น้ำหนัก/ปริมาตรต้องมากกว่า 0, DF ≥ 1 และต้องมี density เมื่อใช้ %w/v`);
     return { sample: i + 1, weight, concentration, volume, df, density, ww, wv };
   });
   const standardRecoveries = standards.rows.map(([found, expected], i) => {
     if (expected <= 0) errors.push(`Standard QC ${i + 1}: Actual ต้องมากกว่า 0`);
-    return expected > 0 ? found / expected * 100 : null;
+    const recovery = expected > 0 ? found / expected * 100 : NaN;
+    if (!Number.isFinite(recovery) && expected > 0) errors.push(`Standard QC ${i + 1}: ผลคำนวณเกินช่วงตัวเลขที่รองรับ`);
+    return Number.isFinite(recovery) ? recovery : null;
   });
   const spikeRecoveries = spikes.rows.map(([found, unspiked, added], i) => {
     if (added <= 0 || found < unspiked) errors.push(`Matrix spike ${i + 1}: Added ต้องมากกว่า 0 และ Found ต้องไม่น้อยกว่า unspiked`);
-    return added > 0 ? (found - unspiked) / added * 100 : null;
+    const recovery = added > 0 && found >= unspiked ? (found - unspiked) / added * 100 : NaN;
+    if (!Number.isFinite(recovery) && added > 0 && found >= unspiked) errors.push(`Matrix spike ${i + 1}: ผลคำนวณเกินช่วงตัวเลขที่รองรับ`);
+    return Number.isFinite(recovery) ? recovery : null;
   });
   const checks: ValidationCheck[] = sampleResults.map(sample => {
     const value = settings.productUnit === "ww" ? sample.ww : sample.wv;
@@ -108,5 +115,7 @@ export function evaluateQc(settings: QcSettings) {
     checks.push({ name: `${name} %Difference`, value: formatValidationNumber(difference), criteria: `≤ ${settings.differenceLimit}%`, pass: ready && difference != null && limit != null ? difference <= limit : null });
   }
   if (errors.length) checks.forEach(c => { c.pass = null; });
-  return { checks: settings.enabled ? checks : [], errors: settings.enabled ? errors : [], sampleResults, standardRecoveries, spikeRecoveries };
+  return { checks: settings.enabled ? checks : [], errors: settings.enabled ? errors : [], sampleResults, standardRecoveries, spikeRecoveries,
+    standardRows: standards.rows, spikeRows: spikes.rows,
+    rawInputs: { sample: settings.sampleData, standard: settings.standardData, spike: settings.spikeData } };
 }
