@@ -1,7 +1,7 @@
 export type AppThemePreference = "light" | "dark";
 export type AppLanguagePreference = "th" | "en";
 export type AppFontFamilyPreference = "kanit" | "sarabun" | "system";
-export type AppFontSizePreference = "small" | "normal" | "large";
+export type AppFontSizePreference = "15px" | "16px" | "17px";
 export type NotificationSoundPreference = "sampleArrival" | "labAssigned" | "queueNew" | "timerDone";
 
 export interface AppPreferences {
@@ -26,7 +26,7 @@ export const DEFAULT_APP_PREFERENCES: AppPreferences = {
   theme: "light",
   language: "th",
   fontFamily: "kanit",
-  fontSize: "normal",
+  fontSize: "16px",
   soundEnabled: true,
   notificationSounds: {
     sampleArrival: true,
@@ -39,7 +39,12 @@ export const DEFAULT_APP_PREFERENCES: AppPreferences = {
 const THEMES: AppThemePreference[] = ["light", "dark"];
 const LANGUAGES: AppLanguagePreference[] = ["th", "en"];
 const FONT_FAMILIES: AppFontFamilyPreference[] = ["kanit", "sarabun", "system"];
-const FONT_SIZES: AppFontSizePreference[] = ["small", "normal", "large"];
+const FONT_SIZES: AppFontSizePreference[] = ["15px", "16px", "17px"];
+const LEGACY_FONT_SIZE_VALUES: Record<string, AppFontSizePreference> = {
+  small: "15px",
+  normal: "16px",
+  large: "17px",
+};
 
 const FONT_FAMILY_VALUES: Record<AppFontFamilyPreference, string> = {
   kanit: "'Kanit', sans-serif",
@@ -47,17 +52,17 @@ const FONT_FAMILY_VALUES: Record<AppFontFamilyPreference, string> = {
   system: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
 };
 
-const FONT_SIZE_VALUES: Record<AppFontSizePreference, string> = {
-  small: "15px",
-  normal: "16px",
-  large: "17px",
-};
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 const pick = <T extends string>(value: unknown, allowed: T[], fallback: T): T =>
   typeof value === "string" && allowed.includes(value as T) ? (value as T) : fallback;
+
+const normalizeFontSize = (value: unknown): AppFontSizePreference => {
+  if (typeof value !== "string") return DEFAULT_APP_PREFERENCES.fontSize;
+  if (FONT_SIZES.includes(value as AppFontSizePreference)) return value as AppFontSizePreference;
+  return LEGACY_FONT_SIZE_VALUES[value] ?? DEFAULT_APP_PREFERENCES.fontSize;
+};
 
 export function normalizeAppPreferences(value: unknown): AppPreferences {
   const raw = isRecord(value) ? value : {};
@@ -67,7 +72,7 @@ export function normalizeAppPreferences(value: unknown): AppPreferences {
     theme: pick(raw.theme, THEMES, DEFAULT_APP_PREFERENCES.theme),
     language: pick(raw.language, LANGUAGES, DEFAULT_APP_PREFERENCES.language),
     fontFamily: pick(raw.fontFamily, FONT_FAMILIES, DEFAULT_APP_PREFERENCES.fontFamily),
-    fontSize: pick(raw.fontSize, FONT_SIZES, DEFAULT_APP_PREFERENCES.fontSize),
+    fontSize: normalizeFontSize(raw.fontSize),
     soundEnabled: typeof raw.soundEnabled === "boolean" ? raw.soundEnabled : DEFAULT_APP_PREFERENCES.soundEnabled,
     notificationSounds: NOTIFICATION_SOUND_KEYS.reduce(
       (sounds, key) => ({
@@ -104,7 +109,7 @@ export function applyAppPreferences(preferences: AppPreferences) {
   root.classList.toggle("dark", normalized.theme === "dark");
   root.lang = normalized.language;
   root.style.setProperty("--lis-font-family", FONT_FAMILY_VALUES[normalized.fontFamily]);
-  root.style.fontSize = FONT_SIZE_VALUES[normalized.fontSize];
+  root.style.fontSize = normalized.fontSize;
 }
 
 export function isNotificationSoundEnabled(sound: NotificationSoundPreference) {

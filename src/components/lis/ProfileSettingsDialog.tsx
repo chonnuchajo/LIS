@@ -153,9 +153,9 @@ const ProfileSettingsDialog = ({
                   value={preferences.fontSize}
                   onChange={(event) => setPreference("fontSize", event.target.value as AppFontSizePreference)}
                 >
-                  <option value="small">เล็ก</option>
-                  <option value="normal">ปกติ</option>
-                  <option value="large">ใหญ่</option>
+                  <option value="15px">15 px</option>
+                  <option value="16px">16 px</option>
+                  <option value="17px">17 px</option>
                 </select>
               </label>
             </div>

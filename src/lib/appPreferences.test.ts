@@ -23,7 +23,7 @@ describe("appPreferences", () => {
     applyAppPreferences({
       ...DEFAULT_APP_PREFERENCES,
       fontFamily: "sarabun",
-      fontSize: "large",
+      fontSize: "17px",
       language: "en",
       theme: "dark",
     });
@@ -32,6 +32,14 @@ describe("appPreferences", () => {
     expect(document.documentElement.lang).toBe("en");
     expect(document.documentElement.style.getPropertyValue("--lis-font-family")).toContain("Sarabun");
     expect(document.documentElement.style.fontSize).toBe("17px");
+  });
+
+  it("migrates old text font sizes to pixel values", () => {
+    expect(readAppPreferences()).toEqual(DEFAULT_APP_PREFERENCES);
+
+    localStorage.setItem("lis.appPreferences.v1", JSON.stringify({ fontSize: "large" }));
+
+    expect(readAppPreferences().fontSize).toBe("17px");
   });
 
   it("respects global and per-sound notification settings", () => {
