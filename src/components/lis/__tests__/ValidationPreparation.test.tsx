@@ -11,15 +11,14 @@ function Fixture() {
 describe("หน่วยในแผนเตรียมสาร", () => {
   it("แปลงหน่วยและคำนวณปิเปตตาม Target แบบเรียลไทม์", () => {
     render(<Fixture />);
-    fireEvent.change(screen.getByLabelText("หน่วย Target ระดับ 1"), { target: { value: "µg/mL" } });
-    expect(screen.getByLabelText("target ระดับ 1")).toHaveValue(500);
+    expect(screen.queryByLabelText("หน่วย Target ระดับ 1")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("target ระดับ 1")).toHaveValue(0.5);
     expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveTextContent("248.6");
-    fireEvent.change(screen.getByLabelText("target ระดับ 1"), { target: { value: "400" } });
+    fireEvent.change(screen.getByLabelText("target ระดับ 1"), { target: { value: "0.4" } });
     expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveTextContent("198.8");
-    fireEvent.change(screen.getByLabelText("finalVolume ระดับ 1"), {target:{value:"2000"}});
+    fireEvent.change(screen.getByLabelText("Final volume matrix"), {target:{value:"2000"}});
     expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveTextContent("397.7");
-    fireEvent.change(screen.getByLabelText("หน่วย Target ระดับ 1"), { target: { value: "mg/mL" } });
-    expect(screen.getByLabelText("target ระดับ 1")).toHaveValue(0.4);
+    expect(screen.getByLabelText("finalVolume ระดับ 1")).toHaveTextContent("2000");
   });
 });
 
@@ -43,7 +42,7 @@ it("updates Matrix and Solvent when percent changes and final volume scales", ()
  expect(screen.getByLabelText("matrix ระดับ 1")).toHaveValue(4);
  fireEvent.change(screen.getByLabelText("%ยา", {exact:true}),{target:{value:"10"}});
  expect(screen.getByLabelText("matrix ระดับ 1")).toHaveValue(10);
- fireEvent.change(screen.getByLabelText("finalVolume ระดับ 1"),{target:{value:"2000"}});
+ fireEvent.change(screen.getByLabelText("Final volume matrix"),{target:{value:"2000"}});
  expect(screen.getByLabelText("matrix ระดับ 1")).toHaveValue(20);
  fireEvent.change(screen.getByLabelText("ฐาน %ยา"),{target:{value:"wv"}});
  expect(screen.getByLabelText("matrix ระดับ 1")).toHaveValue(null);

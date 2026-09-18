@@ -5,7 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/select";
-import { calculatedMatrixVolume, preparationKind, preparationPlan, preparationResult, targetConcentration, changePreparationUnit, type ConcentrationUnit, type PreparationLevel, type ValidationStock } from "@/lib/validationPreparation";
+import { calculatedMatrixVolume, preparationKind, preparationPlan, preparationResult, targetConcentration, type PreparationLevel, type ValidationStock } from "@/lib/validationPreparation";
 
 export default function ValidationPreparation({ stock, stocks, levels, onChange, analyte, method }: {
   analyte: string;
@@ -17,7 +17,6 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
 }) {
   const [worksheet, setWorksheet] = useState("");
   const printFrame = useRef<HTMLIFrameElement>(null);
-  const [unitError, setUnitError] = useState("");
   useEffect(() => {
     const next = levels.map(row => {
       const calculated = row.matrixCalculation ? calculatedMatrixVolume(row.matrixCalculation, row.finalVolume) : null;
@@ -45,10 +44,11 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
     <p className="text-sm text-muted-foreground">ปริมาตรปิเปตคำนวณจากแผนแบบเรียลไทม์เมื่อเปลี่ยน Stock, Target หรือ Final volume แสดงทศนิยม 1 ตำแหน่ง · กรอก Target (mg/mL) และ Final volume (µL; 1 mL = 1,000 µL) เพื่อดูปริมาตร Stock และ Solvent ตามแผนทันที โดยยังไม่ต้องกรอกปิเปตจริง</p>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h3 className="text-base font-semibold">ตารางคำนวณการเตรียมสาร</h3>
-        <p className="mt-1 text-sm text-muted-foreground">เลือกหน่วย Target แยกแต่ละระดับได้ · เมื่อเปลี่ยนหน่วย ระบบแปลงตัวเลขเพื่อคงความเข้มข้นเดิม ส่วน Actual และตารางผลวัดใช้ mg/mL</p></div>
+        <p className="mt-1 text-sm text-muted-foreground">Target และ Actual ใช้หน่วย mg/mL · ปริมาตร Stock และ Solvent คำนวณอัตโนมัติ</p></div>
     </div>
     {(["std", "matrix"] as const).map(kind => <section key={kind} className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="text-base font-semibold">{kind === "std" ? "1. เตรียมสารมาตรฐาน (STD)" : "2. เตรียมสารที่เติม Matrix · 3 ระดับ ต่ำ–กลาง–สูง"}</h4><Button variant="outline" disabled={levels.filter(row => preparationKind(row) === kind).length >= (kind === "std" ? 5 : 3)} onClick={() => onChange([...levels, { id: crypto.randomUUID(), preparationKind: kind, matrixCalculation: kind === "matrix" ? matrixConfig : undefined, purpose: kind === "std" ? "linearity" : "accuracy", target: "", aliquot: "", finalVolume: "1000", matrix: "0", recoveryLow: "90", recoveryHigh: "107" }])}><Plus className="mr-2 h-4 w-4" />{kind === "std" ? "เพิ่ม STD" : "เพิ่มสารที่เติม Matrix"}</Button></div>
+    <label className="flex flex-wrap items-center gap-2 text-sm">กำหนด Final volume สำหรับ {kind === "std" ? "STD" : "Matrix"} (µL)<Input className="h-9 w-28 text-right" aria-label={`Final volume ${kind}`} type="number" min="0" step="any" value={levels.filter(row => preparationKind(row) === kind).every((row,_,all) => row.finalVolume === all[0]?.finalVolume) ? levels.find(row => preparationKind(row) === kind)?.finalVolume ?? "" : ""} placeholder="หลายค่า" onChange={e => onChange(levels.map(row => preparationKind(row) === kind ? { ...row, finalVolume: e.target.value } : row))} /></label>
     {kind === "matrix" && <div className="space-y-3 rounded-lg border bg-card p-4">
       <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={!!matrixConfig} onChange={e => updateMatrixConfig(e.target.checked ? { percent: "25", basis: "ww", reference: "1", density: "1", sampleDensity: "" } : undefined)} />คำนวณ Matrix จาก %ยา ตามข้อ 6.5.2</label>
       {matrixConfig && <><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -60,28 +60,23 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
       </div><p className="text-sm text-muted-foreground">Matrix (µL) = ระดับอ้างอิง × Final volume (mL) ÷ สัดส่วนยาโดยน้ำหนัก ÷ ความหนาแน่น Matrix · ใช้ระดับอ้างอิงเดียวกันทุกแถว ไม่ใช้ Target แต่ละแถว</p><p className="text-sm text-muted-foreground">ตัวอย่าง 25%w/w ระดับอ้างอิง 1 mg/mL, Final volume 1 mL และความหนาแน่น Matrix 1 mg/µL ได้ Matrix 4 µL · ค่า 1 เป็นสมมติฐานในรายงาน เปลี่ยนเป็นค่าที่ทราบจริง หากฉลากเป็น %w/v ต้องกรอกความหนาแน่นตัวอย่างด้วย</p></>}
     </div>}
     <div className="overflow-x-auto rounded-lg border bg-card shadow-sm">
-      <table className="w-full text-sm [&_td]:align-top [&_td]:px-3 [&_td]:py-4"><thead className="bg-muted text-muted-foreground"><tr>{["Stock ที่ใช้", "Target และหน่วย", "C stock (mg/mL)", "Stock (µL)", "Solvent (µL)", ...(kind === "matrix" ? ["Matrix (µL)"] : []), "Actual (mg/mL)", ""].map((h, i) => <th key={i} className={`p-3 align-bottom font-medium ${i >= 2 ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
+      <table className="w-full text-sm [&_td]:align-top [&_td]:px-3 [&_td]:py-4"><thead className="bg-muted text-muted-foreground"><tr>{["Stock ที่ใช้", "Target (mg/mL)", "C stock (mg/mL)", "Stock (µL)", "Solvent (µL)", ...(kind === "matrix" ? ["Matrix (µL)"] : []), "Actual (mg/mL)", ""].map((h, i) => <th key={i} className={`p-3 align-bottom font-medium ${i >= 2 ? "text-right" : "text-left"}`}>{h}</th>)}</tr></thead>
         <tbody className="divide-y">{levels.map((row, i) => ({ row, i })).filter(({ row }) => preparationKind(row) === kind).sort((a,b) => kind === "matrix" ? (targetConcentration(a.row) ?? Infinity) - (targetConcentration(b.row) ?? Infinity) : a.i-b.i).map(({ row, i }, rank) => {
           const result = preparationResult(row, stock, stocks);
           const plan = preparationPlan(row, stock, stocks);
           return <tr key={row.id} className="hover:bg-accent">
             <td className="w-40 min-w-40 max-w-40 p-2"><NativeSelect className="w-full min-w-0" aria-label={`Stock ระดับ ${i + 1}`} value={row.stockId ?? ""} onChange={e => update(row.id, "stockId", e.target.value)}><option value="">Stock หลัก</option>{stocks.map(source => <option key={source.id} value={source.id}>{source.name || source.id}</option>)}</NativeSelect><p className="mt-2 whitespace-normal break-words text-xs text-muted-foreground">{row.stockId ? stocks.find(source => source.id === row.stockId)?.name || row.stockId : "Stock หลัก"}</p></td>
-            <td className="w-44 min-w-44 max-w-44 space-y-2 p-2">{kind === "matrix" && <p className="text-xs font-medium">{["ต่ำ (Low)", "กลาง (Mid)", "สูง (High)"][rank] ?? "ระดับเกินแผน"}</p>}<Input className="h-9 w-full min-w-0 text-right tabular-nums" aria-label={`target ระดับ ${i + 1}`} type="number" min="0" step="any" value={row.target} onChange={e => update(row.id, "target", e.target.value)} /><NativeSelect className="h-9 w-full min-w-0" aria-label={`หน่วย Target ระดับ ${i + 1}`} value={row.targetUnit ?? "mg/mL"} onChange={e => {
-              const converted = changePreparationUnit(row, e.target.value as ConcentrationUnit);
-              if (!converted) { setUnitError(`ระดับ ${i + 1}: แปลงหน่วยไม่ได้ กรุณาตรวจค่า Target ให้อยู่ในช่วงคำนวณ`); return; }
-              setUnitError(""); onChange(levels.map(level => level.id === row.id ? converted : level));
-            }}>{["mg/mL", "µg/mL", "mg/L"].map(unit => <option key={unit}>{unit}</option>)}</NativeSelect>{row.targetUnit && row.targetUnit !== "mg/mL" && <p className="text-xs text-muted-foreground">= {targetConcentration(row) ?? "—"} mg/mL</p>}<label className="block space-y-1 text-xs text-muted-foreground">Final volume (µL)<Input className="h-8 w-24 shrink-0 text-right text-xs" aria-label={`finalVolume ระดับ ${i + 1}`} type="number" min="0" step="any" value={row.finalVolume} onChange={e => update(row.id, "finalVolume", e.target.value)} /></label></td>
+            <td className="w-40 min-w-40 max-w-40 space-y-2 p-2">{kind === "matrix" && <p className="text-xs font-medium">{["ต่ำ (Low)", "กลาง (Mid)", "สูง (High)"][rank] ?? "ระดับเกินแผน"}</p>}<Input className="h-9 w-full min-w-0 text-right tabular-nums" aria-label={`target ระดับ ${i + 1}`} type="number" min="0" step="any" value={row.targetUnit && row.targetUnit !== "mg/mL" ? targetConcentration(row) ?? "" : row.target} onChange={e => onChange(levels.map(level => level.id === row.id ? { ...level, target: e.target.value, targetUnit: "mg/mL" } : level))} /><p className="text-xs text-muted-foreground">Final volume (µL): <output aria-label={`finalVolume ระดับ ${i + 1}`} className="font-medium tabular-nums text-foreground">{row.finalVolume || "—"}</output></p></td>
             <td className="min-w-32 p-2 text-right tabular-nums">{plan?.stock.toLocaleString("en-US", { maximumFractionDigits: 6 }) ?? "—"}</td>
             <td className="min-w-28 p-2 text-right font-semibold tabular-nums"><output aria-label={`aliquot ระดับ ${i + 1}`}>{plan?.aliquotUl.toFixed(1) ?? "—"}</output></td>
             <td className="min-w-32 p-2 text-right tabular-nums">{plan ? plan.solventUl.toFixed(1) : <span className="text-destructive">ตรวจ Stock, Target, Final volume และ Matrix</span>}</td>
             {kind === "matrix" && <td className="min-w-28 p-2"><Input aria-label={`matrix ระดับ ${i + 1}`} readOnly={!!row.matrixCalculation} type="number" min="0" step="any" value={row.matrix} onChange={e => update(row.id, "matrix", e.target.value)} /></td>}
-            <td className="min-w-32 p-2 text-right tabular-nums"><strong>{result?.actual.toLocaleString("en-US", { maximumFractionDigits: 6 }) ?? "—"}</strong>{stock != null && !result && <p className="text-xs text-destructive">ตรวจค่าและปริมาตรรวม</p>}</td>
+            <td className="min-w-32 p-2 text-right tabular-nums"><strong>{result?.actual.toLocaleString("en-US", { minimumFractionDigits: 5, maximumFractionDigits: 5 }) ?? "—"}</strong>{stock != null && !result && <p className="text-xs text-destructive">ตรวจค่าและปริมาตรรวม</p>}</td>
             <td className="p-2"><Button variant="ghost" size="icon" aria-label={`ลบระดับ ${i + 1}`} onClick={() => onChange(levels.filter(l => l.id !== row.id))}><Trash2 className="h-4 w-4" /></Button></td></tr>;
         })}</tbody>
       </table>
     </div>
     </section>)}
-    {unitError && <p role="alert" className="text-sm text-destructive">{unitError}</p>}
     <p className="text-sm text-muted-foreground">คำแนะนำปิเปต = Target × ปริมาตรรวม ÷ C stock · ตารางนี้เป็นค่าคำนวณตามแผน ไม่ใช่บันทึกการปิเปตจริง · เก็บทศนิยมเต็มในการคำนวณ · 1 mg/mL = 1,000 µg/mL = 1,000 mg/L</p>
   </div>;
 }
