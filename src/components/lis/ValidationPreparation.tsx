@@ -18,11 +18,19 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
   const [worksheet, setWorksheet] = useState("");
   const printFrame = useRef<HTMLIFrameElement>(null);
   const [unitError, setUnitError] = useState("");
-  const update = (id: string, key: keyof PreparationLevel, value: string) => onChange(levels.map(row => row.id === id ? { ...row, preparationKind: preparationKind(row), [key]: value } : row));
+  const update = (id: string, key: keyof PreparationLevel, value: string) => onChange(levels.map(row => {
+    if (row.id !== id) return row;
+    const next = { ...row, preparationKind: preparationKind(row), [key]: value };
+    if (key === "stockId") {
+      const plan = preparationPlan(next, stock, stocks);
+      next.aliquot = plan ? String(plan.aliquotUl) : "";
+    }
+    return next;
+  }));
   return <div className="space-y-4">
     <Dialog open={!!worksheet} onOpenChange={open => { if (!open) setWorksheet(""); }}><DialogContent className="sm:max-w-6xl"><DialogHeader><DialogTitle>ใบเตรียมสาร Validation</DialogTitle><DialogDescription>ตรวจแผนปิเปตและ Solvent ก่อนพิมพ์ เลือกแนวนอนในการพิมพ์</DialogDescription></DialogHeader><iframe ref={printFrame} title="ใบเตรียมสาร" sandbox="allow-same-origin allow-modals" srcDoc={worksheet} className="h-[65vh] w-full rounded-lg border" /><Button onClick={() => { printFrame.current?.contentWindow?.focus(); printFrame.current?.contentWindow?.print(); }}>พิมพ์ / บันทึก PDF</Button><Button variant="outline" onClick={() => { const url = URL.createObjectURL(new Blob([worksheet], { type: "text/html;charset=utf-8" })); const link = document.createElement("a"); link.href = url; link.download = "validation-preparation.html"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }}>ดาวน์โหลดใบเตรียมสาร HTML</Button><p className="text-xs text-muted-foreground">หากหน้าต่างพิมพ์ไม่เปิด ให้ดาวน์โหลด HTML เปิดด้วย Chrome หรือ Edge แล้วกด Ctrl+P</p></DialogContent></Dialog>
     <Button variant="outline" disabled={!levels.length} onClick={() => setWorksheet(preparationWorksheet({ analyte, method }, levels, stock, stocks))}>พิมพ์ตารางคำนวณการเตรียมสาร</Button>
-    <p className="text-sm text-muted-foreground">กรอก Target (mg/mL) และ Final volume (µL; 1 mL = 1,000 µL) เพื่อดูปริมาตร Stock และ Solvent ตามแผนทันที โดยยังไม่ต้องกรอกปิเปตจริง</p>
+    <p className="text-sm text-muted-foreground">เมื่อเปลี่ยน Stock ระบบเติมปริมาตรปิเปตตาม Target ใหม่ ตรวจและแก้เป็นปริมาตรที่ใช้จริงได้ · กรอก Target (mg/mL) และ Final volume (µL; 1 mL = 1,000 µL) เพื่อดูปริมาตร Stock และ Solvent ตามแผนทันที โดยยังไม่ต้องกรอกปิเปตจริง</p>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h3 className="text-base font-semibold">ตารางคำนวณการเตรียมสาร</h3>
         <p className="mt-1 text-sm text-muted-foreground">เลือกหน่วย Target แยกแต่ละระดับได้ · เมื่อเปลี่ยนหน่วย ระบบแปลงตัวเลขเพื่อคงความเข้มข้นเดิม ส่วน Actual และตารางผลวัดใช้ mg/mL</p></div>
@@ -35,7 +43,7 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
           const result = preparationResult(row, stock, stocks);
           const plan = preparationPlan(row, stock, stocks);
           return <tr key={row.id} className="hover:bg-accent">
-            <td className="p-2"><NativeSelect aria-label={`Stock ระดับ ${i + 1}`} value={row.stockId ?? ""} onChange={e => update(row.id, "stockId", e.target.value)}><option value="">Stock หลัก</option>{stocks.map(source => <option key={source.id} value={source.id}>{source.name || source.id}</option>)}</NativeSelect></td>
+            <td className="min-w-56 p-2"><NativeSelect className="min-w-48" aria-label={`Stock ระดับ ${i + 1}`} value={row.stockId ?? ""} onChange={e => update(row.id, "stockId", e.target.value)}><option value="">Stock หลัก</option>{stocks.map(source => <option key={source.id} value={source.id}>{source.name || source.id}</option>)}</NativeSelect><p className="mt-2 whitespace-normal break-words text-xs text-muted-foreground">{row.stockId ? stocks.find(source => source.id === row.stockId)?.name || row.stockId : "Stock หลัก"}</p></td>
             <td className="min-w-40 space-y-2 p-2"><Input aria-label={`target ระดับ ${i + 1}`} type="number" min="0" step="any" value={row.target} onChange={e => update(row.id, "target", e.target.value)} /><NativeSelect aria-label={`หน่วย Target ระดับ ${i + 1}`} value={row.targetUnit ?? "mg/mL"} onChange={e => {
               const converted = changePreparationUnit(row, e.target.value as ConcentrationUnit);
               if (!converted) { setUnitError(`ระดับ ${i + 1}: แปลงหน่วยไม่ได้ กรุณาตรวจค่า Target ให้อยู่ในช่วงคำนวณ`); return; }

@@ -20,3 +20,17 @@ describe("หน่วยในแผนเตรียมสาร", () => {
     expect(screen.getByLabelText("target ระดับ 1")).toHaveValue(0.4);
   });
 });
+
+
+it("recalculates pipetting when switching stock and clears impossible dilution", () => {
+  function StockFixture() {
+    const [levels, setLevels] = useState([{...defaultPreparationLevels()[0], target:"0.5", aliquot:"250"}]);
+    return <ValidationPreparation analyte="QA" method="GC" stock={2} stocks={[{id:"other",name:"Stock มาตรฐานชื่อยาวสำหรับทดสอบ",weight:"100",purity:"100",volume:"25",certificate:"",preparedOn:""},{id:"weak",name:"เจือจาง",weight:"1",purity:"100",volume:"25",certificate:"",preparedOn:""}]} levels={levels} onChange={setLevels} />;
+  }
+  render(<StockFixture />);
+  fireEvent.change(screen.getByLabelText("Stock ระดับ 1"), {target:{value:"other"}});
+  expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveValue(125);
+  expect(screen.getAllByText("Stock มาตรฐานชื่อยาวสำหรับทดสอบ")).toHaveLength(2);
+  fireEvent.change(screen.getByLabelText("Stock ระดับ 1"), {target:{value:"weak"}});
+  expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveValue(null);
+});
