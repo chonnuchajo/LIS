@@ -1,3 +1,4 @@
+import { syncLinearityConcentrations } from "@/lib/validationLinearitySync";
 import { validationChartSvg } from "@/lib/validationCharts";
 import { Fragment, useRef, useState, type ReactNode } from "react";
 import { ArrowRight, Calculator, Download, FileCheck2, FlaskConical, ShieldCheck } from "lucide-react";
@@ -74,7 +75,8 @@ export default function ValidationPage() {
   const stock = stockConcentration(weight, purity, volume);
   const linkedResult = evaluateLinkedMeasurements(linkedMeasurements, stock, stocks, Number(linearity.r2Min));
   const linked = linkedMeasurements.enabled;
-  const texts = inputTexts.map((text, index) => index === 2 && linked.includes("accuracy") ? linkedResult.outputs.accuracy : text);
+  const syncedTexts = inputTexts.map((text, index) => index === 1 && savedWork?.sections["STD → linearity"] ? syncLinearityConcentrations(text, preparationLevels, stock, stocks) : text);
+  const texts = syncedTexts.map((text, index) => index === 2 && linked.includes("accuracy") ? linkedResult.outputs.accuracy : text);
   const precision = { ...inputPrecision, dailyData: linked.includes("daily") ? linkedResult.outputs.daily : inputPrecision.dailyData };
   const qc = { ...inputQc, sampleData: linked.includes("sample") ? linkedResult.outputs.sample : inputQc.sampleData, standardData: linked.includes("standard") ? linkedResult.outputs.standard : inputQc.standardData, spikeData: linked.includes("spike") ? linkedResult.outputs.spike : inputQc.spikeData };
   const parsed = texts.map((t, i) => parseMeasurements(t, i === 2 ? 3 : 2));
@@ -147,7 +149,7 @@ export default function ValidationPage() {
     setTexts(old => old.map((value, i) => i === index ? templates[index]! : value));
     setNotice("สร้างแถวด้วย Actual จากแผนแล้ว กรุณากรอกผลวัดจริงทุกแถว หากเตรียมตัวอย่างแยกกันให้แก้ Actual ของแต่ละตัวอย่างตามการเตรียมจริง");
   };
-  const projectData = () => ({ format: "lis-validation-project", version: 1, title, analyte, method, prep, texts: inputTexts, blank, preparationLevels, stocks, linearity, specificity, reportMeta, precision: inputPrecision, qc: inputQc, linkedMeasurements, protocolDetails, preparationSources, sourceTemplateValues });
+  const projectData = () => ({ format: "lis-validation-project", version: 1, title, analyte, method, prep, texts: syncedTexts, blank, preparationLevels, stocks, linearity, specificity, reportMeta, precision: inputPrecision, qc: inputQc, linkedMeasurements, protocolDetails, preparationSources, sourceTemplateValues });
   const saveSection = (section: string, copy = false, overrides: Partial<ReturnType<typeof projectData>> = {}) => {
     try {
       const id = copy ? crypto.randomUUID() : workId;
@@ -166,9 +168,9 @@ export default function ValidationPage() {
   };
   const saveStdTo = (destination: "linearity" | "accuracy" | "precision") => {
     const sources = destination === "linearity" ? preparationSources : { ...preparationSources, [destination]: "std" as const };
-    const nextTexts = [...inputTexts];
+    const nextTexts = [...syncedTexts];
     let nextPrecision = inputPrecision;
-    if (destination === "linearity" && !nextTexts[1]) nextTexts[1] = preparationTemplate("linearity", plannedLinearity, stock, stocks, 3) ?? "";
+    if (destination === "linearity") nextTexts[1] = syncLinearityConcentrations(nextTexts[1], plannedLinearity, stock, stocks);
     if (destination === "accuracy" && !nextTexts[2]) nextTexts[2] = preparationTemplate("accuracy", stdAccuracy, stock, stocks, Number(precision.minReplicates)) ?? "";
     if (destination === "precision" && !inputPrecision.dailyData) {
       const template = preparationTemplate("accuracy", stdAccuracy, stock, stocks, Number(precision.minReplicates));
@@ -244,7 +246,7 @@ export default function ValidationPage() {
       {[0, 1, 2].map(i => <TabsContent key={i} value={String(i)} className="mt-4 space-y-4">
         <h2 className="text-xl font-semibold">{i + 1}. {names[i]}</h2>
         {i === 2 && matrixPreparation}
-        {i === 1 && <Panel title="เกณฑ์ Linearity และการเทียบแผนเตรียมสาร"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{([["minReplicates", "จำนวน Injection ต่อระดับขั้นต่ำ"], ["r2Min", "R² ไม่น้อยกว่า"], ["areaRsdMax", "Area %RSD ไม่เกิน"]] as const).map(([key, label]) => <label key={key} className="space-y-2 text-sm">{label}<Input type="number" step="any" readOnly={key === "minReplicates"} value={key === "minReplicates" ? "3" : linearity[key]} onChange={e => setLinearity(old => ({ ...old, [key]: e.target.value }))} /></label>)}</div><p className="text-sm text-muted-foreground">ปรับตาม SOP · เทียบ Actual ของแต่ละ Injection กับความเข้มข้นที่คำนวณจาก Stock และปริมาตรในแผน การแก้แผนจะตรวจข้อมูลผลวัดใหม่โดยไม่แก้ทับค่าผลวัด</p></Panel>}
+        {i === 1 && <Panel title="เกณฑ์ Linearity และการเทียบแผนเตรียมสาร"><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{([["minReplicates", "จำนวน Injection ต่อระดับขั้นต่ำ"], ["r2Min", "R² ไม่น้อยกว่า"], ["areaRsdMax", "Area %RSD ไม่เกิน"]] as const).map(([key, label]) => <label key={key} className="space-y-2 text-sm">{label}<Input type="number" step="any" readOnly={key === "minReplicates"} value={key === "minReplicates" ? "3" : linearity[key]} onChange={e => setLinearity(old => ({ ...old, [key]: e.target.value }))} /></label>)}</div><p className="text-sm text-muted-foreground">ปรับตาม SOP · เทียบ Actual ของแต่ละ Injection กับความเข้มข้นที่คำนวณจาก Stock และปริมาตรในแผน เมื่อบันทึก STD ไป Linearity ค่า Actual จะอัปเดตตามการเตรียมสารทันที โดยเก็บ Area ที่กรอกไว้</p></Panel>}
         {i === 1 && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm"><div><p className="text-sm font-medium">ใช้ความเข้มข้นจากแผนเตรียมสาร</p><p className="text-sm text-muted-foreground">Target = ระดับที่ตั้งใจเตรียม · Actual = คำนวณจากการเตรียมจริง · Found = ผลวัดจากเครื่อง</p><p className="text-xs text-muted-foreground">สร้างได้เมื่อตารางว่างและแผนเตรียมครบ · จำนวนซ้ำ Accuracy ใช้ค่าจากแท็บ Precision · ตรวจ Actual รายตัวอย่างเมื่อเตรียมแยกกัน</p></div><Button variant="outline" disabled={texts[i] !== "" || templates[i] == null} onClick={() => fillPreparationTemplate(i)}>สร้างแถวจากแผนเตรียมสาร</Button></div>}
         <div className="grid items-start gap-4 xl:grid-cols-2"><Panel title={`ข้อมูล ${names[i]}`}><p className="text-sm text-muted-foreground">กรอกค่าตามหน่วยหัวตาราง หรือใช้ “นำเข้า / แปลงหน่วย” เพื่อวางตารางจาก Excel เลือก CSV / TSV, Excel .xlsx หรือ PDF พร้อมตรวจตัวอย่างก่อนใช้ข้อมูล</p><p className="text-sm font-medium">{i === 0 ? "คอลัมน์: RT (min), ผลรวม Area · Standard ตามจำนวนซ้ำที่กำหนดด้านล่าง" : i === 1 ? "คอลัมน์: Actual concentration, Area · หนึ่งแถวต่อ Injection" : "คอลัมน์: Target level, Actual fortified, Found · หนึ่งแถวต่อตัวอย่างที่เตรียม"}</p>{i === 0 && specificity.peakMode ? <p className="rounded-lg bg-muted p-3 text-sm">ใช้ข้อมูลแยกรายพีคในส่วน Blank และหลักฐานความจำเพาะด้านล่าง ข้อมูลแบบเดิมยังเก็บไว้และกลับมาใช้ได้เมื่อปิดโหมดรายพีค</p> : i === 1 ? <ValidationLinearityGrid value={texts[1]} onChange={updateText} levels={plannedLinearity} stock={stock} stocks={stocks} /> : <ValidationDataGrid decimals={i === 2 ? 3 : undefined} readOnly={i === 2 && linked.includes("accuracy")} label={`ข้อมูล ${names[i]}`} columns={i === 0 ? ["RT (min)", "ผลรวม Area"] : i === 1 ? ["Actual (mg/mL)", "Area"] : ["Target (mg/mL)", "Actual fortified (mg/mL)", "Found (mg/mL)"]} value={texts[i]} onChange={updateText} />}<p className="text-sm text-muted-foreground">อ่านได้ {i === 0 ? specificityResult.standardRows.length : parsed[i].rows.length} แถว · คำนวณอัตโนมัติเมื่อข้อมูลครบ</p>{i === 2 && <p className="text-sm text-muted-foreground">Recovery = Found ÷ Actual fortified × 100 · ใช้กับ Matrix Blank ที่ไม่มีสารเป้าหมายเท่านั้น</p>}</Panel><Panel title="ผลการคำนวณและเกณฑ์ยอมรับ"><Results checks={i === 0 ? specificityChecks : i === 1 ? linearityChecks : accuracyChecks} />{i === 0 && <p className="text-sm text-muted-foreground">{specificity.peakMode ? "RT ประเมินแยกรายพีค" : `Mean RT ${fmt(rt?.mean)} min`} · Mean Total Area {fmt(area?.mean)} · Sample SD {fmt(area?.sd)}</p>}{i === 1 && <p className="text-sm text-muted-foreground">Area = {fmt(fit?.slope)} × Concentration + ({fmt(fit?.intercept)}) · ถดถอยจากทุก Injection</p>}{i === 2 && <p className="text-sm text-muted-foreground">%RSD คำนวณจาก Recovery โดยใช้ Sample SD (n−1) · กำหนดฐาน Horwitz และข้อมูลรายวันในแท็บ Precision</p>}<div className="flex gap-2 rounded-md bg-muted p-3 text-sm text-muted-foreground"><Calculator className="h-4 w-4 shrink-0" />เก็บทศนิยมเต็มในการคำนวณ ปัดเศษเฉพาะค่าที่แสดง</div></Panel></div>
       {i === 0 && <ValidationSpecificity settings={specificity} context={specificityContext} onChange={setSpecificity} legacyBlank={blank} />}
