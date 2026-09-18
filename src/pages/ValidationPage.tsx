@@ -22,7 +22,7 @@ import { validationReportLogo } from "@/lib/validationReportAssets";
 import { exportValidationPdf } from "@/lib/validationReportExport";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useAuth } from "@/context/AuthContext";
-import { loadValidationLibrary, saveValidationWork, type ValidationSavedWork } from "@/lib/validationLibrary";
+import { loadValidationLibrary, saveValidationWork, validationDrugKey, type ValidationSavedWork } from "@/lib/validationLibrary";
 import { readValidationProject, type ValidationProject } from "@/lib/validationProject";
 import ValidationSpecificity from "@/components/lis/ValidationSpecificity";
 import { defaultSpecificitySettings, evaluateSpecificity } from "@/lib/validationSpecificity";
@@ -150,13 +150,17 @@ export default function ValidationPage() {
     setNotice("สร้างแถวด้วย Actual จากแผนแล้ว กรุณากรอกผลวัดจริงทุกแถว หากเตรียมตัวอย่างแยกกันให้แก้ Actual ของแต่ละตัวอย่างตามการเตรียมจริง");
   };
   const projectData = () => ({ format: "lis-validation-project", version: 1, title, analyte, method, prep, texts: syncedTexts, blank, preparationLevels, stocks, linearity, specificity, reportMeta, precision: inputPrecision, qc: inputQc, linkedMeasurements, protocolDetails, preparationSources, sourceTemplateValues });
+  let existingWork: ValidationSavedWork | undefined;
+  try { existingWork = loadValidationLibrary(owner).find(work => validationDrugKey(work.project.analyte) === validationDrugKey(analyte)); } catch { /* Preserve unreadable storage. */ }
+  const saveLabel = existingWork ? "อัปเดต" : "บันทึก";
   const saveSection = (section: string, copy = false, overrides: Partial<ReturnType<typeof projectData>> = {}) => {
     try {
       const id = copy ? crypto.randomUUID() : workId;
       const saved = saveValidationWork(owner, id, section, { ...projectData(), ...overrides });
-      setWorkId(id);
+      setWorkId(saved.id);
       setSavedWork(saved);
-      setNotice(`บันทึก ${section} พร้อมข้อมูลที่เกี่ยวข้องทุกหัวข้อแล้ว เวลา ${new Date(saved.savedAt).toLocaleString("th-TH")}`);
+      setLibrary(loadValidationLibrary(owner));
+      setNotice(`${saveLabel} ${analyte} ครบทุกหัวข้อแล้ว เวลา ${new Date(saved.savedAt).toLocaleString("th-TH")}`);
       return true;
     } catch { setNotice("บันทึกไม่สำเร็จ: พื้นที่จัดเก็บเต็มหรือคลังงานอ่านไม่ได้ ข้อมูลบนหน้ายังคงเดิม"); return false; }
   };
@@ -182,7 +186,7 @@ export default function ValidationPage() {
     setTab(destination === "linearity" ? "1" : destination === "accuracy" ? "2" : "3");
   };
   const matrixEnabled = !!savedWork && ["STD → accuracy", "STD → precision"].some(section => !!savedWork.sections[section]);
-  const matrixPreparation = matrixEnabled ? <ValidationPreparation section="matrix" matrixEnabled analyte={analyte} method={method} stock={stock} stocks={stocks} levels={preparationLevels} onChange={setPreparationLevels} onSave={saveSection} /> : <p className="text-sm text-muted-foreground">บันทึกส่ง STD ไป Accuracy หรือ Precision จากหน้าตั้งค่างานและเตรียมสาร เพื่อเริ่มคำนวณ Matrix</p>;
+  const matrixPreparation = matrixEnabled ? <ValidationPreparation saveLabel={saveLabel} section="matrix" matrixEnabled analyte={analyte} method={method} stock={stock} stocks={stocks} levels={preparationLevels} onChange={setPreparationLevels} onSave={saveSection} /> : <p className="text-sm text-muted-foreground">บันทึกส่ง STD ไป Accuracy หรือ Precision จากหน้าตั้งค่างานและเตรียมสาร เพื่อเริ่มคำนวณ Matrix</p>;
   return <AppLayout title="Validation" mainClassName="p-4 sm:p-6 overflow-visible"><div className="space-y-6">
     <input type="file" accept=".json" ref={projectFile} className="hidden" aria-label="เปิดงาน Validation" onChange={async e => {
       const selected = e.target.files?.[0]; e.target.value = "";
@@ -211,8 +215,8 @@ export default function ValidationPage() {
         {pdfError && <p role="alert" className="text-sm text-destructive">{pdfError}</p>}
       </DialogContent>
     </Dialog>
-    <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>คลังงาน Validation</DialogTitle><DialogDescription>เก็บในเบราว์เซอร์นี้สำหรับบัญชีที่ใช้งาน ไม่ซิงก์ข้ามเครื่อง การเปิดงานจะแทนข้อมูลบนหน้า กรุณาบันทึกงานปัจจุบันก่อน</DialogDescription></DialogHeader>
-      <div className="max-h-96 space-y-3 overflow-y-auto">{!library.length && <p>ยังไม่มีงานที่บันทึก</p>}{library.map(work => <div key={work.id} className="rounded-lg border bg-card p-3"><div className="flex items-center justify-between gap-3"><div><p className="font-medium">{work.project.title || work.project.analyte}</p><p className="text-sm text-muted-foreground">{new Date(work.savedAt).toLocaleString("th-TH")}</p></div><Button variant="outline" onClick={() => { restoreProject(work.project); setWorkId(work.id); setSavedWork(work); setLibraryOpen(false); setNotice("เปิดงานที่บันทึกและคำนวณใหม่แล้ว"); }}>เปิดงานนี้</Button></div><p className="mt-2 text-sm text-muted-foreground">หัวข้อที่บันทึก: {Object.keys(work.sections).join(" · ")}</p></div>)}</div>
+    <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>คลังงาน Validation</DialogTitle><DialogDescription>หนึ่งยาเก็บเป็นหนึ่งงาน รวมทุกหัวข้อ · เก็บในเบราว์เซอร์นี้สำหรับบัญชีที่ใช้งาน ไม่ซิงก์ข้ามเครื่อง การเปิดงานจะแทนข้อมูลบนหน้า กรุณาบันทึกงานปัจจุบันก่อน</DialogDescription></DialogHeader>
+      <div className="max-h-96 space-y-3 overflow-y-auto">{!library.length && <p>ยังไม่มีงานที่บันทึก</p>}{library.map(work => <div key={work.id} className="rounded-lg border bg-card p-3"><div className="flex items-center justify-between gap-3"><div><p className="font-medium">{work.project.title || work.project.analyte}</p><p className="text-sm text-muted-foreground">{new Date(work.savedAt).toLocaleString("th-TH")}</p></div><Button variant="outline" onClick={() => { restoreProject(work.project); setWorkId(work.id); setSavedWork(work); setLibraryOpen(false); setNotice("เปิดงานที่บันทึกและคำนวณใหม่แล้ว"); }}>เปิดงานนี้</Button></div><p className="mt-2 text-sm text-muted-foreground">เก็บข้อมูลครบทุกหัวข้อในงานเดียว</p></div>)}</div>
     </DialogContent></Dialog>
     <PageHeader title="Validation" description="AI Data & Document Validation Checker · ตรวจข้อมูล คำนวณ และสรุปผลในพื้นที่เดียว" actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { try { setLibrary(loadValidationLibrary(owner)); setLibraryOpen(true); } catch { setNotice("เปิดคลังงานไม่ได้ ข้อมูลที่เก็บไว้ไม่ได้ถูกแก้ไข"); } }}>คลังงานที่บันทึก</Button><Button variant="outline" onClick={() => projectFile.current?.click()}>นำข้อมูลเข้า</Button><Button onClick={previewReport}><FileCheck2 className="mr-2 h-4 w-4" />ออกรายงาน</Button></div>} />
 
@@ -238,7 +242,7 @@ export default function ValidationPage() {
         <label className="space-y-2 text-sm">วิธี / เครื่องมือ<Input value={method} onChange={e => setMethod(e.target.value)} /></label>
       </div>
       <ValidationStocks measurementStockIds={linkedMeasurements.rows.map(row => row.stockId)} stocks={stocks} levels={preparationLevels} onChange={setStocks} />
-      <ValidationPreparation section="std" matrixEnabled={matrixEnabled} analyte={analyte} method={method} stock={stock} stocks={stocks} levels={preparationLevels} onChange={setPreparationLevels} onSave={saveSection} onSaveTo={saveStdTo} />
+      <ValidationPreparation saveLabel={saveLabel} section="std" matrixEnabled={matrixEnabled} analyte={analyte} method={method} stock={stock} stocks={stocks} levels={preparationLevels} onChange={setPreparationLevels} onSave={saveSection} onSaveTo={saveStdTo} />
 
     </Panel>
     </div></section>
@@ -259,7 +263,7 @@ export default function ValidationPage() {
       <TabsContent value="3" className="mt-4 space-y-4"><h2 className="text-xl font-semibold">4. Precision</h2>{matrixPreparation}<label className="block max-w-sm space-y-2 text-sm">แผนเตรียมสารสำหรับ Precision<NativeSelect value={preparationSources.precision} onChange={e => setPreparationSources(old => ({ ...old, precision: e.target.value as "std" | "matrix" }))}><option value="matrix">Matrix · ต่ำ–กลาง–สูง</option><option value="std">STD · ต่ำ–กลาง–สูง</option></NativeSelect></label><p className="text-sm text-muted-foreground">ใช้แผน {preparationSources.precision === "std" ? "STD" : "Matrix"} สำหรับข้อมูลระหว่างวัน · Repeatability ใช้ผลรายตัวอย่างจาก Accuracy</p><PrecisionPanel dailyLinked={linked.includes("daily")} settings={precision} onChange={next => setPrecision(old => ({ ...next, dailyData: linked.includes("daily") ? old.dailyData : next.dailyData }))} result={precisionResult} /><ValidationAccuracyTables section="precision" analyte={analyte} text={texts[2]} precision={precisionResult} checks={checks} /></TabsContent>
       <TabsContent value="4" className="mt-4 space-y-4"><h2 className="text-xl font-semibold">5. Overall Summary</h2><QcPanel linkedKinds={linked} settings={qc} onChange={next => setQc(old => ({ ...next, sampleData: linked.includes("sample") ? old.sampleData : next.sampleData, standardData: linked.includes("standard") ? old.standardData : next.standardData, spikeData: linked.includes("spike") ? old.spikeData : next.spikeData }))} result={qcResult} /><Panel title={`ตารางที่ 5 สรุปผลการตรวจสอบความใช้ได้ของวิธีวิเคราะห์ ${analyte} และสถานะการยอมรับ`}><div className="flex gap-3 rounded-lg bg-muted p-4"><FileCheck2 className="h-5 w-5 shrink-0 text-primary" /><p className="text-sm">ผลนี้เป็นฉบับร่าง ยังไม่สรุปผ่านทั้งวิธีจนกว่าจะมีหลักฐาน Specificity และประเมิน Precision ครบ ดาวน์โหลดรายงานพร้อมข้อมูลดิบและรายการที่ต้องทบทวนได้</p></div><Results checks={checks} /></Panel></TabsContent>
     </Tabs>
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3"><div><p className="text-sm">บันทึกในเบราว์เซอร์นี้ · แต่ละปุ่มเก็บงานครบทุกหัวข้อพร้อมเวลาบันทึก</p><p className="text-sm text-muted-foreground">{savedWork ? `บันทึกล่าสุด ${new Date(savedWork.savedAt).toLocaleString("th-TH")} · กดบันทึกอีกครั้งหลังแก้ไข` : "ยังไม่ได้บันทึกงานนี้"}</p></div><div className="ml-auto flex flex-wrap items-center justify-end gap-2"><Button variant="outline" onClick={() => saveSection("สำเนางาน", true)}>บันทึกเป็นงานใหม่</Button><Button onClick={() => saveSection(tab === "setup" ? "ตั้งค่างาน" : names[Number(tab)])}>บันทึก {tab === "setup" ? "ตั้งค่างาน" : names[Number(tab)]}</Button></div></div>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3"><div><p className="text-sm">หนึ่งยา · หนึ่งงาน · บันทึกข้อมูลครบทุกหัวข้อในเบราว์เซอร์นี้</p><p className="text-sm text-muted-foreground">{savedWork ? `บันทึกล่าสุด ${new Date(savedWork.savedAt).toLocaleString("th-TH")} · กดอัปเดตหลังแก้ไข` : "ยังไม่ได้บันทึกงานนี้"}</p></div><div className="ml-auto flex flex-wrap items-center justify-end gap-2"><Button onClick={() => saveSection(tab === "setup" ? "ตั้งค่างาน" : names[Number(tab)])}>{saveLabel}งาน Validation</Button></div></div>
     {linked.length > 0 && <div className="rounded-lg border bg-card p-4 text-sm">งานเดิมมีผลที่เชื่อมจาก Area<Button className="ml-3" variant="outline" onClick={() => { setTexts(texts); setPrecision(precision); setQc(qc); setLinkedMeasurements(old => ({ ...old, enabled: [] })); }}>ใช้ผลคำนวณเดิมเป็นข้อมูลกรอกตรง</Button></div>}
 
     {errors.length > 0 && <Panel title="รายการที่ต้องแก้ไข"><ul className="space-y-2 text-sm text-destructive">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></Panel>}
