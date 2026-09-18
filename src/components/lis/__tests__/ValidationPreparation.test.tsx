@@ -6,7 +6,7 @@ import { defaultPreparationLevels, preparationTemplate, type PreparationLevel } 
 
 function Fixture() {
   const [levels, setLevels] = useState([defaultPreparationLevels().find(level => level.purpose === "accuracy" && level.target === "0.5")!]);
-  return <><ValidationPreparation analyte="QA" method="GC" stock={2.01159} stocks={[]} levels={levels} onChange={setLevels} /><output data-testid="template">{preparationTemplate("accuracy", levels, 2.01159, [], 2)}</output></>;
+  return <><ValidationPreparation matrixEnabled analyte="QA" method="GC" stock={2.01159} stocks={[]} levels={levels} onChange={setLevels} /><output data-testid="template">{preparationTemplate("accuracy", levels, 2.01159, [], 2)}</output></>;
 }
 describe("หน่วยในแผนเตรียมสาร", () => {
   it("แปลงหน่วยและคำนวณปิเปตตาม Target แบบเรียลไทม์", () => {
@@ -26,7 +26,7 @@ describe("หน่วยในแผนเตรียมสาร", () => {
 it("recalculates pipetting when switching stock and clears impossible dilution", () => {
   function StockFixture() {
     const [levels, setLevels] = useState([{...defaultPreparationLevels()[0], target:"0.5", aliquot:"250"}]);
-    return <ValidationPreparation analyte="QA" method="GC" stock={2} stocks={[{id:"other",name:"Stock มาตรฐานชื่อยาวสำหรับทดสอบ",weight:"100",purity:"100",volume:"25",certificate:"",preparedOn:""},{id:"weak",name:"เจือจาง",weight:"1",purity:"100",volume:"25",certificate:"",preparedOn:""}]} levels={levels} onChange={setLevels} />;
+    return <ValidationPreparation matrixEnabled analyte="QA" method="GC" stock={2} stocks={[{id:"other",name:"Stock มาตรฐานชื่อยาวสำหรับทดสอบ",weight:"100",purity:"100",volume:"25",certificate:"",preparedOn:""},{id:"weak",name:"เจือจาง",weight:"1",purity:"100",volume:"25",certificate:"",preparedOn:""}]} levels={levels} onChange={setLevels} />;
   }
   render(<StockFixture />);
   fireEvent.change(screen.getByLabelText("Stock ระดับ 1"), {target:{value:"other"}});
@@ -68,7 +68,7 @@ it("calculates Actual from rounded or explicitly entered pipetting",()=>{
 it("เลือกใช้ Stock โดยตรงโดยไม่ต้องกรอกปิเปตเจือจาง และเปลี่ยนกลับได้", () => {
  function DirectStockFixture() {
   const [levels, setLevels] = useState<PreparationLevel[]>([{ ...defaultPreparationLevels()[4], actualAliquot: "" }]);
-  return <ValidationPreparation analyte="QA" method="GC" stock={1.044173} stocks={[]} levels={levels} onChange={setLevels} />;
+  return <ValidationPreparation matrixEnabled analyte="QA" method="GC" stock={1.044173} stocks={[]} levels={levels} onChange={setLevels} />;
  }
  render(<DirectStockFixture />);
  fireEvent.click(screen.getByLabelText("ใช้ Stock โดยตรง ระดับ 1"));
@@ -82,11 +82,24 @@ it("เลือกใช้ Stock โดยตรงโดยไม่ต้อ
 
 it("เลือกปลายทาง STD และใช้ปุ่มบันทึกใต้ตาราง", () => {
  const save = vi.fn();
- render(<ValidationPreparation analyte="QA" method="GC" stock={2} stocks={[]} levels={defaultPreparationLevels()} onChange={() => {}} onSaveTo={save} />);
+ render(<ValidationPreparation matrixEnabled analyte="QA" method="GC" stock={2} stocks={[]} levels={defaultPreparationLevels()} onChange={() => {}} onSaveTo={save} />);
  fireEvent.change(screen.getByLabelText("นำ STD ไปคำนวณที่"), { target: { value: "accuracy" } });
  fireEvent.click(screen.getByRole("button", { name: "บันทึก STD และไป Accuracy" }));
  expect(save).toHaveBeenCalledWith("accuracy");
  fireEvent.change(screen.getByLabelText("นำ STD ไปคำนวณที่"), { target: { value: "precision" } });
  fireEvent.click(screen.getByRole("button", { name: "บันทึก STD และไป Precision" }));
  expect(save).toHaveBeenCalledWith("precision");
+});
+
+it("ไม่แสดงและไม่คำนวณ Matrix จนกว่าจะบันทึกส่ง STD ไป Accuracy หรือ Precision", () => {
+ const change = vi.fn();
+ const levels = defaultPreparationLevels();
+ const { rerender } = render(<ValidationPreparation stock={2} stocks={[]} levels={levels} onChange={change} analyte="QA" method="GC" />);
+ expect(screen.queryByText("คำนวณ Matrix จาก %ยา")).not.toBeInTheDocument();
+ expect(screen.queryByLabelText("Final volume matrix")).not.toBeInTheDocument();
+ expect(change.mock.calls[0][0].slice(5)).toEqual(levels.slice(5));
+ rerender(<ValidationPreparation matrixEnabled stock={2} stocks={[]} levels={levels} onChange={change} analyte="QA" method="GC" />);
+ expect(screen.getByText("คำนวณ Matrix จาก %ยา")).toBeInTheDocument();
+ expect(screen.getByLabelText("Final volume matrix")).toBeInTheDocument();
+ expect(screen.queryByText(/ตามข้อ 6\.5\.2/)).not.toBeInTheDocument();
 });

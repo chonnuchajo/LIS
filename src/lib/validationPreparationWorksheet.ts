@@ -3,7 +3,7 @@ import { escapeReport as e } from "./validationReport";
 
 export function preparationWorksheet(meta: { analyte: string; method: string }, levels: PreparationLevel[], stock: number | null, stocks: ValidationStock[]) {
   const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 6 });
-  const sections = (["std", "matrix"] as const).map(kind => {
+  const sections = (["std", "matrix"] as const).filter(kind => levels.some(level => preparationKind(level) === kind)).map(kind => {
   const rows = levels.map((level, i) => ({ level, i })).filter(({ level }) => preparationKind(level) === kind).map(({ level, i }) => {
     const p = preparationPlan(level, stock, stocks);
     const actual = preparationResult(level, stock, stocks);
@@ -13,7 +13,7 @@ export function preparationWorksheet(meta: { analyte: string; method: string }, 
   }).join("");
   const basis = kind === "matrix" ? levels.filter(level => level.matrixCalculation).map(level => {
     const c = level.matrixCalculation!;
-    return `<p>ระดับ ${levels.indexOf(level) + 1}: คำนวณ Matrix ตาม 6.5.2 จาก ${e(c.percent)} %${c.basis === "ww" ? "w/w" : "w/v"}, ระดับอ้างอิง ${e(c.reference)} mg/mL, ความหนาแน่น Matrix ${e(c.density)} mg/µL${c.basis === "wv" ? `, ความหนาแน่นตัวอย่าง ${e(c.sampleDensity)} g/mL` : ""}</p>`;
+    return `<p>ระดับ ${levels.indexOf(level) + 1}: คำนวณ Matrix จาก ${e(c.percent)} %${c.basis === "ww" ? "w/w" : "w/v"}, ระดับอ้างอิง ${e(c.reference)} mg/mL, ความหนาแน่น Matrix ${e(c.density)} mg/µL${c.basis === "wv" ? `, ความหนาแน่นตัวอย่าง ${e(c.sampleDensity)} g/mL` : ""}</p>`;
   }).join("") : "";
   return `<h2>${kind === "std" ? "1. เตรียมสารมาตรฐาน (STD)" : "2. เตรียมสารที่เติม Matrix"}</h2><table><thead><tr>${["ลำดับ","Stock","C stock (mg/mL)","Final conc (mg/mL)","Final volume (mL)","ปิเปต Stock (µL)","Matrix (µL)","Solvent ตามแผน (µL)","ปิเปตจริง (µL)","Conc หลังปิเปตจริง (mg/mL)"].map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>${basis}`;
   }).join("");
