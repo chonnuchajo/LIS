@@ -1,3 +1,4 @@
+import { precisionWithAccuracyDayOne } from "@/lib/validationPrecisionDays";
 import ValidationAccuracyGrid from "@/components/lis/ValidationAccuracyGrid";
 import { toast } from "sonner";
 import { syncLinearityConcentrations } from "@/lib/validationLinearitySync";
@@ -90,7 +91,7 @@ export default function ValidationPage() {
   const linked = linkedMeasurements.enabled;
   const syncedTexts = inputTexts.map((text, index) => index === 1 && savedWork?.sections["STD → linearity"] ? syncLinearityConcentrations(text, preparationLevels, stock, stocks) : text);
   const texts = syncedTexts.map((text, index) => index === 2 && linked.includes("accuracy") ? linkedResult.outputs.accuracy : text);
-  const precision = { ...inputPrecision, dailyData: linked.includes("daily") ? linkedResult.outputs.daily : inputPrecision.dailyData };
+  const precision = { ...inputPrecision, minDays: "6", dailyData: precisionWithAccuracyDayOne(linked.includes("daily") ? linkedResult.outputs.daily : inputPrecision.dailyData, texts[2]) };
   const qc = { ...inputQc, sampleData: linked.includes("sample") ? linkedResult.outputs.sample : inputQc.sampleData, standardData: linked.includes("standard") ? linkedResult.outputs.standard : inputQc.standardData, spikeData: linked.includes("spike") ? linkedResult.outputs.spike : inputQc.spikeData };
   const parsed = texts.map((t, i) => parseMeasurements(t, i === 2 ? 3 : 2));
   const specificityContext = { standardData: texts[0], analyte, method, protocol: reportMeta.protocol, calibration: reportMeta.calibration, reviewer: reportMeta.reviewer, preparation: JSON.stringify({ prep, preparationLevels, ...(stocks.length ? { stocks } : {}), ...(hasProtocolDetails(protocolDetails) ? { protocolDetails } : {}) }) };
@@ -162,7 +163,7 @@ export default function ValidationPage() {
     setTexts(old => old.map((value, i) => i === index ? templates[index]! : value));
     setNotice("สร้างแถวด้วย Actual จากแผนแล้ว กรุณากรอกผลวัดจริงทุกแถว หากเตรียมตัวอย่างแยกกันให้แก้ Actual ของแต่ละตัวอย่างตามการเตรียมจริง");
   };
-  const projectData = () => ({ format: "lis-validation-project", version: 1, title, analyte, method, prep, texts: syncedTexts, blank, preparationLevels, stocks, linearity, specificity, reportMeta, precision: inputPrecision, qc: inputQc, linkedMeasurements, protocolDetails, preparationSources, sourceTemplateValues });
+  const projectData = () => ({ format: "lis-validation-project", version: 1, title, analyte, method, prep, texts: syncedTexts, blank, preparationLevels, stocks, linearity, specificity, reportMeta, precision, qc: inputQc, linkedMeasurements, protocolDetails, preparationSources, sourceTemplateValues });
   let existingWork: ValidationSavedWork | undefined;
   try { existingWork = loadValidationLibrary(owner).find(work => validationDrugKey(work.project.analyte) === validationDrugKey(analyte)); } catch { /* Preserve unreadable storage. */ }
   const saveLabel = existingWork ? "อัปเดต" : "บันทึก";
@@ -192,15 +193,15 @@ export default function ValidationPage() {
   const saveStdTo = (destination: "linearity" | "accuracy" | "precision") => {
     const sources = destination === "linearity" ? preparationSources : { ...preparationSources, [destination]: "std" as const };
     const nextTexts = [...syncedTexts];
-    let nextPrecision = inputPrecision;
+    let nextPrecision = precision;
     if (destination === "linearity") nextTexts[1] = syncLinearityConcentrations(nextTexts[1], plannedLinearity, stock, stocks);
     if (destination === "accuracy" && !nextTexts[2]) nextTexts[2] = preparationTemplate("accuracy", stdAccuracy, stock, stocks, Number(precision.minReplicates)) ?? "";
     if (destination === "precision" && !inputPrecision.dailyData) {
       const template = preparationTemplate("accuracy", stdAccuracy, stock, stocks, Number(precision.minReplicates));
       const days = Number(precision.minDays);
-      if (template && Number.isInteger(days) && days >= 2 && days <= 100) nextPrecision = { ...inputPrecision, dailyData: Array.from({ length: days }, (_, day) => template.split("\n").map(line => `${day + 1}\t${line}`).join("\n")).join("\n") };
+      if (template && Number.isInteger(days) && days >= 2 && days <= 100) nextPrecision = { ...precision, dailyData: Array.from({ length: days }, (_, day) => template.split("\n").map(line => `${day + 1}\t${line}`).join("\n")).join("\n") };
     }
-    if (!saveSection(`STD → ${destination}`, false, { preparationSources: sources, texts: nextTexts, precision: nextPrecision })) return;
+    if (!saveSection(`STD → ${destination}`, false, { preparationSources: sources, texts: nextTexts, precision: { ...nextPrecision, dailyData: precisionWithAccuracyDayOne(nextPrecision.dailyData, nextTexts[2]) } })) return;
     setPreparationSources(sources); setTexts(nextTexts); setPrecision(nextPrecision);
     setTab(destination === "linearity" ? "1" : destination === "accuracy" ? "2" : "3");
   };
