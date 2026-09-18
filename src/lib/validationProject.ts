@@ -7,7 +7,7 @@ import { defaultProtocolDetails, protocolFields } from "./validationProtocol";
 const text = z.string().max(200000);
 const short = z.string().max(2000);
 const numericText = z.string().max(40);
-const level = z.object({ matrixCalculation: z.object({ percent: numericText, basis: z.enum(["ww", "wv"]), reference: numericText, density: numericText, sampleDensity: numericText }).optional(), preparationKind: z.enum(["std", "matrix"]).optional(), id: short, purpose: z.enum(["linearity", "accuracy", "suitability", "qc"]), target: numericText, targetUnit: z.enum(["mg/mL", "µg/mL", "mg/L"]).optional(), aliquot: numericText, finalVolume: numericText, matrix: numericText, recoveryLow: numericText, recoveryHigh: numericText, stockId: short.optional() });
+const level = z.object({ actualAliquot: numericText.optional(), matrixCalculation: z.object({ percent: numericText, basis: z.enum(["ww", "wv"]), reference: numericText, density: numericText, sampleDensity: numericText }).optional(), preparationKind: z.enum(["std", "matrix"]).optional(), id: short, purpose: z.enum(["linearity", "accuracy", "suitability", "qc"]), target: numericText, targetUnit: z.enum(["mg/mL", "µg/mL", "mg/L"]).optional(), aliquot: numericText, finalVolume: numericText, matrix: numericText, recoveryLow: numericText, recoveryHigh: numericText, stockId: short.optional() });
 export const validationProjectSchema = z.object({
   format: z.literal("lis-validation-project"), version: z.literal(1),
   title: short, analyte: short, method: short,

@@ -47,3 +47,16 @@ it("updates Matrix and Solvent when percent changes and final volume scales", ()
  fireEvent.change(screen.getByLabelText("ฐาน %ยา"),{target:{value:"wv"}});
  expect(screen.getByLabelText("matrix ระดับ 1")).toHaveValue(null);
 });
+
+
+it("calculates Actual from rounded or explicitly entered pipetting",()=>{
+ render(<Fixture/>);
+ expect(screen.getByLabelText("ปิเปตจริง ระดับ 1")).toHaveValue(248.6);
+ expect(screen.getByTestId("template").textContent).toContain(String(2.01159*248.6/1000));
+ fireEvent.change(screen.getByLabelText("ปิเปตจริง ระดับ 1"),{target:{value:"250"}});
+ expect(screen.getByTestId("template").textContent).toContain("0.5028975");
+ fireEvent.change(screen.getByLabelText("target ระดับ 1"),{target:{value:"0.4"}});
+ expect(screen.getByLabelText("ปิเปตจริง ระดับ 1")).toHaveValue(250);
+ fireEvent.change(screen.getByLabelText("ปิเปตจริง ระดับ 1"),{target:{value:""}});
+ expect(screen.getByTestId("template").textContent).toBe("");
+});

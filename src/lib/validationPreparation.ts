@@ -44,6 +44,7 @@ export function calculatedMatrixVolume(config: MatrixCalculation, finalVolume: s
 }
 
 export type PreparationLevel = {
+  actualAliquot?: string;
   matrixCalculation?: MatrixCalculation;
   preparationKind?: "std" | "matrix";
   id: string;
@@ -89,7 +90,7 @@ export function preparationResult(level: PreparationLevel, mainStock: number | n
     : mainStock;
   const target = targetConcentration(level);
   if (concentration == null || target == null || !level.matrix.trim()) return null;
-  return dilution({ stockMgMl: concentration, target, unit: "mg/mL", finalUl: Number(level.finalVolume), actualAliquotUl: Number(level.aliquot), matrixUl: Number(level.matrix) });
+  return dilution({ stockMgMl: concentration, target, unit: "mg/mL", finalUl: Number(level.finalVolume), actualAliquotUl: Number(level.actualAliquot ?? level.aliquot), matrixUl: Number(level.matrix) });
 }
 
 /** Planned volumes are independent of the subsequently recorded actual pipetting. */
