@@ -1,3 +1,4 @@
+import { saveValidationWork, loadValidationLibrary } from "./validationLibrary";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -48,6 +49,16 @@ it("ตรวจรายงานครบชุดจากข้อมูล�
   const reportInput: Parameters<typeof createValidationReport>[0] = { title:project.title,analyte:project.analyte,method:project.method,...project.reportMeta,prep:project.prep,levels:project.preparationLevels,texts,blank:"",checks:[...specificity.checks,...precision.checks,...qc.checks],errors:[],precision,qc,includeQc:true,specificity:project.specificity,protocolDetails, logoDataUrl: `data:image/png;base64,${readFileSync(join(process.cwd(), "src/assets/validation-report-logo.png")).toString("base64")}` };
   const html = createValidationReport(reportInput);
   const sourceHtml = createValidationReport({ ...reportInput, sourceTemplateValues: {} });
+  const latestTexts = [...texts];
+  latestTexts[1] = [0.1,0.25,0.5,0.75,1].flatMap(x => [-0.01,0,0.01].map(delta => `${x},${300*x+delta}`)).join("\n");
+  saveValidationWork("report-sync-qa", "report", "Linearity", project);
+  saveValidationWork("report-sync-qa", "report", "Linearity", { ...project, texts: latestTexts });
+  const restored = loadValidationLibrary("report-sync-qa")[0].project;
+  const latestHtml = createValidationReport({ ...reportInput, texts: restored.texts, sourceTemplateValues: {} });
+  expect(latestHtml).toContain("300.00000x");
+  expect(latestHtml).toContain("29.99");
+  expect(latestHtml.match(/<svg /g)).toHaveLength(2);
+  expect(latestHtml).toContain("X Variable 1 Residual Plot");
   expect(sourceHtml).toContain("Actual (mg/mL)");
   expect(sourceHtml).toContain("<td>0.100</td>");
   expect(sourceHtml).not.toContain("{{");
