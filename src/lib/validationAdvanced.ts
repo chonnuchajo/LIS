@@ -18,7 +18,8 @@ export const defaultPrecisionSettings = (): PrecisionSettings => ({
 });
 
 export function evaluatePrecision(settings: PrecisionSettings, targets: number[], accuracyText: string) {
-  const mass = parseMeasurements(settings.massFractions, 2);
+  const massFractionText = settings.massFractions.trim() ? settings.massFractions : targets.filter(level => Number.isFinite(level) && level > 0).map(level => `${level}\t${level / 1000}`).join("\n");
+  const mass = parseMeasurements(massFractionText, 2);
   const daily = parseMeasurements(settings.dailyData, 4);
   const accuracy = parseMeasurements(accuracyText, 3);
   const errors = [...mass.errors.map(e => `ฐาน Horwitz: ${e}`), ...daily.errors.map(e => `ข้อมูลรายวัน: ${e}`)];
@@ -54,7 +55,7 @@ export function evaluatePrecision(settings: PrecisionSettings, targets: number[]
   });
   if (errors.length) checks.forEach(c => { c.pass = null; });
   return { checks, errors, summaries, rawDaily: daily.rows,
-    source: { dailyData: settings.dailyData, massFractions: settings.massFractions, repeatabilityFactor: settings.repeatabilityFactor, repeatabilityLimit: settings.repeatabilityLimit, intermediateLimit: settings.intermediateLimit } };
+    source: { dailyData: settings.dailyData, massFractions: massFractionText, repeatabilityFactor: settings.repeatabilityFactor, repeatabilityLimit: settings.repeatabilityLimit, intermediateLimit: settings.intermediateLimit } };
 }
 
 export type QcSettings = {

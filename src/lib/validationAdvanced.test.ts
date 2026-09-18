@@ -13,10 +13,12 @@ describe("ผล Precision และ QC", () => {
     expect(result.checks.every(check => check.pass === null)).toBe(true);
     expect(duplicateDifference(1e308, 5e307)).toBeCloseTo(200 / 3);
   });
-  it("ใช้ข้อมูลรายวันจริงและไม่ผ่านเมื่อฐาน C ยังไม่ระบุ", () => {
+  it("ใช้ฐาน C จากตัวอย่างอัตโนมัติและให้กรอกทับได้", () => {
     const settings = { ...defaultPrecisionSettings(), minDays: "2", minReplicates: "2", dailyData: "1,0.5,0.5,0.495\n1,0.5,0.5,0.505\n2,0.5,0.5,0.505\n2,0.5,0.5,0.515" };
     const pending = evaluatePrecision(settings, [0.5], "0.5,0.5,0.495\n0.5,0.5,0.505");
-    expect(pending.checks.every(c => c.pass == null)).toBe(true);
+    expect(pending.summaries[0].c).toBe(0.0005);
+    expect(pending.summaries[0].predictedR).toBeCloseTo(6.283, 2);
+    expect(pending.summaries[0].ratio).toBeCloseTo(pending.summaries[0].repeatability!.rsd! / pending.summaries[0].predictedR!, 8);
     const result = evaluatePrecision({ ...settings, massFractions: "0.5,0.25" }, [0.5], "0.5,0.5,0.495\n0.5,0.5,0.505");
     expect(result.errors).toEqual([]);
     expect(result.summaries[0].anova?.sd).toBeCloseTo(Math.sqrt(3));
