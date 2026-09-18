@@ -8,7 +8,7 @@ it("plans without actual pipetting and subtracts matrix from solvent", () => {
  expect(preparationPlan({...row,stockId:"missing"},2,[])).toBeNull();
  expect(preparationPlan({...row,target:"500",targetUnit:"µg/mL"},2,[])?.aliquotUl).toBe(2500);
  const html=preparationWorksheet({analyte:"<script>alert(1)</script>",method:"QA"},[row],2,[]);
- expect(html).toContain("7,496"); expect(html).not.toContain("<script>"); expect(html).toContain("ปิเปตจริง");
+ expect(html).toContain("7496.0"); expect(html).not.toContain("<script>"); expect(html).toContain("ปิเปตจริง");
 });
 
 it("prints STD before Matrix without a purpose column", () => {

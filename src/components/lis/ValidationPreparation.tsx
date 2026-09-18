@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { preparationWorksheet } from "@/lib/validationPreparationWorksheet";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,14 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
   const [worksheet, setWorksheet] = useState("");
   const printFrame = useRef<HTMLIFrameElement>(null);
   const [unitError, setUnitError] = useState("");
+  useEffect(() => {
+    const next = levels.map(row => {
+      const plan = preparationPlan(row, stock, stocks);
+      const aliquot = plan ? String(plan.aliquotUl) : "";
+      return row.aliquot === aliquot ? row : { ...row, aliquot };
+    });
+    if (next.some((row, i) => row !== levels[i])) onChange(next);
+  }, [levels, stock, stocks, onChange]);
   const update = (id: string, key: keyof PreparationLevel, value: string) => onChange(levels.map(row => {
     if (row.id !== id) return row;
     const next = { ...row, preparationKind: preparationKind(row), [key]: value };
@@ -30,7 +38,7 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
   return <div className="space-y-4">
     <Dialog open={!!worksheet} onOpenChange={open => { if (!open) setWorksheet(""); }}><DialogContent className="sm:max-w-6xl"><DialogHeader><DialogTitle>ใบเตรียมสาร Validation</DialogTitle><DialogDescription>ตรวจแผนปิเปตและ Solvent ก่อนพิมพ์ เลือกแนวนอนในการพิมพ์</DialogDescription></DialogHeader><iframe ref={printFrame} title="ใบเตรียมสาร" sandbox="allow-same-origin allow-modals" srcDoc={worksheet} className="h-[65vh] w-full rounded-lg border" /><Button onClick={() => { printFrame.current?.contentWindow?.focus(); printFrame.current?.contentWindow?.print(); }}>พิมพ์ / บันทึก PDF</Button><Button variant="outline" onClick={() => { const url = URL.createObjectURL(new Blob([worksheet], { type: "text/html;charset=utf-8" })); const link = document.createElement("a"); link.href = url; link.download = "validation-preparation.html"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }}>ดาวน์โหลดใบเตรียมสาร HTML</Button><p className="text-xs text-muted-foreground">หากหน้าต่างพิมพ์ไม่เปิด ให้ดาวน์โหลด HTML เปิดด้วย Chrome หรือ Edge แล้วกด Ctrl+P</p></DialogContent></Dialog>
     <Button variant="outline" disabled={!levels.length} onClick={() => setWorksheet(preparationWorksheet({ analyte, method }, levels, stock, stocks))}>พิมพ์ตารางคำนวณการเตรียมสาร</Button>
-    <p className="text-sm text-muted-foreground">เมื่อเปลี่ยน Stock ระบบเติมปริมาตรปิเปตตาม Target ใหม่ ตรวจและแก้เป็นปริมาตรที่ใช้จริงได้ · กรอก Target (mg/mL) และ Final volume (µL; 1 mL = 1,000 µL) เพื่อดูปริมาตร Stock และ Solvent ตามแผนทันที โดยยังไม่ต้องกรอกปิเปตจริง</p>
+    <p className="text-sm text-muted-foreground">ปริมาตรปิเปตคำนวณจากแผนแบบเรียลไทม์เมื่อเปลี่ยน Stock, Target หรือ Final volume แสดงทศนิยม 1 ตำแหน่ง · กรอก Target (mg/mL) และ Final volume (µL; 1 mL = 1,000 µL) เพื่อดูปริมาตร Stock และ Solvent ตามแผนทันที โดยยังไม่ต้องกรอกปิเปตจริง</p>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h3 className="text-base font-semibold">ตารางคำนวณการเตรียมสาร</h3>
         <p className="mt-1 text-sm text-muted-foreground">เลือกหน่วย Target แยกแต่ละระดับได้ · เมื่อเปลี่ยนหน่วย ระบบแปลงตัวเลขเพื่อคงความเข้มข้นเดิม ส่วน Actual และตารางผลวัดใช้ mg/mL</p></div>
@@ -38,7 +46,7 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
     {(["std", "matrix"] as const).map(kind => <section key={kind} className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="text-base font-semibold">{kind === "std" ? "1. เตรียมสารมาตรฐาน (STD)" : "2. เตรียมสารที่เติม Matrix"}</h4><Button variant="outline" disabled={kind === "std" && levels.filter(row => preparationKind(row) === "std").length >= 5} onClick={() => onChange([...levels, { id: crypto.randomUUID(), preparationKind: kind, purpose: kind === "std" ? "linearity" : "accuracy", target: "", aliquot: "", finalVolume: "1000", matrix: "0", recoveryLow: "90", recoveryHigh: "107" }])}><Plus className="mr-2 h-4 w-4" />{kind === "std" ? "เพิ่ม STD" : "เพิ่มสารที่เติม Matrix"}</Button></div>
     <div className="overflow-x-auto rounded-lg border bg-card shadow-sm">
-      <table className="w-full text-sm"><thead className="bg-muted text-muted-foreground"><tr>{["Stock ที่ใช้", "Target และหน่วย", "แผน Stock / Solvent (µL)", "ปิเปตจริง (µL)", "ปริมาตรรวม (µL)", ...(kind === "matrix" ? ["Matrix (µL)"] : []), "Actual (mg/mL)", "Recovery ต่ำ–สูง (%)", ""].map((h, i) => <th key={i} className="p-3 text-left font-medium">{h}</th>)}</tr></thead>
+      <table className="w-full text-sm"><thead className="bg-muted text-muted-foreground"><tr>{["Stock ที่ใช้", "Target และหน่วย", "แผน Stock / Solvent (µL)", "ปิเปตตามแผน (µL)", "ปริมาตรรวม (µL)", ...(kind === "matrix" ? ["Matrix (µL)"] : []), "Actual (mg/mL)", "Recovery ต่ำ–สูง (%)", ""].map((h, i) => <th key={i} className="p-3 text-left font-medium">{h}</th>)}</tr></thead>
         <tbody className="divide-y">{levels.map((row, i) => ({ row, i })).filter(({ row }) => preparationKind(row) === kind).map(({ row, i }) => {
           const result = preparationResult(row, stock, stocks);
           const plan = preparationPlan(row, stock, stocks);
@@ -49,9 +57,9 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
               if (!converted) { setUnitError(`ระดับ ${i + 1}: แปลงหน่วยไม่ได้ กรุณาตรวจค่า Target ให้อยู่ในช่วงคำนวณ`); return; }
               setUnitError(""); onChange(levels.map(level => level.id === row.id ? converted : level));
             }}>{["mg/mL", "µg/mL", "mg/L"].map(unit => <option key={unit}>{unit}</option>)}</NativeSelect>{row.targetUnit && row.targetUnit !== "mg/mL" && <p className="text-xs text-muted-foreground">= {targetConcentration(row) ?? "—"} mg/mL</p>}</td>
-            <td className="min-w-48 p-2 tabular-nums">{plan ? <><p>C stock: {plan.stock.toLocaleString("en-US", { maximumFractionDigits: 6 })} mg/mL</p><p className="font-semibold">Stock: {plan.aliquotUl.toLocaleString("en-US", { maximumFractionDigits: 6 })} µL</p><p>Solvent: {plan.solventUl.toLocaleString("en-US", { maximumFractionDigits: 6 })} µL</p><p className="text-xs text-muted-foreground">เติมปรับปริมาตรถึง Final volume</p></> : <p className="text-destructive">ตรวจ Stock, Target, Final volume และ Matrix — ปริมาตรต้องไม่เกิน Final volume</p>}</td>
-            {(["aliquot", "finalVolume", ...(kind === "matrix" ? ["matrix" as const] : [])] as const).map(key => <td key={key} className="min-w-28 p-2"><Input aria-label={`${key} ระดับ ${i + 1}`} type="number" min="0" step="any" value={row[key]} onChange={e => update(row.id, key, e.target.value)} /></td>)}
-            <td className="min-w-40 p-2 tabular-nums"><strong>{result?.actual.toLocaleString("en-US", { maximumFractionDigits: 6 }) ?? "—"}</strong>{result && <p className="mt-1 text-xs text-muted-foreground">ปิเปตเพื่อให้ตรง Target: {result.suggestedAliquotUl.toFixed(3)} µL<br />Solvent ตามปิเปตจริง: {result.diluentUl.toFixed(3)} µL</p>}{stock != null && !result && <p className="text-xs text-destructive">ตรวจค่าและปริมาตรรวม</p>}</td>
+            <td className="min-w-48 p-2 tabular-nums">{plan ? <><p>C stock: {plan.stock.toLocaleString("en-US", { maximumFractionDigits: 6 })} mg/mL</p><p className="font-semibold">Stock: {plan.aliquotUl.toFixed(1)} µL</p><p>Solvent: {plan.solventUl.toFixed(1)} µL</p><p className="text-xs text-muted-foreground">เติมปรับปริมาตรถึง Final volume</p></> : <p className="text-destructive">ตรวจ Stock, Target, Final volume และ Matrix — ปริมาตรต้องไม่เกิน Final volume</p>}</td>
+            {(["aliquot", "finalVolume", ...(kind === "matrix" ? ["matrix" as const] : [])] as const).map(key => <td key={key} className="min-w-28 p-2"><Input aria-label={`${key} ระดับ ${i + 1}`} type="number" min="0" step="any" readOnly={key === "aliquot"} value={key === "aliquot" ? plan?.aliquotUl.toFixed(1) ?? "" : row[key]} onChange={e => update(row.id, key, e.target.value)} /></td>)}
+            <td className="min-w-40 p-2 tabular-nums"><strong>{result?.actual.toLocaleString("en-US", { maximumFractionDigits: 6 }) ?? "—"}</strong>{result && <p className="mt-1 text-xs text-muted-foreground">ปิเปตเพื่อให้ตรง Target: {result.suggestedAliquotUl.toFixed(1)} µL<br />Solvent ตามแผน: {result.diluentUl.toFixed(1)} µL</p>}{stock != null && !result && <p className="text-xs text-destructive">ตรวจค่าและปริมาตรรวม</p>}</td>
             <td className="p-2">{row.purpose === "accuracy" ? <div className="flex min-w-40 gap-2"><Input aria-label={`Recovery ต่ำ ระดับ ${i + 1}`} type="number" value={row.recoveryLow} onChange={e => update(row.id, "recoveryLow", e.target.value)} /><Input aria-label={`Recovery สูง ระดับ ${i + 1}`} type="number" value={row.recoveryHigh} onChange={e => update(row.id, "recoveryHigh", e.target.value)} /></div> : "—"}</td>
             <td className="p-2"><Button variant="ghost" size="icon" aria-label={`ลบระดับ ${i + 1}`} onClick={() => onChange(levels.filter(l => l.id !== row.id))}><Trash2 className="h-4 w-4" /></Button></td></tr>;
         })}</tbody>
@@ -59,6 +67,6 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
     </div>
     </section>)}
     {unitError && <p role="alert" className="text-sm text-destructive">{unitError}</p>}
-    <p className="text-sm text-muted-foreground">คำแนะนำปิเปต = Target × ปริมาตรรวม ÷ C stock · Actual ใช้ปริมาตรที่ปิเปตจริง ไม่เปลี่ยนเป็น Target โดยอัตโนมัติ · 1 mg/mL = 1,000 µg/mL = 1,000 mg/L</p>
+    <p className="text-sm text-muted-foreground">คำแนะนำปิเปต = Target × ปริมาตรรวม ÷ C stock · ตารางนี้เป็นค่าคำนวณตามแผน ไม่ใช่บันทึกการปิเปตจริง · เก็บทศนิยมเต็มในการคำนวณ · 1 mg/mL = 1,000 µg/mL = 1,000 mg/L</p>
   </div>;
 }

@@ -9,13 +9,15 @@ function Fixture() {
   return <><ValidationPreparation analyte="QA" method="GC" stock={2.01159} stocks={[]} levels={levels} onChange={setLevels} /><output data-testid="template">{preparationTemplate("accuracy", levels, 2.01159, [], 2)}</output></>;
 }
 describe("หน่วยในแผนเตรียมสาร", () => {
-  it("แปลงตัวเลขเมื่อเปลี่ยนหน่วยและไม่เปลี่ยน Actual ตาม Target", () => {
+  it("แปลงหน่วยและคำนวณปิเปตตาม Target แบบเรียลไทม์", () => {
     render(<Fixture />);
     fireEvent.change(screen.getByLabelText("หน่วย Target ระดับ 1"), { target: { value: "µg/mL" } });
     expect(screen.getByLabelText("target ระดับ 1")).toHaveValue(500);
-    expect(screen.getByTestId("template").textContent).toContain("0.5\t0.5028975\t");
+    expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveValue(248.6);
     fireEvent.change(screen.getByLabelText("target ระดับ 1"), { target: { value: "400" } });
-    expect(screen.getByTestId("template").textContent).toContain("0.4\t0.5028975\t");
+    expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveValue(198.8);
+    fireEvent.change(screen.getByLabelText("finalVolume ระดับ 1"), {target:{value:"2000"}});
+    expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveValue(397.7);
     fireEvent.change(screen.getByLabelText("หน่วย Target ระดับ 1"), { target: { value: "mg/mL" } });
     expect(screen.getByLabelText("target ระดับ 1")).toHaveValue(0.4);
   });
