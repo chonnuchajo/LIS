@@ -1,28 +1,38 @@
-import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { preparationWorksheet } from "@/lib/validationPreparationWorksheet";
+import { useRef, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/select";
-import { preparationResult, targetConcentration, changePreparationUnit, type ConcentrationUnit, type PreparationLevel, type ValidationStock } from "@/lib/validationPreparation";
+import { preparationPlan, preparationResult, targetConcentration, changePreparationUnit, type ConcentrationUnit, type PreparationLevel, type ValidationStock } from "@/lib/validationPreparation";
 
-export default function ValidationPreparation({ stock, stocks, levels, onChange }: {
+export default function ValidationPreparation({ stock, stocks, levels, onChange, analyte, method }: {
+  analyte: string;
+  method: string;
   stock: number | null;
   stocks: ValidationStock[];
   levels: PreparationLevel[];
   onChange: (levels: PreparationLevel[]) => void;
 }) {
+  const [worksheet, setWorksheet] = useState("");
+  const printFrame = useRef<HTMLIFrameElement>(null);
   const [unitError, setUnitError] = useState("");
   const update = (id: string, key: keyof PreparationLevel, value: string) => onChange(levels.map(row => row.id === id ? { ...row, [key]: value } : row));
   return <div className="space-y-4">
+    <Dialog open={!!worksheet} onOpenChange={open => { if (!open) setWorksheet(""); }}><DialogContent className="sm:max-w-6xl"><DialogHeader><DialogTitle>ใบเตรียมสาร Validation</DialogTitle><DialogDescription>ตรวจแผนปิเปตและ Solvent ก่อนพิมพ์ เลือกแนวนอนในการพิมพ์</DialogDescription></DialogHeader><iframe ref={printFrame} title="ใบเตรียมสาร" sandbox="allow-same-origin allow-modals" srcDoc={worksheet} className="h-[65vh] w-full rounded-lg border" /><Button onClick={() => { printFrame.current?.contentWindow?.focus(); printFrame.current?.contentWindow?.print(); }}>พิมพ์ / บันทึก PDF</Button><Button variant="outline" onClick={() => { const url = URL.createObjectURL(new Blob([worksheet], { type: "text/html;charset=utf-8" })); const link = document.createElement("a"); link.href = url; link.download = "validation-preparation.html"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }}>ดาวน์โหลดใบเตรียมสาร HTML</Button><p className="text-xs text-muted-foreground">หากหน้าต่างพิมพ์ไม่เปิด ให้ดาวน์โหลด HTML เปิดด้วย Chrome หรือ Edge แล้วกด Ctrl+P</p></DialogContent></Dialog>
+    <Button variant="outline" disabled={!levels.length} onClick={() => setWorksheet(preparationWorksheet({ analyte, method }, levels, stock, stocks))}>พิมพ์ใบเตรียมสาร</Button>
+    <p className="text-sm text-muted-foreground">กรอก Target (mg/mL) และ Final volume (µL; 1 mL = 1,000 µL) เพื่อดูปริมาตร Stock และ Solvent ตามแผนทันที โดยยังไม่ต้องกรอกปิเปตจริง</p>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h3 className="text-base font-semibold">หัวข้อ 6–7 · แผนเตรียมสารและระดับที่ทดสอบ</h3>
         <p className="mt-1 text-sm text-muted-foreground">เลือกหน่วย Target แยกแต่ละระดับได้ · เมื่อเปลี่ยนหน่วย ระบบแปลงตัวเลขเพื่อคงความเข้มข้นเดิม ส่วน Actual และตารางผลวัดใช้ mg/mL</p></div>
       <Button variant="outline" onClick={() => onChange([...levels, { id: crypto.randomUUID(), purpose: "linearity", target: "", aliquot: "", finalVolume: "1000", matrix: "0", recoveryLow: "90", recoveryHigh: "107" }])}><Plus className="mr-2 h-4 w-4" />เพิ่มระดับ</Button>
     </div>
     <div className="overflow-x-auto rounded-lg border bg-card shadow-sm">
-      <table className="w-full text-sm"><thead className="bg-muted text-muted-foreground"><tr>{["ใช้สำหรับ", "Stock ที่ใช้", "Target และหน่วย", "ปิเปตจริง (µL)", "ปริมาตรรวม (µL)", "Matrix (µL)", "Actual (mg/mL)", "Recovery ต่ำ–สูง (%)", ""].map((h, i) => <th key={i} className="p-3 text-left font-medium">{h}</th>)}</tr></thead>
+      <table className="w-full text-sm"><thead className="bg-muted text-muted-foreground"><tr>{["ใช้สำหรับ", "Stock ที่ใช้", "Target และหน่วย", "แผน Stock / Solvent (µL)", "ปิเปตจริง (µL)", "ปริมาตรรวม (µL)", "Matrix (µL)", "Actual (mg/mL)", "Recovery ต่ำ–สูง (%)", ""].map((h, i) => <th key={i} className="p-3 text-left font-medium">{h}</th>)}</tr></thead>
         <tbody className="divide-y">{levels.map((row, i) => {
           const result = preparationResult(row, stock, stocks);
+          const plan = preparationPlan(row, stock, stocks);
           return <tr key={row.id} className="hover:bg-accent"><td className="p-2"><NativeSelect aria-label={`การใช้งานระดับ ${i + 1}`} value={row.purpose} onChange={e => update(row.id, "purpose", e.target.value)}><option value="linearity">Linearity</option><option value="accuracy">Accuracy / Precision</option><option value="suitability">Specificity / SST</option><option value="qc">QC</option></NativeSelect></td>
             <td className="p-2"><NativeSelect aria-label={`Stock ระดับ ${i + 1}`} value={row.stockId ?? ""} onChange={e => update(row.id, "stockId", e.target.value)}><option value="">Stock หลัก</option>{stocks.map(source => <option key={source.id} value={source.id}>{source.name || source.id}</option>)}</NativeSelect></td>
             <td className="min-w-40 space-y-2 p-2"><Input aria-label={`target ระดับ ${i + 1}`} type="number" min="0" step="any" value={row.target} onChange={e => update(row.id, "target", e.target.value)} /><NativeSelect aria-label={`หน่วย Target ระดับ ${i + 1}`} value={row.targetUnit ?? "mg/mL"} onChange={e => {
@@ -30,8 +40,9 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange 
               if (!converted) { setUnitError(`ระดับ ${i + 1}: แปลงหน่วยไม่ได้ กรุณาตรวจค่า Target ให้อยู่ในช่วงคำนวณ`); return; }
               setUnitError(""); onChange(levels.map(level => level.id === row.id ? converted : level));
             }}>{["mg/mL", "µg/mL", "mg/L"].map(unit => <option key={unit}>{unit}</option>)}</NativeSelect>{row.targetUnit && row.targetUnit !== "mg/mL" && <p className="text-xs text-muted-foreground">= {targetConcentration(row) ?? "—"} mg/mL</p>}</td>
+            <td className="min-w-48 p-2 tabular-nums">{plan ? <><p>C stock: {plan.stock.toLocaleString("en-US", { maximumFractionDigits: 6 })} mg/mL</p><p className="font-semibold">Stock: {plan.aliquotUl.toLocaleString("en-US", { maximumFractionDigits: 6 })} µL</p><p>Solvent: {plan.solventUl.toLocaleString("en-US", { maximumFractionDigits: 6 })} µL</p><p className="text-xs text-muted-foreground">เติมปรับปริมาตรถึง Final volume</p></> : <p className="text-destructive">ตรวจ Stock, Target, Final volume และ Matrix — ปริมาตรต้องไม่เกิน Final volume</p>}</td>
             {(["aliquot", "finalVolume", "matrix"] as const).map(key => <td key={key} className="min-w-28 p-2"><Input aria-label={`${key} ระดับ ${i + 1}`} type="number" min="0" step="any" value={row[key]} onChange={e => update(row.id, key, e.target.value)} /></td>)}
-            <td className="min-w-40 p-2 tabular-nums"><strong>{result?.actual.toLocaleString("en-US", { maximumFractionDigits: 6 }) ?? "—"}</strong>{result && <p className="mt-1 text-xs text-muted-foreground">ปิเปตเพื่อให้ตรง Target: {result.suggestedAliquotUl.toFixed(3)} µL<br />Diluent: {result.diluentUl.toFixed(3)} µL</p>}{stock != null && !result && <p className="text-xs text-destructive">ตรวจค่าและปริมาตรรวม</p>}</td>
+            <td className="min-w-40 p-2 tabular-nums"><strong>{result?.actual.toLocaleString("en-US", { maximumFractionDigits: 6 }) ?? "—"}</strong>{result && <p className="mt-1 text-xs text-muted-foreground">ปิเปตเพื่อให้ตรง Target: {result.suggestedAliquotUl.toFixed(3)} µL<br />Solvent ตามปิเปตจริง: {result.diluentUl.toFixed(3)} µL</p>}{stock != null && !result && <p className="text-xs text-destructive">ตรวจค่าและปริมาตรรวม</p>}</td>
             <td className="p-2">{row.purpose === "accuracy" ? <div className="flex min-w-40 gap-2"><Input aria-label={`Recovery ต่ำ ระดับ ${i + 1}`} type="number" value={row.recoveryLow} onChange={e => update(row.id, "recoveryLow", e.target.value)} /><Input aria-label={`Recovery สูง ระดับ ${i + 1}`} type="number" value={row.recoveryHigh} onChange={e => update(row.id, "recoveryHigh", e.target.value)} /></div> : "—"}</td>
             <td className="p-2"><Button variant="ghost" size="icon" aria-label={`ลบระดับ ${i + 1}`} onClick={() => onChange(levels.filter(l => l.id !== row.id))}><Trash2 className="h-4 w-4" /></Button></td></tr>;
         })}</tbody>

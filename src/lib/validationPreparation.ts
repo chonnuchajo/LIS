@@ -78,6 +78,19 @@ export function preparationResult(level: PreparationLevel, mainStock: number | n
   return dilution({ stockMgMl: concentration, target, unit: "mg/mL", finalUl: Number(level.finalVolume), actualAliquotUl: Number(level.aliquot), matrixUl: Number(level.matrix) });
 }
 
+/** Planned volumes are independent of the subsequently recorded actual pipetting. */
+export function preparationPlan(level: PreparationLevel, mainStock: number | null, stocks: ValidationStock[]) {
+  const selected = stocks.find(source => source.id === level.stockId);
+  const stock = level.stockId ? selected ? stockConcentration(Number(selected.weight), Number(selected.purity), Number(selected.volume)) : null : mainStock;
+  const target = targetConcentration(level), finalUl = positiveNumber(level.finalVolume);
+  const matrixUl = level.matrix.trim() ? Number(level.matrix) : NaN;
+  if (stock == null || !Number.isFinite(stock) || stock <= 0 || target == null || finalUl == null || !Number.isFinite(matrixUl) || matrixUl < 0) return null;
+  const aliquotUl = target / stock * finalUl;
+  const solventUl = finalUl - aliquotUl - matrixUl;
+  if (!Number.isFinite(aliquotUl) || aliquotUl <= 0 || !Number.isFinite(solventUl) || solventUl < 0) return null;
+  return { stock, target, finalUl, matrixUl, aliquotUl, solventUl };
+}
+
 /** Build input scaffolding only; measured Area/Found must always remain blank. */
 export function preparationTemplate(purpose: "linearity" | "accuracy", levels: PreparationLevel[], mainStock: number | null, stocks: ValidationStock[], replicates: number) {
   const selected = levels.filter(level => level.purpose === purpose);

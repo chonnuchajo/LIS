@@ -6,7 +6,7 @@ import { defaultPreparationLevels, preparationTemplate } from "@/lib/validationP
 
 function Fixture() {
   const [levels, setLevels] = useState([defaultPreparationLevels().find(level => level.purpose === "accuracy" && level.target === "0.5")!]);
-  return <><ValidationPreparation stock={2.01159} stocks={[]} levels={levels} onChange={setLevels} /><output data-testid="template">{preparationTemplate("accuracy", levels, 2.01159, [], 2)}</output></>;
+  return <><ValidationPreparation analyte="QA" method="GC" stock={2.01159} stocks={[]} levels={levels} onChange={setLevels} /><output data-testid="template">{preparationTemplate("accuracy", levels, 2.01159, [], 2)}</output></>;
 }
 describe("หน่วยในแผนเตรียมสาร", () => {
   it("แปลงตัวเลขเมื่อเปลี่ยนหน่วยและไม่เปลี่ยน Actual ตาม Target", () => {

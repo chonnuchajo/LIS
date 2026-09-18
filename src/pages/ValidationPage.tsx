@@ -173,7 +173,7 @@ export default function ValidationPage() {
         <label className="space-y-2 text-sm">วิธี / เครื่องมือ<Input value={method} onChange={e => setMethod(e.target.value)} /></label>
       </div>
       <ValidationStocks measurementStockIds={linkedMeasurements.rows.map(row => row.stockId)} stocks={stocks} levels={preparationLevels} onChange={setStocks} />
-      <ValidationPreparation stock={stock} stocks={stocks} levels={preparationLevels} onChange={setPreparationLevels} />
+      <ValidationPreparation analyte={analyte} method={method} stock={stock} stocks={stocks} levels={preparationLevels} onChange={setPreparationLevels} />
       <div className="grid gap-4 sm:grid-cols-2">
         {([["analyst", "ผู้จัดทำ"], ["reviewer", "ผู้ทบทวน"], ["protocol", "วิธี / SOP และเวอร์ชัน"], ["calibration", "Calibration ID ของ Linearity / ข้อมูลกรอกตรง"]] as const).map(([key, label]) => <label key={key} className="space-y-2 text-sm">{label}<Input value={reportMeta[key]} onChange={e => setReportMeta(old => ({ ...old, [key]: e.target.value }))} /></label>)}
       </div>
