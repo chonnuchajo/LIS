@@ -1,6 +1,6 @@
 import { validationChartSvg } from "@/lib/validationCharts";
-import { useRef, useState, type ReactNode } from "react";
-import { Calculator, Download, FileCheck2, FlaskConical, ShieldCheck } from "lucide-react";
+import { Fragment, useRef, useState, type ReactNode } from "react";
+import { ArrowRight, Calculator, Download, FileCheck2, FlaskConical, ShieldCheck } from "lucide-react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
@@ -214,11 +214,14 @@ export default function ValidationPage() {
 
     {notice && <p role="status" className="text-sm">{notice}</p>}
     <Tabs value={tab} onValueChange={v => { setTab(v); setNotice(""); }}>
-      <TabsList className="sticky top-14 z-20 grid md:top-12 h-auto w-full grid-cols-2 gap-2 rounded-xl border bg-card p-2 shadow-sm lg:grid-cols-6">
-        <TabsTrigger value="setup" className="min-h-20 whitespace-normal rounded-lg px-3 py-4 font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">ตั้งค่างานและเตรียมสาร</TabsTrigger>
-        {names.map((n, i) => <TabsTrigger className="min-h-20 flex-col gap-1 whitespace-normal rounded-lg border border-transparent px-3 py-4 text-center data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" key={n} value={String(i)}>
-          <span className="text-lg font-semibold">{i + 1}. {n}</span>
-        </TabsTrigger>)}
+      <TabsList aria-label="ขั้นตอน Validation" className="sticky top-14 z-20 flex md:top-12 h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl border bg-card p-2 shadow-sm">
+        <TabsTrigger value="setup" className="min-h-20 min-w-36 flex-1 whitespace-normal rounded-lg px-3 py-4 font-semibold lg:min-w-0 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">ตั้งค่างานและเตรียมสาร</TabsTrigger>
+        {names.map((n, i) => <Fragment key={n}>
+          <ArrowRight aria-hidden="true" className="h-5 w-5 shrink-0 text-muted-foreground" />
+          <TabsTrigger className="min-h-20 min-w-36 flex-1 whitespace-normal rounded-lg border border-transparent px-3 py-4 text-center lg:min-w-0 data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground" value={String(i)}>
+            <span className="text-lg font-semibold">{n}</span>
+          </TabsTrigger>
+        </Fragment>)}
       </TabsList>
     <TabsContent value="setup" forceMount className={tab === "setup" ? "mt-4 space-y-4" : "hidden"}>
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm"><div className="flex items-center gap-3"><ShieldCheck className="h-8 w-8 text-primary" /><div><h2 className="text-base font-semibold">พื้นที่ตรวจสอบวิธีวิเคราะห์</h2><p className="text-sm text-muted-foreground">{analyte || "ยังไม่ระบุสาร"} · {method || "ยังไม่ระบุวิธี"} · กำหนดช่วงความเข้มข้นในแผนเตรียมสาร</p></div></div><Badge variant="secondary">ฉบับร่าง · รอผู้ทบทวน</Badge></div>
