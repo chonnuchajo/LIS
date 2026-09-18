@@ -31,7 +31,20 @@ export function dilution(input: {
   return Object.values(result).every(Number.isFinite) && result.actual > 0 ? result : null;
 }
 
+export type MatrixCalculation = { percent: string; basis: "ww" | "wv"; reference: string; density: string; sampleDensity: string };
+export function calculatedMatrixVolume(config: MatrixCalculation, finalVolume: string) {
+  const percent = positiveNumber(config.percent), reference = positiveNumber(config.reference), density = positiveNumber(config.density), finalUl = positiveNumber(finalVolume);
+  const sampleDensity = config.basis === "wv" ? positiveNumber(config.sampleDensity) : 1;
+  if (percent == null || percent > 100 || reference == null || density == null || finalUl == null || sampleDensity == null) return null;
+  const massFraction = percent / 100 / sampleDensity;
+  if (massFraction > 1) return null;
+  const matrixMg = reference * (finalUl / 1000) / massFraction;
+  const matrixUl = matrixMg / density;
+  return Number.isFinite(matrixUl) && matrixUl > 0 && matrixUl <= finalUl ? { matrixMg, matrixUl, massFraction } : null;
+}
+
 export type PreparationLevel = {
+  matrixCalculation?: MatrixCalculation;
   preparationKind?: "std" | "matrix";
   id: string;
   purpose: "linearity" | "accuracy" | "suitability" | "qc";

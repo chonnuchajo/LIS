@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dilution, stockConcentration, preparationResult, preparationTemplate, checkLinearityPreparation, defaultPreparationLevels, defaultLinearitySettings, targetConcentration, changePreparationUnit } from "./validationPreparation";
+import { calculatedMatrixVolume, dilution, stockConcentration, preparationResult, preparationTemplate, checkLinearityPreparation, defaultPreparationLevels, defaultLinearitySettings, targetConcentration, changePreparationUnit } from "./validationPreparation";
 import { parseMeasurements } from "./validationCalculator";
 
 describe("การเตรียมสารสำหรับหัวข้อ 6 และ 7", () => {
@@ -68,4 +68,16 @@ describe("การเตรียมสารสำหรับหัวข้�
     expect(result.groups.map(group => group.length)).toEqual([3, 3, 3, 3, 3]);
     expect(checkLinearityPreparation(rows, levels, 2, [], { ...defaultLinearitySettings(), concentrationTolerance: "0.2" }).ready).toBe(false);
   });
+});
+
+
+it("calculates the fixed matrix loading in section 6.5.2 with explicit percent basis", () => {
+ const config = {percent:"25",basis:"ww" as const,reference:"1",density:"1",sampleDensity:""};
+ expect(calculatedMatrixVolume(config,"1000")?.matrixUl).toBe(4);
+ expect(calculatedMatrixVolume({...config,percent:"10"},"1000")?.matrixUl).toBe(10);
+ expect(calculatedMatrixVolume({...config,density:"0.8"},"2000")?.matrixUl).toBe(10);
+ expect(calculatedMatrixVolume({...config,basis:"wv"},"1000")).toBeNull();
+ expect(calculatedMatrixVolume({...config,basis:"wv",sampleDensity:"1.2"},"1000")?.matrixUl).toBeCloseTo(4.8);
+ expect(calculatedMatrixVolume({...config,percent:"0"},"1000")).toBeNull();
+ expect(calculatedMatrixVolume({...config,percent:"0.001"},"1000")).toBeNull();
 });

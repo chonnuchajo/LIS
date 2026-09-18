@@ -36,3 +36,15 @@ it("recalculates pipetting when switching stock and clears impossible dilution",
   fireEvent.change(screen.getByLabelText("Stock ระดับ 1"), {target:{value:"weak"}});
   expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveTextContent("—");
 });
+
+it("updates Matrix and Solvent when percent changes and final volume scales", () => {
+ render(<Fixture />);
+ fireEvent.click(screen.getByRole("checkbox", {name:"คำนวณ Matrix จาก %ยา ตามข้อ 6.5.2"}));
+ expect(screen.getByLabelText("matrix ระดับ 1")).toHaveValue(4);
+ fireEvent.change(screen.getByLabelText("%ยา", {exact:true}),{target:{value:"10"}});
+ expect(screen.getByLabelText("matrix ระดับ 1")).toHaveValue(10);
+ fireEvent.change(screen.getByLabelText("finalVolume ระดับ 1"),{target:{value:"2000"}});
+ expect(screen.getByLabelText("matrix ระดับ 1")).toHaveValue(20);
+ fireEvent.change(screen.getByLabelText("ฐาน %ยา"),{target:{value:"wv"}});
+ expect(screen.getByLabelText("matrix ระดับ 1")).toHaveValue(null);
+});
