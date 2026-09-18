@@ -10,3 +10,11 @@ it("plans without actual pipetting and subtracts matrix from solvent", () => {
  const html=preparationWorksheet({analyte:"<script>alert(1)</script>",method:"QA"},[row],2,[]);
  expect(html).toContain("7,496"); expect(html).not.toContain("<script>"); expect(html).toContain("ปิเปตจริง");
 });
+
+it("prints STD before Matrix without a purpose column", () => {
+ const base = defaultPreparationLevels()[0];
+ const html = preparationWorksheet({analyte:"QA",method:"GC"}, [{...base, preparationKind:"matrix",matrix:"0"},{...base,id:"std",matrix:"0"}],2,[]);
+ expect(html).not.toContain("ใช้สำหรับ");
+ expect(html.indexOf("1. เตรียมสารมาตรฐาน (STD)")).toBeLessThan(html.indexOf("2. เตรียมสารที่เติม Matrix"));
+ expect((html.match(/<table>/g) || []).length).toBe(2);
+});

@@ -32,6 +32,7 @@ export function dilution(input: {
 }
 
 export type PreparationLevel = {
+  preparationKind?: "std" | "matrix";
   id: string;
   purpose: "linearity" | "accuracy" | "suitability" | "qc";
   target: string;
@@ -136,4 +137,8 @@ export function defaultPreparationLevels(): PreparationLevel[] {
     ...[0.1, 0.5, 1].map((target, i) => ({ id: `accuracy-${i}`, purpose: "accuracy" as const, target: String(target), aliquot: String(target * 500), finalVolume: "1000", matrix: "4", recoveryLow: target === 1 ? "95" : "90", recoveryHigh: target === 1 ? "105" : "107" })),
     { id: "suitability", purpose: "suitability", target: "1", aliquot: "500", finalVolume: "1000", matrix: "0", recoveryLow: "90", recoveryHigh: "107" },
   ];
+}
+
+export function preparationKind(level: PreparationLevel): "std" | "matrix" {
+  return level.preparationKind ?? (level.matrix.trim() === "0" ? "std" : "matrix");
 }
