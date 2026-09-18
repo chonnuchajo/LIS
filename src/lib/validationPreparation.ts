@@ -135,7 +135,6 @@ export function defaultPreparationLevels(): PreparationLevel[] {
   return [
     ...[0.1, 0.25, 0.5, 0.75, 1].map((target, i) => ({ id: `linearity-${i}`, purpose: "linearity" as const, target: String(target), aliquot: String(target * 500), finalVolume: "1000", matrix: "0", recoveryLow: "90", recoveryHigh: "107" })),
     ...[0.1, 0.5, 1].map((target, i) => ({ id: `accuracy-${i}`, purpose: "accuracy" as const, target: String(target), aliquot: String(target * 500), finalVolume: "1000", matrix: "4", recoveryLow: target === 1 ? "95" : "90", recoveryHigh: target === 1 ? "105" : "107" })),
-    { id: "suitability", purpose: "suitability", target: "1", aliquot: "500", finalVolume: "1000", matrix: "0", recoveryLow: "90", recoveryHigh: "107" },
   ];
 }
 
