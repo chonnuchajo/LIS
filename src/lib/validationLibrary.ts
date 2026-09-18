@@ -34,3 +34,18 @@ export function saveValidationWork(owner: string, id: string, section: string, s
   storage.setItem(key(owner), JSON.stringify([work, ...entries.filter(entry => entry.id !== work.id && validationDrugKey(entry.project.analyte) !== validationDrugKey(project.analyte))]));
   return work;
 }
+
+export function clearValidationLibrary(owner: string, storage: Storage = localStorage) {
+  const source = storage.getItem(key(owner));
+  if (!source || !loadValidationLibrary(owner, storage).length) return;
+  storage.setItem(`${key(owner)}:recovery`, source);
+  storage.removeItem(key(owner));
+}
+export function restoreValidationLibrary(owner: string, storage: Storage = localStorage) {
+  const source = storage.getItem(`${key(owner)}:recovery`);
+  if (!source) return false;
+  if (loadValidationLibrary(owner, storage).length) throw new Error("คลังงานต้องว่างก่อนกู้คืน");
+  storage.setItem(key(owner), source);
+  storage.removeItem(`${key(owner)}:recovery`);
+  return true;
+}

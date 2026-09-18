@@ -35,3 +35,13 @@ it("อัปเดตยาชื่อเดิมแม้ใช้รหั�
   saveValidationWork("qa", "third", "STD", { ...project, analyte: "Other" });
   expect(loadValidationLibrary("qa")).toHaveLength(2);
 });
+it("ล้างเฉพาะคลังบัญชีและกู้คืนได้", async () => {
+  const { clearValidationLibrary, restoreValidationLibrary } = await import("./validationLibrary");
+  saveValidationWork("qa", "one", "STD", project);
+  saveValidationWork("other", "two", "STD", project);
+  clearValidationLibrary("qa");
+  expect(loadValidationLibrary("qa")).toEqual([]);
+  expect(loadValidationLibrary("other")).toHaveLength(1);
+  expect(restoreValidationLibrary("qa")).toBe(true);
+  expect(loadValidationLibrary("qa")).toHaveLength(1);
+});
