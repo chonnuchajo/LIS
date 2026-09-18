@@ -54,7 +54,7 @@ export function evaluatePrecision(settings: PrecisionSettings, targets: number[]
   });
   if (errors.length) checks.forEach(c => { c.pass = null; });
   return { checks, errors, summaries, rawDaily: daily.rows,
-    source: { dailyData: settings.dailyData, massFractions: settings.massFractions, repeatabilityFactor: settings.repeatabilityFactor } };
+    source: { dailyData: settings.dailyData, massFractions: settings.massFractions, repeatabilityFactor: settings.repeatabilityFactor, repeatabilityLimit: settings.repeatabilityLimit, intermediateLimit: settings.intermediateLimit } };
 }
 
 export type QcSettings = {

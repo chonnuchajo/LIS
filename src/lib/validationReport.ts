@@ -1,3 +1,4 @@
+import { renderSourceTemplate } from "./validationSourceTemplate";
 import { referenceAccuracyTable } from "./validationReferenceTables";
 import type { ValidationCheck, evaluatePrecision, evaluateQc } from "./validationAdvanced";
 import { formatValidationNumber as fmt } from "./validationAdvanced";
@@ -9,6 +10,9 @@ import { evaluateLinkedMeasurements, measurementLabels, type LinkedMeasurements 
 import { defaultProtocolDetails, evaluateProtocolDetails, hasProtocolDetails, type ProtocolDetails } from "./validationProtocol";
 
 export type ValidationReportInput = {
+  sourceTemplateValues?: Record<string, string>;
+  accuracyLevels?: PreparationLevel[];
+  qcSettings?: import("./validationAdvanced").QcSettings;
   logoDataUrl?: string;
   title: string; analyte: string; method: string; analyst: string; reviewer: string;
   protocol: string; calibration: string; notes: string;
@@ -63,7 +67,7 @@ export function createValidationReport(input: ValidationReportInput) {
   const linkedSources = linkedResult?.sources.filter(source => linkedRows.some(result => result.row.calibrationId === source.calibration.id)) ?? [];
   const status = input.errors.length || reportChecks.some(c => c.pass === false) ? "พบข้อผิดพลาด / ต้องทบทวน" : reportChecks.every(c => c.pass === true) && reportChecks.length ? "ผ่านเงื่อนไขที่คำนวณ — รออนุมัติรายงาน" : "ข้อมูลหรือการทบทวนยังไม่ครบ";
   const accuracyRows = (parsed[2]?.rows ?? []).map(([level, expected, found], i) => [i + 1, level, expected, found, expected > 0 ? fmt(found / expected * 100) : "คำนวณไม่ได้", expected > 0 ? fmt((found - expected) / expected * 100) : "คำนวณไม่ได้"]);
-  const accuracySummary = input.levels.filter(level => level.purpose === "accuracy").map(level => {
+  const accuracySummary = (input.accuracyLevels ?? input.levels.filter(level => level.purpose === "accuracy")).map(level => {
     const target = targetConcentration(level);
     const rows = parsed[2].rows.filter(row => row[0] === target);
     const found = stats(rows.map(row => row[2]));
@@ -76,7 +80,7 @@ export function createValidationReport(input: ValidationReportInput) {
     const result = stats(data);
     return [fmt(targetConcentration(level)), fmt(actual), data.length, fmt(result?.mean), fmt(result?.sd), fmt(result?.rsd)];
   });
-  return `<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><title>${e(input.title)}</title><style>
+  const calculatedHtml = `<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"><title>${e(input.title)}</title><style>
   *{box-sizing:border-box}body{font:14px/1.65 Tahoma,Arial,sans-serif;color:#172033;margin:0;background:#eef2f6}main{max-width:1000px;margin:32px auto;padding:40px;background:white}h1{font-size:25px;margin:0}h2{font-size:19px;border-bottom:2px solid #2563eb;padding-bottom:8px;margin-top:30px}h3{font-size:15px}p{white-space:pre-wrap}table{width:100%;border-collapse:collapse;margin:12px 0 20px;font-size:12px;table-layout:auto}th,td{border:1px solid #cbd5e1;padding:7px;vertical-align:top;overflow-wrap:anywhere}th{background:#eff4fa;text-align:left}tr{break-inside:avoid}thead{display:table-header-group}.status-cell{white-space:nowrap;overflow-wrap:normal;width:1%}.muted{color:#64748b}.notice{padding:14px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc}.errors{color:#991b1b}figure{margin:12px 0;break-inside:avoid}figcaption{font-weight:bold}svg{width:100%;max-height:360px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}pre{white-space:pre-wrap;overflow-wrap:anywhere;border:1px solid #cbd5e1;padding:12px;font-size:11px}@page{size:A4;margin:15mm}@media print{body{background:white}main{margin:0;padding:0;max-width:none;background:transparent}.screen{display:none}h2,h3{break-after:avoid}a{color:inherit;text-decoration:none}}@media(max-width:640px){main{margin:0;padding:16px}.two{display:block}table{font-size:10px}}
   body{color:#111;background:white;font:12px/1.65 Tahoma,Arial,sans-serif}main{max-width:900px}h1{font-size:19px}h2{font-size:16px;border:0;margin-top:24px;padding:0}h3{font-size:13px}th{background:white}th,td{border-color:#111;padding:5px}table{font-size:11px}.reference-results{table-layout:fixed;font-size:9px;text-align:center}.reference-results th,.reference-results td{padding:4px 2px;overflow-wrap:normal}.document-header{font-size:10px;margin:0 0 18px}.document-header td{vertical-align:middle}.document-header img{width:85px;max-width:100%}.toc{break-after:page;padding:16px 0}.toc h2{text-align:center}.toc ol{line-height:2.2}.toc a{color:inherit;text-decoration:none}.report-frame{margin:0;font-size:inherit}.report-frame>thead>tr>td,.report-frame>tbody>tr>td{border:0;padding:0}.report-frame>tbody>tr{break-inside:auto}.report-frame>thead{display:table-header-group}.two{display:block}.two svg{max-height:290px}.notice{background:white;border-radius:0;border-color:#888}
   td{min-width:2.5em}.document-header td{min-width:0}.reference-results td{min-width:0}@media print{.document-running{break-inside:avoid}.document-header{margin:0 0 18px}.reference-results{font-size:9px}}@page{size:A4;margin:15mm}
@@ -136,4 +140,5 @@ export function createValidationReport(input: ValidationReportInput) {
   <h3>Precision · ข้อมูลรายวันต้นทาง</h3><pre>${e(input.precision.source.dailyData || "ยังไม่มีข้อมูล")}</pre><h3>Precision · ฐาน C (Target mg/mL, mass fraction g/g)</h3><pre>${e(input.precision.source.massFractions || "ยังไม่มีข้อมูล")}</pre>
   <h3>แหล่งอ้างอิงสูตร</h3><p><a href="https://www.cipac.org/images/pdf/validat.pdf">CIPAC 3807 · Horwitz / mass fraction</a><br><a href="https://eurachem.org/images/stories/Guides/pdf/MV_Guide_planning_supplement_2nd_ed_EN.pdf">Eurachem · Planning and Reporting Method Validation Studies (2025)</a></p>
   </main></body></html>`.replace(/<h2>(\d+)\./g, '<h2 id="section-$1">$1.');
+  return input.sourceTemplateValues ? renderSourceTemplate(input, calculatedHtml) : calculatedHtml;
 }

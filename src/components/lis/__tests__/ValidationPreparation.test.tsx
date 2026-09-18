@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import ValidationPreparation from "../ValidationPreparation";
 import { defaultPreparationLevels, preparationTemplate, type PreparationLevel } from "@/lib/validationPreparation";
 
@@ -72,10 +72,21 @@ it("เลือกใช้ Stock โดยตรงโดยไม่ต้อ
  }
  render(<DirectStockFixture />);
  fireEvent.click(screen.getByLabelText("ใช้ Stock โดยตรง ระดับ 1"));
- expect(screen.getByText("1.04417")).toBeInTheDocument();
+ expect(screen.getByText("1.044")).toBeInTheDocument();
  expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveTextContent("1000.0");
  expect(screen.queryByLabelText("ปิเปตจริง ระดับ 1")).not.toBeInTheDocument();
  fireEvent.click(screen.getByLabelText("ใช้ Stock โดยตรง ระดับ 1"));
  expect(screen.getByLabelText("ปิเปตจริง ระดับ 1")).toHaveValue(null);
  expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveTextContent("957.7");
+});
+
+it("เลือกปลายทาง STD และใช้ปุ่มบันทึกใต้ตาราง", () => {
+ const save = vi.fn();
+ render(<ValidationPreparation analyte="QA" method="GC" stock={2} stocks={[]} levels={defaultPreparationLevels()} onChange={() => {}} onSaveTo={save} />);
+ fireEvent.change(screen.getByLabelText("นำ STD ไปคำนวณที่"), { target: { value: "accuracy" } });
+ fireEvent.click(screen.getByRole("button", { name: "บันทึก STD และไป Accuracy" }));
+ expect(save).toHaveBeenCalledWith("accuracy");
+ fireEvent.change(screen.getByLabelText("นำ STD ไปคำนวณที่"), { target: { value: "precision" } });
+ fireEvent.click(screen.getByRole("button", { name: "บันทึก STD และไป Precision" }));
+ expect(save).toHaveBeenCalledWith("precision");
 });

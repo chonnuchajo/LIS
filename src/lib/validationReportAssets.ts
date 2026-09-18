@@ -1,4 +1,4 @@
-import logoUrl from "@/assets/icp-ladda-logo.png";
+import logoUrl from "@/assets/validation-report-logo.png";
 
 // Resolve through Vite's base path, then embed for offline HTML and PDF rendering.
 export async function validationReportLogo(): Promise<string> {

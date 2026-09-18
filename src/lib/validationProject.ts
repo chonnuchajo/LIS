@@ -11,6 +11,8 @@ const level = z.object({ useStockDirect: z.boolean().optional(), actualAliquot: 
 export const validationProjectSchema = z.object({
   format: z.literal("lis-validation-project"), version: z.literal(1),
   title: short, analyte: short, method: short,
+  sourceTemplateValues: z.record(z.string().max(200)).default({}),
+  preparationSources: z.object({ accuracy: z.enum(["std", "matrix"]), precision: z.enum(["std", "matrix"]) }).default({ accuracy: "matrix", precision: "matrix" }),
   protocolDetails: z.object(Object.fromEntries(protocolFields.map(([key]) => [key, z.string().max(10000)])) as Record<keyof ReturnType<typeof defaultProtocolDetails>, z.ZodString>).default(defaultProtocolDetails),
   prep: z.array(numericText).length(5), texts: z.array(text).length(3), blank: numericText,
   preparationLevels: z.array(level).max(100),

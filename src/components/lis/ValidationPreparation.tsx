@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/select";
 import { calculatedMatrixVolume, preparationKind, preparationPlan, preparationResult, targetConcentration, type PreparationLevel, type ValidationStock } from "@/lib/validationPreparation";
 
-export default function ValidationPreparation({ stock, stocks, levels, onChange, analyte, method, onSave }: {
+export default function ValidationPreparation({ stock, stocks, levels, onChange, analyte, method, onSave, onSaveTo }: {
+  onSaveTo?: (destination: "linearity" | "accuracy" | "precision") => void;
   onSave?: (section: string) => void;
   analyte: string;
   method: string;
@@ -17,6 +18,7 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
   levels: PreparationLevel[];
   onChange: (levels: PreparationLevel[]) => void;
 }) {
+  const [destination, setDestination] = useState<"linearity" | "accuracy" | "precision">("linearity");
   const [worksheet, setWorksheet] = useState("");
   const printFrame = useRef<HTMLIFrameElement>(null);
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
         <p className="mt-1 text-sm text-muted-foreground">Target และ Actual ใช้หน่วย mg/mL · ปริมาตร Stock และ Solvent คำนวณอัตโนมัติ · เมื่อเลือกใช้ Stock โดยตรง Actual = C stock และ Solvent = 0</p></div>
     </div>
     {(["std", "matrix"] as const).map(kind => <section key={kind} className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="text-base font-semibold">{kind === "std" ? "1. เตรียมสารมาตรฐาน (STD)" : "2. เตรียมสารที่เติม Matrix · 3 ระดับ ต่ำ–กลาง–สูง"}</h4><div className="flex gap-2">{onSave && <Button onClick={() => onSave(kind === "std" ? "STD" : "Matrix")}>บันทึก {kind === "std" ? "STD" : "Matrix"}</Button>}<Button variant="outline" disabled={levels.filter(row => preparationKind(row) === kind).length >= (kind === "std" ? 5 : 3)} onClick={() => onChange([...levels, { id: crypto.randomUUID(), preparationKind: kind, matrixCalculation: kind === "matrix" ? matrixConfig : undefined, purpose: kind === "std" ? "linearity" : "accuracy", target: "", aliquot: "", actualAliquot: "", finalVolume: "", matrix: kind === "std" ? "0" : "", recoveryLow: "90", recoveryHigh: "107" }])}><Plus className="mr-2 h-4 w-4" />{kind === "std" ? "เพิ่ม STD" : "เพิ่มสารที่เติม Matrix"}</Button></div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h4 className="text-base font-semibold">{kind === "std" ? "1. เตรียมสารมาตรฐาน (STD)" : "2. เตรียมสารที่เติม Matrix · 3 ระดับ ต่ำ–กลาง–สูง"}</h4><div className="flex gap-2"><Button variant="outline" disabled={levels.filter(row => preparationKind(row) === kind).length >= (kind === "std" ? 5 : 3)} onClick={() => onChange([...levels, { id: crypto.randomUUID(), preparationKind: kind, matrixCalculation: kind === "matrix" ? matrixConfig : undefined, purpose: kind === "std" ? "linearity" : "accuracy", target: "", aliquot: "", actualAliquot: "", finalVolume: "", matrix: kind === "std" ? "0" : "", recoveryLow: "90", recoveryHigh: "107" }])}><Plus className="mr-2 h-4 w-4" />{kind === "std" ? "เพิ่ม STD" : "เพิ่มสารที่เติม Matrix"}</Button></div></div>
     <label className="flex flex-wrap items-center gap-2 text-sm">กำหนด Final volume สำหรับ {kind === "std" ? "STD" : "Matrix"} (µL)<Input className="h-9 w-28 text-right" aria-label={`Final volume ${kind}`} type="number" min="0" step="any" value={levels.filter(row => preparationKind(row) === kind).every((row,_,all) => row.finalVolume === all[0]?.finalVolume) ? levels.find(row => preparationKind(row) === kind)?.finalVolume ?? "" : ""} placeholder="หลายค่า" onChange={e => onChange(levels.map(row => preparationKind(row) === kind ? { ...row, finalVolume: e.target.value } : row))} /></label>
     {kind === "matrix" && <div className="space-y-3 rounded-lg border bg-card p-4">
       <h4 className="text-sm font-semibold">คำนวณ Matrix จาก %ยา ตามข้อ 6.5.2</h4>{autoMatrix && <p className="text-sm text-muted-foreground">{automaticTargets ? `ดึงจาก STD อัตโนมัติ: ต่ำ ${automaticTargets[0]} · กลาง ${automaticTargets[1]} · สูง ${automaticTargets[2]} mg/mL` : "กรอก STD ให้ครบ 5 ระดับที่ไม่ซ้ำกัน เพื่อดึงค่าต่ำ–กลาง–สูงอัตโนมัติ"}</p>}
@@ -76,11 +78,13 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
             <td className="min-w-32 p-2">{row.useStockDirect ? <div className="text-right tabular-nums"><output>{plan?.finalUl.toFixed(1) ?? "—"}</output><p className="text-xs text-muted-foreground">ใช้ Stock ไม่เจือจาง</p></div> : <Input aria-label={`ปิเปตจริง ระดับ ${i + 1}`} type="number" min="0" step="0.1" className="h-9 text-right tabular-nums" value={row.actualAliquot ?? plan?.aliquotUl.toFixed(1) ?? ""} onChange={e => update(row.id, "actualAliquot", e.target.value)} />}</td>
             <td className="min-w-32 p-2 text-right tabular-nums">{result ? result.diluentUl.toFixed(1) : <span className="text-destructive">ตรวจ Stock, Target, Final volume และ Matrix</span>}</td>
             {kind === "matrix" && <td className="min-w-28 p-2"><Input aria-label={`matrix ระดับ ${i + 1}`} readOnly={!!row.matrixCalculation} type="number" min="0" step="any" value={row.matrix} onChange={e => update(row.id, "matrix", e.target.value)} /></td>}
-            <td className="min-w-32 p-2 text-right tabular-nums"><strong>{result?.actual.toLocaleString("en-US", { minimumFractionDigits: 5, maximumFractionDigits: 5 }) ?? "—"}</strong>{stock != null && !result && <p className="text-xs text-destructive">ตรวจค่าและปริมาตรรวม</p>}</td>
+            <td className="min-w-32 p-2 text-right tabular-nums"><strong>{result?.actual.toLocaleString("en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }) ?? "—"}</strong>{stock != null && !result && <p className="text-xs text-destructive">ตรวจค่าและปริมาตรรวม</p>}</td>
             <td className="p-2"><Button variant="ghost" size="icon" aria-label={`ลบระดับ ${i + 1}`} onClick={() => onChange(levels.filter(l => l.id !== row.id))}><Trash2 className="h-4 w-4" /></Button></td></tr>;
         })}</tbody>
       </table>
     </div>
+    <div className="flex flex-wrap items-center justify-end gap-3">{kind === "std" && onSaveTo ? <><label className="flex items-center gap-2 text-sm">นำ STD ไปคำนวณที่<NativeSelect aria-label="นำ STD ไปคำนวณที่" value={destination} onChange={e => setDestination(e.target.value as typeof destination)}><option value="linearity">Linearity</option><option value="accuracy">Accuracy</option><option value="precision">Precision</option></NativeSelect></label><Button onClick={() => onSaveTo(destination)}>บันทึก STD และไป {destination === "linearity" ? "Linearity" : destination === "accuracy" ? "Accuracy" : "Precision"}</Button></> : onSave && <Button onClick={() => onSave(kind === "std" ? "STD" : "Matrix")}>บันทึก {kind === "std" ? "STD" : "Matrix"}</Button>}</div>
+    {kind === "std" && onSaveTo && <p className="text-right text-sm text-muted-foreground">Linearity ใช้ 5 ระดับ · Accuracy / Precision ใช้ระดับต่ำ กลาง สูง · สร้างแถวผลวัดเมื่อยังไม่มีข้อมูลเท่านั้น</p>}
     </section>)}
     <p className="text-sm text-muted-foreground">คำแนะนำปิเปต = Target × ปริมาตรรวม ÷ C stock · Actual = C stock × ปิเปตจริง ÷ Final volume · กรอกปิเปตจริงตามปริมาตรที่ใช้ โดยดูแผน Stock ปัด 1 ตำแหน่งประกอบ · เก็บทศนิยมเต็มในการคำนวณ · 1 mg/mL = 1,000 µg/mL = 1,000 mg/L</p>
   </div>;

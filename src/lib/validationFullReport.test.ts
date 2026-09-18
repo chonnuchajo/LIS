@@ -45,7 +45,17 @@ it("ตรวจรายงานครบชุดจากข้อมูล�
   expect(stats(sourceFound[0])?.mean).toBeCloseTo(100.22,8);
   expect(stats(sourceFound[1])?.sd).toBeCloseTo(3.22354,5);
   expect(stats(sourceFound[2])?.mean).toBeCloseTo(1003.41,8);
-  const html = createValidationReport({ title:project.title,analyte:project.analyte,method:project.method,...project.reportMeta,prep:project.prep,levels:project.preparationLevels,texts,blank:"",checks:[...specificity.checks,...precision.checks,...qc.checks],errors:[],precision,qc,includeQc:true,specificity:project.specificity,protocolDetails, logoDataUrl: `data:image/png;base64,${readFileSync(join(process.cwd(), "src/assets/icp-ladda-logo.png")).toString("base64")}` });
+  const reportInput: Parameters<typeof createValidationReport>[0] = { title:project.title,analyte:project.analyte,method:project.method,...project.reportMeta,prep:project.prep,levels:project.preparationLevels,texts,blank:"",checks:[...specificity.checks,...precision.checks,...qc.checks],errors:[],precision,qc,includeQc:true,specificity:project.specificity,protocolDetails, logoDataUrl: `data:image/png;base64,${readFileSync(join(process.cwd(), "src/assets/validation-report-logo.png")).toString("base64")}` };
+  const html = createValidationReport(reportInput);
+  const sourceHtml = createValidationReport({ ...reportInput, sourceTemplateValues: {} });
+  expect(sourceHtml).toContain("Actual (mg/mL)");
+  expect(sourceHtml).toContain("<td>0.100</td>");
+  expect(sourceHtml).not.toContain("{{");
+  expect(sourceHtml).not.toContain("Cypermethrin");
+  expect(sourceHtml).not.toContain("75.49");
+  expect(sourceHtml).not.toContain("54.25");
+  expect(sourceHtml).toContain("source-h2");
+  expect(sourceHtml).toContain("11.4");
   expect(html).toContain("<td>0.10022</td>");
   expect(html).toContain("<td>0.49843</td>");
   expect(html).toContain("<td>1.00341</td>");
@@ -59,6 +69,6 @@ it("ตรวจรายงานครบชุดจากข้อมูล�
   expect(readValidationProject(JSON.stringify(project))).toEqual(project);
   if (process.env.VALIDATION_QA_ARTIFACTS === "1") {
     writeFileSync(join(tmpdir(),"lis-validation-full-qa.json"),JSON.stringify(project,null,2));
-    writeFileSync(join(tmpdir(),"lis-validation-full-qa.html"),html);
+    writeFileSync(join(tmpdir(),"lis-validation-full-qa.html"),sourceHtml);
   }
 });
