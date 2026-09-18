@@ -1,3 +1,4 @@
+import { validationChartSvg } from "./validationCharts";
 import { renderSourceTemplate } from "./validationSourceTemplate";
 import { referenceAccuracyTable } from "./validationReferenceTables";
 import type { ValidationCheck, evaluatePrecision, evaluateQc } from "./validationAdvanced";
@@ -35,18 +36,6 @@ const table = (headers: string[], rows: unknown[][]) => {
   const display = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? Number(value.toPrecision(15)) : value;
   return `<table><thead><tr>${headers.map((h,i) => `<th${cellClass(i)}>${escapeReport(h)}</th>`).join("")}</tr></thead><tbody>${rows.length ? rows.map(row => `<tr>${row.map((c,i) => `<td${cellClass(i)}>${escapeReport(display(c))}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${headers.length}">ยังไม่มีข้อมูล</td></tr>`}</tbody></table>`;
 };
-
-/** Standalone SVG chart: all coordinates are derived from finite numeric measurements. */
-function scatter(points: { x: number; y: number }[], title: string, xLabel: string, yLabel: string, line?: { slope: number; intercept: number; r2?: number }) {
-  const valid = points.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
-  if (!valid.length) return "<p>ยังไม่มีข้อมูลสำหรับกราฟ</p>";
-  const xs = valid.map(p => p.x), ys = valid.map(p => p.y);
-  const xmin = Math.min(0, ...xs), xmax = Math.max(...xs, 0.001);
-  const ymin = Math.min(0, ...ys), ymax = Math.max(...ys, 0.001);
-  const x = (v: number) => 70 + (v - xmin) / (xmax - xmin) * 580;
-  const y = (v: number) => 280 - (v - ymin) / (ymax - ymin) * 220;
-  return `<figure><figcaption>${escapeReport(title)}</figcaption><svg viewBox="0 0 720 340" role="img" aria-label="${escapeReport(title)}">${line ? `<text x="400" y="22" text-anchor="middle" font-size="13">y = ${line.slope.toFixed(5)}x ${line.intercept < 0 ? "−" : "+"} ${Math.abs(line.intercept).toFixed(5)}</text><text x="400" y="43" text-anchor="middle" font-size="13">R² = ${line.r2?.toFixed(8) ?? "—"}</text>` : ""}<path d="M70 60V280H650" fill="none" stroke="#64748b"/>${[0, 0.25, 0.5, 0.75, 1].map(t => `<line x1="70" x2="650" y1="${60 + t * 220}" y2="${60 + t * 220}" stroke="#e2e8f0"/><text x="62" y="${64 + t * 220}" text-anchor="end" font-size="11">${fmt(ymax - t * (ymax - ymin))}</text><text x="${70 + t * 580}" y="300" text-anchor="middle" font-size="11">${fmt(xmin + t * (xmax - xmin))}</text>`).join("")}${line ? `<line x1="${x(Math.min(...xs))}" y1="${y(line.slope * Math.min(...xs) + line.intercept)}" x2="${x(xmax)}" y2="${y(line.slope * xmax + line.intercept)}" stroke="#0f766e"/>` : ""}${valid.map(p => `<circle cx="${x(p.x)}" cy="${y(p.y)}" r="3" fill="#2563eb"/>`).join("")}<text x="360" y="330" text-anchor="middle" font-size="13">${escapeReport(xLabel)}</text><text x="70" y="35" font-size="13">${escapeReport(yLabel)}</text></svg></figure>`;
-}
 
 export function createValidationReport(input: ValidationReportInput) {
   const e = escapeReport;
@@ -119,7 +108,7 @@ export function createValidationReport(input: ValidationReportInput) {
   <p>เกณฑ์ R² ≥ ${e(linearity.r2Min)}; Area %RSD ≤ ${e(linearity.areaRsdMax)}%; จำนวนซ้ำ ≥ ${e(linearity.minReplicates)} ต่อระดับ; Actual คลาดเคลื่อนจากแผนไม่เกิน ${e(linearity.concentrationTolerance)} mg/mL</p>
   <h3>ตารางที่ 2 ผลการประเมินความเป็นเส้นตรงของวิธีวิเคราะห์ ${e(input.analyte)}</h3>
   ${table(["Target mg/mL", "Actual ตามแผน mg/mL", "n", "Mean Area", "Sample SD", "%RSD"], groupedLinearity)}
-  ${fit ? `<div class="two">${scatter(fit.points.map(p=>({x:p.concentration,y:p.area})),"Linearity Plot",`Concentration of ${input.analyte} (mg/mL)`,"Response Area",fit)}${scatter(fit.points.map(p=>({x:p.concentration,y:p.residual})),"Residual Plot","Concentration (mg/mL)","Residual (Area)")}</div>` : ""}
+  ${fit ? `<div class="two"><figure>${validationChartSvg(fit,input.analyte)}</figure><figure>${validationChartSvg(fit,input.analyte,true)}</figure></div>` : ""}
   ${table(["Injection", "Actual mg/mL", "Area", "Predicted Area", "Residual", "Back-calculated mg/mL"], (fit?.points ?? []).map((p,i)=>[i+1,p.concentration,p.area,fmt(p.predicted),fmt(p.residual),fmt((p.area-fit!.intercept)/fit!.slope)]))}
   <h3>8.3 Accuracy</h3><h3>ตารางที่ 3 ผลการประเมินความถูกต้องและความเที่ยงแบบทำซ้ำของวิธีวิเคราะห์ ${e(input.analyte)}</h3>${referenceAccuracyTable(input, parsed[2]?.rows ?? [])}<p>Recovery = Found / Actual fortified × 100; Bias = (Found − Actual fortified) / Actual fortified × 100 สำหรับ Matrix Blank ที่ไม่มีสารเป้าหมาย; Sample SD ใช้ n−1</p>
   ${table(["ตัวอย่าง", "Target mg/mL", "Actual fortified mg/mL", "Found mg/mL", "Recovery %", "Bias %"], accuracyRows)}
