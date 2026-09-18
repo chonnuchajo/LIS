@@ -18,3 +18,19 @@ it("prints STD before Matrix without a purpose column", () => {
  expect(html.indexOf("1. เตรียมสารมาตรฐาน (STD)")).toBeLessThan(html.indexOf("2. เตรียมสารที่เติม Matrix"));
  expect((html.match(/<table>/g) || []).length).toBe(2);
 });
+
+it("prints entered pipetting and concentration from actual volume for STD and Matrix", () => {
+ const base = {...defaultPreparationLevels()[0], target:"0.5", actualAliquot:"260", finalVolume:"1000"};
+ const html = preparationWorksheet({analyte:"QA",method:"GC"}, [base,{...base,id:"matrix",matrix:"4",preparationKind:"matrix"}],2,[]);
+ expect(html).toContain("Conc หลังปิเปตจริง (mg/mL)");
+ expect((html.match(/<td>260.0<\/td><td>0.520<\/td>/g) || []).length).toBe(2);
+ expect(html).toContain("Solvent ตามแผน");
+});
+
+it("keeps missing or invalid actual concentration blank and supports undiluted stock", () => {
+ const base = defaultPreparationLevels()[0];
+ const render = (overrides: Partial<typeof base>) => preparationWorksheet({analyte:"QA",method:"GC"},[{...base,...overrides}],1.044173,[]);
+ expect(render({actualAliquot:""})).toContain("<td>—</td><td>—</td>");
+ expect(render({actualAliquot:"1001"})).toContain("<td>1001.0</td><td>—</td>");
+ expect(render({useStockDirect:true,target:"1"})).toContain("<td>1000.0</td><td>1.044</td>");
+});
