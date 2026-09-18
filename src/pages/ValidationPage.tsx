@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parseMeasurements, regression, stats } from "@/lib/validationCalculator";
 import ValidationDataGrid from "@/components/lis/ValidationDataGrid";
@@ -233,10 +232,7 @@ export default function ValidationPage() {
       </div>
       <ValidationStocks measurementStockIds={linkedMeasurements.rows.map(row => row.stockId)} stocks={stocks} levels={preparationLevels} onChange={setStocks} />
       <ValidationPreparation matrixEnabled={!!savedWork && ["STD → accuracy", "STD → precision"].some(section => !!savedWork.sections[section])} analyte={analyte} method={method} stock={stock} stocks={stocks} levels={preparationLevels} onChange={setPreparationLevels} onSave={saveSection} onSaveTo={saveStdTo} />
-      <div className="grid gap-4 sm:grid-cols-2">
-        {([["analyst", "ผู้จัดทำ"], ["reviewer", "ผู้ทบทวน"], ["protocol", "วิธี / SOP และเวอร์ชัน"], ["calibration", "Calibration ID ของ Linearity / ข้อมูลกรอกตรง"]] as const).map(([key, label]) => <label key={key} className="space-y-2 text-sm">{label}<Input value={reportMeta[key]} onChange={e => setReportMeta(old => ({ ...old, [key]: e.target.value }))} /></label>)}
-      </div>
-      <label className="block space-y-2 text-sm">ข้อสังเกตสำหรับรายงาน<Textarea value={reportMeta.notes} onChange={e => setReportMeta(old => ({ ...old, notes: e.target.value }))} /></label>
+
     </Panel>
     </div></section>
     </TabsContent>
