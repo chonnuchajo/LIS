@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { calculatedMatrixVolume, dilution, stockConcentration, preparationResult, preparationTemplate, checkLinearityPreparation, defaultPreparationLevels, defaultLinearitySettings, targetConcentration, changePreparationUnit } from "./validationPreparation";
 import { parseMeasurements } from "./validationCalculator";
 
+it("ใช้ Stock โดยตรงให้ Actual เท่ากับ Stock แม้ Target เป็นค่าระบุ 1 mg/mL", () => {
+  const level = { ...defaultPreparationLevels()[4], useStockDirect: true, actualAliquot: "" };
+  expect(preparationResult(level, 1.044173, [])).toEqual({ actual: 1.044173, suggestedAliquotUl: 1000, diluentUl: 0 });
+  expect(preparationTemplate("linearity", [level], 1.044173, [], 3)).toBe(Array(3).fill("1.044173\t").join("\n"));
+  expect(preparationResult(level, 0.99, [])?.actual).toBe(0.99);
+  expect(preparationResult({ ...level, matrix: "4", preparationKind: "matrix" }, 1.044173, [])).toBeNull();
+  expect(preparationResult({ ...level, useStockDirect: false }, 1.044173, [])).toBeNull();
+});
+
 describe("การเตรียมสารสำหรับหัวข้อ 6 และ 7", () => {
   it("เปลี่ยนหน่วย Target โดยคงความเข้มข้นและสร้างผลวัดใน mg/mL", () => {
     const original = defaultPreparationLevels().find(level => level.purpose === "accuracy" && level.target === "0.5")!;

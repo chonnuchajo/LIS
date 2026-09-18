@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { Calculator, Download, FileCheck2, FlaskConical, ShieldCheck } from "lucide-react";
-import { CartesianGrid, ReferenceLine, Line, LineChart, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Customized, ReferenceLine, Line, LineChart, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
 import AppLayout from "@/components/lis/AppLayout";
 import PageHeader from "@/components/lis/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,9 +17,12 @@ import ValidationStocks from "@/components/lis/ValidationStocks";
 import { PrecisionPanel, QcPanel, ValidationResults as Results } from "@/components/lis/ValidationAdvanced";
 import { defaultPrecisionSettings, defaultQcSettings, evaluatePrecision, evaluateQc } from "@/lib/validationAdvanced";
 import { createValidationReport } from "@/lib/validationReport";
+import { validationReportLogo } from "@/lib/validationReportAssets";
 import { exportValidationPdf } from "@/lib/validationReportExport";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { readValidationProject } from "@/lib/validationProject";
+import { useAuth } from "@/context/AuthContext";
+import { loadValidationLibrary, saveValidationWork, type ValidationSavedWork } from "@/lib/validationLibrary";
+import { readValidationProject, type ValidationProject } from "@/lib/validationProject";
 import ValidationSpecificity from "@/components/lis/ValidationSpecificity";
 import { defaultSpecificitySettings, evaluateSpecificity } from "@/lib/validationSpecificity";
 import ValidationLinearityGrid from "@/components/lis/ValidationLinearityGrid";
@@ -35,6 +38,12 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
   return <Card><CardHeader className="pb-3"><CardTitle className="text-base">{title}</CardTitle></CardHeader><CardContent className="space-y-4">{children}</CardContent></Card>;
 }
 export default function ValidationPage() {
+  const { user } = useAuth();
+  const owner = user?.email || "local";
+  const [workId, setWorkId] = useState<string>(() => crypto.randomUUID());
+  const [savedWork, setSavedWork] = useState<ValidationSavedWork | null>(null);
+  const [library, setLibrary] = useState<ValidationSavedWork[]>([]);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [tab, setTab] = useState("setup");
   const [title, setTitle] = useState("Cypermethrin — Method Validation");
   const [analyte, setAnalyte] = useState("Cypermethrin");
@@ -109,21 +118,43 @@ export default function ValidationPage() {
   }
   const passed = checks.filter(c => c.pass === true).length;
   const failed = checks.filter(c => c.pass === false).length;
-  const downloadReadableReport = () => {
-    const html = createValidationReport({ title, analyte, method, ...reportMeta, prep, levels: preparationLevels, texts, blank, checks, errors, precision: precisionResult, qc: qcResult, includeQc: qc.enabled, specificity, stocks, linearity, linkedMeasurements, protocolDetails });
+  const downloadReadableReport = async () => {
+    const html = previewHtml || await makeReport();
+    if (!html) return;
+    /* report is generated from the same snapshot as the preview */
     const url = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
     const link = document.createElement("a");
     link.href = url; link.download = "method-validation-report.html"; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setNotice("ดาวน์โหลดรายงาน HTML แล้ว เปิดไฟล์เพื่ออ่านหรือใช้ Ctrl+P บันทึกเป็น PDF");
   };
-  const previewReport = () => { setPdfError(""); setPreviewHtml(createValidationReport({ title, analyte, method, ...reportMeta, prep, levels: preparationLevels, texts, blank, checks, errors, precision: precisionResult, qc: qcResult, includeQc: qc.enabled, specificity, stocks, linearity, linkedMeasurements, protocolDetails })); };
+  const makeReport = async () => {
+    try { return createValidationReport({ title, analyte, method, ...reportMeta, prep, levels: preparationLevels, texts, blank, checks, errors, precision: precisionResult, qc: qcResult, includeQc: qc.enabled, specificity, stocks, linearity, linkedMeasurements, protocolDetails, logoDataUrl: await validationReportLogo() }); }
+    catch (error) { setNotice(error instanceof Error ? error.message : "สร้างรายงานไม่ได้"); return ""; }
+  };
+  const previewReport = async () => { setPdfError(""); setPreviewHtml(await makeReport()); };
   const updateText = (value: string) => setTexts(old => old.map((v, i) => i === Number(tab) ? value : v));
   const templates = [null, preparationTemplate("linearity", preparationLevels, stock, stocks, 3), preparationTemplate("accuracy", preparationLevels, stock, stocks, Number(precision.minReplicates))];
   const fillPreparationTemplate = (index: number) => {
     if (texts[index] !== "" || templates[index] == null || (index === 2 && linked.includes("accuracy"))) return;
     setTexts(old => old.map((value, i) => i === index ? templates[index]! : value));
     setNotice("สร้างแถวด้วย Actual จากแผนแล้ว กรุณากรอกผลวัดจริงทุกแถว หากเตรียมตัวอย่างแยกกันให้แก้ Actual ของแต่ละตัวอย่างตามการเตรียมจริง");
+  };
+  const projectData = () => ({ format: "lis-validation-project", version: 1, title, analyte, method, prep, texts: inputTexts, blank, preparationLevels, stocks, linearity, specificity, reportMeta, precision: inputPrecision, qc: inputQc, linkedMeasurements, protocolDetails });
+  const saveSection = (section: string, copy = false) => {
+    try {
+      const id = copy ? crypto.randomUUID() : workId;
+      const saved = saveValidationWork(owner, id, section, projectData());
+      setWorkId(id);
+      setSavedWork(saved);
+      setNotice(`บันทึก ${section} พร้อมข้อมูลที่เกี่ยวข้องทุกหัวข้อแล้ว เวลา ${new Date(saved.savedAt).toLocaleString("th-TH")}`);
+    } catch { setNotice("บันทึกไม่สำเร็จ: พื้นที่จัดเก็บเต็มหรือคลังงานอ่านไม่ได้ ข้อมูลบนหน้ายังคงเดิม"); }
+  };
+  const restoreProject = (project: ValidationProject) => {
+    setProtocolDetails(project.protocolDetails); setTitle(project.title); setAnalyte(project.analyte); setMethod(project.method);
+    setPrep(project.prep); setTexts(project.texts); setBlank(project.blank); setSpecificity(project.specificity);
+    setPreparationLevels(project.preparationLevels); setStocks(project.stocks); setLinearity({ ...project.linearity, minReplicates: "3" }); setReportMeta(project.reportMeta);
+    setPrecision(project.precision); setQc(project.qc); setLinkedMeasurements(project.linkedMeasurements); setPreviewHtml("");
   };
   return <AppLayout title="Validation" mainClassName="p-4 sm:p-6 overflow-visible"><div className="space-y-6">
     <input type="file" accept=".json" ref={projectFile} className="hidden" aria-label="เปิดงาน Validation" onChange={async e => {
@@ -132,10 +163,7 @@ export default function ValidationPage() {
       if (selected.size > 3 * 1024 * 1024) { setNotice("ไฟล์งานต้องไม่เกิน 3 MB"); return; }
       try {
         const project = readValidationProject(await selected.text());
-        setProtocolDetails(project.protocolDetails); setTitle(project.title); setAnalyte(project.analyte); setMethod(project.method);
-        setPrep(project.prep); setTexts(project.texts); setBlank(project.blank); setSpecificity(project.specificity);
-        setPreparationLevels(project.preparationLevels); setStocks(project.stocks); setLinearity({ ...project.linearity, minReplicates: "3" }); setReportMeta(project.reportMeta);
-        setPrecision(project.precision); setQc(project.qc); setLinkedMeasurements(project.linkedMeasurements); setPreviewHtml("");
+        restoreProject(project); setWorkId(crypto.randomUUID()); setSavedWork(null);
         setNotice(`เปิดงาน ${selected.name} และคำนวณใหม่แล้ว`);
       } catch { setNotice("เปิดงานไม่ได้: รูปแบบไฟล์หรือเวอร์ชันไม่ถูกต้อง ข้อมูลปัจจุบันยังคงเดิม"); }
     }} />
@@ -156,7 +184,12 @@ export default function ValidationPage() {
         {pdfError && <p role="alert" className="text-sm text-destructive">{pdfError}</p>}
       </DialogContent>
     </Dialog>
-    <PageHeader title="Validation" description="AI Data & Document Validation Checker · ตรวจข้อมูล คำนวณ และสรุปผลในพื้นที่เดียว" actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => projectFile.current?.click()}>เปิดงาน</Button><Button onClick={previewReport}><FileCheck2 className="mr-2 h-4 w-4" />ออกรายงาน</Button></div>} />
+    <Dialog open={libraryOpen} onOpenChange={setLibraryOpen}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>คลังงาน Validation</DialogTitle><DialogDescription>เก็บในเบราว์เซอร์นี้สำหรับบัญชีที่ใช้งาน ไม่ซิงก์ข้ามเครื่อง การเปิดงานจะแทนข้อมูลบนหน้า กรุณาบันทึกงานปัจจุบันก่อน</DialogDescription></DialogHeader>
+      <div className="max-h-96 space-y-3 overflow-y-auto">{!library.length && <p>ยังไม่มีงานที่บันทึก</p>}{library.map(work => <div key={work.id} className="rounded-lg border bg-card p-3"><div className="flex items-center justify-between gap-3"><div><p className="font-medium">{work.project.title || work.project.analyte}</p><p className="text-sm text-muted-foreground">{new Date(work.savedAt).toLocaleString("th-TH")}</p></div><Button variant="outline" onClick={() => { restoreProject(work.project); setWorkId(work.id); setSavedWork(work); setLibraryOpen(false); setNotice("เปิดงานที่บันทึกและคำนวณใหม่แล้ว"); }}>เปิดงานนี้</Button></div><p className="mt-2 text-sm text-muted-foreground">หัวข้อที่บันทึก: {Object.keys(work.sections).join(" · ")}</p></div>)}</div>
+    </DialogContent></Dialog>
+    <PageHeader title="Validation" description="AI Data & Document Validation Checker · ตรวจข้อมูล คำนวณ และสรุปผลในพื้นที่เดียว" actions={<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => { try { setLibrary(loadValidationLibrary(owner)); setLibraryOpen(true); } catch { setNotice("เปิดคลังงานไม่ได้ ข้อมูลที่เก็บไว้ไม่ได้ถูกแก้ไข"); } }}>คลังงานที่บันทึก</Button><Button variant="outline" onClick={() => projectFile.current?.click()}>นำเข้างานเดิม</Button><Button onClick={previewReport}><FileCheck2 className="mr-2 h-4 w-4" />ออกรายงาน</Button></div>} />
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3"><div><p className="text-sm">บันทึกในเบราว์เซอร์นี้ · แต่ละปุ่มเก็บงานครบทุกหัวข้อพร้อมเวลาบันทึก</p><p className="text-sm text-muted-foreground">{savedWork ? `บันทึกล่าสุด ${new Date(savedWork.savedAt).toLocaleString("th-TH")} · กดบันทึกอีกครั้งหลังแก้ไข` : "ยังไม่ได้บันทึกงานนี้"}</p></div><Button variant="outline" onClick={() => saveSection("สำเนางาน", true)}>บันทึกเป็นงานใหม่</Button><Button onClick={() => saveSection(tab === "setup" ? "ตั้งค่างาน" : names[Number(tab)])}>บันทึก {tab === "setup" ? "ตั้งค่างาน" : names[Number(tab)]}</Button></div>
+    {notice && <p role="status" className="text-sm">{notice}</p>}
     <Tabs value={tab} onValueChange={v => { setTab(v); setNotice(""); }}>
       <TabsList className="sticky top-14 z-20 grid md:top-12 h-auto w-full grid-cols-2 gap-2 rounded-xl border bg-card p-2 shadow-sm lg:grid-cols-5">
         <TabsTrigger value="setup" className="min-h-20 whitespace-normal rounded-lg px-3 py-4 font-semibold data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">ตั้งค่างานและเตรียมสาร</TabsTrigger>
@@ -171,11 +204,11 @@ export default function ValidationPage() {
     <section aria-labelledby="preparation-heading" className="space-y-4"><div><h2 id="preparation-heading" className="text-base font-semibold text-foreground">ตั้งค่างานและเตรียมสาร</h2><p className="mt-1 text-sm text-muted-foreground">ใช้สำหรับคำนวณสาร · กำหนด Stock ความเข้มข้นที่ต้องการ และ Final volume แล้วพิมพ์ตารางคำนวณเพื่อนำไปเตรียมสาร</p></div><div className="space-y-4"><Panel title="ข้อมูลการเตรียมสาร"><label className="block space-y-2 text-sm">ชื่องาน / เลขที่รายงาน<Input value={title} onChange={e => setTitle(e.target.value)} /></label><div className="grid gap-4 sm:grid-cols-3">{["น้ำหนักมาตรฐาน (mg)", "Purity (%)", "ปริมาตร Stock (mL)"].map((label, i) => <label className="space-y-2 text-sm" key={label}>{label}<Input type="number" min="0" step="any" value={prep[i]} onChange={e => setPrep(old => old.map((v, n) => n === i ? e.target.value : v))} /></label>)}</div><div className="flex flex-wrap gap-4 rounded-md bg-muted p-3 text-sm"><span>C stock: <strong>{fmt(stock)} mg/mL</strong></span><span className="text-muted-foreground">C stock = น้ำหนัก × Purity/100 ÷ ปริมาตร</span></div><p className="text-sm text-muted-foreground">Stock หลักใช้กับระดับที่เลือก Stock หลักด้านล่าง เพิ่ม Stock แยกสำหรับชุดชั่งอื่น แล้วใช้ปุ่มสร้างแถวจากแผนในแท็บ Linearity/Accuracy </p>{!validPrep && prep[0] && prep[1] && <p className="text-sm text-destructive">น้ำหนักและปริมาตร Stock ต้องมากกว่า 0 และ Purity ต้องมากกว่า 0 ถึง 100%</p>}</Panel>
     <Panel title="กำหนดสารและวิธีสำหรับรายงาน">
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="space-y-2 text-sm">ชื่อสาร<Input value={analyte} onChange={e => setAnalyte(e.target.value)} /></label>
+        <label className="space-y-2 text-sm">ชื่อสาร<Input value={analyte} onChange={e => { const value = e.target.value; setTitle(old => old === `${analyte} — Method Validation` ? `${value} — Method Validation` : old); setAnalyte(value); }} /></label>
         <label className="space-y-2 text-sm">วิธี / เครื่องมือ<Input value={method} onChange={e => setMethod(e.target.value)} /></label>
       </div>
       <ValidationStocks measurementStockIds={linkedMeasurements.rows.map(row => row.stockId)} stocks={stocks} levels={preparationLevels} onChange={setStocks} />
-      <ValidationPreparation analyte={analyte} method={method} stock={stock} stocks={stocks} levels={preparationLevels} onChange={setPreparationLevels} />
+      <ValidationPreparation analyte={analyte} method={method} stock={stock} stocks={stocks} levels={preparationLevels} onChange={setPreparationLevels} onSave={saveSection} />
       <div className="grid gap-4 sm:grid-cols-2">
         {([["analyst", "ผู้จัดทำ"], ["reviewer", "ผู้ทบทวน"], ["protocol", "วิธี / SOP และเวอร์ชัน"], ["calibration", "Calibration ID ของ Linearity / ข้อมูลกรอกตรง"]] as const).map(([key, label]) => <label key={key} className="space-y-2 text-sm">{label}<Input value={reportMeta[key]} onChange={e => setReportMeta(old => ({ ...old, [key]: e.target.value }))} /></label>)}
       </div>
@@ -189,7 +222,7 @@ export default function ValidationPage() {
         {i > 0 && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm"><div><p className="text-sm font-medium">ใช้ความเข้มข้นจากแผนเตรียมสาร</p><p className="text-sm text-muted-foreground">Target = ระดับที่ตั้งใจเตรียม · Actual = คำนวณจากการเตรียมจริง · Found = ผลวัดจากเครื่อง</p><p className="text-xs text-muted-foreground">สร้างได้เมื่อตารางว่างและแผนเตรียมครบ · จำนวนซ้ำ Accuracy ใช้ค่าจากส่วน Precision · ตรวจ Actual รายตัวอย่างเมื่อเตรียมแยกกัน</p></div><Button variant="outline" disabled={texts[i] !== "" || templates[i] == null || (i === 2 && linked.includes("accuracy"))} onClick={() => fillPreparationTemplate(i)}>สร้างแถวจากแผนเตรียมสาร</Button></div>}
         <div className="grid items-start gap-4 xl:grid-cols-2"><Panel title={`ข้อมูล ${names[i]}`}><p className="text-sm text-muted-foreground">กรอกค่าตามหน่วยหัวตาราง หรือใช้ “นำเข้า / แปลงหน่วย” เพื่อวางตารางจาก Excel เลือก CSV / TSV, Excel .xlsx หรือ PDF พร้อมตรวจตัวอย่างก่อนใช้ข้อมูล</p><p className="text-sm font-medium">{i === 0 ? "คอลัมน์: RT (min), ผลรวม Area · Standard ตามจำนวนซ้ำที่กำหนดด้านล่าง" : i === 1 ? "คอลัมน์: Actual concentration, Area · หนึ่งแถวต่อ Injection" : "คอลัมน์: Target level, Actual fortified, Found · หนึ่งแถวต่อตัวอย่างที่เตรียม"}</p>{i === 0 && specificity.peakMode ? <p className="rounded-lg bg-muted p-3 text-sm">ใช้ข้อมูลแยกรายพีคในส่วน Blank และหลักฐานความจำเพาะด้านล่าง ข้อมูลแบบเดิมยังเก็บไว้และกลับมาใช้ได้เมื่อปิดโหมดรายพีค</p> : i === 1 ? <ValidationLinearityGrid value={texts[1]} onChange={updateText} levels={plannedLinearity} stock={stock} stocks={stocks} /> : <ValidationDataGrid readOnly={i === 2 && linked.includes("accuracy")} label={`ข้อมูล ${names[i]}`} columns={i === 0 ? ["RT (min)", "ผลรวม Area"] : i === 1 ? ["Actual (mg/mL)", "Area"] : ["Target (mg/mL)", "Actual fortified (mg/mL)", "Found (mg/mL)"]} value={texts[i]} onChange={updateText} />}<p className="text-sm text-muted-foreground">อ่านได้ {i === 0 ? specificityResult.standardRows.length : parsed[i].rows.length} แถว · คำนวณอัตโนมัติเมื่อข้อมูลครบ</p>{i === 2 && <p className="text-sm text-muted-foreground">Recovery = Found ÷ Actual fortified × 100 · ใช้กับ Matrix Blank ที่ไม่มีสารเป้าหมายเท่านั้น</p>}</Panel><Panel title="ผลการคำนวณและเกณฑ์ยอมรับ"><Results checks={i === 0 ? specificityChecks : i === 1 ? linearityChecks : accuracyChecks} />{i === 0 && <p className="text-sm text-muted-foreground">{specificity.peakMode ? "RT ประเมินแยกรายพีค" : `Mean RT ${fmt(rt?.mean)} min`} · Mean Total Area {fmt(area?.mean)} · Sample SD {fmt(area?.sd)}</p>}{i === 1 && <p className="text-sm text-muted-foreground">Area = {fmt(fit?.slope)} × Concentration + ({fmt(fit?.intercept)}) · ถดถอยจากทุก Injection</p>}{i === 2 && <p className="text-sm text-muted-foreground">%RSD คำนวณจาก Recovery โดยใช้ Sample SD (n−1) · กำหนดฐาน Horwitz และข้อมูลรายวันในส่วน Precision ด้านล่าง</p>}<div className="flex gap-2 rounded-md bg-muted p-3 text-sm text-muted-foreground"><Calculator className="h-4 w-4 shrink-0" />เก็บทศนิยมเต็มในการคำนวณ ปัดเศษเฉพาะค่าที่แสดง</div></Panel></div>
       {i === 0 && <ValidationSpecificity settings={specificity} context={specificityContext} onChange={setSpecificity} legacyBlank={blank} />}
-      {i === 1 && <div className="grid gap-4 lg:grid-cols-2">{[false, true].map(residual => <Panel key={String(residual)} title={residual ? "Residual Plot" : "Linearity Plot"}>{fit ? <><p className="text-sm font-medium tabular-nums">{residual ? "Residual = Response Area − Predicted Area" : `Trendline: y = ${fmt(fit.slope)}x ${fit.intercept < 0 ? "−" : "+"} ${fmt(Math.abs(fit.intercept))} · R² = ${fit.r2.toFixed(8)}`}</p><div className="h-80"><ResponsiveContainer width="100%" height="100%"><ScatterChart margin={{ bottom: 40, left: 24, right: 20, top: 12 }}><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" dataKey="concentration" name={`Concentration of ${analyte}`} label={{ value: `Concentration of ${analyte} (mg/mL)`, position: "bottom", offset: 16, fontSize: 12 }} /><YAxis type="number" dataKey={residual ? "residual" : "area"} name={residual ? "Residual" : "Response Area"} label={{ value: residual ? "Residual" : "Response Area", angle: -90, position: "insideLeft", offset: -12, fontSize: 12 }} /><Tooltip cursor={{ strokeDasharray: "3 3" }} /><Scatter data={fit.points} fill="hsl(var(--primary))" />{residual ? <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" /> : <ReferenceLine segment={[{x:Math.min(...fit.points.map(p=>p.concentration)),y:fit.slope*Math.min(...fit.points.map(p=>p.concentration))+fit.intercept},{x:Math.max(...fit.points.map(p=>p.concentration)),y:fit.slope*Math.max(...fit.points.map(p=>p.concentration))+fit.intercept}]} stroke="hsl(var(--primary))" />}</ScatterChart></ResponsiveContainer></div></> : <p className="py-12 text-center text-sm text-muted-foreground">กรอก Actual และ Area ให้ครบเพื่อแสดงกราฟ</p>}</Panel>)}</div>}
+      {i === 1 && <div className="grid gap-4 lg:grid-cols-2">{[false, true].map(residual => <Panel key={String(residual)} title={residual ? "Residual Plot" : "Linearity Plot"}>{fit ? <>{residual && <p className="text-sm font-medium">Residual = Response Area − Predicted Area</p>}<div className="h-80"><ResponsiveContainer width="100%" height="100%"><ScatterChart margin={{ bottom: 40, left: 24, right: 20, top: residual ? 12 : 58 }}><CartesianGrid strokeDasharray="3 3" /><XAxis type="number" dataKey="concentration" name={`Concentration of ${analyte}`} label={{ value: `Concentration of ${analyte} (mg/mL)`, position: "bottom", offset: 16, fontSize: 12 }} /><YAxis type="number" dataKey={residual ? "residual" : "area"} name={residual ? "Residual" : "Response Area"} label={{ value: residual ? "Residual" : "Response Area", angle: -90, position: "insideLeft", offset: -12, fontSize: 12 }} /><Tooltip cursor={{ strokeDasharray: "3 3" }} /><Scatter data={fit.points} fill="hsl(var(--primary))" />{residual ? <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" /> : <ReferenceLine segment={[{x:Math.min(...fit.points.map(p=>p.concentration)),y:fit.slope*Math.min(...fit.points.map(p=>p.concentration))+fit.intercept},{x:Math.max(...fit.points.map(p=>p.concentration)),y:fit.slope*Math.max(...fit.points.map(p=>p.concentration))+fit.intercept}]} stroke="hsl(var(--primary))" />}{!residual && <Customized component={() => <g aria-label="สมการ Trendline และ R square"><text x="50%" y="20" textAnchor="middle" fontSize={12} fill="hsl(var(--foreground))">{`y = ${fit.slope.toFixed(5)}x ${fit.intercept < 0 ? "−" : "+"} ${Math.abs(fit.intercept).toFixed(5)}`}</text><text x="50%" y="39" textAnchor="middle" fontSize={12} fill="hsl(var(--foreground))">{`R² = ${fit.r2.toFixed(8)}`}</text></g>} />}</ScatterChart></ResponsiveContainer></div></> : <p className="py-12 text-center text-sm text-muted-foreground">กรอก Actual และ Area ให้ครบเพื่อแสดงกราฟ</p>}</Panel>)}</div>}
       {i === 2 && recoveryPoints.length > 0 && !invalidAccuracy && <Panel title="Recovery รายตัวอย่าง (%)"><div className="h-64"><ResponsiveContainer width="100%" height="100%"><LineChart data={recoveryPoints}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="index" /><YAxis domain={["auto", "auto"]} /><Tooltip /><Line dataKey="recovery" name="Recovery (%)" stroke="hsl(var(--primary))" connectNulls={false} /></LineChart></ResponsiveContainer></div></Panel>}
       {i === 2 && <PrecisionPanel dailyLinked={linked.includes("daily")} settings={precision} onChange={next => setPrecision(old => ({ ...next, dailyData: linked.includes("daily") ? old.dailyData : next.dailyData }))} result={precisionResult} />}
       {i === 2 && <ValidationAccuracyTables analyte={analyte} text={texts[2]} precision={precisionResult} checks={checks} />}
@@ -197,7 +230,7 @@ export default function ValidationPage() {
       <TabsContent value="3" className="mt-4 space-y-4"><h2 className="text-xl font-semibold">4. Overall Summary</h2><QcPanel linkedKinds={linked} settings={qc} onChange={next => setQc(old => ({ ...next, sampleData: linked.includes("sample") ? old.sampleData : next.sampleData, standardData: linked.includes("standard") ? old.standardData : next.standardData, spikeData: linked.includes("spike") ? old.spikeData : next.spikeData }))} result={qcResult} /><Panel title="Overall Summary"><div className="flex gap-3 rounded-lg bg-muted p-4"><FileCheck2 className="h-5 w-5 shrink-0 text-primary" /><p className="text-sm">ผลนี้เป็นฉบับร่าง ยังไม่สรุปผ่านทั้งวิธีจนกว่าจะมีหลักฐาน Specificity และประเมิน Precision ครบ ดาวน์โหลดรายงานพร้อมข้อมูลดิบและรายการที่ต้องทบทวนได้</p></div><Results checks={checks} /></Panel></TabsContent>
     </Tabs>
     {linked.length > 0 && <div className="rounded-lg border bg-card p-4 text-sm">งานเดิมมีผลที่เชื่อมจาก Area<Button className="ml-3" variant="outline" onClick={() => { setTexts(texts); setPrecision(precision); setQc(qc); setLinkedMeasurements(old => ({ ...old, enabled: [] })); }}>ใช้ผลคำนวณเดิมเป็นข้อมูลกรอกตรง</Button></div>}
-    {notice && <p role="status" className="text-sm">{notice}</p>}
+
     {errors.length > 0 && <Panel title="รายการที่ต้องแก้ไข"><ul className="space-y-2 text-sm text-destructive">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></Panel>}
     <div className="flex items-start gap-3 rounded-lg border bg-card p-4 text-sm text-muted-foreground"><FlaskConical className="h-5 w-5 shrink-0" /><p>ตรวจด้วยสูตรและเกณฑ์ที่ระบุ รองรับ CSV/TSV, Excel .xlsx และ PDF พร้อมเลือกชีต/หน้าและจับคู่คอลัมน์ AI ช่วยอ่านภาพ PDF ตามที่เลือกส่ง โดยต้องตรวจเทียบผลก่อนนำไปคำนวณ</p></div>
   </div></AppLayout>;

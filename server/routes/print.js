@@ -628,9 +628,12 @@ router.post('/pdf', async (req, res) => {
       return r.abort();
     });
 
+    const reportHeader = isValidation ? html.match(/<header class="document-running">([\s\S]*?)<\/header>/)?.[1] : null;
+    const validationHeaderStyle = '<style>body{margin:0}table{border-collapse:collapse;width:100%;font:9px/1.5 Tahoma,Arial,sans-serif;color:#111}td{border:1px solid #111;padding:4px;vertical-align:middle}img{width:75px;max-width:100%}</style>';
+    const printableHtml = reportHeader ? html.replace(/<header class="document-running">[\s\S]*?<\/header>/, '').replace('</head>', '<style>@page{margin:42mm 15mm 15mm}</style></head>') : html;
     const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600;700&display=swap" rel="stylesheet">
-</head><body>${html}</body></html>`;
+</head><body>${printableHtml}</body></html>`;
     await page.setContent(fullHtml, { waitUntil: 'load', timeout: 15000 });
 
     // Validation downloads are always A4 and do not use physical printer settings.
@@ -643,7 +646,7 @@ router.post('/pdf', async (req, res) => {
       margin: { top: 0, right: 0, bottom: 0, left: 0 },
       ...(isValidation ? {
         displayHeaderFooter: true,
-        headerTemplate: '<span></span>',
+        headerTemplate: reportHeader ? `${validationHeaderStyle}<div style="width:100%;margin:8mm 15mm 0">${reportHeader}</div>` : '<span></span>',
         footerTemplate: '<div style="width:100%;padding:0 15mm;text-align:right;font:9px Arial,sans-serif;color:#64748b">Page <span class="pageNumber"></span> / <span class="totalPages"></span></div>',
       } : {}),
     });

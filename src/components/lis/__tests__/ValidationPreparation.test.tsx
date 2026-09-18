@@ -2,7 +2,7 @@ import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import ValidationPreparation from "../ValidationPreparation";
-import { defaultPreparationLevels, preparationTemplate } from "@/lib/validationPreparation";
+import { defaultPreparationLevels, preparationTemplate, type PreparationLevel } from "@/lib/validationPreparation";
 
 function Fixture() {
   const [levels, setLevels] = useState([defaultPreparationLevels().find(level => level.purpose === "accuracy" && level.target === "0.5")!]);
@@ -63,4 +63,19 @@ it("calculates Actual from rounded or explicitly entered pipetting",()=>{
  expect(screen.getByLabelText("ปิเปตจริง ระดับ 1")).toHaveValue(250);
  fireEvent.change(screen.getByLabelText("ปิเปตจริง ระดับ 1"),{target:{value:""}});
  expect(screen.getByTestId("template").textContent).toBe("");
+});
+
+it("เลือกใช้ Stock โดยตรงโดยไม่ต้องกรอกปิเปตเจือจาง และเปลี่ยนกลับได้", () => {
+ function DirectStockFixture() {
+  const [levels, setLevels] = useState<PreparationLevel[]>([{ ...defaultPreparationLevels()[4], actualAliquot: "" }]);
+  return <ValidationPreparation analyte="QA" method="GC" stock={1.044173} stocks={[]} levels={levels} onChange={setLevels} />;
+ }
+ render(<DirectStockFixture />);
+ fireEvent.click(screen.getByLabelText("ใช้ Stock โดยตรง ระดับ 1"));
+ expect(screen.getByText("1.04417")).toBeInTheDocument();
+ expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveTextContent("1000.0");
+ expect(screen.queryByLabelText("ปิเปตจริง ระดับ 1")).not.toBeInTheDocument();
+ fireEvent.click(screen.getByLabelText("ใช้ Stock โดยตรง ระดับ 1"));
+ expect(screen.getByLabelText("ปิเปตจริง ระดับ 1")).toHaveValue(null);
+ expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveTextContent("957.7");
 });

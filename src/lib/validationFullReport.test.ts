@@ -1,4 +1,4 @@
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { expect, it } from "vitest";
@@ -45,11 +45,14 @@ it("ตรวจรายงานครบชุดจากข้อมูล�
   expect(stats(sourceFound[0])?.mean).toBeCloseTo(100.22,8);
   expect(stats(sourceFound[1])?.sd).toBeCloseTo(3.22354,5);
   expect(stats(sourceFound[2])?.mean).toBeCloseTo(1003.41,8);
-  const html = createValidationReport({ title:project.title,analyte:project.analyte,method:project.method,...project.reportMeta,prep:project.prep,levels:project.preparationLevels,texts,blank:"",checks:[...specificity.checks,...precision.checks,...qc.checks],errors:[],precision,qc,includeQc:true,specificity:project.specificity,protocolDetails });
+  const html = createValidationReport({ title:project.title,analyte:project.analyte,method:project.method,...project.reportMeta,prep:project.prep,levels:project.preparationLevels,texts,blank:"",checks:[...specificity.checks,...precision.checks,...qc.checks],errors:[],precision,qc,includeQc:true,specificity:project.specificity,protocolDetails, logoDataUrl: `data:image/png;base64,${readFileSync(join(process.cwd(), "src/assets/icp-ladda-logo.png")).toString("base64")}` });
   expect(html).toContain("<td>0.10022</td>");
   expect(html).toContain("<td>0.49843</td>");
   expect(html).toContain("<td>1.00341</td>");
   expect(html).toContain("Mean Found mg/mL");
+  expect(html).toContain("<td>102.10</td><td>100.00</td><td>102.10</td>");
+  expect(html).toContain("data:image/png;base64,");
+  expect(html).not.toContain("Cypermethrin");
   expect(html).toContain("8.4 Precision");
   expect(html).toContain("Factor ของ Repeatability = 1");
   expect(html).not.toMatch(/NaN|Infinity/);

@@ -18,3 +18,16 @@ test('Validation PDF has page totals and does not query physical printer setting
     expect(mockClose).toHaveBeenCalled();
   } finally { find.mockRestore(); if (oldPath === undefined) delete process.env.PRINT_CHROME_PATH; else process.env.PRINT_CHROME_PATH = oldPath; }
 });
+
+test('Validation repeats the document header with space reserved above report content', async () => {
+  const oldPath = process.env.PRINT_CHROME_PATH;
+  process.env.PRINT_CHROME_PATH = __filename;
+  const res = { setHeader: jest.fn(), send: jest.fn(), status: jest.fn().mockReturnThis(), json: jest.fn() };
+  try {
+    await handler({ body: { docType: 'method-validation', html: '<html><head></head><body><header class="document-running"><table><tr><td>QA analyte</td></tr></table></header><main>Results</main></body></html>' } }, res);
+    expect(mockPdf).toHaveBeenLastCalledWith(expect.objectContaining({ headerTemplate: expect.stringContaining('QA analyte') }));
+    expect(mockPage.setContent).toHaveBeenLastCalledWith(expect.stringContaining('@page{margin:42mm 15mm 15mm}'), expect.any(Object));
+    expect(mockPage.setContent.mock.calls.at(-1)[0]).not.toContain('document-running');
+    expect(res.send).toHaveBeenCalled();
+  } finally { if (oldPath === undefined) delete process.env.PRINT_CHROME_PATH; else process.env.PRINT_CHROME_PATH = oldPath; }
+});

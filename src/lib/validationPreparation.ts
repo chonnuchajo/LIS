@@ -44,6 +44,7 @@ export function calculatedMatrixVolume(config: MatrixCalculation, finalVolume: s
 }
 
 export type PreparationLevel = {
+  useStockDirect?: boolean;
   actualAliquot?: string;
   matrixCalculation?: MatrixCalculation;
   preparationKind?: "std" | "matrix";
@@ -84,6 +85,10 @@ export function changePreparationUnit(level: PreparationLevel, unit: Concentrati
 }
 
 export function preparationResult(level: PreparationLevel, mainStock: number | null, stocks: ValidationStock[]) {
+  if (level.useStockDirect) {
+    const plan = preparationPlan(level, mainStock, stocks);
+    return plan ? { suggestedAliquotUl: plan.finalUl, actual: plan.stock, diluentUl: 0 } : null;
+  }
   const selected = stocks.find(stock => stock.id === level.stockId);
   const concentration = level.stockId
     ? selected ? stockConcentration(Number(selected.weight), Number(selected.purity), Number(selected.volume)) : null
@@ -100,6 +105,10 @@ export function preparationPlan(level: PreparationLevel, mainStock: number | nul
   const target = targetConcentration(level), finalUl = positiveNumber(level.finalVolume);
   const matrixUl = level.matrix.trim() ? Number(level.matrix) : NaN;
   if (stock == null || !Number.isFinite(stock) || stock <= 0 || target == null || finalUl == null || !Number.isFinite(matrixUl) || matrixUl < 0) return null;
+  if (level.useStockDirect) {
+    if (preparationKind(level) !== "std" || matrixUl !== 0) return null;
+    return { stock, target, finalUl, matrixUl: 0, aliquotUl: finalUl, solventUl: 0 };
+  }
   const aliquotUl = target / stock * finalUl;
   const solventUl = finalUl - aliquotUl - matrixUl;
   if (!Number.isFinite(aliquotUl) || aliquotUl <= 0 || !Number.isFinite(solventUl) || solventUl < 0) return null;

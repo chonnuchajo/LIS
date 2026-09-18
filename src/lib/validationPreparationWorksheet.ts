@@ -7,7 +7,7 @@ export function preparationWorksheet(meta: { analyte: string; method: string }, 
   const rows = levels.map((level, i) => ({ level, i })).filter(({ level }) => preparationKind(level) === kind).map(({ level, i }) => {
     const p = preparationPlan(level, stock, stocks);
     const name = level.stockId ? stocks.find(s => s.id === level.stockId)?.name || level.stockId : "Stock หลัก";
-    return `<tr><td>${i + 1}</td><td>${e(name)}</td>${p ? [p.stock,p.target,p.finalUl / 1000,p.aliquotUl,p.matrixUl,p.solventUl].map((n, index) => `<td>${index >= 3 ? n.toFixed(1) : fmt(n)}</td>`).join("") : '<td colspan="6">ข้อมูลไม่ครบหรือเตรียมด้วย Stock นี้ไม่ได้ — ห้ามใช้แถวนี้เตรียมสาร</td>'}<td>________</td></tr>`;
+    return `<tr><td>${i + 1}</td><td>${e(name)}${level.useStockDirect ? " · ใช้ Stock โดยตรง (ไม่เจือจาง)" : ""}</td>${p ? [p.stock,level.useStockDirect ? p.stock : p.target,p.finalUl / 1000,p.aliquotUl,p.matrixUl,p.solventUl].map((n, index) => `<td>${index >= 3 ? n.toFixed(1) : fmt(n)}</td>`).join("") : '<td colspan="6">ข้อมูลไม่ครบหรือเตรียมด้วย Stock นี้ไม่ได้ — ห้ามใช้แถวนี้เตรียมสาร</td>'}<td>________</td></tr>`;
   }).join("");
   const basis = kind === "matrix" ? levels.filter(level => level.matrixCalculation).map(level => {
     const c = level.matrixCalculation!;
