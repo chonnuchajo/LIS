@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { parseMeasurements, regression, stats } from "@/lib/validationCalculator";
 import ValidationDataGrid from "@/components/lis/ValidationDataGrid";
 import ValidationPreparation from "@/components/lis/ValidationPreparation";
-import { defaultPreparationLevels, targetConcentration, positiveNumber, stockConcentration, defaultLinearitySettings, checkLinearityPreparation, preparationTemplate, type ValidationStock } from "@/lib/validationPreparation";
+import { defaultPreparationLevels, targetConcentration, positiveNumber, stockConcentration, defaultLinearitySettings, checkLinearityPreparation, preparationTemplate, type ValidationStock, type PreparationLevel } from "@/lib/validationPreparation";
 import ValidationStocks from "@/components/lis/ValidationStocks";
 import { PrecisionPanel, QcPanel, ValidationResults as Results } from "@/components/lis/ValidationAdvanced";
 import { defaultPrecisionSettings, defaultQcSettings, evaluatePrecision, evaluateQc } from "@/lib/validationAdvanced";
@@ -39,10 +39,10 @@ export default function ValidationPage() {
   const [title, setTitle] = useState("Cypermethrin — Method Validation");
   const [analyte, setAnalyte] = useState("Cypermethrin");
   const [method, setMethod] = useState("GC-FID");
-  const [preparationLevels, setPreparationLevels] = useState(defaultPreparationLevels);
+  const [preparationLevels, setPreparationLevels] = useState<PreparationLevel[]>(() => defaultPreparationLevels().map(row => ({ ...row, preparationKind: row.purpose === "accuracy" ? "matrix" as const : "std" as const, target: "", aliquot: "", actualAliquot: "", finalVolume: "", matrix: row.purpose === "accuracy" ? "" : "0" })));
   const [stocks, setStocks] = useState<ValidationStock[]>([]);
   const [linearity, setLinearity] = useState(defaultLinearitySettings);
-  const [prep, setPrep] = useState(["", "", "25", "250", "1000"]);
+  const [prep, setPrep] = useState(["", "", "", "", ""]);
   const [inputTexts, setTexts] = useState(["", "", ""]);
   const [blank, setBlank] = useState("");
   const [specificity, setSpecificity] = useState(defaultSpecificitySettings);
@@ -56,10 +56,9 @@ export default function ValidationPage() {
   const [previewHtml, setPreviewHtml] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false), [pdfError, setPdfError] = useState("");
   const projectFile = useRef<HTMLInputElement>(null);
-  const [weight, purity, volume, aliquot, finalVolume] = prep.map(Number);
-  const validPrep = prep.every(v => v.trim() !== "" && Number.isFinite(Number(v)) && Number(v) > 0) && purity <= 100 && aliquot <= finalVolume;
+  const [weight, purity, volume] = prep.map(Number);
+  const validPrep = prep.slice(0, 3).every(v => v.trim() !== "" && Number.isFinite(Number(v)) && Number(v) > 0) && purity <= 100;
   const stock = stockConcentration(weight, purity, volume);
-  const actual = !validPrep || stock == null ? null : stock * aliquot / finalVolume;
   const linkedResult = evaluateLinkedMeasurements(linkedMeasurements, stock, stocks, Number(linearity.r2Min));
   const linked = linkedMeasurements.enabled;
   const texts = inputTexts.map((text, index) => index === 2 && linked.includes("accuracy") ? linkedResult.outputs.accuracy : text);
@@ -169,7 +168,7 @@ export default function ValidationPage() {
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4 shadow-sm"><div className="flex items-center gap-3"><ShieldCheck className="h-8 w-8 text-primary" /><div><h2 className="text-base font-semibold">พื้นที่ตรวจสอบวิธีวิเคราะห์</h2><p className="text-sm text-muted-foreground">{analyte || "ยังไม่ระบุสาร"} · {method || "ยังไม่ระบุวิธี"} · กำหนดช่วงความเข้มข้นในแผนเตรียมสาร</p></div></div><Badge variant="secondary">ฉบับร่าง · รอผู้ทบทวน</Badge></div>
     <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">{[["รายการตรวจ", checks.length], ["Passed", passed], ["Failed", failed], ["รอตรวจสอบ", checks.length - passed - failed]].map(([label, value]) => <Card key={label}><CardContent className="p-4"><p className="text-sm text-muted-foreground">{label}</p><p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p></CardContent></Card>)}</div>
     <ValidationProtocol value={protocolDetails} onChange={setProtocolDetails} missing={protocolResult.missing} />
-    <section aria-labelledby="preparation-heading" className="space-y-4"><div><h2 id="preparation-heading" className="text-base font-semibold text-foreground">ตั้งค่างานและเตรียมสาร</h2><p className="mt-1 text-sm text-muted-foreground">ใช้สำหรับคำนวณสาร · กำหนด Stock ความเข้มข้นที่ต้องการ และ Final volume แล้วพิมพ์ตารางคำนวณเพื่อนำไปเตรียมสาร</p></div><div className="space-y-4"><Panel title="ข้อมูลการเตรียมสาร"><label className="block space-y-2 text-sm">ชื่องาน / เลขที่รายงาน<Input value={title} onChange={e => setTitle(e.target.value)} /></label><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">{["น้ำหนักมาตรฐาน (mg)", "Purity (%)", "ปริมาตร Stock (mL)", "ปริมาตรที่ปิเปต (µL)", "ปริมาตรสุดท้าย (µL)"].map((label, i) => <label className="space-y-2 text-sm" key={label}>{label}<Input type="number" min="0" step="any" value={prep[i]} onChange={e => setPrep(old => old.map((v, n) => n === i ? e.target.value : v))} /></label>)}</div><div className="flex flex-wrap gap-4 rounded-md bg-muted p-3 text-sm"><span>C stock: <strong>{fmt(stock)} mg/mL</strong></span><span>C actual: <strong>{fmt(actual)} mg/mL</strong></span><span className="text-muted-foreground">C stock = น้ำหนัก × Purity/100 ÷ ปริมาตร</span></div><p className="text-sm text-muted-foreground">Stock หลักใช้กับระดับที่เลือก Stock หลักด้านล่าง เพิ่ม Stock แยกสำหรับชุดชั่งอื่น แล้วใช้ปุ่มสร้างแถวจากแผนในแท็บ Linearity/Accuracy </p>{!validPrep && prep[0] && prep[1] && <p className="text-sm text-destructive">ตรวจค่าบวกทุกช่อง, Purity ไม่เกิน 100% และปริมาตรที่ปิเปตไม่เกินปริมาตรสุดท้าย</p>}</Panel>
+    <section aria-labelledby="preparation-heading" className="space-y-4"><div><h2 id="preparation-heading" className="text-base font-semibold text-foreground">ตั้งค่างานและเตรียมสาร</h2><p className="mt-1 text-sm text-muted-foreground">ใช้สำหรับคำนวณสาร · กำหนด Stock ความเข้มข้นที่ต้องการ และ Final volume แล้วพิมพ์ตารางคำนวณเพื่อนำไปเตรียมสาร</p></div><div className="space-y-4"><Panel title="ข้อมูลการเตรียมสาร"><label className="block space-y-2 text-sm">ชื่องาน / เลขที่รายงาน<Input value={title} onChange={e => setTitle(e.target.value)} /></label><div className="grid gap-4 sm:grid-cols-3">{["น้ำหนักมาตรฐาน (mg)", "Purity (%)", "ปริมาตร Stock (mL)"].map((label, i) => <label className="space-y-2 text-sm" key={label}>{label}<Input type="number" min="0" step="any" value={prep[i]} onChange={e => setPrep(old => old.map((v, n) => n === i ? e.target.value : v))} /></label>)}</div><div className="flex flex-wrap gap-4 rounded-md bg-muted p-3 text-sm"><span>C stock: <strong>{fmt(stock)} mg/mL</strong></span><span className="text-muted-foreground">C stock = น้ำหนัก × Purity/100 ÷ ปริมาตร</span></div><p className="text-sm text-muted-foreground">Stock หลักใช้กับระดับที่เลือก Stock หลักด้านล่าง เพิ่ม Stock แยกสำหรับชุดชั่งอื่น แล้วใช้ปุ่มสร้างแถวจากแผนในแท็บ Linearity/Accuracy </p>{!validPrep && prep[0] && prep[1] && <p className="text-sm text-destructive">น้ำหนักและปริมาตร Stock ต้องมากกว่า 0 และ Purity ต้องมากกว่า 0 ถึง 100%</p>}</Panel>
     <Panel title="กำหนดสารและวิธีสำหรับรายงาน">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="space-y-2 text-sm">ชื่อสาร<Input value={analyte} onChange={e => setAnalyte(e.target.value)} /></label>

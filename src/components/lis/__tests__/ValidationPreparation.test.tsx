@@ -38,7 +38,11 @@ it("recalculates pipetting when switching stock and clears impossible dilution",
 
 it("updates Matrix and Solvent when percent changes and final volume scales", () => {
  render(<Fixture />);
- fireEvent.click(screen.getByRole("checkbox", {name:"คำนวณ Matrix จาก %ยา ตามข้อ 6.5.2"}));
+ expect(screen.queryByRole("checkbox", {name:"คำนวณ Matrix จาก %ยา ตามข้อ 6.5.2"})).not.toBeInTheDocument();
+ expect(screen.getByLabelText("%ยา", {exact:true})).toHaveValue(null);
+ fireEvent.change(screen.getByLabelText("%ยา", {exact:true}),{target:{value:"25"}});
+ fireEvent.change(screen.getByLabelText("ระดับอ้างอิง (mg/mL)"),{target:{value:"1"}});
+ fireEvent.change(screen.getByLabelText("ความหนาแน่น Matrix (mg/µL)"),{target:{value:"1"}});
  expect(screen.getByLabelText("matrix ระดับ 1")).toHaveValue(4);
  fireEvent.change(screen.getByLabelText("%ยา", {exact:true}),{target:{value:"10"}});
  expect(screen.getByLabelText("matrix ระดับ 1")).toHaveValue(10);
