@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { syncLinearityConcentrations } from "@/lib/validationLinearitySync";
 import { validationChartSvg } from "@/lib/validationCharts";
 import { Fragment, useRef, useState, type ReactNode } from "react";
@@ -67,6 +68,7 @@ export default function ValidationPage() {
   const protocolResult = evaluateProtocolDetails(protocolDetails);
   const [reportMeta, setReportMeta] = useState({ analyst: "", reviewer: "", protocol: "WI-06-04-03 rev.04 (ปรับเกณฑ์ตามวิธีที่ใช้)", calibration: "", notes: "" });
   const [notice, setNotice] = useState("");
+  const [saveStatus, setSaveStatus] = useState("");
   const [previewHtml, setPreviewHtml] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false), [pdfError, setPdfError] = useState("");
   const projectFile = useRef<HTMLInputElement>(null);
@@ -160,9 +162,14 @@ export default function ValidationPage() {
       setWorkId(saved.id);
       setSavedWork(saved);
       setLibrary(loadValidationLibrary(owner));
-      setNotice(`${saveLabel} ${analyte} ครบทุกหัวข้อแล้ว เวลา ${new Date(saved.savedAt).toLocaleString("th-TH")}`);
+      const message = `${saveLabel} ${analyte} สำเร็จ ครบทุกหัวข้อ เวลา ${new Date(saved.savedAt).toLocaleString("th-TH")}`;
+      setNotice(message); setSaveStatus(message); toast.success(message);
       return true;
-    } catch { setNotice("บันทึกไม่สำเร็จ: พื้นที่จัดเก็บเต็มหรือคลังงานอ่านไม่ได้ ข้อมูลบนหน้ายังคงเดิม"); return false; }
+    } catch (error) {
+      const reason = error instanceof Error && error.name === "QuotaExceededError" ? "พื้นที่จัดเก็บในเบราว์เซอร์เต็ม" : error instanceof Error && error.name === "ZodError" ? "มีข้อมูลรูปแบบไม่ถูกต้อง กรุณาตรวจช่องกรอกและข้อมูลที่นำเข้า" : error instanceof Error ? error.message : "เข้าถึงคลังงานไม่ได้";
+      const message = `${saveLabel}ไม่สำเร็จ: ${reason} · ข้อมูลบนหน้ายังคงอยู่`;
+      setNotice(message); setSaveStatus(message); toast.error(message); return false;
+    }
   };
   const restoreProject = (project: ValidationProject) => {
     setSourceTemplateValues(project.sourceTemplateValues); setPreparationSources(project.preparationSources); setProtocolDetails(project.protocolDetails); setTitle(project.title); setAnalyte(project.analyte); setMethod(project.method);
@@ -264,7 +271,7 @@ export default function ValidationPage() {
       <TabsContent value="3" className="mt-4 space-y-4"><h2 className="text-xl font-semibold">4. Precision</h2>{matrixPreparation}<label className="block max-w-sm space-y-2 text-sm">แผนเตรียมสารสำหรับ Precision<NativeSelect value={preparationSources.precision} onChange={e => setPreparationSources(old => ({ ...old, precision: e.target.value as "std" | "matrix" }))}><option value="matrix">Matrix · ต่ำ–กลาง–สูง</option><option value="std">STD · ต่ำ–กลาง–สูง</option></NativeSelect></label><p className="text-sm text-muted-foreground">ใช้แผน {preparationSources.precision === "std" ? "STD" : "Matrix"} สำหรับข้อมูลระหว่างวัน · Repeatability ใช้ผลรายตัวอย่างจาก Accuracy</p><PrecisionPanel dailyLinked={linked.includes("daily")} settings={precision} onChange={next => setPrecision(old => ({ ...next, dailyData: linked.includes("daily") ? old.dailyData : next.dailyData }))} result={precisionResult} /><ValidationAccuracyTables section="precision" analyte={analyte} text={texts[2]} precision={precisionResult} checks={checks} /></TabsContent>
       <TabsContent value="4" className="mt-4 space-y-4"><h2 className="text-xl font-semibold">5. Overall Summary</h2><QcPanel linkedKinds={linked} settings={qc} onChange={next => setQc(old => ({ ...next, sampleData: linked.includes("sample") ? old.sampleData : next.sampleData, standardData: linked.includes("standard") ? old.standardData : next.standardData, spikeData: linked.includes("spike") ? old.spikeData : next.spikeData }))} result={qcResult} /><Panel title={`ตารางที่ 5 สรุปผลการตรวจสอบความใช้ได้ของวิธีวิเคราะห์ ${analyte} และสถานะการยอมรับ`}><div className="flex gap-3 rounded-lg bg-muted p-4"><FileCheck2 className="h-5 w-5 shrink-0 text-primary" /><p className="text-sm">ผลนี้เป็นฉบับร่าง ยังไม่สรุปผ่านทั้งวิธีจนกว่าจะมีหลักฐาน Specificity และประเมิน Precision ครบ ดาวน์โหลดรายงานพร้อมข้อมูลดิบและรายการที่ต้องทบทวนได้</p></div><Results checks={checks} /></Panel></TabsContent>
     </Tabs>
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3"><div><p className="text-sm">หนึ่งยา · หนึ่งงาน · บันทึกข้อมูลครบทุกหัวข้อในเบราว์เซอร์นี้</p><p className="text-sm text-muted-foreground">{savedWork ? `บันทึกล่าสุด ${new Date(savedWork.savedAt).toLocaleString("th-TH")} · กดอัปเดตหลังแก้ไข` : "ยังไม่ได้บันทึกงานนี้"}</p></div><div className="ml-auto flex flex-wrap items-center justify-end gap-2"><Button onClick={() => saveSection(tab === "setup" ? "ตั้งค่างาน" : names[Number(tab)])}>{saveLabel}งาน Validation</Button></div></div>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3"><div><p className="text-sm">หนึ่งยา · หนึ่งงาน · บันทึกข้อมูลครบทุกหัวข้อในเบราว์เซอร์นี้</p><p className="text-sm text-muted-foreground">{savedWork ? `บันทึกล่าสุด ${new Date(savedWork.savedAt).toLocaleString("th-TH")} · กดอัปเดตหลังแก้ไข` : "ยังไม่ได้บันทึกงานนี้"}</p></div><div className="ml-auto flex flex-wrap items-center justify-end gap-2"><Button onClick={() => saveSection(tab === "setup" ? "ตั้งค่างาน" : names[Number(tab)])}>{saveLabel}งาน Validation</Button></div>{saveStatus && <p role="status" className="w-full text-sm">{saveStatus}</p>}</div>
     {linked.length > 0 && <div className="rounded-lg border bg-card p-4 text-sm">งานเดิมมีผลที่เชื่อมจาก Area<Button className="ml-3" variant="outline" onClick={() => { setTexts(texts); setPrecision(precision); setQc(qc); setLinkedMeasurements(old => ({ ...old, enabled: [] })); }}>ใช้ผลคำนวณเดิมเป็นข้อมูลกรอกตรง</Button></div>}
 
     {errors.length > 0 && <Panel title="รายการที่ต้องแก้ไข"><ul className="space-y-2 text-sm text-destructive">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></Panel>}
