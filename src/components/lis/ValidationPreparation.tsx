@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { preparationWorksheet } from "@/lib/validationPreparationWorksheet";
 import { useEffect, useRef, useState } from "react";
 import { matrixTargetsFromStd, syncMatrixTargets } from "@/lib/validationMatrixSync";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Printer, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/select";
@@ -87,7 +87,7 @@ export default function ValidationPreparation({ stock, stocks, levels, onChange,
         })}</tbody>
       </table>
     </div>
-    <div className="flex flex-wrap items-center justify-end gap-3">{kind === "std" && onSaveTo ? <><label className="flex items-center gap-2 text-sm">นำ STD ไปคำนวณที่<NativeSelect aria-label="นำ STD ไปคำนวณที่" value={destination} onChange={e => setDestination(e.target.value as typeof destination)}><option value="linearity">Linearity</option><option value="accuracy">Accuracy</option><option value="precision">Precision</option></NativeSelect></label><Button onClick={() => onSaveTo(destination)}>บันทึก STD และไป {destination === "linearity" ? "Linearity" : destination === "accuracy" ? "Accuracy" : "Precision"}</Button></> : onSave && <Button onClick={() => onSave(kind === "std" ? "STD" : "Matrix")}>บันทึก {kind === "std" ? "STD" : "Matrix"}</Button>}</div>
+    <div className="flex flex-wrap items-center justify-end gap-3"><Button variant="outline" disabled={!visibleLevels.some(row => preparationKind(row) === kind)} onClick={() => setWorksheet(preparationWorksheet({ analyte, method }, visibleLevels.filter(row => preparationKind(row) === kind), stock, stocks))}><Printer className="mr-2 h-4 w-4" />พิมพ์ตารางปิเปต {kind === "std" ? "STD" : "Matrix"}</Button>{kind === "std" && onSaveTo ? <><label className="flex items-center gap-2 text-sm">นำ STD ไปคำนวณที่<NativeSelect aria-label="นำ STD ไปคำนวณที่" value={destination} onChange={e => setDestination(e.target.value as typeof destination)}><option value="linearity">Linearity</option><option value="accuracy">Accuracy</option><option value="precision">Precision</option></NativeSelect></label><Button onClick={() => onSaveTo(destination)}>บันทึก STD และไป {destination === "linearity" ? "Linearity" : destination === "accuracy" ? "Accuracy" : "Precision"}</Button></> : onSave && <Button onClick={() => onSave(kind === "std" ? "STD" : "Matrix")}>บันทึก {kind === "std" ? "STD" : "Matrix"}</Button>}</div>
     {kind === "std" && onSaveTo && <p className="text-right text-sm text-muted-foreground">Linearity ใช้ 5 ระดับ · Accuracy / Precision ใช้ระดับต่ำ กลาง สูง · สร้างแถวผลวัดเมื่อยังไม่มีข้อมูลเท่านั้น</p>}
     </section>)}
     <p className="text-sm text-muted-foreground">คำแนะนำปิเปต = Target × ปริมาตรรวม ÷ C stock · Actual = C stock × ปิเปตจริง ÷ Final volume · กรอกปิเปตจริงตามปริมาตรที่ใช้ โดยดูแผน Stock ปัด 1 ตำแหน่งประกอบ · เก็บทศนิยมเต็มในการคำนวณ · 1 mg/mL = 1,000 µg/mL = 1,000 mg/L</p>
