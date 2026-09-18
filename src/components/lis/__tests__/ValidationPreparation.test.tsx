@@ -13,11 +13,11 @@ describe("หน่วยในแผนเตรียมสาร", () => {
     render(<Fixture />);
     fireEvent.change(screen.getByLabelText("หน่วย Target ระดับ 1"), { target: { value: "µg/mL" } });
     expect(screen.getByLabelText("target ระดับ 1")).toHaveValue(500);
-    expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveValue(248.6);
+    expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveTextContent("248.6");
     fireEvent.change(screen.getByLabelText("target ระดับ 1"), { target: { value: "400" } });
-    expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveValue(198.8);
+    expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveTextContent("198.8");
     fireEvent.change(screen.getByLabelText("finalVolume ระดับ 1"), {target:{value:"2000"}});
-    expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveValue(397.7);
+    expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveTextContent("397.7");
     fireEvent.change(screen.getByLabelText("หน่วย Target ระดับ 1"), { target: { value: "mg/mL" } });
     expect(screen.getByLabelText("target ระดับ 1")).toHaveValue(0.4);
   });
@@ -31,8 +31,8 @@ it("recalculates pipetting when switching stock and clears impossible dilution",
   }
   render(<StockFixture />);
   fireEvent.change(screen.getByLabelText("Stock ระดับ 1"), {target:{value:"other"}});
-  expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveValue(125);
+  expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveTextContent("125.0");
   expect(screen.getAllByText("Stock มาตรฐานชื่อยาวสำหรับทดสอบ")).toHaveLength(2);
   fireEvent.change(screen.getByLabelText("Stock ระดับ 1"), {target:{value:"weak"}});
-  expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveValue(null);
+  expect(screen.getByLabelText("aliquot ระดับ 1")).toHaveTextContent("—");
 });
