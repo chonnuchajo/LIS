@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
@@ -119,6 +119,7 @@ vi.mock("@/lib/api", () => ({
       ],
     }),
     getEligibleCoaPetitions: vi.fn().mockResolvedValue({ items: [] }),
+    getCoaSourceData: vi.fn().mockResolvedValue({ results: [] }),
     createCoaDocument: vi.fn().mockResolvedValue({}),
     reviseCoaDocument: vi.fn().mockResolvedValue({ _id: "c6" }),
     submitCoaDocument: vi.fn().mockResolvedValue({}),
@@ -320,6 +321,20 @@ describe("CoaCenterPage", () => {
     fireEvent.click(requestedRow);
 
     expect(api.getEligibleCoaPetitions).not.toHaveBeenCalled();
+  });
+
+  it("opens the clicked COA request with its common name and parameter sources selected", async () => {
+    vi.mocked(api.getEligibleCoaPetitions).mockResolvedValueOnce({ items: [{
+      _id: "p5", petitionNo: "P-2608-0004",
+      items: [{ seq: 1, sampleName: "Trade E", commonName: "Glyphosate 48% SL", batchNo: "B-001" }],
+    }] });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "สถานะ ขอ COA" }));
+    fireEvent.click(await screen.findByRole("button", { name: "สร้าง COA P-2608-0004" }));
+    await waitFor(() => expect(api.getCoaSourceData).toHaveBeenCalledWith("p5", [1]));
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByRole("checkbox")).toBeChecked();
+    expect(dialog.getByText("ชื่อสามัญ: Glyphosate 48% SL")).toBeInTheDocument();
   });
 
   it("warns on repeated common name and batch then sends existing COA to approval", async () => {

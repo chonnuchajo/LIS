@@ -570,6 +570,77 @@ test('create route validates actor before insert and stores review snapshots', a
   }
 });
 
+test('source selection survives create, submit and revision without accepting stale physical descriptions', async () => {
+  const originals = {
+    create: CoaDocument.create, findById: CoaDocument.findById, auditCreate: CoaAuditLog.create,
+    petitionFindById: Petition.findById, labRequestFind: LabRequest.find,
+    qcResultFind: QCTestResult.find, parameterFind: Parameter.find,
+  };
+  const restoreActor = stubActorLookup();
+  const petitionId = '507f1f77bcf86cd799439031';
+  const actor = { email: 'qc@example.com' };
+  const values = { 'ลักษณะ': 'ของเหลวใส', 'สี': 'สีส้ม' };
+  const parameters = [
+    { _id: 'ai', name: '%AI', scope: 'lab', valueFields: [{ label: '%AI', type: 'float', unit: '%' }] },
+    { _id: 'physical', name: 'กายภาพ', scope: 'qc', valueFields: [{ label: 'ลักษณะ', type: 'enum' }, { label: 'สี', type: 'text' }] },
+  ];
+  let document;
+  try {
+    Petition.findById = () => ({ lean: async () => ({ _id: petitionId, petitionNo: 'P-1', labApprovedAt: new Date(), items: [{ seq: 1, commonName: 'Glyphosate 48% SL' }] }) });
+    LabRequest.find = () => ({ lean: async () => [{ sampleSeq: 1 }] });
+    Parameter.find = () => ({ lean: async () => parameters });
+    QCTestResult.find = () => ({ lean: async () => [
+      { itemSeq: 1, parameterId: 'ai', parameterName: '%AI', entries: [{ '%AI': 48.1 }, { '%AI': 48.3 }] },
+      { itemSeq: 1, parameterId: 'physical', values },
+    ] });
+    CoaAuditLog.create = async () => {};
+    CoaDocument.create = async (payload) => {
+      document = { _id: '507f1f77bcf86cd799439032', ...payload, $locals: {}, save: async () => {} };
+      return document;
+    };
+    CoaDocument.findById = () => ({ then: (resolve) => resolve(document), lean: async () => document });
+    const sources = await invoke('/source-data/:petitionId', 'get', { params: { petitionId }, query: { itemSeqs: '1' } });
+    assert.equal(sources.statusCode, 200);
+    const formSelections = [{
+      itemSeq: 1, aiKey: sources.body.results.find((row) => row.result === '48.3%').key,
+      appearanceKey: sources.body.results.find((row) => row.kind === 'appearance').key,
+      appearanceSource: 'ของเหลวใส สีส้ม', appearanceSpecification: 'Clear orange liquid',
+      appearanceResult: 'Conform', densityKey: '',
+    }];
+    const created = await invoke('/', 'post', { body: { petitionId, selectedItemSeqs: [1], formSelections, _user: actor } });
+    assert.equal(created.statusCode, 201);
+    assert.deepEqual(created.body.formSelections, formSelections);
+    const selectedResults = structuredClone(created.body.resultSnapshots);
+    const submitted = await invoke('/:id/submit', 'post', { params: { id: document._id }, body: { _user: actor } });
+    assert.equal(submitted.statusCode, 200);
+    assert.equal(document.status, 'pendingApproval');
+    assert.deepEqual(document.resultSnapshots, selectedResults);
+    document.status = 'approved';
+    const revised = await invoke('/:id/revise', 'post', { params: { id: document._id }, body: { _user: actor } });
+    assert.equal(revised.statusCode, 201);
+    assert.deepEqual(document.formSelections, formSelections);
+    values['สี'] = 'สีดำ';
+    const stale = await invoke('/:id/submit', 'post', { params: { id: document._id }, body: { _user: actor } });
+    assert.equal(stale.statusCode, 400);
+    assert.match(stale.body.error, /ผลกายภาพเปลี่ยน/);
+    assert.equal(document.status, 'revisionDraft');
+    const invalidSample = await invoke('/source-data/:petitionId', 'get', { params: { petitionId }, query: { itemSeqs: '99' } });
+    assert.equal(invalidSample.statusCode, 400);
+    Petition.findById = () => ({ lean: async () => ({ _id: petitionId, items: [{ seq: 1 }] }) });
+    const notApproved = await invoke('/source-data/:petitionId', 'get', { params: { petitionId }, query: { itemSeqs: '1' } });
+    assert.equal(notApproved.statusCode, 400);
+  } finally {
+    CoaDocument.create = originals.create;
+    CoaDocument.findById = originals.findById;
+    CoaAuditLog.create = originals.auditCreate;
+    Petition.findById = originals.petitionFindById;
+    LabRequest.find = originals.labRequestFind;
+    QCTestResult.find = originals.qcResultFind;
+    Parameter.find = originals.parameterFind;
+    restoreActor();
+  }
+});
+
 test('revision approval saves, supersedes, and audits in one transaction session', async () => {
   const originals = {
     findById: CoaDocument.findById,

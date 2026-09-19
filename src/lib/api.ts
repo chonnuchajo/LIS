@@ -33,7 +33,7 @@ import type { DashboardId, StoredLayout, DashboardLayout } from "@/lib/dashboard
 import type { MethodDoc, MethodInput } from './methodRegistry';
 import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
 import type { GoodsReceipt, GoodsReceiptInput } from "@/types/goodsReceipt.types";
-import type { CoaDocument, EligibleCoaPetition } from "@/types/coa.types";
+import type { CoaDocument, CoaFormSelection, CoaSourceResult, EligibleCoaPetition } from "@/types/coa.types";
 import type { PetitionAuditEvent, PetitionStatus } from "@/types/petition.types";
 import type {
   ApiKeyItem,
@@ -932,7 +932,9 @@ export const api = {
     return request<{ items: CoaDocument[] }>(`/coa-documents${q.toString() ? `?${q}` : ""}`);
   },
   getEligibleCoaPetitions: () => request<{ items: EligibleCoaPetition[] }>("/coa-documents/eligible-petitions"),
-  createCoaDocument: (body: { petitionId: string; selectedItemSeqs: number[]; remark?: string; _user?: unknown }) =>
+  getCoaSourceData: (petitionId: string, itemSeqs: number[]) =>
+    request<{ results: CoaSourceResult[] }>("/coa-documents/source-data/" + encodeURIComponent(petitionId) + "?itemSeqs=" + encodeURIComponent(itemSeqs.join(","))),
+  createCoaDocument: (body: { petitionId: string; selectedItemSeqs: number[]; formSelections?: CoaFormSelection[]; remark?: string; _user?: unknown }) =>
     request<CoaDocument>("/coa-documents", { method: "POST", body: JSON.stringify(body) }),
   getCoaDocument: (id: string) => request<CoaDocument>(`/coa-documents/${id}`),
   updateCoaDocument: (id: string, body: { selectedItemSeqs?: number[]; remark?: string; _user?: unknown }) =>

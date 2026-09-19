@@ -23,7 +23,10 @@ export const COA_REPORT_CSS = `
 .coa-special-table { margin-top: 8mm; }
 .coa-special-table th, .coa-special-table td { text-align: center; vertical-align: middle; }
 .coa-special-sign { margin-top: 28mm; margin-left: auto; width: 78mm; text-align: center; line-height: 1.55; }
-.coa-liquid-page { background: #fff3b0; }
+.coa-liquid-page, .coa-liquid-page * { font-size: 18pt; }
+.coa-liquid-page .coa-special-title { font-size: 20pt; }
+.coa-liquid-page .coa-special-label { font-weight: 400; }
+.coa-liquid-page .coa-special-table th { font-weight: 400 !important; }
 .coa-brom-page { padding: 24mm 22mm 18mm; }
 .coa-brom-title { margin-top: 0; text-align: center; font-size: 14pt; font-weight: 700; letter-spacing: 0; }
 .coa-brom-meta { margin-top: 7mm; text-align: right; line-height: 1.7; }
@@ -38,6 +41,7 @@ export const COA_REPORT_CSS = `
 
 function SpecialCoaPage({ page, index }: { page: CoaReportPage; index: number }) {
   const sample = page.samples[0];
+  const appearance = sample?.rows.find((row) => /^appearance$/i.test(row.testItem?.trim() ?? ""));
 
   return (
     <section className="coa-page coa-special-page" key={`${page.coaNo}-${index}`}>
@@ -65,8 +69,8 @@ function SpecialCoaPage({ page, index }: { page: CoaReportPage; index: number })
         <tbody>
           <tr>
             <td>Appearance</td>
-            <td />
-            <td>Conform</td>
+            <td>{appearance?.criteria === "-" ? "" : appearance?.criteria}</td>
+            <td>{appearance?.result || "Conform"}</td>
           </tr>
           <tr>
             <td colSpan={2}>BATCH NO.</td>
@@ -95,13 +99,14 @@ function SpecialCoaPage({ page, index }: { page: CoaReportPage; index: number })
 
 function LiquidCoaPage({ page, index }: { page: CoaReportPage; index: number }) {
   const sample = page.samples[0];
+  const appearance = sample?.rows.find((row) => /^appearance$/i.test(row.testItem?.trim() ?? ""));
 
   return (
     <section className="coa-page coa-special-page coa-liquid-page" key={`${page.coaNo}-${index}`}>
       <h1 className="coa-special-title">CERTIFICATE OF ANALYSIS</h1>
       <div className="coa-special-meta">
         <div>NO. {page.coaNo === "-" ? "" : page.coaNo}</div>
-        <div>Month DATE, ค.ศ.</div>
+        <div>{page.issueDate === "-" ? "" : page.issueDate}</div>
       </div>
 
       <div className="coa-special-fields">
@@ -122,8 +127,8 @@ function LiquidCoaPage({ page, index }: { page: CoaReportPage; index: number }) 
         <tbody>
           <tr>
             <td>Appearance</td>
-            <td />
-            <td>Conform</td>
+            <td>{appearance?.criteria === "-" ? "" : appearance?.criteria}</td>
+            <td>{appearance?.result === "-" ? "" : appearance?.result}</td>
           </tr>
           <tr>
             <td colSpan={2}>BATCH NO.</td>
@@ -135,8 +140,7 @@ function LiquidCoaPage({ page, index }: { page: CoaReportPage; index: number }) 
             <td>{sample?.aiContentResult === "-" ? "" : sample?.aiContentResult}</td>
           </tr>
           <tr>
-            <td>Density at 30°C (g/cm³)</td>
-            <td />
+            <td colSpan={2}>Density at 30°C (g/cm³)</td>
             <td>{sample?.densityResult === "-" ? "" : sample?.densityResult}</td>
           </tr>
           <tr>
@@ -157,6 +161,7 @@ function LiquidCoaPage({ page, index }: { page: CoaReportPage; index: number }) 
 
 function BromadioloneCoaPage({ page, index }: { page: CoaReportPage; index: number }) {
   const sample = page.samples[0];
+  const appearance = sample?.rows.find((row) => /^appearance$/i.test(row.testItem?.trim() ?? ""));
 
   return (
     <section className="coa-page coa-brom-page" key={page.coaNo + "-" + index}>
@@ -184,8 +189,8 @@ function BromadioloneCoaPage({ page, index }: { page: CoaReportPage; index: numb
         <tbody>
           <tr>
             <td>Appearance</td>
-            <td>Red wax block</td>
-            <td>Conform</td>
+            <td>{appearance?.criteria && appearance.criteria !== "-" ? appearance.criteria : "Red wax block"}</td>
+            <td>{appearance?.result || "Conform"}</td>
           </tr>
           <tr>
             <td colSpan={2}>BATCH NO.</td>

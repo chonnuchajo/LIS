@@ -13,6 +13,25 @@ export type CoaStatus =
 
 export type CoaPerson = { name?: string; email?: string; role?: string };
 
+export type CoaFormSelection = {
+  itemSeq: number;
+  aiKey: string;
+  appearanceKey: string;
+  appearanceSource: string;
+  appearanceSpecification: string;
+  appearanceResult: "Conform" | "Not conform" | "";
+  densityKey: string;
+};
+
+export type CoaSourceResult = {
+  key: string;
+  itemSeq: number;
+  kind: "ai" | "appearance" | "density";
+  label: string;
+  result: string;
+  suggestedEnglish?: string;
+};
+
 export type CoaSampleSnapshot = {
   itemSeq: number;
   sampleName?: string;
@@ -84,6 +103,7 @@ export type CoaDocument = {
   sampleSnapshots: CoaSampleSnapshot[];
   resultSnapshots: CoaResultSnapshot[];
   trendSnapshots?: CoaTrendSnapshot[];
+  formSelections?: CoaFormSelection[];
   remark?: string;
   approval?: {
     submittedBy?: CoaPerson;
