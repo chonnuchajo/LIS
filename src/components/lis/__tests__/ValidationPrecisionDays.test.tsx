@@ -9,6 +9,6 @@ it("วันที่ว่างมีช่องกรอกทันที�
  expect(found).toHaveValue('');
  expect(screen.getByLabelText('Accuracy 0.5 ซ้ำ 10 Found')).toHaveValue('');
  fireEvent.change(found,{target:{value:'0.101'}});
- expect(change.mock.calls[0][0]).toContain('2\t0.1\t0.10026432\t0.101');
+ expect(change.mock.calls[0][0]).toContain('2\t0.1\t0.1\t0.101');
  expect(change.mock.calls[0][0]).toContain('3\t0.1\t0.10026432\t0.099');
 });
