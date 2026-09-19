@@ -27,7 +27,7 @@ function numericValue(...values) {
 }
 
 function isMedicineItemNo(value) {
-  return /^F/i.test(textValue(value));
+  return /^[FR]/i.test(textValue(value));
 }
 
 function normalizeSixMonthStockItem(row, referenceDate = new Date()) {
