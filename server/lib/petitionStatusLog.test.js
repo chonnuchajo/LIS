@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 const {
   isLabBatch,
+  shouldSendItemToLab,
+  hasLabTrack,
   hasFilledValue,
   qcParamAppliesToItem,
   computeQcHeuristic,
@@ -24,6 +26,20 @@ test('isLabBatch: last char 1 or 6 → true; else false; null-safe', () => {
   assert.strictEqual(isLabBatch(''), false);
   assert.strictEqual(isLabBatch(null), false);
   assert.strictEqual(isLabBatch(undefined), false);
+});
+
+test('shouldSendItemToLab: explicit sendToLab overrides batch suffix default', () => {
+  assert.strictEqual(shouldSendItemToLab({ batchNo: 'AB1' }), true);
+  assert.strictEqual(shouldSendItemToLab({ batchNo: 'AB1', sendToLab: false }), false);
+  assert.strictEqual(shouldSendItemToLab({ batchNo: 'AB2', sendToLab: true }), true);
+  assert.strictEqual(hasLabTrack({ items: [{ batchNo: 'AB1', sendToLab: false }] }), false);
+  assert.strictEqual(hasLabTrack({ items: [{ batchNo: 'AB2', sendToLab: true }] }), true);
+});
+
+test('shouldSendItemToLab: PUBLIC HEALTH and LIVE STOCK always route to Lab', () => {
+  assert.strictEqual(shouldSendItemToLab({ commonName: 'DELTAMETHRIN 1% W/V EC (PUBLIC HEALTH)', batchNo: 'AB2', sendToLab: false }), true);
+  assert.strictEqual(shouldSendItemToLab({ sampleName: 'BIFENTHRIN 10% W/V EC (LIVE STOCK)', batchNo: 'AB2' }), true);
+  assert.strictEqual(hasLabTrack({ items: [{ commonName: 'DELTAMETHRIN 1% W/V EC (PUBLIC HEALTH)', batchNo: 'AB2', sendToLab: false }] }), true);
 });
 
 test('hasFilledValue: empty/blank → false, value → true', () => {

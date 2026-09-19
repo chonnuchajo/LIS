@@ -12,6 +12,115 @@ export function isLabBatchNo(batchNo: unknown): boolean {
   return /[16]$/.test(String(batchNo ?? "").trim());
 }
 
+export type LabRouteItem = {
+  seq?: number;
+  sampleName?: string;
+  commonName?: string;
+  batchNo?: unknown;
+  sendToLab?: unknown;
+  note?: unknown;
+  MF_Before?: unknown;
+  MF_Lasted?: unknown;
+  MF_GapDays?: unknown;
+  MF_BatchAfterGap?: unknown;
+  MF_ConsecutivePassCount?: unknown;
+};
+
+const RODENTICIDE_PATTERNS = [
+  /BROMADIOLONE/i,
+  /BRODIFACOUM/i,
+  /DIFENACOUM/i,
+  /DIFETHIALONE/i,
+  /COUMATETRALYL/i,
+  /CHLOROPHACINONE/i,
+  /FLOCOUMAFEN/i,
+  /ZINC\s+PHOSPHIDE/i,
+  /RODENTICIDE/i,
+  /RAT\s+BAIT/i,
+  /ยาหนู/,
+  /กำจัดหนู/,
+];
+
+export function isMandatoryLabProduct(item: Pick<LabRouteItem, "sampleName" | "commonName"> | null | undefined): boolean {
+  const normalized = [item?.sampleName, item?.commonName]
+    .map((value) => String(value ?? "").trim().replace(/\s+/g, " ").toUpperCase())
+    .join(" ");
+  return normalized.includes("PUBLIC HEALTH") || normalized.includes("LIVE STOCK") || RODENTICIDE_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizedDate(value: unknown): string | null {
+  const text = String(value ?? "").trim();
+  const match = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (!match) return null;
+  return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+}
+
+function mfGapDays(item: Pick<LabRouteItem, "MF_Before" | "MF_Lasted" | "MF_GapDays">): number | null {
+  const explicit = numberOrNull(item.MF_GapDays);
+  if (explicit !== null) return explicit;
+  const before = normalizedDate(item.MF_Before);
+  const lasted = normalizedDate(item.MF_Lasted);
+  if (!before || !lasted) return null;
+  const diff = (Date.parse(`${lasted}T00:00:00Z`) - Date.parse(`${before}T00:00:00Z`)) / 86_400_000;
+  return Number.isFinite(diff) ? diff : null;
+}
+
+export function isMfFiveBatchLabHold(item: Pick<LabRouteItem, "MF_Before" | "MF_Lasted" | "MF_GapDays" | "MF_BatchAfterGap" | "MF_ConsecutivePassCount">): boolean {
+  const gap = mfGapDays(item);
+  if (gap === null || gap < 30) return false;
+
+  const passCount = numberOrNull(item.MF_ConsecutivePassCount);
+  if (passCount !== null && passCount >= 5) return false;
+
+  const batchAfterGap = numberOrNull(item.MF_BatchAfterGap);
+  return batchAfterGap === null || batchAfterGap <= 5;
+}
+
+export function defaultSendItemToLab(item: Pick<LabRouteItem, "batchNo" | "sampleName" | "commonName" | "MF_Before" | "MF_Lasted" | "MF_GapDays" | "MF_BatchAfterGap" | "MF_ConsecutivePassCount">): boolean {
+  return isMandatoryLabProduct(item) || isMfFiveBatchLabHold(item) || isLabBatchNo(item.batchNo);
+}
+
+export function shouldSendItemToLab(item: LabRouteItem | null | undefined): boolean {
+  if (!item) return false;
+  if (isMandatoryLabProduct(item)) return true;
+  return typeof item.sendToLab === "boolean" ? item.sendToLab : defaultSendItemToLab(item);
+}
+
+export function hasSendToLabOverride(item: LabRouteItem | null | undefined): boolean {
+  if (!item || typeof item.sendToLab !== "boolean") return false;
+  if (isMandatoryLabProduct(item)) return false;
+  return item.sendToLab !== defaultSendItemToLab(item);
+}
+
+export function labSendOverrideNoteError(items: LabRouteItem[]): string | null {
+  const missing = items.find((item) => hasSendToLabOverride(item) && !String(item.note ?? "").trim());
+  if (!missing) return null;
+  const label = missing.seq ? `ลำดับ ${missing.seq}` : missing.sampleName || String(missing.batchNo ?? "").trim() || "นี้";
+  return `ตัวอย่าง${label}: โปรดระบุเหตุผล`;
+}
+
+export function duplicateBatchError(
+  items: Pick<LabRouteItem, "batchNo" | "sendToLab">[],
+  options: { department?: unknown; labOnly?: boolean } = {},
+): string | null {
+  const seen = new Set<string>();
+  const allItemsSendToLab = isResearchAndDevelopmentDepartment(options.department);
+  for (const item of items) {
+    if (options.labOnly && !allItemsSendToLab && !shouldSendItemToLab(item)) continue;
+    const key = String(item.batchNo ?? "").trim();
+    if (!key) continue;
+    if (seen.has(key)) return `พบ batch ซ้ำ: ${key}`;
+    seen.add(key);
+  }
+  return null;
+}
+
 export function hasLabTrack(
   petition: Pick<Petition, "submittedBy" | "items" | "labReceivedAt" | "labCompletedAt" | "labApprovedAt">,
 ): boolean {
@@ -20,7 +129,7 @@ export function hasLabTrack(
       petition.labReceivedAt ||
       petition.labCompletedAt ||
       petition.labApprovedAt ||
-      petition.items?.some((item) => isLabBatchNo(item.batchNo)),
+      petition.items?.some((item) => shouldSendItemToLab(item)),
   );
 }
 

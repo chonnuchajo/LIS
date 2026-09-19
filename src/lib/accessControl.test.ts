@@ -117,6 +117,11 @@ describe("userCanAccessPath", () => {
       expect(userCanAccessPath(user, "/lab-testing/abc", navGroups)).toBe(true);
     });
 
+    it("grants the MF gap medicine list when lab send conditions is granted", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/lab-send-conditions"] };
+      expect(userCanAccessPath(user, "/mf-gap-medicines", navGroups)).toBe(true);
+    });
+
     it("grants the COA detail page when /coa is granted", () => {
       const user = { role: "qc-head", status: "active" as const, permissions: ["/coa"] };
       expect(userCanAccessPath(user, "/coa/abc", navGroups)).toBe(true);
@@ -125,6 +130,14 @@ describe("userCanAccessPath", () => {
     it("grants the petition timeline detail page when /petition is granted", () => {
       const user = { role: "lab", status: "active" as const, permissions: ["/petition"] };
       expect(userCanAccessPath(user, "/petition/abc", navGroups)).toBe(true);
+    });
+
+    it("keeps Assign Lab as a separate current petition permission", () => {
+      const user = { role: "lab", status: "active" as const, permissions: ["/petition"] };
+      const assignUser = { role: "lab", status: "active" as const, permissions: ["/petition/assign"] };
+
+      expect(userCanAccessPath(user, "/petition/assign", navGroups)).toBe(false);
+      expect(userCanAccessPath(assignUser, "/petition/assign", navGroups)).toBe(true);
     });
 
     it("grants result detail from /record-results without granting petition detail", () => {

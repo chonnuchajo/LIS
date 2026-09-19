@@ -4,8 +4,8 @@ import { api } from "@/lib/api";
 import { useNotifications } from "@/context/NotificationContext";
 import { useAuth } from "@/context/AuthContext";
 import { DAILY_CHECK_SCALE_TOTAL } from "@/lib/dailyCheckProgress";
+import { getDailyCheckPeriod, getDailyCheckPeriodLabel } from "@/lib/dailyCheckPeriod";
 
-const REMINDER_HOUR = 8;
 const STORAGE_PREFIX = "lis.dailyCheck.reminderShown.";
 
 const todayStr = () => {
@@ -14,8 +14,8 @@ const todayStr = () => {
 };
 
 /**
- * เช็คทุกนาที — ถ้าเลย 8:00 และยังบันทึก Daily Check ไม่ครบ
- * push notification ครั้งเดียวต่อวัน (กันซ้ำด้วย localStorage)
+ * เช็คทุกนาที — ถ้าอยู่ในรอบเช้า/บ่าย และยังบันทึก Daily Check ไม่ครบ
+ * push notification ครั้งเดียวต่อรอบ (กันซ้ำด้วย localStorage)
  */
 const DailyCheckReminderWatcher = () => {
   const { user } = useAuth();
@@ -35,27 +35,39 @@ const DailyCheckReminderWatcher = () => {
     const tick = () => {
       const now = new Date();
       const date = todayStr();
-      const flagKey = `${STORAGE_PREFIX}${date}`;
+      const period = getDailyCheckPeriod(now);
+      if (!period) return;
 
-      // วันนี้บันทึกครบแล้ว → ปลดแจ้งเตือน (ถ้ามี)
-      if ((summary.scaleIds?.length ?? 0) >= DAILY_CHECK_SCALE_TOTAL) {
-        if (notifications.some(n => n.id === "daily-check-reminder")) {
-          dismiss("daily-check-reminder");
+      const periodLabel = getDailyCheckPeriodLabel(period);
+      const flagKey = `${STORAGE_PREFIX}${date}.${period}`;
+      const notificationId = `daily-check-reminder-${period}`;
+      const scaleRecords = summary.scaleRecords ?? [];
+      const done = scaleRecords.length > 0
+        ? new Set(
+            scaleRecords
+              .filter((record) => (record.period ?? (record.checkedAt ? getDailyCheckPeriod(record.checkedAt) : null)) === period)
+              .map((record) => record.scaleId)
+              .filter(Boolean),
+          ).size
+        : (summary.scaleIds?.length ?? 0);
+
+      // รอบนี้บันทึกครบแล้ว → ปลดแจ้งเตือน (ถ้ามี)
+      if (done >= DAILY_CHECK_SCALE_TOTAL) {
+        if (notifications.some(n => n.id === notificationId)) {
+          dismiss(notificationId);
         }
         return;
       }
-      // ยังไม่ถึง 8:00
-      if (now.getHours() < REMINDER_HOUR) return;
-      // เคยแจ้งวันนี้แล้ว และผู้ใช้ลบทิ้งไปแล้ว → ไม่ rerun
+      // เคยแจ้งรอบนี้แล้ว และผู้ใช้ลบทิ้งไปแล้ว → ไม่ rerun
       if (localStorage.getItem(flagKey) === "1") return;
 
-      const exists = notifications.some(n => n.id === "daily-check-reminder");
+      const exists = notifications.some(n => n.id === notificationId);
       if (exists) return;
 
       push({
-        id: "daily-check-reminder",
-        title: "ถึงเวลา Daily Check",
-        message: `กรุณาบันทึกผล Calibrate เครื่องชั่งประจำวัน (${summary.scaleIds?.length ?? 0}/${DAILY_CHECK_SCALE_TOTAL} แล้ว)`,
+        id: notificationId,
+        title: `ถึงเวลา Daily Check รอบ${periodLabel}`,
+        message: `กรุณาบันทึกผล Calibrate เครื่องชั่งประจำวัน รอบ${periodLabel} (${done}/${DAILY_CHECK_SCALE_TOTAL} แล้ว)`,
         level: "warning",
         link: "/daily-check",
         persistent: true,

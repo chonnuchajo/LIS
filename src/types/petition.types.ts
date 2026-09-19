@@ -31,7 +31,7 @@ export const PETITION_STATUS_CONFIG: Record<
   PetitionStatus,
   { label: string; variant: StatusBadgeVariant }
 > = {
-  deliveringQC:  { label: 'กำลังส่งตัวอย่าง', variant: 'gray-soft' },
+  deliveringQC:  { label: 'กำลังส่งตัวอย่าง', variant: 'yellow-soft' },
   sampleSent:    { label: 'ส่งตัวอย่างแล้ว',  variant: 'primary-soft' },
   pendingReview: { label: 'รับตัวอย่างแล้ว',  variant: 'yellow-soft' },
   inProgress:    { label: 'กำลังดำเนินการ',     variant: 'blue-soft' },
@@ -69,10 +69,18 @@ export interface PetitionItem {
   packageUnit?: string;
   testUnit?: string;
   testItems?: string;
+  sendToLab?: boolean;
+  MF_Before?: string | null;
+  MF_Lasted?: string | null;
+  MF_GapDays?: number | null;
+  MF_BatchAfterGap?: number | null;
+  MF_ConsecutivePassCount?: number | null;
   note?: string;
+  sampleQuantity?: number;
   labelManufacturer?: string;
   labelSeller?: string;
   labelQuantity?: string;
+  labelQuantities?: string[];
   labelSampledBy?: string;
   labelSampledDate?: string;
   labelRemark?: string;

@@ -22,7 +22,11 @@ import {
   findMatchingPetitionMasterItem,
   type PetitionMasterItemOption,
 } from '@/lib/petitionMasterItem';
-import { isLabBatch } from '@/types/petition.types';
+import {
+  defaultSendItemToLab,
+  isMandatoryLabProduct,
+  shouldSendItemToLab,
+} from '@/lib/petitionRouting';
 import SubmitterPicker, { type SubmitterValues } from './SubmitterPicker';
 
 export interface ItemRowValues {
@@ -39,8 +43,16 @@ export interface ItemRowValues {
   submissionNo: string;
   testUnit: string;
   testItems: string;
+  sendToLab?: boolean;
+  MF_Before?: string | null;
+  MF_Lasted?: string | null;
+  MF_GapDays?: number | null;
+  MF_BatchAfterGap?: number | null;
+  MF_ConsecutivePassCount?: number | null;
   note: string;
+  sampleQuantity?: number;
   labelQuantity?: string;
+  labelQuantities?: string[];
   labelSampledDate?: string;
   submittedQuantity?: string;
   submittedUnit?: string;
@@ -62,6 +74,71 @@ interface Props {
   masterItemsLoading?: boolean;
 }
 
+function parseSampleQuantityInput(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) return undefined;
+  return parsed;
+}
+
+function sampleQuantityInputCount(value: number | undefined): number {
+  if (!Number.isInteger(value) || (value ?? 0) < 1) return 1;
+  return value ?? 1;
+}
+
+function splitLabelQuantity(value: string | undefined): string[] {
+  return String(value ?? '')
+    .split(/[\n,;|]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function labelQuantityInputs(item: ItemRowValues): string[] {
+  const count = sampleQuantityInputCount(item.sampleQuantity);
+  const fromArray = Array.isArray(item.labelQuantities)
+    ? item.labelQuantities.map((entry) => String(entry ?? ''))
+    : [];
+  const source = fromArray.length ? fromArray : splitLabelQuantity(item.labelQuantity);
+  return Array.from({ length: count }, (_, index) => source[index] ?? (count === 1 ? item.labelQuantity ?? '' : ''));
+}
+
+function labelQuantityPatch(item: ItemRowValues, quantityIndex: number, nextValue: string): Pick<ItemRowValues, 'labelQuantity' | 'labelQuantities'> {
+  const quantities = labelQuantityInputs(item);
+  quantities[quantityIndex] = nextValue;
+  return {
+    labelQuantity: quantities.filter((entry) => entry.trim()).join(', '),
+    labelQuantities: quantities,
+  };
+}
+
+const mfFieldKeys = [
+  'MF_Before',
+  'MF_Lasted',
+  'MF_GapDays',
+  'MF_BatchAfterGap',
+  'MF_ConsecutivePassCount',
+] as const;
+
+function mfFieldsFromOption(option: PetitionMasterItemOption): Partial<ItemRowValues> {
+  const patch: Partial<ItemRowValues> = {};
+  mfFieldKeys.forEach((key) => {
+    if (option[key] !== undefined) patch[key] = option[key] as never;
+  });
+  return patch;
+}
+
+function clearMfFieldsIfPresent(item: ItemRowValues): Partial<ItemRowValues> {
+  if (!mfFieldKeys.some((key) => item[key] !== undefined)) return {};
+  return {
+    MF_Before: null,
+    MF_Lasted: null,
+    MF_GapDays: null,
+    MF_BatchAfterGap: null,
+    MF_ConsecutivePassCount: null,
+  };
+}
+
 export default function ItemsStep({
   value,
   onChange,
@@ -81,6 +158,42 @@ export default function ItemsStep({
     onChange(value.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   }
 
+  function patchWithLabDefault(
+    item: ItemRowValues,
+    patch: Partial<ItemRowValues>,
+    { syncDefault = false }: { syncDefault?: boolean } = {},
+  ) {
+    const previousDefault = defaultSendItemToLab(item);
+    const followsDefault = typeof item.sendToLab !== 'boolean' || item.sendToLab === previousDefault;
+    const next = { ...item, ...patch };
+    const nextDefault = defaultSendItemToLab(next);
+    if (isMandatoryLabProduct(next)) return { ...patch, sendToLab: true };
+    if (!syncDefault && !isMandatoryLabProduct(item)) {
+      return followsDefault && !previousDefault && nextDefault ? { ...patch, sendToLab: true } : patch;
+    }
+    return followsDefault ? { ...patch, sendToLab: nextDefault } : patch;
+  }
+
+  function setBatchNo(idx: number, batchNo: string) {
+    const item = value[idx];
+    setItem(idx, patchWithLabDefault(item, { batchNo }, { syncDefault: true }));
+  }
+
+  function setCommonName(idx: number, commonName: string) {
+    const item = value[idx];
+    setItem(idx, patchWithLabDefault(item, { commonName }));
+  }
+
+  function setMasterOptionPicked(idx: number, item: ItemRowValues, option: PetitionMasterItemOption) {
+    setItem(idx, patchWithLabDefault(item, {
+      itemNo: option.itemNo,
+      sampleName: option.sampleName,
+      commonName: option.commonName,
+      packageUnit: option.packageUnit,
+      ...mfFieldsFromOption(option),
+    }));
+  }
+
   function fillEmptyMasterFields(
     item: ItemRowValues,
     option: PetitionMasterItemOption,
@@ -93,7 +206,8 @@ export default function ItemsStep({
       itemNo: option.itemNo,
       sampleName: item.sampleName.trim() ? (patch.sampleName ?? item.sampleName) : option.sampleName,
       commonName: item.commonName.trim() ? item.commonName : option.commonName,
-      packageUnit: item.packageUnit.trim() ? item.packageUnit : option.packageUnit,
+      packageUnit: option.packageUnit,
+      ...mfFieldsFromOption(option),
     };
   }
 
@@ -102,10 +216,14 @@ export default function ItemsStep({
     const match = findMatchingPetitionMasterItem(masterItemOptions, { sampleName });
     if (!match) {
       // ล้างรหัสเก่าทิ้ง ไม่งั้นชื่อที่พิมพ์ใหม่จะยังลาก parameter ของสินค้าตัวก่อนมาด้วย
-      setItem(idx, { sampleName, itemNo: '' });
+      setItem(idx, patchWithLabDefault(item, {
+        sampleName,
+        itemNo: '',
+        ...clearMfFieldsIfPresent(item),
+      }));
       return;
     }
-    setItem(idx, fillEmptyMasterFields(item, match, { sampleName }));
+    setItem(idx, patchWithLabDefault(item, fillEmptyMasterFields(item, match, { sampleName })));
   }
 
   function addItem() {
@@ -122,6 +240,8 @@ export default function ItemsStep({
         submissionNo: '',
         testUnit: '',
         testItems: '',
+        sampleQuantity: 1,
+        labelQuantity: '',
         note: '',
       },
     ]);
@@ -163,7 +283,16 @@ export default function ItemsStep({
 
       <div className="space-y-4">
         {value.map((it, idx) => {
-          const lab = requireDeliveryAndBatch ? isLabBatch(it.batchNo) : true;
+          const lab = requireDeliveryAndBatch ? shouldSendItemToLab(it) : true;
+          const labDefault = defaultSendItemToLab(it);
+          const batchSuffix = it.batchNo.trim().slice(-1);
+          const labBatchSuffix = ['1', '6'].includes(batchSuffix);
+          const sampleNameId = `sample-name-${idx}`;
+          const commonNameId = `common-name-${idx}`;
+          const batchNoId = `batch-no-${idx}`;
+          const packageUnitId = `package-unit-${idx}`;
+          const labelQuantityId = `label-quantity-${idx}`;
+          const sentQuantityInputs = labelQuantityInputs(it);
           return (
             <div key={idx} className="rounded-[10px] border border-grey-200 p-4">
               <div className="mb-3 flex items-center justify-between">
@@ -171,7 +300,7 @@ export default function ItemsStep({
                   <div className="text-base font-semibold">ตัวอย่างที่ {it.seq}</div>
                   {lab && (
                     <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
-                      {requireDeliveryAndBatch ? `ส่ง lab (ลงท้าย ${it.batchNo.slice(-1)})` : 'ส่ง lab'}
+                      {requireDeliveryAndBatch && labBatchSuffix ? `ส่ง lab (ลงท้าย ${batchSuffix})` : 'ส่ง lab'}
                     </span>
                   )}
                 </div>
@@ -184,58 +313,64 @@ export default function ItemsStep({
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <Label>ชื่อตัวอย่าง</Label>
+                  <Label htmlFor={sampleNameId}>ชื่อตัวอย่าง</Label>
                   {allowManualItemFields ? (
-                    <div className="flex gap-2">
-                      <Input
-                        value={it.sampleName}
-                        onChange={(e) => handleManualSampleNameChange(idx, e.target.value)}
-                        disabled={itemsReadOnly}
-                        placeholder="กรอกชื่อตัวอย่าง"
-                      />
-                      <MasterItemPicker
-                        value={it}
-                        options={masterItemOptions}
-                        loading={masterItemsLoading}
-                        disabled={itemsReadOnly}
-                        compact
-                        onPick={(option) => setItem(idx, fillEmptyMasterFields(it, option))}
-                      />
-                    </div>
+                    <Input
+                      id={sampleNameId}
+                      value={it.sampleName}
+                      onChange={(e) => handleManualSampleNameChange(idx, e.target.value)}
+                      disabled={itemsReadOnly}
+                      placeholder="กรอกชื่อตัวอย่าง"
+                    />
                   ) : (
                     <MasterItemPicker
+                      id={sampleNameId}
                       value={it}
                       options={masterItemOptions}
                       loading={masterItemsLoading}
                       disabled={itemsReadOnly}
-                      onPick={(option) => setItem(idx, {
-                        itemNo: option.itemNo,
-                        sampleName: option.sampleName,
-                        commonName: option.commonName,
-                        packageUnit: option.packageUnit,
-                      })}
+                      onPick={(option) => setMasterOptionPicked(idx, it, option)}
                     />
                   )}
                 </div>
                 {requireDeliveryAndBatch && (
                   <div>
-                    <Label>เลขแบช (Batch No.)</Label>
+                    <Label htmlFor={batchNoId}>เลขแบช (Batch No.)</Label>
                     <Input
+                      id={batchNoId}
                       value={it.batchNo}
-                      onChange={(e) => setItem(idx, { batchNo: e.target.value })}
+                      onChange={(e) => setBatchNo(idx, e.target.value)}
                       disabled={itemsReadOnly}
                       placeholder="เช่น BN240601"
                     />
                   </div>
                 )}
+                {requireDeliveryAndBatch && (
+                  <div className="sm:col-span-2 text-xs text-grey-500">
+                    ระบบกำหนดการส่ง LAB จากเลขแบชหรือกลุ่ม PUBLIC HEALTH/LIVE STOCK: {labDefault ? 'ส่ง LAB' : 'ไม่ส่ง LAB'}{labBatchSuffix ? ` (ลงท้าย ${batchSuffix})` : ''}
+                  </div>
+                )}
                 <div>
-                  <Label>ชื่อสามัญ / Active Ingredient</Label>
-                  <Input
-                    value={it.commonName}
-                    onChange={(e) => setItem(idx, { commonName: e.target.value })}
-                    disabled={itemsReadOnly || !allowManualItemFields}
-                    placeholder={allowManualItemFields ? 'กรอกชื่อสามัญ หรือเลือกจาก Master Item' : 'เติมอัตโนมัติจาก Master Item'}
-                  />
+                  <Label htmlFor={commonNameId}>ชื่อสามัญ / Active Ingredient</Label>
+                  {allowManualItemFields ? (
+                    <ManualActiveIngredientMasterPicker
+                      id={commonNameId}
+                      value={it}
+                      options={masterItemOptions}
+                      loading={masterItemsLoading}
+                      disabled={itemsReadOnly}
+                      onActiveIngredientChange={(commonName) => setCommonName(idx, commonName)}
+                      onPick={(option) => setItem(idx, patchWithLabDefault(it, fillEmptyMasterFields(it, option)))}
+                    />
+                  ) : (
+                    <Input
+                      id={commonNameId}
+                      value={it.commonName}
+                      onChange={(e) => setCommonName(idx, e.target.value)}
+                      disabled
+                      placeholder="เติมอัตโนมัติจาก Master Item"
+                    />
+                  )}
                 </div>
                 <div>
                   <Label>วันผลิต/วันที่รับเข้า</Label>
@@ -247,25 +382,63 @@ export default function ItemsStep({
                   />
                 </div>
                 <div>
-                  <Label>ขนาดบรรจุ / จำนวน</Label>
+                  <Label htmlFor={packageUnitId}>ขนาดบรรจุ</Label>
                   <Input
+                    id={packageUnitId}
                     value={it.packageUnit}
                     onChange={(e) => setItem(idx, { packageUnit: e.target.value })}
                     disabled={itemsReadOnly || !allowManualItemFields}
                     placeholder={allowManualItemFields ? 'กรอกขนาดบรรจุ หรือเลือกจาก Master Item' : 'เติมอัตโนมัติจาก Master Item'}
                   />
                 </div>
-                {(it.submittedQuantity || it.submittedUnit) && (
-                  <>
-                    <div>
-                      <Label htmlFor={`submitted-quantity-${idx}`}>ปริมาณที่ส่งตัวอย่าง</Label>
-                      <Input id={`submitted-quantity-${idx}`} value={it.submittedQuantity ?? ''} disabled />
+                <div>
+                  <Label htmlFor={`sample-quantity-${idx}`}>จำนวนตัวอย่าง</Label>
+                  <Input
+                    id={`sample-quantity-${idx}`}
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={it.sampleQuantity ?? ''}
+                    onChange={(e) => setItem(idx, { sampleQuantity: parseSampleQuantityInput(e.target.value) })}
+                    disabled={itemsReadOnly}
+                  />
+                </div>
+                {sentQuantityInputs.length === 1 ? (
+                  <div>
+                    <Label htmlFor={labelQuantityId}>ปริมาณที่ส่ง</Label>
+                    <Input
+                      id={labelQuantityId}
+                      value={sentQuantityInputs[0] ?? ''}
+                      onChange={(e) => setItem(idx, labelQuantityPatch(it, 0, e.target.value))}
+                      disabled={itemsReadOnly}
+                      placeholder="เช่น 100 ml"
+                    />
+                  </div>
+                ) : (
+                  <div className="sm:col-span-2 rounded-lg border bg-card p-3">
+                    <div className="mb-3 text-sm font-medium text-foreground">ปริมาณที่ส่งแต่ละตัวอย่าง</div>
+                    <div className="space-y-2">
+                      {sentQuantityInputs.map((sentQuantity, quantityIndex) => {
+                        const inputId = `${labelQuantityId}-${quantityIndex}`;
+                        return (
+                          <div key={inputId} className="grid gap-2 sm:grid-cols-[7rem_minmax(0,1fr)] sm:items-end">
+                            <div className="pb-2 text-sm font-semibold text-primary">รายการที่ {quantityIndex + 1}</div>
+                            <div>
+                              <Label htmlFor={inputId} className="sr-only">ปริมาณที่ส่ง {quantityIndex + 1}</Label>
+                              <Input
+                                id={inputId}
+                                value={sentQuantity}
+                                onChange={(e) => setItem(idx, labelQuantityPatch(it, quantityIndex, e.target.value))}
+                                disabled={itemsReadOnly}
+                                placeholder="เช่น 100 ml"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div>
-                      <Label htmlFor={`submitted-unit-${idx}`}>หน่วยที่นำส่ง</Label>
-                      <Input id={`submitted-unit-${idx}`} value={it.submittedUnit ?? ''} disabled />
-                    </div>
-                  </>
+                  </div>
                 )}
                 <div className="sm:col-span-2">
                   <Label>หมายเหตุ</Label>
@@ -286,6 +459,7 @@ export default function ItemsStep({
 }
 
 function MasterItemPicker({
+  id,
   value,
   options,
   loading,
@@ -293,6 +467,7 @@ function MasterItemPicker({
   compact = false,
   onPick,
 }: {
+  id?: string;
   value: Pick<ItemRowValues, 'sampleName' | 'commonName' | 'packageUnit'>;
   options: PetitionMasterItemOption[];
   loading: boolean;
@@ -319,6 +494,7 @@ function MasterItemPicker({
     <Popover open={open && !disabled} onOpenChange={(nextOpen) => !disabled && setOpen(nextOpen)}>
       <PopoverTrigger asChild>
         <Button
+          id={id}
           variant="outline"
           role="combobox"
           aria-label="ชื่อตัวอย่าง"
@@ -343,6 +519,104 @@ function MasterItemPicker({
           <CommandInput placeholder="ค้นหาชื่อตัวอย่างจาก Master Item..." />
           <CommandList>
             <CommandEmpty>ไม่พบชื่อตัวอย่างใน Master Item</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => {
+                const selectedOption = selected === option;
+                const commandValue = [
+                  option.sampleName,
+                  option.commonName,
+                  option.packageUnit,
+                  option.itemNo,
+                ].filter(Boolean).join(' ');
+                return (
+                  <CommandItem
+                    key={`${option.itemNo}-${option.sampleName}-${option.commonName}-${option.packageUnit}`}
+                    value={commandValue}
+                    onSelect={() => pick(option)}
+                  >
+                    <Check
+                      className={cn(
+                        'mr-2 h-4 w-4',
+                        selectedOption ? 'opacity-100' : 'opacity-0',
+                      )}
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate">{option.sampleName}</span>
+                      <span className="block truncate text-xs text-grey-500">
+                        {[option.commonName, option.packageUnit].filter(Boolean).join(' · ') || option.itemNo}
+                      </span>
+                    </span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function ManualActiveIngredientMasterPicker({
+  id,
+  value,
+  options,
+  loading,
+  disabled,
+  onActiveIngredientChange,
+  onPick,
+}: {
+  id: string;
+  value: Pick<ItemRowValues, 'sampleName' | 'commonName' | 'packageUnit'>;
+  options: PetitionMasterItemOption[];
+  loading: boolean;
+  disabled?: boolean;
+  onActiveIngredientChange: (commonName: string) => void;
+  onPick: (option: PetitionMasterItemOption) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = useMemo(() => {
+    if (!value.sampleName) return null;
+    return options.find((option) => (
+      option.sampleName === value.sampleName &&
+      (!value.commonName || option.commonName === value.commonName) &&
+      (!value.packageUnit || option.packageUnit === value.packageUnit)
+    )) ?? null;
+  }, [options, value.commonName, value.packageUnit, value.sampleName]);
+
+  function pick(option: PetitionMasterItemOption) {
+    onPick(option);
+    setOpen(false);
+  }
+
+  return (
+    <Popover open={open && !disabled} onOpenChange={(nextOpen) => !disabled && setOpen(nextOpen)}>
+      <PopoverTrigger asChild>
+        <div className="relative">
+          <Input
+            id={id}
+            value={value.commonName}
+            onChange={(e) => onActiveIngredientChange(e.target.value)}
+            disabled={disabled}
+            placeholder={loading ? 'กำลังโหลด Master Item...' : 'กรอกชื่อสามัญ หรือเลือกจาก Master Item'}
+            className="pr-9"
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={`${id}-master-options`}
+            aria-autocomplete="list"
+          />
+          <ChevronsUpDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 opacity-50" />
+        </div>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] p-0"
+        align="start"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        <Command>
+          <CommandInput placeholder="ค้นหาชื่อตัวอย่างจาก Master Item..." />
+          <CommandList id={`${id}-master-options`}>
+            <CommandEmpty>{loading ? 'กำลังโหลด Master Item...' : 'ไม่พบชื่อตัวอย่างใน Master Item'}</CommandEmpty>
             <CommandGroup>
               {options.map((option) => {
                 const selectedOption = selected === option;

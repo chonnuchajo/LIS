@@ -18,11 +18,17 @@ const QCTestResult = require('../models/QCTestResult');
 const Parameter = require('../models/Parameter');
 const LabRequest = require('../models/LabRequest');
 const StandardTime = require('../models/StandardTime');
-const { buildStatusLog, hasLabTrack, isLabBatch, isPetitionComplete } = require('../lib/petitionStatusLog');
+const { buildStatusLog, hasLabTrack, shouldSendItemToLab, isPetitionComplete } = require('../lib/petitionStatusLog');
 const { notifyPetitionEvent } = require('../lib/lineNotify');
 const { normalizeAnalysisName, canonicalAnalysisName } = require('../lib/analysisName');
 const { buildProductionWorkflow } = require('../lib/productionWorkflow');
-const { isResearchAndDevelopmentDepartment, requiresDeliveryAndBatch, requiresQcTrack } = require('../lib/petitionSubmissionRules');
+const {
+  isResearchAndDevelopmentDepartment,
+  normalizePetitionItems,
+  requiresDeliveryAndBatch,
+  requiresQcTrack,
+  validatePetitionSubmission,
+} = require('../lib/petitionSubmissionRules');
 
 function sampleIdsFromPetition(petition) {
   if (!petition || !Array.isArray(petition.items)) return [];
@@ -61,6 +67,14 @@ function machineTypeOf(machine) {
   return '';
 }
 
+function queryStringList(value) {
+  const raw = Array.isArray(value) ? value : [value];
+  return raw
+    .flatMap((entry) => String(entry || '').split(','))
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
 async function matchStandardTime(machine) {
   const commonName = normalizeAnalysisName(machine.commonName);
   const machineType = machineTypeOf(machine);
@@ -88,20 +102,35 @@ router.get('/', async (req, res) => {
     const status = req.query.status;
     const dept = req.query.dept;
     const search = (req.query.search || '').trim();
+    const assignedToEmployeeId = String(req.query.assignedToEmployeeId || '').trim();
+    const assignedToNames = queryStringList(req.query.assignedToName);
 
     const q = {};
     if (dept && ['production', 'rm', 'fg'].includes(String(dept))) q.dept = dept;
+    const andConditions = [];
+    const assigneeConditions = [];
+    if (assignedToEmployeeId) assigneeConditions.push({ 'assignedTo.employeeId': assignedToEmployeeId });
+    assignedToNames.forEach((name) => assigneeConditions.push({ 'assignedTo.name': name }));
+    if (assigneeConditions.length > 1) {
+      andConditions.push({
+        $or: assigneeConditions,
+      });
+    } else if (assigneeConditions.length === 1) Object.assign(q, assigneeConditions[0]);
     if (search) {
       const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      q.$or = [
-        { petitionNo: rx },
-        { prodOrderNos: rx },
-        { 'productionWorkflow.requestNo': rx },
-        { 'productionWorkflow.lisPetitionNo': rx },
-        { 'submittedBy.name': rx },
-        { 'items.batchNo': rx },
-      ];
+      andConditions.push({
+        $or: [
+          { petitionNo: rx },
+          { prodOrderNos: rx },
+          { 'productionWorkflow.requestNo': rx },
+          { 'productionWorkflow.lisPetitionNo': rx },
+          { 'submittedBy.name': rx },
+          { 'items.batchNo': rx },
+        ],
+      });
     }
+    if (andConditions.length === 1) Object.assign(q, andConditions[0]);
+    else if (andConditions.length > 1) q.$and = andConditions;
     const summaryQ = { ...q };
 
     if (status) {
@@ -384,7 +413,7 @@ router.get('/notifications', async (req, res) => {
       const desc = bellDescribe(petition, log);
       if (!desc) continue;
       if (!isRelevant(desc, petition, viewer)) continue;
-      items.push(toNotification(petition, log, desc));
+      items.push(toNotification(petition, log, desc, viewer));
     }
 
     // Client uses serverTime as its next cursor — avoids client/server clock skew.
@@ -510,7 +539,7 @@ router.get('/status-log/:id', async (req, res) => {
     // sampleId has a completed PhysicalResult.
     const isResearchRequest = isResearchAndDevelopmentDepartment(petition.submittedBy?.department);
     const labSampleIds = (petition.items || [])
-      .filter((it) => isResearchRequest || isLabBatch(it.batchNo || ''))
+      .filter((it) => isResearchRequest || shouldSendItemToLab(it))
       .map((it) => it.sampleId || `${petition.petitionNo}-${it.seq}`)
       .filter(Boolean);
     let labDone = !hasLabTrack(petition);
@@ -732,23 +761,8 @@ router.patch('/:id/advance-phase', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
-    if (!body.dept || !['production', 'rm', 'fg'].includes(body.dept)) {
-      return badRequest(res, 'กรุณาระบุแผนก (production / rm / fg)');
-    }
-    if (!body.submittedBy?.name) {
-      return badRequest(res, 'กรุณาระบุผู้ยื่นคำขอ');
-    }
-    const deliveryAndBatchRequired = requiresDeliveryAndBatch(body);
-    if (deliveryAndBatchRequired && !body.deliveredBy?.name) {
-      return badRequest(res, 'กรุณาระบุผู้นำส่ง');
-    }
-    if (!Array.isArray(body.items) || body.items.length === 0) {
-      return badRequest(res, 'ต้องมีตัวอย่างอย่างน้อย 1 รายการ');
-    }
-    for (const item of body.items) {
-      const batch = String(item.batchNo || '').trim();
-      if (deliveryAndBatchRequired && !batch) return badRequest(res, `ตัวอย่าง "${item.sampleName || item.seq}": กรุณากรอกเลขแบช`);
-    }
+    const submissionError = validatePetitionSubmission(body);
+    if (submissionError) return badRequest(res, submissionError);
     let revisionOf = null;
     if (body.revisionOf) {
       if (!mongoose.Types.ObjectId.isValid(body.revisionOf)) {
@@ -773,7 +787,10 @@ router.post('/', async (req, res) => {
     }
     const petitionNo = await nextPetitionNo();
     // เลขที่ใบนำส่ง: ใช้ค่าที่กรอก ถ้าเว้นว่าง default = เลขคำขอ
-    const items = body.items.map((it) => ({ ...it, submissionNo: it.submissionNo?.trim() || petitionNo }));
+    const items = normalizePetitionItems(body.items, {
+      department: body.submittedBy?.department,
+      petitionNo,
+    });
     const doc = await Petition.create({
       ...body,
       items,
@@ -839,9 +856,11 @@ router.patch('/:id/receive', async (req, res) => {
       [`${side}ReceivedBy`]: actor,
       [`${side}ReceivedAt`]: now,
     };
-    // ฝั่งแรกที่รับ: flip status จาก sampleSent → pendingReview
-    if (before.status === 'sampleSent') {
+    if (before.status === 'sampleSent' || before.status === 'deliveringQC') {
       update.status = 'pendingReview';
+    }
+    if (!before.sampleSentAt && (before.status === 'sampleSent' || before.status === 'deliveringQC')) {
+      update.sampleSentAt = now;
     }
     // legacy receivedBy/At = ฝั่งแรกที่รับ (ไม่ทับถ้ามีแล้ว) เพื่อให้ print/HomeQC ทำงานต่อ
     if (!before.receivedAt) {
@@ -1039,7 +1058,13 @@ router.patch('/:id', async (req, res) => {
     delete updates.revisionNote;
     // เลขที่ใบนำส่ง: ใช้ค่าที่กรอก ถ้าเว้นว่าง default = เลขคำขอ
     if (Array.isArray(updates.items)) {
-      updates.items = updates.items.map((it) => ({ ...it, submissionNo: it.submissionNo?.trim() || before.petitionNo }));
+      updates.items = normalizePetitionItems(updates.items, {
+        department: updates.submittedBy?.department ?? before.submittedBy?.department,
+        petitionNo: before.petitionNo,
+      });
+      const nextBody = { ...(before.toObject ? before.toObject() : before), ...updates };
+      const submissionError = validatePetitionSubmission(nextBody);
+      if (submissionError) return badRequest(res, submissionError);
     }
     const doc = await Petition.findByIdAndUpdate(req.params.id, updates, { new: true });
     if (before.status !== doc.status) {

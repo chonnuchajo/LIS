@@ -6,6 +6,7 @@ import StockPage from "../Stock";
 
 const apiMock = vi.hoisted(() => ({
   getStandards: vi.fn(),
+  getSixMonthMedicineStock: vi.fn(),
   getStockUnits: vi.fn(),
   deleteStandard: vi.fn(),
   getSolvents: vi.fn(),
@@ -164,6 +165,45 @@ describe("StockPage delete actions", () => {
       },
     ]);
     apiMock.getStockTransactions.mockResolvedValue([]);
+    apiMock.getSixMonthMedicineStock.mockResolvedValue({
+      serverTime: "2026-09-04T00:00:00.000Z",
+      referenceMonth: "2026-09",
+      items: [
+        {
+          companySource: "ICPL",
+          itemNo: "F-TEST-001",
+          locationCode: "NORMAL",
+          binCode: "DEFAULT",
+          lotNo: "FG260301-001",
+          registeringDate: "2026-03-31T00:00:00.000Z",
+          unit: "KG",
+          stockQty: 10,
+          stockQtyBase: 10,
+          ageMonths: 7,
+        },
+        {
+          companySource: "ICPL",
+          itemNo: "R-TEST-002",
+          locationCode: "NORMAL",
+          binCode: "DEFAULT",
+          lotNo: "RM260201-002",
+          registeringDate: "2026-02-28T00:00:00.000Z",
+          unit: "KG",
+          stockQty: 5,
+          stockQtyBase: 5,
+          ageMonths: 7,
+        },
+      ],
+    });
+  });
+
+  it("does not show the six-month medicine tab on the stock page", async () => {
+    renderStock();
+
+    expect(await screen.findByText("Pesticide Standard")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "List ยา 6 เดือน" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "แจ้งเตือนส่งตรวจคุณภาพ" })).not.toBeInTheDocument();
+    expect(apiMock.getSixMonthMedicineStock).not.toHaveBeenCalled();
   });
 
   it("confirms and deletes a standard through the MongoDB-backed API", async () => {
@@ -185,6 +225,13 @@ describe("StockPage delete actions", () => {
 
     expect(await screen.findByRole("cell", { name: "Pesticide Standard" })).toBeInTheDocument();
     expect(screen.queryByText("ไม่มีข้อมูล")).not.toBeInTheDocument();
+  });
+
+  it("does not show the floating stock QR scan button", async () => {
+    renderStock();
+
+    expect(await screen.findByRole("cell", { name: "Pesticide Standard" })).toBeInTheDocument();
+    expect(screen.queryByTitle("สแกน QR ขวด")).not.toBeInTheDocument();
   });
 
   it("opens a popup with every standard alert from the alert card", async () => {
@@ -218,6 +265,24 @@ describe("StockPage delete actions", () => {
 
     expect(await screen.findByRole("cell", { name: "Methanol" })).toBeInTheDocument();
     expect(screen.queryByText("ไม่มีข้อมูล")).not.toBeInTheDocument();
+  });
+
+  it("keeps glassware items visible even when quantity is zero", async () => {
+    apiMock.getGlassware.mockResolvedValue([
+      {
+        _id: "glass-1",
+        name: "Volumetric flask",
+        qty: 0,
+        pricePerPiece: 450,
+        note: "Class A",
+      },
+    ]);
+
+    renderStock("glassware");
+
+    expect(await screen.findByRole("cell", { name: "Volumetric flask" })).toBeInTheDocument();
+    expect(screen.queryByText("ไม่มีข้อมูล")).not.toBeInTheDocument();
+    expect(screen.getByText("เครื่องแก้วหมด (1 รายการ)")).toBeInTheDocument();
   });
   it.each([
     { defaultKey: "standard", cellName: "Pesticide Standard", deleteName: /Standard Pesticide Standard/ },

@@ -18,6 +18,9 @@ const ROLE_PRIORITY: Record<string, number> = {
   "qc-staff": 5,
 };
 
+const ADMIN_ROLE_ID = "admin";
+const DENY_PREFIX = "deny:";
+
 function roleRank(role: string): number {
   return ROLE_PRIORITY[role] ?? 4;
 }
@@ -51,10 +54,18 @@ export function unionPermissions(
   roles: string[],
   permsByRole: Record<string, string[]>,
 ): string[] {
+  const adminMode = roles.includes(ADMIN_ROLE_ID);
+  const sourceRoles = adminMode
+    ? [
+        ...roles,
+        ...Object.keys(permsByRole).filter((role) => !roles.includes(role)),
+      ]
+    : roles;
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const role of roles) {
+  for (const role of sourceRoles) {
     for (const perm of permsByRole[role] ?? []) {
+      if (adminMode && perm.startsWith(DENY_PREFIX)) continue;
       if (!seen.has(perm)) {
         seen.add(perm);
         out.push(perm);

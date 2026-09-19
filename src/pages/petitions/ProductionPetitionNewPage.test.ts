@@ -40,6 +40,18 @@ describe('makeInitialItemsFromQuery — itemNo', () => {
   });
 });
 
+describe('makeInitialItemsFromQuery — active ingredient format', () => {
+  it('pairs active ingredients with their percentages from production payloads', () => {
+    const [item] = makeInitialItemsFromQuery(
+      new URLSearchParams(
+        'sampleName=%E0%B9%84%E0%B8%8B%E0%B9%82%E0%B8%99%E0%B8%A5%E0%B8%B4%E0%B8%99&commonName=CYMOXANIL%20%2B%20MANCOZEB%208%25%20%2B%2064%25%20WP',
+      ),
+    );
+
+    expect(item.commonName).toBe('CYMOXANIL 8% + MANCOZEB 64% WP');
+  });
+});
+
 describe('R&D integration request rules', () => {
   it('recognizes the HR department name regardless of spacing/case', () => {
     expect(isResearchAndDevelopmentDepartment('R & D')).toBe(true);
@@ -56,6 +68,20 @@ describe('R&D integration request rules', () => {
     expect(hasRequiredLabRequestStep('R & D', [{ batchNo: '', testItems: '' }])).toBe(true);
     expect(hasRequiredLabRequestStep('Production', [{ batchNo: 'BN240602', testItems: '' }])).toBe(false);
     expect(hasRequiredLabRequestStep('Production', [{ batchNo: 'BN240601', testItems: '' }])).toBe(true);
+  });
+
+  it('uses sendToLab override instead of only the batch suffix', () => {
+    expect(hasRequiredLabRequestStep('Production', [{ batchNo: 'BN240601', sendToLab: false }])).toBe(false);
+    expect(hasRequiredLabRequestStep('Production', [{ batchNo: 'BN240602', sendToLab: true }])).toBe(true);
+  });
+
+  it('always requires a lab request for PUBLIC HEALTH and LIVE STOCK products', () => {
+    expect(hasRequiredLabRequestStep('Production', [
+      { batchNo: 'BN240602', commonName: 'DELTAMETHRIN 1% W/V EC (PUBLIC HEALTH)', sendToLab: false },
+    ])).toBe(true);
+    expect(hasRequiredLabRequestStep('Production', [
+      { batchNo: 'BN240602', sampleName: 'BIFENTHRIN 10% W/V EC (LIVE STOCK)', sendToLab: false },
+    ])).toBe(true);
   });
 
   it('allows R&D submitters to type item fields without a master item match', () => {
@@ -75,6 +101,65 @@ describe('R&D integration request rules', () => {
       batchNo: '',
       testItems: 'Assay',
     });
+  });
+
+  it('sets sendToLab from legacy batch suffix defaults', () => {
+    const items = makeInitialItemsFromQuery(
+      new URLSearchParams('sampleName=Foo,Bar&batchNo=BATCH001,BATCH002'),
+    );
+
+    expect(items.map((item) => item.sendToLab)).toEqual([true, false]);
+  });
+
+  it('dedupes identical repeated production integration items', () => {
+    const items = makeInitialItemsFromQuery(
+      new URLSearchParams(
+        'sampleName=Foo,Foo,Foo&batchNo=BATCH001,BATCH001,BATCH001&commonName=AI&requestDate=2026-09-12&quantity=1 ขวด&mfNo=MF26090136,MF26090136,MF26090136',
+      ),
+    );
+
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      seq: 1,
+      sampleName: 'Foo',
+      batchNo: 'BATCH001',
+      commonName: 'AI',
+      note: 'MF: MF26090136',
+    });
+  });
+
+  it('keeps repeated batch rows when imported item details differ', () => {
+    const items = makeInitialItemsFromQuery(
+      new URLSearchParams('sampleName=Foo,Bar&batchNo=BATCH001,BATCH001&commonName=AI'),
+    );
+
+    expect(items.map((item) => item.sampleName)).toEqual(['Foo', 'Bar']);
+  });
+
+  it('uses explicit sendToLab true or false from integration payload', () => {
+    const items = makeInitialItemsFromQuery(
+      new URLSearchParams('sampleName=Foo,Bar&batchNo=BATCH001,BATCH002&sendToLab=false,true'),
+    );
+
+    expect(items.map((item) => item.sendToLab)).toEqual([false, true]);
+  });
+
+  it('sets PUBLIC HEALTH and LIVE STOCK query items to Lab even when batch is non-Lab', () => {
+    const items = makeInitialItemsFromQuery(
+      new URLSearchParams(
+        'sampleName=Foo,Bar&commonName=DELTAMETHRIN%201%25%20W%2FV%20EC%20(PUBLIC%20HEALTH),BIFENTHRIN%2010%25%20W%2FV%20EC%20(LIVE%20STOCK)&batchNo=BATCH002,BATCH002&sendToLab=false,false',
+      ),
+    );
+
+    expect(items.map((item) => item.sendToLab)).toEqual([true, true]);
+  });
+
+  it('sets a single PUBLIC HEALTH query item to Lab even when sendToLab is false', () => {
+    const [item] = makeInitialItemsFromQuery(
+      new URLSearchParams('sampleName=Foo&commonName=DELTAMETHRIN%201%25%20W%2FV%20EC%20(PUBLIC%20HEALTH)&batchNo=BATCH002&sendToLab=false'),
+    );
+
+    expect(item.sendToLab).toBe(true);
   });
 
   it('maps posted integration payloads into the existing query parser', () => {

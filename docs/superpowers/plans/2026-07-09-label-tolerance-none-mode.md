@@ -225,7 +225,7 @@ test('rejects labelTolerance when both split bands are none', async () => {
       labelToleranceStandards: [{ substance: 'A', autoMode: 'none', headMode: 'none' }] }],
   });
 
-  await assert.rejects(() => doc.validate(), /อย่างน้อยหนึ่งช่วง|usable threshold|หัวหน้าตรวจสอบ|ผ่าน/);
+  await assert.rejects(() => doc.validate(), /อย่างน้อยหนึ่งช่วง|usable threshold|เกณฑ์กรม|ผ่าน/);
 });
 ```
 
@@ -294,7 +294,7 @@ replace with:
           const headIsRange = normalized.headMode === 'range';
           const autoIsRange = normalized.autoMode === 'range';
           if (normalized.autoMode === 'none' && normalized.headMode === 'none') {
-            return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ต้องตั้งช่วงผ่านอัตโนมัติหรือหัวหน้าตรวจสอบอย่างน้อยหนึ่งช่วง`));
+            return next(new Error(`ช่อง "${f.label}" สาร "${s.substance}": ต้องตั้งช่วงผ่านอัตโนมัติหรือเกณฑ์กรมอย่างน้อยหนึ่งช่วง`));
           }
 ```
 
@@ -302,7 +302,7 @@ Also add explicit no-op branches so validation does not accidentally fall throug
 
 ```js
           if (normalized.headMode === 'none') {
-            // ไม่มีช่วงหัวหน้าตรวจสอบ
+            // ไม่มีช่วงเกณฑ์กรม
           } else if (normalized.headMode === 'percent') {
 ```
 
@@ -453,7 +453,7 @@ In `previewLine`, allow head-only preview by changing the final autoRange guard:
 ```ts
   if (autoRange == null && headRange == null) return "";
   const auto = autoRange != null ? `ผ่าน ${rangeText(autoRange[0], autoRange[1])}` : "";
-  const head = headRange != null ? `หัวหน้าตรวจสอบ ${rangeText(headRange[0], headRange[1])}` : "";
+  const head = headRange != null ? `เกณฑ์กรม ${rangeText(headRange[0], headRange[1])}` : "";
   return `${selectors || "กฎ"} -> ${[auto, head].filter(Boolean).join(" | ")}`;
 ```
 
@@ -483,7 +483,7 @@ Change the auto input rendering so neither range inputs nor numeric input render
 )}
 ```
 
-In the `หัวหน้าตรวจสอบ` `SelectContent`, add:
+In the `เกณฑ์กรม` `SelectContent`, add:
 
 ```tsx
 <SelectItem value="none">ไม่มี</SelectItem>
@@ -494,7 +494,7 @@ Change the head input rendering the same way:
 ```tsx
 {headMode === "none" ? (
   <p className="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-    ไม่มีช่วงหัวหน้าตรวจสอบ
+    ไม่มีช่วงเกณฑ์กรม
   </p>
 ) : headMode === "range" ? (
   <div className="grid grid-cols-2 gap-2">
@@ -555,7 +555,7 @@ In `src/lib/standardOperators.ts`, inside `if (std.autoMode || std.headMode)`, u
         : std.autoMode === "range"
           ? (std.passLow == null || std.passHigh == null ? "" : `ผ่าน ${std.passLow}-${std.passHigh}`)
           : std.autoMode === "percent"
-            ? (std.autoPct == null ? "" : `ผ่าน ${std.autoPct}% ของหัวหน้าตรวจสอบ`)
+            ? (std.autoPct == null ? "" : `ผ่าน ${std.autoPct}% ของเกณฑ์กรม`)
             : (std.autoAbs == null ? "" : `ผ่าน ±${std.autoAbs}`);
       const head = std.headMode === "none"
         ? ""

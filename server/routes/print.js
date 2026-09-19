@@ -327,7 +327,7 @@ router.get('/printers-config', async (req, res) => {
   }
 });
 
-// POST /api/print/printers-config — add a printer (first of a kind becomes default)
+// POST /api/print/printers-config — add a Server/CUPS printer destination
 router.post('/printers-config', async (req, res) => {
   try {
     const body = req.body || {};
@@ -335,12 +335,11 @@ router.post('/printers-config', async (req, res) => {
     if (err) return res.status(400).json({ error: err });
     const assignments = normalizePrinterAssignmentsInput(body, body.kind);
     if (assignments.error) return res.status(400).json({ error: assignments.error });
-    const existing = await PrinterConfig.countDocuments({ kind: body.kind });
     const doc = await PrinterConfig.create({
       kind: body.kind,
       label: typeof body.label === 'string' ? body.label.trim() : '',
       cupsPrinterUrl: body.cupsPrinterUrl.trim(),
-      isDefault: existing === 0,
+      isDefault: false,
       assignments: assignments.assignments || [],
     });
     res.status(201).json({ data: pickConfig(doc.toObject()) });
@@ -392,18 +391,12 @@ router.put('/printers-config/:id/default', async (req, res) => {
   }
 });
 
-// DELETE /api/print/printers-config/:id — remove; promote a sibling if it was default
+// DELETE /api/print/printers-config/:id — remove printer destination
 router.delete('/printers-config/:id', async (req, res) => {
   try {
     const target = await PrinterConfig.findById(req.params.id);
     if (!target) return res.status(404).json({ error: 'ไม่พบเครื่องพิมพ์' });
-    const wasDefault = target.isDefault;
-    const kind = target.kind;
     await target.softDelete('system');
-    if (wasDefault) {
-      const next = await PrinterConfig.findOne({ kind }).sort({ createdAt: 1 });
-      if (next) { next.isDefault = true; await next.save(); }
-    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

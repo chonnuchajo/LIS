@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { deductionAmount } from "@/lib/stockDeduction";
+import { formatStockQuantity, formatStockQuantityWithUnit } from "@/lib/stockQuantity";
 import { parseScannedQrId } from "@/lib/stockUnit";
 import type { StockPublicScanItem, StockTransactionItem } from "@/types/stock";
 
@@ -35,7 +36,7 @@ function stockDescription(item: StockPublicScanItem) {
 
 function remainingText(item: StockPublicScanItem) {
   if (item.kind === "standard") {
-    return String(item.volume?.remaining ?? "-") + (item.volume?.unit ? " " + item.volume.unit : "");
+    return formatStockQuantityWithUnit(item.volume?.remaining, item.volume?.unit);
   }
   return String(item.qty ?? "-") + " ขวด";
 }
@@ -49,12 +50,13 @@ function transactionAmountText(transaction: StockTransactionItem) {
   if (amount.text !== "-") return amount;
   const delta = transaction.delta;
   if (delta == null) return amount;
-  return { text: `${delta > 0 ? "+" : ""}${delta}${transaction.unit ? ` ${transaction.unit}` : ""}` };
+  return { text: `${delta > 0 ? "+" : ""}${formatStockQuantity(delta)}${transaction.unit ? ` ${transaction.unit}` : ""}` };
 }
 
 function transactionQueryParams(item?: StockPublicScanItem | null) {
   if (!item) return null;
   if (item.kind === "standard") return { qrId: item.qrId, limit: 20 };
+  if (item.qrId && item.qrId !== item.id) return { itemType: "solvent", qrId: item.qrId, limit: 20 };
   return { itemType: "solvent", itemId: item.id, limit: 20 };
 }
 
@@ -172,7 +174,6 @@ export default function StockPublicViewPage() {
                         {formatLotBottleLabel(data.lotBottleNo) ? <Detail label="ลำดับขวดใน Lot" value={formatLotBottleLabel(data.lotBottleNo)} /> : null}
                         <Detail label="EXP" value={formatDate(data.exp)} />
                         <Detail label="ปริมาณเริ่มต้น" value={String(data.volume?.initial ?? "-") + (data.volume?.unit ? " " + data.volume.unit : "")} />
-                        <Detail label="qrId" value={data.qrId} />
                       </dl>
                     ) : (
                       <dl className="grid gap-3 text-sm sm:grid-cols-2">
@@ -180,7 +181,6 @@ export default function StockPublicViewPage() {
                         <Detail label="ขนาด/ขวด" value={String(data.sizeLiter || "-") + " L"} />
                         <Detail label="คงเหลือ" value={String(data.qty ?? "-") + " ขวด"} />
                         <Detail label="หมายเหตุ" value={data.note || data.latestReceiveNote || "-"} />
-                        <Detail label="qrId" value={data.qrId} />
                       </dl>
                     )}
 

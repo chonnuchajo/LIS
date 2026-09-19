@@ -19,7 +19,7 @@ export default function LabRequestStep({ items, request, onChange }: Props) {
   if (items.length === 0) {
     return (
       <p className="text-sm text-grey-500">
-        ไม่มี batch ที่ลงท้ายด้วย 1 หรือ 6 — ข้ามขั้นตอนนี้
+        ไม่มี batch ที่เลือกส่ง LAB — ข้ามขั้นตอนนี้
       </p>
     );
   }

@@ -20,12 +20,14 @@ test('normalizeReqInput rejects bad input', () => {
   assert.ok(normalizeReqInput({ solventId: 's', instrumentId: 'x', qty: -2 }).error);
   assert.ok(normalizeReqInput({ solventId: 's', instrumentId: 'x', qty: 'abc' }).error);
   assert.ok(normalizeReqInput({ solventId: 's', instrumentId: 'x', qty: 1.5 }).error);
+  assert.ok(normalizeReqInput({ solventId: 's', solventUnitQrId: 'u1', instrumentId: 'x', qty: 2 }).error);
 });
 
 test('normalizeReqInput normalizes good input (coerces qty, trims requestedBy)', () => {
   const { value, error } = normalizeReqInput({
     solventId: 's1', instrumentId: 'LD-004', instrumentName: 'GC 8890',
     qty: '2', roomSlug: 'analysis', date: '2026-07-03', note: 'x',
+    solventUnitQrId: '',
     requestedBy: { email: 'a@b.c', name: 'Ann' },
   });
   assert.strictEqual(error, undefined);
@@ -34,6 +36,12 @@ test('normalizeReqInput normalizes good input (coerces qty, trims requestedBy)',
   assert.strictEqual(value.requestedBy.name, 'Ann');
   assert.strictEqual(value.date, '2026-07-03');
   assert.strictEqual(value.roomSlug, 'analysis');
+});
+
+test('normalizeReqInput keeps scanned solvent unit QR for single-bottle requisition', () => {
+  const { value, error } = normalizeReqInput({ solventId: 's', solventUnitQrId: 'u1', instrumentId: 'x', qty: 1 });
+  assert.strictEqual(error, undefined);
+  assert.strictEqual(value.solventUnitQrId, 'u1');
 });
 
 test('normalizeReqInput defaults date to today + roomSlug to analysis', () => {

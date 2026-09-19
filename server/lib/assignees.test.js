@@ -30,6 +30,18 @@ test('userToAssignee maps a User doc to the assignee shape with empType "role"',
   });
 });
 
+test('userToAssignee marks role-sourced lab analysts as Lab even when HR department is not Lab', () => {
+  const a = userToAssignee({
+    employeeId: 'dev',
+    name: 'Dev Administrator',
+    department: 'IT',
+    position: 'Administrator',
+    roles: ['admin', 'lab-analyst'],
+  });
+  assert.strictEqual(a.department, 'Lab/วิเคราะห์');
+  assert.strictEqual(a.position, 'Lab Analyst');
+});
+
 test('userToAssignee marks inactive users', () => {
   assert.strictEqual(userToAssignee({ status: 'inactive', name: 'x', employeeId: '1' }).isActive, false);
 });

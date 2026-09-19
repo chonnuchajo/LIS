@@ -106,7 +106,7 @@ describe('printer assignment config', () => {
     expect(pickPrinterAssignmentRoute(printers, 'service-request', 'ผลิต 1')).toBeNull();
   });
 
-  test('prefers the default printer when multiple assignments match the same department and document', () => {
+  test('does not use default flag to bypass print-time choice when multiple assignments match', () => {
     const printers = [
       {
         id: 'first-qc',
@@ -123,8 +123,8 @@ describe('printer assignment config', () => {
     ];
 
     expect(pickPrinterAssignmentRoute(printers, 'sample-label', 'QC')).toMatchObject({
-      printerConfig: { id: 'default-qc' },
-      paperSize: 'label-65x25',
+      printerConfig: { id: 'first-qc' },
+      paperSize: 'label-100x50',
     });
   });
 });
@@ -195,8 +195,8 @@ describe('pickDefault', () => {
   test('returns the explicit default of the kind', () => {
     expect(pickDefault(list, 'a4').id).toBe('2');
   });
-  test('falls back to the first of the kind when none flagged', () => {
-    expect(pickDefault(list, 'sticker').id).toBe('3');
+  test('does not invent a default when none flagged', () => {
+    expect(pickDefault(list, 'sticker')).toBeNull();
   });
   test('null when kind absent or list empty', () => {
     expect(pickDefault(list, 'nope')).toBeNull();

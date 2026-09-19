@@ -12,6 +12,7 @@ const UserSchema = new mongoose.Schema({
   department: { type: String, default: 'Unassigned' },
   position: { type: String, default: 'Unassigned' },
   employeeId: { type: String, default: '' },
+  signatureUrl: { type: String, default: '' },
   status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   lastActive: { type: String, default: 'Never' },
   authProvider: { type: String, enum: ['local', 'microsoft', 'production'], default: 'local' },

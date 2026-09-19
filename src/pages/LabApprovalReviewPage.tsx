@@ -10,7 +10,8 @@ import { usePetition, useLabRequestsByPetition, saveLabAgreementReview } from "@
 import { api, type ParameterItem } from "@/lib/api";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { labReceivedBy } from "@/lib/receiveStatus";
-import { PETITION_DEPT_LABELS, type QCTestResult } from "@/types/petition.types";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
+import type { QCTestResult } from "@/types/petition.types";
 import { buildApprovalGroups } from "@/lib/qcApprovalRows";
 import LabResultGroups from "@/components/petition/LabResultGroups";
 import { toast } from "sonner";
@@ -127,7 +128,7 @@ export default function LabApprovalReviewPage() {
   if (error || !petition) {
     return (
       <AppLayout>
-        <div className="text-center text-grey-500">{error || "ไม่พบข้อมูลคำร้อง"}</div>
+        <div className="text-center text-muted-foreground">{error || "ไม่พบข้อมูลคำร้อง"}</div>
       </AppLayout>
     );
   }
@@ -141,46 +142,46 @@ export default function LabApprovalReviewPage() {
           onBack={() => navigate("/lab-approval")}
           title={
             <span className="inline-flex items-center gap-2">
-              <FlaskConical className="h-5 w-5 text-sky-500" />
+              <FlaskConical className="h-5 w-5 text-primary" />
               ออกผล Lab {petition.petitionNo}
             </span>
           }
           actions={
-            <span className="text-sm text-grey-500">
+            <span className="text-sm text-muted-foreground">
               ผู้นำส่ง: {petition.submittedBy?.name ?? "-"}
             </span>
           }
         />
 
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+          <Badge variant="blue-soft">{petitionDepartmentLabel(petition)}</Badge>
           <Badge variant="gray-soft" className="font-normal">
             ผู้รับงาน Lab: {labReceivedBy(petition) ?? "-"}
           </Badge>
           {petitionHasAbnormal ? (
-            <span className="inline-flex items-center gap-1 text-red-600 text-sm">
+            <span className="inline-flex items-center gap-1 text-destructive text-sm">
               <AlertTriangle className="h-4 w-4" /> มีค่าผิดปกติ
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-green-600 text-sm">
+            <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-300 text-sm">
               <CheckCircle2 className="h-4 w-4" /> ผลปกติทุกรายการ
             </span>
           )}
         </div>
 
         {petition.labRedoExplanation && (
-          <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm">
-            <p className="font-semibold text-violet-700 mb-1">คำอธิบายการทำใหม่</p>
-            <p className="text-violet-800">Lab: {petition.labRedoExplanation}</p>
+          <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 p-3 text-sm">
+            <p className="font-semibold text-violet-700 dark:text-violet-300 mb-1">คำอธิบายการทำใหม่</p>
+            <p className="text-foreground">Lab: {petition.labRedoExplanation}</p>
           </div>
         )}
 
         {(labRequests?.length ?? 0) > 0 && (
           <Card className="overflow-hidden">
-            <CardHeader className="pb-3 bg-grey-50">
+            <CardHeader className="pb-3 bg-muted">
               <CardTitle className="text-base flex items-center justify-between gap-2 flex-wrap">
                 <span className="inline-flex items-center gap-2">
-                  <ClipboardCheck className="h-4 w-4 text-sky-500" />
+                  <ClipboardCheck className="h-4 w-4 text-primary" />
                   การทบทวนข้อตกลงการบริการทดสอบ — สำหรับหัวหน้าห้องปฏิบัติการ
                 </span>
                 {canApproveLab && (
@@ -198,7 +199,7 @@ export default function LabApprovalReviewPage() {
               {isReviewFilled(currentReview) ? (
                 <LabAgreementReviewView data={currentReview!} />
               ) : (
-                <p className="text-sm text-grey-400 italic">ยังไม่กรอกการทบทวน</p>
+                <p className="text-sm text-muted-foreground italic">ยังไม่กรอกการทบทวน</p>
               )}
             </CardContent>
           </Card>
@@ -208,7 +209,7 @@ export default function LabApprovalReviewPage() {
 
         {/* แผงตัดสิน — fixed bottom (เฉพาะผู้มีสิทธิ์ออกผล Lab) */}
         {canApproveLab && abnormalLoaded && (
-          <div className="fixed bottom-3 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+          <div className="fixed bottom-3 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] border-t border-border bg-background/95 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur">
             <div className="flex flex-wrap items-center justify-end gap-3">
               <Button
                 variant="primary"

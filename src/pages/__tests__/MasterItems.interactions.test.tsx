@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import MasterItems from "../MasterItems";
 import { api, uploadQcPhoto } from "@/lib/api";
@@ -66,10 +66,12 @@ describe("MasterItems interactions", () => {
     });
     vi.mocked(api.getParameters).mockResolvedValue([]);
     vi.mocked(uploadQcPhoto).mockResolvedValue({ url: "/LIS/uploads/qc-photos/master-item.webp" });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })));
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it("opens item details on row single click", async () => {
@@ -88,6 +90,35 @@ describe("MasterItems interactions", () => {
     });
 
     expect(screen.getByText("Kg/Unit")).toBeInTheDocument();
+  });
+
+  it("shows MF_Before and MF_Lasted in additional info", async () => {
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("item-MF-CLOSE")) {
+        return new Response(JSON.stringify([
+          { item_no: "FG-001", create_date: "2026-09-12T00:00:00Z" },
+        ]), { status: 200 });
+      }
+      if (url.includes("/api/item-MF")) {
+        return new Response(JSON.stringify([
+          { item_no: "FG-001", create_date: "2026-09-14T00:00:00Z" },
+        ]), { status: 200 });
+      }
+      return new Response(JSON.stringify([]), { status: 200 });
+    });
+
+    renderMasterItems();
+
+    const row = (await screen.findByText("FG-001")).closest("tr");
+    expect(row).not.toBeNull();
+    fireEvent.doubleClick(row!);
+
+    expect(await screen.findByText("ข้อมูลเพิ่มเติม")).toBeInTheDocument();
+    expect(await screen.findByText("MF_Before")).toBeInTheDocument();
+    expect(screen.getByText("2026-09-12")).toBeInTheDocument();
+    expect(screen.getByText("MF_Lasted")).toBeInTheDocument();
+    expect(screen.getByText("2026-09-14")).toBeInTheDocument();
   });
 
   it("opens item details after a real double-click sequence", async () => {
@@ -123,6 +154,97 @@ describe("MasterItems interactions", () => {
 
     expect(await screen.findByDisplayValue("FG-001")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Cypermethrin")).toBeDisabled();
+  });
+
+  it("collects split common names in a dedicated master common name item tab", async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === "/master-items") {
+        return {
+          data: {
+            data: [
+              { ...masterItem, item_no: "FG-001", common_name: "DIURON 46.8% WG + HEXAZINONE 13.2% WG" },
+              { ...masterItem, item_no: "FG-002", common_name: "DIURON 46.8% WG" },
+              { ...masterItem, item_no: "FG-003", common_name: "ABAMECTIN 1.8% EC" },
+            ],
+          },
+        };
+      }
+      if (path === "/common-name-overrides") {
+        return {
+          data: {
+            data: [
+              { raw: "DIURON 46.8% WG + HEXAZINONE 13.2% WG", canonical: "SHOULD NOT DISPLAY" },
+            ],
+          },
+        };
+      }
+      if (path === "/master-item-meta") return { data: { data: [] } };
+      if (path === "/item-groups") return { data: { data: [] } };
+      return { data: { data: [] } };
+    });
+
+    renderMasterItems();
+
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Master Common Name Item" }), { button: 0, ctrlKey: false });
+    const commonNameTable = screen.getByRole("columnheader", { name: "จำนวนที่พบ" }).closest("table");
+    expect(commonNameTable).not.toBeNull();
+
+    expect(within(commonNameTable!).getByText("ABAMECTIN 1.8% EC")).toBeInTheDocument();
+    expect(within(commonNameTable!).getByText("DIURON 46.8% WG")).toBeInTheDocument();
+    expect(within(commonNameTable!).getByText("HEXAZINONE 13.2% WG")).toBeInTheDocument();
+    expect(within(commonNameTable!).getByText("พบ 2 ครั้ง")).toBeInTheDocument();
+    expect(within(commonNameTable!).getAllByText("พบ 1 ครั้ง")).toHaveLength(2);
+    expect(within(commonNameTable!).queryByText("SHOULD NOT DISPLAY")).not.toBeInTheDocument();
+    expect(screen.queryByText("รวบรวมจาก common_name ของ Master Item และแยกชื่อที่คั่นด้วย +")).not.toBeInTheDocument();
+  });
+
+  it("opens common name details and saves uploaded photos for an item", async () => {
+    vi.mocked(uploadQcPhoto).mockResolvedValueOnce({ url: "/LIS/uploads/qc-photos/common-name-item.webp" });
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === "/master-items") {
+        return {
+          data: {
+            data: [
+              { ...masterItem, item_no: "FG-001", common_name: "DIURON 80% WP", item_name1: "Diuron 1L" },
+              { ...masterItem, item_no: "FG-002", common_name: "DIURON 80% WP", item_name1: "Diuron 5L" },
+            ],
+          },
+        };
+      }
+      if (path === "/master-item-meta") return { data: { data: [] } };
+      if (path === "/common-name-overrides") return { data: { data: [] } };
+      if (path === "/item-groups") return { data: { data: [] } };
+      return { data: { data: [] } };
+    });
+
+    renderMasterItems();
+
+    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Master Common Name Item" }), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByRole("button", { name: "ดูรายละเอียด DIURON 80% WP" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("รายละเอียด Common Name")).toBeInTheDocument();
+    expect(within(dialog).getByText("FG-001")).toBeInTheDocument();
+    expect(within(dialog).getByText("FG-002")).toBeInTheDocument();
+
+    const photoInputs = dialog.querySelectorAll('input[type="file"]');
+    expect(photoInputs).toHaveLength(2);
+    fireEvent.change(photoInputs[0], {
+      target: {
+        files: [new File(["photo"], "common-name-item.webp", { type: "image/webp" })],
+      },
+    });
+
+    await waitFor(() => expect(uploadQcPhoto).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(api.put).toHaveBeenCalledWith(
+        "/master-item-meta/FG-001",
+        {
+          imageUrl: "/LIS/uploads/qc-photos/common-name-item.webp",
+          imageUrls: ["/LIS/uploads/qc-photos/common-name-item.webp"],
+        },
+      );
+    });
   });
 
   it("calculates gross kg per unit from kg and units per carton", async () => {

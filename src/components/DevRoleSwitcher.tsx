@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DEV_MODE, DEV_DEPARTMENTS } from "@/config/dev";
 import { useAuth } from "@/context/AuthContext";
+import { preserveDevSwitcherAnchorPosition, type DevSwitcherPosition } from "./devRoleSwitcherPosition";
 
 const STORAGE_KEY = "dev-role-switcher-pos";
 const COLLAPSED_KEY = "dev-role-switcher-collapsed";
 const DRAG_THRESHOLD = 4;
 
-type Pos = { x: number; y: number };
+type Pos = DevSwitcherPosition;
 
 const loadPos = (): Pos | null => {
   try {
@@ -23,9 +24,19 @@ const loadPos = (): Pos | null => {
 const clamp = (val: number, min: number, max: number) =>
   Math.min(Math.max(val, min), max);
 
+const savePos = (pos: Pos) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(pos));
+  } catch {
+    /* ignore */
+  }
+};
+
 export const DevRoleSwitcher = () => {
   const { devRoleIds, devRoles, toggleDevRole, devDepartment, setDevDepartment } = useAuth();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const badgeRef = useRef<HTMLDivElement | null>(null);
+  const pendingBadgeAnchorRef = useRef<Pos | null>(null);
   const [pos, setPos] = useState<Pos | null>(() => loadPos());
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem(COLLAPSED_KEY) === "1",
@@ -38,6 +49,20 @@ export const DevRoleSwitcher = () => {
     moved: boolean;
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+
+  useLayoutEffect(() => {
+    const targetAnchor = pendingBadgeAnchorRef.current;
+    if (!targetAnchor) return;
+    pendingBadgeAnchorRef.current = null;
+    const badge = badgeRef.current;
+    if (!badge) return;
+    const rect = badge.getBoundingClientRect();
+    setPos((prev) => {
+      const next = preserveDevSwitcherAnchorPosition(prev, targetAnchor, { x: rect.left, y: rect.top });
+      if (next) savePos(next);
+      return next;
+    });
+  }, [collapsed]);
 
   // เช็คตำแหน่งทุกครั้งที่ขนาดจอเปลี่ยน — ถ้าออกนอก viewport (เช่นย้ายจอเล็กไปใหญ่
   // แล้วตำแหน่งเดิมไม่เห็นเพราะเนื้อหารอบ ๆ ขยับ) ให้ดึงกลับเข้าขอบ ไม่ใช่หาย
@@ -115,11 +140,7 @@ export const DevRoleSwitcher = () => {
     dragState.current = null;
     setIsDragging(false);
     if (drag?.moved && pos) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(pos));
-      } catch {
-        /* ignore */
-      }
+      savePos(pos);
     }
     try {
       (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
@@ -133,6 +154,8 @@ export const DevRoleSwitcher = () => {
     : { right: 16, bottom: 16 };
 
   const toggleCollapsed = () => {
+    const rect = badgeRef.current?.getBoundingClientRect();
+    if (pos && rect) pendingBadgeAnchorRef.current = { x: rect.left, y: rect.top };
     setCollapsed((prev) => {
       const next = !prev;
       try {
@@ -163,6 +186,7 @@ export const DevRoleSwitcher = () => {
       className="fixed z-[9999] flex flex-col items-end gap-1 print:hidden"
     >
       <div
+        ref={badgeRef}
         title="ลากเพื่อย้ายตำแหน่ง"
         className="flex items-center gap-1 rounded-md border border-orange-400 bg-orange-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-orange-600 shadow"
       >
@@ -178,7 +202,10 @@ export const DevRoleSwitcher = () => {
         </button>
       </div>
       {!collapsed && (
-        <>
+        <div
+          data-dev-role-switcher-flyout
+          className="absolute right-0 top-full mt-1 flex flex-col items-end gap-1"
+        >
           <div className="flex flex-wrap gap-1 rounded-md border border-orange-300 bg-white p-1 shadow-md">
             {devRoles.map((role) => {
               const active = devRoleIds.includes(role.id);
@@ -214,7 +241,7 @@ export const DevRoleSwitcher = () => {
               </select>
             </label>
           )}
-        </>
+        </div>
       )}
     </div>
   );

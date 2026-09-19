@@ -53,6 +53,17 @@ test('audiencesForEvent routes R&D created and sampleSent to lab only', () => {
   );
 });
 
+test('audiencesForEvent: sampleSent uses petition.sentToLab to decide Lab sound audience', () => {
+  assert.deepStrictEqual(
+    audiencesForEvent({ sentToLab: true, items: [qcOnlyItem] }, { event: 'statusChanged', toStatus: 'sampleSent' }),
+    ['qc', 'lab'],
+  );
+  assert.deepStrictEqual(
+    audiencesForEvent({ sentToLab: false, items: [labItem] }, { event: 'statusChanged', toStatus: 'sampleSent' }),
+    ['qc'],
+  );
+});
+
 test('audiencesForEvent: success with lab item → qc + lab', () => {
   assert.deepStrictEqual(
     audiencesForEvent({ items: [labItem] }, { event: 'statusChanged', toStatus: 'success' }),

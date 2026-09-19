@@ -18,7 +18,7 @@ export default function LabResultGroups({ groups }: Props) {
     <>
       {groups.map((g) => (
         <Card key={g.seq} className="overflow-hidden">
-          <CardHeader className="pb-3 bg-grey-50">
+          <CardHeader className="pb-3 bg-muted">
             <CardTitle className="text-base flex items-center gap-2 flex-wrap">
               <span>รายการที่ {g.seq}: {g.sampleName}</span>
               {g.batchNo && <Badge variant="gray-soft" className="font-normal">Batch: {g.batchNo}</Badge>}
@@ -27,11 +27,11 @@ export default function LabResultGroups({ groups }: Props) {
           </CardHeader>
           <CardContent className="pt-4 space-y-5">
             {g.unmatched ? (
-              <p className="text-sm text-grey-400 italic">ไม่พบพารามิเตอร์ที่ตรงกับรายการทดสอบ</p>
+              <p className="text-sm text-muted-foreground italic">ไม่พบพารามิเตอร์ที่ตรงกับรายการทดสอบ</p>
             ) : (
               g.params.map((param) => (
                 <div key={param.parameterId} className="space-y-2">
-                  <h3 className="text-sm font-semibold text-grey-800 border-b pb-1">{param.parameterName}</h3>
+                  <h3 className="text-sm font-semibold text-foreground border-b border-border pb-1">{param.parameterName}</h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm table-fixed">
                       <colgroup>
@@ -41,7 +41,7 @@ export default function LabResultGroups({ groups }: Props) {
                         <col style={{ width: "14%" }} />
                         <col style={{ width: "20%" }} />
                       </colgroup>
-                      <thead className="text-left text-xs text-grey-500">
+                      <thead className="text-left text-xs text-muted-foreground">
                         <tr>
                           <th className="py-1 pr-3 font-medium">ช่อง</th>
                           <th className="py-1 pr-3 font-medium">ค่าที่บันทึก</th>
@@ -52,23 +52,23 @@ export default function LabResultGroups({ groups }: Props) {
                       </thead>
                       <tbody>
                         {param.rows.map((row) => (
-                          <tr key={row.key} className={cn("border-t align-top", row.abnormal && "bg-red-50")}>
+                          <tr key={row.key} className={cn("border-t border-border align-top", row.abnormal && "bg-destructive/10")}>
                             <td className="py-1.5 pr-3 break-words">
-                              {row.label}{row.unit ? <span className="text-grey-400"> ({row.unit})</span> : null}
-                              {param.hasPhases && <span className="ml-1 text-[10px] text-amber-600">P{row.phase}</span>}
+                              {row.label}{row.unit ? <span className="text-muted-foreground"> ({row.unit})</span> : null}
+                              {param.hasPhases && <span className="ml-1 text-[10px] text-amber-700 dark:text-amber-300">P{row.phase}</span>}
                             </td>
                             <td className="py-1.5 pr-3 font-mono font-semibold break-words">{row.value || "-"}</td>
-                            <td className="py-1.5 pr-3 text-grey-500 break-words">{row.standardText || "-"}</td>
+                            <td className="py-1.5 pr-3 text-muted-foreground break-words">{row.standardText || "-"}</td>
                             <td className="py-1.5 pr-3">
                               {row.abnormal ? (
-                                <span className="inline-flex items-center gap-1 text-red-600">
+                                <span className="inline-flex items-center gap-1 text-destructive">
                                   <AlertTriangle className="h-3.5 w-3.5" /> ผิดปกติ
                                 </span>
                               ) : (
-                                <span className="text-green-600">ปกติ</span>
+                                <span className="text-green-700 dark:text-green-300">ปกติ</span>
                               )}
                             </td>
-                            <td className="py-1.5 text-grey-600 break-words">{row.note || "-"}</td>
+                            <td className="py-1.5 text-muted-foreground break-words">{row.note || "-"}</td>
                           </tr>
                         ))}
                       </tbody>

@@ -34,6 +34,16 @@ const labPetition = {
   items: [{ seq: 1, sampleName: 'ตัวอย่าง A', batchNo: 'B1' }],
 };
 
+const rdLabPetition = {
+  _id: 'pet-rd1',
+  petitionNo: 'P-2609-0003',
+  dept: 'production',
+  status: 'sampleSent',
+  submittedBy: { name: 'RD User', department: 'R&D' },
+  assignedTo: { name: 'Tester' },
+  items: [{ seq: 1, sampleName: 'R&D sample', batchNo: '' }],
+};
+
 function renderModal() {
   return render(
     <MemoryRouter>
@@ -111,5 +121,16 @@ describe('LabScanAcceptModal manualOnly mode', () => {
     fireEvent.change(input, { target: { value: 'P-2506-0001' } });
     fireEvent.click(screen.getByRole('button', { name: 'รับงาน' }));
     expect(await screen.findByText('P-2506-0001')).toBeInTheDocument();
+  });
+
+  it('รับคำร้อง R&D ที่ไม่มีเลขแบช Lab ได้หลัง assign แล้ว', async () => {
+    (api.get as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { data: rdLabPetition } });
+    renderManual();
+    const input = screen.getByPlaceholderText(/พิมพ์เลขที่คำร้อง/);
+    fireEvent.change(input, { target: { value: 'P-2609-0003' } });
+    fireEvent.click(screen.getByRole('button', { name: 'รับงาน' }));
+    expect(await screen.findByText('P-2609-0003')).toBeInTheDocument();
+    expect(screen.getByText('1 รายการ')).toBeInTheDocument();
+    expect(screen.queryByText('คำร้องนี้ไม่มีรายการ Lab')).not.toBeInTheDocument();
   });
 });

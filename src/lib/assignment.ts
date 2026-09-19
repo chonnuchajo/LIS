@@ -15,6 +15,17 @@ export interface AssigneeRef {
   name?: string;
 }
 
+const DEV_LAB_ANALYZE_NAME = 'Dev Lab Analyze';
+const DEV_LAB_ANALYST_NAME = 'Dev Lab Analyst';
+
+export function assigneeNamesForUser(user: AssigneeRef | null | undefined): string[] {
+  const names = new Set<string>();
+  const name = user?.name?.trim();
+  if (name) names.add(name);
+  if (name === DEV_LAB_ANALYZE_NAME) names.add(DEV_LAB_ANALYST_NAME);
+  return [...names];
+}
+
 /** True when `user` is the person `assignedTo` refers to. employeeId wins;
  *  name is a fallback for unlinked users. Returns false when either side is
  *  missing — never matches on two absent values. */
@@ -23,8 +34,11 @@ export function isAssignedTo(
   user: AssigneeRef | null | undefined,
 ): boolean {
   if (!assignedTo || !user) return false;
+  const matchedNames = assigneeNamesForUser(user);
   if (user.employeeId && assignedTo.employeeId) {
-    return assignedTo.employeeId === user.employeeId;
+    if (assignedTo.employeeId === user.employeeId) return true;
+    const userName = user.name?.trim();
+    return Boolean(assignedTo.name && matchedNames.some((name) => name !== userName && name === assignedTo.name));
   }
-  return Boolean(user.name && assignedTo.name && assignedTo.name === user.name);
+  return Boolean(assignedTo.name && matchedNames.includes(assignedTo.name));
 }

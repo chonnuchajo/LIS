@@ -11,8 +11,10 @@ import type {
   StockPublicScanItem,
   DeductionResolutionReason,
   StandardsInUseResponse,
+  SixMonthMedicineStockResponse,
 } from "@/types/stock";
 import type { EnvRoomConfig, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
+import type { DailyCheckPeriod } from "@/lib/dailyCheckPeriod";
 import type { StandardLabelCodeDefaults } from "@/lib/standardLabelCode";
 import {
   defaultPrinterFor,
@@ -32,6 +34,7 @@ import type { MethodDoc, MethodInput } from './methodRegistry';
 import type { ChemicalRequisition } from "@/lib/chemicalRequisition";
 import type { GoodsReceipt, GoodsReceiptInput } from "@/types/goodsReceipt.types";
 import type { CoaDocument, EligibleCoaPetition } from "@/types/coa.types";
+import type { PetitionAuditEvent, PetitionStatus } from "@/types/petition.types";
 import type {
   ApiKeyItem,
   ApiKeyInput,
@@ -55,6 +58,8 @@ export interface StockTransactionParams {
   itemId?: string;
   qrId?: string;
   action?: string;
+  search?: string;
+  user?: string;
   createdFrom?: string;
   createdTo?: string;
   limit?: number;
@@ -63,15 +68,22 @@ export interface StockTransactionParams {
 
 export interface PetitionFlowNotification {
   id: string;
+  petitionId?: string;
   petitionNo: string;
+  event?: PetitionAuditEvent;
+  fromStatus?: PetitionStatus;
+  toStatus?: PetitionStatus;
   title: string;
   message?: string;
   level: "info" | "warning" | "success" | "error";
   link: string;
   createdAt: string;
+  playSound?: boolean;
+  sound?: "sampleArrival" | "labAssigned";
 }
 
 export type UserFavorites = { email: string; paths: string[] };
+export type UserSignatureResponse = { signatureUrl: string | null };
 
 // Development: BASE_URL = "/" → "/api"
 // Production:  BASE_URL = "/LIS/" → "/LIS/api"
@@ -95,13 +107,23 @@ const API_BASES = Array.from(
 // backend ตรวจสิทธิ์ admin ของ route /api-keys ได้ (AuthContext เป็นคนตั้งค่า)
 // ⚠️ ไม่ใช่ security จริง (ปลอมได้) เฟส 2 จะเปลี่ยนไปใช้ Azure AD token
 let currentUserEmail = "";
+const DEV_EMAIL_SUFFIX = ".dev@icpladda.com";
 
 export function setApiUserEmail(email?: string | null) {
   currentUserEmail = email ? String(email) : "";
 }
 
+function devDepartmentHeader() {
+  if (!currentUserEmail.toLowerCase().endsWith(DEV_EMAIL_SUFFIX)) return "";
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem("dev_department")?.trim() || "";
+}
+
 function identityHeaders(): Record<string, string> {
-  return currentUserEmail ? { "X-LIS-User": currentUserEmail } : {};
+  const headers: Record<string, string> = currentUserEmail ? { "X-LIS-User": currentUserEmail } : {};
+  const devDepartment = devDepartmentHeader();
+  if (devDepartment) headers["X-LIS-Department"] = encodeURIComponent(devDepartment);
+  return headers;
 }
 
 async function fetchApi(path: string, options?: RequestInit): Promise<unknown> {
@@ -236,6 +258,7 @@ export const api = {
       permissions?: string[];
       department?: string;
       position?: string;
+      signatureUrl?: string;
       status?: "active" | "inactive";
     }>("/auth/sso", {
       method: "POST",
@@ -243,6 +266,9 @@ export const api = {
     }),
 
   // Samples
+  saveMySignature: (signatureDataUrl: string) =>
+    request<UserSignatureResponse>("/profile/signature", { method: "PUT", body: JSON.stringify({ signatureDataUrl }) }),
+
   getSamples: () => request<SampleItem[]>("/samples"),
   createSample: (data: Partial<SampleItem>) =>
     request<SampleItem>("/samples", { method: "POST", body: JSON.stringify(data) }),
@@ -283,7 +309,7 @@ export const api = {
     return request<{ docs: Record<string, unknown>[]; total: number; page: number; limit: number }>(`/result-densities${qs}`);
   },
   getResultDensityProducts: () => request<string[]>('/result-densities/products'),
-  // All DMA 501 readings whose Sample name trailing batch matches `batch`.
+  // DMA 501 readings whose displayed Batch column matches `batch`.
   getResultDensitiesByBatch: (batch: string) =>
     request<{ batch: string; docs: Record<string, unknown>[] }>(
       `/result-densities/by-batch/${encodeURIComponent(batch)}`,
@@ -332,7 +358,7 @@ export const api = {
   deductSolvent: (id: string, body: { qty: number; sampleId?: string; note?: string } & StockUserPayload) =>
     request<StockSolventItem>(`/stock/solvents/${id}/deduct`, { method: "POST", body: JSON.stringify(body) }),
   receiveSolvent: (id: string, body: { qty: number; lotNo: string; exp: string; sizeLiter: number; price: number; note?: string } & StockUserPayload) =>
-    request<StockSolventItem>(`/stock/solvents/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
+    request<StockSolventItem & { receivedUnits?: StockUnitItem[] }>(`/stock/solvents/${id}/receive`, { method: "POST", body: JSON.stringify(body) }),
 
   // Chemical requisition — เบิกสารเคมี (solvent) → เครื่อง (daily-check/analysis)
   getChemicalRequisitions: (params: { room: string; date?: string }) => {
@@ -351,6 +377,7 @@ export const api = {
     instrumentId: string;
     instrumentName: string;
     solventId: string;
+    solventUnitQrId?: string;
     qty: number;
     note?: string;
     requestedBy: { email: string; name: string };
@@ -415,16 +442,31 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  updateStockDeduction: (
+    id: string,
+    body: { amount?: number; weights?: number[]; note?: string } & StockUserPayload,
+  ) =>
+    request<StockTransactionItem>(`/stock/transactions/${encodeURIComponent(id)}/deduction`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteStockDeduction: (id: string, body?: StockUserPayload) =>
+    request<{ ok: true }>(`/stock/transactions/${encodeURIComponent(id)}/deduction`, {
+      method: "DELETE",
+      body: JSON.stringify(body ?? {}),
+    }),
   getStandardsInUse: () => request<StandardsInUseResponse>("/stock/standards/in-use"),
+  getSixMonthMedicineStock: () => request<SixMonthMedicineStockResponse>("/stock/medicine-six-months"),
 
   // Stock — Units (per-bottle)
-  getStockUnits: (params?: { itemCode?: string; itemType?: string; itemId?: string; status?: string; kind?: string }) => {
+  getStockUnits: (params?: { itemCode?: string; itemType?: string; itemId?: string; status?: string; kind?: string; labelCode?: string }) => {
     const q = new URLSearchParams();
     if (params?.itemCode) q.set("itemCode", params.itemCode);
     if (params?.itemType) q.set("itemType", params.itemType);
     if (params?.itemId) q.set("itemId", params.itemId);
     if (params?.status) q.set("status", params.status);
     if (params?.kind) q.set("kind", params.kind);
+    if (params?.labelCode) q.set("labelCode", params.labelCode);
     const qs = q.toString() ? `?${q.toString()}` : "";
     return request<StockUnitItem[]>(`/stock/units${qs}`);
   },
@@ -527,6 +569,7 @@ export const api = {
     to?: string;
     scaleId?: string;
     status?: "pass" | "fail";
+    period?: DailyCheckPeriod;
   }) => {
     const qs = params
       ? "?" + new URLSearchParams(
@@ -568,6 +611,7 @@ export const api = {
     to?: string;
     room?: string;
     status?: "pass" | "fail";
+    period?: DailyCheckPeriod;
   }) => {
     const qs = params
       ? "?" + new URLSearchParams(
@@ -592,6 +636,7 @@ export const api = {
     to?: string;
     instrumentId?: string;
     status?: "normal" | "abnormal";
+    period?: DailyCheckPeriod;
   }) => {
     const qs = "?" + new URLSearchParams(
       Object.entries(params).filter(([, v]) => v != null && v !== "").map(([k, v]) => [k, String(v)]),
@@ -941,6 +986,7 @@ export type DailyCheckRecord = {
   recorderId?: string;
   recorderEmail?: string;
   date: string;       // YYYY-MM-DD
+  period?: DailyCheckPeriod | null;
   checkedAt: string;  // ISO
   createdAt?: string;
   updatedAt?: string;
@@ -966,6 +1012,11 @@ export type DailyCheckTodaySummary = {
   date: string;
   count: number;
   scaleIds: string[];
+  scaleRecords?: Array<{
+    scaleId: string;
+    checkedAt?: string;
+    period?: DailyCheckPeriod | null;
+  }>;
   allPass: boolean;
 };
 
@@ -984,6 +1035,7 @@ export type EquipmentCheckRecord = {
   recorderId?: string;
   recorderEmail?: string;
   date: string;       // YYYY-MM-DD
+  period?: DailyCheckPeriod | null;
   checkedAt: string;  // ISO
   createdAt?: string;
   updatedAt?: string;
@@ -1019,6 +1071,7 @@ export type EnvCheckRecord = {
   recorderId?: string;
   recorderEmail?: string;
   date: string;       // YYYY-MM-DD
+  period?: DailyCheckPeriod | null;
   checkedAt: string;  // ISO
   createdAt?: string;
   updatedAt?: string;
@@ -1042,6 +1095,11 @@ export type EnvCheckTodaySummary = {
   date: string;
   count: number;
   rooms: string[];
+  roomRecords?: Array<{
+    room: string;
+    checkedAt?: string;
+    period?: DailyCheckPeriod | null;
+  }>;
   allPass: boolean;
 };
 
@@ -1230,7 +1288,7 @@ export type LabelToleranceRule = LabelToleranceStandard & {
   masterCommonName?: string;
   masterRaw?: Record<string, unknown>;
   productTypes?: ("water" | "sand" | "powder")[];
-  // autoMode = "percent" => autoPct เป็น % ที่เว้นจากขอบช่วงหัวหน้าตรวจสอบเข้าด้านใน
+  // autoMode = "percent" => autoPct เป็น % ที่เว้นจากขอบช่วงเกณฑ์กรมเข้าด้านใน
   // headMode = "percent" => headPct เป็น % ของค่ากลางจาก %ฉลาก
   // mode "abs" — ± รอบค่ากลาง (%ฉลาก) เป็นค่าจริงในหน่วยของ field แทน % relative
   autoAbs?: number | null;   // ± ชั้นใน (ผ่านเอง), > 0
@@ -1313,18 +1371,31 @@ export type ParameterValueField = {
   // Per-option filter: keyed by option string.
   // ถ้า key ไม่มี = option แสดงให้ทุก item (default).
   // ถ้ามี key แต่ทุกมิติเป็น array ว่าง = แสดงเสมอ.
-  // หากตั้งค่าอย่างน้อย 1 มิติ — OR ข้ามมิติ (เหมือน parameter-level "ใช้กับ").
+  // หากตั้งค่าอย่างน้อย 1 มิติ — OR ข้ามมิติ เฉพาะ option filter.
   optionFilters?: Record<string, {
+    itemNos?: string[];        // exact match กับ item.itemNo / รหัสสินค้า
     itemNames?: string[];      // exact match กับ item.sampleName
+    fullCommonNames?: string[];// exact match กับ item.commonName แบบเต็ม
     commonNames?: string[];    // 'EW' | 'WP' | 'ULV' ... (uppercase)
-    productTypes?: string[];   // 'water' | 'sand' | 'powder'
-    categories?: string[];     // 'RM' | 'FG' (UI parity เท่านั้น — ไม่ enforce ที่ runtime)
+    productTypes?: string[];   // 'water' | 'sand' | 'powder' | 'liquid' | 'solid'
+    categories?: string[];     // 'RM' | 'FG' จากคลังตาม prefix รหัสสินค้า F/R
     subCategories?: string[];  // prefix code เช่น 'F', 'FC', 'RO' (uppercase)
     itemGroups?: string[];     // group ID ที่ option นี้จำกัดให้แสดง
   }>;
 };
 
 export type ParameterScope = "lab" | "qc";
+
+export type ParameterApplyRule = {
+  itemNos?: string[];
+  itemNames?: string[];
+  fullCommonNames?: string[];
+  commonNames?: string[];
+  productTypes?: string[];
+  categories?: string[];
+  subCategories?: string[];
+  itemGroups?: string[];
+};
 
 export type ParameterItem = {
   _id?: string;
@@ -1334,15 +1405,20 @@ export type ParameterItem = {
   status?: "active" | "inactive";
   applyAll?: boolean;
   commonNames?: string[];
+  itemNos?: string[];
   itemNames?: string[];
+  fullCommonNames?: string[];
   productTypes?: string[];
-  // 'RM' | 'FG' — ประตูแบบ AND เทียบกับ petition.dept (ไม่ใช่มิติ OR ตัวที่หก)
+  // 'RM' | 'FG' — ประตูแบบ AND เทียบกับคลังจาก prefix รหัสสินค้า F/R
   categories?: string[];
   // prefix code ของรหัสสินค้า เช่น 'RO' — จับแบบ "ขึ้นต้นด้วย" (RO ครอบ ROPH/ROLS)
   subCategories?: string[];
   itemGroups?: string[];
+  applyRules?: ParameterApplyRule[];
   excludeCommonNames?: string[];
+  excludeItemNos?: string[];
   excludeItemNames?: string[];
+  excludeFullCommonNames?: string[];
   excludeProductTypes?: string[];
   excludeCategories?: string[];
   excludeSubCategories?: string[];

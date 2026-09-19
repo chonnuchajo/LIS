@@ -33,6 +33,28 @@ describe("ActionTable", () => {
     expect(screen.getAllByRole("cell")).toHaveLength(6);
   });
 
+  it("shows the submitter department instead of the generic petition type", () => {
+    render(
+      <MemoryRouter>
+        <ActionTable
+          petitions={[{
+            ...petition,
+            submittedBy: {
+              ...petition.submittedBy,
+              department: "ผลิต 3",
+            },
+          }]}
+          actionLabel="Open"
+          actionPathPrefix="/petitions"
+          urgentIds={new Set()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("ผลิต 3")).toBeInTheDocument();
+    expect(screen.queryByText("แผนกผลิต")).not.toBeInTheDocument();
+  });
+
   it("orders urgent petitions before older normal petitions", () => {
     const urgent: Petition = {
       ...petition,

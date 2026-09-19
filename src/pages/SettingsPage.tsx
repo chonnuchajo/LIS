@@ -15,17 +15,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAccessibleTabs } from "@/hooks/useAccessibleTabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useEnvRooms } from "@/hooks/useEnvRooms";
+import { useEmployeeDepartmentOptions } from "@/hooks/useExternalLookups";
 import { api } from "@/lib/api";
 import type { EnvRoom, EnvRoomConfigInput } from "@/lib/dailyCheckEnv";
 import { DOC_NUMBER_TYPES, type DocumentNumberConfig, type DocumentNumberConfigInput, type DocNumberType } from "@/lib/documentNumberConfig";
 import type { PrinterConfigInput } from "@/lib/printConfig";
 import { normalizeRoles } from "@/lib/roles";
 
+type AccessMatrix = {
+  roles?: { id: string; name: string }[];
+  users?: { department?: string }[];
+};
+
 const SettingsPage = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = normalizeRoles(user).includes("admin");
   const { rooms, isLoading } = useEnvRooms();
+  const { departments: employeeDepartments } = useEmployeeDepartmentOptions();
 
   const { data: liveReadings = [] } = useQuery({
     queryKey: ["temphum", "live"],
@@ -84,16 +91,6 @@ const SettingsPage = () => {
       toast.error(err instanceof Error ? err.message : "ลบเครื่องพิมพ์ไม่สำเร็จ");
     },
   });
-  const setDefaultPrinterMutation = useMutation({
-    mutationFn: api.setDefaultPrinterConfig,
-    onSuccess: () => {
-      toast.success("อัปเดตเครื่องพิมพ์ค่าเริ่มต้นแล้ว");
-      queryClient.invalidateQueries({ queryKey: ["printer-configs"] });
-    },
-    onError: (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : "อัปเดตค่าเริ่มต้นไม่สำเร็จ");
-    },
-  });
   const testPrinterMutation = useMutation({ mutationFn: api.testPrinterConfig });
 
   const { data: docNumberConfigs = [] } = useQuery({
@@ -118,18 +115,19 @@ const SettingsPage = () => {
   const { data: accessMatrix } = useQuery({
     queryKey: ["access-control-roles"],
     queryFn: async () => {
-      const res = await api.get<{ roles?: { id: string; name: string }[] }>("/access-control");
+      const res = await api.get<AccessMatrix>("/access-control");
       return res.data.data;
     },
   });
   const roleOptions = (accessMatrix?.roles ?? []).map((r) => ({ id: r.id, name: r.name }));
-  const departmentOptions = useMemo(
+  const accessControlDepartmentOptions = useMemo(
     () => Array.from(new Set((accessMatrix?.users ?? [])
-      .map((u: { department?: string }) => u.department?.trim())
+      .map((u) => u.department?.trim())
       .filter((department): department is string => Boolean(department && department !== "Unassigned"))))
       .sort((a, b) => a.localeCompare(b, "th")),
     [accessMatrix?.users],
   );
+  const departmentOptions = employeeDepartments.length > 0 ? employeeDepartments : accessControlDepartmentOptions;
 
   const { tabs, isVisible, defaultKey } = useAccessibleTabs("/settings");
   const [activeTab, setActiveTab] = useState<string | undefined>(defaultKey);
@@ -139,7 +137,6 @@ const SettingsPage = () => {
     createPrinterMutation.isPending ||
     updatePrinterMutation.isPending ||
     deletePrinterMutation.isPending ||
-    setDefaultPrinterMutation.isPending ||
     testPrinterMutation.isPending;
 
   return (
@@ -186,7 +183,7 @@ const SettingsPage = () => {
 
         <TabsContent value="printers" className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            จัดการปลายทางเครื่องพิมพ์แยกตามชนิด A4 และ Sticker เลือกได้ว่าจะพิมพ์ผ่าน Server/CUPS หรือเปิดรายชื่อ printer local ใน print dialog ของเครื่องนี้
+            จัดการปลายทางเครื่องพิมพ์ Server/CUPS แยกตามชนิด A4 และ Sticker ส่วนผู้ใช้จะเลือก Server/CUPS หรือเครื่องนี้ตอนพิมพ์เอกสาร
           </p>
           <PrinterRegistryCard
             configs={printerConfigs}
@@ -195,7 +192,6 @@ const SettingsPage = () => {
             onCreate={createPrinterMutation.mutateAsync}
             onUpdate={(id, input) => updatePrinterMutation.mutateAsync({ id, input })}
             onDelete={deletePrinterMutation.mutateAsync}
-            onSetDefault={setDefaultPrinterMutation.mutateAsync}
             onTestPrint={testPrinterMutation.mutateAsync}
           />
         </TabsContent>

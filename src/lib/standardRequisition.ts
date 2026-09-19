@@ -1,5 +1,35 @@
 // ตรรกะเบิก Standard: จำนวนน้ำหนัก default ตามเครื่อง + รวม/ตรวจ mg รายน้ำหนัก.
 
+import { standardLabelCodeFromStockUnit } from "./standardLabelCode";
+import { withThaiKedmaneeFallbacks } from "./keyboardLayout";
+
+interface StandardRequisitionSearchStandard {
+  code?: string | number | null;
+  name?: string | null;
+}
+
+interface StandardRequisitionSearchUnit {
+  itemCode?: string | number | null;
+  itemName?: string | null;
+  qrId?: string | null;
+  labelCode?: string | null;
+  labelRunNo?: string | number | null;
+  labelRunYear?: string | number | null;
+  lotNo?: string | null;
+}
+
+function normalizeSearchText(value: unknown): string {
+  return String(value ?? "").trim().toLocaleLowerCase("th-TH");
+}
+
+function normalizeCompactSearchText(value: unknown): string {
+  return normalizeSearchText(value).replace(/[^0-9a-zก-๙]/g, "");
+}
+
+function truthySearchParts(parts: Array<string | number | null | undefined>): string[] {
+  return parts.map((part) => String(part ?? "").trim()).filter(Boolean);
+}
+
 /** payload `_user` แนบไปกับ deduct-mg ให้ backend ลง ผู้ดำเนินการ (userMeta อ่าน body._user) */
 export function requisitionUser(
   user?: { email?: string; name?: string } | null,
@@ -24,4 +54,63 @@ export function validateWeights(weights: number[], remainingMg: number): string 
   }
   if (sumWeights(weights) > remainingMg) return "mg รวมเกินปริมาณคงเหลือของขวด";
   return "";
+}
+
+export function standardRequisitionUnitLabelCode(unit: StandardRequisitionSearchUnit): string {
+  return standardLabelCodeFromStockUnit(unit);
+}
+
+export function standardRequisitionSearchText(
+  standard: StandardRequisitionSearchStandard,
+  units: StandardRequisitionSearchUnit[],
+): string {
+  const unitParts = units.flatMap((unit) => truthySearchParts([
+    unit.itemCode,
+    unit.itemName,
+    unit.qrId,
+    unit.lotNo,
+    standardRequisitionUnitLabelCode(unit),
+  ]));
+
+  return truthySearchParts([standard.code, standard.name, ...unitParts]).join(" ");
+}
+
+export function standardMatchesRequisitionSearch(
+  standard: StandardRequisitionSearchStandard,
+  units: StandardRequisitionSearchUnit[],
+  query: string,
+): boolean {
+  const normalizedQueries = withThaiKedmaneeFallbacks(query)
+    .map(normalizeSearchText)
+    .filter(Boolean);
+  if (normalizedQueries.length === 0) return true;
+  const normalizedSearchText = normalizeSearchText(standardRequisitionSearchText(standard, units));
+  return normalizedQueries.some((normalizedQuery) => normalizedSearchText.includes(normalizedQuery));
+}
+
+function stockUnitIdentifierTerms(unit: StandardRequisitionSearchUnit): string[] {
+  return truthySearchParts([
+    standardRequisitionUnitLabelCode(unit),
+    unit.qrId,
+    unit.lotNo,
+  ]);
+}
+
+export function findStandardBottleBySearch<Unit extends StandardRequisitionSearchUnit>(
+  units: Unit[],
+  query: string,
+): Unit | null {
+  const normalizedQueries = withThaiKedmaneeFallbacks(query).map(normalizeSearchText).filter(Boolean);
+  const compactQueries = withThaiKedmaneeFallbacks(query).map(normalizeCompactSearchText).filter(Boolean);
+  if (normalizedQueries.length === 0) return null;
+
+  const candidates = units.map((unit) => ({
+    unit,
+    terms: stockUnitIdentifierTerms(unit).map((term) => normalizeSearchText(term)),
+    compactTerms: stockUnitIdentifierTerms(unit).map((term) => normalizeCompactSearchText(term)),
+  }));
+
+  return candidates.find((candidate) => candidate.terms.some((term) => normalizedQueries.includes(term)))?.unit
+    ?? candidates.find((candidate) => candidate.compactTerms.some((term) => compactQueries.includes(term)))?.unit
+    ?? null;
 }

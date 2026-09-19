@@ -1,17 +1,22 @@
 // Derives a human-readable status_log ({ current, timeline }) for a petition.
 // Pure functions — NO DB access. The route loads inputs and calls buildStatusLog.
-const { isResearchAndDevelopmentDepartment, requiresQcTrack } = require('./petitionSubmissionRules');
+const { defaultSendItemToLab, isLabBatchNo, isMandatoryLabProduct, isResearchAndDevelopmentDepartment, requiresQcTrack } = require('./petitionSubmissionRules');
 
 // Lab batch rule (mirrors src/types/petition.types.ts isLabBatch):
 // last char of trimmed batchNo is '1' or '6'.
 function isLabBatch(batchNo) {
-  const last = String(batchNo ?? '').trim().slice(-1);
-  return last === '1' || last === '6';
+  return isLabBatchNo(batchNo);
+}
+
+function shouldSendItemToLab(item) {
+  if (!item) return false;
+  if (isMandatoryLabProduct(item)) return true;
+  return typeof item.sendToLab === 'boolean' ? item.sendToLab : defaultSendItemToLab(item);
 }
 
 function hasLabTrack(petition) {
   if (isResearchAndDevelopmentDepartment(petition?.submittedBy?.department)) return true;
-  return ((petition ?? {}).items ?? []).some((it) => isLabBatch(it.batchNo ?? ''));
+  return ((petition ?? {}).items ?? []).some((it) => shouldSendItemToLab(it));
 }
 
 // True if a QCTestResult.values object has at least one non-empty field value.
@@ -282,6 +287,7 @@ function buildStatusLog(petition, auditLogs, qcResults, parameters, labDone) {
 
 module.exports = {
   isLabBatch,
+  shouldSendItemToLab,
   hasLabTrack,
   hasFilledValue,
   qcParamAppliesToItem,

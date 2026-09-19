@@ -87,6 +87,43 @@ const renderPage = () => {
   );
 };
 
+const labLabelParameter = (
+  id: string,
+  name: string,
+  substance: string,
+  labelPercent: number,
+): ParameterItem => ({
+  _id: id,
+  name,
+  scope: "lab",
+  status: "active",
+  applyAll: true,
+  valueFields: [
+    {
+      label: "%AI",
+      type: "number",
+      labelToleranceMode: true,
+      labelToleranceStandards: [
+        { substance, labelPercent, autoPct: 5, headPct: 10 },
+      ],
+    },
+  ],
+});
+
+const openLabLabelToleranceTab = async () => {
+  const scopeTabList = await waitFor(() => screen.getAllByRole("tablist")[0]);
+  const labTab = within(scopeTabList).getByRole("tab", { name: /Lab/ });
+  fireEvent.mouseDown(labTab);
+  fireEvent.click(labTab);
+
+  const criteriaTabList = await waitFor(() => screen.getAllByRole("tablist")[1]);
+  const labelToleranceTab = within(criteriaTabList).getByRole("tab", { name: "ตาม %สาร" });
+  fireEvent.mouseDown(labelToleranceTab);
+  fireEvent.click(labelToleranceTab);
+
+  return screen.findByRole("table");
+};
+
 describe("ParameterSettings criteria tabs", () => {
   const parameters: ParameterItem[] = [
     {
@@ -117,11 +154,16 @@ describe("ParameterSettings criteria tabs", () => {
   it("opens substance tab and saves a single-substance quick edit", async () => {
     renderPage();
 
-    const criteriaTabList = screen.getAllByRole("tablist")[1];
+    const criteriaTabList = await waitFor(() => {
+      const tabList = screen.getAllByRole("tablist")[1];
+      expect(within(tabList).getByRole("tab", { name: "แยกตามสาร" })).toBeInTheDocument();
+      return tabList;
+    });
     const criteriaTabs = within(criteriaTabList).getAllByRole("tab");
-    expect(criteriaTabs).toHaveLength(4);
+    expect(criteriaTabs.map((tab) => tab.textContent)).toEqual(["ทั้งหมด", "แยกตามสาร"]);
+    expect(within(criteriaTabList).queryByRole("tab", { name: "ตาม %สาร" })).not.toBeInTheDocument();
 
-    const substancesTab = criteriaTabs[1];
+    const substancesTab = within(criteriaTabList).getByRole("tab", { name: "แยกตามสาร" });
     fireEvent.mouseDown(substancesTab);
     fireEvent.click(substancesTab);
 
@@ -157,8 +199,12 @@ describe("ParameterSettings criteria tabs", () => {
   it("keeps the quick-edit dialog open when save fails", async () => {
     renderPage();
 
-    const criteriaTabList = screen.getAllByRole("tablist")[1];
-    const substancesTab = within(criteriaTabList).getAllByRole("tab")[1];
+    const criteriaTabList = await waitFor(() => {
+      const tabList = screen.getAllByRole("tablist")[1];
+      expect(within(tabList).getByRole("tab", { name: "แยกตามสาร" })).toBeInTheDocument();
+      return tabList;
+    });
+    const substancesTab = within(criteriaTabList).getByRole("tab", { name: "แยกตามสาร" });
     fireEvent.mouseDown(substancesTab);
     fireEvent.click(substancesTab);
 
@@ -309,6 +355,99 @@ describe("ParameterSettings criteria tabs", () => {
     expect(screen.queryByText("Other Parameter")).not.toBeInTheDocument();
   });
 
+  it("filters the lab parameter list by the Thai label-tolerance mode name", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      labLabelParameter("p-lab-label-list", "Lab Label List", "GLYPHOSATE", 12.5),
+      {
+        _id: "p-lab-text-list",
+        name: "Lab Text List",
+        scope: "lab",
+        status: "active",
+        applyAll: true,
+        valueFields: [{ label: "Remark", type: "text" }],
+      },
+    ]);
+
+    renderPage();
+
+    const scopeTabList = await waitFor(() => screen.getAllByRole("tablist")[0]);
+    const labTab = within(scopeTabList).getByRole("tab", { name: /Lab/ });
+    fireEvent.mouseDown(labTab);
+    fireEvent.click(labTab);
+
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("Lab Label List")).toBeInTheDocument();
+    expect(within(table).getByText("Lab Text List")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText(/ค้นหาชื่อ/), { target: { value: "ตาม % สาร" } });
+
+    expect(within(table).getByText("Lab Label List")).toBeInTheDocument();
+    expect(within(table).queryByText("Lab Text List")).not.toBeInTheDocument();
+  });
+
+  it("filters lab label-tolerance criteria by displayed drug percent", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      labLabelParameter("p-lab-label-125", "Lab Label 12.5", "GLYPHOSATE", 12.5),
+      labLabelParameter("p-lab-label-30", "Lab Label 30", "ABAMECTIN", 30),
+    ]);
+
+    renderPage();
+
+    const table = await openLabLabelToleranceTab();
+    expect(within(table).getByText("Lab Label 12.5")).toBeInTheDocument();
+    expect(within(table).queryByText("Lab Label 30")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("ค้นหาเกณฑ์"), { target: { value: "12.5%" } });
+
+    expect(within(table).getByText("Lab Label 12.5")).toBeInTheDocument();
+    expect(within(table).queryByText("Lab Label 30")).not.toBeInTheDocument();
+  });
+
+  it("filters lab label-tolerance criteria by the Thai label-tolerance mode name", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      labLabelParameter("p-lab-label-mode", "Lab Label Mode", "GLYPHOSATE", 12.5),
+      {
+        _id: "p-lab-substance-mode",
+        name: "Lab Substance Mode",
+        scope: "lab",
+        status: "active",
+        applyAll: true,
+        valueFields: [
+          {
+            label: "Amount",
+            type: "number",
+            substanceMode: true,
+            substanceStandards: [{ substance: "ABAMECTIN", operator: "gte", value: 95 }],
+          },
+        ],
+      },
+    ]);
+
+    renderPage();
+
+    const table = await openLabLabelToleranceTab();
+    fireEvent.change(screen.getByLabelText("ค้นหาเกณฑ์"), { target: { value: "ตาม % สาร" } });
+
+    expect(within(table).getByText("Lab Label Mode")).toBeInTheDocument();
+  });
+
+  it("sorts lab label-tolerance criteria by drug percent by default", async () => {
+    api.getParameters.mockResolvedValueOnce([
+      labLabelParameter("p-lab-high", "Lab High Percent", "HIGH", 30),
+      labLabelParameter("p-lab-low", "Lab Low Percent", "LOW", 5),
+    ]);
+
+    renderPage();
+
+    const table = await openLabLabelToleranceTab();
+
+    const sortSelect = screen.getByLabelText("เรียงลำดับ") as HTMLSelectElement;
+    expect(sortSelect.value).toBe("drugPercentAsc");
+
+    const tableText = table.textContent ?? "";
+    expect(tableText.indexOf("Lab Low Percent")).toBeLessThan(tableText.indexOf("Lab High Percent"));
+  });
+
   it("does not show advanced criteria preview text under setup controls", async () => {
     const advancedParameters: ParameterItem[] = [
       {
@@ -433,6 +572,58 @@ describe("ParameterSettings criteria tabs", () => {
     expect(api.updateParameter).not.toHaveBeenCalled();
   });
 
+  it("saves multiple apply rules as OR items", async () => {
+    const masterItems = [
+      { item_no: "R-001", item_name1: "ABAMECTIN 1.8% W/V EC", common_name: "ABAMECTIN 1.8% W/V EC" },
+      { item_no: "R-002", item_name1: "METALAXYL 35% DS (PINK)", common_name: "METALAXYL 35% DS (PINK)" },
+      { item_no: "R-003", item_name1: "CHLOROTHALONIL 50% W/V SC", common_name: "CHLOROTHALONIL 50% W/V SC" },
+    ];
+    vi.mocked(api.get).mockImplementation((path) => Promise.resolve({
+      data: { data: path === "/master-items" ? masterItems : [] },
+    } as Awaited<ReturnType<typeof api.get<unknown>>>));
+    api.getParameters.mockResolvedValueOnce([
+      {
+        _id: "p-rules",
+        name: "parameter ทดสอบ",
+        scope: "qc",
+        status: "active",
+        applyAll: false,
+        valueFields: [{ label: "Result", type: "text" }],
+      },
+    ]);
+    api.updateParameter.mockResolvedValueOnce({} as ParameterItem);
+
+    renderPage();
+
+    const parameterName = await screen.findByText("parameter ทดสอบ");
+    const row = parameterName.closest("tr");
+    expect(row).not.toBeNull();
+    fireEvent.click(within(row as HTMLTableRowElement).getByTitle("แก้ไข"));
+
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "เลือกประเภทสาร (น้ำ / ทราย / ผง / ของเหลว / ของแข็ง)" }));
+    fireEvent.click(await screen.findByRole("button", { name: "ผง" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "เพิ่มกฎ" }));
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "เลือกประเภท common name (EC / SC / WP ...)" }));
+    fireEvent.click(await screen.findByRole("button", { name: /EC - น้ำ/ }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "เพิ่มกฎ" }));
+
+    expect(within(dialog).getByText("item 1")).toBeInTheDocument();
+    expect(within(dialog).getByText("item 2")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "บันทึกการแก้ไข" }));
+
+    await waitFor(() => expect(api.updateParameter).toHaveBeenCalledTimes(1));
+    const [, payload] = api.updateParameter.mock.calls[0] as [string, ParameterItem];
+    expect(payload.applyRules).toEqual([
+      { productTypes: ["powder"] },
+      { commonNames: ["EC"] },
+    ]);
+    expect(payload.productTypes).toEqual([]);
+    expect(payload.commonNames).toEqual([]);
+  });
+
   it("shows head criteria columns for admin in label tolerance tab", async () => {
     api.getParameters.mockResolvedValueOnce([
       {
@@ -455,7 +646,7 @@ describe("ParameterSettings criteria tabs", () => {
     renderPage();
 
     const criteriaTabList = await waitFor(() => screen.getAllByRole("tablist")[1]);
-    const labelToleranceTab = within(criteriaTabList).getAllByRole("tab")[3];
+    const labelToleranceTab = within(criteriaTabList).getByRole("tab", { name: "ตาม %สาร" });
     fireEvent.mouseDown(labelToleranceTab);
     fireEvent.click(labelToleranceTab);
     await screen.findByText("ABAMECTIN / 1%");
@@ -491,7 +682,7 @@ describe("ParameterSettings criteria tabs", () => {
     renderPage();
 
     const criteriaTabList = await waitFor(() => screen.getAllByRole("tablist")[1]);
-    const labelToleranceTab = within(criteriaTabList).getAllByRole("tab")[3];
+    const labelToleranceTab = within(criteriaTabList).getByRole("tab", { name: "ตาม %สาร" });
     fireEvent.mouseDown(labelToleranceTab);
     fireEvent.click(labelToleranceTab);
     await screen.findByText("ABAMECTIN / 1%");

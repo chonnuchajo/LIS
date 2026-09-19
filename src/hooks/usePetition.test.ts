@@ -1,6 +1,6 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { usePetitionList } from './usePetition';
+import { usePetition, usePetitionList } from './usePetition';
 
 function mockFetchOk() {
   const fn = vi.fn(async () => ({
@@ -52,9 +52,23 @@ describe('usePetitionList auto-refetch', () => {
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(afterMount));
   });
 
-  it('does NOT refetch on focus by default (no opt-in)', async () => {
+  it('refetches on focus by default', async () => {
     const { result } = renderHook(() =>
       usePetitionList({ page: 1, limit: 100, status: 'sampleSent' }),
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const afterMount = fetchMock.mock.calls.length;
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(afterMount));
+  });
+
+  it('can disable refetch on focus', async () => {
+    const { result } = renderHook(() =>
+      usePetitionList({ page: 1, limit: 100, status: 'sampleSent' }, { refetchOnFocus: false, pollMs: 0 }),
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
     const afterMount = fetchMock.mock.calls.length;
@@ -65,5 +79,61 @@ describe('usePetitionList auto-refetch', () => {
     await new Promise((r) => setTimeout(r, 50));
 
     expect(fetchMock.mock.calls.length).toBe(afterMount);
+  });
+
+  it('polls while the tab stays visible', async () => {
+    const { result } = renderHook(() =>
+      usePetitionList(
+        { page: 1, limit: 100, status: 'sampleSent' },
+        { refetchOnFocus: false, pollMs: 20 },
+      ),
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const afterMount = fetchMock.mock.calls.length;
+
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(afterMount));
+  });
+
+  it('includes assigned-to filters in the petition list request', async () => {
+    const { result } = renderHook(() =>
+      usePetitionList({
+        page: 1,
+        limit: 50,
+        status: 'sampleSent,pendingReview,inProgress',
+        assignedToEmployeeId: 'E123',
+        assignedToNames: ['Analyst A', 'Analyst Alias'],
+      }),
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const requestedUrl = new URL(String(fetchMock.mock.calls[0][0]), 'http://localhost');
+    expect(requestedUrl.searchParams.get('assignedToEmployeeId')).toBe('E123');
+    expect(requestedUrl.searchParams.getAll('assignedToName')).toEqual(['Analyst A', 'Analyst Alias']);
+  });
+});
+
+describe('usePetition auto-refetch', () => {
+  let fetchMock: ReturnType<typeof mockFetchOk>;
+
+  beforeEach(() => {
+    fetchMock = mockFetchOk();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('refetches petition detail on focus by default', async () => {
+    const { result } = renderHook(() => usePetition('petition-1'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const afterMount = fetchMock.mock.calls.length;
+
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(afterMount));
   });
 });

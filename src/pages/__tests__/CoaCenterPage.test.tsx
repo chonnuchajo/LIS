@@ -236,6 +236,8 @@ describe("CoaCenterPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /แฟ้มปี 2569/ }));
 
     expect(await screen.findByText("00022026")).toBeInTheDocument();
+    const requestedRow = await screen.findByRole("row", { name: /P-2608-0004/ });
+    expect(within(requestedRow).getByRole("button", { name: /สร้าง COA/ })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "สถานะ" })).not.toBeInTheDocument();
     expect(screen.queryByText("00012025")).not.toBeInTheDocument();
   });
@@ -283,6 +285,41 @@ describe("CoaCenterPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "สถานะ ดำเนินการแล้ว" }));
 
     expect(screen.queryByRole("button", { name: /สร้าง COA/ })).not.toBeInTheDocument();
+  });
+
+  it("shows ERP COA requests without opening the create dialog", async () => {
+    vi.mocked(api.getCoaDocuments).mockResolvedValueOnce({
+      items: [{
+        _id: "external-coa-request-SO26040020-10000",
+        coaNo: null,
+        coaYear: new Date().getFullYear(),
+        revision: 0,
+        status: "requested",
+        petitionId: "external-coa-request-SO26040020-10000",
+        petitionNoSnapshot: "SO26040020",
+        customerSnapshot: { name: "Customer A", company: "ICPL" },
+        selectedItemSeqs: [10000],
+        sampleSnapshots: [{ itemSeq: 10000, sampleName: "Carval", commonName: "SPIRODICLOFEN 24 % W/V SC", sampleId: "FC-CAVAL-1X16", condition: "16*1 L" }],
+        resultSnapshots: [],
+        print: { printCount: 0 },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        externalCoaRequest: { saleOrderNo: "SO26040020", pendingStatus: "pending shipment", shipmentDate: "2026-05-26T00:00:00.000Z" },
+      }],
+    });
+
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "สถานะ ขอ COA" }));
+
+    const requestedRow = await screen.findByRole("row", { name: /SO26040020/ });
+    expect(within(requestedRow).getByText("คำขอจาก ERP")).toBeInTheDocument();
+    expect(within(requestedRow).getByText("pending shipment")).toBeInTheDocument();
+    expect(within(requestedRow).getByText("ERP")).toBeInTheDocument();
+    expect(within(requestedRow).queryByRole("button", { name: /สร้าง COA/ })).not.toBeInTheDocument();
+
+    fireEvent.click(requestedRow);
+
+    expect(api.getEligibleCoaPetitions).not.toHaveBeenCalled();
   });
 
   it("warns on repeated common name and batch then sends existing COA to approval", async () => {

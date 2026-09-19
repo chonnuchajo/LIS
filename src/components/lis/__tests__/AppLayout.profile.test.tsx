@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
+import { AppPreferencesProvider } from "@/context/AppPreferencesContext";
 import AppLayout from "../AppLayout";
 
 vi.mock("@/components/lis/AppSidebar", () => ({
@@ -47,11 +48,13 @@ function renderLayout() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/home"]}>
-        <AppLayout>
-          <div>Page content</div>
-        </AppLayout>
-      </MemoryRouter>
+      <AppPreferencesProvider>
+        <MemoryRouter initialEntries={["/home"]}>
+          <AppLayout>
+            <div>Page content</div>
+          </AppLayout>
+        </MemoryRouter>
+      </AppPreferencesProvider>
     </QueryClientProvider>,
   );
 }
@@ -83,5 +86,18 @@ describe("AppLayout profile placement", () => {
     if (!wrapper) throw new Error("Desktop sidebar rail wrapper not found");
 
     expect(wrapper).toHaveClass("sticky", "z-40");
+  });
+
+  it("lets the desktop sidebar collapse toggle overhang render as a full circle", () => {
+    renderLayout();
+
+    const wrapper = screen
+      .getAllByTestId("app-sidebar")
+      .map((s) => s.parentElement)
+      .find((el) => el?.className.includes("sticky"));
+    if (!wrapper) throw new Error("Desktop sidebar rail wrapper not found");
+
+    expect(wrapper).toHaveClass("overflow-visible");
+    expect(wrapper).not.toHaveClass("overflow-hidden");
   });
 });

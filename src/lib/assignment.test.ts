@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAssignedTo } from './assignment';
+import { assigneeNamesForUser, isAssignedTo } from './assignment';
 
 describe('isAssignedTo', () => {
   it('matches by employeeId even when display names differ', () => {
@@ -34,6 +34,20 @@ describe('isAssignedTo', () => {
   it('falls back to name when the petition predates employeeId capture', () => {
     expect(
       isAssignedTo({ name: 'สมชาย' }, { employeeId: 'E123', name: 'สมชาย' }),
+    ).toBe(true);
+  });
+
+  it('matches Dev Lab Analyze to the fake Dev Lab Analyst assignee', () => {
+    expect(assigneeNamesForUser({ name: 'Dev Lab Analyze' })).toEqual([
+      'Dev Lab Analyze',
+      'Dev Lab Analyst',
+    ]);
+    expect(isAssignedTo({ name: 'Dev Lab Analyst' }, { name: 'Dev Lab Analyze' })).toBe(true);
+    expect(
+      isAssignedTo(
+        { employeeId: 'DEV-lab-analyst-dept-lab-2s2', name: 'Dev Lab Analyst' },
+        { employeeId: 'DEV-lab-analyze-dept-lab-2s2', name: 'Dev Lab Analyze' },
+      ),
     ).toBe(true);
   });
 

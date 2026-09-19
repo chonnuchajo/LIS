@@ -6,7 +6,7 @@
 // (never throws — callers in routes/petitions.js don't await it).
 const LineGroup = require('../models/LineGroup');
 const line = require('./line');
-const { hasLabTrack, isLabBatch } = require('./petitionStatusLog');
+const { hasLabTrack, shouldSendItemToLab } = require('./petitionStatusLog');
 const { requiresQcTrack } = require('./petitionSubmissionRules');
 
 const DEPT_LABELS = { production: 'แผนกผลิต', rm: 'แผนก RM', fg: 'แผนก FG' };
@@ -21,7 +21,7 @@ function assigneeSide(assignee) {
 }
 
 function hasLabItem(petition) {
-  return (petition?.items || []).some((it) => isLabBatch(it.batchNo || ''));
+  return (petition?.items || []).some((it) => shouldSendItemToLab(it));
 }
 
 // Short "N รายการ · <first sample>" summary line for a petition's items.
@@ -48,6 +48,7 @@ function petitionStatusText(petition) {
   if (petition?.labCompletedAt) return 'รอออกผล';
   if (s === 'inProgress') return 'กำลังตรวจ';
   if (s === 'pendingReview') return 'รับตัวอย่างแล้ว';
+  if (s === 'deliveringQC' && (petition?.qcReceivedAt || petition?.labReceivedAt || petition?.receivedAt)) return 'รับตัวอย่างแล้ว';
   if (s === 'sampleSent') return 'ส่งตัวอย่างแล้ว — รอรับ';
   if (s === 'deliveringQC') return 'กำลังส่งตัวอย่าง';
   return String(s || '-');
@@ -59,6 +60,14 @@ function audiencesForEvent(petition, payload) {
   const qcTrack = requiresQcTrack(petition);
   const labTrack = hasLabTrack(petition);
   const bothSides = [qcTrack ? 'qc' : null, labTrack ? 'lab' : null].filter(Boolean);
+  const sampleSentAudiences = () => {
+    if (!qcTrack) return ['lab'];
+    const sentToLab =
+      petition?.sentToLab === true ||
+      petition?.sendToLab === true ||
+      ((petition ?? {}).items ?? []).some((item) => item?.sentToLab === true || item?.sendToLab === true);
+    return ['qc', sentToLab ? 'lab' : null].filter(Boolean);
+  };
   switch (payload?.event) {
     case 'created':
       return qcTrack ? ['qc'] : ['lab'];
@@ -68,7 +77,7 @@ function audiencesForEvent(petition, payload) {
     }
     case 'statusChanged':
       switch (payload?.toStatus) {
-        case 'sampleSent': return bothSides;
+        case 'sampleSent': return sampleSentAudiences();
         // ผลออก/ปิดงาน → แจ้งฝ่ายตรวจ + แจ้งกลับแผนกผู้ยื่นคำขอ (petition.dept ตรงกับ audience key)
         case 'success':    return [...bothSides, petition?.dept].filter(Boolean);
         case 'approved':   return [qcTrack ? 'qc' : null, petition?.dept].filter(Boolean);

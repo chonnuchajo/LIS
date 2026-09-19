@@ -7,6 +7,8 @@ const ChemicalRequisition = require('../models/ChemicalRequisition');
 const StockUnit = require('../models/StockUnit');
 const User = require('../models/User');
 const crypto = require('crypto');
+const { normalizeRoles } = require('../lib/roles');
+const { mergeBaseRolesForFamilies } = require('../lib/roleFamilies');
 const { isValidReceiveType, isValidUnitType } = require('../lib/stockSource');
 const { sumWeights } = require('../lib/requisitionWeights');
 const { normalizeActorFields } = require('../lib/stockActor');
@@ -24,6 +26,7 @@ const {
   normalizeDeductionResolutionInput,
 } = require('../lib/deductionResolution');
 const { buildInUseItems, canAcknowledgeDeduction } = require('../lib/standardsInUse');
+const { normalizeSixMonthStockItems } = require('../lib/sixMonthStockItems');
 const {
   buildStandardExportDateRange,
   buildStandardLotExportHtml,
@@ -32,6 +35,10 @@ const {
   dateStamp,
   sanitizeFilenameSegment,
 } = require('../lib/stockHistoryExport');
+
+const STOCK_ALL_ITEM_URL = process.env.STOCK_ALL_ITEM_URL || 'https://n8n-plant.icpladda.com/webhook/api/stock-all-item';
+const STOCK_ALL_ITEM_TIMEOUT_MS = 15_000;
+const SIX_MONTH_MEDICINE_DEPARTMENT = 'คลังสินค้า FG';
 
 async function genUniqueQrId() {
   for (let i = 0; i < 5; i++) {
@@ -53,15 +60,6 @@ async function standardLabelCodeDefaults(std, count, now = new Date()) {
     .select('labelCode')
     .lean();
   return buildStandardLabelCodeDefaults(std.code, units, { count: normalizeDefaultLabelCodeCount(count), now });
-}
-
-function duplicateLabelCode(labelCodes) {
-  const seen = new Set();
-  for (const code of labelCodes) {
-    if (seen.has(code)) return code;
-    seen.add(code);
-  }
-  return '';
 }
 
 async function resolveReceiveLabelCodes(std, bottles, now = new Date()) {
@@ -88,14 +86,6 @@ async function resolveReceiveLabelCodes(std, bottles, now = new Date()) {
     return next;
   });
 
-  const duplicateInRequest = duplicateLabelCode(labelCodes);
-  if (duplicateInRequest) throw new Error(`Code ${duplicateInRequest} ซ้ำในรายการรับเข้า`);
-
-  const existing = await StockUnit.findOne({ itemCode: std.code, labelCode: { $in: labelCodes } })
-    .select('labelCode')
-    .lean();
-  if (existing) throw new Error(`Code ${existing.labelCode} ถูกใช้แล้ว`);
-
   return labelCodes;
 }
 
@@ -108,6 +98,73 @@ function normalizeUnitLabelCodeUpdate(labelCode, itemCode) {
     throw new Error(`Code ต้องขึ้นต้นด้วย ${prefix} และตามด้วยปี/เลขขวด เช่น ${prefix}6901`);
   }
   return parsedCode.labelCode;
+}
+
+function normalizeUnitLabelCodeSearch(labelCode) {
+  return String(labelCode ?? '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function applyStockUnitItemTypeFilter(filter, itemType) {
+  const normalizedItemType = String(itemType ?? '').trim();
+  if (!normalizedItemType) return;
+  if (normalizedItemType === 'standard') {
+    filter.$and = [
+      ...(Array.isArray(filter.$and) ? filter.$and : []),
+      { $or: [{ itemType: 'standard' }, { itemType: { $exists: false } }, { itemType: null }, { itemType: '' }] },
+    ];
+    return;
+  }
+  filter.itemType = normalizedItemType;
+}
+
+function displayCodeYearCandidatesFromBuddhistTwoDigits(buddhistYear) {
+  const gregorianTwoDigits = (buddhistYear + 100 - 43) % 100;
+  return [...new Set([
+    buddhistYear,
+    2500 + buddhistYear,
+    2000 + gregorianTwoDigits,
+    1900 + gregorianTwoDigits,
+  ])];
+}
+
+function parseStandardUnitDisplayCodeQuery(labelCode) {
+  const normalized = normalizeUnitLabelCodeSearch(labelCode);
+  if (!/^.{2}\d{2}\d+$/.test(normalized)) return null;
+  const buddhistYear = Number(normalized.slice(2, 4));
+  const bottleNo = Number(normalized.slice(4));
+  if (!Number.isInteger(buddhistYear) || !Number.isInteger(bottleNo) || bottleNo < 1) return null;
+  return {
+    normalized,
+    bottleNo,
+    labelRunYears: displayCodeYearCandidatesFromBuddhistTwoDigits(buddhistYear),
+  };
+}
+
+function standardUnitDisplayCode(unit) {
+  const labelCode = normalizeUnitLabelCodeSearch(unit?.labelCode);
+  if (labelCode) return labelCode;
+  const labelRunNo = Number(unit?.labelRunNo);
+  const labelRunYear = Number(unit?.labelRunYear);
+  if (!Number.isInteger(labelRunNo) || labelRunNo < 1 || !Number.isInteger(labelRunYear) || labelRunYear <= 0) return '';
+  let buddhistYear = labelRunYear % 100;
+  if (labelRunYear >= 1900 && labelRunYear < 2400) buddhistYear = (labelRunYear + 543) % 100;
+  try {
+    return normalizeUnitLabelCodeSearch(formatStandardLabelCode(unit?.itemCode ?? '', buddhistYear, labelRunNo));
+  } catch {
+    return '';
+  }
+}
+
+function uniqueStockUnits(units) {
+  const seen = new Set();
+  const out = [];
+  for (const unit of units) {
+    const key = String(unit?._id || unit?.qrId || '');
+    if (key && seen.has(key)) continue;
+    if (key) seen.add(key);
+    out.push(unit);
+  }
+  return out;
 }
 
 async function personOf(req) {
@@ -124,6 +181,70 @@ const RECEIVE_BARCODE_MODELS = {
 
 function normalizeReceiveBarcode(value) {
   return String(value || '').trim();
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function badRequest(message) {
+  const err = new Error(message);
+  err.statusCode = 400;
+  return err;
+}
+
+async function fetchStockAllItems() {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), STOCK_ALL_ITEM_TIMEOUT_MS);
+  try {
+    const response = await fetch(STOCK_ALL_ITEM_URL, {
+      headers: { accept: 'application/json' },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`stock-all-item returned ${response.status}`);
+    }
+    const payload = await response.json();
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+    if (Array.isArray(payload?.items)) return payload.items;
+    return [];
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function buildTransactionFilter(query = {}) {
+  const { itemType, itemId, qrId, action, search, user, createdFrom, createdTo } = query;
+  const filter = {};
+  const and = [];
+  if (itemType) filter.itemType = itemType;
+  if (itemId) filter.itemId = itemId;
+  if (qrId) filter.qrId = String(qrId).trim();
+  if (action) filter.action = action;
+  if (String(search || '').trim()) {
+    const regex = new RegExp(escapeRegExp(String(search).trim()), 'i');
+    and.push({ $or: [{ itemName: regex }, { itemCode: regex }, { userName: regex }, { userEmail: regex }] });
+  }
+  if (String(user || '').trim()) {
+    const regex = new RegExp(escapeRegExp(String(user).trim()), 'i');
+    and.push({ $or: [{ userName: regex }, { userEmail: regex }] });
+  }
+  if (createdFrom || createdTo) {
+    filter.createdAt = {};
+    if (createdFrom) {
+      const from = new Date(createdFrom);
+      if (Number.isNaN(from.getTime())) throw badRequest('Invalid createdFrom');
+      filter.createdAt.$gte = from;
+    }
+    if (createdTo) {
+      const to = new Date(createdTo);
+      if (Number.isNaN(to.getTime())) throw badRequest('Invalid createdTo');
+      filter.createdAt.$lt = to;
+    }
+  }
+  if (and.length) filter.$and = and;
+  return filter;
 }
 
 function receiveBarcodePayload(category, item, barcode) {
@@ -149,17 +270,190 @@ function requestHeader(req, name) {
   return req.get?.(name) || req.headers?.[String(name).toLowerCase()] || '';
 }
 
+function decodedHeader(req, name) {
+  const value = requestHeader(req, name);
+  if (!value) return '';
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return String(value);
+  }
+}
+
 async function userMeta(req) {
   if (req._stockUserMeta) return req._stockUserMeta;
   const raw = {
     email: req.body?._user?.email || requestHeader(req, 'x-user-email') || requestHeader(req, 'x-lis-user') || '',
     name: req.body?._user?.name || requestHeader(req, 'x-user-name') || '',
+    department: req.body?._user?.department || decodedHeader(req, 'x-user-department') || decodedHeader(req, 'x-lis-department') || '',
   };
   const email = String(raw.email || '').trim().toLowerCase();
   const stored = email ? await User.findOne({ email }).lean() : null;
   const actor = normalizeActorFields(raw, stored || {});
-  req._stockUserMeta = { userEmail: actor.email, userName: actor.name };
+  req._stockUserMeta = {
+    userEmail: actor.email,
+    userName: actor.name,
+    userDepartment: String(stored?.department || raw.department || '').trim(),
+  };
   return req._stockUserMeta;
+}
+
+const STOCK_DEDUCTION_ACTION_TIME_ZONE = 'Asia/Bangkok';
+const STOCK_DEDUCTION_MANAGER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const STOCK_DEDUCTION_MANAGER_ROLES = new Set(['admin', 'lab-inventory']);
+
+function normalizedEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+const SYNTHETIC_DEV_EMAIL_SUFFIX = '.dev@icpladda.com';
+const SYNTHETIC_DEV_ROLE_ID_RX = /^[a-z0-9][a-z0-9_-]*$/;
+const SYNTHETIC_DEV_KNOWN_ROLE_IDS = [
+  'lab-data-config',
+  'lab-inventory',
+  'lab-analyze',
+  'lab-analyst',
+  'qc-data-config',
+  'qc-reviewer',
+  'lab-config',
+  'lab-head',
+  'qc-staff',
+  'qc-head',
+  'viewer',
+  'admin',
+  'lab',
+  'qc',
+].sort((a, b) => b.length - a.length);
+
+function syntheticDevRoleIdsFromSlug(slug) {
+  const rolesPart = String(slug || '').split('-dept-')[0];
+  if (!rolesPart) return [];
+  const roleIds = [];
+  let remaining = rolesPart;
+  while (remaining) {
+    const roleId = SYNTHETIC_DEV_KNOWN_ROLE_IDS.find((candidate) => (
+      remaining === candidate || remaining.startsWith(`${candidate}-`)
+    ));
+    if (!roleId) return [];
+    roleIds.push(roleId);
+    remaining = remaining.length === roleId.length ? '' : remaining.slice(roleId.length + 1);
+  }
+  return roleIds;
+}
+
+function isLoopbackIp(value) {
+  const ip = String(value || '').trim().toLowerCase().replace(/^::ffff:/, '');
+  return ip === '127.0.0.1' || ip === '::1';
+}
+
+function syntheticDevRolesFromEmail(email, req) {
+  if (process.env.ALLOW_DEV_STATUS !== 'true' && !isLoopbackIp(req?.ip)) return [];
+  const normalized = normalizedEmail(email);
+  if (!normalized.endsWith(SYNTHETIC_DEV_EMAIL_SUFFIX)) return [];
+  const roleSlug = normalized.slice(0, -SYNTHETIC_DEV_EMAIL_SUFFIX.length);
+  if (!SYNTHETIC_DEV_ROLE_ID_RX.test(roleSlug)) return [];
+  const roleIds = syntheticDevRoleIdsFromSlug(roleSlug);
+  return mergeBaseRolesForFamilies(roleIds.length > 0 ? roleIds : [roleSlug]);
+}
+
+function calendarDayKey(value, timeZone = STOCK_DEDUCTION_ACTION_TIME_ZONE) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const part = (type) => parts.find((row) => row.type === type)?.value || '';
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+function canManageOwnTodayDeduction(tx, actorEmail, now = new Date()) {
+  if (!tx || tx.action !== 'deduct') return false;
+  const owner = normalizedEmail(tx.userEmail);
+  const actor = normalizedEmail(actorEmail);
+  if (!owner || !actor || owner !== actor) return false;
+  return calendarDayKey(tx.createdAt) === calendarDayKey(now);
+}
+
+function canManageStockDeduction(tx, actor, now = new Date()) {
+  if (!tx || tx.action !== 'deduct') return false;
+  const createdAt = tx.createdAt ? new Date(tx.createdAt) : null;
+  const createdAtMs = createdAt?.getTime?.() ?? NaN;
+  const nowMs = now.getTime();
+  const hasManagerRole = normalizeRoles(actor).some((role) => STOCK_DEDUCTION_MANAGER_ROLES.has(role));
+  if (hasManagerRole) {
+    return Number.isFinite(createdAtMs) && createdAtMs <= nowMs && nowMs - createdAtMs <= STOCK_DEDUCTION_MANAGER_WINDOW_MS;
+  }
+  return canManageOwnTodayDeduction(tx, actor?.email || actor?.userEmail || '', now);
+}
+
+async function stockManagementActor(req) {
+  const meta = await userMeta(req);
+  const email = normalizedEmail(meta.userEmail);
+  const stored = email ? await User.findOne({ email }).lean() : null;
+  const storedRoles = normalizeRoles(stored);
+  return {
+    email: meta.userEmail,
+    userEmail: meta.userEmail,
+    name: meta.userName,
+    department: String(stored?.department || meta.userDepartment || '').trim(),
+    roles: storedRoles.length > 0 ? storedRoles : syntheticDevRolesFromEmail(meta.userEmail, req),
+  };
+}
+
+function isVolumeDeduction(tx) {
+  return tx?.volumeDelta != null || String(tx?.unit || tx?.volumeUnit || '').toLowerCase() === 'mg';
+}
+
+function transactionDeductionAmount(tx) {
+  const volumeDelta = Number(tx?.volumeDelta);
+  if (tx?.volumeDelta != null && Number.isFinite(volumeDelta)) return Math.abs(volumeDelta);
+  const delta = Number(tx?.delta);
+  if (tx?.delta != null && Number.isFinite(delta)) return Math.abs(delta);
+  return Array.isArray(tx?.weights) ? sumWeights(tx.weights) : 0;
+}
+
+function normalizePositiveAmount(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  return amount;
+}
+
+function normalizeDeductionEditInput(body = {}, tx = {}) {
+  let amount = null;
+  let weights;
+  if (isVolumeDeduction(tx) && Array.isArray(body.weights)) {
+    weights = body.weights.map((weight) => Number(weight));
+    if (!weights.length || weights.some((weight) => !Number.isFinite(weight) || weight <= 0)) {
+      return { error: 'กรุณากรอกน้ำหนักทุกช่องให้มากกว่า 0' };
+    }
+    amount = sumWeights(weights);
+  } else {
+    amount = normalizePositiveAmount(body.amount ?? body.qty);
+  }
+  if (!amount) return { error: 'จำนวนที่ตัดไม่ถูกต้อง' };
+
+  const previousAmount = transactionDeductionAmount(tx);
+  if (tx.itemType === 'solvent' && tx.qrId && amount !== previousAmount) {
+    return { error: 'รายการเบิกจาก QR รายขวดแก้จำนวนไม่ได้ ให้ลบแล้วเบิกใหม่' };
+  }
+  if (tx.itemType === 'solvent' && !Number.isInteger(amount)) {
+    return { error: 'จำนวนขวดต้องเป็นจำนวนเต็มบวก' };
+  }
+  const beforeQty = Number(tx.beforeQty);
+  if (Number.isFinite(beforeQty) && beforeQty >= 0 && amount > beforeQty) {
+    return { error: 'จำนวนที่ตัดต้องไม่เกินคงเหลือก่อนตัด' };
+  }
+  return {
+    value: {
+      amount,
+      weights,
+      note: body.note === undefined ? String(tx.note || '') : String(body.note || ''),
+    },
+  };
 }
 
 async function logTransaction(data) {
@@ -296,6 +590,127 @@ async function markSolventUnitsEmptyForDeduction(item, qty) {
   }
 }
 
+async function markSolventUnitsEmptyForDeductionStrict(solventId, qty) {
+  const count = requireWholeBottleCount(qty);
+  if (!count) throw new Error('จำนวนขวดต้องเป็นจำนวนเต็มบวก');
+  const units = await StockUnit.find({ itemType: 'solvent', itemId: String(solventId), status: 'active' })
+    .sort({ receivedDate: 1, createdAt: 1, _id: 1 })
+    .limit(count);
+  if (units.length < count) throw new Error('ขวดสารเคมีพร้อมใช้งานไม่พอ');
+  for (const unit of units) {
+    unit.status = 'empty';
+    if (unit.volume) unit.volume.remaining = 0;
+    await unit.save();
+  }
+  return units;
+}
+
+async function restoreSolventUnit(unit) {
+  unit.status = 'active';
+  if (unit.volume && Number(unit.volume.remaining) <= 0) {
+    unit.volume.remaining = Number(unit.volume.initial) || 0;
+  }
+  await unit.save();
+}
+
+async function restoreSolventUnitsForDeduction(solventId, qty, qrId) {
+  const count = requireWholeBottleCount(qty);
+  if (!count) return;
+  if (qrId) {
+    const unit = await StockUnit.findOne({ itemType: 'solvent', itemId: String(solventId), qrId: String(qrId).trim(), status: 'empty' });
+    if (unit) await restoreSolventUnit(unit);
+    return;
+  }
+  const units = await StockUnit.find({ itemType: 'solvent', itemId: String(solventId), status: 'empty' })
+    .sort({ updatedAt: -1, _id: -1 })
+    .limit(count);
+  for (const unit of units) await restoreSolventUnit(unit);
+}
+
+async function updateStockQuantity(Model, itemId, path, diff, errorMessage) {
+  if (diff === 0) return Model.findById(itemId);
+  const filter = { _id: itemId };
+  if (diff < 0) filter[path] = { $gte: Math.abs(diff) };
+  const updated = await Model.findOneAndUpdate(filter, { $inc: { [path]: diff } }, { new: true });
+  if (!updated) throw new Error(errorMessage);
+  return updated;
+}
+
+function stockUnitQueryForTransaction(tx) {
+  if (tx.qrId) return { qrId: tx.qrId, itemType: 'standard' };
+  if (tx.unitId) return { _id: tx.unitId, itemType: 'standard' };
+  throw new Error('ไม่พบข้อมูลขวดของรายการเบิก');
+}
+
+async function adjustStockUnitDeduction(tx, diff) {
+  if (diff === 0) return;
+  const query = stockUnitQueryForTransaction(tx);
+  if (diff < 0) {
+    const amountToDeduct = Math.abs(diff);
+    const updated = await StockUnit.findOneAndUpdate(
+      { ...query, status: 'active', 'volume.remaining': { $gte: amountToDeduct } },
+      { $inc: { 'volume.remaining': -amountToDeduct } },
+      { new: true },
+    );
+    if (!updated) throw new Error('ปริมาณคงเหลือไม่พอ');
+    if (Number(updated.volume?.remaining) <= 0) {
+      updated.status = 'empty';
+      await updated.save();
+    }
+    return;
+  }
+
+  const unit = await StockUnit.findOne(query);
+  if (!unit) throw new Error('ไม่พบขวด (QR)');
+  const currentRemaining = Number(unit.volume?.remaining) || 0;
+  const initialAmount = Number(unit.volume?.initial);
+  const nextRemaining = currentRemaining + diff;
+  if (Number.isFinite(initialAmount) && initialAmount > 0 && nextRemaining > initialAmount) {
+    throw new Error('จำนวนคืนกลับเกินปริมาณตั้งต้นของขวด');
+  }
+  if (!unit.volume) {
+    unit.volume = { initial: nextRemaining, remaining: nextRemaining, unit: tx.volumeUnit || tx.unit || 'mg' };
+  } else {
+    unit.volume.remaining = nextRemaining;
+  }
+  if (nextRemaining > 0 && unit.status === 'empty') unit.status = 'active';
+  await unit.save();
+}
+
+async function adjustSolventDeduction(tx, diff) {
+  if (diff === 0) return;
+  if (diff < 0) {
+    const emptiedUnits = await markSolventUnitsEmptyForDeductionStrict(tx.itemId, Math.abs(diff));
+    try {
+      await updateStockQuantity(StockSolvent, tx.itemId, 'qty', diff, 'จำนวน stock ไม่พอ');
+    } catch (err) {
+      for (const unit of emptiedUnits) await restoreSolventUnit(unit);
+      throw err;
+    }
+    return;
+  }
+  await updateStockQuantity(StockSolvent, tx.itemId, 'qty', diff, 'ไม่พบสารเคมี');
+  await restoreSolventUnitsForDeduction(tx.itemId, diff, tx.qrId);
+}
+
+async function adjustDeductionStock(tx, nextAmount) {
+  const previousAmount = transactionDeductionAmount(tx);
+  const diff = previousAmount - nextAmount;
+  if (diff === 0) return;
+  if (isVolumeDeduction(tx)) {
+    await adjustStockUnitDeduction(tx, diff);
+  } else if (tx.itemType === 'standard') {
+    const tier = TIERS.includes(tx.tier) ? tx.tier : 'primary';
+    await updateStockQuantity(StockStandard, tx.itemId, `${tier}.qty`, diff, 'จำนวน stock ไม่พอ');
+  } else if (tx.itemType === 'solvent') {
+    await adjustSolventDeduction(tx, diff);
+  } else if (tx.itemType === 'glassware') {
+    await updateStockQuantity(StockGlassware, tx.itemId, 'qty', diff, 'จำนวน stock ไม่พอ');
+  } else {
+    throw new Error('ไม่รองรับประเภทรายการเบิกนี้');
+  }
+}
+
 // Pure: can this unit give up `mg`? (no DB) — shared by the endpoint and the
 // lab-completion settle validator so both agree on the rules.
 function planDeductMg(unit, mg) {
@@ -351,6 +766,25 @@ async function deductMgFromUnit(qrId, mg, meta = {}) {
 }
 
 function publicStockUnitPayload(unit) {
+  if (unit.itemType === 'solvent') {
+    const remaining = Number(unit.volume?.remaining ?? 0);
+    const initialMl = Number(unit.volume?.initial ?? 0);
+    return {
+      kind: 'solvent',
+      id: unit.itemId || unit.itemCode,
+      qrId: unit.qrId,
+      name: unit.itemName,
+      sizeLiter: initialMl > 0 ? initialMl / 1000 : 0,
+      qty: unit.status === 'active' && remaining > 0 ? 1 : 0,
+      lotNo: unit.lotNo || '',
+      lotBottleNo: unit.lotBottleNo || null,
+      exp: unit.exp || null,
+      volume: unit.volume,
+      status: unit.status,
+      photoUrls: unit.photoUrls || [],
+      updatedAt: unit.updatedAt,
+    };
+  }
   return {
     kind: 'standard',
     qrId: unit.qrId,
@@ -450,6 +884,27 @@ router.post('/barcodes/register', async (req, res) => {
 });
 
 /* ==================== STANDARDS ==================== */
+
+router.get('/medicine-six-months', async (req, res) => {
+  try {
+    const actor = await stockManagementActor(req);
+    const actorRoles = normalizeRoles(actor);
+    if (!actorRoles.includes('admin') && !actorRoles.includes('qc-head') && actor.department !== SIX_MONTH_MEDICINE_DEPARTMENT) {
+      return res.status(403).json({ error: 'เฉพาะ Admin / QC Head / คลังสินค้า FG เท่านั้น' });
+    }
+    const referenceDate = new Date();
+    const rows = await fetchStockAllItems();
+    res.json({
+      serverTime: referenceDate.toISOString(),
+      referenceMonth: referenceDate.toISOString().slice(0, 7),
+      items: normalizeSixMonthStockItems(rows, referenceDate),
+    });
+  } catch (err) {
+    const status = err.name === 'AbortError' ? 504 : 502;
+    const message = err.name === 'AbortError' ? 'stock-all-item timeout' : err.message;
+    res.status(status).json({ error: message });
+  }
+});
 
 router.get('/standards', async (req, res) => {
   try {
@@ -796,12 +1251,6 @@ router.patch('/units/:qrId', async (req, res) => {
     if (labelCode !== undefined) {
       const nextLabelCode = normalizeUnitLabelCodeUpdate(labelCode, unit.itemCode);
       if (nextLabelCode) {
-        const existing = await StockUnit.findOne({
-          _id: { $ne: unit._id },
-          itemCode: unit.itemCode,
-          labelCode: nextLabelCode,
-        }).select('labelCode').lean();
-        if (existing) throw new Error(`Code ${nextLabelCode} ถูกใช้แล้ว`);
         unit.labelCode = nextLabelCode;
       } else {
         unit.labelCode = '';
@@ -828,16 +1277,34 @@ router.patch('/units/:qrId', async (req, res) => {
   }
 });
 
-// list units: GET /units?itemCode=&status=&kind=
+// list units: GET /units?itemCode=&status=&kind=&labelCode=
 router.get('/units', async (req, res) => {
   try {
-    const { itemCode, itemType, itemId, status, kind } = req.query;
+    const { itemCode, itemType, itemId, status, kind, labelCode } = req.query;
     const f = {};
     if (itemCode) f.itemCode = itemCode;
-    if (itemType) f.itemType = String(itemType).trim();
+    applyStockUnitItemTypeFilter(f, itemType);
     if (itemId) f.itemId = String(itemId).trim();
     if (status) f.status = status;
     if (kind) f.kind = kind;
+
+    const normalizedLabelCode = normalizeUnitLabelCodeSearch(labelCode);
+    if (normalizedLabelCode) {
+      const directUnits = await StockUnit.find({ ...f, labelCode: normalizedLabelCode }).sort({ createdAt: -1 }).limit(2000);
+      const parsedDisplayCode = parseStandardUnitDisplayCodeQuery(normalizedLabelCode);
+      const displayCodeUnits = parsedDisplayCode
+        ? await StockUnit.find({
+          ...f,
+          labelRunNo: parsedDisplayCode.bottleNo,
+          labelRunYear: { $in: parsedDisplayCode.labelRunYears },
+          $or: [{ labelCode: '' }, { labelCode: null }, { labelCode: { $exists: false } }],
+        }).sort({ createdAt: -1 }).limit(2000)
+        : [];
+      const units = uniqueStockUnits([...directUnits, ...displayCodeUnits])
+        .filter((unit) => standardUnitDisplayCode(unit) === normalizedLabelCode);
+      return res.json(units);
+    }
+
     const units = await StockUnit.find(f).sort({ createdAt: -1 }).limit(2000);
     res.json(units);
   } catch (err) {
@@ -977,7 +1444,7 @@ router.post('/solvents/:id/receive', async (req, res) => {
     const receivedDate = new Date();
     const meta = await userMeta(req);
     const createdBy = meta.userName ? { email: meta.userEmail, name: meta.userName } : undefined;
-    await createSolventUnitsForReceive({ item, qty: amount, lotNo, exp, sizeLiter, photoUrls, receivedDate, createdBy });
+    const receivedUnits = await createSolventUnitsForReceive({ item, qty: amount, lotNo, exp, sizeLiter, photoUrls, receivedDate, createdBy });
     await logTransaction({
       itemType: 'solvent',
       itemId: item._id.toString(),
@@ -991,7 +1458,8 @@ router.post('/solvents/:id/receive', async (req, res) => {
       photoUrls: photoUrls.length ? photoUrls : undefined,
       ...meta,
     });
-    res.json(item);
+    const payload = typeof item.toObject === 'function' ? item.toObject() : item;
+    res.json({ ...payload, receivedUnits });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -1286,27 +1754,58 @@ router.post('/transactions/:id/resolve-deduction', async (req, res) => {
   }
 });
 
+router.patch('/transactions/:id/deduction', async (req, res) => {
+  try {
+    const tx = await StockTransaction.findById(req.params.id);
+    if (!tx) return res.status(404).json({ error: 'ไม่พบรายการเบิก' });
+    const actor = await stockManagementActor(req);
+    if (!canManageStockDeduction(tx, actor)) {
+      return res.status(403).json({ error: 'แก้ไขได้เฉพาะเจ้าของในวันเดียวกัน หรือ admin/Lab Inventory ภายใน 7 วัน' });
+    }
+    const normalized = normalizeDeductionEditInput(req.body || {}, tx);
+    if (normalized.error) return res.status(400).json({ error: normalized.error });
+
+    const { amount, weights, note } = normalized.value;
+    await adjustDeductionStock(tx, amount);
+    const beforeQty = Number(tx.beforeQty);
+    if (isVolumeDeduction(tx)) {
+      tx.volumeDelta = -amount;
+      tx.volumeUnit = tx.volumeUnit || tx.unit || 'mg';
+      tx.unit = tx.unit || tx.volumeUnit || 'mg';
+      tx.weights = weights;
+    } else {
+      tx.delta = -amount;
+    }
+    if (Number.isFinite(beforeQty)) tx.afterQty = beforeQty - amount;
+    tx.note = note;
+    await tx.save();
+    return res.json(tx);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/transactions/:id/deduction', async (req, res) => {
+  try {
+    const tx = await StockTransaction.findById(req.params.id);
+    if (!tx) return res.status(404).json({ error: 'ไม่พบรายการเบิก' });
+    const actor = await stockManagementActor(req);
+    if (!canManageStockDeduction(tx, actor)) {
+      return res.status(403).json({ error: 'ลบได้เฉพาะเจ้าของในวันเดียวกัน หรือ admin/Lab Inventory ภายใน 7 วัน' });
+    }
+
+    await adjustDeductionStock(tx, 0);
+    await StockTransaction.deleteOne({ _id: tx._id });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+});
+
 router.get('/transactions', async (req, res) => {
   try {
-    const { itemType, itemId, qrId, action, createdFrom, createdTo, limit = 200, skip = 0 } = req.query;
-    const filter = {};
-    if (itemType) filter.itemType = itemType;
-    if (itemId) filter.itemId = itemId;
-    if (qrId) filter.qrId = String(qrId).trim();
-    if (action) filter.action = action;
-    if (createdFrom || createdTo) {
-      filter.createdAt = {};
-      if (createdFrom) {
-        const from = new Date(createdFrom);
-        if (Number.isNaN(from.getTime())) return res.status(400).json({ error: 'Invalid createdFrom' });
-        filter.createdAt.$gte = from;
-      }
-      if (createdTo) {
-        const to = new Date(createdTo);
-        if (Number.isNaN(to.getTime())) return res.status(400).json({ error: 'Invalid createdTo' });
-        filter.createdAt.$lt = to;
-      }
-    }
+    const { limit = 200, skip = 0 } = req.query;
+    const filter = buildTransactionFilter(req.query);
     const txs = await StockTransaction.find(filter)
       .sort({ createdAt: -1, _id: -1 })
       .skip(Math.max(0, Number.parseInt(skip, 10) || 0))
@@ -1327,12 +1826,16 @@ router.get('/transactions', async (req, res) => {
       return { ...tx, userEmail: actor.email || tx.userEmail, userName: actor.name || tx.userName };
     }));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.statusCode || 500).json({ error: err.message });
   }
 });
 
 module.exports = router;
 router.planDeductMg = planDeductMg;
 router.userMeta = userMeta;
+router.canManageOwnTodayDeduction = canManageOwnTodayDeduction;
+router.canManageStockDeduction = canManageStockDeduction;
+router.buildTransactionFilter = buildTransactionFilter;
+router.normalizeDeductionEditInput = normalizeDeductionEditInput;
 router.deductMgFromUnit = deductMgFromUnit;
 router.normalizeUnitLabelCodeUpdate = normalizeUnitLabelCodeUpdate;

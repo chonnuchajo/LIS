@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  isLabBatch,
-  type Petition,
-  type QCTestResult,
-} from '@/types/petition.types';
+import type { Petition, QCTestResult } from '@/types/petition.types';
 import { useAuth } from '@/hooks/useAuth';
 import { api, type ParameterItem } from '@/lib/api';
 import { normalizeRoles } from "@/lib/roles";
 import { getPetitionCategory, itemGroupKey, matchParametersForItem } from '@/lib/petitionTestItems';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
-import { isResearchAndDevelopmentPetition } from '@/lib/petitionRouting';
+import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
 import {
   expandFieldForItem,
   fieldValueList,
@@ -108,7 +104,11 @@ export default function PetitionView({ petition: p }: Props) {
             : unit.field.type === 'enum'
               ? (unit.field.expectedValues ?? []).join(', ')
               : describeStandard(effectiveField);
-          return fieldValueList(values, unit.field)
+          const valueList = unit.substanceName !== undefined
+            ? [values[unit.key]]
+            : fieldValueList(values, unit.field);
+
+          return valueList
             .map((value, valueIndex) => ({ value, valueIndex }))
             .filter(({ value }) => value != null && String(value).trim() !== '')
             .map(({ value, valueIndex }) => {
@@ -145,7 +145,7 @@ export default function PetitionView({ petition: p }: Props) {
         </CardHeader>
         <CardContent className="space-y-3">
           {p.items.map((item) => {
-            const lab = isResearchPetition || (item.batchNo && isLabBatch(item.batchNo));
+            const lab = isResearchPetition || shouldSendItemToLab(item);
             const itemCode = item.itemNo?.trim();
             const matchedParams = canSeeTestItems
               ? matchParametersForItem(item, visibleParameters, idsFor(item), { forceLabTrack: isResearchPetition, petitionCategory })
@@ -165,6 +165,7 @@ export default function PetitionView({ petition: p }: Props) {
                   <Field label="Batch No." value={item.batchNo} />
                   <Field label="วันที่ผลิต" value={item.productionDate} />
                   <Field label="ขนาดบรรจุ" value={item.packageUnit} />
+                  <Field label="จำนวนตัวอย่าง" value={String(item.sampleQuantity ?? 1)} />
                   <Field
                     label="ชื่อสามัญ"
                     value={

@@ -24,7 +24,7 @@ import { isAssignedTo } from '@/lib/assignment';
 import { labReceivedAt, labReceivedBy } from '@/lib/receiveStatus';
 import { useConfirm } from '@/context/ConfirmDialog';
 import { isFieldAbnormal, expandFieldForItem, resolveFieldStandard, resolveStandard, getEntryValues, optionOutputText, enumNormalValues, resolveConditionalOutput, isConditionalOutputAbnormal, resolveLabelTolerance } from '@/lib/parameterValidation';
-import { SG_FIELD_LABEL, FORM_ENTRY_INDEX_KEY } from '@/lib/formSpecificGravity';
+import { SG_FIELD_LABEL, FORM_ENTRY_INDEX_KEY, readSpecificGravityEntryValue } from '@/lib/formSpecificGravity';
 import type { ConditionContext, ResolvedOutput, RenderFieldUnit } from '@/lib/parameterValidation';
 import { describeResolvedStandard, formatLabelToleranceRange, labelToleranceBadge } from '@/lib/standardOperators';
 import { cn } from '@/lib/utils';
@@ -34,9 +34,9 @@ import { ReferenceFieldDisplay } from '@/components/lis/ReferenceFieldDisplay';
 import { getPetitionCategory, itemGroupKey, matchParametersForItem, visibleEnumOptions } from '@/lib/petitionTestItems';
 import { visibleFieldsForPhase } from '@/lib/phaseRetest';
 import { useItemGroupMembership } from '@/hooks/useItemGroupMembership';
-import { isResearchAndDevelopmentPetition, isLabBatchNo } from '@/lib/petitionRouting';
+import { isResearchAndDevelopmentPetition, shouldSendItemToLab } from '@/lib/petitionRouting';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 import {
-  PETITION_DEPT_LABELS,
   type Petition,
   type PetitionItem,
   type PetitionPhase,
@@ -70,9 +70,6 @@ function formatTime(d: Date | string | undefined) {
   const date = typeof d === 'string' ? new Date(d) : d;
   return date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 }
-
-const isLabBatchNo = (batchNo?: string | null) => /[16]$/.test(String(batchNo ?? '').trim());
-
 
 function resultKey(itemSeq: number, parameterId: string) {
   return `${itemSeq}__${parameterId}`;
@@ -135,7 +132,7 @@ function describeStandard(field: ParameterValueField): string {
 }
 
 function formatLabLabelToleranceRange(rv: ReturnType<typeof resolveLabelTolerance>, unit: string): string {
-  return formatLabelToleranceRange(rv, unit).replace(/^หัวหน้าตรวจสอบ/, 'เกณฑ์กลาง');
+  return formatLabelToleranceRange(rv, unit);
 }
 
 interface TestFieldProps {
@@ -192,14 +189,14 @@ function TestField({
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <label className="text-sm font-medium text-grey-700">
+        <label className="text-sm font-medium text-foreground">
           {field.label}
-          {field.unit && <span className="text-grey-400 font-normal ml-1">({field.unit})</span>}
+          {field.unit && <span className="text-muted-foreground font-normal ml-1">({field.unit})</span>}
           {field.required && !readOnly && <span className="text-red-500 ml-1">*</span>}
         </label>
         {headerMeta}
         {!readOnly && saveInfo?.state === 'saved' && saveInfo.savedBy && (
-          <span className="text-xs text-grey-400">
+          <span className="text-xs text-muted-foreground">
             กรอกโดย {saveInfo.savedBy} เมื่อ {formatTime(saveInfo.savedAt)}
           </span>
         )}
@@ -218,7 +215,7 @@ function TestField({
           </span>
         )}
         {!readOnly && saveInfo?.state === 'saving' && (
-          <Loader2 className="h-3 w-3 animate-spin text-grey-400" />
+          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
         )}
         {!readOnly && saveInfo?.state === 'saved' && (
           <CheckCircle2 className="h-3 w-3 text-green-500" />
@@ -240,7 +237,7 @@ function TestField({
             className={cn(
               'h-8 text-sm',
               isAbnormal && 'border-red-400 ring-1 ring-red-200',
-              readOnly && 'bg-grey-50 cursor-default',
+              readOnly && 'bg-muted cursor-default',
             )}
           >
             <SelectValue placeholder="เลือกค่า..." />
@@ -266,7 +263,7 @@ function TestField({
           </SelectContent>
         </Select>
       ) : field.type === 'photo' ? (
-        <div className="text-xs text-grey-400 italic py-1">แนบรูปภาพ (ยังไม่รองรับในเวอร์ชันนี้)</div>
+        <div className="text-xs text-muted-foreground italic py-1">แนบรูปภาพ (ยังไม่รองรับในเวอร์ชันนี้)</div>
       ) : (
         <div className="flex items-center gap-2">
           <Input
@@ -284,7 +281,7 @@ function TestField({
             className={cn(
               'h-8 text-sm',
               isAbnormal && 'border-red-400 ring-1 ring-red-200',
-              readOnly && 'bg-grey-50 cursor-default',
+              readOnly && 'bg-muted cursor-default',
             )}
             placeholder={
               field.standardOperator
@@ -306,11 +303,11 @@ function TestField({
       )}
 
       {customText && (
-        <p className="text-[11px] text-grey-600">ℹ️ {customText}</p>
+        <p className="text-[11px] text-muted-foreground">ℹ️ {customText}</p>
       )}
 
       {outputResult && outputResult.text && (
-        <p className={cn('text-[11px]', outputResult.kind === 'abnormal' ? 'text-red-600' : 'text-emerald-700')}>
+        <p className={cn('text-[11px]', outputResult.kind === 'abnormal' ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-300')}>
           ผลลัพธ์: {outputResult.text}
         </p>
       )}
@@ -337,13 +334,13 @@ function TestField({
       ) : null}
 
       {showNote && !readOnly && (
-        <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-2 space-y-1">
+        <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 space-y-1">
           <div className="flex items-center gap-2">
             <label className="text-xs font-medium text-amber-800">
               คำอธิบาย / หมายเหตุ <span className="text-red-500">*</span>
             </label>
             {noteSaveInfo?.state === 'saving' && (
-              <Loader2 className="h-3 w-3 animate-spin text-grey-400" />
+              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
             )}
             {noteSaveInfo?.state === 'saved' && (
               <CheckCircle2 className="h-3 w-3 text-green-500" />
@@ -357,10 +354,10 @@ function TestField({
             onChange={(e) => onNoteChange(e.target.value)}
             disabled={effectivelyDisabled}
             placeholder={`อธิบายเพิ่มเติมเมื่อเลือก "${strVal}"`}
-            className="w-full text-sm rounded border border-amber-300 bg-white px-2 py-1 min-h-[60px] focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:bg-grey-50 disabled:cursor-not-allowed"
+            className="w-full text-sm rounded border border-amber-500/40 bg-background px-2 py-1 min-h-[60px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:bg-muted disabled:cursor-not-allowed"
           />
           {noteSaveInfo?.state === 'saved' && noteSaveInfo.savedBy && (
-            <p className="text-xs text-amber-700">
+            <p className="text-xs text-amber-700 dark:text-amber-300">
               กรอกโดย {noteSaveInfo.savedBy} เมื่อ {formatTime(noteSaveInfo.savedAt)}
             </p>
           )}
@@ -660,7 +657,7 @@ export default function LabTestingDetailPage() {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
         </div>
       </AppLayout>
     );
@@ -669,7 +666,7 @@ export default function LabTestingDetailPage() {
   if (petitionError || !petition) {
     return (
       <AppLayout>
-        <div className="text-center text-grey-500">
+        <div className="text-center text-muted-foreground">
           {petitionError || 'ไม่พบข้อมูลคำร้อง'}
         </div>
       </AppLayout>
@@ -681,7 +678,7 @@ export default function LabTestingDetailPage() {
   // Items with no Lab-readable params should not appear here.
   const allLabBatchItems = isResearchAndDevelopmentPetition(petition)
     ? (petition.items ?? [])
-    : (petition.items ?? []).filter((it) => isLabBatchNo(it.batchNo));
+    : (petition.items ?? []).filter((it) => shouldSendItemToLab(it));
   const labItems = paramsLoaded
     ? allLabBatchItems.filter(
         (it) => matchLabParametersForItem(petition, it, allParameters, idsFor(it)).length > 0,
@@ -889,7 +886,7 @@ export default function LabTestingDetailPage() {
   const switchablePetitions = (worklistData?.items ?? []).filter((p) =>
     !!labReceivedAt(p) && (p.items ?? []).some(
       (it) =>
-        (isResearchAndDevelopmentPetition(p) || isLabBatchNo(it.batchNo)) &&
+        (isResearchAndDevelopmentPetition(p) || shouldSendItemToLab(it)) &&
         matchLabParametersForItem(p, it, allParameters, idsFor(it)).length > 0,
     ),
   );
@@ -902,19 +899,19 @@ export default function LabTestingDetailPage() {
           onBack={() => navigate('/lab-testing')}
           title={
             <span className="inline-flex items-center gap-2">
-              <FlaskConical className="h-5 w-5 text-sky-500" />
+              <FlaskConical className="h-5 w-5 text-primary" />
               {petition.petitionNo}
             </span>
           }
           actions={
-            <span className="text-sm text-grey-500">
+            <span className="text-sm text-muted-foreground">
               ผู้นำส่ง: {petition.submittedBy?.name ?? '-'}
               {labReceivedBy(petition) && ` · ผู้รับงาน: ${labReceivedBy(petition)}`}
             </span>
           }
         />
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+          <Badge variant="blue-soft">{petitionDepartmentLabel(petition)}</Badge>
           {wasReturned && (
             <span
               className="inline-flex items-center text-orange-500"
@@ -947,7 +944,7 @@ export default function LabTestingDetailPage() {
         {/* Worklist tab strip */}
         {switchablePetitions.length > 1 && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 -mt-2">
-            <span className="text-xs text-grey-500 shrink-0 mr-1">สลับไป:</span>
+            <span className="text-xs text-muted-foreground shrink-0 mr-1">สลับไป:</span>
             {switchablePetitions.map((p) => {
               const isActive = p._id === petition._id;
                 return (
@@ -958,8 +955,8 @@ export default function LabTestingDetailPage() {
                     className={cn(
                       'shrink-0 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs border transition-colors',
                       isActive
-                        ? 'bg-sky-500 text-white border-sky-500 cursor-default'
-                        : 'bg-white text-grey-700 border-grey-200 hover:border-sky-300 hover:bg-sky-50',
+                        ? 'bg-primary text-primary-foreground border-primary cursor-default'
+                        : 'bg-card text-card-foreground border-border hover:border-primary/40 hover:bg-accent',
                     )}
                     disabled={isActive}
                   >
@@ -972,7 +969,7 @@ export default function LabTestingDetailPage() {
         )}
 
         {labItems.length === 0 && (
-          <div className="text-center py-12 text-grey-400">ไม่มีรายการ Lab ในคำร้องนี้</div>
+              <div className="text-center py-12 text-muted-foreground">ไม่มีรายการ Lab ในคำร้องนี้</div>
         )}
 
         {hasAnyPhasedParam && (
@@ -997,7 +994,7 @@ export default function LabTestingDetailPage() {
           const phaseLocked = effectivePhase === 2 && currentPhase === 1;
           return (
             <Card key={item.seq} className="overflow-hidden">
-              <CardHeader className="bg-sky-50/60 pb-3">
+              <CardHeader className="bg-muted pb-3">
                 <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                   <span>รายการที่ {item.seq}: {item.sampleName || '-'}</span>
                   {item.batchNo && (
@@ -1012,13 +1009,13 @@ export default function LabTestingDetailPage() {
                   )}
                 </CardTitle>
                 {item.testItems && (
-                  <p className="text-xs text-grey-500 mt-1">รายการทดสอบ: {item.testItems}</p>
+                  <p className="text-xs text-muted-foreground mt-1">รายการทดสอบ: {item.testItems}</p>
                 )}
               </CardHeader>
 
               <CardContent className="pt-4 space-y-5">
                 {matchedParams.length === 0 ? (
-                  <p className="text-sm text-grey-400 italic">
+                  <p className="text-sm text-muted-foreground italic">
                     ไม่พบพารามิเตอร์ Lab ที่ตรงกับรายการทดสอบ
                   </p>
                 ) : (
@@ -1045,10 +1042,10 @@ export default function LabTestingDetailPage() {
                       return (
                         <div key={param._id} className="space-y-3">
                           <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-semibold text-grey-800 border-b pb-1 flex-1">
+                            <h3 className="text-sm font-semibold text-foreground border-b border-border pb-1 flex-1">
                               {param.name}
                             </h3>
-                            <Badge className="bg-sky-100 text-sky-800 text-[10px] font-semibold uppercase hover:bg-sky-100">
+                            <Badge className="bg-primary/10 text-primary text-[10px] font-semibold uppercase hover:bg-primary/10">
                               Lab
                             </Badge>
                             {param.hasPhases && (
@@ -1057,7 +1054,7 @@ export default function LabTestingDetailPage() {
                               </Badge>
                             )}
                             {param.note && (
-                              <span className="text-xs text-grey-400">{param.note}</span>
+                              <span className="text-xs text-muted-foreground">{param.note}</span>
                             )}
                           </div>
                           {(() => {
@@ -1106,10 +1103,10 @@ export default function LabTestingDetailPage() {
                                   onUnitChange(unit.key, next);
                                 };
                                 return (
-                                  <div key={unit.key} className="space-y-2 rounded-md border border-grey-200 p-2">
-                                    <p className="text-sm font-medium text-grey-700">
+                                  <div key={unit.key} className="space-y-2 rounded-md border border-border p-2">
+                                    <p className="text-sm font-medium text-foreground">
                                       {unit.field.label}
-                                      {unit.field.unit && <span className="text-grey-400 font-normal ml-1">({unit.field.unit})</span>}
+                                      {unit.field.unit && <span className="text-muted-foreground font-normal ml-1">({unit.field.unit})</span>}
                                     </p>
                                     {rows.map((rowVal, i) => {
                                       const isExisting = i < arr.length;
@@ -1223,7 +1220,7 @@ export default function LabTestingDetailPage() {
                                     </div>
                                   )}
                                   {beforeRef != null && beforeRef !== '' ? (
-                                    <p className="text-[10px] text-grey-400 mt-0.5">
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">
                                       ก่อน: <span className="font-mono">{String(beforeRef)}</span>
                                     </p>
                                   ) : null}
@@ -1276,9 +1273,9 @@ export default function LabTestingDetailPage() {
                                     const entryValues = savedRows[ei] ?? {};
                                     const canRemove = !fieldDisabled && (shown > 1 || ei < savedCount);
                                     return (
-                                      <div key={ei} className="rounded-lg border border-grey-200 p-3 space-y-2">
+                                      <div key={ei} className="rounded-lg border border-border p-3 space-y-2">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-xs font-semibold text-grey-600 flex-1">
+                                          <span className="text-xs font-semibold text-muted-foreground flex-1">
                                             รายการที่ {ei + 1}
                                           </span>
                                           {canRemove && (
@@ -1349,7 +1346,7 @@ export default function LabTestingDetailPage() {
                       return (
                         <div key={param._id} className="space-y-3 rounded-lg bg-indigo-50/40 border border-indigo-100 p-3">
                           <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-semibold text-grey-800 flex-1">
+                            <h3 className="text-sm font-semibold text-foreground flex-1">
                               {param.name}
                             </h3>
                             <Badge className="bg-indigo-100 text-indigo-800 text-[10px] font-semibold uppercase hover:bg-indigo-100">
@@ -1361,7 +1358,7 @@ export default function LabTestingDetailPage() {
                               </Badge>
                             )}
                             {param.note && (
-                              <span className="text-xs text-grey-400">{param.note}</span>
+                              <span className="text-xs text-muted-foreground">{param.note}</span>
                             )}
                           </div>
                           {(() => {
@@ -1398,13 +1395,13 @@ export default function LabTestingDetailPage() {
                               if (unit.field.multiple) {
                                 const arr = readMultiple(srcValues, unit.key);
                                 return (
-                                  <div key={unit.key} className="space-y-2 rounded-md border border-grey-200 p-2">
-                                    <p className="text-sm font-medium text-grey-700">
+                                  <div key={unit.key} className="space-y-2 rounded-md border border-border p-2">
+                                    <p className="text-sm font-medium text-foreground">
                                       {unit.field.label}
-                                      {unit.field.unit && <span className="text-grey-400 font-normal ml-1">({unit.field.unit})</span>}
+                                      {unit.field.unit && <span className="text-muted-foreground font-normal ml-1">({unit.field.unit})</span>}
                                     </p>
                                     {arr.length === 0 ? (
-                                      <p className="text-xs text-grey-400 italic">— ไม่มีค่า —</p>
+                                      <p className="text-xs text-muted-foreground italic">— ไม่มีค่า —</p>
                                     ) : (
                                       arr.map((rowVal, i) => (
                                         <TestField
@@ -1486,7 +1483,7 @@ export default function LabTestingDetailPage() {
                               // Read-only: one card per saved entry (no trailing add card).
                               const entryRows = getEntryValues({ entries: entriesByKey[k] }, param);
                               if (entryRows.length === 0) {
-                                return <p className="text-xs text-grey-400 italic pl-2">— QC ยังไม่กรอกรายการ —</p>;
+                                return <p className="text-xs text-muted-foreground italic pl-2">— QC ยังไม่กรอกรายการ —</p>;
                               }
                               // ถ้าเป็นพารามิเตอร์ ค่า ถพ. และมีหลายค่า → ให้ Lab เลือกค่าที่จะลงในใบคำขอรับบริการ
                               const isSgParam = (param.valueFields ?? []).some((f) => f.label === SG_FIELD_LABEL);
@@ -1499,8 +1496,8 @@ export default function LabTestingDetailPage() {
                               return (
                                 <div className="space-y-4">
                                   {showFormPicker && (
-                                    <div className="flex items-center gap-2 rounded-md bg-white border border-indigo-200 px-3 py-2">
-                                      <span className="text-xs font-semibold text-grey-700">ค่าที่ใช้ในใบคำขอรับบริการ:</span>
+                                    <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-card px-3 py-2 text-card-foreground">
+                                      <span className="text-xs font-semibold text-muted-foreground">ค่าที่ใช้ในใบคำขอรับบริการ:</span>
                                       <Select
                                         value={String(chosenIdx)}
                                         onValueChange={(v) =>
@@ -1512,14 +1509,15 @@ export default function LabTestingDetailPage() {
                                           <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {entryRows.map((ev, ei) => (
-                                            <SelectItem key={ei} value={String(ei)}>
-                                              รายการที่ {ei + 1}
-                                              {ev?.[SG_FIELD_LABEL] != null && ev[SG_FIELD_LABEL] !== ''
-                                                ? ` (${ev[SG_FIELD_LABEL]})`
-                                                : ''}
-                                            </SelectItem>
-                                          ))}
+                                          {entryRows.map((ev, ei) => {
+                                            const sgValue = readSpecificGravityEntryValue(ev, SG_FIELD_LABEL);
+                                            return (
+                                              <SelectItem key={ei} value={String(ei)}>
+                                                รายการที่ {ei + 1}
+                                                {sgValue != null && sgValue !== '' ? ` (${sgValue})` : ''}
+                                              </SelectItem>
+                                            );
+                                          })}
                                         </SelectContent>
                                       </Select>
                                     </div>
@@ -1529,14 +1527,14 @@ export default function LabTestingDetailPage() {
                                       key={ei}
                                       className={`rounded-lg border p-3 space-y-2 ${
                                         showFormPicker && ei === chosenIdx
-                                          ? 'border-indigo-400 bg-indigo-50/60'
-                                          : 'border-grey-200'
+                                          ? 'border-primary/50 bg-primary/10'
+                                          : 'border-border'
                                       }`}
                                     >
-                                      <span className="text-xs font-semibold text-grey-600">
+                                      <span className="text-xs font-semibold text-muted-foreground">
                                         รายการที่ {ei + 1}
                                         {showFormPicker && ei === chosenIdx && (
-                                          <span className="ml-1 text-indigo-700">← ใช้บนฟอร์ม</span>
+                                          <span className="ml-1 text-primary">← ใช้บนฟอร์ม</span>
                                         )}
                                       </span>
                                       {renderReadGrid(entryValues, undefined)}
@@ -1565,11 +1563,11 @@ export default function LabTestingDetailPage() {
               <RotateCcw className="h-4 w-4" /> ถูกส่งกลับให้แก้ไข
             </p>
             <p className="text-sm text-orange-800">{petition.labReturnNote}</p>
-            <label className="block text-xs font-medium text-gray-600 mt-2">อธิบายว่าทำใหม่อย่างไร (จำเป็น)</label>
+            <label className="block text-xs font-medium text-muted-foreground mt-2">อธิบายว่าทำใหม่อย่างไร (จำเป็น)</label>
             <textarea
               value={redoExplanation}
               onChange={(e) => setRedoExplanation(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 text-sm min-h-[80px] focus:outline-none focus:ring-1 focus:ring-orange-400"
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-orange-400"
               placeholder="เช่น คาลิเบรตเครื่องใหม่แล้วทดสอบซ้ำ"
             />
           </div>
@@ -1577,7 +1575,7 @@ export default function LabTestingDetailPage() {
 
         {/* Action buttons — เฉพาะตอนผู้ทดสอบยังไม่ยืนยัน */}
         {labItems.length > 0 && !petition.labCompletedAt && (
-          <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 bg-white border-t shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+          <div className="fixed bottom-0 left-0 right-0 z-50 md:left-72 px-4 sm:px-6 py-3 border-t border-border bg-background/95 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             <Button
               variant={isComplete ? 'primary' : 'outline'}
               onClick={isComplete ? handleSubmitResult : handleSaveDraft}
@@ -1592,12 +1590,12 @@ export default function LabTestingDetailPage() {
 
         {/* รอหัวหน้า Lab ออกผล */}
         {labItems.length > 0 && petition.labCompletedAt && !petition.labApprovedAt && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 flex flex-col items-center gap-3">
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 flex flex-col items-center gap-3">
             <div className="flex flex-col items-center gap-1">
               <CheckCircle2 className="h-6 w-6 text-amber-500" />
-              <p className="text-sm font-semibold text-amber-700">บันทึกผลแล้ว — รอหัวหน้า Lab ออกผล</p>
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">บันทึกผลแล้ว — รอหัวหน้า Lab ออกผล</p>
               {abnormalCount > 0 && (
-                <p className="text-xs text-red-600 flex items-center gap-1 mt-1">
+                <p className="text-xs text-destructive flex items-center gap-1 mt-1">
                   <AlertTriangle className="h-3.5 w-3.5" />คำร้องนี้มีค่าผิดปกติ {abnormalCount} รายการ
                 </p>
               )}
@@ -1607,10 +1605,10 @@ export default function LabTestingDetailPage() {
 
         {/* ผล Lab ออกแล้ว */}
         {petition.labApprovedAt && (
-          <div className="rounded-lg border border-green-200 bg-green-50 p-4 flex flex-col items-center gap-2">
+          <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-4 flex flex-col items-center gap-2">
             <CheckCircle2 className="h-6 w-6 text-green-500" />
-            <p className="text-sm font-semibold text-green-700">ผล Lab ออกแล้ว</p>
-            {petition.labApprovedBy && <p className="text-xs text-gray-500">โดย {petition.labApprovedBy}</p>}
+            <p className="text-sm font-semibold text-green-700 dark:text-green-300">ผล Lab ออกแล้ว</p>
+            {petition.labApprovedBy && <p className="text-xs text-muted-foreground">โดย {petition.labApprovedBy}</p>}
           </div>
         )}
 

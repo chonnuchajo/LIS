@@ -453,8 +453,8 @@ export default function PetitionTimelineDetailPage() {
     <style>{`@keyframes timeline-shimmer{0%{transform:translateX(-120%)}100%{transform:translateX(220%)}}`}</style>
     <PageHeader title="" onBack={() => navigate("/petition")} actions={<Button variant="primary-outline" size="sm" onClick={refreshTimeline}><RefreshCw className="h-4 w-4" />รีเฟรช</Button>} />
 
-    <Card className="border-black-50 shadow-none"><CardContent className="grid gap-5 p-5 xl:grid-cols-[112px_minmax(0,1fr)]">
-      <div className="flex aspect-square items-center justify-center rounded-[8px] border border-dashed border-grey-300 bg-grey-50 text-grey-400" aria-label="พื้นที่รูปตัวอย่าง"><ImageIcon className="h-8 w-8" /></div>
+    <Card className="border-black-50 shadow-none"><CardContent className="grid gap-4 p-4 sm:gap-5 sm:p-5 xl:grid-cols-[112px_minmax(0,1fr)]">
+      <div className="flex h-20 w-20 shrink-0 items-center justify-center justify-self-start rounded-[8px] border border-dashed border-grey-300 bg-grey-50 text-grey-400 sm:h-24 sm:w-24 xl:h-28 xl:w-28" aria-label="พื้นที่รูปตัวอย่าง"><ImageIcon className="h-8 w-8" /></div>
       <div className="min-w-0 space-y-4">
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-3">

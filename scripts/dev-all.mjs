@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { createDevEnvironments, stopChildProcessTree } from "./dev-process-tree.mjs";
 
 const defaultNpmCliPath = path.join(
   path.dirname(process.execPath),
@@ -12,17 +13,20 @@ const defaultNpmCliPath = path.join(
 const npmCliPath = process.env.npm_execpath || defaultNpmCliPath;
 const npmCommand = existsSync(npmCliPath) ? process.execPath : "npm";
 const npmArgs = existsSync(npmCliPath) ? [npmCliPath] : [];
+const { apiPort, apiProxyTarget, serverEnv, frontendEnv } = createDevEnvironments();
 
 const commands = [
   {
     name: "server",
     command: npmCommand,
     args: [...npmArgs, "--prefix", "server", "run", "dev"],
+    env: serverEnv,
   },
   {
     name: "frontend",
     command: npmCommand,
     args: [...npmArgs, "run", "dev:frontend"],
+    env: frontendEnv,
   },
 ];
 
@@ -42,16 +46,17 @@ function stopAll(signal = "SIGTERM") {
   shuttingDown = true;
 
   for (const child of children) {
-    if (!child.killed) {
-      child.kill(signal);
-    }
+    stopChildProcessTree(child, signal);
   }
 }
 
-for (const { name, command, args } of commands) {
+console.log(`[dev] backend PORT=${apiPort}; Vite proxy=${apiProxyTarget}`);
+
+for (const { name, command, args, env } of commands) {
   const child = spawn(command, args, {
     cwd: process.cwd(),
-    env: process.env,
+    env,
+    detached: process.platform !== "win32",
     stdio: ["inherit", "pipe", "pipe"],
   });
 

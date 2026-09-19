@@ -10,10 +10,18 @@ import { usePetition, useLabRequestsByPetition } from "@/hooks/usePetition";
 import { useItemGroupMembership } from "@/hooks/useItemGroupMembership";
 import { buildApprovalGroups } from "@/lib/qcApprovalRows";
 import { buildLabResultReportPages } from "@/lib/labResultReport";
+import { canPrintLabResult } from "@/lib/petitionPrintability";
+import { petitionDepartmentLabel } from "@/lib/petitionDepartment";
 import LabResultGroups from "@/components/petition/LabResultGroups";
 import LabResultReportTemplate, { LAB_REPORT_CSS } from "@/components/petition/LabResultReportTemplate";
 import PrintPreviewDialog from "@/components/lis/PrintPreviewDialog";
-import { PETITION_DEPT_LABELS, type QCTestResult } from "@/types/petition.types";
+import type { QCTestResult } from "@/types/petition.types";
+
+const PHYSICAL_PARAMETER_NAME = "กายภาพ";
+
+function isLabReportSourceParameter(parameter: ParameterItem): boolean {
+  return parameter.scope === "lab" || parameter.name?.trim() === PHYSICAL_PARAMETER_NAME;
+}
 
 export default function LabResultDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,12 +35,11 @@ export default function LabResultDetailPage() {
   const [paramsLoaded, setParamsLoaded] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
 
-  // เฉพาะ parameter ฝั่ง Lab เท่านั้น (scope === "lab") — ไม่รวม param ฝั่ง QC ที่แชร์ให้ Lab
-  // (เช่น ค่า ถพ.) เพราะหน้าผลวิเคราะห์ Lab ต้องเห็นเฉพาะผลของ parameter Lab
+  // รายงานต้องใช้ Lab parameters + กายภาพ เพื่อเติมสภาพตัวอย่างใน header
   useEffect(() => {
     api
       .getParameters()
-      .then((all) => setParameters(all.filter((p) => p.scope === "lab")))
+      .then((all) => setParameters(all.filter(isLabReportSourceParameter)))
       .catch(() => setParameters([]))
       .finally(() => setParamsLoaded(true));
   }, []);
@@ -44,7 +51,7 @@ export default function LabResultDetailPage() {
 
   const groups = useMemo(() => {
     if (!petition) return [];
-    return buildApprovalGroups(petition, parameters, results, groupMembership);
+    return buildApprovalGroups(petition, parameters.filter((parameter) => parameter.scope === "lab"), results, groupMembership);
   }, [petition, parameters, results, groupMembership]);
 
   const pages = useMemo(
@@ -53,6 +60,7 @@ export default function LabResultDetailPage() {
   );
 
   const report = <LabResultReportTemplate pages={pages} />;
+  const labResultPrintable = petition ? canPrintLabResult(petition) && pages.length > 0 : false;
 
   if (loading) {
     return (
@@ -83,14 +91,14 @@ export default function LabResultDetailPage() {
             </span>
           }
           actions={
-            <Button variant="primary-outline" onClick={() => setPrintOpen(true)} disabled={pages.length === 0} className="gap-2">
+            <Button variant="primary-outline" onClick={() => labResultPrintable && setPrintOpen(true)} disabled={!labResultPrintable} className="gap-2">
               <Printer className="h-4 w-4" /> พิมพ์ผลวิเคราะห์ Lab
             </Button>
           }
         />
 
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="blue-soft">{PETITION_DEPT_LABELS[petition.dept]}</Badge>
+          <Badge variant="blue-soft">{petitionDepartmentLabel(petition)}</Badge>
           <Badge variant="gray-soft" className="font-normal">
             ผู้นำส่ง: {petition.submittedBy?.name ?? "-"}
           </Badge>

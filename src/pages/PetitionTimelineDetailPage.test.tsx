@@ -199,6 +199,15 @@ describe("PetitionTimelineDetailPage", () => {
     expect(screen.getByLabelText("petition timeline")).not.toHaveTextContent("Required checks");
   });
 
+  it("keeps the sample image placeholder compact on tablet and mobile", async () => {
+    renderDetail();
+
+    const imageArea = await screen.findByLabelText("พื้นที่รูปตัวอย่าง");
+
+    expect(imageArea).toHaveClass("h-20", "w-20", "sm:h-24", "sm:w-24", "xl:h-28", "xl:w-28", "justify-self-start");
+    expect(imageArea).not.toHaveClass("aspect-square", "w-full");
+  });
+
   it("highlights unreceived estimate status in large orange text", async () => {
     Object.assign(mocks.petition, {
       assignedTo: undefined,
@@ -558,8 +567,22 @@ describe("PetitionTimelineDetailPage", () => {
     expect(documentButtons[2]).toHaveClass("border-red-500");
   });
 
-  it("shows the lab-result print button when Lab has issued results", async () => {
-    mocks.petition.labApprovedAt = "2026-07-14T00:00:00.000Z";
+  it("hides the lab-result print button when QC has not confirmed Final Result", async () => {
+    Object.assign(mocks.petition, {
+      status: "success",
+      labApprovedAt: "2026-07-14T00:00:00.000Z",
+    });
+    renderDetail();
+    await screen.findByRole("heading", { name: "P-2607-001" });
+    expect(screen.queryByRole("button", { name: /พิมพ์ผลวิเคราะห์ Lab/ })).not.toBeInTheDocument();
+  });
+
+  it("shows the lab-result print button when Lab has issued results and QC has confirmed Final Result", async () => {
+    Object.assign(mocks.petition, {
+      status: "approved",
+      approvedAt: "2026-07-13T08:00:00.000Z",
+      labApprovedAt: "2026-07-14T00:00:00.000Z",
+    });
     renderDetail();
     await screen.findByRole("heading", { name: "P-2607-001" });
     expect(screen.getByRole("button", { name: /พิมพ์ผลวิเคราะห์ Lab/ })).toBeInTheDocument();

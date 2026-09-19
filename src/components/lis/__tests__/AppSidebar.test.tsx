@@ -39,14 +39,14 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 
-function renderSidebar() {
+function renderSidebar(props?: React.ComponentProps<typeof AppSidebar>) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={["/home"]}>
-        <AppSidebar />
+        <AppSidebar {...props} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -110,6 +110,23 @@ describe("AppSidebar", () => {
     expect(toggle).toHaveClass("z-40", "w-8", "h-8", "-right-4", "ring-4", "ring-background", "shadow-md");
   });
 
+  it("does not clip the desktop collapse toggle where it overhangs the rail", () => {
+    const { container } = renderSidebar();
+    const aside = container.querySelector("aside");
+    if (!aside) throw new Error("Sidebar aside not found");
+
+    expect(aside).toHaveClass("overflow-visible");
+    expect(aside).not.toHaveClass("overflow-hidden");
+  });
+
+  it("keeps the drawer sidebar clipped so mobile content cannot spill out", () => {
+    const { container } = renderSidebar({ variant: "drawer" });
+    const aside = container.querySelector("aside");
+    if (!aside) throw new Error("Sidebar aside not found");
+
+    expect(aside).toHaveClass("overflow-hidden");
+  });
+
   it("ไม่แสดงกลุ่มรายการโปรดเมื่อยังไม่มีรายการโปรด", async () => {
     renderSidebar();
 
@@ -145,6 +162,37 @@ describe("AppSidebar", () => {
 
     await screen.findByPlaceholderText("ค้นหาเมนู...");
     expect(screen.queryByText("รายการโปรด")).not.toBeInTheDocument();
+  });
+
+  it("แสดง Assign Lab แค่ครั้งเดียวเมื่อกลุ่มมี /petition/:id และ /petition/assign", async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        data: {
+          roles: [{ id: "admin", name: "Admin" }],
+          groups: [
+            {
+              id: "samples",
+              name: "งานตัวอย่าง",
+              paths: ["/petition", "/petition/:id"],
+              sortOrder: 10,
+            },
+            {
+              id: "lab",
+              name: "LAB",
+              paths: ["/petition/assign"],
+              sortOrder: 20,
+            },
+          ],
+          permissions: {},
+        },
+      },
+    });
+    const { container } = renderSidebar();
+
+    await screen.findByText("LAB");
+
+    const nav = getSidebarNav(container);
+    expect(nav.querySelectorAll('a[href="/petition/assign"]')).toHaveLength(1);
   });
 
   it("รายการที่ถูกเพิ่มเป็นโปรดโผล่สองที่ — กลุ่มรายการโปรด และกลุ่มเดิม", async () => {

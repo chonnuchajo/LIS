@@ -40,6 +40,7 @@ app.use(apiGuard);
 // API Routes
 mountApi('/samples', require('./routes/samples'));
 mountApi('/auth', require('./routes/auth'));
+mountApi('/profile', require('./routes/profile'));
 mountApi('/physical-results', require('./routes/physicalResults'));
 mountApi('/approvals', require('./routes/approvals'));
 mountApi('/densities', require('./routes/densities'));

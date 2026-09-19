@@ -4,11 +4,12 @@ import { Html5Qrcode, Html5QrcodeScannerState } from 'html5-qrcode';
 import { AlertCircle, CheckCircle2, Keyboard, QrCode, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Petition } from '@/types/petition.types';
-import { PETITION_DEPT_LABELS, PETITION_STATUS_CONFIG } from '@/types/petition.types';
+import { PETITION_STATUS_CONFIG } from '@/types/petition.types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/hooks/useAuth';
+import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
 
 const READER_ID = 'qc-receive-qr-reader';
 type Phase = 'scanning' | 'confirming' | 'loading' | 'success' | 'error' | 'no-camera';
@@ -17,6 +18,7 @@ interface ReceivedRow {
   _id: string;
   petitionNo: string;
   dept: Petition['dept'];
+  submittedBy?: Petition['submittedBy'];
   itemCount: number;
 }
 
@@ -50,6 +52,18 @@ async function fetchPetitionByScannedCode(code: string): Promise<Petition> {
 async function receivePetition(id: string, actor?: string): Promise<Petition> {
   const res = await api.patch<Petition>(`/petitions/${id}/receive`, { actor, side: 'qc' });
   return res.data.data;
+}
+
+function apiErrorMessage(err: unknown, fallback: string): string {
+  const data = (err as { response?: { data?: unknown } })?.response?.data;
+  if (data && typeof data === 'object') {
+    const direct = (data as { message?: unknown }).message;
+    if (typeof direct === 'string' && direct.trim()) return direct;
+    const nested = (data as { error?: { message?: unknown } }).error?.message;
+    if (typeof nested === 'string' && nested.trim()) return nested;
+  }
+  const message = (err as { message?: unknown })?.message;
+  return typeof message === 'string' && message.trim() ? message : fallback;
 }
 
 interface Props {
@@ -183,8 +197,7 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
       }
       setPhase('confirming');
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'ไม่พบข้อมูลคำร้อง';
-      setErrorMsg(msg);
+      setErrorMsg(apiErrorMessage(err, 'ไม่พบข้อมูลคำร้อง'));
       setPhase('error');
     }
   }
@@ -207,7 +220,13 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
       onReceived();
       if (continuousMode) {
         setReceivedList((prev) => [
-          { _id: received._id, petitionNo: received.petitionNo, dept: received.dept, itemCount: received.items?.length ?? 0 },
+          {
+            _id: received._id,
+            petitionNo: received.petitionNo,
+            dept: received.dept,
+            submittedBy: received.submittedBy,
+            itemCount: received.items?.length ?? 0,
+          },
           ...prev,
         ]);
         showFlash(`รับแล้ว: ${received.petitionNo}`);
@@ -223,8 +242,7 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
         navigate(`/qc-testing/${received._id}`);
       }
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่';
-      setErrorMsg(msg);
+      setErrorMsg(apiErrorMessage(err, 'เกิดข้อผิดพลาด กรุณาลองใหม่'));
       setPhase('error');
     }
   }
@@ -334,7 +352,7 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
               </div>
               <div className="text-sm space-y-1 text-grey-600">
                 <p>ผู้นำส่ง: <span className="text-black-500">{petition.submittedBy?.name ?? '-'}</span></p>
-                <p>แผนก: <span className="text-black-500">{petition.dept}</span></p>
+                <p>แผนก: <span className="text-black-500">{petitionDepartmentLabel(petition)}</span></p>
                 <p>จำนวน: <span className="text-black-500">{petition.items.length} รายการ</span></p>
               </div>
               <div className="flex gap-2 pt-2">
@@ -394,7 +412,7 @@ export default function QrReceiveModal({ open, onClose, onReceived, manualOnly =
                       <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
                       <span className="font-semibold text-primary-500">{r.petitionNo}</span>
                       <span className="text-xs text-grey-500 truncate">
-                        {PETITION_DEPT_LABELS[r.dept]} · {r.itemCount} รายการ
+                        {petitionDepartmentLabel(r)} · {r.itemCount} รายการ
                       </span>
                     </div>
                   </li>
