@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { NAV_ITEMS, type NavItem } from "@/lib/navItems";
 import { normalizeFavorites } from "@/lib/favorites";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { useFavorites } from "@/hooks/useFavorites";
 import NavItemContextMenu from "./NavItemContextMenu";
 import { cn } from "@/lib/utils";
@@ -376,11 +377,11 @@ const AppSidebar = ({ variant = "desktop", onNavigate }: AppSidebarProps) => {
           )}
           {allSections.map((section, sIdx) => {
             const q = menuQuery.trim().toLowerCase();
-            const visibleItems = section.items.filter(
+            const visibleItems = rankSearchResults(section.items.filter(
               (item) =>
                 userCanAccessPath(effectiveUser, item.path, navGroups) &&
                 (q === "" || item.label.toLowerCase().includes(q)),
-            );
+            ), q, (item) => ({ primary: [item.label] }));
             if (visibleItems.length === 0) return null;
 
             const isGroupCollapsed = !collapsed && !!collapsedGroups[section.id];

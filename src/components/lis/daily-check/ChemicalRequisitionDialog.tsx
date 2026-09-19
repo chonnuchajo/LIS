@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { defaultFilter } from "cmdk";
 import { Check, ChevronsUpDown, QrCode } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { todayStr, validateRequisitionQty } from "@/lib/chemicalRequisition";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +56,7 @@ export default function ChemicalRequisitionDialog({
   const [qty, setQty] = useState("1");
   const [note, setNote] = useState("");
   const [pickOpen, setPickOpen] = useState(false);
+  const [solventSearch, setSolventSearch] = useState("");
   const [scanOpen, setScanOpen] = useState(false);
 
   const { data: solvents = [] } = useQuery({
@@ -64,6 +67,14 @@ export default function ChemicalRequisitionDialog({
   const solvent = useMemo(
     () => solvents.find((row) => row._id === solventId) ?? null,
     [solvents, solventId],
+  );
+  const visibleSolvents = useMemo(
+    () => rankSearchResults(
+      solvents.filter((row) => !solventSearch || defaultFilter(row.name.trim(), solventSearch) > 0),
+      solventSearch,
+      (row) => ({ primary: [row.name] }),
+    ),
+    [solvents, solventSearch],
   );
   const qtyNum = Number(qty);
   const qtyError = solvent ? validateRequisitionQty(qtyNum, solvent.qty) : "";
@@ -159,7 +170,7 @@ export default function ChemicalRequisitionDialog({
             <div>
               <Label className="mb-1.5 block">สารเคมี (solvent)</Label>
               <div className="flex gap-2">
-                <Popover open={pickOpen} onOpenChange={setPickOpen}>
+                <Popover open={pickOpen} onOpenChange={(open) => { setPickOpen(open); if (!open) setSolventSearch(""); }}>
                   <PopoverTrigger asChild>
                     <Button
                       type="button"
@@ -174,11 +185,11 @@ export default function ChemicalRequisitionDialog({
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-72 p-0" align="start">
-                    <Command>
-                      <CommandInput placeholder="ค้นหาชื่อสารเคมี" />
+                    <Command shouldFilter={false}>
+                      <CommandInput placeholder="ค้นหาชื่อสารเคมี" value={solventSearch} onValueChange={setSolventSearch} />
                       <CommandList>
                         <CommandEmpty>ไม่พบรายการ</CommandEmpty>
-                        {solvents.map((row) => (
+                        {visibleSolvents.map((row) => (
                           <CommandItem
                             key={row._id}
                             value={row.name}
@@ -186,6 +197,7 @@ export default function ChemicalRequisitionDialog({
                               setSolventId(row._id);
                               setSolventUnitQrId("");
                               setPickOpen(false);
+                              setSolventSearch("");
                             }}
                           >
                             <Check

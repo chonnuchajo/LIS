@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronsUpDown, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { defaultFilter } from "cmdk";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { api, type ItemGroupItem } from "@/lib/api";
 import { resolveItemGroups } from "@/lib/itemGroups";
 import { getItemNo, getRawCommonName, getTradeName } from "@/lib/masterItemFields";
@@ -48,6 +50,13 @@ function ChipMultiSelect({
   onChange: (next: string[]) => void; placeholder: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  useEffect(() => { if (!open) setSearch(""); }, [open]);
+  const rankedOptions = rankSearchResults(
+    options.filter((option) => !search || defaultFilter(option.trim(), search) > 0),
+    search,
+    (option) => ({ primary: [option] }),
+  );
   const toggle = (o: string) =>
     onChange(values.includes(o) ? values.filter((x) => x !== o) : [...values, o]);
   return (
@@ -73,12 +82,12 @@ function ChipMultiSelect({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-          <Command>
-            <CommandInput placeholder="ค้นหา..." className="h-9" />
+          <Command shouldFilter={false}>
+            <CommandInput value={search} onValueChange={setSearch} placeholder="ค้นหา..." className="h-9" />
             <CommandList>
               <CommandEmpty>ไม่พบ</CommandEmpty>
               <CommandGroup>
-                {options.map((o) => {
+                {rankedOptions.map((o) => {
                   const selected = values.includes(o);
                   return (
                     <CommandItem key={o} value={o} onSelect={() => toggle(o)}>

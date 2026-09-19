@@ -45,6 +45,35 @@ function renderStep(overrides: Partial<React.ComponentProps<typeof ItemsStep>> =
 }
 
 describe('ItemsStep master item selection', () => {
+  it.each([false, true])('ranks codes and retains fuzzy matches in manual picker=%s', (allowManualItemFields) => {
+    renderStep({
+      allowManualItemFields,
+      masterItemOptions: [
+        { itemNo: 'AA', sampleName: 'Rising name', commonName: 'Alpha', packageUnit: '1 L' },
+        { itemNo: 'RI-200', sampleName: 'Prefix first', commonName: 'Alpha', packageUnit: '1 L' },
+        { itemNo: 'RI-100', sampleName: 'Prefix second', commonName: 'Alpha', packageUnit: '1 L' },
+        { itemNo: 'RI', sampleName: 'Exact code', commonName: 'Alpha', packageUnit: '1 L' },
+        { itemNo: 'BB', sampleName: 'Alpha Beta', commonName: 'Alpha', packageUnit: '1 L' },
+      ],
+    });
+    fireEvent.click(allowManualItemFields
+      ? screen.getByLabelText('ชื่อสามัญ / Active Ingredient')
+      : screen.getByRole('combobox', { name: /ชื่อตัวอย่าง/ }));
+    const search = screen.getByPlaceholderText('ค้นหาชื่อตัวอย่างจาก Master Item...');
+    fireEvent.change(search, { target: { value: 'ri' } });
+    const options = screen.getAllByRole('option');
+    expect(options.slice(0, 4).map((option) => option.textContent)).toEqual([
+      expect.stringContaining('Exact code'),
+      expect.stringContaining('Prefix first'),
+      expect.stringContaining('Prefix second'),
+      expect.stringContaining('Rising name'),
+    ]);
+    fireEvent.change(search, { target: { value: 'albt' } });
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([expect.stringContaining('Alpha Beta')]);
+    fireEvent.change(search, { target: { value: '' } });
+    expect(screen.getAllByRole('option')[0]).toHaveTextContent('Rising name');
+  });
+
   it('requires selecting sample name from master item and fills common name plus package size', () => {
     const { onChange } = renderStep();
 

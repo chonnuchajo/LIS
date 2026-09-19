@@ -27,6 +27,7 @@ import { qcReceivedAt, qcReceivedBy, qcTrackStatusBadge } from '@/lib/receiveSta
 import { useArrivalFlashId } from '@/hooks/useArrivalFlash';
 import { isVisibleInQcTestingQueue } from '@/lib/petitionQueueVisibility';
 import { petitionDepartmentLabel } from '@/lib/petitionDepartment';
+import { rankSearchResults } from '@/lib/searchRanking';
 
 
 export default function QCTestingPage() {
@@ -53,10 +54,25 @@ export default function QCTestingPage() {
     limit: 50,
   });
 
-  const petitions: Petition[] = [
+  const visiblePetitions: Petition[] = [
     ...(data?.items ?? []),
     ...(staleReceivedData?.items ?? []),
   ].filter(isVisibleInQcTestingQueue);
+  const petitions = rankSearchResults(visiblePetitions, search, (petition) => {
+    const items = petition.items ?? [];
+    const itemNos = items.map((item) => item.itemNo).filter((itemNo) => itemNo?.trim());
+    return {
+      primary: itemNos.length ? itemNos : [petition.petitionNo],
+      secondary: [
+        petition.petitionNo,
+        ...(petition.prodOrderNos ?? []),
+        petition.productionWorkflow?.requestNo,
+        petition.productionWorkflow?.lisPetitionNo,
+        petition.submittedBy?.name,
+        ...items.flatMap((item) => [item.sampleName, item.commonName, item.batchNo, item.lotNo]),
+      ],
+    };
+  });
 
   // Bulk-fetch abnormal flag for petitions that may have results
   // (sampleSent has no results yet, so skip it)

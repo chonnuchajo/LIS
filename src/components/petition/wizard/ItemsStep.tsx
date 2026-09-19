@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { defaultFilter } from 'cmdk';
+import { rankSearchResults } from '@/lib/searchRanking';
 import { Check, ChevronsUpDown, Plus, Trash2 } from 'lucide-react';
 import {
   Command,
@@ -476,6 +478,16 @@ function MasterItemPicker({
   onPick: (option: PetitionMasterItemOption) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  useEffect(() => { if (!open) setSearch(''); }, [open]);
+  const rankedOptions = useMemo(() => rankSearchResults(
+    options.filter((option) => !search || defaultFilter(
+      [option.sampleName, option.commonName, option.packageUnit, option.itemNo].filter(Boolean).join(' ').trim(),
+      search,
+    ) > 0),
+    search,
+    (option) => ({ primary: [option.itemNo], secondary: [option.sampleName, option.commonName, option.packageUnit] }),
+  ), [options, search]);
   const selected = useMemo(() => {
     if (!value.sampleName) return null;
     return options.find((option) => (
@@ -515,12 +527,12 @@ function MasterItemPicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="ค้นหาชื่อตัวอย่างจาก Master Item..." />
+        <Command shouldFilter={false}>
+          <CommandInput value={search} onValueChange={setSearch} placeholder="ค้นหาชื่อตัวอย่างจาก Master Item..." />
           <CommandList>
             <CommandEmpty>ไม่พบชื่อตัวอย่างใน Master Item</CommandEmpty>
             <CommandGroup>
-              {options.map((option) => {
+              {rankedOptions.map((option) => {
                 const selectedOption = selected === option;
                 const commandValue = [
                   option.sampleName,
@@ -575,6 +587,16 @@ function ManualActiveIngredientMasterPicker({
   onPick: (option: PetitionMasterItemOption) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  useEffect(() => { if (!open) setSearch(''); }, [open]);
+  const rankedOptions = useMemo(() => rankSearchResults(
+    options.filter((option) => !search || defaultFilter(
+      [option.sampleName, option.commonName, option.packageUnit, option.itemNo].filter(Boolean).join(' ').trim(),
+      search,
+    ) > 0),
+    search,
+    (option) => ({ primary: [option.itemNo], secondary: [option.sampleName, option.commonName, option.packageUnit] }),
+  ), [options, search]);
   const selected = useMemo(() => {
     if (!value.sampleName) return null;
     return options.find((option) => (
@@ -613,12 +635,12 @@ function ManualActiveIngredientMasterPicker({
         align="start"
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        <Command>
-          <CommandInput placeholder="ค้นหาชื่อตัวอย่างจาก Master Item..." />
+        <Command shouldFilter={false}>
+          <CommandInput value={search} onValueChange={setSearch} placeholder="ค้นหาชื่อตัวอย่างจาก Master Item..." />
           <CommandList id={`${id}-master-options`}>
             <CommandEmpty>{loading ? 'กำลังโหลด Master Item...' : 'ไม่พบชื่อตัวอย่างใน Master Item'}</CommandEmpty>
             <CommandGroup>
-              {options.map((option) => {
+              {rankedOptions.map((option) => {
                 const selectedOption = selected === option;
                 const commandValue = [
                   option.sampleName,

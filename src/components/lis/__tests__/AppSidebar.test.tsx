@@ -164,6 +164,31 @@ describe("AppSidebar", () => {
     expect(screen.queryByText("รายการโปรด")).not.toBeInTheDocument();
   });
 
+  it("ranks matches within each group while preserving group and blank-query order", async () => {
+    getUserFavorites.mockResolvedValue({
+      email: "admin@example.com", paths: ["/stock-deduction", "/stock"],
+    });
+    vi.mocked(api.get).mockResolvedValue({ data: { data: {
+      roles: [{ id: "admin", name: "Admin" }],
+      groups: [{ id: "stock", name: "Stock group", paths: ["/stock-deduction", "/stock"] }],
+      permissions: {},
+    } } });
+    const { container } = renderSidebar();
+    await screen.findByText("Stock group");
+    await screen.findByText("รายการโปรด");
+    const nav = getSidebarNav(container);
+    const links = () => Array.from(nav.querySelectorAll("a"), (link) => link.getAttribute("href"));
+    const original = ["/stock-deduction", "/stock", "/stock-deduction", "/stock"];
+    expect(links()).toEqual(original);
+    const input = screen.getByPlaceholderText("ค้นหาเมนู...");
+    fireEvent.change(input, { target: { value: "stock" } });
+    expect(links()).toEqual(["/stock", "/stock-deduction", "/stock", "/stock-deduction"]);
+    expect(Array.from(nav.querySelectorAll("button > span.truncate"), (heading) => heading.textContent))
+      .toEqual(["รายการโปรด", "Stock group"]);
+    fireEvent.change(input, { target: { value: "" } });
+    expect(links()).toEqual(original);
+  });
+
   it("แสดง Assign Lab แค่ครั้งเดียวเมื่อกลุ่มมี /petition/:id และ /petition/assign", async () => {
     vi.mocked(api.get).mockResolvedValue({
       data: {

@@ -132,6 +132,59 @@ describe("StockDeduction item display", () => {
     ]);
   });
 
+  it("preserves server search ranking and request filters", async () => {
+    const choices = [
+      { itemCode: "OTHER", itemName: "67 name" },
+      { itemCode: "X67", itemName: "Contains" },
+      { itemCode: "67B", itemName: "Prefix" },
+      { itemCode: "67", itemName: "Exact" },
+    ];
+    const transactions = choices.map((choice) => ({
+      _id: choice.itemCode, itemId: choice.itemCode, itemType: "standard", action: "deduct",
+      volumeDelta: -1, unit: "mg", createdAt: "2026-07-10T01:00:00.000Z", ...choice,
+    }));
+    apiMock.getStockTransactions.mockImplementation(async (params) => params.search
+      ? [transactions[3], transactions[2], transactions[1], transactions[0]]
+      : transactions);
+    renderPage();
+    const searchInput = await screen.findByLabelText("ค้นหาชื่อสารหรือคนเบิก");
+    fireEvent.change(searchInput, { target: { value: "67" } });
+
+    await waitFor(() => expect(screen.getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[2].textContent)).toEqual([
+      "Exact", "Prefix", "Contains", "67 name",
+    ]));
+    expect(apiMock.getStockTransactions).toHaveBeenLastCalledWith({
+      action: "deduct", itemType: undefined, search: "67", limit: 200,
+    });
+
+    fireEvent.change(searchInput, { target: { value: "" } });
+    await waitFor(() => expect(screen.getAllByRole("row").slice(1).map((row) => within(row).getAllByRole("cell")[2].textContent)).toEqual(
+      choices.map((choice) => choice.itemName),
+    ));
+  });
+
+  it("keeps server ranking in daily summaries while search is active", async () => {
+    const transactions = [
+      { itemCode: "67", itemName: "Z exact" },
+      { itemCode: "670", itemName: "A prefix" },
+    ].map((choice) => ({
+      _id: choice.itemCode, itemId: choice.itemCode, itemType: "standard", action: "deduct",
+      volumeDelta: -1, unit: "mg", createdAt: "2026-07-10T01:00:00.000Z", ...choice,
+    }));
+    apiMock.getStockTransactions.mockResolvedValue(transactions);
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "เลือกวันที่ดูยอดเบิก" }));
+    await screen.findByRole("grid");
+    fireEvent.click(currentMonthDayButton(8));
+    const summary = await screen.findByLabelText("สรุปยอดเบิกตามวันที่");
+    const summaryNames = () => within(summary).getAllByText(/^(A prefix|Z exact)$/).map((item) => item.textContent);
+    await waitFor(() => expect(summaryNames()).toEqual(["A prefix", "Z exact"]));
+    fireEvent.change(screen.getByLabelText("ค้นหาชื่อสารหรือคนเบิก"), { target: { value: "67" } });
+    await waitFor(() => expect(summaryNames()).toEqual(["Z exact", "A prefix"]));
+    fireEvent.change(screen.getByLabelText("ค้นหาชื่อสารหรือคนเบิก"), { target: { value: "" } });
+    await waitFor(() => expect(summaryNames()).toEqual(["A prefix", "Z exact"]));
+  });
+
   it("puts scanned bottle QR into the deduction flow", async () => {
     renderPage();
 

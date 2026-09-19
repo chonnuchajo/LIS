@@ -7,6 +7,7 @@ const PhysicalResult = require('../models/PhysicalResult');
 const Approval = require('../models/Approval');
 const RealtimeDensity = require('../models/RealtimeDensity');
 const PetitionAuditLog = require('../models/PetitionAuditLog');
+const { buildSearchRankingStages } = require('../lib/searchRanking');
 const {
   bellDescribe,
   isCollapsibleDuplicate,
@@ -158,7 +159,17 @@ router.get('/', async (req, res) => {
     }
 
     const [docs, total, summaryTotal, statusCountRows] = await Promise.all([
-      Petition.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+      search
+        ? Petition.aggregate([
+          { $match: { ...q, deletedAt: null } },
+          ...buildSearchRankingStages(search, {
+            primary: ['petitionNo'],
+            secondary: ['prodOrderNos', 'productionWorkflow.requestNo', 'productionWorkflow.lisPetitionNo', 'submittedBy.name', 'items.batchNo'],
+          }, { createdAt: -1 }),
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
+        ]).then((rows) => rows.map((row) => Petition.hydrate(row)))
+        : Petition.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
       Petition.countDocuments(q),
       Petition.countDocuments(summaryQ),
       Petition.aggregate([
@@ -350,7 +361,16 @@ router.get('/audit-logs', async (req, res) => {
     }
 
     const [items, total] = await Promise.all([
-      PetitionAuditLog.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      search
+        ? PetitionAuditLog.aggregate([
+          { $match: q },
+          ...buildSearchRankingStages(search, {
+            primary: ['petitionNo'], secondary: ['actor', 'note'],
+          }, { createdAt: -1 }),
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
+        ])
+        : PetitionAuditLog.find(q).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
       PetitionAuditLog.countDocuments(q),
     ]);
     res.json({ items, total, page, limit });

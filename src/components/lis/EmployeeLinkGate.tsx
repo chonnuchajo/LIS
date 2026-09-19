@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { api } from "@/lib/api";
+import { rankSearchResults } from "@/lib/searchRanking";
 import { Input } from "@/components/ui/input";
 
 interface DirectoryEntry {
@@ -59,7 +60,11 @@ const EmployeeLinkGate = () => {
             e.department.toLowerCase().includes(q),
         )
       : directory;
-    return { items: matched.slice(0, 50), total: matched.length };
+    const ranked = rankSearchResults(matched, q, (employee) => ({
+      primary: [employee.employeeId || employee.name],
+      secondary: [employee.name, employee.department],
+    }));
+    return { items: ranked.slice(0, 50), total: ranked.length };
   }, [directory, search]);
 
   if (!needsLink) return null;
