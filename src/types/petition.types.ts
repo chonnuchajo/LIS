@@ -37,7 +37,7 @@ export const PETITION_STATUS_CONFIG: Record<
   inProgress:    { label: 'กำลังดำเนินการ',     variant: 'blue-soft' },
   success:       { label: 'ทดสอบเสร็จสิ้น',  variant: 'green-soft' },
   approved:      { label: 'เสร็จสิ้น', variant: 'purple-soft' },
-  rejected:      { label: 'ส่งกลับให้แก้ไข',    variant: 'red-soft' },
+  rejected:      { label: 'Rework',    variant: 'red-soft' },
 };
 
 // ===== Department =====

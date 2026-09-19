@@ -24,6 +24,11 @@ describe("statusBadge", () => {
   it("shows approved petitions as completed with the purple final-result tone", () => {
     expect(statusBadge("approved")).toEqual({ label: "เสร็จสิ้น", variant: "purple-soft" });
   });
+
+  it("shows rejected petitions as Rework with the existing red tone", () => {
+    expect(statusBadge("rejected")).toEqual({ label: "Rework", variant: "red-soft" });
+    expect(petitionStatusBadge({ status: "rejected" } as Petition)).toEqual({ label: "Rework", variant: "red-soft" });
+  });
 });
 
 describe("toneBadge", () => {
